@@ -26,6 +26,7 @@
 
 struct dcp_message_producers;
 class MockActiveStreamWithOverloadedRegisterCursor;
+class MockDcpMessageProducers;
 class MockDcpProducer;
 
 /*
@@ -65,7 +66,7 @@ public:
      */
     void notifyAndStepToCheckpoint(
             MockDcpProducer& producer,
-            dcp_message_producers& producers,
+            MockDcpMessageProducers& producers,
             cb::mcbp::ClientOpcode expectedOp =
                     cb::mcbp::ClientOpcode::DcpSnapshotMarker,
             bool fromMemory = true);
@@ -138,9 +139,6 @@ protected:
             gsl::not_null<const void*> cookie) {
         return ENGINE_SUCCESS;
     }
-
-    void notifyAndStepToCheckpoint(MockDcpProducer& producer,
-                                   dcp_message_producers* producers);
 
     SingleThreadedExecutorPool* task_executor;
 };

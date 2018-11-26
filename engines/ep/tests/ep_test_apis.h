@@ -87,30 +87,6 @@ extern std::atomic<uint64_t> last_uuid;
 extern std::atomic<uint64_t> last_seqno;
 extern ItemMetaData last_meta;
 
-extern cb::mcbp::ClientOpcode dcp_last_op;
-extern cb::mcbp::Status dcp_last_status;
-extern uint8_t dcp_last_nru;
-extern Vbid dcp_last_vbucket;
-extern uint32_t dcp_last_opaque;
-extern uint32_t dcp_last_flags;
-extern uint32_t dcp_last_stream_opaque;
-extern uint32_t dcp_last_locktime;
-extern uint32_t dcp_last_packet_size;
-extern uint64_t dcp_last_cas;
-extern uint64_t dcp_last_start_seqno;
-extern uint64_t dcp_last_end_seqno;
-extern uint64_t dcp_last_vbucket_uuid;
-extern uint64_t dcp_last_high_seqno;
-extern Couchbase::RelaxedAtomic<uint64_t> dcp_last_byseqno;
-extern uint64_t dcp_last_revseqno;
-extern uint64_t dcp_last_snap_start_seqno;
-extern uint64_t dcp_last_snap_end_seqno;
-extern std::string dcp_last_meta;
-extern std::string dcp_last_value;
-extern std::string dcp_last_key;
-extern vbucket_state_t dcp_last_vbucket_state;
-extern protocol_binary_datatype_t dcp_last_datatype;
-
 /* This is an enum class to indicate what stats are required from the
    HistogramStats. */
 enum class Histo_stat_info {

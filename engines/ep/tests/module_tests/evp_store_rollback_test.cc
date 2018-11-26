@@ -742,7 +742,7 @@ public:
 
     void stepForStreamRequest(uint64_t startSeqno, uint64_t vbUUID) {
         while (consumer->step(&producers) == ENGINE_SUCCESS) {
-            handleProducerResponseIfStepBlocked(*consumer);
+            handleProducerResponseIfStepBlocked(*consumer, producers);
         }
         EXPECT_TRUE(streamRequestData.called);
         EXPECT_EQ(startSeqno, streamRequestData.start_seqno);
@@ -942,11 +942,9 @@ public:
         SingleThreadedEPBucketTest::TearDown();
     }
 
-    std::unique_ptr<dcp_message_producers> producers;
+    std::unique_ptr<MockDcpMessageProducers> producers;
     VBucketPtr vb;
 };
-
-extern cb::mcbp::ClientOpcode dcp_last_op;
 
 TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     /* MB-21682: Confirm that producer DCP streams from a replica VB are closed
@@ -1015,10 +1013,10 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
 
     // snapshot marker
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
 
     auto kvb = engine->getKVBucket();
 
@@ -1029,7 +1027,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     EXPECT_FALSE(stream->isActive()) << "Stream should be dead";
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, dcp_last_op)
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers->last_op)
             << "stream should have received a STREAM_END";
 
     // Stop Producer checkpoint processor task

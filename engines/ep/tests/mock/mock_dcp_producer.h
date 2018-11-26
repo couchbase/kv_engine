@@ -25,6 +25,7 @@
 #include "mock_dcp_backfill_mgr.h"
 
 class MockActiveStream;
+class MockDcpMessageProducers;
 
 /*
  * Mock of the DcpProducer class.  Wraps the real DcpProducer, but exposes
@@ -173,6 +174,6 @@ public:
     /**
      * Step the producer and expect the opcode to be returned
      */
-    ENGINE_ERROR_CODE stepAndExpect(struct dcp_message_producers* producers,
+    ENGINE_ERROR_CODE stepAndExpect(MockDcpMessageProducers* producers,
                                     cb::mcbp::ClientOpcode expectedOpcode);
 };

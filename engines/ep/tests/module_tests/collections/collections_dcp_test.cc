@@ -22,14 +22,6 @@
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 
-extern std::string dcp_last_key;
-extern cb::mcbp::ClientOpcode dcp_last_op;
-extern CollectionID dcp_last_collection_id;
-extern ScopeID dcp_last_scope_id;
-extern mcbp::systemevent::id dcp_last_system_event;
-extern std::vector<uint8_t> dcp_last_system_event_data;
-extern mcbp::systemevent::version dcp_last_system_event_version;
-
 CollectionsDcpTest::CollectionsDcpTest()
     : cookieC(create_mock_cookie()), cookieP(create_mock_cookie()) {
     mock_set_collections_support(cookieP, true);
@@ -154,14 +146,14 @@ void CollectionsDcpTest::testDcpCreateDelete(
 
     // step until done
     while (producer->step(producers.get()) == ENGINE_SUCCESS) {
-        if (dcp_last_op == cb::mcbp::ClientOpcode::DcpSystemEvent) {
-            switch (dcp_last_system_event) {
+        if (producers->last_op == cb::mcbp::ClientOpcode::DcpSystemEvent) {
+            switch (producers->last_system_event) {
             case mcbp::systemevent::id::CreateCollection:
                 ASSERT_NE(createItr, expectedCreates.end())
                         << "Found a create collection, but expected vector is "
                            "now at the end";
-                EXPECT_EQ((*createItr).name, dcp_last_key);
-                EXPECT_EQ((*createItr).uid, dcp_last_collection_id);
+                EXPECT_EQ((*createItr).name, producers->last_key);
+                EXPECT_EQ((*createItr).uid, producers->last_collection_id);
 
                 createItr++;
                 break;
@@ -170,7 +162,7 @@ void CollectionsDcpTest::testDcpCreateDelete(
                         << "Found a drop collection, but expected vector is "
                            "now at the end";
 
-                EXPECT_EQ((*deleteItr).uid, dcp_last_collection_id);
+                EXPECT_EQ((*deleteItr).uid, producers->last_collection_id);
                 deleteItr++;
                 break;
             case mcbp::systemevent::id::CreateScope:
@@ -178,8 +170,8 @@ void CollectionsDcpTest::testDcpCreateDelete(
                         << "Found a create scope, but expected vector is "
                            "now at the end";
 
-                EXPECT_EQ((*scopeCreateItr).name, dcp_last_key);
-                EXPECT_EQ((*scopeCreateItr).uid, dcp_last_scope_id);
+                EXPECT_EQ((*scopeCreateItr).name, producers->last_key);
+                EXPECT_EQ((*scopeCreateItr).uid, producers->last_scope_id);
 
                 scopeCreateItr++;
                 break;
@@ -187,16 +179,16 @@ void CollectionsDcpTest::testDcpCreateDelete(
                 ASSERT_NE(scopeDropItr, expectedScopeDrops.end())
                         << "Found a drop scope, but expected vector is "
                            "now at the end";
-                EXPECT_EQ((*scopeDropItr).uid, dcp_last_scope_id);
+                EXPECT_EQ((*scopeDropItr).uid, producers->last_scope_id);
                 scopeDropItr++;
                 break;
             default:
                 throw std::logic_error(
                         "CollectionsDcpTest::testDcpCreateDelete unknown "
                         "event:" +
-                        std::to_string(int(dcp_last_system_event)));
+                        std::to_string(int(producers->last_system_event)));
             }
-        } else if (dcp_last_op == cb::mcbp::ClientOpcode::DcpMutation) {
+        } else if (producers->last_op == cb::mcbp::ClientOpcode::DcpMutation) {
             mutations++;
         }
     }
@@ -232,17 +224,16 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
         cb::const_byte_buffer eventData) {
     (void)vbucket; // ignored as we are connecting VBn to VBn+1
     clear_dcp_data();
-    dcp_last_op = cb::mcbp::ClientOpcode::DcpSystemEvent;
-    dcp_last_system_event = event;
+    last_op = cb::mcbp::ClientOpcode::DcpSystemEvent;
+    last_system_event = event;
     EXPECT_TRUE(mcbp::systemevent::validate_version(uint8_t(version)));
-    dcp_last_system_event_data.insert(dcp_last_system_event_data.begin(),
-                                      eventData.begin(),
-                                      eventData.end());
-    dcp_last_system_event_version = version;
+    last_system_event_data.insert(
+            last_system_event_data.begin(), eventData.begin(), eventData.end());
+    last_system_event_version = version;
 
     switch (event) {
     case mcbp::systemevent::id::CreateCollection: {
-        dcp_last_collection_id =
+        last_collection_id =
                 reinterpret_cast<const Collections::CreateEventDcpData*>(
                         eventData.data())
                         ->cid.to_host();
@@ -254,8 +245,8 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
             const auto* ev =
                     reinterpret_cast<const Collections::CreateEventDcpData*>(
                             eventData.data());
-            dcp_last_collection_id = ev->cid.to_host();
-            dcp_last_scope_id = ev->sid.to_host();
+            last_collection_id = ev->cid.to_host();
+            last_scope_id = ev->sid.to_host();
         } else {
             const auto expectedSize =
                     Collections::CreateWithMaxTtlEventDcpData::size;
@@ -263,16 +254,15 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
             const auto* ev = reinterpret_cast<
                     const Collections::CreateWithMaxTtlEventDcpData*>(
                     eventData.data());
-            dcp_last_collection_id = ev->cid.to_host();
-            dcp_last_scope_id = ev->sid.to_host();
+            last_collection_id = ev->cid.to_host();
+            last_scope_id = ev->sid.to_host();
         }
 
-        dcp_last_key.assign(reinterpret_cast<const char*>(key.data()),
-                            key.size());
+        last_key.assign(reinterpret_cast<const char*>(key.data()), key.size());
         break;
     }
     case mcbp::systemevent::id::DeleteCollection: {
-        dcp_last_collection_id =
+        last_collection_id =
                 reinterpret_cast<const Collections::DropEventDcpData*>(
                         eventData.data())
                         ->cid.to_host();
@@ -287,19 +277,18 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
         const auto* ev =
                 reinterpret_cast<const Collections::CreateScopeEventDcpData*>(
                         eventData.data());
-        dcp_last_scope_id = ev->sid.to_host();
+        last_scope_id = ev->sid.to_host();
 
         const auto expectedSize = Collections::CreateScopeEventDcpData::size;
         EXPECT_EQ(expectedSize, eventData.size());
-        dcp_last_key.assign(reinterpret_cast<const char*>(key.data()),
-                            key.size());
+        last_key.assign(reinterpret_cast<const char*>(key.data()), key.size());
         break;
     }
     case mcbp::systemevent::id::DropScope: {
         const auto* ev =
                 reinterpret_cast<const Collections::DropScopeEventDcpData*>(
                         eventData.data());
-        dcp_last_scope_id = ev->sid.to_host();
+        last_scope_id = ev->sid.to_host();
 
         const auto expectedSize = Collections::DropScopeEventDcpData::size;
         EXPECT_EQ(expectedSize, eventData.size());

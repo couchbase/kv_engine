@@ -17,20 +17,20 @@
 
 #include "test_helpers.h"
 
+#include "../mock/mock_dcp.h"
 #include "../mock/mock_stream.h"
 #include "dcp/consumer.h"
 
 #include <gtest/gtest.h>
 
-extern cb::mcbp::ClientOpcode dcp_last_op;
-
-void handleProducerResponseIfStepBlocked(DcpConsumer& consumer) {
+void handleProducerResponseIfStepBlocked(DcpConsumer& consumer,
+                                         MockDcpMessageProducers& producers) {
     // MB-29441: Added a call to DcpConsumer::handleGetErrorMap() in
     // DcpConsumer::step().
     // We need to call DcpConsumer::handleResponse() to notify (set a flag)
     // that the GetErrorMap response has been received. The next calls to
     // step() would block forever in DcpConsumer::handleGetErrorMap() otherwise
-    if (dcp_last_op == cb::mcbp::ClientOpcode::GetErrorMap) {
+    if (producers.last_op == cb::mcbp::ClientOpcode::GetErrorMap) {
         protocol_binary_response_header resp{};
         resp.response.setMagic(cb::mcbp::Magic::ClientResponse);
         resp.response.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);

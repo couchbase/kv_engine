@@ -969,50 +969,51 @@ static void perf_dcp_client(EngineIface* h,
             break;
 
         case ENGINE_SUCCESS:
-            switch (dcp_last_op) {
+            switch (producers.last_op) {
             case cb::mcbp::ClientOpcode::DcpMutation:
             case cb::mcbp::ClientOpcode::DcpDeletion:
                 // Check for sentinel (before adding to timings).
-                if (dcp_last_key == SENTINEL_KEY) {
+                if (producers.last_key == SENTINEL_KEY) {
                     done = true;
                     break;
                 }
                 recv_timings.push_back(std::chrono::steady_clock::now()
                                                .time_since_epoch()
                                                .count());
-                bytes_received.push_back(dcp_last_value.length());
-                bytes_read += dcp_last_packet_size;
-                if (pending_marker_ack && dcp_last_byseqno == marker_end) {
+                bytes_received.push_back(producers.last_value.length());
+                bytes_read += producers.last_packet_size;
+                if (pending_marker_ack &&
+                    producers.last_byseqno == marker_end) {
                     sendDcpAck(h,
                                cookie,
                                cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                                cb::mcbp::Status::Success,
-                               dcp_last_opaque);
+                               producers.last_opaque);
                 }
 
                 break;
 
             case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
-                if (dcp_last_flags & 8) {
+                if (producers.last_flags & 8) {
                     pending_marker_ack = true;
-                    marker_end = dcp_last_snap_end_seqno;
+                    marker_end = producers.last_snap_end_seqno;
                 }
-                bytes_read += dcp_last_packet_size;
+                bytes_read += producers.last_packet_size;
                 break;
 
             case cb::mcbp::ClientOpcode::Invalid:
                 /* Consider case where no messages were ready on the last
                  * step call so we will just ignore this case. Note that we
-                 * check for 0 because we clear the dcp_last_op value below.
+                 * check for 0 because we clear the last_op value below.
                  */
                 break;
             default:
                 fprintf(stderr,
                         "Unexpected DCP event type received: %s\n",
-                        to_string(dcp_last_op).c_str());
+                        to_string(producers.last_op).c_str());
                 abort();
             }
-            dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
+            producers.last_op = cb::mcbp::ClientOpcode::Invalid;
             break;
 
         default:

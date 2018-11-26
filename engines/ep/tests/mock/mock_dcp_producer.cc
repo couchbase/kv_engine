@@ -16,12 +16,13 @@
  */
 
 #include "mock_dcp_producer.h"
+#include "mock_dcp.h"
 
 #include "mock_stream.h"
 
 #include <gtest/gtest.h>
 
-extern cb::mcbp::ClientOpcode dcp_last_op;
+extern cb::mcbp::ClientOpcode last_op;
 
 std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
         uint32_t flags,
@@ -54,9 +55,9 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
 }
 
 ENGINE_ERROR_CODE MockDcpProducer::stepAndExpect(
-        struct dcp_message_producers* producers,
+        MockDcpMessageProducers* producers,
         cb::mcbp::ClientOpcode expectedOpcode) {
     auto rv = step(producers);
-    EXPECT_EQ(expectedOpcode, dcp_last_op);
+    EXPECT_EQ(expectedOpcode, producers->last_op);
     return rv;
 }

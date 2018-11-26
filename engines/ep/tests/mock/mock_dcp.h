@@ -20,16 +20,17 @@
 #include "config.h"
 
 #include <dcp/dcp-types.h>
+#include <mcbp/protocol/opcode.h>
 #include <memcached/dcp.h>
 #include <memcached/engine.h>
+
+#include <relaxed_atomic.h>
 
 extern std::vector<std::pair<uint64_t, uint64_t> > dcp_failover_log;
 
 ENGINE_ERROR_CODE mock_dcp_add_failover_log(vbucket_failover_t* entry,
                                             size_t nentries,
                                             gsl::not_null<const void*> cookie);
-
-void clear_dcp_data();
 
 class MockDcpMessageProducers : public dcp_message_producers {
 public:
@@ -119,6 +120,37 @@ public:
                                    mcbp::systemevent::version version,
                                    cb::const_byte_buffer key,
                                    cb::const_byte_buffer eventData) override;
+
+    void clear_dcp_data();
+
+    cb::mcbp::ClientOpcode last_op;
+    cb::mcbp::Status last_status;
+    uint8_t last_nru;
+    Vbid last_vbucket;
+    uint32_t last_opaque;
+    uint32_t last_flags;
+    uint32_t last_stream_opaque;
+    uint32_t last_locktime;
+    uint32_t last_packet_size;
+    uint64_t last_cas;
+    uint64_t last_start_seqno;
+    uint64_t last_end_seqno;
+    uint64_t last_vbucket_uuid;
+    uint64_t last_snap_start_seqno;
+    uint64_t last_snap_end_seqno;
+    Couchbase::RelaxedAtomic<uint64_t> last_byseqno;
+    uint64_t last_revseqno;
+    CollectionID last_collection_id;
+    ScopeID last_scope_id;
+    uint32_t last_delete_time;
+    std::string last_meta;
+    std::string last_value;
+    std::string last_key;
+    vbucket_state_t last_vbucket_state;
+    protocol_binary_datatype_t last_datatype;
+    mcbp::systemevent::id last_system_event;
+    std::vector<uint8_t> last_system_event_data;
+    mcbp::systemevent::version last_system_event_version;
 
 protected:
     /// Helper method for deletion / deletion_v2 / expiration

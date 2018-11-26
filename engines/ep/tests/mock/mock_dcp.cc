@@ -26,35 +26,6 @@
 
 #include <memcached/protocol_binary.h>
 
-cb::mcbp::ClientOpcode dcp_last_op;
-cb::mcbp::Status dcp_last_status;
-uint8_t dcp_last_nru;
-Vbid dcp_last_vbucket;
-uint32_t dcp_last_opaque;
-uint32_t dcp_last_flags;
-uint32_t dcp_last_stream_opaque;
-uint32_t dcp_last_locktime;
-uint32_t dcp_last_packet_size;
-uint64_t dcp_last_cas;
-uint64_t dcp_last_start_seqno;
-uint64_t dcp_last_end_seqno;
-uint64_t dcp_last_vbucket_uuid;
-uint64_t dcp_last_snap_start_seqno;
-uint64_t dcp_last_snap_end_seqno;
-Couchbase::RelaxedAtomic<uint64_t> dcp_last_byseqno;
-uint64_t dcp_last_revseqno;
-CollectionID dcp_last_collection_id;
-ScopeID dcp_last_scope_id;
-uint32_t dcp_last_delete_time;
-std::string dcp_last_meta;
-std::string dcp_last_value;
-std::string dcp_last_key;
-vbucket_state_t dcp_last_vbucket_state;
-protocol_binary_datatype_t dcp_last_datatype;
-mcbp::systemevent::id dcp_last_system_event;
-std::vector<uint8_t> dcp_last_system_event_data;
-mcbp::systemevent::version dcp_last_system_event_version;
-
 static EngineIface* engine_handle = nullptr;
 static EngineIface* engine_handle_v1 = nullptr;
 
@@ -93,47 +64,47 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::stream_req(uint32_t opaque,
                                                       uint64_t snap_start_seqno,
                                                       uint64_t snap_end_seqno) {
     clear_dcp_data();
-    dcp_last_op = cb::mcbp::ClientOpcode::DcpStreamReq;
-    dcp_last_opaque = opaque;
-    dcp_last_vbucket = vbucket;
-    dcp_last_flags = flags;
-    dcp_last_start_seqno = start_seqno;
-    dcp_last_end_seqno = end_seqno;
-    dcp_last_vbucket_uuid = vbucket_uuid;
-    dcp_last_packet_size = 64;
-    dcp_last_snap_start_seqno = snap_start_seqno;
-    dcp_last_snap_end_seqno = snap_end_seqno;
+    last_op = cb::mcbp::ClientOpcode::DcpStreamReq;
+    last_opaque = opaque;
+    last_vbucket = vbucket;
+    last_flags = flags;
+    last_start_seqno = start_seqno;
+    last_end_seqno = end_seqno;
+    last_vbucket_uuid = vbucket_uuid;
+    last_packet_size = 64;
+    last_snap_start_seqno = snap_start_seqno;
+    last_snap_end_seqno = snap_end_seqno;
     return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::add_stream_rsp(
         uint32_t opaque, uint32_t stream_opaque, cb::mcbp::Status status) {
     clear_dcp_data();
-    dcp_last_op = cb::mcbp::ClientOpcode::DcpAddStream;
-    dcp_last_opaque = opaque;
-    dcp_last_stream_opaque = stream_opaque;
-    dcp_last_status = status;
-    dcp_last_packet_size = 28;
+    last_op = cb::mcbp::ClientOpcode::DcpAddStream;
+    last_opaque = opaque;
+    last_stream_opaque = stream_opaque;
+    last_status = status;
+    last_packet_size = 28;
     return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::marker_rsp(uint32_t opaque,
                                                       cb::mcbp::Status status) {
     clear_dcp_data();
-    dcp_last_op = cb::mcbp::ClientOpcode::DcpSnapshotMarker;
-    dcp_last_opaque = opaque;
-    dcp_last_status = status;
-    dcp_last_packet_size = 24;
+    last_op = cb::mcbp::ClientOpcode::DcpSnapshotMarker;
+    last_opaque = opaque;
+    last_status = status;
+    last_packet_size = 24;
     return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::set_vbucket_state_rsp(
         uint32_t opaque, cb::mcbp::Status status) {
     clear_dcp_data();
-    dcp_last_op = cb::mcbp::ClientOpcode::DcpSetVbucketState;
-    dcp_last_opaque = opaque;
-    dcp_last_status = status;
-    dcp_last_packet_size = 24;
+    last_op = cb::mcbp::ClientOpcode::DcpSetVbucketState;
+    last_opaque = opaque;
+    last_status = status;
+    last_packet_size = 24;
     return ENGINE_SUCCESS;
 }
 
@@ -141,11 +112,11 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::stream_end(uint32_t opaque,
                                                       Vbid vbucket,
                                                       uint32_t flags) {
     clear_dcp_data();
-    dcp_last_op = cb::mcbp::ClientOpcode::DcpStreamEnd;
-    dcp_last_opaque = opaque;
-    dcp_last_vbucket = vbucket;
-    dcp_last_flags = flags;
-    dcp_last_packet_size = 28;
+    last_op = cb::mcbp::ClientOpcode::DcpStreamEnd;
+    last_opaque = opaque;
+    last_vbucket = vbucket;
+    last_flags = flags;
+    last_packet_size = 28;
     return ENGINE_SUCCESS;
 }
 
@@ -155,13 +126,13 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::marker(uint32_t opaque,
                                                   uint64_t snap_end_seqno,
                                                   uint32_t flags) {
     clear_dcp_data();
-    dcp_last_op = cb::mcbp::ClientOpcode::DcpSnapshotMarker;
-    dcp_last_opaque = opaque;
-    dcp_last_vbucket = vbucket;
-    dcp_last_packet_size = 44;
-    dcp_last_snap_start_seqno = snap_start_seqno;
-    dcp_last_snap_end_seqno = snap_end_seqno;
-    dcp_last_flags = flags;
+    last_op = cb::mcbp::ClientOpcode::DcpSnapshotMarker;
+    last_opaque = opaque;
+    last_vbucket = vbucket;
+    last_packet_size = 44;
+    last_snap_start_seqno = snap_start_seqno;
+    last_snap_end_seqno = snap_end_seqno;
+    last_flags = flags;
     return ENGINE_SUCCESS;
 }
 
@@ -176,29 +147,28 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
                                                     uint8_t nru) {
     clear_dcp_data();
     Item* item = reinterpret_cast<Item*>(itm);
-    dcp_last_op = cb::mcbp::ClientOpcode::DcpMutation;
-    dcp_last_opaque = opaque;
-    dcp_last_key.assign(item->getKey().c_str());
-    dcp_last_vbucket = vbucket;
-    dcp_last_byseqno = by_seqno;
-    dcp_last_revseqno = rev_seqno;
-    dcp_last_locktime = lock_time;
-    dcp_last_meta.assign(static_cast<const char*>(meta), nmeta);
-    dcp_last_value.assign(static_cast<const char*>(item->getData()),
-                          item->getNBytes());
-    dcp_last_nru = nru;
+    last_op = cb::mcbp::ClientOpcode::DcpMutation;
+    last_opaque = opaque;
+    last_key.assign(item->getKey().c_str());
+    last_vbucket = vbucket;
+    last_byseqno = by_seqno;
+    last_revseqno = rev_seqno;
+    last_locktime = lock_time;
+    last_meta.assign(static_cast<const char*>(meta), nmeta);
+    last_value.assign(static_cast<const char*>(item->getData()),
+                      item->getNBytes());
+    last_nru = nru;
 
     // @todo: MB-24391: We are querying the header length with collections
     // off, which if we extended our testapp tests to do collections may not be
     // correct. For now collections testing is done via GTEST tests and isn't
-    // reliant on dcp_last_packet_size so this doesn't cause any problems.
-    dcp_last_packet_size =
-            protocol_binary_request_dcp_mutation::getHeaderLength();
-    dcp_last_packet_size = dcp_last_packet_size + dcp_last_key.length() +
-                           item->getNBytes() + nmeta;
+    // reliant on last_packet_size so this doesn't cause any problems.
+    last_packet_size = protocol_binary_request_dcp_mutation::getHeaderLength();
+    last_packet_size =
+            last_packet_size + last_key.length() + item->getNBytes() + nmeta;
 
-    dcp_last_datatype = item->getDataType();
-    dcp_last_collection_id = item->getKey().getCollectionID();
+    last_datatype = item->getDataType();
+    last_collection_id = item->getKey().getCollectionID();
 
     if (engine_handle_v1 && engine_handle) {
         engine_handle_v1->release(item);
@@ -220,27 +190,27 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletionInner(
     clear_dcp_data();
     Item* item = reinterpret_cast<Item*>(itm);
     if (deleteSource == DeleteSource::TTL) {
-        dcp_last_op = cb::mcbp::ClientOpcode::DcpExpiration;
+        last_op = cb::mcbp::ClientOpcode::DcpExpiration;
     } else {
-        dcp_last_op = cb::mcbp::ClientOpcode::DcpDeletion;
+        last_op = cb::mcbp::ClientOpcode::DcpDeletion;
     }
-    dcp_last_opaque = opaque;
-    dcp_last_key.assign(item->getKey().c_str());
-    dcp_last_cas = item->getCas();
-    dcp_last_vbucket = vbucket;
-    dcp_last_byseqno = by_seqno;
-    dcp_last_revseqno = rev_seqno;
-    dcp_last_meta.assign(static_cast<const char*>(meta), nmeta);
+    last_opaque = opaque;
+    last_key.assign(item->getKey().c_str());
+    last_cas = item->getCas();
+    last_vbucket = vbucket;
+    last_byseqno = by_seqno;
+    last_revseqno = rev_seqno;
+    last_meta.assign(static_cast<const char*>(meta), nmeta);
 
     // @todo: MB-24391 as above.
-    dcp_last_packet_size = sizeof(protocol_binary_request_header) +
-                           dcp_last_key.length() + item->getNBytes() + nmeta;
-    dcp_last_packet_size += extlen;
+    last_packet_size = sizeof(protocol_binary_request_header) +
+                       last_key.length() + item->getNBytes() + nmeta;
+    last_packet_size += extlen;
 
-    dcp_last_value.assign(static_cast<const char*>(item->getData()),
-                          item->getNBytes());
-    dcp_last_delete_time = deleteTime;
-    dcp_last_collection_id = item->getKey().getCollectionID();
+    last_value.assign(static_cast<const char*>(item->getData()),
+                      item->getNBytes());
+    last_delete_time = deleteTime;
+    last_collection_id = item->getKey().getCollectionID();
 
     if (engine_handle_v1 && engine_handle) {
         engine_handle_v1->release(item);
@@ -307,27 +277,27 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::expiration(uint32_t opaque,
 ENGINE_ERROR_CODE MockDcpMessageProducers::set_vbucket_state(
         uint32_t opaque, Vbid vbucket, vbucket_state_t state) {
     clear_dcp_data();
-    dcp_last_op = cb::mcbp::ClientOpcode::DcpSetVbucketState;
-    dcp_last_opaque = opaque;
-    dcp_last_vbucket = vbucket;
-    dcp_last_vbucket_state = state;
-    dcp_last_packet_size = 25;
+    last_op = cb::mcbp::ClientOpcode::DcpSetVbucketState;
+    last_opaque = opaque;
+    last_vbucket = vbucket;
+    last_vbucket_state = state;
+    last_packet_size = 25;
     return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::noop(uint32_t opaque) {
     clear_dcp_data();
-    dcp_last_op = cb::mcbp::ClientOpcode::DcpNoop;
-    dcp_last_opaque = opaque;
+    last_op = cb::mcbp::ClientOpcode::DcpNoop;
+    last_opaque = opaque;
     return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::buffer_acknowledgement(
         uint32_t opaque, Vbid vbucket, uint32_t buffer_bytes) {
     clear_dcp_data();
-    dcp_last_op = cb::mcbp::ClientOpcode::DcpBufferAcknowledgement;
-    dcp_last_opaque = opaque;
-    dcp_last_vbucket = vbucket;
+    last_op = cb::mcbp::ClientOpcode::DcpBufferAcknowledgement;
+    last_opaque = opaque;
+    last_vbucket = vbucket;
     return ENGINE_SUCCESS;
 }
 
@@ -336,10 +306,10 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::control(
         cb::const_char_buffer key,
         cb::const_char_buffer value) {
     clear_dcp_data();
-    dcp_last_op = cb::mcbp::ClientOpcode::DcpControl;
-    dcp_last_opaque = opaque;
-    dcp_last_key.assign(key.data(), key.size());
-    dcp_last_value.assign(value.data(), value.size());
+    last_op = cb::mcbp::ClientOpcode::DcpControl;
+    last_opaque = opaque;
+    last_key.assign(key.data(), key.size());
+    last_value.assign(value.data(), value.size());
     return ENGINE_SUCCESS;
 }
 
@@ -352,23 +322,21 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::system_event(
         cb::const_byte_buffer key,
         cb::const_byte_buffer eventData) {
     clear_dcp_data();
-    dcp_last_op = cb::mcbp::ClientOpcode::DcpSystemEvent;
-    dcp_last_system_event = event;
-    dcp_last_system_event_data.insert(dcp_last_system_event_data.begin(),
-                                      eventData.begin(),
-                                      eventData.end());
-    dcp_last_system_event_version = version;
+    last_op = cb::mcbp::ClientOpcode::DcpSystemEvent;
+    last_system_event = event;
+    last_system_event_data.insert(
+            last_system_event_data.begin(), eventData.begin(), eventData.end());
+    last_system_event_version = version;
 
     if (event == mcbp::systemevent::id::CreateCollection) {
-        dcp_last_collection_id =
+        last_collection_id =
                 reinterpret_cast<const Collections::CreateEventDcpData*>(
                         eventData.data())
                         ->cid.to_host();
 
-        dcp_last_key.assign(reinterpret_cast<const char*>(key.data()),
-                            key.size());
+        last_key.assign(reinterpret_cast<const char*>(key.data()), key.size());
     } else if (event == mcbp::systemevent::id::DeleteCollection) {
-        dcp_last_collection_id =
+        last_collection_id =
                 reinterpret_cast<const Collections::DropEventDcpData*>(
                         eventData.data())
                         ->cid.to_host();
@@ -379,7 +347,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::system_event(
 ENGINE_ERROR_CODE MockDcpMessageProducers::get_error_map(uint32_t opaque,
                                                          uint16_t version) {
     clear_dcp_data();
-    dcp_last_op = cb::mcbp::ClientOpcode::GetErrorMap;
+    last_op = cb::mcbp::ClientOpcode::GetErrorMap;
     return ENGINE_SUCCESS;
 }
 
@@ -392,28 +360,28 @@ void MockDcpMessageProducers::setMutationStatus(ENGINE_ERROR_CODE code) {
     mutationStatus = code;
 }
 
-void clear_dcp_data() {
-    dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
-    dcp_last_status = cb::mcbp::Status::Success;
-    dcp_last_nru = 0;
-    dcp_last_vbucket = Vbid(0);
-    dcp_last_opaque = 0;
-    dcp_last_flags = 0;
-    dcp_last_stream_opaque = 0;
-    dcp_last_locktime = 0;
-    dcp_last_cas = 0;
-    dcp_last_start_seqno = 0;
-    dcp_last_end_seqno = 0;
-    dcp_last_vbucket_uuid = 0;
-    dcp_last_snap_start_seqno = 0;
-    dcp_last_snap_end_seqno = 0;
-    dcp_last_byseqno = 0;
-    dcp_last_meta.clear();
-    dcp_last_value.clear();
-    dcp_last_key.clear();
-    dcp_last_vbucket_state = (vbucket_state_t)0;
-    dcp_last_delete_time = 0;
-    dcp_last_collection_id = 0;
-    dcp_last_system_event_data.clear();
-    dcp_last_system_event_version = mcbp::systemevent::version::version0;
+void MockDcpMessageProducers::clear_dcp_data() {
+    last_op = cb::mcbp::ClientOpcode::Invalid;
+    last_status = cb::mcbp::Status::Success;
+    last_nru = 0;
+    last_vbucket = Vbid(0);
+    last_opaque = 0;
+    last_flags = 0;
+    last_stream_opaque = 0;
+    last_locktime = 0;
+    last_cas = 0;
+    last_start_seqno = 0;
+    last_end_seqno = 0;
+    last_vbucket_uuid = 0;
+    last_snap_start_seqno = 0;
+    last_snap_end_seqno = 0;
+    last_byseqno = 0;
+    last_meta.clear();
+    last_value.clear();
+    last_key.clear();
+    last_vbucket_state = (vbucket_state_t)0;
+    last_delete_time = 0;
+    last_collection_id = 0;
+    last_system_event_data.clear();
+    last_system_event_version = mcbp::systemevent::version::version0;
 }

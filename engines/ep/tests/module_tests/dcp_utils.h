@@ -18,6 +18,7 @@
 #include <cstdint>
 
 class DcpConsumer;
+class MockDcpMessageProducers;
 class MockPassiveStream;
 class MutationConsumerMessage;
 
@@ -28,7 +29,8 @@ class MutationConsumerMessage;
  *
  * @param connection The connection
  */
-void handleProducerResponseIfStepBlocked(DcpConsumer& connection);
+void handleProducerResponseIfStepBlocked(DcpConsumer& connection,
+                                         MockDcpMessageProducers& producers);
 
 /*
  * Calls PassiveStream::processMutation() for the number of mutations

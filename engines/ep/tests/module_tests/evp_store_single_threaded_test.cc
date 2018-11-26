@@ -199,10 +199,9 @@ std::shared_ptr<MockDcpProducer> SingleThreadedKVBucketTest::createDcpProducer(
     return newProducer;
 }
 
-extern cb::mcbp::ClientOpcode dcp_last_op;
 void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
         MockDcpProducer& producer,
-        dcp_message_producers& producers,
+        MockDcpMessageProducers& producers,
         cb::mcbp::ClientOpcode expectedOp,
         bool fromMemory) {
     auto vb = store->getVBucket(vbid);
@@ -228,7 +227,7 @@ void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
     // should now be able to step through the checkpoint
     if (expectedOp != cb::mcbp::ClientOpcode::Invalid) {
         EXPECT_EQ(ENGINE_SUCCESS, producer.step(&producers));
-        EXPECT_EQ(expectedOp, dcp_last_op);
+        EXPECT_EQ(expectedOp, producers.last_op);
     } else {
         EXPECT_EQ(ENGINE_EWOULDBLOCK, producer.step(&producers));
     }
@@ -2673,8 +2672,6 @@ TEST_F(SingleThreadedEPBucketTest, CreatedItemFreqDecayerTask) {
     EXPECT_TRUE(isItemFreqDecayerTaskSnoozed());
 }
 
-extern uint32_t dcp_last_delete_time;
-extern std::string dcp_last_key;
 // Combine warmup and DCP so we can check deleteTimes come back from disk
 TEST_F(WarmupTest, produce_delete_times) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
@@ -2704,11 +2701,11 @@ TEST_F(WarmupTest, produce_delete_times) {
     };
 
     step(false);
-    EXPECT_NE(0, dcp_last_delete_time);
-    EXPECT_GE(dcp_last_delete_time, t1);
-    EXPECT_LE(dcp_last_delete_time, t2);
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, dcp_last_op);
-    EXPECT_EQ("KEY1", dcp_last_key);
+    EXPECT_NE(0, producers.last_delete_time);
+    EXPECT_GE(producers.last_delete_time, t1);
+    EXPECT_LE(producers.last_delete_time, t2);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, producers.last_op);
+    EXPECT_EQ("KEY1", producers.last_key);
     size_t expectedBytes = SnapshotMarker::baseMsgBytes +
                            MutationResponse::deletionV2BaseMsgBytes +
                            (sizeof("KEY1") - 1);
@@ -2721,11 +2718,11 @@ TEST_F(WarmupTest, produce_delete_times) {
 
     step(true);
 
-    EXPECT_NE(0, dcp_last_delete_time);
-    EXPECT_GE(dcp_last_delete_time, t1);
-    EXPECT_LE(dcp_last_delete_time, t2);
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, dcp_last_op);
-    EXPECT_EQ("KEY2", dcp_last_key);
+    EXPECT_NE(0, producers.last_delete_time);
+    EXPECT_GE(producers.last_delete_time, t1);
+    EXPECT_LE(producers.last_delete_time, t2);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, producers.last_op);
+    EXPECT_EQ("KEY2", producers.last_key);
     expectedBytes += SnapshotMarker::baseMsgBytes +
                      MutationResponse::deletionV2BaseMsgBytes +
                      (sizeof("KEY2") - 1);
@@ -2743,7 +2740,7 @@ TEST_F(WarmupTest, produce_delete_times) {
                      (sizeof("value") - 1) + (sizeof("KEY3") - 1);
     EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
 
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
     TimeTraveller arron(64000);
 
     // Trigger expiry on a GET
@@ -2753,9 +2750,9 @@ TEST_F(WarmupTest, produce_delete_times) {
 
     step(true);
 
-    EXPECT_EQ(expiryTime, dcp_last_delete_time);
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, dcp_last_op);
-    EXPECT_EQ("KEY3", dcp_last_key);
+    EXPECT_EQ(expiryTime, producers.last_delete_time);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, producers.last_op);
+    EXPECT_EQ("KEY3", producers.last_key);
     expectedBytes += SnapshotMarker::baseMsgBytes +
                      MutationResponse::deletionV2BaseMsgBytes +
                      (sizeof("KEY3") - 1);
@@ -2804,7 +2801,7 @@ TEST_P(STParameterizedBucketTest, enable_expiry_output) {
                            (sizeof("value") - 1) + (sizeof("KEY3") - 1);
     EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
     EXPECT_EQ(1, store->getVBucket(vbid)->getNumItems());
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
     TimeTraveller arron(64000);
 
     // Trigger expiry on a GET
@@ -2814,9 +2811,9 @@ TEST_P(STParameterizedBucketTest, enable_expiry_output) {
 
     step(true);
 
-    EXPECT_EQ(expiryTime, dcp_last_delete_time);
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpExpiration, dcp_last_op);
-    EXPECT_EQ("KEY3", dcp_last_key);
+    EXPECT_EQ(expiryTime, producers.last_delete_time);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpExpiration, producers.last_op);
+    EXPECT_EQ("KEY3", producers.last_key);
     expectedBytes += SnapshotMarker::baseMsgBytes +
                      MutationResponse::deletionV2BaseMsgBytes +
                      (sizeof("KEY3") - 1);
@@ -2920,7 +2917,7 @@ public:
 
         for (int i = 0; i < 3; i++) { // 1, 2 and 3
             EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-            EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
+            EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
         }
 
         store_item(vbid, makeStoredDocKey("4"), "value4");
@@ -2964,7 +2961,7 @@ public:
 
     const void* cookie = nullptr;
     std::shared_ptr<MockDcpProducer> producer;
-    std::unique_ptr<dcp_message_producers> producers;
+    std::unique_ptr<MockDcpMessageProducers> producers;
 };
 
 // NEXT two test are TEMP disabled as this commit will cause a deadlock
@@ -2978,21 +2975,21 @@ TEST_F(MB_29287, DISABLED_dataloss_end) {
 
     EXPECT_TRUE(stream->isTakeoverSend());
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
-    dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
-    EXPECT_EQ("4", dcp_last_key);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
+    producers->last_op = cb::mcbp::ClientOpcode::Invalid;
+    EXPECT_EQ("4", producers->last_key);
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
-    dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
-    EXPECT_EQ("5", dcp_last_key);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
+    producers->last_op = cb::mcbp::ClientOpcode::Invalid;
+    EXPECT_EQ("5", producers->last_key);
 
     // Snapshot received
     as->snapshotMarkerAckReceived();
 
     // set-vb-state now underway
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers->last_op);
 
     // Move stream to pending and vb to dead
     as->setVBucketStateAckRecieved();
@@ -3005,7 +3002,7 @@ TEST_F(MB_29287, DISABLED_dataloss_end) {
                {cb::engine_errc::not_my_vbucket});
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers->last_op);
     as->setVBucketStateAckRecieved();
     EXPECT_TRUE(!stream->isActive());
 
@@ -3024,14 +3021,14 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
 
     EXPECT_TRUE(stream->isTakeoverSend());
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
-    dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
-    EXPECT_EQ("4", dcp_last_key);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
+    producers->last_op = cb::mcbp::ClientOpcode::Invalid;
+    EXPECT_EQ("4", producers->last_key);
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
-    dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
-    EXPECT_EQ("5", dcp_last_key);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
+    producers->last_op = cb::mcbp::ClientOpcode::Invalid;
+    EXPECT_EQ("5", producers->last_key);
 
     // Snapshot received
     as->snapshotMarkerAckReceived();
@@ -3045,8 +3042,8 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
     notifyAndStepToCheckpoint(*producer, *producers);
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
-    EXPECT_EQ("6", dcp_last_key);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
+    EXPECT_EQ("6", producers->last_key);
 
     // Snapshot received
     as->snapshotMarkerAckReceived();
@@ -3056,8 +3053,8 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
 
     // set-vb-state now underway
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, dcp_last_op);
-    dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers->last_op);
+    producers->last_op = cb::mcbp::ClientOpcode::Invalid;
 
     // Move stream to pending and vb to dead
     as->setVBucketStateAckRecieved();
@@ -3070,7 +3067,7 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
                {cb::engine_errc::not_my_vbucket});
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers->last_op);
     as->setVBucketStateAckRecieved();
     EXPECT_TRUE(!stream->isActive());
 
@@ -3271,9 +3268,9 @@ TEST_F(SingleThreadedEPBucketTest, MB_29480) {
     notifyAndStepToCheckpoint(*producer, producers);
     for (const auto& key : initialKeys) {
         EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
-        EXPECT_EQ(key, dcp_last_key);
-        dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+        EXPECT_EQ(key, producers.last_key);
+        producers.last_op = cb::mcbp::ClientOpcode::Invalid;
     }
 
     auto stream = producer->findStream(vbid);
@@ -3315,7 +3312,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29480) {
     EXPECT_FALSE(vb0Stream->isActive());
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
 
     // Stop Producer checkpoint processor task
     producer->cancelCheckpointCreatorTask();
@@ -3398,7 +3395,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29512) {
     EXPECT_FALSE(vb0Stream->isActive());
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
 
     // Stop Producer checkpoint processor task
     producer->cancelCheckpointCreatorTask();
@@ -3459,11 +3456,11 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
 
     // Now drain all items before we proceed to complete
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
     for (const auto& key : keys) {
         EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
-        EXPECT_EQ(key, dcp_last_key);
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+        EXPECT_EQ(key, producers.last_key);
     }
 
     // backfill:complete()
@@ -3471,7 +3468,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
     // backfill:finished()
     runNextTask(lpAuxioQ);
 
-    dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
+    producers.last_op = cb::mcbp::ClientOpcode::Invalid;
 
     // Next the backfill should switch to takeover-send and progress to close
     // with the correct sequence of step/ack
@@ -3482,7 +3479,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
     // the front-end thread should sleep until notified the stream is ready.
     // However no notify will ever come if MB-29541 is not applied
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers.last_op);
 
     EXPECT_TRUE(vb0Stream->isTakeoverWait());
 
@@ -3495,7 +3492,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
     EXPECT_TRUE(producer->handleResponse(&message));
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers.last_op);
 
     EXPECT_TRUE(producer->handleResponse(&message));
     EXPECT_FALSE(vb0Stream->isActive());
@@ -3570,11 +3567,11 @@ TEST_F(SingleThreadedEPBucketTest, MB_31481) {
     // Now drain all items before we proceed to complete, which triggers disk
     // snapshot.
     ASSERT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    ASSERT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, dcp_last_op);
+    ASSERT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
     for (const auto& key : keys) {
         ASSERT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-        ASSERT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
-        ASSERT_EQ(key, dcp_last_key);
+        ASSERT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+        ASSERT_EQ(key, producers.last_key);
     }
 
     // Another producer step should report EWOULDBLOCK (no more data) as all
@@ -3593,7 +3590,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_31481) {
     // keep the "ENGINE_EWOULDBLOCK" response due to the itemsReady flag,
     // which is not expected with that message already being in the readyQ.
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
 
     // Stepping forward should now show that stream end message has been
     // completed and no more messages are needed to send.
@@ -3649,8 +3646,8 @@ void SingleThreadedEPBucketTest::backfillExpiryOutput(bool xattr) {
     // Enable DCP Expiry opcodes
     producer->setDCPExpiry(true);
 
-    // Clear dcp_last_op to make sure it isn't just carried over
-    clear_dcp_data();
+    // Clear last_op to make sure it isn't just carried over
+    producers.clear_dcp_data();
 
     uint64_t rollbackSeqno = 0;
     auto vb = store->getVBuckets().getBucket(vbid);
@@ -3676,9 +3673,9 @@ void SingleThreadedEPBucketTest::backfillExpiryOutput(bool xattr) {
     // Now step the producer to transfer the delete/tombstone
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
 
-    EXPECT_EQ(expiryTime, dcp_last_delete_time);
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpExpiration, dcp_last_op);
-    EXPECT_EQ("KEY3", dcp_last_key);
+    EXPECT_EQ(expiryTime, producers.last_delete_time);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpExpiration, producers.last_op);
+    EXPECT_EQ("KEY3", producers.last_key);
 
     producer->closeAllStreams();
     producer->cancelCheckpointCreatorTask();
@@ -3756,8 +3753,8 @@ TEST_P(STParameterizedBucketTest, slow_stream_backfill_expiry) {
 
     ASSERT_TRUE(vb0Stream->handleSlowStream());
 
-    // Clear dcp_last_op to make sure it isn't just carried over
-    clear_dcp_data();
+    // Clear last_op to make sure it isn't just carried over
+    producers.clear_dcp_data();
 
     // Run a backfill
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
@@ -3769,12 +3766,12 @@ TEST_P(STParameterizedBucketTest, slow_stream_backfill_expiry) {
     runNextTask(lpAuxioQ);
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(expiryTime, dcp_last_delete_time);
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpExpiration, dcp_last_op);
-    EXPECT_EQ("KEY3", dcp_last_key);
+    EXPECT_EQ(expiryTime, producers.last_delete_time);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpExpiration, producers.last_op);
+    EXPECT_EQ("KEY3", producers.last_key);
 
     if (persistent()) {
         // backfill:finished() - "CheckedExecutor failed fetchNextTask" thrown

@@ -54,9 +54,6 @@
 
 #include <thread>
 
-extern cb::mcbp::ClientOpcode dcp_last_op;
-extern uint32_t dcp_last_flags;
-
 /**
  * The DCP tests wants to mock around with the notify_io_complete
  * method. Previously we copied in a new notify_io_complete method, but
@@ -435,10 +432,6 @@ std::string decompressValue(std::string compressedValue) {
     return std::string(buffer.data(), buffer.size());
 }
 
-extern std::string dcp_last_value;
-extern uint32_t dcp_last_packet_size;
-extern protocol_binary_datatype_t dcp_last_datatype;
-
 class CompressionStreamTest : public DCPTest,
                               public ::testing::WithParamInterface<
                                       ::testing::tuple<std::string, bool>> {
@@ -607,17 +600,17 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
                       : PROTOCOL_BINARY_DATATYPE_JSON;
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     std::string value(qi->getValue()->getData(), qi->getValue()->valueSize());
-    EXPECT_STREQ(dcp_last_value.c_str(), decompressValue(value).c_str());
+    EXPECT_STREQ(producers.last_value.c_str(), decompressValue(value).c_str());
 
     if (isXattr()) {
         // The pruned packet won't be recompressed
-        EXPECT_EQ(dcp_last_packet_size, keyAndSnappyValueMessageSize);
+        EXPECT_EQ(producers.last_packet_size, keyAndSnappyValueMessageSize);
     } else {
-        EXPECT_GT(dcp_last_packet_size, keyAndSnappyValueMessageSize);
+        EXPECT_GT(producers.last_packet_size, keyAndSnappyValueMessageSize);
     }
 
-    EXPECT_FALSE(mcbp::datatype::is_snappy(dcp_last_datatype));
-    EXPECT_EQ(expectedDataType, dcp_last_datatype);
+    EXPECT_FALSE(mcbp::datatype::is_snappy(producers.last_datatype));
+    EXPECT_EQ(expectedDataType, producers.last_datatype);
 
     /**
      * Create a DCP response and check that a new item is created and
@@ -638,11 +631,11 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
 
     value.assign(qi->getValue()->getData(), qi->getValue()->valueSize());
-    EXPECT_STREQ(value.c_str(), dcp_last_value.c_str());
-    EXPECT_EQ(dcp_last_packet_size, keyAndValueMessageSize);
+    EXPECT_STREQ(value.c_str(), producers.last_value.c_str());
+    EXPECT_EQ(producers.last_packet_size, keyAndValueMessageSize);
 
-    EXPECT_FALSE(mcbp::datatype::is_snappy(dcp_last_datatype));
-    EXPECT_EQ(expectedDataType, dcp_last_datatype);
+    EXPECT_FALSE(mcbp::datatype::is_snappy(producers.last_datatype));
+    EXPECT_EQ(expectedDataType, producers.last_datatype);
 }
 
 /**
@@ -718,10 +711,10 @@ TEST_P(CompressionStreamTest, connection_snappy_enabled) {
         value.assign(qi->getValue()->getData(), qi->getValue()->valueSize());
     }
 
-    EXPECT_STREQ(dcp_last_value.c_str(), value.c_str());
+    EXPECT_STREQ(producers.last_value.c_str(), value.c_str());
     EXPECT_EQ(dcpResponse->getMessageSize(), keyAndSnappyValueMessageSize);
 
-    EXPECT_EQ(dcp_last_packet_size, keyAndSnappyValueMessageSize);
+    EXPECT_EQ(producers.last_packet_size, keyAndSnappyValueMessageSize);
 
     // If xattr-only enabled on DCP, we won't re-compress (after we've
     // decompressed the document and split out the xattrs)
@@ -730,7 +723,7 @@ TEST_P(CompressionStreamTest, connection_snappy_enabled) {
     protocol_binary_datatype_t expectedDataType =
             isXattr() ? PROTOCOL_BINARY_DATATYPE_XATTR
                       : PROTOCOL_BINARY_DATATYPE_JSON;
-    EXPECT_EQ((expectedDataType | snappy), dcp_last_datatype);
+    EXPECT_EQ((expectedDataType | snappy), producers.last_datatype);
 }
 
 /**
@@ -803,14 +796,14 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
     /* Stream the mutation */
     ASSERT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     std::string value(qi->getValue()->getData(), qi->getValue()->valueSize());
-    EXPECT_STREQ(decompressValue(dcp_last_value).c_str(), value.c_str());
-    EXPECT_LT(dcp_last_packet_size, keyAndValueMessageSize);
+    EXPECT_STREQ(decompressValue(producers.last_value).c_str(), value.c_str());
+    EXPECT_LT(producers.last_packet_size, keyAndValueMessageSize);
 
     protocol_binary_datatype_t expectedDataType =
             isXattr() ? PROTOCOL_BINARY_DATATYPE_XATTR
                       : PROTOCOL_BINARY_DATATYPE_JSON;
     EXPECT_EQ((expectedDataType | PROTOCOL_BINARY_DATATYPE_SNAPPY),
-              dcp_last_datatype);
+              producers.last_datatype);
 
     destroy_dcp_stream();
 }
@@ -2396,8 +2389,8 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
     /* Expect a stream end message */
     MockDcpMessageProducers producers(handle);
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, dcp_last_op);
-    EXPECT_EQ(END_STREAM_CLOSED, dcp_last_flags);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
+    EXPECT_EQ(END_STREAM_CLOSED, producers.last_flags);
 
     /* Re-open stream for the same vbucket on the conn */
     EXPECT_EQ(ENGINE_SUCCESS,
@@ -2774,7 +2767,7 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     ENGINE_ERROR_CODE result;
     do {
         result = consumer->step(&producers);
-        handleProducerResponseIfStepBlocked(*consumer);
+        handleProducerResponseIfStepBlocked(*consumer, producers);
     } while (result == ENGINE_SUCCESS);
     EXPECT_EQ(ENGINE_EWOULDBLOCK, result);
 
@@ -3691,7 +3684,7 @@ public:
     }
 
     const void* cookie;
-    std::unique_ptr<dcp_message_producers> producers;
+    std::unique_ptr<MockDcpMessageProducers> producers;
     std::shared_ptr<MockDcpProducer> producer;
     const Vbid vbid = Vbid(0);
 };
