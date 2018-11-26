@@ -970,10 +970,13 @@ public:
 TEST_F(CollectionsFilteredDcpTest, filtering) {
     VBucketPtr vb = store->getVBucket(vbid);
 
-    // Perform a create of meat/dairy via the bucket level
+    // Perform a create of meat/dairy via the bucket level and a delete of
+    // _default (see MB-32131)
     CollectionsManifest cm;
-    store->setCollections(
-            {cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+    store->setCollections({cm.add(CollectionEntry::meat)
+                                   .add(CollectionEntry::dairy)
+                                   .remove(CollectionEntry::defaultC)});
+
     // Setup filtered DCP for CID 12/0xc (dairy)
     createDcpObjects({{R"({"collections":["c"]})"}});
     notifyAndStepToCheckpoint();
@@ -1014,7 +1017,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     // And no more
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
 
-    flush_vbucket_to_disk(vbid, 7);
+    flush_vbucket_to_disk(vbid, 8);
 
     vb.reset();
 
