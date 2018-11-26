@@ -1180,9 +1180,6 @@ static_assert(sizeof(DcpBufferAckPayload) == 4, "Unexpected struct size");
 } // namespace mcbp
 } // namespace cb
 
-typedef protocol_binary_request_no_extras protocol_binary_request_dcp_control;
-typedef protocol_binary_response_no_extras protocol_binary_response_dcp_control;
-
 /**
  * Events that the system may send
  */

@@ -2037,40 +2037,17 @@ ENGINE_ERROR_CODE Connection::buffer_acknowledgement(uint32_t opaque,
 ENGINE_ERROR_CODE Connection::control(uint32_t opaque,
                                       cb::const_char_buffer key,
                                       cb::const_char_buffer value) {
-    auto& c = *this;
-    protocol_binary_request_dcp_control packet = {};
-    auto& req = packet.message.header.request;
-    req.setMagic(cb::mcbp::Magic::ClientRequest);
-    req.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
-    req.setKeylen(gsl::narrow<uint16_t>(key.size()));
-    req.setBodylen(gsl::narrow<uint32_t>(value.size() + key.size()));
-    req.setOpaque(opaque);
+    std::vector<uint8_t> buffer;
+    buffer.resize(sizeof(cb::mcbp::Request) + key.size() + value.size());
+    cb::mcbp::RequestBuilder builder({buffer.data(), buffer.size()});
 
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c.write->produce([&c, &packet, &key, &value, &ret](void* ptr,
-                                                       size_t size) -> size_t {
-        if (size < (sizeof(packet.bytes) + key.size() + value.size())) {
-            ret = ENGINE_E2BIG;
-            return 0;
-        }
-
-        std::copy(packet.bytes,
-                  packet.bytes + sizeof(packet.bytes),
-                  static_cast<char*>(ptr));
-
-        std::copy(key.begin(),
-                  key.end(),
-                  static_cast<char*>(ptr) + sizeof(packet.bytes));
-
-        std::copy(value.begin(),
-                  value.end(),
-                  static_cast<char*>(ptr) + sizeof(packet.bytes) + key.size());
-
-        c.addIov(ptr, sizeof(packet.bytes) + key.size() + value.size());
-        return sizeof(packet.bytes) + key.size() + value.size();
-    });
-
-    return ret;
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
+    builder.setOpaque(opaque);
+    builder.setKey({reinterpret_cast<const uint8_t*>(key.data()), key.size()});
+    builder.setValue(
+            {reinterpret_cast<const uint8_t*>(value.data()), value.size()});
+    return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
 ENGINE_ERROR_CODE Connection::system_event(uint32_t opaque,

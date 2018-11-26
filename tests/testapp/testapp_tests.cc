@@ -2012,8 +2012,8 @@ TEST_P(McdTestappTest, DCP_Control) {
     TESTAPP_SKIP_IF_SUPPORTED(cb::mcbp::ClientOpcode::DcpNoop);
 
     union {
-        protocol_binary_request_dcp_control request;
-        protocol_binary_response_dcp_control response;
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
         char bytes[1024];
     } buffer;
 
