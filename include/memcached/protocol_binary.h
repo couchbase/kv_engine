@@ -1131,28 +1131,32 @@ union protocol_binary_request_dcp_expiration {
     }
 };
 
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            /**
-             * 0x01 - Active
-             * 0x02 - Replica
-             * 0x03 - Pending
-             * 0x04 - Dead
-             */
-            uint8_t state;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 1];
-} protocol_binary_request_dcp_set_vbucket_state;
-typedef protocol_binary_response_no_extras
-        protocol_binary_response_dcp_set_vbucket_state;
-
 namespace cb {
 namespace mcbp {
 namespace request {
 #pragma pack(1)
+
+class DcpSetVBucketState {
+public:
+    uint8_t getState() const {
+        return state;
+    }
+    void setState(uint8_t state) {
+        DcpSetVBucketState::state = state;
+    }
+
+    bool isValid() const {
+        return is_valid_vbucket_state_t(state);
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint8_t state;
+};
+static_assert(sizeof(DcpSetVBucketState) == 1, "Unexpected struct size");
 
 class DcpBufferAckPayload {
 public:

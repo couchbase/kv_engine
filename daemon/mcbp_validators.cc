@@ -728,8 +728,9 @@ static Status dcp_expiration_validator(Cookie& cookie) {
 }
 
 static Status dcp_set_vbucket_state_validator(Cookie& cookie) {
+    using cb::mcbp::request::DcpSetVBucketState;
     auto status = McbpValidator::verify_header(cookie,
-                                               1,
+                                               sizeof(DcpSetVBucketState),
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::Any,
@@ -739,7 +740,9 @@ static Status dcp_set_vbucket_state_validator(Cookie& cookie) {
     }
 
     auto extras = cookie.getHeader().getRequest().getExtdata();
-    if (extras[0] < 1 || extras[0] > 4) {
+    const auto* payload =
+            reinterpret_cast<const DcpSetVBucketState*>(extras.data());
+    if (!payload->isValid()) {
         cookie.setErrorContext("Request body state invalid");
         return Status::Einval;
     }

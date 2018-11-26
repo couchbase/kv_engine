@@ -1716,16 +1716,14 @@ ENGINE_ERROR_CODE Connection::marker_rsp(uint32_t opaque,
 
 ENGINE_ERROR_CODE Connection::set_vbucket_state_rsp(uint32_t opaque,
                                                     cb::mcbp::Status status) {
-    protocol_binary_response_dcp_set_vbucket_state packet = {};
-    packet.message.header.response.setMagic(cb::mcbp::Magic::ClientResponse);
-    packet.message.header.response.setOpcode(
-            cb::mcbp::ClientOpcode::DcpSetVbucketState);
-    packet.message.header.response.setExtlen(0);
-    packet.message.header.response.setStatus(status);
-    packet.message.header.response.setBodylen(0);
-    packet.message.header.response.setOpaque(opaque);
+    uint8_t buffer[sizeof(cb::mcbp::Response)];
+    cb::mcbp::ResponseBuilder builder({buffer, sizeof(buffer)});
+    builder.setMagic(cb::mcbp::Magic::ClientResponse);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpSetVbucketState);
+    builder.setStatus(status);
+    builder.setOpaque(opaque);
 
-    return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
+    return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
 ENGINE_ERROR_CODE Connection::stream_end(uint32_t opaque,
@@ -1999,22 +1997,21 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
 ENGINE_ERROR_CODE Connection::set_vbucket_state(uint32_t opaque,
                                                 Vbid vbucket,
                                                 vbucket_state_t state) {
-    protocol_binary_request_dcp_set_vbucket_state packet = {};
-
     if (!is_valid_vbucket_state_t(state)) {
         return ENGINE_EINVAL;
     }
 
-    auto& req = packet.message.header.request;
-    req.setMagic(cb::mcbp::Magic::ClientRequest);
-    req.setOpcode(cb::mcbp::ClientOpcode::DcpSetVbucketState);
-    req.setExtlen(1);
-    req.setBodylen(1);
-    req.setOpaque(opaque);
-    req.setVBucket(vbucket);
-    packet.message.body.state = uint8_t(state);
+    cb::mcbp::request::DcpSetVBucketState extras;
+    extras.setState(static_cast<uint8_t>(state));
+    uint8_t buffer[sizeof(cb::mcbp::Request) + sizeof(extras)];
+    cb::mcbp::RequestBuilder builder({buffer, sizeof(buffer)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpSetVbucketState);
+    builder.setOpaque(opaque);
+    builder.setVBucket(vbucket);
+    builder.setExtras(extras.getBuffer());
 
-    return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
+    return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
 ENGINE_ERROR_CODE Connection::noop(uint32_t opaque) {

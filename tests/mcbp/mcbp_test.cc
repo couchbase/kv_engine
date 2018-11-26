@@ -2323,7 +2323,11 @@ public:
         request.message.header.request.extlen = 1;
         request.message.header.request.bodylen = htonl(1);
         request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-        request.message.body.state = 1;
+
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+        cb::mcbp::request::DcpSetVBucketState extras;
+        extras.setState(1);
+        builder.setExtras(extras.getBuffer());
     }
 
 protected:
@@ -2332,9 +2336,6 @@ protected:
                 cb::mcbp::ClientOpcode::DcpSetVbucketState,
                 static_cast<void*>(&request));
     }
-
-    protocol_binary_request_dcp_set_vbucket_state &request =
-       *reinterpret_cast<protocol_binary_request_dcp_set_vbucket_state*>(blob);
 };
 
 TEST_P(DcpSetVbucketStateValidatorTest, CorrectMessage) {
@@ -2342,8 +2343,12 @@ TEST_P(DcpSetVbucketStateValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpSetVbucketStateValidatorTest, LegalValues) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+
     for (int ii = 1; ii < 5; ++ii) {
-        request.message.body.state = ii;
+        cb::mcbp::request::DcpSetVBucketState extras;
+        extras.setState(ii);
+        builder.setExtras(extras.getBuffer());
         EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
     }
 }
@@ -2376,9 +2381,13 @@ TEST_P(DcpSetVbucketStateValidatorTest, InvalidBody) {
 }
 
 TEST_P(DcpSetVbucketStateValidatorTest, IllegalValues) {
-    request.message.body.state = 5;
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+    cb::mcbp::request::DcpSetVBucketState extras;
+    extras.setState(5);
+    builder.setExtras(extras.getBuffer());
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-    request.message.body.state = 0;
+    extras.setState(0);
+    builder.setExtras(extras.getBuffer());
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -3594,10 +3603,10 @@ TEST_P(CommandSpecificErrorContextTest, DcpSetVbucketState) {
     header.setExtlen(1);
     header.setKeylen(0);
     header.setBodylen(1);
-    auto* req =
-            reinterpret_cast<protocol_binary_request_dcp_set_vbucket_state*>(
-                    blob);
-    req->message.body.state = 10;
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+    cb::mcbp::request::DcpSetVBucketState extras;
+    extras.setState(10);
+    builder.setExtras(extras.getBuffer());
     EXPECT_EQ(
             "Request body state invalid",
             validate_error_context(cb::mcbp::ClientOpcode::DcpSetVbucketState));
