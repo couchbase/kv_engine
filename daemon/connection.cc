@@ -2018,13 +2018,13 @@ ENGINE_ERROR_CODE Connection::set_vbucket_state(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE Connection::noop(uint32_t opaque) {
-    protocol_binary_request_dcp_noop packet = {};
-    auto& req = packet.message.header.request;
-    req.setMagic(cb::mcbp::Magic::ClientRequest);
-    req.setOpcode(cb::mcbp::ClientOpcode::DcpNoop);
-    req.setOpaque(opaque);
+    uint8_t buffer[sizeof(cb::mcbp::Request)];
+    cb::mcbp::RequestBuilder builder({buffer, sizeof(buffer)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpNoop);
+    builder.setOpaque(opaque);
 
-    return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
+    return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
 ENGINE_ERROR_CODE Connection::buffer_acknowledgement(uint32_t opaque,

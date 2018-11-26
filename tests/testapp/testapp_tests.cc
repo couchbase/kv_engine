@@ -1961,51 +1961,6 @@ TEST_P(McdTestappTest, MB_10114) {
                                   cb::mcbp::Status::Success);
 }
 
-TEST_P(McdTestappTest, DCP_Noop) {
-    // TODO: For ep-engine (which supports DCP), actualy test it (instead of
-    // skipping the default-engine style test).
-    TESTAPP_SKIP_IF_SUPPORTED(cb::mcbp::ClientOpcode::DcpNoop);
-
-    union {
-        protocol_binary_request_dcp_noop request;
-        protocol_binary_response_dcp_noop response;
-        char bytes[1024];
-    } buffer;
-
-    size_t len = mcbp_raw_command(buffer.bytes,
-                                  sizeof(buffer.bytes),
-                                  cb::mcbp::ClientOpcode::DcpNoop,
-                                  NULL,
-                                  0,
-                                  NULL,
-                                  0);
-
-    /*
-     * Default engine don't support DCP, so just check that
-     * it detects that and if the packet use incorrect format
-     */
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    mcbp_validate_response_header(&buffer.response,
-                                  cb::mcbp::ClientOpcode::DcpNoop,
-                                  cb::mcbp::Status::NotSupported);
-    reconnect_to_server();
-
-    len = mcbp_raw_command(buffer.bytes,
-                           sizeof(buffer.bytes),
-                           cb::mcbp::ClientOpcode::DcpNoop,
-                           "d",
-                           1,
-                           "f",
-                           1);
-
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    mcbp_validate_response_header(&buffer.response,
-                                  cb::mcbp::ClientOpcode::DcpNoop,
-                                  cb::mcbp::Status::Einval);
-}
-
 TEST_P(McdTestappTest, DCP_Control) {
     // TODO: For ep-engine (which supports DCP), actualy test it (instead of
     // skipping the default-engine style test).

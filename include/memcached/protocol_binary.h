@@ -1149,9 +1149,6 @@ typedef union {
 typedef protocol_binary_response_no_extras
         protocol_binary_response_dcp_set_vbucket_state;
 
-typedef protocol_binary_request_no_extras protocol_binary_request_dcp_noop;
-typedef protocol_binary_response_no_extras protocol_binary_response_dcp_noop;
-
 namespace cb {
 namespace mcbp {
 namespace request {
