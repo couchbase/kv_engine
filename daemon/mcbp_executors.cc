@@ -473,8 +473,9 @@ static void create_remove_bucket_executor(Cookie& cookie) {
 
 static void get_errmap_executor(Cookie& cookie) {
     auto value = cookie.getRequest(Cookie::PacketContent::Full).getValue();
-    auto version = ntohs(*reinterpret_cast<const uint16_t*>(value.data()));
-    auto const& errormap = settings.getErrorMap(version);
+    auto* req = reinterpret_cast<const cb::mcbp::request::GetErrmapPayload*>(
+            value.data());
+    auto const& errormap = settings.getErrorMap(req->getVersion());
     if (errormap.empty()) {
         cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
     } else {

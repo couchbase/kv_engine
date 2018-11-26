@@ -510,6 +510,7 @@ information about a given command.
 | 0xf7 | RBAC refresh |
 | 0xf8 | AUTH provider |
 | 0xf9 | Get Active External Users |
+| 0xfe | [Get error map](#0xf5-get-error-map) |
 
 As a convention all of the commands ending with "Q" for Quiet. A quiet version
 of a command will omit responses that are considered uninteresting. Whether a
@@ -2367,3 +2368,33 @@ See [External Auth Provider](ExternalAuthProvider.md#authentication-request).
 ### 0x03 Active External Users
 
 See [External Auth Provider](ExternalAuthProvider.md#activeexternalusers-request).
+
+### 0xfe Get error map
+
+The `get error map` is used from clients to retrieve the server defined logic
+on how to deal with "unknown" errors. If a client connects to a newer server
+version than it was tested with, that server may return error codes the client
+don't know about. The returned error map contains information on how the
+client should behave when it receives one of those error messages.
+
+Request:
+
+* MUST NOT have extra
+* MUST NOT have key
+* MUST have value
+
+Response:
+
+* MUST NOT have extra
+* MUST NOT have key
+* MUST have value
+
+The value in the request contains the version of the error map the client
+requests (16 bits encoded in network byte order). This version number should
+indicate the highest version number of the error map the client is able
+to understand. The server will return a JSON-formatted error map
+which is formatted to either the version requested by the client, or
+a lower version (thus, clients must be ready to parse lower version
+formats).
+
+See [ErrorMap.mp](ErrorMap.md) for more information.

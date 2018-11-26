@@ -1462,7 +1462,8 @@ static Status get_errmap_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if (request.getValue().size() != 2) {
+    if (request.getValue().size() !=
+        sizeof(cb::mcbp::request::GetErrmapPayload)) {
         cookie.setErrorContext("Request value must be of length 2");
         return Status::Einval;
     }

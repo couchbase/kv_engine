@@ -2118,33 +2118,16 @@ ENGINE_ERROR_CODE Connection::system_event(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE Connection::get_error_map(uint32_t opaque, uint16_t version) {
-    auto& c = *this;
+    cb::mcbp::request::GetErrmapPayload body;
+    body.setVersion(version);
+    uint8_t buffer[sizeof(cb::mcbp::Request) + sizeof(body)];
+    cb::mcbp::RequestBuilder builder({buffer, sizeof(buffer)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);
+    builder.setOpaque(opaque);
+    builder.setValue(body.getBuffer());
 
-    protocol_binary_request_get_errmap packet = {};
-    auto& req = packet.message.header.request;
-    req.setMagic(cb::mcbp::Magic::ClientRequest);
-    req.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);
-    req.setBodylen(2);
-    req.setOpaque(opaque);
-    packet.message.body.version = htons(version);
-
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c.write->produce([&c, &packet, &ret](cb::byte_buffer buffer) -> size_t {
-        if (buffer.size() < sizeof(packet.bytes)) {
-            // We don't have room in the buffer
-            ret = ENGINE_E2BIG;
-            return 0;
-        }
-
-        std::copy(packet.bytes,
-                  packet.bytes + sizeof(packet.bytes),
-                  buffer.begin());
-
-        c.addIov(buffer.begin(), sizeof(packet.bytes));
-        return sizeof(packet.bytes);
-    });
-
-    return ret;
+    return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
 ////////////////////////////////////////////////////////////////////////////

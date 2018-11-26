@@ -1732,11 +1732,6 @@ protected:
 };
 static_assert(sizeof(EWB_Payload) == 12, "Unepected struct size");
 
-#pragma pack()
-} // namespace request
-} // namespace mcbp
-} // namespace cb
-
 /**
  * Message format for PROTOCOL_BINARY_CMD_GET_ERRORMAP
  *
@@ -1748,17 +1743,27 @@ static_assert(sizeof(EWB_Payload) == 12, "Unepected struct size");
  * a lower version (thus, clients must be ready to parse lower version
  * formats).
  */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint16_t version;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 2];
-} protocol_binary_request_get_errmap;
+class GetErrmapPayload {
+public:
+    uint16_t getVersion() const {
+        return ntohs(version);
+    }
+    void setVersion(uint16_t version) {
+        GetErrmapPayload::version = htons(version);
+    }
 
-typedef protocol_binary_response_no_extras protocol_binary_response_get_errmap;
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint16_t version = 0;
+};
+static_assert(sizeof(GetErrmapPayload) == 2, "Unexpected struct size");
+#pragma pack()
+} // namespace request
+} // namespace mcbp
+} // namespace cb
 
 /**
  * Message format for PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST
