@@ -1822,13 +1822,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
         key = key.makeDocKeyWithoutCollectionID();
     }
 
-    protocol_binary_request_dcp_mutation packet(
-            opaque,
-            vbucket,
-            info.cas,
-            gsl::narrow<uint16_t>(key.size()),
-            gsl::narrow<uint32_t>(buffer.len),
-            info.datatype,
+    cb::mcbp::request::DcpMutationPayload extras(
             by_seqno,
             rev_seqno,
             info.flags,
@@ -1837,39 +1831,52 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
             nmeta,
             nru);
 
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    write->produce([this, &packet, &buffer, &meta, &nmeta, &ret, &key](
-                           cb::byte_buffer wbuf) -> size_t {
-        size_t hlen = protocol_binary_request_dcp_mutation::getHeaderLength();
+    cb::mcbp::Request req = {};
+    req.setMagic(cb::mcbp::Magic::ClientRequest);
+    req.setOpcode(cb::mcbp::ClientOpcode::DcpMutation);
+    req.setExtlen(gsl::narrow<uint8_t>(sizeof(extras)));
+    req.setKeylen(gsl::narrow<uint16_t>(key.size()));
+    req.setBodylen(gsl::narrow<uint32_t>(sizeof(extras) + key.size() + nmeta +
+                                         buffer.size()));
+    req.setOpaque(opaque);
+    req.setVBucket(vbucket);
+    req.setCas(info.cas);
+    req.setDatatype(cb::mcbp::Datatype(info.datatype));
 
-        if (wbuf.size() < (hlen + nmeta)) {
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    write->produce([this, &req, &extras, &buffer, &meta, &nmeta, &ret, &key](
+                           cb::byte_buffer wbuf) -> size_t {
+        const size_t total = sizeof(extras) + sizeof(req) + nmeta;
+        if (wbuf.size() < total) {
             ret = ENGINE_E2BIG;
             return 0;
         }
 
-        std::copy_n(packet.bytes, hlen, wbuf.begin());
-
-        if (nmeta > 0) {
-            std::copy(static_cast<const uint8_t*>(meta),
-                      static_cast<const uint8_t*>(meta) + nmeta,
-                      wbuf.data() + hlen);
-        }
+        std::copy_n(reinterpret_cast<const uint8_t*>(&req),
+                    sizeof(req),
+                    wbuf.begin());
+        std::copy_n(reinterpret_cast<const uint8_t*>(&extras),
+                    sizeof(extras),
+                    wbuf.begin() + sizeof(req));
 
         // Add the header
-        addIov(wbuf.data(), hlen);
+        addIov(wbuf.data(), sizeof(req) + sizeof(extras));
 
         // Add the key
         addIov(key.data(), key.size());
 
         // Add the value
-        addIov(buffer.buf, buffer.len);
+        addIov(buffer.data(), buffer.size());
 
         // Add the optional meta section
         if (nmeta > 0) {
-            addIov(wbuf.data() + hlen, nmeta);
+            std::copy(static_cast<const uint8_t*>(meta),
+                      static_cast<const uint8_t*>(meta) + nmeta,
+                      wbuf.data() + sizeof(req) + sizeof(extras));
+            addIov(wbuf.data() + sizeof(req) + sizeof(extras), nmeta);
         }
 
-        return hlen + nmeta;
+        return total;
     });
 
     return ret;

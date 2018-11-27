@@ -833,76 +833,83 @@ protected:
     uint32_t flags = 0;
 };
 static_assert(sizeof(DcpSnapshotMarkerPayload) == 20, "Unexpected struct size");
-#pragma pack()
-} // namespace request
-} // namespace mcbp
-} // namespace cb
 
-union protocol_binary_request_dcp_mutation {
-    protocol_binary_request_dcp_mutation(uint32_t opaque,
-                                         Vbid vbucket,
-                                         uint64_t cas,
-                                         uint16_t keyLen,
-                                         uint32_t valueLen,
-                                         protocol_binary_datatype_t datatype,
-                                         uint64_t bySeqno,
-                                         uint64_t revSeqno,
-                                         uint32_t flags,
-                                         uint32_t expiration,
-                                         uint32_t lockTime,
-                                         uint16_t nmeta,
-                                         uint8_t nru) {
-        auto& req = message.header.request;
-
-        req.setMagic(cb::mcbp::Magic::ClientRequest);
-        req.setOpcode(cb::mcbp::ClientOpcode::DcpMutation);
-        req.setExtlen(gsl::narrow<uint8_t>(getExtrasLength()));
-        req.setKeylen(keyLen);
-        req.setBodylen(gsl::narrow<uint8_t>(getExtrasLength()) + keyLen +
-                       nmeta + valueLen);
-        req.setOpaque(opaque);
-        req.setVBucket(vbucket);
-        req.setCas(cas);
-        req.setDatatype(cb::mcbp::Datatype(datatype));
-
-        auto& body = message.body;
-        body.by_seqno = htonll(bySeqno);
-        body.rev_seqno = htonll(revSeqno);
-        body.flags = flags;
-        body.expiration = htonl(expiration);
-        body.lock_time = htonl(lockTime);
-        body.nmeta = htons(nmeta);
-        body.nru = nru;
+class DcpMutationPayload {
+public:
+    DcpMutationPayload() = default;
+    DcpMutationPayload(uint64_t by_seqno,
+                       uint64_t rev_seqno,
+                       uint32_t flags,
+                       uint32_t expiration,
+                       uint32_t lock_time,
+                       uint16_t nmeta,
+                       uint8_t nru)
+        : by_seqno(htonll(by_seqno)),
+          rev_seqno(htonll(rev_seqno)),
+          flags(flags),
+          expiration(htonl(expiration)),
+          lock_time(htonl(lock_time)),
+          nmeta(htons(nmeta)),
+          nru(nru) {
+    }
+    uint64_t getBySeqno() const {
+        return ntohll(by_seqno);
+    }
+    void setBySeqno(uint64_t by_seqno) {
+        DcpMutationPayload::by_seqno = htonll(by_seqno);
+    }
+    uint64_t getRevSeqno() const {
+        return ntohll(rev_seqno);
+    }
+    void setRevSeqno(uint64_t rev_seqno) {
+        DcpMutationPayload::rev_seqno = htonll(rev_seqno);
+    }
+    uint32_t getFlags() const {
+        return flags;
+    }
+    void setFlags(uint32_t flags) {
+        DcpMutationPayload::flags = flags;
+    }
+    uint32_t getExpiration() const {
+        return ntohl(expiration);
+    }
+    void setExpiration(uint32_t expiration) {
+        DcpMutationPayload::expiration = htonl(expiration);
+    }
+    uint32_t getLockTime() const {
+        return ntohl(lock_time);
+    }
+    void setLockTime(uint32_t lock_time) {
+        DcpMutationPayload::lock_time = htonl(lock_time);
+    }
+    uint16_t getNmeta() const {
+        return ntohs(nmeta);
+    }
+    void setNmeta(uint16_t nmeta) {
+        DcpMutationPayload::nmeta = htons(nmeta);
+    }
+    uint8_t getNru() const {
+        return nru;
+    }
+    void setNru(uint8_t nru) {
+        DcpMutationPayload::nru = nru;
     }
 
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint64_t by_seqno;
-            uint64_t rev_seqno;
-            uint32_t flags;
-            uint32_t expiration;
-            uint32_t lock_time;
-            uint16_t nmeta;
-            uint8_t nru;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 31];
-
-    static uint8_t getExtrasLength() {
-        return (2 * sizeof(uint64_t)) + (3 * sizeof(uint32_t)) +
-               sizeof(uint16_t) + sizeof(uint8_t);
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
 
-    static size_t getHeaderLength() {
-        return sizeof(protocol_binary_request_header) + getExtrasLength();
-    }
+protected:
+    uint64_t by_seqno = 0;
+    uint64_t rev_seqno = 0;
+    uint32_t flags = 0;
+    uint32_t expiration = 0;
+    uint32_t lock_time = 0;
+    uint16_t nmeta = 0;
+    uint8_t nru = 0;
 };
+static_assert(31, "Unexpected struct size");
 
-namespace cb {
-namespace mcbp {
-namespace request {
-#pragma pack(1)
 class DcpDeletionV1Payload {
 public:
     uint64_t getBySeqno() const {

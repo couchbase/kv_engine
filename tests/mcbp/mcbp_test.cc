@@ -1982,25 +1982,19 @@ class DcpMutationValidatorTest : public ::testing::WithParamInterface<bool>,
                                  public ValidatorTest {
 public:
 public:
-    DcpMutationValidatorTest()
-        : ValidatorTest(GetParam()),
-          request(0 /*opaque*/,
-                  Vbid(0),
-                  0 /*cas*/,
-                  GetParam() ? 2 : 1 /*keylen*/,
-                  0 /*valueLen*/,
-                  PROTOCOL_BINARY_RAW_BYTES,
-                  0 /*bySeqno*/,
-                  0 /*revSeqno*/,
-                  0 /*flags*/,
-                  0 /*expiration*/,
-                  0 /*lockTime*/,
-                  0 /*nmeta*/,
-                  0 /*nru*/) {
+    DcpMutationValidatorTest() : ValidatorTest(GetParam()) {
     }
 
     void SetUp() override {
         ValidatorTest::SetUp();
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        cb::mcbp::request::DcpMutationPayload extras;
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::DcpMutation);
+        uint8_t key[2] = {};
+        builder.setExtras(extras.getBuffer());
+        const size_t keysize = GetParam() ? 2 : 1;
+        builder.setKey({key, keysize});
     }
 
     bool isCollectionsEnabled() const {
@@ -2010,14 +2004,11 @@ public:
 protected:
     std::string validate_error_context(
             cb::mcbp::Status expectedStatus = cb::mcbp::Status::Einval) {
-        std::copy(request.bytes, request.bytes + sizeof(request.bytes), blob);
         return ValidatorTest::validate_error_context(
                 cb::mcbp::ClientOpcode::DcpMutation,
                 static_cast<void*>(blob),
                 expectedStatus);
     }
-
-    protocol_binary_request_dcp_mutation request;
 };
 
 
@@ -2047,12 +2038,10 @@ TEST_P(DcpMutationValidatorTest, InvalidKeylen) {
 // A key which has no leb128 stop-byte
 TEST_P(DcpMutationValidatorTest, InvalidKey1) {
     if (isCollectionsEnabled()) {
-        std::fill(blob + sizeof(request.bytes),
-                  blob + sizeof(request.bytes) + 10,
-                  0x81ull);
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen =
-                htonl(request.message.header.request.extlen + 10);
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+        uint8_t key[10] = {};
+        std::fill(key, key + 10, 0x81ull);
+        builder.setKey({key, sizeof(key)});
         EXPECT_EQ("Request key invalid", validate_error_context());
     }
 }
@@ -2060,12 +2049,10 @@ TEST_P(DcpMutationValidatorTest, InvalidKey1) {
 // A key which has a stop-byte, but no data after that
 TEST_P(DcpMutationValidatorTest, InvalidKey2) {
     if (isCollectionsEnabled()) {
-        std::fill(blob + sizeof(request.bytes),
-                  blob + sizeof(request.bytes) + 9,
-                  0x81ull);
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen =
-                htonl(request.message.header.request.extlen + 10);
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+        uint8_t key[10] = {};
+        std::fill(key, key + 9, 0x81ull);
+        builder.setKey({key, sizeof(key)});
         EXPECT_EQ("Request key invalid", validate_error_context());
     }
 }
@@ -3543,8 +3530,8 @@ TEST_P(CommandSpecificErrorContextTest, DcpSystemEvent) {
 
 TEST_P(CommandSpecificErrorContextTest, DcpMutation) {
     // Connection must be Xattr enabled if datatype is Xattr
-    uint8_t extlen = protocol_binary_request_dcp_mutation::getExtrasLength();
-    header.setExtlen(extlen);
+    const auto extlen = sizeof(cb::mcbp::request::DcpMutationPayload);
+    header.setExtlen(gsl::narrow<uint8_t>(extlen));
     header.setKeylen(10);
     header.setBodylen(extlen + 10);
     header.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;

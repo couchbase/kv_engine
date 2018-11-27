@@ -1365,36 +1365,39 @@ BinprotDcpStreamRequestCommand::setDcpSnapEndSeqno(uint64_t value) {
 
 void BinprotDcpMutationCommand::reset(const std::vector<uint8_t>& packet) {
     clear();
-    const auto* cmd = reinterpret_cast<const protocol_binary_request_dcp_mutation*>(packet.data());
-    if (cmd->message.header.request.getMagic() !=
-        cb::mcbp::Magic::ClientRequest) {
+
+    const auto& request =
+            *reinterpret_cast<const cb::mcbp::Request*>(packet.data());
+    if (!request.isValid()) {
         throw std::invalid_argument(
-            "BinprotDcpMutationCommand::reset: packet is not a request");
+                "BinprotDcpMutationCommand: Invalid packet");
     }
 
-    by_seqno = ntohll(cmd->message.body.by_seqno);
-    rev_seqno = ntohll(cmd->message.body.rev_seqno);
-    flags = ntohl(cmd->message.body.flags);
-    expiration = ntohl(cmd->message.body.expiration);
-    lock_time = ntohl(cmd->message.body.lock_time);
-    nmeta = ntohs(cmd->message.body.nmeta);
-    nru = cmd->message.body.nru;
+    using cb::mcbp::request::DcpMutationPayload;
+    const auto extdata = request.getExtdata();
+    if (extdata.size() != sizeof(DcpMutationPayload)) {
+        throw std::invalid_argument(
+                "BinprotDcpMutationCommand: Invalid extras section");
+    }
+    const auto* extras =
+            reinterpret_cast<const DcpMutationPayload*>(extdata.data());
+
+    by_seqno = extras->getBySeqno();
+    rev_seqno = extras->getRevSeqno();
+    flags = extras->getFlags();
+    expiration = extras->getExpiration();
+    lock_time = extras->getLockTime();
+    nmeta = extras->getNmeta();
+    nru = extras->getNru();
 
     setOp(cb::mcbp::ClientOpcode::DcpMutation);
-    setVBucket(cmd->message.header.request.vbucket);
-    setCas(cmd->message.header.request.cas);
+    setVBucket(request.vbucket);
+    setCas(request.cas);
 
-    const char* ptr = reinterpret_cast<const char*>(cmd->bytes);
-    // Non-collection aware DCP mutation, so pass false to getHeaderLength
-    ptr += protocol_binary_request_dcp_mutation::getHeaderLength();
-
-    const auto keylen = cmd->message.header.request.keylen;
-    const auto bodylen = cmd->message.header.request.bodylen;
-    const auto vallen = bodylen - keylen - cmd->message.header.request.extlen;
-
-    setKey(std::string{ptr, keylen});
-    ptr += keylen;
-    setValue(std::string{ptr, vallen});
+    auto k = request.getKey();
+    auto v = request.getValue();
+    setKey(std::string{reinterpret_cast<const char*>(k.data()), k.size()});
+    setValue(std::string{reinterpret_cast<const char*>(v.data()), v.size()});
 }
 
 void BinprotDcpMutationCommand::encode(std::vector<uint8_t>& buf) const {

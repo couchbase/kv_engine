@@ -28,32 +28,18 @@
 #include <stdexcept>
 
 static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
-    auto packet = cookie.getPacket(Cookie::PacketContent::Full);
-    auto& connection = cookie.getConnection();
-    const auto* req =
-            reinterpret_cast<const protocol_binary_request_dcp_mutation*>(
-                    packet.data());
+    const auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto extdata = req.getExtdata();
+    const auto& extras =
+            *reinterpret_cast<const cb::mcbp::request::DcpMutationPayload*>(
+                    extdata.data());
+    const auto datatype = uint8_t(req.getDatatype());
+    const auto nmeta = extras.getNmeta();
+    auto value = req.getValue();
+    const cb::const_byte_buffer meta = {value.data() + value.size() - nmeta,
+                                        nmeta};
+    value = {value.data(), value.size() - nmeta};
 
-    const auto body_offset =
-            protocol_binary_request_dcp_mutation::getHeaderLength();
-    const uint16_t nkey = ntohs(req->message.header.request.keylen);
-    const auto key = connection.makeDocKey({req->bytes + body_offset, nkey});
-
-    const auto opaque = req->message.header.request.opaque;
-    const auto datatype = req->message.header.request.datatype;
-    const auto cas = req->message.header.request.getCas();
-    const Vbid vbucket = req->message.header.request.vbucket.ntoh();
-    const uint64_t by_seqno = ntohll(req->message.body.by_seqno);
-    const uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
-    const uint32_t flags = req->message.body.flags;
-    const uint32_t expiration = ntohl(req->message.body.expiration);
-    const uint32_t lock_time = ntohl(req->message.body.lock_time);
-    const uint16_t nmeta = ntohs(req->message.body.nmeta);
-    const uint32_t valuelen = ntohl(req->message.header.request.bodylen) -
-                              nkey - req->message.header.request.extlen -
-                              nmeta;
-    cb::const_byte_buffer value{req->bytes + body_offset + nkey, valuelen};
-    cb::const_byte_buffer meta{value.buf + valuelen, nmeta};
     uint32_t priv_bytes = 0;
     if (mcbp::datatype::is_xattr(datatype)) {
         const char* payload = reinterpret_cast<const char*>(value.buf);
@@ -66,20 +52,20 @@ static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
     }
 
     return dcpMutation(cookie,
-                       opaque,
-                       key,
+                       req.getOpaque(),
+                       cookie.getConnection().makeDocKey(req.getKey()),
                        value,
                        priv_bytes,
                        datatype,
-                       cas,
-                       vbucket,
-                       flags,
-                       by_seqno,
-                       rev_seqno,
-                       expiration,
-                       lock_time,
+                       req.getCas(),
+                       req.getVBucket(),
+                       extras.getFlags(),
+                       extras.getBySeqno(),
+                       extras.getRevSeqno(),
+                       extras.getExpiration(),
+                       extras.getLockTime(),
                        meta,
-                       req->message.body.nru);
+                       extras.getNru());
 }
 
 void dcp_mutation_executor(Cookie& cookie) {

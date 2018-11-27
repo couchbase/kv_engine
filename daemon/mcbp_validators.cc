@@ -629,7 +629,7 @@ static bool is_valid_xattr_blob(const cb::mcbp::Request& request) {
 static Status dcp_mutation_validator(Cookie& cookie) {
     auto status = McbpValidator::verify_header(
             cookie,
-            protocol_binary_request_dcp_mutation::getExtrasLength(),
+            sizeof(cb::mcbp::request::DcpMutationPayload),
             ExpectedKeyLen::NonZero,
             ExpectedValueLen::Any);
     if (status != Status::Success) {

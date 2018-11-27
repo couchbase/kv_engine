@@ -163,7 +163,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
     // off, which if we extended our testapp tests to do collections may not be
     // correct. For now collections testing is done via GTEST tests and isn't
     // reliant on last_packet_size so this doesn't cause any problems.
-    last_packet_size = protocol_binary_request_dcp_mutation::getHeaderLength();
+    last_packet_size = sizeof(cb::mcbp::Request) +
+                       sizeof(cb::mcbp::request::DcpMutationPayload);
     last_packet_size =
             last_packet_size + last_key.length() + item->getNBytes() + nmeta;
 
