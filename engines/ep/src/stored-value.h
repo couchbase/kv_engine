@@ -858,32 +858,32 @@ protected:
     protocol_binary_datatype_t datatype; // 1 byte
 
     /**
-     * Compressed members live in the AtomicBitSet old comments for some members
-     * ordered := true if this is an instance of OrderedStoredValue
-     * stale := Indicates if a newer instance of the item is added. Logically
-     * part of OSV, but is physically located in SV as there are spare bits
-     * here. Guarded by the SequenceList's writeLock.
+     * Compressed members live in the AtomicBitSet
      */
     static constexpr size_t dirtyIndex = 0;
     static constexpr size_t deletedIndex = 1;
     static constexpr size_t newCacheItemIndex = 2;
+    // ordered := true if this is an instance of OrderedStoredValue
     static constexpr size_t orderedIndex = 3;
     // 2 bit nru managed via setNru/getNru
     static constexpr size_t nruIndex1 = 4;
     static constexpr size_t nruIndex2 = 5;
     static constexpr size_t residentIndex = 6;
+    // stale := Indicates if a newer instance of the item is added. Logically
+    //          part of OSV, but is physically located in SV as there are spare
+    //          bits here. Guarded by the SequenceList's writeLock.
     static constexpr size_t staleIndex = 7;
 
     folly::AtomicBitSet<sizeof(uint8_t)> bits;
 
+    /**
+     * Much like bits, bits2 consists of compressed members inside an
+     * AtomicBitSet and utilises spare bits left by padding inside StoredValue.
+     * Currently, only 1 of the 8 available bits is used.
+     */
     // If the stored value is deleted, this stores the source of its deletion.
     static constexpr size_t deletionSource = 0;
 
-    /**
-     * Much like bits, bits2 consists of compressed members inside an
-     * AtomicBitSet and is stored in StoredValue due to spare bits. Currently,
-     * only 1 of the 8 available bits is used.
-     */
     folly::AtomicBitSet<sizeof(uint8_t)> bits2;
 
     friend std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
