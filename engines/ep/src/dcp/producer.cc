@@ -141,6 +141,17 @@ void DcpProducer::BufferLog::addStats(ADD_STAT add_stat, const void *c) {
     }
 }
 
+/// Decode IncludeValue from DCP producer flags.
+static IncludeValue toIncludeValue(uint32_t flags) {
+    if ((flags & DCP_OPEN_NO_VALUE) != 0) {
+        return IncludeValue::No;
+    }
+    if ((flags & DCP_OPEN_NO_VALUE_WITH_UNDERLYING_DATATYPE) != 0) {
+        return IncludeValue::NoWithUnderlyingDatatype;
+    }
+    return IncludeValue::Yes;
+}
+
 DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
                          const void* cookie,
                          const std::string& name,
@@ -155,8 +166,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       itemsSent(0),
       totalBytesSent(0),
       totalUncompressedDataSize(0),
-      includeValue(((flags & DCP_OPEN_NO_VALUE) != 0) ? IncludeValue::No
-                                                      : IncludeValue::Yes),
+      includeValue(toIncludeValue(flags)),
       includeXattrs(((flags & DCP_OPEN_INCLUDE_XATTRS) != 0)
                             ? IncludeXattrs::Yes
                             : IncludeXattrs::No),

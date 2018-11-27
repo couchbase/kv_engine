@@ -193,6 +193,9 @@ protected:
         if (includeVal == IncludeValue::No) {
             flags |= DCP_OPEN_NO_VALUE;
         }
+        if (includeVal == IncludeValue::NoWithUnderlyingDatatype) {
+            flags |= DCP_OPEN_NO_VALUE_WITH_UNDERLYING_DATATYPE;
+        }
         if (includeXattrs == IncludeXattrs::Yes) {
             flags |= DCP_OPEN_INCLUDE_XATTRS;
         }
@@ -1078,6 +1081,34 @@ TEST_P(StreamTest, test_keyOnlyMessageSize) {
 }
 
 /*
+ * Test for a dcpResponse retrieved from a stream where
+ * IncludeValue==NoWithUnderlyingDatatype and IncludeXattrs==No, that the
+ * message size does not include the size of the body.
+ */
+TEST_P(StreamTest, test_keyOnlyMessageSizeUnderlyingDatatype) {
+    auto item = makeItemWithXattrs();
+    auto keyOnlyMessageSize =
+            MutationResponse::mutationBaseMsgBytes +
+            item->getKey().makeDocKeyWithoutCollectionID().size();
+    queued_item qi(std::move(item));
+
+    setup_dcp_stream(
+            0, IncludeValue::NoWithUnderlyingDatatype, IncludeXattrs::No);
+    std::unique_ptr<DcpResponse> dcpResponse =
+            stream->public_makeResponseFromItem(qi);
+
+    /**
+     * Create a DCP response and check that a new item is created
+     */
+    auto mutProdResponse =
+            dynamic_cast<MutationResponse*>(dcpResponse.get());
+    ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
+
+    EXPECT_EQ(keyOnlyMessageSize, dcpResponse->getMessageSize());
+    destroy_dcp_stream();
+}
+
+/*
  * Test for a dcpResponse retrieved from a stream where IncludeValue and
  * IncludeXattrs are both Yes, that the message size includes the size of the
  * body.
@@ -1210,6 +1241,70 @@ TEST_P(StreamTest, test_keyAndValueExcludingValueDataMessageSize) {
      */
     auto mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
     ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
+    EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+    destroy_dcp_stream();
+}
+
+/*
+ * Test for a dcpResponse retrieved from a stream where IncludeValue is
+ * NoWithUnderlyingDatatype and IncludeXattrs is Yes, that the message size
+ * includes the size of only the xattrs (excluding the value), and the
+ * datatype is the same as the original tiem.
+ */
+TEST_P(StreamTest, test_keyAndValueExcludingValueWithDatatype) {
+    auto item = makeItemWithXattrs();
+    auto root = const_cast<char*>(item->getData());
+    cb::byte_buffer buffer{(uint8_t*)root, item->getValue()->valueSize()};
+    auto sz = cb::xattr::get_body_offset(
+            {reinterpret_cast<char*>(buffer.buf), buffer.len});
+    auto keyAndValueMessageSize =
+            MutationResponse::mutationBaseMsgBytes +
+            item->getKey().makeDocKeyWithoutCollectionID().size() + sz;
+    queued_item qi(std::move(item));
+
+    setup_dcp_stream(
+            0, IncludeValue::NoWithUnderlyingDatatype, IncludeXattrs::Yes);
+    std::unique_ptr<DcpResponse> dcpResponse =
+            stream->public_makeResponseFromItem(qi);
+
+    /**
+     * Create a DCP response and check that a new item is created
+     */
+    auto mutProdResponse =
+            dynamic_cast<MutationResponse*>(dcpResponse.get());
+    auto& responseItem = mutProdResponse->getItem();
+    EXPECT_EQ(qi->getDataType(), responseItem->getDataType());
+    EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+    destroy_dcp_stream();
+}
+
+/*
+ * Test for a dcpResponse without XATTRS retrieved from a stream where
+ * IncludeValue is NoWithUnderlyingDatatype and IncludeXattrs is Yes, that the
+ * message size includes the size of only the key (excluding the value &
+ * XATTRs), and the datatype is the same as the original item.
+ */
+TEST_P(StreamTest, test_keyAndValueWithoutXattrExcludingValueWithDatatype) {
+    auto item = makeItemWithoutXattrs();
+    auto root = const_cast<char*>(item->getData());
+    cb::byte_buffer buffer{(uint8_t*)root, item->getValue()->valueSize()};
+    auto keyAndValueMessageSize =
+            MutationResponse::mutationBaseMsgBytes +
+            item->getKey().makeDocKeyWithoutCollectionID().size();
+    queued_item qi(std::move(item));
+
+    setup_dcp_stream(
+            0, IncludeValue::NoWithUnderlyingDatatype, IncludeXattrs::Yes);
+    std::unique_ptr<DcpResponse> dcpResponse =
+            stream->public_makeResponseFromItem(qi);
+
+    /**
+     * Create a DCP response and check that a new item is created
+     */
+    auto mutProdResponse =
+            dynamic_cast<MutationResponse*>(dcpResponse.get());
+    auto& responseItem = mutProdResponse->getItem();
+    EXPECT_EQ(qi->getDataType(), responseItem->getDataType());
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
     destroy_dcp_stream();
 }

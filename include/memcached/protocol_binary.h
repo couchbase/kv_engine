@@ -656,6 +656,19 @@ static_assert(sizeof(DcpOpenPayload) == 8, "Unexpected struct size");
  * will have a delete time of 0
  */
 #define DCP_OPEN_INCLUDE_DELETE_TIMES 32
+
+/**
+ * Indicates that the server should strip off the values, but return the
+ * datatype of the underlying document (note, if you add
+ * INCLUDE_XATTR those will be present).
+ * Note this differs from DCP_OPEN_NO_VALUE in that the datatype field will
+ * contain the underlying datatype of the document; not the datatype of the
+ * transmitted payload.
+ * This flag can be used to obtain the full, original datatype for a document
+ * without the user's value.
+ * Not valid to specify with DCP_OPEN_NO_VALUE.
+ */
+#define DCP_OPEN_NO_VALUE_WITH_UNDERLYING_DATATYPE 64
 } // namespace request
 } // namespace mcbp
 } // namespace cb

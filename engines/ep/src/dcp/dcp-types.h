@@ -85,9 +85,19 @@ enum dcp_marker_flag_t {
  * IncludeValue is used to state whether an active stream needs to send the
  * value in the response.
  */
-enum class IncludeValue : bool {
+enum class IncludeValue : char {
+    /** Include value in the response. */
     Yes,
+    /**
+     * Don't include value in the response. response.datatype will reflect the
+     * sent payload.
+     */
     No,
+    /**
+     * Don't include value in the response. Response.datatype will reflect the
+     * underlying document's datatype.
+     */
+    NoWithUnderlyingDatatype,
 };
 
 /*
