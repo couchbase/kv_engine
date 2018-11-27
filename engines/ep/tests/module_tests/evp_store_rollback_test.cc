@@ -35,6 +35,7 @@
 #include "tests/module_tests/test_helpers.h"
 #include <engines/ep/tests/mock/mock_dcp_conn_map.h>
 
+#include <mcbp/protocol/framebuilder.h>
 #include <memcached/server_cookie_iface.h>
 
 class RollbackTest : public EPBucketTest,
@@ -689,18 +690,17 @@ public:
                                                 uint64_t rollbackSeq) const {
         auto msg = std::make_unique<char[]>(
                 sizeof(protocol_binary_response_header) + sizeof(uint64_t));
-        auto* p = reinterpret_cast<protocol_binary_response_dcp_stream_req*>(
-                msg.get());
+        cb::mcbp::ResponseBuilder builder(
+                {reinterpret_cast<uint8_t*>(msg.get()),
+                 sizeof(protocol_binary_response_header) + sizeof(uint64_t)});
 
-        auto& res = p->message.header.response;
-        res.setMagic(cb::mcbp::Magic::ClientResponse);
-        res.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
-        res.setStatus(cb::mcbp::Status::Rollback);
-        res.setOpaque(opaque);
-        res.setBodylen(sizeof(uint64_t));
-
-        auto* seq = reinterpret_cast<uint64_t*>(p + 1);
-        *seq = htonll(rollbackSeq);
+        builder.setMagic(cb::mcbp::Magic::ClientResponse);
+        builder.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
+        builder.setStatus(cb::mcbp::Status::Rollback);
+        builder.setOpaque(opaque);
+        uint64_t encoded = htonll(rollbackSeq);
+        builder.setValue(
+                {reinterpret_cast<const uint8_t*>(&encoded), sizeof(encoded)});
         return msg;
     }
 

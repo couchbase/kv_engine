@@ -930,9 +930,7 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
     const auto opcode = resp->response.getClientOpcode();
     if (opcode == cb::mcbp::ClientOpcode::DcpSetVbucketState ||
         opcode == cb::mcbp::ClientOpcode::DcpSnapshotMarker) {
-        const auto* pkt = reinterpret_cast<
-                const protocol_binary_response_dcp_stream_req*>(resp);
-        const auto opaque = pkt->message.header.response.getOpaque();
+        const auto opaque = resp->response.getOpaque();
 
         // Search for an active stream with the same opaque as the response.
         auto itr = streams.find_if(

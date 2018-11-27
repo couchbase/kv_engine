@@ -879,41 +879,38 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
                     Vbid(oitr->second.second));
             return false;
         }
-        const auto* pkt = reinterpret_cast<
-                const protocol_binary_response_dcp_stream_req*>(resp);
 
+        const auto& response = resp->response;
         Vbid vbid = oitr->second.second;
-        auto status = pkt->message.header.response.getStatus();
-        uint64_t bodylen = pkt->message.header.response.getBodylen();
-        const uint8_t* body =
-                pkt->bytes + sizeof(protocol_binary_response_header);
+        const auto status = response.getStatus();
+        const auto value = response.getValue();
 
         if (status == cb::mcbp::Status::Rollback) {
-            if (bodylen != sizeof(uint64_t)) {
+            if (value.size() != sizeof(uint64_t)) {
                 logger->warn(
                         "({}) Received rollback "
                         "request with incorrect bodylen of {}, disconnecting",
                         vbid,
-                        bodylen);
+                        value.size());
                 return false;
             }
             uint64_t rollbackSeqno = 0;
-            memcpy(&rollbackSeqno, body, sizeof(uint64_t));
+            memcpy(&rollbackSeqno, value.data(), sizeof(uint64_t));
             rollbackSeqno = ntohll(rollbackSeqno);
             return handleRollbackResponse(vbid, opaque, rollbackSeqno);
         }
 
-        if (((bodylen % 16) != 0 || bodylen == 0) &&
+        if (((value.size() % 16) != 0 || value.empty()) &&
             status == cb::mcbp::Status::Success) {
             logger->warn(
                     "({})Got a stream response with a "
                     "bad failover log (length {}), disconnecting",
                     vbid,
-                    bodylen);
+                    value.size());
             return false;
         }
 
-        streamAccepted(opaque, status, body, bodylen);
+        streamAccepted(opaque, status, value.data(), value.size());
         return true;
     } else if (opcode == cb::mcbp::ClientOpcode::DcpBufferAcknowledgement ||
                opcode == cb::mcbp::ClientOpcode::DcpControl) {

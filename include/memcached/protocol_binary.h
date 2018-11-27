@@ -787,26 +787,6 @@ protected:
     uint64_t snap_end_seqno = 0;
 };
 static_assert(sizeof(DcpStreamReqPayload) == 48, "Unexpected struct size");
-#pragma pack()
-} // namespace request
-} // namespace mcbp
-} // namespace cb
-
-typedef union {
-    struct {
-        protocol_binary_response_header header;
-    } message;
-    /*
-    ** In case of cb::mcbp::Status::Rollback the body contains
-    ** the rollback sequence number (uint64_t)
-    */
-    uint8_t bytes[sizeof(protocol_binary_request_header)];
-} protocol_binary_response_dcp_stream_req;
-
-namespace cb {
-namespace mcbp {
-namespace request {
-#pragma pack(1)
 
 class DcpStreamEndPayload {
 public:
