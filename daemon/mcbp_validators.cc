@@ -1942,7 +1942,7 @@ Status McbpValidator::validate(ClientOpcode command, Cookie& cookie) {
     if (validators[idx]) {
         return validators[idx](cookie);
     }
-    return Status::Success;
+    return Status::UnknownCommand;
 }
 
 void McbpValidator::setup(ClientOpcode command, Status (*f)(Cookie&)) {
