@@ -454,7 +454,7 @@ information about a given command.
 | 0x89 | [Select bucket](#0x89-select-bucket) |
 | 0x8a | Assume role |
 | 0x91 | Observe seqno |
-| 0x92 | Observe |
+| 0x92 | [Observe](#92-observe) |
 | 0x93 | Evict key |
 | 0x94 | Get locked |
 | 0x95 | Unlock key |
@@ -2166,6 +2166,27 @@ The following example tries to select the bucket named engineering
     CAS          (16-23): 0x0000000000000000
     Key          (24-34): The textual string "engineering"
 
+
+### 0x90 Observe
+
+The `observe` command is used to observe the status for keys
+
+Request:
+
+* MUST NOT have extra
+* MUST NOT have key
+* MUST have value
+
+Response:
+
+* MUST NOT have extras.
+* MUST NOT have key.
+* MAY have value.
+
+The value in the request is encoded (in network byte order) with
+two bytes representing the vbucket id followed by two bytes
+representing the key length followed by the key (One may send
+multiple entries in a single command).
 
 ### 0x96 Get Failover Log
 

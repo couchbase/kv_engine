@@ -525,7 +525,7 @@ public:
                               const char** msg);
 
     ENGINE_ERROR_CODE observe(const void* cookie,
-                              protocol_binary_request_header* request,
+                              const cb::mcbp::Request& request,
                               ADD_RESPONSE response);
 
     ENGINE_ERROR_CODE observe_seqno(const void* cookie,

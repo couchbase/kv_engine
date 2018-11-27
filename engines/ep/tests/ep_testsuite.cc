@@ -5088,9 +5088,9 @@ static enum test_result test_observe_errors(EngineIface* h) {
                        0,
                        "0",
                        1);
-    checkeq(ENGINE_SUCCESS, h->unknown_command(NULL, pkt, add_response),
-          "Observe failed.");
-    checkeq(cb::mcbp::Status::Einval, last_status.load(), "Expected invalid");
+    checkeq(ENGINE_EINVAL,
+            h->unknown_command(NULL, pkt, add_response),
+            "Observe failed.");
     cb_free(pkt);
 
     pkt = createPacket(cb::mcbp::ClientOpcode::Observe,
@@ -5102,10 +5102,9 @@ static enum test_result test_observe_errors(EngineIface* h) {
                        0,
                        "0000",
                        4);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(ENGINE_EINVAL,
             h->unknown_command(NULL, pkt, add_response),
             "Observe failed.");
-    checkeq(cb::mcbp::Status::Einval, last_status.load(), "Expected invalid");
     cb_free(pkt);
 
     return SUCCESS;

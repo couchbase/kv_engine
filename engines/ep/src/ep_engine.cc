@@ -1086,7 +1086,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         res = h->evictKey(cookie, request->request, &msg);
         break;
     case cb::mcbp::ClientOpcode::Observe:
-        return h->observe(cookie, request, response);
+        return h->observe(cookie, request->request, response);
     case cb::mcbp::ClientOpcode::ObserveSeqno:
         return h->observe_seqno(cookie, request->request, response);
     case cb::mcbp::ClientOpcode::LastClosedCheckpoint:
@@ -4045,57 +4045,39 @@ void EventuallyPersistentEngine::resetStats() {
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         const void* cookie,
-        protocol_binary_request_header* request,
+        const cb::mcbp::Request& req,
         ADD_RESPONSE response) {
-    protocol_binary_request_no_extras *req =
-        (protocol_binary_request_no_extras*)request;
-
     size_t offset = 0;
-    const uint8_t* data = req->bytes + sizeof(req->bytes);
-    uint32_t data_len = ntohl(req->message.header.request.bodylen);
+
+    const auto value = req.getValue();
+    const uint8_t* data = value.data();
     std::stringstream result;
 
-    while (offset < data_len) {
-        Vbid vb_id;
-        uint16_t keylen;
+    while (offset < value.size()) {
+        // Each entry is built up by:
+        // 2 bytes vb id
+        // 2 bytes key length
+        // n bytes key
 
         // Parse a key
-        if (data_len - offset < 4) {
+        if (value.size() - offset < 4) {
             setErrorContext(cookie, "Requires vbid and keylen.");
-            return sendResponse(response,
-                                NULL,
-                                0,
-                                0,
-                                0,
-                                NULL,
-                                0,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                cb::mcbp::Status::Einval,
-                                0,
-                                cookie);
+            return ENGINE_EINVAL;
         }
 
+        Vbid vb_id;
         memcpy(&vb_id, data + offset, sizeof(Vbid));
         vb_id = vb_id.ntoh();
         offset += sizeof(Vbid);
 
+        uint16_t keylen;
         memcpy(&keylen, data + offset, sizeof(uint16_t));
         keylen = ntohs(keylen);
         offset += sizeof(uint16_t);
 
-        if (data_len - offset < keylen) {
+        if (value.size() - offset < keylen) {
             setErrorContext(cookie, "Incorrect keylen");
-            return sendResponse(response,
-                                NULL,
-                                0,
-                                0,
-                                0,
-                                NULL,
-                                0,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                cb::mcbp::Status::Einval,
-                                0,
-                                cookie);
+            return ENGINE_EINVAL;
         }
 
         DocKey key = makeDocKey(cookie, {data + offset, keylen});
@@ -4106,8 +4088,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
 
         // Get key stats
         uint16_t keystatus = 0;
-        struct key_stats kstats;
-        memset(&kstats, 0, sizeof(key_stats));
+        struct key_stats kstats = {};
         ENGINE_ERROR_CODE rv = kvBucket->getKeyStats(
                 key, vb_id, cookie, kstats, WantsDeleted::Yes);
         if (rv == ENGINE_SUCCESS) {
@@ -4125,21 +4106,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         } else if (rv == ENGINE_EWOULDBLOCK) {
             return rv;
         } else {
-            return sendResponse(response,
-                                NULL,
-                                0,
-                                0,
-                                0,
-                                NULL,
-                                0,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                cb::mcbp::Status::Einternal,
-                                0,
-                                cookie);
+            return ENGINE_FAILED;
         }
 
         // Put the result into a response buffer
-        vb_id = vb_id.ntoh();
+        vb_id = vb_id.hton();
         keylen = htons(keylen);
         uint64_t cas = htonll(kstats.cas);
         result.write((char*)&vb_id, sizeof(Vbid));
@@ -4150,7 +4121,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
     }
 
     uint64_t persist_time = 0;
-    double queue_size = static_cast<double>(stats.diskQueueSize);
+    auto queue_size = static_cast<double>(stats.diskQueueSize);
     double item_trans_time = kvBucket->getTransactionTimePerItem();
 
     if (item_trans_time > 0 && queue_size > 0) {
@@ -4158,13 +4129,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
     }
     persist_time = persist_time << 32;
 
+    const auto result_string = result.str();
     return sendResponse(response,
-                        NULL,
+                        nullptr,
                         0,
+                        nullptr,
                         0,
-                        0,
-                        result.str().data(),
-                        result.str().length(),
+                        result_string.data(),
+                        gsl::narrow<uint32_t>(result_string.length()),
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
                         persist_time,
