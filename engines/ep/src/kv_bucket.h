@@ -90,12 +90,9 @@ public:
     KVBucket(EventuallyPersistentEngine &theEngine);
     virtual ~KVBucket();
 
-    /**
-     * Start necessary tasks.
-     * Client calling initialize must also call deinitialize before deleting
-     * the EPBucket instance
-     */
-    bool initialize();
+    bool initialize() override;
+
+    void deinitialize() override;
 
     /**
      * Creates a warmup task if the engine configuration has "warmup=true"
@@ -107,115 +104,44 @@ public:
      */
     void startWarmupTask();
 
-    /**
-     * Stop tasks started in initialize()
-     */
-    void deinitialize();
 
-    /**
-     * Set an item in the store.
-     * @param item the item to set. On success, this will have its seqno and
-     *             CAS updated.
-     * @param cookie the cookie representing the client to store the item
-     * @param predicate an optional function to call which if returns true,
-     *        the replace will succeed. The function is called against any
-     *        existing item.
-     * @return the result of the store operation
-     */
     ENGINE_ERROR_CODE set(Item& item,
                           const void* cookie,
-                          cb::StoreIfPredicate predicate = {});
+                          cb::StoreIfPredicate predicate = {}) override;
 
-    /**
-     * Add an item in the store.
-     * @param item the item to add. On success, this will have its seqno and
-     *             CAS updated.
-     * @param cookie the cookie representing the client to store the item
-     * @return the result of the operation
-     */
-    ENGINE_ERROR_CODE add(Item &item, const void *cookie);
+    ENGINE_ERROR_CODE add(Item &item, const void *cookie) override;
 
-    /**
-     * Replace an item in the store.
-     * @param item the item to replace. On success, this will have its seqno
-     *             and CAS updated.
-     * @param cookie the cookie representing the client to store the item
-     * @param predicate an optional function to call which if returns true,
-     *        the replace will succeed. The func§tion is called against any
-     *        existing item.
-     * @return the result of the operation
-     */
     ENGINE_ERROR_CODE replace(Item& item,
                               const void* cookie,
-                              cb::StoreIfPredicate predicate = {});
+                              cb::StoreIfPredicate predicate = {}) override;
 
-    /**
-     * Add a DCP backfill item into its corresponding vbucket
-     * @param item the item to be added
-     * @return the result of the operation
-     */
     ENGINE_ERROR_CODE addBackfillItem(Item& item,
-                                      ExtendedMetaData* emd = NULL);
+                                      ExtendedMetaData* emd) override;
 
-    /**
-     * Retrieve a value.
-     *
-     * @param key     the key to fetch
-     * @param vbucket the vbucket from which to retrieve the key
-     * @param cookie  the connection cookie
-     * @param options options specified for retrieval
-     *
-     * @return a GetValue representing the result of the request
-     */
     GetValue get(const DocKey& key,
                  Vbid vbucket,
                  const void* cookie,
-                 get_options_t options) {
+                 get_options_t options) override {
         return getInternal(key, vbucket, cookie, vbucket_state_active,
                            options);
     }
 
-    /**
-     * Retrieve a value randomly from the store.
-     *
-     * @return a GetValue representing the value retrieved
-     */
-    GetValue getRandomKey(void);
+    GetValue getRandomKey() override;
 
-    /**
-     * Retrieve a value from a vbucket in replica state.
-     *
-     * @param key     the key to fetch
-     * @param vbucket the vbucket from which to retrieve the key
-     * @param cookie  the connection cookie
-     * @param options options specified for retrieval
-     *
-     * @return a GetValue representing the result of the request
-     */
     GetValue getReplica(const DocKey& key,
                         Vbid vbucket,
                         const void* cookie,
-                        get_options_t options) {
+                        get_options_t options) override {
         return getInternal(key, vbucket, cookie, vbucket_state_replica,
                            options);
     }
 
-    /**
-     * Retrieve the meta data for an item
-     *
-     * @parapm key the key to get the meta data for
-     * @param vbucket the vbucket from which to retrieve the key
-     * @param cookie the connection cookie
-     * @param[out] metadata where to store the meta informaion
-     * @param[out] deleted specifies whether or not the key is deleted
-     * @param[out] datatype specifies the datatype for the given item
-     */
     ENGINE_ERROR_CODE getMetaData(const DocKey& key,
                                   Vbid vbucket,
                                   const void* cookie,
                                   ItemMetaData& metadata,
                                   uint32_t& deleted,
-                                  uint8_t& datatype);
+                                  uint8_t& datatype) override;
 
     ENGINE_ERROR_CODE setWithMeta(
             Item& item,
@@ -227,29 +153,19 @@ public:
             bool allowExisting,
             GenerateBySeqno genBySeqno = GenerateBySeqno::Yes,
             GenerateCas genCas = GenerateCas::No,
-            ExtendedMetaData* emd = NULL);
+            ExtendedMetaData* emd = NULL) override;
 
-    /**
-     * Retrieve a value, but update its TTL first
-     *
-     * @param key the key to fetch
-     * @param vbucket the vbucket from which to retrieve the key
-     * @param cookie the connection cookie
-     * @param exptime the new expiry time for the object
-     *
-     * @return a GetValue representing the result of the request
-     */
     GetValue getAndUpdateTtl(const DocKey& key,
                              Vbid vbucket,
                              const void* cookie,
-                             time_t exptime);
+                             time_t exptime) override;
 
     ENGINE_ERROR_CODE deleteItem(const DocKey& key,
                                  uint64_t& cas,
                                  Vbid vbucket,
                                  const void* cookie,
                                  ItemMetaData* itemMeta,
-                                 mutation_descr_t& mutInfo);
+                                 mutation_descr_t& mutInfo) override;
 
     ENGINE_ERROR_CODE deleteWithMeta(const DocKey& key,
                                      uint64_t& cas,
@@ -263,34 +179,22 @@ public:
                                      GenerateBySeqno genBySeqno,
                                      GenerateCas generateCas,
                                      uint64_t bySeqno,
-                                     ExtendedMetaData* emd);
+                                     ExtendedMetaData* emd) override;
 
-    virtual void reset();
+    void reset() override;
 
-    virtual bool pauseFlusher();
-    virtual bool resumeFlusher();
-    virtual void wakeUpFlusher();
+    bool pauseFlusher() override;
+    bool resumeFlusher() override;
+    void wakeUpFlusher() override;
 
-    /**
-     * Takes a snapshot of the current stats and persists them to disk.
-     */
-    void snapshotStats(void);
+    void snapshotStats() override;
 
-    virtual void getAggregatedVBucketStats(const void* cookie,
-                                           ADD_STAT add_stat);
+    void getAggregatedVBucketStats(const void* cookie,
+                                   ADD_STAT add_stat) override;
 
-    /**
-     * Complete a batch of background fetch of a non resident value or metadata.
-     *
-     * @param vbId the vbucket in which the requested key lived
-     * @param fetchedItems vector of completed background feches containing key,
-     *                     value, client cookies
-     * @param start the time when the background fetch was started
-     *
-     */
     void completeBGFetchMulti(Vbid vbId,
                               std::vector<bgfetched_item_t>& fetchedItems,
-                              std::chrono::steady_clock::time_point start);
+                              std::chrono::steady_clock::time_point start) override;
 
     /**
      * Returns the number of vbuckets in a given state.
@@ -309,7 +213,7 @@ public:
         return vbMap.getBucketsInState(state);
     }
 
-    VBucketPtr getVBucket(Vbid vbid) {
+    VBucketPtr getVBucket(Vbid vbid) override {
         return vbMap.getBucket(vbid);
     }
 
@@ -345,12 +249,12 @@ public:
         return {vbMap.getBucket(vbid), std::move(lock)};
     }
 
-    std::pair<uint64_t, bool> getLastPersistedCheckpointId(Vbid vb) {
+    std::pair<uint64_t, bool> getLastPersistedCheckpointId(Vbid vb) override {
         // No persistence at the KVBucket class level.
         return {0, false};
     }
 
-    uint64_t getLastPersistedSeqno(Vbid vb) {
+    uint64_t getLastPersistedSeqno(Vbid vb) override {
         auto vbucket = vbMap.getBucket(vb);
         if (vbucket) {
             return vbucket->getPersistenceSeqno();
@@ -407,31 +311,11 @@ public:
         return vbsetMutex;
     }
 
-    /**
-     * Deletes a vbucket
-     *
-     * @param vbid The vbucket to delete.
-     * @param c The cookie for this connection.
-     *          Used in synchronous bucket deletes
-     *          to notify the connection of operation completion.
-     */
-    ENGINE_ERROR_CODE deleteVBucket(Vbid vbid, const void* c = NULL);
+    ENGINE_ERROR_CODE deleteVBucket(Vbid vbid, const void* c = NULL) override;
 
-    /**
-     * Check for the existence of a vbucket in the case of couchstore.
-     *
-     * @param db_file_id vbucketid for couchstore.
-     */
-    ENGINE_ERROR_CODE checkForDBExistence(Vbid db_file_id);
+    ENGINE_ERROR_CODE checkForDBExistence(Vbid db_file_id) override;
 
-    /**
-     * Get the database file id for the compaction request
-     *
-     * @param req compaction request structure
-     *
-     * returns the database file id from the underlying KV store
-     */
-    Vbid getDBFileId(const cb::mcbp::Request& req);
+    Vbid getDBFileId(const cb::mcbp::Request& req) override;
 
     /**
      * Remove completed compaction tasks or wake snoozed tasks
@@ -440,94 +324,65 @@ public:
      */
     void updateCompactionTasks(Vbid db_file_id);
 
-    /**
-     * Reset a given vbucket from memory and disk. This differs from vbucket deletion in that
-     * it does not delete the vbucket instance from memory hash table.
-     */
-    bool resetVBucket(Vbid vbid);
+    bool resetVBucket(Vbid vbid) override;
 
-    /**
-     * Run a vBucket visitor, visiting all items. Synchronous.
-     */
-    void visit(VBucketVisitor &visitor);
+    void visit(VBucketVisitor &visitor) override;
 
-    /**
-     * Run a vbucket visitor with separate jobs per vbucket.
-     *
-     * Note that this is asynchronous.
-     */
     size_t visit(std::unique_ptr<VBucketVisitor> visitor,
                  const char* lbl,
                  TaskId id,
                  double sleepTime,
-                 std::chrono::microseconds maxExpectedDuration);
+                 std::chrono::microseconds maxExpectedDuration) override;
 
     Position pauseResumeVisit(PauseResumeVBVisitor& visitor,
-                              Position& start_pos);
+                              Position& start_pos) override;
 
-    /**
-     * Return a position at the start of the epStore.
-     */
-    Position startPosition() const;
+    Position startPosition() const override;
 
-    /**
-     * Return a position at the end of the epStore. Has similar semantics
-     * as STL end() (i.e. one past the last element).
-     */
-    Position endPosition() const;
+    Position endPosition() const override;
 
-    const Flusher* getFlusher(uint16_t shardId);
+    const Flusher* getFlusher(uint16_t shardId) override;
 
-    Warmup* getWarmup(void) const;
+    Warmup* getWarmup() const override;
 
-    /**
-     * Looks up the key stats for the given {vbucket, key}.
-     * @param key The key to lookup
-     * @param vbucket The vbucket the key belongs to.
-     * @param cookie The client's cookie
-     * @param[out] kstats On success the keystats for this item.
-     * @param wantsDeleted If yes then return keystats even if the item is
-     *                     marked as deleted. If no then will return
-     *                     ENGINE_KEY_ENOENT for deleted items.
-     */
     ENGINE_ERROR_CODE getKeyStats(const DocKey& key,
                                   Vbid vbucket,
                                   const void* cookie,
                                   key_stats& kstats,
-                                  WantsDeleted wantsDeleted);
+                                  WantsDeleted wantsDeleted) override;
 
-    std::string validateKey(const DocKey& key, Vbid vbucket, Item& diskItem);
+    std::string validateKey(const DocKey& key, Vbid vbucket, Item& diskItem) override;
 
     GetValue getLocked(const DocKey& key,
                        Vbid vbucket,
                        rel_time_t currentTime,
                        uint32_t lockTimeout,
-                       const void* cookie);
+                       const void* cookie) override ;
 
     ENGINE_ERROR_CODE unlockKey(const DocKey& key,
                                 Vbid vbucket,
                                 uint64_t cas,
-                                rel_time_t currentTime);
+                                rel_time_t currentTime) override;
 
-    KVStore* getRWUnderlying(Vbid vbId) {
+    KVStore* getRWUnderlying(Vbid vbId) override {
         return vbMap.getShardByVbId(vbId)->getRWUnderlying();
     }
 
-    KVStore* getRWUnderlyingByShard(size_t shardId) {
+    KVStore* getRWUnderlyingByShard(size_t shardId) override {
         return vbMap.shards[shardId]->getRWUnderlying();
     }
 
-    KVStore* getROUnderlyingByShard(size_t shardId) {
+    KVStore* getROUnderlyingByShard(size_t shardId) override {
         return vbMap.shards[shardId]->getROUnderlying();
     }
 
-    KVStore* getROUnderlying(Vbid vbId) {
+    KVStore* getROUnderlying(Vbid vbId) override {
         return vbMap.getShardByVbId(vbId)->getROUnderlying();
     }
 
     cb::mcbp::Status evictKey(const DocKey& key,
                               Vbid vbucket,
-                              const char** msg);
+                              const char** msg) override;
 
     /**
      * Run the server-api pre-expiry hook against the Item - the function
@@ -541,8 +396,9 @@ public:
      *        mutate.
      */
     void runPreExpiryHook(VBucket& vb, Item& it);
-    void deleteExpiredItem(Item& it, time_t startTime, ExpireBy source);
-    void deleteExpiredItems(std::list<Item>&, ExpireBy);
+
+    void deleteExpiredItem(Item& it, time_t startTime, ExpireBy source) override;
+    void deleteExpiredItems(std::list<Item>&, ExpireBy) override;
 
     /**
      * Get the value for the Item
@@ -552,47 +408,44 @@ public:
      */
     void getValue(Item& it);
 
-    /**
-     * Get the memoized storage properties from the DB.kv
-     */
-    const StorageProperties getStorageProperties() const {
+    const StorageProperties getStorageProperties() const override {
         KVStore* store  = vbMap.shards[0]->getROUnderlying();
         return store->getStorageProperties();
     }
 
-    virtual void scheduleVBStatePersist();
+    void scheduleVBStatePersist() override;
 
-    virtual void scheduleVBStatePersist(Vbid vbid);
+    void scheduleVBStatePersist(Vbid vbid) override;
 
-    const VBucketMap &getVBuckets() {
+    const VBucketMap &getVBuckets() override {
         return vbMap;
     }
 
-    EventuallyPersistentEngine& getEPEngine() {
+    EventuallyPersistentEngine& getEPEngine() override {
         return engine;
     }
 
-    size_t getExpiryPagerSleeptime(void) {
+    size_t getExpiryPagerSleeptime() override {
         LockHolder lh(expiryPager.mutex);
         return expiryPager.sleeptime;
     }
 
-    size_t getTransactionTimePerItem() {
+    size_t getTransactionTimePerItem() override {
         return lastTransTimePerItem.load();
     }
 
-    bool isDeleteAllScheduled() {
+    bool isDeleteAllScheduled() override {
         return diskDeleteAll.load();
     }
 
-    void setDeleteAllComplete();
+    void setDeleteAllComplete() override;
 
-    void setBackfillMemoryThreshold(double threshold);
+    void setBackfillMemoryThreshold(double threshold) override;
 
-    void setExpiryPagerSleeptime(size_t val);
-    void setExpiryPagerTasktime(ssize_t val);
-    void enableExpiryPager();
-    void disableExpiryPager();
+    void setExpiryPagerSleeptime(size_t val) override;
+    void setExpiryPagerTasktime(ssize_t val) override;
+    void enableExpiryPager() override;
+    void disableExpiryPager() override;
 
     /// Wake up the expiry pager (if enabled), scheduling it for immediate run.
     void wakeUpExpiryPager();
@@ -606,39 +459,39 @@ public:
     /// Wake up the ItemFreqDecayer Task, scheduling it for immediate run.
     void wakeItemFreqDecayerTask();
 
-    void enableAccessScannerTask();
-    void disableAccessScannerTask();
-    void setAccessScannerSleeptime(size_t val, bool useStartTime);
-    void resetAccessScannerStartTime();
+    void enableAccessScannerTask() override;
+    void disableAccessScannerTask() override;
+    void setAccessScannerSleeptime(size_t val, bool useStartTime) override;
+    void resetAccessScannerStartTime() override;
 
-    void resetAccessScannerTasktime() {
+    void resetAccessScannerTasktime() override {
         accessScanner.lastTaskRuntime = std::chrono::steady_clock::now();
     }
 
-    void setAllBloomFilters(bool to);
+    void setAllBloomFilters(bool to) override;
 
-    float getBfiltersResidencyThreshold() {
+    float getBfiltersResidencyThreshold() override {
         return bfilterResidencyThreshold;
     }
 
-    void setBfiltersResidencyThreshold(float to) {
+    void setBfiltersResidencyThreshold(float to) override {
         bfilterResidencyThreshold = to;
     }
 
-    bool isMetaDataResident(VBucketPtr &vb, const DocKey& key);
+    bool isMetaDataResident(VBucketPtr &vb, const DocKey& key) override;
 
     void logQTime(TaskId taskType,
-                  const std::chrono::steady_clock::duration enqTime);
+                  const std::chrono::steady_clock::duration enqTime) override;
 
     void logRunTime(TaskId taskType,
-                    const std::chrono::steady_clock::duration runTime);
+                    const std::chrono::steady_clock::duration runTime) override;
 
-    void updateCachedResidentRatio(size_t activePerc, size_t replicaPerc) {
+    void updateCachedResidentRatio(size_t activePerc, size_t replicaPerc) override {
         cachedResidentRatio.activeRatio.store(activePerc);
         cachedResidentRatio.replicaRatio.store(replicaPerc);
     }
 
-    bool isWarmingUp();
+    bool isWarmingUp() override;
 
     /**
      * Method checks with Warmup if a setVBState should block.
@@ -650,13 +503,9 @@ public:
      */
     bool shouldSetVBStateBlock(const void* cookie);
 
-    bool maybeEnableTraffic(void);
+    bool maybeEnableTraffic() override;
 
-    /**
-     * Checks the memory consumption.
-     * To be used by backfill tasks (DCP).
-     */
-    bool isMemoryUsageTooHigh();
+    bool isMemoryUsageTooHigh() override;
 
     /**
      * Check the status of memory used and maybe begin to free memory if
@@ -666,109 +515,70 @@ public:
      */
     void checkAndMaybeFreeMemory();
 
-    void addKVStoreStats(ADD_STAT add_stat, const void* cookie);
+    void addKVStoreStats(ADD_STAT add_stat, const void* cookie) override;
 
-    void addKVStoreTimingStats(ADD_STAT add_stat, const void* cookie);
+    void addKVStoreTimingStats(ADD_STAT add_stat, const void* cookie) override;
 
-    /* Given a named KVStore statistic, return the value of that statistic,
-     * accumulated across any shards.
-     *
-     * @param name The name of the statistic
-     * @param[out] value The value of the statistic.
-     * @param option the KVStore to read stats from.
-     * @return True if the statistic was successfully returned via {value},
-     *              else false.
-     */
     bool getKVStoreStat(const char* name, size_t& value,
-                        KVSOption option);
+                        KVSOption option) override;
 
-    void resetUnderlyingStats(void);
-    KVStore *getOneROUnderlying(void);
-    KVStore *getOneRWUnderlying(void);
+    void resetUnderlyingStats() override;
+    KVStore *getOneROUnderlying() override;
+    KVStore *getOneRWUnderlying() override;
 
-    item_eviction_policy_t getItemEvictionPolicy(void) const {
+    item_eviction_policy_t getItemEvictionPolicy() const override {
         return eviction_policy;
     }
 
-    /*
-     * Request a rollback of the vbucket to the specified seqno.
-     * If the rollbackSeqno is not a checkpoint boundary, then the rollback
-     * will be to the nearest checkpoint.
-     * There are also cases where the rollback will be forced to 0.
-     * various failures or if the rollback is > 50% of the data.
-     *
-     * A check of the vbucket's high-seqno indicates if a rollback request
-     * was not honoured exactly.
-     *
-     * @param vbid The vbucket to rollback
-     * @rollbackSeqno The seqno to rollback to.
-     *
-     * @return TaskStatus::Complete upon successful rollback
-     *         TaskStatus::Abort if vbucket is not replica or
-     *                           if vbucket is not valid
-     *                           if vbucket reset and rollback fails
-     *         TaskStatus::Reschedule if you cannot get a lock on the vbucket
-     */
-    TaskStatus rollback(Vbid vbid, uint64_t rollbackSeqno);
+    TaskStatus rollback(Vbid vbid, uint64_t rollbackSeqno) override;
 
-    virtual void attemptToFreeMemory();
+    void attemptToFreeMemory() override;
 
-    void wakeUpCheckpointRemover() {
+    void wakeUpCheckpointRemover() override {
         if (chkTask && chkTask->getState() == TASK_SNOOZED) {
             ExecutorPool::get()->wake(chkTask->getId());
         }
     }
 
-    void runDefragmenterTask();
+    void runDefragmenterTask() override;
 
-    /**
-     * Invoke the run method of the ItemFreqDecayerTask.  Currently only used
-     * for testing purposes.
-     */
-    void runItemFreqDecayerTask();
+    void runItemFreqDecayerTask() override;
 
-    bool runAccessScannerTask();
+    bool runAccessScannerTask() override;
 
-    void runVbStatePersistTask(Vbid vbid);
+    void runVbStatePersistTask(Vbid vbid) override;
 
-    void setCompactionWriteQueueCap(size_t to) {
+    void setCompactionWriteQueueCap(size_t to) override {
         compactionWriteQueueCap = to;
     }
 
-    void setCompactionExpMemThreshold(size_t to) {
+    void setCompactionExpMemThreshold(size_t to) override {
         compactionExpMemThreshold = static_cast<double>(to) / 100.0;
     }
 
-    bool compactionCanExpireItems();
+    bool compactionCanExpireItems() override;
 
-    void setCursorDroppingLowerUpperThresholds(size_t maxSize);
+    void setCursorDroppingLowerUpperThresholds(size_t maxSize) override;
 
-    bool isAccessScannerEnabled() {
+    bool isAccessScannerEnabled() override {
         LockHolder lh(accessScanner.mutex);
         return accessScanner.enabled;
     }
 
-    bool isExpPagerEnabled() {
+    bool isExpPagerEnabled() override {
         LockHolder lh(expiryPager.mutex);
         return expiryPager.enabled;
     }
 
-    //Check if there were any out-of-memory errors during warmup
-    bool isWarmupOOMFailure(void);
+    bool isWarmupOOMFailure() override;
 
-    size_t getActiveResidentRatio() const;
+    size_t getActiveResidentRatio() const override;
 
-    size_t getReplicaResidentRatio() const;
-    /*
-     * Change the max_cas of the specified vbucket to cas without any
-     * care for the data or ongoing operations...
-     */
-    ENGINE_ERROR_CODE forceMaxCas(Vbid vbucket, uint64_t cas);
+    size_t getReplicaResidentRatio() const override;
 
-    /**
-     * Create a VBucket object appropriate for this Bucket class.
-     */
-    virtual VBucketPtr makeVBucket(
+    ENGINE_ERROR_CODE forceMaxCas(Vbid vbucket, uint64_t cas) override;
+
+    VBucketPtr makeVBucket(
             Vbid id,
             vbucket_state_t state,
             KVShard* shard,
@@ -783,7 +593,7 @@ public:
             int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
             bool mightContainXattrs = false,
             const Collections::VB::PersistedManifest& collectionsManifest =
-                    {}) = 0;
+                    {}) override = 0;
 
     /**
      * Method to handle set_collections commands
@@ -853,28 +663,16 @@ protected:
     // triggered whenever we want to check if we could enable traffic..
     friend class LoadStorageKVPairCallback;
 
-    // Methods called during warmup
-    std::vector<vbucket_state *> loadVBucketState();
+    std::vector<vbucket_state *> loadVBucketState() override;
 
-    void warmupCompleted();
-    void stopWarmup(void);
+    void warmupCompleted() override;
+    void stopWarmup() override;
 
-    /**
-     * Get metadata and value for a given key
-     *
-     * @param key Key for which metadata and value should be retrieved
-     * @param vbucket the vbucket from which to retrieve the key
-     * @param cookie The connection cookie
-     * @param allowedState Whether getting for active or replica vbucket
-     * @param options Flags indicating some retrieval related info
-     *
-     * @return the result of the operation
-     */
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,
                          const void* cookie,
                          vbucket_state_t allowedState,
-                         get_options_t options);
+                         get_options_t options) override;
 
     bool resetVBucket_UNLOCKED(LockedVBucketPtr& vb,
                                std::unique_lock<std::mutex>& vbset);

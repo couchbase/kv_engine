@@ -79,7 +79,7 @@ public:
     /**
      * Start necessary tasks.
      * Client calling initialize must also call deinitialize before deleting
-     * the EPBucket instance
+     * a concrete KVBucketIface instance
      */
     virtual bool initialize() = 0;
 
@@ -145,7 +145,12 @@ public:
                          const void* cookie,
                          get_options_t options) = 0;
 
-    virtual GetValue getRandomKey(void) = 0;
+    /**
+     * Retrieve a value randomly from the store.
+     *
+     * @return a GetValue representing the value retrieved
+     */
+    virtual GetValue getRandomKey() = 0;
 
     /**
      * Retrieve a value from a vbucket in replica state.
@@ -328,7 +333,7 @@ public:
     /**
      * Takes a snapshot of the current stats and persists them to disk.
      */
-    virtual void snapshotStats(void) = 0;
+    virtual void snapshotStats() = 0;
 
     /**
      * Get summarized vBucket stats for this bucket - total for all
@@ -632,11 +637,31 @@ public:
     virtual bool getKVStoreStat(const char* name, size_t& value,
                                 KVSOption option) = 0;
 
-    virtual void resetUnderlyingStats(void) = 0;
-    virtual KVStore *getOneROUnderlying(void) = 0;
-    virtual KVStore *getOneRWUnderlying(void) = 0;
+    virtual void resetUnderlyingStats() = 0;
+    virtual KVStore *getOneROUnderlying() = 0;
+    virtual KVStore *getOneRWUnderlying() = 0;
 
-    virtual item_eviction_policy_t getItemEvictionPolicy(void) const  = 0;
+    virtual item_eviction_policy_t getItemEvictionPolicy() const = 0;
+
+    /*
+     * Request a rollback of the vbucket to the specified seqno.
+     * If the rollbackSeqno is not a checkpoint boundary, then the rollback
+     * will be to the nearest checkpoint.
+     * There are also cases where the rollback will be forced to 0.
+     * various failures or if the rollback is > 50% of the data.
+     *
+     * A check of the vbucket's high-seqno indicates if a rollback request
+     * was not honoured exactly.
+     *
+     * @param vbid The vbucket to rollback
+     * @rollbackSeqno The seqno to rollback to.
+     *
+     * @return TaskStatus::Complete upon successful rollback
+     *         TaskStatus::Abort if vbucket is not replica or
+     *                           if vbucket is not valid
+     *                           if vbucket reset and rollback fails
+     *         TaskStatus::Reschedule if you cannot get a lock on the vbucket
+     */
     virtual TaskStatus rollback(Vbid vbid, uint64_t rollbackSeqno) = 0;
 
     /**
@@ -651,6 +676,10 @@ public:
 
     virtual void runDefragmenterTask() = 0;
 
+    /**
+     * Invoke the run method of the ItemFreqDecayerTask.  Currently only used
+     * for testing purposes.
+     */
     virtual void runItemFreqDecayerTask() = 0;
 
     virtual bool runAccessScannerTask() = 0;
@@ -669,7 +698,7 @@ public:
 
     virtual bool isExpPagerEnabled() = 0;
 
-    //Check if there were any out-of-memory errors during warmup
+    /// Check if there were any out-of-memory errors during warmup
     virtual bool isWarmupOOMFailure(void) = 0;
 
     virtual size_t getActiveResidentRatio() const = 0;
@@ -724,6 +753,17 @@ protected:
     virtual void warmupCompleted() = 0;
     virtual void stopWarmup(void) = 0;
 
+    /**
+     * Get metadata and value for a given key
+     *
+     * @param key Key for which metadata and value should be retrieved
+     * @param vbucket the vbucket from which to retrieve the key
+     * @param cookie The connection cookie
+     * @param allowedState Whether getting for active or replica vbucket
+     * @param options Flags indicating some retrieval related info
+     *
+     * @return the result of the operation
+     */
     virtual GetValue getInternal(const DocKey& key,
                                  Vbid vbucket,
                                  const void* cookie,
