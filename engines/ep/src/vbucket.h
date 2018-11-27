@@ -810,14 +810,12 @@ public:
      * @param cookie the connection cookie
      * @param eviction_policy The eviction policy
      * @param engine Reference to ep engine
-     * @param bgFetchDelay
      *
      * @return VBReturnCtx indicates notifyCtx and operation result
      */
     virtual ENGINE_ERROR_CODE statsVKey(const DocKey& key,
                                         const void* cookie,
-                                        EventuallyPersistentEngine& engine,
-                                        int bgFetchDelay) = 0;
+                                        EventuallyPersistentEngine& engine) = 0;
 
     /**
      * Complete the vkey stats for an item background fetched from disk.
@@ -849,7 +847,6 @@ public:
      *            bySeqno, cas and revSeqno are updated
      * @param cookie the connection cookie
      * @param engine Reference to ep engine
-     * @param bgFetchDelay
      * @param predicate a function to call which if returns true, the set will
      *        succeed. The function is called against any existing item.
      *
@@ -858,7 +855,6 @@ public:
     ENGINE_ERROR_CODE set(Item& itm,
                           const void* cookie,
                           EventuallyPersistentEngine& engine,
-                          int bgFetchDelay,
                           cb::StoreIfPredicate predicate);
 
     /**
@@ -868,7 +864,6 @@ public:
      *            bySeqno, cas and revSeqno are updated
      * @param cookie the connection cookie
      * @param engine Reference to ep engine
-     * @param bgFetchDelay
      * @param predicate a function to call which if returns true, the replace
      *        will succeed. The function is called against any existing item.
      * @param readHandle Reader access to the Item's collection data.
@@ -879,7 +874,6 @@ public:
             Item& itm,
             const void* cookie,
             EventuallyPersistentEngine& engine,
-            int bgFetchDelay,
             cb::StoreIfPredicate predicate,
             const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
@@ -902,7 +896,6 @@ public:
      * @param seqno sequence number of mutation
      * @param cookie the cookie representing the client to store the item
      * @param engine Reference to ep engine
-     * @param bgFetchDelay
      * @param checkConflicts should conflict resolution be done?
      * @param allowExisting set to false if you want set to fail if the
      *                      item exists already
@@ -918,7 +911,6 @@ public:
             uint64_t* seqno,
             const void* cookie,
             EventuallyPersistentEngine& engine,
-            int bgFetchDelay,
             CheckConflicts checkConflicts,
             bool allowExisting,
             GenerateBySeqno genBySeqno,
@@ -931,7 +923,6 @@ public:
      * @param[in,out] cas value to match; new cas after logical delete
      * @param cookie the cookie representing the client to store the item
      * @param engine Reference to ep engine
-     * @param bgFetchDelay
      * @param[out] itemMeta pointer to item meta data that needs to be returned
      *                      as a result the delete. A NULL pointer indicates
      *                      that no meta data needs to be returned.
@@ -946,7 +937,6 @@ public:
             uint64_t& cas,
             const void* cookie,
             EventuallyPersistentEngine& engine,
-            int bgFetchDelay,
             ItemMetaData* itemMeta,
             mutation_descr_t& mutInfo,
             const Collections::VB::Manifest::CachingReadHandle& readHandle);
@@ -959,7 +949,6 @@ public:
      *                   NULL value is passed if not needed
      * @param cookie the cookie representing the client to store the item
      * @param engine Reference to ep engine
-     * @param bgFetchDelay
      * @param checkConflicts should conflict resolution be done?
      * @param itemMeta ref to item meta data
      * @param backfill indicates if the item must be put onto vb queue or
@@ -976,7 +965,6 @@ public:
             uint64_t* seqno,
             const void* cookie,
             EventuallyPersistentEngine& engine,
-            int bgFetchDelay,
             CheckConflicts checkConflicts,
             const ItemMetaData& itemMeta,
             bool backfill,
@@ -1050,7 +1038,6 @@ public:
      *            CAS updated.
      * @param cookie the cookie representing the client to store the item
      * @param engine Reference to ep engine
-     * @param bgFetchDelay
      * @param readHandle Reader access to the Item's collection data.
      *
      * @return the result of the operation
@@ -1059,7 +1046,6 @@ public:
             Item& itm,
             const void* cookie,
             EventuallyPersistentEngine& engine,
-            int bgFetchDelay,
             const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**
@@ -1067,7 +1053,6 @@ public:
      *
      * @param cookie the connection cookie
      * @param engine Reference to ep engine
-     * @param bgFetchDelay
      * @param exptime the new expiry time for the object
      * @param readHandle Reader access to the key's collection data.
      *
@@ -1076,7 +1061,6 @@ public:
     GetValue getAndUpdateTtl(
             const void* cookie,
             EventuallyPersistentEngine& engine,
-            int bgFetchDelay,
             time_t exptime,
             const Collections::VB::Manifest::CachingReadHandle& readHandle);
     /**
@@ -1094,7 +1078,6 @@ public:
      *
      * @param cookie the cookie representing the client
      * @param engine Reference to ep engine
-     * @param bgFetchDelay
      * @param options flags indicating some retrieval related info
      * @param diskFlushAll
      * @param getKeyOnly if GetKeyOnly::Yes we want only the key
@@ -1105,7 +1088,6 @@ public:
     GetValue getInternal(
             const void* cookie,
             EventuallyPersistentEngine& engine,
-            int bgFetchDelay,
             get_options_t options,
             bool diskFlushAll,
             GetKeyOnly getKeyOnly,
@@ -1116,7 +1098,6 @@ public:
      *
      * @param cookie the connection cookie
      * @param engine Reference to ep engine
-     * @param bgFetchDelay Delay in secs before we run the bgFetch task
      * @param readHandle Reader access to the key's collection data.
      * @param[out] metadata meta information returned to the caller
      * @param[out] deleted specifies the caller whether or not the key is
@@ -1128,7 +1109,6 @@ public:
     ENGINE_ERROR_CODE getMetaData(
             const void* cookie,
             EventuallyPersistentEngine& engine,
-            int bgFetchDelay,
             const Collections::VB::Manifest::CachingReadHandle& readHandle,
             ItemMetaData& metadata,
             uint32_t& deleted,
@@ -1139,7 +1119,6 @@ public:
      *
      * @param cookie The client's cookie
      * @param engine Reference to ep engine
-     * @param bgFetchDelay
      * @param[out] kstats On success the keystats for this item.
      * @param wantsDeleted If yes then return keystats even if the item is
      *                     marked as deleted. If no then will return
@@ -1151,7 +1130,6 @@ public:
     ENGINE_ERROR_CODE getKeyStats(
             const void* cookie,
             EventuallyPersistentEngine& engine,
-            int bgFetchDelay,
             struct key_stats& kstats,
             WantsDeleted wantsDeleted,
             const Collections::VB::Manifest::CachingReadHandle& readHandle);
@@ -1164,7 +1142,6 @@ public:
      * @param lockTimeout Timeout for the lock on the item
      * @param cookie The client's cookie
      * @param engine Reference to ep engine
-     * @param bgFetchDelay Delay in secs before we run the bgFetch task
      * @param readHandle Reader access to the key's collection data.
      *
      * @return the result of the operation (contains locked item on success)
@@ -1174,7 +1151,6 @@ public:
             uint32_t lockTimeout,
             const void* cookie,
             EventuallyPersistentEngine& engine,
-            int bgFetchDelay,
             const Collections::VB::Manifest::CachingReadHandle& readHandle);
     /**
      * Update in memory data structures after an item is deleted on disk
@@ -1735,7 +1711,6 @@ private:
      * @param key the key to be bg fetched
      * @param cookie the cookie of the requestor
      * @param engine Reference to ep engine
-     * @param bgFetchDelay Delay in secs before we run the bgFetch task
      * @param metadataOnly whether the fetch is for a non-resident value or
      *                     metadata of a (possibly) deleted item
      *
@@ -1746,7 +1721,6 @@ private:
             const DocKey& key,
             const void* cookie,
             EventuallyPersistentEngine& engine,
-            int bgFetchDelay,
             bool metadataOnly) = 0;
 
     /**
@@ -1755,14 +1729,12 @@ private:
      * @param key the key to be bg fetched
      * @param cookie the cookie of the requestor
      * @param engine Reference to ep engine
-     * @param bgFetchDelay Delay in secs before we run the bgFetch task
      * @param isMeta whether the fetch is for a non-resident value or metadata
      *               of a (possibly) deleted item
      */
     virtual void bgFetch(const DocKey& key,
                          const void* cookie,
                          EventuallyPersistentEngine& engine,
-                         int bgFetchDelay,
                          bool isMeta = false) = 0;
 
     /**
@@ -1771,7 +1743,6 @@ private:
      * @param key key for which metadata and value should be retrieved
      * @param cookie the cookie representing the client
      * @param engine Reference to ep engine
-     * @param bgFetchDelay Delay in secs before we run the bgFetch task
      * @param queueBgFetch Indicates whether a background fetch needs to be
      *        queued
      * @param v reference to the stored value of the non-resident key
@@ -1781,7 +1752,6 @@ private:
     virtual GetValue getInternalNonResident(const DocKey& key,
                                             const void* cookie,
                                             EventuallyPersistentEngine& engine,
-                                            int bgFetchDelay,
                                             QueueBgFetch queueBgFetch,
                                             const StoredValue& v) = 0;
 

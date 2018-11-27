@@ -64,7 +64,6 @@ boost::optional<GetValue> CacheCallback::get(VBucket& vb,
 
     return vb.getInternal(nullptr,
                           engine_,
-                          0,
                           /*options*/ NONE,
                           /*diskFlushAll*/ false,
                           stream.isKeyOnly() ? VBucket::GetKeyOnly::Yes

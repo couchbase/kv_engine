@@ -85,7 +85,6 @@ EPStats::EPStats()
       numRemainingBgItems(0),
       numRemainingBgJobs(0),
       bgNumOperations(0),
-      maxRemainingBgJobs(0),
       bgWait(0),
       bgMinWait(0),
       bgMaxWait(0),

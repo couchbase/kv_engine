@@ -84,8 +84,7 @@ public:
 
     ENGINE_ERROR_CODE statsVKey(const DocKey& key,
                                 const void* cookie,
-                                EventuallyPersistentEngine& engine,
-                                int bgFetchDelay) override;
+                                EventuallyPersistentEngine& engine) override;
 
     void completeStatsVKey(const DocKey& key, const GetValue& gcb) override;
 
@@ -205,7 +204,6 @@ private:
     void bgFetch(const DocKey& key,
                  const void* cookie,
                  EventuallyPersistentEngine& engine,
-                 int bgFetchDelay,
                  bool isMeta = false) override;
 
     ENGINE_ERROR_CODE
@@ -213,7 +211,6 @@ private:
                           const DocKey& key,
                           const void* cookie,
                           EventuallyPersistentEngine& engine,
-                          int bgFetchDelay,
                           bool metadataOnly) override;
 
     /**
@@ -231,7 +228,6 @@ private:
     GetValue getInternalNonResident(const DocKey& key,
                                     const void* cookie,
                                     EventuallyPersistentEngine& engine,
-                                    int bgFetchDelay,
                                     QueueBgFetch queueBgFetch,
                                     const StoredValue& v) override;
 
@@ -244,9 +240,6 @@ private:
      * items are created & old items deleted.
      */
     cb::NonNegativeCounter<size_t> onDiskTotalItems;
-
-    /* Indicates if multiple bg fetches are handled in a single bg fetch task */
-    const bool multiBGFetchEnabled;
 
     std::mutex pendingBGFetchesLock;
     vb_bgfetch_queue_t pendingBGFetches;

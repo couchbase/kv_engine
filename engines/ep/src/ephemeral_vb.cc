@@ -568,7 +568,6 @@ std::tuple<StoredValue*, VBNotifyCtx> EphemeralVBucket::softDeleteStoredValue(
 void EphemeralVBucket::bgFetch(const DocKey& key,
                                const void* cookie,
                                EventuallyPersistentEngine& engine,
-                               const int bgFetchDelay,
                                const bool isMeta) {
     throw std::logic_error(
             "EphemeralVBucket::bgFetch() is not valid. Called on " +
@@ -581,7 +580,6 @@ EphemeralVBucket::addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
                                         const DocKey& key,
                                         const void* cookie,
                                         EventuallyPersistentEngine& engine,
-                                        int bgFetchDelay,
                                         bool metadataOnly) {
     /* [EPHE TODO]: Just return error code and make all the callers handle it */
     throw std::logic_error(
@@ -595,7 +593,6 @@ GetValue EphemeralVBucket::getInternalNonResident(
         const DocKey& key,
         const void* cookie,
         EventuallyPersistentEngine& engine,
-        int bgFetchDelay,
         QueueBgFetch queueBgFetch,
         const StoredValue& v) {
     /* We reach here only if the v is deleted and does not have any value */

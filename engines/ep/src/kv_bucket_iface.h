@@ -311,20 +311,6 @@ public:
     virtual void reset() = 0;
 
     /**
-     * Set the background fetch delay.
-     *
-     * This exists for debugging and testing purposes.  It
-     * artificially injects delays into background fetches that are
-     * performed when the user requests an item whose value is not
-     * currently resident.
-     *
-     * @param to how long to delay before performing a bg fetch
-     */
-    virtual void setBGFetchDelay(uint32_t to) = 0;
-
-    virtual double getBGFetchDelay(void) = 0;
-
-    /**
      * Pause the bucket's Flusher.
      * @return true if successful.
      */
@@ -375,21 +361,6 @@ public:
     virtual ENGINE_ERROR_CODE getPerVBucketDiskStats(const void* cookie,
                                                      ADD_STAT add_stat) = 0;
 
-    /**
-     * Complete a background fetch of a non resident value or metadata.
-     *
-     * @param key the key that was fetched
-     * @param vbucket the vbucket in which the key lived
-     * @param cookie the cookie of the requestor
-     * @param init the timestamp of when the request came in
-     * @param isMeta whether the fetch is for a non-resident value or metadata of
-     *               a (possibly) deleted item
-     */
-    virtual void completeBGFetch(const DocKey& key,
-                                 Vbid vbucket,
-                                 const void* cookie,
-                                 std::chrono::steady_clock::time_point init,
-                                 bool isMeta) = 0;
     /**
      * Complete a batch of background fetch of a non resident value or metadata.
      *
@@ -620,8 +591,6 @@ public:
     virtual void logRunTime(
             TaskId taskType,
             const std::chrono::steady_clock::duration runTime) = 0;
-
-    virtual bool multiBGFetchEnabled() = 0;
 
     virtual void updateCachedResidentRatio(size_t activePerc,
                                            size_t replicaPerc) = 0;

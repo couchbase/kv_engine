@@ -4298,11 +4298,6 @@ extern "C" {
 static enum test_result test_disk_gt_ram_set_race(EngineIface* h) {
     wait_for_persisted_value(h, "k1", "some value");
 
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
-              "bg_fetch_delay",
-              "3");
-
     evict_key(h, "k1");
 
     cb_thread_t tid;
@@ -4322,11 +4317,6 @@ static enum test_result test_disk_gt_ram_set_race(EngineIface* h) {
 
 static enum test_result test_disk_gt_ram_rm_race(EngineIface* h) {
     wait_for_persisted_value(h, "k1", "some value");
-
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
-              "bg_fetch_delay",
-              "3");
 
     evict_key(h, "k1");
 
@@ -6715,7 +6705,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_bfilter_fp_prob",
               "ep_bfilter_key_count",
               "ep_bfilter_residency_threshold",
-              "ep_bg_fetch_delay",
               "ep_bucket_type",
               "ep_cache_size",
               "ep_chk_max_items",
@@ -6897,7 +6886,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_bfilter_key_count",
               "ep_bfilter_residency_threshold",
               "ep_bg_fetch_avg_read_amplification",
-              "ep_bg_fetch_delay",
               "ep_bg_fetched",
               "ep_bg_meta_fetched",
               "ep_bg_remaining_items",
@@ -7005,7 +6993,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_items_rm_from_checkpoints",
               "ep_keep_closed_chks",
               "ep_kv_size",
-              "ep_max_bg_remaining_jobs",
               "ep_max_checkpoints",
               "ep_max_failover_entries",
               "ep_max_item_privileged_bytes",

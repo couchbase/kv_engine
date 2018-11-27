@@ -324,10 +324,7 @@ TEST_P(DatatypeStatTest, datatypeEviction) {
     store->get(key, vbid, cookie, QUEUE_BG_FETCH);
     if (GetParam() == "full_eviction") {
         // Run the bgfetch to restore the item from disk
-        ExTask task = std::make_shared<SingleBGFetcherTask>(
-                engine.get(), key, Vbid(0), cookie, false, 0, false);
-        task_executor->schedule(task);
-        runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX]);
+        runBGFetcherTask();
     }
     vals = get_stat(nullptr);
     // The item should be restored to memory, hence added back to the stats

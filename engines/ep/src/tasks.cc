@@ -104,18 +104,6 @@ bool VKeyStatBGFetchTask::run() {
 }
 
 
-bool SingleBGFetcherTask::run() {
-    TRACE_EVENT2("ep-engine/task",
-                 "SingleBGFetcherTask",
-                 "cookie",
-                 cookie,
-                 "vb",
-                 vbucket.get());
-    engine->getKVBucket()->completeBGFetch(key, vbucket, cookie, init,
-                                           metaFetch);
-    return false;
-}
-
 WorkLoadMonitor::WorkLoadMonitor(EventuallyPersistentEngine *e,
                                  bool completeBeforeShutdown) :
     GlobalTask(e, TaskId::WorkLoadMonitor, WORKLOAD_MONITOR_FREQ,

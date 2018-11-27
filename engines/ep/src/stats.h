@@ -282,8 +282,6 @@ public:
     Counter numRemainingBgJobs;
     //! The number of samples the bgWaitDelta and bgLoadDelta contains of
     Counter bgNumOperations;
-    //! Max number of individual background fetch jobs that we've seen in the queue
-    Counter maxRemainingBgJobs;
 
     /** The sum of the deltas (in usec) from an item was put in queue until
      *  the dispatcher started the work for this item

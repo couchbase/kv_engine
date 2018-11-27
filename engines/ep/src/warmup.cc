@@ -469,32 +469,6 @@ static bool batchWarmupCallback(Vbid vbId,
     }
 }
 
-static bool warmupCallback(void* arg, Vbid vb, const DocKey& key) {
-    WarmupCookie *cookie = static_cast<WarmupCookie*>(arg);
-
-    if (!cookie->epstore->maybeEnableTraffic()) {
-        GetValue cb = cookie->epstore->getROUnderlying(vb)->get(key, vb);
-
-        if (cb.getStatus() == ENGINE_SUCCESS) {
-            cookie->cb.callback(cb);
-            cookie->loaded++;
-        } else {
-            EP_LOG_WARN(
-                    "Warmup failed to load data for {}, key{{{}}}, error:{}",
-                    vb,
-                    key.size(),
-                    key.data(),
-                    cb.getStatus());
-            cookie->error++;
-        }
-
-        return true;
-    } else {
-        cookie->skipped++;
-        return false;
-    }
-}
-
 const char *WarmupState::toString(void) const {
     return getStateDescription(state.load());
 }
@@ -1209,11 +1183,7 @@ size_t Warmup::doWarmup(MutationLog& lf,
 
         // .. then apply it to the store.
         auto apply_start = std::chrono::steady_clock::now();
-        if (store.multiBGFetchEnabled()) {
-            harvester.apply(&cookie, &batchWarmupCallback);
-        } else {
-            harvester.apply(&cookie, &warmupCallback);
-        }
+        harvester.apply(&cookie, &batchWarmupCallback);
         log_apply_duration += (std::chrono::steady_clock::now() - apply_start);
     } while (alog_iter != lf.end());
 

@@ -592,7 +592,7 @@ bool EPBucket::startBgFetcher() {
 void EPBucket::stopBgFetcher() {
     for (const auto& shard : vbMap.shards) {
         BgFetcher* bgfetcher = shard->getBgFetcher();
-        if (multiBGFetchEnabled() && bgfetcher->pendingJob()) {
+        if (bgfetcher->pendingJob()) {
             EP_LOG_WARN(
                     "Shutting down engine while there are still pending data "
                     "read for shard {} from database storage",
@@ -940,7 +940,7 @@ ENGINE_ERROR_CODE EPBucket::statsVKey(const DocKey& key,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    return vb->statsVKey(key, cookie, engine, bgFetchDelay);
+    return vb->statsVKey(key, cookie, engine);
 }
 
 void EPBucket::completeStatsVKey(const void* cookie,

@@ -79,8 +79,7 @@ public:
 
     ENGINE_ERROR_CODE statsVKey(const DocKey& key,
                                 const void* cookie,
-                                EventuallyPersistentEngine& engine,
-                                int bgFetchDelay) override {
+                                EventuallyPersistentEngine& engine) override {
         return ENGINE_ENOTSUP;
     }
 
@@ -244,7 +243,6 @@ private:
     void bgFetch(const DocKey& key,
                  const void* cookie,
                  EventuallyPersistentEngine& engine,
-                 int bgFetchDelay,
                  bool isMeta = false) override;
 
     ENGINE_ERROR_CODE
@@ -252,13 +250,11 @@ private:
                           const DocKey& key,
                           const void* cookie,
                           EventuallyPersistentEngine& engine,
-                          int bgFetchDelay,
                           bool metadataOnly) override;
 
     GetValue getInternalNonResident(const DocKey& key,
                                     const void* cookie,
                                     EventuallyPersistentEngine& engine,
-                                    int bgFetchDelay,
                                     QueueBgFetch queueBgFetch,
                                     const StoredValue& v) override;
 

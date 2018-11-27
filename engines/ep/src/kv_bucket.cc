@@ -134,9 +134,7 @@ public:
     }
 
     virtual void sizeValueChanged(const std::string &key, size_t value) {
-        if (key.compare("bg_fetch_delay") == 0) {
-            store.setBGFetchDelay(static_cast<uint32_t>(value));
-        } else if (key.compare("compaction_write_queue_cap") == 0) {
+        if (key.compare("compaction_write_queue_cap") == 0) {
             store.setCompactionWriteQueueCap(value);
         } else if (key.compare("exp_pager_stime") == 0) {
             store.setExpiryPagerSleeptime(value);
@@ -245,7 +243,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
       itemFreqDecayerTask(nullptr),
       vb_mutexes(engine.getConfiguration().getMaxVbuckets()),
       diskDeleteAll(false),
-      bgFetchDelay(0),
       backfillMemoryThreshold(0.95),
       statsSnapshotTaskId(0),
       lastTransTimePerItem(0),
@@ -323,11 +320,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             std::make_unique<EPStoreValueChangeListener>(*this));
     config.addValueChangedListener(
             "replication_throttle_cap_pcnt",
-            std::make_unique<EPStoreValueChangeListener>(*this));
-
-    setBGFetchDelay(config.getBgFetchDelay());
-    config.addValueChangedListener(
-            "bg_fetch_delay",
             std::make_unique<EPStoreValueChangeListener>(*this));
 
     stats.warmupMemUsedCap.store(static_cast<double>
@@ -662,7 +654,7 @@ ENGINE_ERROR_CODE KVBucket::set(Item& itm,
 
         // maybe need to adjust expiry of item
         collectionsRHandle.processExpiryTime(itm, getMaxTtl());
-        return vb->set(itm, cookie, engine, bgFetchDelay, predicate);
+        return vb->set(itm, cookie, engine, predicate);
     }
 }
 
@@ -706,7 +698,7 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
 
         // maybe need to adjust expiry of item
         collectionsRHandle.processExpiryTime(itm, getMaxTtl());
-        return vb->add(itm, cookie, engine, bgFetchDelay, collectionsRHandle);
+        return vb->add(itm, cookie, engine, collectionsRHandle);
     }
 }
 
@@ -743,7 +735,6 @@ ENGINE_ERROR_CODE KVBucket::replace(Item& itm,
         return vb->replace(itm,
                            cookie,
                            engine,
-                           bgFetchDelay,
                            predicate,
                            collectionsRHandle);
     }
@@ -1295,39 +1286,6 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
 #undef DO_STAT
 }
 
-void KVBucket::completeBGFetch(const DocKey& key,
-                               Vbid vbucket,
-                               const void* cookie,
-                               std::chrono::steady_clock::time_point init,
-                               bool isMeta) {
-    std::chrono::steady_clock::time_point startTime(
-            std::chrono::steady_clock::now());
-    // Go find the data
-    GetValue gcb = getROUnderlying(vbucket)->get(key, vbucket, isMeta);
-
-    {
-      // Lock to prevent a race condition between a fetch for restore and delete
-        LockHolder lh(vbsetMutex);
-
-        VBucketPtr vb = getVBucket(vbucket);
-        if (vb) {
-            VBucketBGFetchItem item{&gcb, cookie, init, isMeta};
-            ENGINE_ERROR_CODE status =
-                    vb->completeBGFetchForSingleItem(key, item, startTime);
-            engine.notifyIOComplete(item.cookie, status);
-        } else {
-            EP_LOG_DEBUG(
-                    "{} file was deleted in the "
-                    "middle of a bg fetch for key '{}'",
-                    vbucket,
-                    cb::UserDataView(cb::const_char_buffer(key)));
-            engine.notifyIOComplete(cookie, ENGINE_NOT_MY_VBUCKET);
-        }
-    }
-
-    --stats.numRemainingBgJobs;
-}
-
 void KVBucket::completeBGFetchMulti(
         Vbid vbId,
         std::vector<bgfetched_item_t>& fetchedItems,
@@ -1405,7 +1363,6 @@ GetValue KVBucket::getInternal(const DocKey& key,
 
         return vb->getInternal(cookie,
                                engine,
-                               bgFetchDelay,
                                options,
                                diskDeleteAll,
                                VBucket::GetKeyOnly::No,
@@ -1468,7 +1425,6 @@ ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
 
         return vb->getMetaData(cookie,
                                engine,
-                               bgFetchDelay,
                                collectionsRHandle,
                                metadata,
                                deleted,
@@ -1528,7 +1484,6 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
                                  seqno,
                                  cookie,
                                  engine,
-                                 bgFetchDelay,
                                  checkConflicts,
                                  allowExisting,
                                  genBySeqno,
@@ -1575,7 +1530,6 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
         return vb->getAndUpdateTtl(
                 cookie,
                 engine,
-                bgFetchDelay,
                 collectionsRHandle.processExpiryTime(exptime, getMaxTtl()),
                 collectionsRHandle);
     }
@@ -1602,7 +1556,6 @@ GetValue KVBucket::getLocked(const DocKey& key,
                              lockTimeout,
                              cookie,
                              engine,
-                             bgFetchDelay,
                              collectionsRHandle);
     }
 }
@@ -1676,7 +1629,6 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
 
         return vb->getKeyStats(cookie,
                                engine,
-                               bgFetchDelay,
                                kstats,
                                wantsDeleted,
                                collectionsRHandle);
@@ -1754,7 +1706,6 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
         return vb->deleteItem(cas,
                               cookie,
                               engine,
-                              bgFetchDelay,
                               itemMeta,
                               mutInfo,
                               collectionsRHandle);
@@ -1814,7 +1765,6 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
                                   seqno,
                                   cookie,
                                   engine,
-                                  bgFetchDelay,
                                   checkConflicts,
                                   itemMeta,
                                   backfill,

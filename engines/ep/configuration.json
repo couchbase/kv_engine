@@ -110,17 +110,6 @@
                 }
             }
         },
-        "bg_fetch_delay": {
-            "default": "0",
-            "dynamic": true,
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 900,
-                    "min": 0
-                }
-            }
-        },
         "bfilter_enabled": {
             "default": "true",
             "desr": "Enable or disable the bloom filter",

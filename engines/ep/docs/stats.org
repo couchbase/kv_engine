@@ -138,8 +138,6 @@ For introductory information on stats within Couchbase, start with the
 | ep_bg_meta_fetched                    | Number of meta items fetched from disk  |
 | ep_bg_remaining_items                 | Number of remaining bg fetch items      |
 | ep_bg_remaining_jobs                  | Number of remaining bg fetch jobs       |
-| ep_max_bg_remaining_jobs              | Max number of remaining bg fetch jobs   |
-|                                       | that we have seen in the queue so far   |
 | ep_num_pager_runs                     | Number of times we ran pager loops      |
 |                                       | to seek additional memory               |
 | ep_num_expiry_pager_runs              | Number of times we ran expiry pager     |
@@ -209,8 +207,6 @@ For introductory information on stats within Couchbase, start with the
 | ep_backfill_mem_threshold             | The maximum percentage of memory that   |
 |                                       | the backfill task can consume before    |
 |                                       | it is made to back off.                 |
-| ep_bg_fetch_delay                     | The amount of time to wait before       |
-|                                       | doing a background fetch                |
 | ep_bfilter_enabled                    | Bloom filter use: enabled or disabled   |
 | ep_bfilter_key_count                  | Minimum key count that bloom filter     |
 |                                       | will accomodate                         |

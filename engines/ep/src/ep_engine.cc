@@ -465,9 +465,7 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
 
     // Handle the actual mutation.
     try {
-        if (key == "bg_fetch_delay") {
-            getConfiguration().setBgFetchDelay(std::stoull(val));
-        } else if (key == "max_size") {
+        if (key == "max_size") {
             size_t vsize = std::stoull(val);
 
             getConfiguration().setMaxSize(vsize);
@@ -2465,8 +2463,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_bg_remaining_items", epstats.numRemainingBgItems,
                     add_stat, cookie);
     add_casted_stat("ep_bg_remaining_jobs", epstats.numRemainingBgJobs,
-                    add_stat, cookie);
-    add_casted_stat("ep_max_bg_remaining_jobs", epstats.maxRemainingBgJobs,
                     add_stat, cookie);
     add_casted_stat("ep_num_pager_runs", epstats.pagerRuns,
                     add_stat, cookie);

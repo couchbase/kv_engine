@@ -68,10 +68,6 @@ EPVBucket::EPVBucket(
               hlcEpochSeqno,
               mightContainXattrs,
               collectionsManifest),
-      multiBGFetchEnabled(kvshard ? kvshard->getROUnderlying()
-                                            ->getStorageProperties()
-                                            .hasEfficientGet()
-                                  : false),
       shard(kvshard) {
 }
 
@@ -299,8 +295,7 @@ size_t EPVBucket::getNumNonResidentItems() const {
 
 ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
                                        const void* cookie,
-                                       EventuallyPersistentEngine& engine,
-                                       const int bgFetchDelay) {
+                                       EventuallyPersistentEngine& engine) {
     auto readHandle = lockCollections(key);
     if (!readHandle.valid()) {
         return ENGINE_UNKNOWN_COLLECTION;
@@ -326,7 +321,6 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
                                                             getId(),
                                                             v->getBySeqno(),
                                                             cookie,
-                                                            bgFetchDelay,
                                                             false);
         iom->schedule(task);
         return ENGINE_EWOULDBLOCK;
@@ -342,7 +336,7 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
                 ++stats.numRemainingBgJobs;
                 ExecutorPool* iom = ExecutorPool::get();
                 ExTask task = std::make_shared<VKeyStatBGFetchTask>(
-                        &engine, key, getId(), -1, cookie, bgFetchDelay, false);
+                        &engine, key, getId(), -1, cookie, false);
                 iom->schedule(task);
             }
             }
@@ -556,32 +550,18 @@ std::tuple<StoredValue*, VBNotifyCtx> EPVBucket::softDeleteStoredValue(
 void EPVBucket::bgFetch(const DocKey& key,
                         const void* cookie,
                         EventuallyPersistentEngine& engine,
-                        const int bgFetchDelay,
                         const bool isMeta) {
-    if (multiBGFetchEnabled) {
-        // schedule to the current batch of background fetch of the given
-        // vbucket
-        size_t bgfetch_size = queueBGFetchItem(
-                key,
-                std::make_unique<VBucketBGFetchItem>(cookie, isMeta),
-                getShard()->getBgFetcher());
-        if (getShard()) {
-            getShard()->getBgFetcher()->notifyBGEvent();
-        }
-        EP_LOG_DEBUG("Queued a background fetch, now at {}",
-                     uint64_t(bgfetch_size));
-    } else {
-        ++stats.numRemainingBgJobs;
-        stats.maxRemainingBgJobs.store(
-                std::max(stats.maxRemainingBgJobs.load(),
-                         stats.numRemainingBgJobs.load()));
-        ExecutorPool* iom = ExecutorPool::get();
-        ExTask task = std::make_shared<SingleBGFetcherTask>(
-                &engine, key, getId(), cookie, isMeta, bgFetchDelay, false);
-        iom->schedule(task);
-        EP_LOG_DEBUG("Queued a background fetch, now at {}",
-                     uint64_t(stats.numRemainingBgJobs.load()));
+    // schedule to the current batch of background fetch of the given
+    // vbucket
+    size_t bgfetch_size = queueBGFetchItem(
+            key,
+            std::make_unique<VBucketBGFetchItem>(cookie, isMeta),
+            getShard()->getBgFetcher());
+    if (getShard()) {
+        getShard()->getBgFetcher()->notifyBGEvent();
     }
+    EP_LOG_DEBUG("Queued a background fetch, now at {}",
+                 uint64_t(bgfetch_size));
 }
 
 /* [TBD]: Get rid of std::unique_lock<std::mutex> lock */
@@ -590,7 +570,6 @@ EPVBucket::addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
                                  const DocKey& key,
                                  const void* cookie,
                                  EventuallyPersistentEngine& engine,
-                                 int bgFetchDelay,
                                  bool metadataOnly) {
     TempAddStatus rv = addTempStoredValue(hbl, key);
     switch (rv) {
@@ -598,7 +577,7 @@ EPVBucket::addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
         return ENGINE_ENOMEM;
     case TempAddStatus::BgFetch:
         hbl.getHTLock().unlock();
-        bgFetch(key, cookie, engine, bgFetchDelay, metadataOnly);
+        bgFetch(key, cookie, engine, metadataOnly);
     }
     return ENGINE_EWOULDBLOCK;
 }
@@ -635,11 +614,10 @@ void EPVBucket::updateBGStats(
 GetValue EPVBucket::getInternalNonResident(const DocKey& key,
                                            const void* cookie,
                                            EventuallyPersistentEngine& engine,
-                                           int bgFetchDelay,
                                            QueueBgFetch queueBgFetch,
                                            const StoredValue& v) {
     if (queueBgFetch == QueueBgFetch::Yes) {
-        bgFetch(key, cookie, engine, bgFetchDelay);
+        bgFetch(key, cookie, engine);
     }
     return GetValue(
             nullptr, ENGINE_EWOULDBLOCK, v.getBySeqno(), true, v.getNRUValue());

@@ -129,7 +129,6 @@ private:
 
 /**
  * A task for fetching items from disk.
- * This task is used if EPBucket::multiBGFetchEnabled is true.
  */
 class BgFetcher;
 class MultiBGFetcherTask : public GlobalTask {
@@ -202,57 +201,6 @@ private:
     const Vbid vbucket;
     uint64_t                         bySeqNum;
     const void                      *cookie;
-    const std::string description;
-};
-
-/**
- * A task that performs disk fetches for non-resident get requests.
- * This task is used if EPBucket::multiBGFetchEnabled is false.
- */
-class SingleBGFetcherTask : public GlobalTask {
-public:
-    SingleBGFetcherTask(EventuallyPersistentEngine* e,
-                        const DocKey& k,
-                        Vbid vbid,
-                        const void* c,
-                        bool isMeta,
-                        int sleeptime = 0,
-                        bool completeBeforeShutdown = false)
-        : GlobalTask(e,
-                     TaskId::SingleBGFetcherTask,
-                     sleeptime,
-                     completeBeforeShutdown),
-          key(k),
-          vbucket(vbid),
-          cookie(c),
-          metaFetch(isMeta),
-          init(std::chrono::steady_clock::now()),
-          description("Fetching item from disk: key{" +
-                      std::string(key.c_str()) + "}, " + vbucket.to_string()) {
-    }
-
-    bool run();
-
-    std::string getDescription() {
-        return description;
-    }
-
-    std::chrono::microseconds maxExpectedDuration() {
-        // Much like other disk tasks, duration is likely to
-        // vary significantly; depending on speed/capacity of disk subsystem.
-        // As such, selecting a good maximum duration for all scenarios is hard.
-        // Choose a relatively generous value of 250ms - this should record
-        // any significantly slow executions without creating too much log
-        // noise.
-        return std::chrono::milliseconds(250);
-    }
-
-private:
-    const StoredDocKey key;
-    const Vbid vbucket;
-    const void*                cookie;
-    bool                       metaFetch;
-    std::chrono::steady_clock::time_point init;
     const std::string description;
 };
 

@@ -267,22 +267,6 @@ public:
 
     virtual void reset();
 
-    /**
-     * Set the background fetch delay.
-     *
-     * This exists for debugging and testing purposes.  It
-     * artificially injects delays into background fetches that are
-     * performed when the user requests an item whose value is not
-     * currently resident.
-     *
-     * @param to how long to delay before performing a bg fetch
-     */
-    void setBGFetchDelay(uint32_t to) {
-        bgFetchDelay = to;
-    }
-
-    double getBGFetchDelay(void) { return (double)bgFetchDelay; }
-
     virtual bool pauseFlusher();
     virtual bool resumeFlusher();
     virtual void wakeUpFlusher();
@@ -295,21 +279,6 @@ public:
     virtual void getAggregatedVBucketStats(const void* cookie,
                                            ADD_STAT add_stat);
 
-   /**
-     * Complete a background fetch of a non resident value or metadata.
-     *
-     * @param key the key that was fetched
-     * @param vbucket the vbucket in which the key lived
-     * @param cookie the cookie of the requestor
-     * @param init the timestamp of when the request came in
-     * @param isMeta whether the fetch is for a non-resident value or metadata of
-     *               a (possibly) deleted item
-     */
-    void completeBGFetch(const DocKey& key,
-                         Vbid vbucket,
-                         const void* cookie,
-                         std::chrono::steady_clock::time_point init,
-                         bool isMeta);
     /**
      * Complete a batch of background fetch of a non resident value or metadata.
      *
@@ -664,11 +633,6 @@ public:
     void logRunTime(TaskId taskType,
                     const std::chrono::steady_clock::duration runTime);
 
-    bool multiBGFetchEnabled() {
-        StorageProperties storeProp = getStorageProperties();
-        return storeProp.hasEfficientGet();
-    }
-
     void updateCachedResidentRatio(size_t activePerc, size_t replicaPerc) {
         cachedResidentRatio.activeRatio.store(activePerc);
         cachedResidentRatio.replicaRatio.store(replicaPerc);
@@ -980,7 +944,6 @@ protected:
     } deleteAllTaskCtx;
 
     std::mutex vbsetMutex;
-    uint32_t bgFetchDelay;
     double backfillMemoryThreshold;
     struct ExpiryPagerDelta {
         ExpiryPagerDelta() : sleeptime(0), task(0), enabled(true) {}

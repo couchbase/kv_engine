@@ -853,7 +853,6 @@ cb::StoreIfStatus VBucket::callPredicate(cb::StoreIfPredicate predicate,
 ENGINE_ERROR_CODE VBucket::set(Item& itm,
                                const void* cookie,
                                EventuallyPersistentEngine& engine,
-                               const int bgFetchDelay,
                                cb::StoreIfPredicate predicate) {
     bool cas_op = (itm.getCas() != 0);
     auto hbl = ht.getLockedBucket(itm.getKey());
@@ -940,11 +939,10 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
         if (v) {
             // temp item is already created. Simply schedule a bg fetch job
             hbl.getHTLock().unlock();
-            bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
+            bgFetch(itm.getKey(), cookie, engine, true);
             return ENGINE_EWOULDBLOCK;
         }
-        ret = addTempItemAndBGFetch(
-                hbl, itm.getKey(), cookie, engine, bgFetchDelay, true);
+        ret = addTempItemAndBGFetch(hbl, itm.getKey(), cookie, engine, true);
         break;
     }
     }
@@ -956,7 +954,6 @@ ENGINE_ERROR_CODE VBucket::replace(
         Item& itm,
         const void* cookie,
         EventuallyPersistentEngine& engine,
-        const int bgFetchDelay,
         cb::StoreIfPredicate predicate,
         const Collections::VB::Manifest::CachingReadHandle& readHandle) {
     auto hbl = ht.getLockedBucket(itm.getKey());
@@ -1024,7 +1021,7 @@ ENGINE_ERROR_CODE VBucket::replace(
         case MutationStatus::NeedBgFetch: {
             // temp item is already created. Simply schedule a bg fetch job
             hbl.getHTLock().unlock();
-            bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
+            bgFetch(itm.getKey(), cookie, engine, true);
             ret = ENGINE_EWOULDBLOCK;
             break;
         }
@@ -1038,7 +1035,7 @@ ENGINE_ERROR_CODE VBucket::replace(
 
         if (maybeKeyExistsInFilter(itm.getKey())) {
             return addTempItemAndBGFetch(
-                    hbl, itm.getKey(), cookie, engine, bgFetchDelay, false);
+                    hbl, itm.getKey(), cookie, engine, false);
         } else {
             // As bloomfilter predicted that item surely doesn't exist
             // on disk, return ENOENT for replace().
@@ -1119,7 +1116,6 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
         uint64_t* seqno,
         const void* cookie,
         EventuallyPersistentEngine& engine,
-        int bgFetchDelay,
         CheckConflicts checkConflicts,
         bool allowExisting,
         GenerateBySeqno genBySeqno,
@@ -1144,7 +1140,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
     if (checkConflicts == CheckConflicts::Yes) {
         if (v) {
             if (v->isTempInitialItem()) {
-                bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
+                bgFetch(itm.getKey(), cookie, engine, true);
                 return ENGINE_EWOULDBLOCK;
             }
 
@@ -1163,7 +1159,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
         } else {
             if (maybeKeyExistsInFilter(itm.getKey())) {
                 return addTempItemAndBGFetch(
-                        hbl, itm.getKey(), cookie, engine, bgFetchDelay, true);
+                        hbl, itm.getKey(), cookie, engine, true);
             } else {
                 maybeKeyExists = false;
             }
@@ -1234,11 +1230,10 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
         // + full eviction.
         if (v) { // temp item is already created. Simply schedule a
             hbl.getHTLock().unlock(); // bg fetch job.
-            bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
+            bgFetch(itm.getKey(), cookie, engine, true);
             return ENGINE_EWOULDBLOCK;
         }
-        ret = addTempItemAndBGFetch(
-                hbl, itm.getKey(), cookie, engine, bgFetchDelay, true);
+        ret = addTempItemAndBGFetch(hbl, itm.getKey(), cookie, engine, true);
     }
     }
 
@@ -1249,7 +1244,6 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         uint64_t& cas,
         const void* cookie,
         EventuallyPersistentEngine& engine,
-        const int bgFetchDelay,
         ItemMetaData* itemMeta,
         mutation_descr_t& mutInfo,
         const Collections::VB::Manifest::CachingReadHandle& readHandle) {
@@ -1270,7 +1264,6 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
                                                  readHandle.getKey(),
                                                  cookie,
                                                  engine,
-                                                 bgFetchDelay,
                                                  true);
                 } else {
                     // As bloomfilter predicted that item surely doesn't
@@ -1282,7 +1275,6 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
                 bgFetch(readHandle.getKey(),
                         cookie,
                         engine,
-                        bgFetchDelay,
                         true);
                 return ENGINE_EWOULDBLOCK;
             } else { // Non-existent or deleted key.
@@ -1382,7 +1374,6 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
         uint64_t* seqno,
         const void* cookie,
         EventuallyPersistentEngine& engine,
-        int bgFetchDelay,
         CheckConflicts checkConflicts,
         const ItemMetaData& itemMeta,
         bool backfill,
@@ -1403,7 +1394,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
     if (checkConflicts == CheckConflicts::Yes) {
         if (v) {
             if (v->isTempInitialItem()) {
-                bgFetch(key, cookie, engine, bgFetchDelay, true);
+                bgFetch(key, cookie, engine, true);
                 return ENGINE_EWOULDBLOCK;
             }
 
@@ -1418,8 +1409,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
             // Item is 1) deleted or not existent in the value eviction case OR
             // 2) deleted or evicted in the full eviction.
             if (maybeKeyExistsInFilter(key)) {
-                return addTempItemAndBGFetch(
-                        hbl, key, cookie, engine, bgFetchDelay, true);
+                return addTempItemAndBGFetch(hbl, key, cookie, engine, true);
             } else {
                 // Even though bloomfilter predicted that item doesn't exist
                 // on disk, we must put this delete on disk if the cas is valid.
@@ -1534,7 +1524,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
     }
     case MutationStatus::NeedBgFetch:
         hbl.getHTLock().unlock();
-        bgFetch(key, cookie, engine, bgFetchDelay, metaBgFetch);
+        bgFetch(key, cookie, engine, metaBgFetch);
         return ENGINE_EWOULDBLOCK;
     }
     return ENGINE_SUCCESS;
@@ -1619,7 +1609,6 @@ ENGINE_ERROR_CODE VBucket::add(
         Item& itm,
         const void* cookie,
         EventuallyPersistentEngine& engine,
-        int bgFetchDelay,
         const Collections::VB::Manifest::CachingReadHandle& readHandle) {
     auto hbl = ht.getLockedBucket(itm.getKey());
     StoredValue* v = ht.unlocked_find(itm.getKey(),
@@ -1653,11 +1642,10 @@ ENGINE_ERROR_CODE VBucket::add(
     case AddStatus::Exists:
         return ENGINE_NOT_STORED;
     case AddStatus::AddTmpAndBgFetch:
-        return addTempItemAndBGFetch(
-                hbl, itm.getKey(), cookie, engine, bgFetchDelay, true);
+        return addTempItemAndBGFetch(hbl, itm.getKey(), cookie, engine, true);
     case AddStatus::BgFetch:
         hbl.getHTLock().unlock();
-        bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
+        bgFetch(itm.getKey(), cookie, engine, true);
         return ENGINE_EWOULDBLOCK;
     case AddStatus::Success:
     case AddStatus::UnDel:
@@ -1736,7 +1724,6 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
 GetValue VBucket::getAndUpdateTtl(
         const void* cookie,
         EventuallyPersistentEngine& engine,
-        int bgFetchDelay,
         time_t exptime,
         const Collections::VB::Manifest::CachingReadHandle& readHandle) {
     auto hbl = ht.getLockedBucket(readHandle.getKey());
@@ -1752,14 +1739,13 @@ GetValue VBucket::getAndUpdateTtl(
 
     if (status == MutationStatus::NeedBgFetch) {
         if (v) {
-            bgFetch(readHandle.getKey(), cookie, engine, bgFetchDelay);
+            bgFetch(readHandle.getKey(), cookie, engine);
             return GetValue(nullptr, ENGINE_EWOULDBLOCK, v->getBySeqno());
         } else {
             ENGINE_ERROR_CODE ec = addTempItemAndBGFetch(hbl,
                                                          readHandle.getKey(),
                                                          cookie,
                                                          engine,
-                                                         bgFetchDelay,
                                                          false);
             return GetValue(NULL, ec, -1, true);
         }
@@ -1771,7 +1757,6 @@ GetValue VBucket::getAndUpdateTtl(
 GetValue VBucket::getInternal(
         const void* cookie,
         EventuallyPersistentEngine& engine,
-        int bgFetchDelay,
         get_options_t options,
         bool diskFlushAll,
         GetKeyOnly getKeyOnly,
@@ -1808,7 +1793,6 @@ GetValue VBucket::getInternal(
             return getInternalNonResident(readHandle.getKey(),
                                           cookie,
                                           engine,
-                                          bgFetchDelay,
                                           queueBgFetch,
                                           *v);
         }
@@ -1832,7 +1816,6 @@ GetValue VBucket::getInternal(
             return getInternalNonResident(readHandle.getKey(),
                                           cookie,
                                           engine,
-                                          bgFetchDelay,
                                           queueBgFetch,
                                           *v);
         }
@@ -1868,7 +1851,6 @@ GetValue VBucket::getInternal(
                                            readHandle.getKey(),
                                            cookie,
                                            engine,
-                                           bgFetchDelay,
                                            metadataOnly);
             }
             return GetValue(NULL, ec, -1, true);
@@ -1883,7 +1865,6 @@ GetValue VBucket::getInternal(
 ENGINE_ERROR_CODE VBucket::getMetaData(
         const void* cookie,
         EventuallyPersistentEngine& engine,
-        int bgFetchDelay,
         const Collections::VB::Manifest::CachingReadHandle& readHandle,
         ItemMetaData& metadata,
         uint32_t& deleted,
@@ -1899,7 +1880,7 @@ ENGINE_ERROR_CODE VBucket::getMetaData(
         stats.numOpsGetMeta++;
         if (v->isTempInitialItem()) {
             // Need bg meta fetch.
-            bgFetch(readHandle.getKey(), cookie, engine, bgFetchDelay, true);
+            bgFetch(readHandle.getKey(), cookie, engine, true);
             return ENGINE_EWOULDBLOCK;
         } else if (v->isTempNonExistentItem()) {
             metadata.cas = v->getCas();
@@ -1939,7 +1920,6 @@ ENGINE_ERROR_CODE VBucket::getMetaData(
                                          readHandle.getKey(),
                                          cookie,
                                          engine,
-                                         bgFetchDelay,
                                          true);
         } else {
             stats.numOpsGetMeta++;
@@ -1951,7 +1931,6 @@ ENGINE_ERROR_CODE VBucket::getMetaData(
 ENGINE_ERROR_CODE VBucket::getKeyStats(
         const void* cookie,
         EventuallyPersistentEngine& engine,
-        int bgFetchDelay,
         struct key_stats& kstats,
         WantsDeleted wantsDeleted,
         const Collections::VB::Manifest::CachingReadHandle& readHandle) {
@@ -1976,7 +1955,7 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(
         }
         if (eviction == FULL_EVICTION && v->isTempInitialItem()) {
             hbl.getHTLock().unlock();
-            bgFetch(readHandle.getKey(), cookie, engine, bgFetchDelay, true);
+            bgFetch(readHandle.getKey(), cookie, engine, true);
             return ENGINE_EWOULDBLOCK;
         }
         kstats.logically_deleted =
@@ -1999,7 +1978,6 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(
                                              readHandle.getKey(),
                                              cookie,
                                              engine,
-                                             bgFetchDelay,
                                              true);
             } else {
                 // If bgFetch were false, or bloomfilter predicted that
@@ -2016,7 +1994,6 @@ GetValue VBucket::getLocked(
         uint32_t lockTimeout,
         const void* cookie,
         EventuallyPersistentEngine& engine,
-        int bgFetchDelay,
         const Collections::VB::Manifest::CachingReadHandle& readHandle) {
     auto hbl = ht.getLockedBucket(readHandle.getKey());
     StoredValue* v = fetchValidValue(hbl,
@@ -2040,7 +2017,7 @@ GetValue VBucket::getLocked(
         // If the value is not resident, wait for it...
         if (!v->isResident()) {
             if (cookie) {
-                bgFetch(readHandle.getKey(), cookie, engine, bgFetchDelay);
+                bgFetch(readHandle.getKey(), cookie, engine);
             }
             return GetValue(NULL, ENGINE_EWOULDBLOCK, -1, true);
         }
@@ -2067,7 +2044,6 @@ GetValue VBucket::getLocked(
                                               readHandle.getKey(),
                                               cookie,
                                               engine,
-                                              bgFetchDelay,
                                               false);
                 return GetValue(NULL, ec, -1, true);
             } else {
