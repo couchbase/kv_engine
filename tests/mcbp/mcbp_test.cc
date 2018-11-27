@@ -70,14 +70,24 @@ cb::mcbp::Status ValidatorTest::validate(cb::mcbp::ClientOpcode opcode,
     return validatorChains.validate(opcode, cookie);
 }
 
-std::string ValidatorTest::validate_error_context(cb::mcbp::ClientOpcode opcode,
-                                                  void* packet) {
+std::string ValidatorTest::validate_error_context(
+        cb::mcbp::ClientOpcode opcode,
+        void* packet,
+        cb::mcbp::Status expectedStatus) {
     const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);
     const size_t size = sizeof(req) + req.getBodylen();
     cb::const_byte_buffer buffer{static_cast<uint8_t*>(packet), size};
     MockCookie cookie(connection, buffer);
-    validatorChains.validate(opcode, cookie);
+    EXPECT_EQ(expectedStatus, validatorChains.validate(opcode, cookie))
+            << cookie.getErrorContext();
     return cookie.getErrorContext();
+}
+
+std::string ValidatorTest::validate_error_context(
+        cb::mcbp::ClientOpcode opcode, cb::mcbp::Status expectedStatus) {
+    void* packet = static_cast<void*>(&request);
+    return ValidatorTest::validate_error_context(
+            opcode, packet, expectedStatus);
 }
 
 // Test the validators for GET, GETQ, GETK, GETKQ, GET_META and GETQ_META
@@ -265,9 +275,14 @@ TEST_P(AddValidatorTest, InvalidMagic) {
 }
 
 TEST_P(AddValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 21;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Add));
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Addq));
+    request.message.header.request.extlen = 9;
+    request.message.header.request.keylen = htons(10);
+    request.message.header.request.bodylen = htonl(21);
+    EXPECT_EQ("Request must include extras of length 8",
+              validate_error_context(cb::mcbp::ClientOpcode::Add));
+
+    EXPECT_EQ("Request must include extras of length 8",
+              validate_error_context(cb::mcbp::ClientOpcode::Addq));
 }
 
 TEST_P(AddValidatorTest, NoKey) {
@@ -289,6 +304,8 @@ TEST_P(AddValidatorTest, InvalidKey) {
               fill + sizeof(request.bytes) + 10,
               0x80ull);
     request.message.header.request.keylen = htons(10);
+    request.message.header.request.bodylen =
+            request.message.header.request.keylen;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Add));
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Addq));
 }
@@ -365,13 +382,18 @@ TEST_P(SetReplaceValidatorTest, InvalidMagic) {
 }
 
 TEST_P(SetReplaceValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 21;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Set));
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Setq));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Replace));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Replaceq));
+    request.message.header.request.extlen = 9;
+    request.message.header.request.keylen = htons(10);
+    request.message.header.request.bodylen = htonl(21);
+    EXPECT_EQ("Request must include extras of length 8",
+              validate_error_context(cb::mcbp::ClientOpcode::Set));
+
+    EXPECT_EQ("Request must include extras of length 8",
+              validate_error_context(cb::mcbp::ClientOpcode::Setq));
+    EXPECT_EQ("Request must include extras of length 8",
+              validate_error_context(cb::mcbp::ClientOpcode::Replace));
+    EXPECT_EQ("Request must include extras of length 8",
+              validate_error_context(cb::mcbp::ClientOpcode::Replaceq));
 }
 
 TEST_P(SetReplaceValidatorTest, NoKey) {
@@ -396,12 +418,16 @@ TEST_P(SetReplaceValidatorTest, InvalidKey) {
                request.message.header.request.extlen;
     std::fill(key, key + 10, 0x80ull);
     request.message.header.request.keylen = htons(10);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Set));
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Setq));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Replace));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Replaceq));
+    // request.message.header.request.bodylen =
+    // request.message.header.request.keylen;
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(cb::mcbp::ClientOpcode::Set));
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(cb::mcbp::ClientOpcode::Setq));
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(cb::mcbp::ClientOpcode::Replace));
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(cb::mcbp::ClientOpcode::Replaceq));
 }
 
 // Test Append[q] and Prepend[q]
@@ -475,14 +501,16 @@ TEST_P(AppendPrependValidatorTest, InvalidMagic) {
 
 TEST_P(AppendPrependValidatorTest, InvalidExtlen) {
     request.message.header.request.extlen = 21;
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Append));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Appendq));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Prepend));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Prependq));
+    request.message.header.request.keylen = htons(10);
+    request.message.header.request.bodylen = htonl(20 + 21);
+    EXPECT_EQ("Request must not include extras",
+              validate_error_context(cb::mcbp::ClientOpcode::Append));
+    EXPECT_EQ("Request must not include extras",
+              validate_error_context(cb::mcbp::ClientOpcode::Appendq));
+    EXPECT_EQ("Request must not include extras",
+              validate_error_context(cb::mcbp::ClientOpcode::Prepend));
+    EXPECT_EQ("Request must not include extras",
+              validate_error_context(cb::mcbp::ClientOpcode::Prependq));
 }
 
 TEST_P(AppendPrependValidatorTest, NoKey) {
@@ -497,6 +525,29 @@ TEST_P(AppendPrependValidatorTest, NoKey) {
               validate(cb::mcbp::ClientOpcode::Prepend));
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Prependq));
+}
+
+TEST_P(AppendPrependValidatorTest, InvalidKey) {
+    if (!isCollectionsEnabled()) {
+        // Non collections, anything goes
+        return;
+    }
+    // Collections requires the leading bytes are a valid unsigned leb128
+    // (varint), so if all key bytes are 0x80, (no stop-byte) illegal.
+    auto key = blob + sizeof(request.bytes) +
+               request.message.header.request.extlen;
+    std::fill(key, key + 10, 0x80ull);
+    request.message.header.request.keylen = htons(10);
+    // request.message.header.request.bodylen =
+    // request.message.header.request.keylen;
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(cb::mcbp::ClientOpcode::Append));
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(cb::mcbp::ClientOpcode::Appendq));
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(cb::mcbp::ClientOpcode::Prepend));
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(cb::mcbp::ClientOpcode::Prependq));
 }
 
 // Test DELETE & DELETEQ
@@ -555,20 +606,19 @@ TEST_P(DeleteValidatorTest, InvalidMagic) {
 
 TEST_P(DeleteValidatorTest, InvalidExtlen) {
     request.message.header.request.extlen = 21;
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Delete));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Deleteq));
+    request.message.header.request.bodylen = htonl(21 + 10);
+    EXPECT_EQ("Request must not include extras",
+              validate_error_context(cb::mcbp::ClientOpcode::Delete));
+    EXPECT_EQ("Request must not include extras",
+              validate_error_context(cb::mcbp::ClientOpcode::Deleteq));
 }
 
 TEST_P(DeleteValidatorTest, NoKey) {
-    // Collections requires 2 bytes minimum, non-collection 1 byte minimum
-    request.message.header.request.keylen =
-            isCollectionsEnabled() ? htons(1) : 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Delete));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Deleteq));
+    request.message.header.request.keylen = 0;
+    EXPECT_EQ("Request must include key",
+              validate_error_context(cb::mcbp::ClientOpcode::Delete));
+    EXPECT_EQ("Request must include key",
+              validate_error_context(cb::mcbp::ClientOpcode::Deleteq));
 }
 
 TEST_P(DeleteValidatorTest, InvalidDatatype) {
@@ -640,28 +690,52 @@ TEST_P(IncrementDecrementValidatorTest, InvalidMagic) {
 
 TEST_P(IncrementDecrementValidatorTest, InvalidExtlen) {
     request.message.header.request.extlen = 21;
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Increment));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Incrementq));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Decrement));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Decrementq));
+    request.message.header.request.keylen = htons(10);
+    request.message.header.request.bodylen = htonl(31);
+    EXPECT_EQ("Request must include extras of length 20",
+              validate_error_context(cb::mcbp::ClientOpcode::Increment));
+    EXPECT_EQ("Request must include extras of length 20",
+              validate_error_context(cb::mcbp::ClientOpcode::Incrementq));
+    EXPECT_EQ("Request must include extras of length 20",
+              validate_error_context(cb::mcbp::ClientOpcode::Decrement));
+    EXPECT_EQ("Request must include extras of length 20",
+              validate_error_context(cb::mcbp::ClientOpcode::Decrementq));
 }
 
 TEST_P(IncrementDecrementValidatorTest, NoKey) {
     // Collections requires 2 bytes minimum, non-collection 1 byte minimum
-    request.message.header.request.keylen =
-            isCollectionsEnabled() ? htons(1) : 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Increment));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Incrementq));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Decrement));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Decrementq));
+    request.message.header.request.keylen = 0;
+    EXPECT_EQ("Request must include key",
+              validate_error_context(cb::mcbp::ClientOpcode::Increment));
+    EXPECT_EQ("Request must include key",
+              validate_error_context(cb::mcbp::ClientOpcode::Incrementq));
+    EXPECT_EQ("Request must include key",
+              validate_error_context(cb::mcbp::ClientOpcode::Decrement));
+    EXPECT_EQ("Request must include key",
+              validate_error_context(cb::mcbp::ClientOpcode::Decrementq));
+}
+
+TEST_P(IncrementDecrementValidatorTest, InvalidKey) {
+    if (!isCollectionsEnabled()) {
+        // Non collections, anything goes
+        return;
+    }
+    // Collections requires the leading bytes are a valid unsigned leb128
+    // (varint), so if all key bytes are 0x80, (no stop-byte) illegal.
+    auto key = blob + sizeof(request.bytes) +
+               request.message.header.request.extlen;
+    std::fill(key, key + 10, 0x80ull);
+    request.message.header.request.keylen = htons(10);
+    // request.message.header.request.bodylen =
+    // request.message.header.request.keylen;
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(cb::mcbp::ClientOpcode::Increment));
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(cb::mcbp::ClientOpcode::Incrementq));
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(cb::mcbp::ClientOpcode::Decrement));
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(cb::mcbp::ClientOpcode::Decrementq));
 }
 
 TEST_P(IncrementDecrementValidatorTest, WithValue) {
@@ -1933,10 +2007,13 @@ public:
     }
 
 protected:
-    cb::mcbp::Status validate() {
+    std::string validate_error_context(
+            cb::mcbp::Status expectedStatus = cb::mcbp::Status::Einval) {
         std::copy(request.bytes, request.bytes + sizeof(request.bytes), blob);
-        return ValidatorTest::validate(cb::mcbp::ClientOpcode::DcpMutation,
-                                       static_cast<void*>(blob));
+        return ValidatorTest::validate_error_context(
+                cb::mcbp::ClientOpcode::DcpMutation,
+                static_cast<void*>(blob),
+                expectedStatus);
     }
 
     protocol_binary_request_dcp_mutation request;
@@ -1944,30 +2021,26 @@ protected:
 
 
 TEST_P(DcpMutationValidatorTest, CorrectMessage) {
-    EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
+    EXPECT_EQ("Attached bucket does not support DCP",
+              validate_error_context(cb::mcbp::Status::NotSupported));
 }
 
 TEST_P(DcpMutationValidatorTest, InvalidMagic) {
     request.message.header.request.magic = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+    EXPECT_EQ("Request header invalid", validate_error_context());
 }
 
 TEST_P(DcpMutationValidatorTest, InvalidExtlen) {
     request.message.header.request.extlen = 21;
-    request.message.header.request.bodylen = htonl(22);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(DcpMutationValidatorTest, InvalidExtlenCollections) {
-    request.message.header.request.extlen =
-            protocol_binary_request_dcp_mutation::getExtrasLength() + 1;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+    request.message.header.request.bodylen = htonl(23);
+    EXPECT_EQ("Request must include extras of length 31",
+              validate_error_context());
 }
 
 TEST_P(DcpMutationValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = GetParam() ? htons(1) : 0;
+    request.message.header.request.keylen = 0;
     request.message.header.request.bodylen = htonl(31);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+    EXPECT_EQ("Request must include key", validate_error_context());
 }
 
 // A key which has no leb128 stop-byte
@@ -1979,7 +2052,7 @@ TEST_P(DcpMutationValidatorTest, InvalidKey1) {
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen =
                 htonl(request.message.header.request.extlen + 10);
-        EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+        EXPECT_EQ("Request key invalid", validate_error_context());
     }
 }
 
@@ -1992,7 +2065,7 @@ TEST_P(DcpMutationValidatorTest, InvalidKey2) {
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen =
                 htonl(request.message.header.request.extlen + 10);
-        EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+        EXPECT_EQ("Request key invalid", validate_error_context());
     }
 }
 
@@ -3255,16 +3328,16 @@ public:
     ErrorContextTest() : ValidatorTest(GetParam()) {
     }
 
-protected:
-    std::string validate_error_context(cb::mcbp::ClientOpcode opcode) {
-        void* packet = static_cast<void*>(&request);
-        return ValidatorTest::validate_error_context(opcode, packet);
+    bool isCollectionsEnabled() const {
+        return GetParam();
     }
 };
 
 TEST_P(ErrorContextTest, ValidHeader) {
     // Error context should not be set on valid request
-    EXPECT_EQ("", validate_error_context(cb::mcbp::ClientOpcode::Noop));
+    EXPECT_EQ("",
+              validate_error_context(cb::mcbp::ClientOpcode::Noop,
+                                     cb::mcbp::Status::Success));
 }
 
 TEST_P(ErrorContextTest, InvalidHeader) {
@@ -3382,11 +3455,6 @@ public:
 
 protected:
     cb::mcbp::Request& header = request.message.header.request;
-
-    std::string validate_error_context(cb::mcbp::ClientOpcode opcode) {
-        void* packet = static_cast<void*>(&request);
-        return ValidatorTest::validate_error_context(opcode, packet);
-    }
 };
 
 TEST_P(CommandSpecificErrorContextTest, DcpOpen) {
@@ -3436,7 +3504,8 @@ TEST_P(CommandSpecificErrorContextTest, DcpStreamRequest) {
 
     if (isCollectionsEnabled()) {
         EXPECT_EQ("Attached bucket does not support DCP",
-                  validate_error_context(cb::mcbp::ClientOpcode::DcpStreamReq));
+                  validate_error_context(cb::mcbp::ClientOpcode::DcpStreamReq,
+                                         cb::mcbp::Status::NotSupported));
     } else {
         EXPECT_EQ("Request must not include value",
                   validate_error_context(cb::mcbp::ClientOpcode::DcpStreamReq));
@@ -3481,7 +3550,8 @@ TEST_P(CommandSpecificErrorContextTest, DcpMutation) {
     // Request body must be valid Xattr blob if datatype is Xattr
     connection.enableDatatype(cb::mcbp::Feature::XATTR);
     EXPECT_EQ("Xattr blob not valid",
-              validate_error_context(cb::mcbp::ClientOpcode::DcpMutation));
+              validate_error_context(cb::mcbp::ClientOpcode::DcpMutation,
+                                     cb::mcbp::Status::XattrEinval));
 }
 
 TEST_P(CommandSpecificErrorContextTest, DcpDeletion) {
@@ -3558,7 +3628,8 @@ TEST_P(CommandSpecificErrorContextTest, Flush) {
     // Insert a value and verify that we reject such packets
     *reinterpret_cast<uint32_t*>(blob + sizeof(header)) = 10;
     EXPECT_EQ("Delayed flush no longer supported",
-              validate_error_context(cb::mcbp::ClientOpcode::Flush));
+              validate_error_context(cb::mcbp::ClientOpcode::Flush,
+                                     cb::mcbp::Status::NotSupported));
 }
 
 TEST_P(CommandSpecificErrorContextTest, Add) {
@@ -3696,8 +3767,8 @@ TEST_P(CommandSpecificErrorContextTest, CreateBucket) {
 TEST_P(CommandSpecificErrorContextTest, SelectBucket) {
     // Select Bucket has maximum key length of 1023
     header.setExtlen(0);
-    header.setKeylen(1024);
-    header.setBodylen(1024);
+    header.setKeylen(101);
+    header.setBodylen(101);
     EXPECT_EQ("Request key length exceeds maximum",
               validate_error_context(cb::mcbp::ClientOpcode::SelectBucket));
 }
@@ -3770,7 +3841,8 @@ TEST_P(CommandSpecificErrorContextTest, MutateWithMeta) {
     // If datatype is Xattr, command value must be valid xattr blob
     connection.enableDatatype(cb::mcbp::Feature::XATTR);
     EXPECT_EQ("Xattr blob invalid",
-              validate_error_context(cb::mcbp::ClientOpcode::AddWithMeta));
+              validate_error_context(cb::mcbp::ClientOpcode::AddWithMeta,
+                                     cb::mcbp::Status::XattrEinval));
 
     // Collections requires longer key for collection ID
     connection.setCollectionsSupported(true);
@@ -3850,7 +3922,8 @@ TEST_P(CommandSpecificErrorContextTest, CollectionsSetManifest) {
     header.setVBucket(Vbid(0));
     EXPECT_EQ("Attached bucket does not support collections",
               validate_error_context(
-                      cb::mcbp::ClientOpcode::CollectionsSetManifest));
+                      cb::mcbp::ClientOpcode::CollectionsSetManifest,
+                      cb::mcbp::Status::NotSupported));
 }
 
 TEST_P(CommandSpecificErrorContextTest, CollectionsGetManifest) {
@@ -3865,7 +3938,8 @@ TEST_P(CommandSpecificErrorContextTest, CollectionsGetManifest) {
     header.setVBucket(Vbid(0));
     EXPECT_EQ("Attached bucket does not support collections",
               validate_error_context(
-                      cb::mcbp::ClientOpcode::CollectionsGetManifest));
+                      cb::mcbp::ClientOpcode::CollectionsGetManifest,
+                      cb::mcbp::Status::NotSupported));
 }
 
 TEST_P(CommandSpecificErrorContextTest, CollectionsGetID) {
@@ -3881,7 +3955,8 @@ TEST_P(CommandSpecificErrorContextTest, CollectionsGetID) {
               validate_error_context(cb::mcbp::ClientOpcode::CollectionsGetID));
     header.setVBucket(Vbid(0));
     EXPECT_EQ("Attached bucket does not support collections",
-              validate_error_context(cb::mcbp::ClientOpcode::CollectionsGetID));
+              validate_error_context(cb::mcbp::ClientOpcode::CollectionsGetID,
+                                     cb::mcbp::Status::NotSupported));
 }
 
 class GetRandomKeyValidatorTest : public ::testing::WithParamInterface<bool>,

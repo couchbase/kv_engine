@@ -1307,7 +1307,7 @@ static Status select_bucket_validator(Cookie& cookie) {
     if (status != Status::Success) {
         return status;
     }
-    if (cookie.getHeader().getKeylen() > 1023) {
+    if (cookie.getHeader().getKeylen() > MAX_BUCKET_NAME_LENGTH) {
         cookie.setErrorContext("Request key length exceeds maximum");
         return Status::Einval;
     }

@@ -47,8 +47,13 @@ protected:
      * @param request The packet to validate
      */
     cb::mcbp::Status validate(cb::mcbp::ClientOpcode opcode, void* request);
-    std::string validate_error_context(cb::mcbp::ClientOpcode opcode,
-                                       void* request);
+    std::string validate_error_context(
+            cb::mcbp::ClientOpcode opcode,
+            void* request,
+            cb::mcbp::Status expectedStatus = cb::mcbp::Status::Einval);
+    std::string validate_error_context(
+            cb::mcbp::ClientOpcode opcode,
+            cb::mcbp::Status expectedStatus = cb::mcbp::Status::Einval);
 
     McbpValidator validatorChains;
 

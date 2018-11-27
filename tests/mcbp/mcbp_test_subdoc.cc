@@ -54,9 +54,11 @@ protected:
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
 
-    std::string validate_error_context(cb::mcbp::ClientOpcode opcode) {
+    std::string validate_error_context(
+            cb::mcbp::ClientOpcode opcode,
+            cb::mcbp::Status expectedStatus = cb::mcbp::Status::Einval) {
         return ValidatorTest::validate_error_context(
-                opcode, static_cast<void*>(&request));
+                opcode, static_cast<void*>(&request), expectedStatus);
     }
 
     protocol_binary_request_subdocument &request =
@@ -68,7 +70,9 @@ TEST_P(SubdocSingleTest, Get_Baseline) {
     EXPECT_EQ(cb::mcbp::Status::Success,
               validate(cb::mcbp::ClientOpcode::SubdocGet));
     // Successful request should have empty error context message
-    EXPECT_EQ("", validate_error_context(cb::mcbp::ClientOpcode::SubdocGet));
+    EXPECT_EQ("",
+              validate_error_context(cb::mcbp::ClientOpcode::SubdocGet,
+                                     cb::mcbp::Status::Success));
 }
 
 TEST_P(SubdocSingleTest, Get_InvalidBody) {
@@ -125,7 +129,8 @@ TEST_P(SubdocSingleTest, DictAdd_InvalidExtras) {
     EXPECT_EQ(cb::mcbp::Status::Success,
               validate(cb::mcbp::ClientOpcode::SubdocDictAdd));
     EXPECT_EQ("",
-              validate_error_context(cb::mcbp::ClientOpcode::SubdocDictAdd));
+              validate_error_context(cb::mcbp::ClientOpcode::SubdocDictAdd,
+                                     cb::mcbp::Status::Success));
 
     request.message.header.request.bodylen = htonl(10 + 7 + 1);
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -163,18 +168,23 @@ protected:
         return validate(packet);
     }
 
-    std::string validate_error_context(const std::vector<uint8_t> request) {
+    std::string validate_error_context(
+            const std::vector<uint8_t> request,
+            cb::mcbp::Status expectedStatus = cb::mcbp::Status::Einval) {
         void* packet =
                 const_cast<void*>(static_cast<const void*>(request.data()));
         return ValidatorTest::validate_error_context(
-                cb::mcbp::ClientOpcode::SubdocMultiLookup, packet);
+                cb::mcbp::ClientOpcode::SubdocMultiLookup,
+                packet,
+                expectedStatus);
     }
 
     std::string validate_error_context(
-            const BinprotSubdocMultiLookupCommand& cmd) {
+            const BinprotSubdocMultiLookupCommand& cmd,
+            cb::mcbp::Status expectedStatus = cb::mcbp::Status::Einval) {
         std::vector<uint8_t> packet;
         cmd.encode(packet);
-        return validate_error_context(packet);
+        return validate_error_context(packet, expectedStatus);
     }
 
     BinprotSubdocMultiLookupCommand request;
@@ -183,7 +193,7 @@ protected:
 TEST_P(SubdocMultiLookupTest, Baseline) {
     // Ensure that the initial request as formed by SetUp is valid.
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
-    EXPECT_EQ("", validate_error_context(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 }
 
 TEST_P(SubdocMultiLookupTest, InvalidMagic) {
@@ -245,7 +255,8 @@ TEST_P(SubdocMultiLookupTest, NumPaths) {
     request.clearLookups();
     EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, validate(request));
     EXPECT_EQ("Request must contain at least one path",
-              validate_error_context(request));
+              validate_error_context(request,
+                                     cb::mcbp::Status::SubdocInvalidCombo));
 
     // Should handle total of 16 paths.
     request.clearLookups();
@@ -256,13 +267,14 @@ TEST_P(SubdocMultiLookupTest, NumPaths) {
         request.addLookup(spec);
     }
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
-    EXPECT_EQ("", validate_error_context(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 
     // Add one more - should now fail.
     request.addLookup(spec);
     EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, validate(request));
     EXPECT_EQ("Request must contain at most 16 paths",
-              validate_error_context(request));
+              validate_error_context(request,
+                                     cb::mcbp::Status::SubdocInvalidCombo));
 }
 
 TEST_P(SubdocMultiLookupTest, ValidLocationOpcodes) {
@@ -271,7 +283,7 @@ TEST_P(SubdocMultiLookupTest, ValidLocationOpcodes) {
     request.addLookup(
             {cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "[0]"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
-    EXPECT_EQ("", validate_error_context(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 }
 
 TEST_P(SubdocMultiLookupTest, InvalidLocationOpcodes) {
@@ -301,7 +313,7 @@ TEST_P(SubdocMultiLookupTest, InvalidLocationPaths) {
     // Maximum length should be accepted...
     request.at(0).path.assign(1024, 'x');
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
-    EXPECT_EQ("", validate_error_context(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 
     // But any longer should be rejected.
     request.at(0).path.push_back('x');
@@ -370,15 +382,20 @@ protected:
     }
 
     std::string validate_error_context(
-            const BinprotSubdocMultiMutationCommand& cmd) {
+            const BinprotSubdocMultiMutationCommand& cmd,
+            cb::mcbp::Status expectedStatus = cb::mcbp::Status::Einval) {
         std::vector<uint8_t> packet;
         cmd.encode(packet);
-        return validate_error_context(packet);
+        return validate_error_context(packet, expectedStatus);
     }
 
-    std::string validate_error_context(std::vector<uint8_t>& packet) {
+    std::string validate_error_context(
+            std::vector<uint8_t>& packet,
+            cb::mcbp::Status expectedStatus = cb::mcbp::Status::Einval) {
         return ValidatorTest::validate_error_context(
-                cb::mcbp::ClientOpcode::SubdocMultiMutation, packet.data());
+                cb::mcbp::ClientOpcode::SubdocMultiMutation,
+                packet.data(),
+                expectedStatus);
     }
 
     /*
@@ -394,7 +411,9 @@ protected:
         if (expected == cb::mcbp::Status::Einval) {
             EXPECT_EQ("Request flags invalid", validate_error_context(request));
         } else if (expected == cb::mcbp::Status::Success) {
-            EXPECT_EQ("", validate_error_context(request));
+            EXPECT_EQ(
+                    "",
+                    validate_error_context(request, cb::mcbp::Status::Success));
         }
         request.at(spec).flags = SUBDOC_FLAG_NONE;
 
@@ -404,7 +423,9 @@ protected:
             EXPECT_EQ("Request document flags invalid",
                       validate_error_context(request));
         } else if (expected == cb::mcbp::Status::Success) {
-            EXPECT_EQ("", validate_error_context(request));
+            EXPECT_EQ(
+                    "",
+                    validate_error_context(request, cb::mcbp::Status::Success));
         }
         request.clearDocFlags();
     }
@@ -431,7 +452,7 @@ protected:
 TEST_P(SubdocMultiMutationTest, Baseline) {
     // Ensure that the initial request as formed by SetUp is valid.
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
-    EXPECT_EQ("", validate_error_context(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 }
 
 TEST_P(SubdocMultiMutationTest, InvalidMagic) {
@@ -489,7 +510,7 @@ TEST_P(SubdocMultiMutationTest, Expiry) {
     ASSERT_EQ(4, header->request.extlen);
 
     EXPECT_EQ(cb::mcbp::Status::Success, validate(payload));
-    EXPECT_EQ("", validate_error_context(payload));
+    EXPECT_EQ("", validate_error_context(payload, cb::mcbp::Status::Success));
 }
 
 TEST_P(SubdocMultiMutationTest, ExplicitZeroExpiry) {
@@ -503,7 +524,7 @@ TEST_P(SubdocMultiMutationTest, ExplicitZeroExpiry) {
     ASSERT_EQ(4, header->request.extlen);
 
     EXPECT_EQ(cb::mcbp::Status::Success, validate(payload));
-    EXPECT_EQ("", validate_error_context(payload));
+    EXPECT_EQ("", validate_error_context(payload, cb::mcbp::Status::Success));
 }
 
 TEST_P(SubdocMultiMutationTest, NumPaths) {
@@ -511,8 +532,8 @@ TEST_P(SubdocMultiMutationTest, NumPaths) {
     request.clearMutations();
     EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, validate(request));
     EXPECT_EQ("Request must contain at least one path",
-              validate_error_context(request));
-
+              validate_error_context(request,
+                                     cb::mcbp::Status::SubdocInvalidCombo));
     // Should handle total of 16 paths.
     request.clearMutations();
     // Add maximum number of paths.
@@ -525,13 +546,14 @@ TEST_P(SubdocMultiMutationTest, NumPaths) {
         request.addMutation(spec);
     }
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
-    EXPECT_EQ("", validate_error_context(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 
     // Add one more - should now fail.
     request.addMutation(spec);
     EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, validate(request));
     EXPECT_EQ("Request must contain at most 16 paths",
-              validate_error_context(request));
+              validate_error_context(request,
+                                     cb::mcbp::Status::SubdocInvalidCombo));
 }
 
 TEST_P(SubdocMultiMutationTest, ValidDictAdd) {
@@ -542,7 +564,7 @@ TEST_P(SubdocMultiMutationTest, ValidDictAdd) {
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
-    EXPECT_EQ("", validate_error_context(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
     testFlagCombo(SUBDOC_FLAG_MKDIR_P,
                   mcbp::subdoc::doc_flag::Mkdoc,
                   cb::mcbp::Status::Success,
@@ -581,7 +603,7 @@ TEST_P(SubdocMultiMutationTest, ValidDictUpsert) {
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
-    EXPECT_EQ("", validate_error_context(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
     testFlagCombo(SUBDOC_FLAG_MKDIR_P,
                   mcbp::subdoc::doc_flag::Mkdoc,
                   cb::mcbp::Status::Success,
@@ -621,7 +643,7 @@ TEST_P(SubdocMultiMutationTest, ValidDelete) {
                          "path",
                          ""});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
-    EXPECT_EQ("", validate_error_context(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 }
 
 TEST_P(SubdocMultiMutationTest, InvalidDelete) {
@@ -655,7 +677,7 @@ TEST_P(SubdocMultiMutationTest, ValidReplace) {
                          "path",
                          "new_value"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
-    EXPECT_EQ("", validate_error_context(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 }
 
 TEST_P(SubdocMultiMutationTest, InvalidReplace) {
@@ -693,7 +715,7 @@ TEST_P(SubdocMultiMutationTest, ValidArrayPushLast) {
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
-    EXPECT_EQ("", validate_error_context(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 
     testFlagCombo(SUBDOC_FLAG_MKDIR_P,
                   mcbp::subdoc::doc_flag::Mkdoc,
@@ -732,7 +754,7 @@ TEST_P(SubdocMultiMutationTest, ValidArrayPushFirst) {
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
-    EXPECT_EQ("", validate_error_context(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 
     testFlagCombo(SUBDOC_FLAG_MKDIR_P,
                   mcbp::subdoc::doc_flag::Mkdoc,
@@ -771,7 +793,7 @@ TEST_P(SubdocMultiMutationTest, ValidArrayInsert) {
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
-    EXPECT_EQ("", validate_error_context(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 }
 
 TEST_P(SubdocMultiMutationTest, InvalidArrayInsert) {
@@ -813,7 +835,7 @@ TEST_P(SubdocMultiMutationTest, ValidArrayAddUnique) {
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
-    EXPECT_EQ("", validate_error_context(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 
     testFlags(SUBDOC_FLAG_MKDIR_P,
               mcbp::subdoc::doc_flag::Mkdoc,
@@ -826,7 +848,7 @@ TEST_P(SubdocMultiMutationTest, ValidArrayAddUnique) {
                      "",
                      "value"};
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
-    EXPECT_EQ("", validate_error_context(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 }
 
 TEST_P(SubdocMultiMutationTest, InvalidArrayAddUnique) {
@@ -854,7 +876,7 @@ TEST_P(SubdocMultiMutationTest, ValidArrayCounter) {
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
-    EXPECT_EQ("", validate_error_context(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 
     testFlags(SUBDOC_FLAG_MKDIR_P,
               mcbp::subdoc::doc_flag::Mkdoc,
@@ -970,7 +992,7 @@ TEST_P(SubdocMultiMutationTest, ValidWholeDocDeleteFlags) {
                          ""});
     request.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
-    EXPECT_EQ("", validate_error_context(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 }
 
 TEST_P(SubdocMultiMutationTest, InvalidWholeDocDeleteMulti) {
@@ -983,7 +1005,8 @@ TEST_P(SubdocMultiMutationTest, InvalidWholeDocDeleteMulti) {
                          ""});
     EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, validate(request));
     EXPECT_EQ("Request contains an invalid combination of commands",
-              validate_error_context(request));
+              validate_error_context(request,
+                                     cb::mcbp::Status::SubdocInvalidCombo));
 
     // Now try the delete first
     request.clearMutations();
@@ -997,7 +1020,8 @@ TEST_P(SubdocMultiMutationTest, InvalidWholeDocDeleteMulti) {
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, validate(request));
     EXPECT_EQ("Request contains an invalid combination of commands",
-              validate_error_context(request));
+              validate_error_context(request,
+                                     cb::mcbp::Status::SubdocInvalidCombo));
 }
 
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
