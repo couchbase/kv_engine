@@ -1286,6 +1286,77 @@ TEST_F(CouchKVStoreErrorInjectionTest, CompactFailedStatsTest) {
     EXPECT_EQ("1", stats["rw_0:failure_compaction"]);
 }
 
+/**
+ * Injects corruption (invalid header length) during
+ * CouchKVStore::readVBState/couchstore_open_local_document
+ */
+TEST_F(CouchKVStoreErrorInjectionTest, corruption_get_open_doc_with_docinfo) {
+    // Create a couchstore file with an item in it.
+    populate_items(1);
+
+    // Attempt to read the item.
+    GetValue gv;
+    {
+        // Should see a sequence of preads - the penultimate one is a read
+        // of the value's chunk length. For that we corrupt it so to check
+        // that checksum fail is detected and reported correctly.
+        {
+            // ProTip: These values should be stable; but if they are not (and
+            // test starts to fail after unrelated changes) then run with
+            // "--gmock_verbose=info" to show a trace of what parameters pread
+            // is being called with.
+            using ::testing::Sequence;
+            InSequence s;
+            // 2 bytes - detect block type
+            EXPECT_CALL(ops, pread(_, _, _, 2, _));
+            // 8 bytes - file header
+            EXPECT_CALL(ops, pread(_, _, _, 8, _));
+            // <variable> - byId tree root
+            EXPECT_CALL(ops, pread(_, _, _, _, _));
+            // 8 bytes - header
+            EXPECT_CALL(ops, pread(_, _, _, 8, _));
+            // <variable - seqno tree root
+            EXPECT_CALL(ops, pread(_, _, _, _, _));
+
+            // chunk header - we want to corrupt the length (1st 32bit word)
+            // so the checksum fails.
+            EXPECT_CALL(ops, pread(_, _, _, 8, _))
+                    .WillOnce(Invoke([this](couchstore_error_info_t* errinfo,
+                                            couch_file_handle handle,
+                                            void* buf,
+                                            size_t nbytes,
+                                            cs_off_t offset) -> ssize_t {
+                        // First perform the real pread():
+                        auto res = ops.get_wrapped()->pread(
+                                errinfo, handle, buf, nbytes, offset);
+                        // Now check and modify the return value.
+                        auto* length_ptr = reinterpret_cast<uint32_t*>(buf);
+                        EXPECT_EQ(0x80000007, htonl(*length_ptr))
+                                << "Unexpected chunk.length for value chunk";
+
+                        // assumptions pass; now make length too small so CRC32
+                        // should mismatch.
+                        *length_ptr = ntohl(0x80000006);
+                        return res;
+                    }));
+            // Final read of the value's data (should be size 6 given we
+            // changed the chunk.length above).
+            EXPECT_CALL(ops, pread(_, _, _, 6, _));
+        }
+
+        // As a result, expect to see a CHECKSUM_FAIL log message
+        EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_CHECKSUM_FAIL)))
+                .Times(1)
+                .RetiresOnSaturation();
+
+        // Trigger the get().
+        gv = kvstore->get(items.front().getKey(), Vbid(0));
+    }
+    EXPECT_EQ(ENGINE_TMPFAIL, gv.getStatus());
+}
 
 class MockCouchRequest : public CouchRequest {
 public:
