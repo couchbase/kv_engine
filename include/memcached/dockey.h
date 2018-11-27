@@ -325,3 +325,20 @@ private:
     cb::const_byte_buffer buffer;
     DocKeyEncodesCollectionId encoding{DocKeyEncodesCollectionId::No};
 };
+
+/**
+ * A maximum key length (i.e. request.keylen) for when collections are enabled.
+ * The value 251 allows for the client to encode all possible 'legacy' keys with
+ * the default collection-ID (0x0).
+ */
+const size_t MaxCollectionsKeyLen = 251;
+
+/**
+ * The maximum logical key length, i.e. the document's key without any
+ * collection prefix. The value of 246 applies when the collection-ID is not the
+ * default collection and ensures that the longest possible key can always be
+ * stored regardless of the length of the collection-ID (which can be 1 to 5
+ * bytes). NOTE: If the collection ID is the default collection, the logical key
+ * length is 250, the pre-collections maximum.
+ */
+const size_t MaxCollectionsLogicalKeyLen = 246;

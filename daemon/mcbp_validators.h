@@ -68,5 +68,9 @@ protected:
     std::array<std::function<Status(Cookie&)>, 0x100> validators;
 };
 
-/// @return true if the keylen represents a valid key for the connection
-bool is_document_key_valid(const Cookie& cookie);
+/**
+ * Validate the key for operations which will create a DocKey
+ * @param cookie non const reference as failure will update the error context
+ * @return true if the keylen represents a valid key for the connection
+ */
+bool is_document_key_valid(Cookie& cookie);

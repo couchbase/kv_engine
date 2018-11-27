@@ -31,17 +31,24 @@ namespace mcbp {
  * - see https://en.wikipedia.org/wiki/LEB128
  */
 
+struct Leb128NoThrow {};
+
 /**
- * decode_unsigned_leb128 returns the decoded uint<T> and the index of the last
- * byte of the leb128 within buf.
+ * decode_unsigned_leb128 returns the decoded T and a const_byte_buffer
+ * initialised with the data following the leb128 data. This form of the decode
+ * does not throw for invalid input and the caller should always check
+ * second.data() for success or error (see returns info).
+ *
  * @param buf buffer containing a leb128 encoded value (of size T)
- * @returns std::pair first is the decoded value and second a buffer for the
- *          remaining data (size will be 0 for no more data)
+ * @returns On error a std::pair where first is set to 0 and second is nullptr/0
+ *          const_byte_buffer. On success a std::pair where first is the decoded
+ *          value and second is a buffer initialised with the data following the
+ *          leb128 data.
  */
 template <class T>
 typename std::enable_if<std::is_unsigned<T>::value,
                         std::pair<T, cb::const_byte_buffer>>::type
-decode_unsigned_leb128(cb::const_byte_buffer buf) {
+decode_unsigned_leb128(cb::const_byte_buffer buf, struct Leb128NoThrow) {
     T rv = buf[0] & 0x7full;
     size_t end = 0;
     if ((buf[0] & 0x80) == 0x80ull) {
@@ -57,13 +64,36 @@ decode_unsigned_leb128(cb::const_byte_buffer buf) {
 
         // We should of stopped for a stop byte, not the end of the buffer
         if (end == buf.size()) {
-            throw std::invalid_argument("decode_unsigned_leb128: no stop byte");
+            return {0, cb::const_byte_buffer{}};
         }
     }
     // Return the decoded value and a buffer for any remaining data
     return {rv,
             cb::const_byte_buffer{buf.data() + end + 1,
                                   buf.size() - (end + 1)}};
+}
+
+/**
+ * decode_unsigned_leb128 returns the decoded T and a const_byte_buffer
+ * initialised with the data following the leb128 data. This form of the decode
+ * throws for invalid input.
+ *
+ * @param buf buffer containing a leb128 encoded value (of size T)
+ * @returns std::pair first is the decoded value and second a buffer for the
+ *          remaining data (size will be 0 for no more data)
+ * @throws std::invalid_argument if buf[0] does not encode a leb128 value with
+ *         a stop byte.
+ */
+template <class T>
+typename std::enable_if<std::is_unsigned<T>::value,
+                        std::pair<T, cb::const_byte_buffer>>::type
+decode_unsigned_leb128(cb::const_byte_buffer buf) {
+    auto rv = decode_unsigned_leb128<T>(buf, Leb128NoThrow());
+    // We should of stopped for a stop byte, not the end of the buffer
+    if (!rv.second.data()) {
+        throw std::invalid_argument("decode_unsigned_leb128: no stop byte");
+    }
+    return rv;
 }
 
 /**

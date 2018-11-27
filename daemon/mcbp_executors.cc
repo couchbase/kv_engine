@@ -943,13 +943,6 @@ static cb::mcbp::Status validate_packet_execusion_constraints(Cookie& cookie) {
         return cb::mcbp::Status::Einval;
     }
 
-    /* binprot supports 16bit keys, but internals are still 8bit */
-    if (header.getKeylen() > KEY_MAX_LENGTH) {
-        cookie.setErrorContext("Key length exceed " +
-                               std::to_string(KEY_MAX_LENGTH));
-        return cb::mcbp::Status::Einval;
-    }
-
     /*
      * Protect ourself from someone trying to kill us by sending insanely
      * large packets.

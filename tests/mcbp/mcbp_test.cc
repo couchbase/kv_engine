@@ -182,12 +182,130 @@ TEST_P(GetValidatorTest, InvalidExtlen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-TEST_P(GetValidatorTest, NoKey) {
+TEST_P(GetValidatorTest, KeyLengthMin) {
+    request.message.header.request.setKeylen(isCollectionsEnabled() ? 2 : 1);
+    request.message.header.request.setBodylen(isCollectionsEnabled() ? 2 : 1);
+
+    EXPECT_EQ("",
+              validate_error_context(
+                      cb::mcbp::ClientOpcode(std::get<0>(GetParam())),
+                      cb::mcbp::Status::Success));
+
     // Collections requires 2 bytes minimum, non-collection 1 byte minimum
     request.message.header.request.setKeylen(isCollectionsEnabled() ? 1 : 0);
+    request.message.header.request.setBodylen(isCollectionsEnabled() ? 1 : 0);
+
+    std::string expected = isCollectionsEnabled() ? "Key length must be >= 2"
+                                                  : "Request must include key";
+    EXPECT_EQ(expected,
+              validate_error_context(
+                      cb::mcbp::ClientOpcode(std::get<0>(GetParam()))));
+}
+
+// Clients are restricted in the key length they can provide
+TEST_P(GetValidatorTest, KeyLengthMax) {
+    // Firstly create a zeroed key, this is a valid key value for collections or
+    // non-collections, but importantly when used with collections enabled, it
+    // appears to be a DefaultCollection key
+
+    const int maxKeyLen = 250;
+    std::fill(blob + sizeof(request.bytes),
+              blob + sizeof(request.bytes) + maxKeyLen + 1,
+              0);
+    request.message.header.request.setKeylen(
+            isCollectionsEnabled() ? maxKeyLen + 1 : maxKeyLen);
     request.message.header.request.setBodylen(
-            request.message.header.request.getKeylen());
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+            isCollectionsEnabled() ? maxKeyLen + 1 : maxKeyLen);
+
+    // The keylen is ok
+    EXPECT_EQ("",
+              validate_error_context(
+                      cb::mcbp::ClientOpcode(std::get<0>(GetParam())),
+                      cb::mcbp::Status::Success));
+
+    request.message.header.request.setKeylen(
+            isCollectionsEnabled() ? maxKeyLen + 2 : maxKeyLen + 1);
+    request.message.header.request.setBodylen(
+            isCollectionsEnabled() ? maxKeyLen + 2 : maxKeyLen + 1);
+
+    std::string expected = isCollectionsEnabled() ? "Key length exceeds 251"
+                                                  : "Key length exceeds 250";
+    EXPECT_EQ(expected,
+              validate_error_context(
+                      cb::mcbp::ClientOpcode(std::get<0>(GetParam()))));
+
+    // Next switch to a valid key for collections or non-collections, with a
+    // non-default collection ID
+    cb::mcbp::unsigned_leb128<CollectionIDType> leb128(88);
+    std::copy(leb128.begin(), leb128.end(), blob + sizeof(request.bytes));
+
+    uint16_t leb128Size = gsl::narrow_cast<uint16_t>(leb128.size());
+    const int maxCollectionsLogicalKeyLen = 246;
+    // Valid maximum keylength
+    request.message.header.request.setKeylen(
+            isCollectionsEnabled() ? (leb128Size + maxCollectionsLogicalKeyLen)
+                                   : maxKeyLen);
+    request.message.header.request.setBodylen(
+            isCollectionsEnabled() ? (leb128Size + maxCollectionsLogicalKeyLen)
+                                   : maxKeyLen);
+
+    EXPECT_EQ("",
+              validate_error_context(
+                      cb::mcbp::ClientOpcode(std::get<0>(GetParam())),
+                      cb::mcbp::Status::Success));
+
+    // Exceed valid by 1 byte
+    request.message.header.request.setKeylen(
+            isCollectionsEnabled()
+                    ? (leb128Size + maxCollectionsLogicalKeyLen + 1)
+                    : maxKeyLen + 1);
+    request.message.header.request.setBodylen(
+            isCollectionsEnabled()
+                    ? (leb128Size + maxCollectionsLogicalKeyLen + 1)
+                    : maxKeyLen + 1);
+
+    expected = isCollectionsEnabled() ? "Logical key exceeds 246"
+                                      : "Key length exceeds 250";
+    EXPECT_EQ(expected,
+              validate_error_context(
+                      cb::mcbp::ClientOpcode(std::get<0>(GetParam()))));
+
+    // Test max-collection ID
+    if (isCollectionsEnabled()) {
+        cb::mcbp::unsigned_leb128<CollectionIDType> leb128Max(0xFFFFFFFF);
+        leb128Size = gsl::narrow_cast<uint16_t>(leb128Max.size());
+        ASSERT_EQ(5, leb128Max.size());
+        std::copy(leb128Max.begin(),
+                  leb128Max.end(),
+                  blob + sizeof(request.bytes));
+        request.message.header.request.setKeylen(
+                isCollectionsEnabled()
+                        ? (leb128Size + maxCollectionsLogicalKeyLen)
+                        : maxKeyLen);
+        request.message.header.request.setBodylen(
+                isCollectionsEnabled()
+                        ? (leb128Size + maxCollectionsLogicalKeyLen)
+                        : maxKeyLen);
+
+        EXPECT_EQ("",
+                  validate_error_context(
+                          cb::mcbp::ClientOpcode(std::get<0>(GetParam())),
+                          cb::mcbp::Status::Success));
+        request.message.header.request.setKeylen(
+                isCollectionsEnabled()
+                        ? (leb128Size + maxCollectionsLogicalKeyLen + 1)
+                        : maxKeyLen + 1);
+        request.message.header.request.setBodylen(
+                isCollectionsEnabled()
+                        ? (leb128Size + maxCollectionsLogicalKeyLen + 1)
+                        : maxKeyLen + 1);
+
+        expected = isCollectionsEnabled() ? "Key length exceeds 251"
+                                          : "Key length exceeds 250";
+        EXPECT_EQ(expected,
+                  validate_error_context(
+                          cb::mcbp::ClientOpcode(std::get<0>(GetParam()))));
+    }
 }
 
 TEST_P(GetValidatorTest, InvalidKey) {
@@ -195,14 +313,26 @@ TEST_P(GetValidatorTest, InvalidKey) {
         // Non collections, anything goes
         return;
     }
-    // Collections requires the leading bytes are a valid unsigned leb128
-    // (varint), so if all key bytes are 0x80, illegal.
+    // Collections requires the leading bytes to be a valid unsigned leb128
+    // (varint), so if all key bytes are 0x80 (no stop byte) illegal.
     std::fill(blob + sizeof(request.bytes),
               blob + sizeof(request.bytes) + 10,
               0x81ull);
     request.message.header.request.setKeylen(10);
     request.message.header.request.setBodylen(10);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+    EXPECT_EQ("No stop-byte found",
+              validate_error_context(
+                      cb::mcbp::ClientOpcode(std::get<0>(GetParam()))));
+
+    // Now make a key which is only a leb128 prefix
+    cb::mcbp::unsigned_leb128<CollectionIDType> leb128(2018);
+    std::copy(leb128.begin(), leb128.end(), blob + sizeof(request.bytes));
+    uint16_t leb128Size = gsl::narrow_cast<uint16_t>(leb128.size());
+    request.message.header.request.setKeylen(leb128Size);
+    request.message.header.request.setBodylen(leb128Size);
+    EXPECT_EQ("No logical key found",
+              validate_error_context(
+                      cb::mcbp::ClientOpcode(std::get<0>(GetParam()))));
 }
 
 TEST_P(GetValidatorTest, InvalidDatatype) {
@@ -419,13 +549,13 @@ TEST_P(SetReplaceValidatorTest, InvalidKey) {
     request.message.header.request.setKeylen(10);
     request.message.header.request.setBodylen(
             10 + request.message.header.request.getExtlen());
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("No stop-byte found",
               validate_error_context(cb::mcbp::ClientOpcode::Set));
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("No stop-byte found",
               validate_error_context(cb::mcbp::ClientOpcode::Setq));
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("No stop-byte found",
               validate_error_context(cb::mcbp::ClientOpcode::Replace));
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("No stop-byte found",
               validate_error_context(cb::mcbp::ClientOpcode::Replaceq));
 }
 
@@ -536,15 +666,13 @@ TEST_P(AppendPrependValidatorTest, InvalidKey) {
                request.message.header.request.getExtlen();
     std::fill(key, key + 10, 0x80ull);
     request.message.header.request.setKeylen(10);
-    // request.message.header.request.bodylen =
-    // request.message.header.request.keylen;
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("No stop-byte found",
               validate_error_context(cb::mcbp::ClientOpcode::Append));
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("No stop-byte found",
               validate_error_context(cb::mcbp::ClientOpcode::Appendq));
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("No stop-byte found",
               validate_error_context(cb::mcbp::ClientOpcode::Prepend));
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("No stop-byte found",
               validate_error_context(cb::mcbp::ClientOpcode::Prependq));
 }
 
@@ -724,15 +852,13 @@ TEST_P(IncrementDecrementValidatorTest, InvalidKey) {
                request.message.header.request.getExtlen();
     std::fill(key, key + 10, 0x80ull);
     request.message.header.request.setKeylen(10);
-    // request.message.header.request.bodylen =
-    // request.message.header.request.keylen;
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("No stop-byte found",
               validate_error_context(cb::mcbp::ClientOpcode::Increment));
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("No stop-byte found",
               validate_error_context(cb::mcbp::ClientOpcode::Incrementq));
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("No stop-byte found",
               validate_error_context(cb::mcbp::ClientOpcode::Decrement));
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("No stop-byte found",
               validate_error_context(cb::mcbp::ClientOpcode::Decrementq));
 }
 
@@ -2041,7 +2167,7 @@ TEST_P(DcpMutationValidatorTest, InvalidKey1) {
         uint8_t key[10] = {};
         std::fill(key, key + 10, 0x81ull);
         builder.setKey({key, sizeof(key)});
-        EXPECT_EQ("Request key invalid", validate_error_context());
+        EXPECT_EQ("No stop-byte found", validate_error_context());
     }
 }
 
@@ -2052,7 +2178,7 @@ TEST_P(DcpMutationValidatorTest, InvalidKey2) {
         uint8_t key[10] = {};
         std::fill(key, key + 9, 0x81ull);
         builder.setKey({key, sizeof(key)});
-        EXPECT_EQ("Request key invalid", validate_error_context());
+        EXPECT_EQ("No logical key found", validate_error_context());
     }
 }
 
@@ -3630,7 +3756,7 @@ TEST_P(CommandSpecificErrorContextTest, Add) {
     header.setExtlen(8);
     header.setKeylen(1);
     header.setBodylen(9);
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("Key length must be >= 2",
               validate_error_context(cb::mcbp::ClientOpcode::Add));
 }
 
@@ -3640,7 +3766,7 @@ TEST_P(CommandSpecificErrorContextTest, Set) {
     header.setExtlen(8);
     header.setKeylen(1);
     header.setBodylen(9);
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("Key length must be >= 2",
               validate_error_context(cb::mcbp::ClientOpcode::Set));
 }
 
@@ -3650,7 +3776,7 @@ TEST_P(CommandSpecificErrorContextTest, Append) {
     header.setExtlen(0);
     header.setKeylen(1);
     header.setBodylen(2);
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("Key length must be >= 2",
               validate_error_context(cb::mcbp::ClientOpcode::Append));
 }
 
@@ -3660,7 +3786,7 @@ TEST_P(CommandSpecificErrorContextTest, Get) {
     header.setExtlen(0);
     header.setKeylen(1);
     header.setBodylen(1);
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("Key length must be >= 2",
               validate_error_context(cb::mcbp::ClientOpcode::Get));
 }
 
@@ -3670,7 +3796,7 @@ TEST_P(CommandSpecificErrorContextTest, Gat) {
     header.setExtlen(4);
     header.setKeylen(1);
     header.setBodylen(5);
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("Key length must be >= 2",
               validate_error_context(cb::mcbp::ClientOpcode::Gat));
 }
 
@@ -3680,7 +3806,7 @@ TEST_P(CommandSpecificErrorContextTest, Delete) {
     header.setExtlen(0);
     header.setKeylen(1);
     header.setBodylen(1);
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("Key length must be >= 2",
               validate_error_context(cb::mcbp::ClientOpcode::Delete));
 }
 
@@ -3690,7 +3816,7 @@ TEST_P(CommandSpecificErrorContextTest, Increment) {
     header.setExtlen(20);
     header.setKeylen(1);
     header.setBodylen(21);
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("Key length must be >= 2",
               validate_error_context(cb::mcbp::ClientOpcode::Increment));
 }
 
@@ -3791,7 +3917,7 @@ TEST_P(CommandSpecificErrorContextTest, GetMeta) {
     header.setExtlen(0);
     header.setKeylen(1);
     header.setBodylen(1);
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("Key length must be >= 2",
               validate_error_context(cb::mcbp::ClientOpcode::GetMeta));
 
     // Get Meta requires extlen of 0 or 1
@@ -3842,7 +3968,7 @@ TEST_P(CommandSpecificErrorContextTest, MutateWithMeta) {
     header.setKeylen(1);
     header.setBodylen(25);
     header.setDatatype(cb::mcbp::Datatype::Raw);
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("Key length must be >= 2",
               validate_error_context(cb::mcbp::ClientOpcode::AddWithMeta));
 }
 
@@ -3874,7 +4000,7 @@ TEST_P(CommandSpecificErrorContextTest, GetLocked) {
     header.setExtlen(0);
     header.setKeylen(1);
     header.setBodylen(1);
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("Key length must be >= 2",
               validate_error_context(cb::mcbp::ClientOpcode::GetLocked));
 }
 
@@ -3885,7 +4011,7 @@ TEST_P(CommandSpecificErrorContextTest, UnlockKey) {
     header.setKeylen(1);
     header.setBodylen(1);
     header.setCas(10);
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("Key length must be >= 2",
               validate_error_context(cb::mcbp::ClientOpcode::UnlockKey));
 }
 
@@ -3895,7 +4021,7 @@ TEST_P(CommandSpecificErrorContextTest, EvictKey) {
     header.setExtlen(0);
     header.setKeylen(1);
     header.setBodylen(1);
-    EXPECT_EQ("Request key invalid",
+    EXPECT_EQ("Key length must be >= 2",
               validate_error_context(cb::mcbp::ClientOpcode::EvictKey));
 }
 

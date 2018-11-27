@@ -43,18 +43,44 @@ static inline bool may_accept_xattr(const Cookie& cookie) {
     return true;
 }
 
-bool is_document_key_valid(const Cookie& cookie) {
+bool is_document_key_valid(Cookie& cookie) {
     const auto& req = cookie.getRequest(Cookie::PacketContent::Header);
-    if (cookie.getConnection().isCollectionsSupported()) {
-        const auto& key = req.getKey();
-        auto stopByte = cb::mcbp::unsigned_leb128_get_stop_byte_index(key);
-        // 1. CID is leb128 encode, key must then be 1 byte of key and 1 byte of
-        //    leb128 minimum
-        // 2. Secondly - require that the leb128 and key are encoded, i.e. we
-        //    expect that the leb128 stop byte is not the last byte of the key.
-        return req.getKeylen() > 1 && stopByte && (key.size() - 1) > *stopByte;
+    const auto& key = req.getKey();
+    if (!cookie.getConnection().isCollectionsSupported()) {
+        return true;
     }
-    return req.getKeylen() > 0;
+
+    // Note:: key maximum length is checked in McbpValidator::verify_header
+    // A document key must be 2 bytes minimum
+    if (key.size() <= 1) {
+        cookie.setErrorContext("Key length must be >= 2");
+        return false; // 0 and 1 are invalid
+    }
+
+    // Next the validation depends on the collection-ID, default collection
+    // has legacy data so has different rules.
+    auto leb = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+            key, cb::mcbp::Leb128NoThrow());
+
+    // Called the Leb128NoThrow variant so we must check second.data() first
+    if (!leb.second.data()) {
+        cookie.setErrorContext("No stop-byte found");
+        return false;
+    }
+    if (leb.second.size() == 0) {
+        cookie.setErrorContext("No logical key found");
+        return false;
+    }
+
+    // The maximum length depends on the collection-ID
+    const auto maxLen = ((leb.first == CollectionID::Default)
+                                 ? KEY_MAX_LENGTH
+                                 : MaxCollectionsLogicalKeyLen);
+    bool rv = leb.second.size() <= maxLen;
+    if (!rv) {
+        cookie.setErrorContext("Logical key exceeds " + std::to_string(maxLen));
+    }
+    return rv;
 }
 
 static inline bool may_accept_dcp_deleteV2(const Cookie& cookie) {
@@ -283,8 +309,17 @@ Status McbpValidator::verify_header(Cookie& cookie,
             cookie.setErrorContext("Request must include key");
             return Status::Einval;
         }
-        break;
+        // Fall-through to check against max key length
     case ExpectedKeyLen::Any:
+        const auto maxKeyLen = cookie.getConnection().isCollectionsSupported()
+                                       ? MaxCollectionsKeyLen
+                                       : KEY_MAX_LENGTH;
+
+        if (header.getKeylen() > maxKeyLen) {
+            cookie.setErrorContext("Key length exceeds " +
+                                   std::to_string(maxKeyLen));
+            return cb::mcbp::Status::Einval;
+        }
         break;
     }
 
@@ -643,7 +678,6 @@ static Status dcp_mutation_validator(Cookie& cookie) {
     }
 
     if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
         return Status::Einval;
     }
 
@@ -717,7 +751,6 @@ static Status dcp_deletion_validator(Cookie& cookie) {
         return Status::Einval;
     }
     if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
         return Status::Einval;
     }
 
@@ -734,7 +767,6 @@ static Status dcp_expiration_validator(Cookie& cookie) {
         return status;
     }
     if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
         return Status::Einval;
     }
     return verify_common_dcp_restrictions(cookie);
@@ -814,7 +846,6 @@ static Status dcp_prepare_validator(Cookie& cookie) {
     }
 
     if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
         return Status::Einval;
     }
 
@@ -1071,7 +1102,6 @@ static Status add_validator(Cookie& cookie) {
         return status;
     }
     if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
         return Status::Einval;
     }
     return Status::Success;
@@ -1093,7 +1123,6 @@ static Status set_replace_validator(Cookie& cookie) {
         return status;
     }
     if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
         return Status::Einval;
     }
     return Status::Success;
@@ -1114,7 +1143,6 @@ static Status append_prepend_validator(Cookie& cookie) {
         return status;
     }
     if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
         return Status::Einval;
     }
     return Status::Success;
@@ -1131,7 +1159,6 @@ static Status get_validator(Cookie& cookie) {
         return status;
     }
     if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
         return Status::Einval;
     }
 
@@ -1152,7 +1179,6 @@ static Status gat_validator(Cookie& cookie) {
     }
 
     if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
         return Status::Einval;
     }
 
@@ -1170,7 +1196,6 @@ static Status delete_validator(Cookie& cookie) {
         return status;
     }
     if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
         return Status::Einval;
     }
 
@@ -1198,7 +1223,6 @@ static Status arithmetic_validator(Cookie& cookie) {
         return status;
     }
     if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
         return Status::Einval;
     }
 
@@ -1503,7 +1527,6 @@ static Status get_meta_validator(Cookie& cookie) {
     }
 
     if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
         return Status::Einval;
     }
 
@@ -1532,7 +1555,6 @@ static Status mutate_with_meta_validator(Cookie& cookie) {
         return status;
     }
     if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
         return Status::Einval;
     }
     if (!may_accept_xattr(cookie)) {
@@ -1603,7 +1625,6 @@ static Status get_locked_validator(Cookie& cookie) {
     }
 
     if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
         return Status::Einval;
     }
     if (extlen != 0 && extlen != sizeof(cb::mcbp::request::GetLockedPayload)) {
@@ -1625,7 +1646,6 @@ static Status unlock_validator(Cookie& cookie) {
         return status;
     }
     if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
         return Status::Einval;
     }
 
@@ -1643,7 +1663,6 @@ static Status evict_key_validator(Cookie& cookie) {
         return status;
     }
     if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
         return Status::Einval;
     }
     return Status::Success;
@@ -1877,6 +1896,10 @@ static Status get_keys_validator(Cookie& cookie) {
         return status;
     }
 
+    if (!is_document_key_valid(cookie)) {
+        return Status::Einval;
+    }
+
     if (extlen != 0 && extlen != sizeof(uint32_t)) {
         cookie.setErrorContext(
                 "Expected 4 bytes of extras containing the number of keys to "
@@ -1919,6 +1942,10 @@ static Status return_meta_validator(Cookie& cookie) {
             PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
+    }
+
+    if (!is_document_key_valid(cookie)) {
+        return Status::Einval;
     }
 
     using cb::mcbp::request::ReturnMetaPayload;
