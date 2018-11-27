@@ -712,8 +712,7 @@ static Status dcp_deletion_validator(Cookie& cookie) {
 static Status dcp_expiration_validator(Cookie& cookie) {
     auto status = McbpValidator::verify_header(
             cookie,
-            gsl::narrow<uint8_t>(
-                    protocol_binary_request_dcp_expiration::getExtrasLength()),
+            sizeof(cb::mcbp::request::DcpExpirationPayload),
             ExpectedKeyLen::NonZero,
             ExpectedValueLen::Zero,
             ExpectedCas::Any,

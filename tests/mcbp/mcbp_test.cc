@@ -2254,24 +2254,20 @@ class DcpExpirationValidatorTest : public ::testing::WithParamInterface<bool>,
                                    public ValidatorTest {
 public:
 public:
-    DcpExpirationValidatorTest()
-        : ValidatorTest(GetParam()),
-          request(0 /*opaque*/,
-                  Vbid(0),
-                  0 /*cas*/,
-                  GetParam() ? 5 : 1 /*keylen*/,
-                  0 /*valueLen*/,
-                  PROTOCOL_BINARY_RAW_BYTES,
-                  0 /*bySeqno*/,
-                  0 /*revSeqno*/,
-                  0 /*deleteTime*/) {
-        request.message.header.request.opcode =
-                (uint8_t)cb::mcbp::ClientOpcode::DcpExpiration;
+    DcpExpirationValidatorTest() : ValidatorTest(GetParam()) {
     }
 
     void SetUp() override {
         ValidatorTest::SetUp();
         connection.setCollectionsSupported(GetParam());
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        cb::mcbp::request::DcpExpirationPayload extras;
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::DcpExpiration);
+        uint8_t key[5] = {};
+        builder.setExtras(extras.getBuffer());
+        const size_t keysize = GetParam() ? 5 : 1;
+        builder.setKey({key, keysize});
     }
 
 protected:
@@ -2280,8 +2276,6 @@ protected:
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::DcpExpiration,
                                        static_cast<void*>(blob));
     }
-
-    protocol_binary_request_dcp_expiration request;
 };
 
 TEST_P(DcpExpirationValidatorTest, CorrectMessage) {

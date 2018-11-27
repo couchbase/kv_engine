@@ -1034,67 +1034,46 @@ protected:
 };
 static_assert(sizeof(DcpDeleteRequestV2) == 45, "Unexpected struct size");
 
-#pragma pack()
-} // namespace request
-} // namespace mcbp
-} // namespace cb
-
-union protocol_binary_request_dcp_expiration {
-    static const size_t extlen = (2 * sizeof(uint64_t)) + sizeof(uint32_t);
-    protocol_binary_request_dcp_expiration(uint32_t opaque,
-                                           Vbid vbucket,
-                                           uint64_t cas,
-                                           uint16_t keyLen,
-                                           uint32_t valueLen,
-                                           protocol_binary_datatype_t datatype,
-                                           uint64_t bySeqno,
-                                           uint64_t revSeqno,
-                                           uint32_t deleteTime) {
-        auto& req = message.header.request;
-        req.setMagic(cb::mcbp::Magic::ClientRequest);
-        req.setOpcode(cb::mcbp::ClientOpcode::DcpExpiration);
-        req.setExtlen(extlen);
-        req.setKeylen(keyLen);
-        req.setBodylen(extlen + keyLen + valueLen);
-        req.setOpaque(opaque);
-        req.setVBucket(vbucket);
-        req.setCas(cas);
-        req.setDatatype(cb::mcbp::Datatype(datatype));
-
-        auto& body = message.body;
-        body.by_seqno = htonll(bySeqno);
-        body.rev_seqno = htonll(revSeqno);
-        body.delete_time = htonl(deleteTime);
+class DcpExpirationPayload {
+public:
+    DcpExpirationPayload() = default;
+    DcpExpirationPayload(uint64_t by_seqno,
+                         uint64_t rev_seqno,
+                         uint32_t delete_time)
+        : by_seqno(htonll(by_seqno)),
+          rev_seqno(htonll(rev_seqno)),
+          delete_time(htonl(delete_time)) {
     }
 
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint64_t by_seqno;
-            uint64_t rev_seqno;
-            uint32_t delete_time;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + extlen];
-
-    static size_t getExtrasLength() {
-        return extlen;
+    uint64_t getBySeqno() const {
+        return ntohll(by_seqno);
+    }
+    void setBySeqno(uint64_t by_seqno) {
+        DcpExpirationPayload::by_seqno = htonll(by_seqno);
+    }
+    uint64_t getRevSeqno() const {
+        return ntohll(rev_seqno);
+    }
+    void setRevSeqno(uint64_t rev_seqno) {
+        DcpExpirationPayload::rev_seqno = htonll(rev_seqno);
+    }
+    uint32_t getDeleteTime() const {
+        return ntohl(delete_time);
+    }
+    void setDeleteTime(uint32_t delete_time) {
+        DcpExpirationPayload::delete_time = htonl(delete_time);
     }
 
-    /**
-     * Retrieve the size of a DCP expiration header - all the non variable
-     * data of the packet. The size of a collectionAware DCP stream expiration
-     * differs to that of legacy DCP streams.
-     */
-    static size_t getHeaderLength() {
-        return sizeof(protocol_binary_request_header) + getExtrasLength();
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
+
+protected:
+    uint64_t by_seqno = 0;
+    uint64_t rev_seqno = 0;
+    uint32_t delete_time = 0;
 };
-
-namespace cb {
-namespace mcbp {
-namespace request {
-#pragma pack(1)
+static_assert(sizeof(DcpExpirationPayload) == 20, "Unexpected struct size");
 
 class DcpSetVBucketState {
 public:

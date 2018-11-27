@@ -1600,21 +1600,29 @@ ENGINE_ERROR_CODE Connection::deletionOrExpirationV2(
     }
 
     if (deleteSource == DeleteSource::TTL) {
-        protocol_binary_request_dcp_expiration packet(
-                opaque,
-                vbucket,
-                info.cas,
-                gsl::narrow<uint16_t>(key.size()),
-                info.nbytes,
-                info.datatype,
-                by_seqno,
-                rev_seqno,
-                delete_time);
-        return deletionInner(info,
-                             {reinterpret_cast<const uint8_t*>(&packet),
-                              sizeof(packet.bytes)},
-                             {/*no extended meta in v2*/},
-                             key);
+        using cb::mcbp::Request;
+        using cb::mcbp::request::DcpExpirationPayload;
+
+        uint8_t blob[sizeof(Request) + sizeof(DcpExpirationPayload)];
+        auto& req = *reinterpret_cast<Request*>(blob);
+        req.setMagic(cb::mcbp::Magic::ClientRequest);
+        req.setOpcode(cb::mcbp::ClientOpcode::DcpExpiration);
+        req.setExtlen(sizeof(DcpExpirationPayload));
+        req.setKeylen(gsl::narrow<uint16_t>(key.size()));
+        req.setBodylen(sizeof(DcpExpirationPayload) +
+                       gsl::narrow<uint16_t>(key.size()) + info.nbytes);
+        req.setOpaque(opaque);
+        req.setVBucket(vbucket);
+        req.setCas(info.cas);
+        req.setDatatype(cb::mcbp::Datatype(info.datatype));
+
+        auto& extras = *reinterpret_cast<DcpExpirationPayload*>(
+                blob + sizeof(Request));
+        extras.setBySeqno(by_seqno);
+        extras.setRevSeqno(rev_seqno);
+        extras.setDeleteTime(delete_time);
+
+        return deletionInner(info, {blob, sizeof(blob)}, {}, key);
     } else {
         cb::mcbp::request::DcpDeleteRequestV2 packet(
                 opaque,

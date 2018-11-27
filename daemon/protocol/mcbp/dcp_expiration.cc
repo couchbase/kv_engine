@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2017 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,50 +21,38 @@
 #include <memcached/protocol_binary.h>
 
 void dcp_expiration_executor(Cookie& cookie) {
-    auto packet = cookie.getPacket(Cookie::PacketContent::Full);
-    const auto* req =
-            reinterpret_cast<const protocol_binary_request_dcp_expiration*>(
-                    packet.data());
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        // Collection aware DCP will be sending the collection_len field
-        auto body_offset =
-                protocol_binary_request_dcp_expiration::getHeaderLength();
-        const uint16_t nkey = ntohs(req->message.header.request.keylen);
-        const DocKey key =
-                connection.makeDocKey({req->bytes + body_offset, nkey});
-        const auto opaque = req->message.header.request.opaque;
-        const auto datatype = req->message.header.request.datatype;
-        const auto cas = req->message.header.request.getCas();
-        const Vbid vbucket = req->message.header.request.vbucket.ntoh();
-        const uint64_t by_seqno = ntohll(req->message.body.by_seqno);
-        const uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
-        const uint32_t delete_time = ntohl(req->message.body.delete_time);
-        const uint32_t valuelen = ntohl(req->message.header.request.bodylen) -
-                                  nkey - req->message.header.request.extlen;
-        cb::const_byte_buffer value{req->bytes + body_offset + nkey, valuelen};
+        const auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+        const auto datatype = uint8_t(req.getDatatype());
+        const auto extdata = req.getExtdata();
+        using cb::mcbp::request::DcpExpirationPayload;
+        const auto& extras =
+                *reinterpret_cast<const DcpExpirationPayload*>(extdata.data());
+
+        auto value = req.getValue();
 
         uint32_t priv_bytes = 0;
         if (mcbp::datatype::is_xattr(datatype)) {
-            priv_bytes = valuelen;
+            priv_bytes = gsl::narrow<uint32_t>(value.size());
         }
 
         if (priv_bytes > COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
             ret = ENGINE_E2BIG;
         } else {
             ret = dcpExpiration(cookie,
-                                opaque,
-                                key,
+                                req.getOpaque(),
+                                connection.makeDocKey(req.getKey()),
                                 value,
                                 priv_bytes,
-                                datatype,
-                                cas,
-                                vbucket,
-                                by_seqno,
-                                rev_seqno,
-                                delete_time);
+                                uint8_t(req.getDatatype()),
+                                req.getCas(),
+                                req.getVBucket(),
+                                extras.getBySeqno(),
+                                extras.getRevSeqno(),
+                                extras.getDeleteTime());
         }
     }
 

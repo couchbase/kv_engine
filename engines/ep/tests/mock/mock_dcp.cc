@@ -270,7 +270,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::expiration(uint32_t opaque,
                          nullptr,
                          0,
                          deleteTime,
-                         protocol_binary_request_dcp_expiration::extlen,
+                         sizeof(cb::mcbp::request::DcpExpirationPayload),
                          DeleteSource::TTL);
 }
 
