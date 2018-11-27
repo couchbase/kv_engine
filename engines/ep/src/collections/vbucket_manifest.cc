@@ -26,6 +26,8 @@
 #include "statwriter.h"
 #include "vbucket.h"
 
+#include <mcbp/protocol/unsigned_leb128.h>
+
 #include <memory>
 
 namespace Collections {
@@ -631,25 +633,24 @@ time_t Manifest::processExpiryTime(const container::const_iterator entry,
 }
 
 std::string Manifest::makeCollectionIdIntoString(CollectionID collection) {
-    return std::string(reinterpret_cast<const char*>(&collection),
-                       sizeof(CollectionID));
+    cb::mcbp::unsigned_leb128<CollectionIDType> leb128(collection);
+    return std::string(reinterpret_cast<const char*>(leb128.data()),
+                       leb128.size());
 }
 
 std::string Manifest::makeScopeIdIntoString(ScopeID sid) {
-    return std::string(reinterpret_cast<const char*>(&sid), sizeof(ScopeID));
+    cb::mcbp::unsigned_leb128<ScopeIDType> leb128(sid);
+    return std::string(reinterpret_cast<const char*>(leb128.data()),
+                       leb128.size());
 }
 
 CollectionID Manifest::getCollectionIDFromKey(const DocKey& key) {
     if (key.getCollectionID() != CollectionID::System) {
         throw std::invalid_argument("getCollectionIDFromKey: non-system key");
     }
-    auto raw = SystemEventFactory::getKeyExtra(key);
-    if (raw.size() != sizeof(CollectionID)) {
-        throw std::invalid_argument(
-                "getCollectionIDFromKey: key yielded bad CollectionID size:" +
-                std::to_string(raw.size()));
-    }
-    return {*reinterpret_cast<const uint32_t*>(raw.data())};
+    return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+                   SystemEventFactory::getKeyExtra(key))
+            .first;
 }
 
 std::unique_ptr<Item> Manifest::createSystemEvent(
