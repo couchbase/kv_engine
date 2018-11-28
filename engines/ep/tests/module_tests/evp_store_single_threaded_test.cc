@@ -1251,7 +1251,7 @@ TEST_F(SingleThreadedEPBucketTest, MB25056_do_not_set_pendingBackfill_to_true) {
                     IncludeXattrs::Yes);
 
     mock_stream->setCallbackBeforeRegisterCursor(
-            [this, vb, &registerCursorCount]() {
+            [vb, &registerCursorCount]() {
                 // This callback function is called every time a backfill is
                 // performed. It is called immediately prior to executing
                 // ActiveStream::registerCursor.
