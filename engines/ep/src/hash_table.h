@@ -29,7 +29,6 @@
 #include <functional>
 
 class AbstractStoredValueFactory;
-class HashTableStatVisitor;
 class HashTableVisitor;
 class HashTableDepthVisitor;
 
@@ -527,14 +526,6 @@ public:
     MutationStatus set(Item& val);
 
     /**
-     * Compress the value in the given StoredValue
-     *
-     * @param v StoredValue whose value needs to be compressed
-     *
-     */
-    void compressValue(StoredValue& v);
-
-    /**
      * Store the given compressed buffer as a value in the
      * given StoredValue
      *
@@ -715,20 +706,6 @@ public:
      * as STL end() (i.e. one past the last element).
      */
     Position endPosition() const;
-
-    /**
-     * Get the number of buckets that should be used for initialization.
-     *
-     * @param s if 0, return the default number of buckets, else return s
-     */
-    static size_t getNumBuckets(size_t s = 0);
-
-    /**
-     * Get the number of locks that should be used for initialization.
-     *
-     * @param s if 0, return the default number of locks, else return s
-     */
-    static size_t getNumLocks(size_t s);
 
     /**
      * Get the max deleted revision seqno seen so far.

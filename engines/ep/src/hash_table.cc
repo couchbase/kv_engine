@@ -277,14 +277,6 @@ MutationStatus HashTable::set(Item& val) {
     }
 }
 
-void HashTable::compressValue(StoredValue& v) {
-    const auto preProps = valueStats.prologue(&v);
-
-    v.compressValue();
-
-    valueStats.epilogue(preProps, &v);
-}
-
 MutationStatus HashTable::unlocked_updateStoredValue(
         const std::unique_lock<std::mutex>& htLock,
         StoredValue& v,
