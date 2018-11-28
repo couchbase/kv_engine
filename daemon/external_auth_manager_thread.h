@@ -99,6 +99,7 @@ public:
 
     void setPushActiveUsersInterval(std::chrono::microseconds interval) {
         activeUsersPushInterval.store(interval);
+        condition_variable.notify_one();
     }
 
 protected:

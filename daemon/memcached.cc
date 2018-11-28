@@ -2300,6 +2300,8 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     LOG_INFO("Starting external authentication manager");
     externalAuthManager = std::make_unique<ExternalAuthManagerThread>();
+    externalAuthManager->setPushActiveUsersInterval(
+            settings.getActiveExternalUsersPushInterval());
     externalAuthManager->start();
 
     initialize_audit();
