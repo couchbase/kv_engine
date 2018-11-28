@@ -69,7 +69,11 @@ void set_ssl_protocol_mask(const std::string& mask) {
 }
 
 void set_ssl_ctx_protocol_mask(SSL_CTX* ctx) {
-    SSL_CTX_set_options(ctx, ssl_protocol_mask.load(std::memory_order_acquire));
+    auto mask = ssl_protocol_mask.load(std::memory_order_acquire);
+    if (settings.isSslCipherOrder()) {
+        mask |= SSL_OP_CIPHER_SERVER_PREFERENCE;
+    }
+    SSL_CTX_set_options(ctx, mask);
 }
 
 static const bool unit_tests{getenv("MEMCACHED_UNIT_TESTS") != NULL};

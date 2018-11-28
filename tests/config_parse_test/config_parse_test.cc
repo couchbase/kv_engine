@@ -741,6 +741,33 @@ TEST_F(SettingsTest, SslCipherList) {
     }
 }
 
+TEST_F(SettingsTest, SslCipherOrder) {
+    nonBooleanValuesShouldFail("ssl_cipher_order");
+
+    // Ensure that we accept a string
+    nlohmann::json obj;
+    Settings settings(obj);
+    EXPECT_FALSE(settings.has.ssl_cipher_order);
+
+    obj["ssl_cipher_order"] = false;
+    try {
+        Settings settings(obj);
+        EXPECT_FALSE(settings.isSslCipherOrder());
+        EXPECT_TRUE(settings.has.ssl_cipher_order);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+
+    obj["ssl_cipher_order"] = true;
+    try {
+        Settings settings(obj);
+        EXPECT_TRUE(settings.isSslCipherOrder());
+        EXPECT_TRUE(settings.has.ssl_cipher_order);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+}
+
 TEST_F(SettingsTest, SslMinimumProtocol) {
     nonStringValuesShouldFail("ssl_minimum_protocol");
 
@@ -1345,6 +1372,23 @@ TEST(SettingsUpdateTest, SslCipherListIsDynamic) {
     EXPECT_EQ(old, settings.getSslCipherList());
     EXPECT_NO_THROW(settings.updateSettings(updated));
     EXPECT_EQ("low", settings.getSslCipherList());
+}
+
+TEST(SettingsUpdateTest, SslCipherOrderIsDynamic) {
+    Settings updated;
+    Settings settings;
+    // setting it to the same value should work
+    settings.setSslCipherOrder(true);
+    auto old = settings.isSslCipherOrder();
+    updated.setSslCipherOrder(old);
+    EXPECT_NO_THROW(settings.updateSettings(updated, false));
+
+    // changing it should work
+    updated.setSslCipherOrder(false);
+    EXPECT_NO_THROW(settings.updateSettings(updated, false));
+    EXPECT_EQ(old, settings.isSslCipherOrder());
+    EXPECT_NO_THROW(settings.updateSettings(updated));
+    EXPECT_EQ(false, settings.isSslCipherOrder());
 }
 
 TEST(SettingsUpdateTest, SslMinimumProtocolIsDynamic) {

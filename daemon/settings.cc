@@ -394,6 +394,10 @@ static void handle_ssl_cipher_list(Settings& s, const nlohmann::json& obj) {
     s.setSslCipherList(obj.get<std::string>());
 }
 
+static void handle_ssl_cipher_order(Settings& s, const nlohmann::json& obj) {
+    s.setSslCipherOrder(obj.get<bool>());
+}
+
 /**
  * Handle the "ssl_minimum_protocol" tag in the settings
  *
@@ -598,6 +602,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"datatype_snappy", handle_datatype_snappy},
             {"root", handle_root},
             {"ssl_cipher_list", handle_ssl_cipher_list},
+            {"ssl_cipher_order", handle_ssl_cipher_order},
             {"ssl_minimum_protocol", handle_ssl_minimum_protocol},
             {"breakpad", handle_breakpad},
             {"max_packet_size", handle_max_packet_size},
@@ -830,6 +835,16 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             setSslCipherList(other.ssl_cipher_list);
         }
     }
+
+    if (other.has.ssl_cipher_order) {
+        if (other.ssl_cipher_order != ssl_cipher_order) {
+            LOG_INFO(R"(Change SSL Cipher order from "{}" to "{}")",
+                     ssl_cipher_order ? "enabled" : "disabled",
+                     other.ssl_cipher_order ? "enabled" : "disabled");
+            setSslCipherOrder(other.ssl_cipher_order);
+        }
+    }
+
     if (other.has.client_cert_auth) {
         const auto m = client_cert_mapper.to_string();
         const auto o = other.client_cert_mapper.to_string();

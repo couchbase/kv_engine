@@ -73,6 +73,12 @@ to to be enabled. Some values may be:
     MEDIUM        In addition to the high encryption ciphers, also
                   allow 128 bit encryption
 
+=== ssl_cipher_order
+
+A boolean option to specify if the server should dictate the cipher
+order, or if the client should be allowed to pick one from the
+servers advertised set.
+
 === ssl_minimum_protocol
 
 Specify the minimum protocol allowed for ssl. The default disables
@@ -389,6 +395,7 @@ A Sample memcached.json:
         "privilege_debug" : false,
         "error_maps_dir": "/opt/couchbase/etc/error_maps",
         "ssl_cipher_list" : "HIGH",
+        "ssl_cipher_order" : true,
         "threads" : 4,
         "interfaces" :
         [

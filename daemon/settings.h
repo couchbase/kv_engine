@@ -479,6 +479,17 @@ public:
         notify_changed("ssl_cipher_list");
     }
 
+    bool isSslCipherOrder() const {
+        return ssl_cipher_order.load(std::memory_order_acquire);
+    }
+
+    void setSslCipherOrder(bool ssl_cipher_order) {
+        Settings::ssl_cipher_order.store(ssl_cipher_order,
+                                         std::memory_order_release);
+        has.ssl_cipher_order = true;
+        notify_changed("ssl_cipher_order");
+    }
+
     /**
      * Get the minimum SSL protocol the node use
      *
@@ -830,6 +841,9 @@ protected:
      */
     std::string ssl_cipher_list;
 
+    /// if we should use the ssl cipher ordering
+    std::atomic_bool ssl_cipher_order{true};
+
     /**
      * The minimum ssl protocol to use (by default this is TLS1)
      */
@@ -939,6 +953,7 @@ public:
         bool breakpad;
         bool max_packet_size;
         bool ssl_cipher_list;
+        bool ssl_cipher_order;
         bool ssl_minimum_protocol;
         bool client_cert_auth;
         bool topkeys_size;
