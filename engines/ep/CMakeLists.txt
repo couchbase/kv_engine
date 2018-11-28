@@ -178,6 +178,7 @@ ADD_CUSTOM_COMMAND(OUTPUT
 
 ADD_CUSTOM_COMMAND(OUTPUT
                      ${CMAKE_CURRENT_BINARY_DIR}/src/collections/vbucket_serialised_manifest_entry_generated.h
+                     ${CMAKE_CURRENT_BINARY_DIR}/src/collections/vbucket_serialised_manifest_entry_raw_schema.cc
                   COMMAND
                      ${FLATC} -o ${CMAKE_CURRENT_BINARY_DIR}/src/collections/ --gen-mutable --cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/collections/vbucket_serialised_manifest_entry.fbs
                   COMMAND
@@ -189,6 +190,14 @@ ADD_CUSTOM_COMMAND(OUTPUT
                      src/collections/vbucket_serialised_manifest_entry.fbs
                      src/collections/vbucket_serialised_manifest_entry_raw_schema.in
                   COMMENT "Generating flatbuffers serialied_manifest_entry_generated")
+
+ADD_CUSTOM_TARGET(
+    ep-engine-generated_flatbuffers
+    DEPENDS
+      ${CMAKE_CURRENT_BINARY_DIR}/src/collections/vbucket_serialised_manifest_entry_generated.h
+      ${CMAKE_CURRENT_BINARY_DIR}/src/collections/vbucket_serialised_manifest_entry_raw_schema.cc
+    )
+
 
 SET(COUCH_KVSTORE_SOURCE src/couch-kvstore/couch-kvstore.cc
             src/couch-kvstore/couch-fs-stats.cc)
