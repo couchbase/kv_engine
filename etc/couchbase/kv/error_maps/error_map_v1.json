@@ -1,6 +1,6 @@
 {
     "version": 1,
-    "revision": 1,
+    "revision": 2,
     "errors": {
         "0": {
             "name": "SUCCESS",
@@ -224,6 +224,36 @@
             "desc": "Operation specified an unknown scope.",
             "attrs": [
                 "invalid-input"
+            ]
+        },
+        "a0": {
+            "name": "DurabilityInvalidLevel",
+            "desc": "Durability level is invalid",
+            "attrs": [
+                "invalid-input"
+            ]
+        },
+        "a1": {
+            "name": "DurabilityImpossible",
+            "desc": "Durability requirements are impossible to achieve",
+            "attrs": [
+                "item-only",
+                "retry-later"
+            ]
+        },
+        "a2": {
+            "name": "SyncWriteInProgress",
+            "desc": "The requested key has a pending synchronous write",
+            "attrs": [
+                "item-only",
+                "retry-later"
+            ]
+        },
+        "a3": {
+            "name": "SyncWriteAmbiguous",
+            "desc": "The SyncWrite request has not completed in the specified time and has ambiguous result - it may Succeed or Fail; but the final value is not yet known",
+            "attrs": [
+                "item-only"
             ]
         },
         "c0": {

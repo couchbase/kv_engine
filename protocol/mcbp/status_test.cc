@@ -29,7 +29,7 @@ TEST(McbpStatusTest, VerifyErrorMap) {
     cb::io::sanitizePath(filename);
     auto json = nlohmann::json::parse(cb::io::loadFile(filename));
     ASSERT_EQ(1, json["version"].get<int>());
-    ASSERT_EQ(1, json["revision"].get<int>());
+    ASSERT_EQ(2, json["revision"].get<int>());
 
     // Iterate over all status codes and check that they're defined
     for (uint16_t ii = 0; ii < uint16_t(cb::mcbp::Status::COUNT); ++ii) {

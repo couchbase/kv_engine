@@ -121,6 +121,15 @@ enum class engine_errc {
      */
     unknown_scope = 0x1b,
 
+    /// The durability level can't be satisfied
+    durability_impossible = 0x1c,
+    /// The requested key has already a synchronous write in progress
+    sync_write_in_progress = 0x1d,
+    /// The SyncWrite request has not completed in the specified time
+    /// and has ambiguous result - it may Succeed or Fail; but the final
+    /// value is not yet known
+    sync_write_ambiguous = 0x1e,
+
     /** Generic failue. */
     failed = 0xff
 };
@@ -188,7 +197,11 @@ typedef enum {
     ENGINE_COLLECTIONS_MANIFEST_IS_AHEAD =
             int(cb::engine_errc::collections_manifest_is_ahead),
     ENGINE_FAILED = int(cb::engine_errc::failed),
-    ENGINE_PREDICATE_FAILED = int(cb::engine_errc::predicate_failed)
+    ENGINE_PREDICATE_FAILED = int(cb::engine_errc::predicate_failed),
+    ENGINE_DURABILITY_IMPOSSIBLE = int(cb::engine_errc::durability_impossible),
+    ENGINE_SYNC_WRITE_IN_PROGRESS =
+            int(cb::engine_errc::sync_write_in_progress),
+    ENGINE_SYNC_WRITE_AMBIGUOUS = int(cb::engine_errc::sync_write_ambiguous),
 } ENGINE_ERROR_CODE;
 
 namespace std {

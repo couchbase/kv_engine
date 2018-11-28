@@ -419,6 +419,15 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
     case ENGINE_EACCESS:break;
     case ENGINE_NO_BUCKET:break;
     case ENGINE_AUTH_STALE:break;
+
+    case ENGINE_DURABILITY_IMPOSSIBLE:
+        break;
+    case ENGINE_SYNC_WRITE_IN_PROGRESS:
+        // we can return tmpfail to old clients and have them retry the
+        // operation
+        return ENGINE_TMPFAIL;
+    case ENGINE_SYNC_WRITE_AMBIGUOUS:
+        break;
     }
 
     // Seems like the rest of the components in our system isn't

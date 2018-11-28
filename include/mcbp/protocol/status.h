@@ -134,6 +134,11 @@ enum class Status : uint16_t {
      */
     UnknownScope = 0x8c,
 
+    DurabilityInvalidLevel = 0xa0,
+    DurabilityImpossible = 0xa1,
+    SyncWriteInProgress = 0xa2,
+    SyncWriteAmbiguous = 0xa3,
+
     /*
      * Sub-document specific responses.
      */

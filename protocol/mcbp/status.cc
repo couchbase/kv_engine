@@ -57,6 +57,10 @@ bool isStatusSuccess(Status status) {
     case Status::CannotApplyCollectionsManifest:
     case Status::CollectionsManifestIsAhead:
     case Status::UnknownScope:
+    case Status::DurabilityInvalidLevel:
+    case Status::DurabilityImpossible:
+    case Status::SyncWriteInProgress:
+    case Status::SyncWriteAmbiguous:
     case Status::SubdocPathEnoent:
     case Status::SubdocPathMismatch:
     case Status::SubdocPathEinval:
@@ -171,6 +175,14 @@ std::string to_string(cb::mcbp::Status status) {
         return "Collections manifest is ahead";
     case Status::UnknownScope:
         return "Unknown Scope";
+    case Status::DurabilityInvalidLevel:
+        return "Invalid durability level";
+    case Status::DurabilityImpossible:
+        return "Durability impossible";
+    case Status::SyncWriteInProgress:
+        return "Synchronous write in progress";
+    case Status::SyncWriteAmbiguous:
+        return "Synchronous write ambiguous";
     case Status::SubdocPathEnoent:
         return "Subdoc: Path not does not exist";
     case Status::SubdocPathMismatch:

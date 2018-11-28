@@ -350,7 +350,13 @@ Status McbpValidator::verify_header(Cookie& cookie,
                 }
                 return true;
             } catch (const std::exception& exception) {
-                status = Status::Einval;
+                // According to the spec the size may be 1 byte indicating the
+                // level and 2 optional bytes indicating the timeout.
+                if (data.size() == 1 || data.size() == 3) {
+                    status = Status::DurabilityInvalidLevel;
+                } else {
+                    status = Status::Einval;
+                }
                 std::string msg(exception.what());
                 // trim off the exception prefix
                 const std::string prefix{"Requirements(): "};

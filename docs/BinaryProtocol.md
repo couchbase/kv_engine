@@ -299,6 +299,10 @@ Possible values of this two-byte field:
 | 0x008a | Collections manifest not applied      |
 | 0x008b | Client collections manifest ahead     |
 | 0x008c | Unknown scope                         |
+| 0x00a0 | Durability level invalid |
+| 0x00a1 | Durability impossible |
+| 0x00a2 | Synchronous write in progress |
+| 0x00a3 | Synchronous write ambiguous |
 | 0x00c0 | (Subdoc) The provided path does not exist in the document |
 | 0x00c1 | (Subdoc) One of path components treats a non-dictionary as a dictionary, or a non-array as an array|
 | 0x00c2 | (Subdoc) The path’s syntax was incorrect |

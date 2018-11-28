@@ -43,7 +43,7 @@ bool ErrmapTest::validateJson(cJSON *json, size_t reqversion) {
     cJSON *jrev = cJSON_GetObjectItem(json, "revision");
     EXPECT_NE(nullptr, jrev);
     if (jrev != nullptr) {
-        EXPECT_EQ(1, jrev->valueint);
+        EXPECT_EQ(2, jrev->valueint);
     }
     return !::testing::Test::HasFailure();
 }

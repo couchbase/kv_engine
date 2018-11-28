@@ -86,6 +86,12 @@ cb::mcbp::Status cb::mcbp::to_status(cb::engine_errc code) {
         return Status::UnknownScope;
     case engine_errc::failed:
         return Status::Einternal;
+    case engine_errc::durability_impossible:
+        return Status::DurabilityImpossible;
+    case engine_errc::sync_write_in_progress:
+        return Status::SyncWriteInProgress;
+    case engine_errc::sync_write_ambiguous:
+        return Status::SyncWriteAmbiguous;
     }
 
     throw std::invalid_argument("mcbp::to_status: Invalid argument " +
