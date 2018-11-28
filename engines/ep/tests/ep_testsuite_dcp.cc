@@ -2271,28 +2271,29 @@ static test_result testDcpProducerExpiredItemBackfill(
                 start_seqno,
                 "exp",
                 "value",
-                0 /*exp*/,
+                5 /*exp*/,
                 Vbid(0),
                 DocumentState::Alive);
 
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, 5, "Wrong number of items");
+    verify_curr_items(h, expiries, "Wrong number of items");
 
-    const int exp_time = time(NULL) + 42;
-
+    testHarness->time_travel(256);
+    const void* cookie1 = testHarness->create_cookie();
     for (int i = 0; i < expiries; ++i) {
         std::string key("exp" + std::to_string(i + start_seqno));
-        ENGINE_ERROR_CODE ret = touch(h, key.c_str(), Vbid(0), exp_time);
-        checkeq(ENGINE_SUCCESS, ret, "Expected get to return 'success'");
+        cb::EngineErrorItemPair ret =
+                get(h, cookie1, key.c_str(), Vbid(0), DocStateFilter::Alive);
+        checkeq(cb::engine_errc::no_such_key,
+                ret.first,
+                "Expected get to return 'no_such_key'");
     }
-
-    testHarness->time_travel(exp_time + 256);
-
-    // Wait for the item to be expired
-    wait_for_stat_to_be(h, "vb_active_expired", expiries);
+    testHarness->destroy_cookie(cookie1);
 
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, 0, "Wrong number of items");
+    checkeq(get_stat<int>(h, "vb_active_expired"),
+            expiries,
+            "Expected vb_active_expired to contain correct number of expiries");
 
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
@@ -7133,16 +7134,14 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 /* TODO RDB: curr_items not correct under RocksDB */
-                 prepare_skip_broken_under_rocks_full_eviction,
+                 prepare,
                  cleanup),
         TestCase("test MB-26907 backfill expired value - ExpiryOutput Enabled",
                  test_dcp_producer_expired_item_backfill_expire,
                  test_setup,
                  teardown,
                  NULL,
-                /* TODO RDB: curr_items not correct under RocksDB */
-                 prepare_skip_broken_under_rocks_full_eviction,
+                 prepare,
                  cleanup),
         TestCase("test noop mandatory",test_dcp_noop_mandatory,
                  test_setup, teardown, NULL, prepare, cleanup),
