@@ -178,8 +178,6 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     setReserved(true);
     pause(PausedReason::Initializing);
 
-    logger->setConnectionId(
-            e.getServerApi()->cookie->get_log_info(cookie).first);
     if (notifyOnly) {
         setLogHeader("DCP (Notifier) " + getName() + " -");
     } else {

@@ -20,6 +20,8 @@
 #include "bucket_logger.h"
 #include "ep_engine.h"
 #include "ep_time.h"
+
+#include <memcached/server_cookie_iface.h>
 #include <phosphor/phosphor.h>
 
 std::string to_string(ConnHandler::PausedReason r) {
@@ -49,7 +51,11 @@ ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
       created(ep_current_time()),
       disconnect(false),
       paused(false) {
-    logger = BucketLogger::createBucketLogger(n);
+    logger = BucketLogger::createBucketLogger(
+            std::to_string(reinterpret_cast<uintptr_t>(this)));
+
+    auto connId = e.getServerApi()->cookie->get_log_info(c).first;
+    logger->setConnectionId(connId);
 }
 
 ENGINE_ERROR_CODE ConnHandler::addStream(uint32_t opaque,
