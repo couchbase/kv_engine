@@ -22,7 +22,6 @@
 #include "mcbp_executors.h"
 #include "settings.h"
 
-#include <cJSON_utils.h>
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/framebuilder.h>
@@ -77,16 +76,16 @@ const std::string& Cookie::getErrorJson() {
         return json_message;
     }
 
-    unique_cJSON_ptr root(cJSON_CreateObject());
-    unique_cJSON_ptr error(cJSON_CreateObject());
+    nlohmann::json error;
     if (!error_context.empty()) {
-        cJSON_AddStringToObject(error.get(), "context", error_context.c_str());
+        error["context"] = error_context;
     }
     if (!event_id.empty()) {
-        cJSON_AddStringToObject(error.get(), "ref", event_id.c_str());
+        error["ref"] = event_id;
     }
-    cJSON_AddItemToObject(root.get(), "error", error.release());
-    json_message = to_string(root, false);
+    nlohmann::json root;
+    root["error"] = error;
+    json_message = root.dump();
     return json_message;
 }
 

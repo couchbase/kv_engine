@@ -23,7 +23,6 @@
 #include "settings.h"
 #include "stats.h"
 
-#include <cJSON.h>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
