@@ -141,9 +141,6 @@ public:
      */
     virtual void snooze(const double secs);
 
-    /// Wake up a task, setting it to run as soon as possible.
-    void wakeUp();
-
     /**
      * Returns the id of this task.
      *
@@ -246,6 +243,19 @@ public:
     static std::array<TaskId, static_cast<int>(TaskId::TASK_COUNT)> allTaskIds;
 
 protected:
+    /**
+     * Wake up a task, setting it's wakeTime to "now".
+     *
+     * Note: this is protected as this is only safe to call from a GlobalTasks'
+     * own run() method; as it does not actually re-schedule the task itself
+     * (after GlobalTask::run() completes ExecutorThread re-checks wakeTime and
+     * re-schedules as necessary).
+     *
+     * If you want to wake a task from outside it's own run() method; use
+     * ExecutorPool::wake().
+     */
+    void wakeUp();
+
     /**
      * We are using a int64_t as opposed to ProcessTime::time_point because we
      * want the access to be atomic without the use of a mutex. The reason for

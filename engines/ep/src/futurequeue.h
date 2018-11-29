@@ -88,6 +88,14 @@ public:
         return queue.heapify(task);
     }
 
+    /**
+     * Checks that the invariants of the future queue are valid.
+     * If not then throws std::logic_error.
+     */
+    void assertInvariants() {
+        return queue.verifyHeapProperty();
+    }
+
 protected:
 
     /*
@@ -119,6 +127,29 @@ protected:
                 return true;
             } else {
                 return false;
+            }
+        }
+
+        void verifyHeapProperty() {
+            auto heap_end = std::is_heap_until(
+                    this->c.begin(), this->c.end(), this->comp);
+            if (heap_end != this->c.end()) {
+                std::string msg;
+                msg += "FutureQueue::verifyHeapProperty() - heap invariant "
+                       "broken. First non-heap is task:" +
+                       (*heap_end)->getDescription() + " wake:" +
+                       std::to_string(
+                               to_ns_since_epoch((*heap_end)->getWaketime())
+                                       .count()) +
+                       "\nAll items:\n";
+
+                for (auto& task : this->c) {
+                    msg += "\t task:" + task->getDescription() + " wake:" +
+                           std::to_string(to_ns_since_epoch(task->getWaketime())
+                                                  .count()) +
+                           "\n";
+                }
+                throw std::logic_error(msg);
             }
         }
 

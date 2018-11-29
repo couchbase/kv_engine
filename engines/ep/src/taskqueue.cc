@@ -164,6 +164,13 @@ size_t TaskQueue::_moveReadyTasks(
         return 0;
     }
 
+#if CB_DEVELOPMENT_ASSERTS
+    // Check futureQueue invariants before moving tasks. This is O(N) of the
+    // size of the queue, and when it does fail it'll throw an exception so we
+    // only check if development asserts are enabled.
+    futureQueue.assertInvariants();
+#endif
+
     size_t numReady = 0;
     while (!futureQueue.empty()) {
         ExTask tid = futureQueue.top();
