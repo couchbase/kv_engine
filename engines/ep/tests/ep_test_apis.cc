@@ -19,6 +19,7 @@
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
 
+#include <mcbp/protocol/framebuilder.h>
 #include <memcached/util.h>
 #include <platform/cb_malloc.h>
 #include <platform/platform.h>
@@ -34,13 +35,9 @@
 
 #include "mock/mock_dcp.h"
 
-struct PacketDeleter {
-    void operator()(protocol_binary_request_header* pkt) {
-        cb_free(pkt);
-    }
-};
-using unique_packet_ptr =
-        std::unique_ptr<protocol_binary_request_header, PacketDeleter>;
+void RequestDeleter::operator()(cb::mcbp::Request* request) {
+    delete[] reinterpret_cast<uint8_t*>(request);
+}
 
 template<typename T> class HistogramStats;
 
@@ -323,59 +320,47 @@ void encodeWithMetaExt(char* buffer, ItemMetaData* meta) {
     encodeWithMetaExt(buffer, cas, seqno, flags, exp);
 }
 
-protocol_binary_request_header* createPacket(cb::mcbp::ClientOpcode opcode,
-                                             Vbid vbid,
-                                             uint64_t cas,
-                                             const char* ext,
-                                             uint8_t extlen,
-                                             const char* key,
-                                             uint32_t keylen,
-                                             const char* val,
-                                             uint32_t vallen,
-                                             uint8_t datatype,
-                                             const char* meta,
-                                             uint16_t nmeta) {
-    char *pkt_raw;
-    uint32_t headerlen = sizeof(protocol_binary_request_header);
-    pkt_raw = static_cast<char*>(cb_calloc(1, headerlen + extlen + keylen + vallen + nmeta));
-    cb_assert(pkt_raw);
-    auto* req = reinterpret_cast<protocol_binary_request_header*>(pkt_raw);
-    req->request.setMagic(cb::mcbp::Magic::ClientRequest);
-    req->request.setOpcode(opcode);
-    req->request.setKeylen(keylen);
-    req->request.setExtlen(extlen);
-    req->request.setVBucket(vbid);
-    req->request.setBodylen(keylen + vallen + extlen + nmeta);
-    req->request.setCas(cas);
-    req->request.setDatatype(cb::mcbp::Datatype(datatype));
+unique_request_ptr createPacket(cb::mcbp::ClientOpcode opcode,
+                                Vbid vbid,
+                                uint64_t cas,
+                                cb::const_char_buffer ext,
+                                cb::const_char_buffer key,
+                                cb::const_char_buffer val,
+                                uint8_t datatype,
+                                cb::const_char_buffer meta) {
+    using namespace cb::mcbp;
 
-    if (extlen > 0) {
-        memcpy(pkt_raw + headerlen, ext, extlen);
+    const auto total = sizeof(cb::mcbp::Request) + ext.size() + key.size() +
+                       val.size() + meta.size();
+    std::unique_ptr<uint8_t[]> memory(new uint8_t[total]);
+    RequestBuilder builder({memory.get(), total});
+
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(opcode);
+    builder.setVBucket(vbid);
+    builder.setCas(cas);
+    builder.setDatatype(cb::mcbp::Datatype(datatype));
+    builder.setExtras(
+            {reinterpret_cast<const uint8_t*>(ext.data()), ext.size()});
+    builder.setKey({reinterpret_cast<const uint8_t*>(key.data()), key.size()});
+    if (meta.empty()) {
+        builder.setValue(
+                {reinterpret_cast<const uint8_t*>(val.data()), val.size()});
+    } else {
+        std::vector<uint8_t> backing;
+        std::copy(val.begin(), val.end(), std::back_inserter(backing));
+        std::copy(meta.begin(), meta.end(), std::back_inserter(backing));
+        builder.setValue({backing.data(), backing.size()});
     }
-
-    if (keylen > 0) {
-        memcpy(pkt_raw + headerlen + extlen, key, keylen);
-    }
-
-    if (vallen > 0) {
-        memcpy(pkt_raw + headerlen + extlen + keylen, val, vallen);
-    }
-
-    // Extended meta: To be used for set_with_meta/del_with_meta/add_with_meta
-    if (meta && nmeta > 0) {
-        memcpy(pkt_raw + headerlen + extlen + keylen + vallen,
-               meta, nmeta);
-    }
-
-    return req;
+    memory.release();
+    return unique_request_ptr(builder.getFrame());
 }
 
 void createCheckpoint(EngineIface* h) {
-    auto* request = createPacket(cb::mcbp::ClientOpcode::CreateCheckpoint);
+    auto request = createPacket(cb::mcbp::ClientOpcode::CreateCheckpoint);
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(nullptr, request, add_response),
+            h->unknown_command(nullptr, *request, add_response),
             "Failed to create a new checkpoint.");
-    cb_free(request);
 }
 
 ENGINE_ERROR_CODE del(EngineIface* h,
@@ -477,7 +462,7 @@ ENGINE_ERROR_CODE del_with_meta(EngineIface* h,
                                 const std::vector<char>& nmeta,
                                 protocol_binary_datatype_t datatype,
                                 const std::vector<char>& value) {
-    int blen = 24;
+    size_t blen = 24;
     std::unique_ptr<char[]> ext(new char[30]);
     std::unique_ptr<ExtendedMetaData> emd;
 
@@ -495,20 +480,16 @@ ENGINE_ERROR_CODE del_with_meta(EngineIface* h,
         blen += sizeof(uint16_t);
     }
 
-    unique_packet_ptr pkt(createPacket(cb::mcbp::ClientOpcode::DelWithMeta,
-                                       vb,
-                                       cas_for_delete,
-                                       ext.get(),
-                                       blen,
-                                       key,
-                                       keylen,
-                                       value.data(),
-                                       value.size(),
-                                       datatype,
-                                       nmeta.data(),
-                                       nmeta.size()));
+    auto pkt = createPacket(cb::mcbp::ClientOpcode::DelWithMeta,
+                            vb,
+                            cas_for_delete,
+                            {ext.get(), blen},
+                            {key, keylen},
+                            {value.data(), value.size()},
+                            datatype,
+                            {nmeta.data(), nmeta.size()});
 
-    return h->unknown_command(cookie, pkt.get(), add_response_set_del_meta);
+    return h->unknown_command(cookie, *pkt, add_response_set_del_meta);
 }
 
 void evict_key(EngineIface* h,
@@ -518,19 +499,15 @@ void evict_key(EngineIface* h,
                bool expectError) {
     int nonResidentItems = get_int_stat(h, "ep_num_non_resident");
     int numEjectedItems = get_int_stat(h, "ep_num_value_ejects");
-    protocol_binary_request_header* pkt =
-            createPacket(cb::mcbp::ClientOpcode::EvictKey,
-                         vbucketId,
-                         0,
-                         NULL,
-                         0,
-                         key,
-                         strlen(key));
+    auto pkt = createPacket(cb::mcbp::ClientOpcode::EvictKey,
+                            vbucketId,
+                            0,
+                            {},
+                            {key, strlen(key)});
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, *pkt, add_response),
             "Failed to perform CMD_EVICT_KEY.");
 
-    cb_free(pkt);
     if (expectError) {
         checkeq(cb::mcbp::Status::KeyEexists, last_status.load(),
                 "evict_key: expected KEY_EEXISTS when evicting key");
@@ -561,18 +538,14 @@ ENGINE_ERROR_CODE checkpointPersistence(EngineIface* h,
                                         uint64_t checkpoint_id,
                                         Vbid vb) {
     checkpoint_id = htonll(checkpoint_id);
-    protocol_binary_request_header *request;
-    request = createPacket(cb::mcbp::ClientOpcode::CheckpointPersistence,
-                           vb,
-                           0,
-                           NULL,
-                           0,
-                           NULL,
-                           0,
-                           (const char*)&checkpoint_id,
-                           sizeof(uint64_t));
-    ENGINE_ERROR_CODE rv = h->unknown_command(nullptr, request, add_response);
-    cb_free(request);
+    auto request =
+            createPacket(cb::mcbp::ClientOpcode::CheckpointPersistence,
+                         vb,
+                         0,
+                         {},
+                         {},
+                         {(const char*)&checkpoint_id, sizeof(uint64_t)});
+    ENGINE_ERROR_CODE rv = h->unknown_command(nullptr, *request, add_response);
     return rv;
 }
 
@@ -583,12 +556,9 @@ ENGINE_ERROR_CODE seqnoPersistence(EngineIface* h,
     seqno = htonll(seqno);
     char buffer[8];
     memcpy(buffer, &seqno, sizeof(uint64_t));
-    protocol_binary_request_header* request = createPacket(
-            cb::mcbp::ClientOpcode::SeqnoPersistence, vbucket, 0, buffer, 8);
-
-    ENGINE_ERROR_CODE rv = h->unknown_command(cookie, request, add_response);
-    cb_free(request);
-    return rv;
+    auto request = createPacket(
+            cb::mcbp::ClientOpcode::SeqnoPersistence, vbucket, 0, {buffer, 8});
+    return h->unknown_command(cookie, *request, add_response);
 }
 
 cb::EngineErrorItemPair gat(EngineIface* h,
@@ -684,68 +654,40 @@ ENGINE_ERROR_CODE observe(EngineIface* h, std::map<std::string, Vbid> obskeys) {
         value.write(it->first.c_str(), it->first.length());
     }
 
-    protocol_binary_request_header *request;
-    request = createPacket(cb::mcbp::ClientOpcode::Observe,
-                           Vbid(0),
-                           0,
-                           NULL,
-                           0,
-                           NULL,
-                           0,
-                           value.str().data(),
-                           value.str().length());
+    auto request = createPacket(
+            cb::mcbp::ClientOpcode::Observe, Vbid(0), 0, {}, {}, value.str());
 
-    auto ret = h->unknown_command(nullptr, request, add_response);
-    cb_free(request);
-    return ret;
+    return h->unknown_command(nullptr, *request, add_response);
 }
 
 ENGINE_ERROR_CODE observe_seqno(EngineIface* h, Vbid vb_id, uint64_t uuid) {
-    protocol_binary_request_header *request;
     uint64_t vb_uuid = htonll(uuid);
     std::stringstream data;
     data.write((char *) &vb_uuid, sizeof(uint64_t));
 
-    request = createPacket(cb::mcbp::ClientOpcode::ObserveSeqno,
-                           vb_id,
-                           0,
-                           NULL,
-                           0,
-                           NULL,
-                           0,
-                           data.str().data(),
-                           data.str().length());
-    auto ret = h->unknown_command(nullptr, request, add_response);
-    cb_free(request);
-    return ret;
+    auto request = createPacket(
+            cb::mcbp::ClientOpcode::ObserveSeqno, vb_id, 0, {}, {}, data.str());
+    return h->unknown_command(nullptr, *request, add_response);
 }
 
 void get_replica(EngineIface* h, const char* key, Vbid vbid) {
-    auto* pkt = createPacket(cb::mcbp::ClientOpcode::GetReplica,
-                             vbid,
-                             0,
-                             NULL,
-                             0,
-                             key,
-                             strlen(key));
+    auto request = createPacket(cb::mcbp::ClientOpcode::GetReplica,
+                                vbid,
+                                0,
+                                {},
+                                {key, strlen(key)});
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(nullptr, pkt, add_response),
+            h->unknown_command(nullptr, *request, add_response),
             "Get Replica Failed");
-    cb_free(pkt);
 }
 
-protocol_binary_request_header* prepare_get_replica(EngineIface* h,
-                                                    vbucket_state_t state,
-                                                    bool makeinvalidkey) {
+unique_request_ptr prepare_get_replica(EngineIface* h,
+                                       vbucket_state_t state,
+                                       bool makeinvalidkey) {
     Vbid id(0);
     const char *key = "k0";
-    auto* pkt = createPacket(cb::mcbp::ClientOpcode::GetReplica,
-                             id,
-                             0,
-                             NULL,
-                             0,
-                             key,
-                             strlen(key));
+    auto request = createPacket(
+            cb::mcbp::ClientOpcode::GetReplica, id, 0, {}, {key, strlen(key)});
 
     if (!makeinvalidkey) {
         checkeq(ENGINE_SUCCESS,
@@ -763,7 +705,7 @@ protocol_binary_request_header* prepare_get_replica(EngineIface* h,
               "Failed to set vbucket active state, Get Replica Failed");
     }
 
-    return pkt;
+    return request;
 }
 
 bool set_param(EngineIface* h,
@@ -774,60 +716,53 @@ bool set_param(EngineIface* h,
     cb::mcbp::request::SetParamPayload payload;
     payload.setParamType(paramtype);
     auto buffer = payload.getBuffer();
-    auto* pkt = createPacket(cb::mcbp::ClientOpcode::SetParam,
-                             vb,
-                             0,
-                             reinterpret_cast<const char*>(buffer.data()),
-                             buffer.size(),
-                             param,
-                             strlen(param),
-                             val,
-                             strlen(val));
+    auto request = createPacket(
+            cb::mcbp::ClientOpcode::SetParam,
+            vb,
+            0,
+            {reinterpret_cast<const char*>(buffer.data()), buffer.size()},
+            {param, strlen(param)},
+            {val, strlen(val)});
 
-    if (h->unknown_command(nullptr, pkt, add_response) != ENGINE_SUCCESS) {
-        cb_free(pkt);
+    if (h->unknown_command(nullptr, *request, add_response) != ENGINE_SUCCESS) {
         return false;
     }
 
-    cb_free(pkt);
     return last_status == cb::mcbp::Status::Success;
 }
 
 bool set_vbucket_state(EngineIface* h, Vbid vb, vbucket_state_t state) {
     char ext[4];
-    protocol_binary_request_header *pkt;
     encodeExt(ext, static_cast<uint32_t>(state));
-    pkt = createPacket(cb::mcbp::ClientOpcode::SetVbucket, vb, 0, ext, 4);
+    auto request =
+            createPacket(cb::mcbp::ClientOpcode::SetVbucket, vb, 0, {ext, 4});
 
-    if (h->unknown_command(nullptr, pkt, add_response) != ENGINE_SUCCESS) {
+    if (h->unknown_command(nullptr, *request, add_response) != ENGINE_SUCCESS) {
         return false;
     }
 
-    cb_free(pkt);
     return last_status == cb::mcbp::Status::Success;
 }
 
 bool get_all_vb_seqnos(EngineIface* h,
                        vbucket_state_t state,
                        const void* cookie) {
-    protocol_binary_request_header *pkt;
+    unique_request_ptr pkt;
     if (state) {
         char ext[sizeof(vbucket_state_t)];
         encodeExt(ext, static_cast<uint32_t>(state));
         pkt = createPacket(cb::mcbp::ClientOpcode::GetAllVbSeqnos,
                            Vbid(0),
                            0,
-                           ext,
-                           sizeof(vbucket_state_t));
+                           {ext, sizeof(vbucket_state_t)});
     } else {
         pkt = createPacket(cb::mcbp::ClientOpcode::GetAllVbSeqnos);
     }
 
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(cookie, pkt, add_response),
+            h->unknown_command(cookie, *pkt, add_response),
             "Error in getting all vb info");
 
-    cb_free(pkt);
     return last_status == cb::mcbp::Status::Success;
 }
 
@@ -873,7 +808,7 @@ static ENGINE_ERROR_CODE store_with_meta(EngineIface* h,
                                          uint8_t datatype,
                                          const void* cookie,
                                          const std::vector<char>& nmeta) {
-    int blen = 24;
+    size_t blen = 24;
     std::unique_ptr<char[]> ext(new char[30]);
     std::unique_ptr<ExtendedMetaData> emd;
 
@@ -891,20 +826,16 @@ static ENGINE_ERROR_CODE store_with_meta(EngineIface* h,
         blen += sizeof(uint16_t);
     }
 
-    unique_packet_ptr pkt(createPacket(cmd,
-                                       vb,
-                                       cas_for_store,
-                                       ext.get(),
-                                       blen,
-                                       key,
-                                       keylen,
-                                       val,
-                                       vallen,
-                                       datatype,
-                                       nmeta.data(),
-                                       nmeta.size()));
+    auto request = createPacket(cmd,
+                                vb,
+                                cas_for_store,
+                                {ext.get(), blen},
+                                {key, keylen},
+                                {val, vallen},
+                                datatype,
+                                {nmeta.data(), nmeta.size()});
 
-    return h->unknown_command(cookie, pkt.get(), add_response_set_del_meta);
+    return h->unknown_command(cookie, *request, add_response_set_del_meta);
 }
 
 ENGINE_ERROR_CODE set_with_meta(EngineIface* h,
@@ -978,20 +909,15 @@ static ENGINE_ERROR_CODE return_meta(EngineIface* h,
     meta.setFlags(flags);
     meta.setExpiration(exp);
 
-    auto* pkt = createPacket(cb::mcbp::ClientOpcode::ReturnMeta,
-                             vb,
-                             cas,
-                             reinterpret_cast<const char*>(&meta),
-                             sizeof(meta),
-                             key,
-                             keylen,
-                             val,
-                             vallen,
-                             datatype);
-    auto ret = h->unknown_command(cookie, pkt, add_response_ret_meta);
-    cb_free(pkt);
-
-    return ret;
+    auto pkt =
+            createPacket(cb::mcbp::ClientOpcode::ReturnMeta,
+                         vb,
+                         cas,
+                         {reinterpret_cast<const char*>(&meta), sizeof(meta)},
+                         {key, keylen},
+                         {val, vallen},
+                         datatype);
+    return h->unknown_command(cookie, *pkt, add_response_ret_meta);
 }
 
 ENGINE_ERROR_CODE set_ret_meta(EngineIface* h,
@@ -1065,25 +991,23 @@ ENGINE_ERROR_CODE del_ret_meta(EngineIface* h,
 }
 
 void disable_traffic(EngineIface* h) {
-    auto* pkt = createPacket(cb::mcbp::ClientOpcode::DisableTraffic);
+    auto pkt = createPacket(cb::mcbp::ClientOpcode::DisableTraffic);
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(nullptr, *pkt, add_response),
             "Failed to send data traffic command to the server");
     checkeq(cb::mcbp::Status::Success,
             last_status.load(),
             "Failed to disable data traffic");
-    cb_free(pkt);
 }
 
 void enable_traffic(EngineIface* h) {
-    auto* pkt = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
+    auto pkt = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(nullptr, *pkt, add_response),
             "Failed to send data traffic command to the server");
     checkeq(cb::mcbp::Status::Success,
             last_status.load(),
             "Failed to enable data traffic");
-    cb_free(pkt);
 }
 
 void start_persistence(EngineIface* h) {
@@ -1092,14 +1016,13 @@ void start_persistence(EngineIface* h) {
         return;
     }
 
-    auto* pkt = createPacket(cb::mcbp::ClientOpcode::StartPersistence);
+    auto pkt = createPacket(cb::mcbp::ClientOpcode::StartPersistence);
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(nullptr, pkt, add_response),
+            h->unknown_command(nullptr, *pkt, add_response),
             "Failed to stop persistence.");
     checkeq(cb::mcbp::Status::Success,
             last_status.load(),
             "Error starting persistence.");
-    cb_free(pkt);
 }
 
 void stop_persistence(EngineIface* h) {
@@ -1116,14 +1039,13 @@ void stop_persistence(EngineIface* h) {
         decayingSleep(&sleepTime);
     }
 
-    auto* pkt = createPacket(cb::mcbp::ClientOpcode::StopPersistence);
+    auto pkt = createPacket(cb::mcbp::ClientOpcode::StopPersistence);
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(nullptr, pkt, add_response),
+            h->unknown_command(nullptr, *pkt, add_response),
             "Failed to stop persistence.");
     checkeq(cb::mcbp::Status::Success,
             last_status.load(),
             "Error stopping persistence.");
-    cb_free(pkt);
 }
 
 ENGINE_ERROR_CODE store(EngineIface* h,
@@ -1278,16 +1200,12 @@ void compact_db(EngineIface* h,
     payload.setDropDeletes(drop_deletes);
     payload.setDbFileId(db_file_id);
 
-    auto* pkt = createPacket(cb::mcbp::ClientOpcode::CompactDb,
-                             vbucket_id,
-                             0,
-                             reinterpret_cast<const char*>(&payload),
-                             sizeof(payload),
-                             nullptr,
-                             0,
-                             nullptr,
-                             0);
-    auto ret = h->unknown_command(nullptr, pkt, add_response);
+    auto pkt = createPacket(
+            cb::mcbp::ClientOpcode::CompactDb,
+            vbucket_id,
+            0,
+            {reinterpret_cast<const char*>(&payload), sizeof(payload)});
+    auto ret = h->unknown_command(nullptr, *pkt, add_response);
 
     const auto backend = get_str_stat(h, "ep_backend");
 
@@ -1304,26 +1222,14 @@ void compact_db(EngineIface* h,
                 ret,
                 "checkForDBExistence returns ENGINE_FAILED for !couchdb");
     }
-    cb_free(pkt);
 }
 
 ENGINE_ERROR_CODE vbucketDelete(EngineIface* h, Vbid vb, const char* args) {
     uint32_t argslen = args ? strlen(args) : 0;
-    protocol_binary_request_header* pkt =
-            createPacket(cb::mcbp::ClientOpcode::DelVbucket,
-                         vb,
-                         0,
-                         NULL,
-                         0,
-                         NULL,
-                         0,
-                         args,
-                         argslen);
+    auto pkt = createPacket(
+            cb::mcbp::ClientOpcode::DelVbucket, vb, 0, {}, {}, {args, argslen});
 
-    auto ret = h->unknown_command(NULL, pkt, add_response);
-    cb_free(pkt);
-
-    return ret;
+    return h->unknown_command(nullptr, *pkt, add_response);
 }
 
 ENGINE_ERROR_CODE verify_key(EngineIface* h, const char* key, Vbid vbucket) {
@@ -1381,11 +1287,9 @@ bool verify_vbucket_state(EngineIface* h,
                           Vbid vb,
                           vbucket_state_t expected,
                           bool mute) {
-    protocol_binary_request_header *pkt;
-    pkt = createPacket(cb::mcbp::ClientOpcode::GetVbucket, vb, 0);
+    auto pkt = createPacket(cb::mcbp::ClientOpcode::GetVbucket, vb, 0);
 
-    ENGINE_ERROR_CODE errcode = h->unknown_command(NULL, pkt, add_response);
-    cb_free(pkt);
+    ENGINE_ERROR_CODE errcode = h->unknown_command(NULL, *pkt, add_response);
     if (errcode != ENGINE_SUCCESS) {
         if (!mute) {
             fprintf(stderr, "Error code when getting vbucket %d\n", errcode);

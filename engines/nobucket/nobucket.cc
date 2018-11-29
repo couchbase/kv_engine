@@ -167,10 +167,9 @@ public:
     void reset_stats(gsl::not_null<const void*> cookie) override {
     }
 
-    ENGINE_ERROR_CODE unknown_command(
-            const void*,
-            gsl::not_null<protocol_binary_request_header*>,
-            ADD_RESPONSE) override {
+    ENGINE_ERROR_CODE unknown_command(const void*,
+                                      const cb::mcbp::Request& request,
+                                      ADD_RESPONSE) override {
         return ENGINE_NO_BUCKET;
     }
 

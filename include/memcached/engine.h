@@ -27,6 +27,12 @@
 
 #include "durability_spec.h"
 
+namespace cb {
+namespace mcbp {
+class Request;
+}
+} // namespace cb
+
 /*! \mainpage memcached public API
  *
  * \section intro_sec Introduction
@@ -473,15 +479,14 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * Any unknown command will be considered engine specific.
      *
      * @param cookie The cookie provided by the frontend
-     * @param request pointer to request header to be filled in
+     * @param request The request from the client
      * @param response function to transmit data
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    virtual ENGINE_ERROR_CODE unknown_command(
-            const void* cookie,
-            gsl::not_null<protocol_binary_request_header*> request,
-            ADD_RESPONSE response) {
+    virtual ENGINE_ERROR_CODE unknown_command(const void* cookie,
+                                              const cb::mcbp::Request& request,
+                                              ADD_RESPONSE response) {
         return ENGINE_ENOTSUP;
     }
 

@@ -543,11 +543,9 @@ public:
      * underlying real engine, this is also used to configure
      * ewouldblock_engine itself using he CMD_EWOULDBLOCK_CTL opcode.
      */
-    ENGINE_ERROR_CODE unknown_command(
-            const void* cookie,
-            gsl::not_null<protocol_binary_request_header*> request,
-            ADD_RESPONSE response) override {
-        auto& req = request->request;
+    ENGINE_ERROR_CODE unknown_command(const void* cookie,
+                                      const cb::mcbp::Request& req,
+                                      ADD_RESPONSE response) override {
         const auto opcode = req.getClientOpcode();
         if (opcode == cb::mcbp::ClientOpcode::EwouldblockCtl) {
             using cb::mcbp::request::EWB_Payload;
@@ -670,7 +668,7 @@ public:
             if (should_inject_error(Cmd::UNKNOWN_COMMAND, cookie, err)) {
                 return err;
             } else {
-                return real_engine->unknown_command(cookie, request, response);
+                return real_engine->unknown_command(cookie, req, response);
             }
         }
     }

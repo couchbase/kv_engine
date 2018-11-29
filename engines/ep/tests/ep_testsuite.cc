@@ -250,15 +250,13 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
     checkeq(0, get_int_stat(h, "curr_items"), "Expected curr_items equals 0");
 
     // stop flusher before loading new items
-    protocol_binary_request_header* pkt =
-            createPacket(cb::mcbp::ClientOpcode::StopPersistence);
+    auto pkt = createPacket(cb::mcbp::ClientOpcode::StopPersistence);
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, *pkt, add_response),
             "CMD_STOP_PERSISTENCE failed!");
     checkeq(cb::mcbp::Status::Success,
             last_status.load(),
             "Failed to stop persistence!");
-    cb_free(pkt);
 
     std::vector<std::string>::iterator itr;
     for (itr = keys.begin(); itr != keys.end(); ++itr) {
@@ -283,11 +281,10 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
     // resume flusher before shutdown + warmup
     pkt = createPacket(cb::mcbp::ClientOpcode::StartPersistence);
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, *pkt, add_response),
             "CMD_START_PERSISTENCE failed!");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Failed to start persistence!");
-    cb_free(pkt);
 
     // shutdown engine force and restart
     testHarness->reload_engine(&h,
@@ -1292,53 +1289,44 @@ static enum test_result test_bug3522(EngineIface* h) {
 }
 
 static enum test_result test_get_replica_active_state(EngineIface* h) {
-    protocol_binary_request_header *pkt;
-    pkt = prepare_get_replica(h, vbucket_state_active);
+    auto pkt = prepare_get_replica(h, vbucket_state_active);
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            h->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, *pkt, add_response),
             "Get Replica Failed");
 
-    cb_free(pkt);
     return SUCCESS;
 }
 
 static enum test_result test_get_replica_pending_state(EngineIface* h) {
-    protocol_binary_request_header *pkt;
-
     const void* cookie = testHarness->create_cookie();
     testHarness->set_ewouldblock_handling(cookie, false);
-    pkt = prepare_get_replica(h, vbucket_state_pending);
+    auto pkt = prepare_get_replica(h, vbucket_state_pending);
     checkeq(ENGINE_EWOULDBLOCK,
-            h->unknown_command(cookie, pkt, add_response),
+            h->unknown_command(cookie, *pkt, add_response),
             "Should have returned error for pending state");
     checkeq(1, get_int_stat(h, "vb_pending_ops_get"), "Expected 1 get");
     testHarness->destroy_cookie(cookie);
-    cb_free(pkt);
     return SUCCESS;
 }
 
 static enum test_result test_get_replica_dead_state(EngineIface* h) {
-    protocol_binary_request_header *pkt;
-    pkt = prepare_get_replica(h, vbucket_state_dead);
+    auto pkt = prepare_get_replica(h, vbucket_state_dead);
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            h->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, *pkt, add_response),
             "Get Replica Failed");
-    cb_free(pkt);
     return SUCCESS;
 }
 
 static enum test_result test_get_replica(EngineIface* h) {
-    protocol_binary_request_header *pkt;
-    pkt = prepare_get_replica(h, vbucket_state_replica);
+    auto pkt = prepare_get_replica(h, vbucket_state_replica);
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, *pkt, add_response),
             "Get Replica Failed");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected cb::mcbp::Status::Success response.");
     checkeq("replicadata"s, last_body, "Should have returned identical value");
     checkeq(1, get_int_stat(h, "vb_replica_ops_get"), "Expected 1 get");
 
-    cb_free(pkt);
     return SUCCESS;
 }
 
@@ -1362,13 +1350,11 @@ static enum test_result test_get_replica_non_resident(EngineIface* h) {
 }
 
 static enum test_result test_get_replica_invalid_key(EngineIface* h) {
-    protocol_binary_request_header *pkt;
     bool makeinvalidkey = true;
-    pkt = prepare_get_replica(h, vbucket_state_replica, makeinvalidkey);
+    auto pkt = prepare_get_replica(h, vbucket_state_replica, makeinvalidkey);
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            h->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, *pkt, add_response),
             "Get Replica Failed");
-    cb_free(pkt);
     return SUCCESS;
 }
 
@@ -3076,27 +3062,24 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h) {
 static enum test_result test_session_cas_validation(EngineIface* h) {
     // Testing cb::mcbp::ClientOpcode::SetVbucket..
     char ext[4];
-    protocol_binary_request_header *pkt;
     vbucket_state_t state = vbucket_state_active;
     uint32_t val = static_cast<uint32_t>(state);
     val = htonl(val);
     memcpy(ext, (char*)&val, sizeof(val));
 
     uint64_t cas = 0x0101010101010101;
-    pkt = createPacket(
-            cb::mcbp::ClientOpcode::SetVbucket, Vbid(0), cas, ext, 4);
+    auto pkt = createPacket(
+            cb::mcbp::ClientOpcode::SetVbucket, Vbid(0), cas, {ext, 4});
     checkeq(ENGINE_KEY_EEXISTS,
-            h->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, *pkt, add_response),
             "SET_VBUCKET command failed");
-    cb_free(pkt);
 
     cas = 0x0102030405060708;
     pkt = createPacket(
-            cb::mcbp::ClientOpcode::SetVbucket, Vbid(0), cas, ext, 4);
+            cb::mcbp::ClientOpcode::SetVbucket, Vbid(0), cas, {ext, 4});
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, *pkt, add_response),
             "SET_VBUCKET command failed");
-    cb_free(pkt);
     cb_assert(last_status == cb::mcbp::Status::Success);
 
     return SUCCESS;
@@ -3575,11 +3558,10 @@ static enum test_result test_warmup_oom(EngineIface* h) {
 
     wait_for_warmup_complete(h);
 
-    auto* pkt = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
+    auto pkt = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
     checkeq(ENGINE_ENOMEM,
-            h->unknown_command(nullptr, pkt, add_response),
+            h->unknown_command(nullptr, *pkt, add_response),
             "Data traffic command should have failed with enomem");
-    cb_free(pkt);
 
     return SUCCESS;
 }
@@ -3789,30 +3771,22 @@ static enum test_result test_all_keys_api(EngineIface* h) {
     const uint16_t keylen = start_key.length();
     uint32_t count = htonl(num_keys);
 
-    protocol_binary_request_header* pkt1 =
-            createPacket(cb::mcbp::ClientOpcode::GetKeys,
-                         Vbid(0),
-                         0,
-                         reinterpret_cast<char*>(&count),
-                         sizeof(count),
-                         start_key.c_str(),
-                         keylen,
-                         NULL,
-                         0,
-                         0x00);
+    auto pkt1 = createPacket(cb::mcbp::ClientOpcode::GetKeys,
+                             Vbid(0),
+                             0,
+                             {reinterpret_cast<char*>(&count), sizeof(count)},
+                             start_key);
 
     if (isPersistentBucket(h)) {
         checkeq(ENGINE_SUCCESS,
-                h->unknown_command(nullptr, pkt1, add_response),
+                h->unknown_command(nullptr, *pkt1, add_response),
                 "Failed to get all_keys, sort: ascending");
-        cb_free(pkt1);
     } else {
         /* We intend to support cb::mcbp::ClientOpcode::GetKeys in ephemeral
            buckets in the future */
         checkeq(ENGINE_ENOTSUP,
-                h->unknown_command(nullptr, pkt1, add_response),
+                h->unknown_command(nullptr, *pkt1, add_response),
                 "Should return not supported");
-        cb_free(pkt1);
         return SUCCESS;
     }
 
@@ -3842,17 +3816,11 @@ static enum test_result test_all_keys_api_during_bucket_creation(
     uint32_t count = htonl(5);
     const char key[] = "key_10";
 
-    protocol_binary_request_header* pkt1 =
-            createPacket(cb::mcbp::ClientOpcode::GetKeys,
-                         Vbid(1),
-                         0,
-                         reinterpret_cast<char*>(&count),
-                         sizeof(count),
-                         key,
-                         strlen(key),
-                         NULL,
-                         0,
-                         0x00);
+    auto pkt1 = createPacket(cb::mcbp::ClientOpcode::GetKeys,
+                             Vbid(1),
+                             0,
+                             {reinterpret_cast<char*>(&count), sizeof(count)},
+                             {key, strlen(key)});
 
     stop_persistence(h);
     check(set_vbucket_state(h, Vbid(1), vbucket_state_active),
@@ -3860,16 +3828,14 @@ static enum test_result test_all_keys_api_during_bucket_creation(
 
     if (isPersistentBucket(h)) {
         checkeq(ENGINE_SUCCESS,
-                h->unknown_command(nullptr, pkt1, add_response),
+                h->unknown_command(nullptr, *pkt1, add_response),
                 "Unexpected return code from all_keys_api");
-        cb_free(pkt1);
     } else {
         /* We intend to support cb::mcbp::ClientOpcode::GetKeys in ephemeral
            buckets in the future */
         checkeq(ENGINE_ENOTSUP,
-                h->unknown_command(nullptr, pkt1, add_response),
+                h->unknown_command(nullptr, *pkt1, add_response),
                 "Should return not supported");
-        cb_free(pkt1);
         return SUCCESS;
     }
 
@@ -4011,18 +3977,14 @@ static enum test_result test_value_eviction(EngineIface* h) {
     evict_key(h, "k1", Vbid(0), "Already ejected.");
     evict_key(h, "k2", Vbid(1), "Already ejected.");
 
-    protocol_binary_request_header* pkt =
-            createPacket(cb::mcbp::ClientOpcode::EvictKey,
-                         Vbid(0),
-                         0,
-                         NULL,
-                         0,
-                         "missing-key",
-                         11);
-    pkt->request.vbucket = Vbid(0).hton();
+    auto pkt = createPacket(cb::mcbp::ClientOpcode::EvictKey,
+                            Vbid(0),
+                            0,
+                            {},
+                            {"missing-key", 11});
 
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, *pkt, add_response),
             "Failed to evict key.");
 
     checkeq(ENGINE_SUCCESS,
@@ -4038,7 +4000,6 @@ static enum test_result test_value_eviction(EngineIface* h) {
         checkeq(cb::mcbp::Status::Success, last_status.load(),
             "expected the success for evicting a non-existent key with full eviction");
     }
-    cb_free(pkt);
 
     reset_stats(h);
     checkeq(0,
@@ -4651,21 +4612,15 @@ static enum test_result test_observe_seqno_error(EngineIface* h) {
     std::stringstream invalid_data;
     invalid_data.write((char *) &vb_uuid, sizeof(uint64_t));
 
-    protocol_binary_request_header *request;
-
-    request = createPacket(cb::mcbp::ClientOpcode::ObserveSeqno,
-                           Vbid(0),
-                           0,
-                           nullptr,
-                           0,
-                           nullptr,
-                           0,
-                           invalid_data.str().data(),
-                           invalid_data.str().length());
+    auto request = createPacket(cb::mcbp::ClientOpcode::ObserveSeqno,
+                                Vbid(0),
+                                0,
+                                {},
+                                {},
+                                invalid_data.str());
     checkeq(ENGINE_KEY_ENOENT,
-            h->unknown_command(nullptr, request, add_response),
+            h->unknown_command(nullptr, *request, add_response),
             "Expected vb uuid not found");
-    cb_free(request);
 
     return SUCCESS;
 }
@@ -5078,34 +5033,17 @@ static enum test_result test_observe_errors(EngineIface* h) {
             "Expected not my vbucket");
 
     // Check invalid packets
-    protocol_binary_request_header *pkt;
-    pkt = createPacket(cb::mcbp::ClientOpcode::Observe,
-                       Vbid(0),
-                       0,
-                       NULL,
-                       0,
-                       NULL,
-                       0,
-                       "0",
-                       1);
+    auto pkt = createPacket(
+            cb::mcbp::ClientOpcode::Observe, Vbid(0), 0, {}, {}, {"0", 1});
     checkeq(ENGINE_EINVAL,
-            h->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, *pkt, add_response),
             "Observe failed.");
-    cb_free(pkt);
 
-    pkt = createPacket(cb::mcbp::ClientOpcode::Observe,
-                       Vbid(0),
-                       0,
-                       NULL,
-                       0,
-                       NULL,
-                       0,
-                       "0000",
-                       4);
+    pkt = createPacket(
+            cb::mcbp::ClientOpcode::Observe, Vbid(0), 0, {}, {}, {"0000", 4});
     checkeq(ENGINE_EINVAL,
-            h->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, *pkt, add_response),
             "Observe failed.");
-    cb_free(pkt);
 
     return SUCCESS;
 }
@@ -5115,14 +5053,12 @@ static enum test_result test_control_data_traffic(EngineIface* h) {
             store(h, NULL, OPERATION_SET, "key", "value1"),
             "Failed to set key");
 
-    protocol_binary_request_header* pkt =
-            createPacket(cb::mcbp::ClientOpcode::DisableTraffic);
+    auto pkt = createPacket(cb::mcbp::ClientOpcode::DisableTraffic);
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, *pkt, add_response),
             "Failed to send data traffic command to the server");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Faile to disable data traffic");
-    cb_free(pkt);
 
     checkeq(ENGINE_TMPFAIL,
             store(h, NULL, OPERATION_SET, "key", "value2"),
@@ -5130,11 +5066,10 @@ static enum test_result test_control_data_traffic(EngineIface* h) {
 
     pkt = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, *pkt, add_response),
             "Failed to send data traffic command to the server");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Faile to enable data traffic");
-    cb_free(pkt);
 
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, "key", "value2"),
@@ -6168,12 +6103,10 @@ static enum test_result test_get_random_key(EngineIface* h) {
     const void* cookie = testHarness->create_cookie();
 
     // An empty database should return no key
-    protocol_binary_request_header pkt = {};
-    pkt.request.setMagic(cb::mcbp::Magic::ClientRequest);
-    pkt.request.setOpcode(cb::mcbp::ClientOpcode::GetRandomKey);
+    auto pkt = createPacket(cb::mcbp::ClientOpcode::GetRandomKey);
 
     checkeq(ENGINE_KEY_ENOENT,
-            h->unknown_command(cookie, &pkt, add_response),
+            h->unknown_command(cookie, *pkt, add_response),
             "Database should be empty");
 
     // Store a key
@@ -6195,7 +6128,7 @@ static enum test_result test_get_random_key(EngineIface* h) {
 
     // We should be able to get one if there is something in there
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(cookie, &pkt, add_response),
+            h->unknown_command(cookie, *pkt, add_response),
             "get random should work");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     checkeq(PROTOCOL_BINARY_DATATYPE_JSON,

@@ -1165,11 +1165,10 @@ static ENGINE_ERROR_CODE processUnknownCommand(EventuallyPersistentEngine* h,
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::unknown_command(
         const void* cookie,
-        gsl::not_null<protocol_binary_request_header*> request,
+        const cb::mcbp::Request& request,
         ADD_RESPONSE response) {
     auto engine = acquireEngine(this);
-    auto ret = processUnknownCommand(
-            engine.get(), cookie, request->request, response);
+    auto ret = processUnknownCommand(engine.get(), cookie, request, response);
     return ret;
 }
 

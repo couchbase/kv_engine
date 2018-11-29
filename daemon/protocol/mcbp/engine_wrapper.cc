@@ -28,10 +28,8 @@
 ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie,
                                          ADD_RESPONSE response) {
     auto& c = cookie.getConnection();
-    const void* const_ptr = static_cast<const void*>(cookie.getPacket().data());
-    auto* ptr = const_cast<void*>(const_ptr);
-    auto* req = reinterpret_cast<protocol_binary_request_header*>(ptr);
-    auto ret = c.getBucketEngine()->unknown_command(&cookie, req, response);
+    auto ret = c.getBucketEngine()->unknown_command(
+            &cookie, cookie.getRequest(Cookie::PacketContent::Full), response);
     if (ret == ENGINE_DISCONNECT) {
         const auto request = cookie.getRequest();
         LOG_WARNING("{}: {} {} return ENGINE_DISCONNECT",

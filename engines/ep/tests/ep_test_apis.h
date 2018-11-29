@@ -164,19 +164,24 @@ public:
 
 void decayingSleep(useconds_t *sleepTime);
 
-protocol_binary_request_header* createPacket(cb::mcbp::ClientOpcode opcode,
-                                             Vbid vbid = Vbid(0),
-                                             uint64_t cas = 0,
-                                             const char* ext = NULL,
-                                             uint8_t extlen = 0,
-                                             const char* key = NULL,
-                                             uint32_t keylen = 0,
-                                             const char* val = NULL,
-                                             uint32_t vallen = 0,
-                                             uint8_t datatype = 0x00,
-                                             const char* meta = NULL,
-                                             uint16_t nmeta = 0)
-        CB_MUST_USE_RESULT;
+/**
+ * The unique_request_ptr returns a pointer to a Request, but the underlying
+ * allocation is an array of bytes so we need a special deleter to make
+ * sure that we release the correct amount of bytes
+ */
+struct RequestDeleter {
+    void operator()(cb::mcbp::Request* request);
+};
+using unique_request_ptr = std::unique_ptr<cb::mcbp::Request, RequestDeleter>;
+
+unique_request_ptr createPacket(cb::mcbp::ClientOpcode opcode,
+                                Vbid vbid = Vbid(0),
+                                uint64_t cas = 0,
+                                cb::const_char_buffer ext = {},
+                                cb::const_char_buffer key = {},
+                                cb::const_char_buffer val = {},
+                                uint8_t datatype = 0x00,
+                                cb::const_char_buffer meta = {});
 
 // Basic Operations
 ENGINE_ERROR_CODE del(EngineIface* h,
@@ -225,9 +230,9 @@ cb::EngineErrorItemPair getl(EngineIface* h,
                              Vbid vb,
                              uint32_t lock_timeout);
 
-protocol_binary_request_header* prepare_get_replica(EngineIface* h,
-                                                    vbucket_state_t state,
-                                                    bool makeinvalidkey = false)
+unique_request_ptr prepare_get_replica(EngineIface* h,
+                                       vbucket_state_t state,
+                                       bool makeinvalidkey = false)
         CB_MUST_USE_RESULT;
 
 void get_replica(EngineIface* h, const char* key, Vbid vb);

@@ -161,11 +161,10 @@ bool test_setup(EngineIface* h) {
 
     // warmup is complete, notify ep engine that it must now enable
     // data traffic
-    protocol_binary_request_header* pkt =
-            createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
-    checkeq(ENGINE_SUCCESS, h->unknown_command(NULL, pkt, add_response),
-          "Failed to enable data traffic");
-    cb_free(pkt);
+    auto request = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
+    checkeq(ENGINE_SUCCESS,
+            h->unknown_command(NULL, *request, add_response),
+            "Failed to enable data traffic");
 
     return true;
 }

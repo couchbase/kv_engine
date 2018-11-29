@@ -184,10 +184,9 @@ struct default_engine : public EngineIface {
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
 
-    ENGINE_ERROR_CODE unknown_command(
-            const void* cookie,
-            gsl::not_null<protocol_binary_request_header*> request,
-            ADD_RESPONSE response) override;
+    ENGINE_ERROR_CODE unknown_command(const void* cookie,
+                                      const cb::mcbp::Request& request,
+                                      ADD_RESPONSE response) override;
 
     void item_set_cas(gsl::not_null<item*> item, uint64_t cas) override;
 

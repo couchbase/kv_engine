@@ -850,25 +850,25 @@ static bool set_param(struct default_engine* e,
 
 ENGINE_ERROR_CODE default_engine::unknown_command(
         const void* cookie,
-        gsl::not_null<protocol_binary_request_header*> request,
+        const cb::mcbp::Request& request,
         ADD_RESPONSE response) {
     bool sent;
 
-    switch (request->request.getClientOpcode()) {
+    switch (request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::Scrub:
         sent = scrub_cmd(this, cookie, response);
         break;
     case cb::mcbp::ClientOpcode::DelVbucket:
-        sent = rm_vbucket(this, cookie, request->request, response);
+        sent = rm_vbucket(this, cookie, request, response);
         break;
     case cb::mcbp::ClientOpcode::SetVbucket:
-        sent = set_vbucket(this, cookie, request->request, response);
+        sent = set_vbucket(this, cookie, request, response);
         break;
     case cb::mcbp::ClientOpcode::GetVbucket:
-        sent = get_vbucket(this, cookie, request->request, response);
+        sent = get_vbucket(this, cookie, request, response);
         break;
     case cb::mcbp::ClientOpcode::SetParam:
-        sent = set_param(this, cookie, request->request, response);
+        sent = set_param(this, cookie, request, response);
         break;
     default:
         sent = response(nullptr,
