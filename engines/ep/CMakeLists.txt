@@ -191,13 +191,12 @@ ADD_CUSTOM_COMMAND(OUTPUT
                      src/collections/vbucket_serialised_manifest_entry_raw_schema.in
                   COMMENT "Generating flatbuffers serialied_manifest_entry_generated")
 
-ADD_CUSTOM_TARGET(
-    ep-engine-generated_flatbuffers
-    DEPENDS
-      ${CMAKE_CURRENT_BINARY_DIR}/src/collections/vbucket_serialised_manifest_entry_generated.h
-      ${CMAKE_CURRENT_BINARY_DIR}/src/collections/vbucket_serialised_manifest_entry_raw_schema.cc
-    )
+ADD_LIBRARY(ep-engine_collections_flatbuffers
+  ${CMAKE_CURRENT_BINARY_DIR}/src/collections/vbucket_serialised_manifest_entry_raw_schema.cc)
 
+TARGET_INCLUDE_DIRECTORIES(ep-engine_collections_flatbuffers
+                           PUBLIC
+                           ${CMAKE_CURRENT_BINARY_DIR}/src/)
 
 SET(COUCH_KVSTORE_SOURCE src/couch-kvstore/couch-kvstore.cc
             src/couch-kvstore/couch-fs-stats.cc)
