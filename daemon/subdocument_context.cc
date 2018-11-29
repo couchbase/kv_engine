@@ -16,7 +16,9 @@
  */
 
 #include "config.h"
+
 #include "subdocument_context.h"
+
 #include "debug_helpers.h"
 #include "mc_time.h"
 #include "protocol/mcbp/engine_wrapper.h"
@@ -225,25 +227,16 @@ void SubdocCmdContext::setMutationSemantics(mcbp::subdoc::doc_flag docFlags) {
 cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
     if (document_vattr.empty()) {
         // @todo we can optimize this by building the json in a more efficient
-        //       way, but for now just do it by using cJSON...
-        unique_cJSON_ptr doc(cJSON_CreateObject());
+        //       way, but for now just do it by using nlohmann json...
+        nlohmann::json doc;
 
-        cJSON_AddStringToObject(
-                doc.get(), "CAS", cb::to_hex(input_item_info.cas).c_str());
-
-        cJSON_AddStringToObject(
-                doc.get(),
-                "vbucket_uuid",
-                cb::to_hex(input_item_info.vbucket_uuid).c_str());
-
-        cJSON_AddStringToObject(
-                doc.get(), "seqno", cb::to_hex(input_item_info.seqno).c_str());
-
-        cJSON_AddNumberToObject(doc.get(), "exptime", input_item_info.exptime);
+        doc["CAS"] = cb::to_hex(input_item_info.cas);
+        doc["vbucket_uuid"] = cb::to_hex(input_item_info.vbucket_uuid);
+        doc["seqno"] = cb::to_hex(input_item_info.seqno);
+        doc["exptime"] = input_item_info.exptime;
 
         // The flags are kept internally in network byte order...
-        cJSON_AddNumberToObject(
-                doc.get(), "flags", ntohl(input_item_info.flags));
+        doc["flags"] = ntohl(input_item_info.flags);
 
         // Calculate value_bytes (excluding XATTR). Note we use
         // in_datatype / in_doc here as they have already been
@@ -254,43 +247,34 @@ cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
             auto bodyoffset = cb::xattr::get_body_offset(in_doc);
             value_bytes -= bodyoffset;
         }
-        cJSON_AddNumberToObject(doc.get(), "value_bytes", value_bytes);
+        doc["value_bytes"] = value_bytes;
 
         // Calculate datatype[]. Note we use the original datatype
         // (input_item_info.datatype), so if the document was
         // originally compressed we'll report it here.
-        unique_cJSON_ptr array(cJSON_CreateArray());
+        nlohmann::json arr;
         auto datatypes = split_string(
             mcbp::datatype::to_string(input_item_info.datatype), ",");
         for (const auto& d : datatypes) {
-            cJSON_AddItemToArray(array.get(), cJSON_CreateString(d.c_str()));
+            arr.push_back(d);
         }
-        cJSON_AddItemToObject(doc.get(), "datatype", array.release());
+        doc["datatype"] = arr;
 
-        cJSON_AddBoolToObject(
-                doc.get(),
-                "deleted",
-                input_item_info.document_state == DocumentState::Deleted);
+        doc["deleted"] =
+                input_item_info.document_state == DocumentState::Deleted;
 
         if (input_item_info.cas_is_hlc) {
-            // convert nanoseconds CAS into seconds and ensure u64 before cJSON
-            // converts to a double internally.
             std::chrono::nanoseconds ns(input_item_info.cas);
-            cJSON_AddStringToObject(
-                    doc.get(),
-                    "last_modified",
-                    std::to_string(uint64_t(std::chrono::duration_cast<
-                                                    std::chrono::seconds>(ns)
-                                                    .count()))
-                            .c_str());
+            doc["last_modified"] = std::to_string(
+                    std::chrono::duration_cast<std::chrono::seconds>(ns)
+                            .count());
         }
 
-        cJSON_AddStringToObject(
-                doc.get(), "value_crc32c", cb::to_hex(computeValueCRC32C()));
+        doc["value_crc32c"] = cb::to_hex(computeValueCRC32C());
 
-        unique_cJSON_ptr root(cJSON_CreateObject());
-        cJSON_AddItemToObject(root.get(), "$document", doc.release());
-        document_vattr = to_string(root, false);
+        nlohmann::json root;
+        root["$document"] = doc;
+        document_vattr = root.dump();
     }
 
     return cb::const_char_buffer(document_vattr.data(), document_vattr.size());
@@ -302,15 +286,13 @@ cb::const_char_buffer SubdocCmdContext::get_xtoc_vattr() {
         return cb::const_char_buffer(xtoc_vattr.data(), xtoc_vattr.size());
     }
     if (xtoc_vattr.empty()) {
-        unique_cJSON_ptr doc(cJSON_CreateObject());
-
         const auto bodyoffset = cb::xattr::get_body_offset(in_doc);
         cb::char_buffer blob_buffer{const_cast<char*>(in_doc.data()),
                                     (size_t)bodyoffset};
         cb::xattr::Blob xattr_blob(blob_buffer,
                                    mcbp::datatype::is_snappy(in_datatype));
 
-        unique_cJSON_ptr array(cJSON_CreateArray());
+        nlohmann::json arr;
         for (const auto& kvPair : xattr_blob) {
             bool isSystemXattr = cb::xattr::is_system_xattr(
                     const_cast<cb::const_char_buffer&>(kvPair.first));
@@ -318,14 +300,13 @@ cb::const_char_buffer SubdocCmdContext::get_xtoc_vattr() {
             if (xtocSemantics == XtocSemantics::All ||
                 (isSystemXattr && (xtocSemantics == XtocSemantics::System)) ||
                 (!isSystemXattr && (xtocSemantics == XtocSemantics::User))) {
-                cJSON_AddItemToArray(
-                        array.get(),
-                        cJSON_CreateString(to_string(kvPair.first).c_str()));
+                arr.push_back(to_string(kvPair.first));
             }
         }
 
-        cJSON_AddItemToObject(doc.get(), "$XTOC", array.release());
-        xtoc_vattr = to_string(doc, false);
+        nlohmann::json doc;
+        doc["$XTOC"] = arr;
+        xtoc_vattr = doc.dump();
     }
     return cb::const_char_buffer(xtoc_vattr.data(), xtoc_vattr.size());
 }

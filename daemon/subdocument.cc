@@ -723,12 +723,8 @@ static bool operate_single_doc(SubdocCmdContext& context,
                 // either permit subjson to take an iovec as input, or
                 // permit subjson to take all the multipaths at once.
                 // For now we make a contiguous region in a temporary
-                // std::vector, and point in_doc at that.
-
-                // Allocate an extra byte to make sure we can zero term it
-                // (in case we want to use cJSON_Parse() ;-)
-                std::unique_ptr<char[]> temp(new char[new_doc_len + 1]);
-                temp[new_doc_len] = '\0';
+                // char[], and point in_doc at that.
+                std::unique_ptr<char[]> temp(new char[new_doc_len]);
 
                 size_t offset = 0;
                 for (auto& loc : op->result.newdoc()) {
