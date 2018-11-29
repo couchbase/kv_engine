@@ -79,7 +79,8 @@ EphTombstoneHTCleaner::EphTombstoneHTCleaner(EventuallyPersistentEngine* e,
       bucketPosition(bucket.endPosition()),
       staleItemDeleterTask(
               std::make_shared<EphTombstoneStaleItemDeleter>(e, bucket)) {
-    ExecutorPool::get()->schedule(staleItemDeleterTask);
+    staleItemDeleterTaskId =
+            ExecutorPool::get()->schedule(staleItemDeleterTask);
 }
 
 bool EphTombstoneHTCleaner::run() {
@@ -133,7 +134,7 @@ bool EphTombstoneHTCleaner::run() {
         uint64_t(getSleepTime()));
 
     snooze(getSleepTime());
-    staleItemDeleterTask->wakeUp();
+    ExecutorPool::get()->wake(staleItemDeleterTaskId);
     return true;
 }
 
