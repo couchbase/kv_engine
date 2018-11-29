@@ -723,7 +723,9 @@ cb::mcbp::Status EventuallyPersistentEngine::setVbucketParam(
 }
 
 cb::mcbp::Status EventuallyPersistentEngine::evictKey(
-        const void* cookie, cb::mcbp::Request& request, const char** msg) {
+        const void* cookie,
+        const cb::mcbp::Request& request,
+        const char** msg) {
     const auto key = request.getKey();
     EP_LOG_DEBUG("Manually evicting object with key {}",
                  cb::UserDataView(key.data(), key.size()));
@@ -739,8 +741,8 @@ cb::mcbp::Status EventuallyPersistentEngine::evictKey(
     return rv;
 }
 
-cb::mcbp::Status EventuallyPersistentEngine::setParam(cb::mcbp::Request& req,
-                                                      std::string& msg) {
+cb::mcbp::Status EventuallyPersistentEngine::setParam(
+        const cb::mcbp::Request& req, std::string& msg) {
     using cb::mcbp::request::SetParamPayload;
     auto extras = req.getExtdata();
     auto* payload = reinterpret_cast<const SetParamPayload*>(extras.data());
@@ -771,7 +773,7 @@ cb::mcbp::Status EventuallyPersistentEngine::setParam(cb::mcbp::Request& req,
 
 static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine* e,
                                     const void* cookie,
-                                    cb::mcbp::Request& request,
+                                    const cb::mcbp::Request& request,
                                     ADD_RESPONSE response) {
     Vbid vbucket = request.getVBucket();
     VBucketPtr vb = e->getVBucket(vbucket);
@@ -795,7 +797,7 @@ static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine* e,
 
 static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine* e,
                                     const void* cookie,
-                                    cb::mcbp::Request& request,
+                                    const cb::mcbp::Request& request,
                                     ADD_RESPONSE response) {
     static_assert(sizeof(vbucket_state_t) == 4,
                   "Unexpected size for vbucket_state_t");
@@ -829,7 +831,7 @@ static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine* e,
 
 static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
                                     const void* cookie,
-                                    cb::mcbp::Request& req,
+                                    const cb::mcbp::Request& req,
                                     ADD_RESPONSE response) {
     Vbid vbucket = req.getVBucket();
     auto value = req.getValue();
@@ -883,7 +885,9 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
                 "Request for {} deletion is in"
                 " EWOULDBLOCK until the database file is removed from disk",
                 vbucket);
-        e->storeEngineSpecific(cookie, &req);
+        // We don't use the actual value in ewouldblock, just the existence
+        // of something there.
+        e->storeEngineSpecific(cookie, static_cast<void*>(e));
         return ENGINE_EWOULDBLOCK;
     default:
         EP_LOG_WARN("Deletion of {} failed because of unknown reasons",
@@ -894,7 +898,9 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
-        cb::mcbp::Request& request, ADD_RESPONSE response, const void* cookie) {
+        const cb::mcbp::Request& request,
+        ADD_RESPONSE response,
+        const void* cookie) {
     DocKey key = makeDocKey(cookie, request.getKey());
 
     auto options = static_cast<get_options_t>(
@@ -930,7 +936,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
 
 static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
                                    const void* cookie,
-                                   cb::mcbp::Request& req,
+                                   const cb::mcbp::Request& req,
                                    ADD_RESPONSE response) {
     const auto res = cb::mcbp::Status::Success;
     CompactionConfig compactionConfig;
@@ -980,7 +986,9 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
                 "Compaction of db file id: {} scheduled "
                 "(awaiting completion).",
                 compactionConfig.db_file_id.get());
-        e->storeEngineSpecific(cookie, &req);
+        // We don't use the value stored in the engine-specific code, just
+        // that it is non-null...
+        e->storeEngineSpecific(cookie, static_cast<void*>(e));
         return ENGINE_EWOULDBLOCK;
     case ENGINE_TMPFAIL:
         EP_LOG_WARN(
@@ -1013,11 +1021,10 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
                         cookie);
 }
 
-static ENGINE_ERROR_CODE processUnknownCommand(
-        EventuallyPersistentEngine* h,
-        const void* cookie,
-        protocol_binary_request_header* request,
-        ADD_RESPONSE response) {
+static ENGINE_ERROR_CODE processUnknownCommand(EventuallyPersistentEngine* h,
+                                               const void* cookie,
+                                               const cb::mcbp::Request& request,
+                                               ADD_RESPONSE response) {
     auto res = cb::mcbp::Status::UnknownCommand;
     std::string dynamic_msg;
     const char* msg = nullptr;
@@ -1029,13 +1036,13 @@ static ENGINE_ERROR_CODE processUnknownCommand(
      * Session validation
      * (For ns_server commands only)
      */
-    switch (request->request.getClientOpcode()) {
+    switch (request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::SetParam:
     case cb::mcbp::ClientOpcode::SetVbucket:
     case cb::mcbp::ClientOpcode::DelVbucket:
     case cb::mcbp::ClientOpcode::CompactDb:
         if (h->getEngineSpecific(cookie) == nullptr) {
-            uint64_t cas = request->request.getCas();
+            uint64_t cas = request.getCas();
             if (!h->validateSessionCas(cas)) {
                 h->setErrorContext(cookie, "Invalid session token");
                 return ENGINE_KEY_EEXISTS;
@@ -1046,18 +1053,17 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         break;
     }
 
-    switch (request->request.getClientOpcode()) {
+    switch (request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::GetAllVbSeqnos:
-        return h->getAllVBucketSequenceNumbers(
-                cookie, request->request, response);
+        return h->getAllVBucketSequenceNumbers(cookie, request, response);
 
     case cb::mcbp::ClientOpcode::GetVbucket: {
         BlockTimer timer(&stats.getVbucketCmdHisto);
-        return getVBucket(h, cookie, request->request, response);
+        return getVBucket(h, cookie, request, response);
     }
     case cb::mcbp::ClientOpcode::DelVbucket: {
         BlockTimer timer(&stats.delVbucketCmdHisto);
-        const auto rv = delVBucket(h, cookie, request->request, response);
+        const auto rv = delVBucket(h, cookie, request, response);
         if (rv != ENGINE_EWOULDBLOCK) {
             h->decrementSessionCtr();
             h->storeEngineSpecific(cookie, NULL);
@@ -1066,7 +1072,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(
     }
     case cb::mcbp::ClientOpcode::SetVbucket: {
         BlockTimer timer(&stats.setVbucketCmdHisto);
-        const auto rv = setVBucket(h, cookie, request->request, response);
+        const auto rv = setVBucket(h, cookie, request, response);
         h->decrementSessionCtr();
         return rv;
     }
@@ -1077,64 +1083,53 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         res = h->startFlusher(&msg, &msg_size);
         break;
     case cb::mcbp::ClientOpcode::SetParam:
-        res = h->setParam(request->request, dynamic_msg);
+        res = h->setParam(request, dynamic_msg);
         msg = dynamic_msg.c_str();
         msg_size = dynamic_msg.length();
         h->decrementSessionCtr();
         break;
     case cb::mcbp::ClientOpcode::EvictKey:
-        res = h->evictKey(cookie, request->request, &msg);
+        res = h->evictKey(cookie, request, &msg);
         break;
     case cb::mcbp::ClientOpcode::Observe:
-        return h->observe(cookie, request->request, response);
+        return h->observe(cookie, request, response);
     case cb::mcbp::ClientOpcode::ObserveSeqno:
-        return h->observe_seqno(cookie, request->request, response);
+        return h->observe_seqno(cookie, request, response);
     case cb::mcbp::ClientOpcode::LastClosedCheckpoint:
-        return h->handleLastClosedCheckpoint(
-                cookie, request->request, response);
-
+        return h->handleLastClosedCheckpoint(cookie, request, response);
     case cb::mcbp::ClientOpcode::CreateCheckpoint:
-        return h->handleCreateCheckpoint(cookie, request->request, response);
-
+        return h->handleCreateCheckpoint(cookie, request, response);
     case cb::mcbp::ClientOpcode::CheckpointPersistence:
-        return h->handleCheckpointPersistence(
-                cookie, request->request, response);
-
+        return h->handleCheckpointPersistence(cookie, request, response);
     case cb::mcbp::ClientOpcode::SeqnoPersistence:
-        return h->handleSeqnoPersistence(cookie, request->request, response);
-
+        return h->handleSeqnoPersistence(cookie, request, response);
     case cb::mcbp::ClientOpcode::SetWithMeta:
     case cb::mcbp::ClientOpcode::SetqWithMeta:
     case cb::mcbp::ClientOpcode::AddWithMeta:
     case cb::mcbp::ClientOpcode::AddqWithMeta:
-        return h->setWithMeta(cookie, request->request, response);
-
+        return h->setWithMeta(cookie, request, response);
     case cb::mcbp::ClientOpcode::DelWithMeta:
     case cb::mcbp::ClientOpcode::DelqWithMeta:
-        return h->deleteWithMeta(cookie, request->request, response);
-
+        return h->deleteWithMeta(cookie, request, response);
     case cb::mcbp::ClientOpcode::ReturnMeta:
-        return h->returnMeta(cookie, request->request, response);
-
+        return h->returnMeta(cookie, request, response);
     case cb::mcbp::ClientOpcode::GetReplica:
-        return h->getReplicaCmd(request->request, response, cookie);
-
+        return h->getReplicaCmd(request, response, cookie);
     case cb::mcbp::ClientOpcode::EnableTraffic:
     case cb::mcbp::ClientOpcode::DisableTraffic:
-        return h->handleTrafficControlCmd(cookie, request->request, response);
-
+        return h->handleTrafficControlCmd(cookie, request, response);
     case cb::mcbp::ClientOpcode::CompactDb: {
-        const auto rv = compactDB(h, cookie, request->request, response);
+        const auto rv = compactDB(h, cookie, request, response);
         if (rv != ENGINE_EWOULDBLOCK) {
             h->decrementSessionCtr();
-            h->storeEngineSpecific(cookie, NULL);
+            h->storeEngineSpecific(cookie, nullptr);
         }
         return rv;
     }
     case cb::mcbp::ClientOpcode::GetRandomKey:
         return h->getRandomKey(cookie, response);
     case cb::mcbp::ClientOpcode::GetKeys:
-        return h->getAllKeys(cookie, request->request, response);
+        return h->getAllKeys(cookie, request, response);
         // MB-21143: Remove adjusted time/drift API, but return NOT_SUPPORTED
     case cb::mcbp::ClientOpcode::GetAdjustedTime:
     case cb::mcbp::ClientOpcode::SetDriftCounterState: {
@@ -1173,7 +1168,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::unknown_command(
         gsl::not_null<protocol_binary_request_header*> request,
         ADD_RESPONSE response) {
     auto engine = acquireEngine(this);
-    auto ret = processUnknownCommand(engine.get(), cookie, request, response);
+    auto ret = processUnknownCommand(
+            engine.get(), cookie, request->request, response);
     return ret;
 }
 
@@ -4144,7 +4140,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
-        const void* cookie, cb::mcbp::Request& request, ADD_RESPONSE response) {
+        const void* cookie,
+        const cb::mcbp::Request& request,
+        ADD_RESPONSE response) {
     Vbid vb_id = request.getVBucket();
     auto value = request.getValue();
     uint64_t vb_uuid = static_cast<uint64_t>(
@@ -4221,7 +4219,9 @@ VBucketPtr EventuallyPersistentEngine::getVBucket(Vbid vbucket) {
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::handleLastClosedCheckpoint(
-        const void* cookie, cb::mcbp::Request& request, ADD_RESPONSE response) {
+        const void* cookie,
+        const cb::mcbp::Request& request,
+        ADD_RESPONSE response) {
     VBucketPtr vb = getVBucket(request.getVBucket());
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -4243,7 +4243,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleLastClosedCheckpoint(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::handleCreateCheckpoint(
-        const void* cookie, cb::mcbp::Request& req, ADD_RESPONSE response) {
+        const void* cookie,
+        const cb::mcbp::Request& req,
+        ADD_RESPONSE response) {
     VBucketPtr vb = getVBucket(req.getVBucket());
 
     if (!vb || vb->getState() != vbucket_state_active) {
@@ -4291,7 +4293,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleCreateCheckpoint(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::handleCheckpointPersistence(
-        const void* cookie, cb::mcbp::Request& request, ADD_RESPONSE response) {
+        const void* cookie,
+        const cb::mcbp::Request& request,
+        ADD_RESPONSE response) {
     auto vbucket = request.getVBucket();
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
@@ -4361,7 +4365,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleCheckpointPersistence(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::handleSeqnoPersistence(
-        const void* cookie, cb::mcbp::Request& req, ADD_RESPONSE response) {
+        const void* cookie,
+        const cb::mcbp::Request& req,
+        ADD_RESPONSE response) {
     const Vbid vbucket = req.getVBucket();
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
@@ -4521,7 +4527,9 @@ DocKey EventuallyPersistentEngine::makeDocKey(const void* cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
-        const void* cookie, cb::mcbp::Request& request, ADD_RESPONSE response) {
+        const void* cookie,
+        const cb::mcbp::Request& request,
+        ADD_RESPONSE response) {
     if (isDegradedMode()) {
         return ENGINE_TMPFAIL;
     }
@@ -4581,8 +4589,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
     const bool allowExisting = (opcode == cb::mcbp::ClientOpcode::SetWithMeta ||
                                 opcode == cb::mcbp::ClientOpcode::SetqWithMeta);
 
-    auto* req =
-            reinterpret_cast<protocol_binary_request_set_with_meta*>(&request);
+    const auto* req =
+            reinterpret_cast<const protocol_binary_request_set_with_meta*>(
+                    &request);
     uint32_t flags = req->message.body.flags;
     uint32_t expiration = ntohl(req->message.body.expiration);
     uint64_t seqno = ntohll(req->message.body.seqno);
@@ -4735,7 +4744,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
-        const void* cookie, cb::mcbp::Request& request, ADD_RESPONSE response) {
+        const void* cookie,
+        const cb::mcbp::Request& request,
+        ADD_RESPONSE response) {
     if (isDegradedMode()) {
         return ENGINE_TMPFAIL;
     }
@@ -4768,8 +4779,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     auto key = makeDocKey(cookie, request.getKey());
     uint64_t bySeqno = 0;
 
-    auto* req = reinterpret_cast<protocol_binary_request_delete_with_meta*>(
-            &request);
+    const auto* req =
+            reinterpret_cast<const protocol_binary_request_delete_with_meta*>(
+                    &request);
     const uint32_t flags = req->message.body.flags;
     const uint32_t delete_time = ntohl(req->message.body.delete_time);
     const uint64_t seqno = ntohll(req->message.body.seqno);
@@ -4873,9 +4885,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
 }
 
 ENGINE_ERROR_CODE
-EventuallyPersistentEngine::handleTrafficControlCmd(const void* cookie,
-                                                    cb::mcbp::Request& request,
-                                                    ADD_RESPONSE response) {
+EventuallyPersistentEngine::handleTrafficControlCmd(
+        const void* cookie,
+        const cb::mcbp::Request& request,
+        ADD_RESPONSE response) {
     switch (request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::EnableTraffic:
         if (kvBucket->isWarmingUp()) {
@@ -4999,7 +5012,7 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void* cookie,
 
 ENGINE_ERROR_CODE
 EventuallyPersistentEngine::returnMeta(const void* cookie,
-                                       cb::mcbp::Request& req,
+                                       const cb::mcbp::Request& req,
                                        ADD_RESPONSE response) {
     using cb::mcbp::request::ReturnMetaPayload;
     using cb::mcbp::request::ReturnMetaType;
@@ -5237,7 +5250,7 @@ private:
 
 ENGINE_ERROR_CODE
 EventuallyPersistentEngine::getAllKeys(const void* cookie,
-                                       cb::mcbp::Request& request,
+                                       const cb::mcbp::Request& request,
                                        ADD_RESPONSE response) {
     if (!getKVBucket()->isGetAllKeysSupported()) {
         return ENGINE_ENOTSUP;
@@ -5461,7 +5474,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::compactDB(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
-        const void* cookie, cb::mcbp::Request& request, ADD_RESPONSE response) {
+        const void* cookie,
+        const cb::mcbp::Request& request,
+        ADD_RESPONSE response) {
     static_assert(sizeof(vbucket_state_t) == 4,
                   "Unexpected size for vbucket_state_t");
     auto extras = request.getExtdata();

@@ -710,7 +710,7 @@ static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
 
 static bool set_vbucket(struct default_engine* e,
                         const void* cookie,
-                        cb::mcbp::Request& request,
+                        const cb::mcbp::Request& request,
                         ADD_RESPONSE response) {
     vbucket_state_t state;
     auto extras = request.getExtdata();
@@ -732,7 +732,7 @@ static bool set_vbucket(struct default_engine* e,
 
 static bool get_vbucket(struct default_engine* e,
                         const void* cookie,
-                        cb::mcbp::Request& request,
+                        const cb::mcbp::Request& request,
                         ADD_RESPONSE response) {
     vbucket_state_t state;
     state = get_vbucket_state(e, request.getVBucket());
@@ -752,7 +752,7 @@ static bool get_vbucket(struct default_engine* e,
 
 static bool rm_vbucket(struct default_engine* e,
                        const void* cookie,
-                       cb::mcbp::Request& request,
+                       const cb::mcbp::Request& request,
                        ADD_RESPONSE response) {
     set_vbucket_state(e, request.getVBucket(), vbucket_state_dead);
     return response(nullptr,
@@ -793,7 +793,7 @@ static bool scrub_cmd(struct default_engine *e,
  */
 static bool set_param(struct default_engine* e,
                       const void* cookie,
-                      cb::mcbp::Request& request,
+                      const cb::mcbp::Request& request,
                       ADD_RESPONSE response) {
     using cb::mcbp::request::SetParamPayload;
     auto extras = request.getExtdata();
