@@ -25,11 +25,11 @@
 #include <cJSON.h>
 #include <platform/compress.h>
 #include <xattr/utils.h>
+#include <chrono>
 
 #include  <iomanip>
 
 std::atomic<uint64_t> Item::casCounter(1);
-const uint32_t Item::metaDataSize(2*sizeof(uint32_t) + 2*sizeof(uint64_t) + 2);
 
 Item::Item(const DocKey& k,
            const uint32_t fl,
@@ -265,6 +265,36 @@ bool Item::decompressValue() {
     return true;
 }
 
+void Item::setDeleted(DeleteSource cause) {
+    switch (op) {
+    case queue_op::mutation:
+        deleted = 1; // true
+        deletionCause = static_cast<uint8_t>(cause);
+        break;
+    case queue_op::system_event:
+        if (cause == DeleteSource::TTL) {
+            std::logic_error(
+                    "Item::setDeleted should not expire a system_event " +
+                    to_string(op));
+        }
+        deleted = 1; // true
+        deletionCause = static_cast<uint8_t>(cause);
+        break;
+    case queue_op::flush:
+    case queue_op::empty:
+    case queue_op::checkpoint_start:
+    case queue_op::checkpoint_end:
+    case queue_op::set_vbucket_state:
+        throw std::logic_error("Item::setDeleted cannot delete " +
+                               to_string(op));
+    }
+}
+
+uint64_t Item::nextCas() {
+    return std::chrono::steady_clock::now().time_since_epoch().count() +
+           (++casCounter);
+}
+
 item_info Item::toItemInfo(uint64_t vb_uuid, int64_t hlcEpoch) const {
     item_info info;
     info.cas = getCas();
@@ -368,4 +398,20 @@ item_info to_item_info(const ItemMetaData& itemMeta,
             deleted ? DocumentState::Deleted : DocumentState::Alive;
 
     return info;
+}
+
+bool CompareQueuedItemsBySeqnoAndKey::operator()(const queued_item& i1,
+                                                 const queued_item& i2) {
+    // First compare keys - if they differ then that's sufficient to
+    // distinguish them.
+    const auto comp = i1->getKey().compare(i2->getKey());
+    if (comp < 0) {
+        return true;
+    }
+    if (comp > 0) {
+        return false;
+    }
+
+    // Keys equal - need to check seqno.
+    return i1->getBySeqno() > i2->getBySeqno();
 }

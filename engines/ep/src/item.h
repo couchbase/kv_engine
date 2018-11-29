@@ -19,20 +19,14 @@
 
 #include "config.h"
 
-#include <memcached/engine.h>
-#include <platform/n_byte_integer.h>
-#include <stdio.h>
-#include <string.h>
-#include <chrono>
-#include <utility>
-
-#include <cstring>
-#include <string>
-
 #include "atomic.h"
 #include "blob.h"
 #include "dcp/dcp-types.h"
 #include "storeddockey.h"
+#include <mcbp/protocol/datatype.h>
+#include <memcached/types.h>
+#include <platform/n_byte_integer.h>
+#include <string>
 
 /// The set of possible operations which can be queued into a checkpoint.
 enum class queue_op : uint8_t {
@@ -308,19 +302,6 @@ public:
         vbucketId = to;
     }
 
-    /**
-     * Check if this item is expired or not.
-     *
-     * @param asOf the time to be compared with this item's expiry time
-     * @return true if this item's expiry time < asOf
-     */
-    bool isExpired(time_t asOf) const {
-        if (metaData.exptime != 0 && metaData.exptime < asOf) {
-            return true;
-        }
-        return false;
-    }
-
     size_t size(void) const {
         return sizeof(Item) + key.size() + getValMemSize();
     }
@@ -336,10 +317,6 @@ public:
         metaData.revSeqno = to;
     }
 
-    static uint32_t getNMetaBytes() {
-        return metaDataSize;
-    }
-
     const ItemMetaData& getMetaData() const {
         return metaData;
     }
@@ -352,30 +329,7 @@ public:
      * setDeleted controls the item's deleted flag.
      * @param cause Denotes the source of the deletion.
      */
-    void setDeleted(DeleteSource cause = DeleteSource::Explicit) {
-        switch (op) {
-        case queue_op::mutation:
-            deleted = 1; // true
-            deletionCause = static_cast<uint8_t>(cause);
-            break;
-        case queue_op::system_event:
-            if (cause == DeleteSource::TTL) {
-                std::logic_error(
-                        "Item::setDeleted should not expire a system_event " +
-                        to_string(op));
-            }
-            deleted = 1; // true
-            deletionCause = static_cast<uint8_t>(cause);
-            break;
-        case queue_op::flush:
-        case queue_op::empty:
-        case queue_op::checkpoint_start:
-        case queue_op::checkpoint_end:
-        case queue_op::set_vbucket_state:
-            throw std::logic_error("Item::setDeleted cannot delete " +
-                                   to_string(op));
-        }
-    }
+    void setDeleted(DeleteSource cause = DeleteSource::Explicit);
 
     // Returns the cause of the item's deletion (Explicit or TTL [aka expiry])
     DeleteSource deletionSource() const {
@@ -419,10 +373,6 @@ public:
         return !isCheckPointMetaItem();
     }
 
-    void setOperation(queue_op o) {
-        op = o;
-    }
-
     bool isCheckPointMetaItem() const {
         switch (op) {
         case queue_op::mutation:
@@ -462,10 +412,7 @@ public:
         return value.get().getTag();
     }
 
-    static uint64_t nextCas(void) {
-        return std::chrono::steady_clock::now().time_since_epoch().count() +
-               (++casCounter);
-    }
+    static uint64_t nextCas();
 
     /* Returns true if the specified CAS is valid */
     static bool isValidCas(const uint64_t& itmCas) {
@@ -541,7 +488,6 @@ private:
     mutable protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
 
     static std::atomic<uint64_t> casCounter;
-    static const uint32_t metaDataSize;
     DISALLOW_ASSIGN(Item);
 
     friend bool operator==(const Item& lhs, const Item& rhs);
@@ -571,18 +517,5 @@ static_assert(sizeof(Item) == sizeof(std::string) + 72,
 class CompareQueuedItemsBySeqnoAndKey {
 public:
     CompareQueuedItemsBySeqnoAndKey() {}
-    bool operator()(const queued_item &i1, const queued_item &i2) {
-        // First compare keys - if they differ then that's sufficient to
-        // distinguish them.
-        const auto comp = i1->getKey().compare(i2->getKey());
-        if (comp < 0) {
-            return true;
-        }
-        if (comp > 0) {
-            return false;
-        }
-
-        // Keys equal - need to check seqno.
-        return i1->getBySeqno() > i2->getBySeqno();
-    }
+    bool operator()(const queued_item& i1, const queued_item& i2);
 };
