@@ -214,10 +214,12 @@ TEST_F(HashTableTest, ForwardDeletions) {
 static void verifyFound(HashTable &h, const std::vector<StoredDocKey> &keys) {
     EXPECT_FALSE(h.find(makeStoredDocKey("aMissingKey"),
                         TrackReference::Yes,
-                        WantsDeleted::No));
+                        WantsDeleted::No)
+                         .storedValue);
 
     for (const auto& key : keys) {
-        EXPECT_TRUE(h.find(key, TrackReference::Yes, WantsDeleted::No));
+        EXPECT_TRUE(
+                h.find(key, TrackReference::Yes, WantsDeleted::No).storedValue);
     }
 }
 
@@ -397,11 +399,12 @@ protected:
     StoredValue* addAndEjectItem() {
         EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
-        auto* v(ht.find(key, TrackReference::Yes, WantsDeleted::No));
-        EXPECT_TRUE(v);
-        v->markClean();
-        EXPECT_TRUE(ht.unlocked_ejectItem(v, evictionPolicy));
-        return v;
+        auto result(ht.find(key, TrackReference::Yes, WantsDeleted::No));
+        EXPECT_TRUE(result.storedValue);
+        result.storedValue->markClean();
+        EXPECT_TRUE(ht.unlocked_ejectItem(
+                result.lock, result.storedValue, evictionPolicy));
+        return result.storedValue;
     }
 
     EPStats stats;
@@ -517,10 +520,13 @@ TEST_P(HashTableStatsTest, EjectFlush) {
     EXPECT_EQ(0, ht.getNumTempItems());
     EXPECT_EQ(0, ht.getNumDeletedItems());
 
-    StoredValue* v(ht.find(key, TrackReference::Yes, WantsDeleted::No));
-    EXPECT_TRUE(v);
-    v->markClean();
-    EXPECT_TRUE(ht.unlocked_ejectItem(v, evictionPolicy));
+    {
+        auto item(ht.find(key, TrackReference::Yes, WantsDeleted::No));
+        EXPECT_TRUE(item.storedValue);
+        item.storedValue->markClean();
+        EXPECT_TRUE(ht.unlocked_ejectItem(
+                item.lock, item.storedValue, evictionPolicy));
+    }
 
     switch (evictionPolicy) {
     case VALUE_ONLY:
@@ -549,10 +555,13 @@ TEST_P(HashTableStatsTest, EjectFlush) {
 TEST_P(HashTableStatsTest, numFailedEjects) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
     EXPECT_EQ(0, stats.numFailedEjects);
-    StoredValue* v(ht.find(key, TrackReference::Yes, WantsDeleted::No));
-    EXPECT_TRUE(v);
-    EXPECT_FALSE(ht.unlocked_ejectItem(v, evictionPolicy));
-    EXPECT_EQ(1, stats.numFailedEjects);
+    {
+        auto item(ht.find(key, TrackReference::Yes, WantsDeleted::No));
+        EXPECT_TRUE(item.storedValue);
+        EXPECT_FALSE(ht.unlocked_ejectItem(
+                item.lock, item.storedValue, evictionPolicy));
+        EXPECT_EQ(1, stats.numFailedEjects);
+    }
     ht.clear();
 }
 
@@ -564,12 +573,11 @@ TEST_P(HashTableStatsTest, TempDeletedRestore) {
     // Add (deleted) item; then remove from HT.
     item.setDeleted();
     ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
-    StoredValue* v = ht.find(key, TrackReference::Yes, WantsDeleted::Yes);
-    ASSERT_NE(nullptr, v);
-    v->markClean();
     { // Locking scope.
-        auto hbl = ht.getLockedBucket(key);
-        ht.unlocked_del(hbl, key);
+        auto item = ht.find(key, TrackReference::Yes, WantsDeleted::Yes);
+        ASSERT_NE(nullptr, item.storedValue);
+        item.storedValue->markClean();
+        ht.unlocked_del(item.lock, key);
     }
 
     // Restore as temporary initial item (simulating bg_fetch).
@@ -676,8 +684,10 @@ TEST_P(HashTableStatsTest, UncompressedMemorySizeTest) {
      * Ensure that length of the value stored is the same as the length
      * of the compressed item
      */
-    StoredValue* v = ht.find(
-            makeStoredDocKey("key0"), TrackReference::No, WantsDeleted::No);
+    StoredValue* v = ht.find(makeStoredDocKey("key0"),
+                             TrackReference::No,
+                             WantsDeleted::No)
+                             .storedValue;
     EXPECT_NE(nullptr, v);
     EXPECT_EQ(item->getNBytes(), v->valuelen());
 
@@ -705,7 +715,8 @@ TEST_F(HashTableTest, ItemAge) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
     // Test
-    StoredValue* v(ht.find(key, TrackReference::Yes, WantsDeleted::No));
+    StoredValue* v(
+            ht.find(key, TrackReference::Yes, WantsDeleted::No).storedValue);
     EXPECT_EQ(0, v->getValue()->getAge());
     v->getValue()->incrementAge();
     EXPECT_EQ(1, v->getValue()->getAge());
@@ -738,12 +749,13 @@ TEST_F(HashTableTest, NRUDefault) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
     // trackReferenced=false so we don't modify the NRU while validating it.
-    StoredValue* v(ht.find(key, TrackReference::No, WantsDeleted::No));
+    StoredValue* v(
+            ht.find(key, TrackReference::No, WantsDeleted::No).storedValue);
     EXPECT_NE(nullptr, v);
     EXPECT_EQ(INITIAL_NRU_VALUE, v->getNRUValue());
 
     // Check that find() by default /does/ update NRU.
-    v = ht.find(key, TrackReference::Yes, WantsDeleted::No);
+    v = ht.find(key, TrackReference::Yes, WantsDeleted::No).storedValue;
     EXPECT_NE(nullptr, v);
     EXPECT_EQ(INITIAL_NRU_VALUE - 1, v->getNRUValue());
 }
@@ -759,7 +771,8 @@ TEST_F(HashTableTest, NRUMinimum) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
     // trackReferenced=false so we don't modify the NRU while validating it.
-    StoredValue* v(ht.find(key, TrackReference::No, WantsDeleted::No));
+    StoredValue* v(
+            ht.find(key, TrackReference::No, WantsDeleted::No).storedValue);
     EXPECT_NE(nullptr, v);
     EXPECT_EQ(MIN_NRU_VALUE, v->getNRUValue());
 }
@@ -778,7 +791,8 @@ TEST_F(HashTableTest, NRUMinimumExistingItem) {
     // considered an update.
     EXPECT_EQ(MutationStatus::WasDirty, ht.set(item));
     // trackReferenced=false so we don't modify the NRU while validating it.
-    StoredValue* v(ht.find(key, TrackReference::No, WantsDeleted::No));
+    StoredValue* v(
+            ht.find(key, TrackReference::No, WantsDeleted::No).storedValue);
     EXPECT_NE(nullptr, v);
     EXPECT_EQ(MIN_NRU_VALUE, v->getNRUValue());
 }
@@ -1032,7 +1046,7 @@ TEST_F(HashTableTest, ItemFreqDecayerVisitorTest) {
     // Set the frequency count of each document in the range 0 to 255.
     for (int ii = 0; ii < 256; ii++) {
         auto key = makeStoredDocKey(std::to_string(ii));
-        v = ht.find(key, TrackReference::No, WantsDeleted::No);
+        v = ht.find(key, TrackReference::No, WantsDeleted::No).storedValue;
         v->setFreqCounterValue(ii);
        }
 
@@ -1042,9 +1056,8 @@ TEST_F(HashTableTest, ItemFreqDecayerVisitorTest) {
        // default of 50%
        for (int ii = 0; ii < 256; ii++) {
            auto key = makeStoredDocKey(std::to_string(ii));
-           v = ht.find(key, TrackReference::No, WantsDeleted::No);
-           auto lock = ht.getLockedBucket(key);
-           itemFreqDecayerVisitor.visit(lock, *v);
+           auto item = ht.find(key, TrackReference::No, WantsDeleted::No);
+           itemFreqDecayerVisitor.visit(item.lock, *item.storedValue);
        }
 
        // Confirm we visited all the documents
@@ -1053,7 +1066,7 @@ TEST_F(HashTableTest, ItemFreqDecayerVisitorTest) {
        // Check the frequency of the docs have been decayed by 50%.
        for (int ii = 0; ii < 256; ii++) {
            auto key = makeStoredDocKey(std::to_string(ii));
-           v = ht.find(key, TrackReference::No, WantsDeleted::No);
+           v = ht.find(key, TrackReference::No, WantsDeleted::No).storedValue;
            uint16_t expectVal = ii * 0.5;
            EXPECT_EQ(expectVal, v->getFreqCounterValue());
        }

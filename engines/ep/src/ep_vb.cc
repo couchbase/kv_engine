@@ -437,7 +437,7 @@ cb::mcbp::Status EPVBucket::evictKey(
     }
 
     if (v->isResident()) {
-        if (ht.unlocked_ejectItem(v, eviction)) {
+        if (ht.unlocked_ejectItem(hbl, v, eviction)) {
             *msg = "Ejected.";
 
             // Add key to bloom filter in case of full eviction mode
@@ -455,7 +455,7 @@ cb::mcbp::Status EPVBucket::evictKey(
 }
 
 bool EPVBucket::pageOut(const HashTable::HashBucketLock& lh, StoredValue*& v) {
-    return ht.unlocked_ejectItem(v, eviction);
+    return ht.unlocked_ejectItem(lh, v, eviction);
 }
 
 bool EPVBucket::eligibleToPageOut(const HashTable::HashBucketLock& lh,

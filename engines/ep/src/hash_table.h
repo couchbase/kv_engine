@@ -496,17 +496,43 @@ public:
     void resize(size_t to);
 
     /**
+     * Result of the find() methods.
+     */
+    struct FindResult {
+        /// If find successful then pointer to found StoredValue; else nullptr.
+        StoredValue* storedValue;
+        /**
+         * The (locked) HashBucketLock for the given key. Note this always
+         * returns a locked object; even if the requested key doesn't exist.
+         * This is to facilitate use-cases where the caller subsequently needs
+         * to insert a StoredValue for this key, to avoid unlocking and
+         * re-locking the mutex.
+         */
+        HashBucketLock lock;
+    };
+
+    /**
      * Find the item with the given key.
+     *
+     * If the item exists, returns a pointer to the item along with a lock
+     * on the items' hash bucket - the StoreValue can be safely accessed as
+     * long as the lock object remains in scope.
      *
      * @param key the key to find
      * @param trackReference whether to track the reference or not
      * @param wantsDeleted whether a deleted value needs to be returned
      *                     or not
-     * @return a pointer to a StoredValue -- NULL if not found
+     * @return A FindResult consisting of:
+     *         - a pointer to a StoredValue -- NULL if not found
+     *         - a (locked) HashBucketLock for the key's hash bucket. Note
+     *         this always returns a locked object; even if the requested key
+     *         doesn't exist. This is to facilitate use-cases where the caller
+     *         subsequently needs to insert a StoredValue for this key, to
+     *         avoid unlocking and re-locking the mutex.
      */
-    StoredValue* find(const DocKey& key,
-                      TrackReference trackReference,
-                      WantsDeleted wantsDeleted);
+    FindResult find(const DocKey& key,
+                    TrackReference trackReference,
+                    WantsDeleted wantsDeleted);
 
     /**
      * Find a resident item
@@ -730,6 +756,7 @@ public:
 
     /**
      * Eject an item meta data and value from memory.
+     * @param hbl Lock for this item.
      * @param vptr the reference to the pointer to the StoredValue instance.
      *             This is passed as a reference as it may be modified by this
      *             function (see note below).
@@ -740,7 +767,9 @@ public:
      *       the StoredValue will be deleted, therefore it is *not* safe to
      *       access vptr after calling this function if it returned true.
      */
-    bool unlocked_ejectItem(StoredValue*& vptr, item_eviction_policy_t policy);
+    bool unlocked_ejectItem(const HashTable::HashBucketLock& hbl,
+                            StoredValue*& vptr,
+                            item_eviction_policy_t policy);
 
     /**
      * Restore the value for the item.

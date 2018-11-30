@@ -701,7 +701,7 @@ void LoadStorageKVPairCallback::purge() {
                    StoredValue& v) override {
             StoredValue* vPtr = &v;
             currentBucket->ht.unlocked_ejectItem(
-                    vPtr, epstore.getItemEvictionPolicy());
+                    lh, vPtr, epstore.getItemEvictionPolicy());
             return true;
         }
 

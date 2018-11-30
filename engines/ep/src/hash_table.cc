@@ -236,15 +236,17 @@ void HashTable::resize(size_t newSize) {
     stats.coreLocal.get()->memOverhead.fetch_add(memorySize());
 }
 
-StoredValue* HashTable::find(const DocKey& key,
-                             TrackReference trackReference,
-                             WantsDeleted wantsDeleted) {
+HashTable::FindResult HashTable::find(const DocKey& key,
+                                      TrackReference trackReference,
+                                      WantsDeleted wantsDeleted) {
     if (!isActive()) {
         throw std::logic_error("HashTable::find: Cannot call on a "
                 "non-active object");
     }
     HashBucketLock hbl = getLockedBucket(key);
-    return unlocked_find(key, hbl.getBucketNum(), wantsDeleted, trackReference);
+    auto* sv = unlocked_find(
+            key, hbl.getBucketNum(), wantsDeleted, trackReference);
+    return {sv, std::move(hbl)};
 }
 
 std::unique_ptr<Item> HashTable::getRandomKey(long rnd) {
@@ -575,7 +577,7 @@ MutationStatus HashTable::insertFromWarmup(
     v->markClean();
 
     if (eject && !keyMetaDataOnly) {
-        unlocked_ejectItem(v, evictionPolicy);
+        unlocked_ejectItem(hbl, v, evictionPolicy);
     }
 
     return MutationStatus::NotFound;
@@ -719,7 +721,8 @@ HashTable::Position HashTable::endPosition() const  {
     return HashTable::Position(size, mutexes.size(), size);
 }
 
-bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
+bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock&,
+                                   StoredValue*& vptr,
                                    item_eviction_policy_t policy) {
     if (vptr == nullptr) {
         throw std::invalid_argument("HashTable::unlocked_ejectItem: "

@@ -94,9 +94,11 @@ void DefragmenterTest::fragment(size_t num_docs, size_t &num_remaining) {
             char key[16];
             snprintf(key, sizeof(key), "%d", i);
             auto* item =
-                    vbucket->ht.find(DocKey(key, DocKeyEncodesCollectionId::No),
-                                     TrackReference::Yes,
-                                     WantsDeleted::No);
+                    vbucket->ht
+                            .find(DocKey(key, DocKeyEncodesCollectionId::No),
+                                  TrackReference::Yes,
+                                  WantsDeleted::No)
+                            .storedValue;
             ASSERT_NE(nullptr, item);
 
             const uintptr_t page =

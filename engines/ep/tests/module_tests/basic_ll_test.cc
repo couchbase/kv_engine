@@ -84,7 +84,7 @@ protected:
             EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
             sv = ht.find(key, TrackReference::Yes, WantsDeleted::No)
-                         ->toOrderedStoredValue();
+                         .storedValue->toOrderedStoredValue();
 
             std::lock_guard<std::mutex> listWriteLg(
                     basicLL->getListWriteLock());
@@ -112,7 +112,7 @@ protected:
 
         OrderedStoredValue* sv =
                 ht.find(sKey, TrackReference::Yes, WantsDeleted::No)
-                        ->toOrderedStoredValue();
+                        .storedValue->toOrderedStoredValue();
 
         std::lock_guard<std::mutex> listWriteLg(basicLL->getListWriteLock());
         basicLL->appendToList(lg, listWriteLg, *sv);
@@ -139,7 +139,7 @@ protected:
 
         OrderedStoredValue* sv =
                 ht.find(sKey, TrackReference::Yes, WantsDeleted::No)
-                        ->toOrderedStoredValue();
+                        .storedValue->toOrderedStoredValue();
         std::lock_guard<std::mutex> listWriteLg(basicLL->getListWriteLock());
         basicLL->appendToList(lg, listWriteLg, *sv);
         basicLL->updateHighSeqno(listWriteLg, *sv);
@@ -164,7 +164,7 @@ protected:
         OrderedStoredValue* osv = ht.find(makeStoredDocKey(key),
                                           TrackReference::No,
                                           WantsDeleted::Yes)
-                                          ->toOrderedStoredValue();
+                                          .storedValue->toOrderedStoredValue();
 
         std::lock_guard<std::mutex> listWriteLg(basicLL->getListWriteLock());
         EXPECT_EQ(SequenceList::UpdateStatus::Success,
@@ -187,7 +187,7 @@ protected:
         OrderedStoredValue* osv = ht.find(makeStoredDocKey(key),
                                           TrackReference::No,
                                           WantsDeleted::Yes)
-                                          ->toOrderedStoredValue();
+                                          .storedValue->toOrderedStoredValue();
 
         std::lock_guard<std::mutex> listWriteLg(basicLL->getListWriteLock());
         EXPECT_EQ(SequenceList::UpdateStatus::Append,
@@ -486,7 +486,7 @@ TEST_F(BasicLinkedListTest, MarkStale) {
             ht.find(makeStoredDocKey(keyPrefix + std::to_string(numItems + 1)),
                     TrackReference::No,
                     WantsDeleted::Yes)
-                    ->toOrderedStoredValue();
+                    .storedValue->toOrderedStoredValue();
 
     /* Mark the item stale */
     {

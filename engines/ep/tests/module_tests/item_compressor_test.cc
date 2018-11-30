@@ -68,8 +68,10 @@ TEST_P(ItemCompressorTest, testCompressionInActiveMode) {
     rv = public_processSet(evictedItem, 0);
     ASSERT_EQ(MutationStatus::WasClean, rv);
 
-    auto* stored_item = this->vbucket->ht.find(
-            evictedKey, TrackReference::Yes, WantsDeleted::No);
+    auto* stored_item =
+            this->vbucket->ht
+                    .find(evictedKey, TrackReference::Yes, WantsDeleted::No)
+                    .storedValue;
     EXPECT_NE(nullptr, stored_item);
     // Need to clear the dirty flag to allow it to be ejected.
     stored_item->markClean();
@@ -134,7 +136,8 @@ TEST_P(ItemCompressorTest, testStoreUncompressedInActiveMode) {
     ASSERT_EQ(MutationStatus::WasClean, rv);
 
     auto* stored_item =
-            this->vbucket->ht.find(key, TrackReference::Yes, WantsDeleted::No);
+            this->vbucket->ht.find(key, TrackReference::Yes, WantsDeleted::No)
+                    .storedValue;
     EXPECT_NE(nullptr, stored_item);
 
     PauseResumeVBAdapter prAdapter(std::make_unique<ItemCompressorVisitor>());
