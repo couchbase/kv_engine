@@ -4588,13 +4588,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
     const bool allowExisting = (opcode == cb::mcbp::ClientOpcode::SetWithMeta ||
                                 opcode == cb::mcbp::ClientOpcode::SetqWithMeta);
 
-    const auto* req =
-            reinterpret_cast<const protocol_binary_request_set_with_meta*>(
-                    &request);
-    uint32_t flags = req->message.body.flags;
-    uint32_t expiration = ntohl(req->message.body.expiration);
-    uint64_t seqno = ntohll(req->message.body.seqno);
-    uint64_t cas = ntohll(req->message.body.cas);
+    const auto* payload =
+            reinterpret_cast<const cb::mcbp::request::SetWithMetaPayload*>(
+                    extras.data());
+
+    uint32_t flags = payload->getFlagsInNetworkByteOrder();
+    uint32_t expiration = payload->getExpiration();
+    uint64_t seqno = payload->getSeqno();
+    uint64_t cas = payload->getCas();
     uint64_t bySeqno = 0;
     ENGINE_ERROR_CODE ret;
     uint64_t commandCas = request.getCas();
@@ -4778,13 +4779,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     auto key = makeDocKey(cookie, request.getKey());
     uint64_t bySeqno = 0;
 
-    const auto* req =
-            reinterpret_cast<const protocol_binary_request_delete_with_meta*>(
-                    &request);
-    const uint32_t flags = req->message.body.flags;
-    const uint32_t delete_time = ntohl(req->message.body.delete_time);
-    const uint64_t seqno = ntohll(req->message.body.seqno);
-    const uint64_t metacas = ntohll(req->message.body.cas);
+    const auto* payload =
+            reinterpret_cast<const cb::mcbp::request::DelWithMetaPayload*>(
+                    extras.data());
+    const uint32_t flags = payload->getFlagsInNetworkByteOrder();
+    const uint32_t delete_time = payload->getDeleteTime();
+    const uint64_t seqno = payload->getSeqno();
+    const uint64_t metacas = payload->getCas();
     uint64_t cas = request.getCas();
     ENGINE_ERROR_CODE ret;
     try {

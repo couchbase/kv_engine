@@ -1298,36 +1298,98 @@ static_assert(sizeof(SetParamPayload) == 4, "Unexpected size");
  */
 #define GET_META_ITEM_DELETED_FLAG 0x01
 
-/**
- * The physical layout for the CMD_SET_WITH_META looks like the the normal
- * set request with the addition of a bulk of extra meta data stored
- * at the <b>end</b> of the package.
- */
-union protocol_binary_request_set_with_meta {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint32_t flags;
-            uint32_t expiration;
-            uint64_t seqno;
-            uint64_t cas;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 24];
-};
+namespace cb {
+namespace mcbp {
+namespace request {
+#pragma pack(1)
+class SetWithMetaPayload {
+public:
+    uint32_t getFlags() const {
+        return ntohl(flags);
+    }
+    uint32_t getFlagsInNetworkByteOrder() const {
+        return flags;
+    }
+    void setFlags(uint32_t flags) {
+        SetWithMetaPayload::flags = htonl(flags);
+    }
+    void setFlagsInNetworkByteOrder(uint32_t flags) {
+        SetWithMetaPayload::flags = flags;
+    }
+    uint32_t getExpiration() const {
+        return ntohl(expiration);
+    }
+    void setExpiration(uint32_t expiration) {
+        SetWithMetaPayload::expiration = htonl(expiration);
+    }
+    uint64_t getSeqno() const {
+        return ntohll(seqno);
+    }
+    void setSeqno(uint64_t seqno) {
+        SetWithMetaPayload::seqno = htonll(seqno);
+    }
+    uint64_t getCas() const {
+        return ntohll(cas);
+    }
+    void setCas(uint64_t cas) {
+        SetWithMetaPayload::cas = htonll(cas);
+    }
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
 
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint32_t flags;
-            uint32_t delete_time;
-            uint64_t seqno;
-            uint64_t cas;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 24];
-} protocol_binary_request_delete_with_meta;
+protected:
+    uint32_t flags = 0;
+    uint32_t expiration = 0;
+    uint64_t seqno = 0;
+    uint64_t cas = 0;
+};
+static_assert(sizeof(SetWithMetaPayload) == 24, "Unexpected struct size");
+
+class DelWithMetaPayload {
+public:
+    uint32_t getFlags() const {
+        return ntohl(flags);
+    }
+    uint32_t getFlagsInNetworkByteOrder() const {
+        return flags;
+    }
+    void setFlags(uint32_t flags) {
+        DelWithMetaPayload::flags = htonl(flags);
+    }
+    uint32_t getDeleteTime() const {
+        return ntohl(delete_time);
+    }
+    void setDeleteTime(uint32_t delete_time) {
+        DelWithMetaPayload::delete_time = htonl(delete_time);
+    }
+    uint64_t getSeqno() const {
+        return ntohll(seqno);
+    }
+    void setSeqno(uint64_t seqno) {
+        DelWithMetaPayload::seqno = htonll(seqno);
+    }
+    uint64_t getCas() const {
+        return ntohll(cas);
+    }
+    void setCas(uint64_t cas) {
+        DelWithMetaPayload::cas = htonll(cas);
+    }
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint32_t flags = 0;
+    uint32_t delete_time = 0;
+    uint64_t seqno = 0;
+    uint64_t cas = 0;
+};
+static_assert(sizeof(DelWithMetaPayload) == 24, "Unexpected struct size");
+#pragma pack()
+} // namespace request
+} // namespace mcbp
+} // namespace cb
 
 /**
  * The physical layout for a CMD_GET_META command returns the meta-data

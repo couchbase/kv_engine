@@ -73,12 +73,15 @@ public:
                            uint64_t revSeq,
                            uint32_t flags,
                            uint32_t exp) {
-        auto packet = reinterpret_cast<protocol_binary_request_set_with_meta*>(
-                wm.data());
-        packet->message.body.cas = htonll(cas);
-        packet->message.body.seqno = htonll(revSeq);
-        packet->message.body.expiration = htonl(exp);
-        packet->message.body.flags = flags;
+        auto& request = *reinterpret_cast<cb::mcbp::Request*>(wm.data());
+        auto ext = request.getExtdata();
+        using Extras = cb::mcbp::request::SetWithMetaPayload;
+        auto* extra = const_cast<Extras*>(
+                reinterpret_cast<const Extras*>(ext.data()));
+        extra->setCas(cas);
+        extra->setSeqno(revSeq);
+        extra->setExpiration(exp);
+        extra->setFlagsInNetworkByteOrder(flags);
     }
 
     /**

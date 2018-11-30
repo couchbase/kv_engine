@@ -41,6 +41,7 @@
 #include "vbucketdeletiontask.h"
 #include "warmup.h"
 
+#include <mcbp/protocol/framebuilder.h>
 #include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <string_utilities.h>
@@ -247,68 +248,69 @@ std::vector<char> KVBucketTest::buildWithMetaPacket(
         const std::string& body,
         const std::vector<char>& emd,
         int options) {
-    EXPECT_EQ(sizeof(protocol_binary_request_set_with_meta),
-              sizeof(protocol_binary_request_delete_with_meta));
+    EXPECT_EQ(sizeof(cb::mcbp::request::SetWithMetaPayload),
+              sizeof(cb::mcbp::request::DelWithMetaPayload));
 
-    size_t size = sizeof(protocol_binary_request_set_with_meta);
-    // body at least the meta
-    size_t extlen = (sizeof(uint32_t) * 2) + (sizeof(uint64_t) * 2);
-    size_t bodylen = extlen;
-    if (options) {
-        size += sizeof(uint32_t);
-        bodylen += sizeof(uint32_t);
-        extlen += sizeof(uint32_t);
-    }
-    if (!emd.empty()) {
-        EXPECT_TRUE(emd.size() < std::numeric_limits<uint16_t>::max());
-        size += sizeof(uint16_t) + emd.size();
-        bodylen += sizeof(uint16_t) + emd.size();
-        extlen += sizeof(uint16_t);
-    }
-    size += body.size();
-    bodylen += body.size();
-    size += key.size();
-    bodylen += key.size();
-
-    protocol_binary_request_set_with_meta header;
-    header.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-    header.message.header.request.setOpcode(opcode);
-    header.message.header.request.keylen = htons(key.size());
-    header.message.header.request.extlen = uint8_t(extlen);
-    header.message.header.request.datatype = datatype;
-    header.message.header.request.vbucket = vbucket.hton();
-    header.message.header.request.bodylen = htonl(bodylen);
-    header.message.header.request.opaque = opaque;
-    header.message.header.request.cas = htonll(cas);
-    header.message.body.flags = metaData.flags;
-    header.message.body.expiration = htonl(metaData.exptime);
-    header.message.body.seqno = htonll(metaData.revSeqno);
-    header.message.body.cas = htonll(metaData.cas);
-
-    std::vector<char> packet;
-    packet.reserve(size);
-    packet.insert(packet.end(),
-                  reinterpret_cast<char*>(&header),
-                  reinterpret_cast<char*>(&header) +
-                          sizeof(protocol_binary_request_set_with_meta));
+    // When using the engine interface directly by calling unknown_command
+    // the packet validators have already been called (and verified the
+    // content of the framing extras). None of the current engine functions
+    // currently tries to inspect the framing extras, so lets's just
+    // inject a blob to move the offsets around and verify that the
+    // current unit tests still pass.
+    std::vector<uint8_t> frame_extras(10);
+    std::vector<uint8_t> extras_backing(
+            sizeof(cb::mcbp::request::SetWithMetaPayload));
+    auto* extdata = reinterpret_cast<cb::mcbp::request::SetWithMetaPayload*>(
+            extras_backing.data());
+    extdata->setFlagsInNetworkByteOrder(metaData.flags);
+    extdata->setExpiration(gsl::narrow<uint32_t>(metaData.exptime));
+    extdata->setSeqno(metaData.revSeqno);
+    extdata->setCas(metaData.cas);
+    cb::byte_buffer extras{extras_backing.data(), extras_backing.size()};
 
     if (options) {
         options = htonl(options);
-        std::copy_n(reinterpret_cast<char*>(&options),
+        std::copy_n(reinterpret_cast<uint8_t*>(&options),
                     sizeof(uint32_t),
-                    std::back_inserter(packet));
+                    std::back_inserter(extras_backing));
+        extras = {extras_backing.data(), extras_backing.size()};
     }
 
     if (!emd.empty()) {
+        EXPECT_TRUE(emd.size() < std::numeric_limits<uint16_t>::max());
         uint16_t emdSize = htons(emd.size());
-        std::copy_n(reinterpret_cast<char*>(&emdSize),
+        std::copy_n(reinterpret_cast<uint8_t*>(&emdSize),
                     sizeof(uint16_t),
-                    std::back_inserter(packet));
+                    std::back_inserter(extras_backing));
+        extras = {extras_backing.data(), extras_backing.size()};
     }
 
-    std::copy_n(key.c_str(), key.size(), std::back_inserter(packet));
-    std::copy_n(body.c_str(), body.size(), std::back_inserter(packet));
-    packet.insert(packet.end(), emd.begin(), emd.end());
+    std::vector<char> packet(sizeof(cb::mcbp::Request) + frame_extras.size() +
+                             extras.size() + key.size() + body.size() +
+                             emd.size());
+    cb::mcbp::RequestBuilder builder(
+            {reinterpret_cast<uint8_t*>(packet.data()), packet.size()});
+
+    builder.setMagic(cb::mcbp::Magic::AltClientRequest);
+    builder.setOpcode(opcode);
+    builder.setDatatype(cb::mcbp::Datatype(datatype));
+    builder.setVBucket(vbucket);
+    builder.setOpaque(opaque);
+    builder.setCas(cas);
+    builder.setFramingExtras({frame_extras.data(), frame_extras.size()});
+    builder.setExtras(extras);
+    builder.setKey({reinterpret_cast<const uint8_t*>(key.data()), key.size()});
+
+    if (emd.empty()) {
+        builder.setValue(
+                {reinterpret_cast<const uint8_t*>(body.data()), body.size()});
+    } else {
+        std::vector<uint8_t> buffer;
+        std::copy(body.begin(), body.end(), std::back_inserter(buffer));
+        std::copy(emd.begin(), emd.end(), std::back_inserter(buffer));
+        builder.setValue({buffer.data(), buffer.size()});
+    }
+
     return packet;
 }
 

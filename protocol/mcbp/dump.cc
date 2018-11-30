@@ -329,14 +329,10 @@ protected:
 class SetWithMetaRequest : public Request {
 public:
     SetWithMetaRequest(const protocol_binary_request_header& req)
-        : Request(req),
-          packet(reinterpret_cast<const protocol_binary_request_set_with_meta&>(
-                  req)) {
+        : Request(req) {
     }
 
 protected:
-    const protocol_binary_request_set_with_meta& packet;
-
     std::string decodeOptions(const uint32_t* ptr) const {
         uint32_t value = ntohl(*ptr);
 
@@ -369,31 +365,37 @@ protected:
                     "24 bytes");
         }
 
+        const auto extdata = request.request.getExtdata();
+        const auto* extras =
+                reinterpret_cast<const cb::mcbp::request::SetWithMetaPayload*>(
+                        extdata.data());
+
         out << "    Extras" << std::endl;
         out << std::setfill('0');
         out << "        flags    (24-27): 0x" << std::setw(8)
-            << packet.message.body.flags << std::endl;
+            << extras->getFlagsInNetworkByteOrder() << std::endl;
         out << "        exptime  (28-31): 0x" << std::setw(8)
-            << ntohl(packet.message.body.expiration) << std::endl;
+            << extras->getExpiration() << std::endl;
         out << "        seqno    (32-39): 0x" << std::setw(16)
-            << ntohll(packet.message.body.seqno) << std::endl;
+            << extras->getSeqno() << std::endl;
         out << "        cas      (40-47): 0x" << std::setw(16)
-            << ntohll(packet.message.body.cas) << std::endl;
+            << extras->getCas() << std::endl;
 
         const uint16_t* nmeta_ptr;
         const uint32_t* options_ptr;
 
-        switch (request.request.extlen) {
+        switch (extdata.size()) {
         case 24: // no nmeta and no options
             break;
         case 26: // nmeta
-            nmeta_ptr = reinterpret_cast<const uint16_t*>(packet.bytes + 48);
+            nmeta_ptr = reinterpret_cast<const uint16_t*>(extdata.data() + 24);
             out << "        nmeta     (48-49): 0x" << std::setw(4)
                 << uint16_t(ntohs(*nmeta_ptr)) << std::endl;
             break;
         case 28: // options (4-byte field)
         case 30: // options and nmeta (options followed by nmeta)
-            options_ptr = reinterpret_cast<const uint32_t*>(packet.bytes + 48);
+            options_ptr =
+                    reinterpret_cast<const uint32_t*>(extdata.data() + 24);
             out << "        options  (48-51): 0x" << std::setw(8)
                 << uint32_t(ntohl(*options_ptr));
             if (*options_ptr != 0) {
@@ -403,7 +405,7 @@ protected:
             if (request.request.extlen == 28) {
                 break;
             }
-            nmeta_ptr = reinterpret_cast<const uint16_t*>(packet.bytes + 52);
+            nmeta_ptr = reinterpret_cast<const uint16_t*>(extdata.data() + 28);
             out << "        nmeta     (52-53): 0x" << std::setw(4)
                 << uint16_t(ntohs(*nmeta_ptr)) << std::endl;
             break;
