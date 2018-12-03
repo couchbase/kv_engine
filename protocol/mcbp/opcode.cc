@@ -180,8 +180,9 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::AdjustTimeofday:
     case ClientOpcode::EwouldblockCtl:
     case ClientOpcode::GetErrorMap:
-    case ClientOpcode::Invalid:
         return true;
+    case ClientOpcode::Invalid:
+        break;
     }
     return false;
 }
