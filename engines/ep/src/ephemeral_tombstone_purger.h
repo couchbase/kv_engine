@@ -171,6 +171,9 @@ private:
 
     /// Second paired task which deletes stale items from the sequenceList.
     std::shared_ptr<EphTombstoneStaleItemDeleter> staleItemDeleterTask;
+
+    /// TaskId for StaleItemDeleter registered with executorpool.
+    size_t staleItemDeleterTaskId;
 };
 
 /**
