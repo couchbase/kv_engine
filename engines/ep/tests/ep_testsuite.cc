@@ -1469,8 +1469,17 @@ static enum test_result test_vbucket_compact(EngineIface* h) {
     // Move beyond expire time
     testHarness->time_travel(exp_time + 1);
 
-    // Wait for the item to be expired
-    wait_for_stat_to_be(h, "vb_active_expired", 1);
+    // Touch the expiring key to trigger the expiry
+    const void* cookie = testHarness->create_cookie();
+    checkeq(cb::engine_errc::no_such_key,
+            get(h, cookie, exp_key, Vbid(0), DocStateFilter::Alive).first,
+            "Expiration trigger via touch failed");
+    testHarness->destroy_cookie(cookie);
+
+    // Expect the item to now be expired
+    checkeq(1,
+            get_int_stat(h, "vb_active_expired"),
+            "Incorrect number of expired keys");
     const int exp_purge_seqno =
             get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
