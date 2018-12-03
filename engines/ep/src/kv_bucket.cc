@@ -1724,7 +1724,8 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
                                            GenerateBySeqno genBySeqno,
                                            GenerateCas generateCas,
                                            uint64_t bySeqno,
-                                           ExtendedMetaData* emd) {
+                                           ExtendedMetaData* emd,
+                                           DeleteSource deleteSource) {
     VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
@@ -1771,7 +1772,8 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
                                   genBySeqno,
                                   generateCas,
                                   bySeqno,
-                                  collectionsRHandle);
+                                  collectionsRHandle,
+                                  deleteSource);
     }
 }
 

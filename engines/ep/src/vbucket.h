@@ -957,6 +957,8 @@ public:
      * @param generateCas whether or not to generate cas
      * @param bySeqno seqno of the key being deleted
      * @param readHandle Reader access to the key's collection data.
+     * @param deleteSource The source of the deletion, which if TTL triggers the
+     *                     expiration path.
      *
      * @return the result of the operation
      */
@@ -971,7 +973,8 @@ public:
             GenerateBySeqno genBySeqno,
             GenerateCas generateCas,
             uint64_t bySeqno,
-            const Collections::VB::Manifest::CachingReadHandle& readHandle);
+            const Collections::VB::Manifest::CachingReadHandle& readHandle,
+            DeleteSource deleteSource);
 
     /**
      * Delete an expired item
@@ -1420,6 +1423,7 @@ protected:
      *                    backfill queue
      * @param use_meta Indicates if v must be updated with the metadata
      * @param bySeqno seqno of the key being deleted
+     * @param deleteSource The source of the deletion
      *
      * @return pointer to the updated StoredValue. It can be same as that of
      *         v or different value if a new StoredValue is created for the
@@ -1434,7 +1438,8 @@ protected:
                       const ItemMetaData& metadata,
                       const VBQueueItemCtx& queueItmCtx,
                       bool use_meta,
-                      uint64_t bySeqno);
+                      uint64_t bySeqno,
+                      DeleteSource deleteSource);
 
     /**
      * Delete a key (associated StoredValue) from ALL in-memory data structures

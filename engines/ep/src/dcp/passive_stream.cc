@@ -261,8 +261,11 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
                         dcpResponse.get()));
                 break;
             case DcpResponse::Event::Deletion:
-            case DcpResponse::Event::Expiration:
                 ret = processDeletion(static_cast<MutationConsumerMessage*>(
+                        dcpResponse.get()));
+                break;
+            case DcpResponse::Event::Expiration:
+                ret = processExpiration(static_cast<MutationConsumerMessage*>(
                         dcpResponse.get()));
                 break;
             case DcpResponse::Event::SnapshotMarker:
@@ -363,8 +366,11 @@ process_items_error_t PassiveStream::processBufferedMessages(
                     static_cast<MutationConsumerMessage*>(response.get()));
             break;
         case DcpResponse::Event::Deletion:
-        case DcpResponse::Event::Expiration:
             ret = processDeletion(
+                    static_cast<MutationConsumerMessage*>(response.get()));
+            break;
+        case DcpResponse::Event::Expiration:
+            ret = processExpiration(
                     static_cast<MutationConsumerMessage*>(response.get()));
             break;
         case DcpResponse::Event::SnapshotMarker:
@@ -439,8 +445,9 @@ process_items_error_t PassiveStream::processBufferedMessages(
     return all_processed;
 }
 
-ENGINE_ERROR_CODE PassiveStream::processMutation(
-        MutationConsumerMessage* mutation) {
+ENGINE_ERROR_CODE PassiveStream::processMessage(
+        MutationConsumerMessage* message, MessageType messageType) {
+    const char* taskToString[3] = {"mutation", "deletion", "expiration"};
     VBucketPtr vb = engine->getVBucket(vb_);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -451,146 +458,137 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(
         return ENGINE_DISCONNECT;
     }
 
-    if (uint64_t(*mutation->getBySeqno()) < cur_snapshot_start.load() ||
-        uint64_t(*mutation->getBySeqno()) > cur_snapshot_end.load()) {
+    if (uint64_t(*message->getBySeqno()) < cur_snapshot_start.load() ||
+        uint64_t(*message->getBySeqno()) > cur_snapshot_end.load()) {
         log(spdlog::level::level_enum::warn,
-            "({}) Erroneous mutation [sequence "
+            "({}) Erroneous {} [sequence "
             "number does not fall in the expected snapshot range : "
             "{{snapshot_start ({}) <= seq_no ({}) <= "
-            "snapshot_end ({})]; Dropping the mutation!",
+            "snapshot_end ({})]; Dropping the {}!",
             vb_,
+            taskToString[messageType],
             cur_snapshot_start.load(),
-            *mutation->getBySeqno(),
-            cur_snapshot_end.load());
+            *message->getBySeqno(),
+            cur_snapshot_end.load(),
+            taskToString[messageType]);
         return ENGINE_ERANGE;
+    }
+
+    switch (messageType) {
+    case MessageType::Mutation:
+        // Skip
+        break;
+    case MessageType::Deletion:
+    case MessageType::Expiration:
+        // The deleted value has a body, send it through the mutation path so we
+        // set the deleted item with a value
+        if (message->getItem()->getNBytes()) {
+            return processMessage(message, MessageType::Mutation);
+        }
+        break;
     }
 
     // MB-17517: Check for the incoming item's CAS validity. We /shouldn't/
     // receive anything without a valid CAS, however given that versions without
     // this check may send us "bad" CAS values, we should regenerate them (which
     // is better than rejecting the data entirely).
-    if (!Item::isValidCas(mutation->getItem()->getCas())) {
+    if (!Item::isValidCas(message->getItem()->getCas())) {
         log(spdlog::level::level_enum::warn,
-            "Invalid CAS ({:#x}) received for mutation {{{}, seqno:{}}}. "
+            "Invalid CAS ({:#x}) received for {} {{{}, seqno:{}}}. "
             "Regenerating new CAS",
-            mutation->getItem()->getCas(),
+            message->getItem()->getCas(),
+            taskToString[messageType],
             vb_,
-            mutation->getItem()->getBySeqno());
-        mutation->getItem()->setCas();
+            message->getItem()->getBySeqno());
+        message->getItem()->setCas();
     }
 
     ENGINE_ERROR_CODE ret;
-    if (vb->isBackfillPhase()) {
-        ret = engine->getKVBucket()->addBackfillItem(
-                *mutation->getItem(),
-                mutation->getExtMetaData());
-    } else {
-        ret = engine->getKVBucket()->setWithMeta(*mutation->getItem(),
-                                                 0,
-                                                 NULL,
-                                                 consumer->getCookie(),
-                                                 {vbucket_state_active,
-                                                  vbucket_state_replica,
-                                                  vbucket_state_pending},
-                                                 CheckConflicts::No,
-                                                 true,
-                                                 GenerateBySeqno::No,
-                                                 GenerateCas::No,
-                                                 mutation->getExtMetaData());
+    DeleteSource deleteSource = DeleteSource::Explicit;
+    bool switchComplete = false;
+    switch (messageType) {
+    case MessageType::Mutation:
+        if (vb->isBackfillPhase()) {
+            ret = engine->getKVBucket()->addBackfillItem(
+                    *message->getItem(), message->getExtMetaData());
+        } else {
+            ret = engine->getKVBucket()->setWithMeta(*message->getItem(),
+                                                     0,
+                                                     NULL,
+                                                     consumer->getCookie(),
+                                                     {vbucket_state_active,
+                                                      vbucket_state_replica,
+                                                      vbucket_state_pending},
+                                                     CheckConflicts::No,
+                                                     true,
+                                                     GenerateBySeqno::No,
+                                                     GenerateCas::No,
+                                                     message->getExtMetaData());
+        }
+        switchComplete = true;
+        break;
+    case MessageType::Expiration:
+        deleteSource = DeleteSource::TTL;
+    // fallthrough with deleteSource updated
+    case MessageType::Deletion:
+        uint64_t delCas = 0;
+        ItemMetaData meta = message->getItem()->getMetaData();
+        ret = engine->getKVBucket()->deleteWithMeta(
+                message->getItem()->getKey(),
+                delCas,
+                nullptr,
+                message->getVBucket(),
+                consumer->getCookie(),
+                {vbucket_state_active,
+                 vbucket_state_replica,
+                 vbucket_state_pending},
+                CheckConflicts::No,
+                meta,
+                vb->isBackfillPhase(),
+                GenerateBySeqno::No,
+                GenerateCas::No,
+                *message->getBySeqno(),
+                message->getExtMetaData(),
+                deleteSource);
+        if (ret == ENGINE_KEY_ENOENT) {
+            ret = ENGINE_SUCCESS;
+        }
+        switchComplete = true;
+        break;
     }
-
+    if (!switchComplete) {
+        throw std::logic_error(
+                std::string("PassiveStream::processMessage: "
+                            "Message type not supported"));
+    }
     if (ret != ENGINE_SUCCESS) {
         log(spdlog::level::level_enum::warn,
             "{} Got error '{}' while trying to process "
-            "mutation with seqno:{}",
+            "{} with seqno:{}",
             vb_,
             cb::to_string(cb::to_engine_errc(ret)),
-            mutation->getItem()->getBySeqno());
+            taskToString[messageType],
+            message->getItem()->getBySeqno());
     } else {
-        handleSnapshotEnd(vb, *mutation->getBySeqno());
+        handleSnapshotEnd(vb, *message->getBySeqno());
     }
 
     return ret;
 }
 
+ENGINE_ERROR_CODE PassiveStream::processMutation(
+        MutationConsumerMessage* mutation) {
+    return processMessage(mutation, MessageType::Mutation);
+}
+
 ENGINE_ERROR_CODE PassiveStream::processDeletion(
         MutationConsumerMessage* deletion) {
-    VBucketPtr vb = engine->getVBucket(vb_);
-    if (!vb) {
-        return ENGINE_NOT_MY_VBUCKET;
-    }
+    return processMessage(deletion, MessageType::Deletion);
+}
 
-    auto consumer = consumerPtr.lock();
-    if (!consumer) {
-        return ENGINE_DISCONNECT;
-    }
-
-    if (uint64_t(*deletion->getBySeqno()) < cur_snapshot_start.load() ||
-        uint64_t(*deletion->getBySeqno()) > cur_snapshot_end.load()) {
-        log(spdlog::level::level_enum::warn,
-            "({}) Erroneous deletion [sequence "
-            "number does not fall in the expected snapshot range : "
-            "{{snapshot_start ({}) <= seq_no ({}) <= "
-            "snapshot_end ({})]; Dropping the deletion!",
-            vb_,
-            cur_snapshot_start.load(),
-            *deletion->getBySeqno(),
-            cur_snapshot_end.load());
-        return ENGINE_ERANGE;
-    }
-
-    // The deleted value has a body, send it through the mutation path so we
-    // set the deleted item with a value
-    if (deletion->getItem()->getNBytes()) {
-        return processMutation(deletion);
-    }
-
-    uint64_t delCas = 0;
-    ENGINE_ERROR_CODE ret;
-    ItemMetaData meta = deletion->getItem()->getMetaData();
-
-    // MB-17517: Check for the incoming item's CAS validity.
-    if (!Item::isValidCas(meta.cas)) {
-        log(spdlog::level::level_enum::warn,
-            "Invalid CAS ({:#x}) received for deletion {{{}, seqno:{}}}. "
-            "Regenerating new CAS",
-            meta.cas,
-            vb_,
-            *deletion->getBySeqno());
-        meta.cas = Item::nextCas();
-    }
-
-    ret = engine->getKVBucket()->deleteWithMeta(deletion->getItem()->getKey(),
-                                                delCas,
-                                                nullptr,
-                                                deletion->getVBucket(),
-                                                consumer->getCookie(),
-                                                {vbucket_state_active,
-                                                 vbucket_state_replica,
-                                                 vbucket_state_pending},
-                                                CheckConflicts::No,
-                                                meta,
-                                                vb->isBackfillPhase(),
-                                                GenerateBySeqno::No,
-                                                GenerateCas::No,
-                                                *deletion->getBySeqno(),
-                                                deletion->getExtMetaData());
-    if (ret == ENGINE_KEY_ENOENT) {
-        ret = ENGINE_SUCCESS;
-    }
-
-    if (ret != ENGINE_SUCCESS) {
-        log(spdlog::level::level_enum::warn,
-            "{} Got error '{}' while trying to process "
-            "deletion with seqno:{}",
-            vb_,
-            cb::to_string(cb::to_engine_errc(ret)),
-            *deletion->getBySeqno());
-    } else {
-        handleSnapshotEnd(vb, *deletion->getBySeqno());
-    }
-
-    return ret;
+ENGINE_ERROR_CODE PassiveStream::processExpiration(
+        MutationConsumerMessage* expiration) {
+    return processMessage(expiration, MessageType::Expiration);
 }
 
 ENGINE_ERROR_CODE PassiveStream::processSystemEvent(

@@ -4836,7 +4836,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
                                  checkConflicts,
                                  GenerateBySeqno::Yes,
                                  generateCas,
-                                 emd);
+                                 emd,
+                                 DeleteSource::Explicit);
         } else {
             // A delete with a value
             ret = setWithMeta(request.getVBucket(),
@@ -4894,7 +4895,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
         CheckConflicts checkConflicts,
         GenerateBySeqno genBySeqno,
         GenerateCas genCas,
-        cb::const_byte_buffer emd) {
+        cb::const_byte_buffer emd,
+        DeleteSource deleteSource) {
     std::unique_ptr<ExtendedMetaData> extendedMetaData;
     if (!emd.empty()) {
         extendedMetaData =
@@ -4917,7 +4919,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
                                     genBySeqno,
                                     genCas,
                                     0 /*bySeqno*/,
-                                    extendedMetaData.get());
+                                    extendedMetaData.get(),
+                                    deleteSource);
 }
 
 ENGINE_ERROR_CODE

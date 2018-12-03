@@ -992,6 +992,7 @@ protected:
      * @param genBySeqno generate a new seqno? (yes/no)
      * @param genCas generate a new CAS? (yes/no)
      * @param emd buffer referencing ExtendedMetaData
+     * @param deleteSource whether it should delete or expire
      * @returns state of the operation as an ENGINE_ERROR_CODE
      */
     ENGINE_ERROR_CODE deleteWithMeta(Vbid vbucket,
@@ -1004,7 +1005,8 @@ protected:
                                      CheckConflicts checkConflicts,
                                      GenerateBySeqno genBySeqno,
                                      GenerateCas genCas,
-                                     cb::const_byte_buffer emd);
+                                     cb::const_byte_buffer emd,
+                                     DeleteSource deleteSource);
 
     /**
      * Make a DocKey from the key buffer

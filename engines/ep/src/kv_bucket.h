@@ -179,7 +179,8 @@ public:
                                      GenerateBySeqno genBySeqno,
                                      GenerateCas generateCas,
                                      uint64_t bySeqno,
-                                     ExtendedMetaData* emd) override;
+                                     ExtendedMetaData* emd,
+                                     DeleteSource deleteSource) override;
 
     void reset() override;
 

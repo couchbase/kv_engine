@@ -475,6 +475,11 @@ protected:
  * The class differs from the DcpProducer version (MutationResponse) in that
  * it can optionally store 'ExtendedMetaData'
  *
+ * As of Mad Hatter, the consumer will always be able to interpret expiration
+ * messages, so EnableExpiryOutput is yes for the MutationResponse back to the
+ * producer (as it shouldn't receive any expiration messages from the producer
+ * to reply to if the consumer hasn't already utilised a control message to
+ * activate these expiry messages)
  */
 class MutationConsumerMessage : public MutationResponse {
 public:
@@ -491,7 +496,7 @@ public:
                            includeXattrs,
                            includeDeleteTime,
                            includeCollectionID,
-                           EnableExpiryOutput::No),
+                           EnableExpiryOutput::Yes),
           emd(e) {
     }
 

@@ -208,7 +208,8 @@ MutationStatus VBucketTest::public_processSoftDelete(const DocKey& key,
                            /*isBackfillItem*/ false,
                            /*preLinkDocCtx*/ nullptr),
             /*use_meta*/ false,
-            /*bySeqno*/ v->getBySeqno());
+            /*bySeqno*/ v->getBySeqno(),
+            DeleteSource::Explicit);
     return status;
 }
 

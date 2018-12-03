@@ -289,6 +289,8 @@ public:
      * @param generateCas whether or not to generate cas
      * @param bySeqno seqno of the key being deleted
      * @param emd ExtendedMetaData class object that contains any ext meta
+     * @param deleteSource Determines the source of deletion and if TTL, it
+     *                     triggers the expiry path.
      *
      * @return the result of the delete operation
      */
@@ -305,7 +307,8 @@ public:
             GenerateBySeqno genBySeqno,
             GenerateCas generateCas,
             uint64_t bySeqno,
-            ExtendedMetaData* emd) = 0;
+            ExtendedMetaData* emd,
+            DeleteSource deleteSource) = 0;
 
     /**
      * Resets the Bucket. Removes all elements from each VBucket's &

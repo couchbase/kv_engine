@@ -1318,7 +1318,8 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
                                                  /*isBackfillItem*/ false,
                                                  nullptr /* no pre link */),
                                   /*use_meta*/ false,
-                                  /*bySeqno*/ v->getBySeqno());
+                                  /*bySeqno*/ v->getBySeqno(),
+                                  DeleteSource::Explicit);
     }
 
     uint64_t seqno = 0;
@@ -1381,7 +1382,8 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
         GenerateBySeqno genBySeqno,
         GenerateCas generateCas,
         uint64_t bySeqno,
-        const Collections::VB::Manifest::CachingReadHandle& readHandle) {
+        const Collections::VB::Manifest::CachingReadHandle& readHandle,
+        DeleteSource deleteSource) {
     const auto& key = readHandle.getKey();
     auto hbl = ht.getLockedBucket(key);
     StoredValue* v = ht.unlocked_find(
@@ -1492,7 +1494,8 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
                                                               itemMeta,
                                                               queueItmCtx,
                                                               /*use_meta*/ true,
-                                                              bySeqno);
+                                                              bySeqno,
+                                                              deleteSource);
         }
     }
     cas = v ? v->getCas() : 0;
@@ -2452,7 +2455,8 @@ VBucket::processSoftDelete(const HashTable::HashBucketLock& hbl,
                            const ItemMetaData& metadata,
                            const VBQueueItemCtx& queueItmCtx,
                            bool use_meta,
-                           uint64_t bySeqno) {
+                           uint64_t bySeqno,
+                           DeleteSource deleteSource) {
     boost::optional<VBNotifyCtx> empty;
     if (v.isTempInitialItem() && eviction == FULL_EVICTION) {
         return std::make_tuple(MutationStatus::NeedBgFetch, &v, empty);
@@ -2490,7 +2494,7 @@ VBucket::processSoftDelete(const HashTable::HashBucketLock& hbl,
                                   /*onlyMarkDeleted*/ false,
                                   queueItmCtx,
                                   bySeqno,
-                                  DeleteSource::Explicit);
+                                  deleteSource);
     ht.updateMaxDeletedRevSeqno(metadata.revSeqno);
     return std::make_tuple(rv, newSv, notifyCtx);
 }

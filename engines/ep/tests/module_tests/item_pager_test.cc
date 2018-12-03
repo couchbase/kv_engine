@@ -978,7 +978,8 @@ TEST_P(STExpiryPagerTest, MB_25671) {
                                     GenerateBySeqno::No,
                                     GenerateCas::No,
                                     0,
-                                    nullptr);
+                                    nullptr,
+                                    DeleteSource::Explicit);
     // Prior to the MB fix - this would crash.
     EXPECT_EQ(err, deleteWithMeta());
 

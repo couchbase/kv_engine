@@ -625,24 +625,39 @@ ENGINE_ERROR_CODE DcpConsumer::toMainDeletion(DeleteType origin,
                                               cb::const_byte_buffer meta,
                                               uint32_t deleteTime) {
     IncludeDeleteTime includeDeleteTime;
-    uint32_t bytes;
+    uint32_t bytes = 0;
     DeleteSource deleteSource;
-    if (origin == DeleteType::Deletion) {
-        deleteTime = 0;
+    switch (origin) {
+    case DeleteType::Deletion: {
         includeDeleteTime = IncludeDeleteTime::No;
+        deleteTime = 0;
+        deleteSource = DeleteSource::Explicit;
         bytes = MutationResponse::deletionBaseMsgBytes + key.size() +
                 meta.size() + value.size();
-        deleteSource = DeleteSource::Explicit;
-    } else {
-        if (origin == DeleteType::DeletionV2) {
-            deleteSource = DeleteSource::Explicit;
-        } else {
-            deleteSource = DeleteSource::TTL;
-        }
+        break;
+    }
+    case DeleteType::DeletionV2: {
         meta = {};
         includeDeleteTime = IncludeDeleteTime::Yes;
+        deleteSource = DeleteSource::Explicit;
         bytes = MutationResponse::deletionV2BaseMsgBytes + key.size() +
                 value.size();
+        break;
+    }
+    case DeleteType::Expiration: {
+        meta = {};
+        includeDeleteTime = IncludeDeleteTime::Yes;
+        deleteSource = DeleteSource::TTL;
+        bytes = MutationResponse::expirationBaseMsgBytes + key.size() +
+                value.size();
+        break;
+    }
+    }
+    if (bytes == 0) {
+        throw std::logic_error(std::string("DcpConsumer::toMainDeletion: ") +
+                               logHeader() +
+                               " is using an unexpected deletion type, as bytes"
+                               " is uninitialized!");
     }
 
     UpdateFlowControl ufc(*this, bytes);

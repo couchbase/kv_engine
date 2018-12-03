@@ -268,7 +268,8 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
                                     GenerateBySeqno::Yes,
                                     GenerateCas::No,
                                     0,
-                                    nullptr));
+                                    nullptr,
+                                    DeleteSource::Explicit));
 
     EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
               store->setWithMeta(item2,
