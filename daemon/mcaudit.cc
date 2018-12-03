@@ -32,6 +32,8 @@
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
 #include <memcached/isotime.h>
+#include <platform/string_hex.h>
+#include <sstream>
 
 static cb::audit::UniqueAuditPtr auditHandle;
 
@@ -235,26 +237,26 @@ void audit_command_access_failed(const Cookie& cookie) {
     do_audit(&connection, MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE, root, buffer);
 }
 
-void audit_invalid_packet(const Cookie& cookie) {
+void audit_invalid_packet(const Cookie& cookie, cb::const_byte_buffer packet) {
     if (!isEnabled(MEMCACHED_AUDIT_INVALID_PACKET)) {
         return;
     }
     const auto& connection = cookie.getConnection();
     auto root = create_memcached_audit_object(&connection);
-    char buffer[256];
-    memset(buffer, 0, sizeof(buffer));
-    const auto packet = cookie.getPacket();
-    // Deliberately ignore failure of bytes_to_output_string
-    // We'll either have a partial string or no string.
-    bytes_to_output_string(buffer,
-                           sizeof(buffer),
-                           connection.getId(),
-                           true,
-                           "Invalid Packet:",
-                           reinterpret_cast<const char*>(packet.data()),
-                           packet.size());
-    cJSON_AddStringToObject(root.get(), "packet", buffer);
-    do_audit(&connection, MEMCACHED_AUDIT_INVALID_PACKET, root, buffer);
+    std::stringstream ss;
+    std::string trunc;
+    const cb::const_byte_buffer::size_type max_dump_size = 256;
+    if (packet.size() > max_dump_size) {
+        trunc = " [truncated " + std::to_string(packet.size() - max_dump_size) +
+                " bytes]";
+        packet = {packet.data(), max_dump_size};
+    }
+    ss << "Invalid packet: " << cb::to_hex(packet) << trunc;
+    const auto message = ss.str();
+    cJSON_AddStringToObject(
+            root.get(), "packet", message.c_str() + strlen("Invalid packet: "));
+    do_audit(
+            &connection, MEMCACHED_AUDIT_INVALID_PACKET, root, message.c_str());
 }
 
 bool mc_audit_event(uint32_t audit_eventid, cb::const_byte_buffer payload) {

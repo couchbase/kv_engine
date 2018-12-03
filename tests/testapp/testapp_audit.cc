@@ -26,9 +26,9 @@
 #include "memcached_audit_events.h"
 #include "auditd/auditd_audit_events.h"
 
-#include <string>
 #include <fstream>
-
+#include <string>
+#include <thread>
 
 class AuditTest : public TestappClientTest {
 public:
@@ -194,6 +194,42 @@ TEST_P(AuditTest, AuditIllegalPacket) {
                                   cb::mcbp::Status::Einval);
 
     ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_INVALID_PACKET));
+}
+
+/**
+ * Validate that a rejected illegal packet is audit logged.
+ */
+TEST_P(AuditTest, AuditIllegalFrame_MB31071) {
+    std::vector<uint8_t> blob(300);
+    std::fill(blob.begin(), blob.end(), 'a');
+
+    safe_send(blob.data(), blob.size(), false);
+
+    // This should terminate the conenction
+    EXPECT_EQ(0, phase_recv(blob.data(), blob.size()));
+    reconnect_to_server();
+
+    // Wait up to 5 secs for the entry to appear
+    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    do {
+        for (auto& entry : readAuditData()) {
+            cJSON* id = cJSON_GetObjectItem(entry.get(), "id");
+            ASSERT_NE(nullptr, id);
+            if (id->valueint == MEMCACHED_AUDIT_INVALID_PACKET) {
+                // Ok, this is the entry types i want... is this the one with
+                // the blob of 300 'a'?
+                // The audit daemon dumps the first 256 bytes and tells us
+                // the number it truncated. For simplicity we'll just search
+                // for that...
+                auto str = to_string(entry.get());
+                if (str.find(" [truncated 44 bytes]") != std::string::npos) {
+                    return;
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    } while (std::chrono::steady_clock::now() < timeout);
+    FAIL() << "TImed out waiting for log entry to appear";
 }
 
 /**

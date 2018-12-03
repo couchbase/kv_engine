@@ -385,7 +385,7 @@ bool StateMachine::conn_validate() {
                         to_string(result),
                         request.toJSON().dump(),
                         cookie.getErrorContext());
-                audit_invalid_packet(cookie);
+                audit_invalid_packet(cookie, cookie.getPacket());
                 cookie.sendResponse(result);
                 // sendResponse sets the write and go to continue
                 // execute the next command. Instead we want to
@@ -396,7 +396,7 @@ bool StateMachine::conn_validate() {
         } else {
             // We should not be receiving a server command.
             // Audit and log
-            audit_invalid_packet(cookie);
+            audit_invalid_packet(cookie, cookie.getPacket());
             LOG_WARNING("{}: Received a server command. Closing connection");
             connection.setState(StateMachine::State::closing);
             return true;

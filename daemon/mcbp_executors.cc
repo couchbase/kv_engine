@@ -998,7 +998,7 @@ void try_read_mcbp_command(Cookie& cookie) {
                 "connection",
                 c.getId(),
                 header.getMagic());
-        audit_invalid_packet(cookie);
+        audit_invalid_packet(cookie, input);
         c.setState(StateMachine::State::closing);
         return;
     }
