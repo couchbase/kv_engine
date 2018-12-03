@@ -42,6 +42,9 @@ class OrderedStoredValue;
  * This class represents a single document which is present in the HashTable -
  * essentially this is value_type used by HashTable.
  *
+ * Overview
+ * ========
+ *
  * It contains the documents' key, related metadata (CAS, rev, seqno, ...).
  * It also has a pointer to the documents' value - which may be null if the
  * value of the item is not currently resident (for example it's been evicted to
@@ -79,6 +82,9 @@ class OrderedStoredValue;
  *  variable {   | key[]             |
  *   length  {   | ...               |
  *               +-------------------+
+ *
+ * OrderedStoredValue
+ * ==================
  *
  * OrderedStoredValue is a "subclass" of StoredValue, which is used by
  * Ephemeral buckets as it supports maintaining a seqno ordering of items in
@@ -730,6 +736,11 @@ public:
         return static_cast<DeleteSource>(delTest);
     }
 
+    /// Returns if the StoredItem is pending or committed.
+    CommittedState getCommitted() const {
+        return static_cast<CommittedState>(bits2.test(committedIndex));
+    }
+
 protected:
     /**
      * Constructor - protected as allocation needs to be done via
@@ -832,6 +843,11 @@ protected:
         bits2.set(deletionSource, static_cast<uint8_t>(delSource));
     }
 
+    /// Sets the commited state to the specified value.
+    void setCommitted(CommittedState value) {
+        bits2.set(committedIndex, static_cast<uint8_t>(value));
+    }
+
     friend class StoredValueFactory;
 
     value_t            value;          // 8 bytes
@@ -883,6 +899,9 @@ protected:
      */
     // If the stored value is deleted, this stores the source of its deletion.
     static constexpr size_t deletionSource = 0;
+    /// Clear if the StoredValue is pending; set if the StoredValue is
+    /// committed.
+    static constexpr size_t committedIndex = 1;
 
     folly::AtomicBitSet<sizeof(uint8_t)> bits2;
 

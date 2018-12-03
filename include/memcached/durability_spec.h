@@ -37,6 +37,13 @@ namespace durability {
  * the on-the-wire representation
  */
 enum class Level : uint8_t {
+    /**
+     * No durability required. Not expecting client requests to specify this
+     * (equivalent to omitting the durability requirements from the request),
+     * but included in the enum so ep_engine can use Level / Requirements
+     * instances unconditionally and have None specify a "normal" op.
+     */
+    None = 0,
     Majority = 1,
     MajorityAndPersistOnMaster = 2,
     PersistToMajority = 3
@@ -53,6 +60,10 @@ class Requirements {
 public:
     Requirements() = default;
     Requirements(const Requirements&) = default;
+
+    Requirements(Level level_, uint16_t timeout_)
+        : level(level_), timeout(timeout_) {
+    }
 
     /**
      * Initialize a Requirement specification by parsing a byte buffer with
@@ -100,9 +111,16 @@ public:
         Requirements::timeout = timeout;
     }
 
+    /**
+     * Does this represent a valid durability requirements request?
+     * Note that Level::None is considered not valid; as it makes no sense
+     * for clients to specify it.
+     */
     bool isValid() const {
         // Timeout don't have any limitations.
         switch (level) {
+        case Level::None:
+            return false;
         case Level::Majority:
         case Level::MajorityAndPersistOnMaster:
         case Level::PersistToMajority:

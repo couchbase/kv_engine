@@ -228,6 +228,9 @@ protected:
                     {
                         cb::durability::Requirements requirements(payload);
                         switch (requirements.getLevel()) {
+                        case cb::durability::Level::None:
+                            ss << "None";
+                            break;
                         case cb::durability::Level::Majority:
                             ss << "Majority";
                             break;

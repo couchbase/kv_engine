@@ -239,14 +239,15 @@ void HashTable::resize(size_t newSize) {
 
 HashTable::FindResult HashTable::find(const DocKey& key,
                                       TrackReference trackReference,
-                                      WantsDeleted wantsDeleted) {
+                                      WantsDeleted wantsDeleted,
+                                      CommittedState perspective) {
     if (!isActive()) {
         throw std::logic_error("HashTable::find: Cannot call on a "
                 "non-active object");
     }
     HashBucketLock hbl = getLockedBucket(key);
     auto* sv = unlocked_find(
-            key, hbl.getBucketNum(), wantsDeleted, trackReference);
+            key, hbl.getBucketNum(), wantsDeleted, trackReference, perspective);
     return {sv, std::move(hbl)};
 }
 
@@ -291,18 +292,38 @@ HashTable::UpdateResult HashTable::unlocked_updateStoredValue(
                 "call on a non-active HT object");
     }
 
-    MutationStatus status =
-            v.isDirty() ? MutationStatus::WasDirty : MutationStatus::WasClean;
+    switch (v.getCommitted()) {
+    case CommittedState::Pending:
+        // Cannot update a SV if it's a Pending item.
+        return {MutationStatus::IsPendingSyncWrite, nullptr};
 
-    const auto preProps = valueStats.prologue(&v);
+    case CommittedState::Committed:
+        // Logically /can/ update a Committed StoredValue with a Pending Item;
+        // however internally this is implemented as a separate (new)
+        // StoredValue object for the Pending item.
+        if (itm.getCommitted() == CommittedState::Pending) {
+            auto* sv = HashTable::unlocked_addNewStoredValue(hbl, itm);
+            return {MutationStatus::WasClean, sv};
+        }
 
-    /* setValue() will mark v as undeleted if required */
-    v.setValue(itm);
-    updateFreqCounter(v);
+        // item is Commmitted; can directly replace the existing SV.
 
-    valueStats.epilogue(preProps, &v);
+        MutationStatus status = v.isDirty() ? MutationStatus::WasDirty
+                                            : MutationStatus::WasClean;
 
-    return {status, &v};
+        const auto preProps = valueStats.prologue(&v);
+
+        /* setValue() will mark v as undeleted if required */
+        v.setValue(itm);
+        updateFreqCounter(v);
+
+        valueStats.epilogue(preProps, &v);
+
+        return {status, &v};
+    }
+
+    throw std::logic_error(
+            "HashTable::unlocked_updateStoredValue: unreachable");
 }
 
 StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
@@ -468,10 +489,17 @@ void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
 StoredValue* HashTable::unlocked_find(const DocKey& key,
                                       int bucket_num,
                                       WantsDeleted wantsDeleted,
-                                      TrackReference trackReference) {
+                                      TrackReference trackReference,
+                                      CommittedState perspective) {
     for (StoredValue* v = values[bucket_num].get().get(); v;
             v = v->getNext().get().get()) {
         if (v->hasKey(key)) {
+            // When using Committed perspective; should only return Committed
+            // items.
+            if ((perspective == CommittedState::Committed) &&
+                (v->getCommitted() == CommittedState::Pending)) {
+                continue;
+            }
             if (trackReference == TrackReference::Yes && !v->isDeleted()) {
                 updateFreqCounter(*v);
 
@@ -492,13 +520,14 @@ StoredValue* HashTable::unlocked_find(const DocKey& key,
 HashTable::FindROResult HashTable::findForRead(const DocKey& key,
                                                TrackReference trackReference,
                                                WantsDeleted wantsDeleted) {
-    auto result = find(key, trackReference, wantsDeleted);
+    auto result =
+            find(key, trackReference, wantsDeleted, CommittedState::Committed);
     return {result.storedValue, std::move(result.lock)};
 }
 
 HashTable::FindResult HashTable::findForWrite(const DocKey& key,
                                               WantsDeleted wantsDeleted) {
-    return find(key, TrackReference::No, wantsDeleted);
+    return find(key, TrackReference::No, wantsDeleted, CommittedState::Pending);
 }
 
 void HashTable::unlocked_del(const HashBucketLock& hbl, const DocKey& key) {

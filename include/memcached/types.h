@@ -154,3 +154,15 @@ static const ExpiryLimit NoExpiryLimit{};
  * either explicitly or TTL (expired).
  */
 enum class DeleteSource : uint8_t { Explicit = 0, TTL = 1, LAST = TTL };
+
+/**
+ * The committed state of the Item.
+ * Used in a bitfield in StoredValue hence explicit values for enums required.
+ */
+enum class CommittedState : char {
+    /// Item is pending (is not yet committed) and hence not visible to
+    /// external clients yet.
+    Pending = 0,
+    /// Item is committed and is visible to external clients.
+    Committed = 1,
+};

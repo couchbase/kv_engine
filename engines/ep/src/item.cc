@@ -120,7 +120,8 @@ Item::Item(const Item& other)
       op(other.op),
       nru(other.nru),
       deleted(other.deleted),
-      datatype(other.datatype) {
+      datatype(other.datatype),
+      durabilityReqs(other.durabilityReqs) {
     ObjectRegistry::onCreateItem(this);
 }
 

@@ -53,6 +53,8 @@ StoredValue::StoredValue(const Item& itm,
     setNru(itm.getNRUValue());
     setResident(!isTempItem());
     setStale(false);
+    setCommitted(itm.getCommitted());
+
     // dirty initialised below
 
     // Placement-new the key which lives in memory directly after this
@@ -97,6 +99,7 @@ StoredValue::StoredValue(const StoredValue& other, UniquePtr n, EPStats& stats)
     setNru(other.getNru());
     setResident(other.isResident());
     setStale(false);
+    setCommitted(other.getCommitted());
     // Placement-new the key which lives in memory directly after this
     // object.
     StoredDocKey sKey(other.getKey());
@@ -415,6 +418,8 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     os << (sv.isNewCacheItem() ? 'N' : '.');
     os << (sv.isResident() ? 'R' : '.');
     os << (sv.isLocked(ep_current_time()) ? 'L' : '.');
+    os << ((sv.getCommitted() == CommittedState::Pending) ? 'P' : 'C');
+
     if (sv.isOrdered()) {
         const auto* osv = sv.toOrderedStoredValue();
         os << (osv->isStalePriv() ? 'S' : '.');

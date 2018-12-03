@@ -42,6 +42,7 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
+#include <logtags.h>
 #include <functional>
 #include <list>
 #include <set>
@@ -472,6 +473,16 @@ void VBucket::addStat(const char *nm, const T &val, ADD_STAT add_stat,
 
 void VBucket::handlePreExpiry(const HashTable::HashBucketLock& hbl,
                               StoredValue& v) {
+    // Pending items should not be subject to expiry
+    if (v.getCommitted() == CommittedState::Pending) {
+        std::stringstream ss;
+        ss << v;
+        throw std::invalid_argument(
+                "VBucket::handlePreExpiry: Cannot expire pending "
+                "StoredValues:" +
+                cb::UserDataView(ss.str()).getSanitizedValue());
+    }
+
     value_t value = v.getValue();
     if (value) {
         std::unique_ptr<Item> itm(v.toItem(false, id));
@@ -942,6 +953,10 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
         ret = addTempItemAndBGFetch(hbl, itm.getKey(), cookie, engine, true);
         break;
     }
+
+    case MutationStatus::IsPendingSyncWrite:
+        ret = ENGINE_SYNC_WRITE_IN_PROGRESS;
+        break;
     }
 
     return ret;
@@ -1020,6 +1035,9 @@ ENGINE_ERROR_CODE VBucket::replace(
             ret = ENGINE_EWOULDBLOCK;
             break;
         }
+        case MutationStatus::IsPendingSyncWrite:
+            ret = ENGINE_SYNC_WRITE_IN_PROGRESS;
+            break;
         }
 
         return ret;
@@ -1098,6 +1116,11 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm) {
                 "VBucket::addBackfillItem: "
                 "SET on a non-active vbucket should not require a "
                 "bg_metadata_fetch.");
+
+    case MutationStatus::IsPendingSyncWrite:
+        throw std::logic_error(
+                "VBucket::addBackfillItem: SET on a non-active vbucket should "
+                "not encounter a Pending Sync Write");
     }
 
     return ret;
@@ -1225,7 +1248,11 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
             return ENGINE_EWOULDBLOCK;
         }
         ret = addTempItemAndBGFetch(hbl, itm.getKey(), cookie, engine, true);
+        break;
     }
+    case MutationStatus::IsPendingSyncWrite:
+        ret = ENGINE_SYNC_WRITE_IN_PROGRESS;
+        break;
     }
 
     return ret;
@@ -1355,6 +1382,10 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         throw std::logic_error(
                 "VBucket::deleteItem: "
                 "Unexpected NEEDS_BG_FETCH from processSoftDelete");
+
+    case MutationStatus::IsPendingSyncWrite:
+        ret = ENGINE_SYNC_WRITE_IN_PROGRESS;
+        break;
     }
     return ret;
 }
@@ -1518,6 +1549,9 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
         hbl.getHTLock().unlock();
         bgFetch(key, cookie, engine, metaBgFetch);
         return ENGINE_EWOULDBLOCK;
+
+    case MutationStatus::IsPendingSyncWrite:
+        return ENGINE_SYNC_WRITE_IN_PROGRESS;
     }
     return ENGINE_SUCCESS;
 }
@@ -1525,6 +1559,14 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
 void VBucket::deleteExpiredItem(const Item& it,
                                 time_t startTime,
                                 ExpireBy source) {
+    // Pending items should not be subject to expiry
+    if (it.getCommitted() == CommittedState::Pending) {
+        std::stringstream ss;
+        ss << it;
+        throw std::invalid_argument(
+                "VBucket::deleteExpiredItem: Cannot expire pending item:" +
+                cb::UserDataView(ss.str()).getSanitizedValue());
+    }
 
     const DocKey& key = it.getKey();
 

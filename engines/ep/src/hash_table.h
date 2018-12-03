@@ -42,7 +42,8 @@ enum class MutationStatus : uint16_t {
     WasDirty, //!< This item was already dirty before this mutation
     IsLocked, //!< The item is locked and can't be updated.
     NoMem, //!< Insufficient memory to store this item.
-    NeedBgFetch //!< Require a bg fetch to process SET op
+    NeedBgFetch, //!< Require a bg fetch to process SET op,
+    IsPendingSyncWrite, //!< The item a pending SyncWrite and can't be updated.
 };
 
 /**
@@ -69,7 +70,10 @@ enum class TempAddStatus : uint8_t {
  * A container of StoredValue instances.
  *
  * The HashTable class is an unordered, associative array which maps
- * StoredDocKeys to StoredValue.
+ * StoredDocKeys to StoredValues.
+ *
+ * Overview
+ * ========
  *
  * It supports a limited degree of concurrent access - the underlying
  * HashTable buckets are guarded by N ht_locks; where N is typically of the
@@ -94,6 +98,59 @@ enum class TempAddStatus : uint8_t {
  * period of time - until the deletion is recorded on disk by the Flusher, at
  * which point they are removed from the HashTable by PersistenceCallback (we
  * don't want to unnecessarily spend memory on items which have been deleted).
+ *
+ * The HashTable can hold up to 1 Committed Item, *and* up to 1 Pending Item
+ * for each Key.
+ * Committed items are the "normal" item stored - they represent the current
+ * value of a key.
+ * Pending items are needed to support SyncWrites - they are items which are
+ * proposed to be the "next" value for a key, but are awaiting confirmation
+ * from sufficient other nodes before they can be committed - at which point
+ * the Pending Item is converted to a Committed one.
+ *
+ * Different uses of the HashTable will want to access potentially different
+ * items:
+ *   - when performing a read() then only Committed items will typically want
+ *     to be searched for - even if a Pending item exists it should be ignored.
+ *   - When performing a write() then both Committed and Pending items typically
+ *     want to be searched - as a Pending item will typically block any changes
+ *     to the key until it is later committed (or aborted).
+ *
+ * To facilitate this, find() operations on the HashTable expose two
+ * _perspectives_ which items can be searched via:
+ *
+ * A) findForRead() - uses Committed perspective. Only returns Committed
+ *    items; Pending items are ignored.
+ *
+ * B) findForWrite() - used Pending perspective. Returns both Committed
+ *    and Pending items; if both Pending and Committed items exist for a
+ *    key then the Pending item is returned.
+ *
+ * Implementation
+ * ==============
+ *
+ * The HashTable object is implemented as a vector of buckets; each bucket
+ * being unique_ptr<StoredValue>. Keys are hashed mod size() to select the
+ * bucket; then chaining is used (StoredValue::chain_next_or_replacement) to
+ * handle any collisions.
+ *
+ * The HashTable can be resized if it grows too full - this is done by
+ * acquiring all the ht_locks, and then allocating a new vector of buckets and
+ * re-hashing all elements into the new table. While resizing is occuring all
+ * other access to the HashTable is blocked.
+ *
+ * Support for holding both Committed and Pending items requires that we
+ * can represent having for each key, either:
+ *  1. No item present
+ *  2. Only a Pending item
+ *  3. Only a Committed item
+ *  4. Both Pending and Committed items.
+ *
+ * This is implemented by using the same key for both (so they map to the same
+ * hash bucket), and then connecting them via the chain_next_of_replacement
+ * field. If both Pending or Committed items are present then the Pending item
+ * is the first one in the chain; the StoredValue::committed flag is used to
+ * distinguish between them.
  */
 class HashTable {
 public:
@@ -514,6 +571,9 @@ public:
     /**
      * Find an item with the specified key for read-only access.
      *
+     * Uses the Committed perspective so only StoredValues which are committed
+     * will be returned.
+     *
      * @param key The key of the item to find
      * @param trackReference Should this lookup update referenced status (i.e.
      *                       increase the hotness of this key?)
@@ -550,6 +610,9 @@ public:
      * Does not modify referenced status, as typically the lookup of a SV to
      * change shouldn't affect the (old) reference count; the reference count
      * will get updated later part of actually changing the item.
+     *
+     * Uses the Pending perspective so StoredValues which are either committed
+     * or pending will be returned.
      *
      * @param key The key of the item to find
      * @param wantsDeleted whether a deleted value should be returned
@@ -614,6 +677,11 @@ public:
      *
      * @return Result of the operation; containing the status and pointer
      *         to updated storedValue (if successful).
+     *
+     * Note: while this is logically an update operation, if the Item is
+     *       Pending and the existing StoredValue is Committed then we create a
+     *       second physical StoredValue object, so v should be treated as an
+     *       [in] param only.
      */
     UpdateResult unlocked_updateStoredValue(const HashBucketLock& hbl,
                                             StoredValue& v,
@@ -673,13 +741,16 @@ public:
      * @param key the key of the item to find
      * @param bucket_num the bucket number
      * @param wantsDeleted true if soft deleted items should be returned
-     *
+     * @param perspective Under what perspective should the HashTable be
+     *        searched
      * @return a pointer to a StoredValue -- NULL if not found
      */
-    StoredValue* unlocked_find(const DocKey& key,
-                               int bucket_num,
-                               WantsDeleted wantsDeleted,
-                               TrackReference trackReference);
+    StoredValue* unlocked_find(
+            const DocKey& key,
+            int bucket_num,
+            WantsDeleted wantsDeleted,
+            TrackReference trackReference,
+            CommittedState perspective = CommittedState::Committed);
 
     /**
      * Get a lock holder holding a lock for the given bucket
@@ -904,6 +975,8 @@ private:
      * @param trackReference whether to track the reference or not
      * @param wantsDeleted whether a deleted value needs to be returned
      *                     or not
+     * @param perspective Under what perspective should the HashTable be
+     *        searched
      * @return A FindResult consisting of:
      *         - a pointer to a StoredValue -- NULL if not found
      *         - a HashBucketLock for the hash bucket of the found key. If
@@ -911,7 +984,8 @@ private:
      */
     FindResult find(const DocKey& key,
                     TrackReference trackReference,
-                    WantsDeleted wantsDeleted);
+                    WantsDeleted wantsDeleted,
+                    CommittedState perspective = CommittedState::Committed);
 
     // The initial (and minimum) size of the HashTable.
     const size_t initialSize;

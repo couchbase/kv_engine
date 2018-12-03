@@ -24,6 +24,7 @@
 #include "dcp/dcp-types.h"
 #include "storeddockey.h"
 #include <mcbp/protocol/datatype.h>
+#include <memcached/durability_spec.h>
 #include <memcached/types.h>
 #include <platform/n_byte_integer.h>
 #include <string>
@@ -422,6 +423,25 @@ public:
         return true;
     }
 
+    /**
+     * Sets the item as being a pendingSyncWrite with the specified durability
+     * requirements.
+     */
+    void setPendingSyncWrite(cb::durability::Requirements requirements) {
+        if (!requirements.isValid()) {
+            throw std::invalid_argument(
+                    "setPendingSyncWrite: specified requirements are invalid");
+        }
+        durabilityReqs = requirements;
+    }
+
+    /// Is this Item Committed, or Pending Sync Write?
+    CommittedState getCommitted() const {
+        return (durabilityReqs.getLevel() == cb::durability::Level::None)
+                       ? CommittedState::Committed
+                       : CommittedState::Pending;
+    }
+
     /* Retrieve item_info for this item instance
      *
      * @param vb_uuid the UUID of the associated vbucket
@@ -486,6 +506,14 @@ private:
     // real value in the actual blob. If the blob isn't there we use
     // this cached version.
     mutable protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
+
+    /**
+     * Mutations' durability requirements. For non-synchronous mutations has
+     * Level==None; for SyncWrites specifies what conditions need to be met
+     * before the item is considered durable.
+     */
+    cb::durability::Requirements durabilityReqs = {cb::durability::Level::None,
+                                                   0};
 
     static std::atomic<uint64_t> casCounter;
     DISALLOW_ASSIGN(Item);
