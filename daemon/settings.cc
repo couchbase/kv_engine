@@ -1085,8 +1085,12 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             other.getActiveExternalUsersPushInterval()) {
             LOG_INFO(
                     R"(Change push interval for external users list from {}s to {}s)",
-                    getActiveExternalUsersPushInterval().count(),
-                    other.getActiveExternalUsersPushInterval().count());
+                    std::chrono::duration_cast<std::chrono::seconds>(
+                            getActiveExternalUsersPushInterval())
+                            .count(),
+                    std::chrono::duration_cast<std::chrono::seconds>(
+                            other.getActiveExternalUsersPushInterval())
+                            .count());
             setActiveExternalUsersPushInterval(
                     other.getActiveExternalUsersPushInterval());
         }
