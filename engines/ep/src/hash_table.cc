@@ -24,6 +24,7 @@
 #include <phosphor/phosphor.h>
 #include <platform/compress.h>
 
+#include <logtags.h>
 #include <cstring>
 
 static const ssize_t prime_size_table[] = {
@@ -272,18 +273,16 @@ MutationStatus HashTable::set(Item& val) {
                                    WantsDeleted::Yes,
                                    TrackReference::No);
     if (v) {
-        return unlocked_updateStoredValue(hbl.getHTLock(), *v, val);
+        return unlocked_updateStoredValue(hbl, *v, val).status;
     } else {
         unlocked_addNewStoredValue(hbl, val);
         return MutationStatus::WasClean;
     }
 }
 
-MutationStatus HashTable::unlocked_updateStoredValue(
-        const std::unique_lock<std::mutex>& htLock,
-        StoredValue& v,
-        const Item& itm) {
-    if (!htLock) {
+HashTable::UpdateResult HashTable::unlocked_updateStoredValue(
+        const HashBucketLock& hbl, StoredValue& v, const Item& itm) {
+    if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "HashTable::unlocked_updateStoredValue: htLock "
                 "not held");
@@ -306,7 +305,7 @@ MutationStatus HashTable::unlocked_updateStoredValue(
 
     valueStats.epilogue(preProps, &v);
 
-    return status;
+    return {status, &v};
 }
 
 StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
@@ -571,7 +570,18 @@ MutationStatus HashTable::insertFromWarmup(
                 return MutationStatus::InvalidCas;
             }
         }
-        unlocked_updateStoredValue(hbl.getHTLock(), *v, itm);
+        auto res = unlocked_updateStoredValue(hbl, *v, itm);
+        if (res.status != MutationStatus::WasClean) {
+            // When inserting from warmup we always succeed; and always without
+            // finding the item was already existing.
+            std::stringstream ss;
+            ss << itm;
+            throw std::logic_error(
+                    "HashTable::insertFromWarmup: Unexpected status:" +
+                    std::to_string(int(res.status)) + " when inserting " +
+                    cb::UserData(ss.str()).getSanitizedValue());
+        }
+        v = res.storedValue;
     }
 
     v->markClean();

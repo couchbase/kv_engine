@@ -470,7 +470,7 @@ void VBucket::addStat(const char *nm, const T &val, ADD_STAT add_stat,
     }
 }
 
-void VBucket::handlePreExpiry(const std::unique_lock<std::mutex>& hbl,
+void VBucket::handlePreExpiry(const HashTable::HashBucketLock& hbl,
                               StoredValue& v) {
     value_t value = v.getValue();
     if (value) {
@@ -792,7 +792,7 @@ StoredValue* VBucket::fetchValidValue(
             if (queueExpired == QueueExpired::Yes &&
                 getState() == vbucket_state_active) {
                 incExpirationStat(ExpireBy::Access);
-                handlePreExpiry(hbl.getHTLock(), *v);
+                handlePreExpiry(hbl, *v);
                 VBNotifyCtx notifyCtx;
                 std::tie(std::ignore, v, notifyCtx) =
                         processExpiredItem(hbl, *v, cHandle);
@@ -1571,9 +1571,9 @@ void VBucket::deleteExpiredItem(const Item& it,
             }
         } else if (v->isExpired(startTime) && !v->isDeleted()) {
             VBNotifyCtx notifyCtx;
-            ht.unlocked_updateStoredValue(hbl.getHTLock(), *v, it);
+            auto result = ht.unlocked_updateStoredValue(hbl, *v, it);
             std::tie(std::ignore, std::ignore, notifyCtx) =
-                    processExpiredItem(hbl, *v, rHandle);
+                    processExpiredItem(hbl, *result.storedValue, rHandle);
             // we unlock ht lock here because we want to avoid potential lock
             // inversions arising from notifyNewSeqno() call
             hbl.getHTLock().unlock();
@@ -1595,10 +1595,10 @@ void VBucket::deleteExpiredItem(const Item& it,
                                      TrackReference::No);
                 v->setTempDeleted();
                 v->setRevSeqno(it.getRevSeqno());
-                ht.unlocked_updateStoredValue(hbl.getHTLock(), *v, it);
+                auto result = ht.unlocked_updateStoredValue(hbl, *v, it);
                 VBNotifyCtx notifyCtx;
                 std::tie(std::ignore, std::ignore, notifyCtx) =
-                        processExpiredItem(hbl, *v, rHandle);
+                        processExpiredItem(hbl, *result.storedValue, rHandle);
                 // we unlock ht lock here because we want to avoid potential
                 // lock inversions arising from notifyNewSeqno() call
                 hbl.getHTLock().unlock();

@@ -735,8 +735,9 @@ TEST_F(HashTableTest, ItemAge) {
     Item item2(key, 0, 0, "value2", strlen("value2"));
     item2.getValue()->incrementAge();
     auto hbl = ht.getLockedBucket(key);
-    ht.unlocked_updateStoredValue(hbl.getHTLock(), *v, item2);
-    EXPECT_EQ(1, v->getValue()->getAge());
+    auto updated = ht.unlocked_updateStoredValue(hbl, *v, item2);
+    ASSERT_TRUE(updated.storedValue);
+    EXPECT_EQ(1, updated.storedValue->getValue()->getAge());
 }
 
 // Check not specifying results in the INITIAL_NRU_VALUE.

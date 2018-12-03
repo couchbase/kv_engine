@@ -562,19 +562,30 @@ public:
     void storeCompressedBuffer(cb::const_char_buffer buf, StoredValue& v);
 
     /**
+     * Result of an Update operation.
+     */
+    struct UpdateResult {
+        /// Status of the operation.
+        MutationStatus status;
+        // If the update was successful (WasClean or WasDirty); points to the
+        // updated value; otherwise nullptr.
+        StoredValue* storedValue;
+    };
+
+    /**
      * Updates an existing StoredValue in the HT.
      * Assumes that HT bucket lock is grabbed.
      *
-     * @param htLock Hash table lock that must be held.
-     * @param v Reference to the StoredValue to be updated.
+     * @param hbl Hash table bucket lock that must be held.
+     * @param[in] v Reference to the StoredValue to be updated.
      * @param itm Item to be updated.
      *
-     * @return Result indicating the status of the operation
+     * @return Result of the operation; containing the status and pointer
+     *         to updated storedValue (if successful).
      */
-    MutationStatus unlocked_updateStoredValue(
-            const std::unique_lock<std::mutex>& htLock,
-            StoredValue& v,
-            const Item& itm);
+    UpdateResult unlocked_updateStoredValue(const HashBucketLock& hbl,
+                                            StoredValue& v,
+                                            const Item& itm);
 
     /**
      * Adds a new StoredValue in the HT.

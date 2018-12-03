@@ -506,14 +506,16 @@ EPVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
                              const Item& itm,
                              const VBQueueItemCtx& queueItmCtx,
                              bool justTouch) {
-    MutationStatus status;
+    HashTable::UpdateResult result;
     if (justTouch) {
-        status = MutationStatus::WasDirty;
+        result.status = MutationStatus::WasDirty;
+        result.storedValue = &v;
     } else {
-        status = ht.unlocked_updateStoredValue(hbl.getHTLock(), v, itm);
+        result = ht.unlocked_updateStoredValue(hbl, v, itm);
     }
 
-    return std::make_tuple(&v, status, queueDirty(v, queueItmCtx));
+    return std::make_tuple(
+            result.storedValue, result.status, queueDirty(v, queueItmCtx));
 }
 
 std::pair<StoredValue*, VBNotifyCtx> EPVBucket::addNewStoredValue(

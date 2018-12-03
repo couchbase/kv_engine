@@ -351,7 +351,7 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
     const bool recreatingDeletedItem = v.isDeleted() && !itm.isDeleted();
 
     VBNotifyCtx notifyCtx;
-    StoredValue* newSv = &v;
+    StoredValue* newSv = nullptr;
     StoredValue::UniquePtr ownedSv;
     MutationStatus status(MutationStatus::WasClean);
 
@@ -368,11 +368,13 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
                 modifySeqList(lh, listWriteLg, *(v.toOrderedStoredValue()));
 
         switch (res) {
-        case SequenceList::UpdateStatus::Success:
+        case SequenceList::UpdateStatus::Success: {
             /* OrderedStoredValue moved to end of the list, just update its
                value */
-            status = ht.unlocked_updateStoredValue(hbl.getHTLock(), v, itm);
-            break;
+            auto result = ht.unlocked_updateStoredValue(hbl, v, itm);
+            status = result.status;
+            newSv = result.storedValue;
+        } break;
 
         case SequenceList::UpdateStatus::Append: {
             /* OrderedStoredValue cannot be moved to end of the list,
