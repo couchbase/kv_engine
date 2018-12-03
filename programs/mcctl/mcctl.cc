@@ -123,10 +123,14 @@ static int set_verbosity(MemcachedConnection& connection,
 
 static void usage() {
     fprintf(stderr,
-            "Usage: mcctl [-h host[:port]] [-p port] [-u user] [-P pass] [-s] [-C ssl_cert] [-K ssl_key] <get|set> property [value]\n"
+            "Usage: mcctl [-h host[:port]] [-p port] [-u user] [-P pass] [-s] "
+            "[-C ssl_cert] [-K ssl_key] <get|set> property [value]\n"
             "\n"
-            "    get <property>           Returns the value of the given property.\n"
-            "    set <property> [value]   Sets `property` to the given value.\n");
+            "    get <property>           Returns the value of the given "
+            "property.\n"
+            "    set <property> [value]   Sets `property` to the given value.\n"
+            "    reload <property>        Reload the named property (config, "
+            "sasl)\n");
     exit(EXIT_FAILURE);
 }
 
@@ -191,11 +195,10 @@ int main(int argc, char** argv) {
     }
 
     std::string command{argv[optind]};
-    if (command != "get" && command != "set") {
+    if (command != "get" && command != "set" && command != "reload") {
         fprintf(stderr, "Unknown subcommand \"%s\"\n", argv[optind]);
         usage();
     }
-
 
     try {
         in_port_t in_port;
@@ -238,8 +241,7 @@ int main(int argc, char** argv) {
                 std::cout << connection.ioctl_get(property) << std::endl;
                 return EXIT_SUCCESS;
             }
-        } else {
-            // we only support get and set
+        } else if (command == "set") {
             std::string value;
             if (optind + 2 < argc) {
                 value = argv[optind + 2];
@@ -257,6 +259,41 @@ int main(int argc, char** argv) {
             } else {
                 connection.ioctl_set(property, value);
                 return EXIT_SUCCESS;
+            }
+        } else if (command == "reload") {
+            if (property == "config") {
+                using BinprotConfigReloadCommand =
+                        BinprotCommandT<BinprotGenericCommand,
+                                        cb::mcbp::ClientOpcode::ConfigReload>;
+
+                auto response =
+                        connection.execute(BinprotConfigReloadCommand{});
+                if (!response.isSuccess()) {
+                    std::cerr << "Failed: " << to_string(response.getStatus())
+                              << std::endl;
+                    if (!response.getDataString().empty()) {
+                        std::cerr << "\t" << response.getDataString()
+                                  << std::endl;
+                    }
+                    return EXIT_FAILURE;
+                }
+            } else if (property == "sasl") {
+                auto response =
+                        connection.execute(BinprotIsaslRefreshCommand{});
+                if (!response.isSuccess()) {
+                    std::cerr << "Failed: " << to_string(response.getStatus())
+                              << std::endl;
+                    if (!response.getDataString().empty()) {
+                        std::cerr << "\t" << response.getDataString()
+                                  << std::endl;
+                    }
+                    return EXIT_FAILURE;
+                }
+            } else {
+                std::cerr
+                        << R"(Error: Unknown property. The only supported properties is "config" or "sasl")"
+                        << std::endl;
+                return EXIT_FAILURE;
             }
         }
     } catch (const ConnectionError& ex) {
