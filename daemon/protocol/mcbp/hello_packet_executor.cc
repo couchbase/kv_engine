@@ -267,11 +267,12 @@ void process_hello_packet_executor(Cookie& cookie) {
             added = true;
             break;
         case cb::mcbp::Feature::AltRequestSupport:
-            // The AltRequestSupport is only informative, but we don't support
-            // it yet
+            // The AltRequestSupport is only informative
+            added = true;
             break;
         case cb::mcbp::Feature::SyncReplication:
-            // The SyncReplication is only informative, but we support it yet
+            // The SyncReplication is only informative
+            added = true;
             break;
         case cb::mcbp::Feature::COLLECTIONS:
             // Allow KV engine to chicken out

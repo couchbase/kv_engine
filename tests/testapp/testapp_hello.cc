@@ -168,3 +168,27 @@ TEST_F(HelloTest, JsonAgentInformationStringsTruncated) {
 
     EXPECT_TRUE(found) << "connection not found in stats: " + to_string(stats);
 }
+
+/// Verify that the server gives me AltRequestSupport
+TEST_F(HelloTest, AltRequestSupport) {
+    BinprotHelloCommand cmd("AltRequestSupport");
+    cmd.enableFeature(cb::mcbp::Feature::AltRequestSupport);
+    BinprotHelloResponse rsp;
+    getConnection().executeCommand(cmd, rsp);
+    ASSERT_TRUE(rsp.isSuccess());
+    const auto& features = rsp.getFeatures();
+    ASSERT_EQ(1, features.size());
+    ASSERT_EQ(cb::mcbp::Feature::AltRequestSupport, features[0]);
+}
+
+/// Verify that the server gives me SyncReplication
+TEST_F(HelloTest, SyncReplication) {
+    BinprotHelloCommand cmd("SyncReplication");
+    cmd.enableFeature(cb::mcbp::Feature::SyncReplication);
+    BinprotHelloResponse rsp;
+    getConnection().executeCommand(cmd, rsp);
+    ASSERT_TRUE(rsp.isSuccess());
+    const auto& features = rsp.getFeatures();
+    ASSERT_EQ(1, features.size());
+    ASSERT_EQ(cb::mcbp::Feature::SyncReplication, features[0]);
+}
