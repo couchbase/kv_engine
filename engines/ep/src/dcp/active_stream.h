@@ -353,4 +353,9 @@ private:
      * many streams-per-vbucket
      */
     cb::mcbp::DcpStreamId sid;
+
+    /**
+     * A prefix to use in all stream log messages
+     */
+    std::string logPrefix;
 };
