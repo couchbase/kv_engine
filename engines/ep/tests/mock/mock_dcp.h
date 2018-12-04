@@ -121,6 +121,29 @@ public:
                                    cb::const_byte_buffer key,
                                    cb::const_byte_buffer eventData) override;
 
+    ENGINE_ERROR_CODE prepare(
+            uint32_t opaque,
+            item* itm,
+            Vbid vbucket,
+            uint64_t by_seqno,
+            uint64_t rev_seqno,
+            uint32_t lock_time,
+            uint8_t nru,
+            DocumentState document_state,
+            cb::durability::Requirements durability) override {
+        return ENGINE_ENOTSUP;
+    }
+    ENGINE_ERROR_CODE seqno_acknowledged(uint32_t opaque,
+                                         uint64_t in_memory_seqno,
+                                         uint64_t on_disk_seqno) override {
+        return ENGINE_ENOTSUP;
+    }
+    ENGINE_ERROR_CODE commit(uint32_t opaque,
+                             uint64_t prepared_seqno,
+                             uint64_t commit_seqno) override {
+        return ENGINE_ENOTSUP;
+    }
+
     void clear_dcp_data();
 
     cb::mcbp::ClientOpcode last_op;

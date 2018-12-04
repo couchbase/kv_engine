@@ -27,6 +27,12 @@ struct DocKey;
 union protocol_binary_request_header;
 union protocol_binary_response_header;
 
+namespace cb {
+namespace durability {
+class Requirements;
+}
+} // namespace cb
+
 namespace mcbp {
 namespace systemevent {
 enum class id : uint32_t;
@@ -272,6 +278,54 @@ struct dcp_message_producers {
      */
     virtual ENGINE_ERROR_CODE get_error_map(uint32_t opaque,
                                             uint16_t version) = 0;
+
+    /**
+     * See mutation for a description of the parameters except for:
+     *
+     * @param deleted Are we storing a deletion operation?
+     * @param durability the durability specification for this item
+     */
+    virtual ENGINE_ERROR_CODE prepare(
+            uint32_t opaque,
+            item* itm,
+            Vbid vbucket,
+            uint64_t by_seqno,
+            uint64_t rev_seqno,
+            uint32_t lock_time,
+            uint8_t nru,
+            DocumentState document_state,
+            cb::durability::Requirements durability) = 0;
+
+    /**
+     * Send a seqno ack message
+     *
+     * It serves to inform KV-Engine active nodes that the replica has
+     * successfully received and prepared to memory/disk all DCP_PREPARE
+     * messages up to the specified seqno.
+     *
+     * @param opaque identifying stream
+     * @param in_memory_seqno
+     * @param on_disk_seqno
+     */
+    virtual ENGINE_ERROR_CODE seqno_acknowledged(uint32_t opaque,
+                                                 uint64_t in_memory_seqno,
+                                                 uint64_t on_disk_seqno) = 0;
+
+    /**
+     * Send a commit message:
+     *
+     * This is sent from the DCP Producer to the DCP Consumer.
+     * It is only sent to DCP replicas, not GSI, FTS etc. It serves to inform
+     * KV-Engine replicas of a committed Sync Write
+     *
+     * @param opaque
+     * @param prepared_seqno
+     * @param commit_seqno
+     * @return
+     */
+    virtual ENGINE_ERROR_CODE commit(uint32_t opaque,
+                                     uint64_t prepared_seqno,
+                                     uint64_t commit_seqno) = 0;
 };
 
 typedef ENGINE_ERROR_CODE (*dcp_add_failover_log)(
@@ -592,4 +646,63 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
                                            mcbp::systemevent::version version,
                                            cb::const_byte_buffer key,
                                            cb::const_byte_buffer eventData) = 0;
+
+    /**
+     * Called by the core when it receives a DCP PREPARE message over the
+     * wire.
+     *
+     * See mutation for a description of the parameters except for:
+     *
+     * @param deleted Are we storing a deletion operation?
+     * @param durability the durability specification for this item
+     */
+    virtual ENGINE_ERROR_CODE prepare(
+            gsl::not_null<const void*> cookie,
+            uint32_t opaque,
+            const DocKey& key,
+            cb::const_byte_buffer value,
+            size_t priv_bytes,
+            uint8_t datatype,
+            uint64_t cas,
+            Vbid vbucket,
+            uint32_t flags,
+            uint64_t by_seqno,
+            uint64_t rev_seqno,
+            uint32_t expiration,
+            uint32_t lock_time,
+            uint8_t nru,
+            DocumentState document_state,
+            cb::durability::Requirements durability) = 0;
+
+    /**
+     * Called by the core when it receives a DCP SEQNO ACK message over the
+     * wire.
+     *
+     * It serves to inform KV-Engine active nodes that the replica has
+     * successfully received and prepared to memory/disk all DCP_PREPARE
+     * messages up to the specified seqno.
+     *
+     * @param cookie connection to send it over
+     * @param opaque identifying stream
+     * @param in_memory_seqno
+     * @param on_disk_seqno
+     */
+    virtual ENGINE_ERROR_CODE seqno_acknowledged(
+            gsl::not_null<const void*> cookie,
+            uint32_t opaque,
+            uint64_t in_memory_seqno,
+            uint64_t on_disk_seqno) = 0;
+
+    /**
+     * Called by the core when it receives a DCP COMMIT message over the
+     * wire.
+     *
+     * This is sent from the DCP Producer to the DCP Consumer.
+     * It is only sent to DCP replicas, not GSI, FTS etc. It serves to inform
+     * KV-Engine replicas of a committed Sync Write
+     */
+    virtual ENGINE_ERROR_CODE commit(gsl::not_null<const void*> cookie,
+                                     uint32_t opaque,
+                                     uint64_t prepared_seqno,
+                                     uint64_t commit_seqno) = 0;
 };

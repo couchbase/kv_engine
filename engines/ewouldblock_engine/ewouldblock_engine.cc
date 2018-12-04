@@ -866,6 +866,31 @@ public:
                                    cb::const_byte_buffer key,
                                    cb::const_byte_buffer eventData) override;
 
+    ENGINE_ERROR_CODE prepare(gsl::not_null<const void*> cookie,
+                              uint32_t opaque,
+                              const DocKey& key,
+                              cb::const_byte_buffer value,
+                              size_t priv_bytes,
+                              uint8_t datatype,
+                              uint64_t cas,
+                              Vbid vbucket,
+                              uint32_t flags,
+                              uint64_t by_seqno,
+                              uint64_t rev_seqno,
+                              uint32_t expiration,
+                              uint32_t lock_time,
+                              uint8_t nru,
+                              DocumentState document_state,
+                              cb::durability::Requirements durability) override;
+    ENGINE_ERROR_CODE seqno_acknowledged(gsl::not_null<const void*> cookie,
+                                         uint32_t opaque,
+                                         uint64_t in_memory_seqno,
+                                         uint64_t on_disk_seqno) override;
+    ENGINE_ERROR_CODE commit(gsl::not_null<const void*> cookie,
+                             uint32_t opaque,
+                             uint64_t prepared_seqno,
+                             uint64_t commit_seqno) override;
+
     static void handle_disconnect(const void* cookie,
                                   ENGINE_EVENT_TYPE type,
                                   const void* event_data,
@@ -1650,6 +1675,67 @@ ENGINE_ERROR_CODE EWB_Engine::system_event(gsl::not_null<const void*> cookie,
                                              version,
                                              key,
                                              eventData);
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::prepare(gsl::not_null<const void*> cookie,
+                                      uint32_t opaque,
+                                      const DocKey& key,
+                                      cb::const_byte_buffer value,
+                                      size_t priv_bytes,
+                                      uint8_t datatype,
+                                      uint64_t cas,
+                                      Vbid vbucket,
+                                      uint32_t flags,
+                                      uint64_t by_seqno,
+                                      uint64_t rev_seqno,
+                                      uint32_t expiration,
+                                      uint32_t lock_time,
+                                      uint8_t nru,
+                                      DocumentState document_state,
+                                      cb::durability::Requirements durability) {
+    if (!real_engine_dcp) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return real_engine_dcp->prepare(cookie,
+                                        opaque,
+                                        key,
+                                        value,
+                                        priv_bytes,
+                                        datatype,
+                                        cas,
+                                        vbucket,
+                                        flags,
+                                        by_seqno,
+                                        rev_seqno,
+                                        expiration,
+                                        lock_time,
+                                        nru,
+                                        document_state,
+                                        durability);
+    }
+}
+ENGINE_ERROR_CODE EWB_Engine::seqno_acknowledged(
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        uint64_t in_memory_seqno,
+        uint64_t on_disk_seqno) {
+    if (!real_engine_dcp) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return real_engine_dcp->seqno_acknowledged(
+                cookie, opaque, in_memory_seqno, on_disk_seqno);
+    }
+}
+ENGINE_ERROR_CODE EWB_Engine::commit(gsl::not_null<const void*> cookie,
+                                     uint32_t opaque,
+                                     uint64_t prepared_seqno,
+                                     uint64_t commit_seqno) {
+    if (!real_engine_dcp) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return real_engine_dcp->commit(
+                cookie, opaque, prepared_seqno, commit_seqno);
     }
 }
 

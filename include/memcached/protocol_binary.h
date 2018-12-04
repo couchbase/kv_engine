@@ -1220,6 +1220,147 @@ protected:
 };
 static_assert(sizeof(DcpSystemEventPayload) == 13, "Unexpected struct size");
 
+class DcpPreparePayload {
+public:
+    DcpPreparePayload() = default;
+    DcpPreparePayload(uint64_t by_seqno,
+                      uint64_t rev_seqno,
+                      uint32_t flags,
+                      uint32_t expiration,
+                      uint32_t lock_time,
+                      uint8_t nru)
+        : by_seqno(htonll(by_seqno)),
+          rev_seqno(htonll(rev_seqno)),
+          flags(flags),
+          expiration(htonl(expiration)),
+          lock_time(htonl(lock_time)),
+          nru(nru) {
+    }
+    uint64_t getBySeqno() const {
+        return ntohll(by_seqno);
+    }
+    void setBySeqno(uint64_t by_seqno) {
+        DcpPreparePayload::by_seqno = htonll(by_seqno);
+    }
+    uint64_t getRevSeqno() const {
+        return ntohll(rev_seqno);
+    }
+    void setRevSeqno(uint64_t rev_seqno) {
+        DcpPreparePayload::rev_seqno = htonll(rev_seqno);
+    }
+    uint32_t getFlags() const {
+        return flags;
+    }
+    void setFlags(uint32_t flags) {
+        DcpPreparePayload::flags = flags;
+    }
+    uint32_t getExpiration() const {
+        return ntohl(expiration);
+    }
+    void setExpiration(uint32_t expiration) {
+        DcpPreparePayload::expiration = htonl(expiration);
+    }
+    uint32_t getLockTime() const {
+        return ntohl(lock_time);
+    }
+    void setLockTime(uint32_t lock_time) {
+        DcpPreparePayload::lock_time = htonl(lock_time);
+    }
+    uint8_t getNru() const {
+        return nru;
+    }
+    void setNru(uint8_t nru) {
+        DcpPreparePayload::nru = nru;
+    }
+
+    uint8_t getDeleted() const {
+        return deleted;
+    }
+    void setDeleted(uint8_t deleted) {
+        DcpPreparePayload::deleted = deleted;
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+    cb::durability::Requirements getDurability() const {
+        cb::durability::Requirements ret;
+        ret.setLevel(cb::durability::Level(durability_level));
+        ret.setTimeout(ntohs(durability_timeout));
+        return ret;
+    }
+
+    void setDurability(const cb::durability::Requirements& durability) {
+        DcpPreparePayload::durability_timeout = htons(durability.getTimeout());
+        DcpPreparePayload::durability_level = uint8_t(durability.getLevel());
+    }
+
+protected:
+    uint64_t by_seqno = 0;
+    uint64_t rev_seqno = 0;
+    uint32_t flags = 0;
+    uint32_t expiration = 0;
+    uint32_t lock_time = 0;
+    uint8_t nru = 0;
+    // set to true if this is a document deletion
+    uint8_t deleted = 0;
+    uint16_t durability_timeout = 0;
+    uint8_t durability_level = 0;
+};
+static_assert(sizeof(DcpPreparePayload) == 33, "Unexpected struct size");
+
+class DcpSeqnoAcknowledgedPayload {
+public:
+    uint64_t getInMemorySeqno() const {
+        return ntohll(in_memory_seqno);
+    }
+    void setInMemorySeqno(uint64_t in_memory_seqno) {
+        DcpSeqnoAcknowledgedPayload::in_memory_seqno = htonll(in_memory_seqno);
+    }
+    uint64_t getOnDiskSeqno() const {
+        return ntohll(on_disk_seqno);
+    }
+    void setOnDiskSeqno(uint64_t on_disk_seqno) {
+        DcpSeqnoAcknowledgedPayload::on_disk_seqno = htonll(on_disk_seqno);
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint64_t in_memory_seqno = 0;
+    uint64_t on_disk_seqno = 0;
+};
+static_assert(sizeof(DcpSeqnoAcknowledgedPayload) == 16,
+              "Unexpected struct size");
+
+class DcpCommitPayload {
+public:
+    uint64_t getPreparedSeqno() const {
+        return ntohll(prepared_seqno);
+    }
+    void setPreparedSeqno(uint64_t prepared_seqno) {
+        DcpCommitPayload::prepared_seqno = htonll(prepared_seqno);
+    }
+    uint64_t getCommitSeqno() const {
+        return ntohll(commit_seqno);
+    }
+    void setCommitSeqno(uint64_t commit_seqno) {
+        DcpCommitPayload::commit_seqno = htonll(commit_seqno);
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint64_t prepared_seqno = 0;
+    uint64_t commit_seqno = 0;
+};
+static_assert(sizeof(DcpCommitPayload) == 16, "Unexpected struct size");
+
 class SetParamPayload {
 public:
     enum class Type : uint32_t {

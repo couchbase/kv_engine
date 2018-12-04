@@ -667,3 +667,76 @@ ENGINE_ERROR_CODE dcpSystemEvent(Cookie& cookie,
     }
     return ret;
 }
+
+ENGINE_ERROR_CODE dcpPrepare(Cookie& cookie,
+                             uint32_t opaque,
+                             const DocKey& key,
+                             cb::const_byte_buffer value,
+                             size_t priv_bytes,
+                             uint8_t datatype,
+                             uint64_t cas,
+                             Vbid vbucket,
+                             uint32_t flags,
+                             uint64_t by_seqno,
+                             uint64_t rev_seqno,
+                             uint32_t expiration,
+                             uint32_t lock_time,
+                             uint8_t nru,
+                             DocumentState document_state,
+                             cb::durability::Requirements durability) {
+    auto& connection = cookie.getConnection();
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->prepare(&cookie,
+                            opaque,
+                            key,
+                            value,
+                            priv_bytes,
+                            datatype,
+                            cas,
+                            vbucket,
+                            flags,
+                            by_seqno,
+                            rev_seqno,
+                            expiration,
+                            lock_time,
+                            nru,
+                            document_state,
+                            durability);
+    if (ret == ENGINE_DISCONNECT) {
+        LOG_WARNING("{}: {} dcp.seqno_acknowledged returned ENGINE_DISCONNECT",
+                    connection.getId(),
+                    connection.getDescription());
+    }
+    return ret;
+}
+
+ENGINE_ERROR_CODE dcpSeqnoAcknowledged(Cookie& cookie,
+                                       uint32_t opaque,
+                                       uint64_t in_memory_seqno,
+                                       uint64_t on_disk_seqno) {
+    auto& connection = cookie.getConnection();
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->seqno_acknowledged(
+            &cookie, opaque, in_memory_seqno, on_disk_seqno);
+    if (ret == ENGINE_DISCONNECT) {
+        LOG_WARNING("{}: {} dcp.seqno_acknowledged returned ENGINE_DISCONNECT",
+                    connection.getId(),
+                    connection.getDescription());
+    }
+    return ret;
+}
+
+ENGINE_ERROR_CODE dcpCommit(Cookie& cookie,
+                            uint32_t opaque,
+                            uint64_t prepared_seqno,
+                            uint64_t commit_seqno) {
+    auto& connection = cookie.getConnection();
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->commit(&cookie, opaque, prepared_seqno, commit_seqno);
+    if (ret == ENGINE_DISCONNECT) {
+        LOG_WARNING("{}: {} dcp.commit returned ENGINE_DISCONNECT",
+                    connection.getId(),
+                    connection.getDescription());
+    }
+    return ret;
+}

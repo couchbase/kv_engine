@@ -108,6 +108,9 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::DcpBufferAcknowledgement:
     case ClientOpcode::DcpControl:
     case ClientOpcode::DcpSystemEvent:
+    case ClientOpcode::DcpPrepare:
+    case ClientOpcode::DcpSeqnoAcknowledged:
+    case ClientOpcode::DcpCommit:
     case ClientOpcode::StopPersistence:
     case ClientOpcode::StartPersistence:
     case ClientOpcode::SetParam:
@@ -368,6 +371,12 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "DCP_CONTROL";
     case ClientOpcode::DcpSystemEvent:
         return "DCP_SYSTEM_EVENT";
+    case ClientOpcode::DcpPrepare:
+        return "DCP_PREPARE";
+    case ClientOpcode::DcpSeqnoAcknowledged:
+        return "DCP_SEQNO_ACKNOWLEDGED";
+    case ClientOpcode::DcpCommit:
+        return "DCP_COMMIT";
     case ClientOpcode::StopPersistence:
         return "STOP_PERSISTENCE";
     case ClientOpcode::StartPersistence:

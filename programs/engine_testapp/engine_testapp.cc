@@ -255,6 +255,30 @@ struct mock_engine : public EngineIface, public DcpIface {
                                    mcbp::systemevent::version version,
                                    cb::const_byte_buffer key,
                                    cb::const_byte_buffer eventData) override;
+    ENGINE_ERROR_CODE prepare(gsl::not_null<const void*> cookie,
+                              uint32_t opaque,
+                              const DocKey& key,
+                              cb::const_byte_buffer value,
+                              size_t priv_bytes,
+                              uint8_t datatype,
+                              uint64_t cas,
+                              Vbid vbucket,
+                              uint32_t flags,
+                              uint64_t by_seqno,
+                              uint64_t rev_seqno,
+                              uint32_t expiration,
+                              uint32_t lock_time,
+                              uint8_t nru,
+                              DocumentState document_state,
+                              cb::durability::Requirements durability) override;
+    ENGINE_ERROR_CODE seqno_acknowledged(gsl::not_null<const void*> cookie,
+                                         uint32_t opaque,
+                                         uint64_t in_memory_seqno,
+                                         uint64_t on_disk_seqno) override;
+    ENGINE_ERROR_CODE commit(gsl::not_null<const void*> cookie,
+                             uint32_t opaque,
+                             uint64_t prepared_seqno,
+                             uint64_t commit_seqno) override;
 
     EngineIface* the_engine;
 
@@ -872,6 +896,57 @@ ENGINE_ERROR_CODE mock_engine::system_event(gsl::not_null<const void*> cookie,
                                             cb::const_byte_buffer eventData) {
     return the_engine_dcp->system_event(
             cookie, opaque, vbucket, event, bySeqno, version, key, eventData);
+}
+
+ENGINE_ERROR_CODE mock_engine::prepare(
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        const DocKey& key,
+        cb::const_byte_buffer value,
+        size_t priv_bytes,
+        uint8_t datatype,
+        uint64_t cas,
+        Vbid vbucket,
+        uint32_t flags,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        uint32_t expiration,
+        uint32_t lock_time,
+        uint8_t nru,
+        DocumentState document_state,
+        cb::durability::Requirements durability) {
+    return the_engine_dcp->prepare(cookie,
+                                   opaque,
+                                   key,
+                                   value,
+                                   priv_bytes,
+                                   datatype,
+                                   cas,
+                                   vbucket,
+                                   flags,
+                                   by_seqno,
+                                   rev_seqno,
+                                   expiration,
+                                   lock_time,
+                                   nru,
+                                   document_state,
+                                   durability);
+}
+
+ENGINE_ERROR_CODE mock_engine::seqno_acknowledged(
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        uint64_t in_memory_seqno,
+        uint64_t on_disk_seqno) {
+    return the_engine_dcp->seqno_acknowledged(
+            cookie, opaque, in_memory_seqno, on_disk_seqno);
+}
+
+ENGINE_ERROR_CODE mock_engine::commit(gsl::not_null<const void*> cookie,
+                                      uint32_t opaque,
+                                      uint64_t prepared_seqno,
+                                      uint64_t commit_seqno) {
+    return the_engine_dcp->commit(cookie, opaque, prepared_seqno, commit_seqno);
 }
 
 static cb::engine_error mock_collections_set_manifest(

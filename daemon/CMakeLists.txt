@@ -101,6 +101,7 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/dcp_add_stream_executor.cc
             protocol/mcbp/dcp_buffer_acknowledgement_executor.cc
             protocol/mcbp/dcp_close_stream_executor.cc
+            protocol/mcbp/dcp_commit_executor.cc
             protocol/mcbp/dcp_control_executor.cc
             protocol/mcbp/dcp_deletion.cc
             protocol/mcbp/dcp_deletion.h
@@ -111,6 +112,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/dcp_mutation.h
             protocol/mcbp/dcp_noop_executor.cc
             protocol/mcbp/dcp_open_executor.cc
+            protocol/mcbp/dcp_prepare_executor.cc
+            protocol/mcbp/dcp_seqno_acknowledged_executor.cc
             protocol/mcbp/dcp_set_vbucket_state_executor.cc
             protocol/mcbp/dcp_snapshot_marker_executor.cc
             protocol/mcbp/dcp_stream_end_executor.cc

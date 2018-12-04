@@ -2108,6 +2108,130 @@ ENGINE_ERROR_CODE Connection::get_error_map(uint32_t opaque, uint16_t version) {
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
+ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
+                                      item* it,
+                                      Vbid vbucket,
+                                      uint64_t by_seqno,
+                                      uint64_t rev_seqno,
+                                      uint32_t lock_time,
+                                      uint8_t nru,
+                                      DocumentState document_state,
+                                      cb::durability::Requirements durability) {
+    // Use a unique_ptr to make sure we release the item in all error paths
+    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngine()});
+
+    item_info info;
+    if (!bucket_get_item_info(*this, it, &info)) {
+        LOG_WARNING("{}: Connection::prepare: Failed to get item info",
+                    getId());
+        return ENGINE_FAILED;
+    }
+
+    char* root = reinterpret_cast<char*>(info.value[0].iov_base);
+    cb::char_buffer buffer{root, info.value[0].iov_len};
+
+    if (!reserveItem(it)) {
+        LOG_WARNING("{}: Connection::prepare: Failed to grow item array",
+                    getId());
+        return ENGINE_FAILED;
+    }
+
+    // we've reserved the item, and it'll be released when we're done sending
+    // the item.
+    item.release();
+
+    auto key = info.key;
+
+    // The client doesn't support collections, so must not send an encoded key
+    if (!isCollectionsSupported()) {
+        key = key.makeDocKeyWithoutCollectionID();
+    }
+
+    cb::mcbp::request::DcpPreparePayload extras(
+            by_seqno,
+            rev_seqno,
+            info.flags,
+            gsl::narrow<uint32_t>(info.exptime),
+            lock_time,
+            nru);
+    if (document_state == DocumentState::Deleted) {
+        extras.setDeleted(uint8_t(1));
+    }
+    extras.setDurability(durability);
+    cb::mcbp::Request req = {};
+    req.setMagic(cb::mcbp::Magic::ClientRequest);
+    req.setOpcode(cb::mcbp::ClientOpcode::DcpPrepare);
+    req.setExtlen(gsl::narrow<uint8_t>(sizeof(extras)));
+    req.setKeylen(gsl::narrow<uint16_t>(key.size()));
+    req.setBodylen(
+            gsl::narrow<uint32_t>(sizeof(extras) + key.size() + buffer.size()));
+    req.setOpaque(opaque);
+    req.setVBucket(vbucket);
+    req.setCas(info.cas);
+    req.setDatatype(cb::mcbp::Datatype(info.datatype));
+
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    write->produce([this, &req, &extras, &buffer, &ret, &key](
+                           cb::byte_buffer wbuf) -> size_t {
+        const size_t total = sizeof(extras) + sizeof(req);
+        if (wbuf.size() < total) {
+            ret = ENGINE_E2BIG;
+            return 0;
+        }
+
+        std::copy_n(reinterpret_cast<const uint8_t*>(&req),
+                    sizeof(req),
+                    wbuf.begin());
+        std::copy_n(reinterpret_cast<const uint8_t*>(&extras),
+                    sizeof(extras),
+                    wbuf.begin() + sizeof(req));
+
+        // Add the header
+        addIov(wbuf.data(), sizeof(req) + sizeof(extras));
+
+        // Add the key
+        addIov(key.data(), key.size());
+
+        // Add the value
+        addIov(buffer.data(), buffer.size());
+        return total;
+    });
+
+    return ret;
+
+    return ENGINE_ENOTSUP;
+}
+
+ENGINE_ERROR_CODE Connection::seqno_acknowledged(uint32_t opaque,
+                                                 uint64_t in_memory_seqno,
+                                                 uint64_t on_disk_seqno) {
+    cb::mcbp::request::DcpSeqnoAcknowledgedPayload extras;
+    extras.setInMemorySeqno(in_memory_seqno);
+    extras.setOnDiskSeqno(on_disk_seqno);
+    uint8_t buffer[sizeof(cb::mcbp::Request) + sizeof(extras)];
+    cb::mcbp::RequestBuilder builder({buffer, sizeof(buffer)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged);
+    builder.setOpaque(opaque);
+    builder.setExtras(extras.getBuffer());
+    return add_packet_to_send_pipe(builder.getFrame()->getFrame());
+}
+
+ENGINE_ERROR_CODE Connection::commit(uint32_t opaque,
+                                     uint64_t prepared_seqno,
+                                     uint64_t commit_seqno) {
+    cb::mcbp::request::DcpCommitPayload extras;
+    extras.setPreparedSeqno(prepared_seqno);
+    extras.setCommitSeqno(commit_seqno);
+    uint8_t buffer[sizeof(cb::mcbp::Request) + sizeof(extras)];
+    cb::mcbp::RequestBuilder builder({buffer, sizeof(buffer)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpCommit);
+    builder.setOpaque(opaque);
+    builder.setExtras(extras.getBuffer());
+    return add_packet_to_send_pipe(builder.getFrame()->getFrame());
+}
+
 ////////////////////////////////////////////////////////////////////////////
 //                                                                        //
 //               End DCP Message producer interface                       //

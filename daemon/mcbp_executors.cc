@@ -670,6 +670,11 @@ void initialize_mbcp_lookup_map() {
                   dcp_stream_req_executor);
     setup_handler(cb::mcbp::ClientOpcode::DcpSystemEvent,
                   dcp_system_event_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpPrepare, dcp_prepare_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged,
+                  dcp_seqno_acknowledged_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpCommit, dcp_commit_executor);
+
     setup_handler(cb::mcbp::ClientOpcode::CollectionsSetManifest,
                   collections_set_manifest_executor);
     setup_handler(cb::mcbp::ClientOpcode::CollectionsGetManifest,

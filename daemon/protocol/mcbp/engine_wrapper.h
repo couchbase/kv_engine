@@ -444,3 +444,30 @@ ENGINE_ERROR_CODE dcpSystemEvent(Cookie& cookie,
                                  mcbp::systemevent::version version,
                                  cb::const_byte_buffer eventKey,
                                  cb::const_byte_buffer eventData);
+
+ENGINE_ERROR_CODE dcpPrepare(Cookie& cookie,
+                             uint32_t opaque,
+                             const DocKey& key,
+                             cb::const_byte_buffer value,
+                             size_t priv_bytes,
+                             uint8_t datatype,
+                             uint64_t cas,
+                             Vbid vbucket,
+                             uint32_t flags,
+                             uint64_t by_seqno,
+                             uint64_t rev_seqno,
+                             uint32_t expiration,
+                             uint32_t lock_time,
+                             uint8_t nru,
+                             DocumentState document_state,
+                             cb::durability::Requirements durability);
+
+ENGINE_ERROR_CODE dcpSeqnoAcknowledged(Cookie& cookie,
+                                       uint32_t opaque,
+                                       uint64_t in_memory_seqno,
+                                       uint64_t on_disk_seqno);
+
+ENGINE_ERROR_CODE dcpCommit(Cookie& cookie,
+                            uint32_t opaque,
+                            uint64_t prepared_seqno,
+                            uint64_t commit_seqno);

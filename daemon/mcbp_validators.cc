@@ -163,6 +163,9 @@ static bool supportsDurability(cb::mcbp::ClientOpcode opcode) {
     case ClientOpcode::DcpBufferAcknowledgement:
     case ClientOpcode::DcpControl:
     case ClientOpcode::DcpSystemEvent:
+    case ClientOpcode::DcpPrepare:
+    case ClientOpcode::DcpSeqnoAcknowledged:
+    case ClientOpcode::DcpCommit:
     case ClientOpcode::StopPersistence:
     case ClientOpcode::StartPersistence:
     case ClientOpcode::SetParam:
@@ -782,6 +785,78 @@ static Status dcp_control_validator(Cookie& cookie) {
                                                ExpectedKeyLen::NonZero,
                                                ExpectedValueLen::NonZero,
                                                ExpectedCas::Any,
+                                               PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
+    }
+    return verify_common_dcp_restrictions(cookie);
+}
+
+static Status dcp_prepare_validator(Cookie& cookie) {
+    using cb::mcbp::request::DcpPreparePayload;
+    auto status = McbpValidator::verify_header(cookie,
+                                               sizeof(DcpPreparePayload),
+                                               ExpectedKeyLen::NonZero,
+                                               ExpectedValueLen::Any,
+                                               ExpectedCas::Set);
+    if (status != Status::Success) {
+        return status;
+    }
+
+    if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
+        return Status::Einval;
+    }
+
+    if (!may_accept_xattr(cookie)) {
+        cookie.setErrorContext("Connection not Xattr enabled");
+        return Status::Einval;
+    }
+
+    auto& header = cookie.getHeader();
+    const auto datatype = header.getDatatype();
+
+    if (mcbp::datatype::is_xattr(datatype) &&
+        !is_valid_xattr_blob(header.getRequest())) {
+        cookie.setErrorContext("Xattr blob not valid");
+        return Status::XattrEinval;
+    }
+
+    auto extras = cookie.getHeader().getExtdata();
+    const auto* payload =
+            reinterpret_cast<const DcpPreparePayload*>(extras.data());
+
+    if (!payload->getDurability().isValid()) {
+        cookie.setErrorContext("Invalid durability specifier");
+        return Status::Einval;
+    }
+
+    return verify_common_dcp_restrictions(cookie);
+}
+
+static Status dcp_seqno_acknowledged_validator(Cookie& cookie) {
+    using cb::mcbp::request::DcpSeqnoAcknowledgedPayload;
+    auto status =
+            McbpValidator::verify_header(cookie,
+                                         sizeof(DcpSeqnoAcknowledgedPayload),
+                                         ExpectedKeyLen::Zero,
+                                         ExpectedValueLen::Zero,
+                                         ExpectedCas::NotSet,
+                                         PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
+    }
+
+    return verify_common_dcp_restrictions(cookie);
+}
+
+static Status dcp_commit_validator(Cookie& cookie) {
+    using cb::mcbp::request::DcpCommitPayload;
+    auto status = McbpValidator::verify_header(cookie,
+                                               sizeof(DcpCommitPayload),
+                                               ExpectedKeyLen::Zero,
+                                               ExpectedValueLen::Zero,
+                                               ExpectedCas::NotSet,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -1969,6 +2044,10 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::DcpStreamEnd, dcp_stream_end_validator);
     setup(cb::mcbp::ClientOpcode::DcpStreamReq, dcp_stream_req_validator);
     setup(cb::mcbp::ClientOpcode::DcpSystemEvent, dcp_system_event_validator);
+    setup(cb::mcbp::ClientOpcode::DcpPrepare, dcp_prepare_validator);
+    setup(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged,
+          dcp_seqno_acknowledged_validator);
+    setup(cb::mcbp::ClientOpcode::DcpCommit, dcp_commit_validator);
     setup(cb::mcbp::ClientOpcode::IsaslRefresh,
           configuration_refresh_validator);
     setup(cb::mcbp::ClientOpcode::SslCertsRefresh,
