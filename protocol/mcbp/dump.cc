@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@
 
 #include <mcbp/mcbp.h>
 #include <memcached/protocol_binary.h>
+#include <platform/byte_buffer_dump.h>
+#include <platform/string_hex.h>
 #include <utilities/logtags.h>
 
 #include <cctype>
@@ -28,7 +30,6 @@
 
 // This file contains the functionality to generate a packet dump
 // of a memcached frame
-
 namespace cb {
 namespace mcbp {
 
@@ -69,16 +70,41 @@ void dumpBytes(cb::byte_buffer buffer, std::ostream& out, size_t offset) {
  */
 class McbpFrame {
 public:
-    McbpFrame(const uint8_t* bytes, size_t len) : root(bytes), length(len) {
+    explicit McbpFrame(const cb::mcbp::Header& header) : header(header) {
         // empty
     }
 
-    virtual ~McbpFrame() {
-    }
+    virtual ~McbpFrame() = default;
 
     void dump(std::ostream& out) const {
-        dumpFrame(out);
+        out << cb::const_byte_buffer{reinterpret_cast<const uint8_t*>(&header),
+                                     sizeof(header) + header.getBodylen()};
+        uint32_t bodylen = header.getBodylen();
+        out << "        Total " << sizeof(header) + bodylen << " bytes";
+        if (bodylen > 0) {
+            out << " (" << sizeof(header) << " bytes header";
+            auto fe = header.getFramingExtras();
+            if (!fe.empty()) {
+                out << ", " << fe.size() << " bytes frame extras";
+            }
+            auto ext = header.getExtdata();
+            if (!ext.empty()) {
+                out << ", " << ext.size() << " bytes extras";
+            }
+            auto key = header.getKey();
+            if (!key.empty()) {
+                out << ", " << key.size() << " bytes key";
+            }
+            auto value = header.getValue();
+            if (!value.empty()) {
+                out << ", " << value.size() << " bytes value";
+            }
+            out << ")";
+        }
+        out << std::endl << std::endl;
+
         dumpPacketInfo(out);
+        dumpFrameExtras(out);
         dumpExtras(out);
         dumpKey(out);
         dumpValue(out);
@@ -86,104 +112,53 @@ public:
 
 protected:
     virtual void dumpPacketInfo(std::ostream& out) const = 0;
-    virtual void dumpExtras(std::ostream& out) const = 0;
-    virtual void dumpKey(std::ostream& out) const = 0;
-    virtual void dumpValue(std::ostream& out) const = 0;
 
-    void dumpExtras(const uint8_t* location,
-                    uint8_t nbytes,
-                    std::ostream& out) const {
-        if (nbytes != 0) {
-            out << "    Extra               : " << (uint16_t(nbytes) & 0xff)
+    virtual void dumpFrameExtras(std::ostream& out) const {
+        auto fe = header.getFramingExtras();
+        if (!fe.empty()) {
+            out << "    Framing Extra       : " << fe.size()
                 << " bytes of binary data" << std::endl;
         }
     }
 
-    void dumpKey(const uint8_t* location,
-                 uint16_t nbytes,
-                 std::ostream& out) const {
-        if (nbytes != 0) {
-            const ptrdiff_t first = location - root;
-            const ptrdiff_t last = first + nbytes - 1;
+    virtual void dumpExtras(std::ostream& out) const {
+        auto ext = header.getExtdata();
+        if (!ext.empty()) {
+            out << "    Extra               : " << ext.size()
+                << " bytes of binary data" << std::endl;
+        }
+    }
+
+    virtual void dumpKey(std::ostream& out) const {
+        auto key = header.getKey();
+        if (!key.empty()) {
+            const ptrdiff_t first =
+                    key.data() - reinterpret_cast<const uint8_t*>(&header);
+            const ptrdiff_t last = first + key.size() - 1;
             out << "    Key          (" << first << "-" << last << "): ";
 
-            std::string str((const char*)location, nbytes);
+            std::string str((const char*)key.data(), key.size());
 
             for (const auto& c : str) {
                 if (!isprint(c)) {
-                    out << nbytes << " bytes of binary data" << std::endl;
+                    out << key.size() << " bytes of binary data" << std::endl;
                     return;
                 }
             }
-            out << "The textual string \"" << cb::UserDataView(str) << "\""
-                << std::endl;
+            out << "The textual string \"" << str << "\"" << std::endl;
         }
     }
 
-private:
-    void printByte(uint8_t b, bool inBody, std::ostream& out) const {
-        uint32_t val = b & 0xff;
-        if (b < 0x10) {
-            out << " 0x0";
-        } else {
-            out << " 0x";
-        }
-
-        out.flags(std::ios::hex);
-        out << val;
-        out.flags(std::ios::dec);
-
-        if (inBody && isprint((int)b)) {
-            out << " ('" << (char)b << "')";
-        } else {
-            out << "      ";
-        }
-        out << "    |";
-    }
-
-    void dumpFrame(std::ostream& out) const {
-        out << std::endl;
-        out << "      Byte/     0       |       1       |       2       |      "
-               " 3       |"
-            << std::endl;
-        out << "         /              |               |               |      "
-               "         |"
-            << std::endl;
-        out << "        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 "
-               "3 4 5 6 7|";
-
-        size_t ii = 0;
-        for (; ii < length; ++ii) {
-            if (ii % 4 == 0) {
-                out << std::endl;
-                out << "        "
-                       "+---------------+---------------+---------------+------"
-                       "---------+"
-                    << std::endl;
-                out.setf(std::ios::right);
-                out << std::setw(8) << ii << "|";
-                out.setf(std::ios::fixed);
-            }
-            printByte(root[ii], ii > 23, out);
-        }
-
-        out << std::endl;
-        if (ii % 4 != 0) {
-            out << "        ";
-            for (size_t jj = 0; jj < ii % 4; ++jj) {
-                out << "+---------------";
-            }
-            out << "+" << std::endl;
-        } else {
-            out << "        "
-                   "+---------------+---------------+---------------+----------"
-                   "-----+"
-                << std::endl;
+    virtual void dumpValue(std::ostream& out) const {
+        auto value = header.getValue();
+        if (!value.empty()) {
+            out << "    Value               : " << value.size()
+                << " bytes of binary data" << std::endl;
         }
     }
 
-    const uint8_t* root;
-    size_t length;
+protected:
+    const cb::mcbp::Header& header;
 };
 
 std::ostream& operator<<(std::ostream& out, const McbpFrame& frame) {
@@ -193,130 +168,134 @@ std::ostream& operator<<(std::ostream& out, const McbpFrame& frame) {
 
 class Request : public McbpFrame {
 public:
-    Request(const protocol_binary_request_header& req)
-        : McbpFrame(req.bytes, ntohl(req.request.bodylen) + sizeof(req.bytes)),
-          request(req) {
+    explicit Request(const cb::mcbp::Request& request)
+        : McbpFrame(reinterpret_cast<const cb::mcbp::Header&>(request)),
+          request(request) {
         // nothing
     }
 
 protected:
     void dumpPacketInfo(std::ostream& out) const override {
-        uint32_t bodylen = ntohl(request.request.bodylen);
-
-        out << "        Total " << sizeof(request) + bodylen << " bytes";
-        if (bodylen > 0) {
-            out << " (" << sizeof(request) << " bytes header";
-            if (request.request.extlen != 0) {
-                out << ", " << (unsigned int)request.request.extlen
-                    << " byte extras ";
-            }
-            uint16_t keylen = ntohs(request.request.keylen);
-            if (keylen > 0) {
-                out << ", " << keylen << " bytes key";
-            }
-            bodylen -= keylen;
-            bodylen -= request.request.extlen;
-            if (bodylen > 0) {
-                out << " and " << bodylen << " value";
-            }
-            out << ")";
-        }
-
-        out << std::endl << std::endl;
-        out.flags(std::ios::hex);
-        out << std::setfill('0');
+        const auto* bytes = reinterpret_cast<const uint8_t*>(&request);
         out << "    Field        (offset) (value)" << std::endl;
-        out << "    Magic        (0)    : 0x"
-            << (uint32_t(request.bytes[0]) & 0xff) << " ("
-            << to_string(request.request.getMagic()) << ")" << std::endl;
-        out << "    Opcode       (1)    : 0x" << std::setw(2)
-            << (uint32_t(request.bytes[1]) & 0xff) << " (";
-        if (request.request.getMagic() == cb::mcbp::Magic::ClientRequest) {
-            out << to_string(request.request.getClientOpcode()) << ")"
-                << std::endl;
+        out << "    Magic        (0)    : " << cb::to_hex(bytes[0]) << " ("
+            << to_string(request.getMagic()) << ")" << std::endl;
+        out << "    Opcode       (1)    : " << cb::to_hex(bytes[1]) << " (";
+        if (cb::mcbp::is_client_magic(request.getMagic())) {
+            out << to_string(request.getClientOpcode()) << ")" << std::endl;
         } else {
-            out << to_string(request.request.getServerOpcode()) << ")"
-                << std::endl;
+            out << to_string(request.getServerOpcode()) << ")" << std::endl;
         }
-        out << "    Key length   (2,3)  : 0x" << std::setw(4)
-            << (ntohs(request.request.keylen) & 0xffff) << std::endl;
-        out << "    Extra length (4)    : 0x" << std::setw(2)
-            << (uint32_t(request.bytes[4]) & 0xff) << std::endl;
-        out << "    Data type    (5)    : 0x" << std::setw(2)
-            << (uint32_t(request.bytes[5]) & 0xff) << std::endl;
-        out << "    Vbucket      (6,7)  : 0x" << std::setw(4)
-            << (request.request.vbucket.ntoh().get() & 0xffff) << std::endl;
-        out << "    Total body   (8-11) : 0x" << std::setw(8)
-            << (uint64_t(ntohl(request.request.bodylen)) & 0xffff) << std::endl;
-        out << "    Opaque       (12-15): 0x" << std::setw(8)
-            << request.request.opaque << std::endl;
-        out << "    CAS          (16-23): 0x" << std::setw(16)
-            << ntohll(request.request.cas) << std::endl;
-        out << std::setfill(' ');
-        out.flags(std::ios::dec);
+
+        if (cb::mcbp::is_alternative_encoding(request.getMagic())) {
+            out << "    Framing extlen (2)  : "
+                << cb::to_hex(request.getFramingExtraslen()) << std::endl;
+            out << "    Key length     (3)  : "
+                << cb::to_hex(request.getKeylen()) << std::endl;
+        } else {
+            out << "    Key length   (2,3)  : "
+                << cb::to_hex(request.getKeylen()) << std::endl;
+        }
+        out << "    Extra length (4)    : " << cb::to_hex(bytes[4])
+            << std::endl;
+        out << "    Data type    (5)    : " << cb::to_hex(bytes[5])
+            << std::endl;
+        out << "    Vbucket      (6,7)  : "
+            << cb::to_hex(request.getVBucket().get()) << std::endl;
+        out << "    Total body   (8-11) : " << cb::to_hex(request.getBodylen())
+            << std::endl;
+        out << "    Opaque       (12-15): " << cb::to_hex(request.getOpaque())
+            << std::endl;
+        out << "    CAS          (16-23): " << cb::to_hex(request.getCas())
+            << std::endl;
     }
 
-    void dumpExtras(std::ostream& out) const override {
-        McbpFrame::dumpExtras(request.bytes + sizeof(request.bytes),
-                              request.request.extlen,
-                              out);
+    void dumpFrameExtras(std::ostream& out) const override {
+        try {
+            std::vector<std::string> vector;
+
+            request.parseFrameExtras([&vector](
+                                             cb::mcbp::request::FrameInfoId id,
+                                             cb::const_byte_buffer payload)
+                                             -> bool {
+                std::stringstream ss;
+                ss << to_string(id);
+                switch (id) {
+                case cb::mcbp::request::FrameInfoId::Reorder:
+                    break;
+                case cb::mcbp::request::FrameInfoId::DurabilityRequirement:
+                    ss << " Level=";
+                    {
+                        cb::durability::Requirements requirements(payload);
+                        switch (requirements.getLevel()) {
+                        case cb::durability::Level::Majority:
+                            ss << "Majority";
+                            break;
+                        case cb::durability::Level::MajorityAndPersistOnMaster:
+                            ss << "MajorityAndPersistOnMaster";
+                            break;
+                        case cb::durability::Level::PersistToMajority:
+                            ss << "PersistToMajority";
+                            break;
+                        }
+                        if (requirements.getTimeout() == 0) {
+                            ss << ", Timeout=default";
+                        } else {
+                            ss << ", Timeout=" << requirements.getTimeout();
+                        }
+                    }
+                    break;
+                }
+
+                vector.emplace_back(ss.str());
+                return false;
+            });
+
+            if (vector.empty()) {
+                return;
+            }
+            out << "    Framing Extra       : " << std::endl;
+            for (const auto& str : vector) {
+                out << "                          " << str << std::endl;
+            }
+        } catch (const std::runtime_error&) {
+            McbpFrame::dumpExtras(out);
+        }
     }
 
-    void dumpKey(std::ostream& out) const override {
-        McbpFrame::dumpKey(
-                request.bytes + sizeof(request.bytes) + request.request.extlen,
-                ntohs(request.request.keylen),
-                out);
-    }
-
-    void dumpValue(std::ostream& out) const override {
-    }
-
-    const protocol_binary_request_header& request;
+    const cb::mcbp::Request& request;
 };
 
 class HelloRequest : public Request {
 public:
-    HelloRequest(const protocol_binary_request_header& req) : Request(req) {
+    explicit HelloRequest(const cb::mcbp::Request& request) : Request(request) {
+        // nothing
     }
 
 protected:
-    void dumpExtras(std::ostream& out) const override {
-        if (request.request.extlen != 0) {
-            throw std::logic_error(
-                    "HelloRequest::dumpExtras(): extlen must be 0");
-        }
-    }
-
     void dumpValue(std::ostream& out) const override {
-        uint32_t bodylen = ntohl(request.request.bodylen);
-        uint16_t keylen = ntohs(request.request.keylen);
-        bodylen -= keylen;
-
-        if ((bodylen % 2) != 0) {
-            throw std::logic_error(
-                    "HelloRequest::dumpValue(): bodylen must be in words");
-        }
-
-        if (bodylen == 0) {
+        auto value = request.getValue();
+        if (value.empty()) {
             return;
         }
-        uint32_t first = sizeof(request.bytes) + keylen;
+
+        if ((value.size() % 2) != 0) {
+            throw std::logic_error(
+                    "HelloRequest::dumpValue(): value must be in words");
+        }
+
+        cb::sized_buffer<const uint16_t> features = {
+                reinterpret_cast<const uint16_t*>(value.data()),
+                value.size() / 2};
+        ptrdiff_t first =
+                value.data() - reinterpret_cast<const uint8_t*>(&header);
         out << "    Body                :" << std::endl;
-
-        uint32_t total = bodylen / 2;
-        uint32_t offset = sizeof(request.bytes) + keylen;
-        for (uint32_t ii = 0; ii < total; ++ii) {
-            uint16_t feature;
-            memcpy(&feature, request.bytes + offset, 2);
-            offset += 2;
-            feature = ntohs(feature);
-
+        for (auto& val : features) {
             std::string text;
             try {
-                text = to_string(cb::mcbp::Feature(feature));
+                text = to_string(cb::mcbp::Feature(ntohs(val)));
             } catch (...) {
-                text = std::to_string(feature);
+                text = std::to_string(ntohs(val));
             }
 
             out << "                 (" << first << "-" << first + 1
@@ -328,8 +307,8 @@ protected:
 
 class SetWithMetaRequest : public Request {
 public:
-    SetWithMetaRequest(const protocol_binary_request_header& req)
-        : Request(req) {
+    explicit SetWithMetaRequest(const cb::mcbp::Request& request)
+        : Request(request) {
     }
 
 protected:
@@ -359,55 +338,53 @@ protected:
     }
 
     void dumpExtras(std::ostream& out) const override {
-        if (request.request.extlen < 24) {
+        auto ext = request.getExtdata();
+        if (ext.size() < 24) {
             throw std::logic_error(
                     "SetWithMetaRequest::dumpExtras(): extlen must be at lest "
                     "24 bytes");
         }
 
-        const auto extdata = request.request.getExtdata();
         const auto* extras =
                 reinterpret_cast<const cb::mcbp::request::SetWithMetaPayload*>(
-                        extdata.data());
+                        ext.data());
 
         out << "    Extras" << std::endl;
-        out << std::setfill('0');
-        out << "        flags    (24-27): 0x" << std::setw(8)
-            << extras->getFlagsInNetworkByteOrder() << std::endl;
-        out << "        exptime  (28-31): 0x" << std::setw(8)
-            << extras->getExpiration() << std::endl;
-        out << "        seqno    (32-39): 0x" << std::setw(16)
-            << extras->getSeqno() << std::endl;
-        out << "        cas      (40-47): 0x" << std::setw(16)
-            << extras->getCas() << std::endl;
+        out << "        flags    (24-27): "
+            << cb::to_hex(extras->getFlagsInNetworkByteOrder()) << std::endl;
+        out << "        exptime  (28-31): "
+            << cb::to_hex(extras->getExpiration()) << std::endl;
+        out << "        seqno    (32-39): " << cb::to_hex(extras->getSeqno())
+            << std::endl;
+        out << "        cas      (40-47): " << cb::to_hex(extras->getCas())
+            << std::endl;
 
         const uint16_t* nmeta_ptr;
         const uint32_t* options_ptr;
 
-        switch (extdata.size()) {
+        switch (ext.size()) {
         case 24: // no nmeta and no options
             break;
         case 26: // nmeta
-            nmeta_ptr = reinterpret_cast<const uint16_t*>(extdata.data() + 24);
-            out << "        nmeta     (48-49): 0x" << std::setw(4)
-                << uint16_t(ntohs(*nmeta_ptr)) << std::endl;
+            nmeta_ptr = reinterpret_cast<const uint16_t*>(ext.data() + 24);
+            out << "        nmeta     (48-49): "
+                << cb::to_hex(uint16_t(ntohs(*nmeta_ptr))) << std::endl;
             break;
         case 28: // options (4-byte field)
         case 30: // options and nmeta (options followed by nmeta)
-            options_ptr =
-                    reinterpret_cast<const uint32_t*>(extdata.data() + 24);
-            out << "        options  (48-51): 0x" << std::setw(8)
-                << uint32_t(ntohl(*options_ptr));
+            options_ptr = reinterpret_cast<const uint32_t*>(ext.data() + 24);
+            out << "        options  (48-51): "
+                << cb::to_hex(uint32_t(ntohl(*options_ptr))) << std::endl;
             if (*options_ptr != 0) {
                 out << " (" << decodeOptions(options_ptr) << ")";
             }
             out << std::endl;
-            if (request.request.extlen == 28) {
+            if (ext.size() == 28) {
                 break;
             }
-            nmeta_ptr = reinterpret_cast<const uint16_t*>(extdata.data() + 28);
-            out << "        nmeta     (52-53): 0x" << std::setw(4)
-                << uint16_t(ntohs(*nmeta_ptr)) << std::endl;
+            nmeta_ptr = reinterpret_cast<const uint16_t*>(ext.data() + 28);
+            out << "        nmeta     (52-53): "
+                << cb::to_hex(uint16_t(ntohs(*nmeta_ptr))) << std::endl;
             break;
         default:
             throw std::logic_error(
@@ -420,110 +397,60 @@ protected:
 
 class Response : public McbpFrame {
 public:
-    Response(const protocol_binary_response_header& res)
-        : McbpFrame(res.bytes, res.response.getBodylen() + sizeof(res.bytes)),
-          response(res) {
+    explicit Response(const cb::mcbp::Response& response)
+        : McbpFrame(reinterpret_cast<const cb::mcbp::Header&>(response)),
+          response(response) {
         // nothing
     }
 
 protected:
     void dumpPacketInfo(std::ostream& out) const override {
-        uint32_t bodylen = response.response.getBodylen();
-        out << "        Total " << sizeof(response) + bodylen << " bytes";
-        if (bodylen > 0) {
-            out << " (" << sizeof(response) << " bytes header";
-            if (response.response.getExtlen() != 0) {
-                out << ", " << (unsigned int)response.response.getExtlen()
-                    << " byte extras ";
-            }
-            uint16_t keylen = response.response.getKeylen();
-            if (keylen > 0) {
-                out << ", " << keylen << " bytes key";
-            }
-            bodylen -= keylen;
-            bodylen -= response.response.getExtlen();
-            if (bodylen > 0) {
-                out << " and " << bodylen << " value";
-            }
-            out << ")";
-        }
-        out << std::endl << std::endl;
-        out.flags(std::ios::hex);
-        out << std::setfill('0');
-
+        const auto* bytes = reinterpret_cast<const uint8_t*>(&response);
         out << "    Field        (offset) (value)" << std::endl;
-        out << "    Magic        (0)    : 0x"
-            << (uint32_t(response.bytes[0]) & 0xff) << " ("
-            << to_string(response.response.getMagic()) << ")" << std::endl;
-        out << "    Opcode       (1)    : 0x" << std::setw(2)
-            << (uint32_t(response.bytes[1]) & 0xff) << " (";
-        if (response.response.getMagic() == cb::mcbp::Magic::ServerResponse) {
-            out << to_string(response.response.getServerOpcode()) << ")"
-                << std::endl;
+        out << "    Magic        (0)    : " << cb::to_hex(bytes[0]) << " ("
+            << to_string(response.getMagic()) << ")" << std::endl;
+        out << "    Opcode       (1)    : " << cb::to_hex(bytes[1]) << " (";
+        if (cb::mcbp::is_client_magic(response.getMagic())) {
+            out << to_string(response.getClientOpcode()) << ")" << std::endl;
         } else {
-            out << to_string(response.response.getClientOpcode()) << ")"
-                << std::endl;
+            out << to_string(response.getServerOpcode()) << ")" << std::endl;
         }
-        out << "    Key length   (2,3)  : 0x" << std::setw(4)
-            << (response.response.getKeylen() & 0xffff) << std::endl;
-        out << "    Extra length (4)    : 0x" << std::setw(2)
-            << (uint32_t(response.bytes[4]) & 0xff) << std::endl;
-        out << "    Data type    (5)    : 0x" << std::setw(2)
-            << (uint32_t(response.bytes[5]) & 0xff) << std::endl;
-        out << "    Status       (6,7)  : 0x" << std::setw(4)
-            << (uint16_t(response.response.getStatus()) & 0xffff) << " ("
-            << to_string(response.response.getStatus()) << ")" << std::endl;
-        out << "    Total body   (8-11) : 0x" << std::setw(8)
-            << (uint64_t(response.response.getBodylen()) & 0xffff) << std::endl;
-        out << "    Opaque       (12-15): 0x" << std::setw(8)
-            << response.response.getOpaque() << std::endl;
-        out << "    CAS          (16-23): 0x" << std::setw(16)
-            << response.response.cas << std::endl;
-        out << std::setfill(' ');
-        out.flags(std::ios::dec);
+        if (cb::mcbp::is_alternative_encoding(response.getMagic())) {
+            out << "    Framing extlen (2)  : "
+                << cb::to_hex(response.getFramingExtraslen()) << std::endl;
+            out << "    Key length     (3)  : "
+                << cb::to_hex(response.getKeylen()) << std::endl;
+        } else {
+            out << "    Key length   (2,3)  : "
+                << cb::to_hex(response.getKeylen()) << std::endl;
+        }
+        out << "    Extra length (4)    : " << cb::to_hex(bytes[4])
+            << std::endl;
+        out << "    Data type    (5)    : " << cb::to_hex(bytes[5])
+            << std::endl;
+        out << "    Status       (6,7)  : "
+            << cb::to_hex(uint16_t(response.getStatus())) << " ("
+            << to_string(response.getStatus()) << ")" << std::endl;
+        out << "    Total body   (8-11) : " << cb::to_hex(response.getBodylen())
+            << std::endl;
+        out << "    Opaque       (12-15): " << cb::to_hex(response.getOpaque())
+            << std::endl;
+        out << "    CAS          (16-23): " << cb::to_hex(response.getCas())
+            << std::endl;
     }
 
-    void dumpExtras(std::ostream& out) const override {
-        McbpFrame::dumpExtras(response.bytes + sizeof(response.bytes),
-                              response.response.getExtlen(),
-                              out);
-    }
-
-    void dumpKey(std::ostream& out) const override {
-        McbpFrame::dumpKey(response.bytes + sizeof(response.bytes) +
-                                   response.response.getExtlen(),
-                           response.response.getKeylen(),
-                           out);
-    }
-
-    void dumpValue(std::ostream& out) const override {
-    }
-
-    const protocol_binary_response_header& response;
+    const cb::mcbp::Response& response;
 };
 
 class HelloResponse : public Response {
 public:
-    HelloResponse(const protocol_binary_response_header& res) : Response(res) {
+    explicit HelloResponse(const cb::mcbp::Response& response)
+        : Response(response) {
     }
 
 protected:
-    void dumpExtras(std::ostream& out) const override {
-        if (response.response.getExtlen() != 0) {
-            throw std::logic_error(
-                    "HelloResponse::dumpExtras(): extlen must be 0");
-        }
-    }
-
-    void dumpKey(std::ostream& out) const override {
-        if (response.response.getKeylen() != 0) {
-            throw std::logic_error(
-                    "HelloResponse::dumpKey(): keylen must be 0");
-        }
-    }
-
     void dumpValue(std::ostream& out) const override {
-        if (cb::mcbp::isStatusSuccess(response.response.getStatus())) {
+        if (cb::mcbp::isStatusSuccess(response.getStatus())) {
             dumpSuccessValue(out);
         } else {
             dumpFailureValue(out);
@@ -531,32 +458,30 @@ protected:
     }
 
     void dumpSuccessValue(std::ostream& out) const {
-        uint32_t bodylen = response.response.getBodylen();
-
-        if ((bodylen % 2) != 0) {
-            throw std::logic_error(
-                    "HelloRequest::dumpValue(): bodylen must be in words");
-        }
-
-        if (bodylen == 0) {
+        auto value = response.getValue();
+        if (value.empty()) {
             return;
         }
-        uint32_t first = sizeof(response.bytes);
-        out << "    Body                :" << std::endl;
 
-        uint32_t total = bodylen / 2;
-        uint32_t offset = sizeof(response.bytes);
-        for (uint32_t ii = 0; ii < total; ++ii) {
-            uint16_t feature;
-            memcpy(&feature, response.bytes + offset, 2);
-            offset += 2;
-            feature = ntohs(feature);
+        if ((value.size() % 2) != 0) {
+            throw std::logic_error(
+                    "HelloResponse::dumpValue(): value must be in words");
+        }
+
+        cb::sized_buffer<const uint16_t> features = {
+                reinterpret_cast<const uint16_t*>(value.data()),
+                value.size() / 2};
+        ptrdiff_t first =
+                value.data() - reinterpret_cast<const uint8_t*>(&header);
+        out << "    Body                :" << std::endl;
+        for (auto& val : features) {
             std::string text;
             try {
-                text = to_string(cb::mcbp::Feature(feature));
+                text = to_string(cb::mcbp::Feature(ntohs(val)));
             } catch (...) {
-                text = std::to_string(feature);
+                text = std::to_string(ntohs(val));
             }
+
             out << "                 (" << first << "-" << first + 1
                 << "): " << text << std::endl;
             first += 2;
@@ -564,7 +489,7 @@ protected:
     }
 
     void dumpFailureValue(std::ostream& out) const {
-        auto value = response.response.getValue();
+        auto value = response.getValue();
         const std::string val = {reinterpret_cast<const char*>(value.data()),
                                  value.size()};
         out << "    Body                : The textual string \"" << val << "\""
@@ -574,35 +499,21 @@ protected:
 
 class ListBucketsResponse : public Response {
 public:
-    ListBucketsResponse(const protocol_binary_response_header& res)
+    explicit ListBucketsResponse(const cb::mcbp::Response& res)
         : Response(res) {
     }
 
 protected:
-    void dumpExtras(std::ostream& out) const override {
-        if (response.response.getExtlen() != 0) {
-            throw std::logic_error(
-                    "ListBucketsResponse::dumpExtras(): extlen must be 0");
-        }
-    }
-
-    void dumpKey(std::ostream& out) const override {
-        if (response.response.getKeylen() != 0) {
-            throw std::logic_error(
-                    "ListBucketsResponse::dumpKey(): keylen must be 0");
-        }
-    }
-
     void dumpValue(std::ostream& out) const override {
-        const char* payload = reinterpret_cast<const char*>(response.bytes) +
-                              sizeof(response.bytes);
-        std::string buckets(payload, response.response.getBodylen());
+        const auto value = response.getValue();
+        std::string buckets(reinterpret_cast<const char*>(value.data()),
+                            value.size());
         out << "    Body                :" << std::endl;
 
         std::string::size_type start = 0;
         std::string::size_type end;
 
-        while ((end = buckets.find(" ", start)) != std::string::npos) {
+        while ((end = buckets.find(' ', start)) != std::string::npos) {
             const auto b = buckets.substr(start, end - start);
             out << "                        : " << b << std::endl;
             start = end + 1;
@@ -614,66 +525,57 @@ protected:
     }
 };
 
-static void dump_request(const protocol_binary_request_header* req,
-                         std::ostream& out) {
-    switch (req->request.getClientOpcode()) {
+static void dump_request(const cb::mcbp::Request& request, std::ostream& out) {
+    switch (request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::Hello:
-        out << HelloRequest(*req) << std::endl;
+        out << HelloRequest(request) << std::endl;
         break;
     case cb::mcbp::ClientOpcode::SetWithMeta:
     case cb::mcbp::ClientOpcode::SetqWithMeta:
-        out << SetWithMetaRequest(*req) << std::endl;
+        out << SetWithMetaRequest(request) << std::endl;
         break;
     default:
-        out << Request(*req) << std::endl;
+        out << Request(request) << std::endl;
     }
 }
 
-static void dump_response(const protocol_binary_response_header* res,
+static void dump_response(const cb::mcbp::Response& response,
                           std::ostream& out) {
-    switch (res->response.getClientOpcode()) {
+    switch (response.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::Hello:
-        out << HelloResponse(*res) << std::endl;
+        out << HelloResponse(response) << std::endl;
         break;
     case cb::mcbp::ClientOpcode::ListBuckets:
-        out << ListBucketsResponse(*res) << std::endl;
+        out << ListBucketsResponse(response) << std::endl;
         break;
     default:
-        out << Response(*res) << std::endl;
+        out << Response(response) << std::endl;
+    }
+}
+
+void cb::mcbp::dump(const cb::mcbp::Header& header, std::ostream& out) {
+    if (header.isValid()) {
+        if (header.isRequest()) {
+            dump_request(header.getRequest(), out);
+        } else {
+            dump_response(header.getResponse(), out);
+        }
+    } else {
+        throw std::invalid_argument("cb::mcbp::dump: Invalid magic");
     }
 }
 
 void cb::mcbp::dump(const uint8_t* packet, std::ostream& out) {
-    auto* req = reinterpret_cast<const protocol_binary_request_header*>(packet);
-    auto* res =
-            reinterpret_cast<const protocol_binary_response_header*>(packet);
-
-    switch (req->request.getMagic()) {
-    case Magic::AltClientRequest:
-    case Magic::ClientRequest:
-    case Magic::ServerRequest:
-        dump_request(req, out);
-        return;
-
-    case Magic::ClientResponse:
-    case Magic::AltClientResponse:
-    case Magic::ServerResponse:
-        dump_response(res, out);
-        return;
-    }
-
-    throw std::invalid_argument("cb::mcbp::dump: Invalid magic");
+    dump(*reinterpret_cast<const cb::mcbp::Header*>(packet), out);
 }
 
 void cb::mcbp::dumpStream(cb::byte_buffer buffer, std::ostream& out) {
     size_t offset = 0;
 
-    while ((offset + sizeof(cb::mcbp::Request)) < buffer.len) {
+    while ((offset + sizeof(Header)) < buffer.len) {
         // Check to see if we've got the entire next packet available
-        auto* req = reinterpret_cast<const cb::mcbp::Request*>(buffer.data() +
-                                                               offset);
-        // verify that the magic is one of the known magics:
-        if (req->magic != 0x80 && req->magic != 0x81) {
+        auto* header = reinterpret_cast<const Header*>(buffer.data() + offset);
+        if (!header->isValid()) {
             std::stringstream ss;
             ss << "Invalid magic at offset: " << offset
                << ". Dumping next header" << std::endl;
@@ -689,13 +591,12 @@ void cb::mcbp::dumpStream(cb::byte_buffer buffer, std::ostream& out) {
 
             throw std::invalid_argument(ss.str());
         }
-
-        offset += sizeof(*req) + req->getBodylen();
+        offset += sizeof(*header) + header->getBodylen();
         if (offset > buffer.len) {
             out << "Last frame truncated..." << std::endl;
             return;
         }
 
-        dump(reinterpret_cast<const uint8_t*>(req), out);
+        dump(*header, out);
     }
 }

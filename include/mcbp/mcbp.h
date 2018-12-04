@@ -49,6 +49,8 @@ namespace mcbp {
  */
 void dump(const uint8_t* packet, std::ostream& out);
 
+void dump(const Header& header, std::ostream& out);
+
 /**
  * Dump all of the messages within the stream
  *
