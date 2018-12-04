@@ -455,6 +455,8 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
                                              const DocKey& key,
                                              const std::string& value,
                                              GetMetaOnly getMetaOnly) {
+    Expects(value.size() >= sizeof(magmakv::MetaData));
+
     const char* data = value.c_str();
 
     magmakv::MetaData meta;
