@@ -24,12 +24,7 @@
 
 static ENGINE_ERROR_CODE dcp_deletion_v1_executor(Cookie& cookie) {
     auto& request = cookie.getHeader().getRequest();
-    auto keybuffer = request.getKey();
-
-    // The V1 delete is not collection aware, so lock to the DefaultCollection
-    const DocKey key{
-            keybuffer.data(), keybuffer.size(), DocKeyEncodesCollectionId::No};
-
+    const auto key = cookie.getConnection().makeDocKey(request.getKey());
     const auto opaque = request.getOpaque();
     const auto datatype = uint8_t(request.getDatatype());
     const auto cas = request.getCas();
