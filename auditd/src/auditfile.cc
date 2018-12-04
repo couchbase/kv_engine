@@ -38,7 +38,7 @@ bool AuditFile::maybe_rotate_files() {
             // closing and then re-opening we can just keep open and
             // update the open_time.
             open_time = auditd_time();
-            return true;
+            return false;
         }
         close_and_rotate_log();
         return true;

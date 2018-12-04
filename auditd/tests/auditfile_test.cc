@@ -81,6 +81,28 @@ TEST_F(AuditFileTest, TestFileCreation) {
     EXPECT_EQ(1, files.size());
 }
 
+ /**
+ * Test that an empty file is properly rotated using ensure_open()
+ * Seen issues in the past such as MB-32232
+ */
+TEST_F(AuditFileTest, TestRotateEmptyFile) {
+    AuditConfig defaultvalue;
+    config.set_rotate_interval(defaultvalue.get_min_file_rotation_time());
+    config.set_rotate_size(1024*1024);
+
+    AuditFile auditfile("testing");
+    auditfile.reconfigure(config);
+
+    auditfile.ensure_open();
+    cb_timeofday_timetravel(defaultvalue.get_min_file_rotation_time() + 1);
+    auditfile.ensure_open();
+
+    auditfile.close();
+
+    auto files = findFilesWithPrefix(testdir + "/testing");
+    EXPECT_EQ(0, files.size());
+}
+
 /**
  * Test that we can create a file, and as time flies by we rotate
  * to use the next file
