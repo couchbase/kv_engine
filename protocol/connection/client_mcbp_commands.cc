@@ -1363,61 +1363,6 @@ BinprotDcpStreamRequestCommand::setDcpSnapEndSeqno(uint64_t value) {
     return *this;
 }
 
-void BinprotDcpMutationCommand::reset(const std::vector<uint8_t>& packet) {
-    clear();
-
-    const auto& request =
-            *reinterpret_cast<const cb::mcbp::Request*>(packet.data());
-    if (!request.isValid()) {
-        throw std::invalid_argument(
-                "BinprotDcpMutationCommand: Invalid packet");
-    }
-
-    using cb::mcbp::request::DcpMutationPayload;
-    const auto extdata = request.getExtdata();
-    if (extdata.size() != sizeof(DcpMutationPayload)) {
-        throw std::invalid_argument(
-                "BinprotDcpMutationCommand: Invalid extras section");
-    }
-    const auto* extras =
-            reinterpret_cast<const DcpMutationPayload*>(extdata.data());
-
-    by_seqno = extras->getBySeqno();
-    rev_seqno = extras->getRevSeqno();
-    flags = extras->getFlags();
-    expiration = extras->getExpiration();
-    lock_time = extras->getLockTime();
-    nmeta = extras->getNmeta();
-    nru = extras->getNru();
-
-    setOp(cb::mcbp::ClientOpcode::DcpMutation);
-    setVBucket(request.getVBucket());
-    setCas(request.cas);
-
-    auto k = request.getKey();
-    auto v = request.getValue();
-    setKey(std::string{reinterpret_cast<const char*>(k.data()), k.size()});
-    setValue(std::string{reinterpret_cast<const char*>(v.data()), v.size()});
-}
-
-void BinprotDcpMutationCommand::encode(std::vector<uint8_t>& buf) const {
-    throw std::runtime_error(
-        "BinprotDcpMutationCommand::encode: not implemented");
-}
-BinprotDcpMutationCommand::BinprotDcpMutationCommand()
-    : BinprotGenericCommand(cb::mcbp::ClientOpcode::DcpMutation, {}, {}),
-      by_seqno(0),
-      rev_seqno(0),
-      flags(0),
-      expiration(0),
-      lock_time(0),
-      nmeta(0),
-      nru(0) {
-}
-const std::string& BinprotDcpMutationCommand::getValue() const {
-    return value;
-}
-
 void BinprotSetParamCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, value.size(), 4);
     cb::mcbp::request::SetParamPayload payload;
