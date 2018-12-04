@@ -134,6 +134,11 @@ enum class Status : uint16_t {
      */
     UnknownScope = 0x8c,
 
+    /**
+     * Operation attempted and the stream-ID is invalid
+     */
+    DcpStreamIdInvalid = 0x8d,
+
     DurabilityInvalidLevel = 0xa0,
     DurabilityImpossible = 0xa1,
     SyncWriteInProgress = 0xa2,

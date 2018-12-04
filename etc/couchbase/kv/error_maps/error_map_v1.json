@@ -226,6 +226,13 @@
                 "invalid-input"
             ]
         },
+        "8d": {
+            "name": "DCP stream-ID invalid",
+            "desc": "Operations stream-ID usage is incorrect.",
+            "attrs": [
+                "invalid-input"
+            ]
+        },
         "a0": {
             "name": "DurabilityInvalidLevel",
             "desc": "Durability level is invalid",

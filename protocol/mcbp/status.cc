@@ -82,6 +82,7 @@ bool isStatusSuccess(Status status) {
     case Status::COUNT:
     case Status::ReservedUserStart:
     case Status::ReservedUserEnd:
+    case Status::DcpStreamIdInvalid:
         return false;
     }
     throw std::invalid_argument("isStatusSuccess(): invalid status provided");
@@ -175,6 +176,8 @@ std::string to_string(cb::mcbp::Status status) {
         return "Collections manifest is ahead";
     case Status::UnknownScope:
         return "Unknown Scope";
+    case Status::DcpStreamIdInvalid:
+        return "DCP stream-ID is invalid";
     case Status::DurabilityInvalidLevel:
         return "Invalid durability level";
     case Status::DurabilityImpossible:

@@ -47,9 +47,11 @@ Collections::VB::PersistedManifest CollectionsDcpTest::getManifest(
 }
 
 void CollectionsDcpTest::createDcpStream(
-        boost::optional<cb::const_char_buffer> collections, Vbid id) {
+        boost::optional<cb::const_char_buffer> collections,
+        Vbid id,
+        cb::engine_errc expectedError) {
     uint64_t rollbackSeqno;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(ENGINE_ERROR_CODE(expectedError),
               producer->streamRequest(0, // flags
                                       1, // opaque
                                       id,

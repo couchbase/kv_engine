@@ -108,6 +108,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "synchronous write in progress";
     case engine_errc::sync_write_ambiguous:
         return "synchronous write ambiguous";
+    case engine_errc::dcp_streamid_invalid:
+        return "dcp_streamid_invalid";
     };
     throw std::invalid_argument(
         "engine_error_category::message: code does not represent a "
@@ -181,6 +183,8 @@ cb::engine_errc cb::to_engine_errc(ENGINE_ERROR_CODE eec) {
         return cb::engine_errc::sync_write_in_progress;
     case ENGINE_SYNC_WRITE_AMBIGUOUS:
         return cb::engine_errc::sync_write_ambiguous;
+    case ENGINE_DCP_STREAMID_INVALID:
+        return cb::engine_errc::dcp_streamid_invalid;
     }
     throw std::invalid_argument(
             "cb::to_engine_errc: invalid ENGINE_ERROR_CODE " +

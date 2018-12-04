@@ -427,6 +427,7 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
         // operation
         return ENGINE_TMPFAIL;
     case ENGINE_SYNC_WRITE_AMBIGUOUS:
+    case ENGINE_DCP_STREAMID_INVALID:
         break;
     }
 
@@ -1850,8 +1851,6 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
     item.release();
 
     auto key = info.key;
-    cb::mcbp::unsigned_leb128<CollectionIDType> cid(info.key.getCollectionID());
-
     // The client doesn't support collections, so must not send an encoded key
     if (!isCollectionsSupported()) {
         key = key.makeDocKeyWithoutCollectionID();

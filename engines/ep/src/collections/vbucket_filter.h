@@ -91,6 +91,7 @@ public:
      * @param jsonFilter Optional string data that can contain JSON
      *        configuration info
      * @param manifest The vbucket's collection manifest.
+     * @throws cb::engine_error
      */
     Filter(boost::optional<cb::const_char_buffer> jsonFilter,
            const ::Collections::VB::Manifest& manifest);

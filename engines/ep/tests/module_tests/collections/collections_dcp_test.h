@@ -54,8 +54,10 @@ public:
     void SetUp() override;
     Collections::VB::PersistedManifest getManifest(Vbid vb) const;
 
-    void createDcpStream(boost::optional<cb::const_char_buffer> collections,
-                         Vbid id = Vbid(0));
+    void createDcpStream(
+            boost::optional<cb::const_char_buffer> collections,
+            Vbid id = Vbid(0),
+            cb::engine_errc expectedError = cb::engine_errc::success);
 
     void createDcpConsumer();
 

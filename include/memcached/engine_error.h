@@ -130,6 +130,11 @@ enum class engine_errc {
     /// value is not yet known
     sync_write_ambiguous = 0x1e,
 
+    /// A DCP method was invoked and the stream-ID is invalid. Could be that
+    /// an ID was provided when the feature is disabled, or no ID and the
+    /// feature is enabled.
+    dcp_streamid_invalid = 0x1f,
+
     /** Generic failue. */
     failed = 0xff
 };
@@ -202,6 +207,7 @@ typedef enum {
     ENGINE_SYNC_WRITE_IN_PROGRESS =
             int(cb::engine_errc::sync_write_in_progress),
     ENGINE_SYNC_WRITE_AMBIGUOUS = int(cb::engine_errc::sync_write_ambiguous),
+    ENGINE_DCP_STREAMID_INVALID = int(cb::engine_errc::dcp_streamid_invalid)
 } ENGINE_ERROR_CODE;
 
 namespace std {

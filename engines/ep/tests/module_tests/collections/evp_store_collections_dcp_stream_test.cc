@@ -39,6 +39,71 @@ public:
     }
 };
 
+TEST_F(CollectionsDcpStreamsTest, request_validation) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest({cm});
+
+    // Cannot do this without enabling the feature
+    createDcpStream({{R"({"collections":["9"], "sid":99})"}},
+                    vbid,
+                    cb::engine_errc::dcp_streamid_invalid);
+
+    // sid of 0 is not allowed, this error has to be caught at this level
+    // (ep_engine.cc catches in the full stack)
+    try {
+        createDcpStream({{R"({"collections":["9"], "sid":0})"}},
+                        vbid,
+                        cb::engine_errc::dcp_streamid_invalid);
+        FAIL() << "Expected an exception";
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(cb::engine_errc::dcp_streamid_invalid,
+                  cb::engine_errc(e.code().value()));
+    }
+
+    producer->enableMultipleStreamRequests();
+
+    // Now caller must provide the sid
+    createDcpStream({{R"({"collections":["9"]})"}},
+                    vbid,
+                    cb::engine_errc::dcp_streamid_invalid);
+
+    // sid of 0 is still not allowed
+    try {
+        createDcpStream({{R"({"collections":["9"], "sid":0})"}},
+                        vbid,
+                        cb::engine_errc::dcp_streamid_invalid);
+        FAIL() << "Expected an exception";
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(cb::engine_errc::dcp_streamid_invalid,
+                  cb::engine_errc(e.code().value()));
+    }
+}
+
+TEST_F(CollectionsDcpStreamsTest, close_stream_validation1) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest({cm});
+    producer->enableMultipleStreamRequests();
+    createDcpStream({{R"({"collections":["9"], "sid":99})"}}, vbid);
+
+    EXPECT_EQ(ENGINE_DCP_STREAMID_INVALID, producer->closeStream(0, vbid, {}));
+}
+
+TEST_F(CollectionsDcpStreamsTest, close_stream_validation2) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest({cm});
+
+    createDcpStream({{R"({"collections":["9"]})"}}, vbid);
+
+    EXPECT_EQ(ENGINE_DCP_STREAMID_INVALID,
+              producer->closeStream(0, vbid, cb::mcbp::DcpStreamId(99)));
+}
+
 TEST_F(CollectionsDcpStreamsTest, two_streams) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);

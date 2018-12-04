@@ -86,8 +86,8 @@ void Filter::constructFromJson(cb::const_char_buffer json,
                 parsed, StreamIdKey, StreamIdType, "Filter::constructFromJson");
         streamId = cb::mcbp::DcpStreamId(sid.get<uint16_t>());
         if (streamId == cb::mcbp::DcpStreamId(0)) {
-            throw cb::engine_error(cb::engine_errc::invalid_arguments,
-                                   "Filter::constructFromJson stream-id 0:" +
+            throw cb::engine_error(cb::engine_errc::dcp_streamid_invalid,
+                                   "Filter::constructFromJson illegal sid:0:" +
                                            cb::to_string(json));
         }
     }

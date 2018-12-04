@@ -92,6 +92,8 @@ cb::mcbp::Status cb::mcbp::to_status(cb::engine_errc code) {
         return Status::SyncWriteInProgress;
     case engine_errc::sync_write_ambiguous:
         return Status::SyncWriteAmbiguous;
+    case engine_errc::dcp_streamid_invalid:
+        return Status::DcpStreamIdInvalid;
     }
 
     throw std::invalid_argument("mcbp::to_status: Invalid argument " +

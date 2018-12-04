@@ -46,7 +46,7 @@ When received on the producer side:
 (b) The producers that have not received [send_stream_end_on_client_close_stream](./control.md) control message on the connection or the producers that have not accepted the control message (indicates the producer does not support sending [STREAM_END](./stream-end.md)), will stop sending messages to the consumer on this stream. The consumers should not expect any [STREAM_END](./stream-end.md) message.
 
 Note: In case (b), there may be some lingering messages for the stream on the connection, that were sent before the producer saw close stream command and may reach the consumer after it receives the response to close stream. So it is advisable to use the [send_stream_end_on_client_close_stream](./control.md) control message and hence operate under case (a) on the producers that support it.
- 
+
 ### Returns
 
 A status code indicating whether or not the operation was successful.
@@ -60,6 +60,16 @@ If a stream does not exist for the vbucket specfied on this connection.
 **PROTOCOL_BINARY_RESPONSE_EINVAL (0x04)**
 
 If data in this packet is malformed or incomplete then this error is returned.
+
+**PROTOCOL_BINARY_RESPONSE_DCP_STREAMID_INVALID (0x8d)**
+
+A close-stream request was made and either of the following situations was
+detected.
+
+* The request includes a stream-ID (non zero) and the stream-ID feature is not
+ [enabled](control.md).
+* The request does not include a stream-ID and the stream-ID feature is
+ [enabled](control.md).
 
 **(Disconnect)**
 

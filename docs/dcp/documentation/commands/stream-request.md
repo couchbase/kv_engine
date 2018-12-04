@@ -301,7 +301,9 @@ This error code may be returned for one of the following reason. Check the serve
 * If the start and end sequence numbers are specified incorrectly. For example the start sequence number cannot be bigger than the current high sequence number in the VBucket. The start sequence number must also be less than the end sequence number.
 * If the snapshot start or snapshot end seqno are not specified correctly. For all stream requests the snapshot start seqno must be less than or equal to the start seqno and the start seqno must be less than or equal to the snapshot end seqno.
 
-**PROTOCOL_BINARY_RESPONSE_ROLLBACK (0x23)** - If the consumer needs to rollback its data before reconnecting.
+**PROTOCOL_BINARY_RESPONSE_ROLLBACK (0x23)**
+
+If the consumer needs to rollback its data before reconnecting.
 
 **PROTOCOL_BINARY_RESPONSE_ENOMEM (0x82)**
 
@@ -315,6 +317,15 @@ the cluster, the vbucket it is trying to request should catch up with the uid th
 client is using.
 
 The client should briefly pause and then retry the stream-request.
+
+**PROTOCOL_BINARY_RESPONSE_DCP_STREAMID_INVALID (0x8d)**
+
+A stream-request was made and either of the following situations was detected.
+
+* The request includes a [value](stream-request-value.md) which includes a sid
+and the stream-ID feature is not [enabled](control.md).
+* The request does not include a sid and the stream-ID feature is [enabled](control.md).
+
 
 **(Disconnect)**
 
