@@ -520,10 +520,7 @@ TEST_F(WithMetaTest, storeUncompressedInOffMode) {
               callEngine(cb::mcbp::ClientOpcode::SetWithMeta, swm));
 
     VBucketPtr vb = store->getVBucket(vbid);
-    StoredValue* v(vb->ht.find(makeStoredDocKey("key"),
-                               TrackReference::No,
-                               WantsDeleted::No)
-                           .storedValue);
+    const auto* v(vb->ht.findForRead(makeStoredDocKey("key")).storedValue);
     ASSERT_NE(nullptr, v);
     EXPECT_EQ(valueData, v->getValue()->to_s());
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, v->getDatatype());

@@ -23,9 +23,8 @@ void DurabilityMonitorTest::addSyncWrites() {
     size_t expectedNumTracked = 0;
     for (size_t seqno = 1; seqno <= numItems; seqno++) {
         auto& vb = *store->getVBuckets().getBucket(vbid);
-        auto htRes = vb.ht.find(makeStoredDocKey("key" + std::to_string(seqno)),
-                                TrackReference::No,
-                                WantsDeleted::Yes);
+        auto htRes = vb.ht.findForWrite(
+                makeStoredDocKey("key" + std::to_string(seqno)));
         ASSERT_TRUE(htRes.storedValue);
         EXPECT_EQ(ENGINE_SUCCESS,
                   mgr->addSyncWrite(*htRes.storedValue,

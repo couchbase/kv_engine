@@ -83,8 +83,7 @@ protected:
                       /*bySeqno*/ i);
             EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
-            sv = ht.find(key, TrackReference::Yes, WantsDeleted::No)
-                         .storedValue->toOrderedStoredValue();
+            sv = ht.findForWrite(key).storedValue->toOrderedStoredValue();
 
             std::lock_guard<std::mutex> listWriteLg(
                     basicLL->getListWriteLock());
@@ -111,8 +110,7 @@ protected:
         EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
         OrderedStoredValue* sv =
-                ht.find(sKey, TrackReference::Yes, WantsDeleted::No)
-                        .storedValue->toOrderedStoredValue();
+                ht.findForWrite(sKey).storedValue->toOrderedStoredValue();
 
         std::lock_guard<std::mutex> listWriteLg(basicLL->getListWriteLock());
         basicLL->appendToList(lg, listWriteLg, *sv);
@@ -137,9 +135,7 @@ protected:
                   /*bySeqno*/ seqno);
         EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
-        OrderedStoredValue* sv =
-                ht.find(sKey, TrackReference::Yes, WantsDeleted::No)
-                        .storedValue->toOrderedStoredValue();
+        auto* sv = ht.findForWrite(sKey).storedValue->toOrderedStoredValue();
         std::lock_guard<std::mutex> listWriteLg(basicLL->getListWriteLock());
         basicLL->appendToList(lg, listWriteLg, *sv);
         basicLL->updateHighSeqno(listWriteLg, *sv);
@@ -161,10 +157,9 @@ protected:
         std::mutex fakeSeqLock;
         std::lock_guard<std::mutex> lg(fakeSeqLock);
 
-        OrderedStoredValue* osv = ht.find(makeStoredDocKey(key),
-                                          TrackReference::No,
-                                          WantsDeleted::Yes)
-                                          .storedValue->toOrderedStoredValue();
+        auto* sv = ht.findForWrite(makeStoredDocKey(key)).storedValue;
+        ASSERT_TRUE(sv);
+        auto* osv = sv->toOrderedStoredValue();
 
         std::lock_guard<std::mutex> listWriteLg(basicLL->getListWriteLock());
         EXPECT_EQ(SequenceList::UpdateStatus::Success,
@@ -184,10 +179,8 @@ protected:
         std::mutex fakeSeqLock;
         std::lock_guard<std::mutex> lg(fakeSeqLock);
 
-        OrderedStoredValue* osv = ht.find(makeStoredDocKey(key),
-                                          TrackReference::No,
-                                          WantsDeleted::Yes)
-                                          .storedValue->toOrderedStoredValue();
+        auto* osv = ht.findForWrite(makeStoredDocKey(key))
+                            .storedValue->toOrderedStoredValue();
 
         std::lock_guard<std::mutex> listWriteLg(basicLL->getListWriteLock());
         EXPECT_EQ(SequenceList::UpdateStatus::Append,
@@ -222,14 +215,10 @@ protected:
      */
     void softDeleteItem(seqno_t highSeqno, const std::string& key) {
         { /* hbl lock scope */
-            auto hbl = ht.getLockedBucket(makeStoredDocKey(key));
-            StoredValue* sv = ht.unlocked_find(makeStoredDocKey(key),
-                                               hbl.getBucketNum(),
-                                               WantsDeleted::Yes,
-                                               TrackReference::No);
+            auto result = ht.findForWrite(makeStoredDocKey(key));
 
-            ht.unlocked_softDelete(hbl.getHTLock(),
-                                   *sv,
+            ht.unlocked_softDelete(result.lock.getHTLock(),
+                                   *result.storedValue,
                                    /* onlyMarkDeleted */ false,
                                    DeleteSource::Explicit);
         }
@@ -483,9 +472,8 @@ TEST_F(BasicLinkedListTest, MarkStale) {
     // obtain a replacement SV
     addNewItemsToList(numItems + 1, keyPrefix, 1);
     OrderedStoredValue* replacement =
-            ht.find(makeStoredDocKey(keyPrefix + std::to_string(numItems + 1)),
-                    TrackReference::No,
-                    WantsDeleted::Yes)
+            ht.findForWrite(makeStoredDocKey(keyPrefix +
+                                             std::to_string(numItems + 1)))
                     .storedValue->toOrderedStoredValue();
 
     /* Mark the item stale */

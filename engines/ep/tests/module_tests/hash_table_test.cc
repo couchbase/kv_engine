@@ -117,13 +117,11 @@ static std::vector<StoredDocKey> generateKeys(int num, int start=0) {
  * @return true if the item existed before this call
  */
 static bool del(HashTable& ht, const DocKey& key) {
-    auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = ht.unlocked_find(
-            key, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
-    if (!v) {
+    auto htRes = ht.findForWrite(key);
+    if (!htRes.storedValue) {
         return false;
     }
-    ht.unlocked_del(hbl, key);
+    ht.unlocked_del(htRes.lock, key);
     return true;
 }
 
@@ -212,14 +210,10 @@ TEST_F(HashTableTest, ForwardDeletions) {
 }
 
 static void verifyFound(HashTable &h, const std::vector<StoredDocKey> &keys) {
-    EXPECT_FALSE(h.find(makeStoredDocKey("aMissingKey"),
-                        TrackReference::Yes,
-                        WantsDeleted::No)
-                         .storedValue);
+    EXPECT_FALSE(h.findForRead(makeStoredDocKey("aMissingKey")).storedValue);
 
     for (const auto& key : keys) {
-        EXPECT_TRUE(
-                h.find(key, TrackReference::Yes, WantsDeleted::No).storedValue);
+        EXPECT_TRUE(h.findForRead(key).storedValue);
     }
 }
 
@@ -399,7 +393,7 @@ protected:
     StoredValue* addAndEjectItem() {
         EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
-        auto result(ht.find(key, TrackReference::Yes, WantsDeleted::No));
+        auto result(ht.findForWrite(key));
         EXPECT_TRUE(result.storedValue);
         result.storedValue->markClean();
         EXPECT_TRUE(ht.unlocked_ejectItem(
@@ -521,7 +515,7 @@ TEST_P(HashTableStatsTest, EjectFlush) {
     EXPECT_EQ(0, ht.getNumDeletedItems());
 
     {
-        auto item(ht.find(key, TrackReference::Yes, WantsDeleted::No));
+        auto item(ht.findForWrite(key));
         EXPECT_TRUE(item.storedValue);
         item.storedValue->markClean();
         EXPECT_TRUE(ht.unlocked_ejectItem(
@@ -556,7 +550,7 @@ TEST_P(HashTableStatsTest, numFailedEjects) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
     EXPECT_EQ(0, stats.numFailedEjects);
     {
-        auto item(ht.find(key, TrackReference::Yes, WantsDeleted::No));
+        auto item(ht.findForWrite(key));
         EXPECT_TRUE(item.storedValue);
         EXPECT_FALSE(ht.unlocked_ejectItem(
                 item.lock, item.storedValue, evictionPolicy));
@@ -574,7 +568,7 @@ TEST_P(HashTableStatsTest, TempDeletedRestore) {
     item.setDeleted();
     ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
     { // Locking scope.
-        auto item = ht.find(key, TrackReference::Yes, WantsDeleted::Yes);
+        auto item = ht.findForWrite(key);
         ASSERT_NE(nullptr, item.storedValue);
         item.storedValue->markClean();
         ht.unlocked_del(item.lock, key);
@@ -636,12 +630,12 @@ TEST_P(HashTableStatsTest, SoftDelete) {
 
     {
         // Mark the item as deleted. Locking scope.
-        auto hbl = ht.getLockedBucket(key);
-        auto* sv = ht.unlocked_find(
-                key, hbl.getBucketNum(), WantsDeleted::No, TrackReference::No);
-        ASSERT_NE(nullptr, sv);
-        ht.unlocked_softDelete(hbl.getHTLock(), *sv, /*onlyMarkDeleted*/ true,
-                DeleteSource::Explicit);
+        auto htRes = ht.findForWrite(key, WantsDeleted::No);
+        ASSERT_NE(nullptr, htRes.storedValue);
+        ht.unlocked_softDelete(htRes.lock.getHTLock(),
+                               *htRes.storedValue,
+                               /*onlyMarkDeleted*/ true,
+                               DeleteSource::Explicit);
     }
 
     // Check counts:
@@ -684,10 +678,7 @@ TEST_P(HashTableStatsTest, UncompressedMemorySizeTest) {
      * Ensure that length of the value stored is the same as the length
      * of the compressed item
      */
-    StoredValue* v = ht.find(makeStoredDocKey("key0"),
-                             TrackReference::No,
-                             WantsDeleted::No)
-                             .storedValue;
+    const auto* v = ht.findForRead(makeStoredDocKey("key0")).storedValue;
     EXPECT_NE(nullptr, v);
     EXPECT_EQ(item->getNBytes(), v->valuelen());
 
@@ -715,8 +706,7 @@ TEST_F(HashTableTest, ItemAge) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
     // Test
-    StoredValue* v(
-            ht.find(key, TrackReference::Yes, WantsDeleted::No).storedValue);
+    StoredValue* v(ht.findForWrite(key).storedValue);
     EXPECT_EQ(0, v->getValue()->getAge());
     v->getValue()->incrementAge();
     EXPECT_EQ(1, v->getValue()->getAge());
@@ -750,13 +740,12 @@ TEST_F(HashTableTest, NRUDefault) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
     // trackReferenced=false so we don't modify the NRU while validating it.
-    StoredValue* v(
-            ht.find(key, TrackReference::No, WantsDeleted::No).storedValue);
+    const auto* v(ht.findForRead(key, TrackReference::No).storedValue);
     EXPECT_NE(nullptr, v);
     EXPECT_EQ(INITIAL_NRU_VALUE, v->getNRUValue());
 
     // Check that find() by default /does/ update NRU.
-    v = ht.find(key, TrackReference::Yes, WantsDeleted::No).storedValue;
+    v = ht.findForRead(key).storedValue;
     EXPECT_NE(nullptr, v);
     EXPECT_EQ(INITIAL_NRU_VALUE - 1, v->getNRUValue());
 }
@@ -772,8 +761,7 @@ TEST_F(HashTableTest, NRUMinimum) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
     // trackReferenced=false so we don't modify the NRU while validating it.
-    StoredValue* v(
-            ht.find(key, TrackReference::No, WantsDeleted::No).storedValue);
+    const auto* v(ht.findForRead(key, TrackReference::No).storedValue);
     EXPECT_NE(nullptr, v);
     EXPECT_EQ(MIN_NRU_VALUE, v->getNRUValue());
 }
@@ -792,8 +780,7 @@ TEST_F(HashTableTest, NRUMinimumExistingItem) {
     // considered an update.
     EXPECT_EQ(MutationStatus::WasDirty, ht.set(item));
     // trackReferenced=false so we don't modify the NRU while validating it.
-    StoredValue* v(
-            ht.find(key, TrackReference::No, WantsDeleted::No).storedValue);
+    const auto* v(ht.findForRead(key, TrackReference::No).storedValue);
     EXPECT_NE(nullptr, v);
     EXPECT_EQ(MIN_NRU_VALUE, v->getNRUValue());
 }
@@ -847,19 +834,14 @@ TEST_F(HashTableTest, ReleaseItem) {
     StoredDocKey releaseKey2 =
             makeStoredDocKey(std::string("key" + std::to_string(numItems - 1)));
 
-    auto hbl2 = ht.getLockedBucket(releaseKey2);
-    StoredValue* vToRelease2 = ht.unlocked_find(releaseKey2,
-                                                hbl.getBucketNum(),
-                                                WantsDeleted::Yes,
-                                                TrackReference::No);
-
-    auto releasedSv2 = ht.unlocked_release(hbl2, releaseKey2);
+    auto vToRelease2 = ht.findForWrite(releaseKey2);
+    auto releasedSv2 = ht.unlocked_release(vToRelease2.lock, releaseKey2);
 
     /* Validate the copied contents */
-    EXPECT_EQ(*vToRelease2, *(releasedSv2).get());
+    EXPECT_EQ(*vToRelease2.storedValue, *(releasedSv2).get());
 
     /* Validate the HT element replace (hence released from HT) */
-    EXPECT_EQ(vToRelease2, releasedSv2.get().get());
+    EXPECT_EQ(vToRelease2.storedValue, releasedSv2.get().get());
 
     /* Validate the HT count */
     EXPECT_EQ(numItems - 2, ht.getNumItems());
@@ -879,9 +861,7 @@ TEST_F(HashTableTest, CopyItem) {
 
     /* Replace the StoredValue in the HT by its copy */
     StoredDocKey copyKey = makeStoredDocKey(std::string(std::to_string(0)));
-    auto hbl = ht.getLockedBucket(copyKey);
-    StoredValue* replaceSv = ht.unlocked_find(
-            copyKey, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
+    auto replace = ht.findForWrite(copyKey);
 
     /* Record some stats before 'replace by copy' */
     auto metaDataMemBeforeCopy = ht.getMetadataMemory();
@@ -890,13 +870,13 @@ TEST_F(HashTableTest, CopyItem) {
     auto memSizeBeforeCopy = ht.getItemMemory();
     auto statsCurrSizeBeforeCopy = global_stats.getCurrentSize();
 
-    auto res = ht.unlocked_replaceByCopy(hbl, *replaceSv);
+    auto res = ht.unlocked_replaceByCopy(replace.lock, *replace.storedValue);
 
     /* Validate the copied contents */
-    EXPECT_EQ(*replaceSv, *(res.first));
+    EXPECT_EQ(*replace.storedValue, *(res.first));
 
     /* Validate the HT element replace (hence released from HT) */
-    EXPECT_EQ(replaceSv, res.second.get().get());
+    EXPECT_EQ(replace.storedValue, res.second.get().get());
 
     /* Validate the HT count */
     EXPECT_EQ(numItems, ht.getNumItems());
@@ -923,13 +903,12 @@ TEST_F(HashTableTest, CopyDeletedItem) {
 
     /* Delete a StoredValue */
     StoredDocKey copyKey = makeStoredDocKey(std::string(std::to_string(0)));
-    auto hbl = ht.getLockedBucket(copyKey);
-    StoredValue* replaceSv = ht.unlocked_find(
-            copyKey, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
+    auto replace = ht.findForWrite(copyKey);
 
-    ht.unlocked_softDelete(
-            hbl.getHTLock(), *replaceSv, /* onlyMarkDeleted */ false,
-            DeleteSource::Explicit);
+    ht.unlocked_softDelete(replace.lock.getHTLock(),
+                           *replace.storedValue,
+                           /* onlyMarkDeleted */ false,
+                           DeleteSource::Explicit);
     EXPECT_EQ(numItems, ht.getNumItems());
     const int expNumDeletedItems = 1;
     EXPECT_EQ(expNumDeletedItems, ht.getNumDeletedItems());
@@ -942,13 +921,13 @@ TEST_F(HashTableTest, CopyDeletedItem) {
     auto statsCurrSizeBeforeCopy = global_stats.getCurrentSize();
 
     /* Replace the StoredValue in the HT by its copy */
-    auto res = ht.unlocked_replaceByCopy(hbl, *replaceSv);
+    auto res = ht.unlocked_replaceByCopy(replace.lock, *replace.storedValue);
 
     /* Validate the copied contents */
-    EXPECT_EQ(*replaceSv, *(res.first));
+    EXPECT_EQ(*replace.storedValue, *(res.first));
 
     /* Validate the HT element replace (hence released from HT) */
-    EXPECT_EQ(replaceSv, res.second.get().get());
+    EXPECT_EQ(replace.storedValue, res.second.get().get());
 
     /* Validate the HT count */
     EXPECT_EQ(numItems, ht.getNumItems());
@@ -974,13 +953,13 @@ TEST_F(HashTableTest, LockAfterDelete) {
     StoredValue* sv;
     store(ht, key);
     {
-        auto hbl = ht.getLockedBucket(key);
-        sv = ht.unlocked_find(
-                key, hbl.getBucketNum(), WantsDeleted::No, TrackReference::No);
+        auto toDelete = ht.findForWrite(key);
+        sv = toDelete.storedValue;
         TimeTraveller toTheFuture(1985);
-        ht.unlocked_softDelete(
-                hbl.getHTLock(), *sv, /* onlyMarkDeleted */ false,
-                DeleteSource::Explicit);
+        ht.unlocked_softDelete(toDelete.lock.getHTLock(),
+                               *sv,
+                               /* onlyMarkDeleted */ false,
+                               DeleteSource::Explicit);
     }
     ASSERT_EQ(1, ht.getNumItems());
     ASSERT_EQ(1, ht.getNumDeletedItems());
@@ -1047,7 +1026,7 @@ TEST_F(HashTableTest, ItemFreqDecayerVisitorTest) {
     // Set the frequency count of each document in the range 0 to 255.
     for (int ii = 0; ii < 256; ii++) {
         auto key = makeStoredDocKey(std::to_string(ii));
-        v = ht.find(key, TrackReference::No, WantsDeleted::No).storedValue;
+        v = ht.findForWrite(key).storedValue;
         v->setFreqCounterValue(ii);
        }
 
@@ -1057,7 +1036,7 @@ TEST_F(HashTableTest, ItemFreqDecayerVisitorTest) {
        // default of 50%
        for (int ii = 0; ii < 256; ii++) {
            auto key = makeStoredDocKey(std::to_string(ii));
-           auto item = ht.find(key, TrackReference::No, WantsDeleted::No);
+           auto item = ht.findForWrite(key);
            itemFreqDecayerVisitor.visit(item.lock, *item.storedValue);
        }
 
@@ -1067,7 +1046,7 @@ TEST_F(HashTableTest, ItemFreqDecayerVisitorTest) {
        // Check the frequency of the docs have been decayed by 50%.
        for (int ii = 0; ii < 256; ii++) {
            auto key = makeStoredDocKey(std::to_string(ii));
-           v = ht.find(key, TrackReference::No, WantsDeleted::No).storedValue;
+           v = ht.findForWrite(key).storedValue;
            uint16_t expectVal = ii * 0.5;
            EXPECT_EQ(expectVal, v->getFreqCounterValue());
        }

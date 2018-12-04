@@ -267,15 +267,12 @@ std::unique_ptr<Item> HashTable::getRandomKey(long rnd) {
 }
 
 MutationStatus HashTable::set(Item& val) {
-    HashBucketLock hbl = getLockedBucket(val.getKey());
-    StoredValue* v = unlocked_find(val.getKey(),
-                                   hbl.getBucketNum(),
-                                   WantsDeleted::Yes,
-                                   TrackReference::No);
-    if (v) {
-        return unlocked_updateStoredValue(hbl, *v, val).status;
+    auto htRes = findForWrite(val.getKey());
+    if (htRes.storedValue) {
+        return unlocked_updateStoredValue(htRes.lock, *htRes.storedValue, val)
+                .status;
     } else {
-        unlocked_addNewStoredValue(hbl, val);
+        unlocked_addNewStoredValue(htRes.lock, val);
         return MutationStatus::WasClean;
     }
 }
@@ -492,6 +489,18 @@ StoredValue* HashTable::unlocked_find(const DocKey& key,
     return NULL;
 }
 
+HashTable::FindROResult HashTable::findForRead(const DocKey& key,
+                                               TrackReference trackReference,
+                                               WantsDeleted wantsDeleted) {
+    auto result = find(key, trackReference, wantsDeleted);
+    return {result.storedValue, std::move(result.lock)};
+}
+
+HashTable::FindResult HashTable::findForWrite(const DocKey& key,
+                                              WantsDeleted wantsDeleted) {
+    return find(key, TrackReference::No, wantsDeleted);
+}
+
 void HashTable::unlocked_del(const HashBucketLock& hbl, const DocKey& key) {
     unlocked_release(hbl, key).reset();
 }
@@ -535,11 +544,9 @@ MutationStatus HashTable::insertFromWarmup(
         bool eject,
         bool keyMetaDataOnly,
         item_eviction_policy_t evictionPolicy) {
-    auto hbl = getLockedBucket(itm.getKey());
-    auto* v = unlocked_find(itm.getKey(),
-                            hbl.getBucketNum(),
-                            WantsDeleted::Yes,
-                            TrackReference::No);
+    auto htRes = findForWrite(itm.getKey());
+    auto* v = htRes.storedValue;
+    auto& hbl = htRes.lock;
 
     if (v == NULL) {
         v = unlocked_addNewStoredValue(hbl, itm);

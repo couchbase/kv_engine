@@ -83,13 +83,7 @@ BENCHMARK_DEFINE_F(HashTableBench, Find)(benchmark::State& state) {
     size_t iteration = 0;
     while (state.KeepRunning()) {
         auto& key = sharedItems[iteration++ % numItems].getKey();
-        {
-            auto hbl = ht.getLockedBucket(key);
-            benchmark::DoNotOptimize(ht.unlocked_find(key,
-                                                      hbl.getBucketNum(),
-                                                      WantsDeleted::No,
-                                                      TrackReference::Yes));
-        }
+        benchmark::DoNotOptimize(ht.findForRead(key));
     }
 }
 
@@ -148,13 +142,9 @@ BENCHMARK_DEFINE_F(HashTableBench, Delete)(benchmark::State& state) {
 
         auto& key = items[iteration++ % numItems].getKey();
         {
-            auto hbl = ht.getLockedBucket(key);
-            auto* v = ht.unlocked_find(key,
-                                       hbl.getBucketNum(),
-                                       WantsDeleted::Yes,
-                                       TrackReference::No);
-            ASSERT_TRUE(v);
-            ht.unlocked_del(hbl, key);
+            auto result = ht.findForWrite(key);
+            ASSERT_TRUE(result.storedValue);
+            ht.unlocked_del(result.lock, key);
         }
     }
 }

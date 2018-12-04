@@ -593,15 +593,9 @@ bool KVBucket::isMetaDataResident(VBucketPtr &vb, const DocKey& key) {
         throw std::invalid_argument("EPStore::isMetaDataResident: vb is NULL");
     }
 
-    auto hbl = vb->ht.getLockedBucket(key);
-    StoredValue* v = vb->ht.unlocked_find(
-            key, hbl.getBucketNum(), WantsDeleted::No, TrackReference::No);
+    auto result = vb->ht.findForRead(key, TrackReference::No, WantsDeleted::No);
 
-    if (v && !v->isTempItem()) {
-        return true;
-    } else {
-        return false;
-    }
+    return result.storedValue && !result.storedValue->isTempItem();
 }
 
 void KVBucket::logQTime(TaskId taskType,

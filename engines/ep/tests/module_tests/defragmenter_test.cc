@@ -93,12 +93,10 @@ void DefragmenterTest::fragment(size_t num_docs, size_t &num_remaining) {
             /// Use stack and DocKey to minimuze heap pollution
             char key[16];
             snprintf(key, sizeof(key), "%d", i);
-            auto* item =
-                    vbucket->ht
-                            .find(DocKey(key, DocKeyEncodesCollectionId::No),
-                                  TrackReference::Yes,
-                                  WantsDeleted::No)
-                            .storedValue;
+            auto* item = vbucket->ht
+                                 .findForRead(DocKey(
+                                         key, DocKeyEncodesCollectionId::No))
+                                 .storedValue;
             ASSERT_NE(nullptr, item);
 
             const uintptr_t page =

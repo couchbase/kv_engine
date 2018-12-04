@@ -570,13 +570,10 @@ TEST_P(EPStoreEvictionTest, checkIfResidentAfterBgFetch) {
 
     VBucketPtr vb = store->getVBucket(vbid);
 
-    auto hbl = vb->ht.getLockedBucket(dockey);
-    StoredValue* v = vb->ht.unlocked_find(dockey,
-                                          hbl.getBucketNum(),
-                                          WantsDeleted::Yes,
-                                          TrackReference::No);
-
-    EXPECT_TRUE(v->isResident());
+    auto result =
+            vb->ht.findForRead(dockey, TrackReference::No, WantsDeleted::Yes);
+    ASSERT_TRUE(result.storedValue);
+    EXPECT_TRUE(result.storedValue->isResident());
 }
 
 TEST_P(EPStoreEvictionTest, xattrExpiryOnFullyEvictedItem) {

@@ -533,11 +533,9 @@ void VBucket::setPersistenceCheckpointId(uint64_t checkpointId) {
 }
 
 void VBucket::markDirty(const DocKey& key) {
-    auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = ht.unlocked_find(
-            key, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::Yes);
-    if (v) {
-        v->markDirty();
+    auto htRes = ht.findForWrite(key);
+    if (htRes.storedValue) {
+        htRes.storedValue->markDirty();
     } else {
         EP_LOG_WARN(
                 "VBucket::markDirty: Error marking dirty, a key is "
@@ -856,11 +854,9 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
                                EventuallyPersistentEngine& engine,
                                cb::StoreIfPredicate predicate) {
     bool cas_op = (itm.getCas() != 0);
-    auto hbl = ht.getLockedBucket(itm.getKey());
-    StoredValue* v = ht.unlocked_find(itm.getKey(),
-                                      hbl.getBucketNum(),
-                                      WantsDeleted::Yes,
-                                      TrackReference::No);
+    auto htRes = ht.findForWrite(itm.getKey());
+    auto* v = htRes.storedValue;
+    auto& hbl = htRes.lock;
 
     cb::StoreIfStatus storeIfStatus = cb::StoreIfStatus::Continue;
     if (predicate &&
@@ -957,11 +953,9 @@ ENGINE_ERROR_CODE VBucket::replace(
         EventuallyPersistentEngine& engine,
         cb::StoreIfPredicate predicate,
         const Collections::VB::Manifest::CachingReadHandle& readHandle) {
-    auto hbl = ht.getLockedBucket(itm.getKey());
-    StoredValue* v = ht.unlocked_find(itm.getKey(),
-                                      hbl.getBucketNum(),
-                                      WantsDeleted::Yes,
-                                      TrackReference::No);
+    auto htRes = ht.findForWrite(itm.getKey());
+    auto* v = htRes.storedValue;
+    auto& hbl = htRes.lock;
 
     cb::StoreIfStatus storeIfStatus = cb::StoreIfStatus::Continue;
     if (predicate &&
@@ -1046,11 +1040,9 @@ ENGINE_ERROR_CODE VBucket::replace(
 }
 
 ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm) {
-    auto hbl = ht.getLockedBucket(itm.getKey());
-    StoredValue* v = ht.unlocked_find(itm.getKey(),
-                                      hbl.getBucketNum(),
-                                      WantsDeleted::Yes,
-                                      TrackReference::No);
+    auto htRes = ht.findForWrite(itm.getKey());
+    auto* v = htRes.storedValue;
+    auto& hbl = htRes.lock;
 
     // Note that this function is only called on replica or pending vbuckets.
     if (v && v->isLocked(ep_current_time())) {
@@ -1122,11 +1114,9 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
         GenerateBySeqno genBySeqno,
         GenerateCas genCas,
         const Collections::VB::Manifest::CachingReadHandle& readHandle) {
-    auto hbl = ht.getLockedBucket(itm.getKey());
-    StoredValue* v = ht.unlocked_find(itm.getKey(),
-                                      hbl.getBucketNum(),
-                                      WantsDeleted::Yes,
-                                      TrackReference::No);
+    auto htRes = ht.findForWrite(itm.getKey());
+    auto* v = htRes.storedValue;
+    auto& hbl = htRes.lock;
 
     bool maybeKeyExists = true;
 
@@ -1248,11 +1238,9 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         ItemMetaData* itemMeta,
         mutation_descr_t& mutInfo,
         const Collections::VB::Manifest::CachingReadHandle& readHandle) {
-    auto hbl = ht.getLockedBucket(readHandle.getKey());
-    StoredValue* v = ht.unlocked_find(readHandle.getKey(),
-                                      hbl.getBucketNum(),
-                                      WantsDeleted::Yes,
-                                      TrackReference::No);
+    auto htRes = ht.findForWrite(readHandle.getKey());
+    auto* v = htRes.storedValue;
+    auto& hbl = htRes.lock;
 
     if (!v || v->isDeleted() || v->isTempItem() ||
         readHandle.isLogicallyDeleted(v->getBySeqno())) {
@@ -1385,9 +1373,9 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
         const Collections::VB::Manifest::CachingReadHandle& readHandle,
         DeleteSource deleteSource) {
     const auto& key = readHandle.getKey();
-    auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = ht.unlocked_find(
-            key, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
+    auto htRes = ht.findForWrite(key);
+    auto* v = htRes.storedValue;
+    auto& hbl = htRes.lock;
 
     if (v && readHandle.isLogicallyDeleted(v->getBySeqno())) {
         return ENGINE_KEY_ENOENT;
@@ -1551,9 +1539,9 @@ void VBucket::deleteExpiredItem(const Item& it,
     // The item is correctly trimmed (by the caller). Fetch the one in the
     // hashtable and replace it if the CAS match (same item; no race).
     // If not found in the hashtable we should add it as a deleted item
-    auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = ht.unlocked_find(
-            key, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
+    auto htRes = ht.findForWrite(key);
+    auto* v = htRes.storedValue;
+    auto& hbl = htRes.lock;
 
     if (v) {
         if (v->getCas() != it.getCas()) {
@@ -1614,11 +1602,9 @@ ENGINE_ERROR_CODE VBucket::add(
         const void* cookie,
         EventuallyPersistentEngine& engine,
         const Collections::VB::Manifest::CachingReadHandle& readHandle) {
-    auto hbl = ht.getLockedBucket(itm.getKey());
-    StoredValue* v = ht.unlocked_find(itm.getKey(),
-                                      hbl.getBucketNum(),
-                                      WantsDeleted::Yes,
-                                      TrackReference::No);
+    auto htRes = ht.findForWrite(itm.getKey());
+    auto* v = htRes.storedValue;
+    auto& hbl = htRes.lock;
 
     bool maybeKeyExists = true;
     if ((v == nullptr || v->isTempInitialItem()) &&
@@ -1874,11 +1860,10 @@ ENGINE_ERROR_CODE VBucket::getMetaData(
         uint32_t& deleted,
         uint8_t& datatype) {
     deleted = 0;
-    auto hbl = ht.getLockedBucket(readHandle.getKey());
-    StoredValue* v = ht.unlocked_find(readHandle.getKey(),
-                                      hbl.getBucketNum(),
-                                      WantsDeleted::Yes,
-                                      TrackReference::No);
+
+    auto htRes = ht.findForWrite(readHandle.getKey());
+    auto* v = htRes.storedValue;
+    auto& hbl = htRes.lock;
 
     if (v) {
         stats.numOpsGetMeta++;
@@ -2111,13 +2096,11 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
 }
 
 bool VBucket::deleteKey(const DocKey& key) {
-    auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = ht.unlocked_find(
-            key, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
-    if (!v) {
+    auto htRes = ht.findForWrite(key);
+    if (!htRes.storedValue) {
         return false;
     }
-    return deleteStoredValue(hbl, *v);
+    return deleteStoredValue(htRes.lock, *htRes.storedValue);
 }
 
 void VBucket::postProcessRollback(const RollbackResult& rollbackResult,

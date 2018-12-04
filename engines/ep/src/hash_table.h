@@ -496,6 +496,39 @@ public:
     void resize(size_t to);
 
     /**
+     * Result of the findForRead() method.
+     */
+    struct FindROResult {
+        /// If find successful then pointer to found StoredValue; else nullptr.
+        const StoredValue* storedValue;
+        /**
+         * The (locked) HashBucketLock for the given key. Note this always
+         * returns a locked object; even if the requested key doesn't exist.
+         * This is to facilitate use-cases where the caller subsequently needs
+         * to insert a StoredValue for this key, to avoid unlocking and
+         * re-locking the mutex.
+         */
+        HashBucketLock lock;
+    };
+
+    /**
+     * Find an item with the specified key for read-only access.
+     *
+     * @param key The key of the item to find
+     * @param trackReference Should this lookup update referenced status (i.e.
+     *                       increase the hotness of this key?)
+     * @param wantsDeleted whether a deleted value needs to be returned
+     *                     or not
+     * @return A FindROResult consisting of:
+     *         - a pointer to a StoredValue -- NULL if not found
+     *         - a (locked) HashBucketLock for the key's hash bucket.
+     */
+    FindROResult findForRead(
+            const DocKey& key,
+            TrackReference trackReference = TrackReference::Yes,
+            WantsDeleted wantsDeleted = WantsDeleted::No);
+
+    /**
      * Result of the find() methods.
      */
     struct FindResult {
@@ -512,27 +545,26 @@ public:
     };
 
     /**
-     * Find the item with the given key.
+     * Find an item with the specified key for write access.
      *
-     * If the item exists, returns a pointer to the item along with a lock
-     * on the items' hash bucket - the StoreValue can be safely accessed as
-     * long as the lock object remains in scope.
+     * Does not modify referenced status, as typically the lookup of a SV to
+     * change shouldn't affect the (old) reference count; the reference count
+     * will get updated later part of actually changing the item.
      *
-     * @param key the key to find
-     * @param trackReference whether to track the reference or not
-     * @param wantsDeleted whether a deleted value needs to be returned
-     *                     or not
+     * @param key The key of the item to find
+     * @param wantsDeleted whether a deleted value should be returned
+     *                     or not. Defaults to Yes as when writing one would
+     *                     typically overwrite an existing deleted item.
      * @return A FindResult consisting of:
      *         - a pointer to a StoredValue -- NULL if not found
      *         - a (locked) HashBucketLock for the key's hash bucket. Note
      *         this always returns a locked object; even if the requested key
-     *         doesn't exist. This is to facilitate use-cases where the caller
+     *           doesn't exist. This is to facilitate use-cases where the caller
      *         subsequently needs to insert a StoredValue for this key, to
      *         avoid unlocking and re-locking the mutex.
      */
-    FindResult find(const DocKey& key,
-                    TrackReference trackReference,
-                    WantsDeleted wantsDeleted);
+    FindResult findForWrite(const DocKey& key,
+                            WantsDeleted wantsDeleted = WantsDeleted::Yes);
 
     /**
      * Find a resident item
@@ -858,6 +890,28 @@ private:
 
     inline bool isActive() const { return activeState; }
     inline void setActiveState(bool newv) { activeState = newv; }
+
+    /**
+     * Find the item with the given key.
+     *
+     * Helper method for findForRead / findForWrite.
+     *
+     * If the item exists, returns a pointer to the item along with a lock
+     * on the items' hash bucket - the StoreValue can be safely accessed as
+     * long as the lock object remains in scope.
+     *
+     * @param key the key to find
+     * @param trackReference whether to track the reference or not
+     * @param wantsDeleted whether a deleted value needs to be returned
+     *                     or not
+     * @return A FindResult consisting of:
+     *         - a pointer to a StoredValue -- NULL if not found
+     *         - a HashBucketLock for the hash bucket of the found key. If
+     * not found then HashBucketLock is empty.
+     */
+    FindResult find(const DocKey& key,
+                    TrackReference trackReference,
+                    WantsDeleted wantsDeleted);
 
     // The initial (and minimum) size of the HashTable.
     const size_t initialSize;
