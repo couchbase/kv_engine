@@ -542,6 +542,19 @@ void MemcachedConnection::sendBuffer(cb::const_byte_buffer& buf) {
 }
 
 void MemcachedConnection::sendBuffer(const std::vector<iovec>& list) {
+    if (packet_dump) {
+        std::vector<uint8_t> blob;
+        for (auto& entry : list) {
+            const auto* ptr = static_cast<const uint8_t*>(entry.iov_base);
+            std::copy(ptr, ptr + entry.iov_len, std::back_inserter(blob));
+        }
+        try {
+            cb::mcbp::dumpStream({blob.data(), blob.size()}, std::cerr);
+        } catch (const std::exception&) {
+            // ignore..
+        }
+    }
+
     if (ssl) {
         sendBufferSsl(list);
     } else {
