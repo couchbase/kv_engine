@@ -35,7 +35,7 @@ AppendPrependCommandContext::AppendPrependCommandContext(
       vbucket(req.getVBucket()),
       cas(req.getCas()),
       state(State::ValidateInput),
-      datatype(req.datatype) {
+      datatype(uint8_t(req.getDatatype())) {
 }
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::step() {

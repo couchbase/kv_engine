@@ -31,7 +31,7 @@ public:
     void SetUp(benchmark::State& st) override {
         memset(request.bytes, 0, sizeof(request));
         request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        request.message.header.request.setDatatype(cb::mcbp::Datatype::Raw);
     }
 
 protected:
@@ -45,9 +45,9 @@ protected:
 };
 
 BENCHMARK_DEFINE_F(McbpValidatorBench, GetBench)(benchmark::State& state) {
-    request.message.header.request.extlen = 0;
-    request.message.header.request.keylen = htons(10);
-    request.message.header.request.bodylen = htonl(10);
+    request.message.header.request.setExtlen(0);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(10);
 
     void* packet = static_cast<void*>(&request);
     const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);
@@ -63,9 +63,9 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, GetBench)(benchmark::State& state) {
 }
 
 BENCHMARK_DEFINE_F(McbpValidatorBench, SetBench)(benchmark::State& state) {
-    request.message.header.request.extlen = 8;
-    request.message.header.request.keylen = htons(10);
-    request.message.header.request.bodylen = htonl(20);
+    request.message.header.request.setExtlen(8);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(20);
 
     void* packet = static_cast<void*>(&request);
     const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);
@@ -81,9 +81,9 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, SetBench)(benchmark::State& state) {
 }
 
 BENCHMARK_DEFINE_F(McbpValidatorBench, AddBench)(benchmark::State& state) {
-    request.message.header.request.extlen = 8;
-    request.message.header.request.keylen = htons(10);
-    request.message.header.request.bodylen = htonl(20);
+    request.message.header.request.setExtlen(8);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(20);
 
     void* packet = static_cast<void*>(&request);
     const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);

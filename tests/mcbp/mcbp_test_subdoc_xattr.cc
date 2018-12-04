@@ -62,13 +62,13 @@ protected:
             blob.data());
 
         req->message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-        req->message.header.request.extlen =
-                gsl::narrow_cast<uint8_t>(3 + extlen);
-        req->message.header.request.keylen =
-                ntohs(gsl::narrow<uint16_t>(doc.length()));
-        req->message.header.request.bodylen = ntohl(gsl::narrow<uint32_t>(
+        req->message.header.request.setExtlen(
+                gsl::narrow_cast<uint8_t>(3 + extlen));
+        req->message.header.request.setKeylen(
+                gsl::narrow<uint16_t>(doc.length()));
+        req->message.header.request.setBodylen(gsl::narrow<uint32_t>(
                 3 + doc.length() + path.length() + value.length() + extlen));
-        req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        req->message.header.request.setDatatype(cb::mcbp::Datatype::Raw);
 
         req->message.extras.subdoc_flags = (flags);
         req->message.extras.pathlen =

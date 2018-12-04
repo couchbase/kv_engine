@@ -548,7 +548,7 @@ TEST_P(AllWithMetaTest, nmvb) {
 
     // update the VB in the packet to the pending one
     auto packet = reinterpret_cast<protocol_binary_request_header*>(swm.data());
-    packet->request.vbucket = Vbid(vbid.get() + 2).hton();
+    packet->request.setVBucket(Vbid(vbid.get() + 2));
     EXPECT_EQ(ENGINE_SUCCESS,
               store->setVBucketState(
                       Vbid(vbid.get() + 2), vbucket_state_pending, false));

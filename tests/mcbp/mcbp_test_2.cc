@@ -60,7 +60,7 @@ TEST_P(DropPrivilegeValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DropPrivilegeValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -112,7 +112,7 @@ TEST_P(GetClusterConfigValidatorTest, CorrectMessage) {
 }
 
 TEST_P(GetClusterConfigValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -169,7 +169,7 @@ TEST_P(SetClusterConfigValidatorTest, CorrectMessage) {
 }
 
 TEST_P(SetClusterConfigValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -230,7 +230,7 @@ TEST_P(StartStopPersistenceValidatorTest, CorrectMessage) {
 }
 
 TEST_P(StartStopPersistenceValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(true));
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(false));
 }
@@ -294,7 +294,7 @@ TEST_P(EnableDisableTrafficValidatorTest, CorrectMessage) {
 }
 
 TEST_P(EnableDisableTrafficValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(true));
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(false));
 }
@@ -351,7 +351,7 @@ TEST_P(ScrubValidatorTest, CorrectMessage) {
 }
 
 TEST_P(ScrubValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -408,7 +408,7 @@ TEST_P(GetKeysValidatorTest, CorrectMessage) {
 }
 
 TEST_P(GetKeysValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -471,7 +471,7 @@ TEST_P(SetParamValidatorTest, CorrectMessage) {
 }
 
 TEST_P(SetParamValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -528,7 +528,7 @@ TEST_P(GetReplicaValidatorTest, CorrectMessage) {
 }
 
 TEST_P(GetReplicaValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -595,7 +595,7 @@ TEST_P(ReturnMetaValidatorTest, CorrectMessage) {
 }
 
 TEST_P(ReturnMetaValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -670,7 +670,7 @@ TEST_P(SeqnoPersistenceValidatorTest, CorrectMessage) {
 }
 
 TEST_P(SeqnoPersistenceValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -723,7 +723,7 @@ TEST_P(LastClosedCheckpointValidatorTest, CorrectMessage) {
 }
 
 TEST_P(LastClosedCheckpointValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -775,7 +775,7 @@ TEST_P(CreateCheckpointValidatorTest, CorrectMessage) {
 }
 
 TEST_P(CreateCheckpointValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -838,7 +838,7 @@ TEST_P(CheckpointPersistenceValidatorTest, CorrectMessage) {
 }
 
 TEST_P(CheckpointPersistenceValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -909,7 +909,7 @@ TEST_P(CompactDbValidatorTest, CorrectMessage) {
 }
 
 TEST_P(CompactDbValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 

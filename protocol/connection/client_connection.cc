@@ -654,17 +654,10 @@ std::unique_ptr<MemcachedConnection> MemcachedConnection::clone() {
 
 void MemcachedConnection::recvFrame(Frame& frame) {
     frame.reset();
-    // A memcached packet starts with a 24 byte fixed header
-    MemcachedConnection::read(frame, 24);
+    // A memcached packet starts with a fixed header
+    MemcachedConnection::read(frame, sizeof(cb::mcbp::Header));
 
-    // Following the header is the full payload specified in the field
-    // bodylen. Luckily for us the bodylen is located at the same offset in
-    // both a request and a response message..
-    auto* req = reinterpret_cast<protocol_binary_request_header*>(
-            frame.payload.data());
-    const uint32_t bodylen = ntohl(req->request.bodylen);
     auto magic = cb::mcbp::Magic(frame.payload.at(0));
-
     if (magic != cb::mcbp::Magic::ClientRequest &&
         magic != cb::mcbp::Magic::ClientResponse &&
         magic != cb::mcbp::Magic::ServerRequest &&
@@ -674,7 +667,9 @@ void MemcachedConnection::recvFrame(Frame& frame) {
                                  std::to_string(frame.payload.at(0)));
     }
 
-    MemcachedConnection::read(frame, bodylen);
+    const auto* header =
+            reinterpret_cast<const cb::mcbp::Header*>(frame.payload.data());
+    MemcachedConnection::read(frame, header->getBodylen());
     if (packet_dump) {
         cb::mcbp::dump(frame.payload.data(), std::cerr);
     }

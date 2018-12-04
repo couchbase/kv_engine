@@ -40,12 +40,12 @@ public:
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
         request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-        request.message.header.request.extlen = 3;
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen = htonl(/*keylen*/ 10 +
-                                                                  /*extlen*/ 3 +
-                                                                  /*pathlen*/ 1);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        request.message.header.request.setExtlen(3);
+        request.message.header.request.setKeylen(10);
+        request.message.header.request.setBodylen(/*keylen*/ 10 +
+                                                  /*extlen*/ 3 +
+                                                  /*pathlen*/ 1);
+        request.message.header.request.setDatatype(cb::mcbp::Datatype::Raw);
         request.message.extras.pathlen = htons(1);
     }
 
@@ -77,9 +77,9 @@ TEST_P(SubdocSingleTest, Get_Baseline) {
 
 TEST_P(SubdocSingleTest, Get_InvalidBody) {
     // Need a non-zero body.
-    request.message.header.request.extlen = 0;
-    request.message.header.request.bodylen =
-            ntohl(htons(request.message.header.request.keylen));
+    request.message.header.request.setExtlen(0);
+    request.message.header.request.setBodylen(
+            request.message.header.request.getKeylen());
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::SubdocGet));
     EXPECT_EQ("Invalid extras section",
@@ -87,9 +87,9 @@ TEST_P(SubdocSingleTest, Get_InvalidBody) {
 
     // Make sure we detect if it won't fit in the packet (extlen + key + path
     // is bigger than in the full packet
-    request.message.header.request.extlen = 7;
-    request.message.header.request.keylen = htons(10);
-    request.message.header.request.bodylen = htonl(10 + 5);
+    request.message.header.request.setExtlen(7);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(10 + 5);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::SubdocGet));
     EXPECT_EQ("Request header invalid",
@@ -98,8 +98,7 @@ TEST_P(SubdocSingleTest, Get_InvalidBody) {
 
 TEST_P(SubdocSingleTest, Get_InvalidPath) {
     // Need a non-zero path.
-    request.message.header.request.bodylen =
-        htonl(/*keylen*/ 10 + /*extlen*/ 3);
+    request.message.header.request.setBodylen(/*keylen*/ 10 + /*extlen*/ 3);
     request.message.extras.pathlen = htons(0);
 
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -118,21 +117,21 @@ TEST_P(SubdocSingleTest, DictAdd_InvalidValue) {
 
 TEST_P(SubdocSingleTest, DictAdd_InvalidExtras) {
     // Extlen can be 3, 4, 7 or 8
-    request.message.header.request.extlen = 5;
-    request.message.header.request.bodylen = htonl(100);
+    request.message.header.request.setExtlen(5);
+    request.message.header.request.setBodylen(100);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::SubdocDictAdd));
     EXPECT_EQ("Invalid extras section",
               validate_error_context(cb::mcbp::ClientOpcode::SubdocDictAdd));
 
-    request.message.header.request.extlen = 7;
+    request.message.header.request.setExtlen(7);
     EXPECT_EQ(cb::mcbp::Status::Success,
               validate(cb::mcbp::ClientOpcode::SubdocDictAdd));
     EXPECT_EQ("",
               validate_error_context(cb::mcbp::ClientOpcode::SubdocDictAdd,
                                      cb::mcbp::Status::Success));
 
-    request.message.header.request.bodylen = htonl(10 + 7 + 1);
+    request.message.header.request.setBodylen(10 + 7 + 1);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::SubdocExists));
     EXPECT_EQ("Request extras invalid",
@@ -199,9 +198,7 @@ TEST_P(SubdocMultiLookupTest, Baseline) {
 TEST_P(SubdocMultiLookupTest, InvalidMagic) {
     std::vector<uint8_t> payload;
     request.encode(payload);
-    auto* header =
-        reinterpret_cast<protocol_binary_request_header*>(payload.data());
-    header->request.magic = 0;
+    payload[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
     EXPECT_EQ("Request header invalid", validate_error_context(payload));
 }
@@ -211,14 +208,14 @@ TEST_P(SubdocMultiLookupTest, InvalidDatatype) {
     request.encode(payload);
     auto* header =
         reinterpret_cast<protocol_binary_request_header*>(payload.data());
-    header->request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    header->request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
     EXPECT_EQ("Request datatype invalid", validate_error_context(payload));
-    header->request.datatype = (PROTOCOL_BINARY_DATATYPE_SNAPPY |
-                                PROTOCOL_BINARY_DATATYPE_JSON);
+    header->request.setDatatype(cb::mcbp::Datatype(
+            PROTOCOL_BINARY_DATATYPE_SNAPPY | PROTOCOL_BINARY_DATATYPE_JSON));
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
     EXPECT_EQ("Request datatype invalid", validate_error_context(payload));
-    header->request.datatype = PROTOCOL_BINARY_DATATYPE_SNAPPY;
+    header->request.setDatatype(cb::mcbp::Datatype::Snappy);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
     EXPECT_EQ("Request datatype invalid", validate_error_context(payload));
 }
@@ -239,13 +236,13 @@ TEST_P(SubdocMultiLookupTest, InvalidExtras) {
     // Lookups accept extlen of 0 or 1
     auto* header =
         reinterpret_cast<protocol_binary_request_header*>(payload.data());
-    header->request.extlen = 2;
+    header->request.setExtlen(2);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
     EXPECT_EQ("Request extras invalid", validate_error_context(payload));
 
     // extlen of 4 permitted for mutations only.
-    header->request.extlen = 4;
-    header->request.bodylen = htonl(ntohl(header->request.bodylen) + 4);
+    header->request.setExtlen(4);
+    header->request.setBodylen(header->request.getBodylen() + 4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
     EXPECT_EQ("Request extras invalid", validate_error_context(payload));
 }
@@ -458,9 +455,7 @@ TEST_P(SubdocMultiMutationTest, Baseline) {
 TEST_P(SubdocMultiMutationTest, InvalidMagic) {
     std::vector<uint8_t> payload;
     request.encode(payload);
-    auto* header =
-        reinterpret_cast<protocol_binary_request_header*>(payload.data());
-    header->request.magic = 0;
+    payload[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
     EXPECT_EQ("Request header invalid", validate_error_context(payload));
 }
@@ -470,14 +465,14 @@ TEST_P(SubdocMultiMutationTest, InvalidDatatype) {
     request.encode(payload);
     auto* header =
         reinterpret_cast<protocol_binary_request_header*>(payload.data());
-    header->request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    header->request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
     EXPECT_EQ("Request datatype invalid", validate_error_context(payload));
-    header->request.datatype = (PROTOCOL_BINARY_DATATYPE_SNAPPY |
-                                PROTOCOL_BINARY_DATATYPE_JSON);
+    header->request.setDatatype(cb::mcbp::Datatype(
+            PROTOCOL_BINARY_DATATYPE_SNAPPY | PROTOCOL_BINARY_DATATYPE_JSON));
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
     EXPECT_EQ("Request datatype invalid", validate_error_context(payload));
-    header->request.datatype = PROTOCOL_BINARY_DATATYPE_SNAPPY;
+    header->request.setDatatype(cb::mcbp::Datatype::Snappy);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
     EXPECT_EQ("Request datatype invalid", validate_error_context(payload));
 }
@@ -493,7 +488,7 @@ TEST_P(SubdocMultiMutationTest, InvalidExtras) {
     request.encode(payload);
     auto* header =
         reinterpret_cast<protocol_binary_request_header*>(payload.data());
-    header->request.extlen = 2;
+    header->request.setExtlen(2);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
     EXPECT_EQ("Request extras invalid", validate_error_context(payload));
 }
@@ -507,7 +502,7 @@ TEST_P(SubdocMultiMutationTest, Expiry) {
     // Check that we encoded correctly.
     auto* header =
         reinterpret_cast<protocol_binary_request_header*>(payload.data());
-    ASSERT_EQ(4, header->request.extlen);
+    ASSERT_EQ(4, header->request.getExtlen());
 
     EXPECT_EQ(cb::mcbp::Status::Success, validate(payload));
     EXPECT_EQ("", validate_error_context(payload, cb::mcbp::Status::Success));
@@ -521,7 +516,7 @@ TEST_P(SubdocMultiMutationTest, ExplicitZeroExpiry) {
 
     auto* header =
         reinterpret_cast<protocol_binary_request_header*>(payload.data());
-    ASSERT_EQ(4, header->request.extlen);
+    ASSERT_EQ(4, header->request.getExtlen());
 
     EXPECT_EQ(cb::mcbp::Status::Success, validate(payload));
     EXPECT_EQ("", validate_error_context(payload, cb::mcbp::Status::Success));

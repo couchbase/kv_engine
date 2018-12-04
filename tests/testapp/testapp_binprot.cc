@@ -43,23 +43,23 @@ off_t mcbp_raw_command(char* buf,
 
     memset(request, 0, sizeof(*request));
     if (cmd == read_command || cmd == write_command) {
-        request->message.header.request.extlen = 8;
+        request->message.header.request.setExtlen(8);
     } else if (cmd == cb::mcbp::ClientOpcode::AuditPut) {
-        request->message.header.request.extlen = 4;
+        request->message.header.request.setExtlen(4);
     } else if (cmd == cb::mcbp::ClientOpcode::EwouldblockCtl) {
-        request->message.header.request.extlen = 12;
+        request->message.header.request.setExtlen(12);
     } else if (cmd == cb::mcbp::ClientOpcode::SetCtrlToken) {
-        request->message.header.request.extlen = 8;
+        request->message.header.request.setExtlen(8);
     }
     request->message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
     request->message.header.request.setOpcode(cmd);
-    request->message.header.request.keylen = htons((uint16_t)keylen);
-    request->message.header.request.bodylen = htonl(
-        (uint32_t)(keylen + dtalen + request->message.header.request.extlen));
-    request->message.header.request.opaque = 0xdeadbeef;
+    request->message.header.request.setKeylen((uint16_t)keylen);
+    request->message.header.request.setBodylen((uint32_t)(
+            keylen + dtalen + request->message.header.request.getExtlen()));
+    request->message.header.request.setOpaque(0xdeadbeef);
 
     key_offset = sizeof(protocol_binary_request_no_extras) +
-                 request->message.header.request.extlen;
+                 request->message.header.request.getExtlen();
 
     if (key != NULL) {
         memcpy(buf + key_offset, key, keylen);
@@ -69,7 +69,7 @@ off_t mcbp_raw_command(char* buf,
     }
 
     return (off_t)(sizeof(*request) + keylen + dtalen +
-                   request->message.header.request.extlen);
+                   request->message.header.request.getExtlen());
 }
 
 off_t mcbp_arithmetic_command(char* buf,

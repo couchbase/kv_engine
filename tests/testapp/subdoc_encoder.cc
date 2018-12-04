@@ -136,14 +136,14 @@ void SubdocMultiCmd::populate_header(protocol_binary_request_header& header,
                                      size_t bodylen) const {
     header.request.setMagic(cb::mcbp::Magic::ClientRequest);
     header.request.setOpcode(command);
-    header.request.keylen = htons(gsl::narrow<uint16_t>(key.size()));
-    header.request.extlen =
-            ((expiry != 0 || encode_zero_expiry_on_wire) ? sizeof(uint32_t)
-                                                         : 0) +
-            (!isNone(doc_flags) ? sizeof(doc_flags) : 0);
-    header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+    header.request.setKeylen(gsl::narrow<uint16_t>(key.size()));
+    header.request.setExtlen(((expiry != 0 || encode_zero_expiry_on_wire)
+                                      ? sizeof(uint32_t)
+                                      : 0) +
+                             (!isNone(doc_flags) ? sizeof(doc_flags) : 0));
+    header.request.setDatatype(cb::mcbp::Datatype::Raw);
     /* TODO: vbucket */
-    header.request.bodylen = htonl(gsl::narrow<uint32_t>(bodylen));
-    header.request.opaque = 0xdeadbeef;
+    header.request.setBodylen(gsl::narrow<uint32_t>(bodylen));
+    header.request.setOpaque(0xdeadbeef);
     header.request.cas = cas;
 }

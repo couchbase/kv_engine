@@ -32,7 +32,7 @@ public:
         ValidatorTest::SetUp();
         request.message.header.request.setOpcode(
                 cb::mcbp::ClientOpcode::CollectionsSetManifest);
-        request.message.header.request.bodylen = htonl(10);
+        request.message.header.request.setBodylen(10);
     }
 
 protected:
@@ -50,37 +50,37 @@ TEST_F(SetCollectionsValidator, CorrectMessage) {
 }
 
 TEST_F(SetCollectionsValidator, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_F(SetCollectionsValidator, InvalidKeylen) {
-    request.message.header.request.keylen = 1;
+    request.message.header.request.setKeylen(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_F(SetCollectionsValidator, InvalidExtlen) {
-    request.message.header.request.extlen = 1;
+    request.message.header.request.setExtlen(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_F(SetCollectionsValidator, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_F(SetCollectionsValidator, InvalidDatatype) {
-    request.message.header.request.datatype = 1;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype(1));
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_F(SetCollectionsValidator, InvalidVbucket) {
-    request.message.header.request.vbucket = Vbid(1);
+    request.message.header.request.setVBucket(Vbid(1));
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_F(SetCollectionsValidator, InvalidBodylen) {
-    request.message.header.request.bodylen = 0;
+    request.message.header.request.setBodylen(0);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 

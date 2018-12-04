@@ -34,32 +34,20 @@ class GATValidatorTest
 public:
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.extlen = 4;
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen = htonl(14);
+        request.message.header.request.setExtlen(4);
+        request.message.header.request.setKeylen(10);
+        request.message.header.request.setBodylen(14);
     }
 
-    GATValidatorTest()
-        : ValidatorTest(std::get<1>(GetParam())),
-          bodylen(request.message.header.request.bodylen) {
+    GATValidatorTest() : ValidatorTest(std::get<1>(GetParam())) {
         // empty
     }
 
 protected:
-    cb::mcbp::Status validateExtendedExtlen(uint8_t version) {
-        bodylen = htonl(ntohl(bodylen) + 1);
-        request.message.header.request.extlen = 1;
-        blob[sizeof(cb::mcbp::Request) +
-             sizeof(cb::mcbp::request::GatPayload)] = version;
-        return validate();
-    }
-
     cb::mcbp::Status validate() {
         auto opcode = cb::mcbp::ClientOpcode(std::get<0>(GetParam()));
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
-
-    uint32_t& bodylen;
 };
 
 TEST_P(GATValidatorTest, CorrectMessage) {
@@ -67,29 +55,27 @@ TEST_P(GATValidatorTest, CorrectMessage) {
 }
 
 TEST_P(GATValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GATValidatorTest, InvalidExtlen) {
-    bodylen = htonl(15);
-    request.message.header.request.extlen = 5;
+    request.message.header.request.setExtlen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GATValidatorTest, NoKey) {
-    request.message.header.request.keylen = 0;
-    bodylen = ntohl(4);
+    request.message.header.request.setKeylen(0);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GATValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GATValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 

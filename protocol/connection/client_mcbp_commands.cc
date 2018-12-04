@@ -38,13 +38,13 @@ void BinprotCommand::fillHeader(protocol_binary_request_header& header,
                                 size_t extlen) const {
     header.request.setMagic(cb::mcbp::Magic::ClientRequest);
     header.request.setOpcode(opcode);
-    header.request.keylen = htons(gsl::narrow<uint16_t>(key.size()));
-    header.request.extlen = gsl::narrow<uint8_t>(extlen);
-    header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    header.request.vbucket = vbucket.hton();
-    header.request.bodylen =
-            htonl(gsl::narrow<uint32_t>(key.size() + extlen + payload_len));
-    header.request.opaque = 0xdeadbeef;
+    header.request.setKeylen(gsl::narrow<uint16_t>(key.size()));
+    header.request.setExtlen(gsl::narrow<uint8_t>(extlen));
+    header.request.setDatatype(cb::mcbp::Datatype::Raw);
+    header.request.setVBucket(vbucket);
+    header.request.setBodylen(
+            gsl::narrow<uint32_t>(key.size() + extlen + payload_len));
+    header.request.setOpaque(0xdeadbeef);
     header.request.cas = cas;
 }
 
@@ -638,7 +638,7 @@ void BinprotMutationCommand::encodeHeader(std::vector<uint8_t>& buf) const {
     }
 
     fillHeader(*header, value_size, extlen);
-    header->request.datatype = datatype;
+    header->request.setDatatype(cb::mcbp::Datatype(datatype));
 
     if (extlen != 0) {
         // Write the extras:
@@ -1391,7 +1391,7 @@ void BinprotDcpMutationCommand::reset(const std::vector<uint8_t>& packet) {
     nru = extras->getNru();
 
     setOp(cb::mcbp::ClientOpcode::DcpMutation);
-    setVBucket(request.vbucket);
+    setVBucket(request.getVBucket());
     setCas(request.cas);
 
     auto k = request.getKey();
@@ -1454,7 +1454,7 @@ void BinprotSetWithMetaCommand::encode(std::vector<uint8_t>& buf) const {
 
     fillHeader(*hdr, doc.value.size(), extlen);
 
-    hdr->request.datatype = uint8_t(doc.info.datatype);
+    hdr->request.setDatatype(doc.info.datatype);
     append(buf, getFlags());
     append(buf, getExptime());
     append(buf, seqno);

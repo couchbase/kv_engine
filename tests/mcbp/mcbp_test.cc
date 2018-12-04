@@ -44,7 +44,7 @@ void ValidatorTest::SetUp() {
     connection.setCollectionsSupported(collectionsEnabled);
     memset(request.bytes, 0, sizeof(request));
     request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-    request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::Raw);
 }
 
 /**
@@ -100,15 +100,13 @@ public:
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
         request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-        request.message.header.request.extlen = 0;
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen = htonl(10);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        request.message.header.request.setExtlen(0);
+        request.message.header.request.setKeylen(10);
+        request.message.header.request.setBodylen(10);
+        request.message.header.request.setDatatype(cb::mcbp::Datatype::Raw);
     }
 
-    GetValidatorTest()
-        : ValidatorTest(std::get<1>(GetParam())),
-          bodylen(request.message.header.request.bodylen) {
+    GetValidatorTest() : ValidatorTest(std::get<1>(GetParam())) {
         // empty
     }
 
@@ -122,8 +120,9 @@ public:
 
 protected:
     cb::mcbp::Status validateExtendedExtlen(uint8_t version) {
-        bodylen = htonl(ntohl(bodylen) + 1);
-        request.message.header.request.extlen = 1;
+        request.message.header.request.setBodylen(
+                request.message.header.request.getBodylen() + 1);
+        request.message.header.request.setExtlen(1);
         blob[sizeof(protocol_binary_request_no_extras)] = version;
         return validate();
     }
@@ -132,8 +131,6 @@ protected:
         auto opcode = cb::mcbp::ClientOpcode(std::get<0>(GetParam()));
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
-
-    uint32_t& bodylen;
 };
 
 TEST_P(GetValidatorTest, CorrectMessage) {
@@ -141,7 +138,7 @@ TEST_P(GetValidatorTest, CorrectMessage) {
 }
 
 TEST_P(GetValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -179,16 +176,17 @@ TEST_P(GetValidatorTest, InvalidExtendedExtlenVersion) {
 }
 
 TEST_P(GetValidatorTest, InvalidExtlen) {
-    bodylen = htonl(ntohl(bodylen) + 21);
-    request.message.header.request.extlen = 21;
+    request.message.header.request.setBodylen(
+            request.message.header.request.getBodylen() + 21);
+    request.message.header.request.setExtlen(21);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetValidatorTest, NoKey) {
     // Collections requires 2 bytes minimum, non-collection 1 byte minimum
-    request.message.header.request.keylen =
-            isCollectionsEnabled() ? htons(1) : 0;
-    bodylen = 0;
+    request.message.header.request.setKeylen(isCollectionsEnabled() ? 1 : 0);
+    request.message.header.request.setBodylen(
+            request.message.header.request.getKeylen());
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -202,18 +200,18 @@ TEST_P(GetValidatorTest, InvalidKey) {
     std::fill(blob + sizeof(request.bytes),
               blob + sizeof(request.bytes) + 10,
               0x81ull);
-    request.message.header.request.keylen = htons(10);
-    bodylen = 0;
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(10);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -241,9 +239,9 @@ public:
 
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.extlen = 8;
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen = htonl(20);
+        request.message.header.request.setExtlen(8);
+        request.message.header.request.setKeylen(10);
+        request.message.header.request.setBodylen(20);
     }
 
     bool isCollectionsEnabled() const {
@@ -263,22 +261,22 @@ TEST_P(AddValidatorTest, CorrectMessage) {
 }
 
 TEST_P(AddValidatorTest, NoValue) {
-    request.message.header.request.bodylen = htonl(18);
+    request.message.header.request.setBodylen(18);
     EXPECT_EQ(cb::mcbp::Status::Success, validate(cb::mcbp::ClientOpcode::Add));
     EXPECT_EQ(cb::mcbp::Status::Success,
               validate(cb::mcbp::ClientOpcode::Addq));
 }
 
 TEST_P(AddValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Add));
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Addq));
 }
 
 TEST_P(AddValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 9;
-    request.message.header.request.keylen = htons(10);
-    request.message.header.request.bodylen = htonl(21);
+    request.message.header.request.setExtlen(9);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(21);
     EXPECT_EQ("Request must include extras of length 8",
               validate_error_context(cb::mcbp::ClientOpcode::Add));
 
@@ -288,7 +286,7 @@ TEST_P(AddValidatorTest, InvalidExtlen) {
 
 TEST_P(AddValidatorTest, NoKey) {
     // Collections requires 2 bytes minimum, non-collection 1 byte minimum
-    request.message.header.request.keylen = GetParam() ? htons(1) : 0;
+    request.message.header.request.setKeylen(GetParam() ? 1 : 0);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Add));
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Addq));
 }
@@ -300,19 +298,19 @@ TEST_P(AddValidatorTest, InvalidKey) {
     }
     // Collections requires the leading bytes are a valid unsigned leb128
     // (varint), so if all key bytes are 0x80, illegal.
-    auto fill = blob + request.message.header.request.extlen;
+    auto fill = blob + request.message.header.request.getExtlen();
     std::fill(fill + sizeof(request.bytes),
               fill + sizeof(request.bytes) + 10,
               0x80ull);
-    request.message.header.request.keylen = htons(10);
-    request.message.header.request.bodylen =
-            request.message.header.request.keylen;
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(
+            10 + request.message.header.request.getExtlen());
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Add));
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Addq));
 }
 
 TEST_P(AddValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Add));
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Addq));
 }
@@ -325,9 +323,9 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.extlen = 8;
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen = htonl(20);
+        request.message.header.request.setExtlen(8);
+        request.message.header.request.setKeylen(10);
+        request.message.header.request.setBodylen(20);
     }
 
     bool isCollectionsEnabled() const {
@@ -351,7 +349,7 @@ TEST_P(SetReplaceValidatorTest, CorrectMessage) {
 }
 
 TEST_P(SetReplaceValidatorTest, NoValue) {
-    request.message.header.request.bodylen = htonl(18);
+    request.message.header.request.setBodylen(18);
     EXPECT_EQ(cb::mcbp::Status::Success, validate(cb::mcbp::ClientOpcode::Set));
     EXPECT_EQ(cb::mcbp::Status::Success,
               validate(cb::mcbp::ClientOpcode::Setq));
@@ -362,7 +360,7 @@ TEST_P(SetReplaceValidatorTest, NoValue) {
 }
 
 TEST_P(SetReplaceValidatorTest, Cas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Success, validate(cb::mcbp::ClientOpcode::Set));
     EXPECT_EQ(cb::mcbp::Status::Success,
               validate(cb::mcbp::ClientOpcode::Setq));
@@ -373,7 +371,7 @@ TEST_P(SetReplaceValidatorTest, Cas) {
 }
 
 TEST_P(SetReplaceValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Set));
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Setq));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -383,9 +381,9 @@ TEST_P(SetReplaceValidatorTest, InvalidMagic) {
 }
 
 TEST_P(SetReplaceValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 9;
-    request.message.header.request.keylen = htons(10);
-    request.message.header.request.bodylen = htonl(21);
+    request.message.header.request.setExtlen(9);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(21);
     EXPECT_EQ("Request must include extras of length 8",
               validate_error_context(cb::mcbp::ClientOpcode::Set));
 
@@ -399,7 +397,7 @@ TEST_P(SetReplaceValidatorTest, InvalidExtlen) {
 
 TEST_P(SetReplaceValidatorTest, NoKey) {
     // Collections requires 2 bytes minimum, non-collection 1 byte minimum
-    request.message.header.request.keylen = GetParam() ? htons(1) : 0;
+    request.message.header.request.setKeylen(GetParam() ? 1 : 0);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Set));
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Setq));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -416,11 +414,11 @@ TEST_P(SetReplaceValidatorTest, InvalidKey) {
     // Collections requires the leading bytes are a valid unsigned leb128
     // (varint), so if all key bytes are 0x80, (no stop-byte) illegal.
     auto key = blob + sizeof(request.bytes) +
-               request.message.header.request.extlen;
+               request.message.header.request.getExtlen();
     std::fill(key, key + 10, 0x80ull);
-    request.message.header.request.keylen = htons(10);
-    // request.message.header.request.bodylen =
-    // request.message.header.request.keylen;
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(
+            10 + request.message.header.request.getExtlen());
     EXPECT_EQ("Request key invalid",
               validate_error_context(cb::mcbp::ClientOpcode::Set));
     EXPECT_EQ("Request key invalid",
@@ -439,8 +437,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen = htonl(20);
+        request.message.header.request.setKeylen(10);
+        request.message.header.request.setBodylen(20);
     }
 
     bool isCollectionsEnabled() const {
@@ -465,7 +463,7 @@ TEST_P(AppendPrependValidatorTest, CorrectMessage) {
 }
 
 TEST_P(AppendPrependValidatorTest, NoValue) {
-    request.message.header.request.bodylen = htonl(10);
+    request.message.header.request.setBodylen(10);
     EXPECT_EQ(cb::mcbp::Status::Success,
               validate(cb::mcbp::ClientOpcode::Append));
     EXPECT_EQ(cb::mcbp::Status::Success,
@@ -477,7 +475,7 @@ TEST_P(AppendPrependValidatorTest, NoValue) {
 }
 
 TEST_P(AppendPrependValidatorTest, Cas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Success,
               validate(cb::mcbp::ClientOpcode::Append));
     EXPECT_EQ(cb::mcbp::Status::Success,
@@ -489,7 +487,7 @@ TEST_P(AppendPrependValidatorTest, Cas) {
 }
 
 TEST_P(AppendPrependValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Append));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -501,9 +499,9 @@ TEST_P(AppendPrependValidatorTest, InvalidMagic) {
 }
 
 TEST_P(AppendPrependValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 21;
-    request.message.header.request.keylen = htons(10);
-    request.message.header.request.bodylen = htonl(20 + 21);
+    request.message.header.request.setExtlen(21);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(20 + 21);
     EXPECT_EQ("Request must not include extras",
               validate_error_context(cb::mcbp::ClientOpcode::Append));
     EXPECT_EQ("Request must not include extras",
@@ -516,8 +514,7 @@ TEST_P(AppendPrependValidatorTest, InvalidExtlen) {
 
 TEST_P(AppendPrependValidatorTest, NoKey) {
     // Collections requires 2 bytes minimum, non-collection 1 byte minimum
-    request.message.header.request.keylen =
-            isCollectionsEnabled() ? htons(1) : 0;
+    request.message.header.request.setKeylen(isCollectionsEnabled() ? 1 : 0);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Append));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -536,9 +533,9 @@ TEST_P(AppendPrependValidatorTest, InvalidKey) {
     // Collections requires the leading bytes are a valid unsigned leb128
     // (varint), so if all key bytes are 0x80, (no stop-byte) illegal.
     auto key = blob + sizeof(request.bytes) +
-               request.message.header.request.extlen;
+               request.message.header.request.getExtlen();
     std::fill(key, key + 10, 0x80ull);
-    request.message.header.request.keylen = htons(10);
+    request.message.header.request.setKeylen(10);
     // request.message.header.request.bodylen =
     // request.message.header.request.keylen;
     EXPECT_EQ("Request key invalid",
@@ -560,8 +557,8 @@ public:
     void SetUp() override {
         ValidatorTest::SetUp();
 
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen = htonl(10);
+        request.message.header.request.setKeylen(10);
+        request.message.header.request.setBodylen(10);
     }
 
     bool isCollectionsEnabled() const {
@@ -582,7 +579,7 @@ TEST_P(DeleteValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DeleteValidatorTest, Cas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Success,
               validate(cb::mcbp::ClientOpcode::Delete));
     EXPECT_EQ(cb::mcbp::Status::Success,
@@ -590,7 +587,7 @@ TEST_P(DeleteValidatorTest, Cas) {
 }
 
 TEST_P(DeleteValidatorTest, WithValue) {
-    request.message.header.request.bodylen = htonl(20);
+    request.message.header.request.setBodylen(20);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Delete));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -598,7 +595,7 @@ TEST_P(DeleteValidatorTest, WithValue) {
 }
 
 TEST_P(DeleteValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Delete));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -606,8 +603,8 @@ TEST_P(DeleteValidatorTest, InvalidMagic) {
 }
 
 TEST_P(DeleteValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 21;
-    request.message.header.request.bodylen = htonl(21 + 10);
+    request.message.header.request.setExtlen(21);
+    request.message.header.request.setBodylen(21 + 10);
     EXPECT_EQ("Request must not include extras",
               validate_error_context(cb::mcbp::ClientOpcode::Delete));
     EXPECT_EQ("Request must not include extras",
@@ -615,7 +612,7 @@ TEST_P(DeleteValidatorTest, InvalidExtlen) {
 }
 
 TEST_P(DeleteValidatorTest, NoKey) {
-    request.message.header.request.keylen = 0;
+    request.message.header.request.setKeylen(0);
     EXPECT_EQ("Request must include key",
               validate_error_context(cb::mcbp::ClientOpcode::Delete));
     EXPECT_EQ("Request must include key",
@@ -623,7 +620,7 @@ TEST_P(DeleteValidatorTest, NoKey) {
 }
 
 TEST_P(DeleteValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Delete));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -639,9 +636,9 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.extlen = 20;
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen = htonl(30);
+        request.message.header.request.setExtlen(20);
+        request.message.header.request.setKeylen(10);
+        request.message.header.request.setBodylen(30);
     }
 
     bool isCollectionsEnabled() const {
@@ -666,7 +663,7 @@ TEST_P(IncrementDecrementValidatorTest, CorrectMessage) {
 }
 
 TEST_P(IncrementDecrementValidatorTest, Cas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Increment));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -678,7 +675,7 @@ TEST_P(IncrementDecrementValidatorTest, Cas) {
 }
 
 TEST_P(IncrementDecrementValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Increment));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -690,9 +687,9 @@ TEST_P(IncrementDecrementValidatorTest, InvalidMagic) {
 }
 
 TEST_P(IncrementDecrementValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 21;
-    request.message.header.request.keylen = htons(10);
-    request.message.header.request.bodylen = htonl(31);
+    request.message.header.request.setExtlen(21);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(31);
     EXPECT_EQ("Request must include extras of length 20",
               validate_error_context(cb::mcbp::ClientOpcode::Increment));
     EXPECT_EQ("Request must include extras of length 20",
@@ -705,7 +702,7 @@ TEST_P(IncrementDecrementValidatorTest, InvalidExtlen) {
 
 TEST_P(IncrementDecrementValidatorTest, NoKey) {
     // Collections requires 2 bytes minimum, non-collection 1 byte minimum
-    request.message.header.request.keylen = 0;
+    request.message.header.request.setKeylen(0);
     EXPECT_EQ("Request must include key",
               validate_error_context(cb::mcbp::ClientOpcode::Increment));
     EXPECT_EQ("Request must include key",
@@ -724,9 +721,9 @@ TEST_P(IncrementDecrementValidatorTest, InvalidKey) {
     // Collections requires the leading bytes are a valid unsigned leb128
     // (varint), so if all key bytes are 0x80, (no stop-byte) illegal.
     auto key = blob + sizeof(request.bytes) +
-               request.message.header.request.extlen;
+               request.message.header.request.getExtlen();
     std::fill(key, key + 10, 0x80ull);
-    request.message.header.request.keylen = htons(10);
+    request.message.header.request.setKeylen(10);
     // request.message.header.request.bodylen =
     // request.message.header.request.keylen;
     EXPECT_EQ("Request key invalid",
@@ -740,7 +737,7 @@ TEST_P(IncrementDecrementValidatorTest, InvalidKey) {
 }
 
 TEST_P(IncrementDecrementValidatorTest, WithValue) {
-    request.message.header.request.bodylen = htonl(40);
+    request.message.header.request.setBodylen(40);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Increment));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -752,7 +749,7 @@ TEST_P(IncrementDecrementValidatorTest, WithValue) {
 }
 
 TEST_P(IncrementDecrementValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Increment));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -784,44 +781,44 @@ TEST_P(QuitValidatorTest, CorrectMessage) {
 }
 
 TEST_P(QuitValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Quit));
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Quitq));
 }
 
 TEST_P(QuitValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 21;
-    request.message.header.request.bodylen = htonl(21);
+    request.message.header.request.setExtlen(21);
+    request.message.header.request.setBodylen(21);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Quit));
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Quitq));
 }
 
 TEST_P(QuitValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = ntohl(10);
+    request.message.header.request.setExtlen(10);
+    request.message.header.request.setBodylen(10);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Quit));
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Quitq));
 }
 
 TEST_P(QuitValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Quit));
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Quitq));
 }
 
 TEST_P(QuitValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = htonl(10);
+    request.message.header.request.setBodylen(10);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Quit));
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Quitq));
 }
 
 TEST_P(QuitValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Quit));
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Quitq));
@@ -848,8 +845,8 @@ TEST_P(FlushValidatorTest, CorrectMessage) {
 }
 
 TEST_P(FlushValidatorTest, CorrectMessageWithTime) {
-    request.message.header.request.extlen = 4;
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setExtlen(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Success,
               validate(cb::mcbp::ClientOpcode::Flush));
     EXPECT_EQ(cb::mcbp::Status::Success,
@@ -857,8 +854,8 @@ TEST_P(FlushValidatorTest, CorrectMessageWithTime) {
 }
 
 TEST_P(FlushValidatorTest, CorrectMessageWithUnsupportedTime) {
-    request.message.header.request.extlen = 4;
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setExtlen(4);
+    request.message.header.request.setBodylen(4);
     *reinterpret_cast<uint32_t*>(request.bytes + sizeof(request.bytes)) = 1;
     EXPECT_EQ(cb::mcbp::Status::NotSupported,
               validate(cb::mcbp::ClientOpcode::Flush));
@@ -867,7 +864,7 @@ TEST_P(FlushValidatorTest, CorrectMessageWithUnsupportedTime) {
 }
 
 TEST_P(FlushValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Flush));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -875,8 +872,8 @@ TEST_P(FlushValidatorTest, InvalidMagic) {
 }
 
 TEST_P(FlushValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 21;
-    request.message.header.request.bodylen = htonl(21);
+    request.message.header.request.setExtlen(21);
+    request.message.header.request.setBodylen(21);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Flush));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -884,8 +881,8 @@ TEST_P(FlushValidatorTest, InvalidExtlen) {
 }
 
 TEST_P(FlushValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = ntohl(10);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(10);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Flush));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -893,7 +890,7 @@ TEST_P(FlushValidatorTest, InvalidKey) {
 }
 
 TEST_P(FlushValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Flush));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -901,7 +898,7 @@ TEST_P(FlushValidatorTest, InvalidCas) {
 }
 
 TEST_P(FlushValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = htonl(10);
+    request.message.header.request.setBodylen(10);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Flush));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -909,7 +906,7 @@ TEST_P(FlushValidatorTest, InvalidBodylen) {
 }
 
 TEST_P(FlushValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Flush));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -935,34 +932,34 @@ TEST_P(NoopValidatorTest, CorrectMessage) {
 }
 
 TEST_P(NoopValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(NoopValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 21;
-    request.message.header.request.bodylen = htonl(21);
+    request.message.header.request.setExtlen(21);
+    request.message.header.request.setBodylen(21);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(NoopValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = ntohs(32);
-    request.message.header.request.bodylen = htonl(32);
+    request.message.header.request.setKeylen(32);
+    request.message.header.request.setBodylen(32);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(NoopValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = htonl(100);
+    request.message.header.request.setBodylen(100);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(NoopValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(NoopValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -985,34 +982,34 @@ TEST_P(VersionValidatorTest, CorrectMessage) {
 }
 
 TEST_P(VersionValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(VersionValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 21;
-    request.message.header.request.bodylen = htonl(21);
+    request.message.header.request.setExtlen(21);
+    request.message.header.request.setBodylen(21);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(VersionValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = ntohs(32);
-    request.message.header.request.bodylen = htonl(32);
+    request.message.header.request.setKeylen(32);
+    request.message.header.request.setBodylen(32);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(VersionValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = htonl(100);
+    request.message.header.request.setBodylen(100);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(VersionValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(VersionValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -1035,34 +1032,34 @@ TEST_P(StatValidatorTest, CorrectMessage) {
 }
 
 TEST_P(StatValidatorTest, WithKey) {
-    request.message.header.request.keylen = htons(21);
-    request.message.header.request.bodylen = htonl(21);
+    request.message.header.request.setKeylen(21);
+    request.message.header.request.setBodylen(21);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_P(StatValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(StatValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 21;
-    request.message.header.request.bodylen = htonl(21);
+    request.message.header.request.setExtlen(21);
+    request.message.header.request.setBodylen(21);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(StatValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = htonl(100);
+    request.message.header.request.setBodylen(100);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(StatValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(StatValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -1074,8 +1071,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.extlen = 4;
-        request.message.header.request.bodylen = htonl(4);
+        request.message.header.request.setExtlen(4);
+        request.message.header.request.setBodylen(4);
     }
 
 protected:
@@ -1090,34 +1087,34 @@ TEST_P(VerbosityValidatorTest, CorrectMessage) {
 }
 
 TEST_P(VerbosityValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(VerbosityValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 21;
-    request.message.header.request.bodylen = htonl(21);
+    request.message.header.request.setExtlen(21);
+    request.message.header.request.setBodylen(21);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(VerbosityValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = htonl(100);
+    request.message.header.request.setBodylen(100);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(VerbosityValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(VerbosityValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = htons(21);
-    request.message.header.request.bodylen = htonl(21);
+    request.message.header.request.setKeylen(21);
+    request.message.header.request.setBodylen(21);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(VerbosityValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -1140,43 +1137,43 @@ TEST_P(HelloValidatorTest, CorrectMessage) {
 }
 
 TEST_P(HelloValidatorTest, MultipleFeatures) {
-    request.message.header.request.bodylen = htonl(2);
+    request.message.header.request.setBodylen(2);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
-    request.message.header.request.bodylen = htonl(6);
+    request.message.header.request.setBodylen(6);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_P(HelloValidatorTest, WithKey) {
-    request.message.header.request.keylen = htons(21);
-    request.message.header.request.bodylen = htonl(21);
+    request.message.header.request.setKeylen(21);
+    request.message.header.request.setBodylen(21);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_P(HelloValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(HelloValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(2);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(2);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(HelloValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = htonl(1);
+    request.message.header.request.setBodylen(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(HelloValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(HelloValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -1199,34 +1196,34 @@ TEST_P(SaslListMechValidatorTest, CorrectMessage) {
 }
 
 TEST_P(SaslListMechValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SaslListMechValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(2);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(2);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SaslListMechValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = htons(21);
-    request.message.header.request.bodylen = htonl(21);
+    request.message.header.request.setKeylen(21);
+    request.message.header.request.setBodylen(21);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SaslListMechValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = htonl(1);
+    request.message.header.request.setBodylen(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SaslListMechValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SaslListMechValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -1238,8 +1235,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen = htonl(10);
+        request.message.header.request.setKeylen(10);
+        request.message.header.request.setBodylen(10);
     }
 
 protected:
@@ -1256,7 +1253,7 @@ TEST_P(SaslAuthValidatorTest, CorrectMessage) {
 }
 
 TEST_P(SaslAuthValidatorTest, WithChallenge) {
-    request.message.header.request.bodylen = htonl(20);
+    request.message.header.request.setBodylen(20);
     EXPECT_EQ(cb::mcbp::Status::Success,
               validate(cb::mcbp::ClientOpcode::SaslAuth));
     EXPECT_EQ(cb::mcbp::Status::Success,
@@ -1264,7 +1261,7 @@ TEST_P(SaslAuthValidatorTest, WithChallenge) {
 }
 
 TEST_P(SaslAuthValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::SaslAuth));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -1272,8 +1269,8 @@ TEST_P(SaslAuthValidatorTest, InvalidMagic) {
 }
 
 TEST_P(SaslAuthValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(2);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(2);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::SaslAuth));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -1281,8 +1278,8 @@ TEST_P(SaslAuthValidatorTest, InvalidExtlen) {
 }
 
 TEST_P(SaslAuthValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 0;
-    request.message.header.request.bodylen = 0;
+    request.message.header.request.setKeylen(0);
+    request.message.header.request.setBodylen(0);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::SaslAuth));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -1290,7 +1287,7 @@ TEST_P(SaslAuthValidatorTest, InvalidKey) {
 }
 
 TEST_P(SaslAuthValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::SaslAuth));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -1298,7 +1295,7 @@ TEST_P(SaslAuthValidatorTest, InvalidDatatype) {
 }
 
 TEST_P(SaslAuthValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::SaslAuth));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -1319,17 +1316,17 @@ protected:
 };
 
 TEST_P(GetErrmapValidatorTest, CorrectMessage) {
-    request.message.header.request.bodylen = htonl(2);
+    request.message.header.request.setBodylen(2);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_P(GetErrmapValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetErrmapValidatorTest, MissingBody) {
-    request.message.header.request.bodylen = 0;
+    request.message.header.request.setBodylen(0);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -1341,8 +1338,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen = htonl(10);
+        request.message.header.request.setKeylen(10);
+        request.message.header.request.setBodylen(10);
     }
 
 protected:
@@ -1360,37 +1357,37 @@ TEST_P(IoctlGetValidatorTest, CorrectMessage) {
 }
 
 TEST_P(IoctlGetValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(IoctlGetValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(12);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(IoctlGetValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 0;
-    request.message.header.request.bodylen = 0;
+    request.message.header.request.setKeylen(0);
+    request.message.header.request.setBodylen(0);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-    request.message.header.request.keylen = htons(IOCTL_KEY_LENGTH + 1);
-    request.message.header.request.bodylen = htonl(IOCTL_KEY_LENGTH + 1);
+    request.message.header.request.setKeylen(IOCTL_KEY_LENGTH + 1);
+    request.message.header.request.setBodylen(IOCTL_KEY_LENGTH + 1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(IoctlGetValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(IoctlGetValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(IoctlGetValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(20);
+    request.message.header.request.setBodylen(20);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -1402,8 +1399,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen = htonl(10);
+        request.message.header.request.setKeylen(10);
+        request.message.header.request.setBodylen(10);
     }
 
 protected:
@@ -1422,42 +1419,42 @@ TEST_P(IoctlSetValidatorTest, CorrectMessage) {
 }
 
 TEST_P(IoctlSetValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(IoctlSetValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(12);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(IoctlSetValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 0;
-    request.message.header.request.bodylen = 0;
+    request.message.header.request.setKeylen(0);
+    request.message.header.request.setBodylen(0);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-    request.message.header.request.keylen = htons(IOCTL_KEY_LENGTH + 1);
-    request.message.header.request.bodylen = htonl(IOCTL_KEY_LENGTH + 1);
+    request.message.header.request.setKeylen(IOCTL_KEY_LENGTH + 1);
+    request.message.header.request.setBodylen(IOCTL_KEY_LENGTH + 1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(IoctlSetValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(IoctlSetValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(IoctlSetValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(IOCTL_VAL_LENGTH + 11);
+    request.message.header.request.setBodylen(IOCTL_VAL_LENGTH + 11);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(IoctlSetValidatorTest, ValidBody) {
-    request.message.header.request.bodylen = htonl(IOCTL_VAL_LENGTH + 10);
+    request.message.header.request.setBodylen(IOCTL_VAL_LENGTH + 10);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
@@ -1469,8 +1466,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.extlen = 4;
-        request.message.header.request.bodylen = htonl(10);
+        request.message.header.request.setExtlen(4);
+        request.message.header.request.setBodylen(10);
     }
 
 protected:
@@ -1485,34 +1482,34 @@ TEST_P(AuditPutValidatorTest, CorrectMessage) {
 }
 
 TEST_P(AuditPutValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(AuditPutValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(12);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(AuditPutValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = htonl(15);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(15);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(AuditPutValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(AuditPutValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(AuditPutValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -1537,34 +1534,34 @@ TEST_P(AuditConfigReloadValidatorTest, CorrectMessage) {
 }
 
 TEST_P(AuditConfigReloadValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(AuditConfigReloadValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(2);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(2);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(AuditConfigReloadValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = htonl(10);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(10);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(AuditConfigReloadValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(AuditConfigReloadValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(AuditConfigReloadValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -1576,7 +1573,7 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.cas = 1;
+        request.message.header.request.setCas(1);
     }
 
 protected:
@@ -1591,24 +1588,24 @@ TEST_P(ShutdownValidatorTest, CorrectMessage) {
 }
 
 TEST_P(ShutdownValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(ShutdownValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(2);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(2);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(ShutdownValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = htonl(10);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(10);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(ShutdownValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -1618,7 +1615,7 @@ TEST_P(ShutdownValidatorTest, InvalidCas) {
 }
 
 TEST_P(ShutdownValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -1631,10 +1628,10 @@ public:
         ValidatorTest::SetUp();
         memset(blob, 0, sizeof(blob));
         request.setMagic(cb::mcbp::Magic::ClientRequest);
-        request.extlen = 8;
-        request.keylen = htons(2);
-        request.bodylen = htonl(10);
-        request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        request.setExtlen(8);
+        request.setKeylen(2);
+        request.setBodylen(10);
+        request.setDatatype(cb::mcbp::Datatype::Raw);
     }
 
 protected:
@@ -1651,29 +1648,29 @@ TEST_P(DcpOpenValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpOpenValidatorTest, InvalidMagic) {
-    request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpOpenValidatorTest, InvalidExtlen) {
-    request.extlen = 9;
-    request.bodylen = htonl(11);
+    request.setExtlen(9);
+    request.setBodylen(11);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpOpenValidatorTest, InvalidKeylen) {
-    request.keylen = 0;
-    request.bodylen = htonl(8);
+    request.setKeylen(0);
+    request.setBodylen(8);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpOpenValidatorTest, InvalidDatatype) {
-    request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpOpenValidatorTest, Value) {
-    request.bodylen = htonl(10 + 20);
+    request.setBodylen(10 + 20);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -1684,8 +1681,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.extlen = 4;
-        request.message.header.request.bodylen = htonl(4);
+        request.message.header.request.setExtlen(4);
+        request.message.header.request.setBodylen(4);
     }
 
 protected:
@@ -1700,29 +1697,29 @@ TEST_P(DcpAddStreamValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpAddStreamValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpAddStreamValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 5;
-    request.message.header.request.bodylen = htonl(5);
+    request.message.header.request.setExtlen(5);
+    request.message.header.request.setBodylen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpAddStreamValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = 4;
-    request.message.header.request.bodylen = htonl(8);
+    request.message.header.request.setKeylen(4);
+    request.message.header.request.setBodylen(8);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpAddStreamValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpAddStreamValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(12);
+    request.message.header.request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -1744,29 +1741,29 @@ TEST_P(DcpCloseStreamValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpCloseStreamValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpCloseStreamValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 5;
-    request.message.header.request.bodylen = htonl(5);
+    request.message.header.request.setExtlen(5);
+    request.message.header.request.setBodylen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpCloseStreamValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = 4;
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setKeylen(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpCloseStreamValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpCloseStreamValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(12);
+    request.message.header.request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -1790,29 +1787,29 @@ TEST_P(DcpGetFailoverLogValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpGetFailoverLogValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpGetFailoverLogValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 5;
-    request.message.header.request.bodylen = htonl(5);
+    request.message.header.request.setExtlen(5);
+    request.message.header.request.setBodylen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpGetFailoverLogValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = 4;
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setKeylen(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpGetFailoverLogValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpGetFailoverLogValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(12);
+    request.message.header.request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -1823,8 +1820,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.extlen = 48;
-        request.message.header.request.bodylen = htonl(48);
+        request.message.header.request.setExtlen(48);
+        request.message.header.request.setBodylen(48);
     }
     bool isCollectionsEnabled() const {
         return GetParam();
@@ -1842,29 +1839,29 @@ TEST_P(DcpStreamReqValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpStreamReqValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpStreamReqValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 5;
-    request.message.header.request.bodylen = htonl(5);
+    request.message.header.request.setExtlen(5);
+    request.message.header.request.setBodylen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpStreamReqValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = 4;
-    request.message.header.request.bodylen = htonl(54);
+    request.message.header.request.setKeylen(4);
+    request.message.header.request.setBodylen(54);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpStreamReqValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpStreamReqValidatorTest, MessageValue) {
-    request.message.header.request.bodylen = htonl(48 + 20);
+    request.message.header.request.setBodylen(48 + 20);
     // Only valid when collections enabled
     if (isCollectionsEnabled()) {
         EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
@@ -1881,8 +1878,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.extlen = 4;
-        request.message.header.request.bodylen = htonl(4);
+        request.message.header.request.setExtlen(4);
+        request.message.header.request.setBodylen(4);
     }
 
 protected:
@@ -1897,29 +1894,29 @@ TEST_P(DcpStreamEndValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpStreamEndValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpStreamEndValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 5;
-    request.message.header.request.bodylen = htonl(5);
+    request.message.header.request.setExtlen(5);
+    request.message.header.request.setBodylen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpStreamEndValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = 4;
-    request.message.header.request.bodylen = htonl(8);
+    request.message.header.request.setKeylen(4);
+    request.message.header.request.setBodylen(8);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpStreamEndValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpStreamEndValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(12);
+    request.message.header.request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -1931,8 +1928,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.extlen = 20;
-        request.message.header.request.bodylen = htonl(20);
+        request.message.header.request.setExtlen(20);
+        request.message.header.request.setBodylen(20);
     }
 
 protected:
@@ -1948,29 +1945,29 @@ TEST_P(DcpSnapshotMarkerValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpSnapshotMarkerValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpSnapshotMarkerValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 21;
-    request.message.header.request.bodylen = htonl(21);
+    request.message.header.request.setExtlen(21);
+    request.message.header.request.setBodylen(21);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpSnapshotMarkerValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = 32;
-    request.message.header.request.bodylen = htonl(52);
+    request.message.header.request.setKeylen(32);
+    request.message.header.request.setBodylen(52);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpSnapshotMarkerValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = htonl(100);
+    request.message.header.request.setBodylen(100);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpSnapshotMarkerValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -2018,20 +2015,20 @@ TEST_P(DcpMutationValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpMutationValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ("Request header invalid", validate_error_context());
 }
 
 TEST_P(DcpMutationValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 21;
-    request.message.header.request.bodylen = htonl(23);
+    request.message.header.request.setExtlen(21);
+    request.message.header.request.setBodylen(23);
     EXPECT_EQ("Request must include extras of length 31",
               validate_error_context());
 }
 
 TEST_P(DcpMutationValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = 0;
-    request.message.header.request.bodylen = htonl(31);
+    request.message.header.request.setKeylen(0);
+    request.message.header.request.setBodylen(31);
     EXPECT_EQ("Request must include key", validate_error_context());
 }
 
@@ -2069,10 +2066,10 @@ public:
         : ValidatorTest(GetParam()),
           request(GetParam() ? makeV2() : makeV1()),
           header(request->getHeader()) {
-        header.request.opcode = (uint8_t)cb::mcbp::ClientOpcode::DcpDeletion;
+        header.request.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
         if (GetParam()) {
-            header.request.keylen = htons(5); // min-collection key
-            header.request.bodylen = htonl(header.request.extlen + 5);
+            header.request.setKeylen(5); // min-collection key
+            header.request.setBodylen(header.request.getExtlen() + 5);
         }
     }
 
@@ -2175,7 +2172,7 @@ TEST_P(DcpDeletionValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpDeletionValidatorTest, InvalidMagic) {
-    header.request.magic = 0;
+    request->getBytes()[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -2188,7 +2185,7 @@ TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
              uint8_t(Datatype::Xattr) | uint8_t(Datatype::Snappy)}};
 
     for (auto valid : datatypes) {
-        header.request.datatype = valid;
+        header.request.setDatatype(Datatype(valid));
         EXPECT_EQ(cb::mcbp::Status::NotSupported, validate())
                 << "Testing valid datatype:" << int(valid);
     }
@@ -2201,35 +2198,35 @@ TEST_P(DcpDeletionValidatorTest, InvalidDatatype) {
              uint8_t(Datatype::Snappy) | uint8_t(Datatype::JSON)}};
 
     for (auto invalid : datatypes) {
-        header.request.datatype = invalid;
+        header.request.setDatatype(Datatype(invalid));
         EXPECT_EQ(cb::mcbp::Status::Einval, validate())
                 << "Testing invalid datatype:" << int(invalid);
     }
 }
 
 TEST_P(DcpDeletionValidatorTest, InvalidExtlen) {
-    header.request.extlen = 5;
-    header.request.bodylen = htonl(7);
+    header.request.setExtlen(5);
+    header.request.setBodylen(7);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpDeletionValidatorTest, InvalidExtlenCollections) {
     // Flip extlen, so when not collections, set the length collections uses
-    header.request.extlen =
+    header.request.setExtlen(
             isCollectionsEnabled()
                     ? sizeof(cb::mcbp::request::DcpDeletionV1Payload)
-                    : sizeof(cb::mcbp::request::DcpDeletionV2Payload);
+                    : sizeof(cb::mcbp::request::DcpDeletionV2Payload));
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpDeletionValidatorTest, InvalidKeylen) {
-    header.request.keylen = GetParam() ? htons(1) : 0;
-    header.request.bodylen = htonl(18);
+    header.request.setKeylen(GetParam() ? 1 : 0);
+    header.request.setBodylen(18);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpDeletionValidatorTest, WithValue) {
-    header.request.bodylen = htonl(100);
+    header.request.setBodylen(100);
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
 }
 
@@ -2270,24 +2267,24 @@ TEST_P(DcpExpirationValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpExpirationValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpExpirationValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 5;
-    request.message.header.request.bodylen = htonl(7);
+    request.message.header.request.setExtlen(5);
+    request.message.header.request.setBodylen(7);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpExpirationValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = GetParam() ? htons(1) : 0;
-    request.message.header.request.bodylen = htonl(19);
+    request.message.header.request.setKeylen(GetParam() ? 1 : 0);
+    request.message.header.request.setBodylen(19);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpExpirationValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = htonl(100);
+    request.message.header.request.setBodylen(100);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -2301,9 +2298,9 @@ public:
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
         request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-        request.message.header.request.extlen = 1;
-        request.message.header.request.bodylen = htonl(1);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        request.message.header.request.setExtlen(1);
+        request.message.header.request.setBodylen(1);
+        request.message.header.request.setDatatype(cb::mcbp::Datatype::Raw);
 
         cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
         cb::mcbp::request::DcpSetVBucketState extras;
@@ -2335,29 +2332,29 @@ TEST_P(DcpSetVbucketStateValidatorTest, LegalValues) {
 }
 
 TEST_P(DcpSetVbucketStateValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpSetVbucketStateValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 5;
-    request.message.header.request.bodylen = htonl(5);
+    request.message.header.request.setExtlen(5);
+    request.message.header.request.setBodylen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpSetVbucketStateValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = 4;
-    request.message.header.request.bodylen = htonl(5);
+    request.message.header.request.setKeylen(4);
+    request.message.header.request.setBodylen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpSetVbucketStateValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpSetVbucketStateValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(12);
+    request.message.header.request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -2390,29 +2387,29 @@ TEST_P(DcpNoopValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpNoopValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpNoopValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 5;
-    request.message.header.request.bodylen = htonl(5);
+    request.message.header.request.setExtlen(5);
+    request.message.header.request.setBodylen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpNoopValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = 4;
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setKeylen(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpNoopValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpNoopValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(12);
+    request.message.header.request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -2423,8 +2420,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.extlen = 4;
-        request.message.header.request.bodylen = htonl(4);
+        request.message.header.request.setExtlen(4);
+        request.message.header.request.setBodylen(4);
     }
 
 protected:
@@ -2440,29 +2437,29 @@ TEST_P(DcpBufferAckValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpBufferAckValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpBufferAckValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 5;
-    request.message.header.request.bodylen = htonl(5);
+    request.message.header.request.setExtlen(5);
+    request.message.header.request.setBodylen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpBufferAckValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = 4;
-    request.message.header.request.bodylen = htonl(8);
+    request.message.header.request.setKeylen(4);
+    request.message.header.request.setBodylen(8);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpBufferAckValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpBufferAckValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(12);
+    request.message.header.request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -2473,8 +2470,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.keylen = htons(4);
-        request.message.header.request.bodylen = htonl(8);
+        request.message.header.request.setKeylen(4);
+        request.message.header.request.setBodylen(8);
     }
 
 protected:
@@ -2489,29 +2486,29 @@ TEST_P(DcpControlValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpControlValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpControlValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 5;
-    request.message.header.request.bodylen = htonl(13);
+    request.message.header.request.setExtlen(5);
+    request.message.header.request.setBodylen(13);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpControlValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = 0;
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setKeylen(0);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpControlValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpControlValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -2523,7 +2520,7 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.bodylen = ntohl(8);
+        request.message.header.request.setBodylen(8);
     }
 
 protected:
@@ -2538,28 +2535,28 @@ TEST_P(ObserveSeqnoValidatorTest, CorrectMessage) {
 }
 
 TEST_P(ObserveSeqnoValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(ObserveSeqnoValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 8;
+    request.message.header.request.setExtlen(8);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(ObserveSeqnoValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = htonl(18);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(18);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(ObserveSeqnoValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(ObserveSeqnoValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(12);
+    request.message.header.request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -2572,8 +2569,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.extlen = 9;
-        request.message.header.request.bodylen = ntohl(9);
+        request.message.header.request.setExtlen(9);
+        request.message.header.request.setBodylen(9);
     }
 
 protected:
@@ -2589,29 +2586,29 @@ TEST_P(SetDriftCounterStateValidatorTest, CorrectMessage) {
 }
 
 TEST_P(SetDriftCounterStateValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SetDriftCounterStateValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(2);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(2);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SetDriftCounterStateValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = htonl(19);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(19);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SetDriftCounterStateValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SetDriftCounterStateValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -2634,34 +2631,34 @@ TEST_P(GetAdjustedTimeValidatorTest, CorrectMessage) {
 }
 
 TEST_P(GetAdjustedTimeValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetAdjustedTimeValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(2);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(2);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetAdjustedTimeValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = htonl(10);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(10);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetAdjustedTimeValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetAdjustedTimeValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetAdjustedTimeValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -2727,34 +2724,34 @@ TEST_P(RefreshValidatorTest, CorrectMessage) {
 }
 
 TEST_P(RefreshValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(RefreshValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(2);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(2);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(RefreshValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = htonl(10);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(10);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(RefreshValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(RefreshValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(RefreshValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -2766,8 +2763,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.extlen = 1;
-        request.message.header.request.bodylen = htonl(1);
+        request.message.header.request.setExtlen(1);
+        request.message.header.request.setBodylen(1);
     }
 
 protected:
@@ -2782,34 +2779,34 @@ TEST_P(CmdTimerValidatorTest, CorrectMessage) {
 }
 
 TEST_P(CmdTimerValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(CmdTimerValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(2);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(2);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(CmdTimerValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = htonl(10);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(10);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(CmdTimerValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(CmdTimerValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(CmdTimerValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -2832,34 +2829,34 @@ TEST_P(GetCtrlTokenValidatorTest, CorrectMessage) {
 }
 
 TEST_P(GetCtrlTokenValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetCtrlTokenValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(2);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(2);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetCtrlTokenValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = htonl(10);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(10);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetCtrlTokenValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetCtrlTokenValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetCtrlTokenValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -2900,7 +2897,7 @@ TEST_P(SetCtrlTokenValidatorTest, Cas) {
 }
 
 TEST_P(SetCtrlTokenValidatorTest, InvalidMagic) {
-    request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -2941,7 +2938,7 @@ public:
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
         request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        request.message.header.request.setDatatype(cb::mcbp::Datatype::Raw);
     }
 
 protected:
@@ -2960,53 +2957,53 @@ TEST_P(GetAllVbSeqnoValidatorTest, CorrectMessageNoState) {
 
 TEST_P(GetAllVbSeqnoValidatorTest, CorrectMessageWithState) {
     EXPECT_EQ(4, sizeof(vbucket_state_t));
-    request.message.header.request.extlen = 4;
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setExtlen(4);
+    request.message.header.request.setBodylen(4);
     request.message.body.state =
         static_cast<vbucket_state_t>(htonl(vbucket_state_active));
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_P(GetAllVbSeqnoValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetAllVbSeqnoValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(2);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(2);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetAllVbSeqnoValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = htonl(10);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(10);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetAllVbSeqnoValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetAllVbSeqnoValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetAllVbSeqnoValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetAllVbSeqnoValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = htonl(1);
+    request.message.header.request.setBodylen(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetAllVbSeqnoValidatorTest, InvalidVbucketState) {
-    request.message.header.request.extlen = 4;
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setExtlen(4);
+    request.message.header.request.setBodylen(4);
 
     for (int ii = 0; ii < 100; ++ii) {
         request.message.body.state = static_cast<vbucket_state_t>(htonl(ii));
@@ -3026,8 +3023,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen = htonl(10);
+        request.message.header.request.setKeylen(10);
+        request.message.header.request.setBodylen(10);
     }
 
 protected:
@@ -3042,45 +3039,45 @@ TEST_P(GetLockedValidatorTest, CorrectMessageDefaultTimeout) {
 }
 
 TEST_P(GetLockedValidatorTest, CorrectMessageExplicitTimeout) {
-    request.message.header.request.extlen = 4;
-    request.message.header.request.bodylen = htonl(14);
+    request.message.header.request.setExtlen(4);
+    request.message.header.request.setBodylen(14);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_P(GetLockedValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetLockedValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(12);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetLockedValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = htonl(11);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(11);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetLockedValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetLockedValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetLockedValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetLockedValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = htonl(1);
+    request.message.header.request.setBodylen(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -3092,8 +3089,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen = htonl(10);
+        request.message.header.request.setKeylen(10);
+        request.message.header.request.setBodylen(10);
         request.message.header.request.cas = 0xdeadbeef;
     }
 
@@ -3109,24 +3106,24 @@ TEST_P(UnlockValidatorTest, CorrectMessage) {
 }
 
 TEST_P(UnlockValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(UnlockValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(12);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(UnlockValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = htonl(11);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(11);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(UnlockValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -3136,12 +3133,12 @@ TEST_P(UnlockValidatorTest, InvalidCas) {
 }
 
 TEST_P(UnlockValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(UnlockValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = htonl(1);
+    request.message.header.request.setBodylen(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -3165,34 +3162,34 @@ TEST_P(ConfigReloadValidatorTest, CorrectMessage) {
 }
 
 TEST_P(ConfigReloadValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(ConfigReloadValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(2);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(2);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(ConfigReloadValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = htonl(10);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(10);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(ConfigReloadValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(ConfigReloadValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
+    request.message.header.request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(ConfigReloadValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -3204,8 +3201,8 @@ public:
     }
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen = htonl(10);
+        request.message.header.request.setKeylen(10);
+        request.message.header.request.setBodylen(10);
         request.message.header.request.cas = 0;
     }
 
@@ -3221,24 +3218,24 @@ TEST_P(EvictKeyValidatorTest, CorrectMessage) {
 }
 
 TEST_P(EvictKeyValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(EvictKeyValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(12);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(EvictKeyValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = htonl(11);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(11);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(EvictKeyValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -3248,12 +3245,12 @@ TEST_P(EvictKeyValidatorTest, InvalidCas) {
 }
 
 TEST_P(EvictKeyValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(EvictKeyValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = htonl(1);
+    request.message.header.request.setBodylen(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -3265,8 +3262,8 @@ public:
     }
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen = htonl(10);
+        request.message.header.request.setKeylen(10);
+        request.message.header.request.setBodylen(10);
         request.message.header.request.cas = 0;
     }
 
@@ -3282,18 +3279,18 @@ TEST_P(RevokeUserPermissionsValidatorTest, CorrectMessage) {
 }
 
 TEST_P(RevokeUserPermissionsValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(RevokeUserPermissionsValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(12);
+    request.message.header.request.setExtlen(2);
+    request.message.header.request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(RevokeUserPermissionsValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -3303,13 +3300,13 @@ TEST_P(RevokeUserPermissionsValidatorTest, InvalidCas) {
 }
 
 TEST_P(RevokeUserPermissionsValidatorTest, MissingKey) {
-    request.message.header.request.keylen = 0;
-    request.message.header.request.bodylen = 0;
+    request.message.header.request.setKeylen(0);
+    request.message.header.request.setBodylen(0);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(RevokeUserPermissionsValidatorTest, InvalidBodylen) {
-    request.message.header.request.bodylen = htonl(4);
+    request.message.header.request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -3333,7 +3330,7 @@ TEST_P(ErrorContextTest, ValidHeader) {
 
 TEST_P(ErrorContextTest, InvalidHeader) {
     // Magic invalid
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ("Request header invalid",
               validate_error_context(cb::mcbp::ClientOpcode::Noop));
 
@@ -3348,12 +3345,13 @@ TEST_P(ErrorContextTest, InvalidHeader) {
 
 TEST_P(ErrorContextTest, InvalidDatatype) {
     // Nonexistent datatype
-    request.message.header.request.datatype = mcbp::datatype::highest + 1;
+    request.message.header.request.setDatatype(
+            cb::mcbp::Datatype(mcbp::datatype::highest + 1));
     EXPECT_EQ("Request datatype invalid",
               validate_error_context(cb::mcbp::ClientOpcode::Noop));
 
     // Noop command does not accept JSON
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ("Request datatype invalid",
               validate_error_context(cb::mcbp::ClientOpcode::Noop));
 }
@@ -3435,7 +3433,7 @@ public:
         ValidatorTest::SetUp();
         memset(blob, 0, sizeof(blob));
         request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        request.message.header.request.setDatatype(cb::mcbp::Datatype::Raw);
         connection.enableDatatype(cb::mcbp::Feature::XATTR);
         connection.enableDatatype(cb::mcbp::Feature::SNAPPY);
         connection.enableDatatype(cb::mcbp::Feature::JSON);
@@ -3509,7 +3507,7 @@ TEST_P(CommandSpecificErrorContextTest, DcpStreamRequest) {
               validate_error_context(cb::mcbp::ClientOpcode::DcpStreamReq));
     header.setKeylen(0);
     header.setBodylen(48);
-    header.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    header.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ("Request datatype invalid",
               validate_error_context(cb::mcbp::ClientOpcode::DcpStreamReq));
 }
@@ -3534,7 +3532,7 @@ TEST_P(CommandSpecificErrorContextTest, DcpMutation) {
     header.setExtlen(gsl::narrow<uint8_t>(extlen));
     header.setKeylen(10);
     header.setBodylen(extlen + 10);
-    header.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
+    header.setDatatype(cb::mcbp::Datatype::Xattr);
     connection.disableAllDatatypes();
     EXPECT_EQ("Connection not Xattr enabled",
               validate_error_context(cb::mcbp::ClientOpcode::DcpMutation));
@@ -3552,7 +3550,7 @@ TEST_P(CommandSpecificErrorContextTest, DcpDeletion) {
     header.setExtlen(extlen);
     header.setKeylen(8);
     header.setBodylen(extlen + 8);
-    header.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    header.setDatatype(cb::mcbp::Datatype::JSON);
     if (GetParam()) {
         // Collections enabled - we require a larger message
         EXPECT_EQ("Request must include extras of length 21",
@@ -3569,7 +3567,7 @@ TEST_P(CommandSpecificErrorContextTest, DcpDeletionV2) {
     header.setExtlen(extlen);
     header.setKeylen(8);
     header.setBodylen(extlen + 8);
-    header.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    header.setDatatype(cb::mcbp::Datatype::JSON);
     if (!GetParam()) {
         // Collections enabled - we require a larger message
         EXPECT_EQ("Request must include extras of length 18",
@@ -3825,7 +3823,7 @@ TEST_P(CommandSpecificErrorContextTest, MutateWithMeta) {
     header.setExtlen(24);
     header.setKeylen(10);
     header.setBodylen(34);
-    header.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
+    header.setDatatype(cb::mcbp::Datatype::Xattr);
     connection.disableAllDatatypes();
     EXPECT_EQ("Connection not Xattr enabled",
               validate_error_context(cb::mcbp::ClientOpcode::AddWithMeta));
@@ -3841,7 +3839,7 @@ TEST_P(CommandSpecificErrorContextTest, MutateWithMeta) {
     header.setExtlen(24);
     header.setKeylen(1);
     header.setBodylen(25);
-    header.datatype = PROTOCOL_BINARY_RAW_BYTES;
+    header.setDatatype(cb::mcbp::Datatype::Raw);
     EXPECT_EQ("Request key invalid",
               validate_error_context(cb::mcbp::ClientOpcode::AddWithMeta));
 }
@@ -3971,7 +3969,7 @@ TEST_P(GetRandomKeyValidatorTest, CorrectMessage) {
 }
 
 TEST_P(GetRandomKeyValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -4028,7 +4026,7 @@ TEST_P(SetVBucketValidatorTest, CorrectMessage) {
 }
 
 TEST_P(SetVBucketValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -4087,7 +4085,7 @@ TEST_P(DelVBucketValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DelVBucketValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -4143,7 +4141,7 @@ TEST_P(GetVBucketValidatorTest, CorrectMessage) {
 }
 
 TEST_P(GetVBucketValidatorTest, InvalidMagic) {
-    req.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 

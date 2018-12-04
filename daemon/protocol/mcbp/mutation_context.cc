@@ -38,7 +38,7 @@ MutationCommandContext::MutationCommandContext(Cookie& cookie,
       input_cas(req.getCas()),
       extras(*reinterpret_cast<const cb::mcbp::request::MutationPayload*>(
               req.getExtdata().data())),
-      datatype(req.datatype),
+      datatype(uint8_t(req.getDatatype())),
       state(State::ValidateInput),
       store_if_predicate(cookie.getConnection().selectedBucketIsXattrEnabled()
                                  ? storeIfPredicate

@@ -458,7 +458,7 @@ static void test_getq_impl(const char* key, cb::mcbp::ClientOpcode cmd) {
                                    missing, strlen(missing), NULL, 0);
     /* I need to change the first opaque so that I can separate the two
      * return packets */
-    temp.request.message.header.request.opaque = 0xfeedface;
+    temp.request.message.header.request.setOpaque(0xfeedface);
     memcpy(send.bytes + len, temp.bytes, len2);
     len += len2;
 
@@ -1701,9 +1701,9 @@ static void get_object_w_datatype(const std::string& key,
     memset(request.bytes, 0, sizeof(request));
     request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
     request.message.header.request.setOpcode(cb::mcbp::ClientOpcode::Get);
-    request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    request.message.header.request.keylen = htons((uint16_t)key.size());
-    request.message.header.request.bodylen = htonl((uint32_t)key.size());
+    request.message.header.request.setDatatype(cb::mcbp::Datatype::Raw);
+    request.message.header.request.setKeylen((uint16_t)key.size());
+    request.message.header.request.setBodylen((uint32_t)key.size());
 
     safe_send(&request.bytes, sizeof(request.bytes), false);
     safe_send(key.data(), key.size(), false);
@@ -1799,7 +1799,7 @@ TEST_P(McdTestappTest, DatatypeInvalid) {
     memset(request.bytes, 0, sizeof(request));
     request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
     request.message.header.request.setOpcode(cb::mcbp::ClientOpcode::Noop);
-    request.message.header.request.datatype = 1;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype(1));
 
     safe_send(&request.bytes, sizeof(request.bytes), false);
     safe_recv_packet(res.buffer, sizeof(res.buffer));
@@ -1810,7 +1810,7 @@ TEST_P(McdTestappTest, DatatypeInvalid) {
     reconnect_to_server();
 
     set_datatype_feature(false);
-    request.message.header.request.datatype = 4;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype(4));
     safe_send(&request.bytes, sizeof(request.bytes), false);
     safe_recv_packet(res.buffer, sizeof(res.buffer));
     code = res.response.message.header.response.getStatus();
@@ -2467,7 +2467,7 @@ TEST_P(McdTestappTest, ExceedMaxPacketSize)
                          0,
                          0,
                          0);
-    send.request.message.header.request.bodylen = ntohl(31*1024*1024);
+    send.request.message.header.request.setBodylen(31 * 1024 * 1024);
     safe_send(send.bytes, sizeof(send.bytes), false);
 
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));

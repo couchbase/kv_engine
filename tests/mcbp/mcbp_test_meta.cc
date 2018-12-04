@@ -32,9 +32,9 @@ public:
     }
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.extlen = 24;
-        request.message.header.request.keylen = htons(10);
-        request.message.header.request.bodylen = htonl(512);
+        request.message.header.request.setExtlen(24);
+        request.message.header.request.setKeylen(10);
+        request.message.header.request.setBodylen(512);
     }
 
 protected:
@@ -49,24 +49,24 @@ TEST_P(MutationWithMetaTest, CorrectMessage) {
     // body will just get smaller (but we don't test that anyway)
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
-    request.message.header.request.extlen = 26;
+    request.message.header.request.setExtlen(26);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
-    request.message.header.request.extlen = 28;
+    request.message.header.request.setExtlen(28);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
-    request.message.header.request.extlen = 30;
+    request.message.header.request.setExtlen(30);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_P(MutationWithMetaTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(MutationWithMetaTest, InvalidExtlen) {
     for (int ii = 0; ii < 256; ++ii) {
-        request.message.header.request.extlen = uint8_t(ii);
+        request.message.header.request.setExtlen(ii);
 
         switch (ii) {
         case 24:
@@ -82,12 +82,12 @@ TEST_P(MutationWithMetaTest, InvalidExtlen) {
 }
 
 TEST_P(MutationWithMetaTest, NoKey) {
-    request.message.header.request.keylen = 0;
+    request.message.header.request.setKeylen(0);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(MutationWithMetaTest, InvalidDatatype) {
-    request.message.header.request.datatype = 0xff;
+    request.message.header.request.setDatatype(cb::mcbp::Datatype(0xff));
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 

@@ -806,9 +806,9 @@ static void set_feature(cb::mcbp::Feature feature, bool enable) {
             cb::mcbp::Magic::ClientRequest);
     buffer.request.message.header.request.setOpcode(
             cb::mcbp::ClientOpcode::Hello);
-    buffer.request.message.header.request.keylen = htons((uint16_t)agentlen);
-    buffer.request.message.header.request.bodylen =
-            htonl(gsl::narrow<uint32_t>(bodylen));
+    buffer.request.message.header.request.setKeylen((uint16_t)agentlen);
+    buffer.request.message.header.request.setBodylen(
+            gsl::narrow<uint32_t>(bodylen));
 
     safe_send(buffer.bytes,
               sizeof(buffer.request.message.header) + bodylen, false);
