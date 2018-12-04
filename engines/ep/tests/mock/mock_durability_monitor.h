@@ -29,8 +29,8 @@ public:
         return DurabilityMonitor::getNumTracked();
     }
 
-    int64_t public_getReplicaSeqno() const {
-        return DurabilityMonitor::getReplicaSeqno();
+    int64_t public_getReplicaMemorySeqno(const std::string& replicaUUID) const {
+        return DurabilityMonitor::getReplicaMemorySeqno(replicaUUID);
     }
 };
 

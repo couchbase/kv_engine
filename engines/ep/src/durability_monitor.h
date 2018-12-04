@@ -23,10 +23,10 @@
 #include <list>
 #include <mutex>
 
-class VBucket;
 class StoredValue;
+class VBucket;
 
-/**
+/*
  * The DurabilityMonitor (DM) drives the finalization (commit/abort) of a
  * SyncWrite request.
  *
@@ -40,6 +40,15 @@ public:
     // the forward declaration of ReplicationChain in the header
     DurabilityMonitor(VBucket& vb);
     ~DurabilityMonitor();
+
+    /**
+     * Track a new ReplicationChain.
+     *
+     * @param replicaUUIDs the set of replicas representing the chain
+     * @return ENGINE_SUCCESS if the operation succeeds, an error code otherwise
+     */
+    ENGINE_ERROR_CODE registerReplicationChain(
+            const std::vector<std::string>& replicaUUIDs);
 
     /**
      * Start tracking a new SyncWrite.
@@ -57,22 +66,61 @@ public:
     /**
      * Expected to be called by memcached at receiving a DCP_SEQNO_ACK packet.
      *
+     * @param replicaUUID uuid of the replica that sent the ACK
+     * @param memorySeqno the ack'ed memory-seqno
+     * @return ENGINE_SUCCESS if the operation succeeds, an error code otherwise
      * @throw std::logic_error if the received seqno is unexpected
+     *
+     * @todo: Expand for  supporting a full {memorySeqno, diskSeqno} ACK.
      */
-    ENGINE_ERROR_CODE seqnoAckReceived(int64_t memorySeqno);
+    ENGINE_ERROR_CODE seqnoAckReceived(const std::string& replicaUUID,
+                                       int64_t memorySeqno);
 
 protected:
+    class SyncWrite;
+    using Container = std::list<SyncWrite>;
+
     /**
      * @return the number of pending SyncWrite(s) currently tracked
      */
     size_t getNumTracked() const;
 
     /**
+     * Returns a replica memory iterator.
+     *
+     * @param replicaUUID
+     * @return the iterator to the memory seqno of the given replica
+     * @throw std::invalid_argument if replicaUUID is invalid
+     */
+    const Container::iterator& getReplicaMemoryIterator(
+            const std::string& replicaUUID) const;
+
+    /**
+     * Returns the next position for a replica memory iterator.
+     *
+     * @param replicaUUID
+     * @return the iterator to the next position for the given replica
+     */
+    Container::iterator getReplicaMemoryNext(const std::string& replicaUUID);
+
+    /*
+     * Advance a replica iterator
+     *
+     * @param replicaUUID
+     * @param n number of positions it should be advanced
+     * @throw std::invalid_argument if replicaUUID is invalid
+     */
+    void advanceReplicaMemoryIterator(const std::string& replicaUUID, size_t n);
+
+    /**
+     * Returns the memory-seqno for the replica as seen from the active.
+     *
+     * @param replicaUUID
      * @return the memory-seqno for the replica
      *
-     * @todo: Expand for supporting multiple-replicas and disk-seqno
+     * @todo: Expand for supporting and disk-seqno
      */
-    int64_t getReplicaSeqno() const;
+    int64_t getReplicaMemorySeqno(const std::string& replicaUUID) const;
 
     /**
      * Called internally for every SyncWrite for which the Durability
@@ -91,10 +139,7 @@ protected:
     struct ReplicationChain;
     std::unique_ptr<ReplicationChain> chain;
 
-    class SyncWrite;
-    using Container = std::list<SyncWrite>;
-
-    // The list of tracked SyncWrites
+    // The tracked SyncWrites.
     struct {
         mutable std::mutex m;
         Container container;
