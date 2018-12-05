@@ -20,11 +20,32 @@
 #include <gsl/gsl>
 #include "tracing/tracer.h"
 
+/**
+ * Append a 16 bit integer to the buffer in network byte order
+ *
+ * @param buf the buffer to add the data to
+ * @param value The value (in host local byteorder) to add.
+ */
+static void append(std::vector<uint8_t>& buf, uint16_t value) {
+    uint16_t vallen = ntohs(value);
+    auto p = reinterpret_cast<const char*>(&vallen);
+    buf.insert(buf.end(), p, p + 2);
+}
+
+/**
+ * Append a 32 bit integer to the buffer in network byte order
+ *
+ * @param buf the buffer to add the data to
+ * @param value The value (in host local byteorder) to add.
+ */
+static void append(std::vector<uint8_t>& buf, uint32_t value) {
+    uint32_t vallen = ntohl(value);
+    auto p = reinterpret_cast<const char*>(&vallen);
+    buf.insert(buf.end(), p, p + 4);
+}
+
 void BinprotCommand::encode(std::vector<uint8_t>& buf) const {
-    protocol_binary_request_header header;
-    fillHeader(header);
-    buf.insert(
-            buf.end(), header.bytes, &header.bytes[0] + sizeof(header.bytes));
+    writeHeader(buf);
 }
 
 BinprotCommand::Encoded BinprotCommand::encode() const {
@@ -33,28 +54,29 @@ BinprotCommand::Encoded BinprotCommand::encode() const {
     return bufs;
 }
 
-void BinprotCommand::fillHeader(protocol_binary_request_header& header,
+void BinprotCommand::fillHeader(cb::mcbp::Request& header,
                                 size_t payload_len,
                                 size_t extlen) const {
-    header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-    header.request.setOpcode(opcode);
-    header.request.setKeylen(gsl::narrow<uint16_t>(key.size()));
-    header.request.setExtlen(gsl::narrow<uint8_t>(extlen));
-    header.request.setDatatype(cb::mcbp::Datatype::Raw);
-    header.request.setVBucket(vbucket);
-    header.request.setBodylen(
-            gsl::narrow<uint32_t>(key.size() + extlen + payload_len));
-    header.request.setOpaque(0xdeadbeef);
-    header.request.cas = cas;
+    header.setMagic(cb::mcbp::Magic::ClientRequest);
+    header.setOpcode(opcode);
+    header.setKeylen(gsl::narrow<uint16_t>(key.size()));
+    header.setExtlen(gsl::narrow<uint8_t>(extlen));
+    header.setDatatype(cb::mcbp::Datatype::Raw);
+    header.setVBucket(vbucket);
+    header.setBodylen(gsl::narrow<uint32_t>(key.size() + extlen + payload_len));
+    header.setOpaque(0xdeadbeef);
+    // @todo fix this to use the setter. There is still some dependency
+    // in other tests which use expects this to be in the same byte order
+    // as the server sent it..
+    header.cas = cas;
 }
 
 void BinprotCommand::writeHeader(std::vector<uint8_t>& buf,
                                  size_t payload_len,
                                  size_t extlen) const {
-    protocol_binary_request_header* hdr;
-    buf.resize(sizeof(hdr->bytes));
-    hdr = reinterpret_cast<protocol_binary_request_header*>(buf.data());
-    fillHeader(*hdr, payload_len, extlen);
+    buf.resize(sizeof(cb::mcbp::Request));
+    auto& hdr = *reinterpret_cast<cb::mcbp::Request*>(buf.data());
+    fillHeader(hdr, payload_len, extlen);
 }
 
 BinprotCommand& BinprotCommand::setKey(std::string key_) {
@@ -94,10 +116,6 @@ cb::mcbp::ClientOpcode BinprotCommand::getOp() const {
 BinprotCommand& BinprotCommand::setVBucket(Vbid vbid) {
     vbucket = vbid;
     return *this;
-}
-
-BinprotCommand::Encoded::Encoded(BinprotCommand::Encoded&& other)
-    : header(std::move(other.header)), bufs(std::move(other.bufs)) {
 }
 
 BinprotCommand::Encoded::Encoded() : header(), bufs() {
@@ -199,9 +217,6 @@ void BinprotSubdocCommand::encode(std::vector<uint8_t>& buf) const {
         throw std::logic_error("BinprotSubdocCommand::encode: Missing a key");
     }
 
-    protocol_binary_request_subdocument request;
-    memset(&request, 0, sizeof(request));
-
     // Expiry (optional) is encoded in extras. Only include if non-zero or
     // if explicit encoding of zero was requested.
     const bool include_expiry = (expiry.getValue() != 0 || expiry.isSet());
@@ -213,28 +228,22 @@ void BinprotSubdocCommand::encode(std::vector<uint8_t>& buf) const {
                           (include_expiry ? sizeof(uint32_t) : 0) +
                           (include_doc_flags ? sizeof(uint8_t) : 0);
 
-    fillHeader(request.message.header, path.size() + value.size(), extlen);
+    writeHeader(buf, path.size() + value.size(), extlen);
 
     // Add extras: pathlen, flags, optional expiry
-    request.message.extras.pathlen = htons(gsl::narrow<uint16_t>(path.size()));
-    request.message.extras.subdoc_flags = flags;
-    buf.insert(buf.end(),
-               request.bytes,
-               &request.bytes[0] + sizeof(request.bytes));
+    append(buf, gsl::narrow<uint16_t>(path.size()));
+    buf.push_back(flags);
 
     if (include_expiry) {
         // As expiry is optional (and immediately follows subdoc_flags,
         // i.e. unaligned) there's no field in the struct; so use low-level
         // memcpy to populate it.
-        uint32_t encoded_expiry = htonl(expiry.getValue());
-        char* expbuf = reinterpret_cast<char*>(&encoded_expiry);
-        buf.insert(buf.end(), expbuf, expbuf + sizeof encoded_expiry);
+        append(buf, expiry.getValue());
     }
 
     if (include_doc_flags) {
-        const uint8_t* doc_flag_ptr =
-                reinterpret_cast<const uint8_t*>(&doc_flags);
-        buf.insert(buf.end(), doc_flag_ptr, doc_flag_ptr + sizeof(uint8_t));
+        buf.push_back(
+                std::underlying_type<mcbp::subdoc::doc_flag>::type(doc_flags));
     }
 
     // Add Body: key; path; value if applicable.
@@ -357,8 +366,7 @@ size_t BinprotResponse::getFramingExtraslen() const {
 }
 
 size_t BinprotResponse::getHeaderLen() {
-    static const protocol_binary_request_header header{};
-    return sizeof(header.bytes);
+    return sizeof(cb::mcbp::Response);
 }
 
 uint64_t BinprotResponse::getCas() const {
@@ -411,8 +419,8 @@ const uint8_t* BinprotResponse::begin() const {
 void BinprotSubdocResponse::assign(std::vector<uint8_t>&& srcbuf) {
     BinprotResponse::assign(std::move(srcbuf));
     if (getBodylen() - getExtlen() - getFramingExtraslen() > 0) {
-        value.assign(payload.data() + sizeof(protocol_binary_response_header) +
-                             getExtlen() + getFramingExtraslen(),
+        value.assign(payload.data() + sizeof(cb::mcbp::Response) + getExtlen() +
+                             getFramingExtraslen(),
                      payload.data() + payload.size());
     }
 }
@@ -619,11 +627,6 @@ void BinprotMutationCommand::encodeHeader(std::vector<uint8_t>& buf) const {
     }
 
     uint8_t extlen = 8;
-
-    protocol_binary_request_header *header;
-    buf.resize(sizeof(header->bytes));
-    header = reinterpret_cast<protocol_binary_request_header*>(buf.data());
-
     if (getOp() == cb::mcbp::ClientOpcode::Append ||
         getOp() == cb::mcbp::ClientOpcode::Prepend) {
         if (expiry.getValue() != 0) {
@@ -637,8 +640,11 @@ void BinprotMutationCommand::encodeHeader(std::vector<uint8_t>& buf) const {
         value_size += vbuf.size();
     }
 
+    // We'll be changing the datatype so we cannot use writeHeader
+    buf.resize(sizeof(cb::mcbp::Request));
+    auto* header = reinterpret_cast<cb::mcbp::Request*>(buf.data());
     fillHeader(*header, value_size, extlen);
-    header->request.setDatatype(cb::mcbp::Datatype(datatype));
+    header->setDatatype(cb::mcbp::Datatype(datatype));
 
     if (extlen != 0) {
         // Write the extras:
@@ -1203,30 +1209,6 @@ void BinprotVerbosityCommand::setLevel(int level) {
     BinprotVerbosityCommand::level = level;
 }
 
-/**
- * Append a 16 bit integer to the buffer in network byte order
- *
- * @param buf the buffer to add the data to
- * @param value The value (in host local byteorder) to add.
- */
-static void append(std::vector<uint8_t>& buf, uint16_t value) {
-    uint16_t vallen = ntohs(value);
-    auto p = reinterpret_cast<const char*>(&vallen);
-    buf.insert(buf.end(), p, p + 2);
-}
-
-/**
- * Append a 32 bit integer to the buffer in network byte order
- *
- * @param buf the buffer to add the data to
- * @param value The value (in host local byteorder) to add.
- */
-static void append(std::vector<uint8_t>& buf, uint32_t value) {
-    uint32_t vallen = ntohl(value);
-    auto p = reinterpret_cast<const char*>(&vallen);
-    buf.insert(buf.end(), p, p + 4);
-}
-
 static uint8_t netToHost(uint8_t x) {
     return x;
 }
@@ -1383,12 +1365,7 @@ BinprotSetParamCommand::BinprotSetParamCommand(
 }
 
 void BinprotSetWithMetaCommand::encode(std::vector<uint8_t>& buf) const {
-    protocol_binary_request_header* hdr;
-    buf.resize(sizeof(hdr->bytes));
-    hdr = reinterpret_cast<protocol_binary_request_header*>(buf.data());
-
     size_t extlen = 24;
-
     if (options) {
         extlen += 4;
     }
@@ -1397,9 +1374,11 @@ void BinprotSetWithMetaCommand::encode(std::vector<uint8_t>& buf) const {
         extlen += 2;
     }
 
-    fillHeader(*hdr, doc.value.size(), extlen);
-
-    hdr->request.setDatatype(doc.info.datatype);
+    // We need to override the datatype so we cannot use writeHeader
+    buf.resize(sizeof(cb::mcbp::Request));
+    auto& request = *reinterpret_cast<cb::mcbp::Request*>(buf.data());
+    fillHeader(request, doc.value.size(), extlen);
+    request.setDatatype(doc.info.datatype);
     append(buf, getFlags());
     append(buf, getExptime());
     append(buf, seqno);
@@ -1417,6 +1396,7 @@ void BinprotSetWithMetaCommand::encode(std::vector<uint8_t>& buf) const {
     buf.insert(buf.end(), doc.value.begin(), doc.value.end());
     buf.insert(buf.end(), meta.begin(), meta.end());
 }
+
 BinprotSetWithMetaCommand::BinprotSetWithMetaCommand(const Document& doc,
                                                      Vbid vbucket,
                                                      uint64_t operationCas,

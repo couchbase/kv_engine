@@ -65,8 +65,6 @@ public:
     struct Encoded {
         Encoded();
 
-        Encoded(Encoded&& other);
-
         /**
          * 'scratch' space for data which isn't owned by anything and is
          * generated on demand. Any data here is sent before the data in the
@@ -119,7 +117,7 @@ protected:
      * @param payload_len length of the "value" of the payload
      * @param extlen extras length.
      */
-    void fillHeader(protocol_binary_request_header& header,
+    void fillHeader(cb::mcbp::Request& header,
                     size_t payload_len = 0,
                     size_t extlen = 0) const;
 
