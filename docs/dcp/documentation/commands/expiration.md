@@ -1,6 +1,8 @@
 ### Expiration (0x59)
 
 Tells the consumer that the message contains a key expiration.
+For a general overview on how to trigger these messages, see
+[expiry-opcode-output.md](../expiry-opcode-output.md).
 
 The request:
 * Must have extras
