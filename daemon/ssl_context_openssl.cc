@@ -20,7 +20,6 @@
 #include "runtime.h"
 #include "settings.h"
 
-#include <cJSON_utils.h>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/socket.h>
@@ -253,15 +252,15 @@ void SslContext::drainBioSendPipe(SOCKET sfd) {
 }
 
 void SslContext::dumpCipherList(uint32_t id) const {
-    unique_cJSON_ptr array(cJSON_CreateArray());
+    nlohmann::json array;
 
     int ii = 0;
     const char* cipher;
     while ((cipher = SSL_get_cipher_list(client, ii++)) != nullptr) {
-        cJSON_AddItemToArray(array.get(), cJSON_CreateString(cipher));
+        array.push_back(cipher);
     }
 
-    LOG_DEBUG("{}: Using SSL ciphers: {}", id, to_string(array, false));
+    LOG_DEBUG("{}: Using SSL ciphers: {}", id, array.dump());
 }
 
 nlohmann::json SslContext::toJSON() const {
