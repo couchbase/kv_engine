@@ -3518,8 +3518,8 @@ TEST_P(CommandSpecificErrorContextTest, DcpSystemEvent) {
 
     cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
     builder.setExtras(extras.getBuffer());
-    builder.setKey({});
-    builder.setValue({});
+    builder.setKey(cb::const_char_buffer{});
+    builder.setValue(cb::const_char_buffer{});
 
     // System event ID must be 0, 1 or 2
     EXPECT_EQ("Invalid system event id",

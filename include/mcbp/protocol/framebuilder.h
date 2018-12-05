@@ -64,7 +64,13 @@ namespace mcbp {
 template <typename T>
 class FrameBuilder {
 public:
-    FrameBuilder(cb::byte_buffer backing, bool initialized = false)
+    explicit FrameBuilder(cb::char_buffer backing, bool initialized = false)
+        : FrameBuilder(
+                  {reinterpret_cast<uint8_t*>(backing.data()), backing.size()},
+                  initialized) {
+    }
+
+    explicit FrameBuilder(cb::byte_buffer backing, bool initialized = false)
         : buffer(backing) {
         checkSize(sizeof(T));
         if (!initialized) {
@@ -146,6 +152,10 @@ public:
         req->setKeylen(gsl::narrow<uint16_t>(val.size()));
     }
 
+    void setKey(cb::const_char_buffer val) {
+        setKey({reinterpret_cast<const uint8_t*>(val.data()), val.size()});
+    }
+
     /**
      * Insert/replace the value section.
      */
@@ -154,6 +164,10 @@ public:
         auto existing = req->getValue();
         checkSize(existing.size(), val.size());
         moveAndInsert(existing, val, 0);
+    }
+
+    void setValue(cb::const_char_buffer val) {
+        setValue({reinterpret_cast<const uint8_t*>(val.data()), val.size()});
     }
 
     /**
