@@ -68,13 +68,6 @@ size_t mcbp_storage_command(char* buf,
                             uint32_t flags,
                             uint32_t exp);
 
-size_t mcbp_storage_command(Frame& frame,
-                            cb::mcbp::ClientOpcode cmd,
-                            const std::string& id,
-                            const std::vector<uint8_t>& value,
-                            uint32_t flags,
-                            uint32_t exp);
-
 /* Validate the specified response header against the expected cmd and status.
  */
 void mcbp_validate_response_header(protocol_binary_response_no_extras* response,

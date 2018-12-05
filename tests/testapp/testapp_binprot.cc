@@ -100,23 +100,6 @@ off_t mcbp_arithmetic_command(char* buf,
                  keylen);
 }
 
-size_t mcbp_storage_command(Frame& frame,
-                            cb::mcbp::ClientOpcode cmd,
-                            const std::string& id,
-                            const std::vector<uint8_t>& value,
-                            uint32_t flags,
-                            uint32_t exp) {
-    frame.reset();
-    // A storage command consists of a 24 byte memcached header, then 4
-    // bytes flags and 4 bytes expiration time.
-    frame.payload.resize(24 + 4 + 4 + id.size() + value.size());
-    auto size = mcbp_storage_command(
-        reinterpret_cast<char*>(frame.payload.data()), frame.payload.size(),
-        cmd, id.data(), id.size(), value.data(), value.size(), flags, exp);
-    frame.payload.resize(size);
-    return size;
-}
-
 size_t mcbp_storage_command(char* buf,
                             size_t bufsz,
                             cb::mcbp::ClientOpcode cmd,
