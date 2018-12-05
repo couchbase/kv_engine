@@ -801,54 +801,6 @@ TEST_P(McdTestappTest, PrependQ) {
     test_concat_impl("test_prependq", cb::mcbp::ClientOpcode::Prependq);
 }
 
-TEST_P(McdTestappTest, Stat) {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
-
-    size_t len = mcbp_raw_command(buffer.bytes,
-                                  sizeof(buffer.bytes),
-                                  cb::mcbp::ClientOpcode::Stat,
-                                  NULL,
-                                  0,
-                                  NULL,
-                                  0);
-
-    safe_send(buffer.bytes, len, false);
-    do {
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        mcbp_validate_response_header(&buffer.response,
-                                      cb::mcbp::ClientOpcode::Stat,
-                                      cb::mcbp::Status::Success);
-    } while (buffer.response.message.header.response.getKeylen() != 0);
-}
-
-TEST_P(McdTestappTest, StatConnections) {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[2048];
-    } buffer;
-
-    size_t len = mcbp_raw_command(buffer.bytes,
-                                  sizeof(buffer.bytes),
-                                  cb::mcbp::ClientOpcode::Stat,
-                                  "connections",
-                                  strlen("connections"),
-                                  NULL,
-                                  0);
-
-    safe_send(buffer.bytes, len, false);
-    do {
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        mcbp_validate_response_header(&buffer.response,
-                                      cb::mcbp::ClientOpcode::Stat,
-                                      cb::mcbp::Status::Success);
-    } while (buffer.response.message.header.response.getKeylen() != 0);
-}
-
 std::atomic<bool> hickup_thread_running;
 
 static void binary_hickup_recv_verification_thread(void *arg) {
