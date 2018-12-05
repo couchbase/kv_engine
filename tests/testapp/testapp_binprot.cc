@@ -35,41 +35,35 @@ off_t mcbp_raw_command(char* buf,
                        size_t keylen,
                        const void* dta,
                        size_t dtalen) {
-    /* all of the storage commands use the same command layout */
+    EXPECT_GE(bufsz, (sizeof(cb::mcbp::Request) + keylen + dtalen));
     off_t key_offset;
-    protocol_binary_request_no_extras* request =
-        reinterpret_cast<protocol_binary_request_no_extras*>(buf);
-    EXPECT_GE(bufsz, (sizeof(*request) + keylen + dtalen));
-
-    memset(request, 0, sizeof(*request));
+    auto& request = *reinterpret_cast<cb::mcbp::Request*>(buf);
+    memset(&request, 0, sizeof(request));
     if (cmd == read_command || cmd == write_command) {
-        request->message.header.request.setExtlen(8);
+        request.setExtlen(8);
     } else if (cmd == cb::mcbp::ClientOpcode::AuditPut) {
-        request->message.header.request.setExtlen(4);
+        request.setExtlen(4);
     } else if (cmd == cb::mcbp::ClientOpcode::EwouldblockCtl) {
-        request->message.header.request.setExtlen(12);
+        request.setExtlen(12);
     } else if (cmd == cb::mcbp::ClientOpcode::SetCtrlToken) {
-        request->message.header.request.setExtlen(8);
+        request.setExtlen(8);
     }
-    request->message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-    request->message.header.request.setOpcode(cmd);
-    request->message.header.request.setKeylen((uint16_t)keylen);
-    request->message.header.request.setBodylen((uint32_t)(
-            keylen + dtalen + request->message.header.request.getExtlen()));
-    request->message.header.request.setOpaque(0xdeadbeef);
+    request.setMagic(cb::mcbp::Magic::ClientRequest);
+    request.setOpcode(cmd);
+    request.setKeylen((uint16_t)keylen);
+    request.setBodylen((uint32_t)(keylen + dtalen + request.getExtlen()));
+    request.setOpaque(0xdeadbeef);
 
-    key_offset = sizeof(protocol_binary_request_no_extras) +
-                 request->message.header.request.getExtlen();
+    key_offset = sizeof(request) + request.getExtlen();
 
-    if (key != NULL) {
+    if (key != nullptr) {
         memcpy(buf + key_offset, key, keylen);
     }
-    if (dta != NULL) {
+    if (dta != nullptr) {
         memcpy(buf + key_offset + keylen, dta, dtalen);
     }
 
-    return (off_t)(sizeof(*request) + keylen + dtalen +
-                   request->message.header.request.getExtlen());
+    return (off_t)(sizeof(request) + keylen + dtalen + request.getExtlen());
 }
 
 off_t mcbp_arithmetic_command(char* buf,
