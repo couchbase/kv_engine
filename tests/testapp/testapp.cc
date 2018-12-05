@@ -13,6 +13,7 @@
 #include <platform/dirutils.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
+#include <platform/string_hex.h>
 #include <snappy-c.h>
 #include <gsl/gsl>
 
@@ -214,31 +215,24 @@ void TestappTest::setClientCertData(MemcachedConnection& connection) {
                              std::string("/tests/cert/client.key"));
 }
 
-std::string get_sasl_mechs(void) {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
+std::string get_sasl_mechs() {
+    using namespace cb::mcbp;
+    Request request = {};
+    request.setMagic(Magic::ClientRequest);
+    request.setOpcode(ClientOpcode::SaslListMechs);
+    request.setOpaque(0xdeadbeef);
 
-    size_t plen = mcbp_raw_command(buffer.bytes,
-                                   sizeof(buffer.bytes),
-                                   cb::mcbp::ClientOpcode::SaslListMechs,
-                                   NULL,
-                                   0,
-                                   NULL,
-                                   0);
+    safe_send(request.getFrame());
 
-    safe_send(buffer.bytes, plen, false);
-    safe_recv_packet(&buffer, sizeof(buffer));
-    mcbp_validate_response_header(&buffer.response,
+    std::vector<uint8_t> blob;
+    safe_recv_packet(blob);
+    auto& response = *reinterpret_cast<Response*>(blob.data());
+    mcbp_validate_response_header(response,
                                   cb::mcbp::ClientOpcode::SaslListMechs,
                                   cb::mcbp::Status::Success);
 
-    std::string ret;
-    ret.assign(buffer.bytes + sizeof(buffer.response.bytes),
-               buffer.response.message.header.response.getBodylen());
-    return ret;
+    auto val = response.getValue();
+    return std::string{reinterpret_cast<const char*>(val.data()), val.size()};
 }
 
 cb::mcbp::Status TestappTest::sasl_auth(const char* username,
@@ -255,67 +249,50 @@ cb::mcbp::Status TestappTest::sasl_auth(const char* username,
         return cb::mcbp::Status::Einternal;
     }
 
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
+    std::vector<uint8_t> blob;
+    {
+        BinprotSaslAuthCommand cmd;
+        cmd.setMechanism(client.getName());
+        cmd.setChallenge(client_data.second);
+        cmd.encode(blob);
+        safe_send(blob);
+    }
 
-    size_t plen = mcbp_raw_command(buffer.bytes,
-                                   sizeof(buffer.bytes),
-                                   cb::mcbp::ClientOpcode::SaslAuth,
-                                   client.getName().data(),
-                                   client.getName().size(),
-                                   client_data.second.data(),
-                                   client_data.second.size());
-
-    safe_send(buffer.bytes, plen, false);
-    safe_recv_packet(&buffer, sizeof(buffer));
+    blob.resize(0);
+    safe_recv_packet(blob);
 
     bool stepped = false;
-
-    while (buffer.response.message.header.response.getStatus() ==
-           cb::mcbp::Status::AuthContinue) {
+    auto* response = reinterpret_cast<cb::mcbp::Response*>(blob.data());
+    while (response->getStatus() == cb::mcbp::Status::AuthContinue) {
         stepped = true;
-        size_t datalen = buffer.response.message.header.response.getBodylen() -
-                         buffer.response.message.header.response.getKeylen() -
-                         buffer.response.message.header.response.getExtlen();
-
-        size_t dataoffset =
-                sizeof(buffer.response.bytes) +
-                buffer.response.message.header.response.getKeylen() +
-                buffer.response.message.header.response.getExtlen();
-
-        client_data = client.step(
-                cb::const_char_buffer{buffer.bytes + dataoffset, datalen});
+        auto challenge = response->getValue();
+        client_data = client.step(cb::const_char_buffer{
+                reinterpret_cast<const char*>(challenge.data()),
+                challenge.size()});
         EXPECT_EQ(cb::sasl::Error::CONTINUE, client_data.first);
+        BinprotSaslStepCommand cmd;
+        cmd.setMechanism(client.getName());
+        cmd.setChallenge(client_data.second);
+        blob.resize(0);
+        cmd.encode(blob);
 
-        plen = mcbp_raw_command(buffer.bytes,
-                                sizeof(buffer.bytes),
-                                cb::mcbp::ClientOpcode::SaslStep,
-                                client.getName().data(),
-                                client.getName().size(),
-                                client_data.second.data(),
-                                client_data.second.size());
-
-        safe_send(buffer.bytes, plen, false);
-
-        safe_recv_packet(&buffer, sizeof(buffer));
+        safe_send(blob);
+        blob.resize(0);
+        safe_recv_packet(blob);
+        response = reinterpret_cast<cb::mcbp::Response*>(blob.data());
     }
 
     if (stepped) {
-        mcbp_validate_response_header(
-                &buffer.response,
-                cb::mcbp::ClientOpcode::SaslStep,
-                buffer.response.message.header.response.getStatus());
+        mcbp_validate_response_header(*response,
+                                      cb::mcbp::ClientOpcode::SaslStep,
+                                      response->getStatus());
     } else {
-        mcbp_validate_response_header(
-                &buffer.response,
-                cb::mcbp::ClientOpcode::SaslAuth,
-                buffer.response.message.header.response.getStatus());
+        mcbp_validate_response_header(*response,
+                                      cb::mcbp::ClientOpcode::SaslAuth,
+                                      response->getStatus());
     }
 
-    return buffer.response.message.header.response.getStatus();
+    return response->getStatus();
 }
 
 bool TestappTest::isJSON(cb::const_char_buffer value) {
@@ -779,49 +756,28 @@ static void set_feature(cb::mcbp::Feature feature, bool enable) {
         enabled_hello_features.erase(feature);
     }
 
-    // Now send the new HELLO message to the server.
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
-    const char *useragent = "testapp";
-    const size_t agentlen = strlen(useragent);
-
-    // Calculate body location and populate the body.
-    char* const body_ptr = buffer.bytes + sizeof(buffer.request.message.header);
-    memcpy(body_ptr, useragent, agentlen);
-
-    size_t bodylen = agentlen;
-    for (auto feature : enabled_hello_features) {
-        const uint16_t wire_feature = htons(uint16_t(feature));
-        memcpy(body_ptr + bodylen,
-               reinterpret_cast<const char*>(&wire_feature), sizeof(wire_feature));
-        bodylen += sizeof(wire_feature);
+    BinprotHelloCommand command("testapp");
+    for (auto f : enabled_hello_features) {
+        command.enableFeature(f, true);
     }
 
-    // Fill in the header at the start of the buffer.
-    memset(buffer.bytes, 0, sizeof(buffer.request.message.header));
-    buffer.request.message.header.request.setMagic(
-            cb::mcbp::Magic::ClientRequest);
-    buffer.request.message.header.request.setOpcode(
-            cb::mcbp::ClientOpcode::Hello);
-    buffer.request.message.header.request.setKeylen((uint16_t)agentlen);
-    buffer.request.message.header.request.setBodylen(
-            gsl::narrow<uint32_t>(bodylen));
+    std::vector<uint8_t> blob;
+    command.encode(blob);
 
-    safe_send(buffer.bytes,
-              sizeof(buffer.request.message.header) + bodylen, false);
+    safe_send(blob);
 
-    safe_recv(&buffer.response, sizeof(buffer.response));
-    const size_t response_bodylen =
-            buffer.response.message.header.response.getBodylen();
-    EXPECT_EQ(bodylen - agentlen, response_bodylen);
-    for (auto feature : enabled_hello_features) {
-        uint16_t wire_feature;
-        safe_recv(&wire_feature, sizeof(wire_feature));
-        wire_feature = ntohs(wire_feature);
-        EXPECT_EQ(uint16_t(feature), wire_feature);
+    blob.resize(0);
+    safe_recv_packet(blob);
+    const auto& response = *reinterpret_cast<cb::mcbp::Response*>(blob.data());
+    ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
+
+    BinprotHelloResponse rsp;
+    rsp.assign(std::move(blob));
+
+    auto enabled = rsp.getFeatures();
+    EXPECT_EQ(enabled_hello_features.size(), enabled.size());
+    for (auto f : enabled_hello_features) {
+        EXPECT_NE(enabled.end(), std::find(enabled.begin(), enabled.end(), f));
     }
 }
 
@@ -831,114 +787,60 @@ void set_datatype_feature(bool enable) {
 }
 
 std::pair<cb::mcbp::Status, std::string> fetch_value(const std::string& key) {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } send, receive;
-    const size_t len = mcbp_raw_command(send.bytes,
-                                        sizeof(send.bytes),
-                                        cb::mcbp::ClientOpcode::Get,
-                                        key.data(),
-                                        key.size(),
-                                        NULL,
-                                        0);
-    safe_send(send.bytes, len, false);
-    EXPECT_TRUE(safe_recv_packet(receive.bytes, sizeof(receive.bytes)));
+    std::vector<uint8_t> blob;
+    BinprotGetCommand cmd;
+    cmd.setKey(key);
+    cmd.encode(blob);
+    safe_send(blob);
 
-    const auto status = receive.response.message.header.response.getStatus();
-    if (status == cb::mcbp::Status::Success) {
-        const char* ptr = receive.bytes + sizeof(receive.response) + 4;
-        const size_t vallen =
-                receive.response.message.header.response.getBodylen() - 4;
-        return std::make_pair(cb::mcbp::Status::Success,
-                              std::string(ptr, vallen));
-    } else {
-        return std::make_pair(status, "");
-    }
+    blob.resize(0);
+    safe_recv_packet(blob);
+    BinprotGetResponse rsp;
+    rsp.assign(std::move(blob));
+    return std::make_pair(rsp.getStatus(), rsp.getDataString());
 }
 
-void validate_object(const char *key, const std::string& expected_value) {
-    union {
-        protocol_binary_request_no_extras request;
-        char bytes[1024];
-    } send;
-    size_t len = mcbp_raw_command(send.bytes,
-                                  sizeof(send.bytes),
-                                  cb::mcbp::ClientOpcode::Get,
-                                  key,
-                                  strlen(key),
-                                  NULL,
-                                  0);
-    safe_send(send.bytes, len, false);
-
-    std::vector<char> receive;
-    safe_recv_packet(receive);
-
-    auto* response = reinterpret_cast<protocol_binary_response_no_extras*>(receive.data());
-    mcbp_validate_response_header(
-            response, cb::mcbp::ClientOpcode::Get, cb::mcbp::Status::Success);
-    char* ptr = receive.data() + sizeof(*response) + 4;
-    if (response->message.header.response.getStatus() ==
-        cb::mcbp::Status::Success) {
-        size_t vallen = response->message.header.response.getBodylen() - 4;
-        std::string actual(ptr, vallen);
-        EXPECT_EQ(expected_value, actual);
-    }
+void validate_object(const std::string& key,
+                     const std::string& expected_value) {
+    auto pair = fetch_value(key);
+    EXPECT_EQ(cb::mcbp::Status::Success, pair.first);
+    EXPECT_EQ(expected_value, pair.second);
 }
 
-void validate_flags(const char *key, uint32_t expected_flags) {
-    union {
-        protocol_binary_request_no_extras request;
-        char bytes[1024];
-    } send;
-    size_t len = mcbp_raw_command(send.bytes,
-                                  sizeof(send.bytes),
-                                  cb::mcbp::ClientOpcode::Get,
-                                  key,
-                                  strlen(key),
-                                  NULL,
-                                  0);
-    safe_send(send.bytes, len, false);
+void validate_flags(const std::string& key, uint32_t expected_flags) {
+    std::vector<uint8_t> blob;
+    BinprotGetCommand cmd;
+    cmd.setKey(key);
+    cmd.encode(blob);
+    safe_send(blob);
 
-    std::vector<char> receive(4096);
-    safe_recv_packet(receive.data(), receive.size());
-
-    auto* response = reinterpret_cast<protocol_binary_response_no_extras*>(receive.data());
-    mcbp_validate_response_header(
-            response, cb::mcbp::ClientOpcode::Get, cb::mcbp::Status::Success);
-
-    auto extras = response->message.header.response.getExtdata();
-    EXPECT_EQ(4, extras.size());
-    uint32_t actual_flags =
-            ntohl(*reinterpret_cast<const uint32_t*>(extras.data()));
-    EXPECT_EQ(expected_flags, actual_flags);
+    blob.resize(0);
+    safe_recv_packet(blob);
+    BinprotGetResponse rsp;
+    rsp.assign(std::move(blob));
+    EXPECT_EQ(expected_flags, rsp.getDocumentFlags());
 }
 
-void delete_object(const char* key, bool ignore_missing) {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } send, receive;
-    size_t len = mcbp_raw_command(send.bytes,
-                                  sizeof(send.bytes),
-                                  cb::mcbp::ClientOpcode::Delete,
-                                  key,
-                                  strlen(key),
-                                  NULL,
-                                  0);
-    safe_send(send.bytes, len, false);
-    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-    if (ignore_missing &&
-        receive.response.message.header.response.getStatus() ==
-                cb::mcbp::Status::KeyEnoent) {
+void delete_object(const std::string& key, bool ignore_missing) {
+    std::vector<uint8_t> blob;
+    BinprotRemoveCommand cmd;
+    cmd.setKey(key);
+    cmd.encode(blob);
+    safe_send(blob);
+
+    blob.resize(0);
+    safe_recv_packet(blob);
+    BinprotRemoveResponse rsp;
+    rsp.assign(std::move(blob));
+
+    if (ignore_missing && rsp.getStatus() == cb::mcbp::Status::KeyEnoent) {
         /* Ignore. Just using this for cleanup then */
         return;
     }
-    mcbp_validate_response_header(&receive.response,
-                                  cb::mcbp::ClientOpcode::Delete,
-                                  cb::mcbp::Status::Success);
+    mcbp_validate_response_header(
+            const_cast<cb::mcbp::Response&>(rsp.getResponse()),
+            cb::mcbp::ClientOpcode::Delete,
+            cb::mcbp::Status::Success);
 }
 
 void TestappTest::start_memcached_server() {
@@ -979,19 +881,14 @@ void store_object_w_datatype(const std::string& key,
     builder.setValue(
             {reinterpret_cast<const uint8_t*>(value.data()), value.size()});
 
-    auto frame = builder.getFrame()->getFrame();
+    safe_send(builder.getFrame()->getFrame());
 
-    safe_send(frame.data(), frame.size(), false);
-
-    union {
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } receive;
-
-    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-    mcbp_validate_response_header(&receive.response,
-                                  cb::mcbp::ClientOpcode::Set,
-                                  cb::mcbp::Status::Success);
+    std::vector<uint8_t> blob;
+    safe_recv_packet(blob);
+    mcbp_validate_response_header(
+            *reinterpret_cast<cb::mcbp::Response*>(blob.data()),
+            cb::mcbp::ClientOpcode::Set,
+            cb::mcbp::Status::Success);
 }
 
 void store_document(const std::string& key,
@@ -1123,8 +1020,7 @@ ssize_t phase_recv(void *buf, size_t len) {
     }
 }
 
-static const bool dump_socket_traffic =
-        getenv("TESTAPP_PACKET_DUMP") != nullptr;
+static bool dump_socket_traffic = getenv("TESTAPP_PACKET_DUMP") != nullptr;
 
 static const std::string phase_get_errno() {
     if (current_phase == phase_ssl) {
@@ -1230,27 +1126,14 @@ bool safe_recv(void *buf, size_t len) {
  */
 template <typename T>
 bool safe_recv_packetT(T& info) {
-    info.resize(sizeof(protocol_binary_response_header));
-    auto *header = reinterpret_cast<protocol_binary_response_header*>(info.data());
+    info.resize(sizeof(cb::mcbp::Response));
+    auto* header = reinterpret_cast<cb::mcbp::Response*>(info.data());
 
     if (!safe_recv(header, sizeof(*header))) {
         return false;
     }
 
-    if (dump_socket_traffic) {
-        if (current_phase == phase_ssl) {
-            std::cerr << "SSL";
-        } else {
-            std::cerr << "PLAIN";
-        }
-        std::cerr << "< ";
-        for (size_t ii = 0; ii < sizeof(*header); ++ii) {
-            std::cerr << "0x" << std::hex << std::setfill('0') << std::setw(2)
-                      << uint32_t(header->bytes[ii]) << ", ";
-        }
-    }
-
-    auto bodylen = header->response.getBodylen();
+    auto bodylen = header->getBodylen();
 
     // Set response to NULL, because the underlying buffer may change.
     header = nullptr;
@@ -1259,10 +1142,16 @@ bool safe_recv_packetT(T& info) {
     auto ret = safe_recv(info.data() + sizeof(*header), bodylen);
 
     if (dump_socket_traffic) {
-        uint8_t* ptr = (uint8_t*)(info.data() + sizeof(*header));
-        for (size_t ii = 0; ii < bodylen; ++ii) {
-            std::cerr << "0x" << std::hex << std::setfill('0') << std::setw(2)
-                      << uint32_t(ptr[ii]) << ", ";
+        if (dump_socket_traffic) {
+            if (current_phase == phase_ssl) {
+                std::cerr << "SSL";
+            } else {
+                std::cerr << "PLAIN";
+            }
+            std::cerr << "< ";
+            for (const auto& val : info) {
+                std::cerr << cb::to_hex(uint8_t(val)) << ", ";
+            }
         }
         std::cerr << std::endl;
     }
@@ -1284,6 +1173,14 @@ struct StaticBufInfo {
         if (n > len) {
             throw std::runtime_error("Cannot enlarge buffer!");
         }
+    }
+
+    constexpr char* begin() const {
+        return buf;
+    }
+
+    constexpr char* end() const {
+        return buf + len;
     }
 
     char *buf;
@@ -1324,13 +1221,12 @@ void TestappTest::ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
     builder.setExtras(
             {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
     builder.setKey({reinterpret_cast<const uint8_t*>(key.data()), key.size()});
-    safe_send(buffer.data(), buffer.size(), false);
+    safe_send(buffer);
 
     buffer.resize(1024);
     safe_recv_packet(buffer.data(), buffer.size());
     mcbp_validate_response_header(
-            reinterpret_cast<protocol_binary_response_no_extras*>(
-                    buffer.data()),
+            *reinterpret_cast<cb::mcbp::Response*>(buffer.data()),
             cb::mcbp::ClientOpcode::EwouldblockCtl,
             cb::mcbp::Status::Success);
 }
@@ -1582,46 +1478,26 @@ int main(int argc, char **argv) {
  * @return a map of stat key & values in the server response.
  */
 stats_response_t request_stats() {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
+    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Stat);
+    std::vector<uint8_t> blob;
+    cmd.encode(blob);
+    safe_send(blob);
+
     stats_response_t result;
-
-    size_t len = mcbp_raw_command(buffer.bytes,
-                                  sizeof(buffer.bytes),
-                                  cb::mcbp::ClientOpcode::Stat,
-                                  NULL,
-                                  0,
-                                  NULL,
-                                  0);
-
-    safe_send(buffer.bytes, len, false);
     while (true) {
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        mcbp_validate_response_header(&buffer.response,
-                                      cb::mcbp::ClientOpcode::Stat,
-                                      cb::mcbp::Status::Success);
-
-        const char* key_ptr(
-                buffer.bytes + sizeof(buffer.response) +
-                buffer.response.message.header.response.getExtlen());
-        const size_t key_len(
-                buffer.response.message.header.response.getKeylen());
-
+        safe_recv_packet(blob);
+        BinprotResponse rsp;
+        rsp.assign(std::move(blob));
+        mcbp_validate_response_header(
+                const_cast<cb::mcbp::Response&>(rsp.getResponse()),
+                cb::mcbp::ClientOpcode::Stat,
+                cb::mcbp::Status::Success);
         // key length zero indicates end of the stats.
-        if (key_len == 0) {
+        if (rsp.getKeyString().empty()) {
             break;
         }
 
-        const char* val_ptr(key_ptr + key_len);
-        const size_t val_len(
-                buffer.response.message.header.response.getBodylen() - key_len -
-                buffer.response.message.header.response.getExtlen());
-
-        result.insert(std::make_pair(std::string(key_ptr, key_len),
-                                     std::string(val_ptr, val_len)));
+        result.insert(std::make_pair(rsp.getKeyString(), rsp.getDataString()));
     }
 
     return result;
@@ -1629,8 +1505,7 @@ stats_response_t request_stats() {
 
 // Extracts a single statistic from the set of stats, returning as
 // a uint64_t
-uint64_t extract_single_stat(const stats_response_t& stats,
-                                      const char* name) {
+uint64_t extract_single_stat(const stats_response_t& stats, const char* name) {
     auto iter = stats.find(name);
     EXPECT_NE(stats.end(), iter);
     uint64_t result = 0;
@@ -1648,22 +1523,21 @@ void adjust_memcached_clock(
     payload.setOffset(uint64_t(clock_shift));
     payload.setTimeType(timeType);
 
-    uint8_t blob[sizeof(cb::mcbp::Request) + sizeof(payload)];
-    cb::mcbp::FrameBuilder<cb::mcbp::Request> builder({blob, sizeof(blob)});
+    std::vector<uint8_t> blob(sizeof(cb::mcbp::Request) + sizeof(payload));
+    cb::mcbp::FrameBuilder<cb::mcbp::Request> builder(
+            {blob.data(), blob.size()});
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::AdjustTimeofday);
     builder.setExtras(payload.getBuffer());
     builder.setOpaque(0xdeadbeef);
+    safe_send(builder.getFrame()->getFrame());
 
-    auto request = builder.getFrame()->getFrame();
-    safe_send(request.data(), request.size(), false);
-
-    union {
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    mcbp_validate_response_header(&buffer.response,
-                                  cb::mcbp::ClientOpcode::AdjustTimeofday,
-                                  cb::mcbp::Status::Success);
+    blob.resize(0);
+    safe_recv_packet(blob);
+    BinprotResponse rsp;
+    rsp.assign(std::move(blob));
+    mcbp_validate_response_header(
+            const_cast<cb::mcbp::Response&>(rsp.getResponse()),
+            cb::mcbp::ClientOpcode::AdjustTimeofday,
+            cb::mcbp::Status::Success);
 }

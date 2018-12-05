@@ -26,51 +26,34 @@
 
 #include <memcached/protocol_binary.h>
 
-/* Populate buf with a binary command with the given parameters. */
-off_t mcbp_raw_command(char* buf,
-                       size_t bufsz,
-                       cb::mcbp::ClientOpcode cmd,
-                       const void* key,
-                       size_t keylen,
-                       const void* dta,
-                       size_t dtalen);
-
-off_t mcbp_arithmetic_command(char* buf,
-                              size_t bufsz,
-                              cb::mcbp::ClientOpcode cmd,
-                              const void* key,
-                              size_t keylen,
-                              uint64_t delta,
-                              uint64_t initial,
-                              uint32_t exp);
+std::vector<uint8_t> mcbp_arithmetic_command(cb::mcbp::ClientOpcode cmd,
+                                             cb::const_char_buffer key,
+                                             uint64_t delta,
+                                             uint64_t initial,
+                                             uint32_t exp);
 
 /**
  * Constructs a storage command using the give arguments into buf.
  *
- * @param buf the buffer to write the command into
- * @param bufsz the size of the buffer
  * @param cmd the command opcode to use
  * @param key the key to use
- * @param keylen the number of bytes in key
- * @param dta the value for the key
- * @param dtalen the number of bytes in the value
+ * @param value the value for the key
  * @param flags the value to use for the flags
  * @param exp the expiry time
- * @return the number of bytes in the storage command
  */
-size_t mcbp_storage_command(char* buf,
-                            size_t bufsz,
-                            cb::mcbp::ClientOpcode cmd,
-                            const void* key,
-                            size_t keylen,
-                            const void* dta,
-                            size_t dtalen,
-                            uint32_t flags,
-                            uint32_t exp);
+std::vector<uint8_t> mcbp_storage_command(cb::mcbp::ClientOpcode cmd,
+                                          cb::const_char_buffer key,
+                                          cb::const_char_buffer value,
+                                          uint32_t flags,
+                                          uint32_t exp);
 
 /* Validate the specified response header against the expected cmd and status.
  */
 void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
+                                   cb::mcbp::ClientOpcode cmd,
+                                   cb::mcbp::Status status);
+
+void mcbp_validate_response_header(cb::mcbp::Response& response,
                                    cb::mcbp::ClientOpcode cmd,
                                    cb::mcbp::Status status);
 
@@ -79,6 +62,3 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
         cb::mcbp::ClientOpcode cmd,
         cb::mcbp::Status status,
         bool mutation_seqno_enabled);
-
-void mcbp_validate_arithmetic(const cb::mcbp::Response& response,
-                              uint64_t expected);

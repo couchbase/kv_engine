@@ -363,12 +363,12 @@ std::pair<cb::mcbp::Status, std::string> fetch_value(const std::string& key);
 /* Attempts to get the given key and checks if it's value matches
  * {expected_value}.
  */
-void validate_object(const char *key, const std::string& expected_value);
+void validate_object(const std::string& key, const std::string& expected_value);
 
 /* Attempts to get the given key and checks if it's flags matches
  * {expected_flags}.
  */
-void validate_flags(const char *key, uint32_t expected_flags);
+void validate_flags(const std::string& key, uint32_t expected_flags);
 
 /**
  * Attempts to store a document with the given key, value, flags and expiry
@@ -390,7 +390,7 @@ void store_document(const std::string& key,
  * @param key key to remove
  * @param ignore_missing do not fail if key did not exist
  */
-void delete_object(const char *key, bool ignore_missing = false);
+void delete_object(const std::string& key, bool ignore_missing = false);
 
 /**
  * Attempts to store an object with a datatype
@@ -415,6 +415,14 @@ void set_mutation_seqno_feature(bool enable);
 
 /* Send the specified buffer+len to memcached. */
 void safe_send(const void* buf, size_t len, bool hickup);
+
+inline void safe_send(cb::const_byte_buffer data) {
+    safe_send(data.data(), data.size(), false);
+}
+
+inline void safe_send(std::vector<uint8_t>& data) {
+    safe_send(data.data(), data.size(), false);
+}
 
 /* Receive the specified len into buf from memcached */
 bool safe_recv(void *buf, size_t len);

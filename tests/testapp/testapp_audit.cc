@@ -164,34 +164,22 @@ bool AuditTest::searchAuditLogForID(int id,
  * Validate that a rejected illegal packet is audit logged.
  */
 TEST_P(AuditTest, AuditIllegalPacket) {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } send, receive;
-    uint64_t value = 0xdeadbeefdeadcafe;
-    const std::string key("AuditTest::AuditIllegalPacket");
-    size_t len = mcbp_storage_command(send.bytes,
-                                      sizeof(send.bytes),
-                                      cb::mcbp::ClientOpcode::Set,
-                                      key.c_str(),
-                                      key.size(),
-                                      &value,
-                                      sizeof(value),
-                                      0,
-                                      0);
+    const std::string k("AuditTest::AuditIllegalPacket");
+    auto blob = mcbp_storage_command(cb::mcbp::ClientOpcode::Set, k, k, 0, 0);
 
     // Now make packet illegal. The validator for SET requires an extlen of
     // 8 bytes.. let's just include them in the key.
-    auto& request = send.request.message.header.request;
+    auto& request = *reinterpret_cast<cb::mcbp::Request*>(blob.data());
     ASSERT_EQ(8, request.getExtlen());
-    request.setKeylen(uint16_t(key.size() + 8));
+    request.setKeylen(uint16_t(k.size() + 8));
     request.setExtlen(uint8_t(0));
-    safe_send(send.bytes, len, false);
-    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-    mcbp_validate_response_header(&receive.response,
-                                  cb::mcbp::ClientOpcode::Set,
-                                  cb::mcbp::Status::Einval);
+    safe_send(blob);
+
+    safe_recv_packet(blob);
+    mcbp_validate_response_header(
+            *reinterpret_cast<cb::mcbp::Response*>(blob.data()),
+            cb::mcbp::ClientOpcode::Set,
+            cb::mcbp::Status::Einval);
 
     ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_INVALID_PACKET));
 }
@@ -243,29 +231,20 @@ TEST_P(AuditTest, AuditStartedStopped) {
  * Validate that a failed SASL auth is audit logged.
  */
 TEST_P(AuditTest, AuditFailedAuth) {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
+    BinprotSaslAuthCommand cmd;
+    cmd.setChallenge({"\0nouser\0nopassword", 18});
+    cmd.setMechanism("PLAIN");
+    std::vector<uint8_t> blob;
+    cmd.encode(blob);
 
-    // use a plain auth with an unknown user, easy failure to force.
-    const char* chosenmech = "PLAIN";
-    const char* data = "\0nouser\0nopassword";
+    safe_send(blob.data(), blob.size(), false);
 
-    size_t plen = mcbp_raw_command(buffer.bytes,
-                                   sizeof(buffer.bytes),
-                                   cb::mcbp::ClientOpcode::SaslAuth,
-                                   chosenmech,
-                                   strlen(chosenmech),
-                                   data,
-                                   sizeof(data));
-
-    safe_send(buffer.bytes, plen, false);
-    safe_recv_packet(&buffer, sizeof(buffer));
-    mcbp_validate_response_header(&buffer.response,
-                                  cb::mcbp::ClientOpcode::SaslAuth,
-                                  cb::mcbp::Status::AuthError);
+    blob.resize(0);
+    safe_recv_packet(blob);
+    mcbp_validate_response_header(
+            *reinterpret_cast<cb::mcbp::Response*>(blob.data()),
+            cb::mcbp::ClientOpcode::SaslAuth,
+            cb::mcbp::Status::AuthError);
 
     ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
                                     "nouser"));

@@ -21,59 +21,11 @@
 #include <mcbp/protocol/framebuilder.h>
 #include <memcached/util.h>
 
-/*
- * Set the read/write commands differently than the default values
- * so that we can verify that the override works
- */
-static cb::mcbp::ClientOpcode read_command = cb::mcbp::ClientOpcode::Invalid;
-static cb::mcbp::ClientOpcode write_command = cb::mcbp::ClientOpcode::Invalid;
-
-off_t mcbp_raw_command(char* buf,
-                       size_t bufsz,
-                       cb::mcbp::ClientOpcode cmd,
-                       const void* key,
-                       size_t keylen,
-                       const void* dta,
-                       size_t dtalen) {
-    EXPECT_GE(bufsz, (sizeof(cb::mcbp::Request) + keylen + dtalen));
-    off_t key_offset;
-    auto& request = *reinterpret_cast<cb::mcbp::Request*>(buf);
-    memset(&request, 0, sizeof(request));
-    if (cmd == read_command || cmd == write_command) {
-        request.setExtlen(8);
-    } else if (cmd == cb::mcbp::ClientOpcode::AuditPut) {
-        request.setExtlen(4);
-    } else if (cmd == cb::mcbp::ClientOpcode::EwouldblockCtl) {
-        request.setExtlen(12);
-    } else if (cmd == cb::mcbp::ClientOpcode::SetCtrlToken) {
-        request.setExtlen(8);
-    }
-    request.setMagic(cb::mcbp::Magic::ClientRequest);
-    request.setOpcode(cmd);
-    request.setKeylen((uint16_t)keylen);
-    request.setBodylen((uint32_t)(keylen + dtalen + request.getExtlen()));
-    request.setOpaque(0xdeadbeef);
-
-    key_offset = sizeof(request) + request.getExtlen();
-
-    if (key != nullptr) {
-        memcpy(buf + key_offset, key, keylen);
-    }
-    if (dta != nullptr) {
-        memcpy(buf + key_offset + keylen, dta, dtalen);
-    }
-
-    return (off_t)(sizeof(request) + keylen + dtalen + request.getExtlen());
-}
-
-off_t mcbp_arithmetic_command(char* buf,
-                              size_t bufsz,
-                              cb::mcbp::ClientOpcode cmd,
-                              const void* key,
-                              size_t keylen,
-                              uint64_t delta,
-                              uint64_t initial,
-                              uint32_t exp) {
+std::vector<uint8_t> mcbp_arithmetic_command(cb::mcbp::ClientOpcode cmd,
+                                             cb::const_char_buffer key,
+                                             uint64_t delta,
+                                             uint64_t initial,
+                                             uint32_t exp) {
     using namespace cb::mcbp;
     using request::ArithmeticPayload;
 
@@ -82,43 +34,45 @@ off_t mcbp_arithmetic_command(char* buf,
     extras.setInitial(initial);
     extras.setExpiration(exp);
 
-    RequestBuilder builder({reinterpret_cast<uint8_t*>(buf), bufsz});
+    std::vector<uint8_t> buffer(sizeof(Request) + sizeof(extras) + key.size());
+    RequestBuilder builder({buffer.data(), buffer.size()});
     builder.setMagic(Magic::ClientRequest);
     builder.setOpcode(cmd);
     builder.setExtras(
             {reinterpret_cast<const uint8_t*>(&extras), sizeof(extras)});
     builder.setOpaque(0xdeadbeef);
-    builder.setKey({reinterpret_cast<const uint8_t*>(key), keylen});
-
-    return off_t(sizeof(cb::mcbp::Request) + sizeof(ArithmeticPayload) +
-                 keylen);
+    builder.setKey(key);
+    return buffer;
 }
 
-size_t mcbp_storage_command(char* buf,
-                            size_t bufsz,
-                            cb::mcbp::ClientOpcode cmd,
-                            const void* key,
-                            size_t keylen,
-                            const void* dta,
-                            size_t dtalen,
-                            uint32_t flags,
-                            uint32_t exp) {
+std::vector<uint8_t> mcbp_storage_command(cb::mcbp::ClientOpcode cmd,
+                                          cb::const_char_buffer key,
+                                          cb::const_char_buffer value,
+                                          uint32_t flags,
+                                          uint32_t exp) {
     using namespace cb::mcbp;
-    FrameBuilder<Request> builder({reinterpret_cast<uint8_t*>(buf), bufsz});
+    std::vector<uint8_t> buffer;
+    size_t size = sizeof(Request) + key.size() + value.size();
+    if (cmd != ClientOpcode::Append && cmd != ClientOpcode::Appendq &&
+        cmd != ClientOpcode::Prepend && cmd != ClientOpcode::Prependq) {
+        size += sizeof(request::MutationPayload);
+    }
+    buffer.resize(size);
+    FrameBuilder<Request> builder({buffer.data(), buffer.size()});
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cmd);
     builder.setOpaque(0xdeadbeef);
 
-    if (cmd != cb::mcbp::ClientOpcode::Append &&
-        cmd != cb::mcbp::ClientOpcode::Prepend) {
+    if (cmd != ClientOpcode::Append && cmd != ClientOpcode::Appendq &&
+        cmd != ClientOpcode::Prepend && cmd != ClientOpcode::Prependq) {
         request::MutationPayload extras;
         extras.setFlags(flags);
         extras.setExpiration(exp);
         builder.setExtras(extras.getBuffer());
     }
-    builder.setKey({reinterpret_cast<const uint8_t*>(key), keylen});
-    builder.setValue({reinterpret_cast<const uint8_t*>(dta), dtalen});
-    return builder.getFrame()->getFrame().size();
+    builder.setKey(key);
+    builder.setValue(value);
+    return buffer;
 }
 
 /* Validate the specified response header against the expected cmd and status.
@@ -126,33 +80,22 @@ size_t mcbp_storage_command(char* buf,
 void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
                                    cb::mcbp::ClientOpcode cmd,
                                    cb::mcbp::Status status) {
-    auto& rsp = response->message.header.response;
+    mcbp_validate_response_header(
+            response->message.header.response, cmd, status);
+}
+
+void mcbp_validate_response_header(cb::mcbp::Response& response,
+                                   cb::mcbp::ClientOpcode cmd,
+                                   cb::mcbp::Status status) {
     if (status == cb::mcbp::Status::UnknownCommand) {
-        if (rsp.getStatus() == cb::mcbp::Status::NotSupported) {
-            rsp.setStatus(cb::mcbp::Status::UnknownCommand);
+        if (response.getStatus() == cb::mcbp::Status::NotSupported) {
+            response.setStatus(cb::mcbp::Status::UnknownCommand);
         }
     }
     bool mutation_seqno_enabled =
             enabled_hello_features.count(cb::mcbp::Feature::MUTATION_SEQNO) > 0;
     EXPECT_TRUE(mcbp_validate_response_header(
-            rsp, cmd, status, mutation_seqno_enabled));
-}
-
-void mcbp_validate_arithmetic(const cb::mcbp::Response& response,
-                              uint64_t expected) {
-    auto value = response.getValue();
-    ASSERT_EQ(sizeof(expected), value.size());
-    uint64_t result;
-    std::copy(value.begin(), value.end(), reinterpret_cast<uint8_t*>(&result));
-    result = ntohll(result);
-    EXPECT_EQ(expected, result);
-
-    /* Check for extras - if present should be {vbucket_uuid, seqno) pair for
-     * mutation seqno support. */
-    auto extras = response.getExtdata();
-    if (!extras.empty()) {
-        EXPECT_EQ(16, extras.size());
-    }
+            response, cmd, status, mutation_seqno_enabled));
 }
 
 ::testing::AssertionResult mcbp_validate_response_header(
