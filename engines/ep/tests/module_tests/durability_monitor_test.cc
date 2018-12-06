@@ -23,12 +23,13 @@ void DurabilityMonitorTest::addSyncWrites() {
     size_t expectedNumTracked = 0;
     for (size_t seqno = 1; seqno <= numItems; seqno++) {
         auto& vb = *store->getVBuckets().getBucket(vbid);
-        auto* sv = vb.ht.find(makeStoredDocKey("key" + std::to_string(seqno)),
-                              TrackReference::No,
-                              WantsDeleted::Yes);
-        ASSERT_TRUE(sv);
+        auto htRes = vb.ht.find(makeStoredDocKey("key" + std::to_string(seqno)),
+                                TrackReference::No,
+                                WantsDeleted::Yes);
+        ASSERT_TRUE(htRes.storedValue);
         EXPECT_EQ(ENGINE_SUCCESS,
-                  mgr->addSyncWrite(*sv, cb::durability::Requirements()));
+                  mgr->addSyncWrite(*htRes.storedValue,
+                                    cb::durability::Requirements()));
         expectedNumTracked++;
         EXPECT_EQ(expectedNumTracked, mgr->public_getNumTracked());
     }
