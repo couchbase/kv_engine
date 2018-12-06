@@ -29,9 +29,10 @@
 #include <valgrind/valgrind.h>
 
 #include <gtest/gtest.h>
-#include <atomic>
 #include <algorithm>
+#include <atomic>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "testapp.h"
@@ -803,26 +804,9 @@ TEST_P(McdTestappTest, PrependQ) {
 
 std::atomic<bool> hickup_thread_running;
 
-static void binary_hickup_recv_verification_thread(void *arg) {
-    protocol_binary_response_no_extras *response =
-            reinterpret_cast<protocol_binary_response_no_extras*>(cb_malloc(65*1024));
-    if (response != NULL) {
-        while (safe_recv_packet(response, 65*1024)) {
-            /* Just validate the packet format */
-            mcbp_validate_response_header(
-                    response,
-                    response->message.header.response.getClientOpcode(),
-                    response->message.header.response.getStatus());
-        }
-        cb_free(response);
-    }
-    hickup_thread_running = false;
-    set_allow_closed_read(false);
-}
-
 static void test_pipeline_hickup_chunk(void *buffer, size_t buffersize) {
     off_t offset = 0;
-    char *key[256] = {0};
+    char key[256] = {0};
     uint64_t value = 0xfeedfacedeadbeef;
 
     while (hickup_thread_running &&
@@ -946,41 +930,29 @@ static void test_pipeline_hickup_chunk(void *buffer, size_t buffersize) {
 TEST_P(McdTestappTest, PipelineHickup)
 {
     std::vector<char> buffer(65 * 1024);
-    int ii;
-    cb_thread_t tid;
-    int ret;
-    size_t len;
-
     set_allow_closed_read(true);
+
+    std::thread drain_thread{[]() {
+        std::vector<uint8_t> response;
+        while (safe_recv_packet(response)) {
+            // drop the packet
+        }
+    }};
+
     hickup_thread_running = true;
-    if ((ret = cb_create_thread(&tid, binary_hickup_recv_verification_thread,
-                                NULL, 0)) != 0) {
-        FAIL() << "Can't create thread: " << strerror(ret);
-    }
-
-    /* Allow the thread to start */
-#ifdef WIN32
-    Sleep(1);
-#else
-    usleep(250);
-#endif
-
-    for (ii = 0; ii < 2; ++ii) {
+    for (int ii = 0; ii < 2; ++ii) {
         test_pipeline_hickup_chunk(buffer.data(), buffer.size());
     }
 
-    /* send quit to shut down the read thread ;-) */
-    len = mcbp_raw_command(buffer.data(),
-                           buffer.size(),
-                           cb::mcbp::ClientOpcode::Quit,
-                           NULL,
-                           0,
-                           NULL,
-                           0);
-    safe_send(buffer.data(), len, false);
+    // send quit to shut down the read thread ;-)
+    cb::mcbp::Request quit = {};
+    quit.setMagic(cb::mcbp::Magic::ClientRequest);
+    quit.setOpcode(cb::mcbp::ClientOpcode::Quit);
+    auto packet = quit.getFrame();
+    safe_send(packet.data(), packet.size(), false);
 
-    cb_join_thread(tid);
-
+    drain_thread.join();
+    set_allow_closed_read(false);
     reconnect_to_server();
 }
 
