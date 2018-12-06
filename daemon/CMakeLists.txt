@@ -96,6 +96,7 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/command_context.h
             protocol/mcbp/create_remove_bucket_command_context.cc
             protocol/mcbp/create_remove_bucket_command_context.h
+            protocol/mcbp/dcp_abort_executor.cc
             protocol/mcbp/dcp_add_failover_log.cc
             protocol/mcbp/dcp_add_failover_log.h
             protocol/mcbp/dcp_add_stream_executor.cc

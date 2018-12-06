@@ -111,6 +111,7 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::DcpPrepare:
     case ClientOpcode::DcpSeqnoAcknowledged:
     case ClientOpcode::DcpCommit:
+    case ClientOpcode::DcpAbort:
     case ClientOpcode::StopPersistence:
     case ClientOpcode::StartPersistence:
     case ClientOpcode::SetParam:
@@ -377,6 +378,8 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "DCP_SEQNO_ACKNOWLEDGED";
     case ClientOpcode::DcpCommit:
         return "DCP_COMMIT";
+    case ClientOpcode::DcpAbort:
+        return "DCP_ABORT";
     case ClientOpcode::StopPersistence:
         return "STOP_PERSISTENCE";
     case ClientOpcode::StartPersistence:

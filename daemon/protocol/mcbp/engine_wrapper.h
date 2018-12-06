@@ -471,3 +471,8 @@ ENGINE_ERROR_CODE dcpCommit(Cookie& cookie,
                             uint32_t opaque,
                             uint64_t prepared_seqno,
                             uint64_t commit_seqno);
+
+ENGINE_ERROR_CODE dcpAbort(Cookie& cookie,
+                           uint32_t opaque,
+                           uint64_t prepared_seqno,
+                           uint64_t abort_seqno);

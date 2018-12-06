@@ -951,6 +951,10 @@ public:
                              uint64_t prepared_seqno,
                              uint64_t commit_seqno) override;
 
+    ENGINE_ERROR_CODE abort(uint32_t opaque,
+                            uint64_t prepared_seqno,
+                            uint64_t abort_seqno) override;
+
 protected:
     /**
      * Protected constructor so that it may only be used by MockSubclasses

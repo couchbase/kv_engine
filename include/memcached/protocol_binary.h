@@ -1361,6 +1361,31 @@ protected:
 };
 static_assert(sizeof(DcpCommitPayload) == 16, "Unexpected struct size");
 
+class DcpAbortPayload {
+public:
+    uint64_t getPreparedSeqno() const {
+        return ntohll(prepared_seqno);
+    }
+    void setPreparedSeqno(uint64_t prepared_seqno) {
+        DcpAbortPayload::prepared_seqno = htonll(prepared_seqno);
+    }
+    uint64_t getAbortSeqno() const {
+        return ntohll(abort_seqno);
+    }
+    void setAbortSeqno(uint64_t abort_seqno) {
+        DcpAbortPayload::abort_seqno = htonll(abort_seqno);
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint64_t prepared_seqno = 0;
+    uint64_t abort_seqno = 0;
+};
+static_assert(sizeof(DcpAbortPayload) == 16, "Unexpected struct size");
+
 class SetParamPayload {
 public:
     enum class Type : uint32_t {

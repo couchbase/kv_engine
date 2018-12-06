@@ -163,6 +163,7 @@ bool Request::isQuiet() const {
         case ClientOpcode::DcpPrepare:
         case ClientOpcode::DcpSeqnoAcknowledged:
         case ClientOpcode::DcpCommit:
+        case ClientOpcode::DcpAbort:
         case ClientOpcode::StopPersistence:
         case ClientOpcode::StartPersistence:
         case ClientOpcode::SetParam:

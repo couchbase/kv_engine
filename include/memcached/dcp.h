@@ -326,6 +326,14 @@ struct dcp_message_producers {
     virtual ENGINE_ERROR_CODE commit(uint32_t opaque,
                                      uint64_t prepared_seqno,
                                      uint64_t commit_seqno) = 0;
+    /**
+     * Send an abort message:
+     *
+     * This is sent from the DCP Producer to the DCP Consumer.
+     */
+    virtual ENGINE_ERROR_CODE abort(uint32_t opaque,
+                                    uint64_t prepared_seqno,
+                                    uint64_t abort_seqno) = 0;
 };
 
 typedef ENGINE_ERROR_CODE (*dcp_add_failover_log)(
@@ -705,4 +713,14 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
                                      uint32_t opaque,
                                      uint64_t prepared_seqno,
                                      uint64_t commit_seqno) = 0;
+    /**
+     * Called by the core when it receives a DCP ABORT message over the
+     * wire.
+     *
+     * This is sent from the DCP Producer to the DCP Consumer.
+     */
+    virtual ENGINE_ERROR_CODE abort(gsl::not_null<const void*> cookie,
+                                    uint32_t opaque,
+                                    uint64_t prepared_seqno,
+                                    uint64_t abort_seqno) = 0;
 };

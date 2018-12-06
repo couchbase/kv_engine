@@ -190,6 +190,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged,
           require<Privilege::DcpProducer>);
     setup(cb::mcbp::ClientOpcode::DcpCommit, require<Privilege::DcpConsumer>);
+    setup(cb::mcbp::ClientOpcode::DcpAbort, require<Privilege::DcpConsumer>);
     /* End DCP */
 
     setup(cb::mcbp::ClientOpcode::StopPersistence,

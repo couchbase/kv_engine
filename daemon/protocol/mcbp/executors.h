@@ -44,6 +44,7 @@ void dcp_set_vbucket_state_executor(Cookie& cookie);
 void dcp_snapshot_marker_executor(Cookie& cookie);
 void dcp_stream_end_executor(Cookie& cookie);
 void dcp_stream_req_executor(Cookie& cookie);
+void dcp_abort_executor(Cookie& cookie);
 void dcp_commit_executor(Cookie& cookie);
 void dcp_prepare_executor(Cookie& cookie);
 void dcp_seqno_acknowledged_executor(Cookie& cookie);

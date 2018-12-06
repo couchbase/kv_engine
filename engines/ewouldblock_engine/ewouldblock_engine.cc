@@ -300,7 +300,7 @@ public:
                     "ERROR: EWB_Engine::initialize(): Failed to load real "
                     "engine '{}'",
                     real_engine_name);
-            abort();
+            std::abort();
         }
 
         if (!create_engine_instance(
@@ -309,7 +309,7 @@ public:
                     "ERROR: EWB_Engine::initialize(): Failed create "
                     "engine instance '{}'",
                     real_engine_name);
-            abort();
+            std::abort();
         }
 
         real_engine_dcp = dynamic_cast<DcpIface*>(real_engine);
@@ -890,6 +890,10 @@ public:
                              uint32_t opaque,
                              uint64_t prepared_seqno,
                              uint64_t commit_seqno) override;
+    ENGINE_ERROR_CODE abort(gsl::not_null<const void*> cookie,
+                            uint32_t opaque,
+                            uint64_t prepared_seqno,
+                            uint64_t abort_seqno) override;
 
     static void handle_disconnect(const void* cookie,
                                   ENGINE_EVENT_TYPE type,
@@ -1736,6 +1740,18 @@ ENGINE_ERROR_CODE EWB_Engine::commit(gsl::not_null<const void*> cookie,
     } else {
         return real_engine_dcp->commit(
                 cookie, opaque, prepared_seqno, commit_seqno);
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::abort(gsl::not_null<const void*> cookie,
+                                    uint32_t opaque,
+                                    uint64_t prepared_seqno,
+                                    uint64_t abort_seqno) {
+    if (!real_engine_dcp) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return real_engine_dcp->commit(
+                cookie, opaque, prepared_seqno, abort_seqno);
     }
 }
 

@@ -143,6 +143,11 @@ public:
                              uint64_t commit_seqno) override {
         return ENGINE_ENOTSUP;
     }
+    ENGINE_ERROR_CODE abort(uint32_t opaque,
+                            uint64_t prepared_seqno,
+                            uint64_t abort_seqno) override {
+        return ENGINE_ENOTSUP;
+    }
 
     void clear_dcp_data();
 

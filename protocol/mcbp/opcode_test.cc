@@ -111,6 +111,7 @@ const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
          {ClientOpcode::DcpPrepare, "DCP_PREPARE"},
          {ClientOpcode::DcpSeqnoAcknowledged, "DCP_SEQNO_ACKNOWLEDGED"},
          {ClientOpcode::DcpCommit, "DCP_COMMIT"},
+         {ClientOpcode::DcpAbort, "DCP_ABORT"},
          {ClientOpcode::StopPersistence, "STOP_PERSISTENCE"},
          {ClientOpcode::StartPersistence, "START_PERSISTENCE"},
          {ClientOpcode::SetParam, "SET_PARAM"},

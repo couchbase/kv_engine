@@ -2232,6 +2232,21 @@ ENGINE_ERROR_CODE Connection::commit(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
+ENGINE_ERROR_CODE Connection::abort(uint32_t opaque,
+                                    uint64_t prepared_seqno,
+                                    uint64_t abort_seqno) {
+    cb::mcbp::request::DcpAbortPayload extras;
+    extras.setPreparedSeqno(prepared_seqno);
+    extras.setAbortSeqno(abort_seqno);
+    uint8_t buffer[sizeof(cb::mcbp::Request) + sizeof(extras)];
+    cb::mcbp::RequestBuilder builder({buffer, sizeof(buffer)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpAbort);
+    builder.setOpaque(opaque);
+    builder.setExtras(extras.getBuffer());
+    return add_packet_to_send_pipe(builder.getFrame()->getFrame());
+}
+
 ////////////////////////////////////////////////////////////////////////////
 //                                                                        //
 //               End DCP Message producer interface                       //

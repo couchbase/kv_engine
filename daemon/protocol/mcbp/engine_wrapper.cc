@@ -740,3 +740,18 @@ ENGINE_ERROR_CODE dcpCommit(Cookie& cookie,
     }
     return ret;
 }
+
+ENGINE_ERROR_CODE dcpAbort(Cookie& cookie,
+                           uint32_t opaque,
+                           uint64_t prepared_seqno,
+                           uint64_t abort_seqno) {
+    auto& connection = cookie.getConnection();
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->abort(&cookie, opaque, prepared_seqno, abort_seqno);
+    if (ret == ENGINE_DISCONNECT) {
+        LOG_WARNING("{}: {} dcp.abort returned ENGINE_DISCONNECT",
+                    connection.getId(),
+                    connection.getDescription());
+    }
+    return ret;
+}

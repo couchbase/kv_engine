@@ -166,6 +166,7 @@ static bool supportsDurability(cb::mcbp::ClientOpcode opcode) {
     case ClientOpcode::DcpPrepare:
     case ClientOpcode::DcpSeqnoAcknowledged:
     case ClientOpcode::DcpCommit:
+    case ClientOpcode::DcpAbort:
     case ClientOpcode::StopPersistence:
     case ClientOpcode::StartPersistence:
     case ClientOpcode::SetParam:
@@ -854,6 +855,20 @@ static Status dcp_commit_validator(Cookie& cookie) {
     using cb::mcbp::request::DcpCommitPayload;
     auto status = McbpValidator::verify_header(cookie,
                                                sizeof(DcpCommitPayload),
+                                               ExpectedKeyLen::Zero,
+                                               ExpectedValueLen::Zero,
+                                               ExpectedCas::NotSet,
+                                               PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
+    }
+    return verify_common_dcp_restrictions(cookie);
+}
+
+static Status dcp_abort_validator(Cookie& cookie) {
+    using cb::mcbp::request::DcpAbortPayload;
+    auto status = McbpValidator::verify_header(cookie,
+                                               sizeof(DcpAbortPayload),
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::NotSet,
@@ -2048,6 +2063,7 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged,
           dcp_seqno_acknowledged_validator);
     setup(cb::mcbp::ClientOpcode::DcpCommit, dcp_commit_validator);
+    setup(cb::mcbp::ClientOpcode::DcpAbort, dcp_abort_validator);
     setup(cb::mcbp::ClientOpcode::IsaslRefresh,
           configuration_refresh_validator);
     setup(cb::mcbp::ClientOpcode::SslCertsRefresh,

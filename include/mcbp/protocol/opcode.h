@@ -139,6 +139,7 @@ enum class ClientOpcode : uint8_t {
     DcpPrepare = 0x60,
     DcpSeqnoAcknowledged = 0x61,
     DcpCommit = 0x62,
+    DcpAbort = 0x63,
     /* End DCP */
 
     StopPersistence = 0x80,
