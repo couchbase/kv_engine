@@ -1484,35 +1484,6 @@ TEST_P(McdTestappTest, Audit_ConfigReload) {
                                   cb::mcbp::Status::Success);
 }
 
-
-TEST_P(McdTestappTest, Verbosity) {
-    union {
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
-    sasl_auth("@admin", "password");
-
-    int ii;
-    for (ii = 10; ii > -1; --ii) {
-        cb::mcbp::request::VerbosityPayload extras;
-        extras.setLevel(ii);
-
-        cb::mcbp::Request req{};
-        req.setMagic(cb::mcbp::Magic::ClientRequest);
-        req.setExtlen(sizeof(extras));
-        req.setBodylen(sizeof(extras));
-        req.setOpcode(cb::mcbp::ClientOpcode::Verbosity);
-        req.setOpaque(0xdeadbeef);
-
-        safe_send(&req, sizeof(req), false);
-        safe_send(&extras, sizeof(extras), false);
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        mcbp_validate_response_header(&buffer.response,
-                                      cb::mcbp::ClientOpcode::Verbosity,
-                                      cb::mcbp::Status::Success);
-    }
-}
-
 // Test to ensure that if a Tap Connect is requested we respond with
 // cb::mcbp::Status::NotSupported
 TEST_P(McdTestappTest, TapConnect) {
