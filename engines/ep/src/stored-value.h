@@ -794,6 +794,11 @@ protected:
      */
     bool deleteImpl(DeleteSource delSource);
 
+    /// Implementation of toItem / toItemKeyOnly
+    std::unique_ptr<Item> toItemImpl(bool lock,
+                                     Vbid vbucket,
+                                     bool keyOnly) const;
+
     /* Update the value for this SV from the given item.
      * Implementation for StoredValue instances (dispatched to by setValue()).
      */

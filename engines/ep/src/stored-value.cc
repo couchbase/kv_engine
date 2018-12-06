@@ -211,47 +211,11 @@ size_t StoredValue::getRequiredStorage(const DocKey& key) {
 }
 
 std::unique_ptr<Item> StoredValue::toItem(bool lck, Vbid vbucket) const {
-    auto itm =
-            std::make_unique<Item>(getKey(),
-                                   getFlags(),
-                                   getExptime(),
-                                   value,
-                                   datatype,
-                                   lck ? static_cast<uint64_t>(-1) : getCas(),
-                                   bySeqno,
-                                   vbucket,
-                                   getRevSeqno());
-
-    itm->setNRUValue(getNru());
-    itm->setFreqCounterValue(getFreqCounterValue());
-
-    if (isDeleted()) {
-        itm->setDeleted(getDeletionSource());
-    }
-
-    return itm;
+    return toItemImpl(lck, vbucket, false);
 }
 
 std::unique_ptr<Item> StoredValue::toItemKeyOnly(Vbid vbucket) const {
-    auto itm =
-            std::make_unique<Item>(getKey(),
-                                   getFlags(),
-                                   getExptime(),
-                                   value_t{},
-                                   datatype,
-                                   getCas(),
-                                   getBySeqno(),
-                                   vbucket,
-                                   getRevSeqno());
-
-    itm->setNRUValue(getNru());
-    itm->setFreqCounterValue(getFreqCounterValue());
-
-    if (isDeleted()) {
-        itm->setDeleted(getDeletionSource());
-    }
-
-    return itm;
+    return toItemImpl(false, vbucket, true);
 }
 
 void StoredValue::reallocate() {
@@ -311,6 +275,30 @@ bool StoredValue::deleteImpl(DeleteSource delSource) {
     markDirty();
 
     return true;
+}
+
+std::unique_ptr<Item> StoredValue::toItemImpl(bool lock,
+                                              Vbid vbucket,
+                                              bool keyOnly) const {
+    auto itm =
+            std::make_unique<Item>(getKey(),
+                                   getFlags(),
+                                   getExptime(),
+                                   keyOnly ? value_t{} : value,
+                                   datatype,
+                                   lock ? static_cast<uint64_t>(-1) : getCas(),
+                                   bySeqno,
+                                   vbucket,
+                                   getRevSeqno());
+
+    itm->setNRUValue(getNru());
+    itm->setFreqCounterValue(getFreqCounterValue());
+
+    if (isDeleted()) {
+        itm->setDeleted(getDeletionSource());
+    }
+
+    return itm;
 }
 
 void StoredValue::setValueImpl(const Item& itm) {
