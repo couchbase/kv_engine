@@ -304,3 +304,16 @@ TEST_P(AuditTest, AuditSelectBucket) {
     ASSERT_TRUE(searchAuditLogForID(
             MEMCACHED_AUDIT_SELECT_BUCKET, "@admin", "bucket-1"));
 }
+
+TEST_P(AuditTest, AuditConfigReload) {
+    auto& conn = getAdminConnection();
+    auto rsp = conn.execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::ConfigReload});
+    EXPECT_TRUE(rsp.isSuccess());
+}
+
+TEST_P(AuditTest, AuditPut) {
+    auto& conn = getAdminConnection();
+    auto rsp = conn.execute(BinprotAuditPutCommand{0, R"({})"});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataString();
+}

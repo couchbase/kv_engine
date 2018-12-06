@@ -954,3 +954,14 @@ using BinprotAuthProviderCommand =
 using BinprotRbacRefreshCommand =
         BinprotCommandT<BinprotGenericCommand,
                         cb::mcbp::ClientOpcode::RbacRefresh>;
+
+class BinprotAuditPutCommand : public BinprotGenericCommand {
+public:
+    BinprotAuditPutCommand(uint32_t id, std::string payload);
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    const uint32_t id;
+    const std::string payload;
+};

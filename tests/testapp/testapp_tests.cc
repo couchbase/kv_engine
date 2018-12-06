@@ -1436,54 +1436,6 @@ TEST_P(McdTestappTest, Config_Reload_SSL) {
                                   cb::mcbp::Status::Success);
 }
 
-TEST_P(McdTestappTest, Audit_Put) {
-    union {
-        protocol_binary_request_audit_put request;
-        protocol_binary_response_audit_put response;
-        char bytes[1024];
-    }buffer;
-    sasl_auth("@admin", "password");
-
-    buffer.request.message.body.id = 0;
-
-    size_t len = mcbp_raw_command(buffer.bytes,
-                                  sizeof(buffer.bytes),
-                                  cb::mcbp::ClientOpcode::AuditPut,
-                                  NULL,
-                                  0,
-                                  "{}",
-                                  2);
-
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    mcbp_validate_response_header(&buffer.response,
-                                  cb::mcbp::ClientOpcode::AuditPut,
-                                  cb::mcbp::Status::Success);
-}
-
-TEST_P(McdTestappTest, Audit_ConfigReload) {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    }buffer;
-    sasl_auth("@admin", "password");
-
-    size_t len = mcbp_raw_command(buffer.bytes,
-                                  sizeof(buffer.bytes),
-                                  cb::mcbp::ClientOpcode::AuditConfigReload,
-                                  NULL,
-                                  0,
-                                  NULL,
-                                  0);
-
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    mcbp_validate_response_header(&buffer.response,
-                                  cb::mcbp::ClientOpcode::AuditConfigReload,
-                                  cb::mcbp::Status::Success);
-}
-
 // Test to ensure that if a Tap Connect is requested we respond with
 // cb::mcbp::Status::NotSupported
 TEST_P(McdTestappTest, TapConnect) {

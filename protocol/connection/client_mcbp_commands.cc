@@ -1545,3 +1545,15 @@ void BinprotUpdateUserPermissionsCommand::encode(
     buf.insert(buf.end(), key.begin(), key.end());
     buf.insert(buf.end(), payload.begin(), payload.end());
 }
+
+BinprotAuditPutCommand::BinprotAuditPutCommand(uint32_t id, std::string payload)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::AuditPut),
+      id(id),
+      payload(std::move(payload)) {
+}
+
+void BinprotAuditPutCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, payload.size(), sizeof(id));
+    append(buf, id);
+    buf.insert(buf.end(), payload.begin(), payload.end());
+}
