@@ -16,6 +16,7 @@
  */
 
 #include "durability_monitor.h"
+#include "stored-value.h"
 
 /*
  * Wrapper to DurabilityMonitor, exposes protected methods for testing.
