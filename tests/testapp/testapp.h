@@ -343,12 +343,10 @@ protected:
     ClientJSONSupport hasJSONSupport() const override;
 
     /* Helpers for individual testcases */
-    void test_set_huge_impl(const char* key,
+    void test_set_huge_impl(const std::string& key,
                             cb::mcbp::ClientOpcode cmd,
                             cb::mcbp::Status result,
-                            bool pipeline,
-                            int iterations,
-                            int message_size);
+                            size_t message_size);
 };
 
 SOCKET connect_to_server_plain(in_port_t port);

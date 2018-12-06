@@ -1316,20 +1316,16 @@ TEST_P(McdTestappTest, ExpiryRelativeWithClockChangeBackwards) {
                 120, 2, (int)(0 - ((now - get_server_start_time()) * 2)));
 }
 
-void McdTestappTest::test_set_huge_impl(const char* key,
+void McdTestappTest::test_set_huge_impl(const std::string& key,
                                         cb::mcbp::ClientOpcode cmd,
                                         cb::mcbp::Status result,
-                                        bool pipeline,
-                                        int iterations,
-                                        int message_size) {
+                                        size_t message_size) {
     // This is a large, long test. Disable ewouldblock_engine while
     // running it to speed it up.
     ewouldblock_engine_disable();
     auto len = sizeof(cb::mcbp::Request) +
-               sizeof(cb::mcbp::request::MutationPayload) + strlen(key) +
+               sizeof(cb::mcbp::request::MutationPayload) + key.size() +
                message_size;
-    /* some error case may return a body in the response */
-    char receive[sizeof(protocol_binary_response_no_extras) + 32];
     std::vector<char> set_message(len);
     std::vector<uint8_t> payload(message_size);
     std::fill(payload.begin(), payload.end(), 0xb0);
@@ -1337,30 +1333,23 @@ void McdTestappTest::test_set_huge_impl(const char* key,
     len = mcbp_storage_command(set_message.data(),
                                set_message.size(),
                                cmd,
-                               key,
-                               strlen(key),
+                               key.data(),
+                               key.size(),
                                payload.data(),
                                payload.size(),
                                0,
                                0);
 
-    for (int ii = 0; ii < iterations; ++ii) {
-        safe_send(set_message.data(), len, false);
-        if (!pipeline) {
-            if (cmd == cb::mcbp::ClientOpcode::Set) {
-                safe_recv_packet(&receive, sizeof(receive));
-                mcbp_validate_response_header(
-                    (protocol_binary_response_no_extras*)receive, cmd, result);
-            }
-        }
-    }
-
-    if (pipeline && cmd == cb::mcbp::ClientOpcode::Set) {
-        for (int ii = 0; ii < iterations; ++ii) {
-            safe_recv_packet(&receive, sizeof(receive));
-            mcbp_validate_response_header(
-                (protocol_binary_response_no_extras*)receive, cmd, result);
-        }
+    safe_send(set_message.data(), len, false);
+    if (cmd == cb::mcbp::ClientOpcode::Set ||
+        result != cb::mcbp::Status::Success) {
+        safe_recv_packet(payload.data(), payload.size());
+        mcbp_validate_response_header(
+                (protocol_binary_response_no_extras*)payload.data(),
+                cmd,
+                result);
+    } else {
+        test_noop();
     }
 }
 
@@ -1368,37 +1357,28 @@ TEST_P(McdTestappTest, SetHuge) {
     test_set_huge_impl("test_set_huge",
                        cb::mcbp::ClientOpcode::Set,
                        cb::mcbp::Status::Success,
-                       false,
-                       10,
-                       1023 * 1024);
+                       GetTestBucket().getMaximumDocSize() - 256);
 }
 
 TEST_P(McdTestappTest, SetE2BIG) {
-    test_set_huge_impl(
-            "test_set_e2big",
-            cb::mcbp::ClientOpcode::Set,
-            cb::mcbp::Status::E2big,
-            false,
-            1,
-            gsl::narrow<int>(GetTestBucket().getMaximumDocSize()) + 1);
+    test_set_huge_impl("test_set_e2big",
+                       cb::mcbp::ClientOpcode::Set,
+                       cb::mcbp::Status::E2big,
+                       GetTestBucket().getMaximumDocSize() + 1);
 }
 
 TEST_P(McdTestappTest, SetQHuge) {
     test_set_huge_impl("test_setq_huge",
                        cb::mcbp::ClientOpcode::Setq,
                        cb::mcbp::Status::Success,
-                       false,
-                       10,
-                       1023 * 1024);
+                       GetTestBucket().getMaximumDocSize() - 256);
 }
 
-TEST_P(McdTestappTest, PipelineHuge) {
-    test_set_huge_impl("test_pipeline_huge",
-                       cb::mcbp::ClientOpcode::Set,
-                       cb::mcbp::Status::Success,
-                       true,
-                       200,
-                       1023 * 1024);
+TEST_P(McdTestappTest, SetQE2BIG) {
+    test_set_huge_impl("test_set_e2big",
+                       cb::mcbp::ClientOpcode::Setq,
+                       cb::mcbp::Status::E2big,
+                       GetTestBucket().getMaximumDocSize() + 1);
 }
 
 #ifndef THREAD_SANITIZER
