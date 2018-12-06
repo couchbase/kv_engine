@@ -20,6 +20,7 @@
  * 'handles'. Creation / Deletion and the item scrubber thread are all
  * managed by this module.
  */
+#pragma once
 
 #ifdef __cplusplus
 #include <condition_variable>
