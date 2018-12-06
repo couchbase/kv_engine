@@ -984,31 +984,6 @@ TEST_P(McdTestappTest, PipelineHickup)
     reconnect_to_server();
 }
 
-TEST_P(McdTestappTest, IOCTL_Get) {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
-
-    sasl_auth("@admin", "password");
-
-    /* NULL key is invalid. */
-    size_t len = mcbp_raw_command(buffer.bytes,
-                                  sizeof(buffer.bytes),
-                                  cb::mcbp::ClientOpcode::IoctlGet,
-                                  NULL,
-                                  0,
-                                  NULL,
-                                  0);
-
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    mcbp_validate_response_header(&buffer.response,
-                                  cb::mcbp::ClientOpcode::IoctlGet,
-                                  cb::mcbp::Status::Einval);
-}
-
 TEST_P(McdTestappTest, IOCTL_Set) {
     union {
         protocol_binary_request_no_extras request;
@@ -1017,60 +992,22 @@ TEST_P(McdTestappTest, IOCTL_Set) {
     } buffer;
     sasl_auth("@admin", "password");
 
-    /* NULL key is invalid. */
-    size_t len = mcbp_raw_command(buffer.bytes,
-                                  sizeof(buffer.bytes),
-                                  cb::mcbp::ClientOpcode::IoctlSet,
-                                  NULL,
-                                  0,
-                                  NULL,
-                                  0);
+    /* release_free_memory always returns OK, regardless of how much was
+     * freed.*/
+    char cmd[] = "release_free_memory";
+    auto len = mcbp_raw_command(buffer.bytes,
+                                sizeof(buffer.bytes),
+                                cb::mcbp::ClientOpcode::IoctlSet,
+                                cmd,
+                                strlen(cmd),
+                                NULL,
+                                0);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
                                   cb::mcbp::ClientOpcode::IoctlSet,
-                                  cb::mcbp::Status::Einval);
-    reconnect_to_server();
-    sasl_auth("@admin", "password");
-
-    /* Very long (> IOCTL_KEY_LENGTH) is invalid. */
-    {
-        char long_key[128 + 1] = {0};
-        len = mcbp_raw_command(buffer.bytes,
-                               sizeof(buffer.bytes),
-                               cb::mcbp::ClientOpcode::IoctlSet,
-                               long_key,
-                               sizeof(long_key),
-                               NULL,
-                               0);
-
-        safe_send(buffer.bytes, len, false);
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        mcbp_validate_response_header(&buffer.response,
-                                      cb::mcbp::ClientOpcode::IoctlSet,
-                                      cb::mcbp::Status::Einval);
-        reconnect_to_server();
-        sasl_auth("@admin", "password");
-    }
-
-    /* release_free_memory always returns OK, regardless of how much was freed.*/
-    {
-        char cmd[] = "release_free_memory";
-        len = mcbp_raw_command(buffer.bytes,
-                               sizeof(buffer.bytes),
-                               cb::mcbp::ClientOpcode::IoctlSet,
-                               cmd,
-                               strlen(cmd),
-                               NULL,
-                               0);
-
-        safe_send(buffer.bytes, len, false);
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        mcbp_validate_response_header(&buffer.response,
-                                      cb::mcbp::ClientOpcode::IoctlSet,
-                                      cb::mcbp::Status::Success);
-    }
+                                  cb::mcbp::Status::Success);
 }
 
 TEST_P(McdTestappTest, IOCTL_Tracing) {
