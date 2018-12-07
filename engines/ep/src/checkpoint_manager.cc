@@ -239,6 +239,15 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
                 std::to_string(openCkpt.getHighSeqno()) + ")");
     }
 
+    // If cursor exists with the same name as the one being created, then
+    // remove it.
+    for (const auto& cursor : connCursors) {
+        if (cursor.first == name) {
+            removeCursor_UNLOCKED(cursor.second.get());
+            break;
+        }
+    }
+
     CursorRegResult result;
     result.seqno = std::numeric_limits<uint64_t>::max();
     result.tryBackfill = false;

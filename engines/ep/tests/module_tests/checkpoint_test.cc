@@ -1346,3 +1346,76 @@ TYPED_TEST(CheckpointTest, takeAndResetCursors) {
     EXPECT_EQ(0,
               manager2->getNumItemsForCursor(dcpCursor2.cursor.lock().get()));
 }
+
+// Test that if we add 2 cursors with the same name the first one is removed.
+TYPED_TEST(CheckpointTest, DuplicateCheckpointCursor) {
+    auto* ckptMgr = this->manager.get();
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *ckptMgr);
+    // The persistent cursor means we have one cursor in the checkpoint
+    ASSERT_EQ(1, ckptList.back()->getNumCursorsInCheckpoint());
+
+    // Register a DCP cursor.
+    std::string dcp_cursor(DCP_CURSOR_PREFIX + std::to_string(1));
+    auto dcpCursor =
+            this->manager->registerCursorBySeqno(dcp_cursor.c_str(), 0);
+
+    EXPECT_EQ(2, ckptList.back()->getNumCursorsInCheckpoint());
+
+    // Register a 2nd DCP cursor with the same name.
+    auto dcpCursor2 =
+            this->manager->registerCursorBySeqno(dcp_cursor.c_str(), 0);
+
+    // Adding the 2nd DCP cursor should not have increased the number of
+    // cursors in the checkpoint, as the previous one will have been removed
+    // when the new one was added.
+    EXPECT_EQ(2,ckptList.back()->getNumCursorsInCheckpoint());
+}
+
+// Test that if we add 2 cursors with the same name the first one is removed.
+// even if the 2 cursors are in different checkpoints.
+TYPED_TEST(CheckpointTest, DuplicateCheckpointCursorDifferentCheckpoints) {
+    // Size down the default number of items to create a new checkpoint and
+    // recreate the manager
+    this->checkpoint_config = CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
+                                               MIN_CHECKPOINT_ITEMS,
+                                               /*numCheckpoints*/ 2,
+                                               /*itemBased*/ true,
+                                               /*keepClosed*/ false,
+                                               /*persistenceEnabled*/ true);
+    this->createManager();
+    auto* ckptMgr = this->manager.get();
+
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *ckptMgr);
+    // The persistent cursor means we have one cursor in the checkpoint
+    ASSERT_EQ(1, ckptList.back()->getNumCursorsInCheckpoint());
+
+    // Register a DCP cursor.
+    std::string dcp_cursor(DCP_CURSOR_PREFIX + std::to_string(1));
+    auto dcpCursor =
+            this->manager->registerCursorBySeqno(dcp_cursor.c_str(), 0);
+
+    // Adding the following items will result in 2 checkpoints, with
+    // both cursors in the first checkpoint.
+    for (int ii = 0; ii < 2 * MIN_CHECKPOINT_ITEMS; ++ii) {
+        this->queueNewItem("key" + std::to_string(ii));
+    }
+    EXPECT_EQ(2, ckptList.size());
+    EXPECT_EQ(2, ckptList.front()->getNumCursorsInCheckpoint());
+
+    // Register a 2nd DCP cursor with the same name but this time into the
+    // 2nd checkpoint
+    auto dcpCursor2 = this->manager->registerCursorBySeqno(
+            dcp_cursor.c_str(), 1000 + MIN_CHECKPOINT_ITEMS + 2);
+
+    // Adding the 2nd DCP cursor should not have increased the number of
+    // cursors as the previous cursor will have been removed when the new one
+    // was added.  The persistence cursor will still be in the first
+    // checkpoint however the dcpCursor will have been deleted from the first
+    // checkpoint and adding to the 2nd checkpoint.
+    EXPECT_EQ(1, ckptList.front()->getNumCursorsInCheckpoint());
+    EXPECT_EQ(1, ckptList.back()->getNumCursorsInCheckpoint());
+}
