@@ -17,8 +17,8 @@ import struct
 import sys
 import time
 
-from memcacheConstants import REQ_MAGIC_BYTE, RES_MAGIC_BYTE
-from memcacheConstants import REQ_PKT_FMT, RES_PKT_FMT, MIN_RECV_PACKET
+from memcacheConstants import REQ_MAGIC_BYTE, RES_MAGIC_BYTE, ALT_REQ_MAGIC_BYTE
+from memcacheConstants import REQ_PKT_FMT, RES_PKT_FMT, ALT_REQ_PKT_FMT, MIN_RECV_PACKET
 from memcacheConstants import SET_PKT_FMT, DEL_PKT_FMT, INCRDECR_RES_FMT
 from memcacheConstants import TOUCH_PKT_FMT, GAT_PKT_FMT, GETL_PKT_FMT
 from memcacheConstants import COMPACT_DB_PKT_FMT
@@ -193,6 +193,18 @@ class MemcachedClient(object):
         self._sendMsg(cmd, key, val, opaque, extraHeader=extraHeader, cas=cas,
                       vbucketId=self.vbucketId, collection=collection)
 
+    def _sendAltCmd(self, cmd, flex, key, val, opaque, extras='', cas=0,
+                    dtype=0, vbucketId=0, collection=None):
+        """Send a request in the alternative format supporing flex framing extras"""
+        if collection:
+            key = self._encodeCollectionId(key, collection)
+
+        msg = struct.pack(ALT_REQ_PKT_FMT, ALT_REQ_MAGIC_BYTE, cmd, len(flex),
+                          len(key), len(extras), dtype, vbucketId,
+                          len(flex) + len(key) + len(extras) + len(val),
+                          opaque, cas)
+        self.s.sendall(msg + flex + extras + key + val)
+
     def _sendMsg(self, cmd, key, val, opaque, extraHeader='', cas=0,
                  dtype=0, vbucketId=0,
                  fmt=REQ_PKT_FMT, magic=REQ_MAGIC_BYTE, collection=None):
@@ -256,9 +268,23 @@ class MemcachedClient(object):
         self._sendCmd(cmd, key, val, opaque, extraHeader, cas, collection)
         return self._handleSingleResponse(opaque)
 
+    def _doAltCmd(self, cmd, flex, key, val, extraHeader='', cas=0,
+                  collection=None):
+        """Send an alternative format command (with flex framing extras) and
+           await its response."""
+        opaque = self.r.randint(0, 2 ** 32)
+        self._sendAltCmd(cmd, flex, key, val, opaque, extraHeader, cas,
+                         collection=collection)
+        return self._handleSingleResponse(opaque)
+
     def _mutate(self, cmd, key, exp, flags, cas, val, collection):
         return self._doCmd(cmd, key, val, struct.pack(SET_PKT_FMT, flags, exp),
             cas, collection)
+
+    def _mutateDurable(self, cmd, key, exp, flags, cas, val, level, collection):
+        flex = self._encodeDurabilityFlex(level)
+        return self._doAltCmd(cmd, flex, key, val, struct.pack(SET_PKT_FMT, flags, exp),
+                           cas, collection)
 
     def _cat(self, cmd, key, cas, val, collection):
         return self._doCmd(cmd, key, val, '', cas, collection)
@@ -304,6 +330,13 @@ class MemcachedClient(object):
     def set(self, key, exp, flags, val, collection=None):
         """Set a value in the memcached server."""
         return self._mutate(memcacheConstants.CMD_SET, key, exp, flags, 0, val, collection)
+
+    def setDurable(self, key, exp, flags, val,
+                   level=memcacheConstants.DURABILITY_LEVEL_MAJORITY,
+                   collection=None):
+        """Set a value with the given durability requirements"""
+        return self._mutateDurable(memcacheConstants.CMD_SET, key, exp, flags,
+                                   0, val, level, collection)
 
     def setWithMeta(self, key, value, exp, flags, seqno, remote_cas, collection=None):
         """Set a value and its meta data in the memcached server."""
@@ -681,3 +714,10 @@ class MemcachedClient(object):
             except KeyError:
                 # A scope with no collections is legal
                 pass
+
+    def _encodeDurabilityFlex(self, level=1, timeout=0):
+        # 1st nibble: Object identifier (1)
+        # 2nd nibble: object length (1 if no timeout specified; 3 for timeout)
+        # For simplicity always encode length as 3 and specify timeout even
+        # if default (0).
+        return struct.pack("BBH", ((1<<4) | 3), level, timeout)

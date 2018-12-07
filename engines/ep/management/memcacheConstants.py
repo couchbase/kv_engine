@@ -150,12 +150,16 @@ COMPACT_DB_PKT_FMT=">QQBxxxxxxx"
 
 MAGIC_BYTE = 0x80
 REQ_MAGIC_BYTE = 0x80
+ALT_REQ_MAGIC_BYTE=0x08
 RES_MAGIC_BYTE = 0x81
 
 # magic, opcode, keylen, extralen, datatype, vbucket, bodylen, opaque, cas
 REQ_PKT_FMT=">BBHBBHIIQ"
 # magic, opcode, keylen, extralen, datatype, status, bodylen, opaque, cas
 RES_PKT_FMT=">BBHBBHIIQ"
+# magic, opcode, frame_extra_len, keylen, extralen, datatype, vbucket, bodylen, opaque, cas
+ALT_REQ_PKT_FMT=">BBBBBBHIIQ"
+
 # min recv packet size
 MIN_RECV_PACKET = struct.calcsize(REQ_PKT_FMT)
 # The header sizes don't deviate
@@ -204,3 +208,5 @@ ERR_EBUSY = 0x85
 ERR_ETMPFAIL = 0x86
 
 META_REVID = 0x01
+
+DURABILITY_LEVEL_MAJORITY = 0x1
