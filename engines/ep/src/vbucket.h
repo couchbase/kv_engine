@@ -68,6 +68,7 @@ struct VBNotifyCtx {
  * queue
  */
 struct VBQueueItemCtx {
+    VBQueueItemCtx() = default;
     VBQueueItemCtx(GenerateBySeqno genBySeqno,
                    GenerateCas genCas,
                    TrackCasDrift trackCasDrift,
@@ -79,13 +80,12 @@ struct VBQueueItemCtx {
           isBackfillItem(isBackfillItem),
           preLinkDocumentContext(preLinkDocumentContext_) {
     }
-    /* Indicates if we should queue an item or not. If this is false other
-       members should not be used */
-    GenerateBySeqno genBySeqno;
-    GenerateCas genCas;
-    TrackCasDrift trackCasDrift;
-    bool isBackfillItem;
-    PreLinkDocumentContext* preLinkDocumentContext;
+
+    GenerateBySeqno genBySeqno = GenerateBySeqno::Yes;
+    GenerateCas genCas = GenerateCas::Yes;
+    TrackCasDrift trackCasDrift = TrackCasDrift::No;
+    bool isBackfillItem = false;
+    PreLinkDocumentContext* preLinkDocumentContext = nullptr;
 };
 
 /**

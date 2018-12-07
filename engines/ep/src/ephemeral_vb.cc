@@ -93,11 +93,7 @@ bool EphemeralVBucket::pageOut(const HashTable::HashBucketLock& lh,
     if (!eligibleToPageOut(lh, *v)) {
         return false;
     }
-    VBQueueItemCtx queueCtx(GenerateBySeqno::Yes,
-                            GenerateCas::Yes,
-                            TrackCasDrift::No,
-                            /*isBackfill*/ false,
-                            nullptr);
+    VBQueueItemCtx queueCtx;
     v->setRevSeqno(v->getRevSeqno() + 1);
     StoredValue* newSv;
     VBNotifyCtx notifyCtx;

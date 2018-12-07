@@ -145,11 +145,6 @@ std::pair<HashTable::HashBucketLock, StoredValue*> VBucketTest::lockAndFind(
 
 MutationStatus VBucketTest::public_processSet(Item& itm, const uint64_t cas) {
     auto hbl_sv = lockAndFind(itm.getKey());
-    VBQueueItemCtx queueItmCtx(GenerateBySeqno::Yes,
-                               GenerateCas::No,
-                               TrackCasDrift::No,
-                               /*isBackfillItem*/ false,
-                               /*preLinkDocumentContext_*/ nullptr);
     return vbucket
             ->processSet(hbl_sv.first,
                          hbl_sv.second,
@@ -157,24 +152,19 @@ MutationStatus VBucketTest::public_processSet(Item& itm, const uint64_t cas) {
                          cas,
                          true,
                          false,
-                         queueItmCtx,
+                         VBQueueItemCtx{},
                          {/*no predicate*/})
             .first;
 }
 
 AddStatus VBucketTest::public_processAdd(Item& itm) {
     auto hbl_sv = lockAndFind(itm.getKey());
-    VBQueueItemCtx queueItmCtx(GenerateBySeqno::Yes,
-                               GenerateCas::No,
-                               TrackCasDrift::No,
-                               /*isBackfillItem*/ false,
-                               /*preLinkDocumentContext_*/ nullptr);
     return vbucket
             ->processAdd(hbl_sv.first,
                          hbl_sv.second,
                          itm,
                          /*maybeKeyExists*/ true,
-                         queueItmCtx,
+                         VBQueueItemCtx{},
                          vbucket->lockCollections(itm.getKey()))
             .first;
 }
@@ -198,11 +188,7 @@ MutationStatus VBucketTest::public_processSoftDelete(const DocKey& key,
             *v,
             cas,
             metadata,
-            VBQueueItemCtx(GenerateBySeqno::Yes,
-                           GenerateCas::Yes,
-                           TrackCasDrift::No,
-                           /*isBackfillItem*/ false,
-                           /*preLinkDocCtx*/ nullptr),
+            VBQueueItemCtx{},
             /*use_meta*/ false,
             /*bySeqno*/ v->getBySeqno(),
             DeleteSource::Explicit);
@@ -687,10 +673,13 @@ class VBucketFullEvictionTest : public VBucketTest {};
 TEST_P(VBucketFullEvictionTest, MB_30137) {
     auto k = makeStoredDocKey("key");
     queued_item qi(new Item(k, 0, 0, k.data(), k.size()));
-    PersistenceCallback cb1(qi, qi->getCas());
 
     // (1) Store k
     EXPECT_EQ(MutationStatus::WasClean, public_processSet(*qi, qi->getCas()));
+
+    auto storedValue = vbucket->ht.findForRead(k).storedValue;
+    ASSERT_TRUE(storedValue);
+    PersistenceCallback cb1(qi, storedValue->getCas());
 
     // (1.1) We need the persistence cursor to move through the current
     // checkpoint to ensure that the checkpoint manager correctly updates the
