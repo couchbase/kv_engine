@@ -59,8 +59,8 @@ void Request::parseFrameExtras(FrameInfoCallback callback) const {
     size_t offset = 0;
     while (offset < fe.size()) {
         using cb::mcbp::request::FrameInfoId;
-        const auto id = FrameInfoId(fe[offset] & 0x0f);
-        size_t size = size_t(fe[offset] & 0xf0) >> 4;
+        const auto id = FrameInfoId(fe[offset] >> 4);
+        size_t size = size_t(fe[offset] & 0x0f);
 
         if ((offset + 1 + size) > fe.size()) {
             throw std::overflow_error("parseFrameExtras: outside frame extras");

@@ -48,7 +48,7 @@ TEST(Request_ParseFrameExtras, Reorder_LegalPacket) {
 
 TEST(Request_ParseFrameExtras, Reorder_InvalidLength) {
     std::vector<uint8_t> fe;
-    fe.push_back(0x10); // ID 0, length 1
+    fe.push_back(0x01); // ID 0, length 1
     fe.push_back(0x00); // Add the 0 byte
     std::vector<uint8_t> packet(27);
     RequestBuilder builder({packet.data(), packet.size()});
@@ -71,7 +71,7 @@ TEST(Request_ParseFrameExtras, Reorder_InvalidLength) {
 
 TEST(Request_ParseFrameExtras, Reorder_BufferOverflow) {
     std::vector<uint8_t> fe;
-    fe.push_back(0x20); // ID 0, length 2
+    fe.push_back(0x02); // ID 0, length 2
     fe.push_back(0x00); // Add the 0 byte (1 byte too little)
     std::vector<uint8_t> packet(27);
     RequestBuilder builder({packet.data(), packet.size()});
@@ -119,7 +119,7 @@ TEST(Request_ParseFrameExtras, DurabilityRequirement_LegalPacket) {
     std::fill(packet.begin(), packet.end(), 0);
     builder.setMagic(Magic::AltClientRequest);
     fe.resize(4); // 1 byte magic, 3 bytes value
-    fe[0] = 0x31;
+    fe[0] = 0x13;
     builder.setFramingExtras({fe.data(), fe.size()});
     found = false;
     req->parseFrameExtras([&found](request::FrameInfoId id,
@@ -138,7 +138,7 @@ TEST(Request_ParseFrameExtras, DurabilityRequirement_LegalPacket) {
 
 TEST(Request_ParseFrameExtras, DurabilityRequirement_InvalidLength) {
     std::vector<uint8_t> fe(5);
-    fe[0] = 0x41; // ID 1, length 4
+    fe[0] = 0x14; // ID 1, length 4
     std::vector<uint8_t> packet(30);
     RequestBuilder builder({packet.data(), packet.size()});
     builder.setMagic(Magic::AltClientRequest);
@@ -161,7 +161,7 @@ TEST(Request_ParseFrameExtras, DurabilityRequirement_InvalidLength) {
 
 TEST(Request_ParseFrameExtras, MultipleEncoding) {
     std::vector<uint8_t> fe(5);
-    fe[0] = 0x31; // Durability Requirement with 3 bytes
+    fe[0] = 0x13; // Durability Requirement with 3 bytes
     fe[1] = 0xaa;
     fe[2] = 0xbb;
     fe[3] = 0xcc;
@@ -225,7 +225,7 @@ TEST(Request_GetDurationSpec, OnlyRequirement) {
 
 TEST(Request_GetDurationSpec, FullSpecPresent) {
     std::vector<uint8_t> fe;
-    fe.push_back(0x31);
+    fe.push_back(0x13);
     fe.push_back(0x03);
     fe.push_back(0xaa);
     fe.push_back(0xbb);
