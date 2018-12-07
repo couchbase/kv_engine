@@ -363,7 +363,8 @@ public:
     ENGINE_ERROR_CODE unlockKey(const DocKey& key,
                                 Vbid vbucket,
                                 uint64_t cas,
-                                rel_time_t currentTime) override;
+                                rel_time_t currentTime,
+                                const void* cookie) override;
 
     KVStore* getRWUnderlying(Vbid vbId) override {
         return vbMap.getShardByVbId(vbId)->getRWUnderlying();

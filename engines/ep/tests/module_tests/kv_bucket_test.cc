@@ -939,8 +939,8 @@ TEST_P(KVBucketParamTest, unlockKeyTempDeletedTest) {
 
     //Check that the temp item is removed for unlockKey
     EXPECT_EQ(expTempItems, store->getVBucket(vbid)->getNumTempItems());
-    EXPECT_EQ(ENGINE_KEY_ENOENT, store->unlockKey(key, vbid, 0,
-                                 ep_current_time()));
+    EXPECT_EQ(ENGINE_KEY_ENOENT,
+              store->unlockKey(key, vbid, 0, ep_current_time(), cookie));
     EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
 }
 

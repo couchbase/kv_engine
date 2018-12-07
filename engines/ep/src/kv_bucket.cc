@@ -643,6 +643,10 @@ ENGINE_ERROR_CODE KVBucket::set(Item& itm,
     { // collections read-lock scope
         auto cHandle = vb->lockCollections(itm.getKey());
         if (!cHandle.valid()) {
+            engine.setErrorContext(
+                    cookie,
+                    Collections::getUnknownCollectionErrorContext(
+                            cHandle.getManifestUid()));
             return ENGINE_UNKNOWN_COLLECTION;
         } // now hold collections read access for the duration of the set
 
@@ -688,6 +692,10 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
     { // collections read-lock scope
         auto cHandle = vb->lockCollections(itm.getKey());
         if (!cHandle.valid()) {
+            engine.setErrorContext(
+                    cookie,
+                    Collections::getUnknownCollectionErrorContext(
+                            cHandle.getManifestUid()));
             return ENGINE_UNKNOWN_COLLECTION;
         } // now hold collections read access for the duration of the add
 
@@ -722,6 +730,10 @@ ENGINE_ERROR_CODE KVBucket::replace(Item& itm,
     { // collections read-lock scope
         auto cHandle = vb->lockCollections(itm.getKey());
         if (!cHandle.valid()) {
+            engine.setErrorContext(
+                    cookie,
+                    Collections::getUnknownCollectionErrorContext(
+                            cHandle.getManifestUid()));
             return ENGINE_UNKNOWN_COLLECTION;
         } // now hold collections read access for the duration of the set
 
@@ -1349,6 +1361,10 @@ GetValue KVBucket::getInternal(const DocKey& key,
     { // hold collections read handle for duration of get
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
+            engine.setErrorContext(
+                    cookie,
+                    Collections::getUnknownCollectionErrorContext(
+                            cHandle.getManifestUid()));
             return GetValue(NULL, ENGINE_UNKNOWN_COLLECTION);
         }
 
@@ -1411,6 +1427,11 @@ ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
     { // collections read scope
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
+            engine.setErrorContext(
+                    cookie,
+                    Collections::getUnknownCollectionErrorContext(
+                            cHandle.getManifestUid()));
+
             return ENGINE_UNKNOWN_COLLECTION;
         }
 
@@ -1463,6 +1484,10 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
 
         auto cHandle = vb->lockCollections(itm.getKey());
         if (!cHandle.valid()) {
+            engine.setErrorContext(
+                    cookie,
+                    Collections::getUnknownCollectionErrorContext(
+                            cHandle.getManifestUid()));
             rv = ENGINE_UNKNOWN_COLLECTION;
         } else {
             cHandle.processExpiryTime(itm, getMaxTtl());
@@ -1511,6 +1536,11 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
     { // collections read scope
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
+            engine.setErrorContext(
+                    cookie,
+                    Collections::getUnknownCollectionErrorContext(
+                            cHandle.getManifestUid()));
+
             return GetValue(NULL, ENGINE_UNKNOWN_COLLECTION);
         }
 
@@ -1536,6 +1566,10 @@ GetValue KVBucket::getLocked(const DocKey& key,
     { // collections read scope
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
+            engine.setErrorContext(
+                    cookie,
+                    Collections::getUnknownCollectionErrorContext(
+                            cHandle.getManifestUid()));
             return GetValue(NULL, ENGINE_UNKNOWN_COLLECTION);
         }
 
@@ -1546,7 +1580,8 @@ GetValue KVBucket::getLocked(const DocKey& key,
 ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
                                       Vbid vbucket,
                                       uint64_t cas,
-                                      rel_time_t currentTime) {
+                                      rel_time_t currentTime,
+                                      const void* cookie) {
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb || vb->getState() != vbucket_state_active) {
         ++stats.numNotMyVBuckets;
@@ -1555,6 +1590,9 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
 
     auto cHandle = vb->lockCollections(key);
     if (!cHandle.valid()) {
+        engine.setErrorContext(cookie,
+                               Collections::getUnknownCollectionErrorContext(
+                                       cHandle.getManifestUid()));
         return ENGINE_UNKNOWN_COLLECTION;
     }
 
@@ -1607,6 +1645,10 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
     { // collections read scope
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
+            engine.setErrorContext(
+                    cookie,
+                    Collections::getUnknownCollectionErrorContext(
+                            cHandle.getManifestUid()));
             return ENGINE_UNKNOWN_COLLECTION;
         }
 
@@ -1679,6 +1721,11 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
     { // collections read scope
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
+            engine.setErrorContext(
+                    cookie,
+                    Collections::getUnknownCollectionErrorContext(
+                            cHandle.getManifestUid()));
+
             return ENGINE_UNKNOWN_COLLECTION;
         }
 
@@ -1733,6 +1780,10 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
     { // hold collections read lock for duration of delete
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
+            engine.setErrorContext(
+                    cookie,
+                    Collections::getUnknownCollectionErrorContext(
+                            cHandle.getManifestUid()));
             return ENGINE_UNKNOWN_COLLECTION;
         }
 

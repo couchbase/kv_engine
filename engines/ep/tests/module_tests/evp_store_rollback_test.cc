@@ -397,7 +397,7 @@ protected:
             auto result = store->get(
                     makeStoredDocKey("rollback-cp-" + std::to_string(i)),
                     vbid,
-                    nullptr,
+                    cookie,
                     {});
             EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
                 << "A key set after the rollback point was found";
@@ -408,7 +408,7 @@ protected:
             auto result = store->get(
                     makeStoredDocKey("anotherkey_" + std::to_string(i)),
                     vbid,
-                    nullptr,
+                    cookie,
                     {});
             EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
                 << "A key set after the rollback point was found";
@@ -419,7 +419,7 @@ protected:
             auto result =
                     store->get(makeStoredDocKey("key7", CollectionEntry::dairy),
                                vbid,
-                               nullptr,
+                               cookie,
                                {});
             EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, result.getStatus());
             // Rolled back to the previous checkpoint before dairy
@@ -429,7 +429,7 @@ protected:
             auto result =
                     store->get(makeStoredDocKey("key7", CollectionEntry::dairy),
                                vbid,
-                               nullptr,
+                               cookie,
                                {});
             EXPECT_EQ(ENGINE_SUCCESS, result.getStatus())
                     << "Failed to find key7"; // Yes you can!

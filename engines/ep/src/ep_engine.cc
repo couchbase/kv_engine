@@ -2252,7 +2252,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::unlockInner(const void* cookie,
                                                           const DocKey& key,
                                                           Vbid vbucket,
                                                           uint64_t cas) {
-    return kvBucket->unlockKey(key, vbucket, cas, ep_current_time());
+    return kvBucket->unlockKey(key, vbucket, cas, ep_current_time(), cookie);
 }
 
 cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(

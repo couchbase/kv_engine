@@ -219,7 +219,8 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
 
     // Unlock should fail 'unknown-col' rather than an unlock error
     EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
-              store->unlockKey(item2.getKey(), vbid, 0, ep_current_time()));
+              store->unlockKey(
+                      item2.getKey(), vbid, 0, ep_current_time(), cookie));
 
     EXPECT_EQ("collection_unknown",
               store->validateKey(
@@ -251,7 +252,7 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
     ItemMetaData meta;
     EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
               store->getMetaData(
-                      item2.getKey(), vbid, nullptr, meta, deleted, dtype));
+                      item2.getKey(), vbid, cookie, meta, deleted, dtype));
 
     cas = 0;
     meta.cas = 1;
@@ -260,7 +261,7 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
                                     cas,
                                     nullptr,
                                     vbid,
-                                    nullptr,
+                                    cookie,
                                     {vbucket_state_active},
                                     CheckConflicts::No,
                                     meta,
@@ -275,7 +276,7 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
               store->setWithMeta(item2,
                                  0,
                                  nullptr,
-                                 nullptr,
+                                 cookie,
                                  {vbucket_state_active},
                                  CheckConflicts::Yes,
                                  false,

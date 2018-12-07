@@ -524,7 +524,8 @@ public:
     virtual ENGINE_ERROR_CODE unlockKey(const DocKey& key,
                                         Vbid vbucket,
                                         uint64_t cas,
-                                        rel_time_t currentTime) = 0;
+                                        rel_time_t currentTime,
+                                        const void* cookie) = 0;
 
     virtual KVStore* getRWUnderlying(Vbid vbId) = 0;
 
