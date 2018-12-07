@@ -207,54 +207,59 @@ CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.cmake.h
 CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/CTestCustom.cmake.in
                 ${CMAKE_CURRENT_BINARY_DIR}/CTestCustom.cmake)
 
+option(CB_ENABLE_HEADER_INCLUDE_CHECK "Enable building of just headers objs,
+       for header include  correctness."
+        OFF)
 
-# Extra (non-default) target to compile all memcached headers (for
-# build profiling / checking for correct #includes).
-#
-# Note this is all kv_engine headers /apart/ from ep_engine (which
-# requires additional include directories and hence is handled in it's
-# own CMakeLists.txt)
-#
-# TODO: When we upgrade to CMake 3.6+, remove the explicit whitelist
-# and instead GLOB all *.h, then use list(FILTER) to exclude
-# engines/ep - see previous version of this code).
-file(GLOB_RECURSE memcached_headers
-  RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-  CONFIGURE_DEPENDS
-  auditd/*.h
-  cbcrypto/*.h
-  cbsasl/*.h
-  daemon/*.h
-  engines/default/*.h
-  engines/crash_engine/*.h
-  engines/default_engine.h
-  engines/default_engine/*.h
-  engines/crash_engine/*.h
-  engines/ewouldblock_engine/*.h
-  engines/nobucket/*.h
-  engines/utilities/*.h
-  include/*.h
-  logger/*.h
-  programs/*.h
-  protocol/*.h
-  rbac/*.h
-  tests/*.h
-  testsuite/*.h
-  time/*.h
-  tracing/*.h
-  utilities/*.h
-  xattr/*.h
-  )
+if(CB_ENABLE_HEADER_INCLUDE_CHECK)
+    # Extra (non-default) target to compile all memcached headers (for
+    # build profiling / checking for correct #includes).
+    #
+    # Note this is all kv_engine headers /apart/ from ep_engine (which
+    # requires additional include directories and hence is handled in it's
+    # own CMakeLists.txt)
+    #
+    # TODO: When we upgrade to CMake 3.6+, remove the explicit whitelist
+    # and instead GLOB all *.h, then use list(FILTER) to exclude
+    # engines/ep - see previous version of this code).
+    file(GLOB_RECURSE memcached_headers
+      RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+      CONFIGURE_DEPENDS
+      auditd/*.h
+      cbcrypto/*.h
+      cbsasl/*.h
+      daemon/*.h
+      engines/default/*.h
+      engines/crash_engine/*.h
+      engines/default_engine.h
+      engines/default_engine/*.h
+      engines/crash_engine/*.h
+      engines/ewouldblock_engine/*.h
+      engines/nobucket/*.h
+      engines/utilities/*.h
+      include/*.h
+      logger/*.h
+      programs/*.h
+      protocol/*.h
+      rbac/*.h
+      tests/*.h
+      testsuite/*.h
+      time/*.h
+      tracing/*.h
+      utilities/*.h
+      xattr/*.h
+      )
 
-# List of headers to ignore / not attempt to compile
-list(REMOVE_ITEM memcached_headers
-  config.cmake.h  # Not directly compilable.
-  engines/default_engine/slabs.h  # Has circular dependancies with
-                                  # default_engine_internal.h, not directly
-                                  # compilable.
-  include/memcached/collections.h  # Not directly compilable; used via engine.h
-)
+    # List of headers to ignore / not attempt to compile
+    list(REMOVE_ITEM memcached_headers
+      config.cmake.h  # Not directly compilable.
+      engines/default_engine/slabs.h  # Has circular dependancies with
+                                      # default_engine_internal.h, not directly
+                                      # compilable.
+      include/memcached/collections.h  # Not directly compilable; used via engine.h
+    )
 
 
-add_header_object_library(NAME memcached_headers_obj HEADERS ${memcached_headers})
-target_include_directories(memcached_headers_obj SYSTEM PRIVATE ${hdr_histogram_SOURCE_DIR}/src)
+    add_header_object_library(NAME memcached_headers_obj HEADERS ${memcached_headers})
+    target_include_directories(memcached_headers_obj SYSTEM PRIVATE ${hdr_histogram_SOURCE_DIR}/src)
+endif(CB_ENABLE_HEADER_INCLUDE_CHECK)
