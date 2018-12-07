@@ -275,6 +275,9 @@ class MemcachedClient(object):
         if self.is_xerror_supported():
             self.error_map = self.get_error_map()
 
+        if self.is_collections_supported():
+            self.get_collections(update_map=True)
+
         return resp
 
     def append(self, key, value, cas=0, collection=None):
@@ -613,9 +616,17 @@ class MemcachedClient(object):
         rv = self._doCmd(memcacheConstants.CMD_COLLECTIONS_GET_MANIFEST,
                          '',
                          '')
-
         if update_map:
             self._update_collection_map(rv[2])
+        return rv
+
+    def get_collection_id(self, path):
+        tmpVbucketId=self.vbucketId
+        self.vbucketId = 0
+        rv = self._doCmd(memcacheConstants.CMD_COLLECTIONS_GET_ID,
+                         path,
+                         '')
+        self.vbucketId=tmpVbucketId
         return rv
 
     def enable_xerror(self):

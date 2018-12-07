@@ -1682,9 +1682,17 @@ static cb::EngineErrorStringPair EvpCollectionsGetManifest(
 }
 
 static cb::EngineErrorGetCollectionIDResult EvpCollectionsGetCollectionID(
-        gsl::not_null<EngineIface*> handle, cb::const_char_buffer path) {
+        gsl::not_null<EngineIface*> handle,
+        gsl::not_null<const void*> cookie,
+        cb::const_char_buffer path) {
     auto engine = acquireEngine(handle);
-    return engine->getKVBucket()->getCollectionID(path);
+    auto rv = engine->getKVBucket()->getCollectionID(path);
+    if (rv.result == cb::engine_errc::unknown_collection) {
+        engine->setErrorContext(cookie,
+                                Collections::getUnknownCollectionErrorContext(
+                                        rv.getManifestId()));
+    }
+    return rv;
 }
 
 bool EventuallyPersistentEngine::isXattrEnabled() {

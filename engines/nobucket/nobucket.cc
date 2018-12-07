@@ -419,7 +419,9 @@ private:
     }
 
     static cb::EngineErrorGetCollectionIDResult collections_get_collection_id(
-            gsl::not_null<EngineIface*> handle, cb::const_char_buffer path) {
+            gsl::not_null<EngineIface*> handle,
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer path) {
         return {cb::engine_errc::no_bucket, 0, 0};
     }
 };

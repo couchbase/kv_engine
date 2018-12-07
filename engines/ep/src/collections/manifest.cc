@@ -342,7 +342,8 @@ void Manifest::validatePath(const std::string& path) {
     }
 }
 
-CollectionID Manifest::getCollectionID(const std::string& path) const {
+boost::optional<CollectionID> Manifest::getCollectionID(
+        const std::string& path) const {
     validatePath(path); // throws on engine_error
     int pos = path.find_first_of('.');
     std::string scope = path.substr(0, pos);
@@ -372,9 +373,8 @@ CollectionID Manifest::getCollectionID(const std::string& path) const {
             }
         }
     }
-    throw cb::engine_error(cb::engine_errc::unknown_collection,
-                           "Failed getCollectionID path:" + path + ", scope:" +
-                                   scope + ", collection:" + collection);
+
+    return {};
 }
 
 void Manifest::dump() const {

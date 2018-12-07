@@ -34,6 +34,11 @@ struct EngineErrorGetCollectionIDResult {
                                      CollectionID collectionId)
         : result(result), extras(manifestId, collectionId) {
     }
+
+    uint64_t getManifestId() const {
+        return htonll(extras.data.manifestId);
+    }
+
     engine_errc result;
     union _extras {
         _extras(uint64_t manifestId, CollectionID collectionId)
@@ -65,5 +70,7 @@ struct collections_interface {
             gsl::not_null<EngineIface*> handle);
 
     cb::EngineErrorGetCollectionIDResult (*get_collection_id)(
-            gsl::not_null<EngineIface*> handle, cb::const_char_buffer path);
+            gsl::not_null<EngineIface*> handle,
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer path);
 };

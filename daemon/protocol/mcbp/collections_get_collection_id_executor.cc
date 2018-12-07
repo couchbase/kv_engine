@@ -29,7 +29,7 @@ void collections_get_collection_id_executor(Cookie& cookie) {
     cb::const_char_buffer path{reinterpret_cast<const char*>(key.data()),
                                key.size()};
     auto rv = connection.getBucketEngine()->collections.get_collection_id(
-            connection.getBucketEngine(), path);
+            connection.getBucketEngine(), &cookie, path);
 
     auto remapErr = connection.remapErrorCode(rv.result);
 

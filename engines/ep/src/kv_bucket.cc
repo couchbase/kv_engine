@@ -2444,10 +2444,6 @@ cb::EngineErrorGetCollectionIDResult KVBucket::getCollectionID(
     try {
         return collectionsManager->getCollectionID(path);
     } catch (const cb::engine_error& e) {
-        if (cb::engine_errc(e.code().value()) ==
-            cb::engine_errc::unknown_collection) {
-            // @todo MB-32039, need to return extra info for this errorC
-        }
         return {cb::engine_errc(e.code().value()), 0, 0};
     }
 }

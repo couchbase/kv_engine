@@ -178,9 +178,11 @@ public:
      * _default scope/collection can be specified explcitly or by omission
      * e.g. .beer == _default.beer
      *      .     == _default._default
-     * @throws cb::engine_error for invalid input or unknown collection
+     * @return optional CollectionID, undefined if nothing found
+     * @throws cb::engine_error(invalid_argument) for invalid input
      */
-    CollectionID getCollectionID(const std::string& path) const;
+    boost::optional<CollectionID> getCollectionID(
+            const std::string& path) const;
 
     /**
      * @returns this manifest as a std::string (JSON formatted)

@@ -21,6 +21,7 @@
 #include <cctype>
 #include <cstring>
 #include <iostream>
+#include <sstream>
 
 namespace Collections {
 
@@ -47,6 +48,15 @@ ManifestUid makeUid(const char* uid, size_t len) {
 
     return std::strtoul(uid, nullptr, 16);
 }
+
+// Just return the manifest-ID as it is encoded in the JSON manifest
+// base-16 with no 0x prefix.
+std::string getUnknownCollectionErrorContext(uint64_t manifestUid) {
+    std::stringstream ss;
+    ss << std::hex << manifestUid;
+    return ss.str();
+}
+
 } // end namespace Collections
 
 std::ostream& operator<<(std::ostream& os,

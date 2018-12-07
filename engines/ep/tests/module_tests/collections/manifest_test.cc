@@ -703,12 +703,12 @@ TEST(ManifestTest, getCollectionID) {
                                     {"name":"meat", "uid":"a"}]}]})";
     Collections::Manifest cm(manifest);
 
-    EXPECT_EQ(CollectionID::Default, cm.getCollectionID("."));
-    EXPECT_EQ(CollectionID::Default, cm.getCollectionID("_default."));
-    EXPECT_EQ(8, cm.getCollectionID(".meat"));
-    EXPECT_EQ(8, cm.getCollectionID("_default.meat"));
-    EXPECT_EQ(9, cm.getCollectionID("brewerA.beer"));
-    EXPECT_EQ(0xa, cm.getCollectionID("brewerA.meat"));
+    EXPECT_EQ(CollectionID::Default, cm.getCollectionID(".").get());
+    EXPECT_EQ(CollectionID::Default, cm.getCollectionID("_default.").get());
+    EXPECT_EQ(8, cm.getCollectionID(".meat").get());
+    EXPECT_EQ(8, cm.getCollectionID("_default.meat").get());
+    EXPECT_EQ(9, cm.getCollectionID("brewerA.beer").get());
+    EXPECT_EQ(0xa, cm.getCollectionID("brewerA.meat").get());
 
     try {
         cm.getCollectionID("bogus");
@@ -743,28 +743,12 @@ TEST(ManifestTest, getCollectionID) {
                   cb::engine_errc(e.code().value()));
     }
 
-    try {
-        // Unknown names
-        cm.getCollectionID("unknown.collection");
-    } catch (const cb::engine_error& e) {
-        EXPECT_EQ(cb::engine_errc::unknown_collection,
-                  cb::engine_errc(e.code().value()));
-    }
+    // Unknown names
+    EXPECT_FALSE(cm.getCollectionID("unknown.collection"));
 
-    try {
-        // Unknown scope
-        cm.getCollectionID("unknown.beer");
-    } catch (const cb::engine_error& e) {
-        // We still yield this error code for unknown scopes
-        EXPECT_EQ(cb::engine_errc::unknown_collection,
-                  cb::engine_errc(e.code().value()));
-    }
+    // Unknown scope
+    EXPECT_FALSE(cm.getCollectionID("unknown.beer"));
 
-    try {
-        // Unknown collection
-        cm.getCollectionID("brewerA.ale");
-    } catch (const cb::engine_error& e) {
-        EXPECT_EQ(cb::engine_errc::unknown_collection,
-                  cb::engine_errc(e.code().value()));
-    }
+    // Unknown collection
+    EXPECT_FALSE(cm.getCollectionID("brewerA.ale"));
 }

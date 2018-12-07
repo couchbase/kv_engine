@@ -257,6 +257,14 @@ struct DropScopeEventDcpData {
     constexpr static size_t size{12};
 };
 
+/**
+ * All unknown_collection errors should be accompanied by a error context
+ * value which incldues the manifest ID which was what the collection lookup
+ * failed against.
+ * @return std::string for use in setErrorContext
+ */
+std::string getUnknownCollectionErrorContext(uint64_t manifestUid);
+
 namespace VB {
 /**
  * The PersistedManifest which stores a copy of the VB::Manifest, the actual
