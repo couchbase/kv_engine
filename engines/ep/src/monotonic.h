@@ -151,11 +151,14 @@ public:
 
     AtomicMonotonic(AtomicMonotonic<T>&& other) = delete;
 
-    AtomicMonotonic& operator=(T desired) {
+    AtomicMonotonic& store(
+            T desired,
+            std::memory_order memoryOrder = std::memory_order_seq_cst) {
         while (true) {
-            T current = val.load();
+            T current = val.load(memoryOrder);
             if (Invariant<T>()(desired, current)) {
-                if (val.compare_exchange_weak(current, desired)) {
+                if (val.compare_exchange_weak(
+                            current, desired, memoryOrder, memoryOrder)) {
                     break;
                 }
             } else {
@@ -164,6 +167,10 @@ public:
             }
         }
         return *this;
+    }
+
+    AtomicMonotonic& operator=(T desired) {
+        return store(desired);
     }
 
     operator T() const {
@@ -184,17 +191,14 @@ public:
         return val;
     }
 
-    T load() const {
-        return val;
-    }
-
-    void store(T desired) {
-        operator=(desired);
+    T load(std::memory_order memoryOrder = std::memory_order_seq_cst) const {
+        return val.load(memoryOrder);
     }
 
     /* Can be used to lower the value */
-    void reset(T desired) {
-        val = desired;
+    void reset(T desired,
+               std::memory_order memoryOrder = std::memory_order_seq_cst) {
+        val.store(desired, memoryOrder);
     }
 
 private:
