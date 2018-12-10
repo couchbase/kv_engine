@@ -205,13 +205,11 @@ void CheckpointManager::addOpenCheckpoint(uint64_t id,
     // after the first cursor-increment.
     queued_item qi = createCheckpointItem(0, Vbid(0xffff), queue_op::empty);
     ckpt->queueDirty(qi, this);
-    ckpt->incrementMemConsumption(qi->size());
     // Note: We don't include the empty-item in 'numItems'
 
     // This item represents the start of the new checkpoint
     qi = createCheckpointItem(id, vbucketId, queue_op::checkpoint_start);
     ckpt->queueDirty(qi, this);
-    ckpt->incrementMemConsumption(qi->size());
     ++numItems;
 
     checkpointList.push_back(std::move(ckpt));
@@ -519,8 +517,6 @@ void CheckpointManager::updateStatsForNewQueuedItem_UNLOCKED(
         ++stats.diskQueueSize;
         vb.doStatsForQueueing(*qi, qi->size());
     }
-    // Update the checkpoint's memory usage
-    getOpenCheckpoint_UNLOCKED(lh).incrementMemConsumption(qi->size());
 }
 
 bool CheckpointManager::queueDirty(

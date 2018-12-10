@@ -425,6 +425,15 @@ public:
     }
 
     /**
+     * Invoked by the checkpoint manager when an item is deduped and hence
+     * removed from the checkpoint.
+     * @param by  Amount of memory being decremented from the current usage
+     */
+    void decrementMemConsumption(size_t by) {
+        effectiveMemUsage -= by;
+    }
+
+    /**
      * Returns the memory held by all the queued items which includes
      * key, metadata and the blob.
      */
@@ -442,6 +451,13 @@ public:
     size_t getMemoryOverhead() const {
         return memOverhead;
     }
+
+    /**
+     * Adds a queued_item to the checkpoint and updates the checkpoint stats
+     * accordingly.
+     * @param qi  The queued_iem to be added to the checkpoint.
+     */
+    void addItemToCheckpoint(const queued_item& qi);
 
 private:
     EPStats                       &stats;
@@ -467,7 +483,7 @@ private:
 
     // The following stat is to contain the memory consumption of all
     // the queued items in the given checkpoint.
-    size_t                         effectiveMemUsage;
+    cb::NonNegativeCounter<size_t> effectiveMemUsage;
     mutable std::mutex lock;
 
     friend std::ostream& operator <<(std::ostream& os, const Checkpoint& m);

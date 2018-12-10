@@ -138,14 +138,8 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
     checkpoint_index::iterator it = keyIndex.find(qi->getKey());
     // Check if the item is a meta item
     if (qi->isCheckPointMetaItem()) {
-        // empty items act only as a dummy element for the start of the
-        // checkpoint (and are not read by clients), we do not include them in
-        // numMetaItems.
-        if (qi->isNonEmptyCheckpointMetaItem()) {
-            ++numMetaItems;
-        }
         rv = queue_dirty_t::NEW_ITEM;
-        toWrite.push_back(qi);
+        addItemToCheckpoint(qi);
     } else {
         // Check if this checkpoint already had an item for the same key
         if (it != keyIndex.end()) {
@@ -207,14 +201,20 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
                 }
             }
 
-            toWrite.push_back(qi);
+            addItemToCheckpoint(qi);
+
+            // Reduce the size of the checkpoint by the size of the
+            // item being removed.
+            decrementMemConsumption((*currPos)->size());
             // Remove the existing item for the same key from the list.
             toWrite.erase(currPos);
+
+            // Reduce the number of items because addItemToCheckpoint
+            // increases the number by one.
+            --numItems;
         } else {
-            ++numItems;
             rv = queue_dirty_t::NEW_ITEM;
-            // Push the new item into the list
-            toWrite.push_back(qi);
+            addItemToCheckpoint(qi);
         }
     }
 
@@ -247,6 +247,24 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
     }
 
     return rv;
+}
+
+void Checkpoint::addItemToCheckpoint(const queued_item& qi) {
+    toWrite.push_back(qi);
+    // Increase the size of the checkpoint by the item being added
+    incrementMemConsumption(qi->size());
+
+    if (qi->isCheckPointMetaItem()) {
+        // empty items act only as a dummy element for the start of the
+        // checkpoint (and are not read by clients), we do not include them
+        // in numMetaItems.
+        if (qi->isNonEmptyCheckpointMetaItem()) {
+            ++numMetaItems;
+        }
+    } else {
+        // Not a meta item
+        ++numItems;
+    }
 }
 
 std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {

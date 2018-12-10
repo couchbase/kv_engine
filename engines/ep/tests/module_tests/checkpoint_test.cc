@@ -1419,3 +1419,117 @@ TYPED_TEST(CheckpointTest, DuplicateCheckpointCursorDifferentCheckpoints) {
     EXPECT_EQ(1, ckptList.front()->getNumCursorsInCheckpoint());
     EXPECT_EQ(1, ckptList.back()->getNumCursorsInCheckpoint());
 }
+
+// Test that when adding duplicate queued_items (of the same size) it
+// does not increase the size of the checkpoint.
+TYPED_TEST(CheckpointTest, dedupeMemoryTest) {
+    // Get the intial size of the checkpoint.
+    auto memoryUsage1 = this->manager->getMemoryUsage();
+
+    ASSERT_TRUE(this->queueNewItem("key0"));
+
+    // Get checkpoint size again after adding a queued_item.
+    auto memoryUsage2 = this->manager->getMemoryUsage();
+    EXPECT_LT(memoryUsage1, memoryUsage2);
+
+    // Add duplicate items, which should cause de-duplication to occur
+    // and so the checkpoint should not increase in size
+    for (auto ii = 0; ii < MIN_CHECKPOINT_ITEMS; ++ii) {
+        EXPECT_FALSE(this->queueNewItem("key0"));
+    }
+
+    // Get checkpoint size again after adding duplicate items.
+    auto memoryUsage3 = this->manager->getMemoryUsage();
+    EXPECT_EQ(memoryUsage2, memoryUsage3);
+
+    // Add a number of non duplicate items to the same checkpoint so the
+    // checkpoint should increase in size.
+    for (auto ii = 1; ii < MIN_CHECKPOINT_ITEMS; ++ii) {
+        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
+    }
+
+    // Get checkpoint size again after adding non-duplicate items.
+    auto memoryUsage4 = this->manager->getMemoryUsage();
+    EXPECT_LT(memoryUsage3, memoryUsage4);
+}
+
+// Test that the checkpoint memory stat is correctly maintained when
+// de-duplication occurs and also when the checkpoint containing the
+// mutation is removed.
+TYPED_TEST(CheckpointTest, checkpointMemoryTest) {
+    // Get the intial size of the checkpoint.
+    auto initialSize = this->manager->getMemoryUsage();
+
+    // Create a queued_item with a 'small' value
+    std::string value("value");
+    queued_item qiSmall(new Item(makeStoredDocKey("key"),
+                                 0,
+                                 0,
+                                 value.c_str(),
+                                 value.size(),
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 0,
+                                 -1,
+                                 Vbid(0)));
+
+    // Add the queued_item to the checkpoint
+    this->manager->queueDirty(*this->vbucket,
+                              qiSmall,
+                              GenerateBySeqno::Yes,
+                              GenerateCas::Yes,
+                              /*preLinkDocCtx*/ nullptr);
+
+    // Check that checkpoint size is the initialsize plus size of queued_item.
+    EXPECT_EQ(initialSize + qiSmall->size(), this->manager->getMemoryUsage());
+
+    // Create a queued_item with a 'big' value
+    std::string bigValue(1024, 'a');
+    queued_item qiBig(new Item(makeStoredDocKey("key"),
+                               0,
+                               0,
+                               bigValue.c_str(),
+                               bigValue.size(),
+                               PROTOCOL_BINARY_RAW_BYTES,
+                               0,
+                               -1,
+                               Vbid(0)));
+
+    // Add the queued_item to the checkpoint
+    this->manager->queueDirty(*this->vbucket,
+                              qiBig,
+                              GenerateBySeqno::Yes,
+                              GenerateCas::Yes,
+                              /*preLinkDocCtx*/ nullptr);
+
+    // Check that checkpoint size is the initialsize plus size of queued_item.
+    EXPECT_EQ(initialSize + qiBig->size(), this->manager->getMemoryUsage());
+
+    bool isLastMutationItem;
+    // Move cursor to checkpoint start
+    auto item = this->manager->nextItem(this->manager->getPersistenceCursor(),
+                                        isLastMutationItem);
+    EXPECT_FALSE(isLastMutationItem);
+    // Move cursor to the mutation
+    item = this->manager->nextItem(this->manager->getPersistenceCursor(),
+                                   isLastMutationItem);
+    EXPECT_TRUE(isLastMutationItem);
+
+    // Create a new checkpoint, which will close the old checkpoint
+    // and move the persistence cursor to the new checkpoint.
+    this->manager->createNewCheckpoint();
+
+    // Tell Checkpoint manager the items have been persisted, so it
+    // advances pCursorPreCheckpointId, which will allow us to remove
+    // the closed unreferenced checkpoints.
+    this->manager->itemsPersisted();
+
+    // We are now in a position to remove the checkpoint that had the
+    // mutation in it.
+    bool new_open_ckpt_created;
+    EXPECT_EQ(1,
+              this->manager->removeClosedUnrefCheckpoints(
+                      *this->vbucket, new_open_ckpt_created));
+
+    // Should be back to the initialSize
+    EXPECT_EQ(initialSize, this->manager->getMemoryUsage());
+}
