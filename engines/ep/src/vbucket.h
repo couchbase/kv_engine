@@ -915,13 +915,16 @@ public:
      * @param engine Reference to ep engine
      * @param predicate a function to call which if returns true, the set will
      *        succeed. The function is called against any existing item.
+     * @param readHandle Collections readhandle (caching mode) for this key
      *
      * @return ENGINE_ERROR_CODE status notified to be to the front end
      */
-    ENGINE_ERROR_CODE set(Item& itm,
-                          const void* cookie,
-                          EventuallyPersistentEngine& engine,
-                          cb::StoreIfPredicate predicate);
+    ENGINE_ERROR_CODE set(
+            Item& itm,
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            cb::StoreIfPredicate predicate,
+            const Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     /**
      * Replace (overwrite existing) an item in the vbucket.
@@ -950,10 +953,13 @@ public:
      *
      * @param itm Item to be added/updated from DCP backfill. Upon
      *            success, the itm revSeqno is updated
+     * @param cHandle Collections readhandle (caching mode) for this key
      *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE addBackfillItem(Item& itm);
+    ENGINE_ERROR_CODE addBackfillItem(
+            Item& itm,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**
      * Set an item in the store from a non-front end operation (DCP, XDCR)
@@ -1078,9 +1084,12 @@ public:
      *
      * The definition of "page out" is up to the underlying VBucket
      * implementation - this may mean simply ejecting the value from memory
-     * (Value Eviction), removing the entire document from memory (Full Eviction),
-     * or actually deleting the document (Ephemeral Buckets).
+     * (Value Eviction), removing the entire document from memory (Full
+     * Eviction), or actually deleting the document (Ephemeral Buckets).
      *
+     * @param readHandle Collections ReadHandle required by ephemeral as
+     *                   paging out may result in deletions that increment the
+     *                   high seqno for the collection.
      * @param lh Bucket lock associated with the StoredValue.
      * @param v[in, out] Ref to the StoredValue to be ejected. Based on the
      *                   VBucket type, policy in the vbucket contents of v and
@@ -1088,8 +1097,10 @@ public:
      *
      * @return true if an item is ejected.
      */
-    virtual bool pageOut(const HashTable::HashBucketLock& lh,
-                         StoredValue*& v) = 0;
+    virtual bool pageOut(
+            const Collections::VB::Manifest::ReadHandle& readHandle,
+            const HashTable::HashBucketLock& lh,
+            StoredValue*& v) = 0;
 
     /*
      * Check to see if a StoredValue is eligible to be paged out of memory.
@@ -1139,17 +1150,22 @@ public:
      * Add a system event Item to the vbucket and return its seqno. Does
      * not set the collection high seqno of the item as that requires a read
      * lock but this is called from within a write lock scope. Also, it does not
-     * make sense to update the collection high seqno for certain events,
-     * such as scope creations and deletions.
+     * make sense to attempt to update a collection high seqno for certain
+     * events, such as scope creations and deletions.
      *
      * Ephemeral vs persistent buckets implement this function differently
      *
+     * @param wHandle A collections manifest write handle required to ensure we
+     *        lock correctly around VBucket::notifyNewSeqno.
      * @param item an Item object to queue, can be any kind of item and will be
      *        given a CAS and seqno by this function.
      * @param seqno An optional sequence number, if not specified checkpoint
      *        queueing will assign a seqno to the Item.
      */
-    virtual int64_t addSystemEventItem(Item* item, OptionalSeqno seqno) = 0;
+    virtual int64_t addSystemEventItem(
+            Item* item,
+            OptionalSeqno seqno,
+            const Collections::VB::Manifest::WriteHandle& wHandle) = 0;
 
     /**
      * Get metadata and value for a given key
@@ -1241,9 +1257,11 @@ public:
      *                    If omitted then a sequence number will be generated
      *                    by the CheckpointManager.
      */
-    ENGINE_ERROR_CODE commit(const DocKey& key,
-                             uint64_t preparedSeqno,
-                             boost::optional<int64_t> commitSeqno);
+    ENGINE_ERROR_CODE commit(
+            const DocKey& key,
+            uint64_t preparedSeqno,
+            boost::optional<int64_t> commitSeqno,
+            const Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     /**
      * Notify a client connection that a SyncWrite has been committed.
@@ -1637,7 +1655,7 @@ protected:
 
     /**
      * Internal wrapper function around the callback to be called when a new
-     * seqno is generated in the vbucket
+     * seqno is generated in the vbucket.
      *
      * @param notifyCtx holds info needed for notification
      */

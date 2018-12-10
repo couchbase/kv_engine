@@ -478,7 +478,7 @@ public:
          * @return true if the update was applied
          */
         bool update(::VBucket& vb, const Collections::Manifest& newManifest) {
-            return manifest.update(vb, newManifest);
+            return manifest.update(*this, vb, newManifest);
         }
 
         /**
@@ -510,7 +510,8 @@ public:
                         cb::const_char_buffer collectionName,
                         cb::ExpiryLimit maxTtl,
                         int64_t startSeqno) {
-            manifest.addCollection(vb,
+            manifest.addCollection(*this,
+                                   vb,
                                    manifestUid,
                                    identifiers,
                                    collectionName,
@@ -533,7 +534,7 @@ public:
                                 CollectionID cid,
                                 int64_t endSeqno) {
             manifest.beginCollectionDelete(
-                    vb, manifestUid, cid, OptionalSeqno{endSeqno});
+                    *this, vb, manifestUid, cid, OptionalSeqno{endSeqno});
         }
 
         /**
@@ -550,8 +551,12 @@ public:
                              ScopeID sid,
                              cb::const_char_buffer scopeName,
                              int64_t startSeqno) {
-            manifest.addScope(
-                    vb, manifestUid, sid, scopeName, OptionalSeqno{startSeqno});
+            manifest.addScope(*this,
+                              vb,
+                              manifestUid,
+                              sid,
+                              scopeName,
+                              OptionalSeqno{startSeqno});
         }
 
         /**
@@ -566,7 +571,8 @@ public:
                               ManifestUid manifestUid,
                               ScopeID sid,
                               int64_t endSeqno) {
-            manifest.dropScope(vb, manifestUid, sid, OptionalSeqno{endSeqno});
+            manifest.dropScope(
+                    *this, vb, manifestUid, sid, OptionalSeqno{endSeqno});
         }
 
         /// @return iterator to the beginning of the underlying collection map
@@ -753,7 +759,9 @@ protected:
      * @param manifest The incoming manifest to compare this object with.
      * @return true if the update was applied
      */
-    bool update(::VBucket& vb, const Collections::Manifest& manifest);
+    bool update(const WriteHandle& wHandle,
+                ::VBucket& vb,
+                const Collections::Manifest& manifest);
 
     /**
      * Sub-functions used by update
@@ -761,26 +769,39 @@ protected:
      * every remaining ID (using the current manifest ManifestUid).
      * So if the vector has 1 element, it returns that element and does nothing.
      *
+     * @param wHandle The manifest write handle under which this operation is
+     *        currently locked. Required to ensure we lock correctly around
+     *        VBucket::notifyNewSeqno
      * @param update a function to call (either addCollection or
      *        beginCollectionDelete)
      * @param changes a vector of CollectionIDs to add/delete (based on update)
      * @return the last element of the changes vector
      */
     boost::optional<CollectionAddition> applyCreates(
-            ::VBucket& vb, std::vector<CollectionAddition>& changes);
+            const WriteHandle& wHandle,
+            ::VBucket& vb,
+            std::vector<CollectionAddition>& changes);
 
     boost::optional<CollectionID> applyDeletions(
-            ::VBucket& vb, std::vector<CollectionID>& changes);
+            const WriteHandle& wHandle,
+            ::VBucket& vb,
+            std::vector<CollectionID>& changes);
 
     boost::optional<ScopeAddition> applyScopeCreates(
-            ::VBucket& vb, std::vector<ScopeAddition>& changes);
+            const WriteHandle& wHandle,
+            ::VBucket& vb,
+            std::vector<ScopeAddition>& changes);
 
-    boost::optional<ScopeID> applyScopeDrops(::VBucket& vb,
+    boost::optional<ScopeID> applyScopeDrops(const WriteHandle& wHandle,
+                                             ::VBucket& vb,
                                              std::vector<ScopeID>& changes);
 
     /**
      * Add a collection to the manifest.
      *
+     * @param wHandle The manifest write handle under which this operation is
+     *        currently locked. Required to ensure we lock correctly around
+     *        VBucket::notifyNewSeqno
      * @param vb The vbucket to add the collection to.
      * @param manifestUid the uid of the manifest which made the change
      * @param identifiers ScopeID and CollectionID pair
@@ -789,7 +810,8 @@ protected:
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
      */
-    void addCollection(::VBucket& vb,
+    void addCollection(const WriteHandle& wHandle,
+                       ::VBucket& vb,
                        ManifestUid manifestUid,
                        ScopeCollectionPair identifiers,
                        cb::const_char_buffer collectionName,
@@ -799,13 +821,17 @@ protected:
     /**
      * Begin a delete of the collection.
      *
+     * @param wHandle The manifest write handle under which this operation is
+     *        currently locked. Required to ensure we lock correctly around
+     *        VBucket::notifyNewSeqno
      * @param vb The vbucket to begin collection deletion on.
      * @param manifestUid the uid of the manifest which made the change
      * @param cid CollectionID to begin delete
      * @param optionalSeqno Either a seqno to assign to the delete of the
      *        collection or none (none means the checkpoint assigns the seqno).
      */
-    void beginCollectionDelete(::VBucket& vb,
+    void beginCollectionDelete(const WriteHandle& wHandle,
+                               ::VBucket& vb,
                                ManifestUid manifestUid,
                                CollectionID cid,
                                OptionalSeqno optionalSeqno);
@@ -822,6 +848,9 @@ protected:
     /**
      * Add a scope to the manifest.
      *
+     * @param wHandle The manifest write handle under which this operation is
+     *        currently locked. Required to ensure we lock correctly around
+     *        VBucket::notifyNewSeqno
      * @param vb The vbucket to add the collection to.
      * @param manifestUid the uid of the manifest which made the change
      * @param sid ScopeID
@@ -829,7 +858,8 @@ protected:
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
      */
-    void addScope(::VBucket& vb,
+    void addScope(const WriteHandle& wHandle,
+                  ::VBucket& vb,
                   ManifestUid manifestUid,
                   ScopeID sid,
                   cb::const_char_buffer scopeName,
@@ -838,13 +868,17 @@ protected:
     /**
      * Drop a scope
      *
+     * @param wHandle The manifest write handle under which this operation is
+     *        currently locked. Required to ensure we lock correctly around
+     *        VBucket::notifyNewSeqno
      * @param vb The vbucket to drop the scope from
      * @param manifestUid the uid of the manifest which made the change
      * @param sid ScopeID to drop
      * @param optionalSeqno Either a seqno to assign to the drop of the
      *        scope or none (none means the checkpoint will assign the seqno)
      */
-    void dropScope(::VBucket& vb,
+    void dropScope(const WriteHandle& wHandle,
+                   ::VBucket& vb,
                    ManifestUid manifestUid,
                    ScopeID sid,
                    OptionalSeqno optionalSeqno);
@@ -1116,6 +1150,9 @@ protected:
      * Create an Item that carries a system event and queue it to the vb
      * checkpoint.
      *
+     * @param wHandle The manifest write handle under which this operation is
+     *        currently locked. Required to ensure we lock correctly around
+     *        VBucket::notifyNewSeqno
      * @param vb The vbucket onto which the Item is queued.
      * @param se The SystemEvent to create and queue.
      * @param identifiers ScopeID and CollectionID pair
@@ -1125,7 +1162,8 @@ protected:
      *
      * @returns The sequence number of the queued Item.
      */
-    int64_t queueSystemEvent(::VBucket& vb,
+    int64_t queueSystemEvent(const WriteHandle& wHandle,
+                             ::VBucket& vb,
                              SystemEvent se,
                              ScopeCollectionPair identifiers,
                              cb::const_char_buffer collectionName,

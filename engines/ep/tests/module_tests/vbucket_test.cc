@@ -162,6 +162,8 @@ MutationStatus VBucketTest::public_processSet(Item& itm,
 }
 
 AddStatus VBucketTest::public_processAdd(Item& itm) {
+    // Need to take the collections read handle before the hbl
+    auto cHandle = vbucket->lockCollections(itm.getKey());
     auto hbl_sv = lockAndFind(itm.getKey());
     return vbucket
             ->processAdd(hbl_sv.first,
@@ -169,7 +171,7 @@ AddStatus VBucketTest::public_processAdd(Item& itm) {
                          itm,
                          /*maybeKeyExists*/ true,
                          VBQueueItemCtx{},
-                         vbucket->lockCollections(itm.getKey()))
+                         cHandle)
             .first;
 }
 
@@ -209,12 +211,13 @@ bool VBucketTest::public_deleteStoredValue(const DocKey& key) {
 
 GetValue VBucketTest::public_getAndUpdateTtl(const DocKey& key,
                                              time_t exptime) {
+    // Need to take the collections read handle before the hbl
+    auto cHandle = vbucket->lockCollections(key);
     auto hbl = lockAndFind(key);
     GetValue gv;
     MutationStatus status;
-    auto rh = vbucket->lockCollections(key);
-    std::tie(status, gv) =
-            vbucket->processGetAndUpdateTtl(hbl.first, hbl.second, exptime, rh);
+    std::tie(status, gv) = vbucket->processGetAndUpdateTtl(
+            hbl.first, hbl.second, exptime, cHandle);
     return gv;
 }
 

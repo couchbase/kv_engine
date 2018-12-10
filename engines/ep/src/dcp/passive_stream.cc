@@ -650,7 +650,8 @@ ENGINE_ERROR_CODE PassiveStream::processCommit(const CommitSyncWrite& commit) {
 
     return vb->commit(commit.getKey(),
                       commit.getPreparedSeqno(),
-                      commit.getCommitSeqno());
+                      commit.getCommitSeqno(),
+                      vb->lockCollections(commit.getKey()));
 }
 
 ENGINE_ERROR_CODE PassiveStream::processSystemEvent(

@@ -98,7 +98,9 @@ public:
             const Collections::VB::Manifest::CachingReadHandle& cHandle)
             override;
 
-    bool pageOut(const HashTable::HashBucketLock& lh, StoredValue*& v) override;
+    bool pageOut(const Collections::VB::Manifest::ReadHandle& readHandle,
+                 const HashTable::HashBucketLock& lh,
+                 StoredValue*& v) override;
 
     bool eligibleToPageOut(const HashTable::HashBucketLock& lh,
                            const StoredValue& v) const override;
@@ -210,7 +212,10 @@ public:
      * @param seqno An optional sequence number, if not specified checkpoint
      *        queueing will assign a seqno to the Item.
      */
-    int64_t addSystemEventItem(Item* item, OptionalSeqno seqno) override;
+    int64_t addSystemEventItem(
+            Item* item,
+            OptionalSeqno seqno,
+            const Collections::VB::Manifest::WriteHandle& wHandle) override;
 
 protected:
     /**

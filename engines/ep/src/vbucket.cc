@@ -621,9 +621,11 @@ void VBucket::handlePreExpiry(const HashTable::HashBucketLock& hbl,
     }
 }
 
-ENGINE_ERROR_CODE VBucket::commit(const DocKey& key,
-                                  uint64_t pendingSeqno,
-                                  boost::optional<int64_t> commitSeqno) {
+ENGINE_ERROR_CODE VBucket::commit(
+        const DocKey& key,
+        uint64_t pendingSeqno,
+        boost::optional<int64_t> commitSeqno,
+        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
     auto htRes = ht.findForWrite(key);
     if (!htRes.storedValue) {
         // If we are committing we /should/ always find the pending item.
@@ -1027,10 +1029,12 @@ cb::StoreIfStatus VBucket::callPredicate(cb::StoreIfPredicate predicate,
     return storeIfStatus;
 }
 
-ENGINE_ERROR_CODE VBucket::set(Item& itm,
-                               const void* cookie,
-                               EventuallyPersistentEngine& engine,
-                               cb::StoreIfPredicate predicate) {
+ENGINE_ERROR_CODE VBucket::set(
+        Item& itm,
+        const void* cookie,
+        EventuallyPersistentEngine& engine,
+        cb::StoreIfPredicate predicate,
+        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
     bool cas_op = (itm.getCas() != 0);
     auto htRes = ht.findForWrite(itm.getKey());
     auto* v = htRes.storedValue;
@@ -1233,7 +1237,9 @@ ENGINE_ERROR_CODE VBucket::replace(
     }
 }
 
-ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm) {
+ENGINE_ERROR_CODE VBucket::addBackfillItem(
+        Item& itm,
+        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
     auto htRes = ht.findForWrite(itm.getKey());
     auto* v = htRes.storedValue;
     auto& hbl = htRes.lock;
@@ -2802,7 +2808,8 @@ TempAddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
     return TempAddStatus::BgFetch;
 }
 
-void VBucket::notifyNewSeqno(const VBNotifyCtx& notifyCtx) {
+void VBucket::notifyNewSeqno(
+        const VBNotifyCtx& notifyCtx) {
     if (newSeqnoCb) {
         newSeqnoCb->callback(getId(), notifyCtx);
     }

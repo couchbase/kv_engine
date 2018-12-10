@@ -144,7 +144,8 @@ public:
     // Wire through to private method
     boost::optional<Manifest::CollectionAddition> public_applyCreates(
             ::VBucket& vb, std::vector<CollectionAddition>& changes) {
-        return applyCreates(vb, changes);
+        auto wHandle = wlock();
+        return applyCreates(wHandle, vb, changes);
     }
 
     boost::optional<std::vector<CollectionID>> public_getCollectionsForScope(

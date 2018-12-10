@@ -387,7 +387,7 @@ bool PagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
     item_eviction_policy_t policy = store.getItemEvictionPolicy();
     StoredDocKey key(v->getKey());
 
-    if (currentBucket->pageOut(lh, v)) {
+    if (currentBucket->pageOut(readHandle, lh, v)) {
         ++ejected;
 
         /**

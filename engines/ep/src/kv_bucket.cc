@@ -627,7 +627,7 @@ ENGINE_ERROR_CODE KVBucket::set(Item& itm,
         // maybe need to adjust expiry of item
         cHandle.processExpiryTime(itm, getMaxTtl());
 
-        return vb->set(itm, cookie, engine, predicate);
+        return vb->set(itm, cookie, engine, predicate, cHandle);
     }
 }
 
@@ -739,7 +739,15 @@ ENGINE_ERROR_CODE KVBucket::addBackfillItem(Item& itm,
         return ENGINE_KEY_EEXISTS;
     }
 
-    return vb->addBackfillItem(itm);
+    { // hold collections read lock for duration of addBackfillItem
+        auto readHandle = vb->lockCollections(itm.getKey());
+        if (!readHandle.valid()) {
+            return ENGINE_UNKNOWN_COLLECTION;
+        } // now hold collections read access for the duration of the set
+
+        auto ret = vb->addBackfillItem(itm, readHandle);
+        return ret;
+    }
 }
 
 ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,

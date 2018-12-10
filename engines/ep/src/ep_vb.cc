@@ -469,7 +469,9 @@ cb::mcbp::Status EPVBucket::evictKey(
     return cb::mcbp::Status::Success;
 }
 
-bool EPVBucket::pageOut(const HashTable::HashBucketLock& lh, StoredValue*& v) {
+bool EPVBucket::pageOut(const Collections::VB::Manifest::ReadHandle& readHandle,
+                        const HashTable::HashBucketLock& lh,
+                        StoredValue*& v) {
     return ht.unlocked_ejectItem(lh, v, eviction);
 }
 
@@ -750,7 +752,10 @@ void EPVBucket::completeDeletion(
  * Queue the item to the checkpoint and return the seqno the item was
  * allocated.
  */
-int64_t EPVBucket::addSystemEventItem(Item* item, OptionalSeqno seqno) {
+int64_t EPVBucket::addSystemEventItem(
+        Item* item,
+        OptionalSeqno seqno,
+        const Collections::VB::Manifest::WriteHandle& wHandle) {
     item->setVBucketId(getId());
     queued_item qi(item);
 

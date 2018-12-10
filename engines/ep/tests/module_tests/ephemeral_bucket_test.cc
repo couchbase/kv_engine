@@ -63,15 +63,21 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
     // Trigger the "automatic" deletion of an item by paging it out.
     auto vb = store->getVBucket(vbid);
     auto key = makeStoredDocKey("doc");
-    auto handle = vb->lockCollections(key);
+
+    // Get a collections ReadHandle for pageOut and a CachingReadHandle,
+    // because it's required by fetchValidValue to deal with expiry. It
+    // doesn't matter in what order we get them, but we must get them before
+    // the HashBucketLock to prevent lock order inversion warnings in ThreadSan.
+    auto readHandle = vb->lockCollections();
+    auto cHandle = vb->lockCollections(key);
     auto lock = vb->ht.getLockedBucket(key);
     auto* value = vb->fetchValidValue(lock,
                                       key,
                                       WantsDeleted::No,
                                       TrackReference::Yes,
                                       QueueExpired::No,
-                                      handle);
-    ASSERT_TRUE(vb->pageOut(lock, value));
+                                      cHandle);
+    ASSERT_TRUE(vb->pageOut(readHandle, lock, value));
 
     stats = get_stat("vbucket-details 0");
     EXPECT_EQ("1", stats.at("vb_0:auto_delete_count"));

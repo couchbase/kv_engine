@@ -96,8 +96,10 @@ void EphemeralVBucket::completeStatsVKey(const DocKey& key,
             std::string(reinterpret_cast<const char*>(key.data()), key.size()));
 }
 
-bool EphemeralVBucket::pageOut(const HashTable::HashBucketLock& lh,
-                               StoredValue*& v) {
+bool EphemeralVBucket::pageOut(
+        const Collections::VB::Manifest::ReadHandle& readHandle,
+        const HashTable::HashBucketLock& lh,
+        StoredValue*& v) {
     if (!eligibleToPageOut(lh, *v)) {
         return false;
     }
@@ -699,7 +701,10 @@ void EphemeralVBucket::completeDeletion(
     getManifest().wlock().completeDeletion(*this, identifier);
 }
 
-int64_t EphemeralVBucket::addSystemEventItem(Item* i, OptionalSeqno seqno) {
+int64_t EphemeralVBucket::addSystemEventItem(
+        Item* i,
+        OptionalSeqno seqno,
+        const Collections::VB::Manifest::WriteHandle& wHandle) {
     // Must be freed once passed through addNew/update StoredValue
     std::unique_ptr<Item> item(i);
     item->setVBucketId(getId());

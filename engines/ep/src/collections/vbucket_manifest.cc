@@ -92,28 +92,34 @@ Manifest::Manifest(const PersistedManifest& data)
 }
 
 boost::optional<CollectionID> Manifest::applyDeletions(
-        ::VBucket& vb, std::vector<CollectionID>& changes) {
+        const WriteHandle& wHandle,
+        ::VBucket& vb,
+        std::vector<CollectionID>& changes) {
     boost::optional<CollectionID> rv;
     if (!changes.empty()) {
         rv = changes.back();
         changes.pop_back();
     }
     for (const auto id : changes) {
-        beginCollectionDelete(vb, manifestUid, id, OptionalSeqno{/*no-seqno*/});
+        beginCollectionDelete(
+                wHandle, vb, manifestUid, id, OptionalSeqno{/*no-seqno*/});
     }
 
     return rv;
 }
 
 boost::optional<Manifest::CollectionAddition> Manifest::applyCreates(
-        ::VBucket& vb, std::vector<CollectionAddition>& changes) {
+        const WriteHandle& wHandle,
+        ::VBucket& vb,
+        std::vector<CollectionAddition>& changes) {
     boost::optional<CollectionAddition> rv;
     if (!changes.empty()) {
         rv = changes.back();
         changes.pop_back();
     }
     for (const auto& addition : changes) {
-        addCollection(vb,
+        addCollection(wHandle,
+                      vb,
                       manifestUid,
                       addition.identifiers,
                       addition.name,
@@ -125,28 +131,33 @@ boost::optional<Manifest::CollectionAddition> Manifest::applyCreates(
 }
 
 boost::optional<ScopeID> Manifest::applyScopeDrops(
-        ::VBucket& vb, std::vector<ScopeID>& changes) {
+        const WriteHandle& wHandle,
+        ::VBucket& vb,
+        std::vector<ScopeID>& changes) {
     boost::optional<ScopeID> rv;
     if (!changes.empty()) {
         rv = changes.back();
         changes.pop_back();
     }
     for (const auto id : changes) {
-        dropScope(vb, manifestUid, id, OptionalSeqno{/*no-seqno*/});
+        dropScope(wHandle, vb, manifestUid, id, OptionalSeqno{/*no-seqno*/});
     }
 
     return rv;
 }
 
 boost::optional<Manifest::ScopeAddition> Manifest::applyScopeCreates(
-        ::VBucket& vb, std::vector<ScopeAddition>& changes) {
+        const WriteHandle& wHandle,
+        ::VBucket& vb,
+        std::vector<ScopeAddition>& changes) {
     boost::optional<ScopeAddition> rv;
     if (!changes.empty()) {
         rv = changes.back();
         changes.pop_back();
     }
     for (const auto& addition : changes) {
-        addScope(vb,
+        addScope(wHandle,
+                 vb,
                  manifestUid,
                  addition.sid,
                  addition.name,
@@ -156,42 +167,50 @@ boost::optional<Manifest::ScopeAddition> Manifest::applyScopeCreates(
     return rv;
 }
 
-bool Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
+bool Manifest::update(const WriteHandle& wHandle,
+                      ::VBucket& vb,
+                      const Collections::Manifest& manifest) {
     auto rv = processManifest(manifest);
     if (!rv.is_initialized()) {
         EP_LOG_WARN("VB::Manifest::update cannot update {}", vb.getId());
         return false;
     } else {
-        auto finalScopeCreate = applyScopeCreates(vb, rv->scopesToAdd);
+        auto finalScopeCreate = applyScopeCreates(wHandle, vb, rv->scopesToAdd);
         if (finalScopeCreate) {
             auto uid = rv->collectionsToAdd.empty() &&
                                        rv->collectionsToRemove.empty() &&
                                        rv->scopesToRemove.empty()
                                ? manifest.getUid()
                                : manifestUid;
-            addScope(vb,
+            addScope(wHandle,
+                     vb,
                      uid,
                      finalScopeCreate.get().sid,
                      finalScopeCreate.get().name,
                      OptionalSeqno{/*no-seqno*/});
         }
 
-        auto finalDeletion = applyDeletions(vb, rv->collectionsToRemove);
+        auto finalDeletion =
+                applyDeletions(wHandle, vb, rv->collectionsToRemove);
         if (finalDeletion) {
             auto uid =
                     rv->collectionsToAdd.empty() && rv->scopesToRemove.empty()
                             ? manifest.getUid()
                             : manifestUid;
-            beginCollectionDelete(
-                    vb, uid, *finalDeletion, OptionalSeqno{/*no-seqno*/});
+            beginCollectionDelete(wHandle,
+                                  vb,
+                                  uid,
+                                  *finalDeletion,
+                                  OptionalSeqno{/*no-seqno*/});
         }
 
-        auto finalAddition = applyCreates(vb, rv->collectionsToAdd);
+        auto finalAddition = applyCreates(wHandle, vb, rv->collectionsToAdd);
 
         if (finalAddition) {
             auto uid = rv->scopesToRemove.empty() ? manifest.getUid()
                                                   : manifestUid;
-            addCollection(vb,
+            addCollection(wHandle,
+                          vb,
                           uid,
                           finalAddition.get().identifiers,
                           finalAddition.get().name,
@@ -201,10 +220,11 @@ bool Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
 
         // This is done last so the scope deletion follows any collection
         // deletions
-        auto finalScopeDrop = applyScopeDrops(vb, rv->scopesToRemove);
+        auto finalScopeDrop = applyScopeDrops(wHandle, vb, rv->scopesToRemove);
 
         if (finalScopeDrop) {
-            dropScope(vb,
+            dropScope(wHandle,
+                      vb,
                       manifest.getUid(),
                       *finalScopeDrop,
                       OptionalSeqno{/*no-seqno*/});
@@ -213,7 +233,8 @@ bool Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
     return true;
 }
 
-void Manifest::addCollection(::VBucket& vb,
+void Manifest::addCollection(const WriteHandle& wHandle,
+                             ::VBucket& vb,
                              ManifestUid manifestUid,
                              ScopeCollectionPair identifiers,
                              cb::const_char_buffer collectionName,
@@ -228,7 +249,8 @@ void Manifest::addCollection(::VBucket& vb,
 
     // 2. Queue a system event, this will take a copy of the manifest ready
     //    for persistence into the vb state file.
-    auto seqno = queueSystemEvent(vb,
+    auto seqno = queueSystemEvent(wHandle,
+                                  vb,
                                   SystemEvent::Collection,
                                   identifiers,
                                   collectionName,
@@ -291,7 +313,8 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
     return (*inserted.first).second;
 }
 
-void Manifest::beginCollectionDelete(::VBucket& vb,
+void Manifest::beginCollectionDelete(const WriteHandle& wHandle,
+                                     ::VBucket& vb,
                                      ManifestUid manifestUid,
                                      CollectionID cid,
                                      OptionalSeqno optionalSeqno) {
@@ -317,7 +340,8 @@ void Manifest::beginCollectionDelete(::VBucket& vb,
     // record the uid of the manifest which removed the collection
     this->manifestUid = manifestUid;
 
-    auto seqno = queueSystemEvent(vb,
+    auto seqno = queueSystemEvent(wHandle,
+                                  vb,
                                   SystemEvent::Collection,
                                   {entry.getScopeID(), cid},
                                   {/* no name*/},
@@ -382,7 +406,8 @@ void Manifest::completeDeletion(::VBucket& vb, CollectionID collectionID) {
     }
 }
 
-void Manifest::addScope(::VBucket& vb,
+void Manifest::addScope(const WriteHandle& wHandle,
+                        ::VBucket& vb,
                         ManifestUid manifestUid,
                         ScopeID sid,
                         cb::const_char_buffer scopeName,
@@ -406,7 +431,7 @@ void Manifest::addScope(::VBucket& vb,
             {builder.GetBufferPointer(), builder.GetSize()},
             optionalSeqno);
 
-    auto seqno = vb.addSystemEventItem(item.release(), optionalSeqno);
+    auto seqno = vb.addSystemEventItem(item.release(), optionalSeqno, wHandle);
 
     // If seq is not set, then this is an active vbucket queueing the event.
     // Collection events will end the CP so they don't de-dup.
@@ -426,7 +451,8 @@ void Manifest::addScope(::VBucket& vb,
             manifestUid);
 }
 
-void Manifest::dropScope(::VBucket& vb,
+void Manifest::dropScope(const WriteHandle& wHandle,
+                         ::VBucket& vb,
                          ManifestUid manifestUid,
                          ScopeID sid,
                          OptionalSeqno optionalSeqno) {
@@ -468,7 +494,7 @@ void Manifest::dropScope(::VBucket& vb,
 
     item->setDeleted();
 
-    auto seqno = vb.addSystemEventItem(item.release(), optionalSeqno);
+    auto seqno = vb.addSystemEventItem(item.release(), optionalSeqno, wHandle);
 
     // If seq is not set, then this is an active vbucket queueing the event.
     // Collection events will end the CP so they don't de-dup.
@@ -665,7 +691,8 @@ std::unique_ptr<Item> Manifest::createSystemEvent(
     return item;
 }
 
-int64_t Manifest::queueSystemEvent(::VBucket& vb,
+int64_t Manifest::queueSystemEvent(const WriteHandle& wHandle,
+                                   ::VBucket& vb,
                                    SystemEvent se,
                                    ScopeCollectionPair identifiers,
                                    cb::const_char_buffer collectionName,
@@ -675,7 +702,8 @@ int64_t Manifest::queueSystemEvent(::VBucket& vb,
     auto rv = vb.addSystemEventItem(
             createSystemEvent(se, identifiers, collectionName, deleted, seq)
                     .release(),
-            seq);
+            seq,
+            wHandle);
 
     // If seq is not set, then this is an active vbucket queueing the event.
     // Collection events will end the CP so they don't de-dup.

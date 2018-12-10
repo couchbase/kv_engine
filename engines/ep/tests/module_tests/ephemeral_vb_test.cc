@@ -72,17 +72,22 @@ TEST_F(EphemeralVBucketTest, DoublePageOut) {
     ASSERT_EQ(AddStatus::Success, addOne(key));
     ASSERT_EQ(1, vbucket->getNumItems());
 
+    // Get a normal collections ReadHandle, no need to use a Caching one here
+    // as we are only calling pageOut (which has to get the ManifestEntry
+    // manually). We must take this before the HashBucketLock to prevent
+    // lock order inversion warnings in TSan.
+    auto readHandle = vbucket->lockCollections();
     auto lock_sv = lockAndFind(key);
     auto* storedVal = lock_sv.second;
     ASSERT_FALSE(storedVal->isDeleted());
 
     // Page out the item (once).
-    EXPECT_TRUE(vbucket->pageOut(lock_sv.first, storedVal));
+    EXPECT_TRUE(vbucket->pageOut(readHandle, lock_sv.first, storedVal));
     EXPECT_EQ(0, vbucket->getNumItems());
     EXPECT_TRUE(storedVal->isDeleted());
 
     // Attempt to page out again - should not be possible.
-    EXPECT_FALSE(vbucket->pageOut(lock_sv.first, storedVal));
+    EXPECT_FALSE(vbucket->pageOut(readHandle, lock_sv.first, storedVal));
     EXPECT_EQ(0, vbucket->getNumItems());
     EXPECT_TRUE(storedVal->isDeleted());
 }
@@ -100,14 +105,20 @@ TEST_F(EphemeralVBucketTest, PageOutAfterDeleteWithValue) {
     ASSERT_EQ(AddStatus::Success, public_processAdd(item));
     ASSERT_EQ(0, vbucket->getNumItems());
 
-    // Check preconditions
+    // Get a normal collections ReadHandle, no need to use a Caching one here
+    // as we are only calling pageOut (which has to get the ManifestEntry
+    // manually). We must take this before the HashBucketLock to prevent
+    // lock order inversion warnings in TSan.
+    auto readHandle = vbucket->lockCollections();
     auto lock_sv = lockAndFind(key);
     auto* storedVal = lock_sv.second;
+
+    // Check preconditions
     ASSERT_TRUE(storedVal->isDeleted());
     ASSERT_EQ(value, storedVal->getValue()->to_s());
 
     // Page it out.
-    EXPECT_TRUE(vbucket->pageOut(lock_sv.first, storedVal));
+    EXPECT_TRUE(vbucket->pageOut(readHandle, lock_sv.first, storedVal));
     EXPECT_EQ(0, vbucket->getNumItems());
     EXPECT_TRUE(storedVal->isDeleted());
     EXPECT_FALSE(storedVal->getValue());
@@ -121,8 +132,14 @@ TEST_F(EphemeralVBucketTest, CreatePageoutCreate) {
     // Add a key, then page out.
     ASSERT_EQ(AddStatus::Success, addOne(key));
     {
+        // Get a normal collections ReadHandle, no need to use a Caching one
+        // here as we are only calling pageOut (which has to get the
+        // ManifestEntry manually). We must take this before the HashBucketLock
+        // to prevent lock order inversion warnings in TSan.
+        auto readHandle = vbucket->lockCollections();
         auto lock_sv = lockAndFind(key);
-        EXPECT_TRUE(vbucket->pageOut(lock_sv.first, lock_sv.second));
+        EXPECT_TRUE(
+                vbucket->pageOut(readHandle, lock_sv.first, lock_sv.second));
     }
     // Sanity check - should have just the one deleted item.
     ASSERT_EQ(0, vbucket->getNumItems());
@@ -136,8 +153,14 @@ TEST_F(EphemeralVBucketTest, CreatePageoutCreate) {
 
     // Finally for good measure, delete again and check the numbers are correct.
     {
+        // Get a normal collections ReadHandle, no need to use a Caching one
+        // here as we are only calling pageOut (which has to get the
+        // ManifestEntry manually). We must take this before the HashBucketLock
+        // to prevent lock order inversion warnings in TSan.
+        auto readHandle = vbucket->lockCollections();
         auto lock_sv = lockAndFind(key);
-        EXPECT_TRUE(vbucket->pageOut(lock_sv.first, lock_sv.second));
+        EXPECT_TRUE(
+                vbucket->pageOut(readHandle, lock_sv.first, lock_sv.second));
     }
     EXPECT_EQ(0, vbucket->getNumItems());
     EXPECT_EQ(1, mockEpheVB->getLL()->getNumDeletedItems());
