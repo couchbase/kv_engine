@@ -148,7 +148,7 @@ public:
      */
     ENGINE_ERROR_CODE closeStream(uint32_t opaque,
                                   Vbid vbucket,
-                                  DcpStreamId sid = {}) override;
+                                  cb::mcbp::DcpStreamId sid = {}) override;
 
     void notifyStreamReady(Vbid vbucket);
 
@@ -401,7 +401,7 @@ protected:
      * vbucket.
      */
     bool setStreamDeadStatus(Vbid vbid,
-                             DcpStreamId sid,
+                             cb::mcbp::DcpStreamId sid,
                              end_stream_status_t status);
 
     /**
@@ -430,7 +430,7 @@ protected:
      *         if the update is not possible.
      */
     bool updateStreamsMap(Vbid vbid,
-                          DcpStreamId sid,
+                          cb::mcbp::DcpStreamId sid,
                           std::shared_ptr<Stream>& stream);
 
     // stash response for retry if E2BIG was hit

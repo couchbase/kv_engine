@@ -23,6 +23,9 @@
 #include <stdint.h>
 #include <ostream>
 
+namespace cb {
+namespace mcbp {
+
 /**
  * DcpStreamId - allows a client to chose a value to associate with a stream
  * or if no value is chosen (normal DCP) 0 is reserved for meaning off.
@@ -76,5 +79,8 @@ protected:
     uint16_t id{0};
 };
 
+} // namespace mcbp
+} // namespace cb
+
 MCD_UTIL_PUBLIC_API
-std::ostream& operator<<(std::ostream&, const DcpStreamId);
+std::ostream& operator<<(std::ostream&, const cb::mcbp::DcpStreamId);

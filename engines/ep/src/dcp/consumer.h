@@ -90,7 +90,7 @@ public:
 
     ENGINE_ERROR_CODE closeStream(uint32_t opaque,
                                   Vbid vbucket,
-                                  DcpStreamId sid = {}) override;
+                                  cb::mcbp::DcpStreamId sid = {}) override;
 
     ENGINE_ERROR_CODE streamEnd(uint32_t opaque,
                                 Vbid vbucket,

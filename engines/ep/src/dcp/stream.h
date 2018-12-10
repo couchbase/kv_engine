@@ -134,7 +134,7 @@ public:
 
     void clear();
 
-    bool compareStreamId(DcpStreamId id) const {
+    bool compareStreamId(cb::mcbp::DcpStreamId id) const {
         return id == this->id;
     }
 
@@ -196,7 +196,7 @@ protected:
 
     Cursor noCursor;
 
-    DcpStreamId id;
+    cb::mcbp::DcpStreamId id;
 
 private:
     /* readyQueueMemory tracks the memory occupied by elements

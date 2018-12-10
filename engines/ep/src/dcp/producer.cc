@@ -967,7 +967,7 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
 
 ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque,
                                            Vbid vbucket,
-                                           DcpStreamId sid) {
+                                           cb::mcbp::DcpStreamId sid) {
     lastReceiveTime = ep_current_time();
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
@@ -1228,7 +1228,7 @@ bool DcpProducer::handleSlowStream(Vbid vbid, const CheckpointCursor* cursor) {
 }
 
 bool DcpProducer::setStreamDeadStatus(Vbid vbid,
-                                      DcpStreamId sid,
+                                      cb::mcbp::DcpStreamId sid,
                                       end_stream_status_t status) {
     auto rv = streams.find(vbid);
     if (rv.second) {
@@ -1523,7 +1523,7 @@ DcpProducer::findStreams(Vbid vbid) {
 }
 
 bool DcpProducer::updateStreamsMap(Vbid vbid,
-                                   DcpStreamId sid,
+                                   cb::mcbp::DcpStreamId sid,
                                    std::shared_ptr<Stream>& stream) {
     std::lock_guard<StreamsMap> guard(streams);
     auto found = streams.find(vbid, guard);

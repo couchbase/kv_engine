@@ -127,7 +127,7 @@ ProcessStatus SystemEventReplicate::process(const Item& item) {
 }
 
 std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
-        uint32_t opaque, const queued_item& item, DcpStreamId sid) {
+        uint32_t opaque, const queued_item& item, cb::mcbp::DcpStreamId sid) {
     // Always ensure decompressed as we are about to use the value
     item->decompressValue();
     switch (SystemEvent(item->getFlags())) {

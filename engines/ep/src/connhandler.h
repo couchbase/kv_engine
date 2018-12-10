@@ -97,7 +97,7 @@ public:
 
     virtual ENGINE_ERROR_CODE closeStream(uint32_t opaque,
                                           Vbid vbucket,
-                                          DcpStreamId sid);
+                                          cb::mcbp::DcpStreamId sid);
 
     virtual ENGINE_ERROR_CODE streamEnd(uint32_t opaque,
                                         Vbid vbucket,

@@ -306,7 +306,7 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
 
 ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque,
                                            Vbid vbucket,
-                                           DcpStreamId sid) {
+                                           cb::mcbp::DcpStreamId sid) {
     lastMessageTime = ep_current_time();
     if (doDisconnect()) {
         streams.erase(vbucket);
@@ -375,7 +375,7 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque,
                 opaque,
                 static_cast<end_stream_status_t>(flags),
                 vbucket,
-                DcpStreamId{}));
+                cb::mcbp::DcpStreamId{}));
     } catch (const std::bad_alloc&) {
         return ENGINE_ENOMEM;
     }
@@ -452,7 +452,7 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
                             IncludeDeleteTime::No,
                             key.getEncoding(),
                             emd.release(),
-                            DcpStreamId{}));
+                            cb::mcbp::DcpStreamId{}));
         } catch (const std::bad_alloc&) {
             return ENGINE_ENOMEM;
         }
@@ -586,7 +586,7 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                             includeDeleteTime,
                             key.getEncoding(),
                             emd.release(),
-                            DcpStreamId{}));
+                            cb::mcbp::DcpStreamId{}));
         } catch (const std::bad_alloc&) {
             err = ENGINE_ENOMEM;
         }
@@ -727,7 +727,7 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
                                                      start_seqno,
                                                      end_seqno,
                                                      flags,
-                                                     DcpStreamId{}));
+                                                     cb::mcbp::DcpStreamId{}));
 
         } catch (const std::bad_alloc&) {
             return ENGINE_ENOMEM;
@@ -763,7 +763,7 @@ ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
         try {
             err = stream->messageReceived(std::make_unique<SetVBucketState>(
-                    opaque, vbucket, state, DcpStreamId{}));
+                    opaque, vbucket, state, cb::mcbp::DcpStreamId{}));
         } catch (const std::bad_alloc&) {
             return ENGINE_ENOMEM;
         }

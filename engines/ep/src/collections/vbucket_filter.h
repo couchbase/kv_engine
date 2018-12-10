@@ -160,7 +160,7 @@ public:
 
     std::string getUid() const;
 
-    DcpStreamId getStreamId() const {
+    cb::mcbp::DcpStreamId getStreamId() const {
         return {};
     }
 

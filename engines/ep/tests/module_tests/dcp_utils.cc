@@ -63,7 +63,7 @@ void processMutations(MockPassiveStream& stream,
                                          IncludeDeleteTime::No,
                                          DocKeyEncodesCollectionId::No,
                                          nullptr,
-                                         DcpStreamId{});
+                                         cb::mcbp::DcpStreamId{});
 
         // PassiveStream::processMutation does 2 things:
         //     1) setWithMeta; that enqueues the item into the
@@ -96,5 +96,5 @@ std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
             IncludeDeleteTime::No,
             DocKeyEncodesCollectionId::No,
             nullptr,
-            DcpStreamId{});
+            cb::mcbp::DcpStreamId{});
 }

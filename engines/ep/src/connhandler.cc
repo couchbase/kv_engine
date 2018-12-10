@@ -69,7 +69,7 @@ ENGINE_ERROR_CODE ConnHandler::addStream(uint32_t opaque,
 
 ENGINE_ERROR_CODE ConnHandler::closeStream(uint32_t opaque,
                                            Vbid vbucket,
-                                           DcpStreamId sid) {
+                                           cb::mcbp::DcpStreamId sid) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp close stream API");

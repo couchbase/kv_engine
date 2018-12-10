@@ -346,5 +346,5 @@ private:
      * A stream-ID which is defined if the producer is using enabled to allow
      * many streams-per-vbucket
      */
-    DcpStreamId sid;
+    cb::mcbp::DcpStreamId sid;
 };
