@@ -527,41 +527,6 @@ TEST_P(McdTestappTest, IncrQ) {
     test_incr_impl("test_incrq", cb::mcbp::ClientOpcode::Incrementq);
 }
 
-static void test_incr_invalid_cas_impl(const char* key,
-                                       cb::mcbp::ClientOpcode cmd) {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response_header;
-        char bytes[1024];
-    } send, receive;
-    size_t len = mcbp_arithmetic_command(send.bytes, sizeof(send.bytes), cmd,
-                                         key, strlen(key), 1, 0, 0);
-
-    send.request.message.header.request.cas = 5;
-    safe_send(send.bytes, len, false);
-    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-    mcbp_validate_response_header(
-            &receive.response_header, cmd, cb::mcbp::Status::Einval);
-}
-
-TEST_P(McdTestappTest, InvalidCASIncr) {
-    test_incr_invalid_cas_impl("test_incr", cb::mcbp::ClientOpcode::Increment);
-}
-
-TEST_P(McdTestappTest, InvalidCASIncrQ) {
-    test_incr_invalid_cas_impl("test_incrq",
-                               cb::mcbp::ClientOpcode::Incrementq);
-}
-
-TEST_P(McdTestappTest, InvalidCASDecr) {
-    test_incr_invalid_cas_impl("test_decr", cb::mcbp::ClientOpcode::Decrement);
-}
-
-TEST_P(McdTestappTest, InvalidCASDecrQ) {
-    test_incr_invalid_cas_impl("test_decrq",
-                               cb::mcbp::ClientOpcode::Decrementq);
-}
-
 static void test_decr_impl(const char* key, cb::mcbp::ClientOpcode cmd) {
     union {
         protocol_binary_request_no_extras request;
