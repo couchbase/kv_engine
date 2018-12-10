@@ -755,6 +755,7 @@ void EPVBucket::completeDeletion(
 int64_t EPVBucket::addSystemEventItem(
         Item* item,
         OptionalSeqno seqno,
+        boost::optional<CollectionID> cid,
         const Collections::VB::Manifest::WriteHandle& wHandle) {
     item->setVBucketId(getId());
     queued_item qi(item);
@@ -780,5 +781,10 @@ int64_t EPVBucket::addSystemEventItem(
     notifyCtx.notifyFlusher = true;
     notifyCtx.bySeqno = qi->getBySeqno();
     notifyNewSeqno(notifyCtx);
+
+    // We don't record anything interesting for scopes
+    if (cid) {
+        doCollectionsStats(wHandle, *cid, notifyCtx);
+    }
     return qi->getBySeqno();
 }

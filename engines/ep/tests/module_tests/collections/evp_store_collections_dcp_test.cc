@@ -88,6 +88,28 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
     EXPECT_TRUE(vb->lockCollections().isCollectionOpen(CollectionEntry::meat));
     EXPECT_EQ(0xcafef00d, vb->lockCollections().getManifestUid());
 
+    // Lets put an item in it
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->mutation(
+                      /*opaque*/ 2,
+                      StoredDocKey{"meat:bacon", CollectionEntry::meat},
+                      cb::const_byte_buffer(),
+                      /*priv_bytes*/ 0,
+                      PROTOCOL_BINARY_DATATYPE_JSON,
+                      /*cas*/ 0,
+                      vbid,
+                      /*flags*/ 0,
+                      /*bySeqno*/ 2,
+                      /*revSeqno*/ 0,
+                      /*expTime*/ 0,
+                      /*lock_time*/ 0,
+                      /*meta*/ cb::const_byte_buffer(),
+                      /*nru*/ 0));
+
+    // Now check that the DCP consumer has updated the in memory high seqno
+    // counter for this item
+    EXPECT_EQ(2, vb->lockCollections().getHighSeqno(CollectionEntry::meat));
+
     // Call the consumer function for handling DCP events
     // delete the meat collection
     EXPECT_EQ(ENGINE_SUCCESS,
@@ -95,7 +117,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
                       /*opaque*/ 2,
                       vbid,
                       mcbp::systemevent::id::DeleteCollection,
-                      /*seqno*/ 2,
+                      /*seqno*/ 3,
                       mcbp::systemevent::version::version0,
                       {reinterpret_cast<const uint8_t*>(collection.data()),
                        collection.size()},

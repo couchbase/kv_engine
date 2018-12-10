@@ -390,8 +390,8 @@ TEST_P(CollectionsParameterizedTest, get_collection_id) {
               rv.extras.data.collectionId.to_host());
 }
 
-// Test persistingHighSeqno value
-TEST_F(CollectionsTest, PersistingHighSeqno) {
+// Test high seqno values
+TEST_F(CollectionsTest, PersistedHighSeqno) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
@@ -452,8 +452,8 @@ TEST_F(CollectionsTest, PersistingHighSeqno) {
                       CollectionEntry::dairy.getId()));
 }
 
-// Test persistingHighSeqno value with multiple collections
-TEST_F(CollectionsTest, PersistingHighSeqnoMultipleCollections) {
+// Test persisted high seqno values with multiple collections
+TEST_F(CollectionsTest, PersistedHighSeqnoMultipleCollections) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
@@ -532,6 +532,140 @@ TEST_F(CollectionsTest, PersistingHighSeqnoMultipleCollections) {
                       CollectionEntry::dairy.getId()));
     EXPECT_EQ(8,
               vb->getManifest().lock().getPersistedHighSeqno(
+                      CollectionEntry::meat.getId()));
+}
+
+// Test high seqno values
+TEST_P(CollectionsParameterizedTest, HighSeqno) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    // Add the dairy collection
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
+
+    EXPECT_EQ(1,
+              vb->getManifest().lock().getHighSeqno(
+                      CollectionEntry::dairy.getId()));
+
+    auto item1 = make_item(vbid,
+                           StoredDocKey{"dairy:milk", CollectionEntry::dairy},
+                           "creamy",
+                           0,
+                           0);
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
+
+    EXPECT_EQ(2,
+              vb->getManifest().lock().getHighSeqno(
+                      CollectionEntry::dairy.getId()));
+
+    // Mock a change in this document incrementing the high seqno
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item1, cookie));
+    EXPECT_EQ(3,
+              vb->getManifest().lock().getHighSeqno(
+                      CollectionEntry::dairy.getId()));
+
+    // Check the set of a new item in the same collection increments the high
+    // seqno for this collection
+    auto item2 = make_item(vbid,
+                           StoredDocKey{"dairy:cream", CollectionEntry::dairy},
+                           "creamy",
+                           0,
+                           0);
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item2, cookie));
+    EXPECT_EQ(4,
+              vb->getManifest().lock().getHighSeqno(
+                      CollectionEntry::dairy.getId()));
+
+    // Check a deletion
+    item2.setDeleted();
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, cookie));
+    EXPECT_EQ(5,
+              vb->getManifest().lock().getHighSeqno(
+                      CollectionEntry::dairy.getId()));
+
+    // Finally, check a collection drop
+    cm.remove(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
+
+    EXPECT_EQ(6,
+              vb->getManifest().lock().getHighSeqno(
+                      CollectionEntry::dairy.getId()));
+}
+
+// Test high seqno values with multiple collections
+TEST_P(CollectionsParameterizedTest, HighSeqnoMultipleCollections) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    // Add the dairy collection
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
+
+    EXPECT_EQ(1,
+              vb->getManifest().lock().getHighSeqno(
+                      CollectionEntry::dairy.getId()));
+
+    auto item1 = make_item(vbid,
+                           StoredDocKey{"dairy:milk", CollectionEntry::dairy},
+                           "creamy",
+                           0,
+                           0);
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
+
+    EXPECT_EQ(2,
+              vb->getManifest().lock().getHighSeqno(
+                      CollectionEntry::dairy.getId()));
+
+    // Add the meat collection
+    cm.add(CollectionEntry::meat);
+    vb->updateFromManifest({cm});
+
+    EXPECT_EQ(3,
+              vb->getManifest().lock().getHighSeqno(
+                      CollectionEntry::meat.getId()));
+
+    // Dairy should remain unchanged
+    EXPECT_EQ(2,
+              vb->getManifest().lock().getHighSeqno(
+                      CollectionEntry::dairy.getId()));
+
+    // Set a new item in meat
+    auto item2 = make_item(vbid,
+                           StoredDocKey{"meat:beef", CollectionEntry::meat},
+                           "beefy",
+                           0,
+                           0);
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item2, cookie));
+
+    // Skip 1 seqno for creation of meat
+    EXPECT_EQ(4,
+              vb->getManifest().lock().getHighSeqno(
+                      CollectionEntry::meat.getId()));
+
+    // Dairy should remain unchanged
+    EXPECT_EQ(2,
+              vb->getManifest().lock().getHighSeqno(
+                      CollectionEntry::dairy.getId()));
+
+    // Now, set a new high seqno in both collections in a single flush
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item1, cookie));
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, cookie));
+
+    EXPECT_EQ(5,
+              vb->getManifest().lock().getHighSeqno(
+                      CollectionEntry::dairy.getId()));
+    EXPECT_EQ(6,
+              vb->getManifest().lock().getHighSeqno(
+                      CollectionEntry::meat.getId()));
+
+    // Finally, check collection drops
+    cm.remove(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
+    cm.remove(CollectionEntry::meat);
+    vb->updateFromManifest({cm});
+
+    EXPECT_EQ(7,
+              vb->getManifest().lock().getHighSeqno(
+                      CollectionEntry::dairy.getId()));
+    EXPECT_EQ(8,
+              vb->getManifest().lock().getHighSeqno(
                       CollectionEntry::meat.getId()));
 }
 
@@ -820,6 +954,10 @@ TEST_F(CollectionsWarmupTest, warmup) {
         EXPECT_EQ(2,
                   vb->lockCollections().getPersistedHighSeqno(
                           CollectionEntry::meat));
+        EXPECT_EQ(2, vb->lockCollections().getHighSeqno(CollectionEntry::meat));
+        EXPECT_EQ(2,
+                  store->getVBucket(vbid)->lockCollections().getHighSeqno(
+                          CollectionEntry::meat));
     } // VBucketPtr scope ends
 
     resetEngineAndWarmup();
@@ -828,12 +966,15 @@ TEST_F(CollectionsWarmupTest, warmup) {
     EXPECT_EQ(0xface2 + 1,
               store->getVBucket(vbid)->lockCollections().getManifestUid());
 
-    // validate we warmup the item count and high seqno
+    // validate we warmup the item count and high seqnos
     EXPECT_EQ(1,
               store->getVBucket(vbid)->lockCollections().getItemCount(
                       CollectionEntry::meat));
     EXPECT_EQ(2,
               store->getVBucket(vbid)->lockCollections().getPersistedHighSeqno(
+                      CollectionEntry::meat));
+    EXPECT_EQ(2,
+              store->getVBucket(vbid)->lockCollections().getHighSeqno(
                       CollectionEntry::meat));
 
     {
@@ -940,6 +1081,9 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
         EXPECT_EQ(
                 nitems,
                 vb->lockCollections().getItemCount(CollectionEntry::defaultC));
+        EXPECT_EQ(
+                12 /* 1 collection create + 10 items + 1 collection delete */,
+                vb->lockCollections().getHighSeqno(CollectionEntry::defaultC));
         EXPECT_EQ(12 /* 1 collection create + 10 items + 1 collection delete */,
                   vb->lockCollections().getPersistedHighSeqno(
                           CollectionEntry::defaultC));
@@ -951,6 +1095,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
     resetEngineAndWarmup();
 
     EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumInMemoryItems());
+
     // meat collection still exists
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().exists(
             CollectionEntry::meat));

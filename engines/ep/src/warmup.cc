@@ -371,7 +371,7 @@ public:
 
     bool run() {
         TRACE_EVENT0("ep-engine/task", "WarmupLoadingCollectionCounts");
-        warmup.loadCollectionCountsForShard(shardId);
+        warmup.loadCollectionStatsForShard(shardId);
         warmup.removeFromTaskSet(uid);
         return false;
     }
@@ -1318,7 +1318,7 @@ void Warmup::loadDataforShard(uint16_t shardId)
     }
 }
 
-void Warmup::loadCollectionCountsForShard(uint16_t shardId) {
+void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
     // get each VB in the shard and iterate its collections manifest
     // load the _local doc count value
 
@@ -1338,6 +1338,9 @@ void Warmup::loadCollectionCountsForShard(uint16_t shardId) {
                                                      collection.first);
             collection.second.setDiskCount(stats.itemCount);
             collection.second.setPersistedHighSeqno(stats.highSeqno);
+            // Set the in memory high seqno - might be 0 in the case of the
+            // default collection so we have to reset the monotonic value
+            collection.second.resetHighSeqno(stats.highSeqno);
         }
     }
 

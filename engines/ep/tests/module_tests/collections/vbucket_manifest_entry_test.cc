@@ -105,16 +105,22 @@ TEST(ManifestEntry, construct_assign) {
 
     // Collection starts at seqno 1000
     Collections::VB::ManifestEntry entry1(ScopeEntry::defaultS, {}, 2, 9);
+    entry1.setHighSeqno(101);
+    entry1.setPersistedHighSeqno(99);
 
     //  Move entry1 to entry2
     Collections::VB::ManifestEntry entry2(std::move(entry1));
     EXPECT_EQ(2, entry2.getStartSeqno());
     EXPECT_EQ(9, entry2.getEndSeqno());
+    EXPECT_EQ(101, entry2.getHighSeqno());
+    EXPECT_EQ(99, entry2.getPersistedHighSeqno());
 
     // Take a copy of entry2
     Collections::VB::ManifestEntry entry3(entry2);
     EXPECT_EQ(2, entry3.getStartSeqno());
     EXPECT_EQ(9, entry3.getEndSeqno());
+    EXPECT_EQ(101, entry3.getHighSeqno());
+    EXPECT_EQ(99, entry3.getPersistedHighSeqno());
 
     // change entry2
     entry2.setEndSeqno(10);
@@ -124,10 +130,14 @@ TEST(ManifestEntry, construct_assign) {
     entry3 = entry2;
     EXPECT_EQ(3, entry3.getStartSeqno());
     EXPECT_EQ(10, entry3.getEndSeqno());
+    EXPECT_EQ(101, entry3.getHighSeqno());
+    EXPECT_EQ(99, entry3.getPersistedHighSeqno());
 
     // And move entry3 back to entry1
     entry1 = std::move(entry3);
 
     EXPECT_EQ(3, entry1.getStartSeqno());
     EXPECT_EQ(10, entry1.getEndSeqno());
+    EXPECT_EQ(101, entry1.getHighSeqno());
+    EXPECT_EQ(99, entry1.getPersistedHighSeqno());
 }

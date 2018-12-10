@@ -431,7 +431,8 @@ void Manifest::addScope(const WriteHandle& wHandle,
             {builder.GetBufferPointer(), builder.GetSize()},
             optionalSeqno);
 
-    auto seqno = vb.addSystemEventItem(item.release(), optionalSeqno, wHandle);
+    auto seqno =
+            vb.addSystemEventItem(item.release(), optionalSeqno, {}, wHandle);
 
     // If seq is not set, then this is an active vbucket queueing the event.
     // Collection events will end the CP so they don't de-dup.
@@ -494,7 +495,8 @@ void Manifest::dropScope(const WriteHandle& wHandle,
 
     item->setDeleted();
 
-    auto seqno = vb.addSystemEventItem(item.release(), optionalSeqno, wHandle);
+    auto seqno =
+            vb.addSystemEventItem(item.release(), optionalSeqno, {}, wHandle);
 
     // If seq is not set, then this is an active vbucket queueing the event.
     // Collection events will end the CP so they don't de-dup.
@@ -703,6 +705,7 @@ int64_t Manifest::queueSystemEvent(const WriteHandle& wHandle,
             createSystemEvent(se, identifiers, collectionName, deleted, seq)
                     .release(),
             seq,
+            identifiers.second,
             wHandle);
 
     // If seq is not set, then this is an active vbucket queueing the event.
@@ -991,6 +994,26 @@ uint64_t Manifest::getItemCount(CollectionID collection) const {
     // For now link through to disk count
     // @todo: ephemeral support
     return itr->second.getDiskCount();
+}
+
+uint64_t Manifest::getHighSeqno(CollectionID collection) const {
+    auto itr = map.find(collection);
+    if (itr == map.end()) {
+        throwException<std::invalid_argument>(
+                __FUNCTION__,
+                "failed find of collection:" + collection.to_string());
+    }
+    return itr->second.getHighSeqno();
+}
+
+void Manifest::setHighSeqno(CollectionID collection, uint64_t value) const {
+    auto itr = map.find(collection);
+    if (itr == map.end()) {
+        throwException<std::invalid_argument>(
+                __FUNCTION__,
+                "failed find of collection:" + collection.to_string());
+    }
+    itr->second.setHighSeqno(value);
 }
 
 uint64_t Manifest::getPersistedHighSeqno(CollectionID collection) const {

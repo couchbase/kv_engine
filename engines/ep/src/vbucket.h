@@ -1161,10 +1161,15 @@ public:
      *        given a CAS and seqno by this function.
      * @param seqno An optional sequence number, if not specified checkpoint
      *        queueing will assign a seqno to the Item.
+     * @param cid The collection ID that this system event is concerned with.
+     *        Optional as this may be a scope system event.
+     * @param wHandle Collections write handle under which this operation is
+     *        locked.
      */
     virtual int64_t addSystemEventItem(
             Item* item,
             OptionalSeqno seqno,
+            boost::optional<CollectionID> cid,
             const Collections::VB::Manifest::WriteHandle& wHandle) = 0;
 
     /**
@@ -1660,6 +1665,46 @@ protected:
      * @param notifyCtx holds info needed for notification
      */
     void notifyNewSeqno(const VBNotifyCtx& notifyCtx);
+
+    /**
+     * Perform the post-queue collections stat counting using the caching read
+     * handle.
+     *
+     * @param cHandle read handle for the collection that the item causing
+     *        the generation of a newSeqno belongs to
+     * @param notifyCtx holds info needed for stat counting
+     */
+    void doCollectionsStats(
+            const Collections::VB::Manifest::CachingReadHandle& cHandle,
+            const VBNotifyCtx& notifyCtx);
+
+    /**
+     * Perform the post-queue collections stat counting using a read handle and
+     * a given CollectionID.
+     *
+     * @param readHandle read handle for the entire collection manifest that
+     *        allows us to lookup a collection then set the high seqno for it
+     * @param collection the collection we need to update
+     * @param notifyCtx holds info needed for stat counting
+     */
+    void doCollectionsStats(
+            const Collections::VB::Manifest::ReadHandle& readHandle,
+            CollectionID collection,
+            const VBNotifyCtx& notifyCtx);
+
+    /**
+     * Perform the post-queue collections stat counting using a write handle and
+     * a given CollectionID.
+     *
+     * @param writeHandle write handle for the entire collection manifest that
+     *        allows us to lookup a collection then set the high seqno for it
+     * @param collection the collection we need to update
+     * @param notifyCtx holds info needed for stat counting
+     */
+    void doCollectionsStats(
+            const Collections::VB::Manifest::WriteHandle& writeHandle,
+            CollectionID collection,
+            const VBNotifyCtx& notifyCtx);
 
     /**
      * VBucket internal function to store high priority requests on the vbucket.

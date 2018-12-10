@@ -62,24 +62,41 @@ public:
     }
 
     bool compareEntry(CollectionID id,
-                      const Collections::VB::ManifestEntry& entry) const {
+                      const Collections::VB::ManifestEntry& entry,
+                      bool ignoreHighSeqno = false) const {
         std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
         if (exists_UNLOCKED(id)) {
             auto itr = map.find(id);
             const auto& myEntry = itr->second;
-            return myEntry == entry;
+            if (myEntry == entry) {
+                return true;
+            } else if (ignoreHighSeqno) {
+                // @todo JimW Collections metadata
+                // We might not be able to set the high seqno correctly from
+                // a persisted manifest pulled from a queued item as we don't
+                // write the high seqno to the flatbuffers data. This is
+                // changing soon, so for now take a copy of the manifest
+                // entry and modify only the high seqno. If the equality check
+                // now passes and we're on a path where this matters, we will
+                // ignore the original check.
+                auto copy = Collections::VB::ManifestEntry(myEntry);
+                copy.setHighSeqno(myEntry.getHighSeqno());
+                if (myEntry == copy) {
+                    return true;
+                }
+            }
         }
         return false;
     }
 
-    bool operator==(const MockVBManifest& rhs) const {
+    bool eq(const MockVBManifest& rhs, bool ignoreHighSeqno = false) const {
         std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
         if (rhs.size() != size()) {
             return false;
         }
         // Check all collections match
         for (const auto& e : map) {
-            if (!rhs.compareEntry(e.first, e.second)) {
+            if (!rhs.compareEntry(e.first, e.second, ignoreHighSeqno)) {
                 return false;
             }
         }
@@ -107,6 +124,10 @@ public:
         }
 
         return true;
+    }
+
+    bool operator==(const MockVBManifest& rhs) const {
+        return eq(rhs);
     }
 
     bool operator!=(const MockVBManifest& rhs) const {
@@ -476,8 +497,18 @@ public:
             MockVBManifest newManifest(
                     Collections::VB::Manifest::getPersistedManifest(
                             manifestItem));
-            if (active != newManifest) {
-                return ::testing::AssertionFailure() << "manifest mismatch\n"
+            // @todo JimW Collections metadata
+            // We deal with a special case here as the flatbuffers data in
+            // manifestItem does not contain the high seqno, although our
+            // active manifest will know about it. When we load a real
+            // VB::Manifest from a PersistedManifest we update the high seqno
+            // stat at runtime as we don't need to store it in every event.
+            // By settting the eq(..., ignoreHighSeqno) flag to true we will
+            // ignore a difference in the high seqno if a normal equality check
+            // fails. This will be changed soon when we stop sending the entire
+            // manifest in the item.
+            if (!active.eq(newManifest, true)) {
+                return ::testing::AssertionFailure() << "manifest mismatch "
                                                      << "generated\n"
                                                      << newManifest << "\nvs\n"
                                                      << active;

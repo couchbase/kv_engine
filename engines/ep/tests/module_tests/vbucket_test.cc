@@ -148,6 +148,8 @@ std::pair<HashTable::HashBucketLock, StoredValue*> VBucketTest::lockAndFind(
 MutationStatus VBucketTest::public_processSet(Item& itm,
                                               const uint64_t cas,
                                               const VBQueueItemCtx& ctx) {
+    // Need to take the collections read handle before the hbl
+    auto handle = vbucket->lockCollections(itm.getKey());
     auto hbl_sv = lockAndFind(itm.getKey());
     return vbucket
             ->processSet(hbl_sv.first,
@@ -178,6 +180,8 @@ AddStatus VBucketTest::public_processAdd(Item& itm) {
 MutationStatus VBucketTest::public_processSoftDelete(const DocKey& key,
                                                      StoredValue* v,
                                                      uint64_t cas) {
+    // Need to take the collections read handle before the hbl
+    auto handle = vbucket->lockCollections(key);
     auto hbl = vbucket->ht.getLockedBucket(key);
     if (!v) {
         v = vbucket->ht.unlocked_find(

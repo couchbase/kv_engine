@@ -257,10 +257,15 @@ public:
      *        given a CAS and seqno by this function.
      * @param seqno An optional sequence number, if not specified checkpoint
      *        queueing will assign a seqno to the Item.
+     * @param cid The collection ID that this system event is concerned with.
+     *        Optional as this may be a scope system event.
+     * @param wHandle Collections write handle under which this operation is
+     *        locked.
      */
     int64_t addSystemEventItem(
             Item* item,
             OptionalSeqno seqno,
+            boost::optional<CollectionID> cid,
             const Collections::VB::Manifest::WriteHandle& wHandle) override;
 
 protected:

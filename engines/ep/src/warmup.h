@@ -196,7 +196,7 @@ public:
     void loadingAccessLog(uint16_t shardId);
     void loadKVPairsforShard(uint16_t shardId);
     void loadDataforShard(uint16_t shardId);
-    void loadCollectionCountsForShard(uint16_t shardId);
+    void loadCollectionStatsForShard(uint16_t shardId);
     void done();
 
     WarmupState::State getWarmupState() const {

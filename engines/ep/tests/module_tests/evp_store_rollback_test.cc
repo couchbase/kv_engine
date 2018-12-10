@@ -327,8 +327,11 @@ protected:
                 vb->getManifest().lock().getItemCount(CollectionID::Default);
         auto startVBCount = vb->getNumItems();
 
-        auto startHighSeqno = vb->getManifest().lock().getPersistedHighSeqno(
+        auto startPHighSeqno = vb->getManifest().lock().getPersistedHighSeqno(
                 CollectionID::Default);
+
+        auto startHighSeqno =
+                vb->getManifest().lock().getHighSeqno(CollectionID::Default);
 
         rollback_after_creation_and_deletion_test(deleteLast, flushOnce);
 
@@ -337,9 +340,12 @@ protected:
                   vb->getManifest().lock().getItemCount(CollectionID::Default));
         EXPECT_EQ(startVBCount + expectedDifference, vb->getNumItems());
 
-        EXPECT_EQ(startHighSeqno + expectedDifference,
+        EXPECT_EQ(startPHighSeqno + expectedDifference,
                   vb->getManifest().lock().getPersistedHighSeqno(
                           CollectionID::Default));
+
+        EXPECT_EQ(startHighSeqno + expectedDifference,
+                  vb->getManifest().lock().getHighSeqno(CollectionID::Default));
     }
 
     void rollback_to_middle_test(bool flush_before_rollback,

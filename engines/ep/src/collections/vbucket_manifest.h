@@ -178,6 +178,10 @@ public:
             return manifest->getItemCount(collection);
         }
 
+        uint64_t getHighSeqno(CollectionID collection) const {
+            return manifest->getHighSeqno(collection);
+        }
+
         uint64_t getPersistedHighSeqno(CollectionID collection) const {
             return manifest->getPersistedHighSeqno(collection);
         }
@@ -195,6 +199,10 @@ public:
                 uint64_t value,
                 bool noThrow = false) const {
             manifest->setPersistedHighSeqno(collection, value, noThrow);
+        }
+
+        void setHighSeqno(CollectionID collection, uint64_t value) const {
+            manifest->setHighSeqno(collection, value);
         }
 
         bool addCollectionStats(Vbid vbid,
@@ -351,6 +359,20 @@ public:
                 return;
             }
             return manifest->decrementDiskCount(itr);
+        }
+
+        /**
+         * This set is possible via this CachingReadHandle, which has shared
+         * access to the Manifest, because the read-lock only ensures that
+         * the underlying collection map doesn't change. Data inside the
+         * collection entry maybe mutable, such as the item count, hence this
+         * method is marked const because the manifest is const.
+         *
+         * set the high seqno of the collection if the new value is
+         * higher
+         */
+        void setHighSeqno(uint64_t value) const {
+            manifest->setHighSeqno(itr, value);
         }
 
         /**
@@ -573,6 +595,21 @@ public:
                               int64_t endSeqno) {
             manifest.dropScope(
                     *this, vb, manifestUid, sid, OptionalSeqno{endSeqno});
+        }
+
+        /**
+         * When we create system events we do so under a WriteHandle. To
+         * properly increment the high seqno of the collection for a given
+         * system event we need to be able to do so using this handle.
+         *
+         * Function is const as constness refers to the state of the manifest,
+         * not the state of the manifest entries within it.
+         *
+         * @param collection the collection ID of the manifest entry to update
+         * @param value the new high seqno
+         */
+        void setHighSeqno(CollectionID collection, uint64_t value) const {
+            manifest.setHighSeqno(collection, value);
         }
 
         /// @return iterator to the beginning of the underlying collection map
@@ -941,6 +978,16 @@ protected:
         entry->second.decrementDiskCount();
     }
 
+    void setHighSeqno(const container::const_iterator entry,
+                      uint64_t value) const {
+        if (entry == map.end()) {
+            throwException<std::invalid_argument>(__FUNCTION__,
+                                                  "iterator is invalid");
+        }
+
+        entry->second.setHighSeqno(value);
+    }
+
     void setPersistedHighSeqno(const container::const_iterator entry,
                                uint64_t value) const {
         if (entry == map.end()) {
@@ -1028,6 +1075,18 @@ protected:
      * @return the number of items stored for collection
      */
     uint64_t getItemCount(CollectionID collection) const;
+
+    /**
+     * @return the highest seqno for this collection
+     */
+    uint64_t getHighSeqno(CollectionID collection) const;
+
+    /**
+     * Set the high seqno of the given collection to the given value. Allowed
+     * to be const as the only constness we care about here is the state of
+     * the map (not the ManifestEntries within it).
+     */
+    void setHighSeqno(CollectionID collection, uint64_t value) const;
 
     /**
      * @return the highest seqno that has been persisted for this collection

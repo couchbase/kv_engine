@@ -110,10 +110,13 @@ bool EphemeralVBucket::pageOut(
     VBNotifyCtx notifyCtx;
     std::tie(newSv, status, notifyCtx) = softDeleteStoredValue(
             lh, *v, /*onlyMarkDeleted*/ false, queueCtx, 0);
+
     switch (status) {
     case DeletionStatus::Success:
         ht.updateMaxDeletedRevSeqno(newSv->getRevSeqno());
         notifyNewSeqno(notifyCtx);
+        doCollectionsStats(readHandle, v->getKey().getCollectionID(),
+                notifyCtx);
         autoDeleteCount++;
         return true;
 
@@ -704,6 +707,7 @@ void EphemeralVBucket::completeDeletion(
 int64_t EphemeralVBucket::addSystemEventItem(
         Item* i,
         OptionalSeqno seqno,
+        boost::optional<CollectionID> cid,
         const Collections::VB::Manifest::WriteHandle& wHandle) {
     // Must be freed once passed through addNew/update StoredValue
     std::unique_ptr<Item> item(i);
@@ -727,5 +731,10 @@ int64_t EphemeralVBucket::addSystemEventItem(
     notifyCtx.notifyReplication = !seqno.is_initialized();
     notifyCtx.bySeqno = v->getBySeqno();
     notifyNewSeqno(notifyCtx);
+
+    // We don't record anything interesting for scopes
+    if (cid) {
+        doCollectionsStats(wHandle, *cid, notifyCtx);
+    }
     return v->getBySeqno();
 }

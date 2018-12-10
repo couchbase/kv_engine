@@ -48,19 +48,23 @@ public:
           scopeID(scopeID),
           maxTtl(maxTtl),
           diskCount(0),
+          highSeqno(0),
           persistedHighSeqno(0) {
         // Setters validate the start/end range is valid
         setStartSeqno(startSeqno);
         setEndSeqno(endSeqno);
     }
 
-    bool operator==(const ManifestEntry& other) const {
-        if (scopeID == other.scopeID && startSeqno == other.startSeqno &&
-            endSeqno == other.endSeqno && maxTtl == other.maxTtl) {
-            return true;
-        }
-        return false;
-    }
+    /**
+     * Explicitly define the copy constructor otherwise it would be
+     * implicitly deleted via the deleted copy constructor in std::atomic
+     * (which is used inside highSeqno - AtomicMonotonic). This is required for
+     * using ManifestEntries in an unordered_map.
+     */
+    ManifestEntry(const ManifestEntry& other);
+    ManifestEntry& operator=(const ManifestEntry& other);
+
+    bool operator==(const ManifestEntry& other) const;
 
     int64_t getStartSeqno() const {
         return startSeqno;
@@ -144,6 +148,25 @@ public:
         return diskCount;
     }
 
+    /// set the highest seqno (persisted or not) for this collection
+    void setHighSeqno(uint64_t value) const {
+        highSeqno.store(value, std::memory_order_relaxed);
+    }
+
+    /**
+     * Force set the highest seqno (persisted or not) for this collection.
+     * Required for warmup where we need to overwrite the value with 0. Would
+     * rather reset for warmup than loosen the montonic constraint to weak.
+     */
+    void resetHighSeqno(uint64_t value) const {
+        highSeqno.reset(value, std::memory_order_relaxed);
+    }
+
+    /// @return the highest seqno of any item in this collection
+    uint64_t getHighSeqno() const {
+        return highSeqno.load(std::memory_order_relaxed);
+    }
+
     /// set the highest persisted seqno for this collection if the new value
     /// is greater than the previous one
     void setPersistedHighSeqno(uint64_t value) const {
@@ -218,6 +241,23 @@ private:
      */
     mutable cb::NonNegativeCounter<uint64_t, cb::ThrowExceptionUnderflowPolicy>
             diskCount;
+
+    /**
+     * The highest seqno of any item (persisted or not) that belongs to this
+     * collection.
+     *
+     * Will be hit by multiple front end threads and thus needs to be atomic.
+     * We should ignore any attempts to set the value to a lower number as
+     * this is a possible result of compare_exchange_weak returning false
+     * inside AtomicMonotonic::operator=() (i.e. another thread has already
+     * written a higher value and so the current write is no longer valid and
+     * any failure can be ignored).
+     *
+     * mutable - the VB:Manifest read/write lock protects this object and
+     *           we can do stats updates as long as the read lock is held.
+     *           The write lock is really for the Manifest map being changed.
+     */
+    mutable AtomicMonotonic<uint64_t, IgnorePolicy> highSeqno;
 
     /**
      * The highest seqno of any item that has been/is currently being persisted.

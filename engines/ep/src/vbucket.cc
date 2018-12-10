@@ -658,6 +658,7 @@ ENGINE_ERROR_CODE VBucket::commit(
             htRes.lock, *htRes.storedValue, queueItmCtx, commitSeqno);
 
     notifyNewSeqno(notify);
+    doCollectionsStats(cHandle, notify);
 
     return ENGINE_SUCCESS;
 }
@@ -975,6 +976,7 @@ StoredValue* VBucket::fetchValidValue(
                 std::tie(std::ignore, v, notifyCtx) =
                         processExpiredItem(hbl, *v, cHandle);
                 notifyNewSeqno(notifyCtx);
+                doCollectionsStats(cHandle, notifyCtx);
             }
             return wantsDeleted == WantsDeleted::Yes ? v : NULL;
         }
@@ -1112,6 +1114,7 @@ ENGINE_ERROR_CODE VBucket::set(
     // checkpoint.
     case MutationStatus::WasClean:
         notifyNewSeqno(*notifyCtx);
+        doCollectionsStats(cHandle, *notifyCtx);
 
         itm.setBySeqno(v->getBySeqno());
         itm.setCas(v->getCas());
@@ -1204,6 +1207,7 @@ ENGINE_ERROR_CODE VBucket::replace(
         // checkpoint.
         case MutationStatus::WasClean:
             notifyNewSeqno(*notifyCtx);
+            doCollectionsStats(cHandle, *notifyCtx);
 
             itm.setBySeqno(v->getBySeqno());
             itm.setCas(v->getCas());
@@ -1294,6 +1298,7 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(
         // inversions arising from notifyNewSeqno() call
         hbl.getHTLock().unlock();
         notifyNewSeqno(*notifyCtx);
+        doCollectionsStats(cHandle, *notifyCtx);
     } break;
     case MutationStatus::NeedBgFetch:
         throw std::logic_error(
@@ -1430,6 +1435,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
         // inversions arising from notifyNewSeqno() call
         hbl.getHTLock().unlock();
         notifyNewSeqno(*notifyCtx);
+        doCollectionsStats(cHandle, *notifyCtx);
     } break;
     case MutationStatus::NotFound:
         ret = ENGINE_KEY_ENOENT;
@@ -1558,6 +1564,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         }
 
         notifyNewSeqno(*notifyCtx);
+        doCollectionsStats(cHandle, *notifyCtx);
         seqno = static_cast<uint64_t>(v->getBySeqno());
         cas = v->getCas();
 
@@ -1737,6 +1744,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
         // inversions arising from notifyNewSeqno() call
         hbl.getHTLock().unlock();
         notifyNewSeqno(*notifyCtx);
+        doCollectionsStats(cHandle, *notifyCtx);
         break;
     }
     case MutationStatus::NeedBgFetch:
@@ -1802,6 +1810,7 @@ void VBucket::deleteExpiredItem(const Item& it,
             // inversions arising from notifyNewSeqno() call
             hbl.getHTLock().unlock();
             notifyNewSeqno(notifyCtx);
+            doCollectionsStats(cHandle, notifyCtx);
         }
     } else {
         if (eviction == FULL_EVICTION) {
@@ -1827,6 +1836,7 @@ void VBucket::deleteExpiredItem(const Item& it,
                 // lock inversions arising from notifyNewSeqno() call
                 hbl.getHTLock().unlock();
                 notifyNewSeqno(notifyCtx);
+                doCollectionsStats(cHandle, notifyCtx);
             }
         }
     }
@@ -1877,6 +1887,7 @@ ENGINE_ERROR_CODE VBucket::add(
     case AddStatus::Success:
     case AddStatus::UnDel:
         notifyNewSeqno(*notifyCtx);
+        doCollectionsStats(cHandle, *notifyCtx);
         itm.setBySeqno(v->getBySeqno());
         itm.setCas(v->getCas());
         break;
@@ -1930,6 +1941,7 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
             // inversions arising from notifyNewSeqno() call
             hbl.getHTLock().unlock();
             notifyNewSeqno(notifyCtx);
+            doCollectionsStats(cHandle, notifyCtx);
         }
 
         return {MutationStatus::WasClean, std::move(rv)};
@@ -2338,6 +2350,8 @@ void VBucket::collectionsRolledBack(KVStore& kvstore) {
                 *kvstoreContext, collection.first).itemCount);
         collection.second.resetPersistedHighSeqno(kvstore.getCollectionStats(
                 *kvstoreContext, collection.first).highSeqno);
+        collection.second.resetHighSeqno(
+                collection.second.getPersistedHighSeqno());
     }
 }
 
@@ -2813,6 +2827,25 @@ void VBucket::notifyNewSeqno(
     if (newSeqnoCb) {
         newSeqnoCb->callback(getId(), notifyCtx);
     }
+}
+
+void VBucket::doCollectionsStats(
+        const Collections::VB::Manifest::CachingReadHandle& cHandle,
+        const VBNotifyCtx& notifyCtx) {
+    cHandle.setHighSeqno(notifyCtx.bySeqno);
+}
+
+void VBucket::doCollectionsStats(
+        const Collections::VB::Manifest::ReadHandle& readHandle,
+        CollectionID collection,
+        const VBNotifyCtx& notifyCtx) {
+    readHandle.setHighSeqno(collection, notifyCtx.bySeqno);
+}
+void VBucket::doCollectionsStats(
+        const Collections::VB::Manifest::WriteHandle& writeHandle,
+        CollectionID collection,
+        const VBNotifyCtx& notifyCtx) {
+    writeHandle.setHighSeqno(collection, notifyCtx.bySeqno);
 }
 
 VBNotifyCtx VBucket::queueDirty(StoredValue& v,

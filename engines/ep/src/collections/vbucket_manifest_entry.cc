@@ -21,6 +21,34 @@
 
 #include <platform/checked_snprintf.h>
 
+Collections::VB::ManifestEntry::ManifestEntry(
+        const Collections::VB::ManifestEntry& other) {
+    *this = other;
+}
+
+Collections::VB::ManifestEntry& Collections::VB::ManifestEntry::operator=(
+        const ManifestEntry& other) {
+    startSeqno = other.startSeqno;
+    endSeqno = other.endSeqno;
+    scopeID = other.scopeID;
+    maxTtl = other.maxTtl;
+    diskCount = other.diskCount;
+    highSeqno.reset(other.highSeqno);
+    persistedHighSeqno = other.persistedHighSeqno;
+    return *this;
+}
+
+bool Collections::VB::ManifestEntry::operator==(
+        const ManifestEntry& other) const {
+    if (scopeID == other.scopeID && startSeqno == other.startSeqno &&
+        endSeqno == other.endSeqno && maxTtl == other.maxTtl &&
+        highSeqno == other.highSeqno &&
+        persistedHighSeqno == other.persistedHighSeqno) {
+        return true;
+    }
+    return false;
+}
+
 std::string Collections::VB::ManifestEntry::getExceptionString(
         const std::string& thrower, const std::string& error) const {
     std::stringstream ss;
@@ -54,6 +82,12 @@ bool Collections::VB::ManifestEntry::addStats(const std::string& cid,
                          vbid.get(),
                          cid.c_str());
         add_casted_stat(buffer, getEndSeqno(), add_stat, cookie);
+        checked_snprintf(buffer,
+                         bsize,
+                         "vb_%d:collection:%s:entry:high_seqno",
+                         vbid.get(),
+                         cid.c_str());
+        add_casted_stat(buffer, getHighSeqno(), add_stat, cookie);
         checked_snprintf(buffer,
                          bsize,
                          "vb_%d:collection:%s:entry:persisted_high_seqno",
@@ -92,6 +126,7 @@ std::ostream& Collections::VB::operator<<(
     os << "ManifestEntry: scope:" << manifestEntry.getScopeID()
        << ", startSeqno:" << manifestEntry.getStartSeqno()
        << ", endSeqno:" << manifestEntry.getEndSeqno()
+       << ", highSeqno:" << manifestEntry.getHighSeqno()
        << ", persistedHighSeqno:" << manifestEntry.getPersistedHighSeqno()
        << ", diskCount:" << manifestEntry.getDiskCount();
 
