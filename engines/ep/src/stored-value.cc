@@ -256,7 +256,8 @@ bool StoredValue::operator==(const StoredValue& other) const {
             bits2.test(deletionSource) == other.bits2.test(deletionSource) &&
             isNewCacheItem() == other.isNewCacheItem() &&
             isOrdered() == other.isOrdered() && getNru() == other.getNru() &&
-            isResident() == other.isResident() && getKey() == other.getKey());
+            isResident() == other.isResident() && getKey() == other.getKey() &&
+            getCommitted() == other.getCommitted());
 }
 
 bool StoredValue::deleteImpl(DeleteSource delSource) {

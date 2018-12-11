@@ -3452,17 +3452,22 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
                                         cb::mcbp::Status response,
                                         uint64_t exp_snap_start,
                                         uint64_t exp_snap_end) {
+    using cb::mcbp::ClientOpcode;
+
     MockDcpMessageProducers producers(h);
     dcp_step(h, cookie, producers);
-    cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpControl);
-    cb_assert(producers.last_key.compare("connection_buffer_size") == 0);
-    cb_assert(producers.last_opaque != opaque);
+    checkeq(ClientOpcode::DcpControl, producers.last_op, "Unexpected last_op");
+    checkeq("connection_buffer_size"s, producers.last_key, "Unexpected key");
+    checkne(opaque, producers.last_opaque, "Unexpected opaque");
 
     if (get_bool_stat(h, "ep_dcp_enable_noop")) {
         // MB-29441: Check that the GetErrorMap message is sent
         dcp_step(h, cookie, producers);
-        cb_assert(producers.last_op == cb::mcbp::ClientOpcode::GetErrorMap);
-        cb_assert(producers.last_key.empty());
+        checkeq(ClientOpcode::GetErrorMap,
+                producers.last_op,
+                "Unexpected last_op");
+        checkeq(""s, producers.last_key, "Unexpected non-empty key");
+
         // Simulate that the GetErrorMap response has been received.
         // This step is necessary, as a pending GetErrorMap response would
         // not let the next dcp_step() to execute the
@@ -3475,48 +3480,54 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
 
         // Check that the enable noop message is sent
         dcp_step(h, cookie, producers);
-        cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpControl);
-        cb_assert(producers.last_key.compare("enable_noop") == 0);
-        cb_assert(producers.last_opaque != opaque);
+        checkeq(ClientOpcode::DcpControl,
+                producers.last_op,
+                "Unexpected last_op");
+        checkeq("enable_noop"s, producers.last_key, "Unexpected key");
+        checkne(opaque, producers.last_opaque, "Unexpected opaque");
 
         // Check that the set noop interval message is sent
         dcp_step(h, cookie, producers);
-        cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpControl);
-        cb_assert(producers.last_key.compare("set_noop_interval") == 0);
-        cb_assert(producers.last_opaque != opaque);
+        checkeq(ClientOpcode::DcpControl,
+                producers.last_op,
+                "Unexpected last_op");
+        checkeq("set_noop_interval"s, producers.last_key, "Unexpected key");
+        checkne(opaque, producers.last_opaque, "Unexpected opaque");
     }
 
     dcp_step(h, cookie, producers);
-    cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpControl);
-    cb_assert(producers.last_key.compare("set_priority") == 0);
-    cb_assert(producers.last_opaque != opaque);
+    checkeq(ClientOpcode::DcpControl, producers.last_op, "Unexpected last_op");
+    checkeq("set_priority"s, producers.last_key, "Unexpected key");
+    checkne(opaque, producers.last_opaque, "Unexpected opaque");
 
     dcp_step(h, cookie, producers);
-    cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpControl);
-    cb_assert(producers.last_key.compare("enable_ext_metadata") == 0);
-    cb_assert(producers.last_opaque != opaque);
+    checkeq(ClientOpcode::DcpControl, producers.last_op, "Unexpected last_op");
+    checkeq("enable_ext_metadata"s, producers.last_key, "Unexpected key");
+    checkne(opaque, producers.last_opaque, "Unexpected opaque");
 
     dcp_step(h, cookie, producers);
-    cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpControl);
-    cb_assert(producers.last_key.compare("supports_cursor_dropping_vulcan") ==
-              0);
-    cb_assert(producers.last_opaque != opaque);
+    checkeq(ClientOpcode::DcpControl, producers.last_op, "Unexpected last_op");
+    checkeq("supports_cursor_dropping_vulcan"s,
+            producers.last_key,
+            "Unexpected key");
+    checkne(opaque, producers.last_opaque, "Unexpected opaque");
 
     dcp_step(h, cookie, producers);
-    cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpControl);
-    cb_assert(producers.last_key.compare("supports_hifi_MFU") == 0);
-    cb_assert(producers.last_opaque != opaque);
+    checkeq(ClientOpcode::DcpControl, producers.last_op, "Unexpected last_op");
+    checkeq("supports_hifi_MFU"s, producers.last_key, "Unexpected key");
+    checkne(opaque, producers.last_opaque, "Unexpected opaque");
 
     dcp_step(h, cookie, producers);
-    cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpControl);
-    cb_assert(producers.last_key.compare(
-                      "send_stream_end_on_client_close_stream") == 0);
-    cb_assert(producers.last_opaque != opaque);
+    checkeq(ClientOpcode::DcpControl, producers.last_op, "Unexpected last_op");
+    checkeq("send_stream_end_on_client_close_stream"s,
+            producers.last_key,
+            "Unexpected key");
+    checkne(opaque, producers.last_opaque, "Unexpected opaque");
 
     dcp_step(h, cookie, producers);
-    cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpControl);
-    cb_assert(producers.last_key.compare("enable_expiry_opcode") == 0);
-    cb_assert(producers.last_opaque != opaque);
+    checkeq(ClientOpcode::DcpControl, producers.last_op, "Unexpected last_op");
+    checkeq("enable_expiry_opcode"s, producers.last_key, "Unexpected key");
+    checkne(opaque, producers.last_opaque, "Unexpected opaque");
 
     auto dcp = requireDcpIface(h);
     checkeq(ENGINE_SUCCESS,
@@ -3525,15 +3536,21 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
 
     dcp_step(h, cookie, producers);
     uint32_t stream_opaque = producers.last_opaque;
-    cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpStreamReq);
-    cb_assert(producers.last_opaque != opaque);
+    checkeq(ClientOpcode::DcpStreamReq,
+            producers.last_op,
+            "Unexpected last_op");
+    checkne(opaque, producers.last_opaque, "Unexpected opaque");
 
     if (exp_snap_start != 0) {
-        cb_assert(exp_snap_start == producers.last_snap_start_seqno);
+        checkeq(exp_snap_start,
+                producers.last_snap_start_seqno,
+                "Unexpected snap start");
     }
 
     if (exp_snap_end != 0) {
-        cb_assert(exp_snap_end == producers.last_snap_end_seqno);
+        checkeq(exp_snap_end,
+                producers.last_snap_end_seqno,
+                "Unexpected snap end");
     }
 
     size_t bodylen = 0;
@@ -3580,7 +3597,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
     }
 
     if (producers.last_op == cb::mcbp::ClientOpcode::DcpStreamReq) {
-        cb_assert(producers.last_opaque != opaque);
+        checkne(opaque, producers.last_opaque, "Unexpected opaque");
         verify_curr_items(h, 0, "Wrong amount of items");
 
         protocol_binary_response_header* pkt =
@@ -3602,21 +3619,31 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
                 "Expected success");
         dcp_step(h, cookie, producers);
 
-        cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpAddStream);
-        cb_assert(producers.last_status == cb::mcbp::Status::Success);
-        cb_assert(producers.last_stream_opaque == stream_opaque);
+        checkeq(cb::mcbp::ClientOpcode::DcpAddStream,
+                producers.last_op,
+                "Unexpected opcode");
+        checkeq(cb::mcbp::Status::Success,
+                producers.last_status,
+                "Unexpected status");
+        checkeq(stream_opaque,
+                producers.last_stream_opaque,
+                "Unexpected stream opaque");
         cb_free(pkt);
     } else {
-        cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpAddStream);
-        cb_assert(producers.last_status == response);
-        cb_assert(producers.last_stream_opaque == stream_opaque);
+        checkeq(cb::mcbp::ClientOpcode::DcpAddStream,
+                producers.last_op,
+                "Unexpected opcode");
+        checkeq(response, producers.last_status, "Unexpected status");
+        checkeq(stream_opaque,
+                producers.last_stream_opaque,
+                "Unexpected stream opaque");
     }
 
     if (response == cb::mcbp::Status::Success) {
         uint64_t uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
         uint64_t seq = get_ull_stat(h, "vb_0:0:seq", "failovers");
-        cb_assert(uuid == 123456789);
-        cb_assert(seq == 0);
+        checkeq(uint64_t{123456789}, uuid, "Unexpected UUID");
+        checkeq(uint64_t{0}, seq, "Unexpected seqno");
     }
 
     return stream_opaque;

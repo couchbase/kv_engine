@@ -109,12 +109,18 @@ static void checkgtfn(T exp, T got, const char *msg, const char *file,
     }
 }
 
-#define checkeq(a, b, c) checkeqfn(a, b, c, __FILE__, __LINE__)
-#define checkne(a, b, c) checknefn(a, b, c, __FILE__, __LINE__)
-#define checkle(a, b, c) checklefn(a, b, c, __FILE__, __LINE__)
-#define checklt(a, b, c) checkltfn(a, b, c, __FILE__, __LINE__)
-#define checkge(a, b, c) checkgefn(a, b, c, __FILE__, __LINE__)
-#define checkgt(a, b, c) checkgtfn(a, b, c, __FILE__, __LINE__)
+#define checkeq(expected, actual, msg) \
+    checkeqfn(expected, actual, msg, __FILE__, __LINE__)
+#define checkne(expected, actual, msg) \
+    checknefn(expected, actual, msg, __FILE__, __LINE__)
+#define checkle(expected, actual, msg) \
+    checklefn(expected, actual, msg, __FILE__, __LINE__)
+#define checklt(expected, actual, msg) \
+    checkltfn(expected, actual, msg, __FILE__, __LINE__)
+#define checkge(expected, actual, msg) \
+    checkgefn(expected, actual, msg, __FILE__, __LINE__)
+#define checkgt(expected, actual, msg) \
+    checkgtfn(expected, actual, msg, __FILE__, __LINE__)
 
 class BaseTestCase {
 public:
