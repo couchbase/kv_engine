@@ -41,6 +41,14 @@ enum class queue_op : uint8_t {
     /// do just that to preserve system-xattrs.
     mutation,
 
+    /// Set a document key to a given value; but only make the change visible
+    /// once it has met it's durability requirements by sufficient replicas
+    /// acknowledging it.
+    /// Until committed; the Pending Sync Write is not visible to clients nor
+    /// to non-replica DCP consumers.
+    /// See also - {commit_sync_write}.
+    pending_sync_write,
+
     /// (meta item) Testing only op, used to mark the end of a test.
     /// TODO: Remove this, it shouldn't be necessary / included just to support
     /// testing.
@@ -354,6 +362,7 @@ public:
     bool shouldPersist() const {
         switch (op) {
         case queue_op::mutation:
+        case queue_op::pending_sync_write:
         case queue_op::system_event:
         case queue_op::set_vbucket_state:
             return true;
@@ -377,6 +386,7 @@ public:
     bool isCheckPointMetaItem() const {
         switch (op) {
         case queue_op::mutation:
+        case queue_op::pending_sync_write:
         case queue_op::system_event:
             return false;
         case queue_op::flush:
@@ -427,19 +437,20 @@ public:
      * Sets the item as being a pendingSyncWrite with the specified durability
      * requirements.
      */
-    void setPendingSyncWrite(cb::durability::Requirements requirements) {
-        if (!requirements.isValid()) {
-            throw std::invalid_argument(
-                    "setPendingSyncWrite: specified requirements are invalid");
-        }
-        durabilityReqs = requirements;
-    }
+    void setPendingSyncWrite(cb::durability::Requirements requirements);
 
     /// Is this Item Committed, or Pending Sync Write?
     CommittedState getCommitted() const {
-        return (durabilityReqs.getLevel() == cb::durability::Level::None)
-                       ? CommittedState::Committed
-                       : CommittedState::Pending;
+        return (op == queue_op::pending_sync_write) ? CommittedState::Pending
+                                                    : CommittedState::Committed;
+    }
+
+    /**
+     * @return the durability requirements for this Item. If the item is not
+     * pending, returns requirements of Level::None.
+     */
+    cb::durability::Requirements getDurabilityReqs() const {
+        return durabilityReqs;
     }
 
     /* Retrieve item_info for this item instance
@@ -512,8 +523,8 @@ private:
      * Level==None; for SyncWrites specifies what conditions need to be met
      * before the item is considered durable.
      */
-    cb::durability::Requirements durabilityReqs = {cb::durability::Level::None,
-                                                   0};
+    cb::durability::Requirements durabilityReqs =
+            cb::durability::NoRequirements;
 
     static std::atomic<uint64_t> casCounter;
     DISALLOW_ASSIGN(Item);

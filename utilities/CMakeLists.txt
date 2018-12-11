@@ -21,6 +21,7 @@ add_library(mcd_util STATIC
             config_parser.cc
             dcp_stream_id.cc
             dockey.cc
+            durability_spec.cc
             engine_loader.cc
             engine_loader.h
             hdrhistogram.cc

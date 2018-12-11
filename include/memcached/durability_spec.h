@@ -61,7 +61,7 @@ public:
     Requirements() = default;
     Requirements(const Requirements&) = default;
 
-    Requirements(Level level_, uint16_t timeout_)
+    constexpr Requirements(Level level_, uint16_t timeout_)
         : level(level_), timeout(timeout_) {
     }
 
@@ -134,6 +134,10 @@ protected:
     /// The timeout in ms
     uint16_t timeout{0};
 };
+
+static constexpr Requirements NoRequirements = {Level::None, 0};
+
+std::string to_string(Requirements r);
 
 } // namespace durability
 } // namespace cb

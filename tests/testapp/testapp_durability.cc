@@ -54,7 +54,8 @@ protected:
 
     void executeCommand(ClientOpcode opcode,
                         cb::const_byte_buffer extras,
-                        const std::string& value) {
+                        const std::string& value,
+                        cb::mcbp::Status expectedStatus) {
         std::vector<uint8_t> buffer(1024);
         RequestBuilder builder({buffer.data(), buffer.size()});
         builder.setOpcode(opcode);
@@ -76,24 +77,49 @@ protected:
         BinprotResponse resp;
         conn.recvResponse(resp);
 
-        EXPECT_FALSE(resp.isSuccess());
-        EXPECT_EQ(Status::NotSupported, resp.getStatus());
+        EXPECT_EQ(expectedStatus, resp.getStatus());
+    }
+
+// Temporary macro - current state of Sync Writes in ep-engine is they are
+// accepted but will EWOULBLOCK forever; causing tests to hang. Once further
+// implementation is completed so this isn't the case this can be removed.
+#define TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES                \
+    if (mcd_env->getTestBucket().supportsSyncWrites()) { \
+        return;                                          \
     }
 
     void executeMutationCommand(ClientOpcode opcode) {
-        executeCommand(opcode, request::MutationPayload().getBuffer(), "hello");
+        TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
+        executeCommand(opcode,
+                       request::MutationPayload().getBuffer(),
+                       "hello",
+                       getExpectedStatus());
     }
 
     void executeArithmeticOperation(ClientOpcode opcode) {
-        executeCommand(opcode, request::ArithmeticPayload().getBuffer(), "");
+        TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
+        executeCommand(opcode,
+                       request::ArithmeticPayload().getBuffer(),
+                       "",
+                       getExpectedStatus());
     }
 
     void executeAppendPrependCommand(ClientOpcode opcode) {
-        executeCommand(opcode, {}, "world");
+        TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
+        executeCommand(opcode, {}, "world", getExpectedStatus());
     }
 
     void executeTouchOrGatCommand(ClientOpcode opcode) {
-        executeCommand(opcode, request::GatPayload().getBuffer(), "");
+        executeCommand(opcode,
+                       request::GatPayload().getBuffer(),
+                       "",
+                       cb::mcbp::Status::NotSupported);
+    }
+
+    cb::mcbp::Status getExpectedStatus() const {
+        return (mcd_env->getTestBucket().supportsSyncWrites())
+                       ? Status::Success
+                       : Status::NotSupported;
     }
 };
 
@@ -103,37 +129,39 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         ::testing::PrintToStringParamName());
 
 /**
- * None of the backends currently support the Durability Specification
- * Run all of the affected commands and verify that we return NotSupported
+ * Only ep-engine supports the Durability Specification
+ * Run all of the affected commands and verify that we return NotSupported for
+ * memcached.
  */
 
-TEST_P(DurabilityTest, AddNotSupported) {
+TEST_P(DurabilityTest, AddMaybeSupported) {
     auto& conn = getConnection();
     conn.remove(name, Vbid{0});
+
     executeMutationCommand(ClientOpcode::Add);
 }
 
-TEST_P(DurabilityTest, SetNotSupported) {
+TEST_P(DurabilityTest, SetMaybeSupported) {
     executeMutationCommand(ClientOpcode::Set);
 }
 
-TEST_P(DurabilityTest, ReplaceNotSupported) {
+TEST_P(DurabilityTest, ReplaceMaybeSupported) {
     executeMutationCommand(ClientOpcode::Replace);
 }
 
-TEST_P(DurabilityTest, IncrementNotSupported) {
+TEST_P(DurabilityTest, IncrementMaybeSupported) {
     executeArithmeticOperation(ClientOpcode::Increment);
 }
 
-TEST_P(DurabilityTest, DecrementNotSupported) {
+TEST_P(DurabilityTest, DecrementMaybeSupported) {
     executeArithmeticOperation(ClientOpcode::Decrement);
 }
 
-TEST_P(DurabilityTest, AppendNotSupported) {
+TEST_P(DurabilityTest, AppendMaybeSupported) {
     executeAppendPrependCommand(ClientOpcode::Append);
 }
 
-TEST_P(DurabilityTest, PrependNotSupported) {
+TEST_P(DurabilityTest, PrependMaybeSupported) {
     executeAppendPrependCommand(ClientOpcode::Prepend);
 }
 
@@ -161,7 +189,8 @@ protected:
      */
     static const size_t FrameExtrasSize = 4;
 
-    void executeCommand(std::vector<uint8_t>& command) {
+    void executeCommand(std::vector<uint8_t>& command,
+                        cb::mcbp::Status expectedStatus) {
         // Resize the underlying buffer to have room for the frame extras..
         command.resize(command.size() + FrameExtrasSize);
 
@@ -180,9 +209,7 @@ protected:
         BinprotResponse resp;
         conn.recvResponse(resp);
 
-        EXPECT_FALSE(resp.isSuccess());
-        EXPECT_EQ(Status::NotSupported, resp.getStatus())
-                << resp.getDataString();
+        EXPECT_EQ(expectedStatus, resp.getStatus());
     }
 };
 
@@ -191,75 +218,85 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         ::testing::Values(TransportProtocols::McbpPlain),
                         ::testing::PrintToStringParamName());
 
-TEST_P(SubdocDurabilityTest, SubdocDictAddNotSupported) {
+TEST_P(SubdocDurabilityTest, SubdocDictAddMaybeSupported) {
+    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocCommand cmd(
             ClientOpcode::SubdocDictAdd, name, "foo", "5", SUBDOC_FLAG_MKDIR_P);
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload);
+    executeCommand(payload, getExpectedStatus());
 }
 
-TEST_P(SubdocDurabilityTest, SubdocDictUpsertNotSupported) {
+TEST_P(SubdocDurabilityTest, SubdocDictUpsertMaybeSupported) {
+    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocCommand cmd(ClientOpcode::SubdocDictUpsert, name, "foo", "5");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload);
+    executeCommand(payload, getExpectedStatus());
 }
 
-TEST_P(SubdocDurabilityTest, SubdocDeleteNotSupported) {
+TEST_P(SubdocDurabilityTest, SubdocDeleteMaybeSupported) {
+    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocCommand cmd(ClientOpcode::SubdocDelete, name, "tag");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload);
+    executeCommand(payload, getExpectedStatus());
 }
 
-TEST_P(SubdocDurabilityTest, SubdocReplaceNotSupported) {
+TEST_P(SubdocDurabilityTest, SubdocReplaceMaybeSupported) {
+    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocCommand cmd(ClientOpcode::SubdocReplace, name, "tag", "5");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload);
+    executeCommand(payload, getExpectedStatus());
 }
 
-TEST_P(SubdocDurabilityTest, SubdocArrayPushLastNotSupported) {
+TEST_P(SubdocDurabilityTest, SubdocArrayPushLastMaybeSupported) {
+    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocCommand cmd(
             ClientOpcode::SubdocArrayPushLast, name, "array", "3");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload);
+    executeCommand(payload, getExpectedStatus());
 }
 
-TEST_P(SubdocDurabilityTest, SubdocArrayPushFirstNotSupported) {
+TEST_P(SubdocDurabilityTest, SubdocArrayPushFirstMaybeSupported) {
+    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocCommand cmd(
             ClientOpcode::SubdocArrayPushFirst, name, "array", "3");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload);
+    executeCommand(payload, getExpectedStatus());
 }
 
-TEST_P(SubdocDurabilityTest, SubdocArrayInsertNotSupported) {
+TEST_P(SubdocDurabilityTest, SubdocArrayInsertMaybeSupported) {
+    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocCommand cmd(
             ClientOpcode::SubdocArrayInsert, name, "array.[3]", "3");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload);
+    executeCommand(payload, getExpectedStatus());
 }
 
-TEST_P(SubdocDurabilityTest, SubdocArrayAddUniqueNotSupported) {
+TEST_P(SubdocDurabilityTest, SubdocArrayAddUniqueMaybeSupported) {
+    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocCommand cmd(
             ClientOpcode::SubdocArrayAddUnique, name, "array", "6");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload);
+    executeCommand(payload, getExpectedStatus());
 }
 
-TEST_P(SubdocDurabilityTest, SubdocCounterNotSupported) {
+TEST_P(SubdocDurabilityTest, SubdocCounterMaybeSupported) {
+    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocCommand cmd(ClientOpcode::SubdocCounter, name, "counter", "1");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload);
+    executeCommand(payload, getExpectedStatus());
 }
 
-TEST_P(SubdocDurabilityTest, SubdocMultiMutationNotSupported) {
+TEST_P(SubdocDurabilityTest, SubdocMultiMutationMaybeSupported) {
+    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
@@ -268,5 +305,5 @@ TEST_P(SubdocDurabilityTest, SubdocMultiMutationNotSupported) {
                     R"("world")");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload);
+    executeCommand(payload, getExpectedStatus());
 }

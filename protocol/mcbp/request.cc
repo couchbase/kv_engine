@@ -95,7 +95,8 @@ void Request::parseFrameExtras(FrameInfoCallback callback) const {
 }
 
 bool Request::isQuiet() const {
-    if (getMagic() == Magic::ClientRequest) {
+    if ((getMagic() == Magic::ClientRequest) ||
+        (getMagic() == Magic::AltClientRequest)) {
         switch (getClientOpcode()) {
         case ClientOpcode::Get:
         case ClientOpcode::Set:

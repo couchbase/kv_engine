@@ -721,10 +721,14 @@ VBNotifyCtx VBucket::queueDirty(
         const GenerateBySeqno generateBySeqno,
         const GenerateCas generateCas,
         const bool isBackfillItem,
+        cb::durability::Requirements durabilityReqs,
         PreLinkDocumentContext* preLinkDocumentContext) {
     VBNotifyCtx notifyCtx;
 
     queued_item qi(v.toItem(false, getId()));
+    if (v.getCommitted() == CommittedState::Pending) {
+        qi->setPendingSyncWrite(durabilityReqs);
+    }
 
     // MB-27457: Timestamp deletes only when they don't already have a timestamp
     // assigned. This is here to ensure all deleted items have a timestamp which
@@ -898,6 +902,9 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
 
     PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
     VBQueueItemCtx queueItmCtx;
+    if (itm.getCommitted() == CommittedState::Pending) {
+        queueItmCtx.durabilityReqs = itm.getDurabilityReqs();
+    }
     queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
     MutationStatus status;
     boost::optional<VBNotifyCtx> notifyCtx;
@@ -911,7 +918,11 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
                                              storeIfStatus,
                                              maybeKeyExists);
 
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    // For pending SyncWrites we initially return EWOULDBLOCK; will notify
+    // client when request is committed / aborted later.
+    ENGINE_ERROR_CODE ret = (itm.getCommitted() == CommittedState::Committed)
+                                    ? ENGINE_SUCCESS
+                                    : ENGINE_EWOULDBLOCK;
     switch (status) {
     case MutationStatus::NoMem:
         ret = ENGINE_ENOMEM;
@@ -989,6 +1000,9 @@ ENGINE_ERROR_CODE VBucket::replace(
             PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
             VBQueueItemCtx queueItmCtx;
             queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
+            if (itm.getCommitted() == CommittedState::Pending) {
+                queueItmCtx.durabilityReqs = itm.getDurabilityReqs();
+            }
             std::tie(mtype, notifyCtx) = processSet(hbl,
                                                     v,
                                                     itm,
@@ -999,7 +1013,12 @@ ENGINE_ERROR_CODE VBucket::replace(
                                                     storeIfStatus);
         }
 
-        ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+        // For pending SyncWrites we initially return EWOULDBLOCK; will notify
+        // client when request is committed / aborted later.
+        ENGINE_ERROR_CODE ret =
+                (itm.getCommitted() == CommittedState::Committed)
+                        ? ENGINE_SUCCESS
+                        : ENGINE_EWOULDBLOCK;
         switch (mtype) {
         case MutationStatus::NoMem:
             ret = ENGINE_ENOMEM;
@@ -1064,6 +1083,7 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm) {
                                GenerateCas::No,
                                TrackCasDrift::No,
                                /*isBackfillItem*/ true,
+                               itm.getDurabilityReqs(),
                                nullptr /* No pre link should happen */};
     MutationStatus status;
     boost::optional<VBNotifyCtx> notifyCtx;
@@ -1189,6 +1209,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
                                genCas,
                                TrackCasDrift::Yes,
                                /*isBackfillItem*/ false,
+                               itm.getDurabilityReqs(),
                                nullptr /* No pre link step needed */};
     MutationStatus status;
     boost::optional<VBNotifyCtx> notifyCtx;
@@ -1473,6 +1494,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
                                    generateCas,
                                    TrackCasDrift::Yes,
                                    backfill,
+                                   cb::durability::NoRequirements,
                                    nullptr /* No pre link step needed */};
 
         std::unique_ptr<Item> itm;
@@ -1642,6 +1664,9 @@ ENGINE_ERROR_CODE VBucket::add(
     PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
     VBQueueItemCtx queueItmCtx;
     queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
+    if (itm.getCommitted() == CommittedState::Pending) {
+        queueItmCtx.durabilityReqs = itm.getDurabilityReqs();
+    }
     AddStatus status;
     boost::optional<VBNotifyCtx> notifyCtx;
     std::tie(status, notifyCtx) =
@@ -1665,7 +1690,12 @@ ENGINE_ERROR_CODE VBucket::add(
         itm.setCas(v->getCas());
         break;
     }
-    return ENGINE_SUCCESS;
+
+    // For pending SyncWrites we initially return EWOULDBLOCK; will notify
+    // client when request is committed / aborted later.
+    return (itm.getCommitted() == CommittedState::Committed)
+                   ? ENGINE_SUCCESS
+                   : ENGINE_EWOULDBLOCK;
 }
 
 std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
@@ -2492,6 +2522,7 @@ VBucket::processExpiredItem(
                                           GenerateBySeqno::Yes,
                                           GenerateCas::Yes,
                                           /*isBackfillItem*/ false,
+                                          cb::durability::NoRequirements,
                                           /*preLinkDocumentContext*/ nullptr));
     }
 
@@ -2611,6 +2642,7 @@ VBNotifyCtx VBucket::queueDirty(StoredValue& v,
                       queueItmCtx.genBySeqno,
                       queueItmCtx.genCas,
                       queueItmCtx.isBackfillItem,
+                      queueItmCtx.durabilityReqs,
                       queueItmCtx.preLinkDocumentContext);
 }
 

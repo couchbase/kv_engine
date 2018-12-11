@@ -143,6 +143,13 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
     } else {
         // Check if this checkpoint already had an item for the same key
         if (it != keyIndex.end()) {
+            if (qi->getOperation() == queue_op::pending_sync_write) {
+                // @todo: Need to actually avoid de-duplication.
+                throw std::logic_error(
+                        "Checkpoint::queueDirty: About to de-dupe a pending "
+                        "syncWrite!");
+            }
+
             rv = queue_dirty_t::EXISTING_ITEM;
             CheckpointQueue::iterator currPos = it->second.position;
             const int64_t currMutationId{it->second.mutation_id};

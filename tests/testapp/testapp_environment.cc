@@ -167,6 +167,10 @@ public:
     bool supportsPersistence() const override {
         return false;
     }
+
+    bool supportsSyncWrites() const override {
+        return false;
+    }
 };
 
 class EpBucketImpl : public TestBucketImpl {
@@ -264,6 +268,10 @@ public:
     }
 
     bool supportsPersistence() const override {
+        return true;
+    }
+
+    bool supportsSyncWrites() const override {
         return true;
     }
 

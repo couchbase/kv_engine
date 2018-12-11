@@ -133,6 +133,8 @@ std::string to_string(queue_op op) {
     switch(op) {
     case queue_op::mutation:
         return "mutation";
+    case queue_op::pending_sync_write:
+        return "pending_sync_write";
     case queue_op::flush:
         return "flush";
     case queue_op::empty:
@@ -269,6 +271,7 @@ bool Item::decompressValue() {
 void Item::setDeleted(DeleteSource cause) {
     switch (op) {
     case queue_op::mutation:
+    case queue_op::pending_sync_write:
         deleted = 1; // true
         deletionCause = static_cast<uint8_t>(cause);
         break;
@@ -294,6 +297,16 @@ void Item::setDeleted(DeleteSource cause) {
 uint64_t Item::nextCas() {
     return std::chrono::steady_clock::now().time_since_epoch().count() +
            (++casCounter);
+}
+
+void Item::setPendingSyncWrite(cb::durability::Requirements requirements) {
+    if (!requirements.isValid()) {
+        throw std::invalid_argument(
+                "setPendingSyncWrite: specified requirements are invalid: " +
+                to_string(requirements));
+    }
+    durabilityReqs = requirements;
+    op = queue_op::pending_sync_write;
 }
 
 item_info Item::toItemInfo(uint64_t vb_uuid, int64_t hlcEpoch) const {

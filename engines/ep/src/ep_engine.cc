@@ -216,9 +216,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::remove(
         Vbid vbucket,
         boost::optional<cb::durability::Requirements> durability,
         mutation_descr_t& mut_info) {
-    if (durability) {
-        return ENGINE_ENOTSUP;
-    }
     return acquireEngine(this)->itemDelete(
             cookie, key, cas, vbucket, nullptr, mut_info);
 }
@@ -317,14 +314,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(
         ENGINE_STORE_OPERATION operation,
         boost::optional<cb::durability::Requirements> durability,
         DocumentState document_state) {
-    if (durability) {
-        return ENGINE_ENOTSUP;
-    }
+    Item* item = static_cast<Item*>(itm.get());
     if (document_state == DocumentState::Deleted) {
-        Item* item = static_cast<Item*>(itm.get());
         item->setDeleted();
     }
-
+    if (durability) {
+        item->setPendingSyncWrite(durability.get());
+    }
     return acquireEngine(this)->storeInner(cookie, itm, cas, operation);
 }
 
@@ -336,14 +332,13 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
         cb::StoreIfPredicate predicate,
         boost::optional<cb::durability::Requirements> durability,
         DocumentState document_state) {
-    if (durability) {
-        return {cb::engine_errc::not_supported, 0};
-    }
-
     Item& item = static_cast<Item&>(*static_cast<Item*>(itm.get()));
 
     if (document_state == DocumentState::Deleted) {
         item.setDeleted();
+    }
+    if (durability) {
+        item.setPendingSyncWrite(durability.get());
     }
     return acquireEngine(this)->storeIfInner(
             cookie, item, cas, operation, predicate);
