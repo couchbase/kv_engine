@@ -3613,14 +3613,28 @@ void SingleThreadedEPBucketTest::backfillExpiryOutput(bool xattr) {
     auto flags = xattr ? cb::mcbp::request::DcpOpenPayload::IncludeXattrs : 0;
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-
     // Expire a key;
-    auto expiryTime = ep_real_time() + 32000;
-    store_item(
-            vbid, {"KEY3", DocKeyEncodesCollectionId::No}, "value", expiryTime);
+    auto expiryTime = ep_real_time() + 256;
+
+    std::string value;
+    if (xattr) {
+        value = createXattrValue("body");
+        store_item(vbid,
+                   {"KEY3", DocKeyEncodesCollectionId::No},
+                   value,
+                   expiryTime,
+                   {cb::engine_errc::success},
+                   PROTOCOL_BINARY_DATATYPE_XATTR);
+    } else {
+        value = "value";
+        store_item(vbid,
+                   {"KEY3", DocKeyEncodesCollectionId::No},
+                   value,
+                   expiryTime);
+    }
 
     // Trigger expiry on the stored item
-    TimeTraveller arron(64000);
+    TimeTraveller arron(1024);
 
     // Trigger expiry on a GET
     auto gv = store->get(

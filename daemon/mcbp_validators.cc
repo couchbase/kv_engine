@@ -718,9 +718,7 @@ static Status dcp_expiration_validator(Cookie& cookie) {
             cookie,
             sizeof(cb::mcbp::request::DcpExpirationPayload),
             ExpectedKeyLen::NonZero,
-            ExpectedValueLen::Zero,
-            ExpectedCas::Any,
-            PROTOCOL_BINARY_RAW_BYTES);
+            ExpectedValueLen::Any);
     if (status != Status::Success) {
         return status;
     }

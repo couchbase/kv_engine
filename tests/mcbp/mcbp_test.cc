@@ -2283,9 +2283,9 @@ TEST_P(DcpExpirationValidatorTest, InvalidKeylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-TEST_P(DcpExpirationValidatorTest, InvalidBodylen) {
+TEST_P(DcpExpirationValidatorTest, WithValue) {
     request.message.header.request.setBodylen(100);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
 }
 
 class DcpSetVbucketStateValidatorTest
