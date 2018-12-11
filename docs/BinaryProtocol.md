@@ -135,6 +135,21 @@ The (optional) 2nd and 3rd byte contains the timeout specified in
 milliseconds (network byte order). If omitted the default
 timeout value configured on the server will be used.
 
+##### ID:2 - DCP stream-ID
+
+This command contains a DCP stream-ID as per the stream-request which created
+the stream.
+
+    Byte/     0       |
+       /              |
+      |0 1 2 3 4 5 6 7|
+      +---------------+
+     0|  ID:2 | Len:2 |
+
+The 2nd and 3rd byte contain a network byte order (uint16) storing the stream
+ID value which was specified in the DCP stream-request that created the stream.
+
+
 ### Response header
 
       Byte/     0       |       1       |       2       |       3       |

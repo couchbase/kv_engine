@@ -39,7 +39,11 @@ namespace cb {
 namespace mcbp {
 
 namespace request {
-enum class FrameInfoId { Reorder = 0, DurabilityRequirement = 1 };
+enum class FrameInfoId {
+    Reorder = 0,
+    DurabilityRequirement = 1,
+    DcpStreamId = 2
+};
 }
 
 /**

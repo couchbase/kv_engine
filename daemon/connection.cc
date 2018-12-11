@@ -1603,48 +1603,62 @@ ENGINE_ERROR_CODE Connection::deletionOrExpirationV2(
         key = info.key.makeDocKeyWithoutCollectionID();
     }
 
-    if (deleteSource == DeleteSource::TTL) {
-        using cb::mcbp::Request;
-        using cb::mcbp::request::DcpExpirationPayload;
+    using cb::mcbp::DcpStreamIdFrameInfo;
+    using cb::mcbp::Request;
+    using cb::mcbp::request::DcpDeletionV2Payload;
+    using cb::mcbp::request::DcpExpirationPayload;
 
-        uint8_t blob[sizeof(Request) + sizeof(DcpExpirationPayload)];
-        auto& req = *reinterpret_cast<Request*>(blob);
-        req.setMagic(cb::mcbp::Magic::ClientRequest);
-        req.setOpcode(cb::mcbp::ClientOpcode::DcpExpiration);
-        req.setExtlen(sizeof(DcpExpirationPayload));
-        req.setKeylen(gsl::narrow<uint16_t>(key.size()));
-        req.setBodylen(sizeof(DcpExpirationPayload) +
-                       gsl::narrow<uint16_t>(key.size()) + info.nbytes);
-        req.setOpaque(opaque);
-        req.setVBucket(vbucket);
-        req.setCas(info.cas);
-        req.setDatatype(cb::mcbp::Datatype(info.datatype));
+    static_assert(sizeof(DcpDeletionV2Payload) >= sizeof(DcpExpirationPayload),
+                  "This function assumes delete_v2 is >= than expiry");
 
-        auto& extras = *reinterpret_cast<DcpExpirationPayload*>(
+    // Make blob big enough for either delete or expiry
+    uint8_t blob[sizeof(Request) + sizeof(DcpDeletionV2Payload) +
+                 sizeof(DcpStreamIdFrameInfo)] = {};
+    const size_t payloadLen = deleteSource == DeleteSource::Explicit
+                                      ? sizeof(DcpDeletionV2Payload)
+                                      : sizeof(DcpExpirationPayload);
+    const size_t frameInfoLen = sid ? sizeof(DcpStreamIdFrameInfo) : 0;
+
+    auto& req = *reinterpret_cast<Request*>(blob);
+    req.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
+                     : cb::mcbp::Magic::ClientRequest);
+
+    req.setOpcode(deleteSource == DeleteSource::Explicit
+                          ? cb::mcbp::ClientOpcode::DcpDeletion
+                          : cb::mcbp::ClientOpcode::DcpExpiration);
+    req.setExtlen(gsl::narrow<uint8_t>(payloadLen));
+    req.setKeylen(gsl::narrow<uint16_t>(key.size()));
+    req.setBodylen(gsl::narrow<uint32_t>(payloadLen +
+                                         gsl::narrow<uint16_t>(key.size()) +
+                                         info.nbytes + frameInfoLen));
+    req.setOpaque(opaque);
+    req.setVBucket(vbucket);
+    req.setCas(info.cas);
+    req.setDatatype(cb::mcbp::Datatype(info.datatype));
+
+    if (sid) {
+        auto& frameInfo = *reinterpret_cast<DcpStreamIdFrameInfo*>(
                 blob + sizeof(Request));
+        frameInfo = cb::mcbp::DcpStreamIdFrameInfo(sid);
+        req.setFramingExtraslen(sizeof(DcpStreamIdFrameInfo));
+    }
+
+    if (deleteSource == DeleteSource::Explicit) {
+        auto& extras = *reinterpret_cast<DcpDeletionV2Payload*>(
+                blob + sizeof(Request) + frameInfoLen);
         extras.setBySeqno(by_seqno);
         extras.setRevSeqno(rev_seqno);
         extras.setDeleteTime(delete_time);
-
-        return deletionInner(info, {blob, sizeof(blob)}, {}, key);
     } else {
-        cb::mcbp::request::DcpDeleteRequestV2 packet(
-                opaque,
-                vbucket,
-                info.cas,
-                gsl::narrow<uint16_t>(key.size()),
-                info.nbytes,
-                info.datatype,
-                by_seqno,
-                rev_seqno,
-                delete_time);
-
-        return deletionInner(info,
-                             {reinterpret_cast<const uint8_t*>(&packet),
-                              sizeof(packet)},
-                             {/*no extended meta in v2*/},
-                             key);
+        auto& extras = *reinterpret_cast<DcpExpirationPayload*>(
+                blob + sizeof(Request) + frameInfoLen);
+        extras.setBySeqno(by_seqno);
+        extras.setRevSeqno(rev_seqno);
+        extras.setDeleteTime(delete_time);
     }
+
+    return deletionInner(
+            info, {blob, sizeof(blob)}, {/*no extended meta in v2*/}, key);
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -1745,10 +1759,12 @@ ENGINE_ERROR_CODE Connection::stream_end(uint32_t opaque,
     using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
     using cb::mcbp::Request;
     using cb::mcbp::request::DcpStreamEndPayload;
-    uint8_t buffer[sizeof(Request) + sizeof(DcpStreamEndPayload)];
+    uint8_t buffer[sizeof(Request) + sizeof(DcpStreamEndPayload) +
+                   sizeof(cb::mcbp::DcpStreamIdFrameInfo)];
 
     Framebuilder builder({buffer, sizeof(buffer)});
-    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
+                         : cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpStreamEnd);
     builder.setOpaque(opaque);
     builder.setVBucket(vbucket);
@@ -1758,6 +1774,11 @@ ENGINE_ERROR_CODE Connection::stream_end(uint32_t opaque,
 
     builder.setExtras(
             {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
+
+    if (sid) {
+        cb::mcbp::DcpStreamIdFrameInfo framedSid(sid);
+        builder.setFramingExtras(framedSid.getBuf());
+    }
 
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
@@ -1771,10 +1792,12 @@ ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
     using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
     using cb::mcbp::Request;
     using cb::mcbp::request::DcpSnapshotMarkerPayload;
-    uint8_t buffer[sizeof(Request) + sizeof(DcpSnapshotMarkerPayload)];
+    uint8_t buffer[sizeof(Request) + sizeof(DcpSnapshotMarkerPayload) +
+                   sizeof(cb::mcbp::DcpStreamIdFrameInfo)];
 
     Framebuilder builder({buffer, sizeof(buffer)});
-    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
+                         : cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     builder.setOpaque(opaque);
     builder.setVBucket(vbucket);
@@ -1783,6 +1806,11 @@ ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
     payload.setStartSeqno(start_seqno);
     payload.setEndSeqno(end_seqno);
     payload.setFlags(flags);
+
+    if (sid) {
+        cb::mcbp::DcpStreamIdFrameInfo framedSid(sid);
+        builder.setFramingExtras(framedSid.getBuf());
+    }
 
     builder.setExtras(
             {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
@@ -1839,35 +1867,70 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
             nru);
 
     cb::mcbp::Request req = {};
-    req.setMagic(cb::mcbp::Magic::ClientRequest);
+    req.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
+                     : cb::mcbp::Magic::ClientRequest);
     req.setOpcode(cb::mcbp::ClientOpcode::DcpMutation);
     req.setExtlen(gsl::narrow<uint8_t>(sizeof(extras)));
     req.setKeylen(gsl::narrow<uint16_t>(key.size()));
-    req.setBodylen(gsl::narrow<uint32_t>(sizeof(extras) + key.size() + nmeta +
-                                         buffer.size()));
+    req.setBodylen(gsl::narrow<uint32_t>(
+            sizeof(extras) + key.size() + nmeta + buffer.size() +
+            (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0)));
     req.setOpaque(opaque);
     req.setVBucket(vbucket);
     req.setCas(info.cas);
     req.setDatatype(cb::mcbp::Datatype(info.datatype));
 
+    cb::mcbp::DcpStreamIdFrameInfo frameExtras(sid);
+    if (sid) {
+        req.setFramingExtraslen(sizeof(cb::mcbp::DcpStreamIdFrameInfo));
+    }
+
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    write->produce([this, &req, &extras, &buffer, &meta, &nmeta, &ret, &key](
-                           cb::byte_buffer wbuf) -> size_t {
-        const size_t total = sizeof(extras) + sizeof(req) + nmeta;
-        if (wbuf.size() < total) {
+    write->produce([this,
+                    &req,
+                    &frameExtras,
+                    &extras,
+                    &buffer,
+                    &meta,
+                    &nmeta,
+                    &ret,
+                    &key,
+                    sid](cb::byte_buffer wbuf) -> size_t {
+        size_t headerSize = sizeof(extras) + sizeof(req) + nmeta;
+        if (sid) {
+            headerSize += sizeof(frameExtras);
+        }
+        if (wbuf.size() < headerSize) {
             ret = ENGINE_E2BIG;
             return 0;
         }
 
-        std::copy_n(reinterpret_cast<const uint8_t*>(&req),
-                    sizeof(req),
-                    wbuf.begin());
-        std::copy_n(reinterpret_cast<const uint8_t*>(&extras),
-                    sizeof(extras),
-                    wbuf.begin() + sizeof(req));
+        auto nextWbuf = std::copy_n(reinterpret_cast<const uint8_t*>(&req),
+                                    sizeof(req),
+                                    wbuf.begin());
 
-        // Add the header
-        addIov(wbuf.data(), sizeof(req) + sizeof(extras));
+        if (sid) {
+            // Add the optional stream-ID
+            nextWbuf =
+                    std::copy_n(reinterpret_cast<const uint8_t*>(&frameExtras),
+                                sizeof(frameExtras),
+                                nextWbuf);
+        }
+
+        nextWbuf = std::copy_n(reinterpret_cast<const uint8_t*>(&extras),
+                               sizeof(extras),
+                               nextWbuf);
+
+        if (nmeta) {
+            // Add the optional meta section
+            std::copy(static_cast<const uint8_t*>(meta),
+                      static_cast<const uint8_t*>(meta) + nmeta,
+                      nextWbuf);
+        }
+
+        // Add the header (which includes extras, optional frame-extra and
+        // optional nmeta)
+        addIov(wbuf.data(), headerSize);
 
         // Add the key
         addIov(key.data(), key.size());
@@ -1875,15 +1938,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
         // Add the value
         addIov(buffer.data(), buffer.size());
 
-        // Add the optional meta section
-        if (nmeta > 0) {
-            std::copy(static_cast<const uint8_t*>(meta),
-                      static_cast<const uint8_t*>(meta) + nmeta,
-                      wbuf.data() + sizeof(req) + sizeof(extras));
-            addIov(wbuf.data() + sizeof(req) + sizeof(extras), nmeta);
-        }
-
-        return total;
+        return headerSize;
     });
 
     return ret;
@@ -1967,20 +2022,47 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
     // we've reserved the item, and it'll be released when we're done sending
     // the item.
     item.release();
-    auto key = info.key.makeDocKeyWithoutCollectionID();
-    cb::mcbp::request::DcpDeleteRequestV1 packet(
-            opaque,
-            vbucket,
-            info.cas,
-            gsl::narrow<uint16_t>(key.size()),
-            info.nbytes,
-            info.datatype,
-            by_seqno,
-            rev_seqno,
-            nmeta);
+
+    auto key = info.key;
+    if (!isCollectionsSupported()) {
+        key = info.key.makeDocKeyWithoutCollectionID();
+    }
+
+    using cb::mcbp::Request;
+    using cb::mcbp::request::DcpDeletionV1Payload;
+    uint8_t blob[sizeof(Request) + sizeof(DcpDeletionV1Payload) +
+                 sizeof(cb::mcbp::DcpStreamIdFrameInfo)];
+    auto& req = *reinterpret_cast<Request*>(blob);
+    req.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
+                     : cb::mcbp::Magic::ClientRequest);
+    req.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
+    req.setExtlen(gsl::narrow<uint8_t>(sizeof(DcpDeletionV1Payload)));
+    req.setKeylen(gsl::narrow<uint16_t>(key.size()));
+    req.setBodylen(gsl::narrow<uint32_t>(
+            sizeof(DcpDeletionV1Payload) + key.size() + nmeta +
+            (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0)));
+    req.setOpaque(opaque);
+    req.setVBucket(vbucket);
+    req.setCas(info.cas);
+    req.setDatatype(cb::mcbp::Datatype(info.datatype));
+
+    if (sid) {
+        auto& frameInfo = *reinterpret_cast<cb::mcbp::DcpStreamIdFrameInfo*>(
+                blob + sizeof(Request));
+        frameInfo = cb::mcbp::DcpStreamIdFrameInfo(sid);
+        req.setFramingExtraslen(sizeof(cb::mcbp::DcpStreamIdFrameInfo));
+    }
+
+    auto& extras =
+            *reinterpret_cast<DcpDeletionV1Payload*>(blob + sizeof(Request));
+    extras.setBySeqno(by_seqno);
+    extras.setRevSeqno(rev_seqno);
+    extras.setNmeta(nmeta);
 
     cb::const_byte_buffer packetBuffer{
-            reinterpret_cast<const uint8_t*>(&packet), sizeof(packet)};
+            blob,
+            sizeof(Request) + sizeof(DcpDeletionV1Payload) +
+                    (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0)};
     cb::const_byte_buffer extendedMeta{reinterpret_cast<const uint8_t*>(meta),
                                        nmeta};
 
@@ -2094,17 +2176,23 @@ ENGINE_ERROR_CODE Connection::system_event(uint32_t opaque,
     cb::mcbp::request::DcpSystemEventPayload extras(bySeqno, event, version);
     std::vector<uint8_t> buffer;
     buffer.resize(sizeof(cb::mcbp::Request) + sizeof(extras) + key.size() +
-                  eventData.size());
+                  eventData.size() + sizeof(cb::mcbp::DcpStreamIdFrameInfo));
     cb::mcbp::RequestBuilder builder({buffer.data(), buffer.size()});
 
-    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
+                         : cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpSystemEvent);
     builder.setOpaque(opaque);
     builder.setVBucket(vbucket);
     builder.setDatatype(cb::mcbp::Datatype::Raw);
     builder.setExtras(extras.getBuffer());
+    if (sid) {
+        cb::mcbp::DcpStreamIdFrameInfo framedSid(sid);
+        builder.setFramingExtras(framedSid.getBuf());
+    }
     builder.setKey(key);
     builder.setValue(eventData);
+
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 

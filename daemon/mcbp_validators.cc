@@ -405,6 +405,13 @@ Status McbpValidator::verify_header(Cookie& cookie,
                 cookie.setErrorContext(msg);
                 return false;
             }
+        case cb::mcbp::request::FrameInfoId::DcpStreamId:
+            if (data.size() != sizeof(cb::mcbp::DcpStreamIdFrameInfo)) {
+                status = Status::Einval;
+                cookie.setErrorContext("DcpStreamId invalid size:" +
+                                       std::to_string(data.size()));
+            }
+            return false;
         } // switch (id)
         status = Status::UnknownFrameInfo;
         return false;

@@ -16,6 +16,7 @@
  */
 
 #include <mcbp/protocol/request.h>
+#include <memcached/dcp_stream_id.h>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 #include <cctype>
@@ -245,7 +246,8 @@ void Request::parseFrameExtras(FrameInfoCallback callback) const {
         case FrameInfoId::Reorder:
             if (!content.empty()) {
                 throw std::runtime_error(
-                        "parseFrameExtras: Invalid size for Reorder");
+                        "parseFrameExtras: Invalid size for Reorder, size:" +
+                        std::to_string(content.size()));
             }
             if (!callback(FrameInfoId::Reorder, content)) {
                 return;
@@ -254,9 +256,22 @@ void Request::parseFrameExtras(FrameInfoCallback callback) const {
         case FrameInfoId::DurabilityRequirement:
             if (content.size() != 1 && content.size() != 3) {
                 throw std::runtime_error(
-                        R"(parseFrameExtras: Invalid size for DurabilityRequirement)");
+                        "parseFrameExtras: Invalid size for "
+                        "DurabilityRequirement, size:" +
+                        std::to_string(content.size()));
             }
             if (!callback(FrameInfoId::DurabilityRequirement, content)) {
+                return;
+            }
+            continue;
+        case FrameInfoId::DcpStreamId:
+            if (content.size() != sizeof(DcpStreamId)) {
+                throw std::runtime_error(
+                        "parseFrameExtras: Invalid size for "
+                        "DcpStreamId, size:" +
+                        std::to_string(content.size()));
+            }
+            if (!callback(FrameInfoId::DcpStreamId, content)) {
                 return;
             }
             continue;
@@ -556,6 +571,8 @@ std::string to_string(cb::mcbp::request::FrameInfoId id) {
         return "Reorder";
     case FrameInfoId::DurabilityRequirement:
         return "DurabilityRequirement";
+    case FrameInfoId::DcpStreamId:
+        return "DcpStreamId";
     }
 
     throw std::invalid_argument("to_string(): Invalid frame id: " +

@@ -65,7 +65,8 @@ TEST(Request_ParseFrameExtras, Reorder_InvalidLength) {
         });
         FAIL() << "Parser should detect invalid length";
     } catch (const std::runtime_error& e) {
-        EXPECT_STREQ("parseFrameExtras: Invalid size for Reorder", e.what());
+        EXPECT_STREQ("parseFrameExtras: Invalid size for Reorder, size:1",
+                     e.what());
     }
 }
 
@@ -154,8 +155,10 @@ TEST(Request_ParseFrameExtras, DurabilityRequirement_InvalidLength) {
         });
         FAIL() << "Parser should detect invalid length";
     } catch (const std::runtime_error& e) {
-        EXPECT_STREQ("parseFrameExtras: Invalid size for DurabilityRequirement",
-                     e.what());
+        EXPECT_STREQ(
+                "parseFrameExtras: Invalid size for DurabilityRequirement, "
+                "size:4",
+                e.what());
     }
 }
 

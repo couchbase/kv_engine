@@ -17,6 +17,7 @@
 #include "config.h"
 
 #include <mcbp/mcbp.h>
+#include <memcached/dcp_stream_id.h>
 #include <memcached/protocol_binary.h>
 #include <platform/byte_buffer_dump.h>
 #include <platform/string_hex.h>
@@ -247,6 +248,11 @@ protected:
                             ss << ", Timeout=" << requirements.getTimeout();
                         }
                     }
+                    break;
+                case cb::mcbp::request::FrameInfoId::DcpStreamId:
+                    ss << " DcpStreamId="
+                       << ntohs(*reinterpret_cast<const uint16_t*>(
+                                  payload.data()));
                     break;
                 }
 

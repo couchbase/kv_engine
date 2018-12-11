@@ -17,7 +17,9 @@
 
 #pragma once
 
+#include <mcbp/protocol/request.h>
 #include <memcached/mcd_util-visibility.h>
+#include <platform/sized_buffer.h>
 #include <platform/socket.h>
 
 #include <stdint.h>
@@ -36,7 +38,7 @@ public:
 
     explicit DcpStreamId(uint16_t value) : id(value){};
 
-    uint16_t hton() const {
+    uint16_t to_network() const {
         return htons(id);
     }
 
@@ -78,6 +80,26 @@ public:
 protected:
     uint16_t id{0};
 };
+
+struct DcpStreamIdFrameInfo {
+    DcpStreamIdFrameInfo(DcpStreamId sid) {
+        *reinterpret_cast<uint16_t*>(this->sid) = sid.to_network();
+    }
+
+    cb::const_byte_buffer getBuf() const {
+        return cb::const_byte_buffer{reinterpret_cast<const uint8_t*>(this),
+                                     sizeof(tag) + sizeof(sid)};
+    }
+
+private:
+    // FrameID:2, len:2
+    static const uint8_t frameId = uint8_t(request::FrameInfoId::DcpStreamId);
+    uint8_t tag{(frameId << 4) | 2};
+    uint8_t sid[2]{};
+};
+
+static_assert(sizeof(DcpStreamIdFrameInfo) == 3,
+              "DcpStreamIdFrameInfo should be 3 bytes");
 
 } // namespace mcbp
 } // namespace cb
