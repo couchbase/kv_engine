@@ -430,7 +430,6 @@ A Sample memcached.json:
         "max_packet_size" : 25,
         "bio_drain_buffer_sz" : 8192,
         "sasl_mechanisms" : "SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1",
-        "saslauthd_socketpath" : "/var/run/saslauthd/mux",
         "dedupe_nmvb_maps" : true,
         "xattr_enabled" : true,
         "tracing_enabled" : true,
