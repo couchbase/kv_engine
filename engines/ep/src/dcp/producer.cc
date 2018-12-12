@@ -631,6 +631,18 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                     se->getVbucket(),
                     mapEndStreamStatus(getCookie(), se->getFlags()),
                     resp->getStreamId());
+
+            if (resp->getStreamId() && sendStreamEndOnClientStreamClose) {
+                if (!closeStreamInner(
+                             se->getVbucket(), resp->getStreamId(), true)
+                             .first) {
+                    throw std::logic_error(
+                            "DcpProducer::step(StreamEnd): no stream was found "
+                            "for " +
+                            se->getVbucket().to_string() + " " +
+                            resp->getStreamId().to_string());
+                }
+            }
             break;
         }
         case DcpResponse::Event::Commit: {
@@ -1053,6 +1065,42 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
     return false;
 }
 
+std::pair<std::shared_ptr<Stream>, bool> DcpProducer::closeStreamInner(
+        Vbid vbucket, cb::mcbp::DcpStreamId sid, bool eraseFromMapIfFound) {
+    std::shared_ptr<Stream> stream;
+    bool vbFound = false;
+
+    // Obtain exclusive access to the streams map and see if the vbucket is
+    // mapped.
+    std::lock_guard<StreamsMap> guard(streams);
+    auto rv = streams.find(vbucket, guard);
+    if (rv.second) {
+        vbFound = true;
+        // Vbucket is mapped, get exclusive access to the StreamContainer
+        auto handle = rv.first->wlock();
+        // Try and locate a matching stream
+        for (; !handle.end(); handle.next()) {
+            if (handle.get()->compareStreamId(sid)) {
+                stream = handle.get();
+                break;
+            }
+        }
+
+        if (eraseFromMapIfFound && stream) {
+            // Need to tidy up the map, we first call erase on the handle,
+            // which will erase the current element from the container
+            handle.erase();
+
+            // If the container is now empty, remove it from the map, the
+            // shared_ptr (held by rv) will do the real destruction.
+            if (handle.empty()) {
+                streams.erase(vbucket, guard);
+            }
+        }
+    }
+    return {stream, vbFound};
+}
+
 ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque,
                                            Vbid vbucket,
                                            cb::mcbp::DcpStreamId sid) {
@@ -1078,55 +1126,30 @@ ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque,
     }
 
     /* We should not remove the stream from the streams map if we have to
-       send the "STREAM_END" response asynchronously to the consumer */
-    std::shared_ptr<Stream> stream;
-
-    {
-        // Obtain exclusive access to the streams map and see if the vbucket is
-        // mapped.
-        std::lock_guard<StreamsMap> guard(streams);
-        auto rv = streams.find(vbucket, guard);
-        if (rv.second) {
-            // Vbucket is mapped, get exclusive access to the StreamContainer
-            auto handle = rv.first->wlock();
-            // Try and locate a matching stream
-            for (; !handle.end(); handle.next()) {
-                if (handle.get()->compareStreamId(sid)) {
-                    stream = handle.get();
-                    break;
-                }
-            }
-
-            if (!sendStreamEndOnClientStreamClose) {
-                // Need to tidy up the map, we first call erase on the handle,
-                // which will erase the current element from the container
-                handle.erase();
-
-                // If the container is now empty, remove it from the map, the
-                // shared_ptr (held by rv) will do the real destruction.
-                if (handle.empty()) {
-                    streams.erase(vbucket, guard);
-                }
-            }
-        }
-    } // end streams lock scope
+       send the "STREAM_END" response asynchronously to the consumer, so
+       use the value of sendStreamEndOnClientStreamClose to determine if the
+       stream should be removed if found*/
+    auto rv = closeStreamInner(vbucket, sid, !sendStreamEndOnClientStreamClose);
 
     ENGINE_ERROR_CODE ret;
-    if (!stream) {
+    if (!rv.first) {
         logger->warn(
                 "({}) Cannot close stream because no "
-                "stream exists for this vbucket",
-                vbucket);
-        return ENGINE_KEY_ENOENT;
+                "stream exists for this vbucket {}",
+                vbucket,
+                sid);
+        return sid && rv.second ? ENGINE_DCP_STREAMID_INVALID
+                                : ENGINE_KEY_ENOENT;
     } else {
-        if (!stream->isActive()) {
+        if (!rv.first->isActive()) {
             logger->warn(
                     "({}) Cannot close stream because "
-                    "stream is already marked as dead",
-                    vbucket);
+                    "stream is already marked as dead {}",
+                    vbucket,
+                    sid);
             ret = ENGINE_KEY_ENOENT;
         } else {
-            stream->setDead(END_STREAM_CLOSED);
+            rv.first->setDead(END_STREAM_CLOSED);
             ret = ENGINE_SUCCESS;
         }
         if (!sendStreamEndOnClientStreamClose) {

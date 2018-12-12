@@ -28,10 +28,21 @@ void dcp_close_stream_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
         const auto& header = cookie.getHeader().getRequest();
-        ret = dcpCloseStream(cookie,
-                             header.getOpaque(),
-                             header.getVBucket(),
-                             {/*@todo read a DcpStreamId from flex-frame*/});
+        cb::mcbp::DcpStreamId dcpStreamId; // Initialises to 'none'
+        header.parseFrameExtras([&dcpStreamId](
+                                        cb::mcbp::request::FrameInfoId id,
+                                        cb::const_byte_buffer data) -> bool {
+            if (id == cb::mcbp::request::FrameInfoId::DcpStreamId) {
+                // Data is the u16 stream-ID in network byte-order
+                dcpStreamId = cb::mcbp::DcpStreamId(
+                        ntohs(*reinterpret_cast<const uint16_t*>(data.data())));
+                return false;
+            }
+            return true;
+        });
+
+        ret = dcpCloseStream(
+                cookie, header.getOpaque(), header.getVBucket(), dcpStreamId);
     }
 
     ret = connection.remapErrorCode(ret);

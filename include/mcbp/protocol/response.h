@@ -73,7 +73,9 @@ public:
 
     ServerOpcode getServerOpcode() const {
         if (getMagic() != Magic::ServerResponse) {
-            throw std::logic_error("getServerOpcode: magic != server response");
+            throw std::logic_error(
+                    "getServerOpcode: magic != server response: " +
+                    std::to_string(uint8_t(getMagic())));
         }
         return ServerOpcode(opcode);
     }

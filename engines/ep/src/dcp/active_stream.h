@@ -129,6 +129,10 @@ public:
         return cursor;
     }
 
+    bool compareStreamId(cb::mcbp::DcpStreamId id) const override {
+        return id == sid;
+    }
+
 protected:
     /**
      * @param vb reference to the associated vbucket

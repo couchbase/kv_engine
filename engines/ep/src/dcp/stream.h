@@ -134,8 +134,8 @@ public:
 
     void clear();
 
-    bool compareStreamId(cb::mcbp::DcpStreamId id) const {
-        return id == this->id;
+    virtual bool compareStreamId(cb::mcbp::DcpStreamId id) const {
+        return id == cb::mcbp::DcpStreamId(0);
     }
 
 protected:
@@ -195,8 +195,6 @@ protected:
     const static uint64_t dcpMaxSeqno;
 
     Cursor noCursor;
-
-    cb::mcbp::DcpStreamId id;
 
 private:
     /* readyQueueMemory tracks the memory occupied by elements

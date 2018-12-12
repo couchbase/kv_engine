@@ -120,6 +120,14 @@ public:
     std::shared_ptr<Stream> findStream(Vbid vbid);
 
     /**
+     * Finds the stream for a given vbucket/sid
+     * @returns a pair where second indicates if the VB has no entries at all
+     *          first is the stream (or null if no stream)
+     */
+    std::pair<std::shared_ptr<Stream>, bool> findStream(
+            Vbid vbid, cb::mcbp::DcpStreamId sid);
+
+    /**
      * Sets the backfill buffer size (max limit) to a particular value
      */
     void setBackfillBufferSize(size_t newSize) {
@@ -180,5 +188,9 @@ public:
 
     void enableMultipleStreamRequests() {
         multipleStreamRequests = MultipleStreamRequests::Yes;
+    }
+
+    void enableStreamEndOnClientStreamClose() {
+        sendStreamEndOnClientStreamClose = true;
     }
 };

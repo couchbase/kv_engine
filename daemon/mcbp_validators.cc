@@ -406,7 +406,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
                 return false;
             }
         case cb::mcbp::request::FrameInfoId::DcpStreamId:
-            if (data.size() != sizeof(cb::mcbp::DcpStreamIdFrameInfo)) {
+            if (data.size() != sizeof(cb::mcbp::DcpStreamId)) {
                 status = Status::Einval;
                 cookie.setErrorContext("DcpStreamId invalid size:" +
                                        std::to_string(data.size()));

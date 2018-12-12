@@ -37,6 +37,8 @@ public:
         CollectionsDcpTest::consumer = std::make_shared<MockDcpConsumer>(
                 *engine, cookieC, "test_consumer");
     }
+
+    void close_stream_by_id_test(bool enableStreamEnd, bool manyStreams);
 };
 
 TEST_F(CollectionsDcpStreamsTest, request_validation) {
@@ -102,6 +104,71 @@ TEST_F(CollectionsDcpStreamsTest, close_stream_validation2) {
 
     EXPECT_EQ(ENGINE_DCP_STREAMID_INVALID,
               producer->closeStream(0, vbid, cb::mcbp::DcpStreamId(99)));
+}
+
+// Core test method for close with a stream ID.
+// Allows a number of cases to be covered where we have many streams mapped to
+// the vbid and stream_end message enabled/disabled.
+void CollectionsDcpStreamsTest::close_stream_by_id_test(bool enableStreamEnd,
+                                                        bool manyStreams) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest({cm});
+    if (enableStreamEnd) {
+        producer->enableStreamEndOnClientStreamClose();
+    }
+    producer->enableMultipleStreamRequests();
+    createDcpStream({{R"({"collections":["9"], "sid":99})"}}, vbid);
+
+    if (manyStreams) {
+        createDcpStream({{R"({"collections":["9", "0"], "sid":101})"}}, vbid);
+        createDcpStream({{R"({"collections":["0"], "sid":555})"}}, vbid);
+    }
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->closeStream(0, vbid, cb::mcbp::DcpStreamId(99)));
+    {
+        auto rv = producer->findStream(vbid, cb::mcbp::DcpStreamId(99));
+        // enableStreamEnd:true we must still find the stream in the producer
+        EXPECT_EQ(enableStreamEnd, rv.first != nullptr);
+        // manyStreams:true we always expect to find streams
+        // manyStreams:false only expect streams if enableStreamEnd:true
+        EXPECT_EQ(enableStreamEnd | manyStreams, rv.second);
+    }
+
+    if (enableStreamEnd) {
+        EXPECT_EQ(
+                ENGINE_SUCCESS,
+                producer->stepAndExpect(producers.get(),
+                                        cb::mcbp::ClientOpcode::DcpStreamEnd));
+        EXPECT_EQ(cb::mcbp::DcpStreamId(99), producers->last_stream_id);
+    }
+
+    {
+        auto rv = producer->findStream(vbid, cb::mcbp::DcpStreamId(99));
+        // Always expect at this point to not find stream for sid 99
+        EXPECT_FALSE(rv.first);
+        // However the vb may still have streams for manyStreams test
+        EXPECT_EQ(manyStreams, rv.second);
+    }
+}
+
+TEST_F(CollectionsDcpStreamsTest, close_stream_by_id_with_end_stream) {
+    close_stream_by_id_test(true, false);
+}
+
+TEST_F(CollectionsDcpStreamsTest, close_stream_by_id) {
+    close_stream_by_id_test(false, false);
+}
+
+TEST_F(CollectionsDcpStreamsTest,
+       close_stream_by_id_with_end_stream_and_many_streams) {
+    close_stream_by_id_test(true, true);
+}
+
+TEST_F(CollectionsDcpStreamsTest, close_stream_by_id_and_many_streams) {
+    close_stream_by_id_test(false, true);
 }
 
 TEST_F(CollectionsDcpStreamsTest, two_streams) {

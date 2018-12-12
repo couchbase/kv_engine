@@ -79,3 +79,19 @@ std::shared_ptr<Stream> MockDcpProducer::findStream(Vbid vbid) {
     }
     return nullptr;
 }
+
+std::pair<std::shared_ptr<Stream>, bool> MockDcpProducer::findStream(
+        Vbid vbid, cb::mcbp::DcpStreamId sid) {
+    auto rv = streams.find(vbid);
+    if (rv.second) {
+        auto handle = rv.first->rlock();
+        // Try and locate a matching stream
+        for (; !handle.end(); handle.next()) {
+            if (handle.get()->compareStreamId(sid)) {
+                return {handle.get(), true};
+            }
+        }
+        return {nullptr, true};
+    }
+    return {nullptr, false};
+}

@@ -448,6 +448,29 @@ protected:
                           cb::mcbp::DcpStreamId sid,
                           std::shared_ptr<Stream>& stream);
 
+    /**
+     * Attempt to locate a stream associated with the vbucket/stream-id and
+     * return it (this function is dedicated to the closeStream path)
+     * The function returns a pair because in the case the shared_ptr is null
+     * it could be because 1) the vbucket has no streams or 2) the vbucket
+     * has streams, but none that matched the given sid. If the vbucket does
+     * have streams, the pair.second will be true.
+     * The function is invoked in two places in the case that closeStream wants
+     * to send a CLOSE_STREAM message we leave the stream in the map... if a
+     * new stream is created, we would replace that stream... however with
+     * stream-ID enabled, it's possible a new stream is created with a new-ID
+     * leaking the dead stream, hence a second path now frees the dead stream
+     * by using this function and forcing erasure from the map.
+     *
+     * @param vbucket look for a stream associated with this vbucket
+     * @param sid and with a stream-ID matching sid
+     * @param eraseFromMapIfFound remove the shared_ptr from the streamsMap
+     * @return a pair the shared_ptr (can be null if not found) and a bool which
+     *  allows the caller to determine if the vbucket or sid caused not found
+     */
+    std::pair<std::shared_ptr<Stream>, bool> closeStreamInner(
+            Vbid vbucket, cb::mcbp::DcpStreamId sid, bool eraseFromMapIfFound);
+
     // stash response for retry if E2BIG was hit
     std::unique_ptr<DcpResponse> rejectResp;
 
