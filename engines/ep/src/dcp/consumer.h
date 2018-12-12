@@ -315,6 +315,9 @@ protected:
     ENGINE_ERROR_CODE enableExpiryOpcode(
             struct dcp_message_producers* producers);
 
+    ENGINE_ERROR_CODE enableSynchronousReplication(
+            dcp_message_producers* producers);
+
     void notifyVbucketReady(Vbid vbucket);
 
     /**
@@ -454,6 +457,7 @@ protected:
     bool pendingSendStreamEndOnClientStreamClose;
     bool pendingSupportHifiMFU;
     bool pendingEnableExpiryOpcode;
+    bool pendingEnableSyncReplication;
 
     /*
      * MB-29441: The following variables are used to set the the proper

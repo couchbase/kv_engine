@@ -901,6 +901,11 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
         }
         multipleStreamRequests = MultipleStreamRequests::Yes;
         return ENGINE_SUCCESS;
+    } else if (key == "enable_synchronous_replication") {
+        if (valueStr == "true") {
+            supportsSyncReplication = true;
+            return ENGINE_SUCCESS;
+        }
     }
 
     logger->warn("Invalid ctrl parameter '{}' for {}", valueStr, keyStr);

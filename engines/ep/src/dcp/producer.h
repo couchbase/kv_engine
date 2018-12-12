@@ -442,6 +442,9 @@ protected:
     Couchbase::RelaxedAtomic<bool> sendStreamEndOnClientStreamClose;
     Couchbase::RelaxedAtomic<bool> supportsHifiMFU;
     Couchbase::RelaxedAtomic<bool> enableExpiryOpcode;
+    /// Does this DCP Producer support synchronous replication via DCP_PREPARE/
+    /// DCP_COMMIT ?
+    Couchbase::RelaxedAtomic<bool> supportsSyncReplication = false;
 
     /// Timestamp of when we last transmitted a message to our peer.
     Couchbase::RelaxedAtomic<rel_time_t> lastSendTime;

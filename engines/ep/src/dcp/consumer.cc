@@ -181,6 +181,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     pendingSupportHifiMFU =
             (config.getHtEvictionPolicy() == "hifi_mfu");
     pendingEnableExpiryOpcode = true;
+    pendingEnableSyncReplication = true;
 }
 
 DcpConsumer::~DcpConsumer() {
@@ -826,6 +827,10 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
         return ret;
     }
 
+    if ((ret = enableSynchronousReplication(producers)) != ENGINE_FAILED) {
+        return ret;
+    }
+
     auto resp = getNextItem();
     if (resp == nullptr) {
         return ENGINE_EWOULDBLOCK;
@@ -1450,6 +1455,19 @@ ENGINE_ERROR_CODE DcpConsumer::enableExpiryOpcode(
         ENGINE_ERROR_CODE ret =
                 producers->control(opaque, enableOpcodeExpiryCtrlMsg, val);
         pendingEnableExpiryOpcode = false;
+        return ret;
+    }
+    return ENGINE_FAILED;
+}
+
+ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
+        dcp_message_producers* producers) {
+    if (pendingEnableSyncReplication) {
+        uint32_t opaque = ++opaqueCounter;
+        NonBucketAllocationGuard guard;
+        ENGINE_ERROR_CODE ret = producers->control(
+                opaque, "enable_synchronous_replication", "true");
+        pendingEnableSyncReplication = false;
         return ret;
     }
     return ENGINE_FAILED;
