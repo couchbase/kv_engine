@@ -23,6 +23,7 @@
 #include <cbsasl/mechanism.h>
 #include <cbsasl/server.h>
 #include <logger/logger.h>
+#include <nlohmann/json.hpp>
 
 StartSaslAuthTask::StartSaslAuthTask(Cookie& cookie_,
                                      Connection& connection_,

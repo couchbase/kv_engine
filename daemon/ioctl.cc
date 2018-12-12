@@ -25,6 +25,7 @@
 #include "utilities/string_utilities.h"
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
+#include <nlohmann/json.hpp>
 
 /*
  * Implement ioctl-style memcached commands (ioctl_get / ioctl_set).

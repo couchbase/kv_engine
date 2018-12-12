@@ -31,11 +31,6 @@
 #include <unordered_map>
 #include <vector>
 
-// Forward decl
-namespace cb {
-class Pipe;
-}
-
 class Cookie;
 class Connection;
 class ListeningPort;
@@ -118,9 +113,6 @@ struct FrontEndThread {
 
     /// index of this thread in the threads array
     size_t index = 0;
-
-    /// Shared read buffer for all connections serviced by this thread.
-    std::unique_ptr<cb::Pipe> read;
 
     /**
      * Shared sub-document operation for all connections serviced by this

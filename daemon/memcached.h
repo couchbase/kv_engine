@@ -36,9 +36,6 @@
 extern struct stats stats;
 
 // Forward decl
-namespace cb {
-class Pipe;
-}
 class Cookie;
 class Connection;
 struct thread_stats;

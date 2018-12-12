@@ -995,25 +995,35 @@ void execute_response_packet(Cookie& cookie,
 
 void try_read_mcbp_command(Cookie& cookie) {
     auto& c = cookie.getConnection();
-    auto input = c.read->rdata();
-    if (input.size() < sizeof(cb::mcbp::Request)) {
-        throw std::logic_error(
-                "try_read_mcbp_command: header not present (got " +
-                std::to_string(c.read->rsize()) + " of " +
-                std::to_string(sizeof(cb::mcbp::Request)) + ")");
+    if (!c.isPacketHeaderAvailable()) {
+        throw std::logic_error("try_read_mcbp_command: header not present");
     }
-    cookie.initialize(
-            cb::const_byte_buffer{input.data(), sizeof(cb::mcbp::Request)},
-            c.isTracingEnabled());
 
-    const auto& header = cookie.getHeader();
-    if (!header.isValid()) {
+    const auto* header = c.getPacket();
+    if (header == nullptr) {
+        throw std::logic_error("try_read_mcbp_command: header not present");
+    }
+
+    if (!header->isValid()) {
         LOG_WARNING(
                 "{}: Invalid packet format detected (magic: {:#x}), closing "
                 "connection",
                 c.getId(),
-                header.getMagic());
-        audit_invalid_packet(c, input);
+                header->getMagic());
+        audit_invalid_packet(c, c.getAvailableBytes());
+        c.setState(StateMachine::State::closing);
+        return;
+    }
+
+    // Protect ourself from someone trying to kill us by sending insanely
+    // large packets.
+    if (header->getBodylen() > Settings::instance().getMaxPacketSize()) {
+        LOG_WARNING(
+                "{}: The package size ({}) exceeds the limit ({}) for what "
+                "the system accepts.. Disconnecting client",
+                c.getId(),
+                header->getBodylen(),
+                Settings::instance().getMaxPacketSize());
         c.setState(StateMachine::State::closing);
         return;
     }
@@ -1022,51 +1032,32 @@ void try_read_mcbp_command(Cookie& cookie) {
         try {
             LOG_TRACE(">{} Read command {}",
                       c.getId(),
-                      header.toJSON(false).dump());
+                      header->toJSON(false).dump());
         } catch (const std::exception&) {
             // Failed to decode the header.. do a raw dump instead
             LOG_TRACE(">{} Read command {}",
                       c.getId(),
-                      cb::to_hex({input.data(), sizeof(header)}));
+                      cb::to_hex({reinterpret_cast<const uint8_t*>(header),
+                                  sizeof(*header)}));
         }
-    }
-
-    // Protect ourself from someone trying to kill us by sending insanely
-    // large packets.
-    if (header.getBodylen() > Settings::instance().getMaxPacketSize()) {
-        LOG_WARNING(
-                "{}: The package size ({}) exceeds the limit ({}) for what "
-                "the system accepts.. Disconnecting client",
-                c.getId(),
-                header.getBodylen(),
-                Settings::instance().getMaxPacketSize());
-        c.setState(StateMachine::State::closing);
-        return;
     }
 
     if (c.isPacketAvailable()) {
-        // we've got the entire packet spooled up, just go execute
-        cookie.setPacket(Cookie::PacketContent::Full,
-                         cb::const_byte_buffer{input.data(),
-                                               sizeof(cb::mcbp::Request) +
-                                                       header.getBodylen()});
+        // we might have reallocated stuff after calling isPacketAvailabe
+        header = c.getPacket();
+        cookie.initialize(
+                Cookie::PacketContent::Full,
+                cb::const_byte_buffer{
+                        reinterpret_cast<const uint8_t*>(header),
+                        header->getBodylen() + sizeof(cb::mcbp::Request)},
+                c.isTracingEnabled());
         c.setState(StateMachine::State::validate);
     } else {
-        // we need to allocate more memory!!
-        try {
-            size_t needed = sizeof(cb::mcbp::Request) + header.getBodylen();
-            c.read->ensureCapacity(needed - c.read->rsize());
-            // ensureCapacity may have reallocated the buffer.. make sure
-            // that the packet in the cookie points to the correct address
-            cookie.setPacket(Cookie::PacketContent::Header,
-                             cb::const_byte_buffer{c.read->rdata().data(),
-                                                   sizeof(cb::mcbp::Request)});
-        } catch (const std::bad_alloc&) {
-            LOG_WARNING("{}: Failed to grow buffer.. closing connection",
-                        c.getId());
-            c.setState(StateMachine::State::closing);
-            return;
-        }
+        cookie.initialize(
+                Cookie::PacketContent::Header,
+                cb::const_byte_buffer{reinterpret_cast<const uint8_t*>(header),
+                                      sizeof(cb::mcbp::Request)},
+                c.isTracingEnabled());
         c.setState(StateMachine::State::read_packet_body);
     }
 }

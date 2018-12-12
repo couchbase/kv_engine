@@ -206,10 +206,6 @@ nlohmann::json Connection::toJSON() const {
     ret["nevents"] = numEvents;
     ret["state"] = getStateName();
 
-    if (read) {
-        ret["read"] = read->to_json();
-    }
-
     ret["write_and_go"] = std::string(stateMachine.getStateName(write_and_go));
 
     ret["ssl"] = client_ctx != nullptr;
@@ -680,46 +676,6 @@ bool Connection::tryAuthFromSslCert(const std::string& userName) {
     return true;
 }
 
-/**
- * To protect us from someone flooding a connection with bogus data causing
- * the connection to eat up all available memory, break out and start
- * looking at the data I've got after a number of reallocs...
- */
-Connection::TryReadResult Connection::tryReadNetwork() {
-    // Drain the buffer used by libevent by moving the data into our
-    // internal read buffer. This cause an extra memory copy, and will be
-    // refactored in the future.
-    // @todo this code will be fixed as part of getting rid of of the read
-    // buffer
-    auto nb = evbuffer_get_length(bufferevent_get_input(bev.get()));
-    if (nb == 0) {
-        return TryReadResult::NoDataReceived;
-    }
-
-    try {
-        read->ensureCapacity(nb);
-    } catch (const std::bad_alloc&) {
-        LOG_WARNING(
-                "{}: Failed to allocate memory for package header. Closing "
-                "connection {}",
-                getId(),
-                getDescription());
-        return TryReadResult::Error;
-    }
-
-    auto* event = bev.get();
-    auto nr = read->produce([event](cb::byte_buffer buffer) -> ssize_t {
-        return ssize_t(bufferevent_read(event, buffer.data(), buffer.size()));
-    });
-
-    if (nr < 0) {
-        return TryReadResult::Error;
-    }
-
-    get_thread_stats(this)->bytes_read += nr;
-    return TryReadResult::DataReceived;
-}
-
 bool Connection::useCookieSendResponse(std::size_t size) const {
     // The limit for when to copy the data into a separate response
     // buffer instead of using the IO vector to send the data. The limit
@@ -1003,16 +959,60 @@ size_t Connection::getNumberOfCookies() const {
 }
 
 bool Connection::isPacketAvailable() const {
-    auto buffer = read->rdata();
-
-    if (buffer.size() < sizeof(cb::mcbp::Request)) {
-        // we don't have the header, so we can't even look at the body
-        // length
+    auto* in = bufferevent_get_input(bev.get());
+    const auto size = evbuffer_get_length(in);
+    if (size < sizeof(cb::mcbp::Header)) {
         return false;
     }
 
-    const auto* req = reinterpret_cast<const cb::mcbp::Request*>(buffer.data());
-    return buffer.size() >= sizeof(cb::mcbp::Request) + req->getBodylen();
+    auto* ptr = evbuffer_pullup(in, sizeof(cb::mcbp::Header));
+    if (ptr == nullptr) {
+        throw std::bad_alloc();
+    }
+
+    // @todo make sure that this is a valid header before calling this
+    const auto* header = reinterpret_cast<cb::mcbp::Header*>(ptr);
+    if (size < (header->getBodylen() + sizeof(cb::mcbp::Header))) {
+        return false;
+    }
+
+    ptr = evbuffer_pullup(in, sizeof(cb::mcbp::Header) + header->getBodylen());
+    if (ptr == nullptr) {
+        throw std::bad_alloc();
+    }
+
+    return true;
+}
+
+bool Connection::isPacketHeaderAvailable() const {
+    auto* in = bufferevent_get_input(bev.get());
+    const auto size = evbuffer_get_length(in);
+    return size >= sizeof(cb::mcbp::Header);
+}
+
+const cb::mcbp::Header* Connection::getPacket() const {
+    auto* in = bufferevent_get_input(bev.get());
+    const auto size = evbuffer_get_length(in);
+
+    if (size < sizeof(cb::mcbp::Header)) {
+        return nullptr;
+    }
+
+    const auto* ptr = evbuffer_pullup(in, sizeof(cb::mcbp::Header));
+    if (ptr == nullptr) {
+        throw std::bad_alloc();
+    }
+    return reinterpret_cast<const cb::mcbp::Header*>(ptr);
+}
+
+cb::const_byte_buffer Connection::getAvailableBytes(size_t max) const {
+    auto* in = bufferevent_get_input(bev.get());
+    max = std::min(max, size_t(evbuffer_get_length(in)));
+    const auto* ptr = evbuffer_pullup(in, max);
+    if (ptr == nullptr) {
+        throw std::bad_alloc();
+    }
+    return cb::const_byte_buffer{ptr, max};
 }
 
 bool Connection::processServerEvents() {
@@ -1033,7 +1033,6 @@ bool Connection::processServerEvents() {
 }
 
 void Connection::runEventLoop(short) {
-    conn_loan_buffers(this);
     numEvents = max_reqs_per_event;
 
     try {
@@ -1103,8 +1102,6 @@ void Connection::runEventLoop(short) {
             }
         }
     }
-
-    conn_return_buffers(this);
 }
 
 bool Connection::close() {
