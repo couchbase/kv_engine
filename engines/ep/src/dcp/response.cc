@@ -44,6 +44,8 @@ const char* DcpResponse::to_string() const {
         return "deletion";
     case Event::Expiration:
         return "expiration";
+    case Event::Prepare:
+        return "prepare";
     case Event::SetVbucket:
         return "set vbucket";
     case Event::StreamReq:
@@ -73,8 +75,12 @@ uint32_t MutationResponse::getDeleteLength() const {
 }
 
 uint32_t MutationResponse::getMessageSize() const {
-    const uint32_t header =
-            item_->isDeleted() ? getDeleteLength() : mutationBaseMsgBytes;
+    uint32_t header;
+    if (item_->getCommitted() == CommittedState::Pending) {
+        header = prepareBaseMsgBytes;
+    } else {
+        header = item_->isDeleted() ? getDeleteLength() : mutationBaseMsgBytes;
+    }
 
     uint32_t keySize = 0;
     if (includeCollectionID == DocKeyEncodesCollectionId::Yes) {

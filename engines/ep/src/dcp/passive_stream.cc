@@ -268,6 +268,10 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
                 ret = processExpiration(static_cast<MutationConsumerMessage*>(
                         dcpResponse.get()));
                 break;
+            case DcpResponse::Event::Prepare:
+                ret = processPrepare(static_cast<MutationConsumerMessage*>(
+                        dcpResponse.get()));
+                break;
             case DcpResponse::Event::SnapshotMarker:
                 processMarker(static_cast<SnapshotMarker*>(dcpResponse.get()));
                 break;
@@ -373,6 +377,10 @@ process_items_error_t PassiveStream::processBufferedMessages(
             ret = processExpiration(
                     static_cast<MutationConsumerMessage*>(response.get()));
             break;
+        case DcpResponse::Event::Prepare:
+            ret = processPrepare(
+                    static_cast<MutationConsumerMessage*>(response.get()));
+            break;
         case DcpResponse::Event::SnapshotMarker:
             processMarker(static_cast<SnapshotMarker*>(response.get()));
             break;
@@ -447,7 +455,8 @@ process_items_error_t PassiveStream::processBufferedMessages(
 
 ENGINE_ERROR_CODE PassiveStream::processMessage(
         MutationConsumerMessage* message, MessageType messageType) {
-    const char* taskToString[3] = {"mutation", "deletion", "expiration"};
+    const char* taskToString[] = {
+            "mutation", "deletion", "expiration", "prepare"};
     VBucketPtr vb = engine->getVBucket(vb_);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -486,6 +495,9 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
             return processMessage(message, MessageType::Mutation);
         }
         break;
+    case MessageType::Prepare:
+        // No extra processing.
+        break;
     }
 
     // MB-17517: Check for the incoming item's CAS validity. We /shouldn't/
@@ -508,6 +520,9 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
     bool switchComplete = false;
     switch (messageType) {
     case MessageType::Mutation:
+    case MessageType::Prepare:
+        // @todo-durability: This should be handled specifically as a prepare
+        // not just via SET_WITH_META.
         if (vb->isBackfillPhase()) {
             ret = engine->getKVBucket()->addBackfillItem(
                     *message->getItem(), message->getExtMetaData());
@@ -589,6 +604,12 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(
 ENGINE_ERROR_CODE PassiveStream::processExpiration(
         MutationConsumerMessage* expiration) {
     return processMessage(expiration, MessageType::Expiration);
+}
+
+ENGINE_ERROR_CODE PassiveStream::processPrepare(
+        MutationConsumerMessage* prepare) {
+    // @todo-durabilty - Implement this once seqno_ack available.
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE PassiveStream::processSystemEvent(

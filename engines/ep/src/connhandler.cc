@@ -243,6 +243,28 @@ ENGINE_ERROR_CODE ConnHandler::systemEvent(uint32_t opaque,
     return ENGINE_DISCONNECT;
 }
 
+ENGINE_ERROR_CODE ConnHandler::prepare(
+        uint32_t opaque,
+        const DocKey& key,
+        cb::const_byte_buffer value,
+        size_t priv_bytes,
+        uint8_t datatype,
+        uint64_t cas,
+        Vbid vbucket,
+        uint32_t flags,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        uint32_t expiration,
+        uint32_t lock_time,
+        uint8_t nru,
+        DocumentState document_state,
+        cb::durability::Requirements durability) {
+    logger->warn(
+            "Disconnecting - This connection doesn't support the dcp prepare "
+            "API");
+    return ENGINE_DISCONNECT;
+}
+
 BucketLogger& ConnHandler::getLogger() {
     return *logger;
 }

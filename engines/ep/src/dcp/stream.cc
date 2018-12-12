@@ -232,6 +232,18 @@ void Stream::addStats(ADD_STAT add_stat, const void *c) {
         checked_snprintf(
                 buffer, bsize, "%s:stream_%d_state", name_.c_str(), vb_.get());
         add_casted_stat(buffer, to_string(state_.load()), add_stat, c);
+
+        size_t readyQsize;
+        {
+            std::lock_guard<std::mutex> lh(streamMutex);
+            readyQsize = readyQ.size();
+        }
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_readyQ_items",
+                         name_.c_str(),
+                         vb_.get());
+        add_casted_stat(buffer, readyQsize, add_stat, c);
     } catch (std::exception& error) {
         EP_LOG_WARN("Stream::addStats: Failed to build stats: {}",
                     error.what());

@@ -538,6 +538,23 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
     return rv;
 }
 
+uint8_t DcpProducer::encodeItemHotness(const Item& item) const {
+    if (engine_.getConfiguration().getHtEvictionPolicy() == "hifi_mfu") {
+        auto freqCount = item.getFreqCounterValue();
+        if (supportsHifiMFU) {
+            // The consumer supports the hifi_mfu eviction
+            // policy, therefore use the frequency counter.
+            return freqCount;
+        }
+        // The consumer does not support the hifi_mfu
+        // eviction policy, therefore map from the 8-bit
+        // probabilistic counter (256 states) to NRU (4 states).
+        return ItemEviction::convertFreqCountToNRUValue(freqCount);
+    }
+    /* We are using the 2-bit_lru and therefore get the value */
+    return item.getNRUValue();
+}
+
 ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
 
     if (doDisconnect()) {
@@ -605,27 +622,8 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                     "DcpProducer::step(Mutation): itmCpy must be != nullptr");
             }
 
-            Configuration& config = engine_.getConfiguration();
-            uint8_t hotness;
-            if (config.getHtEvictionPolicy() == "hifi_mfu") {
-                auto freqCount =
-                        mutationResponse->getItem()->getFreqCounterValue();
-                if (supportsHifiMFU) {
-                    // The consumer supports the hifi_mfu eviction
-                    // policy, therefore use the frequency counter.
-                    hotness = freqCount;
-                } else {
-                    // The consumer does not support the hifi_mfu
-                    // eviction policy, therefore map from the 8-bit
-                    // probabilistic counter (256 states) to NRU (4 states).
-                    hotness =
-                            ItemEviction::convertFreqCountToNRUValue(freqCount);
-                }
-            } else {
-                /* We are using the 2-bit_lru and therefore get the value */
-                hotness = mutationResponse->getItem()->getNRUValue();
-            }
-
+            const uint8_t hotness =
+                    encodeItemHotness(*mutationResponse->getItem());
             ret = producers->mutation(mutationResponse->getOpaque(),
                                       itmCpy.release(),
                                       mutationResponse->getVBucket(),
@@ -678,6 +676,31 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             }
             break;
         }
+        case DcpResponse::Event::Prepare:
+            if (supportsSyncReplication) {
+                if (itmCpy == nullptr) {
+                    throw std::logic_error(
+                            "DcpProducer::step(Mutation): itmCpy must be != "
+                            "nullptr");
+                }
+
+                const uint8_t hotness =
+                        encodeItemHotness(*mutationResponse->getItem());
+                const auto docState = mutationResponse->getItem()->isDeleted()
+                                              ? DocumentState::Deleted
+                                              : DocumentState::Alive;
+                ret = producers->prepare(
+                        mutationResponse->getOpaque(),
+                        itmCpy.release(),
+                        mutationResponse->getVBucket(),
+                        *mutationResponse->getBySeqno(),
+                        mutationResponse->getRevSeqno(),
+                        0 /* lock time */,
+                        hotness,
+                        docState,
+                        mutationResponse->getItem()->getDurabilityReqs());
+                break;
+            }
         case DcpResponse::Event::SnapshotMarker:
         {
             SnapshotMarker* s = static_cast<SnapshotMarker*>(resp.get());
@@ -1337,6 +1360,7 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
                     case DcpResponse::Event::Mutation:
                     case DcpResponse::Event::Deletion:
                     case DcpResponse::Event::Expiration:
+                    case DcpResponse::Event::Prepare:
                     case DcpResponse::Event::StreamEnd:
                     case DcpResponse::Event::SetVbucket:
                     case DcpResponse::Event::SystemEvent:

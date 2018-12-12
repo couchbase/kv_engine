@@ -391,50 +391,22 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque,
     return err;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
-                                        const DocKey& key,
-                                        cb::const_byte_buffer value,
-                                        size_t priv_bytes,
-                                        uint8_t datatype,
-                                        uint64_t cas,
-                                        Vbid vbucket,
-                                        uint32_t flags,
-                                        uint64_t bySeqno,
-                                        uint64_t revSeqno,
-                                        uint32_t exptime,
-                                        uint32_t lock_time,
-                                        cb::const_byte_buffer meta,
-                                        uint8_t nru) {
-    lastMessageTime = ep_current_time();
-    UpdateFlowControl ufc(*this,
-                          MutationResponse::mutationBaseMsgBytes + key.size() +
-                                  meta.size() + value.size());
+ENGINE_ERROR_CODE DcpConsumer::processMutationOrPrepare(
+        Vbid vbucket,
+        uint32_t opaque,
+        const DocKey& key,
+        queued_item item,
+        cb::const_byte_buffer meta,
+        size_t msgBytes) {
+    UpdateFlowControl ufc(*this, msgBytes);
 
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
 
-    if (bySeqno == 0) {
-        logger->warn("({}) Invalid sequence number(0) for mutation!", vbucket);
-        return ENGINE_EINVAL;
-    }
-
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     auto stream = findStream(vbucket);
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        queued_item item(new Item(key,
-                                  flags,
-                                  exptime,
-                                  value.data(),
-                                  value.size(),
-                                  datatype,
-                                  cas,
-                                  bySeqno,
-                                  vbucket,
-                                  revSeqno,
-                                  nru,
-                                  nru /*freqCounter */));
-
         std::unique_ptr<ExtendedMetaData> emd;
         if (meta.size() > 0) {
             emd = std::make_unique<ExtendedMetaData>(meta.data(), meta.size());
@@ -467,6 +439,50 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
     }
 
     return err;
+}
+
+ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
+                                        const DocKey& key,
+                                        cb::const_byte_buffer value,
+                                        size_t priv_bytes,
+                                        uint8_t datatype,
+                                        uint64_t cas,
+                                        Vbid vbucket,
+                                        uint32_t flags,
+                                        uint64_t bySeqno,
+                                        uint64_t revSeqno,
+                                        uint32_t exptime,
+                                        uint32_t lock_time,
+                                        cb::const_byte_buffer meta,
+                                        uint8_t nru) {
+    lastMessageTime = ep_current_time();
+
+    if (bySeqno == 0) {
+        logger->warn("({}) Invalid sequence number(0) for mutation!", vbucket);
+        return ENGINE_EINVAL;
+    }
+
+    queued_item item(new Item(key,
+                              flags,
+                              exptime,
+                              value.data(),
+                              value.size(),
+                              datatype,
+                              cas,
+                              bySeqno,
+                              vbucket,
+                              revSeqno,
+                              nru,
+                              nru /*freqCounter */));
+
+    return processMutationOrPrepare(vbucket,
+                                    opaque,
+                                    key,
+                                    item,
+                                    meta,
+                                    MutationResponse::mutationBaseMsgBytes +
+                                            key.size() + meta.size() +
+                                            value.size());
 }
 
 ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
@@ -1570,6 +1586,51 @@ ENGINE_ERROR_CODE DcpConsumer::systemEvent(uint32_t opaque,
     scheduleNotifyIfNecessary();
 
     return err;
+}
+
+ENGINE_ERROR_CODE DcpConsumer::prepare(
+        uint32_t opaque,
+        const DocKey& key,
+        cb::const_byte_buffer value,
+        size_t priv_bytes,
+        uint8_t datatype,
+        uint64_t cas,
+        Vbid vbucket,
+        uint32_t flags,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        uint32_t expiration,
+        uint32_t lock_time,
+        uint8_t nru,
+        DocumentState document_state,
+        cb::durability::Requirements durability) {
+    // @todo-durability: Add support for prepared deletes..
+    Expects(document_state == DocumentState::Alive);
+
+    lastMessageTime = ep_current_time();
+
+    if (by_seqno == 0) {
+        logger->warn("({}) Invalid sequence number(0) for prepare!", vbucket);
+        return ENGINE_EINVAL;
+    }
+
+    queued_item item(new Item(key,
+                              flags,
+                              expiration,
+                              value.data(),
+                              value.size(),
+                              datatype,
+                              cas,
+                              by_seqno,
+                              vbucket,
+                              rev_seqno,
+                              nru,
+                              nru /*freqCounter */));
+    item->setPendingSyncWrite(durability);
+
+    const auto msgBytes =
+            MutationResponse::prepareBaseMsgBytes + key.size() + value.size();
+    return processMutationOrPrepare(vbucket, opaque, key, item, {}, msgBytes);
 }
 
 void DcpConsumer::setDisconnect() {

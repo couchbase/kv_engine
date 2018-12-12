@@ -204,6 +204,23 @@ public:
                                           cb::const_byte_buffer key,
                                           cb::const_byte_buffer eventData);
 
+    /// Receive a prepare message.
+    virtual ENGINE_ERROR_CODE prepare(uint32_t opaque,
+                                      const DocKey& key,
+                                      cb::const_byte_buffer value,
+                                      size_t priv_bytes,
+                                      uint8_t datatype,
+                                      uint64_t cas,
+                                      Vbid vbucket,
+                                      uint32_t flags,
+                                      uint64_t by_seqno,
+                                      uint64_t rev_seqno,
+                                      uint32_t expiration,
+                                      uint32_t lock_time,
+                                      uint8_t nru,
+                                      DocumentState document_state,
+                                      cb::durability::Requirements durability);
+
     const char* logHeader();
 
     void setLogHeader(const std::string& header);

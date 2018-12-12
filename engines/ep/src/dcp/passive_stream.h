@@ -90,7 +90,12 @@ protected:
      * An enum specifically for passing the type of message that is to be
      * processed inside processMessage
      */
-    enum MessageType : uint8_t { Mutation = 0, Deletion = 1, Expiration = 2 };
+    enum MessageType : uint8_t {
+        Mutation,
+        Deletion,
+        Expiration,
+        Prepare,
+    };
 
     /**
      * processMessage is a wrapper function containing the common elements for
@@ -119,6 +124,9 @@ protected:
      * passing to processMessage with MessageType::Expiration
      */
     ENGINE_ERROR_CODE processExpiration(MutationConsumerMessage* expiration);
+
+    /// Process an incoming prepare.
+    ENGINE_ERROR_CODE processPrepare(MutationConsumerMessage* expiration);
 
     /**
      * Handle DCP system events against this stream.

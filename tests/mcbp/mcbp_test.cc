@@ -1986,6 +1986,8 @@ public:
         ValidatorTest::SetUp();
         cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
         cb::mcbp::request::DcpMutationPayload extras;
+        /// DcpMutation requires a non-zero seqno.
+        extras.setBySeqno(1);
         builder.setMagic(cb::mcbp::Magic::ClientRequest);
         builder.setOpcode(cb::mcbp::ClientOpcode::DcpMutation);
         uint8_t key[2] = {};

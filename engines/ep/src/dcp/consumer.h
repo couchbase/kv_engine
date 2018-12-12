@@ -24,6 +24,7 @@
 #include "dcp/dcp-types.h"
 #include "dcp/flow-control.h"
 #include "dcp/ready-queue.h"
+#include "ep_types.h"
 #include "globaltask.h"
 
 #include <memcached/dcp_stream_id.h>
@@ -183,6 +184,22 @@ public:
                                   mcbp::systemevent::version version,
                                   cb::const_byte_buffer key,
                                   cb::const_byte_buffer eventData) override;
+
+    ENGINE_ERROR_CODE prepare(uint32_t opaque,
+                              const DocKey& key,
+                              cb::const_byte_buffer value,
+                              size_t priv_bytes,
+                              uint8_t datatype,
+                              uint64_t cas,
+                              Vbid vbucket,
+                              uint32_t flags,
+                              uint64_t by_seqno,
+                              uint64_t rev_seqno,
+                              uint32_t expiration,
+                              uint32_t lock_time,
+                              uint8_t nru,
+                              DocumentState document_state,
+                              cb::durability::Requirements durability) override;
 
     bool doRollback(uint32_t opaque, Vbid vbid, uint64_t rollbackSeqno);
 
@@ -366,6 +383,17 @@ protected:
                                uint32_t deleteTime,
                                IncludeDeleteTime includeDeleteTime,
                                DeleteSource deletionCause);
+
+    /**
+     * Helper function for mutation() and prepare() messages as they are handled
+     * in a similar way.
+     */
+    ENGINE_ERROR_CODE processMutationOrPrepare(Vbid vbucket,
+                                               uint32_t opaque,
+                                               const DocKey& key,
+                                               queued_item item,
+                                               cb::const_byte_buffer meta,
+                                               size_t baseMsgBytes);
 
     enum class DeleteType { Deletion, DeletionV2, Expiration };
     /**

@@ -631,9 +631,11 @@ static bool is_valid_xattr_blob(const cb::mcbp::Request& request) {
 }
 
 static Status dcp_mutation_validator(Cookie& cookie) {
+    using cb::mcbp::request::DcpMutationPayload;
+
     auto status = McbpValidator::verify_header(
             cookie,
-            sizeof(cb::mcbp::request::DcpMutationPayload),
+            sizeof(DcpMutationPayload),
             ExpectedKeyLen::NonZero,
             ExpectedValueLen::Any);
     if (status != Status::Success) {
@@ -658,6 +660,15 @@ static Status dcp_mutation_validator(Cookie& cookie) {
         cookie.setErrorContext("Xattr blob not valid");
         return Status::XattrEinval;
     }
+
+    auto extras = cookie.getHeader().getExtdata();
+    const auto* payload =
+            reinterpret_cast<const DcpMutationPayload*>(extras.data());
+    if (payload->getBySeqno() == 0) {
+        cookie.setErrorContext("Invalid seqno(0) for DCP mutation");
+        return Status::Einval;
+    }
+
     return verify_common_dcp_restrictions(cookie);
 }
 
@@ -824,6 +835,11 @@ static Status dcp_prepare_validator(Cookie& cookie) {
     auto extras = cookie.getHeader().getExtdata();
     const auto* payload =
             reinterpret_cast<const DcpPreparePayload*>(extras.data());
+
+    if (payload->getBySeqno() == 0) {
+        cookie.setErrorContext("Invalid seqno(0) for DCP prepare");
+        return Status::Einval;
+    }
 
     if (!payload->getDurability().isValid()) {
         cookie.setErrorContext("Invalid durability specifier");

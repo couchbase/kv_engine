@@ -1534,7 +1534,26 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::prepare(
         uint8_t nru,
         DocumentState document_state,
         cb::durability::Requirements durability) {
-    return ENGINE_ENOTSUP;
+    auto engine = acquireEngine(this);
+    ConnHandler* conn = engine->getConnHandler(cookie);
+    if (conn) {
+        return conn->prepare(opaque,
+                             key,
+                             value,
+                             priv_bytes,
+                             datatype,
+                             cas,
+                             vbucket,
+                             flags,
+                             by_seqno,
+                             rev_seqno,
+                             expiration,
+                             lock_time,
+                             nru,
+                             document_state,
+                             durability);
+    }
+    return ENGINE_DISCONNECT;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::seqno_acknowledged(

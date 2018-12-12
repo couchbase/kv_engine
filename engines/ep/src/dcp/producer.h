@@ -403,6 +403,13 @@ protected:
                              end_stream_status_t status);
 
     /**
+     * Return the hotness value to use for this item in a DCP message.
+     * @param item Item to be sent.
+     * @return Hotness value.
+     */
+    uint8_t encodeItemHotness(const Item& item) const;
+
+    /**
      * The StreamContainer stores the Stream via a shared_ptr, this is because
      * we have multi-threaded access to the DcpProducer and the possibility
      * that a stream maybe removed from the container whilst a thread is still

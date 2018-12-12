@@ -35,6 +35,7 @@ public:
         Mutation,
         Deletion,
         Expiration,
+        Prepare,
         SetVbucket,
         StreamReq,
         StreamEnd,
@@ -77,6 +78,7 @@ public:
         case Event::Mutation:
         case Event::Deletion:
         case Event::Expiration:
+        case Event::Prepare:
             return false;
 
         case Event::SetVbucket:
@@ -393,12 +395,7 @@ public:
                      DocKeyEncodesCollectionId includeCollectionID,
                      EnableExpiryOutput enableExpiryOut,
                      cb::mcbp::DcpStreamId sid)
-        : DcpResponse(item->isDeleted()
-                              ? ((item->deletionSource() == DeleteSource::TTL)
-                                         ? Event::Expiration
-                                         : Event::Deletion)
-                              : Event::Mutation,
-                      opaque,
+        : DcpResponse(eventFromItem(*item), opaque,
                       sid),
           item_(std::move(item)),
           includeValue(includeVal),
@@ -460,10 +457,25 @@ public:
         return enableExpiryOutput;
     }
 
+    /// Returns the Event type which should be used for the given item.
+    static Event eventFromItem(const Item& item) {
+        if (item.getCommitted() == CommittedState::Pending) {
+            return Event::Prepare;
+        }
+        if (item.isDeleted()) {
+            return (item.deletionSource() == DeleteSource::TTL)
+                           ? Event::Expiration
+                           : Event::Deletion;
+        }
+
+        return Event::Mutation;
+    }
+
     static const uint32_t mutationBaseMsgBytes = 55;
     static const uint32_t deletionBaseMsgBytes = 42;
     static const uint32_t deletionV2BaseMsgBytes = 45;
     static const uint32_t expirationBaseMsgBytes = 44;
+    static const uint32_t prepareBaseMsgBytes = 57;
 
 protected:
     uint32_t getDeleteLength() const;
