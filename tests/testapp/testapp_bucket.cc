@@ -417,12 +417,7 @@ intptr_t getConnectionId(MemcachedConnection& conn) {
 }
 
 int64_t getTotalSent(const nlohmann::json& payload) {
-    auto enabled = cb::jsonGet<bool>(payload["ssl"], "enabled");
-    if (enabled) {
-        return cb::jsonGet<int64_t>(payload["ssl"], "total_send");
-    } else {
-        return cb::jsonGet<int64_t>(payload, "total_send");
-    }
+    return cb::jsonGet<int64_t>(payload, "total_send");
 }
 
 static nlohmann::json getConnectionStats(MemcachedConnection& conn,
@@ -493,18 +488,16 @@ TEST_P(BucketTest, MB29639TestDeleteWhileSendDataAndFullWriteBuffer) {
     do {
         // Is the server currently blocked?
         auto json = getConnectionStats(*second_conn, id);
-        auto state = json["state"];
-        if (json["state"].get<std::string>() == "send_data") {
+        if (json["state"].get<std::string>() == "drain_send_buffer") {
             int64_t totalSend = getTotalSent(json);
 
-            // We're in the send_data state, but we might not be blocked
+            // We're in the drain_send_buffer state, but we might not be blocked
             // yet.. take a quick pause and check that we're still in
-            // send_data and that we haven't sent any data!
+            // drain_send_buffer and that we haven't sent any data!
             std::this_thread::sleep_for(std::chrono::microseconds(100));
 
             json = getConnectionStats(*second_conn, id);
-            state = json["state"];
-            if (json["state"].get<std::string>() == "send_data") {
+            if (json["state"].get<std::string>() == "drain_send_buffer") {
                 if (totalSend == getTotalSent(json)) {
                     blocked.store(true);
                 }

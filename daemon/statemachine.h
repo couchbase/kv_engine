@@ -25,6 +25,15 @@ class StateMachine {
 public:
     enum class State {
         /**
+         * SSL connections start off in this state in order to allow for
+         * checking the SSL certificate
+         *
+         * possible next state:
+         *   * closing - there was an error with the certificate
+         *   * new_cmd - start processing the first command
+         */
+        ssl_init,
+        /**
          * new_cmd is the initial state for a connection object, and the
          * initial state for the processing a new command. It is used to
          * prepare the connection object for handling the next command. It
@@ -114,8 +123,19 @@ public:
          *               errors)
          *   * new_cmd - All data sent and we should start at the next command
          *   * ship_log - DCP connections
+         *   * drain_send_data - wait for the data to be sent over the wire
          */
         send_data,
+
+        /**
+         * Wait for the data in the write buffer goes below the buffer
+         * threshold (to avoid consuming too many resources on the server)
+         *
+         * possible next state:
+         *    * closing
+         *    * new_cmd
+         */
+        drain_send_buffer,
 
         /**
          * ship_log is the state where the DCP connection end up in the "idle"
@@ -212,6 +232,7 @@ public:
 
 protected:
     // The various methods implementing the logic for that state
+    bool conn_ssl_init();
     bool conn_new_cmd();
     bool conn_waiting();
     bool conn_read_packet_header();
@@ -225,6 +246,7 @@ protected:
     bool conn_execute();
     bool conn_send_data();
     bool conn_ship_log();
+    bool conn_drain_send_buffer();
 
     State currentState;
     Connection& connection;

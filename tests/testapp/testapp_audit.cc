@@ -344,9 +344,8 @@ TEST_P(AuditTest, AuditX509SuccessfulAuth) {
     MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
     setClientCertData(connection);
 
-    // The certificate will be accepted, so the connection is established
-    // but the server will disconnect the client immediately
     connection.connect();
+    connection.listBuckets();
 
     ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED,
                                     "Trond"));
@@ -357,9 +356,14 @@ TEST_P(AuditTest, AuditX509FailedAuth) {
     MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
     setClientCertData(connection);
 
-    // The certificate will be accepted, so the connection is established
-    // but the server will disconnect the client immediately
     connection.connect();
+    try {
+        connection.listBuckets();
+    } catch (const std::exception&) {
+        // Ignore the exception as all we want to now is that we got the
+        // authentication failed audit event
+    }
+
     ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
                                     "unknown"));
 }

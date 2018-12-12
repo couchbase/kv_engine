@@ -175,8 +175,6 @@ ADD_LIBRARY(memcached_daemon STATIC
             session_cas.h
             settings.cc
             settings.h
-            ssl_context.h
-            ssl_context_openssl.cc
             ssl_utils.cc
             ssl_utils.h
             start_sasl_auth_task.cc

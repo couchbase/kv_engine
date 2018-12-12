@@ -29,7 +29,11 @@
 #include "runtime.h"
 #include "server_event.h"
 #include "settings.h"
+#include "ssl_utils.h"
+#include "tracing.h"
 
+#include <event2/bufferevent.h>
+#include <event2/bufferevent_ssl.h>
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/framebuilder.h>
@@ -103,35 +107,6 @@ bool Connection::setTcpNoDelay(bool enable) {
     }
 
     return true;
-}
-
-/**
- * Get a JSON representation of an event mask
- *
- * @param mask the mask to convert to JSON
- * @return the json representation.
- */
-static nlohmann::json event_mask_to_json(const short mask) {
-    nlohmann::json ret;
-    nlohmann::json array = nlohmann::json::array();
-
-    ret["raw"] = cb::to_hex(uint16_t(mask));
-
-    if (mask & EV_READ) {
-        array.push_back("read");
-    }
-    if (mask & EV_WRITE) {
-        array.push_back("write");
-    }
-    if (mask & EV_PERSIST) {
-        array.push_back("persist");
-    }
-    if (mask & EV_TIMEOUT) {
-        array.push_back("timeout");
-    }
-
-    ret["decoded"] = array;
-    return ret;
 }
 
 nlohmann::json Connection::toJSON() const {
@@ -230,12 +205,6 @@ nlohmann::json Connection::toJSON() const {
     ret["nevents"] = numEvents;
     ret["state"] = getStateName();
 
-    nlohmann::json libevt;
-    libevt["registered"] = isRegisteredInLibevent();
-    libevt["ev_flags"] = event_mask_to_json(ev_flags);
-    libevt["which"] = event_mask_to_json(currentEvent);
-    ret["libevent"] = libevt;
-
     if (read) {
         ret["read"] = read->to_json();
     }
@@ -265,7 +234,7 @@ nlohmann::json Connection::toJSON() const {
     talloc["size"] = temp_alloc.size();
     ret["temp_alloc_list"] = talloc;
 
-    ret["ssl"] = ssl.toJSON();
+    ret["ssl"] = client_ctx != nullptr;
     ret["total_recv"] = totalRecv;
     ret["total_send"] = totalSend;
 
@@ -577,116 +546,119 @@ void Connection::enqueueServerEvent(std::unique_ptr<ServerEvent> event) {
     server_events.push(std::move(event));
 }
 
-bool Connection::unregisterEvent() {
-    if (!registered_in_libevent) {
-        LOG_WARNING(
-                "Connection::unregisterEvent: Not registered in libevent - "
-                "ignoring unregister attempt");
-        return false;
-    }
+void Connection::read_callback(bufferevent*, void* ctx) {
+    auto* instance = reinterpret_cast<Connection*>(ctx);
+    auto& thread = instance->getThread();
 
-    cb_assert(socketDescriptor != INVALID_SOCKET);
+    TRACE_LOCKGUARD_TIMED(thread.mutex,
+                          "mutex",
+                          "Connection::read_callback::threadLock",
+                          SlowMutexThreshold);
 
-    if (event_del(event.get()) == -1) {
-        LOG_WARNING("Failed to remove connection to libevent: {}",
-                    cb_strerror());
-        return false;
-    }
-
-    registered_in_libevent = false;
-    return true;
-}
-
-bool Connection::registerEvent() {
-    if (registered_in_libevent) {
-        LOG_WARNING(
-                "Connection::registerEvent: Already registered in"
-                " libevent - ignoring register attempt");
-        return false;
-    }
-
-    if (event_add(event.get(), nullptr) == -1) {
-        LOG_WARNING("Failed to add connection to libevent: {}", cb_strerror());
-        return false;
-    }
-
-    registered_in_libevent = true;
-    return true;
-}
-
-bool Connection::updateEvent(const short new_flags) {
-    if (ssl.isEnabled() && ssl.isConnected() && (new_flags & EV_READ)) {
-        /*
-         * If we want more data and we have SSL, that data might be inside
-         * SSL's internal buffers rather than inside the socket buffer. In
-         * that case signal an EV_READ event without actually polling the
-         * socket.
-         */
-        if (ssl.havePendingInputData()) {
-            // signal a call to the handler
-            event_active(event.get(), EV_READ, 0);
-            return true;
+    // Remove the connection from the list of pending io's (in case the
+    // object was scheduled to run in the dispatcher before the
+    // callback for the worker thread is executed.
+    //
+    {
+        std::lock_guard<std::mutex> lock(thread.pending_io.mutex);
+        auto iter = thread.pending_io.map.find(instance);
+        if (iter != thread.pending_io.map.end()) {
+            for (const auto& pair : iter->second) {
+                if (pair.first) {
+                    pair.first->setAiostat(pair.second);
+                    pair.first->setEwouldblock(false);
+                }
+            }
+            thread.pending_io.map.erase(iter);
         }
     }
 
-    if (ev_flags == new_flags) {
-        // We do "cache" the current libevent state (using EV_PERSIST) to avoid
-        // having to re-register it when it doesn't change (which it mostly
-        // don't).
-        return true;
-    }
+    // Remove the connection from the notification list if it's there
+    thread.notification.remove(instance);
 
-    if (!unregisterEvent()) {
-        LOG_WARNING(
-                "{}: Failed to remove connection from event notification "
-                "library. Shutting down connection {}",
-                getId(),
-                getDescription());
-        return false;
-    }
-
-    if (event_assign(event.get(),
-                     base,
-                     socketDescriptor,
-                     new_flags,
-                     event_handler,
-                     reinterpret_cast<void*>(this)) == -1) {
-        LOG_WARNING(
-                "{}: Failed to set up event notification. "
-                "Shutting down connection {}",
-                getId(),
-                getDescription());
-        return false;
-    }
-    ev_flags = new_flags;
-
-    if (!registerEvent()) {
-        LOG_WARNING(
-                "{}: Failed to add connection to the event notification "
-                "library. Shutting down connection {}",
-                getId(),
-                getDescription());
-        return false;
-    }
-
-    return true;
+    run_event_loop(instance, EV_READ);
 }
 
-bool Connection::initializeEvent() {
-    short event_flags = (EV_READ | EV_PERSIST);
-
-    event.reset(event_new(base,
-                          socketDescriptor,
-                          event_flags,
-                          event_handler,
-                          reinterpret_cast<void*>(this)));
-
-    if (!event) {
-        throw std::bad_alloc();
+void Connection::write_callback(bufferevent*, void* ctx) {
+    auto* instance = reinterpret_cast<Connection*>(ctx);
+    auto& thread = instance->getThread();
+    TRACE_LOCKGUARD_TIMED(thread.mutex,
+                          "mutex",
+                          "Connection::write_callback::threadLock",
+                          SlowMutexThreshold);
+    // Remove the connection from the list of pending io's (in case the
+    // object was scheduled to run in the dispatcher before the
+    // callback for the worker thread is executed.
+    {
+        std::lock_guard<std::mutex> lock(thread.pending_io.mutex);
+        auto iter = thread.pending_io.map.find(instance);
+        if (iter != thread.pending_io.map.end()) {
+            for (const auto& pair : iter->second) {
+                if (pair.first) {
+                    pair.first->setAiostat(pair.second);
+                    pair.first->setEwouldblock(false);
+                }
+            }
+            thread.pending_io.map.erase(iter);
+        }
     }
-    ev_flags = event_flags;
 
-    return registerEvent();
+    // Remove the connection from the notification list if it's there
+    thread.notification.remove(instance);
+    run_event_loop(instance, EV_WRITE);
+}
+
+void Connection::event_callback(bufferevent*, short event, void* ctx) {
+    auto* instance = reinterpret_cast<Connection*>(ctx);
+    bool term = false;
+
+    if ((event & BEV_EVENT_EOF) == BEV_EVENT_EOF) {
+        LOG_DEBUG("{}: McbpConnection::on_event: Socket EOF: {}",
+                  instance->getId(),
+                  evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
+        term = true;
+    }
+
+    if ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR) {
+        LOG_INFO("{}: McbpConnection::on_event: Socket error: {}",
+                 instance->getId(),
+                 evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
+        term = true;
+    }
+
+    if (term) {
+        auto& thread = instance->getThread();
+        TRACE_LOCKGUARD_TIMED(thread.mutex,
+                              "mutex",
+                              "Connection::event_callback::threadLock",
+                              SlowMutexThreshold);
+
+        // Remove the connection from the list of pending io's (in case the
+        // object was scheduled to run in the dispatcher before the
+        // callback for the worker thread is executed.
+        //
+        {
+            std::lock_guard<std::mutex> lock(thread.pending_io.mutex);
+            auto iter = thread.pending_io.map.find(instance);
+            if (iter != thread.pending_io.map.end()) {
+                for (const auto& pair : iter->second) {
+                    if (pair.first) {
+                        pair.first->setAiostat(pair.second);
+                        pair.first->setEwouldblock(false);
+                    }
+                }
+                thread.pending_io.map.erase(iter);
+            }
+        }
+
+        // Remove the connection from the notification list if it's there
+        thread.notification.remove(instance);
+
+        if (instance->getState() != StateMachine::State::pending_close) {
+            instance->setState(StateMachine::State::closing);
+        }
+        run_event_loop(instance, EV_WRITE | EV_READ);
+    }
 }
 
 void Connection::shrinkBuffers() {
@@ -756,183 +728,30 @@ bool Connection::tryAuthFromSslCert(const std::string& userName) {
     return true;
 }
 
-void Connection::logSslErrorInfo(const std::string& method, int rval) {
-    const int error = ssl.getError(rval);
-    unsigned long code = ERR_peek_error();
-    if (code == 0) {
-        LOG_WARNING("{}: ERROR: {} returned {} with error {}",
-                    getId(),
-                    method,
-                    rval,
-                    error);
-        return;
-    }
-
-    try {
-        std::string errmsg(method + "() returned " +
-                           std::to_string(rval) + " with error " +
-                           std::to_string(error));
-        while ((code = ERR_get_error()) != 0) {
-            std::vector<char> ssl_err(1024);
-            ERR_error_string_n(
-                               code, ssl_err.data(), ssl_err.size());
-            LOG_WARNING("{}: {}: {}", getId(), errmsg, ssl_err.data());
-        }
-    } catch (const std::bad_alloc&) {
-        // unable to print error message; continue.
-        LOG_WARNING("{}: {}() returned {} with error {}",
-                    getId(),
-                    method,
-                    rval,
-                    error);
-    }
-}
-
-int Connection::sslPreConnection() {
-    int r = ssl.accept();
-    if (r == 1) {
-        ssl.drainBioSendPipe(socketDescriptor);
-        ssl.setConnected();
-        auto certResult = ssl.getCertUserName();
-        bool disconnect = false;
-        switch (certResult.first) {
-        case cb::x509::Status::NoMatch:
-        case cb::x509::Status::Error:
-            disconnect = true;
-            break;
-        case cb::x509::Status::NotPresent:
-            if (Settings::instance().getClientCertMode() ==
-                cb::x509::Mode::Mandatory) {
-                disconnect = true;
-            } else if (is_default_bucket_enabled()) {
-                associate_bucket(*this, "default");
-            }
-            break;
-        case cb::x509::Status::Success:
-            if (!tryAuthFromSslCert(certResult.second)) {
-                disconnect = true;
-                // Don't print an error message... already logged
-                certResult.second.resize(0);
-            }
-        }
-        if (disconnect) {
-            // Set the username to "[unknown]" if we failed to pick
-            // out a username from the certificate to avoid the
-            // audit event being "empty"
-            if (certResult.first == cb::x509::Status::NotPresent) {
-                audit_auth_failure(
-                        *this, "Client did not provide an X.509 certificate");
-            } else {
-                audit_auth_failure(
-                        *this,
-                        "Failed to use client provided X.509 certificate");
-            }
-            cb::net::set_econnreset();
-            if (!certResult.second.empty()) {
-                LOG_WARNING(
-                        "{}: SslPreConnection: disconnection client due to"
-                        " error [{}]",
-                        getId(),
-                        certResult.second);
-            }
-            return -1;
-        }
-
-         LOG_INFO("{}: Using SSL cipher:{}",
-                 getId(),
-                 ssl.getCurrentCipherName());
-    } else {
-        if (ssl.getError(r) == SSL_ERROR_WANT_READ) {
-            ssl.drainBioSendPipe(socketDescriptor);
-            cb::net::set_ewouldblock();
-            return -1;
-        } else {
-            logSslErrorInfo("SSL_accept", r);
-            cb::net::set_econnreset();
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
-int Connection::recv(char* dest, size_t nbytes) {
-    if (nbytes == 0) {
-        throw std::logic_error("Connection::recv: Can't read 0 bytes");
-    }
-
-    int res = -1;
-    if (ssl.isEnabled()) {
-        ssl.drainBioRecvPipe(socketDescriptor);
-
-        if (ssl.hasError()) {
-            cb::net::set_econnreset();
-            return -1;
-        }
-
-        if (!ssl.isConnected()) {
-            res = sslPreConnection();
-            if (res == -1) {
-                return -1;
-            }
-        }
-
-        /* The SSL negotiation might be complete at this time */
-        if (ssl.isConnected()) {
-            res = sslRead(dest, nbytes);
-        }
-    } else {
-        res = (int)::cb::net::recv(socketDescriptor, dest, nbytes, 0);
-        if (res > 0) {
-            totalRecv += res;
-        }
-    }
-
-    return res;
-}
-
 ssize_t Connection::sendmsg(struct msghdr* m) {
+    // In the bufferevent prototype we copy everything we wanted to send off
+    // the IO vector, and put it into the bufferevents structures. This is
+    // far from optimal, as it copies all the data into yet another buffer.
+    //
+    // @todo
+    // In the following patches we'll move away from this, but that would
+    // most likely result in state machinery changes (and grow the patch)
+    // so it is kept like this to minimize the patch moving over to
+    // bufferevents
+    //
     ssize_t res = 0;
-    if (ssl.isEnabled()) {
-        for (int ii = 0; ii < int(m->msg_iovlen); ++ii) {
-            int n = sslWrite(reinterpret_cast<char*>(m->msg_iov[ii].iov_base),
-                             m->msg_iov[ii].iov_len);
-            if (n > 0) {
-                res += n;
-                if (n != int(m->msg_iov[ii].iov_len)) {
-                    // We didnt' send the entire chunk. return the number
-                    // of bytes sent so far to the caller and let them
-                    // deal with adjusting the pointers and retry
-                    return res;
-                }
-            } else {
-                // We failed to send the data over ssl. it might be
-                // because the underlying socket buffer is full, or
-                // if there is a real error with the socket or inside
-                // OpenSSL. If the error is because we the network
-                // is full we'll return the number of bytes we've sent
-                // so far (so that it may adjust the iov_base and iov_len
-                // fields before it'll try to call us again and the
-                // send will most likely fail again, but this we'll
-                // return -1 and when the caller checks it'll see it is
-                // because the network buffer is full).
-                auto error = cb::net::get_socket_error();
-                if (cb::net::is_blocking(error) && res > 0) {
-                    return res;
-                }
-                return -1;
-            }
+    for (size_t ii = 0; ii < size_t(m->msg_iovlen); ++ii) {
+        int nw = bufferevent_write(
+                bev.get(), m->msg_iov[ii].iov_base, m->msg_iov[ii].iov_len);
+        if (nw == -1) {
+            break;
         }
-        ssl.drainBioSendPipe(socketDescriptor);
-        return res;
-    } else {
-        res = cb::net::sendmsg(socketDescriptor, m, 0);
-        if (res > 0) {
-            totalSend += res;
-        }
+
+        res += ssize_t(m->msg_iov[ii].iov_len);
+        totalSend += m->msg_iov[ii].iov_len;
     }
 
-    return res;
+    return res > 0 ? res : -1;
 }
 
 /**
@@ -972,96 +791,30 @@ size_t adjust_msghdr(cb::Pipe& pipe, struct msghdr* m, ssize_t nbytes) {
 }
 
 Connection::TransmitResult Connection::transmit() {
-    if (ssl.isEnabled()) {
-        // We use OpenSSL to write data into a buffer before we send it
-        // over the wire... Lets go ahead and drain that BIO pipe before
-        // we may do anything else.
-        ssl.drainBioSendPipe(socketDescriptor);
-        if (ssl.morePendingOutput()) {
-            if (ssl.hasError() || !updateEvent(EV_WRITE | EV_PERSIST)) {
-                setState(StateMachine::State::closing);
-                return TransmitResult::HardError;
-            }
-            return TransmitResult::SoftError;
-        }
-
-        // The output buffer is completely drained (well, put in the kernel
-        // buffer to send to the client). Go ahead and send more data
-    }
-
     while (msgcurr < msglist.size() && msglist[msgcurr].msg_iovlen == 0) {
         /* Finished writing the current msg; advance to the next. */
         msgcurr++;
     }
 
     if (msgcurr < msglist.size()) {
-        ssize_t res;
         struct msghdr* m = &msglist[msgcurr];
-
-        res = sendmsg(m);
-        auto error = cb::net::get_socket_error();
+        auto res = sendmsg(m);
         if (res > 0) {
             get_thread_stats(this)->bytes_written += res;
 
             if (adjust_msghdr(*write, m, res) == 0) {
                 msgcurr++;
                 if (msgcurr == msglist.size()) {
-                    // We sent the final chunk of data.. In our SSL connections
-                    // we might however have data spooled in the SSL buffers
-                    // which needs to be drained before we may consider the
-                    // transmission complete (note that our sendmsg tried
-                    // to drain the buffers before returning).
-                    if (ssl.isEnabled() && ssl.morePendingOutput()) {
-                        if (ssl.hasError() ||
-                            !updateEvent(EV_WRITE | EV_PERSIST)) {
-                            setState(StateMachine::State::closing);
-                            return TransmitResult::HardError;
-                        }
-                        return TransmitResult::SoftError;
-                    }
                     return TransmitResult::Complete;
                 }
             }
 
             return TransmitResult::Incomplete;
         }
-
-        if (res == -1 && cb::net::is_blocking(error)) {
-            if (!updateEvent(EV_WRITE | EV_PERSIST)) {
-                setState(StateMachine::State::closing);
-                return TransmitResult::HardError;
-            }
-            return TransmitResult::SoftError;
-        }
-
-        // if res == 0 or res == -1 and error is not EAGAIN or EWOULDBLOCK,
-        // we have a real error, on which we close the connection
-        if (res == -1) {
-            if (cb::net::is_closed_conn(error)) {
-                LOG_INFO("{}: Failed to send data; peer closed the connection",
-                         getId());
-            } else {
-                LOG_WARNING("Failed to write, and not due to blocking: {}",
-                            cb_strerror(error));
-            }
-        } else {
-            // sendmsg should return the number of bytes written, but we
-            // sent 0 bytes. That shouldn't be possible unless we
-            // requested to write 0 bytes (otherwise we should have gotten
-            // -1 with EWOULDBLOCK)
-            // Log the request buffer so that we can look into this
-            LOG_WARNING("{} - sendmsg returned 0", socketDescriptor);
-            for (int ii = 0; ii < int(m->msg_iovlen); ++ii) {
-                LOG_WARNING(
-                        "\t{} - {}", socketDescriptor, m->msg_iov[ii].iov_len);
-            }
-        }
-
-        setState(StateMachine::State::closing);
-        return TransmitResult::HardError;
-    } else {
-        return TransmitResult::Complete;
+        return TransmitResult::SoftError;
     }
+
+    return TransmitResult::Complete;
 }
 
 /**
@@ -1070,170 +823,38 @@ Connection::TransmitResult Connection::transmit() {
  * looking at the data I've got after a number of reallocs...
  */
 Connection::TryReadResult Connection::tryReadNetwork() {
-    // When we get here we've either got an empty buffer, or we've got
-    // a buffer with less than a packet header filled in.
-    //
-    // Verify that assumption!!!
-    if (read->rsize() >= sizeof(cb::mcbp::Request)) {
-        // The above don't hold true ;)
-        throw std::logic_error(
-                "tryReadNetwork: Expected the input buffer to be empty or "
-                "contain a partial header");
+    // Drain the buffer used by libevent by moving the data into our
+    // internal read buffer. This cause an extra memory copy, and will be
+    // refactored in the future.
+    // @todo this code will be fixed as part of getting rid of of the read
+    // buffer
+    auto nb = evbuffer_get_length(bufferevent_get_input(bev.get()));
+    if (nb == 0) {
+        return TryReadResult::NoDataReceived;
     }
 
-    // Make sure we can fit the header into the input buffer
     try {
-        read->ensureCapacity(sizeof(cb::mcbp::Request) - read->rsize());
+        read->ensureCapacity(nb);
     } catch (const std::bad_alloc&) {
         LOG_WARNING(
                 "{}: Failed to allocate memory for package header. Closing "
                 "connection {}",
                 getId(),
                 getDescription());
-        return TryReadResult::MemoryError;
+        return TryReadResult::Error;
     }
 
-    Connection* c = this;
-    const auto res = read->produce([c](cb::byte_buffer buffer) -> ssize_t {
-        return c->recv(reinterpret_cast<char*>(buffer.data()), buffer.size());
+    auto* event = bev.get();
+    auto nr = read->produce([event](cb::byte_buffer buffer) -> ssize_t {
+        return ssize_t(bufferevent_read(event, buffer.data(), buffer.size()));
     });
 
-    if (res > 0) {
-        get_thread_stats(this)->bytes_read += res;
-        return TryReadResult::DataReceived;
+    if (nr < 0) {
+        return TryReadResult::Error;
     }
 
-    if (res == 0) {
-        LOG_DEBUG(
-                "{} Closing connection as the other side closed the "
-                "connection {}",
-                getId(),
-                getDescription());
-        return TryReadResult::SocketClosed;
-    }
-
-    const auto error = cb::net::get_socket_error();
-    if (cb::net::is_blocking(error)) {
-        return TryReadResult::NoDataReceived;
-    }
-
-    // There was an error reading from the socket. There isn't much we
-    // can do about that apart from logging it and close the connection.
-    // Keep this as INFO as it isn't a problem with the memcached server,
-    // it is a network issue (or a bad client not closing the connection
-    // cleanly)
-    LOG_INFO("{} Closing connection {} due to read error: {}",
-             getId(),
-             getDescription(),
-             cb_strerror(error));
-    return TryReadResult::SocketError;
-}
-
-int Connection::sslRead(char* dest, size_t nbytes) {
-    int ret = 0;
-
-    while (ret < int(nbytes)) {
-        int n;
-        ssl.drainBioRecvPipe(socketDescriptor);
-        if (ssl.hasError()) {
-            cb::net::set_econnreset();
-            return -1;
-        }
-        n = ssl.read(dest + ret, (int)(nbytes - ret));
-        if (n > 0) {
-            ret += n;
-        } else {
-            /* n < 0 and n == 0 require a check of SSL error*/
-            const int error = ssl.getError(n);
-
-            switch (error) {
-            case SSL_ERROR_WANT_READ:
-                /*
-                 * Drain the buffers and retry if we've got data in
-                 * our input buffers
-                 */
-                if (ssl.moreInputAvailable()) {
-                    /* our recv buf has data feed the BIO */
-                    ssl.drainBioRecvPipe(socketDescriptor);
-                } else if (ret > 0) {
-                    /* nothing in our recv buf, return what we have */
-                    return ret;
-                } else {
-                    cb::net::set_ewouldblock();
-                    return -1;
-                }
-                break;
-
-            case SSL_ERROR_ZERO_RETURN:
-                /* The TLS/SSL connection has been closed (cleanly). */
-                return 0;
-
-            default:
-                logSslErrorInfo("SSL_read", n);
-                cb::net::set_econnreset();
-                return -1;
-            }
-        }
-    }
-
-    return ret;
-}
-
-int Connection::sslWrite(const char* src, size_t nbytes) {
-    // Start by trying to send everything we've already got
-    // buffered in our bio
-    ssl.drainBioSendPipe(socketDescriptor);
-    if (ssl.hasError()) {
-        cb::net::set_econnreset();
-        return -1;
-    }
-
-    // If the network socket is full there isn't much point
-    // of trying to add more to SSL
-    if (ssl.morePendingOutput()) {
-        cb::net::set_ewouldblock();
-        return -1;
-    }
-
-    // We've got an empty buffer for SSL to operate on,
-    // so lets get to it.
-    do {
-        const auto n = ssl.write(src, int(nbytes));
-        if (n > 0) {
-            // we've successfully sent some bytes to
-            // SSL. Lets try to flush it to the network
-            // socket buffers.
-            ssl.drainBioSendPipe(socketDescriptor);
-            if (ssl.hasError()) {
-                cb::net::set_econnreset();
-                return -1;
-            }
-            // Return the number of bytes submitted to SSL
-            return n;
-        } else if (n == 0) {
-            // Closed connection.
-            cb::net::set_econnreset();
-            return -1;
-        } else {
-            const int error = ssl.getError(n);
-            if (error == SSL_ERROR_WANT_WRITE) {
-                ssl.drainBioSendPipe(socketDescriptor);
-                if (ssl.morePendingOutput()) {
-                    cb::net::set_ewouldblock();
-                    return -1;
-                }
-                // We've got space in the network buffer.
-                // retry the operation (and openssl will
-                // try to fill the network buffer again)
-            } else {
-                // We enountered an error we don't have code
-                // to handle. Reset the connection
-                logSslErrorInfo("SSL_write", n);
-                cb::net::set_econnreset();
-                return -1;
-            }
-        }
-    } while (true);
+    get_thread_stats(this)->bytes_read += nr;
+    return TryReadResult::DataReceived;
 }
 
 bool Connection::useCookieSendResponse(std::size_t size) const {
@@ -1337,18 +958,6 @@ void Connection::ensureIovSpace() {
     }
 }
 
-bool Connection::enableSSL(const std::string& cert, const std::string& pkey) {
-    if (ssl.enable(cert, pkey)) {
-        if (Settings::instance().getVerbose() > 1) {
-            ssl.dumpCipherList(getId());
-        }
-
-        return true;
-    }
-
-    return false;
-}
-
 Connection::Connection(FrontEndThread& thr)
     : socketDescriptor(INVALID_SOCKET),
       connectedToSystemPort(false),
@@ -1385,18 +994,76 @@ Connection::Connection(SOCKET sfd,
     cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
     msglist.reserve(MSG_LIST_INITIAL);
     iov.resize(IOV_LIST_INITIAL);
+    setConnectionId(peername.c_str());
 
     if (ifc.isSslPort()) {
-        if (!enableSSL(ifc.sslCert, ifc.sslKey)) {
-            throw std::runtime_error(std::to_string(getId()) +
-                                     " Failed to enable SSL");
+        // Trond Norbye - 20171003
+        //
+        // @todo figure out if the SSL_CTX needs to have the same lifetime
+        //       as the created ssl object. It could be that we could keep
+        //       the SSL_CTX as part of the runtime and then reuse it
+        //       across all of the SSL connections when we initialize them.
+        //       If we do that we don't have to reload the SSL certificates
+        //       and parse the PEM format every time we accept a client!
+        //       (which we shouldn't be doing!!!!)
+        server_ctx = SSL_CTX_new(SSLv23_server_method());
+        SSL_CTX_set_options(server_ctx, Settings::instance().getSslProtocolMask());
+        SSL_CTX_set_mode(server_ctx,
+                         SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
+                         SSL_MODE_ENABLE_PARTIAL_WRITE);
+
+        if (!SSL_CTX_use_certificate_chain_file(server_ctx,
+                                                ifc.sslCert.c_str()) ||
+            !SSL_CTX_use_PrivateKey_file(
+                    server_ctx, ifc.sslKey.c_str(), SSL_FILETYPE_PEM)) {
+            throw std::runtime_error("Failed to enable ssl!");
         }
+        set_ssl_ctx_ciphers(server_ctx,
+                            Settings::instance().getSslCipherList(),
+                            Settings::instance().getSslCipherSuites());
+        int ssl_flags = 0;
+        switch (Settings::instance().getClientCertMode()) {
+        case cb::x509::Mode::Mandatory:
+            ssl_flags |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
+            // FALLTHROUGH
+        case cb::x509::Mode::Enabled: {
+            ssl_flags |= SSL_VERIFY_PEER;
+            auto* certNames = SSL_load_client_CA_file(ifc.sslCert.c_str());
+            if (certNames == nullptr) {
+                LOG_WARNING(nullptr,
+                            "Failed to read SSL cert {}",
+                            ifc.sslCert.c_str());
+                throw std::runtime_error("Failed to read ssl cert!");
+            }
+            SSL_CTX_set_client_CA_list(server_ctx, certNames);
+            SSL_CTX_load_verify_locations(
+                    server_ctx, ifc.sslCert.c_str(), nullptr);
+            SSL_CTX_set_verify(server_ctx, ssl_flags, nullptr);
+            break;
+        }
+        case cb::x509::Mode::Disabled:
+            break;
+        }
+
+        client_ctx = SSL_new(server_ctx);
+        bev.reset(bufferevent_openssl_socket_new(
+                base, sfd, client_ctx, BUFFEREVENT_SSL_ACCEPTING, 0));
+        // Given that we want to be able to inspect the client certificate
+        // as part of the connection establishment, we start off in another
+        // state (we might want to kill the connection if the clients isn't
+        // accepted).
+        setState(StateMachine::State::ssl_init);
+    } else {
+        bev.reset(bufferevent_socket_new(base, sfd, 0));
     }
 
-    if (!initializeEvent()) {
-        throw std::runtime_error("Failed to initialize event structure");
-    }
-    setConnectionId(peername.c_str());
+    bufferevent_setcb(bev.get(),
+                      Connection::read_callback,
+                      Connection::write_callback,
+                      Connection::event_callback,
+                      static_cast<void*>(this));
+
+    bufferevent_enable(bev.get(), EV_READ);
 }
 
 Connection::~Connection() {
@@ -1411,9 +1078,24 @@ Connection::~Connection() {
     for (auto* ptr : temp_alloc) {
         cb_free(ptr);
     }
+
+    if (client_ctx) {
+        SSL_free(client_ctx);
+    }
+
+    if (server_ctx) {
+        SSL_CTX_free(server_ctx);
+    }
+
     if (socketDescriptor != INVALID_SOCKET) {
         LOG_DEBUG("{} - Closing socket descriptor", getId());
         safe_close(socketDescriptor);
+    }
+}
+
+void Connection::EventDeleter::operator()(bufferevent* ev) {
+    if (ev != nullptr) {
+        bufferevent_free(ev);
     }
 }
 
@@ -1422,6 +1104,36 @@ void Connection::setState(StateMachine::State next_state) {
 }
 
 void Connection::runStateMachinery() {
+    // Check for stuck clients
+    auto currentSendBufferSize = getSendQueueSize();
+    // is the send buffer stuck?
+    if (currentSendBufferSize == 0) {
+        sendQueueInfo.size = currentSendBufferSize;
+    } else {
+        if (sendQueueInfo.size != currentSendBufferSize) {
+            sendQueueInfo.size = currentSendBufferSize;
+            sendQueueInfo.last = std::chrono::steady_clock::now();
+        } else {
+            const auto limit = (getBucket().state == Bucket::State::Ready)
+                                       ? std::chrono::seconds(29)
+                                       : std::chrono::seconds(1);
+            if ((std::chrono::steady_clock::now() - sendQueueInfo.last) >
+                limit) {
+                LOG_WARNING(
+                        "{}: send buffer stuck at {} for ~{} seconds. Shutting "
+                        "down connection {}",
+                        getId(),
+                        sendQueueInfo.size,
+                        limit.count(),
+                        getDescription());
+                // We've not had any progress on the socket for "n" secs
+                // Forcibly shut down the connection!
+                sendQueueInfo.term = true;
+                setState(StateMachine::State::closing);
+            }
+        }
+    }
+
     if (Settings::instance().getVerbose() > 1) {
         do {
             LOG_DEBUG("{} - Running task: {}",
@@ -1497,9 +1209,8 @@ bool Connection::processServerEvents() {
     return getState() != before;
 }
 
-void Connection::runEventLoop(short which) {
+void Connection::runEventLoop(short) {
     conn_loan_buffers(this);
-    currentEvent = which;
     numEvents = max_reqs_per_event;
 
     try {
@@ -1589,14 +1300,15 @@ bool Connection::close() {
     }
 
     if (getState() == StateMachine::State::closing) {
-        // We don't want any network notifications anymore..
-        if (registered_in_libevent) {
-            unregisterEvent();
-        }
-
-        // Shut down the read end of the socket to avoid more data
-        // to arrive
-        shutdown(socketDescriptor, SHUT_RD);
+        // We don't want any network notifications anymore. Start by disabling
+        // all read notifications (We may have data in the write buffers we
+        // want to send. It seems like we don't immediately send the data over
+        // the socket when writing to a bufferevent. it is scheduled to be sent
+        // once we return from the dispatch function for the read event. If
+        // we nuke the connection now, the error message we tried to send back
+        // to the client won't be sent).
+        disableReadEvent();
+        cb::net::shutdown(socketDescriptor, SHUT_RD);
 
         // Release all reserved items!
         releaseReservedItems();
@@ -1612,7 +1324,12 @@ bool Connection::close() {
         ewb = false;
     }
 
-    if (rc > 1 || ewb) {
+    if (rc > 1 || ewb || havePendingData()) {
+        LOG_WARNING("{}: Delay shutdown: refcount: {} ewb: {} pendingData: {}",
+                    getId(),
+                    rc,
+                    ewb,
+                    getSendQueueSize());
         setState(StateMachine::State::pending_close);
         return false;
     }
@@ -1674,6 +1391,38 @@ bool Connection::selectedBucketIsXattrEnabled() const {
                bucketEngine->isXattrEnabled();
     }
     return Settings::instance().isXattrEnabled();
+}
+
+void Connection::disableReadEvent() {
+    if ((bufferevent_get_enabled(bev.get()) & EV_READ) == EV_READ) {
+        if (bufferevent_disable(bev.get(), EV_READ) == -1) {
+            throw std::runtime_error(
+                    "McbpConnection::disableReadEvent: Failed to disable read "
+                    "events");
+        }
+    }
+}
+
+void Connection::enableReadEvent() {
+    if ((bufferevent_get_enabled(bev.get()) & EV_READ) == 0) {
+        if (bufferevent_enable(bev.get(), EV_READ) == -1) {
+            throw std::runtime_error(
+                    "McbpConnection::enableReadEvent: Failed to enable read "
+                    "events");
+        }
+    }
+}
+
+bool Connection::havePendingData() const {
+    if (sendQueueInfo.term) {
+        return false;
+    }
+
+    return getSendQueueSize() != 0;
+}
+
+size_t Connection::getSendQueueSize() const {
+    return evbuffer_get_length(bufferevent_get_output(bev.get()));
 }
 
 ENGINE_ERROR_CODE Connection::add_packet_to_send_pipe(

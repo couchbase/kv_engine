@@ -671,22 +671,6 @@ TEST_F(SettingsTest, ConnectionIdleTime) {
     }
 }
 
-TEST_F(SettingsTest, BioDrainBufferSize) {
-    nonNumericValuesShouldFail("bio_drain_buffer_sz");
-
-    nlohmann::json obj;
-    // Explicitly make bioDrainBufferSize an unsigned int
-    uint16_t bioDrainBufferSize = 1024;
-    obj["bio_drain_buffer_sz"] = bioDrainBufferSize;
-    try {
-        Settings settings(obj);
-        EXPECT_EQ(1024, settings.getBioDrainBufferSize());
-        EXPECT_TRUE(settings.has.bio_drain_buffer_sz);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-}
-
 TEST_F(SettingsTest, DatatypeJson) {
     nonBooleanValuesShouldFail("datatype_json");
 
@@ -1356,20 +1340,6 @@ TEST(SettingsUpdateTest, ConnectionIdleTimeIsDynamic) {
     EXPECT_NO_THROW(settings.updateSettings(updated));
     EXPECT_EQ(updated.getConnectionIdleTime(),
               settings.getConnectionIdleTime());
-}
-
-TEST(SettingsUpdateTest, BioDrainBufferSzIsNotDynamic) {
-    Settings updated;
-    Settings settings;
-    // setting it to the same value should work
-    auto old = settings.getBioDrainBufferSize();
-    updated.setBioDrainBufferSize(old);
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-
-    // changing it should not work
-    updated.setBioDrainBufferSize(old + 10);
-    EXPECT_THROW(settings.updateSettings(updated, false),
-                 std::invalid_argument);
 }
 
 TEST(SettingsUpdateTest, DatatypeJsonIsNotDynamic) {

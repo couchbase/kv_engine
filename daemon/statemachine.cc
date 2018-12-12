@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,9 +25,11 @@
 #include "mcaudit.h"
 #include "mcbp.h"
 #include "mcbp_executors.h"
+#include "runtime.h"
 #include "sasl_tasks.h"
 #include "settings.h"
 
+#include <event2/bufferevent_ssl.h>
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
 #include <platform/strerror.h>
@@ -49,7 +51,6 @@ void StateMachine::setCurrentState(State task) {
          */
 
         if (task == State::waiting) {
-            connection.setCurrentEvent(EV_WRITE);
             task = State::ship_log;
         }
     }
@@ -59,6 +60,8 @@ void StateMachine::setCurrentState(State task) {
 
 const char* StateMachine::getStateName(State state) const {
     switch (state) {
+    case StateMachine::State::ssl_init:
+        return "ssl_init";
     case StateMachine::State::new_cmd:
         return "new_cmd";
     case StateMachine::State::waiting:
@@ -83,6 +86,8 @@ const char* StateMachine::getStateName(State state) const {
         return "execute";
     case StateMachine::State::send_data:
         return "send_data";
+    case StateMachine::State::drain_send_buffer:
+        return "drain_send_buffer";
     case StateMachine::State::ship_log:
         return "ship_log";
     }
@@ -99,6 +104,8 @@ bool StateMachine::isIdleState() const {
     case State::ship_log:
     case State::send_data:
     case State::pending_close:
+    case State::drain_send_buffer:
+    case State::ssl_init:
         return true;
     case State::parse_cmd:
     case State::closing:
@@ -113,6 +120,8 @@ bool StateMachine::isIdleState() const {
 
 bool StateMachine::execute() {
     switch (currentState) {
+    case StateMachine::State::ssl_init:
+        return conn_ssl_init();
     case StateMachine::State::new_cmd:
         return conn_new_cmd();
     case StateMachine::State::waiting:
@@ -137,10 +146,70 @@ bool StateMachine::execute() {
         return conn_execute();
     case StateMachine::State::send_data:
         return conn_send_data();
+    case StateMachine::State::drain_send_buffer:
+        return conn_drain_send_buffer();
     case StateMachine::State::ship_log:
         return conn_ship_log();
     }
     throw std::invalid_argument("execute(): invalid state");
+}
+
+static std::pair<cb::x509::Status, std::string> getCertUserName(Connection& c) {
+    auto* ssl_st = bufferevent_openssl_get_ssl(c.bev.get());
+    cb::openssl::unique_x509_ptr cert(SSL_get_peer_certificate(ssl_st));
+    return Settings::instance().lookupUser(cert.get());
+}
+
+bool StateMachine::conn_ssl_init() {
+    connection.setState(StateMachine::State::new_cmd);
+    auto certResult = getCertUserName(connection);
+    bool disconnect = false;
+    switch (certResult.first) {
+    case cb::x509::Status::NoMatch:
+    case cb::x509::Status::Error:
+        disconnect = true;
+        break;
+    case cb::x509::Status::NotPresent:
+        if (Settings::instance().getClientCertMode() ==
+            cb::x509::Mode::Mandatory) {
+            disconnect = true;
+        } else if (is_default_bucket_enabled()) {
+            associate_bucket(connection, "default");
+        }
+        break;
+    case cb::x509::Status::Success:
+        if (!connection.tryAuthFromSslCert(certResult.second)) {
+            disconnect = true;
+            // Don't print an error message... already logged
+            certResult.second.resize(0);
+        }
+    }
+
+    if (disconnect) {
+        if (certResult.first == cb::x509::Status::NotPresent) {
+            audit_auth_failure(connection,
+                               "Client did not provide an X.509 certificate");
+        } else {
+            audit_auth_failure(
+                    connection,
+                    "Failed to use client provided X.509 certificate");
+        }
+        connection.setState(StateMachine::State::closing);
+        if (!certResult.second.empty()) {
+            LOG_WARNING(
+                    "{}: conn_ssl_init: disconnection client due to"
+                    " error [{}]",
+                    connection.getId(),
+                    certResult.second);
+        }
+    } else {
+        auto* ssl_st = bufferevent_openssl_get_ssl(connection.bev.get());
+        LOG_INFO("{}: Using SSL cipher:{}",
+                 connection.getId(),
+                 SSL_get_cipher_name(ssl_st));
+    }
+
+    return true;
 }
 
 /**
@@ -159,73 +228,48 @@ bool StateMachine::conn_ship_log() {
         return true;
     }
 
-    bool cont = false;
-    short mask = EV_READ | EV_PERSIST | EV_WRITE;
+    auto& cookie = connection.getCookieObject();
+    cookie.setEwouldblock(false);
 
-    if (connection.isSocketClosed()) {
+    switch (connection.tryReadNetwork()) {
+    case Connection::TryReadResult::Error:
+        // state already set
+        return true;
+
+    case Connection::TryReadResult::NoDataReceived:
+    case Connection::TryReadResult::DataReceived:
+        if (connection.isPacketAvailable()) {
+            try_read_mcbp_command(cookie);
+            return true;
+        }
+        break;
+    }
+
+    connection.addMsgHdr(true);
+
+    const auto ret = connection.getBucket().getDcpIface()->step(
+            static_cast<const void*>(&cookie), &connection);
+
+    switch (connection.remapErrorCode(ret)) {
+    case ENGINE_SUCCESS:
+        /* The engine got more data it wants to send */
+        connection.setState(StateMachine::State::send_data);
+        connection.setWriteAndGo(StateMachine::State::ship_log);
+        break;
+    case ENGINE_EWOULDBLOCK:
+        // the engine don't have more data to send at this moment
         return false;
-    }
-
-    if (connection.isReadEvent() || !connection.read->empty()) {
-        if (connection.read->rsize() >= sizeof(cb::mcbp::Header)) {
-            try_read_mcbp_command(connection.getCookieObject());
-        } else {
-            setCurrentState(State::read_packet_header);
-        }
-
-        /* we're going to process something.. let's proceed */
-        cont = true;
-
-        /* We have a finite number of messages in the input queue */
-        /* so let's process all of them instead of backing off after */
-        /* reading a subset of them. */
-        /* Why? Because we've got every time we're calling ship_mcbp_dcp_log */
-        /* we try to send a chunk of items.. This means that if we end */
-        /* up in a situation where we're receiving a burst of nack messages */
-        /* we'll only process a subset of messages in our input queue, */
-        /* and it will slowly grow.. */
-        connection.setNumEvents(connection.getMaxReqsPerEvent());
-    } else if (connection.isWriteEvent()) {
-        if (connection.decrementNumEvents() >= 0) {
-            auto& cookie = connection.getCookieObject();
-            connection.addMsgHdr(true);
-            cookie.setEwouldblock(false);
-            cont = true;
-
-            const auto ret = connection.getBucket().getDcpIface()->step(
-                    static_cast<const void*>(&cookie), &connection);
-
-            switch (connection.remapErrorCode(ret)) {
-            case ENGINE_SUCCESS:
-                /* The engine got more data it wants to send */
-                setCurrentState(State::send_data);
-                connection.setWriteAndGo(StateMachine::State::ship_log);
-                break;
-            case ENGINE_EWOULDBLOCK:
-                /* the engine don't have more data to send at this moment */
-                mask = EV_READ | EV_PERSIST;
-                cont = false;
-                break;
-            default:
-                LOG_WARNING(
-                        R"({}: ship_dcp_log - step returned {} - closing connection {})",
-                        connection.getId(),
-                        std::to_string(ret),
-                        connection.getDescription());
-                setCurrentState(State::closing);
-            }
-        }
-    }
-
-    if (!connection.updateEvent(mask)) {
+    default:
         LOG_WARNING(
-                R"({}: conn_ship_log - Unable to update libevent, closing connection {})",
+                R"({}: ship_dcp_log - step returned {} - closing connection {})",
                 connection.getId(),
+                std::to_string(ret),
                 connection.getDescription());
+        connection.getCookieObject().setEwouldblock(false);
         setCurrentState(State::closing);
     }
 
-    return cont;
+    return true;
 }
 
 bool StateMachine::conn_waiting() {
@@ -233,18 +277,8 @@ bool StateMachine::conn_waiting() {
         return true;
     }
 
-    if (!connection.updateEvent(EV_READ | EV_PERSIST)) {
-        LOG_WARNING(
-                "{}: conn_waiting - Unable to update libevent "
-                "settings with (EV_READ | EV_PERSIST), closing connection "
-                "{}",
-                connection.getId(),
-                connection.getDescription());
-        setCurrentState(State::closing);
-        return true;
-    }
     setCurrentState(State::read_packet_header);
-    return false;
+    return true;
 }
 
 bool StateMachine::conn_read_packet_header() {
@@ -256,22 +290,22 @@ bool StateMachine::conn_read_packet_header() {
     switch (res) {
     case Connection::TryReadResult::NoDataReceived:
         setCurrentState(State::waiting);
-        break;
+        return false;
     case Connection::TryReadResult::DataReceived:
         if (connection.read->rsize() >= sizeof(cb::mcbp::Header)) {
             setCurrentState(State::parse_cmd);
         } else {
             setCurrentState(State::waiting);
         }
-        break;
-    case Connection::TryReadResult::MemoryError:
-    case Connection::TryReadResult::SocketClosed:
-    case Connection::TryReadResult::SocketError:
+        return true;
+    case Connection::TryReadResult::Error:
         setCurrentState(State::closing);
-        break;
+        return true;
     }
 
-    return true;
+    throw std::logic_error(
+            "conn_read_packet_header: Invalid value returned from "
+            "tryReadNetwork");
 }
 
 bool StateMachine::conn_parse_cmd() {
@@ -297,46 +331,23 @@ bool StateMachine::conn_new_cmd() {
      * In order to ensure that all clients will be served each
      * connection will only process a certain number of operations
      * before they will back off.
+     *
+     * Trond Norbye 20171004
+     * @todo I've temorarily disabled the fair sharing while moving
+     *       over to bufferevents. It'll reappear once we've ironed
+     *       out all of the corner cases in the code
+     *       (note that this is less of an issue in couchbase than
+     *       with memcached as we're more likely to hit an item
+     *       which would cause us to block)
      */
-    if (connection.decrementNumEvents() >= 0) {
-        connection.getCookieObject().reset();
-
-        connection.shrinkBuffers();
-        if (connection.read->rsize() >= sizeof(cb::mcbp::Header)) {
-            setCurrentState(State::parse_cmd);
-        } else if (connection.isSslEnabled()) {
-            setCurrentState(State::read_packet_header);
-        } else {
-            setCurrentState(State::waiting);
-        }
+    connection.getCookieObject().reset();
+    connection.shrinkBuffers();
+    if (connection.read->rsize() >= sizeof(cb::mcbp::Request)) {
+        setCurrentState(State::parse_cmd);
+    } else if (connection.isSslEnabled()) {
+        setCurrentState(State::read_packet_header);
     } else {
-        connection.yield();
-
-        /*
-         * If we've got data in the input buffer we might get "stuck"
-         * if we're waiting for a read event. Why? because we might
-         * already have all of the data for the next command in the
-         * userspace buffer so the client is idle waiting for the
-         * response to arrive. Lets set up a _write_ notification,
-         * since that'll most likely be true really soon.
-         *
-         * DCP connections are different from normal
-         * connections in the way that they may not even get data from
-         * the other end so that they'll _have_ to wait for a write event.
-         */
-        if (connection.havePendingInputData() || connection.isDCP()) {
-            short flags = EV_WRITE | EV_PERSIST;
-            if (!connection.updateEvent(flags)) {
-                LOG_WARNING(
-                        "{}: conn_new_cmd - Unable to update "
-                        "libevent settings, closing connection {}",
-                        connection.getId(),
-                        connection.getDescription());
-                setCurrentState(State::closing);
-                return true;
-            }
-        }
-        return false;
+        setCurrentState(State::waiting);
     }
 
     return true;
@@ -406,9 +417,10 @@ bool StateMachine::conn_execute() {
 
     auto& cookie = connection.getCookieObject();
     cookie.setEwouldblock(false);
+    connection.enableReadEvent();
 
     if (!cookie.execute()) {
-        connection.unregisterEvent();
+        connection.disableReadEvent();
         return false;
     }
 
@@ -445,22 +457,12 @@ bool StateMachine::conn_read_packet_body() {
         return true;
     }
 
-    if (connection.isPacketAvailable()) {
-        throw std::logic_error(
-                "conn_read_packet_body: should not be called with the complete "
-                "packet available");
-    }
+    switch (connection.tryReadNetwork()) {
+    case Connection::TryReadResult::Error:
+        // state already set
+        return true;
 
-    // We need to get more data!!!
-    auto res =
-            connection.read->produce([this](cb::byte_buffer buffer) -> ssize_t {
-                return connection.recv(reinterpret_cast<char*>(buffer.data()),
-                                       buffer.size());
-            });
-
-    if (res > 0) {
-        get_thread_stats(&connection)->bytes_read += res;
-
+    case Connection::TryReadResult::DataReceived:
         if (connection.isPacketAvailable()) {
             auto& cookie = connection.getCookieObject();
             auto input = connection.read->rdata();
@@ -471,44 +473,16 @@ bool StateMachine::conn_read_packet_body() {
                                                    sizeof(cb::mcbp::Request) +
                                                            req->getBodylen()});
             setCurrentState(State::validate);
-        }
-
-        return true;
-    }
-
-    if (res == 0) { /* end of stream */
-        // Note: we do not log a clean connection shutdown
-        setCurrentState(State::closing);
-        return true;
-    }
-
-    auto error = cb::net::get_socket_error();
-    if (cb::net::is_blocking(error)) {
-        if (!connection.updateEvent(EV_READ | EV_PERSIST)) {
-            LOG_WARNING(
-                    "{}: conn_read_packet_body - Unable to update libevent "
-                    "settings with (EV_READ | EV_PERSIST), closing "
-                    "connection {}",
-                    connection.getId(),
-                    connection.getDescription());
-            setCurrentState(State::closing);
             return true;
         }
-
-        // We need to wait for more data to be available on the socket
-        // before we may proceed. Return false to stop the state machinery
+        // fallthrough
+    case Connection::TryReadResult::NoDataReceived:
         return false;
     }
 
-    // We have a "real" error on the socket.
-    std::string errormsg = cb_strerror(error);
-    LOG_WARNING("{} Closing connection {} due to read error: {}",
-                connection.getId(),
-                connection.getDescription(),
-                errormsg);
-
-    setCurrentState(State::closing);
-    return true;
+    // Notreached
+    throw std::logic_error(
+            "conn_read_packet_body: tryReadNetwork returned invalid value");
 }
 
 bool StateMachine::conn_send_data() {
@@ -519,11 +493,8 @@ bool StateMachine::conn_send_data() {
         // Release all allocated resources
         connection.releaseTempAlloc();
         connection.releaseReservedItems();
-
-        // We're done sending the response to the client. Enter the next
-        // state in the state machine
-        setCurrentState(connection.getWriteAndGo());
-        break;
+        setCurrentState(State::drain_send_buffer);
+        return true;
 
     case Connection::TransmitResult::Incomplete:
         LOG_DEBUG("{} - Incomplete transfer. Will retry", connection.getId());
@@ -545,6 +516,17 @@ bool StateMachine::conn_send_data() {
     return ret;
 }
 
+bool StateMachine::conn_drain_send_buffer() {
+    if (connection.havePendingData()) {
+        return false;
+    }
+
+    // We're done sending the response to the client. Enter the next
+    // state in the state machine
+    connection.setState(connection.getWriteAndGo());
+    return true;
+}
+
 bool StateMachine::conn_immediate_close() {
     disassociate_bucket(connection);
 
@@ -554,6 +536,8 @@ bool StateMachine::conn_immediate_close() {
     // remove from pending-io list
     std::lock_guard<std::mutex> lock(thread.pending_io.mutex);
     thread.pending_io.map.erase(&connection);
+
+    connection.bev.reset();
 
     // Set the connection to the sentinal state destroyed and return
     // false to break out of the event loop (and have the the framework

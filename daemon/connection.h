@@ -18,7 +18,6 @@
 
 #include "datatype.h"
 #include "dynamic_buffer.h"
-#include "ssl_context.h"
 #include "statemachine.h"
 #include "stats.h"
 #include "task.h"
@@ -32,6 +31,7 @@
 #include <memcached/openssl.h>
 #include <memcached/rbac.h>
 #include <nlohmann/json_fwd.hpp>
+#include <platform/pipe.h>
 #include <platform/sized_buffer.h>
 #include <platform/socket.h>
 
@@ -456,41 +456,16 @@ public:
     }
 
     /**
-     * Update the settings in libevent for this connection
-     *
-     * @param mask the new event mask to get notified about
+     * Disable read event for this connection (we won't get notified if
+     * more data arrives on the socket).
      */
-    bool updateEvent(const short new_flags);
+    void disableReadEvent();
 
     /**
-     * Unregister the event structure from libevent
-     * @return true if success, false otherwise
+     * Enable read event for this connection (cause the read callback to
+     * be triggered once there is data on the socket).
      */
-    bool unregisterEvent();
-
-    /**
-     * Register the event structure in libevent
-     * @return true if success, false otherwise
-     */
-    bool registerEvent();
-
-    bool isRegisteredInLibevent() const {
-        return registered_in_libevent;
-    }
-
-    void setCurrentEvent(short ev) {
-        currentEvent = ev;
-    }
-
-    /** Is the current event a readevent? */
-    bool isReadEvent() const {
-        return currentEvent & EV_READ;
-    }
-
-    /** Is the current event a writeevent? */
-    bool isWriteEvent() const {
-        return currentEvent & EV_WRITE;
-    }
+    void enableReadEvent();
 
     /**
      * Shrinks a connection's buffers if they're too big.  This prevents
@@ -501,16 +476,6 @@ public:
      * buffers!
      */
     void shrinkBuffers();
-
-    /**
-     * Receive data from the socket
-     *
-     * @param where to store the result
-     * @param nbytes the size of the buffer
-     *
-     * @return the number of bytes read, or -1 for an error
-     */
-    int recv(char* dest, size_t nbytes);
 
     /**
      * Send data over the socket
@@ -547,12 +512,8 @@ public:
         DataReceived,
         /** No data received on the socket */
         NoDataReceived,
-        /** The client closed the connection */
-        SocketClosed,
         /** An error occurred on the socket */
-        SocketError,
-        /** Failed to allocate more memory for the input buffer */
-        MemoryError
+        Error,
     };
 
     /**
@@ -717,14 +678,7 @@ public:
      * @return true if the connection is running over SSL, false otherwise
      */
     bool isSslEnabled() const {
-        return ssl.isEnabled();
-    }
-
-    /**
-     * Do we have any pending input data on this connection?
-     */
-    bool havePendingInputData() {
-        return (!read->empty() || ssl.havePendingInputData());
+        return server_ctx != nullptr;
     }
 
     /**
@@ -964,60 +918,12 @@ protected:
     void runStateMachinery();
 
     /**
-     * Initialize the event structure and add it to libevent
-     *
-     * @return true upon success, false otherwise
-     */
-    bool initializeEvent();
-
-    /**
      * Ensures that there is room for another struct iovec in a connection's
      * iov list.
      *
      * @throws std::bad_alloc
      */
     void ensureIovSpace();
-
-    /**
-     * Try to enable SSL for this connection
-     *
-     * @param cert the SSL certificate to use
-     * @param pkey the SSL private key to use
-     * @return true if successful, false otherwise
-     */
-    bool enableSSL(const std::string& cert, const std::string& pkey);
-
-    /**
-     * Log error information from the SSL_accept/read/write call
-     *
-     * @param method the method which caused the error
-     * @rval the return value for that call
-     */
-    void logSslErrorInfo(const std::string& method, int rval);
-
-    /**
-     * Read data over the SSL connection
-     *
-     * @param dest where to store the data
-     * @param nbytes the size of the destination buffer
-     * @return the number of bytes read
-     */
-    int sslRead(char* dest, size_t nbytes);
-
-    /**
-     * Write data over the SSL stream
-     *
-     * @param src the source of the data
-     * @param nbytes the number of bytes to send
-     * @return the number of bytes written
-     */
-    int sslWrite(const char* src, size_t nbytes);
-
-    /**
-     * Handle the state for the ssl connection before the ssl connection
-     * is fully established
-     */
-    int sslPreConnection();
 
     // Shared DCP_DELETION write function for the v1/v2 commands.
     ENGINE_ERROR_CODE deletionInner(const item_info& info,
@@ -1190,23 +1096,21 @@ protected:
     int numEvents = 0;
 
     // Members related to libevent
-
-    /** Is the connection currently registered in libevent? */
-    bool registered_in_libevent = false;
-
     struct EventDeleter {
-        void operator()(struct event* e) {
-            event_free(e);
-        }
+        void operator()(bufferevent* ev);
     };
 
-    /** The libevent object */
-    std::unique_ptr<struct event, EventDeleter> event;
-    /** The current flags we've registered in libevent */
-    short ev_flags = 0;
-    /** which events were just triggered */
-    short currentEvent = 0;
+public:
+    /**
+     * The bufferevent is currently public while we're figuring out the need
+     * for it. It'll be refactored to be made private in one of the following
+     * commits
+     *
+     * @todo make sure this is protected
+     */
+    std::unique_ptr<bufferevent, EventDeleter> bev;
 
+protected:
     /** which state to go into after finishing current write */
     StateMachine::State write_and_go = StateMachine::State::new_cmd;
 
@@ -1243,11 +1147,6 @@ protected:
      */
     bool supports_mutation_extras = false;
 
-    /**
-     * The SSL context used by this connection (if enabled)
-     */
-    SslContext ssl;
-
     // Total number of bytes received on the network
     size_t totalRecv = 0;
     // Total number of bytes sent to the network
@@ -1270,6 +1169,48 @@ protected:
      * connections after they've been established.
      */
     bool saslAuthEnabled = true;
+
+    /**
+     * The SSL context object used to create the ssl instance for this
+     * connection (contains the certificates and attributes etc)
+     */
+    SSL_CTX* server_ctx = nullptr;
+
+    /**
+     * The actual SSL handle used by libevent for the SSL communication
+     */
+    SSL* client_ctx = nullptr;
+
+    struct SendQueueInfo {
+        std::chrono::steady_clock::time_point last{};
+        size_t size{};
+        bool term{false};
+    } sendQueueInfo;
+
+public:
+    /**
+     * Given that we "ack" the writing once we drain the write buffer in
+     * memcached we need an extra state variable to make sure that we don't
+     * kill the connection object before the data is sent over the wire
+     * (in the case where we want to send an error and shut down the connection)
+     *
+     * @todo This state variable is temporary and will be eliminated in
+     * the following patch series when we stop using our internal read
+     * and write buffer.
+     */
+    bool havePendingData() const;
+
+    /**
+     * Get the number of bytes stuck in the send queue
+     *
+     * @return
+     */
+    size_t getSendQueueSize() const;
+
+protected:
+    static void read_callback(bufferevent*, void* ctx);
+    static void write_callback(bufferevent*, void* ctx);
+    static void event_callback(bufferevent*, short event, void* ctx);
 };
 
 /**

@@ -92,7 +92,6 @@ void safe_close(SOCKET sfd);
 int add_conn_to_pending_io_list(Connection* c,
                                 Cookie* cookie,
                                 ENGINE_ERROR_CODE status);
-void event_handler(evutil_socket_t fd, short which, void *arg);
 void listen_event_handler(evutil_socket_t, short, void *);
 
 void mcbp_collect_timings(Cookie& cookie);

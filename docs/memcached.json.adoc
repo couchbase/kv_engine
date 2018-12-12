@@ -218,12 +218,6 @@ default value is 20.
 *reqs_per_event_low_priority* may be updated by instructing memcached
 to reread the configuration file.
 
-=== bio_drain_buffer_sz
-
-The *bio_drain_buffer_sz* attribute is an integral value specifying
-the number of bytes in the BIO drain buffer. This is an interal
-setting just used by the engineers for testing.
-
 === verbosity
 
 The *verbosity* attribute is an integral value specifying the amount
@@ -428,7 +422,6 @@ A Sample memcached.json:
         "datatype_json" : true,
         "datatype_snappy" : true,
         "max_packet_size" : 25,
-        "bio_drain_buffer_sz" : 8192,
         "sasl_mechanisms" : "SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1",
         "dedupe_nmvb_maps" : true,
         "xattr_enabled" : true,

@@ -303,8 +303,15 @@ static void thread_libevent_process(evutil_socket_t fd, short, void* arg) {
     std::vector<Connection*> notify;
     me.notification.swap(notify);
 
-    for (const auto& io : pending) {
+    for (auto& io : pending) {
         auto* c = io.first;
+
+        for (const auto& pair : io.second) {
+            if (pair.first) {
+                pair.first->setAiostat(pair.second);
+                pair.first->setEwouldblock(false);
+            }
+        }
 
         // Remove from the notify list if it's there as we don't
         // want to run them twice
@@ -315,33 +322,17 @@ static void thread_libevent_process(evutil_socket_t fd, short, void* arg) {
             }
         }
 
-        if (c->getSocketDescriptor() != INVALID_SOCKET &&
-            !c->isRegisteredInLibevent()) {
-            /* The socket may have been shut down while we're looping */
-            /* in delayed shutdown */
-            c->registerEvent();
-        }
-
-        for (const auto& pair : io.second) {
-            if (pair.first) {
-                pair.first->setAiostat(pair.second);
-                pair.first->setEwouldblock(false);
-            }
-        }
-
-        /*
-         * We don't want the thread to keep on serving all of the data
-         * from the context of the notification pipe, so just let it
-         * run one time to set up the correct mask in libevent
-         */
-        c->setNumEvents(1);
-        run_event_loop(c, EV_READ | EV_WRITE);
+        // We don't really know where the connection left off, so let's just
+        // give it a read and write notification.
+        const auto opt = BEV_TRIG_IGNORE_WATERMARKS | BEV_TRIG_DEFER_CALLBACKS;
+        bufferevent_trigger(c->bev.get(), EV_READ | EV_WRITE, opt);
     }
 
     // Notify the connections we haven't notified yet
-    for (auto c : notify) {
+    for (auto& c : notify) {
         c->setNumEvents(1);
-        run_event_loop(c, EV_READ | EV_WRITE);
+        const auto opt = BEV_TRIG_IGNORE_WATERMARKS | BEV_TRIG_DEFER_CALLBACKS;
+        bufferevent_trigger(c->bev.get(), EV_READ | EV_WRITE, opt);
     }
 
     if (memcached_shutdown) {

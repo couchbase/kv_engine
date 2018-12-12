@@ -315,23 +315,6 @@ static void handle_connection_idle_time(Settings& s,
 }
 
 /**
- * Handle the "bio_drain_buffer_sz" tag in the settings
- *
- *  The value must be a numeric value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_bio_drain_buffer_sz(Settings& s, const nlohmann::json& obj) {
-    if (!obj.is_number_unsigned()) {
-        cb::throwJsonTypeError(
-                "\"bio_drain_buffer_sz\" must be an unsigned "
-                "int");
-    }
-    s.setBioDrainBufferSize(gsl::narrow<unsigned int>(obj.get<unsigned int>()));
-}
-
-/**
  * Handle the "datatype_snappy" tag in the settings
  *
  *  The value must be a boolean value
@@ -656,7 +639,6 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"reqs_per_event_low_priority", handle_low_reqs_event},
             {"verbosity", handle_verbosity},
             {"connection_idle_time", handle_connection_idle_time},
-            {"bio_drain_buffer_sz", handle_bio_drain_buffer_sz},
             {"datatype_json", handle_datatype_json},
             {"datatype_snappy", handle_datatype_snappy},
             {"root", handle_root},
@@ -729,12 +711,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.audit) {
         if (other.audit_file != audit_file) {
             throw std::invalid_argument("audit can't be changed dynamically");
-        }
-    }
-    if (other.has.bio_drain_buffer_sz) {
-        if (other.bio_drain_buffer_sz != bio_drain_buffer_sz) {
-            throw std::invalid_argument(
-                "bio_drain_buffer_sz can't be changed dynamically");
         }
     }
     if (other.has.datatype_json) {
