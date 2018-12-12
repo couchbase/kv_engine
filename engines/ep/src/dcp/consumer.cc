@@ -882,11 +882,17 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
                                                    vs->getStatus());
             break;
         }
-        case DcpResponse::Event::SnapshotMarker:
-        {
+        case DcpResponse::Event::SnapshotMarker: {
             SnapshotMarkerResponse* mr =
                     static_cast<SnapshotMarkerResponse*>(resp.get());
             ret = producers->marker_rsp(mr->getOpaque(), mr->getStatus());
+            break;
+        }
+        case DcpResponse::Event::SeqnoAcknowledgement: {
+            auto* ack = static_cast<SeqnoAcknowledgement*>(resp.get());
+            ret = producers->seqno_acknowledged(ack->getOpaque(),
+                                                ack->getInMemorySeqno(),
+                                                ack->getOnDiskSeqno());
             break;
         }
         default:
@@ -1222,6 +1228,7 @@ std::unique_ptr<DcpResponse> DcpConsumer::getNextItem() {
         case DcpResponse::Event::AddStream:
         case DcpResponse::Event::SetVbucket:
         case DcpResponse::Event::SnapshotMarker:
+        case DcpResponse::Event::SeqnoAcknowledgement:
             break;
         default:
             throw std::logic_error(

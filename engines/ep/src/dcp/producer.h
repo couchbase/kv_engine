@@ -85,6 +85,11 @@ public:
                               cb::const_char_buffer key,
                               cb::const_char_buffer value) override;
 
+    ENGINE_ERROR_CODE seqno_acknowledged(uint32_t opaque,
+                                         Vbid vbucket,
+                                         uint64_t in_memory_seqno,
+                                         uint64_t on_disk_seqno) override;
+
     /**
      * Sub-classes must implement a method that processes a response
      * to a request initiated by itself.

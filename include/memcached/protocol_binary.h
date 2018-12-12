@@ -1312,6 +1312,10 @@ static_assert(sizeof(DcpPreparePayload) == 33, "Unexpected struct size");
 
 class DcpSeqnoAcknowledgedPayload {
 public:
+    DcpSeqnoAcknowledgedPayload(uint64_t in_memory, uint64_t on_disk)
+        : in_memory_seqno(in_memory), on_disk_seqno(on_disk) {
+    }
+
     uint64_t getInMemorySeqno() const {
         return ntohll(in_memory_seqno);
     }

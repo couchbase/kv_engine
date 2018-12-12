@@ -32,6 +32,7 @@ void dcp_seqno_acknowledged_executor(Cookie& cookie) {
                         extdata.data());
         ret = dcpSeqnoAcknowledged(cookie,
                                    req.getOpaque(),
+                                   req.getVBucket(),
                                    extras.getInMemorySeqno(),
                                    extras.getOnDiskSeqno());
     }

@@ -41,7 +41,8 @@ public:
         StreamEnd,
         SnapshotMarker,
         AddStream,
-        SystemEvent
+        SystemEvent,
+        SeqnoAcknowledgement,
     };
 
     DcpResponse(Event event, uint32_t opaque, cb::mcbp::DcpStreamId sid)
@@ -87,6 +88,7 @@ public:
         case Event::SnapshotMarker:
         case Event::AddStream:
         case Event::SystemEvent:
+        case Event::SeqnoAcknowledgement:
             return true;
         }
         throw std::invalid_argument(
@@ -552,6 +554,38 @@ public:
 
 protected:
     std::unique_ptr<ExtendedMetaData> emd;
+};
+
+/**
+ * Represents a sequence number acknowledgement message sent from replication
+ * consumer to producer to notify the producer what seqno the consumer has
+ * processed up to.
+ */
+class SeqnoAcknowledgement : public DcpResponse {
+public:
+    SeqnoAcknowledgement(uint32_t opaque,
+                         uint64_t inMemorySeqno,
+                         uint64_t onDiskSeqno)
+        : DcpResponse(
+                  Event::SeqnoAcknowledgement, opaque, cb::mcbp::DcpStreamId{}),
+          payload(inMemorySeqno, onDiskSeqno) {
+    }
+
+    uint32_t getMessageSize() const override {
+        return sizeof(protocol_binary_request_header) +
+               sizeof(cb::mcbp::request::DcpSeqnoAcknowledgedPayload);
+    }
+
+    uint64_t getInMemorySeqno() const {
+        return payload.getInMemorySeqno();
+    }
+
+    uint64_t getOnDiskSeqno() const {
+        return payload.getOnDiskSeqno();
+    }
+
+private:
+    cb::mcbp::request::DcpSeqnoAcknowledgedPayload payload;
 };
 
 /**

@@ -712,12 +712,13 @@ ENGINE_ERROR_CODE dcpPrepare(Cookie& cookie,
 
 ENGINE_ERROR_CODE dcpSeqnoAcknowledged(Cookie& cookie,
                                        uint32_t opaque,
+                                       Vbid vbucket,
                                        uint64_t in_memory_seqno,
                                        uint64_t on_disk_seqno) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
     auto ret = dcp->seqno_acknowledged(
-            &cookie, opaque, in_memory_seqno, on_disk_seqno);
+            &cookie, opaque, vbucket, in_memory_seqno, on_disk_seqno);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.seqno_acknowledged returned ENGINE_DISCONNECT",
                     connection.getId(),

@@ -58,6 +58,8 @@ const char* DcpResponse::to_string() const {
         return "add stream";
     case Event::SystemEvent:
         return "system event";
+    case Event::SeqnoAcknowledgement:
+        return "seqno acknowledgement";
     }
     throw std::logic_error(
         "DcpResponse::to_string(): " + std::to_string(int(event_)));

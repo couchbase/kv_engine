@@ -273,6 +273,7 @@ struct mock_engine : public EngineIface, public DcpIface {
                               cb::durability::Requirements durability) override;
     ENGINE_ERROR_CODE seqno_acknowledged(gsl::not_null<const void*> cookie,
                                          uint32_t opaque,
+                                         Vbid vbucket,
                                          uint64_t in_memory_seqno,
                                          uint64_t on_disk_seqno) override;
     ENGINE_ERROR_CODE commit(gsl::not_null<const void*> cookie,
@@ -940,10 +941,11 @@ ENGINE_ERROR_CODE mock_engine::prepare(
 ENGINE_ERROR_CODE mock_engine::seqno_acknowledged(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
+        Vbid vbucket,
         uint64_t in_memory_seqno,
         uint64_t on_disk_seqno) {
     return the_engine_dcp->seqno_acknowledged(
-            cookie, opaque, in_memory_seqno, on_disk_seqno);
+            cookie, opaque, vbucket, in_memory_seqno, on_disk_seqno);
 }
 
 ENGINE_ERROR_CODE mock_engine::commit(gsl::not_null<const void*> cookie,

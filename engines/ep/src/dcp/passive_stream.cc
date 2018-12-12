@@ -608,8 +608,19 @@ ENGINE_ERROR_CODE PassiveStream::processExpiration(
 
 ENGINE_ERROR_CODE PassiveStream::processPrepare(
         MutationConsumerMessage* prepare) {
-    // @todo-durabilty - Implement this once seqno_ack available.
-    return ENGINE_SUCCESS;
+    auto result = processMessage(prepare, MessageType::Prepare);
+
+    // @todo-durability: Don't send the ACK directly; should be done once we
+    // get to the end of a snapshot.
+    {
+        LockHolder lh(streamMutex);
+        // @todo-durability add in the correct on-disk seqno.
+        pushToReadyQ(std::make_unique<SeqnoAcknowledgement>(
+                opaque_, prepare->getItem()->getBySeqno(), 0));
+    }
+    notifyStreamReady();
+
+    return result;
 }
 
 ENGINE_ERROR_CODE PassiveStream::processSystemEvent(

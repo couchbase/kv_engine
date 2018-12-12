@@ -936,6 +936,28 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
     return ENGINE_EINVAL;
 }
 
+ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
+                                                  Vbid vbucket,
+                                                  uint64_t in_memory_seqno,
+                                                  uint64_t on_disk_seqno) {
+    VBucketPtr vb = engine_.getVBucket(vbucket);
+    if (!vb) {
+        logger->warn(
+                "({}) seqno_acknowledge failed because this vbucket doesn't "
+                "exist",
+                vbucket);
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    // @todo-durability: Wire into Durability monitor here...
+    logger->warn(
+            "({}) seqno_acknowledged: in_memory_seqno:{}, on_disk_seqno:{}",
+            vbucket,
+            in_memory_seqno,
+            on_disk_seqno);
+    return ENGINE_SUCCESS;
+}
+
 bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
     lastReceiveTime = ep_current_time();
     if (doDisconnect()) {

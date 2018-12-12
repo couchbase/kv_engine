@@ -265,6 +265,16 @@ ENGINE_ERROR_CODE ConnHandler::prepare(
     return ENGINE_DISCONNECT;
 }
 
+ENGINE_ERROR_CODE ConnHandler::seqno_acknowledged(uint32_t opaque,
+                                                  Vbid vbucket,
+                                                  uint64_t in_memory_seqno,
+                                                  uint64_t on_disk_seqno) {
+    logger->warn(
+            "Disconnecting - This connection doesn't support the dcp "
+            "seqno_acknowledged API");
+    return ENGINE_DISCONNECT;
+}
+
 BucketLogger& ConnHandler::getLogger() {
     return *logger;
 }

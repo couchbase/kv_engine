@@ -464,6 +464,7 @@ ENGINE_ERROR_CODE dcpPrepare(Cookie& cookie,
 
 ENGINE_ERROR_CODE dcpSeqnoAcknowledged(Cookie& cookie,
                                        uint32_t opaque,
+                                       Vbid vbucket,
                                        uint64_t in_memory_seqno,
                                        uint64_t on_disk_seqno);
 
