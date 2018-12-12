@@ -50,20 +50,9 @@ public:
                     0 /*cas*/,
                     seqno));
         }
-
-        // Populate the HastTable
-        cookie = const_cast<void*>(create_mock_cookie());
-        for (auto& item : itemStore) {
-            auto collectionsRHandle = vb.lockCollections(item->getKey());
-            ASSERT_TRUE(collectionsRHandle.valid());
-            EXPECT_EQ(ENGINE_SUCCESS,
-                      vb.add(*item, cookie, *engine, collectionsRHandle));
-        }
-        ASSERT_EQ(numItems, vb.ht.getNumItems());
     }
 
     void TearDown() {
-        destroy_mock_cookie(cookie);
         mgr.reset();
         itemStore.clear();
         SingleThreadedKVBucketTest::TearDown();
@@ -78,5 +67,4 @@ protected:
     const size_t numItems = 3;
     // Mock engine store
     std::vector<std::unique_ptr<Item>> itemStore;
-    void* cookie;
 };

@@ -16,44 +16,34 @@
  */
 
 #include "durability_monitor.h"
+#include "item.h"
 #include "stored-value.h"
 
 #include <unordered_map>
 
 /*
  * Represents a tracked SyncWrite.
- *
- * Note that:
- *
- * 1) We keep a reference of the pending SyncWrite StoredValue sitting in the
- *     HashTable.
- *
- * 2) So, we don't need to keep any pointer/reference
- *     to the Prepare queued_item sitting into the CheckpointManager,
- *     as the StoredValue contains all the data we need for enqueueing the
- *     Commit queued_item into the CheckpointManager when the Durability
- *     Requirement is met.
- *
- * @todo: Considering pros/cons of this approach versus storing a queued_item
- *     (ie, ref-counted object) from the CheckpointManager, maybe changing
  */
 class DurabilityMonitor::SyncWrite {
 public:
-    SyncWrite(const StoredValue& sv, cb::durability::Requirements durReq)
-        : sv(sv), durReq(durReq) {
-    }
-
-    const StoredValue& getStoredValue() const {
-        return sv;
+    SyncWrite(queued_item item) : item(item) {
     }
 
     int64_t getBySeqno() const {
-        return sv.getBySeqno();
+        return item->getBySeqno();
+    }
+
+    cb::durability::Requirements getDurabilityReqs() const {
+        return item->getDurabilityReqs();
     }
 
 private:
-    const StoredValue& sv;
-    const cb::durability::Requirements durReq;
+    // An Item stores all the info that the DurabilityMonitor needs:
+    // - seqno
+    // - Durability Requirements
+    // Note that queued_item is a ref-counted object, so the copy in the
+    // CheckpointManager can be safely removed.
+    const queued_item item;
 };
 
 /*
@@ -116,14 +106,14 @@ ENGINE_ERROR_CODE DurabilityMonitor::registerReplicationChain(
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE DurabilityMonitor::addSyncWrite(
-        const StoredValue& sv, cb::durability::Requirements durReq) {
+ENGINE_ERROR_CODE DurabilityMonitor::addSyncWrite(queued_item item) {
+    auto durReq = item->getDurabilityReqs();
     if (durReq.getLevel() != cb::durability::Level::Majority ||
         durReq.getTimeout() != 0) {
         return ENGINE_ENOTSUP;
     }
     std::lock_guard<std::mutex> lg(trackedWrites.m);
-    trackedWrites.container.push_back(SyncWrite(sv, durReq));
+    trackedWrites.container.push_back(SyncWrite(item));
     return ENGINE_SUCCESS;
 }
 

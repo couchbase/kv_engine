@@ -21,14 +21,11 @@
 void DurabilityMonitorTest::addSyncWrites() {
     EXPECT_EQ(0, mgr->public_getNumTracked());
     size_t expectedNumTracked = 0;
-    for (size_t seqno = 1; seqno <= numItems; seqno++) {
-        auto& vb = *store->getVBuckets().getBucket(vbid);
-        auto htRes = vb.ht.findForWrite(
-                makeStoredDocKey("key" + std::to_string(seqno)));
-        ASSERT_TRUE(htRes.storedValue);
-        EXPECT_EQ(ENGINE_SUCCESS,
-                  mgr->addSyncWrite(*htRes.storedValue,
-                                    cb::durability::Requirements()));
+    for (auto& item : itemStore) {
+        queued_item qi(std::move(item));
+        using namespace cb::durability;
+        qi->setPendingSyncWrite(Requirements(Level::Majority, 0 /*timeout*/));
+        EXPECT_EQ(ENGINE_SUCCESS, mgr->addSyncWrite(qi));
         expectedNumTracked++;
         EXPECT_EQ(expectedNumTracked, mgr->public_getNumTracked());
     }

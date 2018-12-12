@@ -57,12 +57,10 @@ public:
      * has been inserted into the HashTable and enqueued into the
      * CheckpointManager.
      *
-     * @param sv the StoredValue
-     * @param durReq the Durability Requirement
+     * @param item the queued_item
      * @return ENGINE_SUCCESS if the operation succeeds, an error code otherwise
      */
-    ENGINE_ERROR_CODE addSyncWrite(const StoredValue& sv,
-                                   cb::durability::Requirements durReq);
+    ENGINE_ERROR_CODE addSyncWrite(queued_item item);
 
     /**
      * Expected to be called by memcached at receiving a DCP_SEQNO_ACK packet.
