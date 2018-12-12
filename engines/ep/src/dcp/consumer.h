@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_DCP_CONSUMER_H_
-#define SRC_DCP_CONSUMER_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -545,5 +543,3 @@ private:
     uint64_t rollbackSeqno;
     std::shared_ptr<DcpConsumer> cons;
 };
-
-#endif  // SRC_DCP_CONSUMER_H_

@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_THREADLOCAL_POSIX_H_
-#define SRC_THREADLOCAL_POSIX_H_ 1
+#pragma once
 
 #ifndef SRC_THREADLOCAL_H_
 #error "Include threadlocal.h instead"
@@ -88,5 +86,3 @@ private:
     pthread_key_t key;
     ThreadLocalDestructor dtor;
 };
-
-#endif  // SRC_THREADLOCAL_POSIX_H_

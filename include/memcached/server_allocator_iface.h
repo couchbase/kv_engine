@@ -1,11 +1,9 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+#pragma once
 
 /**
  * Use this file as an abstraction to the underlying hooks api
  */
-
-#ifndef ALLOCATOR_HOOKS_H
-#define ALLOCATOR_HOOKS_H
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -135,5 +133,3 @@ struct ServerAllocatorIface {
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* ALLOCATOR_HOOKS_H */

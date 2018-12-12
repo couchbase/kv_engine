@@ -1,6 +1,5 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef DISABLE_OPTIMIZE_H
-#define DISABLE_OPTIMIZE_H 1
+#pragma once
 
 /* According to MB-11846 we have some misconfigured vm's unable to
  * compile the source code without enabling optimization. Add a workaround
@@ -35,5 +34,3 @@
 #endif /* __GNUC__ */
 
 #endif /* COUCHBASE_OPTIMIZE_BREAKDANCER_TEST */
-
-#endif

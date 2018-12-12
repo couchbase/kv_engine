@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_EXT_META_PARSER_H_
-#define SRC_EXT_META_PARSER_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -79,5 +77,3 @@ private:
     ENGINE_ERROR_CODE ret;
     uint16_t len;
 };
-
-#endif  // SRC_EXT_META_PARSER_H_

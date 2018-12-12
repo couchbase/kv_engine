@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_ACCESS_SCANNER_H_
-#define SRC_ACCESS_SCANNER_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -62,5 +60,3 @@ private:
     uint8_t residentRatioThreshold;
     uint64_t maxStoredItems;
 };
-
-#endif  // SRC_ACCESS_SCANNER_H_

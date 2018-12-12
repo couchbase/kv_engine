@@ -1,6 +1,5 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef BASIC_ENGINE_TESTSUITE_H
-#define BASIC_ENGINE_TESTSUITE_H 1
+#pragma once
 
 #include <memcached/engine_testapp.h>
 
@@ -11,5 +10,3 @@ extern "C" {
     MEMCACHED_PUBLIC_API
     bool setup_suite(struct test_harness *th);
 }
-
-#endif

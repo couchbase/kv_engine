@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_DCP_FLOW_CONTROL_MANAGER_H_
-#define SRC_DCP_FLOW_CONTROL_MANAGER_H_ 1
+#pragma once
 
 #include <atomic>
 #include <mutex>
@@ -129,4 +127,3 @@ private:
     /* Fraction of memQuota for all dcp consumer connection buffers */
     std::atomic<double> dcpConnBufferSizeAggrFrac;
 };
-#endif  /* SRC_DCP_FLOW_CONTROL_MANAGER_H_ */

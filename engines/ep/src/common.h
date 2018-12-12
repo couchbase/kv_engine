@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_COMMON_H
-#define SRC_COMMON_H 1
+#pragma once
 
 #include "config.h"
 
@@ -149,5 +147,3 @@ inline bool parseUint64(const char *str, uint64_t *out) {
 inline bool parseUint64(const std::string& str, uint64_t* out) {
     return parseUint64(str.c_str(), out);
 }
-
-#endif  // SRC_COMMON_H_

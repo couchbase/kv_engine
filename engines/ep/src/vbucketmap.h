@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_VBUCKETMAP_H_
-#define SRC_VBUCKETMAP_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -159,5 +157,3 @@ private:
 
     DISALLOW_COPY_AND_ASSIGN(VBucketMap);
 };
-
-#endif  // SRC_VBUCKETMAP_H_

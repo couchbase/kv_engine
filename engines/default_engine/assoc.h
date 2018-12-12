@@ -1,5 +1,4 @@
-#ifndef ASSOC_H
-#define ASSOC_H
+#pragma once
 
 #include <memcached/engine_error.h>
 
@@ -12,4 +11,3 @@ hash_item *assoc_find(uint32_t hash, const hash_key* key);
 int assoc_insert(uint32_t hash, hash_item *item);
 void assoc_delete(uint32_t hash, const hash_key* key);
 bool assoc_expanding();
-#endif

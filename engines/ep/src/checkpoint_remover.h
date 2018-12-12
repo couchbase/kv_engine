@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_CHECKPOINT_REMOVER_H_
-#define SRC_CHECKPOINT_REMOVER_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -62,5 +60,3 @@ private:
     size_t                     sleepTime;
     std::atomic<bool>          available;
 };
-
-#endif  // SRC_CHECKPOINT_REMOVER_H_

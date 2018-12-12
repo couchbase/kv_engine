@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef DEFRAGMENTER_H_
-#define DEFRAGMENTER_H_
+#pragma once
 
 #include "config.h"
 
@@ -146,5 +144,3 @@ private:
      */
     std::unique_ptr<PauseResumeVBAdapter> prAdapter;
 };
-
-#endif /* DEFRAGMENTER_H_ */

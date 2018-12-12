@@ -20,9 +20,7 @@
  * as the memory allocator. This is needed to allow us to insert wrappers
  * around (je)malloc & friends to perform allocation tracking for mem_used.
  */
-
-#ifndef DARWIN_ZONE_H_
-#define DARWIN_ZONE_H_
+#pragma once
 
 #include "alloc_hooks_types.h"
 
@@ -41,4 +39,3 @@ void register_wrapper_zone(malloc_new_hook_t* new_hook,
 }
 #endif
 
-#endif /* DARWIN_ZONE_H_ */

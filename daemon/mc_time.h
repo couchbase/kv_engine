@@ -2,11 +2,9 @@
 /*
  * Time keeping for memcached.
  */
+#pragma once
 
 #include "memcached/types.h"
-
-#ifndef MC_TIME_H
-#define MC_TIME_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -76,5 +74,4 @@ time_t mc_time_limit_abstime(time_t t, std::chrono::seconds limit);
 
 #ifdef __cplusplus
 }
-#endif
 #endif

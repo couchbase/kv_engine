@@ -14,8 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#ifndef AUDITCONFIG_H
-#define AUDITCONFIG_H
+#pragma once
 
 #include <inttypes.h>
 #include <nlohmann/json.hpp>
@@ -165,5 +164,3 @@ protected:
     Couchbase::RelaxedAtomic<uint32_t> max_file_rotation_time;
     Couchbase::RelaxedAtomic<size_t> max_rotate_file_size;
 };
-
-#endif

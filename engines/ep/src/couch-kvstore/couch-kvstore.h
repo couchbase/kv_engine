@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_COUCH_KVSTORE_COUCH_KVSTORE_H_
-#define SRC_COUCH_KVSTORE_COUCH_KVSTORE_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -791,5 +789,3 @@ private:
         DbHolder db;
     };
 };
-
-#endif  // SRC_COUCH_KVSTORE_COUCH_KVSTORE_H_

@@ -33,7 +33,6 @@ def check_for_only_def_once(file):
     :return: returns true if the correct macros are found or false if not
     """
     header_file = open(file, "r")
-    source = header_file.read()
     # re-set the seek location to the beginning of the file as read()
     # will have made it point to the end
     header_file.seek(0)
@@ -41,18 +40,6 @@ def check_for_only_def_once(file):
         # if there is a #pragma once then were good
         if line == str("#pragma once\n"):
             return True
-        # otherwise look for #ifndef
-        elif line.startswith("#ifndef"):
-            # get hold of the defined name
-            split_macros = line.split(" ")
-            macros_name = split_macros[1]
-            # bail if #ifndef WIN32 as this is a unique case
-            if macros_name == "WIN32":
-                continue
-            # find the #define macrosName and the #endif
-            if source.find(str("#define " + macros_name)) and \
-                    source.find(("#endif /*  " + macros_name + " */")):
-                return True
     return False
 
 

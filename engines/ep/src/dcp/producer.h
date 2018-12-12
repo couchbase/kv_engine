@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_DCP_PRODUCER_H_
-#define SRC_DCP_PRODUCER_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -500,5 +498,3 @@ protected:
      */
     MultipleStreamRequests multipleStreamRequests{MultipleStreamRequests::No};
 };
-
-#endif  // SRC_DCP_PRODUCER_H_

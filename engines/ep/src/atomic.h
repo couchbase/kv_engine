@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_ATOMIC_H_
-#define SRC_ATOMIC_H_ 1
+#pragma once
 
 #include "config.h"
 #include "locks.h"
@@ -496,5 +494,3 @@ protected:
     mutable std::mutex stderr_mutex;
     std::atomic<T> value;
 };
-
-#endif  // SRC_ATOMIC_H_

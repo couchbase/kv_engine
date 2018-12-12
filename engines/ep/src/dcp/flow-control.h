@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_DCP_FLOW_CONTROL_H_
-#define SRC_DCP_FLOW_CONTROL_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -86,5 +84,3 @@ private:
     /* Bytes processed from the flow control buffer */
     std::atomic<uint64_t> freedBytes;
 };
-
-#endif  /* SRC_DCP_FLOW_CONTROL_H_ */

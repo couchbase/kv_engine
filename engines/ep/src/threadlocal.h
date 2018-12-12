@@ -14,8 +14,8 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#pragma once
 
-#ifndef SRC_THREADLOCAL_H_
 #define SRC_THREADLOCAL_H_ 1
 
 // thread local variable dtor
@@ -55,5 +55,3 @@ public:
         this->set(newValue);
     }
 };
-
-#endif  // SRC_THREADLOCAL_H_

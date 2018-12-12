@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_LOCKS_H_
-#define SRC_LOCKS_H_ 1
+#pragma once
 
 #include "config.h"
 #include "utility.h"
@@ -107,5 +105,3 @@ private:
 };
 #define WriterLockHolder(x) \
     static_assert(false, "WriterLockHolder: missing variable name for scoped lock.")
-
-#endif  // SRC_LOCKS_H_

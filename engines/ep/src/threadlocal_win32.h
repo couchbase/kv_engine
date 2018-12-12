@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_THREADLOCAL_WIN32_H_
-#define SRC_THREADLOCAL_WIN32_H_ 1
+#pragma once
 
 #ifndef SRC_THREADLOCAL_H_
 #error "Include threadlocal.h instead"
@@ -81,5 +79,3 @@ private:
     ThreadLocalDestructor dtor;
     DWORD tlsIndex;
 };
-
-#endif  // SRC_THREADLOCAL_WIN32_H_

@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_WORKLOAD_H_
-#define SRC_WORKLOAD_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -84,5 +82,3 @@ private:
     int maxNumShards;
     std::atomic<workload_pattern_t> workloadPattern;
 };
-
-#endif  // SRC_WORKLOAD_H_

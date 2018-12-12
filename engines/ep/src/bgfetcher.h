@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_BGFETCHER_H_
-#define SRC_BGFETCHER_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -90,5 +88,3 @@ private:
     std::atomic<bool> pendingFetch;
     std::set<Vbid> pendingVbs;
 };
-
-#endif  // SRC_BGFETCHER_H_

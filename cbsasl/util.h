@@ -13,9 +13,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef CBSASL_UTIL_H_
-#define CBSASL_UTIL_H_ 1
+#pragma once
 
 #include <platform/platform.h>
 
@@ -32,5 +30,3 @@ int cbsasl_secure_compare(const char* a,
 #ifdef __cplusplus
 }
 #endif
-
-#endif /*  CBSASL_UTIL_H_ */

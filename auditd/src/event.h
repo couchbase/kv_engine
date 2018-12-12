@@ -14,8 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#ifndef EVENT_H
-#define EVENT_H
+#pragma once
 
 #include <inttypes.h>
 #include <nlohmann/json_fwd.hpp>
@@ -67,5 +66,3 @@ public:
     virtual ~Event() {}
 
 };
-
-#endif

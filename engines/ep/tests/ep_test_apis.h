@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef TESTS_EP_TEST_APIS_H_
-#define TESTS_EP_TEST_APIS_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -686,5 +684,3 @@ inline bool is_full_eviction(EngineIface* h) {
 }
 
 void reset_stats(gsl::not_null<EngineIface*> h);
-
-#endif  // TESTS_EP_TEST_APIS_H_

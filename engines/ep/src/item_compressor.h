@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef ITEM_COMPRESSOR_H_
-#define ITEM_COMPRESSOR_H_
+#pragma once
 
 #include "config.h"
 
@@ -67,5 +65,3 @@ private:
      */
     std::unique_ptr<PauseResumeVBAdapter> prAdapter;
 };
-
-#endif /* ITEM_COMPRESSOR_H_ */

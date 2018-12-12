@@ -1,6 +1,5 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef MEMCACHED_VISIBILITY_H
-#define MEMCACHED_VISIBILITY_H 1
+#pragma once
 
 /**
  * VSC++ does not want extern to be specified for C++ classes exported
@@ -21,5 +20,3 @@
 #define MEMCACHED_PUBLIC_API
 #define MEMCACHED_PUBLIC_CLASS
 #endif
-
-#endif /* MEMCACHED_VISIBILITY_H */

@@ -14,8 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#ifndef SRC_CONFIGURATION_H_
-#define SRC_CONFIGURATION_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -289,5 +288,3 @@ private:
 template <>
 void Configuration::setParameter<const char*>(const std::string& key,
                                               const char* value);
-
-#endif  // SRC_CONFIGURATION_H_

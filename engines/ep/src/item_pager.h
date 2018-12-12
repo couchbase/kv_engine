@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_ITEM_PAGER_H_
-#define SRC_ITEM_PAGER_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -139,5 +137,3 @@ private:
     double                          sleepTime;
     std::shared_ptr<std::atomic<bool>>   available;
 };
-
-#endif  // SRC_ITEM_PAGER_H_

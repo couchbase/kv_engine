@@ -5,8 +5,7 @@
  *
  * Author: Trond Norbye <trond.norbye@sun.com>
  */
-#ifndef MEMCACHED_DEFAULT_ENGINE_INTERNAL_H
-#define MEMCACHED_DEFAULT_ENGINE_INTERNAL_H
+#pragma once
 
 #include "config.h"
 
@@ -17,13 +16,6 @@
 #include <memcached/util.h>
 #include <memcached/visibility.h>
 #include <platform/platform.h>
-
-/* Slab sizing definitions. */
-#define POWER_SMALLEST 1
-#define POWER_LARGEST  200
-#define CHUNK_ALIGN_BYTES 8
-#define DONT_PREALLOC_SLABS
-#define MAX_NUMBER_OF_SLAB_CLASSES (POWER_LARGEST + 1)
 
 /** How long an object can reasonably be assumed to be locked before
     harvesting it on a low memory condition. */
@@ -242,7 +234,4 @@ void destroy_engine_instance(struct default_engine* engine);
 
 #ifdef __cplusplus
 }
-#endif
-
-
 #endif

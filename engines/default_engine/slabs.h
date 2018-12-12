@@ -1,8 +1,15 @@
 /* slabs memory allocation */
-#ifndef SLABS_H
-#define SLABS_H
+#pragma once
 
-#include "default_engine_internal.h"
+#include <memcached/engine_common.h>
+#include <memcached/engine_error.h>
+
+/* Slab sizing definitions. */
+#define POWER_SMALLEST 1
+#define POWER_LARGEST 200
+#define CHUNK_ALIGN_BYTES 8
+#define DONT_PREALLOC_SLABS
+#define MAX_NUMBER_OF_SLAB_CLASSES (POWER_LARGEST + 1)
 
 /* powers-of-N allocation structures */
 
@@ -87,4 +94,3 @@ void add_statistics(const void *cookie, ADD_STAT add_stats,
                     const char *prefix, int num, const char *key,
                     const char *fmt, ...);
 
-#endif

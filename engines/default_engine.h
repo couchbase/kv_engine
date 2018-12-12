@@ -1,6 +1,5 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef MEMCACHED_DEFAULT_ENGINE_H
-#define MEMCACHED_DEFAULT_ENGINE_H
+#pragma once
 
 #include "config.h"
 
@@ -17,6 +16,4 @@ extern "C" {
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

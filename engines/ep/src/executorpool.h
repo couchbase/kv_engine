@@ -63,8 +63,7 @@
  *   The pool's snooze method will locate the task matching taskId and adjust
  *   its wakeTime to account for the toSleep value.
  */
-#ifndef SRC_EXECUTORPOOL_H_
-#define SRC_EXECUTORPOOL_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -266,4 +265,3 @@ protected:
     static std::mutex initGuard;
     static std::atomic<ExecutorPool*> instance;
 };
-#endif  // SRC_EXECUTORPOOL_H_

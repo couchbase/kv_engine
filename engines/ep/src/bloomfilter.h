@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_BLOOMFILTER_H_
-#define SRC_BLOOMFILTER_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -68,5 +66,3 @@ protected:
     bfilter_status_t status;
     std::vector<bool> bitArray;
 };
-
-#endif // SRC_BLOOMFILTER_H_

@@ -1,13 +1,12 @@
-#include "memcached/types.h"
+#pragma once
 
+#include "memcached/types.h"
+#include "slabs.h"
+
+#include <gsl/gsl-lite.h>
 #include <atomic>
 #include <cstddef>
 #include <cstring>
-
-#include "default_engine_internal.h"
-
-#ifndef ITEMS_H
-#define ITEMS_H
 
 /*
  * You should not try to aquire any of the item locks before calling these
@@ -351,5 +350,3 @@ void item_scrubber_main(struct default_engine *engine);
  * @return true if the scrubber has been invoked
  */
 bool item_start_scrub(struct default_engine *engine);
-
-#endif

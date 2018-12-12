@@ -41,9 +41,7 @@
  * - dcp_scan_item_limit
  * - dcp_backfill_byte_limit
  */
-
-#ifndef SRC_DCP_BACKFILL_MANAGER_H_
-#define SRC_DCP_BACKFILL_MANAGER_H_ 1
+#pragma once
 
 #include "config.h"
 #include "dcp/backfill.h"
@@ -122,5 +120,3 @@ private:
     EventuallyPersistentEngine& engine;
     ExTask managerTask;
 };
-
-#endif  // SRC_DCP_BACKFILL_MANAGER_H_

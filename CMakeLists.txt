@@ -253,9 +253,6 @@ if(CB_ENABLE_HEADER_INCLUDE_CHECK)
     # List of headers to ignore / not attempt to compile
     list(REMOVE_ITEM memcached_headers
       config.cmake.h  # Not directly compilable.
-      engines/default_engine/slabs.h  # Has circular dependancies with
-                                      # default_engine_internal.h, not directly
-                                      # compilable.
       include/memcached/collections.h  # Not directly compilable; used via engine.h
     )
 

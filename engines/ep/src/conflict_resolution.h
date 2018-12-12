@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_CONFLICT_RESOLUTION_H_
-#define SRC_CONFLICT_RESOLUTION_H_ 1
+#pragma once
 
 #include "config.h"
 #include "item.h"
@@ -66,5 +64,3 @@ public:
                  const protocol_binary_datatype_t meta_datatype,
                  bool isDelete = false) const override;
 };
-
-#endif  // SRC_CONFLICT_RESOLUTION_H_

@@ -1,5 +1,4 @@
-#ifndef MEMCACHED_MOCK_SERVER_H
-#define MEMCACHED_MOCK_SERVER_H
+#pragma once
 
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
@@ -85,5 +84,3 @@ void mock_set_pre_link_function(PreLinkFunction function);
 
 MEMCACHED_PUBLIC_API cb::tracing::Traceable& mock_get_traceable(
         const void* cookie);
-
-#endif  /* MEMCACHED_MOCK_SERVER_H */

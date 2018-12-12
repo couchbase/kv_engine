@@ -14,9 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_DCP_RESPONSE_H_
-#define SRC_DCP_RESPONSE_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -997,5 +995,3 @@ public:
         return dcpData->sid.to_host();
     }
 };
-
-#endif  // SRC_DCP_RESPONSE_H_
