@@ -220,10 +220,6 @@ nlohmann::json Connection::toJSON() const {
     ilist["size"] = reservedItems.size();
     ret["itemlist"] = ilist;
 
-    nlohmann::json talloc;
-    talloc["size"] = temp_alloc.size();
-    ret["temp_alloc_list"] = talloc;
-
     ret["ssl"] = client_ctx != nullptr;
     ret["total_recv"] = totalRecv;
     ret["total_send"] = totalSend;
@@ -930,9 +926,6 @@ Connection::~Connection() {
     }
 
     releaseReservedItems();
-    for (auto* ptr : temp_alloc) {
-        cb_free(ptr);
-    }
 
     if (client_ctx) {
         SSL_free(client_ctx);

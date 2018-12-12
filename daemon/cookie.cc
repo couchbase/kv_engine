@@ -230,15 +230,21 @@ void Cookie::setEwouldblock(bool ewouldblock) {
     Cookie::ewouldblock = ewouldblock;
 }
 
+static void cookie_free_dynbuffer(const void*, size_t, void* ptr) {
+    cb_free(ptr);
+}
+
 void Cookie::sendDynamicBuffer() {
     if (dynamicBuffer.getRoot() == nullptr) {
         throw std::logic_error(
                 "Cookie::sendDynamicBuffer(): Dynamic buffer not created");
     } else {
-        connection.addIov(dynamicBuffer.getRoot(), dynamicBuffer.getOffset());
+        connection.chainDataToOutputStream(
+                {dynamicBuffer.getRoot(), dynamicBuffer.getOffset()},
+                cookie_free_dynbuffer,
+                dynamicBuffer.getRoot());
         connection.setState(StateMachine::State::send_data);
         connection.setWriteAndGo(StateMachine::State::new_cmd);
-        connection.pushTempAlloc(dynamicBuffer.getRoot());
         dynamicBuffer.takeOwnership();
     }
 }

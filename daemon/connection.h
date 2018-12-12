@@ -547,17 +547,6 @@ public:
         }
     }
 
-    void releaseTempAlloc() {
-        for (auto* ptr : temp_alloc) {
-            cb_free(ptr);
-        }
-        temp_alloc.resize(0);
-    }
-
-    void pushTempAlloc(char* ptr) {
-        temp_alloc.push_back(ptr);
-    }
-
     /**
      * Enable the datatype which corresponds to the feature
      *
@@ -1071,14 +1060,6 @@ protected:
      * item_release when transmit is complete)
      */
     std::vector<void*> reservedItems;
-
-    /**
-     * A vector of temporary allocations that should be freed when the
-     * the connection is done sending all of the data. Use pushTempAlloc to
-     * push a pointer to this list (must be allocated with malloc/calloc/strdup
-     * etc.. will be freed by calling "free")
-     */
-    std::vector<char*> temp_alloc;
 
     /**
      * If the client enabled the mutation seqno feature each mutation
