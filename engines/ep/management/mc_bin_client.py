@@ -351,6 +351,13 @@ class MemcachedClient(object):
         """Add a value in the memcached server iff it doesn't already exist."""
         return self._mutate(memcacheConstants.CMD_ADD, key, exp, flags, 0, val, collection)
 
+    def addDurable(self, key, exp, flags, val,
+                   level=memcacheConstants.DURABILITY_LEVEL_MAJORITY,
+                   collection=None):
+        """Add a value with the given durability requirements if it doesn't already exist."""
+        return self._mutateDurable(memcacheConstants.CMD_ADD, key, exp, flags,
+                                   0, val, level, collection)
+
     def addWithMeta(self, key, value, exp, flags, seqno, remote_cas, collection=None):
         return self._doMetaCmd(memcacheConstants.CMD_ADD_WITH_META,
                                key, value, 0, exp, flags, seqno, remote_cas, collection)
@@ -359,6 +366,13 @@ class MemcachedClient(object):
         """Replace a value in the memcached server iff it already exists."""
         return self._mutate(memcacheConstants.CMD_REPLACE, key, exp, flags, 0,
             val, collection)
+
+    def replaceDurable(self, key, exp, flags, val,
+                   level=memcacheConstants.DURABILITY_LEVEL_MAJORITY,
+                   collection=None):
+        """Replace a value with the given durability requirements iff it already exists."""
+        return self._mutateDurable(memcacheConstants.CMD_REPLACE, key, exp, flags,
+                                   0, val, level, collection)
 
     def observe(self, key, vbucket, collection=None):
         """Observe a key for persistence and replication."""
