@@ -1674,6 +1674,11 @@ int main(int argc, char **argv) {
                                     testcases[i], engine, engine_args);
                         } catch (const TestExpectationFailed&) {
                             ecode = FAIL;
+                        } catch (const std::exception& e) {
+                            fprintf(stderr,
+                                    "Uncaught std::exception. what():%s\n",
+                                    e.what());
+                            ecode = DIED;
                         } catch (...) {
                             // This is a non-test exception (i.e. not an
                             // explicit test check which failed) - mark as
