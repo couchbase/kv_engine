@@ -131,6 +131,9 @@ struct FrontEndThread {
      * when they need to validate a JSON document
      */
     JSON_checker::Validator validator;
+
+    /// Is the thread running or not
+    std::atomic_bool running{false};
 };
 
 void notify_thread(FrontEndThread& thread);

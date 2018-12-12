@@ -199,11 +199,13 @@ static void worker_libevent(void *arg) {
      */
 
     cb_mutex_enter(&init_lock);
+    me->running = true;
     init_count++;
     cb_cond_signal(&init_cond);
     cb_mutex_exit(&init_lock);
 
     event_base_loop(me->base, 0);
+    me->running = false;
 
     // Event loop exited; cleanup before thread exits.
     ERR_remove_state(0);
@@ -453,8 +455,21 @@ void thread_init(size_t nthr,
 }
 
 void threads_shutdown() {
+    // Notify all of the threads and let them shut down
     for (auto& thread : threads) {
         notify_thread(thread);
+    }
+
+    // Wait for all of them to complete
+    for (auto& thread : threads) {
+        // When using bufferevents we need to run a few iterations here.
+        // Calling signalIfIdle won't run the event immediately, but when
+        // the control goes back to libevent. That means that some of the
+        // connections could be "stuck" for another round in the event loop.
+        while (thread.running) {
+            notify_thread(thread);
+            std::this_thread::sleep_for(std::chrono::microseconds(250));
+        }
         cb_join_thread(thread.thread_id);
     }
 }
