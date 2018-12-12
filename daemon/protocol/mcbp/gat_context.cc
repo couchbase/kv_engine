@@ -22,6 +22,7 @@
 #include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
 #include <daemon/mcbp.h>
+#include <daemon/sendbuffer.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/durability_spec.h>
@@ -138,19 +139,26 @@ ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
     } else {
         // Set the CAS to add into the header
         cookie.setCas(info.cas);
-        mcbp_add_header(cookie,
-                        cb::mcbp::Status::Success,
-                        sizeof(info.flags),
-                        0, // no key
-                        bodylen,
-                        datatype);
+        std::unique_ptr<SendBuffer> sendbuffer;
+        // we may use the item if we've didn't inflate it
+        if (buffer.empty()) {
+            sendbuffer = std::make_unique<ItemSendBuffer>(
+                    std::move(it), payload, connection.getBucket());
+        } else {
+            sendbuffer = std::make_unique<CompressionSendBuffer>(buffer, payload);
+        }
+        mcbp_send_response(cookie,
+                           cb::mcbp::Status::Success,
+                           {reinterpret_cast<const char*>(&info.flags),
+                            sizeof(info.flags)},
+                           {}, // no key
+                           payload,
+                           datatype,
+                           std::move(sendbuffer));
 
-        // Add the flags
-        connection.addIov(&info.flags, sizeof(info.flags));
-        // Add the value
-        connection.addIov(payload.buf, payload.len);
         connection.setState(StateMachine::State::send_data);
     }
+
     cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
     state = State::Done;
     return ENGINE_SUCCESS;

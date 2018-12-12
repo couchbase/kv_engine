@@ -139,6 +139,9 @@ public:
         moveAndInsert(existing, val, move_size);
         req->setExtlen(gsl::narrow<uint8_t>(val.size()));
     }
+    void setExtras(cb::const_char_buffer val) {
+        setExtras({reinterpret_cast<const uint8_t*>(val.data()), val.size()});
+    }
 
     /**
      * Insert/replace the Key section and move the value section to the new
@@ -229,6 +232,12 @@ protected:
  */
 class RequestBuilder : public FrameBuilder<Request> {
 public:
+    explicit RequestBuilder(std::string& backing, bool initialized = false)
+        : RequestBuilder({reinterpret_cast<uint8_t*>(
+                                  const_cast<char*>(backing.data())),
+                          backing.size()},
+                         initialized) {
+    }
     explicit RequestBuilder(cb::byte_buffer backing, bool initialized = false)
         : FrameBuilder<Request>(backing, initialized) {
     }
@@ -242,6 +251,12 @@ public:
  */
 class ResponseBuilder : public FrameBuilder<Response> {
 public:
+    explicit ResponseBuilder(std::string& backing, bool initialized = false)
+        : ResponseBuilder({reinterpret_cast<uint8_t*>(
+                                   const_cast<char*>(backing.data())),
+                           backing.size()},
+                          initialized) {
+    }
     explicit ResponseBuilder(cb::byte_buffer backing, bool initialized = false)
         : FrameBuilder<Response>(backing, initialized) {
     }

@@ -210,10 +210,6 @@ nlohmann::json Connection::toJSON() const {
         ret["read"] = read->to_json();
     }
 
-    if (write) {
-        ret["write"] = write->to_json();
-    }
-
     ret["write_and_go"] = std::string(stateMachine.getStateName(write_and_go));
 
     ret["ssl"] = client_ctx != nullptr;
@@ -233,7 +229,8 @@ void Connection::setDCP(bool dcp) {
             // Make sure that we have space for up to a single TLS frame
             // in our send buffer (so that we can stick all of the mutations
             // in that buffer)
-            write->ensureCapacity(TlsFrameSize);
+            dcpTlsBlockBufferMemory = std::make_unique<uint8_t[]>(TlsFrameSize);
+            dcpTlsBlockBuffer = {dcpTlsBlockBufferMemory.get(), TlsFrameSize};
         } catch (const std::bad_alloc&) {
         }
     }
@@ -735,19 +732,11 @@ bool Connection::useCookieSendResponse(std::size_t size) const {
 }
 
 bool Connection::dcpUseWriteBuffer(size_t size) const {
-    return isSslEnabled() && size < write->wsize();
+    return size < dcpTlsBlockBuffer.size();
 }
 
 void Connection::addIov(const void* buf, size_t len) {
-    if (len == 0) {
-        return;
-    }
-
-    int nw = bufferevent_write(bev.get(), buf, len);
-    if (nw == -1) {
-        throw std::bad_alloc();
-    }
-    totalSend += len;
+    copyToOutputStream({static_cast<const char*>(buf), len});
 }
 
 void Connection::copyToOutputStream(cb::const_char_buffer data) {
@@ -1485,7 +1474,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
                        (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
                        sizeof(cb::mcbp::Request);
     if (dcpUseWriteBuffer(total)) {
-        cb::mcbp::RequestBuilder builder(write->wdata());
+        cb::mcbp::RequestBuilder builder(dcpTlsBlockBuffer);
         builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
                              : cb::mcbp::Magic::ClientRequest);
         builder.setOpcode(cb::mcbp::ClientOpcode::DcpMutation);
@@ -1603,7 +1592,7 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
                        sizeof(cb::mcbp::Request);
 
     if (dcpUseWriteBuffer(total)) {
-        cb::mcbp::RequestBuilder builder(write->wdata());
+        cb::mcbp::RequestBuilder builder(dcpTlsBlockBuffer);
 
         builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
                              : cb::mcbp::Magic::ClientRequest);
@@ -1688,7 +1677,7 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
                        sizeof(cb::mcbp::Request);
 
     if (dcpUseWriteBuffer(total)) {
-        cb::mcbp::RequestBuilder builder(write->wdata());
+        cb::mcbp::RequestBuilder builder(dcpTlsBlockBuffer);
         builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
                              : cb::mcbp::Magic::ClientRequest);
         builder.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
@@ -1772,7 +1761,7 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
                        sizeof(cb::mcbp::Request);
 
     if (dcpUseWriteBuffer(total)) {
-        cb::mcbp::RequestBuilder builder(write->wdata());
+        cb::mcbp::RequestBuilder builder(dcpTlsBlockBuffer);
         builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
                              : cb::mcbp::Magic::ClientRequest);
         builder.setOpcode(cb::mcbp::ClientOpcode::DcpExpiration);
@@ -1973,8 +1962,7 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
     size_t total = sizeof(extras) + key.size() + buffer.size() +
                    sizeof(cb::mcbp::Request);
     if (dcpUseWriteBuffer(total)) {
-        // Format a local copy and send
-        cb::mcbp::RequestBuilder builder(write->wdata());
+        cb::mcbp::RequestBuilder builder(dcpTlsBlockBuffer);
         builder.setMagic(cb::mcbp::Magic::ClientRequest);
         builder.setOpcode(cb::mcbp::ClientOpcode::DcpPrepare);
         builder.setExtras(extras.getBuffer());
