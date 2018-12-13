@@ -35,6 +35,8 @@ long decode_ssl_protocol(const std::string& protocol) {
         disallow |= SSL_OP_NO_TLSv1;
     } else if (minimum == "tlsv1.2" || minimum == "tlsv1_2") {
         disallow |= SSL_OP_NO_TLSv1_1 | SSL_OP_NO_TLSv1;
+    } else if (minimum == "tlsv1.3" || minimum == "tlsv1_3") {
+        disallow |= SSL_OP_NO_TLSv1_2 | SSL_OP_NO_TLSv1_1 | SSL_OP_NO_TLSv1;
     } else {
         throw std::invalid_argument("Unknown protocol: " + minimum);
     }

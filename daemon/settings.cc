@@ -402,7 +402,7 @@ static void handle_ssl_cipher_order(Settings& s, const nlohmann::json& obj) {
  * Handle the "ssl_minimum_protocol" tag in the settings
  *
  * The value must be a string containing one of the following:
- *    tlsv1, tlsv1.1, tlsv1_1, tlsv1.2, tlsv1_2
+ *    tlsv1, tlsv1.1, tlsv1_1, tlsv1.2, tlsv1_2, tlsv1.3, tlsv1_3
  *
  * @param s the settings object to update
  * @param obj the object in the configuration

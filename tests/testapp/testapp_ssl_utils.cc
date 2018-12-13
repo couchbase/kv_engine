@@ -24,61 +24,52 @@ TEST(ssl_decode_protocol, EmptyString) {
 }
 
 TEST(ssl_decode_protocol, TLSv1) {
-    EXPECT_EQ(SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3, decode_ssl_protocol("TLSv1"));
-}
-
-TEST(ssl_decode_protocol, tlsv1) {
-    EXPECT_EQ(SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3, decode_ssl_protocol("tlsv1"));
-}
-
-TEST(ssl_decode_protocol, tLsV1) {
-    EXPECT_EQ(SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3, decode_ssl_protocol("tLsV1"));
+    const auto TLSv1_mask = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
+    for (const auto& val :
+         std::vector<std::string>{{"TLSv1", "tlsv1", "tLsV1"}}) {
+        EXPECT_EQ(TLSv1_mask, decode_ssl_protocol(val))
+                << "Failed to decode: " << val;
+    }
 }
 
 TEST(ssl_decode_protocol, TLSv1_1) {
-    EXPECT_EQ(SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1,
-              decode_ssl_protocol("TLSv1.1"));
-    EXPECT_EQ(SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1,
-              decode_ssl_protocol("TLSv1_1"));
-}
-
-TEST(ssl_decode_protocol, tlsv1_1) {
-    EXPECT_EQ(SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1,
-              decode_ssl_protocol("tlsv1.1"));
-    EXPECT_EQ(SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1,
-              decode_ssl_protocol("tlsv1_1"));
-}
-
-TEST(ssl_decode_protocol, tLsV1_1) {
-    EXPECT_EQ(SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1,
-              decode_ssl_protocol("tLsV1.1"));
-    EXPECT_EQ(SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1,
-              decode_ssl_protocol("tLsV1_1"));
+    const auto TLSv1_mask = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1;
+    for (const auto& val : std::vector<std::string>{{"TLSv1.1",
+                                                     "TLSv1_1",
+                                                     "tlsv1.1",
+                                                     "tlsv1_1",
+                                                     "tLsV1.1",
+                                                     "tLsV1_1"}}) {
+        EXPECT_EQ(TLSv1_mask, decode_ssl_protocol(val))
+                << "Failed to decode: " << val;
+    }
 }
 
 TEST(ssl_decode_protocol, TLSv1_2) {
-    EXPECT_EQ(
-        SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1,
-        decode_ssl_protocol("TLSv1.2"));
-    EXPECT_EQ(
-        SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1,
-        decode_ssl_protocol("TLSv1_2"));
+    const auto TLSv2_mask = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 |
+                            SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1;
+    for (const auto& val : std::vector<std::string>{{"TLSv1.2",
+                                                     "TLSv1_2",
+                                                     "tlsv1.2",
+                                                     "tlsv1_2",
+                                                     "tLsV1.2",
+                                                     "tLsV1_2"}}) {
+        EXPECT_EQ(TLSv2_mask, decode_ssl_protocol(val))
+                << "Failed to decode: " << val;
+    }
 }
 
-TEST(ssl_decode_protocol, tlsv1_2) {
-    EXPECT_EQ(
-        SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1,
-        decode_ssl_protocol("tlsv1.2"));
-    EXPECT_EQ(
-        SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1,
-        decode_ssl_protocol("tlsv1_2"));
-}
-
-TEST(ssl_decode_protocol, tLsV1_2) {
-    EXPECT_EQ(
-        SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1,
-        decode_ssl_protocol("tLsV1.2"));
-    EXPECT_EQ(
-        SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1,
-        decode_ssl_protocol("tLsV1_2"));
+TEST(ssl_decode_protocol, TLSv1_3) {
+    const auto TLSv3_mask = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 |
+                            SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1 |
+                            SSL_OP_NO_TLSv1_2;
+    for (const auto& val : std::vector<std::string>{{"TLSv1.3",
+                                                     "TLSv1_3",
+                                                     "tlsv1.3",
+                                                     "tlsv1_3",
+                                                     "tLsV1.3",
+                                                     "tLsV1_3"}}) {
+        EXPECT_EQ(TLSv3_mask, decode_ssl_protocol(val))
+                << "Failed to decode: " << val;
+    }
 }
