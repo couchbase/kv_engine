@@ -69,8 +69,6 @@ const char* StateMachine::getStateName(State state) const {
         return "waiting";
     case StateMachine::State::read_packet_header:
         return "read_packet_header";
-    case StateMachine::State::parse_cmd:
-        return "parse_cmd";
     case StateMachine::State::read_packet_body:
         return "read_packet_body";
     case StateMachine::State::closing:
@@ -108,7 +106,6 @@ bool StateMachine::isIdleState() const {
     case State::drain_send_buffer:
     case State::ssl_init:
         return true;
-    case State::parse_cmd:
     case State::closing:
     case State::immediate_close:
     case State::destroyed:
@@ -129,8 +126,6 @@ bool StateMachine::execute() {
         return conn_waiting();
     case StateMachine::State::read_packet_header:
         return conn_read_packet_header();
-    case StateMachine::State::parse_cmd:
-        return conn_parse_cmd();
     case StateMachine::State::read_packet_body:
         return conn_read_packet_body();
     case StateMachine::State::closing:
@@ -277,20 +272,15 @@ bool StateMachine::conn_read_packet_header() {
     }
 
     if (connection.isPacketHeaderAvailable()) {
-        setCurrentState(State::parse_cmd);
+        // Parse the data in the input pipe and prepare the cookie for
+        // execution. If all data is available we'll move over to the execution
+        // phase, otherwise we'll wait for the data to arrive
+        try_read_mcbp_command(connection.getCookieObject());
         return true;
     }
 
     connection.setState(StateMachine::State::waiting);
     return false;
-}
-
-bool StateMachine::conn_parse_cmd() {
-    // Parse the data in the input pipe and prepare the cookie for execution.
-    // If all data is available we'll move over to the execution phase,
-    // otherwise we'll wait for the data to arrive
-    try_read_mcbp_command(connection.getCookieObject());
-    return true;
 }
 
 bool StateMachine::conn_new_cmd() {
@@ -313,7 +303,7 @@ bool StateMachine::conn_new_cmd() {
      */
     connection.getCookieObject().reset();
     if (connection.isPacketHeaderAvailable()) {
-        setCurrentState(State::parse_cmd);
+        connection.setState(StateMachine::State::read_packet_header);
         return true;
     }
     setCurrentState(State::waiting);
