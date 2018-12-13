@@ -138,6 +138,7 @@ public:
 
     /// @returns the id of the current checkpoint the cursor is on
     uint64_t getId() const;
+    std::string name;
 
 private:
     /*
@@ -148,7 +149,6 @@ private:
      */
     size_t getRemainingItemsCount() const;
 
-    std::string                      name;
     CheckpointList::iterator currentCheckpoint;
     CheckpointQueue::iterator currentPos;
 

@@ -123,6 +123,15 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
 
 ActiveStream::~ActiveStream() {
     if (state_ != StreamState::Dead) {
+        VBucketPtr vb = engine->getVBucket(vb_);
+        if (vb) {
+            EP_LOG_WARN(
+                    "~ActiveStream Removing cursor with the name \"{}\" from "
+                    "{}",
+                    cursor.lock().get()->name,
+                    vb_);
+        }
+
         removeCheckpointCursor();
     }
 }
@@ -822,6 +831,10 @@ std::vector<queued_item> ActiveStream::getOutstandingItems(VBucket& vb) {
     chkptItemsExtractionInProgress.store(true);
 
     auto _begin_ = std::chrono::steady_clock::now();
+    if (cursor.lock().get() == nullptr) {
+        EP_LOG_WARN("ActiveStream::getOutstandingItems(): cursor is null {}",
+                    vb.getId());
+    }
     vb.checkpointManager->getAllItemsForCursor(cursor.lock().get(), items);
     engine->getEpStats().dcpCursorsGetItemsHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(
@@ -1490,9 +1503,18 @@ void ActiveStream::transitionState(StreamState newState) {
             notifyStreamReady(true);
         }
         break;
-    case StreamState::Dead:
+    case StreamState::Dead: {
+        VBucketPtr vb = engine->getVBucket(vb_);
+        if (vb) {
+            EP_LOG_WARN(
+                    "transitionState Removing cursor with the name \"{}\" from "
+                    "{}",
+                    cursor.lock().get()->name,
+                    vb_);
+        }
         removeCheckpointCursor();
         break;
+    }
     case StreamState::TakeoverWait:
     case StreamState::Pending:
         break;
@@ -1548,6 +1570,12 @@ bool ActiveStream::dropCheckpointCursor_UNLOCKED() {
         endStream(END_STREAM_STATE);
         notifyStreamReady();
     }
+
+    EP_LOG_WARN(
+            "dropCheckpointCursor_UNLOCKED: Removing cursor with the name "
+            "\"{}\" from {}",
+            cursor.lock().get()->name,
+            vb_);
     return vbucket->checkpointManager->removeCursor(cursor.lock().get());
 }
 

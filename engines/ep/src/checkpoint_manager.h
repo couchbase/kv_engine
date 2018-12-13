@@ -162,10 +162,7 @@ public:
      * @return The low/high sequence number added to `items` on success,
      *         or (0,0) if no items were added.
      */
-    snapshot_range_t getAllItemsForPersistence(
-            std::vector<queued_item>& items) {
-        return getAllItemsForCursor(persistenceCursor, items);
-    }
+    snapshot_range_t getAllItemsForPersistence(std::vector<queued_item>& items);
 
     /**
      * Add items for the given cursor to the vector, stopping on a checkpoint
