@@ -103,6 +103,17 @@
     ],
     "domain": "local"
   },
+  "bucket-3": {
+    "buckets": {
+      "bucket-3": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "domain": "local"
+  },
   "legacy;legacy": {
     "buckets": {
       "default": [

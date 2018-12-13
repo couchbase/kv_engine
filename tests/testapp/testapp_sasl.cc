@@ -50,6 +50,8 @@ public:
                 connection.createBucket(bucket1, "", BucketType::Memcached));
         ASSERT_NO_THROW(
                 connection.createBucket(bucket2, "", BucketType::Memcached));
+        ASSERT_NO_THROW(
+                connection.createBucket(bucket3, "", BucketType::Couchbase));
         connection.reconnect();
     }
 
@@ -59,6 +61,7 @@ public:
         connection.authenticate("@admin", "password", mechs);
         ASSERT_NO_THROW(connection.deleteBucket(bucket1));
         ASSERT_NO_THROW(connection.deleteBucket(bucket2));
+        ASSERT_NO_THROW(connection.deleteBucket(bucket3));
         connection.reconnect();
     }
 
@@ -124,6 +127,7 @@ protected:
     const std::string password1{"1S|=,%#x1"};
     const std::string bucket2{"bucket-2"};
     const std::string password2{"secret"};
+    const std::string bucket3{"bucket-3"};
 };
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
@@ -288,4 +292,122 @@ TEST_P(SaslTest, TestDisablePLAIN) {
 
     // Restore the sasl mechanisms
     setSupportedMechanisms(before, conn.isSsl());
+}
+
+// Check the bucket associations with and without collections enabled for the
+// connection that are set when authenticating
+TEST_P(SaslTest, CollectionsBucketAssociation) {
+    auto& conn = getConnection();
+
+    // Create a get command that we will use to test that we are in the correct
+    // bucket
+    BinprotGetCommand getCmd;
+    getCmd.setOp(cb::mcbp::ClientOpcode::Get);
+    getCmd.setKey("key");
+    getCmd.setVBucket(Vbid(0));
+    BinprotGetResponse getRsp;
+
+    // Should be able to authenticate to the memcache bucket because the
+    // connection has not enabled collections yet
+    conn.authenticate(bucket1, password1, "PLAIN");
+
+    // Our get should return not found
+    conn.executeCommand(getCmd, getRsp);
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, getRsp.getStatus());
+
+    // Now select the collections aware bucket so that we can enable collections
+    conn.authenticate(bucket3, password1, "PLAIN");
+    conn.selectBucket(bucket3);
+
+    // Before we try to enable collections, make sure we're associated with
+    // the right bucket
+    conn.executeCommand(getCmd, getRsp);
+
+    // We might temp fail so just retry - rather timeout here on failure of
+    // the test than add a sporadic CV failure so just keep looping
+    while (getRsp.getStatus() == cb::mcbp::Status::Etmpfail) {
+        conn.executeCommand(getCmd, getRsp);
+    }
+
+    // Our get should return not my vBucket
+    EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, getRsp.getStatus());
+
+    // Hello collections to enable collections for this connection
+    BinprotHelloCommand cmd("Collections");
+    cmd.enableFeature(cb::mcbp::Feature::Collections);
+    // We also need to enable XERROR to ensure that we can receive no bucket
+    // errors when we attempt to verify what auth does
+    cmd.enableFeature(cb::mcbp::Feature::XERROR);
+    BinprotHelloResponse rsp;
+    conn.executeCommand(cmd, rsp);
+    ASSERT_TRUE(rsp.isSuccess());
+
+    // Now, attempt to re-auth with credentials that would select one of the
+    // memcached buckets for us. As we have set collections to be enabled for
+    // this connection, the authentication should succeed, but we should be
+    // moved to the no bucket instead of the requested destination (via the auth
+    // credentials).
+    conn.authenticate(bucket1, password1, "PLAIN");
+
+    // Send a get command to check that we were moved to the no bucket
+    conn.executeCommand(getCmd, getRsp);
+    EXPECT_EQ(cb::mcbp::Status::NoBucket, getRsp.getStatus());
+
+    // We've been moved to the no bucket. Finally, check that we can still
+    // auth successfully on the collections aware bucket, and end up in the
+    // right bucket
+    conn.authenticate(bucket3, password1, "PLAIN");
+
+    // Now our get should return not my vBucket again
+    conn.executeCommand(getCmd, getRsp);
+
+    // We might temp fail so just retry - rather timeout here on failure of
+    // the test than add a sporadic CV failure so just keep looping
+    while (getRsp.getStatus() == cb::mcbp::Status::Etmpfail) {
+        conn.executeCommand(getCmd, getRsp);
+    }
+    EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, getRsp.getStatus());
+}
+
+// Pretend we're a collection aware client
+TEST_P(SaslTest, CollectionsConnectionSetup) {
+    auto& conn = getConnection();
+
+    // Hello
+    BinprotHelloCommand helloCmd("Collections");
+    helloCmd.enableFeature(cb::mcbp::Feature::Collections);
+    helloCmd.enableFeature(cb::mcbp::Feature::XERROR);
+    helloCmd.enableFeature(cb::mcbp::Feature::SELECT_BUCKET);
+    BinprotHelloResponse helloRsp;
+    conn.executeCommand(helloCmd, helloRsp);
+    ASSERT_TRUE(helloRsp.isSuccess());
+
+    // Get err map
+    BinprotGetErrorMapCommand errMapCmd;
+    BinprotGetErrorMapResponse errMapRsp;
+    conn.executeCommand(errMapCmd, errMapRsp);
+
+    // Get SASL mechs
+    const auto mechs = conn.getSaslMechanisms();
+
+    // Do a SASL auth
+    EXPECT_NO_THROW(conn.authenticate(bucket3, password1, mechs));
+
+    // Select the bucket
+    EXPECT_NO_THROW(conn.selectBucket(bucket3));
+
+    // Do a get
+    BinprotGetCommand getCmd;
+    getCmd.setOp(cb::mcbp::ClientOpcode::Get);
+    getCmd.setKey("key");
+    getCmd.setVBucket(Vbid(0));
+    BinprotGetResponse getRsp;
+    conn.executeCommand(getCmd, getRsp);
+
+    // We might temp fail so just retry - rather timeout here on failure of
+    // the test than add a sporadic CV failure so just keep looping
+    while (getRsp.getStatus() == cb::mcbp::Status::Etmpfail) {
+        conn.executeCommand(getCmd, getRsp);
+    }
+    EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, getRsp.getStatus());
 }

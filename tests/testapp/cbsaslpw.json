@@ -58,6 +58,25 @@
       }
     },
     {
+      "n": "bucket-3",
+      "plain": "deY3s3QEF5LUTKPJU8ZeRyWCPw7SMczkCCT/MZpl5ZKhXC6g",
+      "sha1": {
+        "h": "PLW9SVKjSoikHkHtBYela47zsWo=",
+        "s": "Air7heSBDbmOpvtf331Vp11t0Xo=",
+        "i": 10
+      },
+      "sha256": {
+        "h": "+4+6L1K4aIT5/Xn4Knaj5+p1D4uX6YTwe1EYy7lj/MA=",
+        "s": "ZD0FZbDNasxEfIWHp4msbNh34/K5ong+lgqT8VHdxLk=",
+        "i": 10
+      },
+      "sha512": {
+        "h": "YIwjPIoM6oiDfa/vgJ1BGSCF6bX4A/n/uO6iQwQIXKyBjFGqfuAZSNCNuOxiE1cxvrQHas4n4rQSScDIOsU9Sw==",
+        "s": "/WG0afyP/KEZJP8VWrs4T+cvmEYTIVeKjQdrxrmv+ajAgC2RDfxx2gEOaRiGIcX/TSKvnctYF9O/qhfV5W6XYQ==",
+        "i": 10
+      }
+    },
+    {
       "n":	"sharon",
       "plain":	"/4WDF8VyRqS9OWi5nxnqdP0VMebnsHCAXbxYWcwagQNyGCE7",
       "sha1":	{

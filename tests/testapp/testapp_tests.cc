@@ -1212,6 +1212,38 @@ TEST_P(McdTestappTest, test_MB_16197) {
                                   false);
 }
 
+TEST_F(TestappTest, CollectionsSelectBucket) {
+    auto& conn = getAdminConnection();
+
+    // Create and select a bucket on which we will be able to hello collections
+    ASSERT_NO_THROW(
+            conn.createBucket("collections", "", BucketType::Couchbase));
+    conn.selectBucket("collections");
+
+    // Hello collections to enable collections for this connection
+    BinprotHelloCommand cmd("Collections");
+    cmd.enableFeature(cb::mcbp::Feature::Collections);
+    BinprotHelloResponse rsp;
+    conn.executeCommand(cmd, rsp);
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    try {
+        conn.selectBucket("default");
+        if (!GetTestBucket().supportsCollections()) {
+            FAIL() << "Select bucket did not throw a not supported error when"
+                      "attempting to select a memcache bucket with a "
+                      "collections enabled connections";
+        }
+    } catch (const ConnectionError& e) {
+        if (!GetTestBucket().supportsCollections()) {
+            EXPECT_EQ(cb::mcbp::Status::NotSupported, e.getReason());
+        } else {
+            FAIL() << std::string("Select bucket failed for unknown reason: ") +
+                              to_string(e.getReason());
+        }
+    }
+}
+
 INSTANTIATE_TEST_CASE_P(
         Transport,
         McdTestappTest,

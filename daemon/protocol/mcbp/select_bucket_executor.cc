@@ -24,8 +24,8 @@
 #include <logger/logger.h>
 #include <mcbp/protocol/request.h>
 
-ENGINE_ERROR_CODE select_bucket(Connection& connection,
-                                const std::string& bucketname) {
+ENGINE_ERROR_CODE select_bucket(Cookie& cookie, const std::string& bucketname) {
+    auto& connection = cookie.getConnection();
     if (!connection.isAuthenticated()) {
         return ENGINE_EACCESS;
     }
@@ -47,6 +47,21 @@ ENGINE_ERROR_CODE select_bucket(Connection& connection,
         cb::rbac::createContext(
                 connection.getUsername(), connection.getDomain(), bucketname);
         if (associate_bucket(connection, bucketname.c_str())) {
+            // We found the bucket, great. Test to see if it is valid for the
+            // given connection
+            if (connection.isCollectionsSupported() &&
+                !connection.getBucket().supports(
+                        cb::engine::Feature::Collections)) {
+                // It wasn't valid, try to jump back to the bucket we used to be
+                // associated with..
+                if (oldIndex != connection.getBucketIndex()) {
+                    associate_bucket(connection, all_buckets[oldIndex].name);
+                }
+                cookie.setErrorContext(
+                        "Destination bucket does not support collections");
+                return ENGINE_ENOTSUP;
+            }
+
             return ENGINE_SUCCESS;
         } else {
             if (oldIndex != connection.getBucketIndex()) {
@@ -70,11 +85,11 @@ void select_bucket_executor(Cookie& cookie) {
 
     auto& connection = cookie.getConnection();
     cookie.logCommand();
-    auto ret = connection.remapErrorCode(select_bucket(connection, bucketname));
+    auto ret = connection.remapErrorCode(select_bucket(cookie, bucketname));
     cookie.logResponse(ret);
     if (ret == ENGINE_DISCONNECT) {
         connection.setState(StateMachine::State::closing);
-    } else {
-        cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(ret)));
+        return;
     }
+    cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(ret)));
 }

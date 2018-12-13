@@ -16,6 +16,7 @@
  */
 #include "config.h"
 #include "sasl_tasks.h"
+#include "buckets.h"
 #include "connection.h"
 #include "cookie.h"
 #include "mcaudit.h"
@@ -23,6 +24,7 @@
 #include <cbsasl/mechanism.h>
 #include <cbsasl/server.h>
 #include <logger/logger.h>
+#include <memcached/engine.h>
 #include <memcached/rbac.h>
 #include <utilities/logtags.h>
 
@@ -85,6 +87,14 @@ void SaslAuthTask::notifyExecutionComplete() {
                                           connection.getDomain(),
                                           username)) {
                 associate_bucket(connection, username.c_str());
+                // Auth succeeded but the connection may not be valid for the
+                // bucket
+                if (connection.isCollectionsSupported() &&
+                    !connection.getBucket().supports(
+                            cb::engine::Feature::Collections)) {
+                    // Move back to the "no bucket" as this is not valid
+                    associate_bucket(connection, "");
+                }
             } else {
                 // the user don't have access to that bucket, move the
                 // connection to the "no bucket"
