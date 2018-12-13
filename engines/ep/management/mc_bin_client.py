@@ -275,9 +275,6 @@ class MemcachedClient(object):
         if self.is_xerror_supported():
             self.error_map = self.get_error_map()
 
-        if self.is_collections_supported():
-            self.get_collections(update_map=True)
-
         return resp
 
     def append(self, key, value, cas=0, collection=None):
