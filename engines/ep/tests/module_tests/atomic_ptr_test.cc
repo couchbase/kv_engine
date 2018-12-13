@@ -135,9 +135,58 @@ static void testOperators() {
     cb_assert(Doodad::getNumInstances() == 0);
 }
 
+/// Class which records whenever it's refcount changes.
+struct TrackingRCValue {
+    int _rc_incref() {
+        auto newRC = ++refcount;
+        history.push_back(newRC);
+        return newRC;
+    }
+
+    int _rc_decref() {
+        auto newRC = --refcount;
+        history.push_back(newRC);
+        return newRC;
+    }
+
+    TrackingRCValue& getRCValue() {
+        return *this;
+    }
+
+    // history of what values the recount has been.
+    std::vector<int> history;
+
+    /// Current reference count.
+    int refcount = 0;
+};
+
+// Test that move semantics work correctly and refcounts are not unnecessarily
+// modified.
+static void testMove1() {
+    RCPtr<TrackingRCValue> ptr(new TrackingRCValue());
+    // Check result - history just contains initial increment; rc is 1.
+    cb_assert(ptr->getRCValue().history.size() == 1);
+    cb_assert(ptr->getRCValue().refcount == 1);
+}
+
+// Transfer ownership to new pointer via move (rvalue-reference).
+static void testMove2() {
+    RCPtr<TrackingRCValue> ptr1(new TrackingRCValue());
+    RCPtr<TrackingRCValue> ptr2(std::move(ptr1));
+
+    // No changes in refcount should have occurred.
+    cb_assert(ptr2->getRCValue().history.size() == 1);
+    cb_assert(ptr2->getRCValue().refcount == 1);
+
+    // Moved-from pointer should be empty.
+    cb_assert(ptr1.get() == nullptr);
+}
+
 int main() {
     testOperators();
     testAtomicPtr();
+    testMove1();
+    testMove2();
 }
 #else
 int main() {}

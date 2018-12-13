@@ -160,6 +160,11 @@ public:
 
     RCPtr(const RCPtr<C> &other) : value(other.gimme()) {}
 
+    RCPtr(RCPtr<C>&& other) {
+        value.store(other.value.load());
+        other.value.store(nullptr);
+    }
+
     ~RCPtr() {
         if (value && value->getRCValue()._rc_decref() == 0) {
             delete get();
