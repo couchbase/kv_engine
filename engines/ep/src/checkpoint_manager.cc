@@ -241,10 +241,6 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
     // remove it.
     for (const auto& cursor : connCursors) {
         if (cursor.first == name) {
-            EP_LOG_WARN(
-                    "Remove the duplicate cursor with the name \"{}\" from {}",
-                    name,
-                    vbucketId);
             removeCursor_UNLOCKED(cursor.second.get());
             break;
         }
@@ -323,9 +319,9 @@ bool CheckpointManager::removeCursor_UNLOCKED(const CheckpointCursor* cursor) {
         return false;
     }
 
-    EP_LOG_WARN("Remove the checkpoint cursor with the name \"{}\" from {}",
-                cursor->name,
-                vbucketId);
+    EP_LOG_DEBUG("Remove the checkpoint cursor with the name \"{}\" from {}",
+                 cursor->name,
+                 vbucketId);
 
     (*cursor->currentCheckpoint)->decNumOfCursorsInCheckpoint();
 
@@ -618,15 +614,6 @@ void CheckpointManager::queueSetVBState(VBucket& vb) {
                 to_string(result) + "after queueDirty. " +
                 vbucketId.to_string());
     }
-}
-
-snapshot_range_t CheckpointManager::getAllItemsForPersistence(
-        std::vector<queued_item>& items) {
-    if (persistenceCursor == nullptr) {
-        EP_LOG_WARN("getAllItemsForPersistence(): persistenceCusror is null {}",
-                    vbucketId);
-    }
-    return getAllItemsForCursor(persistenceCursor, items);
 }
 
 snapshot_range_t CheckpointManager::getAllItemsForCursor(
