@@ -23,6 +23,8 @@
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 
+#include <daemon/buckets.h>
+#include <mcbp/protocol/status.h>
 #include <set>
 
 // We can't use a set of enums that easily in an unordered_set.. just use an
@@ -280,8 +282,12 @@ void process_hello_packet_executor(Cookie& cookie) {
         case cb::mcbp::Feature::Collections:
             // Allow KV engine to chicken out
             if (settings.isCollectionsEnabled()) {
-                connection.setCollectionsSupported(true);
-                added = true;
+                auto bucket = connection.getBucket();
+                // Abort if the engine cannot support collections
+                if (bucket.supports(cb::engine::Feature::Collections)) {
+                    connection.setCollectionsSupported(true);
+                    added = true;
+                }
             }
             break;
         case cb::mcbp::Feature::Duplex:

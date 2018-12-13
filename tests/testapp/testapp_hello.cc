@@ -192,3 +192,20 @@ TEST_F(HelloTest, SyncReplication) {
     ASSERT_EQ(1, features.size());
     ASSERT_EQ(cb::mcbp::Feature::SyncReplication, features[0]);
 }
+
+TEST_F(HelloTest, Collections) {
+    BinprotHelloCommand cmd("Collections");
+    cmd.enableFeature(cb::mcbp::Feature::Collections);
+    BinprotHelloResponse rsp;
+    getConnection().executeCommand(cmd, rsp);
+
+    ASSERT_TRUE(rsp.isSuccess());
+    if (GetTestBucket().supportsCollections()) {
+        const auto& features = rsp.getFeatures();
+        ASSERT_EQ(1, features.size());
+        ASSERT_EQ(cb::mcbp::Feature::Collections, features[0]);
+    } else {
+        const auto& features = rsp.getFeatures();
+        ASSERT_EQ(0, features.size());
+    }
+}

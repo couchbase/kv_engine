@@ -171,6 +171,10 @@ public:
     bool supportsSyncWrites() const override {
         return false;
     }
+
+    bool supportsCollections() const override {
+        return false;
+    }
 };
 
 class EpBucketImpl : public TestBucketImpl {
@@ -272,6 +276,10 @@ public:
     }
 
     bool supportsSyncWrites() const override {
+        return true;
+    }
+
+    bool supportsCollections() const override {
         return true;
     }
 
