@@ -1069,12 +1069,6 @@ public:
         return i;
     }
 
-    Item makePendingItem(StoredDocKey key, std::string value) {
-        Item i(key, 0, 0, value.data(), value.size());
-        i.setPendingSyncWrite({cb::durability::Level::Majority, 0});
-        return i;
-    }
-
     HashTable ht;
     StoredDocKey key;
 };

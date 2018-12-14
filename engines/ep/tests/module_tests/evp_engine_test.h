@@ -46,6 +46,11 @@ protected:
                     const std::string& key,
                     const std::string& value);
 
+    /// Stored a pending SyncWrite into the given vbucket.
+    void store_pending_item(Vbid vbid,
+                            const std::string& key,
+                            const std::string& value);
+
     std::string config_string;
 
     static const char test_dbname[];

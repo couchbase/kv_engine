@@ -29,7 +29,6 @@
 
 #include <chrono>
 
-class Item;
 class VBucket;
 
 /// Creates an item with the given vbucket id, key and value.
@@ -39,6 +38,9 @@ Item make_item(
         const std::string& value,
         uint32_t exptime = 0,
         protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON);
+
+/// Make an item representing a pending SyncWrite.
+Item makePendingItem(StoredDocKey key, std::string value);
 
 std::unique_ptr<Item> makeCompressibleItem(Vbid vbid,
                                            const DocKey& key,

@@ -100,6 +100,16 @@ void EventuallyPersistentEngineTest::store_item(Vbid vbid,
               engine->storeInner(cookie, &item, cas, OPERATION_SET));
 }
 
+void EventuallyPersistentEngineTest::store_pending_item(
+        Vbid vbid, const std::string& key, const std::string& value) {
+    auto item = makePendingItem(makeStoredDocKey(key), value);
+    uint64_t cas;
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              engine->storeInner(cookie, &item, cas, OPERATION_SET))
+            << "pending SyncWrite should initially block (until durability "
+               "met).";
+}
+
 const char EventuallyPersistentEngineTest::test_dbname[] = "ep_engine_ep_unit_tests_db";
 
 

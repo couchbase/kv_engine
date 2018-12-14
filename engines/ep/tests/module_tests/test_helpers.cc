@@ -46,6 +46,12 @@ Item make_item(Vbid vbid,
     return item;
 }
 
+Item makePendingItem(StoredDocKey key, std::string value) {
+    Item i(key, 0, 0, value.data(), value.size());
+    i.setPendingSyncWrite({cb::durability::Level::Majority, 0});
+    return i;
+}
+
 std::unique_ptr<Item> makeCompressibleItem(Vbid vbid,
                                            const DocKey& key,
                                            const std::string& value,
