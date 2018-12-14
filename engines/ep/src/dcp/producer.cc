@@ -1132,24 +1132,16 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("last_receive_time", lastReceiveTime, add_stat, c);
     addStat("noop_enabled", noopCtx.enabled, add_stat, c);
     addStat("noop_wait", noopCtx.pendingRecv, add_stat, c);
-    addStat("enable_ext_metadata", enableExtMetaData ? "enabled" : "disabled",
-            add_stat, c);
-    addStat("force_value_compression",
-            forceValueCompression ? "enabled" : "disabled",
-            add_stat, c);
-    addStat("cursor_dropping",
-            supportsCursorDropping ? "ELIGIBLE" : "NOT_ELIGIBLE",
-            add_stat, c);
+    addStat("enable_ext_metadata", enableExtMetaData, add_stat, c);
+    addStat("force_value_compression", forceValueCompression, add_stat, c);
+    addStat("cursor_dropping", supportsCursorDropping, add_stat, c);
     addStat("send_stream_end_on_client_close_stream",
-            sendStreamEndOnClientStreamClose ? "true" : "false",
-            add_stat, c);
-    addStat("enable_expiry_opcode",
-            enableExpiryOpcode ? "true" : "false",
+            sendStreamEndOnClientStreamClose,
             add_stat,
             c);
+    addStat("enable_expiry_opcode", enableExpiryOpcode, add_stat, c);
     addStat("enable_stream_id",
-            multipleStreamRequests == MultipleStreamRequests::Yes ? "true"
-                                                                  : "false",
+            multipleStreamRequests == MultipleStreamRequests::Yes,
             add_stat,
             c);
 

@@ -854,7 +854,7 @@ void PassiveStream::addStats(ADD_STAT add_stat, const void* c) {
                          "%s:stream_%d_items_ready",
                          name_.c_str(),
                          vb_.get());
-        add_casted_stat(buf, itemsReady.load() ? "true" : "false", add_stat, c);
+        add_casted_stat(buf, itemsReady.load(), add_stat, c);
         checked_snprintf(buf,
                          bsize,
                          "%s:stream_%d_last_received_seqno",

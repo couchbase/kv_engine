@@ -654,8 +654,7 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void* c) {
                          "%s:stream_%d_items_ready",
                          name_.c_str(),
                          vb_.get());
-        add_casted_stat(
-                buffer, itemsReady.load() ? "true" : "false", add_stat, c);
+        add_casted_stat(buffer, itemsReady.load(), add_stat, c);
         checked_snprintf(buffer,
                          bsize,
                          "%s:stream_%d_backfill_buffer_bytes",

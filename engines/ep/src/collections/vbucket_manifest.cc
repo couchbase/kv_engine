@@ -1004,10 +1004,7 @@ bool Manifest::addCollectionStats(Vbid vbid,
         add_casted_stat(buffer, map.size(), add_stat, cookie);
         checked_snprintf(
                 buffer, bsize, "vb_%d:manifest:default_exists", vbid.get());
-        add_casted_stat(buffer,
-                        defaultCollectionExists ? "true" : "false",
-                        add_stat,
-                        cookie);
+        add_casted_stat(buffer, defaultCollectionExists, add_stat, cookie);
         checked_snprintf(
                 buffer, bsize, "vb_%d:manifest:greatest_end", vbid.get());
         add_casted_stat(buffer, greatestEndSeqno, add_stat, cookie);
