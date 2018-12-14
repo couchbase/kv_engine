@@ -343,6 +343,9 @@ private:
     /// Should items be forcefully compressed on this stream?
     ForceValueCompression forceValueCompression;
 
+    /// Does this stream support synchronous replication?
+    const SyncReplication syncReplication;
+
     /**
      * The filter the stream will use to decide which keys should be transmitted
      */

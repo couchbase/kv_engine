@@ -152,18 +152,41 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
                                                     uint16_t nmeta,
                                                     uint8_t nru,
                                                     cb::mcbp::DcpStreamId sid) {
+    auto result = handleMutationOrPrepare(
+            cb::mcbp::ClientOpcode::DcpMutation,
+            opaque,
+            itm,
+            vbucket,
+            by_seqno,
+            rev_seqno,
+            lock_time,
+            {reinterpret_cast<const char*>(meta), nmeta},
+            nru);
+    last_stream_id = sid;
+    return result;
+}
+
+ENGINE_ERROR_CODE MockDcpMessageProducers::handleMutationOrPrepare(
+        cb::mcbp::ClientOpcode opcode,
+        uint32_t opaque,
+        void* itm,
+        Vbid vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        uint32_t lock_time,
+        cb::const_char_buffer meta,
+        uint8_t nru) {
     clear_dcp_data();
     Item* item = reinterpret_cast<Item*>(itm);
-    last_op = cb::mcbp::ClientOpcode::DcpMutation;
+    last_op = opcode;
     last_opaque = opaque;
     last_key.assign(item->getKey().c_str());
     last_vbucket = vbucket;
     last_byseqno = by_seqno;
     last_revseqno = rev_seqno;
     last_locktime = lock_time;
-    last_meta.assign(static_cast<const char*>(meta), nmeta);
-    last_value.assign(static_cast<const char*>(item->getData()),
-                      item->getNBytes());
+    last_meta = to_string(meta);
+    last_value.assign(item->getData(), item->getNBytes());
     last_nru = nru;
 
     // @todo: MB-24391: We are querying the header length with collections
@@ -172,8 +195,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
     // reliant on last_packet_size so this doesn't cause any problems.
     last_packet_size = sizeof(cb::mcbp::Request) +
                        sizeof(cb::mcbp::request::DcpMutationPayload);
-    last_packet_size =
-            last_packet_size + last_key.length() + item->getNBytes() + nmeta;
+    last_packet_size = last_packet_size + last_key.length() +
+                       item->getNBytes() + meta.size();
 
     last_datatype = item->getDataType();
     last_collection_id = item->getKey().getCollectionID();
@@ -182,7 +205,6 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
         engine_handle_v1->release(item);
     }
 
-    last_stream_id = sid;
     return mutationStatus;
 }
 
@@ -366,6 +388,27 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::system_event(
 
     last_stream_id = sid;
     return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE MockDcpMessageProducers::prepare(
+        uint32_t opaque,
+        item* itm,
+        Vbid vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        uint32_t lock_time,
+        uint8_t nru,
+        DocumentState document_state,
+        cb::durability::Requirements durability) {
+    return handleMutationOrPrepare(cb::mcbp::ClientOpcode::DcpPrepare,
+                                   opaque,
+                                   itm,
+                                   vbucket,
+                                   by_seqno,
+                                   rev_seqno,
+                                   lock_time,
+                                   {},
+                                   nru);
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::get_error_map(uint32_t opaque,

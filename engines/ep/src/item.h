@@ -377,10 +377,16 @@ public:
     }
 
     /*
-     * Should this item be replicated (e.g. by DCP)
+     * Should this item be replicated by DCP?
+     * @param supportsSyncReplication true if the DCP stream supports
+     *        synchronous replication.
      */
-    bool shouldReplicate() const {
-        return !isCheckPointMetaItem();
+    bool shouldReplicate(bool supportsSyncReplication) const {
+        const bool nonMetaItem = !isCheckPointMetaItem();
+        if (supportsSyncReplication) {
+            return nonMetaItem;
+        }
+        return nonMetaItem && op != queue_op::pending_sync_write;
     }
 
     bool isCheckPointMetaItem() const {

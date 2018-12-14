@@ -189,6 +189,10 @@ public:
         return supportsCursorDropping.load();
     }
 
+    bool isSyncReplicationEnabled() const {
+        return supportsSyncReplication.load();
+    }
+
     /**
      * Notifies the front-end synchronously on this thread that this paused
      * connection should be re-considered for work.

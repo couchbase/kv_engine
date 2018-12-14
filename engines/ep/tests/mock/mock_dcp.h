@@ -128,18 +128,16 @@ public:
                                    cb::const_byte_buffer eventData,
                                    cb::mcbp::DcpStreamId sid) override;
 
-    ENGINE_ERROR_CODE prepare(
-            uint32_t opaque,
-            item* itm,
-            Vbid vbucket,
-            uint64_t by_seqno,
-            uint64_t rev_seqno,
-            uint32_t lock_time,
-            uint8_t nru,
-            DocumentState document_state,
-            cb::durability::Requirements durability) override {
-        return ENGINE_ENOTSUP;
-    }
+    ENGINE_ERROR_CODE prepare(uint32_t opaque,
+                              item* itm,
+                              Vbid vbucket,
+                              uint64_t by_seqno,
+                              uint64_t rev_seqno,
+                              uint32_t lock_time,
+                              uint8_t nru,
+                              DocumentState document_state,
+                              cb::durability::Requirements durability) override;
+
     ENGINE_ERROR_CODE seqno_acknowledged(uint32_t opaque,
                                          uint64_t in_memory_seqno,
                                          uint64_t on_disk_seqno) override {
@@ -204,4 +202,14 @@ protected:
                                     cb::mcbp::DcpStreamId sid);
 
     ENGINE_ERROR_CODE mutationStatus = ENGINE_SUCCESS;
+
+    ENGINE_ERROR_CODE handleMutationOrPrepare(cb::mcbp::ClientOpcode opcode,
+                                              uint32_t opaque,
+                                              void* itm,
+                                              Vbid vbucket,
+                                              uint64_t by_seqno,
+                                              uint64_t rev_seqno,
+                                              uint32_t lock_time,
+                                              cb::const_char_buffer meta,
+                                              uint8_t nru);
 };

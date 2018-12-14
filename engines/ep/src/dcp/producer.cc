@@ -681,31 +681,31 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             }
             break;
         }
-        case DcpResponse::Event::Prepare:
-            if (supportsSyncReplication) {
-                if (itmCpy == nullptr) {
-                    throw std::logic_error(
-                            "DcpProducer::step(Mutation): itmCpy must be != "
-                            "nullptr");
-                }
-
-                const uint8_t hotness =
-                        encodeItemHotness(*mutationResponse->getItem());
-                const auto docState = mutationResponse->getItem()->isDeleted()
-                                              ? DocumentState::Deleted
-                                              : DocumentState::Alive;
-                ret = producers->prepare(
-                        mutationResponse->getOpaque(),
-                        itmCpy.release(),
-                        mutationResponse->getVBucket(),
-                        *mutationResponse->getBySeqno(),
-                        mutationResponse->getRevSeqno(),
-                        0 /* lock time */,
-                        hotness,
-                        docState,
-                        mutationResponse->getItem()->getDurabilityReqs());
-                break;
+        case DcpResponse::Event::Prepare: {
+            if (itmCpy == nullptr) {
+                throw std::logic_error(
+                        "DcpProducer::step(Prepare): itmCpy must be != "
+                        "nullptr");
             }
+
+            const uint8_t hotness =
+                    encodeItemHotness(*mutationResponse->getItem());
+            const auto docState = mutationResponse->getItem()->isDeleted()
+                                          ? DocumentState::Deleted
+                                          : DocumentState::Alive;
+            ret = producers->prepare(
+                    mutationResponse->getOpaque(),
+                    itmCpy.release(),
+                    mutationResponse->getVBucket(),
+                    *mutationResponse->getBySeqno(),
+                    mutationResponse->getRevSeqno(),
+                    0 /* lock time */,
+                    hotness,
+                    docState,
+                    mutationResponse->getItem()->getDurabilityReqs());
+            break;
+        }
+
         case DcpResponse::Event::SnapshotMarker:
         {
             SnapshotMarker* s = static_cast<SnapshotMarker*>(resp.get());

@@ -74,6 +74,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       forceValueCompression(p->isForceValueCompressionEnabled()
                                     ? ForceValueCompression::Yes
                                     : ForceValueCompression::No),
+      syncReplication(p->isSyncReplicationEnabled() ? SyncReplication::Yes
+                                                    : SyncReplication::No),
       filter(std::move(f)),
       sid(filter.getStreamId()) {
     const char* type = "";
@@ -1003,7 +1005,7 @@ void ActiveStream::processItems(std::vector<queued_item>& items,
 }
 
 bool ActiveStream::shouldProcessItem(const Item& item) {
-    if (!item.shouldReplicate()) {
+    if (!item.shouldReplicate(syncReplication == SyncReplication::Yes)) {
         return false;
     }
 

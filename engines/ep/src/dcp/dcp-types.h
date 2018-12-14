@@ -154,3 +154,6 @@ enum class MultipleStreamRequests : bool {
     Yes,
     No
 };
+
+/// Does the stream support synchronous replication?
+enum class SyncReplication : bool { Yes, No };
