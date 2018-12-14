@@ -150,8 +150,3 @@ public:
 private:
     Collections::VB::Flush collectionsFlush;
 };
-
-class SystemEventReplicate {
-public:
-    static ProcessStatus process(const Item& item);
-};

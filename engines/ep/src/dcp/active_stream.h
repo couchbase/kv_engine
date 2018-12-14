@@ -142,6 +142,12 @@ protected:
     void processItems(std::vector<queued_item>& items,
                       const LockHolder& streamMutex);
 
+    /**
+     * Should the given item be sent out across this stream?
+     * @returns true if the item should be sent, false if it should be ignored.
+     */
+    bool shouldProcessItem(const Item& it);
+
     bool nextCheckpointItem();
 
     std::unique_ptr<DcpResponse> nextQueuedItem();

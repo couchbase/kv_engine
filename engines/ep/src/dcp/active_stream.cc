@@ -303,7 +303,7 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
     }
 
     // Should the item replicate?
-    if (SystemEventReplicate::process(*itm) == ProcessStatus::Skip) {
+    if (!shouldProcessItem(*itm)) {
         return true; // skipped, but return true as it's not a failure
     }
 
@@ -955,7 +955,7 @@ void ActiveStream::processItems(std::vector<queued_item>& items,
 
         std::deque<std::unique_ptr<DcpResponse>> mutations;
         for (auto& qi : items) {
-            if (SystemEventReplicate::process(*qi) == ProcessStatus::Continue) {
+            if (shouldProcessItem(*qi)) {
                 curChkSeqno = qi->getBySeqno();
                 lastReadSeqnoUnSnapshotted = qi->getBySeqno();
                 // Check if the item is allowed on the stream, note the filter
@@ -998,6 +998,22 @@ void ActiveStream::processItems(std::vector<queued_item>& items,
     // Completed item processing - clear guard flag and notify producer.
     chkptItemsExtractionInProgress.store(false);
     notifyStreamReady(true);
+}
+
+bool ActiveStream::shouldProcessItem(const Item& item) {
+    if (!item.shouldReplicate()) {
+        return false;
+    }
+
+    if (item.getOperation() == queue_op::system_event) {
+        switch (SystemEvent(item.getFlags())) {
+        case SystemEvent::Collection:
+        case SystemEvent::Scope:
+            return true;
+        }
+        return false;
+    }
+    return true;
 }
 
 void ActiveStream::snapshot(std::deque<std::unique_ptr<DcpResponse>>& items,

@@ -110,22 +110,6 @@ ProcessStatus SystemEventFlush::process(const queued_item& item) {
                                 std::to_string(item->getFlags()));
 }
 
-ProcessStatus SystemEventReplicate::process(const Item& item) {
-    if (item.shouldReplicate()) {
-        if (item.getOperation() != queue_op::system_event) {
-            // Not a system event, so no further filtering
-            return ProcessStatus::Continue;
-        } else {
-            switch (SystemEvent(item.getFlags())) {
-            case SystemEvent::Collection:
-            case SystemEvent::Scope:
-                return ProcessStatus::Continue;
-            }
-        }
-    }
-    return ProcessStatus::Skip;
-}
-
 std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
         uint32_t opaque, const queued_item& item, cb::mcbp::DcpStreamId sid) {
     // Always ensure decompressed as we are about to use the value
