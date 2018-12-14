@@ -239,3 +239,56 @@ TEST(Request_GetDurationSpec, FullSpecPresent) {
     EXPECT_EQ(Level::PersistToMajority, dur->getLevel());
     EXPECT_EQ(0xaabb, dur->getTimeout());
 }
+
+static std::vector<uint8_t> buildPacket(ClientOpcode opcode, bool reorder) {
+    std::vector<uint8_t> fe;
+    if (reorder) {
+        fe.push_back(0x00);
+    }
+    std::vector<uint8_t> packet(sizeof(Request) + fe.size());
+    RequestBuilder builder({packet.data(), packet.size()});
+    builder.setMagic(Magic::AltClientRequest);
+    builder.setOpcode(opcode);
+    builder.setFramingExtras({fe.data(), fe.size()});
+    return packet;
+}
+
+TEST(Request_MayReorder, NotSpecified) {
+    auto me = buildPacket(ClientOpcode::Get, false);
+    auto other = buildPacket(ClientOpcode::Get, false);
+
+    auto& m = *reinterpret_cast<Request*>(me.data());
+    auto& o = *reinterpret_cast<Request*>(other.data());
+    EXPECT_FALSE(m.mayReorder(o));
+    EXPECT_FALSE(o.mayReorder(m));
+}
+
+TEST(Request_MayReorder, one_do_other_dont) {
+    auto me = buildPacket(ClientOpcode::Get, true);
+    auto other = buildPacket(ClientOpcode::Get, false);
+
+    auto& m = *reinterpret_cast<Request*>(me.data());
+    auto& o = *reinterpret_cast<Request*>(other.data());
+    EXPECT_FALSE(m.mayReorder(o));
+    EXPECT_FALSE(o.mayReorder(m));
+}
+
+TEST(Request_MayReorder, both_do_opcode_dont) {
+    auto me = buildPacket(ClientOpcode::SelectBucket, true);
+    auto other = buildPacket(ClientOpcode::SelectBucket, true);
+
+    auto& m = *reinterpret_cast<Request*>(me.data());
+    auto& o = *reinterpret_cast<Request*>(other.data());
+    EXPECT_FALSE(m.mayReorder(o));
+    EXPECT_FALSE(o.mayReorder(m));
+}
+
+TEST(Request_MayReorder, both_do_opcode_do) {
+    auto me = buildPacket(ClientOpcode::Get, true);
+    auto other = buildPacket(ClientOpcode::Get, true);
+
+    auto& m = *reinterpret_cast<Request*>(me.data());
+    auto& o = *reinterpret_cast<Request*>(other.data());
+    EXPECT_TRUE(m.mayReorder(o));
+    EXPECT_TRUE(o.mayReorder(m));
+}

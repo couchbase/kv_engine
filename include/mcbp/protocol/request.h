@@ -204,6 +204,15 @@ public:
             const;
 
     /**
+     * May this command be reordered with the next command?
+     *
+     * @return true if the client allows this command to be reordered with
+     *              the next command (and that the server supports reordering
+     *              of these command types)
+     */
+    bool mayReorder(const Request& other) const;
+
+    /**
      * Is this a quiet command or not
      */
     bool isQuiet() const;
