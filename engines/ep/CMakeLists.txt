@@ -384,6 +384,7 @@ if (NOT EP_BYPASS_TESTS)
                    tests/module_tests/configuration_test.cc
                    tests/module_tests/defragmenter_test.cc
                    tests/module_tests/dcp_reflection_test.cc
+                   tests/module_tests/dcp_stream_test.cc
                    tests/module_tests/dcp_test.cc
                    tests/module_tests/dcp_utils.cc
                    tests/module_tests/durability_monitor_test.cc

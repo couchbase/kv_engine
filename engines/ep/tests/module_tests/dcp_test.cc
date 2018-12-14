@@ -22,16 +22,13 @@
  * need an instance of EPBucket& other related objects.
  */
 
+#include "dcp_test.h"
 #include "../mock/mock_dcp.h"
 #include "../mock/mock_dcp_conn_map.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
-#include "../mock/mock_stream.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_manager.h"
-#include "connmap.h"
-#include "dcp/backfill_disk.h"
-#include "dcp/backfill_memory.h"
 #include "dcp/dcp-types.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
@@ -40,17 +37,14 @@
 #include "ep_time.h"
 #include "evp_engine_test.h"
 #include "evp_store_single_threaded_test.h"
-#include "failover-table.h"
 #include "memory_tracker.h"
 #include "objectregistry.h"
 #include "test_helpers.h"
 #include "thread_gate.h"
 
-#include <gtest/gtest.h>
 #include <memcached/server_cookie_iface.h>
 #include <platform/compress.h>
 #include <programs/engine_testapp/mock_server.h>
-#include <xattr/utils.h>
 
 #include <thread>
 
@@ -147,192 +141,157 @@ protected:
     ServerCookieIface* wrapped;
 };
 
-class DCPTest : public EventuallyPersistentEngineTest {
-protected:
-    void SetUp() override {
-        EventuallyPersistentEngineTest::SetUp();
+void DCPTest::SetUp() {
+    EventuallyPersistentEngineTest::SetUp();
 
-        // Set AuxIO threads to zero, so that the producer's
-        // ActiveStreamCheckpointProcesserTask doesn't run.
-        ExecutorPool::get()->setNumAuxIO(0);
-        // Set NonIO threads to zero, so the connManager
-        // task does not run.
-        ExecutorPool::get()->setNumNonIO(0);
-        callbackCount = 0;
+    // Set AuxIO threads to zero, so that the producer's
+    // ActiveStreamCheckpointProcesserTask doesn't run.
+    ExecutorPool::get()->setNumAuxIO(0);
+    // Set NonIO threads to zero, so the connManager
+    // task does not run.
+    ExecutorPool::get()->setNumNonIO(0);
+    callbackCount = 0;
 
 #if defined(HAVE_JEMALLOC)
-        // MB-28370: Run with memory tracking for all alloc/deallocs when built
-        // with jemalloc.
-        MemoryTracker::getInstance(*get_mock_server_api()->alloc_hooks);
-        engine->getEpStats().memoryTrackerEnabled.store(true);
+    // MB-28370: Run with memory tracking for all alloc/deallocs when built
+    // with jemalloc.
+    MemoryTracker::getInstance(*get_mock_server_api()->alloc_hooks);
+    engine->getEpStats().memoryTrackerEnabled.store(true);
 #endif
-    }
+}
 
-    void TearDown() override {
-        /* MB-22041 changes to dynamically stopping threads rather than having
-         * the excess looping but not getting work. We now need to set the
-         * AuxIO and NonIO back to 1 to allow dead tasks to be cleaned up
-         */
-        ExecutorPool::get()->setNumAuxIO(1);
-        ExecutorPool::get()->setNumNonIO(1);
-
-        EventuallyPersistentEngineTest::TearDown();
-
-        MemoryTracker::destroyInstance();
-    }
-
-    // Create a DCP producer; initially with no streams associated.
-    void create_dcp_producer(
-            int flags = 0,
-            IncludeValue includeVal = IncludeValue::Yes,
-            IncludeXattrs includeXattrs = IncludeXattrs::Yes,
-            std::vector<std::pair<std::string, std::string>> controls = {}) {
-        if (includeVal == IncludeValue::No) {
-            flags |= cb::mcbp::request::DcpOpenPayload::NoValue;
-        }
-        if (includeVal == IncludeValue::NoWithUnderlyingDatatype) {
-            flags |= cb::mcbp::request::DcpOpenPayload::
-                    NoValueWithUnderlyingDatatype;
-        }
-        if (includeXattrs == IncludeXattrs::Yes) {
-            flags |= cb::mcbp::request::DcpOpenPayload::IncludeXattrs;
-        }
-        producer = std::make_shared<MockDcpProducer>(
-                *engine,
-                cookie,
-                "test_producer",
-                flags,
-                /*startTask*/ true);
-
-        if (includeXattrs == IncludeXattrs::Yes) {
-            producer->setNoopEnabled(true);
-        }
-
-        // Since we are creating a mock active stream outside of
-        // DcpProducer::streamRequest(), and we want the checkpt processor task,
-        // create it explicitly here
-        producer->createCheckpointProcessorTask();
-        producer->scheduleCheckpointProcessorTask();
-
-        // Now set any controls before creating any streams
-        for (const auto& control : controls) {
-            EXPECT_EQ(ENGINE_SUCCESS,
-                      producer->control(0, control.first, control.second));
-        }
-    }
-
-    // Setup a DCP producer and attach a stream and cursor to it.
-    void setup_dcp_stream(
-            int flags = 0,
-            IncludeValue includeVal = IncludeValue::Yes,
-            IncludeXattrs includeXattrs = IncludeXattrs::Yes,
-            std::vector<std::pair<std::string, std::string>> controls = {}) {
-        create_dcp_producer(flags, includeVal, includeXattrs, controls);
-
-        vb0 = engine->getVBucket(vbid);
-        ASSERT_NE(nullptr, vb0.get());
-        EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
-        stream = std::make_shared<MockActiveStream>(engine,
-                                                    producer,
-                                                    flags,
-                                                    /*opaque*/ 0,
-                                                    *vb0,
-                                                    /*st_seqno*/ 0,
-                                                    /*en_seqno*/ ~0,
-                                                    /*vb_uuid*/ 0xabcd,
-                                                    /*snap_start_seqno*/ 0,
-                                                    /*snap_end_seqno*/ ~0,
-                                                    includeVal,
-                                                    includeXattrs);
-
-        stream->public_registerCursor(
-                *vb0->checkpointManager, producer->getName(), 0);
-        stream->setActive();
-    }
-
-    void destroy_dcp_stream() {
-        producer->closeStream(/*opaque*/ 0, vb0->getId());
-    }
-
-    /*
-     * Creates an item with the key \"key\", containing json data and xattrs.
-     * @return a unique_ptr to a newly created item.
+void DCPTest::TearDown() {
+    /* MB-22041 changes to dynamically stopping threads rather than having
+     * the excess looping but not getting work. We now need to set the
+     * AuxIO and NonIO back to 1 to allow dead tasks to be cleaned up
      */
-    std::unique_ptr<Item> makeItemWithXattrs() {
-        std::string valueData = R"({"json":"yes"})";
-        std::string data = createXattrValue(valueData);
-        protocol_binary_datatype_t datatype = (PROTOCOL_BINARY_DATATYPE_JSON |
-                                               PROTOCOL_BINARY_DATATYPE_XATTR);
-        return std::make_unique<Item>(makeStoredDocKey("key"),
-                                      /*flags*/0,
-                                      /*exp*/0,
-                                      data.c_str(),
-                                      data.size(),
-                                      datatype);
+    ExecutorPool::get()->setNumAuxIO(1);
+    ExecutorPool::get()->setNumNonIO(1);
+
+    EventuallyPersistentEngineTest::TearDown();
+
+    MemoryTracker::destroyInstance();
+}
+
+void DCPTest::create_dcp_producer(
+        int flags,
+        IncludeValue includeVal,
+        IncludeXattrs includeXattrs,
+        std::vector<std::pair<std::string, std::string>> controls) {
+    if (includeVal == IncludeValue::No) {
+        flags |= cb::mcbp::request::DcpOpenPayload::NoValue;
+    }
+    if (includeVal == IncludeValue::NoWithUnderlyingDatatype) {
+        flags |= cb::mcbp::request::DcpOpenPayload::
+                NoValueWithUnderlyingDatatype;
+    }
+    if (includeXattrs == IncludeXattrs::Yes) {
+        flags |= cb::mcbp::request::DcpOpenPayload::IncludeXattrs;
+    }
+    producer = std::make_shared<MockDcpProducer>(*engine,
+                                                 cookie,
+                                                 "test_producer",
+                                                 flags,
+                                                 /*startTask*/ true);
+
+    if (includeXattrs == IncludeXattrs::Yes) {
+        producer->setNoopEnabled(true);
     }
 
-    /*
-     * Creates an item with the key \"key\", containing json data and no xattrs.
-     * @return a unique_ptr to a newly created item.
-     */
-    std::unique_ptr<Item> makeItemWithoutXattrs() {
-            std::string valueData = R"({"json":"yes"})";
-            protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-            return std::make_unique<Item>(makeStoredDocKey("key"),
-                                          /*flags*/0,
-                                          /*exp*/0,
-                                          valueData.c_str(),
-                                          valueData.size(),
-                                          datatype);
-    }
+    // Since we are creating a mock active stream outside of
+    // DcpProducer::streamRequest(), and we want the checkpt processor task,
+    // create it explicitly here
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
 
-    /* Add items onto the vbucket and wait for the checkpoint to be removed */
-    void addItemsAndRemoveCheckpoint(int numItems) {
-        for (int i = 0; i < numItems; ++i) {
-            std::string key("key" + std::to_string(i));
-            store_item(vbid, key, "value");
+    // Now set any controls before creating any streams
+    for (const auto& control : controls) {
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  producer->control(0, control.first, control.second));
+    }
+}
+
+void DCPTest::setup_dcp_stream(
+        int flags,
+        IncludeValue includeVal,
+        IncludeXattrs includeXattrs,
+        std::vector<std::pair<std::string, std::string>> controls) {
+    create_dcp_producer(flags, includeVal, includeXattrs, controls);
+
+    vb0 = engine->getVBucket(vbid);
+    ASSERT_NE(nullptr, vb0.get());
+    EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
+    stream = std::make_shared<MockActiveStream>(engine,
+                                                producer,
+                                                flags,
+                                                /*opaque*/ 0,
+                                                *vb0,
+                                                /*st_seqno*/ 0,
+                                                /*en_seqno*/ ~0,
+                                                /*vb_uuid*/ 0xabcd,
+                                                /*snap_start_seqno*/ 0,
+                                                /*snap_end_seqno*/ ~0,
+                                                includeVal,
+                                                includeXattrs);
+
+    stream->public_registerCursor(
+            *vb0->checkpointManager, producer->getName(), 0);
+    stream->setActive();
+}
+
+void DCPTest::destroy_dcp_stream() {
+    producer->closeStream(/*opaque*/ 0, vb0->getId());
+}
+
+std::unique_ptr<Item> DCPTest::makeItemWithXattrs() {
+    std::string valueData = R"({"json":"yes"})";
+    std::string data = createXattrValue(valueData);
+    protocol_binary_datatype_t datatype =
+            (PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
+    return std::make_unique<Item>(makeStoredDocKey("key"),
+                                  /*flags*/ 0,
+                                  /*exp*/ 0,
+                                  data.c_str(),
+                                  data.size(),
+                                  datatype);
+}
+
+std::unique_ptr<Item> DCPTest::makeItemWithoutXattrs() {
+    std::string valueData = R"({"json":"yes"})";
+    protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    return std::make_unique<Item>(makeStoredDocKey("key"),
+                                  /*flags*/ 0,
+                                  /*exp*/ 0,
+                                  valueData.c_str(),
+                                  valueData.size(),
+                                  datatype);
+}
+
+void DCPTest::addItemsAndRemoveCheckpoint(int numItems) {
+    for (int i = 0; i < numItems; ++i) {
+        std::string key("key" + std::to_string(i));
+        store_item(vbid, key, "value");
+    }
+    removeCheckpoint(numItems);
+}
+
+void DCPTest::removeCheckpoint(int numItems) {
+    /* Create new checkpoint so that we can remove the current checkpoint
+       and force a backfill in the DCP stream */
+    auto& ckpt_mgr = *vb0->checkpointManager;
+    ckpt_mgr.createNewCheckpoint();
+
+    /* Wait for removal of the old checkpoint, this also would imply that
+       the items are persisted (in case of persistent buckets) */
+    {
+        bool new_ckpt_created;
+        std::chrono::microseconds uSleepTime(128);
+        while (static_cast<size_t>(numItems) !=
+               ckpt_mgr.removeClosedUnrefCheckpoints(*vb0, new_ckpt_created)) {
+            uSleepTime = decayingSleep(uSleepTime);
         }
-        removeCheckpoint(numItems);
     }
-
-    void removeCheckpoint(int numItems) {
-        /* Create new checkpoint so that we can remove the current checkpoint
-           and force a backfill in the DCP stream */
-        auto& ckpt_mgr = *vb0->checkpointManager;
-        ckpt_mgr.createNewCheckpoint();
-
-        /* Wait for removal of the old checkpoint, this also would imply that
-           the items are persisted (in case of persistent buckets) */
-        {
-            bool new_ckpt_created;
-            std::chrono::microseconds uSleepTime(128);
-            while (static_cast<size_t>(numItems) !=
-                   ckpt_mgr.removeClosedUnrefCheckpoints(*vb0,
-                                                         new_ckpt_created)) {
-                uSleepTime = decayingSleep(uSleepTime);
-            }
-        }
-    }
-
-    std::shared_ptr<MockDcpProducer> producer;
-    std::shared_ptr<MockActiveStream> stream;
-    VBucketPtr vb0;
-
-    /*
-     * Fake callback emulating dcp_add_failover_log
-     */
-    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(
-            vbucket_failover_t* entry,
-            size_t nentries,
-            gsl::not_null<const void*> cookie) {
-        callbackCount++;
-        return ENGINE_SUCCESS;
-    }
-
-    // callbackCount needs to be static as its used inside of the static
-    // function fakeDcpAddFailoverLog.
-    static int callbackCount;
-};
+}
 int DCPTest::callbackCount = 0;
 
 /*
@@ -354,73 +313,6 @@ TEST_F(DCPTest, MB30189_addStats) {
                 // do nothing
             },
             &mockStats);
-}
-
-class StreamTest : public DCPTest,
-                   public ::testing::WithParamInterface<std::string> {
-protected:
-    void SetUp() override {
-        bucketType = GetParam();
-        DCPTest::SetUp();
-        vb0 = engine->getVBucket(Vbid(0));
-        EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
-    }
-
-    void TearDown() override {
-        if (producer) {
-            producer->cancelCheckpointCreatorTask();
-        }
-        // Destroy various engine objects
-        vb0.reset();
-        stream.reset();
-        producer.reset();
-        DCPTest::TearDown();
-    }
-};
-
-/*
- * Test that when have a producer with IncludeValue and IncludeXattrs both set
- * to No an active stream created via a streamRequest returns true for
- * isKeyOnly.
- */
-TEST_P(StreamTest, test_streamIsKeyOnlyTrue) {
-    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
-    uint64_t rollbackSeqno;
-    auto err = producer->streamRequest(/*flags*/ 0,
-                                       /*opaque*/ 0,
-                                       Vbid(0),
-                                       /*start_seqno*/ 0,
-                                       /*end_seqno*/ 0,
-                                       /*vb_uuid*/ 0,
-                                       /*snap_start*/ 0,
-                                       /*snap_end*/ 0,
-                                       &rollbackSeqno,
-                                       DCPTest::fakeDcpAddFailoverLog,
-                                       {});
-    ASSERT_EQ(ENGINE_SUCCESS, err)
-        << "stream request did not return ENGINE_SUCCESS";
-
-    auto activeStream = std::dynamic_pointer_cast<ActiveStream>(
-            producer->findStream(Vbid(0)));
-    ASSERT_NE(nullptr, activeStream);
-    EXPECT_TRUE(activeStream->isKeyOnly());
-    destroy_dcp_stream();
-}
-
-ENGINE_ERROR_CODE mock_mutation_return_engine_e2big(
-        gsl::not_null<const void*> cookie,
-        uint32_t opaque,
-        item* itm,
-        Vbid vbucket,
-        uint64_t by_seqno,
-        uint64_t rev_seqno,
-        uint32_t lock_time,
-        const void* meta,
-        uint16_t nmeta,
-        uint8_t nru) {
-    Item* item = reinterpret_cast<Item*>(itm);
-    delete item;
-    return ENGINE_E2BIG;
 }
 
 std::string decompressValue(std::string compressedValue) {
@@ -473,34 +365,6 @@ public:
         return createXattrValue({}, true, compressed).size();
     }
 };
-
-// Test the compression control error case
-TEST_P(StreamTest, validate_compression_control_message_denied) {
-    setup_dcp_stream();
-    std::string compressCtrlMsg("force_value_compression");
-    std::string compressCtrlValue("true");
-    EXPECT_FALSE(producer->isCompressionEnabled());
-
-    // Sending a control message without actually enabling SNAPPY must fail
-    EXPECT_EQ(ENGINE_EINVAL,
-              producer->control(0, compressCtrlMsg, compressCtrlValue));
-    destroy_dcp_stream();
-}
-
-// Test the compression control success case
-TEST_P(StreamTest, validate_compression_control_message_allowed) {
-    // For success enable the snappy datatype on the connection
-    mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
-    setup_dcp_stream();
-    std::string compressCtrlMsg("force_value_compression");
-    std::string compressCtrlValue("true");
-    EXPECT_TRUE(producer->isCompressionEnabled());
-
-    // Sending a control message after enabling SNAPPY should succeed
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->control(0, compressCtrlMsg, compressCtrlValue));
-    destroy_dcp_stream();
-}
 
 /**
  * Test to verify DCP compression/decompression. There are 4 cases that are being
@@ -561,7 +425,8 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
      * message (or equal for xattr stream)
      */
     queued_item qi(std::move(item1));
-    std::unique_ptr<DcpResponse> dcpResponse = stream->public_makeResponseFromItem(qi);
+    std::unique_ptr<DcpResponse> dcpResponse =
+            stream->public_makeResponseFromItem(qi);
     auto mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
     ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
     if (isXattr()) {
@@ -661,7 +526,7 @@ TEST_P(CompressionStreamTest, connection_snappy_enabled) {
                                      true, // compressed
                                      isXattr());
 
-    //Enable the snappy datatype on the connection
+    // Enable the snappy datatype on the connection
     mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
     auto includeValue = isXattr() ? IncludeValue::No : IncludeValue::Yes;
@@ -807,1163 +672,6 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
               producers.last_datatype);
 
     destroy_dcp_stream();
-}
-
-/*
- * Test to verify the number of items, total bytes sent and total data size
- * by the producer when DCP compression is enabled
- */
-TEST_P(StreamTest, test_verifyProducerCompressionStats) {
-    VBucketPtr vb = engine->getKVBucket()->getVBucket(vbid);
-    setup_dcp_stream();
-    std::string compressibleValue("{\"product\": \"car\",\"price\": \"100\"},"
-                                  "{\"product\": \"bus\",\"price\": \"1000\"},"
-                                  "{\"product\": \"Train\",\"price\": \"100000\"}");
-    std::string regularValue("{\"product\": \"car\",\"price\": \"100\"}");
-
-    std::string compressCtrlMsg("force_value_compression");
-    std::string compressCtrlValue("true");
-
-    mock_set_datatype_support(producer->getCookie(), PROTOCOL_BINARY_DATATYPE_SNAPPY);
-
-    ASSERT_EQ(ENGINE_SUCCESS,
-              producer->control(0, compressCtrlMsg, compressCtrlValue));
-    ASSERT_TRUE(producer->isForceValueCompressionEnabled());
-
-    store_item(vbid, "key1", compressibleValue.c_str());
-    store_item(vbid, "key2", regularValue.c_str());
-    store_item(vbid, "key3", compressibleValue.c_str());
-
-    MockDcpMessageProducers producers(engine);
-
-    uint64_t rollbackSeqno;
-    auto err = producer->streamRequest(/*flags*/ 0,
-                                       /*opaque*/ 0,
-                                       Vbid(0),
-                                       /*start_seqno*/ 0,
-                                       /*end_seqno*/ ~0,
-                                       /*vb_uuid*/ 0,
-                                       /*snap_start*/ 0,
-                                       /*snap_end*/ ~0,
-                                       &rollbackSeqno,
-                                       DCPTest::fakeDcpAddFailoverLog,
-                                       {});
-
-    ASSERT_EQ(ENGINE_SUCCESS, err);
-    producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
-
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
-    ASSERT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
-    producer->getCheckpointSnapshotTask().run();
-
-    /* Stream the snapshot marker first */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(0, producer->getItemsSent());
-
-    uint64_t totalBytesSent = producer->getTotalBytesSent();
-    uint64_t totalUncompressedDataSize = producer->getTotalUncompressedDataSize();
-    EXPECT_GT(totalBytesSent, 0);
-    EXPECT_GT(totalUncompressedDataSize, 0);
-
-    /* Stream the first mutation. This should increment the
-     * number of items, total bytes sent and total data size.
-     * Since this is a compressible document, the total bytes
-     * sent should be incremented by a lesser value than the
-     * total data size.
-     */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(1, producer->getItemsSent());
-    EXPECT_GT(producer->getTotalBytesSent(), totalBytesSent);
-    EXPECT_GT(producer->getTotalUncompressedDataSize(), totalUncompressedDataSize);
-    EXPECT_LT(producer->getTotalBytesSent() - totalBytesSent,
-              producer->getTotalUncompressedDataSize() - totalUncompressedDataSize);
-
-    totalBytesSent = producer->getTotalBytesSent();
-    totalUncompressedDataSize = producer->getTotalUncompressedDataSize();
-
-    /*
-     * Now stream the second mutation. This should increment the
-     * number of items and the total bytes sent. In this case,
-     * the total data size should be incremented by exactly the
-     * same amount as the total bytes sent
-     */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(2, producer->getItemsSent());
-    EXPECT_GT(producer->getTotalBytesSent(), totalBytesSent);
-    EXPECT_GT(producer->getTotalUncompressedDataSize(), totalUncompressedDataSize);
-    EXPECT_EQ(producer->getTotalBytesSent() - totalBytesSent,
-              producer->getTotalUncompressedDataSize() - totalUncompressedDataSize);
-
-    totalBytesSent = producer->getTotalBytesSent();
-    totalUncompressedDataSize = producer->getTotalUncompressedDataSize();
-
-    /*
-     * Disable value compression on the producer side and stream a
-     * compressible document. This should result in an increase in
-     * total bytes. Even though the document is compressible, the
-     * total data size and the total bytes sent would be incremented
-     * by exactly the same amount
-     */
-    compressCtrlValue.assign("false");
-    ASSERT_EQ(ENGINE_SUCCESS,
-              producer->control(0, compressCtrlMsg, compressCtrlValue));
-    mock_set_datatype_support(producer->getCookie(),
-                              PROTOCOL_BINARY_RAW_BYTES);
-
-    ASSERT_FALSE(producer->isCompressionEnabled());
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(3, producer->getItemsSent());
-    EXPECT_GT(producer->getTotalBytesSent(), totalBytesSent);
-    EXPECT_GT(producer->getTotalUncompressedDataSize(), totalUncompressedDataSize);
-    EXPECT_EQ(producer->getTotalBytesSent() - totalBytesSent,
-              producer->getTotalUncompressedDataSize() - totalUncompressedDataSize);
-
-    destroy_dcp_stream();
-}
-
-/*
- * Test to verify the number of items and the total bytes sent
- * by the producer under normal and error conditions
- */
-TEST_P(StreamTest, test_verifyProducerStats) {
-    VBucketPtr vb = engine->getKVBucket()->getVBucket(vbid);
-    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
-    store_item(vbid, "key1", "value1");
-    store_item(vbid, "key2", "value2");
-
-    MockDcpMessageProducers producers(engine);
-    uint64_t rollbackSeqno;
-    auto err = producer->streamRequest(/*flags*/ 0,
-                                       /*opaque*/ 0,
-                                       Vbid(0),
-                                       /*start_seqno*/ 0,
-                                       /*end_seqno*/ ~0,
-                                       /*vb_uuid*/ 0,
-                                       /*snap_start*/ 0,
-                                       /*snap_end*/ ~0,
-                                       &rollbackSeqno,
-                                       DCPTest::fakeDcpAddFailoverLog,
-                                       {});
-
-    EXPECT_EQ(ENGINE_SUCCESS, err);
-    producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
-
-    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
-
-    producer->getCheckpointSnapshotTask().run();
-
-    /* Stream the snapshot marker first */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(0, producer->getItemsSent());
-
-    uint64_t totalBytes = producer->getTotalBytesSent();
-    EXPECT_GT(totalBytes, 0);
-
-    /* Stream the first mutation. This should increment the
-     * number of items and the total bytes sent.
-     */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(1, producer->getItemsSent());
-    EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
-    totalBytes = producer->getTotalBytesSent();
-
-    /* Now simulate a failure while trying to stream the next
-     * mutation.
-     */
-    producers.setMutationStatus(ENGINE_E2BIG);
-
-    EXPECT_EQ(ENGINE_E2BIG, producer->step(&producers));
-
-    /* The number of items total bytes sent should remain the same */
-    EXPECT_EQ(1, producer->getItemsSent());
-    EXPECT_EQ(producer->getTotalBytesSent(), totalBytes);
-    totalBytes = producer->getTotalBytesSent();
-
-    /* Now stream the mutation again and the stats should have incremented */
-    producers.setMutationStatus(ENGINE_SUCCESS);
-
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(2, producer->getItemsSent());
-    EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
-
-    destroy_dcp_stream();
-}
-
-/*
- * Test that when have a producer with IncludeValue set to Yes and IncludeXattrs
- * set to No an active stream created via a streamRequest returns false for
- * isKeyOnly.
- */
-TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeValue) {
-    setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::No);
-    uint64_t rollbackSeqno;
-    auto err = producer->streamRequest(/*flags*/ 0,
-                                       /*opaque*/ 0,
-                                       Vbid(0),
-                                       /*start_seqno*/ 0,
-                                       /*end_seqno*/ 0,
-                                       /*vb_uuid*/ 0,
-                                       /*snap_start*/ 0,
-                                       /*snap_end*/ 0,
-                                       &rollbackSeqno,
-                                       DCPTest::fakeDcpAddFailoverLog,
-                                       {});
-    ASSERT_EQ(ENGINE_SUCCESS, err)
-        << "stream request did not return ENGINE_SUCCESS";
-
-    auto activeStream = std::dynamic_pointer_cast<ActiveStream>(
-            producer->findStream(Vbid(0)));
-    ASSERT_NE(nullptr, activeStream);
-    EXPECT_FALSE(activeStream->isKeyOnly());
-    destroy_dcp_stream();
-}
-
-/*
- * Test that when have a producer with IncludeValue set to No and IncludeXattrs
- * set to Yes an active stream created via a streamRequest returns false for
- * isKeyOnly.
- */
-TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeXattrs) {
-    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::Yes);
-    uint64_t rollbackSeqno;
-    auto err = producer->streamRequest(/*flags*/ 0,
-                                       /*opaque*/ 0,
-                                       Vbid(0),
-                                       /*start_seqno*/ 0,
-                                       /*end_seqno*/ 0,
-                                       /*vb_uuid*/ 0,
-                                       /*snap_start*/ 0,
-                                       /*snap_end*/ 0,
-                                       &rollbackSeqno,
-                                       DCPTest::fakeDcpAddFailoverLog,
-                                       {});
-    ASSERT_EQ(ENGINE_SUCCESS, err)
-        << "stream request did not return ENGINE_SUCCESS";
-
-    auto activeStream = std::dynamic_pointer_cast<ActiveStream>(
-            producer->findStream(Vbid(0)));
-    ASSERT_NE(nullptr, activeStream);
-    EXPECT_FALSE(activeStream->isKeyOnly());
-    destroy_dcp_stream();
-}
-
-/*
- * Test for a dcpResponse retrieved from a stream where IncludeValue and
- * IncludeXattrs are both No, that the message size does not include the size of
- * the body.
- */
-TEST_P(StreamTest, test_keyOnlyMessageSize) {
-    auto item = makeItemWithXattrs();
-    auto keyOnlyMessageSize =
-            MutationResponse::mutationBaseMsgBytes +
-            item->getKey().makeDocKeyWithoutCollectionID().size();
-    queued_item qi(std::move(item));
-
-    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
-    std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
-
-    /**
-     * Create a DCP response and check that a new item is created
-     */
-    auto mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
-    ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
-
-    EXPECT_EQ(keyOnlyMessageSize, dcpResponse->getMessageSize());
-    destroy_dcp_stream();
-}
-
-/*
- * Test for a dcpResponse retrieved from a stream where
- * IncludeValue==NoWithUnderlyingDatatype and IncludeXattrs==No, that the
- * message size does not include the size of the body.
- */
-TEST_P(StreamTest, test_keyOnlyMessageSizeUnderlyingDatatype) {
-    auto item = makeItemWithXattrs();
-    auto keyOnlyMessageSize =
-            MutationResponse::mutationBaseMsgBytes +
-            item->getKey().makeDocKeyWithoutCollectionID().size();
-    queued_item qi(std::move(item));
-
-    setup_dcp_stream(
-            0, IncludeValue::NoWithUnderlyingDatatype, IncludeXattrs::No);
-    std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
-
-    /**
-     * Create a DCP response and check that a new item is created
-     */
-    auto mutProdResponse =
-            dynamic_cast<MutationResponse*>(dcpResponse.get());
-    ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
-
-    EXPECT_EQ(keyOnlyMessageSize, dcpResponse->getMessageSize());
-    destroy_dcp_stream();
-}
-
-/*
- * Test for a dcpResponse retrieved from a stream where IncludeValue and
- * IncludeXattrs are both Yes, that the message size includes the size of the
- * body.
- */
-TEST_P(StreamTest, test_keyValueAndXattrsMessageSize) {
-    auto item = makeItemWithXattrs();
-    auto keyAndValueMessageSize =
-            MutationResponse::mutationBaseMsgBytes +
-            item->getKey().makeDocKeyWithoutCollectionID().size() +
-            item->getNBytes();
-    queued_item qi(std::move(item));
-
-    setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::Yes);
-    std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
-
-    /**
-     * Create a DCP response and check that a new item is not created
-     */
-    auto mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
-    ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
-    EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
-    destroy_dcp_stream();
-}
-
-/*
- * Test for a dcpResponse retrieved from a stream where IncludeValue and
- * IncludeXattrs are both Yes, however the document does not have any xattrs
- * and so the message size should equal the size of the value.
- */
-TEST_P(StreamTest, test_keyAndValueMessageSize) {
-    auto item = makeItemWithoutXattrs();
-    auto keyAndValueMessageSize =
-            MutationResponse::mutationBaseMsgBytes +
-            item->getKey().makeDocKeyWithoutCollectionID().size() +
-            item->getNBytes();
-    queued_item qi(std::move(item));
-
-    setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::Yes);
-    std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
-
-    /**
-     * Create a DCP response and check that a new item is not created
-     */
-    auto mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
-    ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
-    EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
-    destroy_dcp_stream();
-}
-
-/*
- * Test for a dcpResponse retrieved from a stream where IncludeValue is Yes and
- * IncludeXattrs is No, that the message size includes the size of only the
- * value (excluding the xattrs).
- */
-TEST_P(StreamTest, test_keyAndValueExcludingXattrsMessageSize) {
-    auto item = makeItemWithXattrs();
-    auto root = const_cast<char*>(item->getData());
-    cb::byte_buffer buffer{(uint8_t*)root, item->getValue()->valueSize()};
-    auto sz = cb::xattr::get_body_offset({
-           reinterpret_cast<char*>(buffer.buf), buffer.len});
-    auto keyAndValueMessageSize =
-            MutationResponse::mutationBaseMsgBytes +
-            item->getKey().makeDocKeyWithoutCollectionID().size() +
-            item->getNBytes() - sz;
-    queued_item qi(std::move(item));
-
-    setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::No);
-    std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
-
-    /**
-     * Create a DCP response and check that a new item is created
-     */
-    auto mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
-    ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
-    EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
-    destroy_dcp_stream();
-}
-
-/*
- * Test for a dcpResponse retrieved from a stream where IncludeValue is Yes and
- * IncludeXattrs are No, and the document does not have any xattrs.  So again
- * the message size should equal the size of the value.
- */
-TEST_P(StreamTest,
-       test_keyAndValueExcludingXattrsAndNotContainXattrMessageSize) {
-    auto item = makeItemWithoutXattrs();
-    auto keyAndValueMessageSize =
-            MutationResponse::mutationBaseMsgBytes +
-            item->getKey().makeDocKeyWithoutCollectionID().size() +
-            item->getNBytes();
-    queued_item qi(std::move(item));
-
-    setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::No);
-    std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
-    /**
-     * Create a DCP response and check that a new item is not created
-     */
-    auto mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
-    ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
-    EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
-    destroy_dcp_stream();
-}
-
-/*
- * Test for a dcpResponse retrieved from a stream where IncludeValue is No and
- * IncludeXattrs is Yes, that the message size includes the size of only the
- * xattrs (excluding the value).
- */
-TEST_P(StreamTest, test_keyAndValueExcludingValueDataMessageSize) {
-    auto item = makeItemWithXattrs();
-    auto root = const_cast<char*>(item->getData());
-    cb::byte_buffer buffer{(uint8_t*)root, item->getValue()->valueSize()};
-    auto sz = cb::xattr::get_body_offset({
-           reinterpret_cast<char*>(buffer.buf), buffer.len});
-    auto keyAndValueMessageSize =
-            MutationResponse::mutationBaseMsgBytes +
-            item->getKey().makeDocKeyWithoutCollectionID().size() + sz;
-    queued_item qi(std::move(item));
-
-    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::Yes);
-    std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
-
-    /**
-     * Create a DCP response and check that a new item is created
-     */
-    auto mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
-    ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
-    EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
-    destroy_dcp_stream();
-}
-
-/*
- * Test for a dcpResponse retrieved from a stream where IncludeValue is
- * NoWithUnderlyingDatatype and IncludeXattrs is Yes, that the message size
- * includes the size of only the xattrs (excluding the value), and the
- * datatype is the same as the original tiem.
- */
-TEST_P(StreamTest, test_keyAndValueExcludingValueWithDatatype) {
-    auto item = makeItemWithXattrs();
-    auto root = const_cast<char*>(item->getData());
-    cb::byte_buffer buffer{(uint8_t*)root, item->getValue()->valueSize()};
-    auto sz = cb::xattr::get_body_offset(
-            {reinterpret_cast<char*>(buffer.buf), buffer.len});
-    auto keyAndValueMessageSize =
-            MutationResponse::mutationBaseMsgBytes +
-            item->getKey().makeDocKeyWithoutCollectionID().size() + sz;
-    queued_item qi(std::move(item));
-
-    setup_dcp_stream(
-            0, IncludeValue::NoWithUnderlyingDatatype, IncludeXattrs::Yes);
-    std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
-
-    /**
-     * Create a DCP response and check that a new item is created
-     */
-    auto mutProdResponse =
-            dynamic_cast<MutationResponse*>(dcpResponse.get());
-    auto& responseItem = mutProdResponse->getItem();
-    EXPECT_EQ(qi->getDataType(), responseItem->getDataType());
-    EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
-    destroy_dcp_stream();
-}
-
-/*
- * Test for a dcpResponse without XATTRS retrieved from a stream where
- * IncludeValue is NoWithUnderlyingDatatype and IncludeXattrs is Yes, that the
- * message size includes the size of only the key (excluding the value &
- * XATTRs), and the datatype is the same as the original item.
- */
-TEST_P(StreamTest, test_keyAndValueWithoutXattrExcludingValueWithDatatype) {
-    auto item = makeItemWithoutXattrs();
-    auto root = const_cast<char*>(item->getData());
-    cb::byte_buffer buffer{(uint8_t*)root, item->getValue()->valueSize()};
-    auto keyAndValueMessageSize =
-            MutationResponse::mutationBaseMsgBytes +
-            item->getKey().makeDocKeyWithoutCollectionID().size();
-    queued_item qi(std::move(item));
-
-    setup_dcp_stream(
-            0, IncludeValue::NoWithUnderlyingDatatype, IncludeXattrs::Yes);
-    std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
-
-    /**
-     * Create a DCP response and check that a new item is created
-     */
-    auto mutProdResponse =
-            dynamic_cast<MutationResponse*>(dcpResponse.get());
-    auto& responseItem = mutProdResponse->getItem();
-    EXPECT_EQ(qi->getDataType(), responseItem->getDataType());
-    EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
-    destroy_dcp_stream();
-}
-
-/* MB-24159 - Test to confirm a dcp stream backfill from an ephemeral bucket
- * over a range which includes /no/ items doesn't cause the producer to
- * segfault.
- */
-
-TEST_P(StreamTest, backfillGetsNoItems) {
-    if (engine->getConfiguration().getBucketType() == "ephemeral") {
-        setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
-        store_item(vbid, "key", "value1");
-        store_item(vbid, "key", "value2");
-
-        auto evb = std::shared_ptr<EphemeralVBucket>(
-                std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
-        auto dcpbfm = DCPBackfillMemory(evb, stream, 1, 1);
-        dcpbfm.run();
-        destroy_dcp_stream();
-    }
-}
-
-TEST_P(StreamTest, bufferedMemoryBackfillPurgeGreaterThanStart) {
-    if (engine->getConfiguration().getBucketType() == "ephemeral") {
-        setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
-        auto evb = std::shared_ptr<EphemeralVBucket>(
-                std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
-
-        // Force the purgeSeqno because it's easier than creating and
-        // deleting items
-        evb->setPurgeSeqno(3);
-
-        // Backfill with start != 1 and start != end and start < purge
-        DCPBackfillMemoryBuffered dcpbfm (evb, stream, 2, 4);
-        dcpbfm.run();
-        EXPECT_TRUE(stream->isDead());
-    }
-}
-
-/* Regression test for MB-17766 - ensure that when an ActiveStream is preparing
- * queued items to be sent out via a DCP consumer, that nextCheckpointItem()
- * doesn't incorrectly return false (meaning that there are no more checkpoint
- * items to send).
- */
-TEST_P(StreamTest, test_mb17766) {
-    // Add an item.
-    store_item(vbid, "key", "value");
-
-    setup_dcp_stream();
-
-    // Should start with nextCheckpointItem() returning true.
-    EXPECT_TRUE(stream->public_nextCheckpointItem())
-            << "nextCheckpointItem() should initially be true.";
-
-    // Get the set of outstanding items
-    auto items = stream->public_getOutstandingItems(*vb0);
-
-    // REGRESSION CHECK: nextCheckpointItem() should still return true
-    EXPECT_TRUE(stream->public_nextCheckpointItem())
-            << "nextCheckpointItem() after getting outstanding items should be "
-               "true.";
-
-    // Process the set of items
-    stream->public_processItems(items);
-
-    // Should finish with nextCheckpointItem() returning false.
-    EXPECT_FALSE(stream->public_nextCheckpointItem())
-            << "nextCheckpointItem() after processing items should be false.";
-    destroy_dcp_stream();
-}
-
-// Check that the items remaining statistic is accurate and is unaffected
-// by de-duplication.
-TEST_P(StreamTest, MB17653_ItemsRemaining) {
-    auto& manager =
-            *(engine->getKVBucket()->getVBucket(vbid)->checkpointManager);
-
-    ASSERT_EQ(0, manager.getNumOpenChkItems());
-
-    // Create 10 mutations to the same key which, while increasing the high
-    // seqno by 10 will result in de-duplication and hence only one actual
-    // mutation being added to the checkpoint items.
-    const int set_op_count = 10;
-    for (unsigned int ii = 0; ii < set_op_count; ii++) {
-        store_item(vbid, "key", "value");
-    }
-
-    ASSERT_EQ(1, manager.getNumOpenChkItems())
-            << "Expected 1 items after population (set)";
-
-    setup_dcp_stream();
-
-    // Should start with one item remaining.
-    EXPECT_EQ(1, stream->getItemsRemaining())
-            << "Unexpected initial stream item count";
-
-    // Populate the streams' ready queue with items from the checkpoint,
-    // advancing the streams' cursor. Should result in no change in items
-    // remaining (they still haven't been send out of the stream).
-    stream->nextCheckpointItemTask();
-    EXPECT_EQ(1, stream->getItemsRemaining())
-            << "Mismatch after moving items to ready queue";
-
-    // Add another mutation. As we have already iterated over all checkpoint
-    // items and put into the streams' ready queue, de-duplication of this new
-    // mutation (from the point of view of the stream) isn't possible, so items
-    // remaining should increase by one.
-    store_item(vbid, "key", "value");
-    EXPECT_EQ(2, stream->getItemsRemaining())
-            << "Mismatch after populating readyQ and storing 1 more item";
-
-    // Now actually drain the items from the readyQ and see how many we received,
-    // excluding meta items. This will result in all but one of the checkpoint
-    // items (the one we added just above) being drained.
-    std::unique_ptr<DcpResponse> response(stream->public_nextQueuedItem());
-    ASSERT_NE(nullptr, response);
-    EXPECT_TRUE(response->isMetaEvent()) << "Expected 1st item to be meta";
-
-    response = stream->public_nextQueuedItem();
-    ASSERT_NE(nullptr, response);
-    EXPECT_FALSE(response->isMetaEvent()) << "Expected 2nd item to be non-meta";
-
-    response = stream->public_nextQueuedItem();
-    EXPECT_EQ(nullptr, response) << "Expected there to not be a 3rd item.";
-
-    EXPECT_EQ(1, stream->getItemsRemaining()) << "Expected to have 1 item "
-                                                 "remaining (in checkpoint) "
-                                                 "after draining readyQ";
-
-    // Add another 10 mutations on a different key. This should only result in
-    // us having one more item (not 10) due to de-duplication in
-    // checkpoints.
-    for (unsigned int ii = 0; ii < set_op_count; ii++) {
-        store_item(vbid, "key_2", "value");
-    }
-
-    EXPECT_EQ(2, stream->getItemsRemaining())
-            << "Expected two items after adding 1 more to existing checkpoint";
-
-    // Copy items into readyQ a second time, and drain readyQ so we should
-    // have no items left.
-    stream->nextCheckpointItemTask();
-    do {
-        response = stream->public_nextQueuedItem();
-    } while (response);
-    EXPECT_EQ(0, stream->getItemsRemaining()) << "Should have 0 items "
-                                                 "remaining after advancing "
-                                                 "cursor and draining readyQ";
-    destroy_dcp_stream();
-}
-
-/* Stream items from a DCP backfill */
-TEST_P(StreamTest, BackfillOnly) {
-    /* Add 3 items */
-    const size_t numItems = 3;
-    addItemsAndRemoveCheckpoint(numItems);
-
-    /* Set up a DCP stream for the backfill */
-    setup_dcp_stream();
-
-    /* We want the backfill task to run in a background thread */
-    ExecutorPool::get()->setNumAuxIO(1);
-    stream->transitionStateToBackfilling();
-
-    // MB-27199: Just stir things up by doing some front-end ops whilst
-    // backfilling. This would trigger a number of TSAN warnings
-    std::thread thr([this]() {
-        int i = 0;
-        while (i < 100) {
-            engine->getAndTouchInner(cookie, makeStoredDocKey("key1"), vbid, i);
-            i++;
-        }
-    });
-
-    // Ensure all GATs are done before evaluating the stream below
-    thr.join();
-
-    // Wait for the backfill task to have pushed all items to the Stream::readyQ
-    // Note: we expect 1 SnapshotMarker + numItems in the readyQ
-    // Note: we need to access the readyQ under streamLock while the backfill
-    //     task is running
-    std::chrono::microseconds uSleepTime(128);
-    while (stream->public_readyQSize() < numItems + 1) {
-        uSleepTime = decayingSleep(uSleepTime);
-    }
-
-    // Check the content of readyQ
-    auto front = stream->public_nextQueuedItem();
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, front->getEvent());
-    auto snapMarker = dynamic_cast<SnapshotMarker&>(*front);
-    while (stream->public_readyQSize() > 0) {
-        auto item = stream->public_nextQueuedItem();
-        EXPECT_EQ(DcpResponse::Event::Mutation, item->getEvent());
-        auto seqno = item->getBySeqno().get();
-        EXPECT_GE(seqno, snapMarker.getStartSeqno());
-        EXPECT_LE(seqno, snapMarker.getEndSeqno());
-    }
-
-    // Check that backfill stats have been updated correctly
-    EXPECT_EQ(numItems, stream->getNumBackfillItems());
-    EXPECT_EQ(numItems, stream->getNumBackfillItemsRemaining());
-
-    destroy_dcp_stream();
-}
-
-/* Negative test case that checks whether the stream gracefully goes to
-   'dead' state upon disk backfill failure */
-TEST_P(StreamTest, DiskBackfillFail) {
-    if (bucketType == "ephemeral") {
-        /* Ephemeral buckets don't do disk backfill */
-        return;
-    }
-
-    /* Add 3 items */
-    int numItems = 3;
-    addItemsAndRemoveCheckpoint(numItems);
-
-    /* Delete the vb file so that the backfill would fail */
-    engine->getKVBucket()->getRWUnderlying(vbid)->delVBucket(vbid,
-                                                             /* file rev */ 1);
-
-    /* Set up a DCP stream for the backfill */
-    setup_dcp_stream();
-
-    /* Run the backfill task in a background thread */
-    ExecutorPool::get()->setNumAuxIO(1);
-
-    /* Wait for the backfill task to fail and stream to transition to dead
-       state */
-    {
-        std::chrono::microseconds uSleepTime(128);
-        while (stream->isActive()) {
-            uSleepTime = decayingSleep(uSleepTime);
-        }
-    }
-
-    destroy_dcp_stream();
-}
-
-/* Stream items from a DCP backfill with very small backfill buffer.
-   However small the backfill buffer is, backfill must not stop, it must
-   proceed to completion eventually */
-TEST_P(StreamTest, BackfillSmallBuffer) {
-    if (bucketType == "ephemeral") {
-        /* Ephemeral buckets is not memory managed for now. Will be memory
-           managed soon and then this test will be enabled */
-        return;
-    }
-
-    /* Add 2 items */
-    int numItems = 2;
-    addItemsAndRemoveCheckpoint(numItems);
-
-    /* Set up a DCP stream for the backfill */
-    setup_dcp_stream();
-
-    /* set the DCP backfill buffer size to a value that is smaller than the
-       size of a mutation */
-    producer->setBackfillBufferSize(1);
-
-    /* We want the backfill task to run in a background thread */
-    ExecutorPool::get()->setNumAuxIO(1);
-    stream->transitionStateToBackfilling();
-
-    /* Backfill can only read 1 as its buffer will become full after that */
-    {
-        std::chrono::microseconds uSleepTime(128);
-        while ((numItems - 1) != stream->getLastReadSeqno()) {
-            uSleepTime = decayingSleep(uSleepTime);
-        }
-    }
-
-    /* Consume the backfill item(s) */
-    stream->consumeBackfillItems(/*snapshot*/ 1 + /*mutation*/ 1);
-
-    /* We should see that buffer full status must be false as we have read
-       the item in the backfill buffer */
-    EXPECT_FALSE(producer->getBackfillBufferFullStatus());
-
-    /* Finish up with the backilling of the remaining item */
-    {
-        std::chrono::microseconds uSleepTime(128);
-        while (numItems != stream->getLastReadSeqno()) {
-            uSleepTime = decayingSleep(uSleepTime);
-        }
-    }
-
-    /* Read the other item */
-    stream->consumeBackfillItems(1);
-    destroy_dcp_stream();
-}
-
-/* Checks that DCP backfill in Ephemeral buckets does not have duplicates in
- a snaphsot */
-TEST_P(StreamTest, EphemeralBackfillSnapshotHasNoDuplicates) {
-    if (bucketType != "ephemeral") {
-        return;
-    }
-    EphemeralVBucket* evb = dynamic_cast<EphemeralVBucket*>(vb0.get());
-
-    /* Add 4 items */
-    const int numItems = 4;
-    for (int i = 0; i < numItems; ++i) {
-        std::string key("key" + std::to_string(i));
-        store_item(vbid, key, "value");
-    }
-
-    /* Update "key1" before range read cursors are on vb */
-    store_item(vbid, "key1", "value1");
-
-    /* Add fake range read cursor on vb and update items */
-    {
-        auto itr = evb->makeRangeIterator(/*isBackfill*/ true);
-        /* update 'key2' and 'key3' */
-        store_item(vbid, "key2", "value1");
-        store_item(vbid, "key3", "value1");
-    }
-
-    /* update key2 once again with a range iterator again so that it has 2 stale
-     values */
-    {
-        auto itr = evb->makeRangeIterator(/*isBackfill*/ true);
-        /* update 'key2' */
-        store_item(vbid, "key2", "value1");
-    }
-
-    removeCheckpoint(numItems);
-
-    /* Set up a DCP stream for the backfill */
-    setup_dcp_stream();
-
-    /* We want the backfill task to run in a background thread */
-    ExecutorPool::get()->setNumAuxIO(1);
-    stream->transitionStateToBackfilling();
-
-    /* Wait for the backfill task to complete */
-    {
-        std::chrono::microseconds uSleepTime(128);
-        uint64_t expLastReadSeqno = 4 /*numItems*/ + 4 /*num updates*/;
-        while (expLastReadSeqno !=
-               static_cast<uint64_t>(stream->getLastReadSeqno())) {
-            uSleepTime = decayingSleep(uSleepTime);
-        }
-    }
-
-    /* Verify that only 4 items are read in the backfill (no duplicates) */
-    EXPECT_EQ(numItems, stream->getNumBackfillItems());
-
-    destroy_dcp_stream();
-}
-
-TEST_P(StreamTest, CursorDroppingBasicBackfillState) {
-    /* Add 2 items; we need this to keep stream in backfill state */
-    const int numItems = 2;
-    addItemsAndRemoveCheckpoint(numItems);
-
-    /* Set up a DCP stream */
-    setup_dcp_stream();
-
-    /* Transition stream to backfill state and expect cursor dropping call to
-       succeed */
-    stream->transitionStateToBackfilling();
-    EXPECT_TRUE(stream->public_handleSlowStream());
-
-    /* Run the backfill task in background thread to run so that it can
-       complete/cancel itself */
-    ExecutorPool::get()->setNumAuxIO(1);
-    /* Finish up with the backilling of the remaining item */
-    {
-        std::chrono::microseconds uSleepTime(128);
-        while (numItems != stream->getLastReadSeqno()) {
-            uSleepTime = decayingSleep(uSleepTime);
-        }
-    }
-    destroy_dcp_stream();
-}
-
-TEST_P(StreamTest, CursorDroppingBasicInMemoryState) {
-    /* Set up a DCP stream */
-    setup_dcp_stream();
-
-    /* Transition stream to in-memory state and expect cursor dropping call to
-       succeed */
-    EXPECT_TRUE(stream->public_handleSlowStream());
-    destroy_dcp_stream();
-}
-
-TEST_P(StreamTest, CursorDroppingBasicNotAllowedStates) {
-    /* Set up a DCP stream */
-    setup_dcp_stream(DCP_ADD_STREAM_FLAG_TAKEOVER);
-
-    /* Transition stream to takeoverSend state and expect cursor dropping call
-       to fail */
-    stream->transitionStateToTakeoverSend();
-    EXPECT_FALSE(stream->public_handleSlowStream());
-
-    /* Transition stream to takeoverWait state and expect cursor dropping call
-       to fail */
-    stream->transitionStateToTakeoverWait();
-    EXPECT_FALSE(stream->public_handleSlowStream());
-
-    /* Transition stream to takeoverSend state and expect cursor dropping call
-       to fail */
-    stream->transitionStateToTakeoverDead();
-    EXPECT_FALSE(stream->public_handleSlowStream());
-    destroy_dcp_stream();
-}
-
-TEST_P(StreamTest, RollbackDueToPurge) {
-    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
-
-    /* Store 4 items */
-    const int numItems = 4;
-    for (int i = 0; i <= numItems; ++i) {
-        store_item(vbid, std::string("key" + std::to_string(i)), "value");
-    }
-    uint64_t vbUuid = vb0->failovers->getLatestUUID();
-    uint64_t rollbackSeqno;
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->streamRequest(/*flags*/ 0,
-                                      /*opaque*/ 0,
-                                      Vbid(0),
-                                      /*start_seqno*/ numItems - 2,
-                                      /*end_seqno*/ numItems,
-                                      vbUuid,
-                                      /*snap_start*/ numItems - 2,
-                                      /*snap_end*/ numItems - 2,
-                                      &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog,
-                                      {}));
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->closeStream(/*opaque*/ 0, vb0->getId()));
-
-    /* Set a start_seqno > purge_seqno > snap_start_seqno */
-    engine->getKVBucket()->getLockedVBucket(vbid)->setPurgeSeqno(numItems - 3);
-
-    /* We don't expect a rollback for this */
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->streamRequest(/*flags*/ 0,
-                                      /*opaque*/ 0,
-                                      Vbid(0),
-                                      /*start_seqno*/ numItems - 2,
-                                      /*end_seqno*/ numItems,
-                                      vbUuid,
-                                      /*snap_start*/ 0,
-                                      /*snap_end*/ numItems - 2,
-                                      &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog,
-                                      {}));
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->closeStream(/*opaque*/ 0, vb0->getId()));
-
-    /* Set a purge_seqno > start_seqno */
-    engine->getKVBucket()->getLockedVBucket(vbid)->setPurgeSeqno(numItems - 1);
-
-    /* Now we expect a rollback to 0 */
-    EXPECT_EQ(ENGINE_ROLLBACK,
-              producer->streamRequest(/*flags*/ 0,
-                                      /*opaque*/ 0,
-                                      Vbid(0),
-                                      /*start_seqno*/ numItems - 2,
-                                      /*end_seqno*/ numItems,
-                                      vbUuid,
-                                      /*snap_start*/ numItems - 2,
-                                      /*snap_end*/ numItems - 2,
-                                      &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog,
-                                      {}));
-    EXPECT_EQ(0, rollbackSeqno);
-    destroy_dcp_stream();
-}
-
-/*
- * Test to ensure that when a streamRequest is made to a dead vbucket, we
- * (1) return not my vbucket.
- * (2) do not invoke the callback function (which is passed as parameter).
- * The reason we don't want to invoke the callback function is that it will
- * invoke mcbp_response_handler and so generate a response (ENGINE_SUCCESS) and
- * then when we continue the execution of the streamRequest function we generate
- * a second response (ENGINE_NOT_MY_VBUCKET).
- */
-TEST_P(StreamTest, MB_25820_callback_not_invoked_on_dead_vb_stream_request) {
-    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
-    ASSERT_EQ(ENGINE_SUCCESS,
-              engine->getKVBucket()->setVBucketState(vbid,
-                                                     vbucket_state_dead,
-                                                     true));
-    uint64_t vbUuid = vb0->failovers->getLatestUUID();
-    uint64_t rollbackSeqno;
-    // Given the vbucket state is dead we should return not my vbucket.
-    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET,
-              producer->streamRequest(/*flags*/ 0,
-                                      /*opaque*/ 0,
-                                      Vbid(0),
-                                      /*start_seqno*/ 0,
-                                      /*end_seqno*/ 0,
-                                      vbUuid,
-                                      /*snap_start*/ 0,
-                                      /*snap_end*/ 0,
-                                      &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog,
-                                      {}));
-    // The callback function past to streamRequest should not be invoked.
-    ASSERT_EQ(0, callbackCount);
-}
-
-class CacheCallbackTest : public StreamTest {
-protected:
-    void SetUp() override {
-        StreamTest::SetUp();
-        store_item(vbid, key, "value");
-
-        /* Create new checkpoint so that we can remove the current checkpoint
-         * and force a backfill in the DCP stream */
-        CheckpointManager& ckpt_mgr = *vb0->checkpointManager;
-        ckpt_mgr.createNewCheckpoint();
-
-        /* Wait for removal of the old checkpoint, this also would imply that
-         * the items are persisted (in case of persistent buckets) */
-        {
-            bool new_ckpt_created;
-            std::chrono::microseconds uSleepTime(128);
-            while (numItems !=
-                    ckpt_mgr.removeClosedUnrefCheckpoints(*vb0,
-                                                          new_ckpt_created)) {
-                uSleepTime = decayingSleep(uSleepTime);
-            }
-        }
-
-        /* Set up a DCP stream for the backfill */
-        setup_dcp_stream();
-    }
-
-    void TearDown() override {
-        producer->closeAllStreams();
-        StreamTest::TearDown();
-    }
-
-    const size_t numItems = 1;
-    const std::string key = "key";
-    const DocKey docKey{key, DocKeyEncodesCollectionId::No};
-};
-
-/*
- * Tests the callback member function of the CacheCallback class.  This
- * particular test should result in the CacheCallback having a status of
- * ENGINE_KEY_EEXISTS.
- */
-TEST_P(CacheCallbackTest, CacheCallback_key_eexists) {
-    CacheCallback callback(*engine, stream);
-
-    stream->transitionStateToBackfilling();
-    auto collectionsReadHandle = vb0->lockCollections(docKey);
-    CacheLookup lookup(docKey, /*BySeqno*/ 1, vbid, collectionsReadHandle);
-    callback.callback(lookup);
-
-    /* Invoking callback should result in backfillReceived being called on
-     * activeStream, which should return true and hence set the callback status
-     * to ENGINE_KEY_EEXISTS.
-     */
-    EXPECT_EQ(ENGINE_KEY_EEXISTS, callback.getStatus());
-
-    /* Verify that the item is read in the backfill */
-    EXPECT_EQ(numItems, stream->getNumBackfillItems());
-
-    /* Verify have the backfill item sitting in the readyQ */
-    EXPECT_EQ(numItems, stream->public_readyQ().size());
-}
-
-/*
- * Tests the callback member function of the CacheCallback class.  This
- * particular test should result in the CacheCallback having a status of
- * ENGINE_SUCCESS.
- */
-TEST_P(CacheCallbackTest, CacheCallback_engine_success) {
-    CacheCallback callback(*engine, stream);
-
-    stream->transitionStateToBackfilling();
-    // Passing in wrong BySeqno - should be 1, but passing in 0
-    auto collectionsReadHandle = vb0->lockCollections(docKey);
-    CacheLookup lookup(docKey, /*BySeqno*/ 0, vbid, collectionsReadHandle);
-    callback.callback(lookup);
-
-    /* Invoking callback should result in backfillReceived NOT being called on
-     * activeStream, and hence the callback status should be set to
-     * ENGINE_SUCCESS.
-     */
-    EXPECT_EQ(ENGINE_SUCCESS, callback.getStatus());
-
-    /* Verify that the item is not read in the backfill */
-    EXPECT_EQ(0, stream->getNumBackfillItems());
-
-    /* Verify do not have the backfill item sitting in the readyQ */
-    EXPECT_EQ(0, stream->public_readyQ().size());
-}
-
-/*
- * Tests the callback member function of the CacheCallback class.  Due to the
- * key being evicted the test should result in the CacheCallback having a status
- * of ENGINE_SUCCESS.
- */
-TEST_P(CacheCallbackTest, CacheCallback_engine_success_not_resident) {
-    if (bucketType == "ephemeral") {
-        /* The test relies on being able to evict a key from memory.
-         * Eviction is not supported with empherial buckets.
-         */
-        return;
-    }
-    CacheCallback callback(*engine, stream);
-
-    stream->transitionStateToBackfilling();
-    auto collectionsReadHandle = vb0->lockCollections(docKey);
-    CacheLookup lookup(docKey, /*BySeqno*/ 1, vbid, collectionsReadHandle);
-    // Make the key non-resident by evicting the key
-    const char* msg;
-    engine->getKVBucket()->evictKey(docKey, vbid, &msg);
-    callback.callback(lookup);
-
-    /* With the key evicted, invoking callback should result in backfillReceived
-     * NOT being called on activeStream, and hence the callback status should be
-     * set to ENGINE_SUCCESS
-     */
-    EXPECT_EQ(ENGINE_SUCCESS, callback.getStatus());
-
-    /* Verify that the item is not read in the backfill */
-    EXPECT_EQ(0, stream->getNumBackfillItems());
-
-    /* Verify do not have the backfill item sitting in the readyQ */
-    EXPECT_EQ(0, stream->public_readyQ().size());
-}
-
-/*
- * Tests the callback member function of the CacheCallback class.  This
- * particular test should result in the CacheCallback having a status of
- * ENGINE_ENOMEM.
- */
-TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
-    /*
-     * Ensure that DcpProducer::recordBackfillManagerBytesRead returns false
-     * by setting the backfill buffer size to zero, and then setting bytes read
-     * to one.
-     */
-    producer->setBackfillBufferSize(0);
-    producer->bytesForceRead(1);
-
-    CacheCallback callback(*engine, stream);
-
-    stream->transitionStateToBackfilling();
-    auto collectionsReadHandle = vb0->lockCollections(docKey);
-    CacheLookup lookup(docKey, /*BySeqno*/ 1, vbid, collectionsReadHandle);
-    callback.callback(lookup);
-
-    /* Invoking callback should result in backfillReceived being called on
-     * activeStream, which should return false (due to
-     * DcpProducer::recordBackfillManagerBytesRead returning false), and hence
-     * set the callback status to ENGINE_ENOMEM.
-     */
-    EXPECT_EQ(ENGINE_ENOMEM, callback.getStatus());
-
-    /* Verify that the item is not read in the backfill */
-    EXPECT_EQ(0, stream->getNumBackfillItems());
-
-    /* Verify do not have the backfill item sitting in the readyQ */
-    EXPECT_EQ(0, stream->public_readyQ().size());
 }
 
 class ConnectionTest : public DCPTest,
@@ -3733,14 +2441,6 @@ TEST_F(ActiveStreamChkptProcessorTaskTest, DeleteDeadStreamEntry) {
     notifyAndStepToCheckpoint();
 }
 
-// Test cases which run in both Full and Value eviction
-INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
-                        StreamTest,
-                        ::testing::Values("persistent", "ephemeral"),
-                        [](const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
-
 struct PrintToStringCombinedNameXattrOnOff {
     std::string operator()(
             const ::testing::TestParamInfo<::testing::tuple<std::string, bool>>&
@@ -3759,14 +2459,6 @@ INSTANTIATE_TEST_CASE_P(CompressionStreamTest,
                                                              "ephemeral"),
                                            ::testing::Bool()),
                         PrintToStringCombinedNameXattrOnOff());
-
-// Test cases which run in both Full and Value eviction
-INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
-                        CacheCallbackTest,
-                        ::testing::Values("persistent", "ephemeral"),
-                        [](const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
 
 static auto allConfigValues = ::testing::Values(
         std::make_tuple(std::string("ephemeral"), std::string("auto_delete")),
