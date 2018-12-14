@@ -515,6 +515,7 @@ private:
     queue_op op;
     uint8_t nru  : 2;
     uint8_t deleted : 1;
+    // If deleted, deletionCause stores the cause of the deletion.
     uint8_t deletionCause : 1;
 
     // Keep a cached version of the datatype. It allows for using

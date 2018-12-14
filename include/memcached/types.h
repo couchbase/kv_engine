@@ -156,6 +156,11 @@ static const ExpiryLimit NoExpiryLimit{};
 enum class DeleteSource : uint8_t { Explicit = 0, TTL = 1 };
 
 /**
+ * Convert deletionSource to string for visual output
+ */
+std::string to_string(DeleteSource deleteSource);
+
+/**
  * The committed state of the Item.
  * Used in a bitfield in StoredValue hence explicit values for enums required.
  */

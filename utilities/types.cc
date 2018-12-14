@@ -30,3 +30,13 @@ std::string to_string(DocumentState& ds) {
 std::ostream& operator<<(std::ostream& os, DocumentState& ds) {
     return os << to_string(ds);
 }
+
+std::string to_string(DeleteSource deleteSource) {
+    switch (deleteSource) {
+    case DeleteSource::Explicit:
+        return "Explicit";
+    case DeleteSource::TTL:
+        return "TTL";
+    }
+    return "Invalid DeleteSource";
+}

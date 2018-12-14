@@ -89,24 +89,40 @@ public:
      * @param flush_before_rollback: Should the vbucket be flushed to disk just
      *        before the rollback (i.e. guaranteeing the in-memory state is in
      *        sync with disk).
+     * @param expire_item: Instead of deleting the item, expire the item using
+     *        an expiry time and triggering it via a get.
      */
-    void rollback_after_deletion_test(bool flush_before_rollback) {
+    void rollback_after_deletion_test(bool flush_before_rollback,
+                                      bool expire_item) {
         // Setup: Store an item then flush the vBucket (creating a checkpoint);
-        // then delete the item and create a second checkpoint.
+        // then delete/expire the item and create a second checkpoint.
         StoredDocKey a = makeStoredDocKey("key");
-        auto item_v1 = store_item(vbid, a, "1");
+        auto expiryTime = 0;
+        if (expire_item) {
+            expiryTime = 10;
+        }
+        auto item_v1 = store_item(vbid, a, "1", expiryTime);
         ASSERT_EQ(initial_seqno + 1, item_v1.getBySeqno());
         ASSERT_EQ(std::make_pair(false, size_t(1)),
                   getEPBucket().flushVBucket(vbid));
-        uint64_t cas = item_v1.getCas();
-        mutation_descr_t mutation_descr;
-        ASSERT_EQ(ENGINE_SUCCESS,
-                  store->deleteItem(a,
-                                    cas,
-                                    vbid,
-                                    /*cookie*/ nullptr,
-                                    /*itemMeta*/ nullptr,
-                                    mutation_descr));
+        if (expire_item) {
+            // Move time forward and trigger expiry on a get.
+            TimeTraveller arron(expiryTime * 2);
+            ASSERT_EQ(
+                    ENGINE_KEY_ENOENT,
+                    store->get(a, vbid, /*cookie*/ nullptr, get_options_t::NONE)
+                            .getStatus());
+        } else {
+            uint64_t cas = item_v1.getCas();
+            mutation_descr_t mutation_descr;
+            ASSERT_EQ(ENGINE_SUCCESS,
+                      store->deleteItem(a,
+                                        cas,
+                                        vbid,
+                                        /*cookie*/ nullptr,
+                                        /*itemMeta*/ nullptr,
+                                        mutation_descr));
+        }
         if (flush_before_rollback) {
             ASSERT_EQ(std::make_pair(false, size_t(1)),
                       getEPBucket().flushVBucket(vbid));
@@ -453,11 +469,23 @@ TEST_P(RollbackTest, RollbackAfterMutationNoFlush) {
 }
 
 TEST_P(RollbackTest, RollbackAfterDeletion) {
-    rollback_after_deletion_test(/*flush_before_rollback*/true);
+    rollback_after_deletion_test(/*flush_before_rollback*/ true,
+                                 /*expire_item*/ false);
 }
 
 TEST_P(RollbackTest, RollbackAfterDeletionNoFlush) {
-    rollback_after_deletion_test(/*flush_before_rollback*/false);
+    rollback_after_deletion_test(/*flush_before_rollback*/ false,
+                                 /*expire_item*/ false);
+}
+
+TEST_P(RollbackTest, RollbackAfterExpiration) {
+    rollback_after_deletion_test(/*flush_before_rollback*/ true,
+                                 /*expire_item*/ true);
+}
+
+TEST_P(RollbackTest, RollbackAfterExpirationNoFlush) {
+    rollback_after_deletion_test(/*flush_before_rollback*/ false,
+                                 /*expire_item*/ true);
 }
 
 TEST_P(RollbackTest, RollbackToMiddleOfAPersistedSnapshot) {
@@ -500,18 +528,21 @@ TEST_P(RollbackTest, RollbackMutationDocCountsNoFlush) {
 // Test what happens when we rollback a deletion of a document that existed
 // before rollback that has been persisted
 TEST_P(RollbackTest, RollbackDeletionDocCounts) {
-    rollback_stat_test(
-            1,
-            std::bind(&RollbackTest::rollback_after_deletion_test, this, true));
+    rollback_stat_test(1,
+                       std::bind(&RollbackTest::rollback_after_deletion_test,
+                                 this,
+                                 true,
+                                 false));
 }
 
 // Test what happens when we rollback a deletion of a document that existed
 // before rollback that has not been persisted
 TEST_P(RollbackTest, RollbackDeletionDocCountsNoFlush) {
-    rollback_stat_test(
-            1,
-            std::bind(
-                    &RollbackTest::rollback_after_deletion_test, this, false));
+    rollback_stat_test(1,
+                       std::bind(&RollbackTest::rollback_after_deletion_test,
+                                 this,
+                                 false,
+                                 false));
 }
 
 // Test what happens if we rollback the creation and deletion of a document

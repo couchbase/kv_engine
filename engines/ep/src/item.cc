@@ -120,6 +120,7 @@ Item::Item(const Item& other)
       op(other.op),
       nru(other.nru),
       deleted(other.deleted),
+      deletionCause(other.deletionCause),
       datatype(other.datatype),
       durabilityReqs(other.durabilityReqs) {
     ObjectRegistry::onCreateItem(this);
@@ -165,7 +166,11 @@ bool operator==(const Item& lhs, const Item& rhs) {
            // (lhs.queuedTime == rhs.queuedTime) &&
            (lhs.vbucketId == rhs.vbucketId) &&
            (lhs.op == rhs.op) &&
-           (lhs.nru == rhs.nru);
+           (lhs.nru == rhs.nru) &&
+           (lhs.deleted == rhs.deleted) &&
+           // Note: deletionCause is only checked if the item is deleted
+           ((lhs.deleted && lhs.deletionCause) ==
+            (rhs.deleted && rhs.deletionCause));
 }
 
 std::ostream& operator<<(std::ostream& os, const Item& i) {
@@ -179,7 +184,13 @@ std::ostream& operator<<(std::ostream& os, const Item& i) {
     os << "\tmetadata:" << i.metaData << "\n"
        << "\tbySeqno:" << i.bySeqno << " queuedTime:" << i.queuedTime << " "
        << i.vbucketId << " op:" << to_string(i.op) << " nru:" << int(i.nru)
-       << " datatype:" << int(i.getDataType()) << " deleted:" << i.isDeleted();
+       << " datatype:" << int(i.getDataType());
+
+    if (i.isDeleted()) {
+        os << " deleted:true(" << to_string(i.deletionSource()) << ")";
+    } else {
+        os << " deleted:false";
+    }
     return os;
 }
 

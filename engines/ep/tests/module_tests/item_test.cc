@@ -137,6 +137,31 @@ TEST_F(ItemTest, checkNRUandFreqCounterValueSetCorrectly) {
     EXPECT_EQ(128, item->getFreqCounterValue());
 }
 
+TEST_F(ItemTest, retainInfoUponItemCopy) {
+    // Setup the item using non-default parameters
+    std::string valueData = R"(oranges)";
+    auto key = makeStoredDocKey("apples");
+    Item item1 = Item(key,
+                      0xdeadbeef /* flags */,
+                      3600 /* exptime */,
+                      valueData.c_str(),
+                      valueData.size(),
+                      PROTOCOL_BINARY_DATATYPE_JSON,
+                      42 /* cas */,
+                      7 /* bySeqno */,
+                      Vbid(99),
+                      13 /* revSeqno */,
+                      2 /* nru */,
+                      128 /* freqCount */);
+    // Delete the item via TTL
+    item1.setDeleted(DeleteSource::TTL);
+
+    // Copy item using constructor
+    Item item2 = Item(item1);
+
+    EXPECT_EQ(item1, item2) << "Item values not retained on copy";
+}
+
 TEST_F(ItemPruneTest, testPruneNothing) {
     item->pruneValueAndOrXattrs(IncludeValue::Yes, IncludeXattrs::Yes);
 
