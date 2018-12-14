@@ -44,7 +44,7 @@ public:
     }
 
 protected:
-    /// The manifest which collection erasing can compare keys.
+    /// The manifest which collection scan can compare keys.
     Manifest manifest;
 };
 } // namespace VB

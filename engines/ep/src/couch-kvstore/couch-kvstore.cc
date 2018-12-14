@@ -983,8 +983,9 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
         return false;
     }
 
-    hook_ctx->eraserContext = std::make_unique<Collections::VB::EraserContext>(
-            readCollectionsManifest(*compactdb));
+    Collections::VB::Manifest manifest(readCollectionsManifest(*compactdb));
+    hook_ctx->eraserContext =
+            std::make_unique<Collections::VB::EraserContext>(manifest);
 
     uint64_t new_rev = compactdb.getFileRev() + 1;
 

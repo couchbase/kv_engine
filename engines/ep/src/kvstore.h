@@ -21,6 +21,7 @@
 
 #include "callbacks.h"
 #include "collections/eraser_context.h"
+#include "collections/scan_context.h"
 #include "storeddockey.h"
 
 #include <memcached/engine_common.h>
