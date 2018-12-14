@@ -307,34 +307,32 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
         return true; // skipped, but return true as it's not a failure
     }
 
-    if (itm->shouldReplicate()) {
-        std::unique_lock<std::mutex> lh(streamMutex);
-        if (isBackfilling() && filter.checkAndUpdate(*itm)) {
-            queued_item qi(std::move(itm));
-            std::unique_ptr<DcpResponse> resp(makeResponseFromItem(qi));
-            auto producer = producerPtr.lock();
-            if (!producer || !producer->recordBackfillManagerBytesRead(
-                                     resp->getApproximateSize(), force)) {
-                // Deleting resp may also delete itm (which is owned by
-                // resp)
-                resp.reset();
-                return false;
-            }
+    std::unique_lock<std::mutex> lh(streamMutex);
+    if (isBackfilling() && filter.checkAndUpdate(*itm)) {
+        queued_item qi(std::move(itm));
+        std::unique_ptr<DcpResponse> resp(makeResponseFromItem(qi));
+        auto producer = producerPtr.lock();
+        if (!producer || !producer->recordBackfillManagerBytesRead(
+                                 resp->getApproximateSize(), force)) {
+            // Deleting resp may also delete itm (which is owned by
+            // resp)
+            resp.reset();
+            return false;
+        }
 
-            bufferedBackfill.bytes.fetch_add(resp->getApproximateSize());
-            bufferedBackfill.items++;
-            lastReadSeqno.store(uint64_t(*resp->getBySeqno()));
+        bufferedBackfill.bytes.fetch_add(resp->getApproximateSize());
+        bufferedBackfill.items++;
+        lastReadSeqno.store(uint64_t(*resp->getBySeqno()));
 
-            pushToReadyQ(std::move(resp));
+        pushToReadyQ(std::move(resp));
 
-            lh.unlock();
-            notifyStreamReady();
+        lh.unlock();
+        notifyStreamReady();
 
-            if (backfill_source == BACKFILL_FROM_MEMORY) {
-                backfillItems.memory++;
-            } else {
-                backfillItems.disk++;
-            }
+        if (backfill_source == BACKFILL_FROM_MEMORY) {
+            backfillItems.memory++;
+        } else {
+            backfillItems.disk++;
         }
     }
 
