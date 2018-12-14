@@ -66,6 +66,10 @@ struct VBNotifyCtx {
     int64_t bySeqno = 0;
     bool notifyReplication = false;
     bool notifyFlusher = false;
+
+    // The number that should be added to the item count due to the performed
+    // operation (+1 for new, -1 for delete, 0 for update of existing doc)
+    int itemCountDifference = 0;
 };
 
 /**

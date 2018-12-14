@@ -81,15 +81,29 @@ TEST_F(EphemeralVBucketTest, DoublePageOut) {
     auto* storedVal = lock_sv.second;
     ASSERT_FALSE(storedVal->isDeleted());
 
+    // Before we page out the item we need to poke the collections stats to be
+    // correct. This is because these vbucket test hit internal functions
+    // (VBucket::processAdd) instead of the front end endpoints (VBucket::add)
+    // where the stat counting is done using the VBNotifyCtx.
+    // EphemeralVB::pageOut will delete the item so to prevent a stat counting
+    // underflow we should increment it.
+    ASSERT_EQ(0, readHandle.getItemCount(key.getCollectionID()));
+    readHandle.incrementDiskCount(key.getCollectionID());
+    ASSERT_EQ(1, readHandle.getItemCount(key.getCollectionID()));
+
     // Page out the item (once).
     EXPECT_TRUE(vbucket->pageOut(readHandle, lock_sv.first, storedVal));
     EXPECT_EQ(0, vbucket->getNumItems());
     EXPECT_TRUE(storedVal->isDeleted());
+    EXPECT_EQ(0, readHandle.getItemCount(key.getCollectionID()));
 
+    // We don't need to poke the collections stats again because the item is
+    // already deleted (i.e. there will be no stat change).
     // Attempt to page out again - should not be possible.
     EXPECT_FALSE(vbucket->pageOut(readHandle, lock_sv.first, storedVal));
     EXPECT_EQ(0, vbucket->getNumItems());
     EXPECT_TRUE(storedVal->isDeleted());
+    EXPECT_EQ(0, readHandle.getItemCount(key.getCollectionID()));
 }
 
 
@@ -137,9 +151,21 @@ TEST_F(EphemeralVBucketTest, CreatePageoutCreate) {
         // ManifestEntry manually). We must take this before the HashBucketLock
         // to prevent lock order inversion warnings in TSan.
         auto readHandle = vbucket->lockCollections();
+
+        // Before we page out the item we need to poke the collections stats to
+        // be correct. This is because these vbucket test hit internal functions
+        // (VBucket::processAdd) instead of the front end endpoints
+        // (VBucket::add) where the stat counting is done using the VBNotifyCtx.
+        // EphemeralVB::pageOut will delete the item so to prevent a stat
+        // counting underflow we should increment it.
+        ASSERT_EQ(0, readHandle.getItemCount(key.getCollectionID()));
+        readHandle.incrementDiskCount(key.getCollectionID());
+        ASSERT_EQ(1, readHandle.getItemCount(key.getCollectionID()));
+
         auto lock_sv = lockAndFind(key);
         EXPECT_TRUE(
                 vbucket->pageOut(readHandle, lock_sv.first, lock_sv.second));
+        EXPECT_EQ(0, readHandle.getItemCount(key.getCollectionID()));
     }
     // Sanity check - should have just the one deleted item.
     ASSERT_EQ(0, vbucket->getNumItems());
@@ -158,9 +184,21 @@ TEST_F(EphemeralVBucketTest, CreatePageoutCreate) {
         // ManifestEntry manually). We must take this before the HashBucketLock
         // to prevent lock order inversion warnings in TSan.
         auto readHandle = vbucket->lockCollections();
+
+        // Before we page out the item we need to poke the collections stats to
+        // be correct. This is because these vbucket test hit internal functions
+        // (VBucket::processAdd) instead of the front end endpoints
+        // (VBucket::add) where the stat counting is done using the VBNotifyCtx.
+        // EphemeralVB::pageOut will delete the item so to prevent a stat
+        // counting underflow we should increment it.
+        ASSERT_EQ(0, readHandle.getItemCount(key.getCollectionID()));
+        readHandle.incrementDiskCount(key.getCollectionID());
+        ASSERT_EQ(1, readHandle.getItemCount(key.getCollectionID()));
+
         auto lock_sv = lockAndFind(key);
         EXPECT_TRUE(
                 vbucket->pageOut(readHandle, lock_sv.first, lock_sv.second));
+        EXPECT_EQ(0, readHandle.getItemCount(key.getCollectionID()));
     }
     EXPECT_EQ(0, vbucket->getNumItems());
     EXPECT_EQ(1, mockEpheVB->getLL()->getNumDeletedItems());

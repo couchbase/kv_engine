@@ -1045,6 +1045,26 @@ void Manifest::setPersistedHighSeqno(CollectionID collection,
     itr->second.setPersistedHighSeqno(value);
 }
 
+void Manifest::incrementDiskCount(CollectionID collection) const {
+    auto itr = map.find(collection);
+    if (itr == map.end()) {
+        throwException<std::invalid_argument>(
+                __FUNCTION__,
+                "failed find of collection:" + collection.to_string());
+    }
+    return itr->second.incrementDiskCount();
+}
+
+void Manifest::decrementDiskCount(CollectionID collection) const {
+    auto itr = map.find(collection);
+    if (itr == map.end()) {
+        throwException<std::invalid_argument>(
+                __FUNCTION__,
+                "failed find of collection:" + collection.to_string());
+    }
+    return itr->second.decrementDiskCount();
+}
+
 bool Manifest::addCollectionStats(Vbid vbid,
                                   const void* cookie,
                                   const AddStatFn& add_stat) const {

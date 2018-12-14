@@ -205,6 +205,14 @@ public:
             manifest->setHighSeqno(collection, value);
         }
 
+        void incrementDiskCount(CollectionID collection) const {
+            manifest->incrementDiskCount(collection);
+        }
+
+        void decrementDiskCount(CollectionID collection) const {
+            manifest->decrementDiskCount(collection);
+        }
+
         bool addCollectionStats(Vbid vbid,
                                 const void* cookie,
                                 const AddStatFn& add_stat) const {
@@ -1111,6 +1119,20 @@ protected:
      */
     void setPersistedHighSeqno(CollectionID collection, uint64_t value,
             bool noThrow = false) const;
+
+    /**
+     * Increment the item count for the given collection. Const and can be
+     * called via a ReadHandle because the read lock only ensures the map
+     * does not change.
+     */
+    void incrementDiskCount(CollectionID collection) const;
+
+    /**
+     * Decrement the item count for the given collection. Const and can be
+     * called via a ReadHandle because the read lock only ensures the map
+     * does not change.
+     */
+    void decrementDiskCount(CollectionID collection) const;
 
     container::const_iterator end() const {
         return map.end();

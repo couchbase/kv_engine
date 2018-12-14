@@ -898,7 +898,7 @@ public:
 };
 
 // Test item counting when we store/delete flush and store again
-TEST_F(CollectionsTest, MB_31212) {
+TEST_P(CollectionsParameterizedTest, MB_31212) {
     CollectionsManifest cm;
     auto vb = store->getVBucket(vbid);
 
@@ -909,7 +909,7 @@ TEST_F(CollectionsTest, MB_31212) {
     delete_item(vbid, key);
 
     // Trigger a flush to disk. Flushes the meat create event and the delete
-    flush_vbucket_to_disk(vbid, 2);
+    flushVBucketToDiskIfPersistent(vbid, 2);
 
     // 0 items, we only have a delete on disk
     EXPECT_EQ(0, vb->lockCollections().getItemCount(CollectionEntry::meat));
@@ -917,7 +917,7 @@ TEST_F(CollectionsTest, MB_31212) {
     // Store the same key again and expect 1 item
     store_item(vbid, StoredDocKey{"beef", CollectionEntry::meat}, "value");
 
-    flush_vbucket_to_disk(vbid, 1);
+    flushVBucketToDiskIfPersistent(vbid, 1);
     EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::meat));
 }
 
@@ -1429,6 +1429,60 @@ TEST_P(CollectionsExpiryLimitTest, gat) {
         ASSERT_EQ(cb::engine_errc::success, rval.first);
     };
     operation_test(func, GetParam());
+}
+
+TEST_P(CollectionsParameterizedTest, item_counting) {
+    auto vb = store->getVBucket(vbid);
+
+    // Add the meat collection
+    CollectionsManifest cm(CollectionEntry::meat);
+    vb->updateFromManifest({cm});
+
+    // Default collection is open for business
+    store_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC}, "value");
+
+    // 1 system event + 1 item
+    KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 2);
+
+    EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::defaultC));
+    EXPECT_EQ(0, vb->lockCollections().getItemCount(CollectionEntry::meat));
+
+    store_item(vbid, StoredDocKey{"meat:beef", CollectionEntry::meat}, "value");
+    // 1 item
+    KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 1);
+
+    EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::defaultC));
+    EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::meat));
+
+    // Now modify our two items
+    store_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC}, "value");
+    // 1 item
+    KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 1);
+
+    EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::defaultC));
+    EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::meat));
+
+    store_item(vbid, StoredDocKey{"meat:beef", CollectionEntry::meat}, "value");
+    // 1 item
+    KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 1);
+
+    EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::defaultC));
+    EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::meat));
+
+    // Now delete our two items
+    delete_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC});
+    // 1 item
+    KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 1);
+
+    EXPECT_EQ(0, vb->lockCollections().getItemCount(CollectionEntry::defaultC));
+    EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::meat));
+
+    delete_item(vbid, StoredDocKey{"meat:beef", CollectionEntry::meat});
+    // 1 item
+    KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 1);
+
+    EXPECT_EQ(0, vb->lockCollections().getItemCount(CollectionEntry::defaultC));
+    EXPECT_EQ(0, vb->lockCollections().getItemCount(CollectionEntry::meat));
 }
 
 INSTANTIATE_TEST_CASE_P(CollectionsExpiryLimitTests,

@@ -2838,6 +2838,12 @@ void VBucket::doCollectionsStats(
         const Collections::VB::Manifest::CachingReadHandle& cHandle,
         const VBNotifyCtx& notifyCtx) {
     cHandle.setHighSeqno(notifyCtx.bySeqno);
+
+    if (notifyCtx.itemCountDifference == 1) {
+        cHandle.incrementDiskCount();
+    } else if (notifyCtx.itemCountDifference == -1) {
+        cHandle.decrementDiskCount();
+    }
 }
 
 void VBucket::doCollectionsStats(
@@ -2845,6 +2851,12 @@ void VBucket::doCollectionsStats(
         CollectionID collection,
         const VBNotifyCtx& notifyCtx) {
     readHandle.setHighSeqno(collection, notifyCtx.bySeqno);
+
+    if (notifyCtx.itemCountDifference == 1) {
+        readHandle.incrementDiskCount(collection);
+    } else if (notifyCtx.itemCountDifference == -1) {
+        readHandle.decrementDiskCount(collection);
+    }
 }
 void VBucket::doCollectionsStats(
         const Collections::VB::Manifest::WriteHandle& writeHandle,
