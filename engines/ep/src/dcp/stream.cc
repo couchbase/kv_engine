@@ -233,6 +233,13 @@ void Stream::addStats(ADD_STAT add_stat, const void *c) {
                 buffer, bsize, "%s:stream_%d_state", name_.c_str(), vb_.get());
         add_casted_stat(buffer, to_string(state_.load()), add_stat, c);
 
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_items_ready",
+                         name_.c_str(),
+                         vb_.get());
+        add_casted_stat(buffer, itemsReady.load(), add_stat, c);
+
         size_t readyQsize;
         {
             std::lock_guard<std::mutex> lh(streamMutex);

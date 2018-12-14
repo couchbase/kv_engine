@@ -649,12 +649,7 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void* c) {
                          name_.c_str(),
                          vb_.get());
         add_casted_stat(buffer, getReadyQueueMemory(), add_stat, c);
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_items_ready",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, itemsReady.load(), add_stat, c);
+
         checked_snprintf(buffer,
                          bsize,
                          "%s:stream_%d_backfill_buffer_bytes",
