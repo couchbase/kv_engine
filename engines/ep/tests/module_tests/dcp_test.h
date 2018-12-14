@@ -49,6 +49,21 @@ protected:
 
     void destroy_dcp_stream();
 
+    struct StreamRequestResult {
+        ENGINE_ERROR_CODE status;
+        uint64_t rollbackSeqno;
+    };
+
+    /**
+     * Helper function to simplify calling producer->streamRequest() - provides
+     * sensible default values for common invocations.
+     */
+    static StreamRequestResult doStreamRequest(DcpProducer& producer,
+                                               uint64_t startSeqno = 0,
+                                               uint64_t endSeqno = ~0,
+                                               uint64_t snapStart = 0,
+                                               uint64_t snapEnd = ~0,
+                                               uint64_t vbUUID = 0);
     /*
      * Creates an item with the key \"key\", containing json data and xattrs.
      * @return a unique_ptr to a newly created item.

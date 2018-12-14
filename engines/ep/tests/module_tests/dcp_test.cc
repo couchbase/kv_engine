@@ -243,6 +243,27 @@ void DCPTest::destroy_dcp_stream() {
     producer->closeStream(/*opaque*/ 0, vb0->getId());
 }
 
+DCPTest::StreamRequestResult DCPTest::doStreamRequest(DcpProducer& producer,
+                                                      uint64_t startSeqno,
+                                                      uint64_t endSeqno,
+                                                      uint64_t snapStart,
+                                                      uint64_t snapEnd,
+                                                      uint64_t vbUUID) {
+    DCPTest::StreamRequestResult result;
+    result.status = producer.streamRequest(/*flags*/ 0,
+                                           /*opaque*/ 0,
+                                           Vbid(0),
+                                           startSeqno,
+                                           endSeqno,
+                                           vbUUID,
+                                           snapStart,
+                                           snapEnd,
+                                           &result.rollbackSeqno,
+                                           DCPTest::fakeDcpAddFailoverLog,
+                                           {});
+    return result;
+}
+
 std::unique_ptr<Item> DCPTest::makeItemWithXattrs() {
     std::string valueData = R"({"json":"yes"})";
     std::string data = createXattrValue(valueData);
@@ -437,19 +458,7 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
         EXPECT_LT(keyAndSnappyValueMessageSize, dcpResponse->getMessageSize());
     }
 
-    uint64_t rollbackSeqno;
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->streamRequest(/*flags*/ 0,
-                                      /*opaque*/ 0,
-                                      Vbid(0),
-                                      /*start_seqno*/ 0,
-                                      /*end_seqno*/ ~0,
-                                      /*vb_uuid*/ 0,
-                                      /*snap_start*/ 0,
-                                      /*snap_end*/ ~0,
-                                      &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog,
-                                      {}));
+    EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
 
     producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
     ASSERT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
@@ -532,20 +541,7 @@ TEST_P(CompressionStreamTest, connection_snappy_enabled) {
     auto includeValue = isXattr() ? IncludeValue::No : IncludeValue::Yes;
     setup_dcp_stream(0, includeValue, IncludeXattrs::Yes);
 
-    uint64_t rollbackSeqno;
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->streamRequest(/*flags*/ 0,
-                                      /*opaque*/ 0,
-                                      Vbid(0),
-                                      /*start_seqno*/ 0,
-                                      /*end_seqno*/ ~0,
-                                      /*vb_uuid*/ 0,
-                                      /*snap_start*/ 0,
-                                      /*snap_end*/ ~0,
-                                      &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog,
-                                      {}));
-
+    EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
     MockDcpMessageProducers producers(engine);
     ASSERT_TRUE(producer->isCompressionEnabled());
 
@@ -621,19 +617,7 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
                      IncludeXattrs::Yes,
                      {{"force_value_compression", "true"}});
 
-    uint64_t rollbackSeqno;
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->streamRequest(/*flags*/ 0,
-                                      /*opaque*/ 0,
-                                      Vbid(0),
-                                      /*start_seqno*/ 0,
-                                      /*end_seqno*/ ~0,
-                                      /*vb_uuid*/ 0,
-                                      /*snap_start*/ 0,
-                                      /*snap_end*/ ~0,
-                                      &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog,
-                                      {}));
+    EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
     MockDcpMessageProducers producers(engine);
 
     ASSERT_TRUE(producer->isForceValueCompressionEnabled());
@@ -1048,10 +1032,10 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
 #endif
     const void* cookie = create_mock_cookie();
     /* Create a new Dcp producer */
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    producer = std::make_shared<MockDcpProducer>(*engine,
+                                                 cookie,
+                                                 "test_producer",
+                                                 /*flags*/ 0);
 
     /* Send a control message to the producer indicating that the DCP client
        expects a "DCP_STREAM_END" upon stream close */
@@ -1064,21 +1048,7 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
                                 sendStreamEndOnClientStreamCloseCtrlValue));
 
     /* Open stream */
-    uint64_t rollbackSeqno = 0;
-    uint32_t opaque = 0;
-    const Vbid vbid = Vbid(0);
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->streamRequest(/*flags*/ 0,
-                                      opaque,
-                                      vbid,
-                                      /*start_seqno*/ 0,
-                                      /*end_seqno*/ ~0,
-                                      /*vb_uuid*/ 0,
-                                      /*snap_start*/ 0,
-                                      /*snap_end*/ 0,
-                                      &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog,
-                                      {}));
+    EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
 
     // MB-28739[UBSan]: The following cast is undefined behaviour - the DCP
     // connection map object is of type DcpConnMap; so it's undefined to cast
@@ -1093,7 +1063,7 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
     EXPECT_TRUE(mockConnMap.doesConnHandlerExist(vbid, "test_producer"));
 
     /* Close stream */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(opaque, vbid));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(0, vbid));
 
     /* Expect a stream end message */
     MockDcpMessageProducers producers(handle);
@@ -1102,18 +1072,7 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
     EXPECT_EQ(END_STREAM_CLOSED, producers.last_flags);
 
     /* Re-open stream for the same vbucket on the conn */
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->streamRequest(/*flags*/ 0,
-                                      opaque,
-                                      vbid,
-                                      /*start_seqno*/ 0,
-                                      /*end_seqno*/ ~0,
-                                      /*vb_uuid*/ 0,
-                                      /*snap_start*/ 0,
-                                      /*snap_end*/ 0,
-                                      &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog,
-                                      {}));
+    EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
 
     /* Check that the new stream is opened properly */
     auto stream = producer->findStream(vbid);
@@ -1142,24 +1101,10 @@ TEST_P(ConnectionTest, test_producer_no_stream_end_on_client_close_stream) {
                                                 /*flags*/ 0);
 
     /* Open stream */
-    uint64_t rollbackSeqno = 0;
-    uint32_t opaque = 0;
-    const Vbid vbid = Vbid(0);
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->streamRequest(/*flags*/ 0,
-                                      opaque,
-                                      vbid,
-                                      /*start_seqno*/ 0,
-                                      /*end_seqno*/ ~0,
-                                      /*vb_uuid*/ 0,
-                                      /*snap_start*/ 0,
-                                      /*snap_end*/ 0,
-                                      &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog,
-                                      {}));
+    EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
 
     /* Close stream */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(opaque, vbid));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(0, vbid));
 
     /* Don't expect a stream end message (or any other message as the stream is
        closed) */
