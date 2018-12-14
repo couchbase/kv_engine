@@ -280,6 +280,7 @@ bool Filter::processCollectionEvent(const Item& item) {
         auto dcpData = VB::Manifest::getDropEventData(
                 {item.getData(), item.getNBytes()});
         manifestUid = dcpData.manifestUid;
+        sid = dcpData.sid;
         cid = dcpData.cid;
     }
 
@@ -292,8 +293,16 @@ bool Filter::processCollectionEvent(const Item& item) {
 
         // If scopeID is initialized then we are filtering on a scope
         if (sid && scopeID && (sid == scopeID)) {
-            // update the filter set as this collection is in our scope
-            filter.insert(cid);
+            if (item.isDeleted()) {
+                // The item is a drop collection from the filtered scope. The
+                // ::filter std::set should not store this collection, but it
+                // should be included in a DCP stream which cares for the scope.
+                // Return true and take no further actions.
+                return true;
+            } else {
+                // update the filter set as this collection is in our scope
+                filter.insert(cid);
+            }
         }
 
         // When filtered allow only if there is a match

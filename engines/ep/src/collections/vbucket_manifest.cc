@@ -938,7 +938,9 @@ DropEventData Manifest::getDropEventData(
     auto mutatedEntry =
             manifest->entries()->Get(manifest->entries()->size() - 1);
 
-    return {manifest->uid(), mutatedEntry->collectionId()};
+    return {manifest->uid(),
+            mutatedEntry->scopeId(),
+            mutatedEntry->collectionId()};
 }
 
 CreateScopeEventData Manifest::getCreateScopeEventData(

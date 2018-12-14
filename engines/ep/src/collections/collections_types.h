@@ -146,6 +146,7 @@ struct CreateEventData {
 
 struct DropEventData {
     ManifestUid manifestUid; // The Manifest which generated the event
+    ScopeID sid; // The scope that the collection belonged to
     CollectionID cid; // The collection the event belongs to
 };
 
@@ -212,16 +213,18 @@ struct CreateWithMaxTtlEventDcpData {
  */
 struct DropEventDcpData {
     DropEventDcpData(const DropEventData& data)
-        : manifestUid(data.manifestUid), cid(data.cid) {
+        : manifestUid(data.manifestUid), sid(data.sid), cid(data.cid) {
     }
 
     /// The manifest uid stored in network byte order ready for sending
     ManifestUidNetworkOrder manifestUid;
+    /// The scope id stored in network byte order ready for sending
+    ScopeIDNetworkOrder sid;
     /// The collection id stored in network byte order ready for sending
     CollectionIDNetworkOrder cid;
     // The size is sizeof(manifestUid) + sizeof(cid) (msvc won't allow that
     // expression)
-    constexpr static size_t size{12};
+    constexpr static size_t size{16};
 };
 
 /**

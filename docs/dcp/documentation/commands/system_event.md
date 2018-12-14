@@ -9,7 +9,7 @@ identifier for the event, the following events are defined (values shown).
 
 * 0 - A collection has been created
 * 1 - A collection has been dropped
-* 2 - A collection has been flushed (not yet supported)
+* 2 - A collection has been flushed (not yet generated)
 * 3 - A scope has been created
 * 4 - A scope has been droppped
 
@@ -151,8 +151,8 @@ __Value__: version 0 and version 1 values are defined.
 
 #### version 0
 * The ID of the manifest which generated the collection as a 8-byte integer (network endian)
-* The ID of the new collection as a 4-byte integer (network endian)
 * The Scope-ID that the new collection belongs to as a 4-byte integer (network endian)
+* The ID of the new collection as a 4-byte integer (network endian)
 
 ```
     struct collection_create_event_data_version0 {
@@ -183,11 +183,13 @@ __Key__: A drop collection system event has no key.
 __Value__: A drop or flush collection system event with version 0 contains:
 
 * The ID of the manifest which dropped the collection as a 8-byte integer (network endian)
+* The Scope-ID that the dropped collection belonged to as a 4-byte integer (network endian)
 * The ID of the dropped collection as a 4-byte integer (network endian)
 
 ```
     struct collection_drop_event_data_version0 {
         uint64_t manifest_uid;
+        uint32_t scope_id;
         uint32_t collection_id;
     }
 ```

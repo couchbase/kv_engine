@@ -50,7 +50,7 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     Collections::CreateEventData createEventData{
             manifestUid, sid, cid, "noname", {/*no ttl*/}};
     Collections::CreateEventDcpData createEventDcpData{createEventData};
-    Collections::DropEventData dropEventData{manifestUid, cid};
+    Collections::DropEventData dropEventData{manifestUid, sid, cid};
     Collections::DropEventDcpData dropEventDcpData{dropEventData};
 
     ASSERT_EQ(ENGINE_SUCCESS,
@@ -1420,10 +1420,63 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
     // 1x create - create of vegetable
     // 2x mutations - 2x mutations in vegetable
     // 1x delete - the tombstone of dairy
-    // 1x scope delete - the tombstone of shop1
+    // 1x scope create - the create of shop1
     testDcpCreateDelete({CollectionEntry::vegetable},
                         {CollectionEntry::dairy},
                         2,
+                        false,
+                        {ScopeEntry::shop1});
+}
+
+// Created for MB-32360
+// Note this test does not resume a DCP stream, but a new stream from 0 hits
+// the same issue, the filter doesn't know the collection was part of the scope
+TEST_F(CollectionsFilteredDcpTest, collection_tombstone_on_scope_filter) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Perform a create of meat/dairy(shop1)/vegetable(shop1) via the bucket
+    // level
+    CollectionsManifest cm;
+    store->setCollections(
+            {cm.add(CollectionEntry::meat)
+                     .add(ScopeEntry::shop1)
+                     .add(CollectionEntry::dairy, ScopeEntry::shop1)
+                     .add(CollectionEntry::vegetable, ScopeEntry::shop1)});
+
+    store_item(vbid, StoredDocKey{"dairy1", CollectionEntry::dairy}, "value");
+    store_item(vbid, StoredDocKey{"dairy2", CollectionEntry::dairy}, "value");
+
+    // Now delete the dairy collection
+    store->setCollections(
+            {cm.remove(CollectionEntry::dairy, ScopeEntry::shop1)});
+
+    // Flush it all out
+    flush_vbucket_to_disk(vbid, 6);
+
+    // Force collection purge. This is the crucial trigger behind MB-32360
+    // Compaction runs and drops all items of dairy, when compaction gets to the
+    // dairy deletion system event it triggers 'completeDelete', this is what
+    // removes the dairy collection from KV meta-data and allowed the new DCP
+    // stream to fail to replicate the collection-drop(dairy) event
+    runCompaction();
+
+    vb.reset();
+
+    // Force warmup, it's not required for the MB, but makes the test simpler
+    // to progress the DCP tasks
+    resetEngineAndWarmup();
+
+    // Now stream back from disk and check filtering
+    createDcpObjects({{R"({"scope":"8"})"}});
+
+    // Streamed from disk
+    // 1x create - create of vegetable
+    // 2x mutations - 2x mutations in vegetable
+    // 1x delete - the tombstone of dairy
+    // 1x scope create - the create of shop1
+    testDcpCreateDelete({CollectionEntry::vegetable},
+                        {CollectionEntry::dairy},
+                        0,
                         false,
                         {ScopeEntry::shop1});
 }

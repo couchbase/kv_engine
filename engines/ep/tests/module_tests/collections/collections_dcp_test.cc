@@ -104,8 +104,10 @@ void CollectionsDcpTest::teardown() {
         consumer->closeAllStreams();
         consumer->cancelTask();
     }
-    producer->closeAllStreams();
-    producer->cancelCheckpointCreatorTask();
+    if (producer) {
+        producer->closeAllStreams();
+        producer->cancelCheckpointCreatorTask();
+    }
     producer.reset();
     consumer.reset();
 }
