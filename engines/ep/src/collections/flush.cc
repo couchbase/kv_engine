@@ -18,6 +18,7 @@
 #include "collections/flush.h"
 #include "collections/collection_persisted_stats.h"
 #include "collections/vbucket_manifest.h"
+#include "ep_bucket.h"
 #include "item.h"
 
 void Collections::VB::Flush::processManifestChange(const queued_item& item) {
@@ -82,5 +83,14 @@ void Collections::VB::Flush::setPersistedHighSeqno(const DocKey& key,
     if (key.getCollectionID() != CollectionID::System) {
         mutated.insert(key.getCollectionID());
         manifest.lock(key).setPersistedHighSeqno(value);
+    }
+}
+
+void Collections::VB::Flush::checkAndTriggerPurge(Vbid vbid,
+                                                  EPBucket& bucket) const {
+    if (!deletedCollections.empty()) {
+        CompactionConfig config;
+        config.db_file_id = vbid;
+        bucket.scheduleCompaction(vbid, config, nullptr);
     }
 }

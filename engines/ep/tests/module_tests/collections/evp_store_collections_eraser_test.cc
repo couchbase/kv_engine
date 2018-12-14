@@ -37,10 +37,6 @@ public:
         SingleThreadedKVBucketTest::TearDown();
     }
 
-    void runEraser() {
-        runCompaction();
-    }
-
     bool isFullEviction() const {
         return GetParam().find("item_eviction_policy=full_eviction") !=
                std::string::npos;
@@ -79,7 +75,7 @@ TEST_P(CollectionsEraserTest, basic) {
     // Deleted, but still exists in the manifest
     EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy));
 
-    runEraser();
+    runCollectionsEraser();
 
     EXPECT_EQ(0, vb->getNumItems());
 
@@ -119,7 +115,7 @@ TEST_P(CollectionsEraserTest, basic_2_collections) {
 
     flush_vbucket_to_disk(vbid, 2 /* 2 x system */);
 
-    runEraser();
+    runCollectionsEraser();
 
     EXPECT_EQ(0, vb->getNumItems());
 
@@ -159,7 +155,7 @@ TEST_P(CollectionsEraserTest, basic_3_collections) {
 
     flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
 
-    runEraser();
+    runCollectionsEraser();
 
     EXPECT_EQ(2, vb->getNumItems());
 
@@ -200,7 +196,7 @@ TEST_P(CollectionsEraserTest, basic_4_collections) {
 
     flush_vbucket_to_disk(vbid, 3 /* 3x system (2 deletes, 1 create) */);
 
-    runEraser();
+    runCollectionsEraser();
 
     EXPECT_EQ(0, vb->getNumItems());
 
@@ -233,7 +229,7 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
 
     flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
 
-    runEraser();
+    runCollectionsEraser();
 
     EXPECT_EQ(0, vb->getNumItems());
 
@@ -287,7 +283,7 @@ TEST_P(CollectionsEraserTest, erase_and_reset) {
 
     flush_vbucket_to_disk(vbid, 3 /* 3x system (2 deletes, 1 create) */);
 
-    runEraser();
+    runCollectionsEraser();
 
     EXPECT_EQ(0, vb->getNumItems());
 

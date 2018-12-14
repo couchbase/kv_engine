@@ -38,12 +38,12 @@
 #include <mcbp/protocol/framebuilder.h>
 #include <memcached/server_cookie_iface.h>
 
-class RollbackTest : public EPBucketTest,
+class RollbackTest : public SingleThreadedEPBucketTest,
                      public ::testing::WithParamInterface<
                              std::tuple<std::string, std::string>> {
     void SetUp() override {
         config_string += "item_eviction_policy=" + std::get<0>(GetParam());
-        EPBucketTest::SetUp();
+        SingleThreadedEPBucketTest::SetUp();
         if (std::get<1>(GetParam()) == "pending") {
             vbStateAtRollback = vbucket_state_pending;
         } else {

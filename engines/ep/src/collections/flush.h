@@ -23,6 +23,8 @@
 #include <unordered_set>
 #include <vector>
 
+class EPBucket;
+
 namespace Collections {
 namespace VB {
 
@@ -87,6 +89,14 @@ public:
      * Set the highest seqno that needs to be persisted for this collection
      */
     void setPersistedHighSeqno(const DocKey& key, uint64_t value);
+
+    /**
+     * Check to see if this flush should trigger a collection purge which if
+     * true schedules a task which will iterate the vbucket's documents removing
+     * those of any dropped collections. The actual task currently scheduled is
+     * compaction.
+     */
+    void checkAndTriggerPurge(Vbid vbid, EPBucket& bucket) const;
 
 private:
     /**

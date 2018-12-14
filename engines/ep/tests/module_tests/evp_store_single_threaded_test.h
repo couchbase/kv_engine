@@ -98,6 +98,13 @@ public:
     void runCompaction(uint64_t purgeBeforeTime = 0,
                        uint64_t purgeBeforeSeq = 0);
 
+    /**
+     * Run the task responsible for iterating the documents and erasing them
+     * For persistent buckets integrated into compaction.
+     * For ephemeral buckets integrated into stale item removal task
+     */
+    void runCollectionsEraser();
+
 protected:
     void SetUp() override;
 

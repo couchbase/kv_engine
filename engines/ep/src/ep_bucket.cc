@@ -469,6 +469,8 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             stats.cumulativeFlushTime.fetch_add(trans_time);
             stats.flusher_todo.store(0);
             stats.totalPersistVBState++;
+
+            sef.getCollectionFlush().checkAndTriggerPurge(vb->getId(), *this);
         }
 
         rwUnderlying->pendingTasks();

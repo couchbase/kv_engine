@@ -864,14 +864,14 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
                   vb->lockCollections().getItemCount(CollectionEntry::meat));
     } // VBucketPtr scope ends
 
+    // Ensure collection purge has executed
+    runCollectionsEraser();
+
     resetEngineAndWarmup();
 
     EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumInMemoryItems());
-    // Eraser hasn't ran, but the collection deletion will have resulted in
-    // the stat document being removed
-    EXPECT_EQ(0,
-              store->getVBucket(vbid)->lockCollections().getItemCount(
-                      CollectionEntry::meat));
+    EXPECT_FALSE(store->getVBucket(vbid)->lockCollections().exists(
+            CollectionEntry::meat));
 }
 
 //
@@ -912,17 +912,17 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
                           CollectionEntry::defaultC));
     } // VBucketPtr scope ends
 
+    // Ensure collection purge has executed
+    runCollectionsEraser();
+
     resetEngineAndWarmup();
 
     EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumInMemoryItems());
-    // Eraser hasn't ran, but the collection deletion will have resulted in
-    // the stat document being removed
-    EXPECT_EQ(0,
-              store->getVBucket(vbid)->lockCollections().getItemCount(
-                      CollectionEntry::defaultC));
-    EXPECT_EQ(0,
-              store->getVBucket(vbid)->lockCollections().getPersistedHighSeqno(
-                      CollectionEntry::defaultC));
+    // meat collection still exists
+    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().exists(
+            CollectionEntry::meat));
+    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
+            CollectionEntry::meat));
 }
 
 TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnCreate) {
@@ -942,6 +942,10 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnCreate) {
     // validate the manifest uid comes back
     EXPECT_EQ(0xface2,
               store->getVBucket(vbid)->lockCollections().getManifestUid());
+    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().exists(
+            CollectionEntry::meat));
+    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
+            CollectionEntry::meat));
 }
 
 TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnDelete) {

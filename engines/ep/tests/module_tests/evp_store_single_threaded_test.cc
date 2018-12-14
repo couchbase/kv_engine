@@ -284,6 +284,15 @@ void SingleThreadedKVBucketTest::runCompaction(uint64_t purgeBeforeTime,
                 "Compact DB file 0");
 }
 
+void SingleThreadedKVBucketTest::runCollectionsEraser() {
+    ASSERT_TRUE(engine->getConfiguration().getBucketType() == "persistent")
+            << "No support for ephemeral collections erase";
+    // run the compaction task. assuming it was scheduled by the test, will
+    // fail the runNextTask expect if not scheduled.
+    runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],
+                "Compact DB file 0");
+}
+
 /*
  * MB-31175
  * The following test checks to see that when we call handleSlowStream in an
