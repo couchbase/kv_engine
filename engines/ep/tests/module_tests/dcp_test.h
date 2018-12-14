@@ -23,6 +23,7 @@
 class Item;
 class MockDcpProducer;
 class MockActiveStream;
+struct dcp_message_producers;
 
 /**
  * Test fixture for unit tests related to DCP.
@@ -64,6 +65,19 @@ protected:
                                                uint64_t snapStart = 0,
                                                uint64_t snapEnd = ~0,
                                                uint64_t vbUUID = 0);
+
+    /**
+     * Helper function to simplify the process of preparing DCP items to be
+     * fetched from the stream via step().
+     * Should be called once all expected items are present in the vbuckets'
+     * checkpoint, it will then run the correct background tasks to
+     * copy CheckpointManager items to the producers' readyQ.
+     */
+    static void prepareCheckpointItemsForStep(
+            dcp_message_producers& msgProducers,
+            MockDcpProducer& producer,
+            VBucket& vb);
+
     /*
      * Creates an item with the key \"key\", containing json data and xattrs.
      * @return a unique_ptr to a newly created item.

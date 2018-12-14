@@ -108,11 +108,8 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
     MockDcpMessageProducers producers(engine);
 
     ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
-    producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
 
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
-    ASSERT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
-    producer->getCheckpointSnapshotTask().run();
+    prepareCheckpointItemsForStep(producers, *producer, *vb);
 
     /* Stream the snapshot marker first */
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
@@ -199,12 +196,7 @@ TEST_P(StreamTest, test_verifyProducerStats) {
 
     EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
 
-    producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
-
-    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
-
-    producer->getCheckpointSnapshotTask().run();
+    prepareCheckpointItemsForStep(producers, *producer, *vb);
 
     /* Stream the snapshot marker first */
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));

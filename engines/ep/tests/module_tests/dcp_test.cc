@@ -264,6 +264,15 @@ DCPTest::StreamRequestResult DCPTest::doStreamRequest(DcpProducer& producer,
     return result;
 }
 
+void DCPTest::prepareCheckpointItemsForStep(dcp_message_producers& msgProducers,
+                                            MockDcpProducer& producer,
+                                            VBucket& vb) {
+    producer.notifySeqnoAvailable(vb.getId(), vb.getHighSeqno());
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer.step(&msgProducers));
+    ASSERT_EQ(1, producer.getCheckpointSnapshotTask().queueSize());
+    producer.getCheckpointSnapshotTask().run();
+}
+
 std::unique_ptr<Item> DCPTest::makeItemWithXattrs() {
     std::string valueData = R"({"json":"yes"})";
     std::string data = createXattrValue(valueData);
@@ -460,10 +469,7 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
 
     EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
 
-    producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
-    ASSERT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
-    producer->getCheckpointSnapshotTask().run();
+    prepareCheckpointItemsForStep(producers, *producer, *vb);
 
     /* Stream the snapshot marker first */
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
@@ -548,10 +554,7 @@ TEST_P(CompressionStreamTest, connection_snappy_enabled) {
     // Now, add the 3rd item. This item should be compressed
     EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item, cookie));
 
-    producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
-    ASSERT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
-    producer->getCheckpointSnapshotTask().run();
+    prepareCheckpointItemsForStep(producers, *producer, *vb);
 
     /* Stream the snapshot marker */
     ASSERT_EQ(ENGINE_SUCCESS, producer->step(&producers));
@@ -635,10 +638,7 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
     ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
     EXPECT_LT(dcpResponse->getMessageSize(), keyAndValueMessageSize);
 
-    producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
-    ASSERT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
-    producer->getCheckpointSnapshotTask().run();
+    prepareCheckpointItemsForStep(producers, *producer, *vb);
 
     /* Stream the snapshot marker */
     ASSERT_EQ(ENGINE_SUCCESS, producer->step(&producers));
