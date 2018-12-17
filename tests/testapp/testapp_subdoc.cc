@@ -1694,6 +1694,27 @@ TEST_P(SubdocTestappTest, SubdocExpiry_Single) {
     EXPECT_EQ(cb::mcbp::Status::Success, result.first);
     EXPECT_EQ("[\"b\"]", result.second);
 
+    /*
+     * Additional document for MB-32364, checking if a single path mutation
+     * ignores the expiry if docflags are included in extras.
+     * TODO: Move into it's own test in MB-32385 once sleep time is not needed.
+     */
+
+    // Perform an UPSERT, explicitly encoding an expiry of 1s.
+    BinprotSubdocCommand upsert1(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                                 "doc_flag",
+                                 "foo",
+                                 "\"a\"",
+                                 SUBDOC_FLAG_NONE,
+                                 mcbp::subdoc::doc_flag::Mkdoc);
+    upsert1.setExpiry(1);
+    EXPECT_SUBDOC_CMD(upsert1, cb::mcbp::Status::Success, "");
+
+    // Try to read the doc_flags document immediately - should exist.
+    result = fetch_value("doc_flag");
+    EXPECT_EQ(cb::mcbp::Status::Success, result.first);
+    EXPECT_EQ("{\"foo\":\"a\"}", result.second);
+
     // Sleep for 2s seconds.
     // TODO: it would be great if we could somehow accelerate time from the
     // harness, and not add 2s to the runtime of the test...
@@ -1707,6 +1728,10 @@ TEST_P(SubdocTestappTest, SubdocExpiry_Single) {
     result = fetch_value("permanent");
     EXPECT_EQ(cb::mcbp::Status::Success, result.first);
     EXPECT_EQ("[\"b\"]", result.second);
+
+    // Try to read the doc_flag document - shouldn't exist.
+    result = fetch_value("doc_flag");
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, result.first);
 }
 
 // Test handling of not-my-vbucket for a SUBDOC_GET
