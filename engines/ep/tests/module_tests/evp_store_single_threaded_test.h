@@ -168,9 +168,9 @@ protected:
  *   eviction modes). If empty then unused (persistent buckets).
  */
 class STParameterizedBucketTest
-        : public SingleThreadedEPBucketTest,
-          public ::testing::WithParamInterface<
-                  std::tuple<std::string, std::string>> {
+    : public SingleThreadedKVBucketTest,
+      public ::testing::WithParamInterface<
+              std::tuple<std::string, std::string>> {
 public:
     bool persistent() {
         return std::get<0>(GetParam()) == "persistent";
@@ -186,6 +186,6 @@ protected:
         if (!ephFullPolicy.empty()) {
             config_string += ";ephemeral_full_policy=" + ephFullPolicy;
         }
-        SingleThreadedEPBucketTest::SetUp();
+        SingleThreadedKVBucketTest::SetUp();
     }
 };
