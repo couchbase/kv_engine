@@ -326,7 +326,8 @@ uint32_t subdoc_decode_expiration(const protocol_binary_request_header* header,
     // Single-path and multi-path have different extras encodings:
     switch (traits.path) {
     case SubdocPath::SINGLE:
-        if (header->request.extlen == SUBDOC_EXPIRY_EXTRAS_LEN) {
+        if ((header->request.extlen == SUBDOC_EXPIRY_EXTRAS_LEN) ||
+            (header->request.extlen == SUBDOC_ALL_EXTRAS_LEN)) {
             expiration_ptr = reinterpret_cast<const char*>(header) +
                              sizeof(*header) + SUBDOC_BASIC_EXTRAS_LEN;
         }
