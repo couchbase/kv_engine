@@ -514,8 +514,9 @@ EPVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
         result = ht.unlocked_updateStoredValue(hbl, v, itm);
     }
 
-    return std::make_tuple(
-            result.storedValue, result.status, queueDirty(v, queueItmCtx));
+    return std::make_tuple(result.storedValue,
+                           result.status,
+                           queueDirty(*result.storedValue, queueItmCtx));
 }
 
 std::pair<StoredValue*, VBNotifyCtx> EPVBucket::addNewStoredValue(
