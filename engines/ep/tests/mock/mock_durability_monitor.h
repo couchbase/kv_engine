@@ -28,11 +28,13 @@ public:
     }
 
     size_t public_getNumTracked() const {
-        return DurabilityMonitor::getNumTracked();
+        std::lock_guard<std::mutex> lg(state.m);
+        return DurabilityMonitor::getNumTracked(lg);
     }
 
     int64_t public_getReplicaMemorySeqno(const std::string& replicaUUID) const {
-        return DurabilityMonitor::getReplicaMemorySeqno(replicaUUID);
+        std::lock_guard<std::mutex> lg(state.m);
+        return DurabilityMonitor::getReplicaMemorySeqno(lg, replicaUUID);
     }
 };
 

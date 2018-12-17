@@ -80,67 +80,76 @@ protected:
     using Container = std::list<SyncWrite>;
 
     /**
+     * @param lg the object lock
      * @return the number of pending SyncWrite(s) currently tracked
      */
-    size_t getNumTracked() const;
+    size_t getNumTracked(const std::lock_guard<std::mutex>& lg) const;
 
     /**
      * Returns a replica memory iterator.
      *
+     * @param lg the object lock
      * @param replicaUUID
      * @return the iterator to the memory seqno of the given replica
      * @throw std::invalid_argument if replicaUUID is invalid
      */
     const Container::iterator& getReplicaMemoryIterator(
+            const std::lock_guard<std::mutex>& lg,
             const std::string& replicaUUID) const;
 
     /**
      * Returns the next position for a replica memory iterator.
      *
+     * @param lg the object lock
      * @param replicaUUID
      * @return the iterator to the next position for the given replica
      */
-    Container::iterator getReplicaMemoryNext(const std::string& replicaUUID);
+    Container::iterator getReplicaMemoryNext(
+            const std::lock_guard<std::mutex>& lg,
+            const std::string& replicaUUID);
 
     /*
      * Advance a replica iterator
      *
+     * @param lg the object lock
      * @param replicaUUID
      * @param n number of positions it should be advanced
      * @throw std::invalid_argument if replicaUUID is invalid
      */
-    void advanceReplicaMemoryIterator(const std::string& replicaUUID, size_t n);
+    void advanceReplicaMemoryIterator(const std::lock_guard<std::mutex>& lg,
+                                      const std::string& replicaUUID,
+                                      size_t n);
 
     /**
      * Returns the memory-seqno for the replica as seen from the active.
      *
+     * @param lg the object lock
      * @param replicaUUID
      * @return the memory-seqno for the replica
      *
      * @todo: Expand for supporting and disk-seqno
      */
-    int64_t getReplicaMemorySeqno(const std::string& replicaUUID) const;
+    int64_t getReplicaMemorySeqno(const std::lock_guard<std::mutex>& lg,
+                                  const std::string& replicaUUID) const;
 
     /**
-     * Called internally for every SyncWrite for which the Durability
-     * Requirement has been met.
-     * Probably called (indirectly?) by seqnoAckReceived.
+     * Commits all the pending SyncWrtites for which the Durability Requirement
+     * has been met.
+     *
+     * @param lg the object lock
      */
     void commit(const std::lock_guard<std::mutex>& lg);
 
     // The VBucket owning this DurabilityMonitor instance
     VBucket& vb;
 
-    // For now we support a single replication-chain (RC).
-    //
-    // @todo: Expand this in the future for supporting multiple RCs.
-    //     Note that the expected number of RCs is [0, 1, 2].
     struct ReplicationChain;
-    std::unique_ptr<ReplicationChain> chain;
-
-    // The tracked SyncWrites.
+    // Represents the internal state of a DurabilityMonitor instance.
+    // Any state change must happen under lock(state.m).
     struct {
         mutable std::mutex m;
-        Container container;
-    } trackedWrites;
+        // @todo: Expand for supporting the SecondChain.
+        std::unique_ptr<ReplicationChain> firstChain;
+        Container trackedWrites;
+    } state;
 };
