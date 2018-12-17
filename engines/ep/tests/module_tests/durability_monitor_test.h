@@ -36,7 +36,7 @@ public:
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
         auto& vb = *store->getVBuckets().getBucket(vbid);
         mgr = std::make_unique<MockDurabilityMonitor>(vb);
-        ASSERT_EQ(ENGINE_SUCCESS, mgr->registerReplicationChain({replicaUUID}));
+        ASSERT_EQ(ENGINE_SUCCESS, mgr->registerReplicationChain({replica}));
 
         // Populate the mock Store
         for (size_t seqno = 1; seqno <= numItems; seqno++) {
@@ -61,7 +61,7 @@ public:
 protected:
     void addSyncWrites();
 
-    const std::string replicaUUID = "uuid1";
+    const std::string replica = "replica1";
     std::unique_ptr<MockDurabilityMonitor> mgr;
 
     const size_t numItems = 3;

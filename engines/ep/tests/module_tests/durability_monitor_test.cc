@@ -37,7 +37,7 @@ TEST_F(DurabilityMonitorTest, AddSyncWrite) {
 
 TEST_F(DurabilityMonitorTest, SeqnoAckReceivedNoTrackedSyncWrite) {
     try {
-        mgr->seqnoAckReceived(replicaUUID, 1 /*memSeqno*/);
+        mgr->seqnoAckReceived(replica, 1 /*memSeqno*/);
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find("No tracked SyncWrite") !=
                     std::string::npos);
@@ -49,8 +49,8 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedNoTrackedSyncWrite) {
 TEST_F(DurabilityMonitorTest, SeqnoAckReceivedSmallerThanPending) {
     addSyncWrites();
     try {
-        auto seqno = mgr->public_getReplicaMemorySeqno(replicaUUID);
-        mgr->seqnoAckReceived(replicaUUID, seqno - 1 /*memSeqno*/);
+        auto seqno = mgr->public_getReplicaMemorySeqno(replica);
+        mgr->seqnoAckReceived(replica, seqno - 1 /*memSeqno*/);
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find(
                             "Ack'ed seqno is behind pending seqno") !=
@@ -64,19 +64,19 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedEqualPending) {
     addSyncWrites();
 
     // No ack received yet
-    EXPECT_EQ(0 /*memSeqno*/, mgr->public_getReplicaMemorySeqno(replicaUUID));
+    EXPECT_EQ(0 /*memSeqno*/, mgr->public_getReplicaMemorySeqno(replica));
 
     size_t seqno = 1;
     for (; seqno <= numItems; seqno++) {
-        EXPECT_NO_THROW(mgr->seqnoAckReceived(replicaUUID, seqno /*memSeqno*/));
+        EXPECT_NO_THROW(mgr->seqnoAckReceived(replica, seqno /*memSeqno*/));
 
         // Check that the DM'tracking advances by 1 at each cycle
-        EXPECT_EQ(seqno, mgr->public_getReplicaMemorySeqno(replicaUUID));
+        EXPECT_EQ(seqno, mgr->public_getReplicaMemorySeqno(replica));
     }
 
     // All ack'ed, no more pendings
     try {
-        mgr->seqnoAckReceived(replicaUUID, seqno + 1 /*memSeqno*/);
+        mgr->seqnoAckReceived(replica, seqno + 1 /*memSeqno*/);
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find("No pending SyncWrite") !=
                     std::string::npos);
@@ -89,5 +89,5 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedGreaterThanPending) {
     addSyncWrites();
     ASSERT_GT(numItems, 1);
     EXPECT_EQ(ENGINE_ENOTSUP,
-              mgr->seqnoAckReceived(replicaUUID, numItems /*memSeqno*/));
+              mgr->seqnoAckReceived(replica, numItems /*memSeqno*/));
 }

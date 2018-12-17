@@ -52,18 +52,18 @@ private:
  */
 struct DurabilityMonitor::ReplicationChain {
     /**
-     * @param replicaUUIDs ns_server-like set of replica ids, eg:
+     * @param nodes ns_server-like set of replica ids, eg:
      *     {replica1, replica2, ..}
      */
-    ReplicationChain(const std::vector<std::string>& replicaUUIDs,
+    ReplicationChain(const std::vector<std::string>& nodes,
                      const Container::iterator& it)
-        : majority(replicaUUIDs.size() / 2 + 1) {
-        for (auto uuid : replicaUUIDs) {
-            memoryIterators[uuid] = it;
+        : majority(nodes.size() / 2 + 1) {
+        for (auto node : nodes) {
+            memoryIterators[node] = it;
         }
     }
 
-    // Index of replica iterators. The key is the replica UUID.
+    // Index of replica iterators. The key is the replica id.
     // Each iterator points to the last SyncWrite ack'ed by the replica.
     // Note that the SyncWrite at iterator embeds the in-memory state of the
     // replica (via the SyncWrite seqno).
@@ -86,14 +86,14 @@ DurabilityMonitor::DurabilityMonitor(VBucket& vb) : vb(vb) {
 DurabilityMonitor::~DurabilityMonitor() = default;
 
 ENGINE_ERROR_CODE DurabilityMonitor::registerReplicationChain(
-        const std::vector<std::string>& replicaUUIDs) {
-    if (replicaUUIDs.size() == 0) {
+        const std::vector<std::string>& nodes) {
+    if (nodes.size() == 0) {
         throw std::logic_error(
                 "DurabilityMonitor::registerReplicationChain: empty chain not "
                 "allowed");
     }
 
-    if (replicaUUIDs.size() > 1) {
+    if (nodes.size() > 1) {
         return ENGINE_ENOTSUP;
     }
 
@@ -101,7 +101,7 @@ ENGINE_ERROR_CODE DurabilityMonitor::registerReplicationChain(
     // multiple RCs dynamically.
     std::lock_guard<std::mutex> lg(state.m);
     state.firstChain = std::make_unique<ReplicationChain>(
-            replicaUUIDs, state.trackedWrites.begin());
+            nodes, state.trackedWrites.begin());
 
     return ENGINE_SUCCESS;
 }
@@ -118,7 +118,7 @@ ENGINE_ERROR_CODE DurabilityMonitor::addSyncWrite(queued_item item) {
 }
 
 ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
-        const std::string& replicaUUID, int64_t memorySeqno) {
+        const std::string& replica, int64_t memorySeqno) {
     // @todo: The scope can be probably shorten. Deferring to follow-up patches
     //     as I'm amending this function considerably.
     std::lock_guard<std::mutex> lg(state.m);
@@ -132,7 +132,7 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
                 std::to_string(memorySeqno));
     }
 
-    const auto next = getReplicaMemoryNext(lg, replicaUUID);
+    const auto next = getReplicaMemoryNext(lg, replica);
 
     if (next == state.trackedWrites.end()) {
         throw std::logic_error(
@@ -156,7 +156,7 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
     }
 
     // Update replica state, i.e. advance by 1
-    advanceReplicaMemoryIterator(lg, replicaUUID, 1);
+    advanceReplicaMemoryIterator(lg, replica, 1);
 
     // Note: if we reach this point it is guaranteed that
     //     pendingSeqno==ACKseqno
@@ -178,24 +178,24 @@ size_t DurabilityMonitor::getNumTracked(
 const DurabilityMonitor::Container::iterator&
 DurabilityMonitor::getReplicaMemoryIterator(
         const std::lock_guard<std::mutex>& lg,
-        const std::string& replicaUUID) const {
+        const std::string& replica) const {
     if (!state.firstChain) {
         throw std::logic_error(
                 "DurabilityMonitor::getReplicaMemoryIterator: no chain "
                 "registered");
     }
-    const auto entry = state.firstChain->memoryIterators.find(replicaUUID);
+    const auto entry = state.firstChain->memoryIterators.find(replica);
     if (entry == state.firstChain->memoryIterators.end()) {
         throw std::invalid_argument(
-                "DurabilityMonitor::getReplicaEntry: replicaUUID " +
-                replicaUUID + " not found in chain");
+                "DurabilityMonitor::getReplicaEntry: replica " + replica +
+                " not found in chain");
     }
     return entry->second;
 }
 
 DurabilityMonitor::Container::iterator DurabilityMonitor::getReplicaMemoryNext(
-        const std::lock_guard<std::mutex>& lg, const std::string& replicaUUID) {
-    const auto& it = getReplicaMemoryIterator(lg, replicaUUID);
+        const std::lock_guard<std::mutex>& lg, const std::string& replica) {
+    const auto& it = getReplicaMemoryIterator(lg, replica);
     // A replica iterator represent the durability state of a replica as seen
     // from the active and it is never singular:
     // 1) points to container.end()
@@ -210,18 +210,18 @@ DurabilityMonitor::Container::iterator DurabilityMonitor::getReplicaMemoryNext(
 
 void DurabilityMonitor::advanceReplicaMemoryIterator(
         const std::lock_guard<std::mutex>& lg,
-        const std::string& replicaUUID,
+        const std::string& replica,
         size_t n) {
     // Note: complexity is constant as we use RandomAccessIterator
     auto& it = const_cast<DurabilityMonitor::Container::iterator&>(
-            getReplicaMemoryIterator(lg, replicaUUID));
+            getReplicaMemoryIterator(lg, replica));
     std::advance(it, n);
 }
 
 int64_t DurabilityMonitor::getReplicaMemorySeqno(
         const std::lock_guard<std::mutex>& lg,
-        const std::string& replicaUUID) const {
-    const auto& it = getReplicaMemoryIterator(lg, replicaUUID);
+        const std::string& replica) const {
+    const auto& it = getReplicaMemoryIterator(lg, replica);
     if (it == state.trackedWrites.end()) {
         return 0;
     }

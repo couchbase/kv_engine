@@ -43,13 +43,13 @@ public:
     ~DurabilityMonitor();
 
     /**
-     * Track a new ReplicationChain.
+     * Registers the Replication Chain.
      *
-     * @param replicaUUIDs the set of replicas representing the chain
+     * @param nodes the set of replicas representing the chain
      * @return ENGINE_SUCCESS if the operation succeeds, an error code otherwise
      */
     ENGINE_ERROR_CODE registerReplicationChain(
-            const std::vector<std::string>& replicaUUIDs);
+            const std::vector<std::string>& nodes);
 
     /**
      * Start tracking a new SyncWrite.
@@ -65,14 +65,14 @@ public:
     /**
      * Expected to be called by memcached at receiving a DCP_SEQNO_ACK packet.
      *
-     * @param replicaUUID uuid of the replica that sent the ACK
+     * @param replica the replica that sent the ACK
      * @param memorySeqno the ack'ed memory-seqno
      * @return ENGINE_SUCCESS if the operation succeeds, an error code otherwise
      * @throw std::logic_error if the received seqno is unexpected
      *
      * @todo: Expand for  supporting a full {memorySeqno, diskSeqno} ACK.
      */
-    ENGINE_ERROR_CODE seqnoAckReceived(const std::string& replicaUUID,
+    ENGINE_ERROR_CODE seqnoAckReceived(const std::string& replica,
                                        int64_t memorySeqno);
 
 protected:
@@ -84,53 +84,51 @@ protected:
      * @return the number of pending SyncWrite(s) currently tracked
      */
     size_t getNumTracked(const std::lock_guard<std::mutex>& lg) const;
-
     /**
      * Returns a replica memory iterator.
      *
      * @param lg the object lock
-     * @param replicaUUID
+     * @param replica
      * @return the iterator to the memory seqno of the given replica
-     * @throw std::invalid_argument if replicaUUID is invalid
+     * @throw std::invalid_argument if replica is not valid
      */
     const Container::iterator& getReplicaMemoryIterator(
             const std::lock_guard<std::mutex>& lg,
-            const std::string& replicaUUID) const;
+            const std::string& replica) const;
 
     /**
      * Returns the next position for a replica memory iterator.
      *
      * @param lg the object lock
-     * @param replicaUUID
+     * @param replica
      * @return the iterator to the next position for the given replica
      */
     Container::iterator getReplicaMemoryNext(
-            const std::lock_guard<std::mutex>& lg,
-            const std::string& replicaUUID);
+            const std::lock_guard<std::mutex>& lg, const std::string& replica);
 
     /*
      * Advance a replica iterator
      *
      * @param lg the object lock
-     * @param replicaUUID
+     * @param replica
      * @param n number of positions it should be advanced
-     * @throw std::invalid_argument if replicaUUID is invalid
+     * @throw std::invalid_argument if replica is invalid
      */
     void advanceReplicaMemoryIterator(const std::lock_guard<std::mutex>& lg,
-                                      const std::string& replicaUUID,
+                                      const std::string& replica,
                                       size_t n);
 
     /**
      * Returns the memory-seqno for the replica as seen from the active.
      *
      * @param lg the object lock
-     * @param replicaUUID
+     * @param replica
      * @return the memory-seqno for the replica
      *
      * @todo: Expand for supporting and disk-seqno
      */
     int64_t getReplicaMemorySeqno(const std::lock_guard<std::mutex>& lg,
-                                  const std::string& replicaUUID) const;
+                                  const std::string& replica) const;
 
     /**
      * Commits all the pending SyncWrtites for which the Durability Requirement
