@@ -18,6 +18,9 @@
 /**
  * Tests for Collection functionality in EPStore.
  */
+
+#include "collections_test.h"
+
 #include "bgfetcher.h"
 #include "checkpoint_manager.h"
 #include "collections/collections_types.h"
@@ -34,30 +37,14 @@
 #include <functional>
 #include <thread>
 
-class CollectionsTest : public SingleThreadedKVBucketTest {
-public:
-    void SetUp() override {
-        SingleThreadedKVBucketTest::SetUp();
-        // Start vbucket as active to allow us to store items directly to it.
-        store->setVBucketState(vbid, vbucket_state_active, false);
-    }
-
-    Collections::VB::PersistedManifest getManifest(Vbid vb) const {
-        return store->getVBucket(vb)
-                ->getShard()
-                ->getRWUnderlying()
-                ->getCollectionsManifest(vbid);
-    }
-};
-
-TEST_F(CollectionsTest, uid_increment) {
+TEST_P(CollectionsParameterizedTest, uid_increment) {
     CollectionsManifest cm{CollectionEntry::meat};
     EXPECT_EQ(store->setCollections({cm}).code(), cb::engine_errc::success);
     cm.add(CollectionEntry::vegetable);
     EXPECT_EQ(store->setCollections({cm}).code(), cb::engine_errc::success);
 }
 
-TEST_F(CollectionsTest, uid_decrement) {
+TEST_P(CollectionsParameterizedTest, uid_decrement) {
     CollectionsManifest cm{CollectionEntry::meat};
     EXPECT_EQ(store->setCollections({cm}).code(), cb::engine_errc::success);
     CollectionsManifest newCm{};
@@ -65,7 +52,7 @@ TEST_F(CollectionsTest, uid_decrement) {
               cb::engine_errc::out_of_range);
 }
 
-TEST_F(CollectionsTest, uid_equal) {
+TEST_P(CollectionsParameterizedTest, uid_equal) {
     CollectionsManifest cm{CollectionEntry::meat};
     EXPECT_EQ(store->setCollections({cm}).code(), cb::engine_errc::success);
 
@@ -108,7 +95,7 @@ TEST_F(CollectionsTest, namespace_separation) {
     EXPECT_EQ(0, strncmp("value", gv.item->getData(), gv.item->getNBytes()));
 }
 
-TEST_F(CollectionsTest, collections_basic) {
+TEST_P(CollectionsParameterizedTest, collections_basic) {
     // Default collection is open for business
     store_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC}, "value");
     store_item(vbid,
@@ -124,12 +111,12 @@ TEST_F(CollectionsTest, collections_basic) {
     vb->updateFromManifest({cm});
 
     // Trigger a flush to disk. Flushes the meat create event and 1 item
-    flush_vbucket_to_disk(vbid, 2);
+    flushVBucketToDiskIfPersistent(vbid, 2);
 
     // Now we can write to beef
     store_item(vbid, StoredDocKey{"meat:beef", CollectionEntry::meat}, "value");
 
-    flush_vbucket_to_disk(vbid, 1);
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     // And read a document from beef
     get_options_t options = static_cast<get_options_t>(
@@ -153,7 +140,7 @@ TEST_F(CollectionsTest, collections_basic) {
     vb->updateFromManifest({cm.remove(CollectionEntry::meat)});
 
     // We should have deleted the create marker
-    flush_vbucket_to_disk(vbid, 1);
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Access denied (although the item still exists)
     gv = store->get(StoredDocKey{"meat:beef", CollectionEntry::meat},
@@ -291,13 +278,13 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
 // BY-ID update: This test was created for MB-25344 and is no longer relevant as
 // we cannot 'hit' a logically deleted key from the front-end. This test has
 // been adjusted to still provide some value.
-TEST_F(CollectionsTest, GET_unknown_collection_errors) {
+TEST_P(CollectionsParameterizedTest, GET_unknown_collection_errors) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
     vb->updateFromManifest({cm});
     // Trigger a flush to disk. Flushes the dairy create event.
-    flush_vbucket_to_disk(vbid, 1);
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto item1 = make_item(vbid,
                            StoredDocKey{"dairy:milk", CollectionEntry::dairy},
@@ -305,7 +292,7 @@ TEST_F(CollectionsTest, GET_unknown_collection_errors) {
                            0,
                            0);
     EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
-    flush_vbucket_to_disk(vbid, 1);
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Delete the dairy collection (so all dairy keys become logically deleted)
     vb->updateFromManifest({cm.remove(CollectionEntry::dairy)});
@@ -314,7 +301,7 @@ TEST_F(CollectionsTest, GET_unknown_collection_errors) {
     vb->updateFromManifest({cm.add(CollectionEntry::dairy2)});
 
     // Trigger a flush to disk. Flushes the dairy2 create event, dairy delete
-    flush_vbucket_to_disk(vbid, 2);
+    flushVBucketToDiskIfPersistent(vbid, 2);
 
     // The dairy:2 collection is empty
     get_options_t options = static_cast<get_options_t>(
@@ -356,7 +343,7 @@ TEST_F(CollectionsTest, GET_unknown_collection_errors) {
     EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
 }
 
-TEST_F(CollectionsTest, get_collection_id) {
+TEST_P(CollectionsParameterizedTest, get_collection_id) {
     auto rv = store->getCollectionID("");
     EXPECT_EQ(cb::engine_errc::no_collections_manifest, rv.result);
     CollectionsManifest cm;
@@ -976,13 +963,11 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnDelete) {
               store->getVBucket(vbid)->lockCollections().getManifestUid());
 }
 
-class CollectionsManagerTest : public CollectionsTest {};
-
 /**
  * Test checks that setCollections propagates the collection data to active
  * vbuckets.
  */
-TEST_F(CollectionsManagerTest, basic) {
+TEST_P(CollectionsParameterizedTest, basic) {
     // Add some more VBuckets just so there's some iteration happening
     const int extraVbuckets = 2;
     for (int vb = vbid.get() + 1; vb <= (vbid.get() + extraVbuckets); vb++) {
@@ -1006,7 +991,7 @@ TEST_F(CollectionsManagerTest, basic) {
  * Test checks that setCollections propagates the collection data to active
  * vbuckets and not the replicas
  */
-TEST_F(CollectionsManagerTest, basic2) {
+TEST_P(CollectionsParameterizedTest, basic2) {
     // Add some more VBuckets just so there's some iteration happening
     const int extraVbuckets = 2;
     // Add active and replica
@@ -1043,7 +1028,7 @@ TEST_F(CollectionsManagerTest, basic2) {
  * Add a collection, delete it and add it again (i.e. a CID re-use)
  * We should see a failure
  */
-TEST_F(CollectionsManagerTest, cid_clash) {
+TEST_P(CollectionsParameterizedTest, cid_clash) {
     // Add some more VBuckets just so there's some iteration happening
     const int extraVbuckets = 2;
     for (int vb = vbid.get() + 1; vb <= (vbid.get() + extraVbuckets); vb++) {
@@ -1090,7 +1075,8 @@ TEST_F(CollectionsTest, collections_expiry_after_drop_collection_compaction) {
 }
 
 // Test the pager doesn't generate expired items for a dropped collection
-TEST_F(CollectionsTest, collections_expiry_after_drop_collection_pager) {
+TEST_P(CollectionsParameterizedTest,
+       collections_expiry_after_drop_collection_pager) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Add the meat collection + 1 item with TTL (and flush it all out)
@@ -1098,10 +1084,10 @@ TEST_F(CollectionsTest, collections_expiry_after_drop_collection_pager) {
     vb->updateFromManifest({cm});
     StoredDocKey key{"lamb", CollectionEntry::meat};
     store_item(vbid, key, "value", ep_real_time() + 100);
-    flush_vbucket_to_disk(vbid, 2);
+    flushVBucketToDiskIfPersistent(vbid, 2);
     // And now drop the meat collection
     vb->updateFromManifest({cm.remove(CollectionEntry::meat)});
-    flush_vbucket_to_disk(vbid, 1);
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Time travel
     TimeTraveller docBrown(2000);
@@ -1267,3 +1253,13 @@ INSTANTIATE_TEST_CASE_P(CollectionsExpiryLimitTests,
                         CollectionsExpiryLimitTest,
                         ::testing::Bool(),
                         ::testing::PrintToStringParamName());
+
+static auto allConfigValues = ::testing::Values(
+        std::make_tuple(std::string("ephemeral"), std::string("auto_delete")),
+        std::make_tuple(std::string("ephemeral"), std::string("fail_new_data")),
+        std::make_tuple(std::string("persistent"), std::string{}));
+
+// Test cases which run for persistent and ephemeral buckets
+INSTANTIATE_TEST_CASE_P(CollectionsEphemeralOrPersistent,
+                        CollectionsParameterizedTest,
+                        allConfigValues, );

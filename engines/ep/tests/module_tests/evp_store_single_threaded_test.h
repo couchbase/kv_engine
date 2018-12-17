@@ -168,7 +168,7 @@ protected:
  *   eviction modes). If empty then unused (persistent buckets).
  */
 class STParameterizedBucketTest
-    : public SingleThreadedKVBucketTest,
+    : virtual public SingleThreadedKVBucketTest,
       public ::testing::WithParamInterface<
               std::tuple<std::string, std::string>> {
 public:
