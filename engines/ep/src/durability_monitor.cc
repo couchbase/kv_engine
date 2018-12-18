@@ -132,17 +132,14 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
                 std::to_string(memorySeqno));
     }
 
-    const auto next = getReplicaMemoryNext(lg, replica);
-
-    if (next == state.trackedWrites.end()) {
+    if (!hasPending(lg, replica)) {
         throw std::logic_error(
                 "DurabilityManager::seqnoAckReceived: No pending SyncWrite, "
                 "but replica ack'ed memorySeqno:" +
                 std::to_string(memorySeqno));
     }
 
-    int64_t pendingSeqno = next->getBySeqno();
-
+    int64_t pendingSeqno = getReplicaPendingMemorySeqno(lg, replica);
     if (memorySeqno < pendingSeqno) {
         throw std::logic_error(
                 "DurabilityManager::seqnoAckReceived: Ack'ed seqno is behind "
@@ -150,22 +147,23 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
                 std::to_string(memorySeqno) +
                 ", pending:" + std::to_string(pendingSeqno) + "}");
     }
-    // Note: not supporting any Replica ACK optimization yet
-    if (memorySeqno > pendingSeqno) {
-        return ENGINE_ENOTSUP;
+
+    while (hasPending(lg, replica)) {
+        // Process up to the ack'ed memory seqno
+        if (getReplicaPendingMemorySeqno(lg, replica) > memorySeqno) {
+            break;
+        }
+
+        // Update replica iterator
+        advanceReplicaMemoryIterator(lg, replica);
+
+        // Note: In this first implementation (1 replica) the Durability
+        // Requirement for the pending SyncWrite is implicitly verified
+        // at this point.
+
+        // Commit the verified SyncWrite
+        commit(lg);
     }
-
-    // Update replica state, i.e. advance by 1
-    advanceReplicaMemoryIterator(lg, replica, 1);
-
-    // Note: if we reach this point it is guaranteed that
-    //     pendingSeqno==ACKseqno
-    // So, in this first implementation (1 replica and no ACK optimization)
-    // the Durability Requirement for the pending SyncWrite is implicitly
-    // satisfied.
-
-    // Commit the ack'ed SyncWrite
-    commit(lg);
 
     return ENGINE_SUCCESS;
 }
@@ -209,13 +207,10 @@ DurabilityMonitor::Container::iterator DurabilityMonitor::getReplicaMemoryNext(
 }
 
 void DurabilityMonitor::advanceReplicaMemoryIterator(
-        const std::lock_guard<std::mutex>& lg,
-        const std::string& replica,
-        size_t n) {
-    // Note: complexity is constant as we use RandomAccessIterator
+        const std::lock_guard<std::mutex>& lg, const std::string& replica) {
     auto& it = const_cast<DurabilityMonitor::Container::iterator&>(
             getReplicaMemoryIterator(lg, replica));
-    std::advance(it, n);
+    it++;
 }
 
 int64_t DurabilityMonitor::getReplicaMemorySeqno(
@@ -226,6 +221,20 @@ int64_t DurabilityMonitor::getReplicaMemorySeqno(
         return 0;
     }
     return it->getBySeqno();
+}
+
+bool DurabilityMonitor::hasPending(const std::lock_guard<std::mutex>& lg,
+                                   const std::string& replica) {
+    return getReplicaMemoryNext(lg, replica) != state.trackedWrites.end();
+}
+
+int64_t DurabilityMonitor::getReplicaPendingMemorySeqno(
+        const std::lock_guard<std::mutex>& lg, const std::string& replica) {
+    const auto& next = getReplicaMemoryNext(lg, replica);
+    if (next == state.trackedWrites.end()) {
+        return 0;
+    }
+    return next->getBySeqno();
 }
 
 void DurabilityMonitor::commit(const std::lock_guard<std::mutex>& lg) {

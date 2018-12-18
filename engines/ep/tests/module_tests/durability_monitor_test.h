@@ -35,36 +35,41 @@ public:
         SingleThreadedKVBucketTest::SetUp();
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
         auto& vb = *store->getVBuckets().getBucket(vbid);
-        mgr = std::make_unique<MockDurabilityMonitor>(vb);
-        ASSERT_EQ(ENGINE_SUCCESS, mgr->registerReplicationChain({replica}));
-
-        // Populate the mock Store
-        for (size_t seqno = 1; seqno <= numItems; seqno++) {
-            itemStore.push_back(std::make_unique<Item>(
-                    makeStoredDocKey("key" + std::to_string(seqno)),
-                    0 /*flags*/,
-                    0 /*exp*/,
-                    "value",
-                    5 /*valueSize*/,
-                    PROTOCOL_BINARY_RAW_BYTES,
-                    0 /*cas*/,
-                    seqno));
-        }
+        monitor = std::make_unique<MockDurabilityMonitor>(vb);
+        ASSERT_EQ(ENGINE_SUCCESS, monitor->registerReplicationChain({replica}));
     }
 
     void TearDown() {
-        mgr.reset();
-        itemStore.clear();
+        monitor.reset();
         SingleThreadedKVBucketTest::TearDown();
     }
 
 protected:
-    void addSyncWrites();
+    /**
+     * Add a SyncWrite for tracking
+     *
+     * @param seqno
+     * @return the error code from the underlying engine
+     */
+    ENGINE_ERROR_CODE addSyncWrite(int64_t seqno);
+
+    /**
+     * Add a number of SyncWrites with seqno in [start, end]
+     *
+     * @param seqnoStart
+     * @param seqnoEnd
+     * @return the number of added SyncWrites
+     */
+    size_t addSyncWrites(int64_t seqnoStart, int64_t seqnoEnd);
+
+    /**
+     * Add the given mutations for tracking
+     *
+     * @param seqnos the mutations to be added
+     * @return the number of added SyncWrites
+     */
+    size_t addSyncWrites(const std::vector<int64_t>& seqnos);
 
     const std::string replica = "replica1";
-    std::unique_ptr<MockDurabilityMonitor> mgr;
-
-    const size_t numItems = 3;
-    // Mock engine store
-    std::vector<std::unique_ptr<Item>> itemStore;
+    std::unique_ptr<MockDurabilityMonitor> monitor;
 };

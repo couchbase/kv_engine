@@ -111,12 +111,9 @@ protected:
      *
      * @param lg the object lock
      * @param replica
-     * @param n number of positions it should be advanced
-     * @throw std::invalid_argument if replica is invalid
      */
     void advanceReplicaMemoryIterator(const std::lock_guard<std::mutex>& lg,
-                                      const std::string& replica,
-                                      size_t n);
+                                      const std::string& replica);
 
     /**
      * Returns the memory-seqno for the replica as seen from the active.
@@ -129,6 +126,27 @@ protected:
      */
     int64_t getReplicaMemorySeqno(const std::lock_guard<std::mutex>& lg,
                                   const std::string& replica) const;
+
+    /*
+     * @param lg the object lock
+     * @param replica
+     * @return true if the is a pending SyncWrite for the given replica,
+     *     false otherwise
+     */
+    bool hasPending(const std::lock_guard<std::mutex>& lg,
+                    const std::string& replica);
+
+    /*
+     * Returns the seqno of the next pending SyncWrite for the given replica.
+     * The function returns 0 if replica has already acknowledged all the
+     * pending seqnos.
+     *
+     * @param lg the object lock
+     * @param replica
+     * @return the pending seqno for replica, 0 if there is no pending
+     */
+    int64_t getReplicaPendingMemorySeqno(const std::lock_guard<std::mutex>& lg,
+                                         const std::string& replica);
 
     /**
      * Commits all the pending SyncWrtites for which the Durability Requirement

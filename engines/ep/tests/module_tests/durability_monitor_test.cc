@@ -18,26 +18,55 @@
 #include "durability_monitor_test.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 
-void DurabilityMonitorTest::addSyncWrites() {
-    EXPECT_EQ(0, mgr->public_getNumTracked());
-    size_t expectedNumTracked = 0;
-    for (auto& item : itemStore) {
-        queued_item qi(std::move(item));
-        using namespace cb::durability;
-        qi->setPendingSyncWrite(Requirements(Level::Majority, 0 /*timeout*/));
-        EXPECT_EQ(ENGINE_SUCCESS, mgr->addSyncWrite(qi));
+ENGINE_ERROR_CODE DurabilityMonitorTest::addSyncWrite(int64_t seqno) {
+    auto item = std::make_unique<Item>(
+            makeStoredDocKey("key" + std::to_string(seqno)),
+            0 /*flags*/,
+            0 /*exp*/,
+            "value",
+            5 /*valueSize*/,
+            PROTOCOL_BINARY_RAW_BYTES,
+            0 /*cas*/,
+            seqno);
+    queued_item qi(std::move(item));
+    using namespace cb::durability;
+    qi->setPendingSyncWrite(Requirements(Level::Majority, 0 /*timeout*/));
+    return monitor->addSyncWrite(qi);
+}
+
+size_t DurabilityMonitorTest::addSyncWrites(int64_t seqnoStart,
+                                            int64_t seqnoEnd) {
+    size_t expectedNumTracked = monitor->public_getNumTracked();
+    size_t added = 0;
+    for (auto seqno = seqnoStart; seqno <= seqnoEnd; seqno++) {
+        EXPECT_EQ(ENGINE_SUCCESS, addSyncWrite(seqno));
+        added++;
         expectedNumTracked++;
-        EXPECT_EQ(expectedNumTracked, mgr->public_getNumTracked());
+        EXPECT_EQ(expectedNumTracked, monitor->public_getNumTracked());
     }
+    return added;
+}
+
+size_t DurabilityMonitorTest::addSyncWrites(
+        const std::vector<int64_t>& seqnos) {
+    size_t expectedNumTracked = monitor->public_getNumTracked();
+    size_t added = 0;
+    for (auto seqno : seqnos) {
+        EXPECT_EQ(ENGINE_SUCCESS, addSyncWrite(seqno));
+        added++;
+        expectedNumTracked++;
+        EXPECT_EQ(expectedNumTracked, monitor->public_getNumTracked());
+    }
+    return added;
 }
 
 TEST_F(DurabilityMonitorTest, AddSyncWrite) {
-    addSyncWrites();
+    EXPECT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
 }
 
 TEST_F(DurabilityMonitorTest, SeqnoAckReceivedNoTrackedSyncWrite) {
     try {
-        mgr->seqnoAckReceived(replica, 1 /*memSeqno*/);
+        monitor->seqnoAckReceived(replica, 1 /*memSeqno*/);
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find("No tracked SyncWrite") !=
                     std::string::npos);
@@ -47,10 +76,10 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedNoTrackedSyncWrite) {
 }
 
 TEST_F(DurabilityMonitorTest, SeqnoAckReceivedSmallerThanPending) {
-    addSyncWrites();
+    EXPECT_EQ(ENGINE_SUCCESS, addSyncWrite(1 /*seqno*/));
     try {
-        auto seqno = mgr->public_getReplicaMemorySeqno(replica);
-        mgr->seqnoAckReceived(replica, seqno - 1 /*memSeqno*/);
+        auto seqno = monitor->public_getReplicaMemorySeqno(replica);
+        monitor->seqnoAckReceived(replica, seqno - 1 /*memSeqno*/);
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find(
                             "Ack'ed seqno is behind pending seqno") !=
@@ -61,22 +90,23 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedSmallerThanPending) {
 }
 
 TEST_F(DurabilityMonitorTest, SeqnoAckReceivedEqualPending) {
-    addSyncWrites();
+    size_t numItems = addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/);
+    EXPECT_EQ(3, numItems);
 
     // No ack received yet
-    EXPECT_EQ(0 /*memSeqno*/, mgr->public_getReplicaMemorySeqno(replica));
+    EXPECT_EQ(0 /*memSeqno*/, monitor->public_getReplicaMemorySeqno(replica));
 
     size_t seqno = 1;
     for (; seqno <= numItems; seqno++) {
-        EXPECT_NO_THROW(mgr->seqnoAckReceived(replica, seqno /*memSeqno*/));
+        EXPECT_NO_THROW(monitor->seqnoAckReceived(replica, seqno /*memSeqno*/));
 
-        // Check that the DM'tracking advances by 1 at each cycle
-        EXPECT_EQ(seqno, mgr->public_getReplicaMemorySeqno(replica));
+        // Check that the tracking advances by 1 at each cycle
+        EXPECT_EQ(seqno, monitor->public_getReplicaMemorySeqno(replica));
     }
 
     // All ack'ed, no more pendings
     try {
-        mgr->seqnoAckReceived(replica, seqno + 1 /*memSeqno*/);
+        monitor->seqnoAckReceived(replica, seqno + 1 /*memSeqno*/);
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find("No pending SyncWrite") !=
                     std::string::npos);
@@ -85,9 +115,70 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedEqualPending) {
     FAIL();
 }
 
-TEST_F(DurabilityMonitorTest, SeqnoAckReceivedGreaterThanPending) {
-    addSyncWrites();
-    ASSERT_GT(numItems, 1);
-    EXPECT_EQ(ENGINE_ENOTSUP,
-              mgr->seqnoAckReceived(replica, numItems /*memSeqno*/));
+TEST_F(DurabilityMonitorTest,
+       SeqnoAckReceivedGreaterThanPending_ContinuousSeqnos) {
+    ASSERT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
+    ASSERT_EQ(0 /*memSeqno*/, monitor->public_getReplicaMemorySeqno(replica));
+
+    // Receive a seqno-ack in the middle of tracked seqnos
+    EXPECT_EQ(ENGINE_SUCCESS,
+              monitor->seqnoAckReceived(replica, 2 /*memSeqno*/));
+    // Check that the tracking has advanced to the ack'ed seqno
+    EXPECT_EQ(2, monitor->public_getReplicaMemorySeqno(replica));
+}
+
+TEST_F(DurabilityMonitorTest, SeqnoAckReceivedGreaterThanPending_SparseSeqnos) {
+    ASSERT_EQ(3, addSyncWrites({1, 3, 5} /*seqnos*/));
+    ASSERT_EQ(0 /*memSeqno*/, monitor->public_getReplicaMemorySeqno(replica));
+
+    // Receive a seqno-ack in the middle of tracked seqnos
+    EXPECT_EQ(ENGINE_SUCCESS,
+              monitor->seqnoAckReceived(replica, 4 /*memSeqno*/));
+    // Check that the tracking has advanced to the last tracked seqno before
+    // the ack'ed seqno
+    EXPECT_EQ(3, monitor->public_getReplicaMemorySeqno(replica));
+}
+
+TEST_F(DurabilityMonitorTest,
+       SeqnoAckReceivedGreaterThanLastTracked_ContinuousSeqnos) {
+    ASSERT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
+    ASSERT_EQ(0 /*memSeqno*/, monitor->public_getReplicaMemorySeqno(replica));
+
+    // Receive a seqno-ack greater than the last tracked seqno
+    EXPECT_EQ(ENGINE_SUCCESS,
+              monitor->seqnoAckReceived(replica, 10 /*memSeqno*/));
+    // Check that the tracking has advanced to the last tracked seqno
+    EXPECT_EQ(3, monitor->public_getReplicaMemorySeqno(replica));
+
+    // All ack'ed, no more pendings
+    try {
+        monitor->seqnoAckReceived(replica, 20 /*memSeqno*/);
+    } catch (const std::logic_error& e) {
+        EXPECT_TRUE(std::string(e.what()).find("No pending SyncWrite") !=
+                    std::string::npos);
+        return;
+    }
+    FAIL();
+}
+
+TEST_F(DurabilityMonitorTest,
+       SeqnoAckReceivedGreaterThanLastTracked_SparseSeqnos) {
+    ASSERT_EQ(3, addSyncWrites({1, 3, 5} /*seqnos*/));
+    ASSERT_EQ(0 /*memSeqno*/, monitor->public_getReplicaMemorySeqno(replica));
+
+    // Receive a seqno-ack greater than the last tracked seqno
+    EXPECT_EQ(ENGINE_SUCCESS,
+              monitor->seqnoAckReceived(replica, 10 /*memSeqno*/));
+    // Check that the tracking has advanced to the last tracked seqno
+    EXPECT_EQ(5, monitor->public_getReplicaMemorySeqno(replica));
+
+    // All ack'ed, no more pendings
+    try {
+        monitor->seqnoAckReceived(replica, 20 /*memSeqno*/);
+    } catch (const std::logic_error& e) {
+        EXPECT_TRUE(std::string(e.what()).find("No pending SyncWrite") !=
+                    std::string::npos);
+        return;
+    }
+    FAIL();
 }
