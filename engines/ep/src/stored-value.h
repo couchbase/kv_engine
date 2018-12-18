@@ -732,19 +732,17 @@ public:
                     "StoredValue::getDeletionSource: Called on a non-Deleted "
                     "item");
         }
-        uint8_t delTest = bits2.test(deletionSource);
-        return static_cast<DeleteSource>(delTest);
+        return static_cast<DeleteSource>(deletionSource);
     }
 
     /// Returns if the StoredItem is pending or committed.
     CommittedState getCommitted() const {
-        return static_cast<CommittedState>(bits2.test(committedIndex));
+        return static_cast<CommittedState>(committed);
     }
 
     /// Sets the Committed state of the SV to "Committed"
     void setCommitted() {
-        bits2.set(committedIndex,
-                  static_cast<uint8_t>(CommittedState::Committed));
+        committed = static_cast<uint8_t>(CommittedState::Committed);
     }
 
 protected:
@@ -851,12 +849,12 @@ protected:
     }
 
     void setDeletionSource(DeleteSource delSource) {
-        bits2.set(deletionSource, static_cast<uint8_t>(delSource));
+        deletionSource = static_cast<uint8_t>(delSource);
     }
 
     /// Sets the commited state to the specified value.
     void setCommitted(CommittedState value) {
-        bits2.set(committedIndex, static_cast<uint8_t>(value));
+        committed = static_cast<uint8_t>(value);
     }
 
     friend class StoredValueFactory;
@@ -904,17 +902,16 @@ protected:
     folly::AtomicBitSet<sizeof(uint8_t)> bits;
 
     /**
-     * Much like bits, bits2 consists of compressed members inside an
-     * AtomicBitSet and utilises spare bits left by padding inside StoredValue.
-     * Currently, only 1 of the 8 available bits is used.
+     * Second byte of flags. These are stored in a plain packed bitfield as no
+     * requirement for atomicity (i.e. either const or always modified under
+     * HashBucketLock.
      */
-    // If the stored value is deleted, this stores the source of its deletion.
-    static constexpr size_t deletionSource = 0;
+
+    /// If the stored value is deleted, this stores the source of its deletion.
+    uint8_t deletionSource : 1;
     /// Clear if the StoredValue is pending; set if the StoredValue is
     /// committed.
-    static constexpr size_t committedIndex = 1;
-
-    folly::AtomicBitSet<sizeof(uint8_t)> bits2;
+    uint8_t committed : 1;
 
     friend std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
 };

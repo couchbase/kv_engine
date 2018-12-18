@@ -253,7 +253,7 @@ bool StoredValue::operator==(const StoredValue& other) const {
             lock_expiry_or_delete_time == other.lock_expiry_or_delete_time &&
             exptime == other.exptime && flags == other.flags &&
             isDirty() == other.isDirty() && isDeleted() == other.isDeleted() &&
-            bits2.test(deletionSource) == other.bits2.test(deletionSource) &&
+            deletionSource == other.deletionSource &&
             isNewCacheItem() == other.isNewCacheItem() &&
             isOrdered() == other.isOrdered() && getNru() == other.getNru() &&
             isResident() == other.isResident() && getKey() == other.getKey() &&
