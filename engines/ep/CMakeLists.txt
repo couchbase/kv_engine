@@ -401,6 +401,7 @@ if (NOT EP_BYPASS_TESTS)
                    tests/module_tests/failover_table_test.cc
                    tests/module_tests/futurequeue_test.cc
                    tests/module_tests/hash_table_eviction_test.cc
+                   tests/module_tests/hash_table_perspective_test.cc
                    tests/module_tests/hash_table_test.cc
                    tests/module_tests/hdrhistogram_test.cc
                    tests/module_tests/item_compressor_test.cc
