@@ -17,9 +17,36 @@
 
 #include "durability_monitor.h"
 #include "item.h"
+#include "monotonic.h"
 #include "stored-value.h"
 
+#include <gsl.h>
 #include <unordered_map>
+
+/*
+ * Represents the tracked state of a replica.
+ * Note that the lifetime of a Position is determined by the logic in
+ * DurabilityMonitor.
+ *
+ * - it: Iterator that points to a position in the Container of tracked
+ *         SyncWrites. This is an optimization: logically it points always to
+ *         the last SyncWrite acknowledged by the tracked replica, so that we
+ *         can avoid any O(N) scan when updating the replica state at seqno-ack
+ *         received. It may point to Container::end (e.g, when the pointed
+ *         SyncWrite is the last element in Container and it is removed).
+ *
+ * - lastSyncWriteSeqno: Stores always the seqno of the last SyncWrite
+ *         acknowledged by the tracked replica, even when Position::it points to
+ *         Container::end. Used for validation at seqno-ack received and stats.
+ *
+ * - lastAckSeqno: Stores always the last seqno acknowledged by the tracked
+ *         replica. Used for validation at seqno-ack received and stats.
+ */
+struct DurabilityMonitor::Position {
+    Container::iterator it;
+    Monotonic<int64_t> lastSyncWriteSeqno;
+    Monotonic<int64_t> lastAckSeqno;
+};
 
 /*
  * Represents a tracked SyncWrite.
@@ -59,22 +86,13 @@ struct DurabilityMonitor::ReplicationChain {
                      const Container::iterator& it)
         : majority(nodes.size() / 2 + 1) {
         for (auto node : nodes) {
-            memoryIterators[node] = it;
+            memoryPositions[node] = {it, 0 /*lastSeqno*/, 0 /*lastAckSeqno*/};
         }
     }
 
-    // Index of replica iterators. The key is the replica id.
-    // Each iterator points to the last SyncWrite ack'ed by the replica.
-    // Note that the SyncWrite at iterator embeds the in-memory state of the
-    // replica (via the SyncWrite seqno).
-    // So, the DurabilityMonitor internal logic ensures that each iterator in
-    // this map have only 2 possible states:
-    // - points to Container::end(), if Container is empty
-    // - points to an element of Container otherwise
-    // I.e., an iterator is never singular.
-    // That implies also that in the current DurabilityMonitor implementation
-    // Container is empty only before the first SyncWrite is added for tracking.
-    std::unordered_map<std::string, Container::iterator> memoryIterators;
+    // Index of replica Positions. The key is the replica id.
+    // A Position embeds the in-memory state of the tracked replica.
+    std::unordered_map<std::string, Position> memoryPositions;
 
     // Majority in the arithmetic definition: NumReplicas / 2 + 1
     const uint8_t majority;
@@ -119,12 +137,8 @@ ENGINE_ERROR_CODE DurabilityMonitor::addSyncWrite(queued_item item) {
 
 ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
         const std::string& replica, int64_t memorySeqno) {
-    // @todo: The scope can be probably shorten. Deferring to follow-up patches
-    //     as I'm amending this function considerably.
     std::lock_guard<std::mutex> lg(state.m);
 
-    // Note that in the current implementation of DurabilitMonitot Container
-    // can be empty only before the first SyncWrite is added for tracking.
     if (state.trackedWrites.empty()) {
         throw std::logic_error(
                 "DurabilityManager::seqnoAckReceived: No tracked SyncWrite, "
@@ -154,16 +168,19 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
             break;
         }
 
-        // Update replica iterator
-        advanceReplicaMemoryIterator(lg, replica);
+        // Update replica tracking
+        advanceReplicaMemoryPosition(lg, replica);
 
         // Note: In this first implementation (1 replica) the Durability
         // Requirement for the pending SyncWrite is implicitly verified
         // at this point.
 
         // Commit the verified SyncWrite
-        commit(lg);
+        commit(lg, getReplicaMemoryPosition(lg, replica));
     }
+
+    // We keep track of the actual ack'ed seqno
+    updateReplicaMemoryAckSeqno(lg, replica, memorySeqno);
 
     return ENGINE_SUCCESS;
 }
@@ -173,8 +190,7 @@ size_t DurabilityMonitor::getNumTracked(
     return state.trackedWrites.size();
 }
 
-const DurabilityMonitor::Container::iterator&
-DurabilityMonitor::getReplicaMemoryIterator(
+const DurabilityMonitor::Position& DurabilityMonitor::getReplicaMemoryPosition(
         const std::lock_guard<std::mutex>& lg,
         const std::string& replica) const {
     if (!state.firstChain) {
@@ -182,8 +198,8 @@ DurabilityMonitor::getReplicaMemoryIterator(
                 "DurabilityMonitor::getReplicaMemoryIterator: no chain "
                 "registered");
     }
-    const auto entry = state.firstChain->memoryIterators.find(replica);
-    if (entry == state.firstChain->memoryIterators.end()) {
+    const auto entry = state.firstChain->memoryPositions.find(replica);
+    if (entry == state.firstChain->memoryPositions.end()) {
         throw std::invalid_argument(
                 "DurabilityMonitor::getReplicaEntry: replica " + replica +
                 " not found in chain");
@@ -193,34 +209,42 @@ DurabilityMonitor::getReplicaMemoryIterator(
 
 DurabilityMonitor::Container::iterator DurabilityMonitor::getReplicaMemoryNext(
         const std::lock_guard<std::mutex>& lg, const std::string& replica) {
-    const auto& it = getReplicaMemoryIterator(lg, replica);
-    // A replica iterator represent the durability state of a replica as seen
-    // from the active and it is never singular:
-    // 1) points to container.end()
-    //     a) if container is empty, which cannot be the case here
-    //     b) before the active has received the first ACK
-    // 2) points to an element of container otherwise
-    //
-    // In the 1b) case the next iterator position is Container::begin.
+    const auto& it = getReplicaMemoryPosition(lg, replica).it;
+    // Note: Container::end could be the new position when the pointed SyncWrite
+    //     is removed from Container and the iterator repositioned.
+    //     In that case next=Container::begin
     return (it == state.trackedWrites.end()) ? state.trackedWrites.begin()
                                              : std::next(it);
 }
 
-void DurabilityMonitor::advanceReplicaMemoryIterator(
+void DurabilityMonitor::advanceReplicaMemoryPosition(
         const std::lock_guard<std::mutex>& lg, const std::string& replica) {
-    auto& it = const_cast<DurabilityMonitor::Container::iterator&>(
-            getReplicaMemoryIterator(lg, replica));
-    it++;
+    auto& pos = const_cast<Position&>(getReplicaMemoryPosition(lg, replica));
+    pos.it++;
+    // Note that Position::lastSyncWriteSeqno is always set to the current
+    // pointed SyncWrite to keep the replica seqno-state for when the pointed
+    // SyncWrite is removed
+    pos.lastSyncWriteSeqno = pos.it->getBySeqno();
 }
 
-int64_t DurabilityMonitor::getReplicaMemorySeqno(
+void DurabilityMonitor::updateReplicaMemoryAckSeqno(
+        const std::lock_guard<std::mutex>& lg,
+        const std::string& replica,
+        int64_t seqno) {
+    auto& pos = const_cast<Position&>(getReplicaMemoryPosition(lg, replica));
+    pos.lastAckSeqno = seqno;
+}
+
+int64_t DurabilityMonitor::getReplicaMemorySyncWriteSeqno(
         const std::lock_guard<std::mutex>& lg,
         const std::string& replica) const {
-    const auto& it = getReplicaMemoryIterator(lg, replica);
-    if (it == state.trackedWrites.end()) {
-        return 0;
-    }
-    return it->getBySeqno();
+    return getReplicaMemoryPosition(lg, replica).lastSyncWriteSeqno;
+}
+
+int64_t DurabilityMonitor::getReplicaMemoryAckSeqno(
+        const std::lock_guard<std::mutex>& lg,
+        const std::string& replica) const {
+    return getReplicaMemoryPosition(lg, replica).lastAckSeqno;
 }
 
 bool DurabilityMonitor::hasPending(const std::lock_guard<std::mutex>& lg,
@@ -237,10 +261,35 @@ int64_t DurabilityMonitor::getReplicaPendingMemorySeqno(
     return next->getBySeqno();
 }
 
-void DurabilityMonitor::commit(const std::lock_guard<std::mutex>& lg) {
+void DurabilityMonitor::commit(const std::lock_guard<std::mutex>& lg,
+                               const Position& pos) {
+    if (pos.it == state.trackedWrites.end()) {
+        throw std::logic_error(
+                "DurabilityMonitor::commit: Position points to end");
+    }
+
     // @todo: do commit.
     // Here we will:
     // 1) update the SyncWritePrepare to SyncWriteCommit in the HT
     // 2) enqueue a SyncWriteCommit item into the CM
     // 3) send a response with Success back to the client
+
+    // Remove the committed SyncWrite.
+    // Note that Position.seqno stays set to the original value. That way we
+    // keep the replica seqno-state even after the SyncWrite is removed.
+    auto committedSeqno = pos.lastSyncWriteSeqno;
+    auto& pos_ = const_cast<Position&>(pos);
+    Container::iterator prev;
+    // Note: iterators in state.trackedWrites are never singular, Container::end
+    //     is used as placeholder element for when an iterator cannot point to
+    //     any valid element in Container
+    if (pos_.it == state.trackedWrites.begin()) {
+        prev = state.trackedWrites.end();
+    } else {
+        prev = std::prev(pos_.it);
+    }
+    state.trackedWrites.erase(pos_.it);
+    pos_.it = prev;
+
+    Ensures(pos_.lastSyncWriteSeqno == committedSeqno);
 }

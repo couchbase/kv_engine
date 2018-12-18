@@ -32,9 +32,15 @@ public:
         return DurabilityMonitor::getNumTracked(lg);
     }
 
-    int64_t public_getReplicaMemorySeqno(const std::string& replica) const {
+    int64_t public_getReplicaMemorySyncWriteSeqno(
+            const std::string& replica) const {
         std::lock_guard<std::mutex> lg(state.m);
-        return DurabilityMonitor::getReplicaMemorySeqno(lg, replica);
+        return DurabilityMonitor::getReplicaMemorySyncWriteSeqno(lg, replica);
+    }
+
+    int64_t public_getReplicaMemoryAckSeqno(const std::string& replica) const {
+        std::lock_guard<std::mutex> lg(state.m);
+        return DurabilityMonitor::getReplicaMemoryAckSeqno(lg, replica);
     }
 };
 
