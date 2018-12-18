@@ -794,32 +794,41 @@ static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine* e,
                                     const void* cookie,
                                     const cb::mcbp::Request& request,
                                     ADD_RESPONSE response) {
-    static_assert(sizeof(vbucket_state_t) == 4,
-                  "Unexpected size for vbucket_state_t");
+    nlohmann::json meta;
+    vbucket_state_t state;
     auto extras = request.getExtdata();
-    if (extras.size() != sizeof(vbucket_state_t)) {
-        // MB-31867: ns_server encodes this in the value field. Fall back
-        //           and check if it contains the value
-        extras = request.getValue();
-        if (extras.size() != sizeof(vbucket_state_t)) {
-            e->setErrorContext(
-                    cookie,
-                    "Expected 4 bytes of extras containing the new state");
-            return ENGINE_EINVAL;
-        }
-    }
 
-    auto state = static_cast<vbucket_state_t>(
-            ntohl(*reinterpret_cast<const uint32_t*>(extras.data())));
-    if (!is_valid_vbucket_state_t(state)) {
-        e->setErrorContext(cookie, "Invalid vbucket state");
-        return ENGINE_EINVAL;
+    if (extras.size() == 1) {
+        // This is the new encoding for the SetVBucket state.
+        state = vbucket_state_t(extras.front());
+        auto val = request.getValue();
+        if (!val.empty()) {
+            try {
+                const nlohmann::detail::input_adapter adapter(
+                        reinterpret_cast<const char*>(val.data()), val.size());
+                meta = nlohmann::json::parse(adapter);
+            } catch (const std::exception&) {
+                e->setErrorContext(cookie, "Invalid JSON provided");
+                return ENGINE_EINVAL;
+            }
+        }
+    } else {
+        // This is the pre-mad-hatter encoding for the SetVBucketState
+        if (extras.size() != sizeof(vbucket_state_t)) {
+            // MB-31867: ns_server encodes this in the value field. Fall back
+            //           and check if it contains the value
+            extras = request.getValue();
+        }
+
+        state = static_cast<vbucket_state_t>(
+                ntohl(*reinterpret_cast<const uint32_t*>(extras.data())));
     }
 
     return e->setVBucketState(cookie,
                               response,
                               request.getVBucket(),
                               state,
+                              meta,
                               false,
                               request.getCas());
 }
@@ -5736,6 +5745,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setVBucketState(
         ADD_RESPONSE response,
         Vbid vbid,
         vbucket_state_t to,
+        const nlohmann::json& meta,
         bool transfer,
         uint64_t cas) {
     auto status = kvBucket->setVBucketState(vbid, to, transfer, cookie);

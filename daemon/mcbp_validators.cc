@@ -1820,36 +1820,70 @@ static Status get_random_key_validator(Cookie& cookie) {
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
+/**
+ * The SetVbucket may contain 3 different encodings:
+ *
+ * 1) extras contain the vbucket state in 4 bytes (pre MadHatter). Dataype
+ *    must be RAW
+ * 2) body may contain the vbucket state in 4 bytes (ns_server in pre
+ *    MadHatter). Datatype must be RAW
+ * 3) 1 byte extras containing the VBUCKET state.
+ *    There might be a body, which has to have the DATATYPE bit set to
+ *    JSON. Introduced in MadHatter. (The executor needs to validate
+ *    the case that it is valid JSON as otherwise we'd have to parse
+ *    it just to throw it away)
+ */
 static Status set_vbucket_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
-    auto status = McbpValidator::verify_header(cookie,
-                                               header.getExtlen(),
-                                               ExpectedKeyLen::Zero,
-                                               ExpectedValueLen::Any,
-                                               ExpectedCas::Any,
-                                               PROTOCOL_BINARY_RAW_BYTES);
+    auto status = McbpValidator::verify_header(
+            cookie,
+            header.getExtlen(),
+            ExpectedKeyLen::Zero,
+            ExpectedValueLen::Any,
+            ExpectedCas::Any,
+            PROTOCOL_BINARY_RAW_BYTES | PROTOCOL_BINARY_DATATYPE_JSON);
     if (status != Status::Success) {
         return status;
     }
 
-    auto& request = header.getRequest();
-    auto extras = request.getExtdata();
-    static_assert(sizeof(vbucket_state_t) == 4,
-                  "Unexpected size for vbucket_state_t");
-    if (extras.size() == sizeof(vbucket_state_t)) {
-        if (!request.getValue().empty()) {
-            cookie.setErrorContext("No value should be present");
-            return Status::Einval;
+    vbucket_state_t state;
+    auto extras = header.getExtdata();
+    auto value = header.getValue();
+    auto datatype = header.getDatatype();
+
+    if (extras.size() == 1) {
+        // This is the new-style setVbucket
+        state = static_cast<vbucket_state_t>(extras.front());
+        if (value.empty()) {
+            if (datatype != PROTOCOL_BINARY_RAW_BYTES) {
+                cookie.setErrorContext("datatype should be set to RAW");
+                return Status::Einval;
+            }
+        } else {
+            if (datatype != PROTOCOL_BINARY_DATATYPE_JSON) {
+                cookie.setErrorContext("datatype should be set to JSON");
+                return Status::Einval;
+            }
         }
+    } else if (extras.size() == sizeof(vbucket_state_t) && value.empty() &&
+               datatype == PROTOCOL_BINARY_RAW_BYTES) {
+        state = vbucket_state_t(
+                ntohl(*reinterpret_cast<const uint32_t*>(extras.data())));
+    } else if (extras.empty() && value.size() == sizeof(vbucket_state_t) &&
+               datatype == PROTOCOL_BINARY_RAW_BYTES) {
+        state = vbucket_state_t(
+                ntohl(*reinterpret_cast<const uint32_t*>(value.data())));
     } else {
-        // MB-31867: ns_server encodes this in the value field. Fall back
-        //           and check if it contains the value
-        auto value = request.getValue();
-        if (value.size() != sizeof(vbucket_state_t)) {
-            cookie.setErrorContext(
-                    "Expected 4 bytes of extras containing the new state");
-            return Status::Einval;
-        }
+        // packet is incorrect
+        cookie.setErrorContext(
+                "Invalid format. Use 1 byte state in extras and an optional "
+                "JSON value");
+        return Status::Einval;
+    }
+
+    if (!is_valid_vbucket_state_t(state)) {
+        cookie.setErrorContext("The provided vbucket state is invalid");
+        return Status::Einval;
     }
 
     return Status::Success;

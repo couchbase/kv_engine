@@ -1,5 +1,4 @@
 include_directories(AFTER SYSTEM ${gtest_SOURCE_DIR}/include)
-ADD_DEFINITIONS(-DBUILDING_VALIDATORS_TEST)
 add_executable(memcached_mcbp_test
                mcbp_gat_test.cc
                mcbp_test.cc
@@ -11,6 +10,7 @@ add_executable(memcached_mcbp_test
                mcbp_test_subdoc.cc
                mcbp_test_subdoc_xattr.cc
                mock_connection.h
+               set_vbucket_validator_test.cc
                xattr_blob_test.cc
                xattr_blob_validator_test.cc
                xattr_key_validator_test.cc

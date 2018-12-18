@@ -4128,71 +4128,6 @@ TEST_P(GetRandomKeyValidatorTest, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-class SetVBucketValidatorTest : public ::testing::WithParamInterface<bool>,
-                                public ValidatorTest {
-public:
-    SetVBucketValidatorTest()
-        : ValidatorTest(GetParam()), req(request.message.header.request) {
-    }
-
-    void SetUp() override {
-        ValidatorTest::SetUp();
-        req.setExtlen(4);
-        req.setBodylen(4);
-    }
-
-protected:
-    cb::mcbp::Request& req;
-    cb::mcbp::Status validate() {
-        return ValidatorTest::validate(cb::mcbp::ClientOpcode::SetVbucket,
-                                       static_cast<void*>(&request));
-    }
-};
-
-TEST_P(SetVBucketValidatorTest, CorrectMessage) {
-    EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(SetVBucketValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(SetVBucketValidatorTest, InvalidExtlen) {
-    req.setExtlen(2);
-    req.setBodylen(2);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(SetVBucketValidatorTest, MB31867_ExtrasEncodedInBody) {
-    req.setExtlen(0);
-    req.setBodylen(4);
-    EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(SetVBucketValidatorTest, InvalidDatatype) {
-    req.setDatatype(cb::mcbp::Datatype::JSON);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(SetVBucketValidatorTest, Cas) {
-    req.setCas(0xff);
-    EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(SetVBucketValidatorTest, InvalidKey) {
-    req.setKeylen(2);
-    req.setBodylen(2);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(SetVBucketValidatorTest, InvalidBodylen) {
-    // Now we've got 4 bytes in the extras, and an additional 4 bytes in
-    // the value..
-    req.setBodylen(8);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 class DelVBucketValidatorTest : public ::testing::WithParamInterface<bool>,
                                 public ValidatorTest {
 public:
@@ -4486,10 +4421,6 @@ INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         ::testing::PrintToStringParamName());
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         GetRandomKeyValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        SetVBucketValidatorTest,
                         ::testing::Bool(),
                         ::testing::PrintToStringParamName());
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,

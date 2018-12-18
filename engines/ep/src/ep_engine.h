@@ -567,6 +567,7 @@ public:
                                       ADD_RESPONSE response,
                                       Vbid vbid,
                                       vbucket_state_t to,
+                                      const nlohmann::json& meta,
                                       bool transfer,
                                       uint64_t cas);
 
