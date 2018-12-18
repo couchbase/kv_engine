@@ -408,16 +408,18 @@ public:
     }
 
 private:
-    static cb::engine_error collections_set_manifest(
-            gsl::not_null<EngineIface*> handle, cb::const_char_buffer json) {
-        return {cb::engine_errc::no_bucket,
-                "nobucket::collections_set_manifest"};
+    static cb::engine_errc collections_set_manifest(
+            gsl::not_null<EngineIface*> handle,
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer json) {
+        return cb::engine_errc::no_bucket;
     }
 
-    static cb::EngineErrorStringPair collections_get_manifest(
-            gsl::not_null<EngineIface*> handle) {
-        return {cb::engine_errc::no_bucket,
-                "nobucket::collections_get_manifest"};
+    static cb::engine_errc collections_get_manifest(
+            gsl::not_null<EngineIface*> handle,
+            gsl::not_null<const void*> cookie,
+            ADD_RESPONSE response) {
+        return cb::engine_errc::no_bucket;
     }
 
     static cb::EngineErrorGetCollectionIDResult collections_get_collection_id(

@@ -605,9 +605,9 @@ public:
 
     /**
      * Method to handle get_collections commands
-     * @return a pair of status and JSON as a std::string
+     * @return a pair with the status and JSON as a std::string
      */
-    cb::EngineErrorStringPair getCollections() const;
+    std::pair<cb::mcbp::Status, std::string> getCollections() const;
 
     /**
      * Method to handle get_collection_id command

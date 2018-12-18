@@ -1693,16 +1693,37 @@ cb::EngineErrorMetadataPair EventuallyPersistentEngine::get_meta(
     return acquireEngine(this)->getMetaInner(cookie, key, vbucket);
 }
 
-static cb::engine_error EvpCollectionsSetManifest(
-        gsl::not_null<EngineIface*> handle, cb::const_char_buffer json) {
+static cb::engine_errc EvpCollectionsSetManifest(
+        gsl::not_null<EngineIface*> handle,
+        gsl::not_null<const void*> cookie,
+        cb::const_char_buffer json) {
     auto engine = acquireEngine(handle);
-    return engine->getKVBucket()->setCollections(json);
+    auto rv = engine->getKVBucket()->setCollections(json);
+
+    if (cb::engine_errc::success != cb::engine_errc(rv.code().value())) {
+        engine->setErrorContext(cookie, rv.what());
+    }
+
+    return cb::engine_errc(rv.code().value());
 }
 
-static cb::EngineErrorStringPair EvpCollectionsGetManifest(
-        gsl::not_null<EngineIface*> handle) {
+static cb::engine_errc EvpCollectionsGetManifest(
+        gsl::not_null<EngineIface*> handle,
+        gsl::not_null<const void*> cookie,
+        ADD_RESPONSE response) {
     auto engine = acquireEngine(handle);
-    return engine->getKVBucket()->getCollections();
+    auto rv = engine->getKVBucket()->getCollections();
+    return cb::engine_errc(sendResponse(response,
+                                        nullptr,
+                                        0,
+                                        nullptr,
+                                        0,
+                                        rv.second.data(),
+                                        gsl::narrow<uint32_t>(rv.second.size()),
+                                        PROTOCOL_BINARY_DATATYPE_JSON,
+                                        rv.first,
+                                        0,
+                                        cookie));
 }
 
 static cb::EngineErrorGetCollectionIDResult EvpCollectionsGetCollectionID(

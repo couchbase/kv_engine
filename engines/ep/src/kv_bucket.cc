@@ -2486,7 +2486,7 @@ cb::engine_error KVBucket::setCollections(cb::const_char_buffer manifest) {
     return collectionsManager->update(*this, manifest);
 }
 
-cb::EngineErrorStringPair KVBucket::getCollections() const {
+std::pair<cb::mcbp::Status, std::string> KVBucket::getCollections() const {
     return collectionsManager->getManifest();
 }
 

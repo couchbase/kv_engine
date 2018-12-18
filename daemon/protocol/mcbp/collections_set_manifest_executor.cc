@@ -22,25 +22,19 @@
 #include <memcached/protocol_binary.h>
 
 void collections_set_manifest_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto& connection = cookie.getConnection();
+    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    auto val = req.getValue();
+    cb::const_char_buffer jsonBuffer{reinterpret_cast<const char*>(val.data()),
+                                     val.size()};
+    auto ret = connection.getBucketEngine()->collections.set_manifest(
+            connection.getBucketEngine(), &cookie, jsonBuffer);
 
-    if (ret == ENGINE_SUCCESS) {
-        auto& connection = cookie.getConnection();
-        auto& req = cookie.getRequest(Cookie::PacketContent::Full);
-        auto val = req.getValue();
-        cb::const_char_buffer jsonBuffer{
-                reinterpret_cast<const char*>(val.data()), val.size()};
-        ret = ENGINE_ERROR_CODE(
-                connection.getBucketEngine()
-                        ->collections
-                        .set_manifest(connection.getBucketEngine(), jsonBuffer)
-                        .code()
-                        .value());
-    }
-
-    if (ret == ENGINE_SUCCESS) {
-        cookie.sendResponse(cb::mcbp::Status::Success);
-    } else {
-        cookie.sendResponse(cb::engine_errc(ret));
+    switch (ret) {
+    case cb::engine_errc::disconnect:
+        connection.setState(StateMachine::State::closing);
+        break;
+    default:
+        cookie.sendResponse(ret);
     }
 }

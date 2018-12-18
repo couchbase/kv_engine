@@ -15,33 +15,39 @@
  *   limitations under the License.
  */
 
-#include "engine_errc_2_mcbp.h"
 #include "executors.h"
 
+#include <daemon/buckets.h>
 #include <daemon/cookie.h>
+#include <daemon/mcbp.h>
 #include <logger/logger.h>
 #include <memcached/engine.h>
 
 void collections_get_manifest_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    auto rv = connection.getBucketEngine()->collections.get_manifest(
-            connection.getBucketEngine());
+    auto ret = connection.getBucketEngine()->collections.get_manifest(
+            connection.getBucketEngine(), &cookie, mcbp_response_handler);
 
-    if (rv.first == cb::engine_errc::success) {
-        cookie.sendResponse(cb::mcbp::Status::Success,
-                            {},
-                            {},
-                            {rv.second.data(), rv.second.size()},
-                            cb::mcbp::Datatype::JSON,
-                            0);
-    } else if (rv.first == cb::engine_errc::disconnect) {
-        LOG_WARNING(
-                "{}: collections_get_manifest_executor - get_manifest returned "
-                "ENGINE_DISCONNECT - closing connection {}",
-                connection.getId(),
-                connection.getDescription());
+    ret = cookie.getConnection().remapErrorCode(ret);
+    switch (ret) {
+    case cb::engine_errc::success: {
+        if (cookie.getDynamicBuffer().getRoot() != nullptr) {
+            // We assume that if the underlying engine returns a success then
+            // it is sending a success to the client.
+            ++connection.getBucket()
+                      .responseCounters[int(cb::mcbp::Status::Success)];
+            cookie.sendDynamicBuffer();
+        } else {
+            connection.setState(StateMachine::State::new_cmd);
+        }
+        break;
+    }
+    case cb::engine_errc::disconnect:
         connection.setState(StateMachine::State::closing);
-    } else {
-        cookie.sendResponse(cb::mcbp::to_status(rv.first));
+        break;
+    default:
+        // Release the dynamic buffer.. it may be partial..
+        cookie.clearDynamicBuffer();
+        cookie.sendResponse(cb::engine_errc(ret));
     }
 }

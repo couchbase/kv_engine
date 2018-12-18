@@ -994,11 +994,15 @@ private:
 
     std::atomic<bool> stop_notification_thread;
 
-    static cb::engine_error collections_set_manifest(
-            gsl::not_null<EngineIface*> handle, cb::const_char_buffer json);
+    static cb::engine_errc collections_set_manifest(
+            gsl::not_null<EngineIface*> handle,
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer json);
 
-    static cb::EngineErrorStringPair collections_get_manifest(
-            gsl::not_null<EngineIface*> handle);
+    static cb::engine_errc collections_get_manifest(
+            gsl::not_null<EngineIface*> handle,
+            gsl::not_null<const void*> cookie,
+            ADD_RESPONSE response);
 
     static cb::EngineErrorGetCollectionIDResult collections_get_collection_id(
             gsl::not_null<EngineIface*> handle,
@@ -1762,26 +1766,29 @@ ENGINE_ERROR_CODE EWB_Engine::abort(gsl::not_null<const void*> cookie,
     }
 }
 
-cb::engine_error EWB_Engine::collections_set_manifest(
-        gsl::not_null<EngineIface*> handle, cb::const_char_buffer json) {
+cb::engine_errc EWB_Engine::collections_set_manifest(
+        gsl::not_null<EngineIface*> handle,
+        gsl::not_null<const void*> cookie,
+        cb::const_char_buffer json) {
     EWB_Engine* ewb = to_engine(handle);
     if (ewb->real_engine->collections.set_manifest == nullptr) {
-        return {cb::engine_errc::not_supported,
-                "EWB_Engine::collections_set_manifest"};
+        return cb::engine_errc::not_supported;
     } else {
-        return ewb->real_engine->collections.set_manifest(ewb->real_engine,
-                                                          json);
+        return ewb->real_engine->collections.set_manifest(
+                ewb->real_engine, cookie, json);
     }
 }
 
-cb::EngineErrorStringPair EWB_Engine::collections_get_manifest(
-        gsl::not_null<EngineIface*> handle) {
+cb::engine_errc EWB_Engine::collections_get_manifest(
+        gsl::not_null<EngineIface*> handle,
+        gsl::not_null<const void*> cookie,
+        ADD_RESPONSE response) {
     EWB_Engine* ewb = to_engine(handle);
     if (ewb->real_engine->collections.get_manifest == nullptr) {
-        return {cb::engine_errc::not_supported,
-                "EWB_Engine::collections_get_manifest"};
+        return cb::engine_errc::not_supported;
     } else {
-        return ewb->real_engine->collections.get_manifest(ewb->real_engine);
+        return ewb->real_engine->collections.get_manifest(
+                ewb->real_engine, cookie, response);
     }
 }
 

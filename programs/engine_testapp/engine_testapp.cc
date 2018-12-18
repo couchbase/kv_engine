@@ -964,16 +964,17 @@ ENGINE_ERROR_CODE mock_engine::abort(gsl::not_null<const void*> cookie,
     return the_engine_dcp->commit(cookie, opaque, prepared_seqno, abort_seqno);
 }
 
-static cb::engine_error mock_collections_set_manifest(
-        gsl::not_null<EngineIface*> handle, cb::const_char_buffer json) {
+static cb::engine_errc mock_collections_set_manifest(
+        gsl::not_null<EngineIface*> handle,
+        gsl::not_null<const void*> cookie,
+        cb::const_char_buffer json) {
     struct mock_engine* me = get_handle(handle);
     if (me->the_engine->collections.set_manifest == nullptr) {
-        return cb::engine_error(
-                cb::engine_errc::not_supported,
-                "mock_collections_set_manifest: not supported by engine");
+        return cb::engine_errc::not_supported;
     }
 
-    return me->the_engine->collections.set_manifest(me->the_engine, json);
+    return me->the_engine->collections.set_manifest(
+            me->the_engine, cookie, json);
 }
 
 static void usage(void) {

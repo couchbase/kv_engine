@@ -26,7 +26,6 @@
 #include <platform/sized_buffer.h>
 
 namespace cb {
-using EngineErrorStringPair = std::pair<engine_errc, std::string>;
 
 struct EngineErrorGetCollectionIDResult {
     EngineErrorGetCollectionIDResult(engine_errc result,
@@ -60,14 +59,16 @@ struct collections_interface {
     /**
      * Inform the engine of the current collection manifest (a JSON document)
      */
-    cb::engine_error (*set_manifest)(gsl::not_null<EngineIface*> handle,
-                                     cb::const_char_buffer json);
+    cb::engine_errc (*set_manifest)(gsl::not_null<EngineIface*> handle,
+                                    gsl::not_null<const void*> cookie,
+                                    cb::const_char_buffer json);
 
     /**
      * Retrieve the last manifest set using set_manifest (a JSON document)
      */
-    cb::EngineErrorStringPair (*get_manifest)(
-            gsl::not_null<EngineIface*> handle);
+    cb::engine_errc (*get_manifest)(gsl::not_null<EngineIface*> handle,
+                                    gsl::not_null<const void*> cookie,
+                                    ADD_RESPONSE response);
 
     cb::EngineErrorGetCollectionIDResult (*get_collection_id)(
             gsl::not_null<EngineIface*> handle,

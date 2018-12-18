@@ -53,9 +53,10 @@ public:
 
     /**
      * Retrieve the current manifest
-     * @return JSON version of the current manifest
+     * @return pair with status and if success JSON version of the current
+     *         manifest
      */
-    cb::EngineErrorStringPair getManifest() const;
+    std::pair<cb::mcbp::Status, std::string> getManifest() const;
 
     /**
      * Lookup collection id from path

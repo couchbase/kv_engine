@@ -106,12 +106,13 @@ boost::optional<Vbid> Collections::Manager::updateAllVBuckets(
     return {};
 }
 
-cb::EngineErrorStringPair Collections::Manager::getManifest() const {
+std::pair<cb::mcbp::Status, std::string> Collections::Manager::getManifest()
+        const {
     std::unique_lock<std::mutex> ul(lock);
     if (current) {
-        return {cb::engine_errc::success, current->toJson()};
+        return {cb::mcbp::Status::Success, current->toJson()};
     } else {
-        return {cb::engine_errc::no_collections_manifest, {}};
+        return {cb::mcbp::Status::NoCollectionsManifest, {}};
     }
 }
 
