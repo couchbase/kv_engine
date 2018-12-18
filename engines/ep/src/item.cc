@@ -277,7 +277,7 @@ void Item::setDeleted(DeleteSource cause) {
         break;
     case queue_op::system_event:
         if (cause == DeleteSource::TTL) {
-            std::logic_error(
+            throw std::logic_error(
                     "Item::setDeleted should not expire a system_event " +
                     to_string(op));
         }
