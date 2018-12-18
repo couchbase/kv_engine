@@ -36,14 +36,14 @@ using queued_item = SingleThreadedRCPtr<Item, Item*, std::default_delete<Item>>;
 
 // Enumerations representing binary states - more explicit than using a generic
 // bool.
-enum class GenerateBySeqno { No, Yes };
-enum class GenerateRevSeqno { No, Yes };
-enum class GenerateCas { No, Yes };
-enum class TrackCasDrift { No, Yes };
-enum class WantsDeleted { No, Yes };
-enum class TrackReference { No, Yes };
-enum class QueueExpired { No, Yes };
-enum class CheckConflicts { No, Yes };
+enum class GenerateBySeqno : char { No, Yes };
+enum class GenerateRevSeqno : char { No, Yes };
+enum class GenerateCas : char { No, Yes };
+enum class TrackCasDrift : char { No, Yes };
+enum class WantsDeleted : char { No, Yes };
+enum class TrackReference : char { No, Yes };
+enum class QueueExpired : char { No, Yes };
+enum class CheckConflicts : char { No, Yes };
 
 std::string to_string(GenerateBySeqno generateBySeqno);
 std::string to_string(GenerateCas generateCas);
