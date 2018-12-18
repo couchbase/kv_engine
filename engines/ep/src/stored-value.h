@@ -741,6 +741,12 @@ public:
         return static_cast<CommittedState>(bits2.test(committedIndex));
     }
 
+    /// Sets the Committed state of the SV to "Committed"
+    void setCommitted() {
+        bits2.set(committedIndex,
+                  static_cast<uint8_t>(CommittedState::Committed));
+    }
+
 protected:
     /**
      * Constructor - protected as allocation needs to be done via

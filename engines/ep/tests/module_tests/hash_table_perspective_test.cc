@@ -151,3 +151,78 @@ TEST_F(HashTablePerspectiveTest, DenyReplacePendingWithPending) {
     auto pending2 = makePendingItem(key, "pending2"s);
     ASSERT_EQ(MutationStatus::IsPendingSyncWrite, ht.set(pending2));
 }
+
+// Test adding a pending item and then committing it.
+TEST_F(HashTablePerspectiveTest, Commit) {
+    auto pending = makePendingItem(key, "pending"s);
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(pending));
+
+    { // locking scope.
+        // Check preconditions - pending item should be found as pending.
+        auto result = ht.findForWrite(key);
+        ASSERT_TRUE(result.storedValue);
+        ASSERT_EQ(CommittedState::Pending, result.storedValue->getCommitted());
+
+        // Test
+        ht.commit(result.lock, *result.storedValue);
+        EXPECT_EQ(CommittedState::Committed,
+                  result.storedValue->getCommitted());
+    }
+
+    // Check postconditions - should only have one item for that key.
+    auto readView = ht.findForRead(key).storedValue;
+    auto writeView = ht.findForWrite(key).storedValue;
+    EXPECT_TRUE(readView);
+    EXPECT_TRUE(writeView);
+    EXPECT_EQ(*readView, *writeView);
+}
+
+// Test a normal set followed by a pending SyncWrite; then committing the
+// pending SyncWrite which should replace the previous committed.
+TEST_F(HashTablePerspectiveTest, CommitExisting) {
+    auto committed = makeCommittedItem(key, "valueA"s);
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(committed));
+    auto pending = makePendingItem(key, "valueB"s);
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(pending));
+    ASSERT_EQ(2, ht.getNumItems());
+
+    { // locking scope.
+        // Check preconditions - item should be found as pending.
+        auto result = ht.findForWrite(key);
+        ASSERT_TRUE(result.storedValue);
+        ASSERT_EQ(CommittedState::Pending, result.storedValue->getCommitted());
+
+        // Test
+        ht.commit(result.lock, *result.storedValue);
+
+        EXPECT_EQ(CommittedState::Committed,
+                  result.storedValue->getCommitted());
+    }
+
+    // Check postconditions - should only have one item for that key.
+    auto readView = ht.findForRead(key).storedValue;
+    auto writeView = ht.findForWrite(key).storedValue;
+    EXPECT_TRUE(readView);
+    EXPECT_TRUE(writeView);
+    EXPECT_EQ(*readView, *writeView);
+
+    EXPECT_EQ(1, ht.getNumItems());
+}
+
+// Negative test - check it is not possible to commit a non-pending item.
+TEST_F(HashTablePerspectiveTest, CommitNonPendingFails) {
+    auto committed = makeCommittedItem(key, "valueA"s);
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(committed));
+
+    { // locking scope.
+        // Check preconditions - item should be found as committed.
+        auto result = ht.findForWrite(key);
+        ASSERT_TRUE(result.storedValue);
+        ASSERT_EQ(CommittedState::Committed,
+                  result.storedValue->getCommitted());
+
+        // Test
+        EXPECT_THROW(ht.commit(result.lock, *result.storedValue),
+                     std::invalid_argument);
+    }
+}

@@ -278,6 +278,36 @@ MutationStatus HashTable::set(Item& val) {
     }
 }
 
+void HashTable::commit(const HashTable::HashBucketLock& hbl, StoredValue& v) {
+    if (v.getCommitted() != CommittedState::Pending) {
+        throw std::invalid_argument(
+                "HashTable::commit: Cannot call on a non-Pending StoredValue");
+    }
+
+    // Record properties of the pending item we are about to commit.
+    const auto pendingPreProps = valueStats.prologue(&v);
+
+    // Locate any existing committed SV and remove it.
+    auto& key = v.getKey();
+    auto oldValue = hashChainRemoveFirst(
+            values[hbl.getBucketNum()], [&key](const StoredValue* v) {
+                return v->hasKey(key) &&
+                       v->getCommitted() == CommittedState::Committed;
+            });
+
+    if (oldValue) {
+        // Update stats for committed -> [removed] item.
+        const auto committedPreProps = valueStats.prologue(&v);
+        valueStats.epilogue(committedPreProps, nullptr);
+    }
+
+    // Change the pending item to Committed.
+    v.setCommitted();
+
+    // Update stats for pending -> Committed item
+    valueStats.epilogue(pendingPreProps, &v);
+}
+
 HashTable::UpdateResult HashTable::unlocked_updateStoredValue(
         const HashBucketLock& hbl, StoredValue& v, const Item& itm) {
     if (!hbl.getHTLock()) {

@@ -646,6 +646,15 @@ public:
     MutationStatus set(Item& val);
 
     /**
+     * Commit a pending SyncWrite; marking it at committed and removing any
+     * existing Committed item with the same key.
+     *
+     * @param hbl Hash table bucket lock that must be held.
+     * @param v Reference to the StoredValue to be committed.
+     */
+    void commit(const HashBucketLock& hbl, StoredValue& v);
+
+    /**
      * Store the given compressed buffer as a value in the
      * given StoredValue
      *
