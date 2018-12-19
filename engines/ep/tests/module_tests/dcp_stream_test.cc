@@ -895,6 +895,63 @@ TEST_P(StreamTest, CursorDroppingBasicBackfillState) {
     destroy_dcp_stream();
 }
 
+/*
+ * Tests that when a cursor is dropped the associated stream's pointer
+ * to the cursor is set to nullptr.
+ */
+TEST_P(StreamTest, MB_32329CursorDroppingResetCursor) {
+    /* Add 2 items; we need this to keep stream in backfill state */
+    const int numItems = 2;
+    addItemsAndRemoveCheckpoint(numItems);
+
+    /* Set up a DCP stream */
+    setup_dcp_stream();
+
+    /* Transition stream to backfill state and expect cursor dropping call to
+       succeed */
+    stream->transitionStateToBackfilling();
+
+    /*
+     * Increase the use_count of the cursor shared pointer, this replicates
+     * the behaviour of the ClosedUnrefCheckpointRemoverTask (see
+     * cursorDroppingIfNeeded) which calls lock() on the cursor before
+     * calling DcpConnMap::handleSlowStream.
+     */
+    auto cursorSP = stream->getCursor().lock();
+    /*
+     * The cursor shared_ptr has a reference count of 2. One is from the
+     * reference from the cursor map, the other is the reference from taking
+     * the lock (in the code above).
+     */
+    ASSERT_EQ(2, cursorSP.use_count());
+
+    ASSERT_TRUE(stream->public_handleSlowStream());
+    /*
+     * The cursor should now be removed from the map and therefore the
+     * reference count should have reduced to 1.
+     */
+    ASSERT_EQ(1, cursorSP.use_count());
+
+    /*
+     * Key part of the test to check that even though the cursor has a
+     * reference count of 1, the dcp stream's pointer to the cursor has
+     * now been set to nullptr, as it has been removed from the cursor map.
+     */
+    EXPECT_EQ(nullptr, stream->getCursor().lock());
+
+    /* Run the backfill task in background thread to run so that it can
+       complete/cancel itself */
+    ExecutorPool::get()->setNumAuxIO(1);
+    /* Finish up with the backilling of the remaining item */
+    {
+        std::chrono::microseconds uSleepTime(128);
+        while (numItems != stream->getLastReadSeqno()) {
+            uSleepTime = decayingSleep(uSleepTime);
+        }
+    }
+    destroy_dcp_stream();
+}
+
 TEST_P(StreamTest, CursorDroppingBasicInMemoryState) {
     /* Set up a DCP stream */
     setup_dcp_stream();

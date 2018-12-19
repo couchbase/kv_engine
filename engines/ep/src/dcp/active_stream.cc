@@ -1575,7 +1575,7 @@ bool ActiveStream::dropCheckpointCursor_UNLOCKED() {
         endStream(END_STREAM_STATE);
         notifyStreamReady();
     }
-    return vbucket->checkpointManager->removeCursor(cursor.lock().get());
+    return removeCheckpointCursor();
 }
 
 spdlog::level::level_enum ActiveStream::getTransitionStateLogLevel(
@@ -1599,9 +1599,21 @@ void ActiveStream::notifyStreamReady(bool force) {
     }
 }
 
-void ActiveStream::removeCheckpointCursor() {
+bool ActiveStream::removeCheckpointCursor() {
     VBucketPtr vb = engine->getVBucket(vb_);
     if (vb) {
-        vb->checkpointManager->removeCursor(cursor.lock().get());
+        if (vb->checkpointManager->removeCursor(cursor.lock().get())) {
+            /*
+             * Although the cursor has been removed from the cursor map
+             * the underlying shared_ptr can still be valid due to other
+             * uses of the cursor not yet going out of scope
+             * (e.g. ClosedUnrefCheckpointRemoverTask).  Therefore
+             * cursor.lock().get() may not return the nullptr, so reset the
+             * cursor to ensure that it is not used.
+             */
+            cursor.reset();
+            return true;
+        }
     }
+    return false;
 }

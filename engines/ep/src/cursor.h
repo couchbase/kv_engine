@@ -85,6 +85,11 @@ public:
         return cursor.lock();
     }
 
+    void reset() {
+        std::unique_lock<LockType> writer(cursorLock);
+        cursor.reset();
+    }
+
 private:
     mutable LockType cursorLock;
     std::weak_ptr<CheckpointCursor> cursor;

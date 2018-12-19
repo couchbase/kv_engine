@@ -268,7 +268,7 @@ private:
      * Helper function that tries to takes the ownership of the vbucket
      * (temporarily) and then removes the checkpoint cursor held by the stream.
      */
-    void removeCheckpointCursor();
+    bool removeCheckpointCursor();
 
     /**
      * Decides what log level must be used for (active) stream state
