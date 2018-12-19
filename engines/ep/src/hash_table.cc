@@ -240,7 +240,7 @@ void HashTable::resize(size_t newSize) {
 HashTable::FindResult HashTable::find(const DocKey& key,
                                       TrackReference trackReference,
                                       WantsDeleted wantsDeleted,
-                                      CommittedState perspective) {
+                                      Perspective perspective) {
     if (!isActive()) {
         throw std::logic_error("HashTable::find: Cannot call on a "
                 "non-active object");
@@ -520,13 +520,13 @@ StoredValue* HashTable::unlocked_find(const DocKey& key,
                                       int bucket_num,
                                       WantsDeleted wantsDeleted,
                                       TrackReference trackReference,
-                                      CommittedState perspective) {
+                                      Perspective perspective) {
     for (StoredValue* v = values[bucket_num].get().get(); v;
             v = v->getNext().get().get()) {
         if (v->hasKey(key)) {
             // When using Committed perspective; should only return Committed
             // items.
-            if ((perspective == CommittedState::Committed) &&
+            if ((perspective == Perspective::Committed) &&
                 (v->getCommitted() == CommittedState::Pending)) {
                 continue;
             }
@@ -551,13 +551,13 @@ HashTable::FindROResult HashTable::findForRead(const DocKey& key,
                                                TrackReference trackReference,
                                                WantsDeleted wantsDeleted) {
     auto result =
-            find(key, trackReference, wantsDeleted, CommittedState::Committed);
+            find(key, trackReference, wantsDeleted, Perspective::Committed);
     return {result.storedValue, std::move(result.lock)};
 }
 
 HashTable::FindResult HashTable::findForWrite(const DocKey& key,
                                               WantsDeleted wantsDeleted) {
-    return find(key, TrackReference::No, wantsDeleted, CommittedState::Pending);
+    return find(key, TrackReference::No, wantsDeleted, Perspective::Pending);
 }
 
 void HashTable::unlocked_del(const HashBucketLock& hbl, const DocKey& key) {

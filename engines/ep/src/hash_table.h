@@ -161,6 +161,14 @@ public:
     using DatatypeCombo = std::array<cb::NonNegativeCounter<size_t>,
                                      mcbp::datatype::highest + 1>;
 
+    /// Under what perspective (view) should the HashTable be accessed.
+    enum class Perspective {
+        /// Only access items which are Committed
+        Committed,
+        /// Access both Committed and Pending items.
+        Pending,
+    };
+
     /**
      * Represents a position within the hashtable.
      *
@@ -758,7 +766,7 @@ public:
             int bucket_num,
             WantsDeleted wantsDeleted,
             TrackReference trackReference,
-            CommittedState perspective = CommittedState::Committed);
+            Perspective perspective = Perspective::Committed);
 
     /**
      * Get a lock holder holding a lock for the given bucket
@@ -993,7 +1001,7 @@ private:
     FindResult find(const DocKey& key,
                     TrackReference trackReference,
                     WantsDeleted wantsDeleted,
-                    CommittedState perspective = CommittedState::Committed);
+                    Perspective perspective = Perspective::Committed);
 
     // The initial (and minimum) size of the HashTable.
     const size_t initialSize;
