@@ -563,6 +563,15 @@ std::tuple<StoredValue*, VBNotifyCtx> EphemeralVBucket::softDeleteStoredValue(
     return std::make_tuple(newSv, notifyCtx);
 }
 
+VBNotifyCtx EphemeralVBucket::commitStoredValue(
+        const HashTable::HashBucketLock& hbl,
+        StoredValue& v,
+        const VBQueueItemCtx& queueItmCtx) {
+    // @todo-durability: Implement this.
+    throw std::logic_error(
+            "EphemeralVBucket::commitStoredValue - not yet implemented");
+}
+
 void EphemeralVBucket::bgFetch(const DocKey& key,
                                const void* cookie,
                                EventuallyPersistentEngine& engine,

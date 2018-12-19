@@ -976,13 +976,15 @@ ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    // @todo-durability: Wire into Durability monitor here...
-    logger->warn(
+    logger->debug(
             "({}) seqno_acknowledged: in_memory_seqno:{}, on_disk_seqno:{}",
             vbucket,
             in_memory_seqno,
             on_disk_seqno);
-    return ENGINE_SUCCESS;
+
+    // @todo-durability: Use the real name of the consumer we are associated
+    // with.
+    return vb->seqnoAcknowledged("replica", in_memory_seqno, on_disk_seqno);
 }
 
 bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
@@ -1177,6 +1179,7 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
             multipleStreamRequests == MultipleStreamRequests::Yes,
             add_stat,
             c);
+    addStat("synchronous_replication", isSyncReplicationEnabled(), add_stat, c);
 
     // Possible that the producer has had its streams closed and hence doesn't
     // have a backfill manager anymore.

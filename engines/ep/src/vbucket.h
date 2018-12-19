@@ -1169,6 +1169,15 @@ public:
             const void* cookie,
             EventuallyPersistentEngine& engine,
             const Collections::VB::Manifest::CachingReadHandle& cHandle);
+
+    /**
+     * Perform a commit against the given pending Sync Write.
+     *
+     * @param key Key to commit
+     * @param pendingSeqno The sequence number of the existing pending SyncWrite
+     */
+    ENGINE_ERROR_CODE commit(const StoredDocKey& key, uint64_t pendingSeqno);
+
     /**
      * Update in memory data structures after an item is deleted on disk
      *
@@ -1315,6 +1324,18 @@ public:
     static bool isLogicallyNonExistent(
             const StoredValue& v,
             const Collections::VB::Manifest::CachingReadHandle& cHandle);
+
+    /**
+     * Inform the vBucket that sequence number(s) have been acknowledged by
+     * a replica node.
+     *
+     * @param replicaId The replica node which has acknowledged.
+     * @param inMemorySeqno The sequence number the replica is up to in memory.
+     * @param onDiskSeqno The sequence number the replica has written to disk.
+     */
+    ENGINE_ERROR_CODE seqnoAcknowledged(const std::string& replicaId,
+                                        uint64_t inMemorySeqno,
+                                        uint64_t onDiskSeqno);
 
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
@@ -1705,6 +1726,16 @@ private:
             const VBQueueItemCtx& queueItmCtx,
             uint64_t bySeqno,
             DeleteSource deleteSource) = 0;
+
+    /**
+     * Commit the given pending item; removing any previous committed item with
+     * the same key from in-memory structures.
+     *
+     */
+    virtual VBNotifyCtx commitStoredValue(
+            const HashTable::HashBucketLock& hbl,
+            StoredValue& v,
+            const VBQueueItemCtx& queueItmCtx) = 0;
 
     /**
      * This function handles expiry related stuff before logically (soft)

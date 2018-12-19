@@ -57,6 +57,27 @@ static const ssize_t prime_size_table[] = {
  */
 static const double freqCounterIncFactor = 0.012;
 
+std::string to_string(MutationStatus status) {
+    switch (status) {
+    case MutationStatus::NotFound:
+        return "NotFound";
+    case MutationStatus::InvalidCas:
+        return "InvalidCas";
+    case MutationStatus::WasClean:
+        return "WasClean";
+    case MutationStatus::WasDirty:
+        return "WasDirty";
+    case MutationStatus::IsLocked:
+        return "IsLocked";
+    case MutationStatus::NoMem:
+        return "NoMem";
+    case MutationStatus::NeedBgFetch:
+        return "NeedBgFetch";
+    case MutationStatus::IsPendingSyncWrite:
+        return "IsPendingSyncWrite";
+    }
+    return "<invalid>(" + std::to_string(int(status)) + ")";
+}
 
 std::ostream& operator<<(std::ostream& os, const HashTable::Position& pos) {
     os << "{lock:" << pos.lock << " bucket:" << pos.hash_bucket << "/" << pos.ht_size << "}";

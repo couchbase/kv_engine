@@ -519,6 +519,43 @@ void VBucket::handlePreExpiry(const HashTable::HashBucketLock& hbl,
     }
 }
 
+ENGINE_ERROR_CODE VBucket::commit(const StoredDocKey& key,
+                                  uint64_t pendingSeqno) {
+    auto htRes = ht.findForWrite(key);
+    if (!htRes.storedValue) {
+        // If we are committing we /should/ always find the pending item.
+        std::stringstream ss;
+        ss << key;
+        EP_LOG_WARN(
+                "VBucket::commit ({}) failed as no HashTable item found with "
+                "key:{}",
+                id,
+                cb::UserData(ss.str()));
+        return ENGINE_KEY_ENOENT;
+    }
+
+    if (htRes.storedValue->getCommitted() != CommittedState::Pending) {
+        // We should always find a pending item when committing; if not
+        // this is a logic error...
+        std::stringstream ss;
+        ss << *htRes.storedValue;
+        EP_LOG_WARN(
+                "VBucket::commit ({}) failed as HashTable value is not "
+                "CommittedState::Pending - {}",
+                id,
+                cb::UserData(ss.str()));
+        return ENGINE_EINVAL;
+    }
+
+    VBQueueItemCtx queueItmCtx;
+    auto notify =
+            commitStoredValue(htRes.lock, *htRes.storedValue, queueItmCtx);
+
+    notifyNewSeqno(notify);
+
+    return ENGINE_SUCCESS;
+}
+
 bool VBucket::addPendingOp(const void* cookie) {
     LockHolder lh(pendingOpLock);
     if (state != vbucket_state_pending) {
@@ -2820,6 +2857,13 @@ bool VBucket::isLogicallyNonExistent(
     return v.isDeleted() || v.isTempDeletedItem() ||
            v.isTempNonExistentItem() ||
            cHandle.isLogicallyDeleted(v.getBySeqno());
+}
+
+ENGINE_ERROR_CODE VBucket::seqnoAcknowledged(const std::string& replicaId,
+                                             uint64_t inMemorySeqno,
+                                             uint64_t onDiskSeqno) {
+    //@todo-durability: Implement this.
+    return ENGINE_ENOTSUP;
 }
 
 void VBucket::DeferredDeleter::operator()(VBucket* vb) const {

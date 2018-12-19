@@ -45,6 +45,7 @@ enum class MutationStatus : uint16_t {
     NeedBgFetch, //!< Require a bg fetch to process SET op,
     IsPendingSyncWrite, //!< The item a pending SyncWrite and can't be updated.
 };
+std::string to_string(MutationStatus status);
 
 /**
  * Result from add operation.

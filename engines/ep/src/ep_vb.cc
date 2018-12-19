@@ -516,6 +516,12 @@ EPVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
         result.storedValue = &v;
     } else {
         result = ht.unlocked_updateStoredValue(hbl, v, itm);
+        if (!result.storedValue) {
+            throw std::logic_error(
+                    "EPVBucket::updateStoredValue: Failed to obtain valid SV "
+                    "to update from HashTable - status:" +
+                    to_string(result.status));
+        }
     }
 
     return std::make_tuple(result.storedValue,
@@ -552,6 +558,14 @@ std::tuple<StoredValue*, VBNotifyCtx> EPVBucket::softDeleteStoredValue(
     }
 
     return std::make_tuple(&v, queueDirty(v, queueItmCtx));
+}
+
+VBNotifyCtx EPVBucket::commitStoredValue(const HashTable::HashBucketLock& hbl,
+                                         StoredValue& v,
+                                         const VBQueueItemCtx& queueItmCtx) {
+    ht.commit(hbl, v);
+
+    return queueDirty(v, queueItmCtx);
 }
 
 void EPVBucket::bgFetch(const DocKey& key,
