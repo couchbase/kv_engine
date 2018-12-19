@@ -1371,42 +1371,37 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
             for (auto resumableIterator = rv.first->startResumable();
                  !resumableIterator.complete();
                  resumableIterator.next()) {
-                auto stream = resumableIterator.get();
+                const std::shared_ptr<Stream>& stream = resumableIterator.get();
 
-                // We shouldn't find a null stream pointer
-                if (!stream) {
-                    throw std::logic_error(
-                            "DcpProducer::getNextItem: found null stream for " +
-                            vbucket.to_string());
+                if (stream) {
+                    response = stream->next();
+
+                    if (response) {
+                        // VB gave us something, validate it
+                        switch (response->getEvent()) {
+                        case DcpResponse::Event::SnapshotMarker:
+                        case DcpResponse::Event::Mutation:
+                        case DcpResponse::Event::Deletion:
+                        case DcpResponse::Event::Expiration:
+                        case DcpResponse::Event::Prepare:
+                        case DcpResponse::Event::StreamEnd:
+                        case DcpResponse::Event::SetVbucket:
+                        case DcpResponse::Event::SystemEvent:
+                            break;
+                        default:
+                            throw std::logic_error(
+                                    std::string("DcpProducer::getNextItem: "
+                                                "Producer (") +
+                                    logHeader() +
+                                    ") is attempting to "
+                                    "write an unexpected event:" +
+                                    response->to_string());
+                        }
+
+                        ready.pushUnique(vbucket);
+                        return response;
+                    } // else next stream for vb
                 }
-
-                response = stream->next();
-
-                if (response) {
-                    // VB gave us something, validate it
-                    switch (response->getEvent()) {
-                    case DcpResponse::Event::SnapshotMarker:
-                    case DcpResponse::Event::Mutation:
-                    case DcpResponse::Event::Deletion:
-                    case DcpResponse::Event::Expiration:
-                    case DcpResponse::Event::Prepare:
-                    case DcpResponse::Event::StreamEnd:
-                    case DcpResponse::Event::SetVbucket:
-                    case DcpResponse::Event::SystemEvent:
-                        break;
-                    default:
-                        throw std::logic_error(
-                                std::string("DcpProducer::getNextItem: "
-                                            "Producer (") +
-                                logHeader() +
-                                ") is attempting to "
-                                "write an unexpected event:" +
-                                response->to_string());
-                    }
-
-                    ready.pushUnique(vbucket);
-                    return response;
-                } // else next stream for vb
             }
         }
 
