@@ -45,10 +45,9 @@ std::string StoredDocKey::to_string() const {
     std::stringstream ss;
     auto leb128 = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
             {reinterpret_cast<const uint8_t*>(keydata.data()), keydata.size()});
-    ss << "cid:0x" << std::hex << leb128.first << ":"
+    ss << "cid:0x" << std::hex << leb128.first << std::dec << ":"
        << std::string(reinterpret_cast<const char*>(leb128.second.data()),
                       leb128.second.size());
-    ss << ", size:" << size();
     return ss.str();
 }
 
