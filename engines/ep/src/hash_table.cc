@@ -595,6 +595,12 @@ MutationStatus HashTable::insertFromWarmup(
             return MutationStatus::InvalidCas;
         }
 
+        // Existing item found. This should only occur if:
+        // a) The existing item is temporary (i.e. result of a front-end
+        //    thread attempting to read and triggered a bgFetch); or
+        // b) The existing item is non-temporary and was loaded as the result of
+        //    a previous BGfetch (and has the same CAS).
+        //
         // Verify that the CAS isn't changed
         if (v->getCas() != itm.getCas()) {
             if (v->getCas() == 0) {
@@ -607,16 +613,6 @@ MutationStatus HashTable::insertFromWarmup(
             }
         }
         auto res = unlocked_updateStoredValue(hbl, *v, itm);
-        if (res.status != MutationStatus::WasClean) {
-            // When inserting from warmup we always succeed; and always without
-            // finding the item was already existing.
-            std::stringstream ss;
-            ss << itm;
-            throw std::logic_error(
-                    "HashTable::insertFromWarmup: Unexpected status:" +
-                    std::to_string(int(res.status)) + " when inserting " +
-                    cb::UserData(ss.str()).getSanitizedValue());
-        }
         v = res.storedValue;
     }
 
