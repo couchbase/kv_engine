@@ -1662,8 +1662,9 @@ TEST_P(SubdocTestappTest, SubdocMkdoc_Counter) {
 
 // Test operation of setting document expiry for single-path commands.
 TEST_P(SubdocTestappTest, SubdocExpiry_Single) {
-    // Create two documents; one to be used for an exlicit 1s expiry and one
+    // Create two documents; one to be used for an explicit expiry time and one
     // for an explicit 0s (i.e. never) expiry.
+    uint32_t expiryTime = 5;
     store_document("ephemeral", "[\"a\"]");
     store_document("permanent", "[\"a\"]");
 
@@ -1677,7 +1678,7 @@ TEST_P(SubdocTestappTest, SubdocExpiry_Single) {
     // Perform a REPLACE operation, setting a expiry of 1s.
     BinprotSubdocCommand replace(
             cb::mcbp::ClientOpcode::SubdocReplace, "ephemeral", "[0]", "\"b\"");
-    EXPECT_SD_OK(replace.setExpiry(1));
+    EXPECT_SD_OK(replace.setExpiry(expiryTime));
 
     // Try to read the document immediately - should exist.
     auto result = fetch_value("ephemeral");
@@ -1694,31 +1695,10 @@ TEST_P(SubdocTestappTest, SubdocExpiry_Single) {
     EXPECT_EQ(cb::mcbp::Status::Success, result.first);
     EXPECT_EQ("[\"b\"]", result.second);
 
-    /*
-     * Additional document for MB-32364, checking if a single path mutation
-     * ignores the expiry if docflags are included in extras.
-     * TODO: Move into it's own test in MB-32385 once sleep time is not needed.
-     */
-
-    // Perform an UPSERT, explicitly encoding an expiry of 1s.
-    BinprotSubdocCommand upsert1(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                                 "doc_flag",
-                                 "foo",
-                                 "\"a\"",
-                                 SUBDOC_FLAG_NONE,
-                                 mcbp::subdoc::doc_flag::Mkdoc);
-    upsert1.setExpiry(1);
-    EXPECT_SUBDOC_CMD(upsert1, cb::mcbp::Status::Success, "");
-
-    // Try to read the doc_flags document immediately - should exist.
-    result = fetch_value("doc_flag");
-    EXPECT_EQ(cb::mcbp::Status::Success, result.first);
-    EXPECT_EQ("{\"foo\":\"a\"}", result.second);
-
-    // Sleep for 2s seconds.
-    // TODO: it would be great if we could somehow accelerate time from the
-    // harness, and not add 2s to the runtime of the test...
-    usleep(2 * 1000 * 1000);
+    // Move memcached time forward to expire the ephemeral document
+    adjust_memcached_clock(
+            (expiryTime * 2),
+            cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
 
     // Try to read the ephemeral document - shouldn't exist.
     result = fetch_value("ephemeral");
@@ -1729,9 +1709,45 @@ TEST_P(SubdocTestappTest, SubdocExpiry_Single) {
     EXPECT_EQ(cb::mcbp::Status::Success, result.first);
     EXPECT_EQ("[\"b\"]", result.second);
 
+    // Cleanup
+    delete_object("permanent");
+    // Reset memcached clock
+    adjust_memcached_clock(
+            0, cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
+}
+
+/*
+ * Test for MB-32364, checking that the single path mutation does not ignore
+ * the expiry if docflags are included in extras.
+ */
+TEST_P(SubdocTestappTest, SubdocExpiry_DocflagUpsertSingle) {
+    uint32_t expiryTime = 5;
+    BinprotSubdocCommand upsert1(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                                 "doc_flag",
+                                 "foo",
+                                 "\"a\"",
+                                 SUBDOC_FLAG_NONE,
+                                 mcbp::subdoc::doc_flag::Mkdoc);
+    upsert1.setExpiry(expiryTime);
+    EXPECT_SUBDOC_CMD(upsert1, cb::mcbp::Status::Success, "");
+
+    // Try to read the doc_flag document immediately - should exist.
+    auto result = fetch_value("doc_flag");
+    EXPECT_EQ(cb::mcbp::Status::Success, result.first);
+    EXPECT_EQ("{\"foo\":\"a\"}", result.second);
+
+    // Move memcached time forward to expire the ephemeral document
+    adjust_memcached_clock(
+            (expiryTime * 2),
+            cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
+
     // Try to read the doc_flag document - shouldn't exist.
     result = fetch_value("doc_flag");
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, result.first);
+
+    // Cleanup - Reset memcached clock
+    adjust_memcached_clock(
+            0, cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
 }
 
 // Test handling of not-my-vbucket for a SUBDOC_GET

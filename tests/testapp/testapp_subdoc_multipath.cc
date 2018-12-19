@@ -440,6 +440,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddDelete_MutationSeqno) {
 TEST_P(SubdocTestappTest, SubdocMultiMutation_Expiry) {
     // Create two documents; one to be used for an exlicit 1s expiry and one
     // for an explicit 0s (i.e. never) expiry.
+    uint32_t expiryTime = 5;
     store_document("ephemeral", "[\"a\"]");
     store_document("permanent", "[\"a\"]");
 
@@ -455,7 +456,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_Expiry) {
     // Perform a MULTI_REPLACE operation, setting a expiry of 1s.
     SubdocMultiMutationCmd mutation;
     mutation.key = "ephemeral";
-    mutation.expiry = 1;
+    mutation.expiry = expiryTime;
     mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocReplace,
                               SUBDOC_FLAG_NONE,
                               "[0]",
@@ -478,10 +479,10 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_Expiry) {
     EXPECT_EQ(cb::mcbp::Status::Success, result.first);
     EXPECT_EQ("[\"b\"]", result.second);
 
-    // Sleep for 2s seconds.
-    // TODO: it would be great if we could somehow accelerate time from the
-    // harness, and not add 2s to the runtime of the test...
-    usleep(2 * 1000 * 1000);
+    // Move memcached time forward to expire the ephemeral document
+    adjust_memcached_clock(
+            (expiryTime * 2),
+            cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
 
     // Try to read the ephemeral document - shouldn't exist.
     result = fetch_value("ephemeral");
@@ -491,6 +492,12 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_Expiry) {
     result = fetch_value("permanent");
     EXPECT_EQ(cb::mcbp::Status::Success, result.first);
     EXPECT_EQ("[\"b\"]", result.second);
+
+    // Cleanup
+    delete_object("permanent");
+    // Reset memcached clock
+    adjust_memcached_clock(
+            0, cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
 }
 
 // Test statistics support for multi-lookup commands
