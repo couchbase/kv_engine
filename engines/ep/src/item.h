@@ -447,8 +447,9 @@ public:
 
     /// Is this Item Committed, or Pending Sync Write?
     CommittedState getCommitted() const {
-        return (op == queue_op::pending_sync_write) ? CommittedState::Pending
-                                                    : CommittedState::Committed;
+        return (op == queue_op::pending_sync_write)
+                       ? CommittedState::Pending
+                       : CommittedState::CommittedViaMutation;
     }
 
     /**

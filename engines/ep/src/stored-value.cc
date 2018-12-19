@@ -45,7 +45,8 @@ StoredValue::StoredValue(const Item& itm,
       exptime(itm.getExptime()),
       flags(itm.getFlags()),
       revSeqno(itm.getRevSeqno()),
-      datatype(itm.getDataType()) {
+      datatype(itm.getDataType()),
+      committed(static_cast<uint8_t>(CommittedState::CommittedViaMutation)) {
     // Initialise bit fields
     setDeletedPriv(itm.isDeleted());
     setNewCacheItem(true);
@@ -408,7 +409,17 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     os << (sv.isNewCacheItem() ? 'N' : '.');
     os << (sv.isResident() ? 'R' : '.');
     os << (sv.isLocked(ep_current_time()) ? 'L' : '.');
-    os << ((sv.getCommitted() == CommittedState::Pending) ? 'P' : 'C');
+    switch (sv.getCommitted()) {
+    case CommittedState::CommittedViaMutation:
+        os << "Cm";
+        break;
+    case CommittedState::CommittedViaPrepare:
+        os << "Cp";
+        break;
+    case CommittedState::Pending:
+        os << "Pe";
+        break;
+    }
 
     if (sv.isOrdered()) {
         const auto* osv = sv.toOrderedStoredValue();

@@ -76,14 +76,28 @@ uint32_t MutationResponse::getDeleteLength() const {
     return deletionBaseMsgBytes;
 }
 
-uint32_t MutationResponse::getMessageSize() const {
-    uint32_t header;
-    if (item_->getCommitted() == CommittedState::Pending) {
-        header = prepareBaseMsgBytes;
-    } else {
-        header = item_->isDeleted() ? getDeleteLength() : mutationBaseMsgBytes;
-    }
+uint32_t MutationResponse::getHeaderSize() const {
+    switch (item_->getCommitted()) {
+    case CommittedState::CommittedViaMutation:
+        return item_->isDeleted() ? getDeleteLength() : mutationBaseMsgBytes;
 
+    case CommittedState::CommittedViaPrepare:
+        // @todo: length will depend on if we are sending this to
+        // synchronous replication-enabled client (as DCP_COMMIT) or not
+        // (DCP_MUTATION).
+        throw std::logic_error(
+                "MutationResponse::getMessageSize: Not implemented");
+
+    case CommittedState::Pending:
+        return prepareBaseMsgBytes;
+    }
+    throw std::logic_error(
+            "MutationResponse: Unhandled CommittedState in switch (" +
+            std::to_string(int(item_->getCommitted())) + ")");
+}
+
+uint32_t MutationResponse::getMessageSize() const {
+    const uint32_t header = getHeaderSize();
     uint32_t keySize = 0;
     if (includeCollectionID == DocKeyEncodesCollectionId::Yes) {
         keySize = item_->getKey().size();

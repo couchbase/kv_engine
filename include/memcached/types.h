@@ -162,12 +162,22 @@ std::string to_string(DeleteSource deleteSource);
 
 /**
  * The committed state of the Item.
+ *
+ * Consists of three states: CommittedViaMutation, CommittedViaPrepare and
+ * Pending. The first two are generally considered as the same 'Committed' state
+ * by external observers, but internally we need to differentiate between
+ * them to write to disk / send over DCP hence having two different states.
+ *
  * Used in a bitfield in StoredValue hence explicit values for enums required.
  */
 enum class CommittedState : char {
+    /// Item is committed, by virtue of being a plain mutation - i.e. not added
+    /// via a SyncWrite.
+    CommittedViaMutation = 0,
+    /// Item is committed by virtue of previously being a pending SyncWrite
+    /// which was committed.
+    CommittedViaPrepare = 1,
     /// Item is pending (is not yet committed) and hence not visible to
     /// external clients yet.
-    Pending = 0,
-    /// Item is committed and is visible to external clients.
-    Committed = 1,
+    Pending = 2,
 };

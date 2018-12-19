@@ -292,7 +292,7 @@ void HashTable::commit(const HashTable::HashBucketLock& hbl, StoredValue& v) {
     auto oldValue = hashChainRemoveFirst(
             values[hbl.getBucketNum()], [&key](const StoredValue* v) {
                 return v->hasKey(key) &&
-                       v->getCommitted() == CommittedState::Committed;
+                       v->getCommitted() != CommittedState::Pending;
             });
 
     if (oldValue) {
@@ -327,8 +327,9 @@ HashTable::UpdateResult HashTable::unlocked_updateStoredValue(
         // Cannot update a SV if it's a Pending item.
         return {MutationStatus::IsPendingSyncWrite, nullptr};
 
-    case CommittedState::Committed:
-        // Logically /can/ update a Committed StoredValue with a Pending Item;
+    case CommittedState::CommittedViaMutation:
+    case CommittedState::CommittedViaPrepare:
+        // Logically /can/ update a non-Pending StoredValue with a Pending Item;
         // however internally this is implemented as a separate (new)
         // StoredValue object for the Pending item.
         if (itm.getCommitted() == CommittedState::Pending) {
@@ -336,8 +337,7 @@ HashTable::UpdateResult HashTable::unlocked_updateStoredValue(
             return {MutationStatus::WasClean, sv};
         }
 
-        // item is Commmitted; can directly replace the existing SV.
-
+        // item is not Pending; can directly replace the existing SV.
         MutationStatus status = v.isDirty() ? MutationStatus::WasDirty
                                             : MutationStatus::WasClean;
 

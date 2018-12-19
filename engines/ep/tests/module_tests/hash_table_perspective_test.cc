@@ -83,7 +83,7 @@ TEST_F(HashTablePerspectiveTest, CommittedItem) {
         auto item = ht.findForWrite(key);
         auto* sv = item.storedValue;
         ASSERT_TRUE(sv);
-        EXPECT_EQ(CommittedState::Committed, sv->getCommitted());
+        EXPECT_EQ(CommittedState::CommittedViaMutation, sv->getCommitted());
         EXPECT_EQ("committed"s, sv->getValue()->to_s());
     }
 
@@ -92,7 +92,7 @@ TEST_F(HashTablePerspectiveTest, CommittedItem) {
         auto item = ht.findForRead(key);
         auto* sv = item.storedValue;
         ASSERT_TRUE(sv);
-        EXPECT_EQ(CommittedState::Committed, sv->getCommitted());
+        EXPECT_EQ(CommittedState::CommittedViaMutation, sv->getCommitted());
         EXPECT_EQ("committed"s, sv->getValue()->to_s());
     }
 
@@ -123,7 +123,7 @@ TEST_F(HashTablePerspectiveTest, CorrectItemForEachPersisective) {
         auto item = ht.findForRead(key);
         auto* sv = item.storedValue;
         ASSERT_TRUE(sv);
-        EXPECT_EQ(CommittedState::Committed, sv->getCommitted());
+        EXPECT_EQ(CommittedState::CommittedViaMutation, sv->getCommitted());
         EXPECT_EQ("committed"s, sv->getValue()->to_s());
     }
 
@@ -165,7 +165,7 @@ TEST_F(HashTablePerspectiveTest, Commit) {
 
         // Test
         ht.commit(result.lock, *result.storedValue);
-        EXPECT_EQ(CommittedState::Committed,
+        EXPECT_EQ(CommittedState::CommittedViaPrepare,
                   result.storedValue->getCommitted());
     }
 
@@ -195,7 +195,7 @@ TEST_F(HashTablePerspectiveTest, CommitExisting) {
         // Test
         ht.commit(result.lock, *result.storedValue);
 
-        EXPECT_EQ(CommittedState::Committed,
+        EXPECT_EQ(CommittedState::CommittedViaPrepare,
                   result.storedValue->getCommitted());
     }
 
@@ -218,7 +218,7 @@ TEST_F(HashTablePerspectiveTest, CommitNonPendingFails) {
         // Check preconditions - item should be found as committed.
         auto result = ht.findForWrite(key);
         ASSERT_TRUE(result.storedValue);
-        ASSERT_EQ(CommittedState::Committed,
+        ASSERT_EQ(CommittedState::CommittedViaMutation,
                   result.storedValue->getCommitted());
 
         // Test

@@ -461,16 +461,23 @@ public:
 
     /// Returns the Event type which should be used for the given item.
     static Event eventFromItem(const Item& item) {
-        if (item.getCommitted() == CommittedState::Pending) {
+        switch (item.getCommitted()) {
+        case CommittedState::CommittedViaMutation:
+            if (item.isDeleted()) {
+                return (item.deletionSource() == DeleteSource::TTL)
+                               ? Event::Expiration
+                               : Event::Deletion;
+            }
+            return Event::Mutation;
+
+        case CommittedState::CommittedViaPrepare:
+            throw std::logic_error(
+                    "MutationResponse::eventFromItem: not implemented");
+        case CommittedState::Pending:
             return Event::Prepare;
         }
-        if (item.isDeleted()) {
-            return (item.deletionSource() == DeleteSource::TTL)
-                           ? Event::Expiration
-                           : Event::Deletion;
-        }
-
-        return Event::Mutation;
+        throw std::logic_error(
+                "MutationResponse::eventFromItem: Invalid committedState");
     }
 
     static const uint32_t mutationBaseMsgBytes = 55;
@@ -480,6 +487,9 @@ public:
     static const uint32_t prepareBaseMsgBytes = 57;
 
 protected:
+    /// Return the size of the header for this message.
+    uint32_t getHeaderSize() const;
+
     uint32_t getDeleteLength() const;
 
     queued_item item_;

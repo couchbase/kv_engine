@@ -920,9 +920,9 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
 
     // For pending SyncWrites we initially return EWOULDBLOCK; will notify
     // client when request is committed / aborted later.
-    ENGINE_ERROR_CODE ret = (itm.getCommitted() == CommittedState::Committed)
-                                    ? ENGINE_SUCCESS
-                                    : ENGINE_EWOULDBLOCK;
+    ENGINE_ERROR_CODE ret = (itm.getCommitted() == CommittedState::Pending)
+                                    ? ENGINE_EWOULDBLOCK
+                                    : ENGINE_SUCCESS;
     switch (status) {
     case MutationStatus::NoMem:
         ret = ENGINE_ENOMEM;
@@ -1015,10 +1015,9 @@ ENGINE_ERROR_CODE VBucket::replace(
 
         // For pending SyncWrites we initially return EWOULDBLOCK; will notify
         // client when request is committed / aborted later.
-        ENGINE_ERROR_CODE ret =
-                (itm.getCommitted() == CommittedState::Committed)
-                        ? ENGINE_SUCCESS
-                        : ENGINE_EWOULDBLOCK;
+        ENGINE_ERROR_CODE ret = (itm.getCommitted() == CommittedState::Pending)
+                                        ? ENGINE_EWOULDBLOCK
+                                        : ENGINE_SUCCESS;
         switch (mtype) {
         case MutationStatus::NoMem:
             ret = ENGINE_ENOMEM;
@@ -1693,9 +1692,8 @@ ENGINE_ERROR_CODE VBucket::add(
 
     // For pending SyncWrites we initially return EWOULDBLOCK; will notify
     // client when request is committed / aborted later.
-    return (itm.getCommitted() == CommittedState::Committed)
-                   ? ENGINE_SUCCESS
-                   : ENGINE_EWOULDBLOCK;
+    return (itm.getCommitted() == CommittedState::Pending) ? ENGINE_EWOULDBLOCK
+                                                           : ENGINE_SUCCESS;
 }
 
 std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
