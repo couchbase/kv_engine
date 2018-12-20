@@ -235,7 +235,8 @@ void Manifest::addCollection(::VBucket& vb,
                                   optionalSeqno);
 
     EP_LOG_INFO(
-            "collections: {} adding collection:name:{},id:{:x} to scope:{:x}, "
+            "collections: {} adding collection:[name:{},id:{:x}] to "
+            "scope:{:x}, "
             "max_ttl:{} {}, "
             "replica:{}, backfill:{}, seqno:{}, manifest:{:x}",
             vb.getId(),
@@ -404,7 +405,7 @@ void Manifest::addScope(::VBucket& vb,
             {builder.GetBufferPointer(), builder.GetSize()},
             optionalSeqno);
 
-    auto seqno = vb.queueItem(item.release(), optionalSeqno);
+    auto seqno = vb.addSystemEventItem(item.release(), optionalSeqno);
 
     // If seq is not set, then this is an active vbucket queueing the event.
     // Collection events will end the CP so they don't de-dup.
@@ -466,7 +467,7 @@ void Manifest::dropScope(::VBucket& vb,
 
     item->setDeleted();
 
-    auto seqno = vb.queueItem(item.release(), optionalSeqno);
+    auto seqno = vb.addSystemEventItem(item.release(), optionalSeqno);
 
     // If seq is not set, then this is an active vbucket queueing the event.
     // Collection events will end the CP so they don't de-dup.
@@ -691,7 +692,7 @@ int64_t Manifest::queueSystemEvent(::VBucket& vb,
                                    bool deleted,
                                    OptionalSeqno seq) const {
     // Create and transfer Item ownership to the VBucket
-    auto rv = vb.queueItem(
+    auto rv = vb.addSystemEventItem(
             createSystemEvent(se, identifiers, collectionName, deleted, seq)
                     .release(),
             seq);

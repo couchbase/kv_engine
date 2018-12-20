@@ -21,6 +21,7 @@
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "ep_engine.h"
+#include "ep_time.h"
 #include "executorpool.h"
 #include "failover-table.h"
 #include "kvshard.h"
@@ -696,4 +697,36 @@ void EPVBucket::completeDeletion(
     getManifest().wlock().completeDeletion(*this, identifier);
     eraserContext.wlockCollections().completeDeletion(*this, identifier);
     eraserContext.incrementErasedCount();
+}
+
+/*
+ * Queue the item to the checkpoint and return the seqno the item was
+ * allocated.
+ */
+int64_t EPVBucket::addSystemEventItem(Item* item, OptionalSeqno seqno) {
+    item->setVBucketId(getId());
+    queued_item qi(item);
+
+    // Set the system events delete time if needed for tombstoning
+    if (qi->isDeleted() && qi->getDeleteTime() == 0) {
+        qi->setExpTime(ep_real_time());
+    }
+
+    if (isBackfillPhase()) {
+        queueBackfillItem(qi, getGenerateBySeqno(seqno));
+    } else {
+        checkpointManager->queueDirty(
+                *this,
+                qi,
+                getGenerateBySeqno(seqno),
+                GenerateCas::Yes,
+                nullptr /* No pre link step as this is for system events */);
+    }
+    VBNotifyCtx notifyCtx;
+    // If the seqno is initialized, skip replication notification
+    notifyCtx.notifyReplication = !seqno.is_initialized();
+    notifyCtx.notifyFlusher = true;
+    notifyCtx.bySeqno = qi->getBySeqno();
+    notifyNewSeqno(notifyCtx);
+    return qi->getBySeqno();
 }

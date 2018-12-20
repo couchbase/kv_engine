@@ -232,6 +232,19 @@ public:
             CollectionID identifier,
             Collections::VB::EraserContext& eraserContext) override;
 
+    /**
+     * Add a system event Item to the vbucket and return its seqno.
+     *
+     * In ephemeral buckets the item is stored in the hashtable (and the seqno
+     * linked-list)
+     *
+     * @param item an Item object to queue, can be any kind of item and will be
+     *        given a CAS and seqno by this function.
+     * @param seqno An optional sequence number, if not specified checkpoint
+     *        queueing will assign a seqno to the Item.
+     */
+    int64_t addSystemEventItem(Item* item, OptionalSeqno seqno) override;
+
 protected:
     /* Data structure for in-memory sequential storage */
     std::unique_ptr<SequenceList> seqList;

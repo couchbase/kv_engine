@@ -37,7 +37,7 @@
 #include <functional>
 #include <thread>
 
-TEST_F(CollectionsDcpTest, test_dcp_consumer) {
+TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
     store->setVBucketState(vbid, vbucket_state_replica, false);
     ASSERT_EQ(ENGINE_SUCCESS,
               consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
@@ -110,7 +110,7 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
  *
  * The test replicates VBn to VBn+1
  */
-TEST_F(CollectionsDcpTest, test_dcp) {
+TEST_P(CollectionsDcpParameterizedTest, test_dcp) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Add a collection, then remove it. This adds events into the CP which
@@ -154,13 +154,8 @@ TEST_F(CollectionsDcpTest, test_dcp) {
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
 }
 
-/*
- * test_dcp connects a producer and consumer to test that collections created
- * on the producer are transferred to the consumer
- *
- * The test replicates VBn to VBn+1
- */
-TEST_F(CollectionsDcpTest, test_dcp_with_ttl) {
+// Test that DCP works when a TTL is enabled on a collection
+TEST_P(CollectionsDcpParameterizedTest, test_dcp_with_ttl) {
     auto checkDcp = [](MockDcpProducer* p,
                        CollectionsDcpTestProducers* dcpCallBacks) {
         // Now step the producer to transfer the collection creation and
@@ -203,10 +198,12 @@ TEST_F(CollectionsDcpTest, test_dcp_with_ttl) {
         checkDcp(producer.get(), producers.get());
 
         // Finally validate the TTL comes back after a restart
-        flush_vbucket_to_disk(Vbid(0), 1);
+        flushVBucketToDiskIfPersistent(Vbid(0), 1);
     }
 
-    resetEngineAndWarmup();
+    // Ensure the DCP stream has to hit disk/seqlist for backfill
+    ensureDcpWillBackfill();
+
     createDcpObjects({{nullptr, 0}}); // from disk
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                               false /*backfill from disk*/);
@@ -220,7 +217,7 @@ TEST_F(CollectionsDcpTest, test_dcp_with_ttl) {
  *
  * The test replicates VBn to VBn+1
  */
-TEST_F(CollectionsDcpTest, test_dcp_non_default_scope) {
+TEST_P(CollectionsDcpParameterizedTest, test_dcp_non_default_scope) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Add a scope+collection, then remove then later remove the collection.
@@ -287,7 +284,7 @@ TEST_F(CollectionsDcpTest, test_dcp_non_default_scope) {
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
 }
 
-TEST_F(CollectionsDcpTest, mb30893_dcp_partial_updates) {
+TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Add 3 collections in one update
@@ -300,11 +297,15 @@ TEST_F(CollectionsDcpTest, mb30893_dcp_partial_updates) {
 
     // MB-31463: Adding the following handleSlowStream gives coverage for this
     // MB, without the fix the entire test fails as the stream cannot retrieve
-    // data from the checkpoint.
-    auto stream = producer->findStream(vbid);
-    ASSERT_TRUE(stream);
-    auto* as = static_cast<ActiveStream*>(stream.get());
-    as->handleSlowStream();
+    // data from the checkpoint. Only do this for persistent buckets as
+    // ephemeral operates differently in-terms of the transition back to
+    // in-memory.
+    if (persistent()) {
+        auto stream = producer->findStream(vbid);
+        ASSERT_TRUE(stream);
+        auto* as = static_cast<ActiveStream*>(stream.get());
+        as->handleSlowStream();
+    }
 
     VBucketPtr replica = store->getVBucket(replicaVB);
 
@@ -648,7 +649,7 @@ TEST_F(CollectionsDcpTest, MB_26455) {
             (m - 1) + 10));
 }
 
-TEST_F(CollectionsDcpTest, collections_manifest_is_ahead) {
+TEST_P(CollectionsDcpParameterizedTest, collections_manifest_is_ahead) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy);
     auto vb = store->getVBucket(vbid);
@@ -800,14 +801,14 @@ void CollectionsDcpTest::tombstone_snapshots_test(bool forceWarmup) {
         vb->updateFromManifest({cm});
         store_item(vbid, StoredDocKey{"d_k1", CollectionEntry::defaultC}, "v");
         store_item(vbid, StoredDocKey{"d_k2", CollectionEntry::defaultC}, "v");
-        flush_vbucket_to_disk(Vbid(0), 4);
+        flushVBucketToDiskIfPersistent(Vbid(0), 4);
 
         store_item(vbid, StoredDocKey{"k1", CollectionEntry::fruit}, "v");
         store_item(vbid, StoredDocKey{"dairy", CollectionEntry::dairy}, "v");
         store_item(vbid, StoredDocKey{"k2", CollectionEntry::fruit}, "v");
 
         vb->updateFromManifest({cm.remove(CollectionEntry::fruit)});
-        flush_vbucket_to_disk(Vbid(0), 4);
+        flushVBucketToDiskIfPersistent(Vbid(0), 4);
 
         uuid = vb->failovers->getLatestUUID();
         highSeqno = vb->getHighSeqno();
@@ -929,14 +930,14 @@ TEST_F(CollectionsDcpTest, tombstone_snapshots_disconnect_backfill) {
     tombstone_snapshots_test(true);
 }
 
-TEST_F(CollectionsDcpTest, tombstone_snapshots_disconnect_memory) {
+TEST_P(CollectionsDcpParameterizedTest, tombstone_snapshots_disconnect_memory) {
     tombstone_snapshots_test(false);
 }
 
 // Test that we apply the latest manifest when we promote a vBucket from
 // replica to active. We don't expect ns_server to send the manifest again so
 // we need apply it on promotion
-TEST_F(CollectionsDcpTest, vb_promotion_update_manifest) {
+TEST_P(CollectionsDcpParameterizedTest, vb_promotion_update_manifest) {
     // Add fruit to the manifest
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
@@ -1483,7 +1484,7 @@ TEST_F(CollectionsFilteredDcpTest, collection_tombstone_on_scope_filter) {
 
 // Check that when filtering is on, we don't send snapshots for fully filtered
 // snapshots
-TEST_F(CollectionsFilteredDcpTest, MB_24572) {
+TEST_P(CollectionsDcpParameterizedTest, MB_24572) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Perform a create of meat/dairy via the bucket level
@@ -1519,7 +1520,7 @@ TEST_F(CollectionsFilteredDcpTest, MB_24572) {
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid);
 }
 
-TEST_F(CollectionsFilteredDcpTest, default_only) {
+TEST_P(CollectionsDcpParameterizedTest, default_only) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Perform a create of meat/dairy via the bucket level
@@ -1555,7 +1556,7 @@ TEST_F(CollectionsFilteredDcpTest, default_only) {
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
 }
 
-TEST_F(CollectionsFilteredDcpTest, stream_closes) {
+TEST_P(CollectionsDcpParameterizedTest, stream_closes) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Perform a create of meat via the bucket level
@@ -1597,7 +1598,7 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes) {
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
 }
 
-TEST_F(CollectionsFilteredDcpTest, stream_closes_scope) {
+TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Perform a create of meat via the bucket level
@@ -1693,7 +1694,7 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes_scope) {
 /**
  * Test that you cannot create a filter for closed collections
  */
-TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes) {
+TEST_P(CollectionsDcpParameterizedTest, empty_filter_stream_closes) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Perform a create of meat via the bucket level
@@ -1726,8 +1727,7 @@ TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes) {
     }
 }
 
-
-TEST_F(CollectionsFilteredDcpTest, legacy_stream_closes) {
+TEST_P(CollectionsDcpParameterizedTest, legacy_stream_closes) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Perform a create of meat via the bucket level
@@ -1763,3 +1763,13 @@ TEST_F(CollectionsFilteredDcpTest, legacy_stream_closes) {
     // And no more
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
 }
+
+static auto allConfigValues = ::testing::Values(
+        std::make_tuple(std::string("ephemeral"), std::string("auto_delete")),
+        std::make_tuple(std::string("ephemeral"), std::string("fail_new_data")),
+        std::make_tuple(std::string("persistent"), std::string{}));
+
+// Test cases which run for persistent and ephemeral buckets
+INSTANTIATE_TEST_CASE_P(CollectionsDcpEphemeralOrPersistent,
+                        CollectionsDcpParameterizedTest,
+                        allConfigValues, );

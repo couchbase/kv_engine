@@ -211,7 +211,7 @@ void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
         producer.notifySeqnoAvailable(vbid, vb->getHighSeqno());
         runCheckpointProcessor(producer, producers);
     } else {
-        // Run a backfill
+        // Run the backfill task, which has a number of steps to complete
         auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
         // backfill:create()
         runNextTask(lpAuxioQ);
@@ -219,8 +219,12 @@ void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
         runNextTask(lpAuxioQ);
         // backfill:complete()
         runNextTask(lpAuxioQ);
-        // backfill:finished()
-        runNextTask(lpAuxioQ);
+
+        // 1 Extra step for persistent backfill
+        if (engine->getConfiguration().getBucketType() != "ephemeral") {
+            // backfill:finished()
+            runNextTask(lpAuxioQ);
+        }
     }
 
     // Next step which will process a snapshot marker and then the caller

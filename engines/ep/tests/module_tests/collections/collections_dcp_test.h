@@ -46,12 +46,15 @@ public:
     Vbid replicaVB;
 };
 
-class CollectionsDcpTest : public SingleThreadedKVBucketTest {
+class CollectionsDcpTest : virtual public SingleThreadedKVBucketTest {
 public:
     CollectionsDcpTest();
 
     // Setup a producer/consumer ready for the test
     void SetUp() override;
+
+    void internalSetUp();
+
     Collections::VB::PersistedManifest getManifest(Vbid vb) const;
 
     void createDcpStream(
@@ -88,6 +91,17 @@ public:
 
     void resetEngineAndWarmup(std::string new_config = "");
 
+    /**
+     * This function will
+     * 1) clear the checkpoint on the active source vbucket (vbid)
+     * 2) change the value of the replica vbid so that it is safe to replay
+     *    vbid against replicaVbid, which will now be a 'blank' canvas
+     *
+     * After this call a test should be able to guarantee the next DCP stream
+     * will be backfilled from disk/seqlist
+     */
+    void ensureDcpWillBackfill();
+
     void tombstone_snapshots_test(bool forceWarmup);
 
     static ENGINE_ERROR_CODE dcpAddFailoverLog(
@@ -101,4 +115,21 @@ public:
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockDcpConsumer> consumer;
     Vbid replicaVB;
+};
+
+/**
+ * Test for Collection functionality in both EventuallyPersistent and
+ * Ephemeral buckets.
+ */
+class CollectionsDcpParameterizedTest : public STParameterizedBucketTest,
+                                        public CollectionsDcpTest {
+public:
+    void SetUp() override {
+        STParameterizedBucketTest::SetUp();
+        CollectionsDcpTest::internalSetUp();
+    }
+
+    void TearDown() override {
+        CollectionsDcpTest::TearDown();
+    }
 };

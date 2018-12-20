@@ -124,6 +124,11 @@ bool EphemeralVBucket::eligibleToPageOut(const HashTable::HashBucketLock& lh,
         // metadata purge internal.
         return false;
     }
+
+    if (v.getKey().getCollectionID().isSystem()) {
+        // The system event documents must not be paged-out
+        return false;
+    }
     return true;
 }
 
@@ -651,4 +656,30 @@ void EphemeralVBucket::completeDeletion(
     (void)eraserContext;
     // Remove the collection's metadata from the in-memory manifest
     getManifest().wlock().completeDeletion(*this, identifier);
+}
+
+int64_t EphemeralVBucket::addSystemEventItem(Item* i, OptionalSeqno seqno) {
+    // Must be freed once passed through addNew/update StoredValue
+    std::unique_ptr<Item> item(i);
+    item->setVBucketId(getId());
+    auto htRes = ht.findForWrite(item->getKey());
+    auto* v = htRes.storedValue;
+    auto& hbl = htRes.lock;
+
+    VBQueueItemCtx queueItmCtx;
+    queueItmCtx.genBySeqno = getGenerateBySeqno(seqno);
+    if (v) {
+        std::tie(v, std::ignore, std::ignore) =
+                updateStoredValue(hbl, *v, *item, queueItmCtx);
+    } else {
+        std::tie(v, std::ignore) = addNewStoredValue(
+                hbl, *item, queueItmCtx, GenerateRevSeqno::Yes);
+    }
+
+    VBNotifyCtx notifyCtx;
+    // If the seqno is initialized, skip replication notification
+    notifyCtx.notifyReplication = !seqno.is_initialized();
+    notifyCtx.bySeqno = v->getBySeqno();
+    notifyNewSeqno(notifyCtx);
+    return v->getBySeqno();
 }

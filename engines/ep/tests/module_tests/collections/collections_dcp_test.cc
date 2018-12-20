@@ -16,6 +16,7 @@
  */
 
 #include "tests/module_tests/collections/collections_dcp_test.h"
+#include "checkpoint_manager.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/mock/mock_dcp.h"
 #include "tests/mock/mock_dcp_consumer.h"
@@ -32,6 +33,10 @@ CollectionsDcpTest::CollectionsDcpTest()
 // Setup a producer/consumer ready for the test
 void CollectionsDcpTest::SetUp() {
     SingleThreadedKVBucketTest::SetUp();
+    internalSetUp();
+}
+
+void CollectionsDcpTest::internalSetUp() {
     // Start vbucket as active to allow us to store items directly to it.
     store->setVBucketState(vbid, vbucket_state_active, false);
     producers = std::make_unique<CollectionsDcpTestProducers>(engine.get());
@@ -213,6 +218,18 @@ void CollectionsDcpTest::resetEngineAndWarmup(std::string new_config) {
     producers = std::make_unique<CollectionsDcpTestProducers>(engine.get());
     cookieC = create_mock_cookie();
     cookieP = create_mock_cookie();
+}
+
+void CollectionsDcpTest::ensureDcpWillBackfill() {
+    // Wipe the checkpoint out of the 'source' VB, so any DCP work has to
+    // go back to backfilling (i.e. cannot resume from checkpoint manager)
+    VBucketPtr vb = store->getVBucket(vbid);
+    bool newCp = true;
+    vb->checkpointManager->removeClosedUnrefCheckpoints(*vb, newCp);
+
+    // Move DCP to a new vbucket so that we can replay history from 0
+    // without having to wind back vbid(1)
+    replicaVB = Vbid(2);
 }
 
 /*

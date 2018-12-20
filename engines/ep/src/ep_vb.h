@@ -184,6 +184,19 @@ public:
             CollectionID identifier,
             Collections::VB::EraserContext& eraserContext) override;
 
+    /**
+     * Add a system event Item to the vbucket and return its seqno.
+     *
+     * In persistent buckets the item goes straight to the checkpoint and never
+     * in the hash-table.
+     *
+     * @param item an Item object to queue, can be any kind of item and will be
+     *        given a CAS and seqno by this function.
+     * @param seqno An optional sequence number, if not specified checkpoint
+     *        queueing will assign a seqno to the Item.
+     */
+    int64_t addSystemEventItem(Item* item, OptionalSeqno seqno) override;
+
 protected:
     /**
      * queue a background fetch of the specified item.

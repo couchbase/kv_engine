@@ -1110,18 +1110,20 @@ public:
             time_t exptime,
             const Collections::VB::Manifest::CachingReadHandle& cHandle);
     /**
-     * Queue a system event Item to the checkpoint and return its seqno. Does
+     * Add a system event Item to the vbucket and return its seqno. Does
      * not set the collection high seqno of the item as that requires a read
      * lock but this is called from within a write lock scope. Also, it does not
      * make sense to update the collection high seqno for certain events,
      * such as scope creations and deletions.
+     *
+     * Ephemeral vs persistent buckets implement this function differently
      *
      * @param item an Item object to queue, can be any kind of item and will be
      *        given a CAS and seqno by this function.
      * @param seqno An optional sequence number, if not specified checkpoint
      *        queueing will assign a seqno to the Item.
      */
-    int64_t queueItem(Item* item, OptionalSeqno seqno);
+    virtual int64_t addSystemEventItem(Item* item, OptionalSeqno seqno) = 0;
 
     /**
      * Get metadata and value for a given key
