@@ -1377,11 +1377,22 @@ void Connection::runEventLoop(short which) {
                 // Converting the cookie to json -> string could probably
                 // cause too much memory allcation. We don't want that to
                 // cause us to crash..
+                std::stringstream ss;
+                nlohmann::json array = nlohmann::json::array();
+                for (const auto& cookie : cookies) {
+                    if (cookie) {
+                        try {
+                            array.push_back(cookie->toJSON());
+                        } catch (const std::exception&) {
+                            // ignore
+                        }
+                    }
+                }
                 LOG_WARNING(
-                        "{}: exception occurred in runloop during packet "
-                        "execution. Cookie info: {} - closing connection: {}",
+                        R"({}: exception occurred in runloop during packet execution. Cookie info: {} - closing connection ({}): {})",
                         getId(),
-                        getCookieObject().toJSON().dump(),
+                        array.dump(),
+                        getDescription(),
                         e.what());
                 logged = true;
             } catch (const std::bad_alloc&) {
@@ -1392,12 +1403,12 @@ void Connection::runEventLoop(short which) {
         if (!logged) {
             try {
                 LOG_WARNING(
-                        "{}: exception occurred in runloop (state: \"{}\") - "
-                        "closing connection: {}",
+                        R"({}: exception occurred in runloop (state: "{}") - closing connection ({}): {})",
                         getId(),
                         getStateName(),
+                        getDescription(),
                         e.what());
-            } catch (const std::bad_alloc&) {
+            } catch (const std::exception&) {
                 // Ditch logging.. just shut down the connection
             }
         }
@@ -1414,11 +1425,11 @@ void Connection::runEventLoop(short which) {
         } catch (const std::exception& e) {
             try {
                 LOG_WARNING(
-                        "{}: exception occurred in runloop whilst"
-                        " attempting to close connection: {}",
+                        R"({}: exception occurred in runloop whilst attempting to close connection ({}): {})",
                         getId(),
+                        getDescription(),
                         e.what());
-            } catch (const std::bad_alloc&) {
+            } catch (const std::exception&) {
                 // Drop logging
             }
         }
