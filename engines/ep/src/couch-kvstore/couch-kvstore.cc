@@ -844,7 +844,11 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
                     int64_t(info->db_seq),
                     info->deleted,
                     *ctx->eraserContext)) {
-            ctx->stats.collectionsItemsPurged++;
+            if (!info->deleted) {
+                ctx->stats.collectionsItemsPurged++;
+            } else {
+                ctx->stats.collectionsDeletedItemsPurged++;
+            }
             return COUCHSTORE_COMPACT_DROP_ITEM;
         }
 

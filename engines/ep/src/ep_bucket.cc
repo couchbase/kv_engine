@@ -737,17 +737,20 @@ void EPBucket::compactInternal(const CompactionConfig& config,
             vb->clearFilter();
         }
         vb->setPurgeSeqno(ctx.max_purged_seq);
+        vb->setNumTotalItems(vb->getNumTotalItems() -
+                             ctx.stats.collectionsItemsPurged);
     }
 
     EP_LOG_INFO(
             "Compaction of db file id: {} completed ({}). "
-            "tombstones_purged:{}, collection_items_erased:{}, "
+            "tombstones_purged:{}, collection_items_erased:alive:{},deleted{}, "
             "pre{{size:{}, items:{}, deleted_items:{}, purge_seqno:{}}}, "
             "post{{size:{}, items:{}, deleted_items:{}, purge_seqno:{}}}",
             config.db_file_id.get(),
             result ? "ok" : "failed",
             ctx.stats.tombstonesPurged,
             ctx.stats.collectionsItemsPurged,
+            ctx.stats.collectionsDeletedItemsPurged,
             ctx.stats.pre.size,
             ctx.stats.pre.items,
             ctx.stats.pre.deletedItems,

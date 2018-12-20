@@ -270,6 +270,10 @@ size_t EPVBucket::getNumItems() const {
     }
 }
 
+size_t EPVBucket::getNumTotalItems() const {
+    return onDiskTotalItems;
+}
+
 void EPVBucket::setNumTotalItems(size_t totalItems) {
     onDiskTotalItems = totalItems;
 }

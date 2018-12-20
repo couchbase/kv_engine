@@ -2544,13 +2544,8 @@ bool KVBucket::collectionsEraseKey(
 
         // Next if the key is logically deleted...
         if (cHandle.isLogicallyDeleted(bySeqno)) {
-            // 1) remove it from the VB (hashtable)
+            // ... remove it from the VB (hashtable)
             vb->removeKey(key, bySeqno, cHandle);
-
-            // 2) Update item count of the vbucket
-            if (key.getCollectionID() != CollectionID::System) {
-                vb->decrNumTotalItems();
-            }
         } else {
             return false;
         }

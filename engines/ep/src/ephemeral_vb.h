@@ -179,6 +179,11 @@ public:
                 "EphemeralVBucket::setNumTotalItems not supported");
     }
 
+    size_t getNumTotalItems() const override {
+        throw std::logic_error(
+                "EphemeralVBucket::getNumTotalItems not supported");
+    }
+
     void queueBackfillItem(queued_item& qi,
                            const GenerateBySeqno generateBySeqno) override;
 

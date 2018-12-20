@@ -76,6 +76,8 @@ public:
 
     void setNumTotalItems(size_t items) override;
 
+    size_t getNumTotalItems() const override;
+
     void incrNumTotalItems() override;
 
     void decrNumTotalItems() override;

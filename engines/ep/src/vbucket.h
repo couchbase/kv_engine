@@ -381,6 +381,8 @@ public:
      */
     virtual void setNumTotalItems(size_t items) = 0;
 
+    virtual size_t getNumTotalItems() const = 0;
+
     /// Reset all statistics assocated with this vBucket.
     virtual void resetStats();
 
