@@ -1636,12 +1636,13 @@ ENGINE_ERROR_CODE Connection::deletionOrExpirationV2(
     req.setVBucket(vbucket);
     req.setCas(info.cas);
     req.setDatatype(cb::mcbp::Datatype(info.datatype));
-
+    auto size = sizeof(Request);
     if (sid) {
         auto& frameInfo = *reinterpret_cast<DcpStreamIdFrameInfo*>(
                 blob + sizeof(Request));
         frameInfo = cb::mcbp::DcpStreamIdFrameInfo(sid);
         req.setFramingExtraslen(sizeof(DcpStreamIdFrameInfo));
+        size += sizeof(DcpStreamIdFrameInfo);
     }
 
     if (deleteSource == DeleteSource::Explicit) {
@@ -1650,16 +1651,17 @@ ENGINE_ERROR_CODE Connection::deletionOrExpirationV2(
         extras.setBySeqno(by_seqno);
         extras.setRevSeqno(rev_seqno);
         extras.setDeleteTime(delete_time);
+        size += sizeof(DcpDeletionV2Payload);
     } else {
         auto& extras = *reinterpret_cast<DcpExpirationPayload*>(
                 blob + sizeof(Request) + frameInfoLen);
         extras.setBySeqno(by_seqno);
         extras.setRevSeqno(rev_seqno);
         extras.setDeleteTime(delete_time);
+        size += sizeof(DcpExpirationPayload);
     }
 
-    return deletionInner(
-            info, {blob, sizeof(blob)}, {/*no extended meta in v2*/}, key);
+    return deletionInner(info, {blob, size}, {/*no extended meta in v2*/}, key);
 }
 
 ////////////////////////////////////////////////////////////////////////////
