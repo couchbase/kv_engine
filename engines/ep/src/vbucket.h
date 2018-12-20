@@ -658,13 +658,15 @@ public:
     }
 
     /**
-     * Finalise the deletion of a collection (no items remain in the collection)
+     * Notify that the collection has been fully deleted and it's metadata can
+     * now be fully purged.
      *
      * @param identifier ID of the collection that has completed deleting
+     * @param eraserContext The context used by the eraser processing
      */
-    void completeDeletion(CollectionID identifier) {
-        manifest->wlock().completeDeletion(*this, identifier);
-    }
+    virtual void completeDeletion(
+            CollectionID identifier,
+            Collections::VB::EraserContext& eraserContext) = 0;
 
     /**
      * Add a collection to this vbucket with a pre-assigned seqno. I.e.

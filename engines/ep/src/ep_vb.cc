@@ -665,3 +665,14 @@ size_t EPVBucket::getNumPersistedDeletes() const {
     }
     return shard->getROUnderlying()->getNumPersistedDeletes(getId());
 }
+
+void EPVBucket::completeDeletion(
+        CollectionID identifier,
+        Collections::VB::EraserContext& eraserContext) {
+    // Remove the collection's metadata from the in-memory manifest and from
+    // the eraser's context manifest, which in turn will be used to refresh
+    // the compacted datafiles persisted metadata.
+    getManifest().wlock().completeDeletion(*this, identifier);
+    eraserContext.wlockCollections().completeDeletion(*this, identifier);
+    eraserContext.incrementErasedCount();
+}

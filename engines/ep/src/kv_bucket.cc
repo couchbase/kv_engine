@@ -2564,13 +2564,8 @@ bool KVBucket::collectionsEraseKey(
                     "deleted.");
         }
 
-        // Remove the collection's metadata from the in-memory manifest and from
-        // the eraser's context manifest, which in turn will be used to refresh
-        // the compacted datafiles persisted metadata.
-        vb->completeDeletion(completedCollection.get());
-        eraserContext.wlockCollections().completeDeletion(
-                *vb, completedCollection.get());
-        eraserContext.incrementErasedCount();
+        vb->completeDeletion(completedCollection.get(), eraserContext);
+
         return false;
     }
     return true;

@@ -219,6 +219,18 @@ public:
      */
     size_t getNumPersistedDeletes() const override;
 
+    /**
+     * Notify that the collection has been fully deleted and it's metadata can
+     * now be fully purged. This results in the in-memory manifest
+     * being updated to remove all knowledge of the collection.
+     *
+     * @param identifier ID of the collection that has completed deleting
+     * @param eraserContext The context used by the eraser processing
+     */
+    void completeDeletion(
+            CollectionID identifier,
+            Collections::VB::EraserContext& eraserContext) override;
+
 protected:
     /* Data structure for in-memory sequential storage */
     std::unique_ptr<SequenceList> seqList;

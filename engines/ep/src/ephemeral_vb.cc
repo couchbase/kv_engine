@@ -632,3 +632,11 @@ size_t EphemeralVBucket::getNumPersistedDeletes() const {
 
     return getNumInMemoryDeletes();
 }
+
+void EphemeralVBucket::completeDeletion(
+        CollectionID identifier,
+        Collections::VB::EraserContext& eraserContext) {
+    (void)eraserContext;
+    // Remove the collection's metadata from the in-memory manifest
+    getManifest().wlock().completeDeletion(*this, identifier);
+}
