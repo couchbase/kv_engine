@@ -418,6 +418,7 @@ HashTable::Statistics::StoredValueProperties::StoredValueProperties(
     isResident = sv->isResident();
     isDeleted = sv->isDeleted();
     isTempItem = sv->isTempItem();
+    isSystemItem = sv->getKey().getCollectionID().isSystem();
 }
 
 HashTable::Statistics::StoredValueProperties HashTable::Statistics::prologue(
@@ -469,7 +470,13 @@ void HashTable::Statistics::epilogue(StoredValueProperties pre,
         numItems.fetch_add(postNonTemp - preNonTemp);
     }
 
-    if (pre.isDeleted != post.isDeleted) {
+    if (pre.isSystemItem != post.isSystemItem) {
+        numSystemItems.fetch_add(post.isSystemItem - pre.isSystemItem);
+    }
+
+    // Don't include system items in the deleted count, numSystemItems will
+    // count both types (a marked deleted system event still has purpose)
+    if (pre.isDeleted != post.isDeleted && !post.isSystemItem) {
         numDeletedItems.fetch_add(post.isDeleted - pre.isDeleted);
     }
 
@@ -958,6 +965,7 @@ std::ostream& operator<<(std::ostream& os, const HashTable& ht) {
        << " numDeleted:" << ht.getNumDeletedItems()
        << " numNonResident:" << ht.getNumInMemoryNonResItems()
        << " numTemp:" << ht.getNumTempItems()
+       << " numSystemItems:" << ht.getNumSystemItems()
        << " values: " << std::endl;
     for (const auto& chain : ht.values) {
         if (chain) {

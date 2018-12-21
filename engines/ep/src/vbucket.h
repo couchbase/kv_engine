@@ -633,6 +633,11 @@ public:
         return ht.getNumTempItems();
     }
 
+    /**
+     * @returns the number of system items stored in this vbucket
+     */
+    virtual size_t getNumSystemItems() const = 0;
+
     void incrRollbackItemCount(uint64_t val) {
         rollbackItemCount.fetch_add(val, std::memory_order_relaxed);
     }

@@ -78,7 +78,12 @@ EphemeralVBucket::EphemeralVBucket(
 }
 
 size_t EphemeralVBucket::getNumItems() const {
-    return ht.getNumInMemoryItems() - ht.getNumDeletedItems();
+    return ht.getNumInMemoryItems() -
+           (ht.getNumDeletedItems() + ht.getNumSystemItems());
+}
+
+size_t EphemeralVBucket::getNumSystemItems() const {
+    return ht.getNumSystemItems();
 }
 
 void EphemeralVBucket::completeStatsVKey(const DocKey& key,

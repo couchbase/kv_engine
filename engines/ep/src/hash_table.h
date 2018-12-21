@@ -246,6 +246,7 @@ public:
             bool isResident = false;
             bool isDeleted = false;
             bool isTempItem = false;
+            bool isSystemItem = false;
         };
 
         /**
@@ -305,6 +306,10 @@ public:
             return numTempItems;
         }
 
+        size_t getNumSystemItems() const {
+            return numSystemItems;
+        }
+
         DatatypeCombo getDatatypeCounts() const {
             return datatypeCounts;
         }
@@ -338,6 +343,9 @@ public:
 
         /// Count of items where StoredValue::isTempItem() is true.
         cb::NonNegativeCounter<size_t> numTempItems;
+
+        /// Count of items where StoredValue resides in system namespace
+        cb::NonNegativeCounter<size_t> numSystemItems;
 
         /**
          * Number of documents of a given datatype. Includes alive
@@ -464,6 +472,10 @@ public:
      */
     size_t getNumItems() const {
         return valueStats.getNumItems();
+    }
+
+    size_t getNumSystemItems() const {
+        return valueStats.getNumSystemItems();
     }
 
     /**

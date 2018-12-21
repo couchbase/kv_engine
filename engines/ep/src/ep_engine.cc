@@ -3152,6 +3152,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
                 checked_snprintf(
                         buf, sizeof(buf), "vb_%d:mem_size_counted", vbid.get());
                 add_casted_stat(buf, depthVisitor.memUsed, add_stat, cookie);
+
+                checked_snprintf(
+                        buf, sizeof(buf), "vb_%d:num_system_items", vbid.get());
+                add_casted_stat(
+                        buf, vb->ht.getNumSystemItems(), add_stat, cookie);
             } catch (std::exception& error) {
                 EP_LOG_WARN(
                         "StatVBucketVisitor::visitBucket: Failed to build "

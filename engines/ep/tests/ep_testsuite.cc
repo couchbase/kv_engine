@@ -6552,6 +6552,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "vb_0:mem_size",
               "vb_0:mem_size_counted",
               "vb_0:min_depth",
+              "vb_0:num_system_items",
               "vb_0:reported",
               "vb_0:resized",
               "vb_0:size",

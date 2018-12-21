@@ -267,7 +267,8 @@ void EPVBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) {
 
 size_t EPVBucket::getNumItems() const {
     if (eviction == VALUE_ONLY) {
-        return ht.getNumInMemoryItems() - ht.getNumDeletedItems();
+        return ht.getNumInMemoryItems() -
+               (ht.getNumDeletedItems() + ht.getNumSystemItems());
     } else {
         return onDiskTotalItems;
     }
@@ -298,6 +299,11 @@ size_t EPVBucket::getNumNonResidentItems() const {
                 ht.getNumInMemoryItems() - ht.getNumInMemoryNonResItems();
         return num_items > num_res_items ? (num_items - num_res_items) : 0;
     }
+}
+
+size_t EPVBucket::getNumSystemItems() const {
+    // @todo: MB-26334 need to track system counts for persistent buckets
+    return 0;
 }
 
 ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,

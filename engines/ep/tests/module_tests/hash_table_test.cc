@@ -359,6 +359,7 @@ protected:
         EXPECT_EQ(0, ht.getNumInMemoryNonResItems());
         EXPECT_EQ(0, ht.getNumTempItems());
         EXPECT_EQ(0, ht.getNumDeletedItems());
+        EXPECT_EQ(0, ht.getNumSystemItems());
         for (const auto& count : ht.getDatatypeCounts()) {
             EXPECT_EQ(0, count);
         }
@@ -378,6 +379,7 @@ protected:
         EXPECT_EQ(0, ht.getNumInMemoryItems());
         EXPECT_EQ(0, ht.getNumTempItems());
         EXPECT_EQ(0, ht.getNumDeletedItems());
+        EXPECT_EQ(0, ht.getNumSystemItems());
         for (const auto& datatypeCount : ht.getDatatypeCounts()) {
             EXPECT_EQ(0, datatypeCount);
         }
@@ -1043,4 +1045,13 @@ TEST_F(HashTableTest, ItemFreqDecayerVisitorTest) {
            uint16_t expectVal = ii * 0.5;
            EXPECT_EQ(expectVal, v->getFreqCounterValue());
        }
+}
+
+TEST_F(HashTableTest, SystemEventItem) {
+    HashTable ht(global_stats, makeFactory(true), 128, 1);
+    StoredDocKey key("key", CollectionID::System);
+    store(ht, key);
+    EXPECT_EQ(1, ht.getNumSystemItems());
+    EXPECT_TRUE(del(ht, key));
+    EXPECT_EQ(0, ht.getNumSystemItems());
 }

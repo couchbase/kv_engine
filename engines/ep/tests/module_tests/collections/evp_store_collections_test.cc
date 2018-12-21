@@ -110,6 +110,17 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
     CollectionsManifest cm(CollectionEntry::meat);
     vb->updateFromManifest({cm});
 
+    // System event not counted
+    // Note: for persistent buckets, that is because
+    // 1) It doesn't go in the hash-table
+    // 2) It will only be accounted for on Full-Evict buckets after flush
+    EXPECT_EQ(1, vb->getNumItems());
+
+    // @todo MB-26334: persistent buckets don't track the system event counts
+    if (!persistent()) {
+        EXPECT_EQ(1, vb->getNumSystemItems());
+    }
+
     // Trigger a flush to disk. Flushes the meat create event and 1 item
     flushVBucketToDiskIfPersistent(vbid, 2);
 

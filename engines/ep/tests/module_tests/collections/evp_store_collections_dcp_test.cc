@@ -118,6 +118,11 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp) {
     CollectionsManifest cm(CollectionEntry::meat);
     vb->updateFromManifest({cm});
 
+    // @todo MB-26334: persistent buckets don't track the system event counts
+    if (!persistent()) {
+        EXPECT_EQ(1, vb->getNumSystemItems());
+    }
+
     notifyAndStepToCheckpoint();
 
     VBucketPtr replica = store->getVBucket(replicaVB);
@@ -140,6 +145,11 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp) {
 
     // remove meat
     vb->updateFromManifest({cm.remove(CollectionEntry::meat)});
+
+    // The delete collection event still exists
+    if (!persistent()) {
+        EXPECT_EQ(1, vb->getNumSystemItems());
+    }
 
     notifyAndStepToCheckpoint();
 
