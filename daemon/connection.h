@@ -699,13 +699,6 @@ public:
     }
 
     /**
-     * @return true if JSON datatype is enabled
-     */
-    bool isJsonEnabled() const {
-        return datatype.isJsonEnabled();
-    }
-
-    /**
      * @return true if compression datatype is enabled
      */
     bool isSnappyEnabled() const {
@@ -817,10 +810,6 @@ public:
      * Set the name of the connected agent
      */
     void setAgentName(cb::const_char_buffer name);
-
-    const std::array<char, MaxSavedAgentName>& getAgentName() const {
-        return agentName;
-    }
 
     /**
      * Get the Identifier specified for this connection.
