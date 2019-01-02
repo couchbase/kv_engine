@@ -164,6 +164,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       supportsHifiMFU(false),
       lastSendTime(ep_current_time()),
       log(*this),
+      backfillMgr(std::make_shared<BackfillManager>(engine_)),
       itemsSent(0),
       totalBytesSent(0),
       totalUncompressedDataSize(0),
@@ -247,8 +248,6 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     } else {
         supportsCursorDropping = true;
     }
-
-    backfillMgr.reset(new BackfillManager(engine_));
 }
 
 DcpProducer::~DcpProducer() {

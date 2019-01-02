@@ -18,8 +18,8 @@
 
 #include "config.h"
 
+#include "atomic_shared_ptr.h"
 #include "atomic_unordered_map.h"
-
 #include "connhandler.h"
 #include "dcp/dcp-types.h"
 #include "dcp/ready-queue.h"
@@ -467,11 +467,16 @@ protected:
     Couchbase::RelaxedAtomic<rel_time_t> lastSendTime;
     BufferLog log;
 
-    // backfill manager object is owned by this class, but use a
-    // shared_ptr as the lifetime of the manager is shared between the
+    // backfill manager object is owned by this class, but use an
+    // AtomicSharedPtr as the lifetime of the manager is shared between the
     // producer (this class) and BackfillManagerTask (which has a
-    // weak_ptr) to this.
-    std::shared_ptr<BackfillManager> backfillMgr;
+    // weak_ptr) to this, and because different threads may attempt to access
+    // the shared_ptr - for example:
+    // - Bucket deletion thread may attempt to reset() the shared_ptr when
+    //   shutting down DCP connections
+    // - A frontend thread may also attempt to reset() the shared_ptr when
+    //   a connection is disconnected.
+    cb::AtomicSharedPtr<BackfillManager> backfillMgr;
 
     DcpReadyQueue ready;
 

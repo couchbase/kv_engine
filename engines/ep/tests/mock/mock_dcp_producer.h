@@ -44,7 +44,7 @@ public:
                   name,
                   flags,
                   startTask) {
-        backfillMgr.reset(new MockDcpBackfillManager(engine_));
+        backfillMgr = std::make_shared<MockDcpBackfillManager>(engine_);
     }
 
     ENGINE_ERROR_CODE maybeDisconnect() {
@@ -123,12 +123,14 @@ public:
      * Sets the backfill buffer size (max limit) to a particular value
      */
     void setBackfillBufferSize(size_t newSize) {
-        dynamic_cast<MockDcpBackfillManager*>(backfillMgr.get())
+        return std::dynamic_pointer_cast<MockDcpBackfillManager>(
+                       backfillMgr.load())
                 ->setBackfillBufferSize(newSize);
     }
 
     bool getBackfillBufferFullStatus() {
-        return dynamic_cast<MockDcpBackfillManager*>(backfillMgr.get())
+        return std::dynamic_pointer_cast<MockDcpBackfillManager>(
+                       backfillMgr.load())
                 ->getBackfillBufferFullStatus();
     }
 
@@ -136,8 +138,9 @@ public:
      * @return A reference to BackfillManager::scanBuffer
      */
     auto& public_getBackfillScanBuffer() {
-        return dynamic_cast<MockDcpBackfillManager&>(*backfillMgr)
-                .public_getBackfillScanBuffer();
+        return std::dynamic_pointer_cast<MockDcpBackfillManager>(
+                       backfillMgr.load())
+                ->public_getBackfillScanBuffer();
     }
 
     void bytesForceRead(size_t bytes) {
@@ -145,7 +148,7 @@ public:
     }
 
     BackfillManager& getBFM() {
-        return *backfillMgr;
+        return *(backfillMgr.load());
     }
 
     size_t getBytesOutstanding() const {
