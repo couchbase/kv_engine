@@ -408,9 +408,10 @@ nlohmann::json TestappTest::generate_config(uint16_t ssl_port) {
     ret["logger"]["unit_test"] = true;
     if (memcached_verbose == 0) {
         ret["logger"]["console"] = false;
+    } else {
+        ret["verbosity"] = memcached_verbose - 1;
     }
 
-    ret["verbosity"] = memcached_verbose;
     ret["stdin_listener"] = false;
     ret["interfaces"][0]["port"] = 0;
     ret["interfaces"][0]["ipv4"] = "optional";
