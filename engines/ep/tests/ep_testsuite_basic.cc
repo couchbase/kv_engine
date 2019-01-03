@@ -1643,33 +1643,6 @@ static enum test_result test_get_delete_missing_file(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_bug2509(EngineIface* h) {
-    for (int j = 0; j < 10000; ++j) {
-        checkeq(ENGINE_SUCCESS,
-                store(h, NULL, OPERATION_SET, "key", "somevalue"),
-                "Failed set.");
-        usleep(10);
-        checkeq(ENGINE_SUCCESS,
-                del(h, "key", 0, Vbid(0)),
-                "Failed remove with value.");
-        usleep(10);
-    }
-
-    if (isWarmupEnabled(h)) {
-        // Restart again, to verify we don't have any duplicates.
-        testHarness->reload_engine(&h,
-                                   testHarness->engine_path,
-                                   testHarness->get_current_testcase()->cfg,
-                                   true,
-                                   false);
-
-        wait_for_warmup_complete(h);
-
-        return get_int_stat(h, "ep_warmup_dups") == 0 ? SUCCESS : FAIL;
-    }
-    return SUCCESS;
-}
-
 static enum test_result test_bug7023(EngineIface* h) {
     std::vector<std::string> keys;
     // Make a vbucket mess.
@@ -2450,13 +2423,6 @@ BaseTestCase testsuite_testcases[] = {
                  // the key in the internal MemTable (which is also used as
                  // read-cache).
                  prepare_ep_bucket_skip_broken_under_rocks,
-                 cleanup),
-        TestCase("retain rowid over a soft delete",
-                 test_bug2509,
-                 test_setup,
-                 teardown,
-                 NULL,
-                 prepare,
                  cleanup),
         TestCase("vbucket deletion doesn't affect new data",
                  test_bug7023,
