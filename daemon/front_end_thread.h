@@ -125,17 +125,6 @@ struct FrontEndThread {
     Subdoc::Operation subdoc_op;
 
     /**
-     * When we're deleting buckets we need to disconnect idle
-     * clients. This variable is incremented for every delete bucket
-     * thread running and decremented when it's done. When this
-     * variable is set we'll try to look through all connections and
-     * update them with a write event if they're in an "idle"
-     * state. That should cause them to be rescheduled and cause the
-     * client to disconnect.
-     */
-    int deleting_buckets = 0;
-
-    /**
      * Shared validator used by all connections serviced by this thread
      * when they need to validate a JSON document
      */
@@ -147,4 +136,3 @@ struct FrontEndThread {
 
 void notify_thread(FrontEndThread& thread);
 void notify_dispatcher();
-void notify_thread_bucket_deletion(FrontEndThread& me);

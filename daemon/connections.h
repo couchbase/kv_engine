@@ -27,6 +27,7 @@
 
 struct FrontEndThread;
 class ListeningPort;
+class Bucket;
 
 /* Destroy all connections and reset connection management */
 void destroy_connections();
@@ -82,17 +83,15 @@ Connection* conn_new(const SOCKET sfd,
 ListeningPort *get_listening_port_instance(const in_port_t port);
 
 /**
- * Signal (set writable) all idle clients bound to either a specific
- * bucket specified by its index, or any bucket (specified as -1).
- * Due to the threading model we're only going to look at the clients
- * connected to the thread represented by me.
+ * Signal all of the idle clients in the system.
  *
- * @param me the thread to inspect
- * @param bucket_idx the bucket we'd like to signal (set to -1 to signal
- *                   all buckets)
- * @return the number of client connections bound to this thread.
+ * Due to the locking model we need to have the FrontEndThread locked
+ * when calling the method.
+ *
+ * @param me The connections to inspect must be bound to this thread
+ * @return The number of clients connections bound to this thread
  */
-int signal_idle_clients(FrontEndThread* me, int bucket_idx, bool logging);
+int signal_idle_clients(FrontEndThread& me);
 
 /**
  * Iterate over all of the connections and call the callback function

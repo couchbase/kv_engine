@@ -765,7 +765,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
 
     if (memcached_shutdown) {
         // Someone requested memcached to shut down.
-        if (signal_idle_clients(thr, -1, false) == 0) {
+        if (signal_idle_clients(*thr) == 0) {
             cb_assert(thr != nullptr);
             LOG_INFO("Stopping worker thread {}", thr->index);
             c->eventBaseLoopbreak();
@@ -781,7 +781,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     if (memcached_shutdown) {
         // Someone requested memcached to shut down. If we don't have
         // any connections bound to this thread we can just shut down
-        int connected = signal_idle_clients(thr, -1, true);
+        int connected = signal_idle_clients(*thr);
         if (connected == 0) {
             LOG_INFO("Stopping worker thread {}", thr->index);
             event_base_loopbreak(thr->base);
@@ -1789,22 +1789,6 @@ void CreateBucketThread::run()
     task->makeRunnable();
 }
 
-void notify_thread_bucket_deletion(FrontEndThread& me) {
-    for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
-        bool destroy = false;
-        {
-            std::lock_guard<std::mutex> guard(all_buckets[ii].mutex);
-            if (all_buckets[ii].state == BucketState::Destroying) {
-                destroy = true;
-            }
-        }
-
-        if (destroy) {
-            signal_idle_clients(&me, gsl::narrow<int>(ii), false);
-        }
-    }
-}
-
 void DestroyBucketThread::destroy() {
     ENGINE_ERROR_CODE ret = ENGINE_KEY_ENOENT;
     std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
@@ -1861,58 +1845,114 @@ void DestroyBucketThread::destroy() {
 
     perform_callbacks(ON_DELETE_BUCKET, nullptr, &all_buckets[idx]);
 
-    LOG_INFO("{} Delete bucket [{}]. Wait for clients to disconnect",
-             connection_id,
-             name);
-
     /* If this thread is connected to the requested bucket... release it */
     if (connection != nullptr && idx == size_t(connection->getBucketIndex())) {
         disassociate_bucket(*connection);
     }
 
-    /* Let all of the worker threads start invalidating connections */
-    threads_initiate_bucket_deletion();
-
+    // Wait until all users disconnected...
     auto& bucket = all_buckets[idx];
-
-    /* Wait until all users disconnected... */
     {
         std::unique_lock<std::mutex> guard(bucket.mutex);
+        if (bucket.clients > 0) {
+            LOG_INFO("{} Delete bucket [{}]. Wait for {} clients to disconnect",
+                     connection_id,
+                     name,
+                     bucket.clients);
 
-        while (bucket.clients > 0) {
-            LOG_INFO(
-                    "{} Delete bucket [{}]. Still waiting: {} clients "
-                    "connected",
-                    connection_id.c_str(),
-                    name.c_str(),
-                    bucket.clients);
-            /* drop the lock and notify the worker threads */
+            // Signal clients bound to the bucket before waiting
             guard.unlock();
-            threads_notify_bucket_deletion();
+            iterate_all_connections([&bucket](Connection& connection) {
+                if (&connection.getBucket() == &bucket) {
+                    connection.signalIfIdle();
+                }
+            });
             guard.lock();
+        }
 
-            bucket.cond.wait_for(guard,
-                                 std::chrono::milliseconds(1000),
-                                 [&bucket] { return bucket.clients == 0; });
+        using std::chrono::seconds;
+        using std::chrono::steady_clock;
+
+        auto nextLog = steady_clock::now() + seconds(30);
+        nlohmann::json prevDump;
+
+        // We need to disconnect all of the clients before we can delete the
+        // bucket. We try to log stuff while we're waiting in order to
+        // know why stuff isn't complete. We'll do it in the following way:
+        //
+        //       1. Don't log anything the first 30 seconds. Then
+        //          dump the state of all stuck connections.
+        //       2. Don't og anything for the next 30 seconds. Then
+        //          dump the state of all stuck connections which
+        //          changed since the previous dump.
+        //       3. goto 2.
+        //
+        while (bucket.clients > 0) {
+            bucket.cond.wait_for(guard, seconds(1), [&bucket] {
+                return bucket.clients == 0;
+            });
+
+            if (bucket.clients == 0) {
+                break;
+            }
+
+            if (steady_clock::now() < nextLog) {
+                guard.unlock();
+                iterate_all_connections([&bucket](Connection& connection) {
+                    if (&connection.getBucket() == &bucket) {
+                        connection.signalIfIdle();
+                    }
+                });
+                guard.lock();
+                continue;
+            }
+
+            nextLog = steady_clock::now() + seconds(30);
+
+            // drop the lock and notify the worker threads
+            guard.unlock();
+
+            nlohmann::json json;
+            iterate_all_connections([&bucket, &json](Connection& connection) {
+                if (&connection.getBucket() == &bucket) {
+                    if (!connection.signalIfIdle()) {
+                        json[std::to_string(connection.getId())] =
+                                connection.toJSON();
+                    }
+                }
+            });
+
+            // remove all connections which didn't change
+            for (auto it = prevDump.begin(); it != prevDump.end(); ++it) {
+                auto entry = json.find(it.key());
+                if (entry != json.end()) {
+                    auto old = it.value().dump();
+                    auto current = entry->dump();
+                    if (old == current) {
+                        json.erase(entry);
+                    }
+                }
+            }
+
+            prevDump = std::move(json);
+            if (prevDump.empty()) {
+                LOG_INFO(
+                        R"({} Delete bucket [{}]. Still waiting: {} clients connected (state is unchanged).)",
+                        connection_id,
+                        name,
+                        bucket.clients);
+            } else {
+                LOG_INFO(
+                        R"({} Delete bucket [{}]. Still waiting: {} clients connected: {})",
+                        connection_id,
+                        name,
+                        bucket.clients,
+                        prevDump.dump());
+            }
+
+            guard.lock();
         }
     }
-
-    /* Tell the worker threads to stop trying to invalidating connections */
-    threads_complete_bucket_deletion();
-
-    /*
-     * We cannot call assert_no_assocations(idx) because it iterates
-     * over all connections and calls c->getBucketIndex().  The problem
-     * is that a worker thread can call associate_initial_bucket() or
-     * associate_bucket() at the same time.  This could lead to a call
-     * to c->setBucketIndex(0) (the "no bucket"), which although safe,
-     * raises a threadsanitizer warning.
-
-     * Note, if associate_bucket() attempts to associate a connection
-     * with a bucket that has been destroyed, or is in the process of
-     * being destroyed, the association will fail because
-     * BucketState != Ready.  See associate_bucket() for more details.
-     */
 
     LOG_INFO(
             "{} Delete bucket [{}]. Shut down the bucket", connection_id, name);
@@ -1923,7 +1963,7 @@ void DestroyBucketThread::destroy() {
              connection_id,
              name);
 
-    /* Clean up the stats... */
+    // Clean up the stats...
     threadlocal_stats_reset(bucket.stats);
 
     // Clear any registered event handlers

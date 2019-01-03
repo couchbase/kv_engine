@@ -110,10 +110,6 @@ const char* get_server_version(void);
  */
 void update_topkeys(const Cookie& cookie);
 
-void threads_notify_bucket_deletion();
-void threads_complete_bucket_deletion();
-void threads_initiate_bucket_deletion();
-
 SERVER_HANDLE_V1* get_server_api();
 
 void shutdown_server();

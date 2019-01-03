@@ -278,7 +278,7 @@ static void thread_libevent_process(evutil_socket_t fd, short, void* arg) {
             return;
         }
 
-        if (signal_idle_clients(&me, -1, false) == 0) {
+        if (signal_idle_clients(me) == 0) {
             LOG_INFO("Stopping worker thread {}", me.index);
             event_base_loopbreak(me.base);
             return;
@@ -342,22 +342,14 @@ static void thread_libevent_process(evutil_socket_t fd, short, void* arg) {
         run_event_loop(c, EV_READ | EV_WRITE);
     }
 
-    /*
-     * I could look at all of the connection objects bound to dying buckets
-     */
-    if (me.deleting_buckets) {
-        notify_thread_bucket_deletion(me);
-    }
-
     if (memcached_shutdown) {
         // Someone requested memcached to shut down. If we don't have
         // any connections bound to this thread we can just shut down
-        auto connected = signal_idle_clients(&me, -1, true);
+        auto connected = signal_idle_clients(me);
         if (connected == 0) {
             LOG_INFO("Stopping worker thread {}", me.index);
             event_base_loopbreak(me.base);
         } else {
-            // @todo Change loglevel once MB-16255 is resolved
             LOG_INFO("Waiting for {} connected clients on worker thread {}",
                      connected,
                      me.index);
@@ -512,32 +504,6 @@ FrontEndThread::~FrontEndThread() {
         if (sock != INVALID_SOCKET) {
             safe_close(sock);
         }
-    }
-}
-
-void threads_notify_bucket_deletion() {
-    for (auto& thr : threads) {
-        notify_thread(thr);
-    }
-}
-
-void threads_complete_bucket_deletion() {
-    for (auto& thr : threads) {
-        TRACE_LOCKGUARD_TIMED(thr.mutex,
-                              "mutex",
-                              "threads_complete_bucket_deletion::threadLock",
-                              SlowMutexThreshold);
-        thr.deleting_buckets--;
-    }
-}
-
-void threads_initiate_bucket_deletion() {
-    for (auto& thr : threads) {
-        TRACE_LOCKGUARD_TIMED(thr.mutex,
-                              "mutex",
-                              "threads_initiate_bucket_deletion::threadLock",
-                              SlowMutexThreshold);
-        thr.deleting_buckets++;
     }
 }
 
