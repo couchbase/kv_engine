@@ -1275,25 +1275,9 @@ static void sigterm_handler(evutil_socket_t, short, void *) {
     shutdown_server();
 }
 
-static struct event* sigusr1_event;
 static struct event* sigterm_event;
 
 static bool install_signal_handlers() {
-    // SIGUSR1 - Used to dump connection stats
-    sigusr1_event = evsignal_new(main_base, SIGUSR1,
-                                 dump_connection_stat_signal_handler,
-                                 nullptr);
-    if (sigusr1_event == nullptr) {
-        LOG_WARNING("Failed to allocate SIGUSR1 handler");
-        return false;
-    }
-
-    if (event_add(sigusr1_event, nullptr) < 0) {
-        LOG_WARNING("Failed to install SIGUSR1 handler");
-        return false;
-
-    }
-
     // SIGTERM - Used to shut down memcached cleanly
     sigterm_event = evsignal_new(main_base, SIGTERM, sigterm_handler, NULL);
     if (sigterm_event == NULL) {
@@ -1310,7 +1294,6 @@ static bool install_signal_handlers() {
 }
 
 static void release_signal_handlers() {
-    event_free(sigusr1_event);
     event_free(sigterm_event);
 }
 #endif

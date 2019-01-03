@@ -94,18 +94,6 @@ ListeningPort *get_listening_port_instance(const in_port_t port);
  */
 int signal_idle_clients(FrontEndThread* me, int bucket_idx, bool logging);
 
-#ifndef WIN32
-/**
- * Signal handler for SIGUSR1 to dump the connection states
- * for all of the connections.
- *
- * Please note that you <b>should</b> use <code>mcstat connections</code> to
- * get these stats on your node unless you've exhausted the connection limit
- * on the node.
- */
-void dump_connection_stat_signal_handler(evutil_socket_t, short, void *);
-#endif
-
 /**
  * Iterate over all of the connections and call the callback function
  * for each of the connections.

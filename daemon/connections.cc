@@ -217,27 +217,6 @@ ListeningPort *get_listening_port_instance(const in_port_t port) {
     return nullptr;
 }
 
-#ifndef WIN32
-/**
- * NOTE: This is <b>not</b> intended to be called during normal situation,
- * but in the case where we've been exhausting all connections to memcached
- * we need a way to be able to dump the connection states in order to search
- * for a bug.
- */
-void dump_connection_stat_signal_handler(evutil_socket_t, short, void *) {
-    std::lock_guard<std::mutex> lock(connections.mutex);
-    for (auto *c : connections.conns) {
-        try {
-            auto info = c->toJSON().dump();
-            LOG_INFO("Connection: {}", info);
-        } catch (const std::bad_alloc&) {
-            LOG_WARNING("Failed to allocate memory to dump info for {}",
-                        c->getId());
-        }
-    }
-}
-#endif
-
 void conn_loan_buffers(Connection* c) {
     if (c == nullptr) {
         return;
