@@ -105,12 +105,17 @@ void ExecutorThread::run() {
             // that the task wanted to wake up and the current time
             const std::chrono::steady_clock::time_point woketime =
                     currentTask->getWaketime();
-            const auto scheduleOverhead = getCurTime() - woketime;
-            currentTask->getTaskable().logQTime(
-                    currentTask->getTaskId(),
-                    scheduleOverhead.count()
-                            ? scheduleOverhead
-                            : std::chrono::steady_clock::duration::zero());
+
+            auto scheduleOverhead = getCurTime() - woketime;
+            // scheduleOverhead can be a negative number if the task has been
+            // woken up before we expected it too be. In this case this means
+            // that we have no schedule overhead and thus need to set it too 0.
+            if (scheduleOverhead.count() < 0) {
+                scheduleOverhead = std::chrono::steady_clock::duration::zero();
+            }
+
+            currentTask->getTaskable().logQTime(currentTask->getTaskId(),
+                                                scheduleOverhead);
             // MB-25822: It could be useful to have the exact datetime of long
             // schedule times, in the same way we have for long runtimes.
             // It is more difficult to estimate the expected schedule time than
