@@ -1489,24 +1489,21 @@ void Connection::propagateDisconnect() const {
     }
 }
 
-void Connection::signalIfIdle(bool logbusy, size_t workerthread) {
-    bool ewb = false;
-
+bool Connection::signalIfIdle() {
     for (const auto& c : cookies) {
         if (c->isEwouldblock()) {
-            ewb = true;
-            break;
+            return false;
         }
     }
 
-    if (!ewb && stateMachine.isIdleState()) {
+    if (stateMachine.isIdleState()) {
         auto* thr = getThread();
         thr->notification.push(this);
         notify_thread(*thr);
-    } else if (logbusy) {
-        auto details = toJSON().dump();
-        LOG_INFO("Worker thread {}: {}", workerthread, details);
+        return true;
     }
+
+    return false;
 }
 
 void Connection::setPriority(Connection::Priority priority) {

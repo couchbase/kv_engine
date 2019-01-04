@@ -76,7 +76,10 @@ int signal_idle_clients(FrontEndThread* me, int bucket_idx, bool logging) {
         if (c->getThread() == me) {
             ++connected;
             if (bucket_idx == -1 || c->getBucketIndex() == bucket_idx) {
-                c->signalIfIdle(logging, me->index);
+                if (!c->signalIfIdle() && logging) {
+                    auto details = c->toJSON().dump();
+                    LOG_INFO("Worker thread {}: {}", me->index, details);
+                }
             }
         }
     }

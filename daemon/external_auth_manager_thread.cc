@@ -249,7 +249,7 @@ void ExternalAuthManagerThread::pushActiveUsers() {
         std::lock_guard<std::mutex> guard(provider->getThread()->mutex);
         provider->enqueueServerEvent(
                 std::make_unique<ActiveExternalUsersServerEvent>(payload));
-        provider->signalIfIdle(false, 0);
+        provider->signalIfIdle();
     }
     // Acquire the lock
     mutex.lock();
@@ -310,7 +310,7 @@ void ExternalAuthManagerThread::processRequestQueue() {
         for (auto& ev : events) {
             provider->enqueueServerEvent(std::move(ev));
         }
-        provider->signalIfIdle(false, 0);
+        provider->signalIfIdle();
     }
 
     // Acquire the lock
@@ -362,7 +362,7 @@ void ExternalAuthManagerThread::purgePendingDeadConnections() {
         {
             std::lock_guard<std::mutex> guard(connection->getThread()->mutex);
             connection->decrementRefcount();
-            connection->signalIfIdle(false, 0);
+            connection->signalIfIdle();
         }
         mutex.lock();
     }

@@ -142,7 +142,7 @@ Task::Status CccpNotificationTask::execute() {
 
             connection.enqueueServerEvent(
                     std::make_unique<CccpPushNotificationServerEvent>());
-            connection.signalIfIdle(false, 0);
+            connection.signalIfIdle();
         });
     } catch (const std::exception& e) {
         LOG_WARNING("CccpNotificationTask::execute: received exception: {}",

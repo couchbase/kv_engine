@@ -145,11 +145,11 @@ public:
     /**
      * Signal a connection if it's idle
      *
-     * @param logbusy set to true if you want to log the connection details
-     *                if the connection isn't idle
-     * @param workerthead the id of the workerthread (for logging purposes)
+     * The connections thread lock must be held when calling the method
+     *
+     * @return true if the connection was idle, false otherwise
      */
-    void signalIfIdle(bool logbusy, size_t workerthread);
+    bool signalIfIdle();
 
     /**
      * Terminate the eventloop for the current event base. This method doesn't
