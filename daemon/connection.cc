@@ -21,6 +21,7 @@
 #include "connections.h"
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
+#include "front_end_thread.h"
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "memcached.h"
@@ -1499,25 +1500,9 @@ void Connection::signalIfIdle(bool logbusy, size_t workerthread) {
     }
 
     if (!ewb && stateMachine.isIdleState()) {
-        // Raise a 'fake' write event to ensure the connection has an
-        // event delivered (for example if its sendQ is full).
-        if (!registered_in_libevent) {
-            ev_flags = EV_READ | EV_WRITE | EV_PERSIST;
-            if (!registerEvent()) {
-                LOG_WARNING(
-                        "{}: Connection::signalIfIdle: Unable to "
-                        "registerEvent.  Setting state to conn_closing",
-                        getId());
-                setState(StateMachine::State::closing);
-            }
-        } else if (!updateEvent(EV_READ | EV_WRITE | EV_PERSIST)) {
-            LOG_WARNING(
-                    "{}: Connection::signalIfIdle: Unable to "
-                    "updateEvent.  Setting state to conn_closing",
-                    getId());
-            setState(StateMachine::State::closing);
-        }
-        event_active(event.get(), EV_WRITE, 0);
+        auto* thr = getThread();
+        thr->notification.push(this);
+        notify_thread(*thr);
     } else if (logbusy) {
         auto details = toJSON().dump();
         LOG_INFO("Worker thread {}: {}", workerthread, details);

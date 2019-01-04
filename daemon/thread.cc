@@ -58,6 +58,32 @@ void FrontEndThread::ConnectionQueue::swap(
 
 static FrontEndThread dispatcher_thread;
 
+void FrontEndThread::NotificationList::push(Connection* c) {
+    std::lock_guard<std::mutex> lock(mutex);
+    auto iter = std::find(connections.begin(), connections.end(), c);
+    if (iter == connections.end()) {
+        try {
+            connections.push_back(c);
+        } catch (const std::bad_alloc&) {
+            // Just ignore and hopefully we'll be able to signal it at a later
+            // time.
+        }
+    }
+}
+
+void FrontEndThread::NotificationList::remove(Connection* c) {
+    std::lock_guard<std::mutex> lock(mutex);
+    auto iter = std::find(connections.begin(), connections.end(), c);
+    if (iter != connections.end()) {
+        connections.erase(iter);
+    }
+}
+
+void FrontEndThread::NotificationList::swap(std::vector<Connection*>& other) {
+    std::lock_guard<std::mutex> lock(mutex);
+    connections.swap(other);
+}
+
 /*
  * Each libevent instance has a wakeup pipe, which other threads
  * can use to signal that they've put a new connection on its queue.
@@ -276,8 +302,21 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
                           "thread_libevent_process::threadLock",
                           SlowMutexThreshold);
 
+    std::vector<Connection*> notify;
+    me.notification.swap(notify);
+
     for (auto io : pending) {
         auto* c = io.first;
+
+        // Remove from the notify list if it's there as we don't
+        // want to run them twice
+        {
+            auto iter = std::find(notify.begin(), notify.end(), c);
+            if (iter != notify.end()) {
+                notify.erase(iter);
+            }
+        }
+
         if (c->getSocketDescriptor() != INVALID_SOCKET &&
             !c->isRegisteredInLibevent()) {
             /* The socket may have been shut down while we're looping */
@@ -297,6 +336,12 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
          * from the context of the notification pipe, so just let it
          * run one time to set up the correct mask in libevent
          */
+        c->setNumEvents(1);
+        run_event_loop(c, EV_READ | EV_WRITE);
+    }
+
+    // Notify the connections we haven't notified yet
+    for (auto c : notify) {
         c->setNumEvents(1);
         run_event_loop(c, EV_READ | EV_WRITE);
     }

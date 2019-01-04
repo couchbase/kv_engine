@@ -585,6 +585,7 @@ bool StateMachine::conn_immediate_close() {
                 connection.getId(),
                 connection.toJSON().dump());
     } else {
+        thread->notification.remove(&connection);
         // remove from pending-io list
         std::lock_guard<std::mutex> lock(thread->pending_io.mutex);
         thread->pending_io.map.erase(&connection);
