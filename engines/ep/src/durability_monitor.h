@@ -114,18 +114,6 @@ protected:
     size_t getNumTracked(const std::lock_guard<std::mutex>& lg) const;
 
     /**
-     * Returns the memory-seqno position for the given replica
-     *
-     * @param lg the object lock
-     * @param replica
-     * @return the memory-seqno position of the given replica
-     * @throw std::invalid_argument if replica is not valid
-     */
-    const Position& getReplicaMemoryPosition(
-            const std::lock_guard<std::mutex>& lg,
-            const std::string& replica) const;
-
-    /**
      * Returns the next position for a replica memory iterator.
      *
      * @param lg the object lock
@@ -183,27 +171,6 @@ protected:
      */
     int64_t getReplicaMemoryAckSeqno(const std::lock_guard<std::mutex>& lg,
                                      const std::string& replica) const;
-
-    /**
-     * @param lg the object lock
-     * @param replica
-     * @return true if the is a pending SyncWrite for the given replica,
-     *     false otherwise
-     */
-    bool hasPending(const std::lock_guard<std::mutex>& lg,
-                    const std::string& replica);
-
-    /**
-     * Returns the seqno of the next pending SyncWrite for the given replica.
-     * The function returns 0 if replica has already acknowledged all the
-     * pending seqnos.
-     *
-     * @param lg the object lock
-     * @param replica
-     * @return the pending seqno for replica, 0 if there is no pending
-     */
-    int64_t getReplicaPendingMemorySeqno(const std::lock_guard<std::mutex>& lg,
-                                         const std::string& replica);
 
     /**
      * Commit the SyncWrite at the given position.

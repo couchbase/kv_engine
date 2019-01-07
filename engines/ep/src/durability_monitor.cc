@@ -130,14 +130,25 @@ ENGINE_ERROR_CODE DurabilityMonitor::addSyncWrite(queued_item item) {
         durReq.getTimeout() != 0) {
         return ENGINE_ENOTSUP;
     }
+
     std::lock_guard<std::mutex> lg(state.m);
+    if (!state.firstChain) {
+        throw std::logic_error(
+                "DurabilityMonitor::addSyncWrite: no chain registered");
+    }
     state.trackedWrites.push_back(SyncWrite(item));
+
     return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
         const std::string& replica, int64_t memorySeqno) {
     std::lock_guard<std::mutex> lg(state.m);
+
+    if (!state.firstChain) {
+        throw std::logic_error(
+                "DurabilityMonitor::seqnoAckReceived: no chain registered");
+    }
 
     if (state.trackedWrites.empty()) {
         throw std::logic_error(
@@ -146,14 +157,16 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
                 std::to_string(memorySeqno));
     }
 
-    if (!hasPending(lg, replica)) {
+    auto next = getReplicaMemoryNext(lg, replica);
+
+    if (next == state.trackedWrites.end()) {
         throw std::logic_error(
                 "DurabilityManager::seqnoAckReceived: No pending SyncWrite, "
                 "but replica ack'ed memorySeqno:" +
                 std::to_string(memorySeqno));
     }
 
-    int64_t pendingSeqno = getReplicaPendingMemorySeqno(lg, replica);
+    int64_t pendingSeqno = next->getBySeqno();
     if (memorySeqno < pendingSeqno) {
         throw std::logic_error(
                 "DurabilityManager::seqnoAckReceived: Ack'ed seqno is behind "
@@ -162,12 +175,7 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
                 ", pending:" + std::to_string(pendingSeqno) + "}");
     }
 
-    while (hasPending(lg, replica)) {
-        // Process up to the ack'ed memory seqno
-        if (getReplicaPendingMemorySeqno(lg, replica) > memorySeqno) {
-            break;
-        }
-
+    do {
         // Update replica tracking
         advanceReplicaMemoryPosition(lg, replica);
 
@@ -176,8 +184,12 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
         // at this point.
 
         // Commit the verified SyncWrite
-        commit(lg, getReplicaMemoryPosition(lg, replica));
-    }
+        commit(lg, state.firstChain->memoryPositions.at(replica));
+
+        // Note: process up to the ack'ed memory seqno
+    } while ((next = getReplicaMemoryNext(lg, replica)) !=
+                     state.trackedWrites.end() &&
+             next->getBySeqno() <= memorySeqno);
 
     // We keep track of the actual ack'ed seqno
     updateReplicaMemoryAckSeqno(lg, replica, memorySeqno);
@@ -190,26 +202,9 @@ size_t DurabilityMonitor::getNumTracked(
     return state.trackedWrites.size();
 }
 
-const DurabilityMonitor::Position& DurabilityMonitor::getReplicaMemoryPosition(
-        const std::lock_guard<std::mutex>& lg,
-        const std::string& replica) const {
-    if (!state.firstChain) {
-        throw std::logic_error(
-                "DurabilityMonitor::getReplicaMemoryIterator: no chain "
-                "registered");
-    }
-    const auto entry = state.firstChain->memoryPositions.find(replica);
-    if (entry == state.firstChain->memoryPositions.end()) {
-        throw std::invalid_argument(
-                "DurabilityMonitor::getReplicaEntry: replica " + replica +
-                " not found in chain");
-    }
-    return entry->second;
-}
-
 DurabilityMonitor::Container::iterator DurabilityMonitor::getReplicaMemoryNext(
         const std::lock_guard<std::mutex>& lg, const std::string& replica) {
-    const auto& it = getReplicaMemoryPosition(lg, replica).it;
+    const auto& it = state.firstChain->memoryPositions.at(replica).it;
     // Note: Container::end could be the new position when the pointed SyncWrite
     //     is removed from Container and the iterator repositioned.
     //     In that case next=Container::begin
@@ -219,7 +214,7 @@ DurabilityMonitor::Container::iterator DurabilityMonitor::getReplicaMemoryNext(
 
 void DurabilityMonitor::advanceReplicaMemoryPosition(
         const std::lock_guard<std::mutex>& lg, const std::string& replica) {
-    auto& pos = const_cast<Position&>(getReplicaMemoryPosition(lg, replica));
+    auto& pos = state.firstChain->memoryPositions.at(replica);
     pos.it++;
     // Note that Position::lastSyncWriteSeqno is always set to the current
     // pointed SyncWrite to keep the replica seqno-state for when the pointed
@@ -231,34 +226,20 @@ void DurabilityMonitor::updateReplicaMemoryAckSeqno(
         const std::lock_guard<std::mutex>& lg,
         const std::string& replica,
         int64_t seqno) {
-    auto& pos = const_cast<Position&>(getReplicaMemoryPosition(lg, replica));
+    auto& pos = state.firstChain->memoryPositions.at(replica);
     pos.lastAckSeqno = seqno;
 }
 
 int64_t DurabilityMonitor::getReplicaMemorySyncWriteSeqno(
         const std::lock_guard<std::mutex>& lg,
         const std::string& replica) const {
-    return getReplicaMemoryPosition(lg, replica).lastSyncWriteSeqno;
+    return state.firstChain->memoryPositions.at(replica).lastSyncWriteSeqno;
 }
 
 int64_t DurabilityMonitor::getReplicaMemoryAckSeqno(
         const std::lock_guard<std::mutex>& lg,
         const std::string& replica) const {
-    return getReplicaMemoryPosition(lg, replica).lastAckSeqno;
-}
-
-bool DurabilityMonitor::hasPending(const std::lock_guard<std::mutex>& lg,
-                                   const std::string& replica) {
-    return getReplicaMemoryNext(lg, replica) != state.trackedWrites.end();
-}
-
-int64_t DurabilityMonitor::getReplicaPendingMemorySeqno(
-        const std::lock_guard<std::mutex>& lg, const std::string& replica) {
-    const auto& next = getReplicaMemoryNext(lg, replica);
-    if (next == state.trackedWrites.end()) {
-        return 0;
-    }
-    return next->getBySeqno();
+    return state.firstChain->memoryPositions.at(replica).lastAckSeqno;
 }
 
 void DurabilityMonitor::commit(const std::lock_guard<std::mutex>& lg,
