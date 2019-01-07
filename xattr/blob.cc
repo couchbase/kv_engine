@@ -16,6 +16,7 @@
  */
 #include "config.h"
 
+#include <nlohmann/json.hpp>
 #include <xattr/blob.h>
 #include <gsl/gsl>
 
@@ -301,8 +302,8 @@ size_t Blob::get_system_size() const {
     return ret;
 }
 
-unique_cJSON_ptr Blob::to_json() const {
-    unique_cJSON_ptr ret{cJSON_CreateObject()};
+nlohmann::json Blob::to_json() const {
+    nlohmann::json ret;
 
     try {
         size_t current = 4;
@@ -312,8 +313,7 @@ unique_cJSON_ptr Blob::to_json() const {
             current += 4;
 
             auto* ptr = blob.data() + current;
-            cJSON_AddItemToObject(ret.get(), ptr,
-                                  cJSON_Parse(ptr + strlen(ptr) + 1));
+            ret[ptr] = nlohmann::json::parse(ptr + strlen(ptr) + 1);
 
             current += size;
         }
@@ -323,5 +323,5 @@ unique_cJSON_ptr Blob::to_json() const {
     return ret;
 }
 
-}
-}
+} // namespace xattr
+} // namespace cb

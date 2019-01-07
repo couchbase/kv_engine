@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include <cJSON_utils.h>
+#include <nlohmann/json_fwd.hpp>
 #include <platform/compress.h>
 #include <platform/sized_buffer.h>
 #include <xattr/utils.h>
@@ -157,7 +157,7 @@ public:
     /**
      * Get a JSON representation of the xattrs
      */
-    unique_cJSON_ptr to_json() const;
+    nlohmann::json to_json() const;
 
     class iterator {
     public:

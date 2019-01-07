@@ -16,6 +16,7 @@
  */
 #include <gtest/gtest.h>
 
+#include <nlohmann/json.hpp>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
@@ -131,10 +132,11 @@ TEST(XattrBlob, TestToJson) {
              "\"user\":\"trond\"}");
     blob.set("_rbac", "{\"foo\":\"bar\"}");
 
-    const std::string expected{"{\"_sync\":{\"cas\":\"0xdeadbeefcafefeed\","
-                                   "\"user\":\"trond\"},"
-                                   "\"_rbac\":{\"foo\":\"bar\"}}"};
-    EXPECT_EQ(expected, to_string(blob.to_json(), false));
+    const std::string expected{
+            "{\"_sync\":{\"cas\":\"0xdeadbeefcafefeed\","
+            "\"user\":\"trond\"},"
+            "\"_rbac\":{\"foo\":\"bar\"}}"};
+    EXPECT_EQ(nlohmann::json::parse(expected), blob.to_json());
 }
 
 /**
