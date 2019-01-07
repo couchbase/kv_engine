@@ -33,28 +33,7 @@ class Pipe;
 
 class Cookie;
 class Connection;
-struct ConnectionQueueItem;
 struct thread_stats;
-
-/**
- * The dispatcher accepts new clients and needs to dispatch them
- * to the worker threads. In order to do so we use the ConnectionQueue
- * where the dispatcher allocates the items and push on to the queue,
- * and the actual worker thread pop's the items off and start
- * serving them.
- */
-class ConnectionQueue {
-public:
-    ~ConnectionQueue();
-
-    void push(std::unique_ptr<ConnectionQueueItem> item);
-
-    std::unique_ptr<ConnectionQueueItem> pop();
-
-private:
-    std::mutex mutex;
-    std::queue<std::unique_ptr<ConnectionQueueItem> > connections;
-};
 
 struct FrontEndThread {
     /**
@@ -90,8 +69,23 @@ struct FrontEndThread {
      */
     SOCKET notify[2] = {INVALID_SOCKET, INVALID_SOCKET};
 
-    /// queue of new connections to handle
-    ConnectionQueue new_conn_queue;
+    /**
+     * The dispatcher accepts new clients and needs to dispatch them
+     * to the worker threads. In order to do so we use the ConnectionQueue
+     * where the dispatcher allocates the items and push on to the queue,
+     * and the actual worker thread pop's the items off and start
+     * serving them.
+     */
+    class ConnectionQueue {
+    public:
+        ~ConnectionQueue();
+        void push(SOCKET socket, in_port_t port);
+        void swap(std::vector<std::pair<SOCKET, in_port_t>>& other);
+
+    protected:
+        std::mutex mutex;
+        std::vector<std::pair<SOCKET, in_port_t>> connections;
+    } new_conn_queue;
 
     /// Mutex to lock protect access to this object.
     std::mutex mutex;

@@ -39,37 +39,21 @@
 extern std::atomic<bool> memcached_shutdown;
 
 /* An item in the connection queue. */
-struct ConnectionQueueItem {
-    ConnectionQueueItem(SOCKET sock, in_port_t port)
-        : sfd(sock),
-          parent_port(port) {
-        // empty
-    }
-
-    SOCKET sfd;
-    in_port_t parent_port;
-};
-
-ConnectionQueue::~ConnectionQueue() {
-    while (!connections.empty()) {
-        safe_close(connections.front()->sfd);
-        connections.pop();
+FrontEndThread::ConnectionQueue::~ConnectionQueue() {
+    for (const auto& entry : connections) {
+        safe_close(entry.first);
     }
 }
 
-std::unique_ptr<ConnectionQueueItem> ConnectionQueue::pop() {
+void FrontEndThread::ConnectionQueue::push(SOCKET sock, in_port_t port) {
     std::lock_guard<std::mutex> guard(mutex);
-    if (connections.empty()) {
-        return nullptr;
-    }
-    std::unique_ptr<ConnectionQueueItem> ret(std::move(connections.front()));
-    connections.pop();
-    return ret;
+    connections.emplace_back(sock, port);
 }
 
-void ConnectionQueue::push(std::unique_ptr<ConnectionQueueItem> item) {
+void FrontEndThread::ConnectionQueue::swap(
+        std::vector<std::pair<SOCKET, in_port_t>>& other) {
     std::lock_guard<std::mutex> guard(mutex);
-    connections.push(std::move(item));
+    connections.swap(other);
 }
 
 static FrontEndThread dispatcher_thread;
@@ -237,12 +221,14 @@ static void drain_notification_channel(evutil_socket_t fd)
 }
 
 static void dispatch_new_connections(FrontEndThread& me) {
-    std::unique_ptr<ConnectionQueueItem> item;
-    while ((item = me.new_conn_queue.pop()) != nullptr) {
-        if (conn_new(item->sfd, item->parent_port, me.base, &me) == nullptr) {
+    std::vector<std::pair<SOCKET, in_port_t>> connections;
+    me.new_conn_queue.swap(connections);
+
+    for (const auto& entry : connections) {
+        if (conn_new(entry.first, entry.second, me.base, &me) == nullptr) {
             LOG_WARNING("Failed to dispatch event for socket {}",
-                        long(item->sfd));
-            safe_close(item->sfd);
+                        long(entry.first));
+            safe_close(entry.first);
         }
     }
 }
@@ -366,7 +352,7 @@ void notify_io_complete(gsl::not_null<const void*> void_cookie,
 }
 
 /* Which thread we assigned a connection to most recently. */
-static int last_thread = -1;
+static size_t last_thread = 0;
 
 /*
  * Dispatches a new connection to another thread. This is only ever called
@@ -375,12 +361,10 @@ static int last_thread = -1;
 void dispatch_conn_new(SOCKET sfd, in_port_t parent_port) {
     size_t tid = (last_thread + 1) % settings.getNumWorkerThreads();
     auto& thread = threads[tid];
-    last_thread = gsl::narrow<int>(tid);
+    last_thread = tid;
 
     try {
-        std::unique_ptr<ConnectionQueueItem> item(
-            new ConnectionQueueItem(sfd, parent_port));
-        thread.new_conn_queue.push(std::move(item));
+        thread.new_conn_queue.push(sfd, parent_port);
     } catch (const std::bad_alloc& e) {
         LOG_WARNING("dispatch_conn_new: Failed to dispatch new connection: {}",
                     e.what());
