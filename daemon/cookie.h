@@ -467,6 +467,14 @@ public:
         refcount--;
     }
 
+    void* getEngineStorage() const {
+        return engine_storage;
+    }
+
+    void setEngineStorage(void* engine_storage) {
+        Cookie::engine_storage = engine_storage;
+    }
+
 protected:
     bool enableTracing = false;
     cb::tracing::Tracer tracer;
@@ -519,6 +527,13 @@ protected:
      *  Between each command this is deleted and reset to nullptr.
      */
     std::unique_ptr<CommandContext> commandContext;
+
+    /**
+     * Pointer to engine-specific data which the engine has requested the server
+     * to persist for the life of the connection.
+     * See SERVER_COOKIE_API::{get,store}_engine_specific()
+     */
+    void* engine_storage{nullptr};
 
     /**
      * Log a preformatted response text

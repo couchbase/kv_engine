@@ -1422,13 +1422,14 @@ struct ServerCallbackApi : public ServerCallbackIface {
 struct ServerCookieApi : public ServerCookieIface {
     void store_engine_specific(gsl::not_null<const void*> void_cookie,
                                void* engine_data) override {
-        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-        cookie->getConnection().setEngineStorage(engine_data);
+        const auto* cc = reinterpret_cast<const Cookie*>(void_cookie.get());
+        auto* cookie = const_cast<Cookie*>(cc);
+        cookie->setEngineStorage(engine_data);
     }
 
     void* get_engine_specific(gsl::not_null<const void*> void_cookie) override {
         auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-        return cookie->getConnection().getEngineStorage();
+        return cookie->getEngineStorage();
     }
 
     bool is_datatype_supported(gsl::not_null<const void*> void_cookie,

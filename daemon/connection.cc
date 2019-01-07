@@ -153,7 +153,6 @@ nlohmann::json Connection::toJSON() const {
     features["xerror"] = isXerrorSupport();
     ret["features"] = features;
 
-    ret["engine_storage"] = cb::to_hex(uint64_t(engine_storage));
     ret["thread"] = cb::to_hex(uint64_t(getThread()));
     ret["priority"] = to_string(priority);
 

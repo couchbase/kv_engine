@@ -283,14 +283,6 @@ public:
 
     EngineIface* getBucketEngine() const;
 
-    void* getEngineStorage() const {
-        return engine_storage;
-    }
-
-    void setEngineStorage(void* engine_storage) {
-        Connection::engine_storage = engine_storage;
-    }
-
     int getClustermapRevno() const {
         return clustermap_revno;
     }
@@ -1084,13 +1076,6 @@ protected:
 
     /** number of references to the object */
     uint8_t refcount{0};
-
-    /**
-     * Pointer to engine-specific data which the engine has requested the server
-     * to persist for the life of the connection.
-     * See SERVER_COOKIE_API::{get,store}_engine_specific()
-     */
-    void* engine_storage{nullptr};
 
     /** Pointer to the thread object serving this connection */
     std::atomic<FrontEndThread*> thread{nullptr};
