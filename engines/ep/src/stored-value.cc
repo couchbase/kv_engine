@@ -211,12 +211,17 @@ size_t StoredValue::getRequiredStorage(const DocKey& key) {
     return sizeof(StoredValue) + SerialisedDocKey::getObjectSize(key.size());
 }
 
-std::unique_ptr<Item> StoredValue::toItem(bool lck, Vbid vbucket) const {
-    return toItemImpl(lck, vbucket, false);
+std::unique_ptr<Item> StoredValue::toItem(
+        bool lck,
+        Vbid vbucket,
+        boost::optional<cb::durability::Requirements> durabilityReqs) const {
+    return toItemImpl(lck, vbucket, false, durabilityReqs);
 }
 
-std::unique_ptr<Item> StoredValue::toItemKeyOnly(Vbid vbucket) const {
-    return toItemImpl(false, vbucket, true);
+std::unique_ptr<Item> StoredValue::toItemKeyOnly(
+        Vbid vbucket,
+        boost::optional<cb::durability::Requirements> durabilityReqs) const {
+    return toItemImpl(false, vbucket, true, durabilityReqs);
 }
 
 void StoredValue::reallocate() {
@@ -279,9 +284,11 @@ bool StoredValue::deleteImpl(DeleteSource delSource) {
     return true;
 }
 
-std::unique_ptr<Item> StoredValue::toItemImpl(bool lock,
-                                              Vbid vbucket,
-                                              bool keyOnly) const {
+std::unique_ptr<Item> StoredValue::toItemImpl(
+        bool lock,
+        Vbid vbucket,
+        bool keyOnly,
+        boost::optional<cb::durability::Requirements> durabilityReqs) const {
     auto itm =
             std::make_unique<Item>(getKey(),
                                    getFlags(),
@@ -298,6 +305,25 @@ std::unique_ptr<Item> StoredValue::toItemImpl(bool lock,
 
     if (isDeleted()) {
         itm->setDeleted(getDeletionSource());
+    }
+
+    // Set the correct CommittedState and associated properties (durability
+    // requirements) on the new item.
+    switch (getCommitted()) {
+    case CommittedState::Pending:
+        if (!durabilityReqs) {
+            throw std::logic_error(
+                    "StoredValue::toItemImpl: attempted to create Item from "
+                    "Pending StoredValue without supplying durabilityReqs");
+        }
+        itm->setPendingSyncWrite(*durabilityReqs);
+        break;
+    case CommittedState::CommittedViaPrepare:
+        itm->setCommittedviaPrepareSyncWrite();
+        break;
+    case CommittedState::CommittedViaMutation:
+        // nothing do to.
+        break;
     }
 
     return itm;

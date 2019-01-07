@@ -135,11 +135,8 @@ void VBucketDurabilityTest::testSyncWrites(const std::vector<int64_t>& seqnos) {
     EXPECT_EQ(numStored, ckptList.front()->getNumItems());
     for (const auto& qi : *ckptList.front()) {
         if (!qi->isCheckPointMetaItem()) {
-            // Note: in follow-up patches, these will become:
-            // - CommittedState::CommittedViaPrepare
-            // - queue_op::commit_sync_write
-            EXPECT_EQ(CommittedState::CommittedViaMutation, qi->getCommitted());
-            EXPECT_EQ(queue_op::mutation, qi->getOperation());
+            EXPECT_EQ(CommittedState::CommittedViaPrepare, qi->getCommitted());
+            EXPECT_EQ(queue_op::commit_sync_write, qi->getOperation());
         }
     }
 }

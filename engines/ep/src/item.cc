@@ -136,6 +136,8 @@ std::string to_string(queue_op op) {
         return "mutation";
     case queue_op::pending_sync_write:
         return "pending_sync_write";
+    case queue_op::commit_sync_write:
+        return "commit_sync_write";
     case queue_op::flush:
         return "flush";
     case queue_op::empty:
@@ -282,10 +284,14 @@ bool Item::decompressValue() {
 void Item::setDeleted(DeleteSource cause) {
     switch (op) {
     case queue_op::mutation:
-    case queue_op::pending_sync_write:
+    case queue_op::commit_sync_write:
         deleted = 1; // true
         deletionCause = static_cast<uint8_t>(cause);
         break;
+    case queue_op::pending_sync_write:
+        throw std::logic_error(
+                "Item::setDeleted: Cannot mark a pending_sync_write as "
+                "deleted.");
     case queue_op::system_event:
         if (cause == DeleteSource::TTL) {
             throw std::logic_error(
@@ -319,6 +325,10 @@ void Item::setPendingSyncWrite(cb::durability::Requirements requirements) {
     }
     durabilityReqs = requirements;
     op = queue_op::pending_sync_write;
+}
+
+void Item::setCommittedviaPrepareSyncWrite() {
+    op = queue_op::commit_sync_write;
 }
 
 item_info Item::toItemInfo(uint64_t vb_uuid, int64_t hlcEpoch) const {

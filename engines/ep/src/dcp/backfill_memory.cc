@@ -298,6 +298,10 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
             // mutated with the HashBucketLock, so get the correct bucket lock
             // before calling StoredValue::toItem
             auto hbl = evb->ht.getLockedBucket((*rangeItr).getKey());
+            // @todo-durability: Need to record the original durability
+            // requirements in OrderedStoredValue (and then add into the
+            // item we make here); otherwise we cannot correctly form the
+            // DCP_PREPARE messages for Pending items.
             item = (*rangeItr).toItem(false, getVBucketId());
         } catch (const std::bad_alloc&) {
             stream->log(spdlog::level::level_enum::warn,

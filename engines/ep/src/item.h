@@ -49,6 +49,10 @@ enum class queue_op : uint8_t {
     /// See also - {commit_sync_write}.
     pending_sync_write,
 
+    /// Commit a pending_sync_write; converting it to committed and making
+    /// visible to clients. See also - {pending_sync_write}.
+    commit_sync_write,
+
     /// (meta item) Testing only op, used to mark the end of a test.
     /// TODO: Remove this, it shouldn't be necessary / included just to support
     /// testing.
@@ -362,6 +366,7 @@ public:
     bool shouldPersist() const {
         switch (op) {
         case queue_op::mutation:
+        case queue_op::commit_sync_write:
         case queue_op::system_event:
         case queue_op::set_vbucket_state:
             return true;
@@ -393,6 +398,7 @@ public:
         switch (op) {
         case queue_op::mutation:
         case queue_op::pending_sync_write:
+        case queue_op::commit_sync_write:
         case queue_op::system_event:
             return false;
         case queue_op::flush:
@@ -445,11 +451,28 @@ public:
      */
     void setPendingSyncWrite(cb::durability::Requirements requirements);
 
-    /// Is this Item Committed, or Pending Sync Write?
+    /// Sets the item as being a Commited via Pending SyncWrite.
+    void setCommittedviaPrepareSyncWrite();
+
     CommittedState getCommitted() const {
-        return (op == queue_op::pending_sync_write)
-                       ? CommittedState::Pending
-                       : CommittedState::CommittedViaMutation;
+        switch (op) {
+        case queue_op::pending_sync_write:
+            return CommittedState::Pending;
+        case queue_op::commit_sync_write:
+            return CommittedState::CommittedViaPrepare;
+        case queue_op::mutation:
+            return CommittedState::CommittedViaMutation;
+        default:
+            // @todo MB-32571: Remove the return, throw exception instead -
+            // logically we should never attempt to add system events or
+            // similar to the HashTable.
+            return CommittedState::CommittedViaMutation;
+
+            throw std::logic_error(
+                    "Item::getCommitted(): Called on Item with unexpected "
+                    "queue_op:" +
+                    to_string(op));
+        }
     }
 
     /**

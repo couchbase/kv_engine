@@ -776,10 +776,13 @@ VBNotifyCtx VBucket::queueDirty(
         PreLinkDocumentContext* preLinkDocumentContext) {
     VBNotifyCtx notifyCtx;
 
-    queued_item qi(v.toItem(false, getId()));
-    if (v.getCommitted() == CommittedState::Pending) {
-        qi->setPendingSyncWrite(durabilityCtx->requirements);
+    // If we are queuing a SyncWrite StoredValue; extract the durability
+    // requirements to use to create the Item.
+    boost::optional<cb::durability::Requirements> durabilityReqs;
+    if (durabilityCtx) {
+        durabilityReqs = durabilityCtx->requirements;
     }
+    queued_item qi(v.toItem(false, getId(), durabilityReqs));
 
     // MB-27457: Timestamp deletes only when they don't already have a timestamp
     // assigned. This is here to ensure all deleted items have a timestamp which

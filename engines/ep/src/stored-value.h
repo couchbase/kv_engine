@@ -31,6 +31,7 @@
 #include <platform/n_byte_integer.h>
 
 #include <boost/intrusive/list.hpp>
+#include <memcached/durability_spec.h>
 #include <relaxed_atomic.h>
 
 class Item;
@@ -613,16 +614,29 @@ public:
      *
      * @param lck if true, the new item will return a locked CAS ID.
      * @param vbucket the vbucket containing this item.
+     * @param durabilityReqs If the StoredValue is a pending SyncWrite this
+     *        specifies the durability requirements for the item.
+     *
+     * @throws std::logic_error if the object is a pending SyncWrite and
+     *         requirements is /not/ specified.
      */
-    std::unique_ptr<Item> toItem(bool lck, Vbid vbucket) const;
+    std::unique_ptr<Item> toItem(bool lck,
+                                 Vbid vbucket,
+                                 boost::optional<cb::durability::Requirements>
+                                         durabilityReqs = {}) const;
 
     /**
      * Generate a new Item with only key and metadata out of this object.
      * The item generated will not contain value
      *
      * @param vbucket the vbucket containing this item.
+     * @param durabilityReqs If the StoredValue is a pending SyncWrite this
+     *        specifies the durability requirements for the item.
      */
-    std::unique_ptr<Item> toItemKeyOnly(Vbid vbucket) const;
+    std::unique_ptr<Item> toItemKeyOnly(
+            Vbid vbucket,
+            boost::optional<cb::durability::Requirements> durabilityReqs = {})
+            const;
 
     /**
      * Get an item_info from the StoredValue
@@ -799,9 +813,11 @@ protected:
     bool deleteImpl(DeleteSource delSource);
 
     /// Implementation of toItem / toItemKeyOnly
-    std::unique_ptr<Item> toItemImpl(bool lock,
-                                     Vbid vbucket,
-                                     bool keyOnly) const;
+    std::unique_ptr<Item> toItemImpl(
+            bool lock,
+            Vbid vbucket,
+            bool keyOnly,
+            boost::optional<cb::durability::Requirements> durabilityReqs) const;
 
     /* Update the value for this SV from the given item.
      * Implementation for StoredValue instances (dispatched to by setValue()).
@@ -859,7 +875,9 @@ protected:
 
     friend class StoredValueFactory;
 
-    value_t            value;          // 8 bytes
+    /// Tagged pointer; contains both a pointer to the value (Blob) and a tag
+    /// which stores the frequency counter for this SV.
+    value_t value;
 
     // Serves two purposes -
     // 1. Used to implement HashTable chaining (for elements hashing to the same
