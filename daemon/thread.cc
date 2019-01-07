@@ -98,16 +98,14 @@ static size_t init_count = 0;
 static cb_mutex_t init_lock;
 static cb_cond_t init_cond;
 
-static void thread_libevent_process(evutil_socket_t fd, short which, void *arg);
+static void thread_libevent_process(evutil_socket_t, short, void*);
 
 /*
  * Creates a worker thread.
  */
 static void create_worker(void (*func)(void *), void *arg, cb_thread_t *id,
                           const char* name) {
-    int ret;
-
-    if ((ret = cb_create_named_thread(id, func, arg, 0, name)) != 0) {
+    if (cb_create_named_thread(id, func, arg, 0, name) != 0) {
         FATAL_ERROR(EXIT_FAILURE,
                     "Can't create thread {}: {}",
                     name,
@@ -171,7 +169,7 @@ static void setup_dispatcher(struct event_base *main_base,
                       EV_READ | EV_PERSIST,
                       dispatcher_callback,
                       nullptr) == -1) ||
-        (event_add(&dispatcher_thread.notify_event, 0) == -1)) {
+        (event_add(&dispatcher_thread.notify_event, nullptr) == -1)) {
         FATAL_ERROR(EXIT_FAILURE, "Can't monitor libevent notify pipe");
     }
 }
@@ -193,7 +191,7 @@ static void setup_thread(FrontEndThread& me) {
                       EV_READ | EV_PERSIST,
                       thread_libevent_process,
                       &me) == -1) ||
-        (event_add(&me.notify_event, 0) == -1)) {
+        (event_add(&me.notify_event, nullptr) == -1)) {
         FATAL_ERROR(EXIT_FAILURE, "Can't monitor libevent notify pipe");
     }
 }
@@ -202,20 +200,18 @@ static void setup_thread(FrontEndThread& me) {
  * Worker thread: main event loop
  */
 static void worker_libevent(void *arg) {
-    FrontEndThread* me = reinterpret_cast<FrontEndThread*>(arg);
+    auto& me = *reinterpret_cast<FrontEndThread*>(arg);
 
-    /* Any per-thread setup can happen here; thread_init() will block until
-     * all threads have finished initializing.
-     */
-
+    // Any per-thread setup can happen here; thread_init() will block until
+    // all threads have finished initializing.
     cb_mutex_enter(&init_lock);
-    me->running = true;
+    me.running = true;
     init_count++;
     cb_cond_signal(&init_cond);
     cb_mutex_exit(&init_lock);
 
-    event_base_loop(me->base, 0);
-    me->running = false;
+    event_base_loop(me.base, 0);
+    me.running = false;
 
     // Event loop exited; cleanup before thread exits.
     ERR_remove_state(0);
@@ -263,7 +259,7 @@ static void dispatch_new_connections(FrontEndThread& me) {
  * Processes an incoming "handle a new connection" item. This is called when
  * input arrives on the libevent wakeup pipe.
  */
-static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) {
+static void thread_libevent_process(evutil_socket_t fd, short, void* arg) {
     auto& me = *reinterpret_cast<FrontEndThread*>(arg);
 
     // Start by draining the notification channel before doing any work.
@@ -305,7 +301,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
     std::vector<Connection*> notify;
     me.notification.swap(notify);
 
-    for (auto io : pending) {
+    for (const auto& io : pending) {
         auto* c = io.first;
 
         // Remove from the notify list if it's there as we don't
@@ -566,15 +562,15 @@ int add_conn_to_pending_io_list(Connection* c,
                 std::vector<std::pair<Cookie*, ENGINE_ERROR_CODE>>{
                         {cookie, status}});
         return 1;
-    } else {
-        for (const auto& pair : iter->second) {
-            if (pair.first == cookie) {
-                // we've already got a pending notification for this
-                // cookie.. Ignore it
-                return 0;
-            }
-        }
-        iter->second.push_back({cookie, status});
-        return 1;
     }
+
+    for (const auto& pair : iter->second) {
+        if (pair.first == cookie) {
+            // we've already got a pending notification for this
+            // cookie.. Ignore it
+            return 0;
+        }
+    }
+    iter->second.emplace_back(cookie, status);
+    return 1;
 }
