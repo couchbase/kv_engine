@@ -157,6 +157,7 @@ PrivilegeMask UserEntry::parsePrivileges(const nlohmann::json& privs,
         ret[int(Privilege::IdleConnection)] = false;
         ret[int(Privilege::CollectionManagement)] = false;
         ret[int(Privilege::Impersonate)] = false;
+        ret[int(Privilege::SystemSettings)] = false;
     } else {
         ret[int(Privilege::Read)] = false;
         ret[int(Privilege::Insert)] = false;
@@ -169,6 +170,8 @@ PrivilegeMask UserEntry::parsePrivileges(const nlohmann::json& privs,
         ret[int(Privilege::MetaWrite)] = false;
         ret[int(Privilege::XattrRead)] = false;
         ret[int(Privilege::XattrWrite)] = false;
+        ret[int(Privilege::Select)] = false;
+        ret[int(Privilege::Settings)] = false;
     }
 
     return ret;

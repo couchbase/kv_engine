@@ -46,7 +46,10 @@ static const std::unordered_map<std::string, Privilege> privilegemap = {
         {"SystemXattrWrite", Privilege::SystemXattrWrite},
         {"CollectionManagement", Privilege::CollectionManagement},
         {"SecurityManagement", Privilege::SecurityManagement},
-        {"Impersonate", Privilege::Impersonate}};
+        {"Impersonate", Privilege::Impersonate},
+        {"Select", Privilege::Select},
+        {"Settings", Privilege::Settings},
+        {"SystemSettings", Privilege::SystemSettings}};
 
 std::string to_string(Privilege privilege) {
     for (const auto& entry : privilegemap) {

@@ -155,7 +155,18 @@ enum class Privilege {
      * that time we can't have all components in our system to evaluate
      * RBAC access
      */
-    Impersonate
+    Impersonate,
+
+    /// The `Select` privilege allows the connection to select buckets
+    Select,
+
+    /// The `Settings` privilege allows the connection to fetch the bucket
+    /// configuration via CCCP
+    Settings,
+
+    /// The `SystemSettings` privilege allows the connection to fetch the
+    /// global system configuration (Cluster topology)
+    SystemSettings
 
     /**
      * Remember to update the rest of the internals of the RBAC module when
