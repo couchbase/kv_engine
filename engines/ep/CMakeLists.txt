@@ -412,6 +412,7 @@ if (NOT EP_BYPASS_TESTS)
                    tests/module_tests/kvstore_test.cc
                    tests/module_tests/kv_bucket_test.cc
                    tests/module_tests/memory_tracker_test.cc
+                   tests/module_tests/memory_tracking_allocator_test.cc
                    tests/module_tests/mock_hooks_api.cc
                    tests/module_tests/monotonic_test.cc
                    tests/module_tests/mutation_log_test.cc

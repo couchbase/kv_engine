@@ -24,6 +24,7 @@
 #include "stats.h"
 
 #include <platform/non_negative_counter.h>
+#include <utilities/memory_tracking_allocator.h>
 
 #include <list>
 #include <map>
@@ -54,8 +55,10 @@ enum checkpoint_state {
 const char* to_string(enum checkpoint_state);
 
 // List is used for queueing mutations as vector incurs shift operations for
-// deduplication.
-typedef std::list<queued_item> CheckpointQueue;
+// de-duplication.  We template the list on a queued_item and our own
+// memory allocator which allows memory usage to be tracked.
+typedef std::list<queued_item, MemoryTrackingAllocator<queued_item>>
+        CheckpointQueue;
 
 /**
  * A checkpoint index entry.
@@ -419,7 +422,7 @@ public:
      * @return memory overhead of this checkpoint instance.
      */
     size_t memorySize() {
-        return sizeof(Checkpoint) + memOverhead;
+        return sizeof(Checkpoint) + getMemoryOverhead();
     }
 
     /**
@@ -449,14 +452,18 @@ public:
     }
 
     /**
-     * Returns the overhead of the checkpoint. For each item in the checkpoint,
-     * this is the sum of key size + sizeof(index_entry) + sizeof(queued_item).
+     * Returns the overhead of the checkpoint.
+     * This is comprised of two components:
+     * 1) The key size + sizeof(index_entry) for each item in the checkpoint.
+     * 2) The size of the ref-counted pointer instances (queued_item) in the
+     *    container plus any overheads.
+     *
      * When it comes to cursor dropping, this is the theoretical guaranteed
-     * memory which can be freed, as the checkpoint contains the only references
-     * to them.
+     * memory which can be freed, as the checkpoint contains the only
+     * references to them.
      */
     size_t getMemoryOverhead() const {
-        return memOverhead;
+        return memOverhead + *(toWrite.get_allocator().getBytesAllocated());
     }
 
     /**
@@ -482,7 +489,9 @@ private:
     // Count of the number of cursors that reside in the checkpoint
     cb::NonNegativeCounter<size_t> numOfCursorsInCheckpoint = 0;
 
-    CheckpointQueue                toWrite;
+    // Allocator used for tracking memory used by the CheckpointQueue
+    MemoryTrackingAllocator<queued_item> trackingAllocator;
+    CheckpointQueue toWrite;
     checkpoint_index               keyIndex;
     /* Index for meta keys like "dummy_key" */
     checkpoint_index               metaKeyIndex;

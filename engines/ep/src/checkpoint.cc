@@ -100,6 +100,7 @@ Checkpoint::Checkpoint(EPStats& st,
       checkpointState(CHECKPOINT_OPEN),
       numItems(0),
       numMetaItems(0),
+      toWrite(trackingAllocator),
       memOverhead(0),
       effectiveMemUsage(0) {
     stats.coreLocal.get()->memOverhead.fetch_add(memorySize());
@@ -136,7 +137,13 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                         "(which is" + std::to_string(checkpointState) +
                         ") is not OPEN");
     }
+
+    // Get the CheckpointQueue memory overhead, before the queued_item is
+    // added.
+    auto initialOverhead = memorySize();
+
     QueueDirtyStatus rv;
+
     checkpoint_index::iterator it = keyIndex.find(qi->getKey());
     // Check if the item is a meta item
     if (qi->isCheckPointMetaItem()) {
@@ -239,11 +246,28 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
         } else {
             keyIndex[qi->getKey()] = entry;
         }
+
         if (rv == QueueDirtyStatus::SuccessNewItem) {
-            size_t newEntrySize = qi->getKey().size() +
-                                  sizeof(index_entry) + sizeof(queued_item);
-            memOverhead += newEntrySize;
-            stats.coreLocal.get()->memOverhead.fetch_add(newEntrySize);
+            /**
+             * Calculate the memory overhead of adding the new item to the
+             * metaKeyIndex / keyIndex.  Note: memOverhead is read by the
+             * call to memorySize (see below).
+             */
+            memOverhead += qi->getKey().size() + sizeof(index_entry);
+
+            // Calculate the increase in memory overhead caused by adding
+            // the new item.
+            int64_t overheadChange = memorySize() - initialOverhead;
+            if (overheadChange < 0) {
+                throw std::logic_error(
+                        "Checkpoint::queueDirty: "
+                        "overheadChange should not be negative. "
+                        "overheadChange:" +
+                        std::to_string(overheadChange) +
+                        "memorySize():" + std::to_string(memorySize()) +
+                        "initialOverhead:" + std::to_string(initialOverhead));
+            }
+            stats.coreLocal.get()->memOverhead.fetch_add(overheadChange);
         }
     }
 

@@ -1533,3 +1533,67 @@ TYPED_TEST(CheckpointTest, checkpointMemoryTest) {
     // Should be back to the initialSize
     EXPECT_EQ(initialSize, this->manager->getMemoryUsage());
 }
+
+// Test the tracking of memory overhead by adding a single element to the
+// CheckpointQueue.
+TYPED_TEST(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
+    // Get the intial size of the checkpoint overhead.
+    const auto initialOverhead = this->manager->getMemoryOverhead();
+
+    // Create a queued_item
+    std::string value("value");
+    queued_item qiSmall(new Item(makeStoredDocKey("key"),
+                                 0,
+                                 0,
+                                 value.c_str(),
+                                 value.size(),
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 0,
+                                 -1,
+                                 Vbid(0)));
+
+    // Add the queued_item to the checkpoint
+    this->manager->queueDirty(*this->vbucket,
+                              qiSmall,
+                              GenerateBySeqno::Yes,
+                              GenerateCas::Yes,
+                              /*preLinkDocCtx*/ nullptr);
+
+    // Re-measure the checkpoint overhead
+    const auto updatedOverhead = this->manager->getMemoryOverhead();
+    // Three pointers - forward, backward and pointer to item
+    const auto perElementListOverhead = sizeof(uintptr_t) * 3;
+    // Entry to the keyIndex
+    const auto keyIndexOverhead = sizeof("key") + sizeof(index_entry);
+    EXPECT_EQ(perElementListOverhead + keyIndexOverhead,
+              updatedOverhead - initialOverhead);
+
+    bool isLastMutationItem;
+    // Move cursor to checkpoint start
+    auto item = this->manager->nextItem(this->manager->getPersistenceCursor(),
+                                        isLastMutationItem);
+    EXPECT_FALSE(isLastMutationItem);
+    // Move cursor to the mutation
+    item = this->manager->nextItem(this->manager->getPersistenceCursor(),
+                                   isLastMutationItem);
+    EXPECT_TRUE(isLastMutationItem);
+
+    // Create a new checkpoint, which will close the old checkpoint
+    // and move the persistence cursor to the new checkpoint.
+    this->manager->createNewCheckpoint();
+
+    // Tell Checkpoint manager the items have been persisted, so it
+    // advances pCursorPreCheckpointId, which will allow us to remove
+    // the closed unreferenced checkpoints.
+    this->manager->itemsPersisted();
+
+    // We are now in a position to remove the checkpoint that had the
+    // mutation in it.
+    bool new_open_ckpt_created;
+    EXPECT_EQ(1,
+              this->manager->removeClosedUnrefCheckpoints(
+                      *this->vbucket, new_open_ckpt_created));
+
+    // Should be back to the initialOverhead
+    EXPECT_EQ(initialOverhead, this->manager->getMemoryOverhead());
+}
