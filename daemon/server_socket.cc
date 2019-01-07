@@ -24,6 +24,7 @@
 #include "stats.h"
 
 #include <logger/logger.h>
+#include <nlohmann/json.hpp>
 #include <platform/socket.h>
 #include <platform/strerror.h>
 #include <exception>
@@ -173,29 +174,20 @@ void ServerSocket::acceptNewClient() {
     dispatch_conn_new(client, listen_port);
 }
 
-unique_cJSON_ptr ServerSocket::getDetails() {
-    unique_cJSON_ptr ret(cJSON_CreateObject());
-    cJSON* obj = ret.get();
+nlohmann::json ServerSocket::getDetails() {
+    nlohmann::json ret;
 
-    if (ssl) {
-        cJSON_AddTrueToObject(obj, "ssl");
-    } else {
-        cJSON_AddFalseToObject(obj, "ssl");
-    }
+    ret["ssl"] = ssl;
+    ret["protocol"] = "memcached";
 
-    cJSON_AddStringToObject(obj, "protocol", "memcached");
     if (family == AF_INET) {
-        cJSON_AddStringToObject(obj, "family", "AF_INET");
+        ret["family"] = "AF_INET";
     } else {
-        cJSON_AddStringToObject(obj, "family", "AF_INET6");
+        ret["family"] = "AF_INET6";
     }
 
-    cJSON_AddNumberToObject(obj, "port", listen_port);
-    if (management) {
-        cJSON_AddTrueToObject(obj, "management");
-    } else {
-        cJSON_AddFalseToObject(obj, "management");
-    }
+    ret["port"] = listen_port;
+    ret["management"] = management;
 
     return ret;
 }

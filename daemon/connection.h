@@ -25,7 +25,6 @@
 #include "stats.h"
 #include "task.h"
 
-#include <cJSON.h>
 #include <cbsasl/client.h>
 #include <cbsasl/server.h>
 #include <daemon/protocol/mcbp/command_context.h>
@@ -198,7 +197,7 @@ public:
     void setPriority(const Priority priority);
 
     /**
-     * Create a cJSON representation of the members of the connection
+     * Create a JSON representation of the members of the connection
      */
     nlohmann::json toJSON() const;
 

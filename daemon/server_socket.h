@@ -18,7 +18,7 @@
 
 #include "connection.h"
 
-#include <cJSON_utils.h>
+#include <nlohmann/json_fwd.hpp>
 #include <memory>
 
 class NetworkInterface;
@@ -73,7 +73,7 @@ public:
      * Get the details for this connection to put in the portnumber
      * file so that the test framework may pick up the port numbers
      */
-    unique_cJSON_ptr getDetails();
+    nlohmann::json getDetails();
 
 protected:
     /// The socket object to accept clients from

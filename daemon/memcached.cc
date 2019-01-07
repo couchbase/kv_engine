@@ -55,9 +55,6 @@
 #include "utilities/engine_loader.h"
 #include "utilities/terminate_handler.h"
 
-#include <JSON_checker.h>
-#include <cJSON.h>
-#include <cJSON_utils.h>
 #include <cbsasl/logging.h>
 #include <cbsasl/mechanism.h>
 #include <engines/default_engine.h>
@@ -1221,16 +1218,14 @@ static void create_listen_sockets(bool management) {
                         strerror(errno));
         }
 
-        unique_cJSON_ptr array(cJSON_CreateArray());
+        nlohmann::json json;
+        json["ports"] = nlohmann::json::array();
 
         for (const auto& connection : listen_conn) {
-            cJSON_AddItemToArray(array.get(),
-                                 connection->getDetails().release());
+            json["ports"].push_back(connection->getDetails());
         }
 
-        unique_cJSON_ptr root(cJSON_CreateObject());
-        cJSON_AddItemToObject(root.get(), "ports", array.release());
-        fprintf(portnumber_file, "%s\n", to_string(root, true).c_str());
+        fprintf(portnumber_file, "%s\n", json.dump().c_str());
         fclose(portnumber_file);
         LOG_INFO("Port numbers available in {}", portnumber_filename);
         if (rename(temp_portnumber_filename.c_str(), portnumber_filename) == -1) {
