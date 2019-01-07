@@ -39,6 +39,7 @@
 #include <platform/checked_snprintf.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
+#include <platform/string_hex.h>
 #include <platform/timeutils.h>
 #include <utilities/logtags.h>
 #include <gsl/gsl>
@@ -91,12 +92,6 @@ bool Connection::setTcpNoDelay(bool enable) {
     return true;
 }
 
-static std::string getUintPtrString(uintptr_t value) {
-    char buffer[64];
-    snprintf(buffer, sizeof(buffer), "0x%" PRIxPTR, value);
-    return std::string(buffer);
-}
-
 /**
  * Get a JSON representation of an event mask
  *
@@ -107,7 +102,7 @@ static nlohmann::json event_mask_to_json(const short mask) {
     nlohmann::json ret;
     nlohmann::json array = nlohmann::json::array();
 
-    ret["raw"] = getUintPtrString((uintptr_t)mask);
+    ret["raw"] = cb::to_hex(uint16_t(mask));
 
     if (mask & EV_READ) {
         array.push_back("read");
@@ -129,7 +124,7 @@ static nlohmann::json event_mask_to_json(const short mask) {
 nlohmann::json Connection::toJSON() const {
     nlohmann::json ret;
 
-    ret["connection"] = getUintPtrString((uintptr_t)this);
+    ret["connection"] = cb::to_hex(uint64_t(this));
 
     if (socketDescriptor == INVALID_SOCKET) {
         ret["socket"] = "disconnected";
@@ -157,9 +152,8 @@ nlohmann::json Connection::toJSON() const {
     features["xerror"] = isXerrorSupport();
     ret["features"] = features;
 
-    ret["engine_storage"] = getUintPtrString((uintptr_t)engine_storage);
-    ret["thread"] = getUintPtrString(
-            (uintptr_t)thread.load(std::memory_order::memory_order_relaxed));
+    ret["engine_storage"] = cb::to_hex(uint64_t(engine_storage));
+    ret["thread"] = cb::to_hex(uint64_t(getThread()));
     ret["priority"] = to_string(priority);
 
     if (clustermap_revno == -2) {
