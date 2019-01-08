@@ -16,30 +16,37 @@
  */
 
 #include "durability_monitor_test.h"
+
+#include "checkpoint_manager.h"
+#include "test_helpers.h"
+
 #include "../mock/mock_synchronous_ep_engine.h"
 
-ENGINE_ERROR_CODE DurabilityMonitorTest::addSyncWrite(int64_t seqno) {
-    auto item = std::make_unique<Item>(
-            makeStoredDocKey("key" + std::to_string(seqno)),
-            0 /*flags*/,
-            0 /*exp*/,
-            "value",
-            5 /*valueSize*/,
-            PROTOCOL_BINARY_RAW_BYTES,
-            0 /*cas*/,
-            seqno);
-    queued_item qi(std::move(item));
+void DurabilityMonitorTest::addSyncWrite(int64_t seqno) {
+    auto numTracked = monitor->public_getNumTracked();
+    auto item = Item(makeStoredDocKey("key" + std::to_string(seqno)),
+                     0 /*flags*/,
+                     0 /*exp*/,
+                     "value",
+                     5 /*valueSize*/,
+                     PROTOCOL_BINARY_RAW_BYTES,
+                     0 /*cas*/,
+                     seqno);
     using namespace cb::durability;
-    qi->setPendingSyncWrite(Requirements(Level::Majority, 0 /*timeout*/));
-    return monitor->addSyncWrite(qi);
+    item.setPendingSyncWrite(Requirements(Level::Majority, 0 /*timeout*/));
+    // Note: need to go through VBucket::processSet to set the given bySeqno
+    ASSERT_EQ(MutationStatus::WasClean, processSet(item));
+    ASSERT_EQ(numTracked + 1, monitor->public_getNumTracked());
 }
 
 size_t DurabilityMonitorTest::addSyncWrites(int64_t seqnoStart,
                                             int64_t seqnoEnd) {
+    // Note: necessary for non-auto-generated seqnos
+    vb->checkpointManager->createSnapshot(seqnoStart, seqnoEnd);
     size_t expectedNumTracked = monitor->public_getNumTracked();
     size_t added = 0;
     for (auto seqno = seqnoStart; seqno <= seqnoEnd; seqno++) {
-        EXPECT_EQ(ENGINE_SUCCESS, addSyncWrite(seqno));
+        addSyncWrite(seqno);
         added++;
         expectedNumTracked++;
         EXPECT_EQ(expectedNumTracked, monitor->public_getNumTracked());
@@ -49,15 +56,39 @@ size_t DurabilityMonitorTest::addSyncWrites(int64_t seqnoStart,
 
 size_t DurabilityMonitorTest::addSyncWrites(
         const std::vector<int64_t>& seqnos) {
+    if (seqnos.empty()) {
+        throw std::logic_error(
+                "DurabilityMonitorTest::addSyncWrites: seqnos list is empty");
+    }
+    // Note: necessary for non-auto-generated seqnos
+    vb->checkpointManager->createSnapshot(seqnos.at(0),
+                                          seqnos.at(seqnos.size() - 1));
     size_t expectedNumTracked = monitor->public_getNumTracked();
     size_t added = 0;
     for (auto seqno : seqnos) {
-        EXPECT_EQ(ENGINE_SUCCESS, addSyncWrite(seqno));
+        addSyncWrite(seqno);
         added++;
         expectedNumTracked++;
         EXPECT_EQ(expectedNumTracked, monitor->public_getNumTracked());
     }
     return added;
+}
+
+MutationStatus DurabilityMonitorTest::processSet(Item& item) {
+    auto htRes = vb->ht.findForWrite(item.getKey());
+    VBQueueItemCtx ctx;
+    ctx.genBySeqno = GenerateBySeqno::No;
+    ctx.durabilityReqs = item.getDurabilityReqs();
+    return vb
+            ->processSet(htRes.lock,
+                         htRes.storedValue,
+                         item,
+                         item.getCas(),
+                         true /*allow_existing*/,
+                         false /*has_metadata*/,
+                         ctx,
+                         {/*no predicate*/})
+            .first;
 }
 
 TEST_F(DurabilityMonitorTest, AddSyncWrite) {
@@ -76,7 +107,7 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedNoTrackedSyncWrite) {
 }
 
 TEST_F(DurabilityMonitorTest, SeqnoAckReceivedSmallerThanPending) {
-    EXPECT_EQ(ENGINE_SUCCESS, addSyncWrite(1 /*seqno*/));
+    addSyncWrites({1} /*seqnos*/);
     try {
         auto seqno = monitor->public_getReplicaMemorySyncWriteSeqno(replica);
         monitor->seqnoAckReceived(replica, seqno - 1 /*memSeqno*/);

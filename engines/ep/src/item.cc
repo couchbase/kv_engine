@@ -313,7 +313,8 @@ uint64_t Item::nextCas() {
 void Item::setPendingSyncWrite(cb::durability::Requirements requirements) {
     if (!requirements.isValid()) {
         throw std::invalid_argument(
-                "setPendingSyncWrite: specified requirements are invalid: " +
+                "Item::setPendingSyncWrite: specified requirements are "
+                "invalid: " +
                 to_string(requirements));
     }
     durabilityReqs = requirements;

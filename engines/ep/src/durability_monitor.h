@@ -24,6 +24,7 @@
 #include <list>
 #include <mutex>
 
+class StoredDocKey;
 class StoredValue;
 class VBucket;
 
@@ -114,6 +115,12 @@ protected:
     size_t getNumTracked(const std::lock_guard<std::mutex>& lg) const;
 
     /**
+     * @param lg the object lock
+     * @return the size of the replication chain
+     */
+    size_t getReplicationChainSize(const std::lock_guard<std::mutex>& lg) const;
+
+    /**
      * Returns the next position for a replica memory iterator.
      *
      * @param lg the object lock
@@ -173,12 +180,21 @@ protected:
                                      const std::string& replica) const;
 
     /**
-     * Commit the SyncWrite at the given position.
+     * Remove the given SyncWrte from tracking.
      *
-     * @param lg the object lock
-     * @param pos the position of the SyncWrite to be committed
+     * @param pos the Position of the SyncWrite to be removed
+     * @return key and seqno of the removed SyncWrite
      */
-    void commit(const std::lock_guard<std::mutex>& lg, const Position& pos);
+    std::pair<StoredDocKey, int64_t> removeSyncWrite(
+            const std::lock_guard<std::mutex>& lg, const Position& pos);
+
+    /**
+     * Commit the given SyncWrite.
+     *
+     * @param key the key of the SyncWrite to be committed
+     * @param seqno the seqno of the SyncWrite to be committed
+     */
+    void commit(const StoredDocKey& key, int64_t seqno);
 
     // The VBucket owning this DurabilityMonitor instance
     VBucket& vb;

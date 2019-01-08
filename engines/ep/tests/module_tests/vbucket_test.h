@@ -24,6 +24,7 @@
 #include "hash_table.h"
 #include "item_pager.h"
 #include "stats.h"
+#include "vbucket.h"
 
 #include <gtest/gtest.h>
 
@@ -84,7 +85,9 @@ protected:
     std::pair<HashTable::HashBucketLock, StoredValue*> lockAndFind(
             const StoredDocKey& key);
 
-    MutationStatus public_processSet(Item& itm, const uint64_t cas);
+    MutationStatus public_processSet(Item& itm,
+                                     const uint64_t cas,
+                                     const VBQueueItemCtx& ctx = {});
 
     AddStatus public_processAdd(Item& itm);
 

@@ -34,13 +34,15 @@ public:
     void SetUp() {
         SingleThreadedKVBucketTest::SetUp();
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-        auto& vb = *store->getVBuckets().getBucket(vbid);
-        monitor = std::make_unique<MockDurabilityMonitor>(vb);
-        ASSERT_EQ(ENGINE_SUCCESS, monitor->registerReplicationChain({replica}));
+        vb = store->getVBuckets().getBucket(vbid).get();
+        // Note: MockDurabilityMonitor is used only for accessing the base
+        //     class protected members, it doesn't change the base class layout
+        monitor = reinterpret_cast<MockDurabilityMonitor*>(
+                vb->durabilityMonitor.get());
+        ASSERT_GT(monitor->public_getReplicationChainSize(), 0);
     }
 
     void TearDown() {
-        monitor.reset();
         SingleThreadedKVBucketTest::TearDown();
     }
 
@@ -51,7 +53,7 @@ protected:
      * @param seqno
      * @return the error code from the underlying engine
      */
-    ENGINE_ERROR_CODE addSyncWrite(int64_t seqno);
+    void addSyncWrite(int64_t seqno);
 
     /**
      * Add a number of SyncWrites with seqno in [start, end]
@@ -70,6 +72,20 @@ protected:
      */
     size_t addSyncWrites(const std::vector<int64_t>& seqnos);
 
-    const std::string replica = "replica1";
-    std::unique_ptr<MockDurabilityMonitor> monitor;
+    /**
+     * Stores the given item via VBucket::processSet.
+     * Useful for setting an exact provided bySeqno.
+     *
+     * @param item the item to be stored
+     */
+    MutationStatus processSet(Item& item);
+
+    // Owned by KVBucket
+    VBucket* vb;
+    // Owned by VBucket
+    MockDurabilityMonitor* monitor;
+
+    // @todo: This is hard-coded in DcpProducer::seqno_acknowledged. Remove
+    //     when we switch to use the real name of the Consumer.
+    const std::string replica = "replica";
 };

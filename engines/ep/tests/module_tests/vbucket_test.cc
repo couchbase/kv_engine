@@ -39,7 +39,7 @@ void VBucketTest::SetUp() {
                                 global_stats,
                                 checkpoint_config,
                                 /*kvshard*/ nullptr,
-                                /*lastSeqno*/ 1000,
+                                /*lastSeqno*/ 0,
                                 /*lastSnapStart*/ 0,
                                 /*lastSnapEnd*/ 0,
                                 /*table*/ nullptr,
@@ -143,7 +143,9 @@ std::pair<HashTable::HashBucketLock, StoredValue*> VBucketTest::lockAndFind(
     return {std::move(htRes.lock), htRes.storedValue};
 }
 
-MutationStatus VBucketTest::public_processSet(Item& itm, const uint64_t cas) {
+MutationStatus VBucketTest::public_processSet(Item& itm,
+                                              const uint64_t cas,
+                                              const VBQueueItemCtx& ctx) {
     auto hbl_sv = lockAndFind(itm.getKey());
     return vbucket
             ->processSet(hbl_sv.first,
@@ -152,7 +154,7 @@ MutationStatus VBucketTest::public_processSet(Item& itm, const uint64_t cas) {
                          cas,
                          true,
                          false,
-                         VBQueueItemCtx{},
+                         ctx,
                          {/*no predicate*/})
             .first;
 }

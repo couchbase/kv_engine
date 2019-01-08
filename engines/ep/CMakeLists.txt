@@ -425,6 +425,7 @@ if (NOT EP_BYPASS_TESTS)
                    tests/module_tests/tagged_ptr_test.cc
                    tests/module_tests/test_helpers.cc
                    tests/module_tests/vbucket_test.cc
+                   tests/module_tests/vbucket_durability_test.cc
                    tests/module_tests/warmup_test.cc
                    $<TARGET_OBJECTS:mock_dcp>
                    $<TARGET_OBJECTS:ep_objs>

@@ -24,6 +24,7 @@
 #include "checkpoint_manager.h"
 #include "collections/collection_persisted_stats.h"
 #include "conflict_resolution.h"
+#include "durability_monitor.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "ep_types.h"
@@ -204,7 +205,8 @@ VBucket::VBucket(Vbid i,
       newSeqnoCb(std::move(newSeqnoCb)),
       manifest(
               std::make_unique<Collections::VB::Manifest>(collectionsManifest)),
-      mayContainXattrs(mightContainXattrs) {
+      mayContainXattrs(mightContainXattrs),
+      durabilityMonitor(std::make_unique<DurabilityMonitor>(*this)) {
     if (config.getConflictResolutionType().compare("lww") == 0) {
         conflictResolver.reset(new LastWriteWinsResolution());
     } else {
@@ -229,6 +231,10 @@ VBucket::VBucket(Vbid i,
             persisted_snapshot_end,
             getMaxCas(),
             failovers ? std::to_string(failovers->getLatestUUID()) : "<>");
+
+    // @todo-durability: Register the replication chain via the new
+    // SET_VBUCKET_STATE message instead of here.
+    durabilityMonitor->registerReplicationChain({{"replica"}});
 }
 
 VBucket::~VBucket() {
@@ -805,6 +811,11 @@ VBNotifyCtx VBucket::queueDirty(
 
     v.setBySeqno(qi->getBySeqno());
     notifyCtx.bySeqno = qi->getBySeqno();
+
+    if (qi->getCommitted() == CommittedState::Pending) {
+        // Register this mutation with the durability monitor.
+        durabilityMonitor->addSyncWrite(qi);
+    }
 
     return notifyCtx;
 }
@@ -2862,8 +2873,7 @@ bool VBucket::isLogicallyNonExistent(
 ENGINE_ERROR_CODE VBucket::seqnoAcknowledged(const std::string& replicaId,
                                              uint64_t inMemorySeqno,
                                              uint64_t onDiskSeqno) {
-    //@todo-durability: Implement this.
-    return ENGINE_ENOTSUP;
+    return durabilityMonitor->seqnoAckReceived(replicaId, inMemorySeqno);
 }
 
 void VBucket::DeferredDeleter::operator()(VBucket* vb) const {

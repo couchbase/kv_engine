@@ -19,6 +19,7 @@
 #include "item.h"
 #include "monotonic.h"
 #include "stored-value.h"
+#include "vbucket.h"
 
 #include <gsl.h>
 #include <unordered_map>
@@ -54,6 +55,10 @@ struct DurabilityMonitor::Position {
 class DurabilityMonitor::SyncWrite {
 public:
     SyncWrite(queued_item item) : item(item) {
+    }
+
+    const StoredDocKey& getKey() const {
+        return item->getKey();
     }
 
     int64_t getBySeqno() const {
@@ -143,56 +148,95 @@ ENGINE_ERROR_CODE DurabilityMonitor::addSyncWrite(queued_item item) {
 
 ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
         const std::string& replica, int64_t memorySeqno) {
-    std::lock_guard<std::mutex> lg(state.m);
+    // Note:
+    // TSan spotted that in the execution path to DM::addSyncWrites we acquire
+    // HashBucketLock first and then a lock to DM::state.m, while here we
+    // acquire first the lock to state.m and then HashBucketLock.
+    // This could cause a deadlock by lock inversion (note that the 2 execution
+    // paths are expected to execute in 2 different threads).
+    // Given that the HashBucketLock here is acquired in the sub-call to
+    // VBucket::commit, then to fix I need to release the lock to state.m
+    // before executing DM::commit.
+    //
+    // By logic the correct order of processing for every verified SyncWrite
+    // would be:
+    // 1) check if DurabilityRequirements are satisfied
+    // 2) if they are, then commit
+    // 3) remove the committed SyncWrite from tracking
+    //
+    // But, we are in the situation where steps 1 and 3 must execute under lock
+    // to state.m, while step 2 must not.
+    //
+    // For now as quick fix I solve by inverting the order of steps 2 and 3:
+    // 1) check if DurabilityRequirements are satisfied
+    // 2) if they are, remove the verified SyncWrite from tracking
+    // 3) commit the removed (and verified) SyncWrite
+    //
+    // I don't manage the scenario where step 3 fails yet (note that DM::commit
+    // just throws if an error occurs in the current implementation), so this
+    // is a @todo.
+    std::vector<std::pair<StoredDocKey, int64_t>> toCommit;
 
-    if (!state.firstChain) {
-        throw std::logic_error(
-                "DurabilityMonitor::seqnoAckReceived: no chain registered");
+    {
+        std::lock_guard<std::mutex> lg(state.m);
+
+        if (!state.firstChain) {
+            throw std::logic_error(
+                    "DurabilityMonitor::seqnoAckReceived: no chain registered");
+        }
+
+        if (state.trackedWrites.empty()) {
+            throw std::logic_error(
+                    "DurabilityManager::seqnoAckReceived: No tracked "
+                    "SyncWrite, "
+                    "but replica ack'ed memorySeqno:" +
+                    std::to_string(memorySeqno));
+        }
+
+        auto next = getReplicaMemoryNext(lg, replica);
+
+        if (next == state.trackedWrites.end()) {
+            throw std::logic_error(
+                    "DurabilityManager::seqnoAckReceived: No pending "
+                    "SyncWrite, "
+                    "but replica ack'ed memorySeqno:" +
+                    std::to_string(memorySeqno));
+        }
+
+        int64_t pendingSeqno = next->getBySeqno();
+        if (memorySeqno < pendingSeqno) {
+            throw std::logic_error(
+                    "DurabilityManager::seqnoAckReceived: Ack'ed seqno is "
+                    "behind "
+                    "pending seqno {ack'ed: " +
+                    std::to_string(memorySeqno) +
+                    ", pending:" + std::to_string(pendingSeqno) + "}");
+        }
+
+        do {
+            // Update replica tracking
+            advanceReplicaMemoryPosition(lg, replica);
+
+            // Note: In this first implementation (1 replica) the Durability
+            // Requirement for the pending SyncWrite is implicitly verified
+            // at this point.
+
+            toCommit.push_back(removeSyncWrite(
+                    lg, state.firstChain->memoryPositions.at(replica)));
+
+            // Note: process up to the ack'ed memory seqno
+        } while ((next = getReplicaMemoryNext(lg, replica)) !=
+                         state.trackedWrites.end() &&
+                 next->getBySeqno() <= memorySeqno);
+
+        // We keep track of the actual ack'ed seqno
+        updateReplicaMemoryAckSeqno(lg, replica, memorySeqno);
     }
 
-    if (state.trackedWrites.empty()) {
-        throw std::logic_error(
-                "DurabilityManager::seqnoAckReceived: No tracked SyncWrite, "
-                "but replica ack'ed memorySeqno:" +
-                std::to_string(memorySeqno));
+    // Commit the verified SyncWrites
+    for (const auto& entry : toCommit) {
+        commit(entry.first, entry.second);
     }
-
-    auto next = getReplicaMemoryNext(lg, replica);
-
-    if (next == state.trackedWrites.end()) {
-        throw std::logic_error(
-                "DurabilityManager::seqnoAckReceived: No pending SyncWrite, "
-                "but replica ack'ed memorySeqno:" +
-                std::to_string(memorySeqno));
-    }
-
-    int64_t pendingSeqno = next->getBySeqno();
-    if (memorySeqno < pendingSeqno) {
-        throw std::logic_error(
-                "DurabilityManager::seqnoAckReceived: Ack'ed seqno is behind "
-                "pending seqno {ack'ed: " +
-                std::to_string(memorySeqno) +
-                ", pending:" + std::to_string(pendingSeqno) + "}");
-    }
-
-    do {
-        // Update replica tracking
-        advanceReplicaMemoryPosition(lg, replica);
-
-        // Note: In this first implementation (1 replica) the Durability
-        // Requirement for the pending SyncWrite is implicitly verified
-        // at this point.
-
-        // Commit the verified SyncWrite
-        commit(lg, state.firstChain->memoryPositions.at(replica));
-
-        // Note: process up to the ack'ed memory seqno
-    } while ((next = getReplicaMemoryNext(lg, replica)) !=
-                     state.trackedWrites.end() &&
-             next->getBySeqno() <= memorySeqno);
-
-    // We keep track of the actual ack'ed seqno
-    updateReplicaMemoryAckSeqno(lg, replica, memorySeqno);
 
     return ENGINE_SUCCESS;
 }
@@ -200,6 +244,11 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
 size_t DurabilityMonitor::getNumTracked(
         const std::lock_guard<std::mutex>& lg) const {
     return state.trackedWrites.size();
+}
+
+size_t DurabilityMonitor::getReplicationChainSize(
+        const std::lock_guard<std::mutex>& lg) const {
+    return state.firstChain->memoryPositions.size();
 }
 
 DurabilityMonitor::Container::iterator DurabilityMonitor::getReplicaMemoryNext(
@@ -242,35 +291,49 @@ int64_t DurabilityMonitor::getReplicaMemoryAckSeqno(
     return state.firstChain->memoryPositions.at(replica).lastAckSeqno;
 }
 
-void DurabilityMonitor::commit(const std::lock_guard<std::mutex>& lg,
-                               const Position& pos) {
+std::pair<StoredDocKey, int64_t> DurabilityMonitor::removeSyncWrite(
+        const std::lock_guard<std::mutex>& lg, const Position& pos) {
     if (pos.it == state.trackedWrites.end()) {
         throw std::logic_error(
                 "DurabilityMonitor::commit: Position points to end");
     }
 
-    // @todo: do commit.
-    // Here we will:
-    // 1) update the SyncWritePrepare to SyncWriteCommit in the HT
-    // 2) enqueue a SyncWriteCommit item into the CM
-    // 3) send a response with Success back to the client
-
-    // Remove the committed SyncWrite.
     // Note that Position.seqno stays set to the original value. That way we
     // keep the replica seqno-state even after the SyncWrite is removed.
     auto committedSeqno = pos.lastSyncWriteSeqno;
-    auto& pos_ = const_cast<Position&>(pos);
     Container::iterator prev;
     // Note: iterators in state.trackedWrites are never singular, Container::end
     //     is used as placeholder element for when an iterator cannot point to
     //     any valid element in Container
-    if (pos_.it == state.trackedWrites.begin()) {
+    if (pos.it == state.trackedWrites.begin()) {
         prev = state.trackedWrites.end();
     } else {
-        prev = std::prev(pos_.it);
+        prev = std::prev(pos.it);
     }
+
+    std::pair<StoredDocKey, int64_t> ret = {pos.it->getKey(),
+                                            pos.it->getBySeqno()};
+
+    auto& pos_ = const_cast<Position&>(pos);
     state.trackedWrites.erase(pos_.it);
     pos_.it = prev;
 
     Ensures(pos_.lastSyncWriteSeqno == committedSeqno);
+
+    return ret;
+}
+
+void DurabilityMonitor::commit(const StoredDocKey& key, int64_t seqno) {
+    // The next call:
+    // 1) converts the SyncWrite in the HashTable from Prepare to Committed
+    // 2) enqueues a Commit SyncWrite item into the CheckpointManager
+    auto result = vb.commit(key, seqno);
+    if (result != ENGINE_SUCCESS) {
+        throw std::logic_error(
+                "DurabilityMonitor::commit: VBucket::commit failed with "
+                "status:" +
+                std::to_string(result));
+    }
+
+    // @todo: notify the connection
 }

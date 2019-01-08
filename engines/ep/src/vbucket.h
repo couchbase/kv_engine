@@ -40,6 +40,7 @@ class EPStats;
 class CheckpointManager;
 class ConflictResolution;
 class Configuration;
+class DurabilityMonitor;
 class ItemMetaData;
 class PreLinkDocumentContext;
 class EventuallyPersistentEngine;
@@ -1909,11 +1910,17 @@ private:
      */
     std::atomic<bool> mayContainXattrs;
 
+    /// Tracks SyncWrites and determines when they should be committed /
+    /// aborted.
+    std::unique_ptr<DurabilityMonitor> durabilityMonitor;
+
     static cb::AtomicDuration chkFlushTimeout;
 
     static double mutationMemThreshold;
 
     friend class VBucketTest;
+    friend class VBucketDurabilityTest;
+    friend class DurabilityMonitorTest;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };

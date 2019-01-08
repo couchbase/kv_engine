@@ -32,6 +32,11 @@ public:
         return DurabilityMonitor::getNumTracked(lg);
     }
 
+    size_t public_getReplicationChainSize() const {
+        std::lock_guard<std::mutex> lg(state.m);
+        return DurabilityMonitor::getReplicationChainSize(lg);
+    }
+
     int64_t public_getReplicaMemorySyncWriteSeqno(
             const std::string& replica) const {
         std::lock_guard<std::mutex> lg(state.m);
