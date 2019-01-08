@@ -472,17 +472,10 @@ static void interfaces_changed_listener(const std::string&, Settings &s) {
     for (const auto& ifc : s.getInterfaces()) {
         auto* port = get_listening_port_instance(ifc.port);
         if (port != nullptr) {
-            if (port->maxconns != ifc.maxconn) {
-                port->maxconns = ifc.maxconn;
-            }
-
-            if (port->backlog != ifc.backlog) {
-                port->backlog = ifc.backlog;
-            }
-
-            if (port->tcp_nodelay != ifc.tcp_nodelay) {
-                port->tcp_nodelay = ifc.tcp_nodelay;
-            }
+            port->maxconns = ifc.maxconn;
+            port->backlog = ifc.backlog;
+            port->tcp_nodelay = ifc.tcp_nodelay;
+            port->setSslSettings(ifc.ssl.key, ifc.ssl.cert);
         }
     }
     s.calculateMaxconns();
