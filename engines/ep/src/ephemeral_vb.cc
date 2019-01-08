@@ -655,6 +655,29 @@ size_t EphemeralVBucket::getNumPersistedDeletes() const {
     return getNumInMemoryDeletes();
 }
 
+void EphemeralVBucket::dropKey(
+        const DocKey& key,
+        int64_t bySeqno,
+        Collections::VB::Manifest::CachingReadHandle& cHandle) {
+    auto hbl = ht.getLockedBucket(key);
+    // dropKey must not generate expired items as it's used for erasing a
+    // collection.
+    StoredValue* v = fetchValidValue(hbl,
+                                     key,
+                                     WantsDeleted::No,
+                                     TrackReference::No,
+                                     QueueExpired::No,
+                                     cHandle);
+
+    if (v && v->getBySeqno() == bySeqno) {
+        // The found key is the correct one to remove from the HT, we only
+        // release but do not free at this point, the staleItem remover will
+        // now proceed to erase the element from the seq list and free the SV
+        ht.unlocked_release(hbl, key).release();
+    }
+    return;
+}
+
 void EphemeralVBucket::completeDeletion(
         CollectionID identifier,
         Collections::VB::EraserContext& eraserContext) {

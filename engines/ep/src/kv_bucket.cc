@@ -2544,8 +2544,8 @@ bool KVBucket::collectionsEraseKey(
 
         // Next if the key is logically deleted...
         if (cHandle.isLogicallyDeleted(bySeqno)) {
-            // ... remove it from the VB (hashtable)
-            vb->removeKey(key, bySeqno, cHandle);
+            // ... drop it from the VB (hashtable)
+            vb->dropKey(key, bySeqno, cHandle);
         } else {
             return false;
         }

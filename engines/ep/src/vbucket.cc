@@ -2836,24 +2836,6 @@ std::unique_ptr<Item> VBucket::pruneXattrDocument(
     }
 }
 
-void VBucket::removeKey(const DocKey& key,
-                        int64_t bySeqno,
-                        Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    auto hbl = ht.getLockedBucket(key);
-    // removeKey must not generate expired items as it's used for erasing a
-    // collection.
-    StoredValue* v = fetchValidValue(hbl,
-                                     key,
-                                     WantsDeleted::No,
-                                     TrackReference::No,
-                                     QueueExpired::No,
-                                     cHandle);
-
-    if (v && v->getBySeqno() == bySeqno) {
-        ht.unlocked_del(hbl, v->getKey());
-    }
-}
-
 bool VBucket::isLogicallyNonExistent(
         const StoredValue& v,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {

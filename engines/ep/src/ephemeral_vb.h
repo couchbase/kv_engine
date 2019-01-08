@@ -222,6 +222,12 @@ public:
      */
     size_t getNumPersistedDeletes() const override;
 
+    /// Empty method for ephemeral as keys are dropped by the stale item remover
+    void dropKey(
+            const DocKey& key,
+            int64_t bySeqno,
+            Collections::VB::Manifest::CachingReadHandle& cHandle) override;
+
     /**
      * Notify that the collection has been fully deleted and it's metadata can
      * now be fully purged. This results in the in-memory manifest

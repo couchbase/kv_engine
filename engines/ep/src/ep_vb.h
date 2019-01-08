@@ -175,6 +175,18 @@ public:
     size_t getNumPersistedDeletes() const override;
 
     /**
+     * If the key@bySeqno is found, drop it from the hash table
+     *
+     * @param key The key to look for
+     * @param bySeqno The seqno of the key to remove
+     * @param cHandle Collections readhandle (caching mode) for this key
+     */
+    void dropKey(
+            const DocKey& key,
+            int64_t bySeqno,
+            Collections::VB::Manifest::CachingReadHandle& cHandle) override;
+
+    /**
      * Notify that the collection has been fully deleted and it's metadata can
      * now be fully purged. This results in the on-disk and in-memory manifest
      * being updated to remove all knowledge of the collection.

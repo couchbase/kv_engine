@@ -694,6 +694,24 @@ size_t EPVBucket::getNumPersistedDeletes() const {
     return shard->getROUnderlying()->getNumPersistedDeletes(getId());
 }
 
+void EPVBucket::dropKey(const DocKey& key,
+                        int64_t bySeqno,
+                        Collections::VB::Manifest::CachingReadHandle& cHandle) {
+    auto hbl = ht.getLockedBucket(key);
+    // dropKey must not generate expired items as it's used for erasing a
+    // collection.
+    StoredValue* v = fetchValidValue(hbl,
+                                     key,
+                                     WantsDeleted::No,
+                                     TrackReference::No,
+                                     QueueExpired::No,
+                                     cHandle);
+
+    if (v && v->getBySeqno() == bySeqno) {
+        ht.unlocked_del(hbl, v->getKey());
+    }
+}
+
 void EPVBucket::completeDeletion(
         CollectionID identifier,
         Collections::VB::EraserContext& eraserContext) {

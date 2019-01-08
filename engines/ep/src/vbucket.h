@@ -1332,15 +1332,16 @@ public:
     }
 
     /**
-     * If the key@bySeqno is found, remove it from the hash table
+     * Implementation dependent method called by the collections erasing code
      *
      * @param key The key to look for
-     * @param bySeqno The seqno of the key to remove
+     * @param bySeqno The seqno of the key to drop
      * @param cHandle Collections readhandle (caching mode) for this key
      */
-    void removeKey(const DocKey& key,
-                   int64_t bySeqno,
-                   Collections::VB::Manifest::CachingReadHandle& cHandle);
+    virtual void dropKey(
+            const DocKey& key,
+            int64_t bySeqno,
+            Collections::VB::Manifest::CachingReadHandle& cHandle) = 0;
 
     /**
      * Get the number of deleted items that are "persisted".
