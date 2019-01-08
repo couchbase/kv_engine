@@ -185,6 +185,7 @@ nlohmann::json ServerSocket::getDetails() {
         ret["family"] = "AF_INET6";
     }
 
+    ret["name"] = sockname;
     ret["port"] = listen_port;
     ret["management"] = management;
 

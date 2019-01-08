@@ -50,13 +50,6 @@ public:
     ~ServerSocket();
 
     /**
-     * Get the name of the socket in a human readable form (used for logging)
-     */
-    const std::string& getSockname() {
-        return sockname;
-    }
-
-    /**
      * Get the socket (used for logging)
      */
     SOCKET getSocket() {
