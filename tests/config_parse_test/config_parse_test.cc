@@ -266,7 +266,6 @@ TEST_F(SettingsTest, Interfaces) {
     obj["ipv6"] = true;
     obj["maxconn"] = 10;
     obj["host"] = "*";
-    obj["protocol"] = "memcached";
     obj["management"] = true;
 
     nlohmann::json ssl;
@@ -312,7 +311,6 @@ TEST_F(SettingsTest, InterfacesMissingSSLFiles) {
     obj["ipv6"] = true;
     obj["maxconn"] = 10;
     obj["host"] = "*";
-    obj["protocol"] = "memcached";
     obj["management"] = true;
 
     nlohmann::json ssl;
@@ -353,7 +351,6 @@ TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
     obj["ipv6"] = true;
     obj["maxconn"] = 10;
     obj["host"] = "*";
-    obj["protocol"] = "memcached";
     obj["management"] = true;
 
     nlohmann::json ssl;

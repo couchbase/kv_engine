@@ -145,10 +145,6 @@ object describing a single interface with the following properties:
     management    A boolean value if this interface is used by the
                   management system.
 
-    protocol      A string value specifying the protocol enabled
-                  for this port. If not present the memcached binary
-                  protocol is used. Legal values: "memcached"
-
 The *ssl* object contains the two *mandatory* attributes:
 
     key           A string value with the absolute path to the
@@ -408,8 +404,7 @@ A Sample memcached.json:
                 {
                     "key" : "/etc/memcached/pkey",
                     "cert" : "/etc/memcached/cert"
-                },
-                "protocol" : "memcached"
+                }
             }
         ],
         "stdin_listener" : false,
@@ -442,4 +437,4 @@ A Sample memcached.json:
 
 == COPYRIGHT
 
-Copyright 2018 Couchbase, Inc.
+Copyright 2019 Couchbase, Inc.

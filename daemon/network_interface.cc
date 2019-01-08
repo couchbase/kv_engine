@@ -117,13 +117,6 @@ static void handle_interface_ssl(NetworkInterface& ifc,
     }
 }
 
-static void handle_interface_protocol(NetworkInterface& ifc,
-                                      nlohmann::json::const_iterator it) {
-    if (cb::jsonGet<std::string>(it) != "memcached") {
-        throw std::invalid_argument(R"("protocol" must be "memcached")");
-    }
-}
-
 NetworkInterface::NetworkInterface(const nlohmann::json& json) {
     struct interface_config_tokens {
         /**
@@ -153,7 +146,6 @@ NetworkInterface::NetworkInterface(const nlohmann::json& json) {
             {"tcp_nodelay", handle_interface_tcp_nodelay},
             {"ssl", handle_interface_ssl},
             {"management", handle_interface_management},
-            {"protocol", handle_interface_protocol},
     };
 
     for (auto it = json.begin(); it != json.end(); ++it) {
