@@ -445,12 +445,10 @@ TEST_P(StatsTest, TestTopkeysJson) {
 TEST_P(StatsTest, TestSubdocExecute) {
     MemcachedConnection& conn = getConnection();
     auto stats = conn.stats("subdoc_execute");
-    auto array = stats.front();
 
-    // check there are ten items in the json array
-    EXPECT_EQ(10, array.size());
-    // check that there is a ns item in the json array
-    EXPECT_NE(array.end(), array.find("ns"));
+    // json returned should be null as no ops have been performed
+    EXPECT_TRUE(stats.is_object());
+    EXPECT_TRUE(stats["0"].is_null());
 }
 
 TEST_P(StatsTest, TestResponseStats) {

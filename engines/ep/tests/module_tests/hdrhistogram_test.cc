@@ -20,7 +20,9 @@
 #include "hdrhistogram.h"
 #include "thread_gate.h"
 
+#include <boost/optional.hpp>
 #include <gtest/gtest.h>
+#include <hdr_histogram.h>
 #include <cmath>
 #include <memory>
 #include <thread>
@@ -145,6 +147,35 @@ TEST(HdrHistogramTest, logIteratorBaseFiveTest) {
     EXPECT_EQ(numOfValues, countSum);
     // check the iterator has the same number of values we added
     EXPECT_EQ(numOfValues, iter.total_count);
+}
+
+// Test the percentile iterator
+TEST(HdrHistogramTest, percentileIteratorTest) {
+    HdrHistogram histogram{0, 10, 3};
+
+    for (int i = 0; i < 10; i++) {
+        histogram.addValue(i);
+    }
+
+    // Need to create the iterator after we have added the data
+    HdrHistogram::Iterator iter{histogram.makePercentileIterator(5)};
+
+    uint64_t runningCount = 0;
+    while (auto result = histogram.getNextValueAndPercentile(iter)) {
+        if (result.is_initialized()) {
+            if (iter.value_iterated_from != iter.value_iterated_to &&
+                !iter.specifics.percentiles.seen_last_value) {
+                runningCount++;
+                EXPECT_EQ(runningCount, iter.cumulative_count);
+            }
+
+            EXPECT_EQ(1, iter.count);
+            EXPECT_GE(
+                    result->second,
+                    (result->first / (double)histogram.getValueCount()) * 100);
+        }
+    }
+    EXPECT_EQ(histogram.getValueCount(), runningCount);
 }
 
 // Test the addValueAndCount method
@@ -313,4 +344,45 @@ TEST(HdrHistogramTest, aggregationTestEmptyRhs) {
     // Check the totals of each histogram
     EXPECT_EQ(200, histogramOne.getValueCount());
     EXPECT_EQ(0, histogramTwo.getValueCount());
+}
+
+// Test assigment operator method, it should perform a deep copy
+TEST(HdrHistogramTest, copyTest) {
+    HdrHistogram histogramDest{0, 1, 1};
+    HdrHistogram histogramSrc{0, 200, 2};
+
+    for (int i = 0; i < 200; i++) {
+        histogramSrc.addValue(i);
+    }
+
+    // Check starting states for the destination histogram has changed
+    EXPECT_EQ(0, histogramDest.getMinTrackableValue());
+    EXPECT_EQ(1, histogramDest.getMaxTrackableValue());
+    EXPECT_EQ(0, histogramDest.getValueCount());
+
+    // Do copy assignment
+    histogramDest = histogramSrc;
+
+    // check that the size of histograms
+    EXPECT_EQ(0, histogramDest.getMinTrackableValue());
+    EXPECT_EQ(200, histogramDest.getMaxTrackableValue());
+    // Check the totals of each histogram
+    EXPECT_EQ(200, histogramDest.getValueCount());
+    EXPECT_EQ(200, histogramSrc.getValueCount());
+
+    // check the values in the destination histogram
+    uint64_t valueCount = 0;
+    HdrHistogram::Iterator iter{
+            histogramDest.makeLinearIterator(/* valueUnitsPerBucket */ 1)};
+    while (auto result = histogramDest.getNextValueAndCount(iter)) {
+        EXPECT_EQ(valueCount, result->first);
+        EXPECT_EQ(1, result->second);
+        ++valueCount;
+    }
+
+    histogramSrc.addValue(0);
+    // Check that the had has only changed one histogram as we should
+    // have performed a deep copy
+    EXPECT_EQ(200, histogramDest.getValueCount());
+    EXPECT_EQ(201, histogramSrc.getValueCount());
 }

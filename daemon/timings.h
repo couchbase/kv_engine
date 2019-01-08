@@ -16,15 +16,14 @@
  */
 #pragma once
 
-#include "timing_histogram.h"
 #include "timing_interval.h"
 
 #include <mcbp/protocol/opcode.h>
 
+#include <utilities/hdrhistogram.h>
 #include <array>
-#include <string>
 #include <mutex>
-
+#include <string>
 
 #define MAX_NUM_OPCODES 0x100
 
@@ -34,7 +33,6 @@
 class Timings {
 public:
     Timings();
-    Timings& operator=(const Timings& other);
     Timings(const Timings&) = delete;
 
     void reset();
@@ -48,13 +46,17 @@ public:
     cb::sampling::Interval get_interval_lookup_latency();
 
     /**
-     * Get the underlying timings histogram for the specified opcode
+     * Get a pointer to the underlying histogram for the specified opcode
+     * @return a pointer to the underling HdrMicroSecHistogram for this opcode
+     * if there isn't one allocated already a nullptr will be returned.
      */
-    TimingHistogram get_timing_histogram(uint8_t opcode) const {
-        return timings[opcode];
-    }
+    HdrMicroSecHistogram* get_timing_histogram(uint8_t opcode) const;
 
 private:
+    // Method to get histogram for timing, if the histogram hasn't been created
+    // yet, for the given opcode then we will allocate one
+    HdrMicroSecHistogram& get_or_create_timing_histogram(uint8_t opcode);
+
     // This lock is only held by sample() and some blocks within generate().
     // It guards the various IntervalSeries variables which internally
     // contain cb::RingBuffer objects which are not thread safe.
@@ -62,6 +64,9 @@ private:
 
     cb::sampling::IntervalSeries interval_latency_lookups;
     cb::sampling::IntervalSeries interval_latency_mutations;
-    std::array<TimingHistogram, MAX_NUM_OPCODES> timings;
+    // create an array of unique_ptrs as we want to create HdrHistograms
+    // in a lazy manner as their foot print is larger than our old
+    // histogram class
+    std::array<std::unique_ptr<HdrMicroSecHistogram>, MAX_NUM_OPCODES> timings;
     std::array<cb::sampling::Interval, MAX_NUM_OPCODES> interval_counters;
 };

@@ -25,6 +25,7 @@
 #include <memcached/server_callback_iface.h>
 #include <memcached/types.h>
 #include <nlohmann/json_fwd.hpp>
+#include <utilities/hdrhistogram.h>
 
 #include <condition_variable>
 #include <memory>
@@ -141,7 +142,7 @@ public:
     /**
      *  Sub-document JSON parser (subjson) operation execution time histogram.
      */
-    TimingHistogram subjson_operation_times;
+    HdrMicroSecHistogram subjson_operation_times;
 
     /**
      * Topkeys

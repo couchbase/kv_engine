@@ -11,8 +11,8 @@
 #include "memcached.h"
 #include "settings.h"
 #include "stats.h"
-#include "timing_histogram.h"
 #include "tracing.h"
+#include <utilities/hdrhistogram.h>
 
 #include <memcached/openssl.h>
 #include <nlohmann/json.hpp>
@@ -92,7 +92,7 @@ void FrontEndThread::NotificationList::swap(std::vector<Connection*>& other) {
  * can use to signal that they've put a new connection on its queue.
  */
 static std::vector<FrontEndThread> threads;
-std::vector<TimingHistogram> scheduler_info;
+std::vector<HdrMicroSecHistogram> scheduler_info;
 
 /*
  * Number of worker threads that have finished setting themselves up.

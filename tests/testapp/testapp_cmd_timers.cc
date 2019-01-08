@@ -62,28 +62,12 @@ protected:
      * @return The number of operations we found in there
      */
     size_t getNumberOfOps(const std::string& payload) {
-        size_t ret = 0;
-
-        const auto json = nlohmann::json::parse(payload);
-        for (const auto& entry : json) {
-            if (entry.is_number()) {
-                ret += entry.get<size_t>();
-            } else if (entry.is_array()) {
-                for (const auto& e : entry) {
-                    if (e.is_number()) {
-                        ret += e.get<size_t>();
-                    } else {
-                        throw std::invalid_argument(
-                                std::string{"Expected numbers, got "} +
-                                e.type_name());
-                    }
-                }
-            } else {
-                throw std::invalid_argument(
-                        std::string{"Expected array or numbers, got "} +
-                        entry.type_name());
-            }
+        nlohmann::json json = nlohmann::json::parse(payload);
+        if (json.is_null()) {
+            throw std::invalid_argument("Failed to parse payload: " + payload);
         }
+
+        size_t ret = json["total"].get<size_t>();
 
         return ret;
     }
