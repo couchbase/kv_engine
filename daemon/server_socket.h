@@ -66,7 +66,7 @@ public:
      * Get the details for this connection to put in the portnumber
      * file so that the test framework may pick up the port numbers
      */
-    nlohmann::json getDetails();
+    nlohmann::json toJson() const;
 
 protected:
     /// The socket object to accept clients from
@@ -83,12 +83,6 @@ protected:
 
     /// The backlog to specify to bind
     const int backlog = 1024;
-
-    /// Is this an SSL connection or not
-    const bool ssl;
-
-    /// Is this socket supposed to be used for management traffic?
-    const bool management;
 
     struct EventDeleter {
         void operator()(struct event* ev) {

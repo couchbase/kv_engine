@@ -1102,11 +1102,11 @@ static bool server_socket(const NetworkInterface& interf) {
             }
         }
 
+        add_listening_port(&interf, listenport, next->ai_addr->sa_family);
         listen_conn.emplace_back(std::make_unique<ServerSocket>(
                 sfd, main_base, listenport, next->ai_addr->sa_family, interf));
         stats.daemon_conns++;
         stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
-        add_listening_port(&interf, listenport, next->ai_addr->sa_family);
     }
 
     freeaddrinfo(ai);
@@ -1187,7 +1187,7 @@ static void create_listen_sockets() {
         json["ports"] = nlohmann::json::array();
 
         for (const auto& connection : listen_conn) {
-            json["ports"].push_back(connection->getDetails());
+            json["ports"].push_back(connection->toJson());
         }
 
         fprintf(portnumber_file, "%s\n", json.dump().c_str());

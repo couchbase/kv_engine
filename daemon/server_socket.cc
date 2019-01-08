@@ -43,8 +43,6 @@ ServerSocket::ServerSocket(SOCKET fd,
       listen_port(port),
       family(fam),
       sockname(cb::net::getsockname(fd)),
-      ssl(!interf.ssl.cert.empty()),
-      management(interf.management),
       ev(event_new(b,
                    sfd,
                    EV_READ | EV_PERSIST,
@@ -173,10 +171,20 @@ void ServerSocket::acceptNewClient() {
     dispatch_conn_new(client, listen_port);
 }
 
-nlohmann::json ServerSocket::getDetails() {
+nlohmann::json ServerSocket::toJson() const {
     nlohmann::json ret;
 
-    ret["ssl"] = ssl;
+    {
+        std::lock_guard<std::mutex> guard(stats_mutex);
+        const auto* instance = get_listening_port_instance(listen_port);
+        if (!instance) {
+            throw std::runtime_error(
+                    R"(ServerSocket::toJson: Failed to look up instance for port: )" +
+                    std::to_string(listen_port));
+        }
+
+        ret["ssl"] = instance->getSslSettings().get() != nullptr;
+    }
     ret["protocol"] = "memcached";
 
     if (family == AF_INET) {
@@ -187,7 +195,6 @@ nlohmann::json ServerSocket::getDetails() {
 
     ret["name"] = sockname;
     ret["port"] = listen_port;
-    ret["management"] = management;
 
     return ret;
 }
