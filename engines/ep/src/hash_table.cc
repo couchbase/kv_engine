@@ -878,7 +878,8 @@ std::unique_ptr<Item> HashTable::getRandomKeyFromSlot(int slot) {
     auto lh = getLockedBucket(slot);
     for (StoredValue* v = values[slot].get().get(); v;
             v = v->getNext().get().get()) {
-        if (!v->isTempItem() && !v->isDeleted() && v->isResident()) {
+        if (!v->isTempItem() && !v->isDeleted() && v->isResident() &&
+            v->getCommitted() != CommittedState::Pending) {
             return v->toItem(false, Vbid(0));
         }
     }
