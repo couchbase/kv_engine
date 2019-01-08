@@ -266,7 +266,6 @@ TEST_F(SettingsTest, Interfaces) {
     obj["ipv6"] = true;
     obj["maxconn"] = 10;
     obj["host"] = "*";
-    obj["management"] = true;
 
     nlohmann::json ssl;
     ssl["key"] = key_pattern;
@@ -291,7 +290,6 @@ TEST_F(SettingsTest, Interfaces) {
         EXPECT_EQ(NetworkInterface::Protocol::Optional, ifc0.ipv6);
         EXPECT_EQ(10, ifc0.maxconn);
         EXPECT_EQ("*", ifc0.host);
-        EXPECT_TRUE(ifc0.management);
     } catch (std::exception& exception) {
         FAIL() << exception.what();
     }
@@ -311,7 +309,6 @@ TEST_F(SettingsTest, InterfacesMissingSSLFiles) {
     obj["ipv6"] = true;
     obj["maxconn"] = 10;
     obj["host"] = "*";
-    obj["management"] = true;
 
     nlohmann::json ssl;
     ssl["key"] = key_pattern;
@@ -351,7 +348,6 @@ TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
     obj["ipv6"] = true;
     obj["maxconn"] = 10;
     obj["host"] = "*";
-    obj["management"] = true;
 
     nlohmann::json ssl;
     ssl["cert"] = pattern;
@@ -1138,16 +1134,6 @@ TEST(SettingsUpdateTest, InterfaceSomeValuesMayNotChange) {
         Settings updated;
         NetworkInterface myifc;
         myifc.ipv6 = NetworkInterface::Protocol::Off;
-        updated.addInterface(myifc);
-
-        EXPECT_THROW(settings.updateSettings(updated, false),
-                     std::invalid_argument);
-    }
-
-    {
-        Settings updated;
-        NetworkInterface myifc;
-        myifc.management = true;
         updated.addInterface(myifc);
 
         EXPECT_THROW(settings.updateSettings(updated, false),

@@ -44,7 +44,6 @@ public:
     Protocol ipv6 = Protocol::Optional;
     Protocol ipv4 = Protocol::Optional;
     bool tcp_nodelay = true;
-    bool management = false;
 };
 
 std::string to_string(const NetworkInterface::Protocol& proto);

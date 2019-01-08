@@ -91,11 +91,6 @@ static void handle_interface_tcp_nodelay(NetworkInterface& ifc,
     ifc.tcp_nodelay = cb::jsonGet<bool>(it);
 }
 
-static void handle_interface_management(NetworkInterface& ifc,
-                                        nlohmann::json::const_iterator it) {
-    ifc.management = cb::jsonGet<bool>(it);
-}
-
 static void handle_interface_ssl(NetworkInterface& ifc,
                                  nlohmann::json::const_iterator it) {
     if (it.value().type() != nlohmann::json::value_t::object) {
@@ -145,7 +140,6 @@ NetworkInterface::NetworkInterface(const nlohmann::json& json) {
             {"ipv6", handle_interface_ipv6},
             {"tcp_nodelay", handle_interface_tcp_nodelay},
             {"ssl", handle_interface_ssl},
-            {"management", handle_interface_management},
     };
 
     for (auto it = json.begin(); it != json.end(); ++it) {

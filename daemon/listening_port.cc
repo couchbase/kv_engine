@@ -17,18 +17,14 @@
 #include "config.h"
 #include "listening_port.h"
 
-ListeningPort::ListeningPort(in_port_t port,
-                             std::string host,
-                             bool tcp_nodelay,
-                             bool management)
+ListeningPort::ListeningPort(in_port_t port, std::string host, bool tcp_nodelay)
     : port(port),
       curr_conns(1),
       maxconns(0),
       host(std::move(host)),
       ipv6(false),
       ipv4(false),
-      tcp_nodelay(tcp_nodelay),
-      management(management) {
+      tcp_nodelay(tcp_nodelay) {
 }
 
 std::shared_ptr<ListeningPort::Ssl> ListeningPort::getSslSettings() const {

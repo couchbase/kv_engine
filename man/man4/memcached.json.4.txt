@@ -142,9 +142,6 @@ object describing a single interface with the following properties:
     ssl           An object specifying SSL related properties.
                   See below.
 
-    management    A boolean value if this interface is used by the
-                  management system.
-
 The *ssl* object contains the two *mandatory* attributes:
 
     key           A string value with the absolute path to the

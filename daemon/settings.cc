@@ -715,8 +715,7 @@ void Settings::updateSettings(const Settings& other, bool apply) {
 
             // the following fields can't change
             if ((i1.host != i2.host) || (i1.port != i2.port) ||
-                (i1.ipv4 != i2.ipv4) || (i1.ipv6 != i2.ipv6) ||
-                (i1.management != i2.management)) {
+                (i1.ipv4 != i2.ipv4) || (i1.ipv6 != i2.ipv6)) {
                 throw std::invalid_argument(
                     "interfaces can't be changed dynamically");
             }

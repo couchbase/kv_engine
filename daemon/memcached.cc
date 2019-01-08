@@ -144,7 +144,7 @@ static void register_callback(EngineIface* eh,
                               EVENT_CALLBACK cb,
                               const void* cb_data);
 
-static void create_listen_sockets(bool management);
+static void create_listen_sockets();
 
 /* stats */
 static void stats_init(void);
@@ -975,10 +975,7 @@ static void add_listening_port(const NetworkInterface *interf, in_port_t port, s
     auto *descr = get_listening_port_instance(port);
 
     if (descr == nullptr) {
-        ListeningPort newport(port,
-                              interf->host,
-                              interf->tcp_nodelay,
-                              interf->management);
+        ListeningPort newport(port, interf->host, interf->tcp_nodelay);
 
         newport.curr_conns = 1;
         newport.maxconns = interf->maxconn;
@@ -1150,45 +1147,25 @@ static bool server_socket(const NetworkInterface& interf) {
     return !required_proto_missing;
 }
 
-static bool server_sockets(bool management) {
+static bool server_sockets() {
     bool success = true;
 
-    if (management) {
-        LOG_INFO("Enable management port(s)");
-    } else {
-        LOG_INFO("Enable user port(s)");
-    }
+    LOG_INFO("Enable port(s)");
 
     for (auto& interface : settings.getInterfaces()) {
-        if (management && interface.management) {
-            if (!server_socket(interface)) {
-                success = false;
-            }
-        } else if (!management && !interface.management) {
-            if (!server_socket(interface)) {
-                success = false;
-            }
+        if (!server_socket(interface)) {
+            success = false;
         }
     }
 
     return success;
 }
 
-static void create_listen_sockets(bool management) {
-    if (!server_sockets(management)) {
+static void create_listen_sockets() {
+    if (!server_sockets()) {
         FATAL_ERROR(
                 EX_OSERR,
                 "Failed to create required listening socket(s). Terminating.");
-    }
-
-    if (management) {
-        // the client is not expecting us to update the port set at
-        // later time, so enable all ports immediately
-        if (!server_sockets(false)) {
-            FATAL_ERROR(EX_OSERR,
-                        "Failed to create required listening socket(s). "
-                        "Terminating.");
-        }
     }
 
     const char* portnumber_filename = getenv("MEMCACHED_PORT_FILENAME");
@@ -2337,7 +2314,7 @@ extern "C" int memcached_main(int argc, char **argv) {
      * before starting worker threads; so _if_ any required sockets fail then
      * terminating is simpler as we don't need to shutdown the workers.
      */
-    create_listen_sockets(true);
+    create_listen_sockets();
 
     /* start up worker threads if MT mode */
     thread_init(settings.getNumWorkerThreads(), main_base, dispatch_event_handler);

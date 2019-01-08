@@ -32,10 +32,7 @@
  */
 class ListeningPort {
 public:
-    ListeningPort(in_port_t port,
-                  std::string host,
-                  bool tcp_nodelay,
-                  bool management);
+    ListeningPort(in_port_t port, std::string host, bool tcp_nodelay);
 
     /**
      * The actual port number being used by this connection. Please note
@@ -59,9 +56,6 @@ public:
     bool ipv4;
     /** Should TCP_NODELAY be enabled or not */
     bool tcp_nodelay;
-    // You can't change the purpose of a port dynamically (It is only
-    // used during startup
-    const bool management;
 
     /// SSL related properties for the port
     struct Ssl {
