@@ -132,6 +132,17 @@ struct HighPriorityVBEntry {
 typedef std::unique_ptr<Callback<const Vbid, const VBNotifyCtx&>>
         NewSeqnoCallback;
 
+/**
+ * Callback function invoked when an accepted SyncWrite operation completes
+ * (is committed / aborted / times out).
+ */
+using SyncWriteCompleteCallback =
+        std::function<void(const void* cookie, ENGINE_ERROR_CODE status)>;
+
+/// Instance of SyncWriteCompleteCallback which does nothing.
+const SyncWriteCompleteCallback NoopSyncWriteCompleteCb =
+        [](const void* cookie, ENGINE_ERROR_CODE status) {};
+
 class EventuallyPersistentEngine;
 class FailoverTable;
 class KVShard;
@@ -161,6 +172,7 @@ public:
             std::shared_ptr<Callback<Vbid>> flusherCb,
             std::unique_ptr<AbstractStoredValueFactory> valFact,
             NewSeqnoCallback newSeqnoCb,
+            SyncWriteCompleteCallback syncWriteCb,
             Configuration& config,
             item_eviction_policy_t evictionPolicy,
             vbucket_state_t initState = vbucket_state_dead,
@@ -1924,6 +1936,12 @@ private:
     // A callback to be called when a new seqno is generated in the vbucket as
     // a result of a front end call
     NewSeqnoCallback newSeqnoCb;
+
+    /**
+     * Callback invoked when a SyncWrite completes (Committed / Aborted /
+     * Times Out)
+     */
+    SyncWriteCompleteCallback syncWriteCompleteCb;
 
     /// The VBucket collection state
     std::unique_ptr<Collections::VB::Manifest> manifest;

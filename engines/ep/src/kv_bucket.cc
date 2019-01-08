@@ -2582,3 +2582,10 @@ void KVBucket::setMaxTtl(size_t max) {
 uint16_t KVBucket::getNumOfVBucketsInState(vbucket_state_t state) const {
     return vbMap.getVBStateCount(state);
 }
+
+SyncWriteCompleteCallback KVBucket::makeSyncWriteCompleteCB() {
+    auto& engine = this->engine;
+    return [&engine](const void* cookie, ENGINE_ERROR_CODE status) {
+        engine.notifyIOComplete(cookie, status);
+    };
+}

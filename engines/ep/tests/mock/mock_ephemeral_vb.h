@@ -40,6 +40,7 @@ public:
                          uint64_t lastSnapEnd,
                          std::unique_ptr<FailoverTable> table,
                          NewSeqnoCallback newSeqnoCb,
+                         SyncWriteCompleteCallback syncWriteCb,
                          Configuration& config,
                          item_eviction_policy_t evictionPolicy);
 

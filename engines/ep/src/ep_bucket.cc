@@ -924,6 +924,7 @@ VBucketPtr EPBucket::makeVBucket(
                                     std::move(table),
                                     flusherCb,
                                     std::move(newSeqnoCb),
+                                    makeSyncWriteCompleteCB(),
                                     engine.getConfiguration(),
                                     eviction_policy,
                                     initState,

@@ -16,6 +16,7 @@ MockEphemeralVBucket::MockEphemeralVBucket(
         uint64_t lastSnapEnd,
         std::unique_ptr<FailoverTable> table,
         NewSeqnoCallback newSeqnoCb,
+        SyncWriteCompleteCallback syncWriteCb,
         Configuration& config,
         item_eviction_policy_t evictionPolicy)
     : EphemeralVBucket(i,
@@ -28,6 +29,7 @@ MockEphemeralVBucket::MockEphemeralVBucket(
                        lastSnapEnd,
                        std::move(table),
                        std::move(newSeqnoCb),
+                       syncWriteCb,
                        config,
                        evictionPolicy) {
     /* we want MockBasicLinkedList instead to call certain non-public

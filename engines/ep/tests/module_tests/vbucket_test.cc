@@ -45,6 +45,7 @@ void VBucketTest::SetUp() {
                                 /*table*/ nullptr,
                                 std::make_shared<DummyCB>(),
                                 /*newSeqnoCb*/ nullptr,
+                                NoopSyncWriteCompleteCb,
                                 config,
                                 eviction_policy));
     cookie = create_mock_cookie();

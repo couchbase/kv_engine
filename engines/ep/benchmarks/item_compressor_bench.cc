@@ -53,6 +53,7 @@ public:
                                     /*table*/ nullptr,
                                     std::make_shared<DummyCB>(),
                                     /*newSeqnoCb*/ nullptr,
+                                    NoopSyncWriteCompleteCb,
                                     config,
                                     evictionPolicy));
 

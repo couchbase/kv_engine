@@ -201,6 +201,7 @@ public:
               /*table*/ nullptr,
               std::make_shared<DummyCB>(),
               /*newSeqnoCb*/ nullptr,
+              NoopSyncWriteCompleteCb,
               config,
               VALUE_ONLY),
           vbR(Vbid(1),
@@ -214,6 +215,7 @@ public:
               /*table*/ nullptr,
               std::make_shared<DummyCB>(),
               /*newSeqnoCb*/ nullptr,
+              NoopSyncWriteCompleteCb,
               config,
               VALUE_ONLY),
           lastCompleteDeletionArgs(0) {

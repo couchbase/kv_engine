@@ -711,6 +711,12 @@ protected:
                                               const void* cookie,
                                               ADD_STAT add_stat);
 
+    /**
+     * Returns the callback function to be invoked when a SyncWrite is
+     * completed. Used by makeVBucket().
+     */
+    SyncWriteCompleteCallback makeSyncWriteCompleteCB();
+
     friend class Warmup;
     friend class PersistenceCallback;
 

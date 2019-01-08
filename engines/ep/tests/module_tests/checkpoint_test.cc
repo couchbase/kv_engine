@@ -62,6 +62,7 @@ CheckpointTest<V>::CheckpointTest()
                     /*table*/ NULL,
                     callback,
                     /*newSeqnoCb*/ nullptr,
+                    NoopSyncWriteCompleteCb,
                     config,
                     item_eviction_policy_t::VALUE_ONLY)) {
     createManager();
@@ -207,6 +208,7 @@ TYPED_TEST(CheckpointTest, basic_chk_test) {
                                       NULL,
                                       cb,
                                       /*newSeqnoCb*/ nullptr,
+                                      NoopSyncWriteCompleteCb,
                                       this->config,
                                       item_eviction_policy_t::VALUE_ONLY));
 

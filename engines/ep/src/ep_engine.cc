@@ -2317,6 +2317,19 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
             MicrosecondStopwatch(stats.storeCmdHisto),
             TracerStopwatch(cookie, cb::tracing::TraceCode::STORE));
 
+    // Check if this is a in-progress durable store which has now completed:
+    if (item.getCommitted() == CommittedState::Pending &&
+        getEngineSpecific(cookie) != nullptr) {
+        // Non-null means this is the second call to this function after
+        // the SyncWrite has completed.
+        // Clear the engineSpecific, and return SUCCESS.
+        storeEngineSpecific(cookie, nullptr);
+        // @todo-durability - return correct CAS
+        // @todo-durability - add support for non-sucesss (e.g. Aborted) when
+        // we support non-successful completions of SyncWrites.
+        return {cb::engine_errc::success, 0xdeadbeef};
+    }
+
     ENGINE_ERROR_CODE status;
     switch (operation) {
     case OPERATION_CAS:
@@ -2366,6 +2379,16 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
     case ENGINE_NOT_MY_VBUCKET:
         if (isDegradedMode()) {
             return {cb::engine_errc::temporary_failure, cas};
+        }
+        break;
+    case ENGINE_EWOULDBLOCK:
+        if (item.getCommitted() == CommittedState::Pending) {
+            // Record the fact that we are blocking to wait for SyncWrite
+            // completion; so the next call to this function should return
+            // the result of the SyncWrite (see call to getEngineSpecific at
+            // the head of this function.
+            // (just store non-null value to indicate this).
+            storeEngineSpecific(cookie, reinterpret_cast<void*>(0x1));
         }
         break;
     default:

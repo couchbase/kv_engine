@@ -150,6 +150,7 @@ VBucket::VBucket(Vbid i,
                  std::shared_ptr<Callback<Vbid>> flusherCb,
                  std::unique_ptr<AbstractStoredValueFactory> valFact,
                  NewSeqnoCallback newSeqnoCb,
+                 SyncWriteCompleteCallback syncWriteCb,
                  Configuration& config,
                  item_eviction_policy_t evictionPolicy,
                  vbucket_state_t initState,
@@ -203,6 +204,7 @@ VBucket::VBucket(Vbid i,
       deferredDeletion(false),
       deferredDeletionCookie(nullptr),
       newSeqnoCb(std::move(newSeqnoCb)),
+      syncWriteCompleteCb(syncWriteCb),
       manifest(
               std::make_unique<Collections::VB::Manifest>(collectionsManifest)),
       mayContainXattrs(mightContainXattrs),
@@ -563,9 +565,9 @@ ENGINE_ERROR_CODE VBucket::commit(const StoredDocKey& key,
 }
 
 void VBucket::notifyClientOfCommit(const void* cookie) {
-    EP_LOG_WARN("VBucket::notifyClientOfCommit ({}) cookie:{}", id, cookie);
+    EP_LOG_DEBUG("VBucket::notifyClientOfCommit ({}) cookie:{}", id, cookie);
 
-    // @todo-durability: Implement.
+    syncWriteCompleteCb(cookie, ENGINE_SUCCESS);
 }
 
 bool VBucket::addPendingOp(const void* cookie) {

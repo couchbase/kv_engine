@@ -51,6 +51,7 @@ public:
              /*table*/ nullptr,
              std::make_shared<DummyCB>(),
              /*newSeqnoCb*/ nullptr,
+             NoopSyncWriteCompleteCb,
              config,
              VALUE_ONLY) {
         Collections::Manifest m(cm);

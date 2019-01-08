@@ -41,6 +41,7 @@ public:
             std::unique_ptr<FailoverTable> table,
             std::shared_ptr<Callback<Vbid>> flusherCb,
             NewSeqnoCallback newSeqnoCb,
+            SyncWriteCompleteCallback syncWriteCb,
             Configuration& config,
             item_eviction_policy_t evictionPolicy,
             vbucket_state_t initState = vbucket_state_dead,
