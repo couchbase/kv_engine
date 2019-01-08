@@ -136,9 +136,6 @@ object describing a single interface with the following properties:
     maxconn       An integral number specifying the maximum number of
                   concurrent clients that may be connected.
 
-    backlog       An integral number specifying the backlog size
-                  set to listen.
-
     tcp_nodelay   A boolean value if TCP_NODELAY should be set or not.
                   By default tcp_nodelay is enabled.
 
@@ -160,7 +157,7 @@ The *ssl* object contains the two *mandatory* attributes:
     cert          A string value with the absolute path to the
                   file containing the X.509 certificate to use.
 
-*maxconn*, *backlog*, *tcp_nodelay*, *ssl.key* and *ssl.cert* may
+*maxconn*, *tcp_nodelay*, *ssl.key* and *ssl.cert* may
 be modified by instructing memcached to reread the configuration
 file.
 
@@ -406,7 +403,6 @@ A Sample memcached.json:
                 "IPv4" : true,
                 "IPv6" : true,
                 "maxconn" : 10000,
-                "backlog" : 1024,
                 "tcp_nodelay" : true,
                 "ssl" :
                 {

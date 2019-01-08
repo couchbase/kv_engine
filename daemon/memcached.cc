@@ -473,7 +473,6 @@ static void interfaces_changed_listener(const std::string&, Settings &s) {
         auto* port = get_listening_port_instance(ifc.port);
         if (port != nullptr) {
             port->maxconns = ifc.maxconn;
-            port->backlog = ifc.backlog;
             port->tcp_nodelay = ifc.tcp_nodelay;
             port->setSslSettings(ifc.ssl.key, ifc.ssl.cert);
         }
@@ -976,7 +975,6 @@ static void add_listening_port(const NetworkInterface *interf, in_port_t port, s
         ListeningPort newport(port,
                               interf->host,
                               interf->tcp_nodelay,
-                              interf->backlog,
                               interf->management);
 
         newport.curr_conns = 1;

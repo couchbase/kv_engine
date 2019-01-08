@@ -20,13 +20,11 @@
 ListeningPort::ListeningPort(in_port_t port,
                              std::string host,
                              bool tcp_nodelay,
-                             int backlog,
                              bool management)
     : port(port),
       curr_conns(1),
       maxconns(0),
       host(std::move(host)),
-      backlog(backlog),
       ipv6(false),
       ipv4(false),
       tcp_nodelay(tcp_nodelay),

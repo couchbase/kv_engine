@@ -46,7 +46,6 @@ enum class TransportProtocols {
 
 namespace Testapp {
 const size_t MAX_CONNECTIONS = 1000;
-const size_t BACKLOG = 1000;
 }
 
 std::ostream& operator<<(std::ostream& os, const TransportProtocols& t);

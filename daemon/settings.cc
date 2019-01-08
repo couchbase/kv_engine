@@ -917,16 +917,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                 changed = true;
             }
 
-            if (i2.backlog != i1.backlog) {
-                LOG_INFO("Change backlog for {}:{} from {} to {}",
-                         i1.host,
-                         i1.port,
-                         i1.backlog,
-                         i2.backlog);
-                i1.backlog = i2.backlog;
-                changed = true;
-            }
-
             if (i2.tcp_nodelay != i1.tcp_nodelay) {
                 LOG_INFO("{} TCP NODELAY for {}:{}",
                          i2.tcp_nodelay ? "Enable" : "Disable",

@@ -265,7 +265,6 @@ TEST_F(SettingsTest, Interfaces) {
     obj["ipv4"] = true;
     obj["ipv6"] = true;
     obj["maxconn"] = 10;
-    obj["backlog"] = 10;
     obj["host"] = "*";
     obj["protocol"] = "memcached";
     obj["management"] = true;
@@ -292,7 +291,6 @@ TEST_F(SettingsTest, Interfaces) {
         EXPECT_EQ(NetworkInterface::Protocol::Optional, ifc0.ipv4);
         EXPECT_EQ(NetworkInterface::Protocol::Optional, ifc0.ipv6);
         EXPECT_EQ(10, ifc0.maxconn);
-        EXPECT_EQ(10, ifc0.backlog);
         EXPECT_EQ("*", ifc0.host);
         EXPECT_TRUE(ifc0.management);
     } catch (std::exception& exception) {
@@ -313,7 +311,6 @@ TEST_F(SettingsTest, InterfacesMissingSSLFiles) {
     obj["ipv4"] = true;
     obj["ipv6"] = true;
     obj["maxconn"] = 10;
-    obj["backlog"] = 10;
     obj["host"] = "*";
     obj["protocol"] = "memcached";
     obj["management"] = true;
@@ -355,7 +352,6 @@ TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
     obj["ipv4"] = true;
     obj["ipv6"] = true;
     obj["maxconn"] = 10;
-    obj["backlog"] = 10;
     obj["host"] = "*";
     obj["protocol"] = "memcached";
     obj["management"] = true;
@@ -1083,7 +1079,6 @@ TEST(SettingsUpdateTest, InterfaceSomeValuesMayChange) {
 
     settings.addInterface(ifc);
 
-    ifc.backlog = 10;
     ifc.maxconn = 10;
     ifc.tcp_nodelay = false;
     ifc.ssl.key.assign("/opt/couchbase/security/key.pem");
@@ -1092,14 +1087,12 @@ TEST(SettingsUpdateTest, InterfaceSomeValuesMayChange) {
     updated.addInterface(ifc);
 
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    EXPECT_NE(ifc.backlog, settings.getInterfaces()[0].backlog);
     EXPECT_NE(ifc.maxconn, settings.getInterfaces()[0].maxconn);
     EXPECT_NE(ifc.tcp_nodelay, settings.getInterfaces()[0].tcp_nodelay);
     EXPECT_NE(ifc.ssl.key, settings.getInterfaces()[0].ssl.key);
     EXPECT_NE(ifc.ssl.cert, settings.getInterfaces()[0].ssl.cert);
 
     EXPECT_NO_THROW(settings.updateSettings(updated));
-    EXPECT_EQ(ifc.backlog, settings.getInterfaces()[0].backlog);
     EXPECT_EQ(ifc.maxconn, settings.getInterfaces()[0].maxconn);
     EXPECT_EQ(ifc.tcp_nodelay, settings.getInterfaces()[0].tcp_nodelay);
     EXPECT_EQ(ifc.ssl.key, settings.getInterfaces()[0].ssl.key);

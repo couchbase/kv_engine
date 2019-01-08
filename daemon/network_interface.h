@@ -40,7 +40,6 @@ public:
         std::string cert;
     } ssl;
     int maxconn = 1000;
-    int backlog = 1024;
     in_port_t port = 11211;
     Protocol ipv6 = Protocol::Optional;
     Protocol ipv4 = Protocol::Optional;

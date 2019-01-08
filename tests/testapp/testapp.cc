@@ -417,7 +417,6 @@ nlohmann::json TestappTest::generate_config(uint16_t ssl_port) {
     ret["interfaces"][0]["ipv4"] = "optional";
     ret["interfaces"][0]["ipv6"] = "optional";
     ret["interfaces"][0]["maxconn"] = Testapp::MAX_CONNECTIONS;
-    ret["interfaces"][0]["backlog"] = Testapp::BACKLOG;
     ret["interfaces"][0]["host"] = "*";
     ret["interfaces"][0]["protocol"] = "memcached";
     ret["interfaces"][0]["management"] = true;
@@ -425,7 +424,6 @@ nlohmann::json TestappTest::generate_config(uint16_t ssl_port) {
     ret["interfaces"][1]["ipv4"] = "optional";
     ret["interfaces"][1]["ipv6"] = "optional";
     ret["interfaces"][1]["maxconn"] = Testapp::MAX_CONNECTIONS;
-    ret["interfaces"][1]["backlog"] = Testapp::BACKLOG;
     ret["interfaces"][1]["host"] = "*";
     ret["interfaces"][1]["protocol"] = "memcached";
     ret["interfaces"][1]["management"] = true;

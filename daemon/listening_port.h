@@ -35,7 +35,6 @@ public:
     ListeningPort(in_port_t port,
                   std::string host,
                   bool tcp_nodelay,
-                  int backlog,
                   bool management);
 
     /**
@@ -54,8 +53,6 @@ public:
     /** The hostname this port is bound to ("*" means all interfaces) */
     const std::string host;
 
-    /** The backlog size before the kernel will deny connect requests */
-    int backlog;
     /** Is IPv6 enabled for this port */
     bool ipv6;
     /** Is IPv4 enabled for this port */

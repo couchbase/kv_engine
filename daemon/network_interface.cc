@@ -39,11 +39,6 @@ static void handle_interface_host(NetworkInterface& ifc,
     ifc.host = cb::jsonGet<std::string>(it);
 }
 
-static void handle_interface_backlog(NetworkInterface& ifc,
-                                     nlohmann::json::const_iterator it) {
-    ifc.backlog = gsl::narrow<int>(cb::jsonGet<size_t>(it));
-}
-
 /**
  * Set the given NetworkInterface::Protocol based on the value of `obj`,
  * or throw std::invalid_argument if obj is not a valid setting.
@@ -153,7 +148,6 @@ NetworkInterface::NetworkInterface(const nlohmann::json& json) {
             {"maxconn", handle_interface_maxconn},
             {"port", handle_interface_port},
             {"host", handle_interface_host},
-            {"backlog", handle_interface_backlog},
             {"ipv4", handle_interface_ipv4},
             {"ipv6", handle_interface_ipv6},
             {"tcp_nodelay", handle_interface_tcp_nodelay},

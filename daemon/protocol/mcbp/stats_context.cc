@@ -315,9 +315,6 @@ static void process_stat_settings(ADD_STAT add_stat_callback, Cookie& cookie) {
                              "-maxconn");
             add_stat(cookie, add_stat_callback, interface, ifce.maxconns);
             checked_snprintf(interface + offset, sizeof(interface) - offset,
-                             "-backlog");
-            add_stat(cookie, add_stat_callback, interface, ifce.backlog);
-            checked_snprintf(interface + offset, sizeof(interface) - offset,
                              "-ipv4");
             add_stat(cookie, add_stat_callback, interface, ifce.ipv4);
             checked_snprintf(interface + offset, sizeof(interface) - offset,

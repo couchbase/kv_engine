@@ -89,7 +89,7 @@ protected:
     const std::string sockname;
 
     /// The backlog to specify to bind
-    const int backlog;
+    const int backlog = 1024;
 
     /// Is this an SSL connection or not
     const bool ssl;
