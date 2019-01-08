@@ -989,13 +989,7 @@ static void add_listening_port(const NetworkInterface *interf, in_port_t port, s
         newport.curr_conns = 1;
         newport.maxconns = interf->maxconn;
 
-        if (interf->ssl.key.empty() || interf->ssl.cert.empty()) {
-            newport.ssl.enabled = false;
-        } else {
-            newport.ssl.enabled = true;
-            newport.ssl.key = interf->ssl.key;
-            newport.ssl.cert = interf->ssl.cert;
-        }
+        newport.setSslSettings(interf->ssl.key, interf->ssl.cert);
 
         if (family == AF_INET) {
             newport.ipv4 = true;

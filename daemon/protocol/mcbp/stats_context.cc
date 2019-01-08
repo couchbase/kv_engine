@@ -331,13 +331,14 @@ static void process_stat_settings(ADD_STAT add_stat_callback, Cookie& cookie) {
                              "-management");
             add_stat(cookie, add_stat_callback, interface, ifce.management);
 
-            if (ifce.ssl.enabled) {
+            auto ssl = ifce.getSslSettings();
+            if (ssl) {
                 checked_snprintf(interface + offset, sizeof(interface) - offset,
                                  "-ssl-pkey");
-                add_stat(cookie, add_stat_callback, interface, ifce.ssl.key);
+                add_stat(cookie, add_stat_callback, interface, ssl->key);
                 checked_snprintf(interface + offset, sizeof(interface) - offset,
                                  "-ssl-cert");
-                add_stat(cookie, add_stat_callback, interface, ifce.ssl.cert);
+                add_stat(cookie, add_stat_callback, interface, ssl->cert);
             } else {
                 checked_snprintf(interface + offset, sizeof(interface) - offset,
                                  "-ssl");

@@ -59,6 +59,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             ioctl.h
             libevent_locking.cc
             libevent_locking.h
+            listening_port.cc
+            listening_port.h
             log_macros.h
             mc_time.cc
             mc_time.h

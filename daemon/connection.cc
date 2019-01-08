@@ -1252,8 +1252,9 @@ Connection::Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc)
     msglist.reserve(MSG_LIST_INITIAL);
     iov.resize(IOV_LIST_INITIAL);
 
-    if (ifc.ssl.enabled) {
-        if (!enableSSL(ifc.ssl.cert, ifc.ssl.key)) {
+    auto ssl = ifc.getSslSettings();
+    if (ssl) {
+        if (!enableSSL(ssl->cert, ssl->key)) {
             throw std::runtime_error(std::to_string(getId()) +
                                      " Failed to enable SSL");
         }
