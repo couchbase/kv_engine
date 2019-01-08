@@ -259,7 +259,7 @@ static void handle_stdin_listener(Settings& s, const nlohmann::json& obj) {
 static void handle_reqs_event(Settings& s,
                               const nlohmann::json& obj,
                               EventPriority priority,
-                              std::string msg) {
+                              const std::string& msg) {
     // Throw if not an unsigned int. Bool values can be converted to an int
     // in an nlohmann::json.get<unsigned int>() so we need to check this
     // explicitly.
@@ -543,12 +543,12 @@ static void handle_interfaces(Settings& s, const nlohmann::json& obj) {
         cb::throwJsonTypeError("\"interfaces\" must be an array");
     }
 
-    for (const auto& obj : obj) {
-        if (obj.type() != nlohmann::json::value_t::object) {
+    for (const auto& o : obj) {
+        if (o.type() != nlohmann::json::value_t::object) {
             throw std::invalid_argument(
                     "Elements in the \"interfaces\" array must be objects");
         }
-        NetworkInterface ifc(obj);
+        NetworkInterface ifc(o);
         s.addInterface(ifc);
     }
 }
@@ -1181,7 +1181,7 @@ void Settings::loadErrorMaps(const std::string& dir) {
 }
 
 const std::string& Settings::getErrorMap(size_t version) const {
-    const static std::string empty("");
+    const static std::string empty;
     if (error_maps.empty()) {
         return empty;
     }
