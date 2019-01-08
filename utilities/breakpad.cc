@@ -70,6 +70,7 @@ static bool dumpCallback(const wchar_t* dump_path,
             PRODUCT_VERSION,
             file);
     dump_stack();
+    cb::logger::shutdown();
     return succeeded;
 }
 #elif defined(linux) && defined(HAVE_BREAKPAD)
@@ -83,6 +84,7 @@ static bool dumpCallback(const MinidumpDescriptor& descriptor,
             descriptor.path());
 
     dump_stack();
+    cb::logger::shutdown();
     return succeeded;
 }
 #endif

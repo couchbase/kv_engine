@@ -2454,8 +2454,6 @@ extern "C" int memcached_main(int argc, char **argv) {
     event_base_free(main_base);
 
     LOG_INFO("Shutting down logger extension");
-    // drop my handle to the logger
-    cb::logger::reset();
     cb::logger::shutdown();
 
     return EXIT_SUCCESS;

@@ -62,9 +62,23 @@ void cb::logger::flush() {
 
 LOGGER_PUBLIC_API
 void cb::logger::shutdown() {
+    // Force a flush (posts a message to the async logger if we are not in unit
+    // test mode)
     flush();
+
+    /**
+     * This will drop all spdlog instances from the registry, and destruct the
+     * thread pool which will post terminate message(s) (one per thread) to the
+     * thread pool message queue. The calling thread will then block until all
+     * thread pool workers have joined. This ensures that any messages queued
+     * before shutdown is called will be flushed to disk. Any messages that are
+     * queued after the final terminate message will not be logged.
+     *
+     * If the logger is running in unit test mode (synchronous) then this is a
+     * no-op.
+     */
+    spdlog::details::registry::instance().shutdown();
     file_logger.reset();
-    spdlog::drop(logger_name);
 }
 
 LOGGER_PUBLIC_API

@@ -74,13 +74,17 @@ static void backtrace_terminate_handler() {
         log_backtrace();
     }
 
-    cb::logger::get()->flush();
-
     // Chain to the default handler if available (as it may be able to print
     // other useful information on why we were told to terminate).
     if (default_terminate_handler != nullptr) {
         default_terminate_handler();
     }
+
+#if !defined(HAVE_BREAKPAD)
+    // Shut down the logger (and flush everything). If breakpad is installed
+    // then we'll let it do it.
+    cb::logger::shutdown();
+#endif
 
     std::abort();
 }

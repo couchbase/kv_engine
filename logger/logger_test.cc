@@ -190,7 +190,7 @@ TEST_F(FileRotationTest, HandleOpenFileErrors) {
 }
 #endif
 
-/*
+/**
  * Test that the custom type Vbid (see memcached/vbucket.h) performs
  * its prefixing successfully whenever outputting a vBucket ID
  */
@@ -201,4 +201,49 @@ TEST_F(SpdloggerTest, VbidClassTest) {
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
     EXPECT_EQ(1, countInFile(files.front(), "INFO VbidClassTest vb:1023"));
+}
+
+/**
+ * MB-32688: Missing final log entries just before crash (or shutdown).
+ *
+ * Test that everything we attempt to log before we call shutdown is actually
+ * flushed to a file.
+ *
+ * Test MAY pass if this race condition is present. Runtime is tuned for CV
+ * machines which are generally much slower than dev machines. Anecdotal -
+ * false positive rate on my dev machine (MB Pro 2017 - PCIe SSD) is ~1/1000.
+ * This SHOULD be lower on CV machines as the flush command will take much
+ * longer to execute (slower disks) which will back the file logger up more. Any
+ * sporadic failures of this test likely mean a reintroduction of this race
+ * condition and should be investigated.
+ */
+TEST_F(SpdloggerTest, ShutdownRace) {
+    // We need the async logger for this test, shutdown the existing one and
+    // create it.
+    cb::logger::shutdown();
+    RemoveFiles();
+    config.unit_test = false;
+    setUpLogger();
+
+    // Back the file logger up with messages and flush commands.
+    for (int i = 0; i < 100; i++) {
+        // Post messages to the async logger - doesn't actually perform a flush,
+        // but queues one on the async logger
+        LOG_CRITICAL("a message");
+        cb::logger::flush();
+    }
+
+    LOG_CRITICAL("We should see this msg");
+    LOG_CRITICAL("and this one");
+    // And this very long one
+    auto str = std::string(50000, 'a');
+    LOG_CRITICAL("{}", str);
+
+    // Shutdown, process all messages in the queue, then return.
+    cb::logger::shutdown();
+    files = cb::io::findFilesWithPrefix(config.filename);
+    ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
+    EXPECT_EQ(1, countInFile(files.front(), "CRITICAL We should see this msg"));
+    EXPECT_EQ(1, countInFile(files.front(), "CRITICAL and this one"));
+    EXPECT_EQ(1, countInFile(files.front(), "CRITICAL " + str));
 }
