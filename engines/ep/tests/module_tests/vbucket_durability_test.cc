@@ -76,7 +76,7 @@ size_t VBucketDurabilityTest::storeSyncWrites(
         item.setPendingSyncWrite(Requirements(Level::Majority, 0 /*timeout*/));
         VBQueueItemCtx ctx;
         ctx.genBySeqno = GenerateBySeqno::No;
-        ctx.durabilityReqs = item.getDurabilityReqs();
+        ctx.durability = DurabilityItemCtx{item.getDurabilityReqs(), cookie};
 
         EXPECT_EQ(MutationStatus::WasClean,
                   public_processSet(item, 0 /*cas*/, ctx));

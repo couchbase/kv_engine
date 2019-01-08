@@ -78,7 +78,8 @@ MutationStatus DurabilityMonitorTest::processSet(Item& item) {
     auto htRes = vb->ht.findForWrite(item.getKey());
     VBQueueItemCtx ctx;
     ctx.genBySeqno = GenerateBySeqno::No;
-    ctx.durabilityReqs = item.getDurabilityReqs();
+    ctx.durability =
+            DurabilityItemCtx{item.getDurabilityReqs(), /*cookie*/ nullptr};
     return vb
             ->processSet(htRes.lock,
                          htRes.storedValue,

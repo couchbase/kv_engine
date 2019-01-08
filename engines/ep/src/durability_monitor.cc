@@ -54,7 +54,8 @@ struct DurabilityMonitor::Position {
  */
 class DurabilityMonitor::SyncWrite {
 public:
-    SyncWrite(queued_item item) : item(item) {
+    SyncWrite(const void* cookie, queued_item item)
+        : item(item), cookie(cookie) {
     }
 
     const StoredDocKey& getKey() const {
@@ -69,6 +70,10 @@ public:
         return item->getDurabilityReqs();
     }
 
+    const void* getCookie() const {
+        return cookie;
+    }
+
 private:
     // An Item stores all the info that the DurabilityMonitor needs:
     // - seqno
@@ -76,6 +81,10 @@ private:
     // Note that queued_item is a ref-counted object, so the copy in the
     // CheckpointManager can be safely removed.
     const queued_item item;
+
+    // Client cookie associated with this SyncWrite request, to be notified
+    // when the SyncWrite completes.
+    const void* cookie;
 };
 
 /*
@@ -129,7 +138,8 @@ ENGINE_ERROR_CODE DurabilityMonitor::registerReplicationChain(
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE DurabilityMonitor::addSyncWrite(queued_item item) {
+ENGINE_ERROR_CODE DurabilityMonitor::addSyncWrite(const void* cookie,
+                                                  queued_item item) {
     auto durReq = item->getDurabilityReqs();
     if (durReq.getLevel() != cb::durability::Level::Majority ||
         durReq.getTimeout() != 0) {
@@ -141,7 +151,7 @@ ENGINE_ERROR_CODE DurabilityMonitor::addSyncWrite(queued_item item) {
         throw std::logic_error(
                 "DurabilityMonitor::addSyncWrite: no chain registered");
     }
-    state.trackedWrites.push_back(SyncWrite(item));
+    state.trackedWrites.push_back(SyncWrite(cookie, item));
 
     return ENGINE_SUCCESS;
 }
@@ -175,8 +185,7 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
     // I don't manage the scenario where step 3 fails yet (note that DM::commit
     // just throws if an error occurs in the current implementation), so this
     // is a @todo.
-    std::vector<std::pair<StoredDocKey, int64_t>> toCommit;
-
+    Container toCommit;
     {
         std::lock_guard<std::mutex> lg(state.m);
 
@@ -221,8 +230,10 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
             // Requirement for the pending SyncWrite is implicitly verified
             // at this point.
 
-            toCommit.push_back(removeSyncWrite(
-                    lg, state.firstChain->memoryPositions.at(replica)));
+            toCommit.splice(
+                    toCommit.end(),
+                    removeSyncWrite(
+                            lg, state.firstChain->memoryPositions.at(replica)));
 
             // Note: process up to the ack'ed memory seqno
         } while ((next = getReplicaMemoryNext(lg, replica)) !=
@@ -235,7 +246,7 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
 
     // Commit the verified SyncWrites
     for (const auto& entry : toCommit) {
-        commit(entry.first, entry.second);
+        commit(entry.getKey(), entry.getBySeqno(), entry.getCookie());
     }
 
     return ENGINE_SUCCESS;
@@ -291,7 +302,7 @@ int64_t DurabilityMonitor::getReplicaMemoryAckSeqno(
     return state.firstChain->memoryPositions.at(replica).lastAckSeqno;
 }
 
-std::pair<StoredDocKey, int64_t> DurabilityMonitor::removeSyncWrite(
+DurabilityMonitor::Container DurabilityMonitor::removeSyncWrite(
         const std::lock_guard<std::mutex>& lg, const Position& pos) {
     if (pos.it == state.trackedWrites.end()) {
         throw std::logic_error(
@@ -311,19 +322,19 @@ std::pair<StoredDocKey, int64_t> DurabilityMonitor::removeSyncWrite(
         prev = std::prev(pos.it);
     }
 
-    std::pair<StoredDocKey, int64_t> ret = {pos.it->getKey(),
-                                            pos.it->getBySeqno()};
-
     auto& pos_ = const_cast<Position&>(pos);
-    state.trackedWrites.erase(pos_.it);
+    Container removed;
+    removed.splice(removed.end(), state.trackedWrites, pos_.it);
     pos_.it = prev;
 
     Ensures(pos_.lastSyncWriteSeqno == committedSeqno);
 
-    return ret;
+    return removed;
 }
 
-void DurabilityMonitor::commit(const StoredDocKey& key, int64_t seqno) {
+void DurabilityMonitor::commit(const StoredDocKey& key,
+                               int64_t seqno,
+                               const void* cookie) {
     // The next call:
     // 1) converts the SyncWrite in the HashTable from Prepare to Committed
     // 2) enqueues a Commit SyncWrite item into the CheckpointManager
@@ -335,5 +346,6 @@ void DurabilityMonitor::commit(const StoredDocKey& key, int64_t seqno) {
                 std::to_string(result));
     }
 
-    // @todo: notify the connection
+    // 3) send a response with Success back to the client
+    vb.notifyClientOfCommit(cookie);
 }

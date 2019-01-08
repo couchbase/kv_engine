@@ -562,6 +562,12 @@ ENGINE_ERROR_CODE VBucket::commit(const StoredDocKey& key,
     return ENGINE_SUCCESS;
 }
 
+void VBucket::notifyClientOfCommit(const void* cookie) {
+    EP_LOG_WARN("VBucket::notifyClientOfCommit ({}) cookie:{}", id, cookie);
+
+    // @todo-durability: Implement.
+}
+
 bool VBucket::addPendingOp(const void* cookie) {
     LockHolder lh(pendingOpLock);
     if (state != vbucket_state_pending) {
@@ -764,13 +770,13 @@ VBNotifyCtx VBucket::queueDirty(
         const GenerateBySeqno generateBySeqno,
         const GenerateCas generateCas,
         const bool isBackfillItem,
-        cb::durability::Requirements durabilityReqs,
+        boost::optional<DurabilityItemCtx> durabilityCtx,
         PreLinkDocumentContext* preLinkDocumentContext) {
     VBNotifyCtx notifyCtx;
 
     queued_item qi(v.toItem(false, getId()));
     if (v.getCommitted() == CommittedState::Pending) {
-        qi->setPendingSyncWrite(durabilityReqs);
+        qi->setPendingSyncWrite(durabilityCtx->requirements);
     }
 
     // MB-27457: Timestamp deletes only when they don't already have a timestamp
@@ -814,7 +820,8 @@ VBNotifyCtx VBucket::queueDirty(
 
     if (qi->getCommitted() == CommittedState::Pending) {
         // Register this mutation with the durability monitor.
-        durabilityMonitor->addSyncWrite(qi);
+        const auto cookie = durabilityCtx->cookie;
+        durabilityMonitor->addSyncWrite(cookie, qi);
     }
 
     return notifyCtx;
@@ -951,7 +958,8 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
     PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
     VBQueueItemCtx queueItmCtx;
     if (itm.getCommitted() == CommittedState::Pending) {
-        queueItmCtx.durabilityReqs = itm.getDurabilityReqs();
+        queueItmCtx.durability =
+                DurabilityItemCtx{itm.getDurabilityReqs(), cookie};
     }
     queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
     MutationStatus status;
@@ -1049,7 +1057,8 @@ ENGINE_ERROR_CODE VBucket::replace(
             VBQueueItemCtx queueItmCtx;
             queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
             if (itm.getCommitted() == CommittedState::Pending) {
-                queueItmCtx.durabilityReqs = itm.getDurabilityReqs();
+                queueItmCtx.durability =
+                        DurabilityItemCtx{itm.getDurabilityReqs(), cookie};
             }
             std::tie(mtype, notifyCtx) = processSet(hbl,
                                                     v,
@@ -1126,12 +1135,13 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm) {
         v->unlock();
     }
 
-    VBQueueItemCtx queueItmCtx{GenerateBySeqno::No,
-                               GenerateCas::No,
-                               TrackCasDrift::No,
-                               /*isBackfillItem*/ true,
-                               itm.getDurabilityReqs(),
-                               nullptr /* No pre link should happen */};
+    VBQueueItemCtx queueItmCtx{
+            GenerateBySeqno::No,
+            GenerateCas::No,
+            TrackCasDrift::No,
+            /*isBackfillItem*/ true,
+            DurabilityItemCtx{itm.getDurabilityReqs(), nullptr},
+            nullptr /* No pre link should happen */};
     MutationStatus status;
     boost::optional<VBNotifyCtx> notifyCtx;
     std::tie(status, notifyCtx) = processSet(hbl,
@@ -1252,12 +1262,13 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
         v->unlock();
     }
 
-    VBQueueItemCtx queueItmCtx{genBySeqno,
-                               genCas,
-                               TrackCasDrift::Yes,
-                               /*isBackfillItem*/ false,
-                               itm.getDurabilityReqs(),
-                               nullptr /* No pre link step needed */};
+    VBQueueItemCtx queueItmCtx{
+            genBySeqno,
+            genCas,
+            TrackCasDrift::Yes,
+            /*isBackfillItem*/ false,
+            DurabilityItemCtx{itm.getDurabilityReqs(), cookie},
+            nullptr /* No pre link step needed */};
     MutationStatus status;
     boost::optional<VBNotifyCtx> notifyCtx;
     std::tie(status, notifyCtx) = processSet(hbl,
@@ -1541,7 +1552,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
                                    generateCas,
                                    TrackCasDrift::Yes,
                                    backfill,
-                                   cb::durability::NoRequirements,
+                                   {},
                                    nullptr /* No pre link step needed */};
 
         std::unique_ptr<Item> itm;
@@ -1712,7 +1723,8 @@ ENGINE_ERROR_CODE VBucket::add(
     VBQueueItemCtx queueItmCtx;
     queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
     if (itm.getCommitted() == CommittedState::Pending) {
-        queueItmCtx.durabilityReqs = itm.getDurabilityReqs();
+        queueItmCtx.durability =
+                DurabilityItemCtx{itm.getDurabilityReqs(), cookie};
     }
     AddStatus status;
     boost::optional<VBNotifyCtx> notifyCtx;
@@ -2568,7 +2580,7 @@ VBucket::processExpiredItem(
                                           GenerateBySeqno::Yes,
                                           GenerateCas::Yes,
                                           /*isBackfillItem*/ false,
-                                          cb::durability::NoRequirements,
+                                          {},
                                           /*preLinkDocumentContext*/ nullptr));
     }
 
@@ -2688,7 +2700,7 @@ VBNotifyCtx VBucket::queueDirty(StoredValue& v,
                       queueItmCtx.genBySeqno,
                       queueItmCtx.genCas,
                       queueItmCtx.isBackfillItem,
-                      queueItmCtx.durabilityReqs,
+                      queueItmCtx.durability,
                       queueItmCtx.preLinkDocumentContext);
 }
 

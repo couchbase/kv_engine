@@ -83,10 +83,12 @@ public:
      * has been inserted into the HashTable and enqueued into the
      * CheckpointManager.
      *
+     * @param cookie Optional client cookie which will be notified the SyncWrite
+     *        completes.
      * @param item the queued_item
      * @return ENGINE_SUCCESS if the operation succeeds, an error code otherwise
      */
-    ENGINE_ERROR_CODE addSyncWrite(queued_item item);
+    ENGINE_ERROR_CODE addSyncWrite(const void* cookie, queued_item item);
 
     /**
      * Expected to be called by memcached at receiving a DCP_SEQNO_ACK packet.
@@ -183,18 +185,19 @@ protected:
      * Remove the given SyncWrte from tracking.
      *
      * @param pos the Position of the SyncWrite to be removed
-     * @return key and seqno of the removed SyncWrite
+     * @return single-element list of the removed SyncWrite.
      */
-    std::pair<StoredDocKey, int64_t> removeSyncWrite(
-            const std::lock_guard<std::mutex>& lg, const Position& pos);
+    Container removeSyncWrite(const std::lock_guard<std::mutex>& lg,
+                              const Position& pos);
 
     /**
      * Commit the given SyncWrite.
      *
      * @param key the key of the SyncWrite to be committed
      * @param seqno the seqno of the SyncWrite to be committed
+     * @param cookie The cookie of the connection to notify.
      */
-    void commit(const StoredDocKey& key, int64_t seqno);
+    void commit(const StoredDocKey& key, int64_t seqno, const void* cookie);
 
     // The VBucket owning this DurabilityMonitor instance
     VBucket& vb;
