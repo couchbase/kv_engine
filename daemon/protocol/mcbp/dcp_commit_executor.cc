@@ -31,6 +31,8 @@ void dcp_commit_executor(Cookie& cookie) {
                 *reinterpret_cast<const DcpCommitPayload*>(extdata.data());
         ret = dcpCommit(cookie,
                         req.getOpaque(),
+                        req.getVBucket(),
+                        cookie.getConnection().makeDocKey(req.getKey()),
                         extras.getPreparedSeqno(),
                         extras.getCommitSeqno());
     }

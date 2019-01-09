@@ -568,7 +568,8 @@ std::tuple<StoredValue*, VBNotifyCtx> EphemeralVBucket::softDeleteStoredValue(
 VBNotifyCtx EphemeralVBucket::commitStoredValue(
         const HashTable::HashBucketLock& hbl,
         StoredValue& v,
-        const VBQueueItemCtx& queueItmCtx) {
+        const VBQueueItemCtx& queueItmCtx,
+        boost::optional<int64_t> commitSeqno) {
     // @todo-durability: Implement this.
     throw std::logic_error(
             "EphemeralVBucket::commitStoredValue - not yet implemented");

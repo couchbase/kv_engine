@@ -221,6 +221,13 @@ public:
                                       DocumentState document_state,
                                       cb::durability::Requirements durability);
 
+    /// Receive a commit message.
+    // @todo-durability - change to identify via prepared seqno instead of key.
+    virtual ENGINE_ERROR_CODE commit(uint32_t opaque,
+                                     Vbid vbucket,
+                                     const DocKey& key,
+                                     uint64_t commit_seqno);
+
     /// Receive a seqno_acknowledged message.
     virtual ENGINE_ERROR_CODE seqno_acknowledged(uint32_t opaque,
                                                  Vbid vbucket,

@@ -338,7 +338,7 @@ void DurabilityMonitor::commit(const StoredDocKey& key,
     // The next call:
     // 1) converts the SyncWrite in the HashTable from Prepare to Committed
     // 2) enqueues a Commit SyncWrite item into the CheckpointManager
-    auto result = vb.commit(key, seqno);
+    auto result = vb.commit(key, seqno, {});
     if (result != ENGINE_SUCCESS) {
         throw std::logic_error(
                 "DurabilityMonitor::commit: VBucket::commit failed with "

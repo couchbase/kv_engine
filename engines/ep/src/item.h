@@ -454,6 +454,7 @@ public:
     /// Sets the item as being a Commited via Pending SyncWrite.
     void setCommittedviaPrepareSyncWrite();
 
+    /// Is this Item Committed (via Mutation or Prepare), or Pending Sync Write?
     CommittedState getCommitted() const {
         switch (op) {
         case queue_op::pending_sync_write:

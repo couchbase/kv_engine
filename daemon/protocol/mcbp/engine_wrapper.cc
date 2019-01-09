@@ -732,11 +732,14 @@ ENGINE_ERROR_CODE dcpSeqnoAcknowledged(Cookie& cookie,
 
 ENGINE_ERROR_CODE dcpCommit(Cookie& cookie,
                             uint32_t opaque,
+                            Vbid vbucket,
+                            const DocKey& key,
                             uint64_t prepared_seqno,
                             uint64_t commit_seqno) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->commit(&cookie, opaque, prepared_seqno, commit_seqno);
+    auto ret = dcp->commit(
+            &cookie, opaque, vbucket, key, prepared_seqno, commit_seqno);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.commit returned ENGINE_DISCONNECT",
                     connection.getId(),

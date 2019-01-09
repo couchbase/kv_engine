@@ -128,6 +128,9 @@ protected:
     /// Process an incoming prepare.
     ENGINE_ERROR_CODE processPrepare(MutationConsumerMessage* expiration);
 
+    /// Process an incoming commit of a SyncWrite.
+    ENGINE_ERROR_CODE processCommit(const CommitSyncWrite& commit);
+
     /**
      * Handle DCP system events against this stream.
      *

@@ -1199,9 +1199,15 @@ public:
      * Perform a commit against the given pending Sync Write.
      *
      * @param key Key to commit
-     * @param pendingSeqno The sequence number of the existing pending SyncWrite
+     * @param preparedSeqno The sequence number of the existing pending
+     *                      SyncWrite
+     * @param commitSeqno Optional commit sequence number to use for the commit.
+     *                    If omitted then a sequence number will be generated
+     *                    by the CheckpointManager.
      */
-    ENGINE_ERROR_CODE commit(const StoredDocKey& key, uint64_t pendingSeqno);
+    ENGINE_ERROR_CODE commit(const DocKey& key,
+                             uint64_t preparedSeqno,
+                             boost::optional<int64_t> commitSeqno);
 
     /**
      * Notify a client connection that a SyncWrite has been committed.
@@ -1758,14 +1764,25 @@ private:
             DeleteSource deleteSource) = 0;
 
     /**
+
+     */
+
+    /**
      * Commit the given pending item; removing any previous committed item with
      * the same key from in-memory structures.
-     *
+     * @param hbl Reference to the hash table bucket lock
+     * @param v StoredValue to be committed. Must refer to a pending
+     * StoredValue.
+     * @param queueItmCtx Options on how the item should be queued.
+     * @param commitSeqno Optional seqno to use for the committed item. If
+     *                    omitted then CheckpointManager will generate one.
+     * @return Information on who should be notified of the commit.
      */
     virtual VBNotifyCtx commitStoredValue(
             const HashTable::HashBucketLock& hbl,
             StoredValue& v,
-            const VBQueueItemCtx& queueItmCtx) = 0;
+            const VBQueueItemCtx& queueItmCtx,
+            boost::optional<int64_t> commitSeqno) = 0;
 
     /**
      * This function handles expiry related stuff before logically (soft)

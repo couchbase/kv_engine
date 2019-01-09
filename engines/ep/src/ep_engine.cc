@@ -1584,9 +1584,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::seqno_acknowledged(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::commit(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
+        Vbid vbucket,
+        const DocKey& key,
         uint64_t prepared_seqno,
         uint64_t commit_seqno) {
-    return ENGINE_ENOTSUP;
+    auto engine = acquireEngine(this);
+    ConnHandler* conn = engine->getConnHandler(cookie);
+    if (conn) {
+        return conn->commit(opaque, vbucket, key, commit_seqno);
+    }
+    return ENGINE_DISCONNECT;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::abort(

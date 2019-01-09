@@ -564,8 +564,13 @@ std::tuple<StoredValue*, VBNotifyCtx> EPVBucket::softDeleteStoredValue(
 
 VBNotifyCtx EPVBucket::commitStoredValue(const HashTable::HashBucketLock& hbl,
                                          StoredValue& v,
-                                         const VBQueueItemCtx& queueItmCtx) {
+                                         const VBQueueItemCtx& queueItmCtx,
+                                         boost::optional<int64_t> commitSeqno) {
     ht.commit(hbl, v);
+    if (commitSeqno) {
+        Expects(queueItmCtx.genBySeqno == GenerateBySeqno::No);
+        v.setBySeqno(*commitSeqno);
+    }
 
     return queueDirty(v, queueItmCtx);
 }

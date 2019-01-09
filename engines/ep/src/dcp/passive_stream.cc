@@ -272,6 +272,10 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
                 ret = processPrepare(static_cast<MutationConsumerMessage*>(
                         dcpResponse.get()));
                 break;
+            case DcpResponse::Event::Commit:
+                ret = processCommit(
+                        static_cast<CommitSyncWrite&>(*dcpResponse));
+                break;
             case DcpResponse::Event::SnapshotMarker:
                 processMarker(static_cast<SnapshotMarker*>(dcpResponse.get()));
                 break;
@@ -621,6 +625,18 @@ ENGINE_ERROR_CODE PassiveStream::processPrepare(
     notifyStreamReady();
 
     return result;
+}
+
+ENGINE_ERROR_CODE PassiveStream::processCommit(const CommitSyncWrite& commit) {
+    VBucketPtr vb = engine->getVBucket(vb_);
+
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    return vb->commit(commit.getKey(),
+                      commit.getPreparedSeqno(),
+                      commit.getCommitSeqno());
 }
 
 ENGINE_ERROR_CODE PassiveStream::processSystemEvent(

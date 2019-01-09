@@ -258,9 +258,11 @@ private:
             uint64_t bySeqno,
             DeleteSource deleteSource = DeleteSource::Explicit) override;
 
-    VBNotifyCtx commitStoredValue(const HashTable::HashBucketLock& hbl,
-                                  StoredValue& v,
-                                  const VBQueueItemCtx& queueItmCtx) override;
+    VBNotifyCtx commitStoredValue(
+            const HashTable::HashBucketLock& hbl,
+            StoredValue& v,
+            const VBQueueItemCtx& queueItmCtx,
+            boost::optional<int64_t> commitSeqno) override;
 
     void bgFetch(const DocKey& key,
                  const void* cookie,

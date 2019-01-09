@@ -201,6 +201,11 @@ public:
                               DocumentState document_state,
                               cb::durability::Requirements durability) override;
 
+    ENGINE_ERROR_CODE commit(uint32_t opaque,
+                             Vbid vbucket,
+                             const DocKey& key,
+                             uint64_t commit_seqno) override;
+
     bool doRollback(uint32_t opaque, Vbid vbid, uint64_t rollbackSeqno);
 
     void addStats(ADD_STAT add_stat, const void *c) override;

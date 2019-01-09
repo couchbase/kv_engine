@@ -369,6 +369,8 @@ public:
                                          uint64_t on_disk_seqno) override;
     ENGINE_ERROR_CODE commit(gsl::not_null<const void*> cookie,
                              uint32_t opaque,
+                             Vbid vbucket,
+                             const DocKey& key,
                              uint64_t prepared_seqno,
                              uint64_t commit_seqno) override;
     ENGINE_ERROR_CODE abort(gsl::not_null<const void*> cookie,

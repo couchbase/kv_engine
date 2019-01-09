@@ -474,6 +474,8 @@ ENGINE_ERROR_CODE dcpSeqnoAcknowledged(Cookie& cookie,
 
 ENGINE_ERROR_CODE dcpCommit(Cookie& cookie,
                             uint32_t opaque,
+                            Vbid vbucket,
+                            const DocKey& key,
                             uint64_t prepared_seqno,
                             uint64_t commit_seqno);
 

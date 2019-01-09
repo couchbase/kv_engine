@@ -1640,6 +1640,47 @@ ENGINE_ERROR_CODE DcpConsumer::prepare(
     return processMutationOrPrepare(vbucket, opaque, key, item, {}, msgBytes);
 }
 
+ENGINE_ERROR_CODE DcpConsumer::commit(uint32_t opaque,
+                                      Vbid vbucket,
+                                      const DocKey& key,
+                                      uint64_t commit_seqno) {
+    lastMessageTime = ep_current_time();
+    const size_t msgBytes = CommitSyncWrite::commitBaseMsgBytes + key.size();
+    UpdateFlowControl ufc(*this, msgBytes);
+
+    if (doDisconnect()) {
+        return ENGINE_DISCONNECT;
+    }
+
+    if (commit_seqno == 0) {
+        logger->warn("({}) Invalid sequence number(0) for commit!", vbucket);
+        return ENGINE_EINVAL;
+    }
+
+    ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
+    auto stream = findStream(vbucket);
+    if (stream && stream->getOpaque() == opaque && stream->isActive()) {
+        try {
+            err = stream->messageReceived(
+                    std::make_unique<CommitSyncWrite>(opaque,
+                                                      /*prepared_seqno*/ 0,
+                                                      commit_seqno,
+                                                      key));
+        } catch (const std::bad_alloc&) {
+            return ENGINE_ENOMEM;
+        }
+
+        // The item was buffered and will be processed later
+        if (err == ENGINE_TMPFAIL) {
+            notifyVbucketReady(vbucket);
+            ufc.release();
+            return ENGINE_SUCCESS;
+        }
+    }
+
+    return err;
+}
+
 void DcpConsumer::setDisconnect() {
     ConnHandler::setDisconnect();
 
