@@ -149,7 +149,7 @@ IF (WIN32)
 ENDIF (WIN32)
 
 ADD_EXECUTABLE(gencode tools/gencode.cc)
-TARGET_LINK_LIBRARIES(gencode cJSON platform)
+TARGET_LINK_LIBRARIES(gencode platform dirutils)
 
 ADD_EXECUTABLE(genconfig tools/genconfig.cc)
 TARGET_LINK_LIBRARIES(genconfig cJSON platform)

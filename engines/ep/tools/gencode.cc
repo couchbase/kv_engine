@@ -16,10 +16,11 @@
  */
 #include "config.h"
 
+#include <platform/dirutils.h>
+
 #include <nlohmann/json.hpp>
 
 #include <getopt.h>
-#include <sys/stat.h>
 
 #include <iostream>
 #include <fstream>
@@ -59,10 +60,10 @@ int main(int argc, char **argv) {
 
     while ((cmd = getopt(argc, argv, "j:c:h:f:")) != -1) {
         switch (cmd) {
-        case 'j' :
+        case 'j':
             json = optarg;
             break;
-        case 'c' :
+        case 'c':
             cfile = optarg;
             break;
         case 'h':
@@ -80,23 +81,14 @@ int main(int argc, char **argv) {
         usage();
     }
 
-    struct stat st;
-    if (stat(json, &st) == -1) {
-        std::cerr << "Failed to look up \"" << json << "\": " << strerror(errno)
-                  << std::endl;
-        exit(EXIT_FAILURE);
-    }
-
-    std::vector<char> data(st.st_size + 1);
-    std::ifstream input(json);
-    input.read(data.data(), st.st_size);
-    input.close();
-
     // Parsing the json data will prettify the output easily.
     nlohmann::json parsed;
     try {
-        parsed = nlohmann::json::parse(data.data());
-    } catch (nlohmann::json::exception& e) {
+        parsed = nlohmann::json::parse(cb::io::loadFile(json));
+    } catch (const std::system_error& e) {
+        std::cerr << "Failed to open file. " << e.what() << std::endl;
+        exit(EXIT_FAILURE);
+    } catch (const nlohmann::json::exception& e) {
         std::cerr << "Failed to parse JSON. " << e.what() << std::endl;
         exit(EXIT_FAILURE);
     }
