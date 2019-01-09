@@ -961,7 +961,7 @@ ENGINE_ERROR_CODE mock_engine::abort(gsl::not_null<const void*> cookie,
                                      uint32_t opaque,
                                      uint64_t prepared_seqno,
                                      uint64_t abort_seqno) {
-    return the_engine_dcp->commit(cookie, opaque, prepared_seqno, abort_seqno);
+    return the_engine_dcp->abort(cookie, opaque, prepared_seqno, abort_seqno);
 }
 
 static cb::engine_errc mock_collections_set_manifest(

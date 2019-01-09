@@ -1761,7 +1761,7 @@ ENGINE_ERROR_CODE EWB_Engine::abort(gsl::not_null<const void*> cookie,
     if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return real_engine_dcp->commit(
+        return real_engine_dcp->abort(
                 cookie, opaque, prepared_seqno, abort_seqno);
     }
 }
