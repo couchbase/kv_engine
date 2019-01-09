@@ -29,7 +29,7 @@
             }
         },
         "ep_warmup_access_log": {
-            "description": "The number of items found in the access log (or 'currupt' if checksumming the file failed)"
+            "description": "The number of items found in the access log (or 'corrupt' if checksumming the file failed)"
         },
         "ep_warmup_key_count": {
             "description": "The number of item keys warmed up"

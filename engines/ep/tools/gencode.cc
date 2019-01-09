@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2012 Couchbase, Inc
+ *     Copyright 2019 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -15,52 +15,39 @@
  *   limitations under the License.
  */
 #include "config.h"
-#include <algorithm>
-#include <cerrno>
-#include <cstdlib>
-#include <string.h>
-#include <strings.h>
-#include <cerrno>
+
+#include <nlohmann/json.hpp>
+
 #include <getopt.h>
 #include <sys/stat.h>
+
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <string>
-#include <ctype.h>
-
-#include <cJSON_utils.h>
-
-using namespace std;
-
-/**
- * Print the JSON object quoted
- */
-static ostream& operator <<(ostream &out, cJSON *json)
-{
-    auto data = to_string(json, false);
-    int ii = 0;
-
-    out << '"';
-    while (data[ii] != '\0') {
-        if (data[ii] == '"') {
-            out << '\\';
-        }
-        out << data[ii];
-        ++ii;
-    }
-
-    out << '"';
-    return out;
-}
 
 static void usage(void)
 {
-    cerr << "Usage: gencode -j JSON -c cfile -h headerfile -f function"
-         << endl
-         << "\tThe JSON file will be read to generate the c and h file."
-         << endl;
+    std::cerr << "Usage: gencode -j JSON -c cfile -h headerfile -f function"
+              << std::endl
+              << "\tThe JSON file will be read to generate the c and h file."
+              << std::endl;
     exit(EXIT_FAILURE);
+}
+
+static std::string escapeQuotes(const std::string& str) {
+    std::string escaped;
+
+    for (auto& c : str) {
+        switch (c) {
+        case '"':
+            escaped += '\\';
+            // Fall through.
+        default:
+            escaped += c;
+        }
+    }
+
+    return escaped;
 }
 
 int main(int argc, char **argv) {
@@ -95,99 +82,114 @@ int main(int argc, char **argv) {
 
     struct stat st;
     if (stat(json, &st) == -1) {
-        cerr << "Failed to look up \"" << json << "\": "
-             << strerror(errno) << endl;
+        std::cerr << "Failed to look up \"" << json << "\": " << strerror(errno)
+                  << std::endl;
         exit(EXIT_FAILURE);
     }
 
     std::vector<char> data(st.st_size + 1);
-    ifstream input(json);
+    std::ifstream input(json);
     input.read(data.data(), st.st_size);
     input.close();
 
-    cJSON *c = cJSON_Parse(data.data());
-    if (c == NULL) {
-        cerr << "Failed to parse JSON.. probably syntax error" << endl;
+    // Parsing the json data will prettify the output easily.
+    nlohmann::json parsed;
+    try {
+        parsed = nlohmann::json::parse(data.data());
+    } catch (nlohmann::json::exception& e) {
+        std::cerr << "Failed to parse JSON. " << e.what() << std::endl;
         exit(EXIT_FAILURE);
     }
 
-    ofstream headerfile(hfile);
+    auto escaped = escapeQuotes(parsed.dump());
 
-    std::string macro(hfile);
-    std::replace(macro.begin(), macro.end(), ' ', '_');
-    std::replace(macro.begin(), macro.end(), '/', '_');
-    std::replace(macro.begin(), macro.end(), '-', '_');
-    std::replace(macro.begin(), macro.end(), '.', '_');
-    std::replace(macro.begin(), macro.end(), ':', '_');
-    std::transform(macro.begin(), macro.end(), macro.begin(), ::toupper);
-
-    headerfile
-        << "/*" << endl
-        << " *     Copyright 2014 Couchbase, Inc" << endl
-        << " *" << endl
-        << " *   Licensed under the Apache License, Version 2.0 (the \"License\");" << endl
-        << " *   you may not use this file except in compliance with the License." << endl
-        << " *   You may obtain a copy of the License at" << endl
-        << " *" << endl
-        << " *       http://www.apache.org/licenses/LICENSE-2.0" << endl
-        << " *" << endl
-        << " *   Unless required by applicable law or agreed to in writing, software" << endl
-        << " *   distributed under the License is distributed on an \"AS IS\" BASIS," << endl
-        << " *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied." << endl
-        << " *   See the License for the specific language governing permissions and" << endl
-        << " *   limitations under the License." << endl
-        << " */" << endl
-        << endl
-        << "/********************************" << endl
-        << "** Generated file, do not edit **" << endl
-        << "*********************************/" << endl
-        << "#ifndef " << macro << endl
-        << "#define " << macro << endl
-        << endl
-        << "#include \"config.h\"" << endl
-        << endl
-        << "#ifdef __cplusplus" << endl
-        << "extern \"C\" {" << endl
-        << "#endif" << endl
-        << endl
-        << "const char *" << function << "(void);" << endl
-        << endl
-        << "#ifdef __cplusplus" << endl
-        << "}" << endl
-        << "#endif" << endl
-        << "#endif  /* " << macro << "*/" << endl;
+    std::ofstream headerfile(hfile);
+    headerfile << "/*" << std::endl
+               << " *     Copyright 2019 Couchbase, Inc" << std::endl
+               << " *" << std::endl
+               << " *   Licensed under the Apache License, Version 2.0 (the "
+                  "\"License\");"
+               << std::endl
+               << " *   you may not use this file except in compliance with "
+                  "the License."
+               << std::endl
+               << " *   You may obtain a copy of the License at" << std::endl
+               << " *" << std::endl
+               << " *       http://www.apache.org/licenses/LICENSE-2.0"
+               << std::endl
+               << " *" << std::endl
+               << " *   Unless required by applicable law or agreed to in "
+                  "writing, software"
+               << std::endl
+               << " *   distributed under the License is distributed on an "
+                  "\"AS IS\" BASIS,"
+               << std::endl
+               << " *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either "
+                  "express or implied."
+               << std::endl
+               << " *   See the License for the specific language governing "
+                  "permissions and"
+               << std::endl
+               << " *   limitations under the License." << std::endl
+               << " */" << std::endl
+               << std::endl
+               << "/********************************" << std::endl
+               << "** Generated file, do not edit **" << std::endl
+               << "*********************************/" << std::endl
+               << "#pragma once" << std::endl
+               << std::endl
+               << "#include \"config.h\"" << std::endl
+               << std::endl
+               << "#ifdef __cplusplus" << std::endl
+               << "extern \"C\" {" << std::endl
+               << "#endif" << std::endl
+               << std::endl
+               << "const char *" << function << "(void);" << std::endl
+               << std::endl
+               << "#ifdef __cplusplus" << std::endl
+               << "}" << std::endl
+               << "#endif" << std::endl;
     headerfile.close();
 
-    ofstream sourcefile(cfile);
-    sourcefile
-        << "/*" << endl
-        << " *     Copyright 2014 Couchbase, Inc" << endl
-        << " *" << endl
-        << " *   Licensed under the Apache License, Version 2.0 (the \"License\");" << endl
-        << " *   you may not use this file except in compliance with the License." << endl
-        << " *   You may obtain a copy of the License at" << endl
-        << " *" << endl
-        << " *       http://www.apache.org/licenses/LICENSE-2.0" << endl
-        << " *" << endl
-        << " *   Unless required by applicable law or agreed to in writing, software" << endl
-        << " *   distributed under the License is distributed on an \"AS IS\" BASIS," << endl
-        << " *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied." << endl
-        << " *   See the License for the specific language governing permissions and" << endl
-        << " *   limitations under the License." << endl
-        << " */" << endl
-        << endl
-        << "/********************************" << endl
-        << "** Generated file, do not edit **" << endl
-        << "*********************************/" << endl
-        << "#include \"config.h\"" << endl
-        << "#include \"" << hfile << "\"" << endl
-        << endl
-        << "const char *" << function << "(void)" << endl
-        << "{" << endl
-        << "    return " << c << ";" << endl
-        << "}" << endl;
-
-    cJSON_Delete(c);
-
+    std::ofstream sourcefile(cfile);
+    sourcefile << "/*" << std::endl
+               << " *     Copyright 2019 Couchbase, Inc" << std::endl
+               << " *" << std::endl
+               << " *   Licensed under the Apache License, Version 2.0 (the "
+                  "\"License\");"
+               << std::endl
+               << " *   you may not use this file except in compliance with "
+                  "the License."
+               << std::endl
+               << " *   You may obtain a copy of the License at" << std::endl
+               << " *" << std::endl
+               << " *       http://www.apache.org/licenses/LICENSE-2.0"
+               << std::endl
+               << " *" << std::endl
+               << " *   Unless required by applicable law or agreed to in "
+                  "writing, software"
+               << std::endl
+               << " *   distributed under the License is distributed on an "
+                  "\"AS IS\" BASIS,"
+               << std::endl
+               << " *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either "
+                  "express or implied."
+               << std::endl
+               << " *   See the License for the specific language governing "
+                  "permissions and"
+               << std::endl
+               << " *   limitations under the License." << std::endl
+               << " */" << std::endl
+               << std::endl
+               << "/********************************" << std::endl
+               << "** Generated file, do not edit **" << std::endl
+               << "*********************************/" << std::endl
+               << "#include \"config.h\"" << std::endl
+               << "#include \"" << hfile << "\"" << std::endl
+               << std::endl
+               << "const char *" << function << "(void)" << std::endl
+               << "{" << std::endl
+               << "    return \"" << escaped << "\";" << std::endl
+               << "}" << std::endl;
     return 0;
 }
