@@ -891,6 +891,15 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
         const queued_item& item) {
     // Note: This function is hot - it is called for every item to be
     // sent over the DCP connection.
+
+    // If this Stream supports SyncReplication then send commit_sync_write
+    // as a Commit message - otherwise it's just sent as a Mutation.
+    if ((item->getOperation() == queue_op::commit_sync_write) &&
+        (syncReplication == SyncReplication::Yes)) {
+        return std::make_unique<CommitSyncWrite>(
+                opaque_, 0, item->getBySeqno(), item->getKey());
+    }
+
     if (item->getOperation() != queue_op::system_event) {
         if (shouldModifyItem(item,
                              includeValue,

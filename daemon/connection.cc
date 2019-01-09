@@ -2306,17 +2306,19 @@ ENGINE_ERROR_CODE Connection::seqno_acknowledged(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE Connection::commit(uint32_t opaque,
-                                     uint64_t prepared_seqno,
+                                     const DocKey& key,
                                      uint64_t commit_seqno) {
-    cb::mcbp::request::DcpCommitPayload extras;
-    extras.setPreparedSeqno(prepared_seqno);
-    extras.setCommitSeqno(commit_seqno);
-    uint8_t buffer[sizeof(cb::mcbp::Request) + sizeof(extras)];
-    cb::mcbp::RequestBuilder builder({buffer, sizeof(buffer)});
+    cb::mcbp::request::DcpCommitPayload extras(0, commit_seqno);
+    // @todo-durability - include the prepared_seqno instead of key.
+    const size_t totalBytes =
+            sizeof(cb::mcbp::Request) + sizeof(extras) + key.size();
+    std::vector<uint8_t> buffer(totalBytes);
+    cb::mcbp::RequestBuilder builder({buffer.data(), buffer.size()});
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpCommit);
     builder.setOpaque(opaque);
     builder.setExtras(extras.getBuffer());
+    builder.setKey(cb::const_char_buffer(key));
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 

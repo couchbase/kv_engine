@@ -633,6 +633,13 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                     resp->getStreamId());
             break;
         }
+        case DcpResponse::Event::Commit: {
+            CommitSyncWrite* csr = static_cast<CommitSyncWrite*>(resp.get());
+            ret = producers->commit(
+                    csr->getOpaque(), csr->getKey(), csr->getCommitSeqno());
+            break;
+        }
+
         case DcpResponse::Event::Mutation:
         {
             if (itmCpy == nullptr) {
@@ -1420,6 +1427,7 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
                         case DcpResponse::Event::Deletion:
                         case DcpResponse::Event::Expiration:
                         case DcpResponse::Event::Prepare:
+                        case DcpResponse::Event::Commit:
                         case DcpResponse::Event::StreamEnd:
                         case DcpResponse::Event::SetVbucket:
                         case DcpResponse::Event::SystemEvent:

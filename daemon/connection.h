@@ -936,7 +936,7 @@ public:
                                          uint64_t on_disk_seqno) override;
 
     ENGINE_ERROR_CODE commit(uint32_t opaque,
-                             uint64_t prepared_seqno,
+                             const DocKey& key,
                              uint64_t commit_seqno) override;
 
     ENGINE_ERROR_CODE abort(uint32_t opaque,

@@ -46,6 +46,8 @@ const char* DcpResponse::to_string() const {
         return "expiration";
     case Event::Prepare:
         return "prepare";
+    case Event::Commit:
+        return "commit";
     case Event::SetVbucket:
         return "set vbucket";
     case Event::StreamReq:
@@ -79,14 +81,8 @@ uint32_t MutationResponse::getDeleteLength() const {
 uint32_t MutationResponse::getHeaderSize() const {
     switch (item_->getCommitted()) {
     case CommittedState::CommittedViaMutation:
-        return item_->isDeleted() ? getDeleteLength() : mutationBaseMsgBytes;
-
     case CommittedState::CommittedViaPrepare:
-        // @todo: length will depend on if we are sending this to
-        // synchronous replication-enabled client (as DCP_COMMIT) or not
-        // (DCP_MUTATION).
-        throw std::logic_error(
-                "MutationResponse::getMessageSize: Not implemented");
+        return item_->isDeleted() ? getDeleteLength() : mutationBaseMsgBytes;
 
     case CommittedState::Pending:
         return prepareBaseMsgBytes;
@@ -124,4 +120,18 @@ std::ostream& operator<<(std::ostream& os, const DcpResponse& r) {
     os << "DcpResponse[" << &r << "] with"
        << " event:" << r.to_string();
     return os;
+}
+
+CommitSyncWrite::CommitSyncWrite(uint32_t opaque,
+                                 uint64_t preparedSeqno,
+                                 uint64_t commitSeqno,
+                                 const DocKey& key)
+    /// @todo-durability: Remove key, use pending seqno to identify instead.
+    : DcpResponse(Event::Commit, opaque, cb::mcbp::DcpStreamId{}),
+      key(key),
+      payload(preparedSeqno, commitSeqno) {
+}
+
+uint32_t CommitSyncWrite::getMessageSize() const {
+    return commitBaseMsgBytes + key.size();
 }

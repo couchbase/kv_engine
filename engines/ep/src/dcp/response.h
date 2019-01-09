@@ -36,6 +36,7 @@ public:
         Deletion,
         Expiration,
         Prepare,
+        Commit,
         SetVbucket,
         StreamReq,
         StreamEnd,
@@ -80,6 +81,7 @@ public:
         case Event::Deletion:
         case Event::Expiration:
         case Event::Prepare:
+        case Event::Commit:
             return false;
 
         case Event::SetVbucket:
@@ -462,6 +464,13 @@ public:
     /// Returns the Event type which should be used for the given item.
     static Event eventFromItem(const Item& item) {
         switch (item.getCommitted()) {
+        case CommittedState::CommittedViaPrepare:
+            // Even though Item is CommittedViaPrepare we still use the same
+            // Events as CommittedViaMutation.
+            // This method is only used for Mutation-like Events -
+            // An actual Commit event is handled by the CommitSyncWrite
+            // subclass.
+            // FALLTHROUGH
         case CommittedState::CommittedViaMutation:
             if (item.isDeleted()) {
                 return (item.deletionSource() == DeleteSource::TTL)
@@ -470,9 +479,6 @@ public:
             }
             return Event::Mutation;
 
-        case CommittedState::CommittedViaPrepare:
-            throw std::logic_error(
-                    "MutationResponse::eventFromItem: not implemented");
         case CommittedState::Pending:
             return Event::Prepare;
         }
@@ -596,6 +602,43 @@ public:
 
 private:
     cb::mcbp::request::DcpSeqnoAcknowledgedPayload payload;
+};
+
+/**
+ * Represents the Commit of a prepared SyncWrite.
+ */
+class CommitSyncWrite : public DcpResponse {
+public:
+    CommitSyncWrite(uint32_t opaque,
+                    uint64_t preparedSeqno,
+                    uint64_t commitSeqno,
+                    const DocKey& key);
+
+    OptionalSeqno getBySeqno() const override {
+        return OptionalSeqno{payload.getCommitSeqno()};
+    }
+
+    uint32_t getMessageSize() const override;
+
+    const StoredDocKey& getKey() const {
+        return key;
+    }
+
+    uint64_t getPreparedSeqno() const {
+        return payload.getPreparedSeqno();
+    }
+
+    uint64_t getCommitSeqno() const {
+        return payload.getCommitSeqno();
+    }
+
+    static constexpr uint32_t commitBaseMsgBytes =
+            sizeof(protocol_binary_request_header) +
+            sizeof(cb::mcbp::request::DcpCommitPayload);
+
+private:
+    StoredDocKey key;
+    cb::mcbp::request::DcpCommitPayload payload;
 };
 
 /**

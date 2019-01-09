@@ -1342,6 +1342,10 @@ static_assert(sizeof(DcpSeqnoAcknowledgedPayload) == 16,
 
 class DcpCommitPayload {
 public:
+    DcpCommitPayload(uint64_t prepared, uint64_t committed)
+        : prepared_seqno(htonll(prepared)), commit_seqno(htonll(committed)) {
+    }
+
     uint64_t getPreparedSeqno() const {
         return ntohll(prepared_seqno);
     }

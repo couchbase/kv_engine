@@ -336,12 +336,14 @@ struct dcp_message_producers {
      * KV-Engine replicas of a committed Sync Write
      *
      * @param opaque
-     * @param prepared_seqno
-     * @param commit_seqno
+     * @param key The key of the committed mutation.
+     * @todo-durability change from identifying by key to the pendingSeqno -
+     * more efficient over the wire.
+     * @param commit_seqno The sequence number to commit this mutation at.
      * @return
      */
     virtual ENGINE_ERROR_CODE commit(uint32_t opaque,
-                                     uint64_t prepared_seqno,
+                                     const DocKey& key,
                                      uint64_t commit_seqno) = 0;
     /**
      * Send an abort message:
