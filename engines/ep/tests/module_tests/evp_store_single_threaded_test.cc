@@ -4070,6 +4070,21 @@ TEST_F(SingleThreadedEPBucketTest, testValidTombstonePurgeOnRetainErroneousTombs
     EXPECT_EQ(2, store->getVBucket(vbid)->getPurgeSeqno());
 }
 
+TEST_F(SingleThreadedEPBucketTest, Durability_DoNotPersistPendings) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto item = makePendingItem(makeStoredDocKey("key"), "value");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(item, cookie));
+
+    auto& ckptMgr = getEPBucket().getVBucket(vbid)->checkpointManager;
+    ASSERT_EQ(1, ckptMgr->getNumOpenChkItems());
+    ASSERT_EQ(1, ckptMgr->getNumItemsForPersistence());
+
+    EXPECT_EQ(std::make_pair(false, size_t(0)),
+              getEPBucket().flushVBucket(vbid));
+    ASSERT_EQ(0, ckptMgr->getNumItemsForPersistence());
+}
+
 INSTANTIATE_TEST_CASE_P(XattrSystemUserTest,
                         XattrSystemUserTest,
                         ::testing::Bool(), );
