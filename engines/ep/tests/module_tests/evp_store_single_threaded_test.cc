@@ -4076,13 +4076,15 @@ TEST_F(SingleThreadedEPBucketTest, Durability_DoNotPersistPendings) {
     auto item = makePendingItem(makeStoredDocKey("key"), "value");
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(item, cookie));
 
-    auto& ckptMgr = getEPBucket().getVBucket(vbid)->checkpointManager;
+    const auto& ckptMgr = getEPBucket().getVBucket(vbid)->checkpointManager;
     ASSERT_EQ(1, ckptMgr->getNumOpenChkItems());
     ASSERT_EQ(1, ckptMgr->getNumItemsForPersistence());
+    ASSERT_EQ(1, engine->getEpStats().diskQueueSize);
 
     EXPECT_EQ(std::make_pair(false, size_t(0)),
               getEPBucket().flushVBucket(vbid));
-    ASSERT_EQ(0, ckptMgr->getNumItemsForPersistence());
+    EXPECT_EQ(0, ckptMgr->getNumItemsForPersistence());
+    EXPECT_EQ(0, engine->getEpStats().diskQueueSize);
 }
 
 INSTANTIATE_TEST_CASE_P(XattrSystemUserTest,
