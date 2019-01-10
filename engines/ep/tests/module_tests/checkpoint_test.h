@@ -67,6 +67,11 @@ protected:
     std::unique_ptr<CheckpointManager> manager;
 };
 
+// Set of vBucket classes to test.
+// @todo: Why isn't Ephemeral in this set?
+class EPVBucket;
+using VBucketTypes = ::testing::Types<EPVBucket>;
+
 /*
  * Test fixture for single-threaded Checkpoint tests
  */

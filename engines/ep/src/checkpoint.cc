@@ -43,6 +43,8 @@ std::string to_string(QueueDirtyStatus value) {
         return "persist again";
     case QueueDirtyStatus::SuccessNewItem:
         return "new item";
+    case QueueDirtyStatus::FailureDuplicateItem:
+        return "failure:duplicate item";
     }
 
     throw std::invalid_argument("to_string(QueueDirtyStatus): Invalid value: " +
@@ -143,15 +145,15 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
     } else {
         // Check if this checkpoint already had an item for the same key
         if (it != keyIndex.end()) {
-            if (qi->getOperation() == queue_op::pending_sync_write) {
-                // @todo: Need to actually avoid de-duplication.
-                throw std::logic_error(
-                        "Checkpoint::queueDirty: About to de-dupe a pending "
-                        "syncWrite!");
+            const auto currPos = it->second.position;
+            if ((*currPos)->getCommitted() !=
+                CommittedState::CommittedViaMutation) {
+                // Cannot de-duplicate existing SyncWrite items (either Pending
+                // or Committed SyncWrites).
+                return QueueDirtyStatus::FailureDuplicateItem;
             }
 
             rv = QueueDirtyStatus::SuccessExistingItem;
-            CheckpointQueue::iterator currPos = it->second.position;
             const int64_t currMutationId{it->second.mutation_id};
 
             // Given the key already exists, need to check all cursors in this

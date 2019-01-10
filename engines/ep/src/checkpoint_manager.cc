@@ -539,14 +539,12 @@ bool CheckpointManager::queueDirty(
         checkOpenCheckpoint_UNLOCKED(lh, false, true);
     }
 
-    auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
+    auto* openCkpt = &getOpenCheckpoint_UNLOCKED(lh);
 
     if (GenerateBySeqno::Yes == generateBySeqno) {
-        qi->setBySeqno(++lastBySeqno);
-        openCkpt.setSnapshotEndSeqno(lastBySeqno);
-    } else {
-        lastBySeqno = qi->getBySeqno();
+        qi->setBySeqno(lastBySeqno + 1);
     }
+    const auto newLastBySeqno = qi->getBySeqno();
 
     // MB-20798: Allow the HLC to be created 'atomically' with the seqno as
     // we're holding the ::queueLock.
@@ -554,12 +552,57 @@ bool CheckpointManager::queueDirty(
         auto cas = vb.nextHLCCas();
         qi->setCas(cas);
         if (preLinkDocumentContext != nullptr) {
-            preLinkDocumentContext->preLink(cas, lastBySeqno);
+            preLinkDocumentContext->preLink(cas, newLastBySeqno);
         }
     }
 
-    auto snapStart = openCkpt.getSnapshotStartSeqno();
-    auto snapEnd = openCkpt.getSnapshotEndSeqno();
+    QueueDirtyStatus result = openCkpt->queueDirty(qi, this);
+
+    if (result == QueueDirtyStatus::FailureDuplicateItem) {
+        // Could not queue into the current checkpoint as it already has a
+        // duplicate item (and not permitted to de-dupe this item).
+        if (vb.getState() != vbucket_state_active) {
+            // We shouldn't see this for non-active vBuckets; given the original
+            // (active) vBucket on some other node should not have put duplicate
+            // mutations in the same Checkpoint.
+            throw std::logic_error(
+                    "CheckpointManager::queueDirty(vb:" +
+                    vbucketId.to_string() +
+                    ") - got Ckpt::queueDirty() status:" + to_string(result) +
+                    " when vbstate is non-active:" +
+                    std::to_string(vb.getState()));
+        }
+
+        // To process this item, create a new (empty) checkpoint which we can
+        // then re-attempt the enqueuing.
+        // Note this uses the lastBySeqno for snapStart / End.
+        checkOpenCheckpoint_UNLOCKED(lh, /*force*/ true, false);
+        openCkpt = &getOpenCheckpoint_UNLOCKED(lh);
+        result = openCkpt->queueDirty(qi, this);
+        if (result != QueueDirtyStatus::SuccessNewItem) {
+            throw std::logic_error(
+                    "CheckpointManager::queueDirty(vb:" +
+                    vbucketId.to_string() +
+                    ") - got Ckpt::queueDirty() status:" + to_string(result) +
+                    " even after creating a new Checkpoint.");
+        }
+        EP_LOG_WARN(
+                "CheckpointManager::queueDirty: Had to create new empty "
+                "checkpoint for item which cannot be de-duplicated. Item:{} "
+                "CheckpointManager:{}",
+                *qi,
+                *this);
+    }
+
+    lastBySeqno = newLastBySeqno;
+    if (GenerateBySeqno::Yes == generateBySeqno) {
+        // Now the item has been queued, update snapshotEndSeqno.
+        openCkpt->setSnapshotEndSeqno(lastBySeqno);
+    }
+
+    // Sanity check that the last seqno is within the open Checkpoint extent.
+    auto snapStart = openCkpt->getSnapshotStartSeqno();
+    auto snapEnd = openCkpt->getSnapshotEndSeqno();
     if (!(snapStart <= static_cast<uint64_t>(lastBySeqno) &&
           static_cast<uint64_t>(lastBySeqno) <= snapEnd)) {
         throw std::logic_error(
@@ -574,8 +617,6 @@ bool CheckpointManager::queueDirty(
                 std::to_string(checkpointList.size()));
     }
 
-    QueueDirtyStatus result = openCkpt.queueDirty(qi, this);
-
     switch (result) {
     case QueueDirtyStatus::SuccessExistingItem:
         ++stats.totalDeduplicated;
@@ -586,6 +627,11 @@ bool CheckpointManager::queueDirty(
     case QueueDirtyStatus::SuccessPersistAgain:
         updateStatsForNewQueuedItem_UNLOCKED(lh, vb, qi);
         return true;
+    case QueueDirtyStatus::FailureDuplicateItem:
+        throw std::logic_error(
+                "CheckpointManager::queueDirty: Got invalid "
+                "result:FailureDuplicateItem - should have been handled with "
+                "retry.");
     }
     throw std::logic_error("queueDirty: Invalid value for QueueDirtyStatus: " +
                            std::to_string(int(result)));

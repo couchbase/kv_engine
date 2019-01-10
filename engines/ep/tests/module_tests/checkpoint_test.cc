@@ -16,6 +16,7 @@
  */
 
 #include "checkpoint_test.h"
+#include "checkpoint_test_impl.h"
 
 #include "config.h"
 
@@ -192,7 +193,6 @@ static void launch_set_thread(void *arg) {
     }
 }
 
-typedef ::testing::Types<EPVBucket> VBucketTypes;
 TYPED_TEST_CASE(CheckpointTest, VBucketTypes);
 
 TYPED_TEST(CheckpointTest, basic_chk_test) {
@@ -305,8 +305,6 @@ TYPED_TEST(CheckpointTest, CheckFixture) {
     EXPECT_EQ(1, items.size());
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
 }
-
-MATCHER_P(HasOperation, op, "") { return arg->getOperation() == op; }
 
 // Basic test of a single, open checkpoint.
 TYPED_TEST(CheckpointTest, OneOpenCkpt) {

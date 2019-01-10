@@ -186,6 +186,12 @@ enum class QueueDirtyStatus {
      * increase the size of the checkpoint.
      */
     SuccessNewItem,
+
+    /**
+     * queueDirty failed - an item exists with the same key which cannot be
+     * de-duplicated (for example a SyncWrite).
+     */
+    FailureDuplicateItem,
 };
 
 std::string to_string(QueueDirtyStatus value);
