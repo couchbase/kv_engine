@@ -2324,7 +2324,9 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
             MicrosecondStopwatch(stats.storeCmdHisto),
             TracerStopwatch(cookie, cb::tracing::TraceCode::STORE));
 
-    // Check if this is a in-progress durable store which has now completed:
+    // Check if this is a in-progress durable store which has now completed -
+    // (see 'case EWOULDBLOCK' at the end of this function where we record
+    // the fact we must block the client until the SycnWrite is durable).
     if (item.getCommitted() == CommittedState::Pending &&
         getEngineSpecific(cookie) != nullptr) {
         // Non-null means this is the second call to this function after
