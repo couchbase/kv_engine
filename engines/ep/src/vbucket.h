@@ -495,24 +495,16 @@ public:
 
     static const char* toString(vbucket_state_t s) {
         switch(s) {
-        case vbucket_state_alive:
-            return "alive";
-        case vbucket_state_active:
-            return "active";
-        case vbucket_state_replica:
-            return "replica";
-        case vbucket_state_pending:
-            return "pending";
-        case vbucket_state_dead:
-            return "dead";
+        case vbucket_state_active: return "active"; break;
+        case vbucket_state_replica: return "replica"; break;
+        case vbucket_state_pending: return "pending"; break;
+        case vbucket_state_dead: return "dead"; break;
         }
         return "unknown";
     }
 
     static vbucket_state_t fromString(const char* state) {
-        if (strcmp(state, "alive") == 0) {
-            return vbucket_state_alive;
-        } else if (strcmp(state, "active") == 0) {
+        if (strcmp(state, "active") == 0) {
             return vbucket_state_active;
         } else if (strcmp(state, "replica") == 0) {
             return vbucket_state_replica;
