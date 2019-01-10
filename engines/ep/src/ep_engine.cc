@@ -3343,8 +3343,14 @@ public:
     }
 
     ~AddStatsStream() {
+        // The ADD_STAT callback may allocate memory (temporary buffers for
+        // stat data) which will be de-allocated inside the server (i.e.
+        // after the engine call has returned). As such we do not want to
+        // account such memory against this bucket.
+        auto* e = ObjectRegistry::onSwitchThread(nullptr, true);
         auto value = buf.str();
         callback(key.data(), key.size(), value.data(), value.size(), cookie);
+        ObjectRegistry::onSwitchThread(e);
     }
 
 private:
