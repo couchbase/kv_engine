@@ -8,7 +8,7 @@ import mc_bin_client
 import sys
 
 if len(sys.argv) < 7:
-    print("Usage: {} <host[:port]> <user> <password> <bucket> <op> <key> [value]".format(sys.argv[0]), file = sys.stderr)
+    print("Usage: {} <host[:port]> <user> <password> <bucket> <op> <key> [value] [args]".format(sys.argv[0]), file = sys.stderr)
     sys.exit(1)
 
 (host, port) = sys.argv[1].split(":")
@@ -32,6 +32,14 @@ elif op == "set":
     print (client.set(key, 0, 0, value))
 elif op == "setD":
     print (client.setDurable(key, 0, 0, value))
+elif op == "bulk_setD":
+    count = int(sys.argv[8])
+    for i in range(count):
+        client.setDurable(key + "_" + str(i), 0, 0, value)
+elif op == "loop_setD":
+    count = int(sys.argv[8])
+    for i in range(count):
+        print (client.setDurable(key, 0, 0, value))
 elif op == "add":
     print (client.add(key, 0, 0, value))
 elif op == "addD":
@@ -41,8 +49,8 @@ elif op == "replace":
 elif op == "replaceD":
     print (client.replaceDurable(key, 0, 0, value))
 elif op == "delete":
-    print (client.delete(key, 0, 0))
+    print (client.delete(key))
 elif op == "deleteD":
-    print (client.deleteDurable(key, 0, 0))
+    print (client.deleteDurable(key))
 else:
     print("Unknown op '" + op + "'", file=sys.stderr)

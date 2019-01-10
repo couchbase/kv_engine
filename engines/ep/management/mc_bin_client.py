@@ -620,6 +620,14 @@ class MemcachedClient(object):
         """Delete the value for a given key within the memcached server."""
         return self._doCmd(memcacheConstants.CMD_DELETE, key, '', '', cas, collection=collection)
 
+    def deleteDurable(self, key, cas=0,
+                      level=memcacheConstants.DURABILITY_LEVEL_MAJORITY,
+                      collection=None):
+        """Delete the value for a given key with the given durability requirements"""
+        flex = self._encodeDurabilityFlex(level)
+        return self._doAltCmd(memcacheConstants.CMD_DELETE, flex, key,
+                              '', '', cas, collection=collection)
+
     def flush(self, timebomb=0):
         """Flush all storage in a memcached instance."""
         return self._doCmd(memcacheConstants.CMD_FLUSH, '', '',
