@@ -574,22 +574,20 @@ bool CheckpointManager::queueDirty(
                 std::to_string(checkpointList.size()));
     }
 
-    queue_dirty_t result = openCkpt.queueDirty(qi, this);
-
-    if (result == queue_dirty_t::NEW_ITEM) {
-        ++numItems;
-    }
+    QueueDirtyStatus result = openCkpt.queueDirty(qi, this);
 
     switch (result) {
-        case queue_dirty_t::EXISTING_ITEM:
-            ++stats.totalDeduplicated;
-            return false;
-        case queue_dirty_t::PERSIST_AGAIN:
-        case queue_dirty_t::NEW_ITEM:
-            updateStatsForNewQueuedItem_UNLOCKED(lh, vb, qi);
-            return true;
+    case QueueDirtyStatus::SuccessExistingItem:
+        ++stats.totalDeduplicated;
+        return false;
+    case QueueDirtyStatus::SuccessNewItem:
+        ++numItems;
+        // FALLTHROUGH
+    case QueueDirtyStatus::SuccessPersistAgain:
+        updateStatsForNewQueuedItem_UNLOCKED(lh, vb, qi);
+        return true;
     }
-    throw std::logic_error("queueDirty: Invalid value for queue_dirty_t: " +
+    throw std::logic_error("queueDirty: Invalid value for QueueDirtyStatus: " +
                            std::to_string(int(result)));
 }
 
@@ -604,13 +602,13 @@ void CheckpointManager::queueSetVBState(VBucket& vb) {
     auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
     const auto result = openCkpt.queueDirty(item, this);
 
-    if (result == queue_dirty_t::NEW_ITEM) {
+    if (result == QueueDirtyStatus::SuccessNewItem) {
         ++numItems;
         updateStatsForNewQueuedItem_UNLOCKED(lh, vb, item);
     } else {
         throw std::logic_error(
                 "CheckpointManager::queueSetVBState: "
-                "expected: NEW_ITEM, got:" +
+                "expected: SuccessNewItem, got:" +
                 to_string(result) + "after queueDirty. " +
                 vbucketId.to_string());
     }

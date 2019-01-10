@@ -35,17 +35,17 @@ const char* to_string(enum checkpoint_state s) {
     return "<unknown>";
 }
 
-std::string to_string(queue_dirty_t value) {
+std::string to_string(QueueDirtyStatus value) {
     switch (value) {
-    case queue_dirty_t::EXISTING_ITEM:
+    case QueueDirtyStatus::SuccessExistingItem:
         return "exitsting item";
-    case queue_dirty_t::PERSIST_AGAIN:
+    case QueueDirtyStatus::SuccessPersistAgain:
         return "persist again";
-    case queue_dirty_t::NEW_ITEM:
+    case QueueDirtyStatus::SuccessNewItem:
         return "new item";
     }
 
-    throw std::invalid_argument("to_string(queue_dirty_t): Invalid value: " +
+    throw std::invalid_argument("to_string(QueueDirtyStatus): Invalid value: " +
                                 std::to_string(int(value)));
 }
 
@@ -127,18 +127,18 @@ bool Checkpoint::keyExists(const DocKey& key) {
     return keyIndex.find(key) != keyIndex.end();
 }
 
-queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
-                                     CheckpointManager *checkpointManager) {
+QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
+                                        CheckpointManager* checkpointManager) {
     if (checkpointState != CHECKPOINT_OPEN) {
         throw std::logic_error("Checkpoint::queueDirty: checkpointState "
                         "(which is" + std::to_string(checkpointState) +
                         ") is not OPEN");
     }
-    queue_dirty_t rv;
+    QueueDirtyStatus rv;
     checkpoint_index::iterator it = keyIndex.find(qi->getKey());
     // Check if the item is a meta item
     if (qi->isCheckPointMetaItem()) {
-        rv = queue_dirty_t::NEW_ITEM;
+        rv = QueueDirtyStatus::SuccessNewItem;
         addItemToCheckpoint(qi);
     } else {
         // Check if this checkpoint already had an item for the same key
@@ -150,7 +150,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
                         "syncWrite!");
             }
 
-            rv = queue_dirty_t::EXISTING_ITEM;
+            rv = QueueDirtyStatus::SuccessExistingItem;
             CheckpointQueue::iterator currPos = it->second.position;
             const int64_t currMutationId{it->second.mutation_id};
 
@@ -197,7 +197,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
                         if (currMutationId <= cursor_mutation_id) {
                             // Cursor has already processed the previous
                             // value for this key so need to persist again.
-                            rv = queue_dirty_t::PERSIST_AGAIN;
+                            rv = QueueDirtyStatus::SuccessPersistAgain;
                         }
                     }
                     /* If a cursor points to the existing item for the same
@@ -220,7 +220,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
             // increases the number by one.
             --numItems;
         } else {
-            rv = queue_dirty_t::NEW_ITEM;
+            rv = QueueDirtyStatus::SuccessNewItem;
             addItemToCheckpoint(qi);
         }
     }
@@ -237,7 +237,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
         } else {
             keyIndex[qi->getKey()] = entry;
         }
-        if (rv == queue_dirty_t::NEW_ITEM) {
+        if (rv == QueueDirtyStatus::SuccessNewItem) {
             size_t newEntrySize = qi->getKey().size() +
                                   sizeof(index_entry) + sizeof(queued_item);
             memOverhead += newEntrySize;

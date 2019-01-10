@@ -1000,7 +1000,7 @@ TYPED_TEST(CheckpointTest, CursorUpdateForExistingItemWithNonMetaItemAtHead) {
 
 // Regression test for MB-21925 - when a duplicate key is queued and the
 // persistence cursor is still positioned on the initial dummy key,
-// should return EXISTING_ITEM.
+// should return SuccessExistingItem.
 TYPED_TEST(CheckpointTest,
            MB21925_QueueDuplicateWithPersistenceCursorOnInitialMetaItem) {
     // Need a manager starting from seqno zero.

@@ -163,13 +163,14 @@ std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c);
 /**
  * Result from invoking queueDirty in the current open checkpoint.
  */
-enum class queue_dirty_t {
+enum class QueueDirtyStatus {
     /*
      * The item exists on the right hand side of the persistence cursor - i.e.
      * the persistence cursor has not yet processed this key.
-     * The item will be deduplicated and doesn't change the size of the checkpoint.
+     * The item will be deduplicated and doesn't change the size of the
+     * checkpoint.
      */
-    EXISTING_ITEM,
+    SuccessExistingItem,
 
     /**
      * The item exists on the left hand side of the persistence cursor - i.e.
@@ -178,16 +179,16 @@ enum class queue_dirty_t {
      * It will be dedeuplicated and moved the to right hand side, but the item
      * needs to be re-persisted.
      */
-    PERSIST_AGAIN,
+    SuccessPersistAgain,
 
     /**
      * The item doesn't exist yet in the checkpoint. Adding this item will
      * increase the size of the checkpoint.
      */
-    NEW_ITEM
+    SuccessNewItem,
 };
 
-std::string to_string(queue_dirty_t value);
+std::string to_string(QueueDirtyStatus value);
 
 /**
  * Representation of a checkpoint used in the unified queue for persistence and
@@ -349,8 +350,8 @@ public:
      * @param bySeqno the by sequence number assigned to this mutation
      * @return a result indicating the status of the operation.
      */
-    queue_dirty_t queueDirty(const queued_item &qi,
-                             CheckpointManager *checkpointManager);
+    QueueDirtyStatus queueDirty(const queued_item& qi,
+                                CheckpointManager* checkpointManager);
 
     uint64_t getLowSeqno() const {
         auto pos = toWrite.begin();
