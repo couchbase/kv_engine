@@ -46,6 +46,7 @@ StoredValue::StoredValue(const Item& itm,
       flags(itm.getFlags()),
       revSeqno(itm.getRevSeqno()),
       datatype(itm.getDataType()),
+      deletionSource(0),
       committed(static_cast<uint8_t>(CommittedState::CommittedViaMutation)) {
     // Initialise bit fields
     setDeletedPriv(itm.isDeleted());
@@ -338,10 +339,13 @@ void StoredValue::setValueImpl(const Item& itm) {
     }
 
     setDeletedPriv(itm.isDeleted());
+    if (itm.isDeleted()) {
+        setDeletionSource(itm.deletionSource());
+    }
+
     flags = itm.getFlags();
     datatype = itm.getDataType();
     bySeqno = itm.getBySeqno();
-
     cas = itm.getCas();
     lock_expiry_or_delete_time = 0;
     exptime = itm.getExptime();
@@ -452,6 +456,11 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
         const auto* osv = sv.toOrderedStoredValue();
         os << (osv->isStalePriv() ? 'S' : '.');
     }
+
+    if (sv.isDeleted() && sv.getDeletionSource() == DeleteSource::TTL) {
+        os << "TTL";
+    }
+
     os << ' ';
 
     // Temporary states

@@ -370,6 +370,26 @@ TEST(StoredValueTest, expectedSize) {
             << "Unexpected change in StoredValue storage size for key: " << key;
 }
 
+// Validate the deletion source propagates via setValue
+TYPED_TEST(ValueTest, MB_32568) {
+    Item itm(makeStoredDocKey("k"),
+             0,
+             0,
+             (const value_t)TaggedPtr<Blob>{},
+             PROTOCOL_BINARY_RAW_BYTES,
+             0,
+             StoredValue::state_temp_init);
+    itm.setDeleted();
+    this->sv->setValue(itm);
+    EXPECT_EQ(DeleteSource::Explicit, this->sv->getDeletionSource());
+
+    // And now for TTL
+    this->sv = this->factory(this->item, {});
+    itm.setDeleted(DeleteSource::TTL);
+    this->sv->setValue(itm);
+    EXPECT_EQ(DeleteSource::TTL, this->sv->getDeletionSource());
+}
+
 /**
  * Test fixture for OrderedStoredValue-only tests.
  */
