@@ -1203,6 +1203,11 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm) {
     return ret;
 }
 
+void VBucket::addDurabilityMonitorStats(ADD_STAT addStat,
+                                        const void* cookie) const {
+    durabilityMonitor->addStats(addStat, cookie);
+}
+
 ENGINE_ERROR_CODE VBucket::setWithMeta(
         Item& itm,
         uint64_t cas,

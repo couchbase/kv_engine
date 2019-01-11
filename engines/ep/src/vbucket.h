@@ -608,6 +608,14 @@ public:
 
     virtual void addStats(bool details, ADD_STAT add_stat, const void* c) = 0;
 
+    /**
+     * Output DurabiltyMonitor stats.
+     *
+     * @param addStat the callback to memcached
+     * @param cookie
+     */
+    void addDurabilityMonitorStats(ADD_STAT addStat, const void* cookie) const;
+
     virtual KVShard* getShard() = 0;
 
     /**

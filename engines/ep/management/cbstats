@@ -767,6 +767,18 @@ def stats_dispatcher(mc, with_logs='no'):
                     print "        ---------"
 
 @cmd
+def stats_durability_monitor(mc, vb=-1):
+    try:
+        vb = int(vb)
+        if vb == -1:
+            cmd = 'durability-monitor'
+        else:
+            cmd = "durability-monitor %s" % (str(vb))
+        stats_formatter(stats_perform(mc, cmd))
+    except ValueError:
+        print 'Specified vbucket \"%s\" is not valid' % str(vb)
+
+@cmd
 def stats_tasks(mc, *args):
     tasks_stats_formatter(stats_perform(mc, 'tasks'), *args)
 
@@ -796,6 +808,7 @@ def main():
     c.addCommand('checkpoint', stats_checkpoint, 'checkpoint [vbid]')
     c.addCommand('config', stats_config, 'config')
     c.addCommand('diskinfo', stats_diskinfo, 'diskinfo [detail]')
+    c.addCommand('durability-monitor', stats_durability_monitor, 'durability-monitor [vbid]')
     c.addCommand('eviction', stats_eviction, 'eviction')
     c.addCommand('scheduler', stats_scheduler, 'scheduler')
     c.addCommand('runtimes', stats_runtimes, 'runtimes')

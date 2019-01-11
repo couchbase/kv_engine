@@ -3362,6 +3362,35 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doDurabilityMonitorStats(
+        const void* cookie, ADD_STAT add_stat, const char* stat_key, int nkey) {
+    const uint8_t size = 18; // size  of "durability-monitor"
+    if (nkey == size) {
+        // Case stat_key = "durability-monitor"
+        // @todo: Return aggregated stats for all VBuckets.
+        //     Implement as async, we don't what to block for too long.
+        return ENGINE_ENOTSUP;
+    } else if (nkey > size + 1) {
+        // Case stat_key = "durability-monitor <vbid>"
+        const uint16_t vbidPos = size + 1;
+        std::string vbid_(&stat_key[vbidPos], nkey - vbidPos);
+        uint16_t vbid(0);
+        if (!parseUint16(vbid_.c_str(), &vbid)) {
+            return ENGINE_EINVAL;
+        }
+
+        VBucketPtr vb = getVBucket(Vbid(vbid));
+        if (!vb) {
+            // @todo: I would return an error code, but just replicating the
+            //     behaviour of other stats for now
+            return ENGINE_SUCCESS;
+        }
+        vb->addDurabilityMonitorStats(add_stat, cookie);
+    }
+
+    return ENGINE_SUCCESS;
+}
+
 /**
  * Function object to send stats for a single dcp connection.
  */
@@ -4024,6 +4053,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doVBucketStats(cookie, add_stat, stat_key, nkey, true, false);
     } else if (cb_isPrefix(statKey, "checkpoint")) {
         rv = doCheckpointStats(cookie, add_stat, stat_key, nkey);
+    } else if (cb_isPrefix(statKey, "durability-monitor")) {
+        rv = doDurabilityMonitorStats(cookie, add_stat, stat_key, nkey);
     } else if (statKey == "timings") {
         rv = doTimingStats(cookie, add_stat);
     } else if (statKey == "dispatcher") {

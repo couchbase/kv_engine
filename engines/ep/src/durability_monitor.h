@@ -19,6 +19,7 @@
 #include "ep_types.h"
 
 #include "memcached/durability_spec.h"
+#include "memcached/engine_common.h"
 #include "memcached/engine_error.h"
 
 #include <list>
@@ -102,6 +103,14 @@ public:
      */
     ENGINE_ERROR_CODE seqnoAckReceived(const std::string& replica,
                                        int64_t memorySeqno);
+
+    /**
+     * Output DurabiltyMonitor stats.
+     *
+     * @param addStat the callback to memcached
+     * @param cookie
+     */
+    void addStats(ADD_STAT addStat, const void* cookie) const;
 
 protected:
     class SyncWrite;

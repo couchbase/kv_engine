@@ -826,6 +826,10 @@ protected:
                                  cb::const_char_buffer keyArgs);
     ENGINE_ERROR_CODE doCheckpointStats(const void *cookie, ADD_STAT add_stat,
                                         const char* stat_key, int nkey);
+    ENGINE_ERROR_CODE doDurabilityMonitorStats(const void* cookie,
+                                               ADD_STAT add_stat,
+                                               const char* stat_key,
+                                               int nkey);
     ENGINE_ERROR_CODE doCheckpointDump(const void* cookie,
                                        ADD_STAT addStat,
                                        cb::const_char_buffer keyArgs);

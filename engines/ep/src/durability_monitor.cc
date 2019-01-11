@@ -16,8 +16,11 @@
  */
 
 #include "durability_monitor.h"
+
+#include "bucket_logger.h"
 #include "item.h"
 #include "monotonic.h"
+#include "statwriter.h"
 #include "stored-value.h"
 #include "vbucket.h"
 
@@ -250,6 +253,48 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
     }
 
     return ENGINE_SUCCESS;
+}
+
+void DurabilityMonitor::addStats(ADD_STAT addStat, const void* cookie) const {
+    std::lock_guard<std::mutex> lg(state.m);
+    char buf[256];
+
+    try {
+        const auto vbid = vb.getId().get();
+
+        checked_snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
+        add_casted_stat(buf, VBucket::toString(vb.getState()), addStat, cookie);
+
+        checked_snprintf(buf, sizeof(buf), "vb_%d:num_tracked", vbid);
+        add_casted_stat(buf, getNumTracked(lg), addStat, cookie);
+
+        checked_snprintf(
+                buf, sizeof(buf), "vb_%d:replication_chain_first:size", vbid);
+        add_casted_stat(buf, getReplicationChainSize(lg), addStat, cookie);
+
+        for (const auto& entry : state.firstChain->memoryPositions) {
+            const auto* replica = entry.first.c_str();
+            const auto& pos = entry.second;
+
+            checked_snprintf(
+                    buf,
+                    sizeof(buf),
+                    "vb_%d:replication_chain_first:%s:last_sync_write_seqno",
+                    vbid,
+                    replica);
+            add_casted_stat(buf, pos.lastSyncWriteSeqno, addStat, cookie);
+            checked_snprintf(buf,
+                             sizeof(buf),
+                             "vb_%d:replication_chain_first:%s:last_ack_seqno",
+                             vbid,
+                             replica);
+            add_casted_stat(buf, pos.lastAckSeqno, addStat, cookie);
+        }
+
+    } catch (const std::exception& e) {
+        EP_LOG_WARN("DurabilityMonitor::addStats: error building stats: {}",
+                    e.what());
+    }
 }
 
 size_t DurabilityMonitor::getNumTracked(
