@@ -202,6 +202,9 @@ TEST_F(HashTablePerspectiveTest, CommitExisting) {
     EXPECT_EQ(*readView, *writeView);
 
     EXPECT_EQ(1, ht.getNumItems());
+
+    // Should be CommittedViaPrepare
+    EXPECT_EQ(CommittedState::CommittedViaPrepare, readView->getCommitted());
 }
 
 // Negative test - check it is not possible to commit a non-pending item.
@@ -220,4 +223,38 @@ TEST_F(HashTablePerspectiveTest, CommitNonPendingFails) {
         EXPECT_THROW(ht.commit(result.lock, *result.storedValue),
                      std::invalid_argument);
     }
+}
+
+// Test that a normal set after a Committed SyncWrite is allowed and handled
+// correctly.
+TEST_F(HashTablePerspectiveTest, MutationAfterCommit) {
+    // Setup - Commit a SyncWrite into the HashTable.
+    auto pending = makePendingItem(key, "pending"s);
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*pending));
+    ASSERT_EQ(1, ht.getNumItems());
+    { // locking scope.
+        // Check preconditions - item should be found as pending.
+        auto result = ht.findForWrite(key);
+        ASSERT_TRUE(result.storedValue);
+        ASSERT_EQ(CommittedState::Pending, result.storedValue->getCommitted());
+        ht.commit(result.lock, *result.storedValue);
+
+        ASSERT_EQ(CommittedState::CommittedViaPrepare,
+                  result.storedValue->getCommitted());
+    }
+
+    // Test - attempt to update with a normal Mutation (should be allowed).
+    auto committed = makeCommittedItem(key, "mutation"s);
+    ASSERT_EQ(MutationStatus::WasDirty, ht.set(*committed));
+
+    // Check postconditions
+    // 1. Should only have 1 item (and should be same)
+    auto readView = ht.findForRead(key).storedValue;
+    auto writeView = ht.findForWrite(key).storedValue;
+    EXPECT_TRUE(readView);
+    EXPECT_TRUE(writeView);
+    EXPECT_EQ(*readView, *writeView);
+
+    // Should be CommittedViaMutation
+    EXPECT_EQ(CommittedState::CommittedViaMutation, readView->getCommitted());
 }

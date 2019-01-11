@@ -359,6 +359,7 @@ void StoredValue::setValueImpl(const Item& itm) {
         setResident(true);
         replaceValue(itm.getValue().get());
     }
+    setCommitted(itm.getCommitted());
 }
 
 bool StoredValue::compressValue() {

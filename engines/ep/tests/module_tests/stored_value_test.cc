@@ -320,6 +320,28 @@ TYPED_TEST(ValueTest, restoreMeta) {
     EXPECT_EQ(4, this->sv->getFreqCounterValue());
 }
 
+// Check that CommittedState is correctly copied from an Item object.
+TYPED_TEST(ValueTest, committedState) {
+    Item itm(makeStoredDocKey("k"),
+             0,
+             0,
+             (const value_t)TaggedPtr<Blob>{},
+             PROTOCOL_BINARY_RAW_BYTES,
+             0,
+             1);
+
+    this->sv->setValue(itm);
+    EXPECT_EQ(CommittedState::CommittedViaMutation, this->sv->getCommitted());
+
+    itm.setPendingSyncWrite({cb::durability::Level::Majority, 0});
+    this->sv->setValue(itm);
+    EXPECT_EQ(CommittedState::Pending, this->sv->getCommitted());
+
+    itm.setCommittedviaPrepareSyncWrite();
+    this->sv->setValue(itm);
+    EXPECT_EQ(CommittedState::CommittedViaPrepare, this->sv->getCommitted());
+}
+
 /**
  *  Test that an mutation does not reset the frequency counter
  */
