@@ -142,7 +142,13 @@ nlohmann::json Connection::toJSON() const {
     ret["internal"] = isInternal();
 
     if (authenticated) {
-        ret["username"] = username.c_str();
+        if (internal) {
+            // We want to be able to map these connections, and given
+            // that it is internal we don't reveal any user data
+            ret["username"] = username;
+        } else {
+            ret["username"] = cb::tagUserData(username);
+        }
     }
 
     ret["nodelay"] = nodelay;
