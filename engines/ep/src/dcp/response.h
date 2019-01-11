@@ -580,16 +580,22 @@ protected:
 class SeqnoAcknowledgement : public DcpResponse {
 public:
     SeqnoAcknowledgement(uint32_t opaque,
+                         Vbid vbucket,
                          uint64_t inMemorySeqno,
                          uint64_t onDiskSeqno)
         : DcpResponse(
                   Event::SeqnoAcknowledgement, opaque, cb::mcbp::DcpStreamId{}),
+          vbucket(vbucket),
           payload(inMemorySeqno, onDiskSeqno) {
     }
 
     uint32_t getMessageSize() const override {
         return sizeof(protocol_binary_request_header) +
                sizeof(cb::mcbp::request::DcpSeqnoAcknowledgedPayload);
+    }
+
+    Vbid getVbucket() const {
+        return vbucket;
     }
 
     uint64_t getInMemorySeqno() const {
@@ -601,6 +607,7 @@ public:
     }
 
 private:
+    Vbid vbucket;
     cb::mcbp::request::DcpSeqnoAcknowledgedPayload payload;
 };
 
@@ -610,6 +617,7 @@ private:
 class CommitSyncWrite : public DcpResponse {
 public:
     CommitSyncWrite(uint32_t opaque,
+                    Vbid vbucket,
                     uint64_t preparedSeqno,
                     uint64_t commitSeqno,
                     const DocKey& key);
@@ -622,6 +630,10 @@ public:
 
     const StoredDocKey& getKey() const {
         return key;
+    }
+
+    Vbid getVbucket() const {
+        return vbucket;
     }
 
     uint64_t getPreparedSeqno() const {
@@ -637,6 +649,7 @@ public:
             sizeof(cb::mcbp::request::DcpCommitPayload);
 
 private:
+    Vbid vbucket;
     StoredDocKey key;
     cb::mcbp::request::DcpCommitPayload payload;
 };

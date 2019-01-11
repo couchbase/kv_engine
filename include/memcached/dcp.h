@@ -321,10 +321,12 @@ struct dcp_message_producers {
      * messages up to the specified seqno.
      *
      * @param opaque identifying stream
+     * @param vbucket the vbucket the seqno ack is for
      * @param in_memory_seqno
      * @param on_disk_seqno
      */
     virtual ENGINE_ERROR_CODE seqno_acknowledged(uint32_t opaque,
+                                                 Vbid vbucket,
                                                  uint64_t in_memory_seqno,
                                                  uint64_t on_disk_seqno) = 0;
 
@@ -336,6 +338,7 @@ struct dcp_message_producers {
      * KV-Engine replicas of a committed Sync Write
      *
      * @param opaque
+     * @param vbucket the vbucket the event applies to
      * @param key The key of the committed mutation.
      * @todo-durability change from identifying by key to the pendingSeqno -
      * more efficient over the wire.
@@ -343,6 +346,7 @@ struct dcp_message_producers {
      * @return
      */
     virtual ENGINE_ERROR_CODE commit(uint32_t opaque,
+                                     Vbid vbucket,
                                      const DocKey& key,
                                      uint64_t commit_seqno) = 0;
     /**
@@ -351,6 +355,7 @@ struct dcp_message_producers {
      * This is sent from the DCP Producer to the DCP Consumer.
      */
     virtual ENGINE_ERROR_CODE abort(uint32_t opaque,
+                                    Vbid vbucket,
                                     uint64_t prepared_seqno,
                                     uint64_t abort_seqno) = 0;
 };

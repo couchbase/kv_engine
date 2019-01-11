@@ -635,8 +635,10 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         }
         case DcpResponse::Event::Commit: {
             CommitSyncWrite* csr = static_cast<CommitSyncWrite*>(resp.get());
-            ret = producers->commit(
-                    csr->getOpaque(), csr->getKey(), csr->getCommitSeqno());
+            ret = producers->commit(csr->getOpaque(),
+                                    csr->getVbucket(),
+                                    csr->getKey(),
+                                    csr->getCommitSeqno());
             break;
         }
 

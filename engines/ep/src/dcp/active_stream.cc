@@ -896,8 +896,11 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
     // as a Commit message - otherwise it's just sent as a Mutation.
     if ((item->getOperation() == queue_op::commit_sync_write) &&
         (syncReplication == SyncReplication::Yes)) {
-        return std::make_unique<CommitSyncWrite>(
-                opaque_, 0, item->getBySeqno(), item->getKey());
+        return std::make_unique<CommitSyncWrite>(opaque_,
+                                                 item->getVBucketId(),
+                                                 /*preparedSeqno*/ 0,
+                                                 item->getBySeqno(),
+                                                 item->getKey());
     }
 
     if (item->getOperation() != queue_op::system_event) {

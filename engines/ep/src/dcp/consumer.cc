@@ -891,6 +891,7 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
         case DcpResponse::Event::SeqnoAcknowledgement: {
             auto* ack = static_cast<SeqnoAcknowledgement*>(resp.get());
             ret = producers->seqno_acknowledged(ack->getOpaque(),
+                                                ack->getVbucket(),
                                                 ack->getInMemorySeqno(),
                                                 ack->getOnDiskSeqno());
             break;
@@ -1663,6 +1664,7 @@ ENGINE_ERROR_CODE DcpConsumer::commit(uint32_t opaque,
         try {
             err = stream->messageReceived(
                     std::make_unique<CommitSyncWrite>(opaque,
+                                                      vbucket,
                                                       /*prepared_seqno*/ 0,
                                                       commit_seqno,
                                                       key));

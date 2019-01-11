@@ -620,7 +620,10 @@ ENGINE_ERROR_CODE PassiveStream::processPrepare(
         LockHolder lh(streamMutex);
         // @todo-durability add in the correct on-disk seqno.
         pushToReadyQ(std::make_unique<SeqnoAcknowledgement>(
-                opaque_, prepare->getItem()->getBySeqno(), 0));
+                opaque_,
+                prepare->getVBucket(),
+                prepare->getItem()->getBySeqno(),
+                0));
     }
     notifyStreamReady();
 

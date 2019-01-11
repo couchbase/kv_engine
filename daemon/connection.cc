@@ -2292,6 +2292,7 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE Connection::seqno_acknowledged(uint32_t opaque,
+                                                 Vbid vbucket,
                                                  uint64_t in_memory_seqno,
                                                  uint64_t on_disk_seqno) {
     cb::mcbp::request::DcpSeqnoAcknowledgedPayload extras(in_memory_seqno,
@@ -2301,11 +2302,13 @@ ENGINE_ERROR_CODE Connection::seqno_acknowledged(uint32_t opaque,
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged);
     builder.setOpaque(opaque);
+    builder.setVBucket(vbucket);
     builder.setExtras(extras.getBuffer());
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
 ENGINE_ERROR_CODE Connection::commit(uint32_t opaque,
+                                     Vbid vbucket,
                                      const DocKey& key,
                                      uint64_t commit_seqno) {
     cb::mcbp::request::DcpCommitPayload extras(0, commit_seqno);
@@ -2317,12 +2320,14 @@ ENGINE_ERROR_CODE Connection::commit(uint32_t opaque,
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpCommit);
     builder.setOpaque(opaque);
+    builder.setVBucket(vbucket);
     builder.setExtras(extras.getBuffer());
     builder.setKey(cb::const_char_buffer(key));
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
 ENGINE_ERROR_CODE Connection::abort(uint32_t opaque,
+                                    Vbid vbucket,
                                     uint64_t prepared_seqno,
                                     uint64_t abort_seqno) {
     cb::mcbp::request::DcpAbortPayload extras;
@@ -2333,6 +2338,7 @@ ENGINE_ERROR_CODE Connection::abort(uint32_t opaque,
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpAbort);
     builder.setOpaque(opaque);
+    builder.setVBucket(vbucket);
     builder.setExtras(extras.getBuffer());
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }

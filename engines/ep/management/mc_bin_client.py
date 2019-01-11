@@ -194,13 +194,13 @@ class MemcachedClient(object):
                       vbucketId=self.vbucketId, collection=collection)
 
     def _sendAltCmd(self, cmd, flex, key, val, opaque, extras='', cas=0,
-                    dtype=0, vbucketId=0, collection=None):
+                    dtype=0, collection=None):
         """Send a request in the alternative format supporing flex framing extras"""
         if collection:
             key = self._encodeCollectionId(key, collection)
 
         msg = struct.pack(ALT_REQ_PKT_FMT, ALT_REQ_MAGIC_BYTE, cmd, len(flex),
-                          len(key), len(extras), dtype, vbucketId,
+                          len(key), len(extras), dtype, self.vbucketId,
                           len(flex) + len(key) + len(extras) + len(val),
                           opaque, cas)
         self.s.sendall(msg + flex + extras + key + val)

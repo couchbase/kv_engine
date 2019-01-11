@@ -139,16 +139,19 @@ public:
                               cb::durability::Requirements durability) override;
 
     ENGINE_ERROR_CODE seqno_acknowledged(uint32_t opaque,
+                                         Vbid vbucket,
                                          uint64_t in_memory_seqno,
                                          uint64_t on_disk_seqno) override {
         return ENGINE_ENOTSUP;
     }
     ENGINE_ERROR_CODE commit(uint32_t opaque,
+                             Vbid vbucket,
                              const DocKey& key,
                              uint64_t commit_seqno) override {
         return ENGINE_ENOTSUP;
     }
     ENGINE_ERROR_CODE abort(uint32_t opaque,
+                            Vbid vbucket,
                             uint64_t prepared_seqno,
                             uint64_t abort_seqno) override {
         return ENGINE_ENOTSUP;
