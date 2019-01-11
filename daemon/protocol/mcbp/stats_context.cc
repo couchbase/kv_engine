@@ -289,106 +289,6 @@ static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
     return ENGINE_SUCCESS;
 }
 
-static void process_stat_settings(ADD_STAT add_stat_callback, Cookie& cookie) {
-    if (add_stat_callback == nullptr) {
-        throw std::invalid_argument("process_stat_settings: "
-                                        "add_stat_callback must be non-NULL");
-    }
-    add_stat(cookie, add_stat_callback, "maxconns", settings.getMaxconns());
-
-    try {
-        for (auto& ifce : stats.listening_ports) {
-            char interface[1024];
-            int offset;
-            if (ifce.host.empty()) {
-                offset = checked_snprintf(interface, sizeof(interface),
-                                          "interface-*:%u",
-                                          ifce.port);
-            } else {
-                offset = checked_snprintf(interface, sizeof(interface),
-                                          "interface-%s:%u",
-                                          ifce.host.c_str(),
-                                          ifce.port);
-            }
-
-            checked_snprintf(interface + offset, sizeof(interface) - offset,
-                             "-maxconn");
-            add_stat(cookie, add_stat_callback, interface, ifce.maxconns);
-            checked_snprintf(interface + offset, sizeof(interface) - offset,
-                             "-ipv4");
-            add_stat(cookie, add_stat_callback, interface, ifce.ipv4);
-            checked_snprintf(interface + offset, sizeof(interface) - offset,
-                             "-ipv6");
-            add_stat(cookie, add_stat_callback, interface, ifce.ipv6);
-
-            checked_snprintf(interface + offset, sizeof(interface) - offset,
-                             "-tcp_nodelay");
-            add_stat(cookie, add_stat_callback, interface, ifce.tcp_nodelay);
-
-            auto ssl = ifce.getSslSettings();
-            if (ssl) {
-                checked_snprintf(interface + offset, sizeof(interface) - offset,
-                                 "-ssl-pkey");
-                add_stat(cookie, add_stat_callback, interface, ssl->key);
-                checked_snprintf(interface + offset, sizeof(interface) - offset,
-                                 "-ssl-cert");
-                add_stat(cookie, add_stat_callback, interface, ssl->cert);
-            } else {
-                checked_snprintf(interface + offset, sizeof(interface) - offset,
-                                 "-ssl");
-                add_stat(cookie, add_stat_callback, interface, "false");
-            }
-        }
-    } catch (const std::exception& error) {
-        LOG_WARNING("process_stats_settings: Error building stats: {}",
-                    error.what());
-    }
-
-    add_stat(cookie, add_stat_callback, "verbosity", settings.getVerbose());
-    add_stat(cookie, add_stat_callback, "num_threads", settings.getNumWorkerThreads());
-    add_stat(cookie, add_stat_callback, "reqs_per_event_high_priority",
-             settings.getRequestsPerEventNotification(EventPriority::High));
-    add_stat(cookie, add_stat_callback, "reqs_per_event_med_priority",
-             settings.getRequestsPerEventNotification(EventPriority::Medium));
-    add_stat(cookie, add_stat_callback, "reqs_per_event_low_priority",
-             settings.getRequestsPerEventNotification(EventPriority::Low));
-    add_stat(cookie, add_stat_callback, "reqs_per_event_def_priority",
-             settings.getRequestsPerEventNotification(EventPriority::Default));
-    add_stat(cookie, add_stat_callback, "auth_enabled_sasl", "yes");
-    add_stat(cookie, add_stat_callback, "auth_sasl_engine", "cbsasl");
-
-    add_stat(cookie, add_stat_callback, "audit",
-             settings.getAuditFile().c_str());
-
-    add_stat(cookie, add_stat_callback, "connection_idle_time",
-             std::to_string(settings.getConnectionIdleTime()).c_str());
-    add_stat(cookie,
-             add_stat_callback,
-             "datatype_json",
-             settings.isDatatypeJsonEnabled() ? "true" : "false");
-    add_stat(cookie,
-             add_stat_callback,
-             "datatype_snappy",
-             settings.isDatatypeSnappyEnabled() ? "true" : "false");
-    add_stat(cookie, add_stat_callback, "dedupe_nmvb_maps",
-             settings.isDedupeNmvbMaps() ? "true" : "false");
-    add_stat(cookie, add_stat_callback, "max_packet_size",
-             std::to_string(settings.getMaxPacketSize()).c_str());
-    add_stat(cookie, add_stat_callback, "xattr_enabled",
-            settings.isXattrEnabled());
-    add_stat(cookie, add_stat_callback, "privilege_debug",
-             settings.isPrivilegeDebug());
-
-    add_stat(cookie,
-             add_stat_callback,
-             "collections_enabled",
-             settings.isCollectionsEnabled());
-    add_stat(cookie,
-             add_stat_callback,
-             "external_auth_service",
-             settings.isExternalAuthServiceEnabled());
-}
-
 static void append_bin_stats(const char* key,
                              const uint16_t klen,
                              const char* val,
@@ -523,23 +423,6 @@ static ENGINE_ERROR_CODE stat_sched_executor(const std::string& arg,
                      hist.data(),
                      gsl::narrow<uint32_t>(hist.size()),
                      &cookie);
-        return ENGINE_SUCCESS;
-    } else {
-        return ENGINE_EINVAL;
-    }
-}
-
-/**
- * Handler for the <code>stats settings</code> used to get the current
- * settings.
- *
- * @param arg - should be empty
- * @param cookie the command context
- */
-static ENGINE_ERROR_CODE stat_settings_executor(const std::string& arg,
-                                                Cookie& cookie) {
-    if (arg.empty()) {
-        process_stat_settings(&append_stats, cookie);
         return ENGINE_SUCCESS;
     } else {
         return ENGINE_EINVAL;
@@ -849,7 +732,6 @@ static std::unordered_map<std::string, struct command_stat_handler>
                 {"", {false, stat_all_stats}},
                 {"reset", {true, stat_reset_executor}},
                 {"worker_thread_info", {false, stat_sched_executor}},
-                {"settings", {false, stat_settings_executor}},
                 {"audit", {true, stat_audit_executor}},
                 {"bucket_details", {true, stat_bucket_details_executor}},
                 {"aggregate", {false, stat_aggregate_executor}},

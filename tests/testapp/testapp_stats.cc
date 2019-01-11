@@ -267,35 +267,6 @@ TEST_P(StatsTest, TestAppend) {
     EXPECT_EQ(11, cmd_set->valueint);
 }
 
-TEST_P(StatsTest, TestSettings) {
-    MemcachedConnection& conn = getConnection();
-    // @todo verify that I get all of the expected settings. for now
-    //       just verify that I've got the ones I expect...
-    unique_cJSON_ptr stats;
-    ASSERT_NO_THROW(stats = conn.stats("settings"));
-    ASSERT_NE(nullptr, stats.get());
-    ASSERT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "maxconns"));
-
-    // skip interfaces....
-
-    ASSERT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "verbosity"));
-    ASSERT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "num_threads"));
-    ASSERT_NE(nullptr,
-              cJSON_GetObjectItem(stats.get(), "reqs_per_event_high_priority"));
-    ASSERT_NE(nullptr,
-              cJSON_GetObjectItem(stats.get(), "reqs_per_event_med_priority"));
-    ASSERT_NE(nullptr,
-              cJSON_GetObjectItem(stats.get(), "reqs_per_event_low_priority"));
-    ASSERT_NE(nullptr,
-              cJSON_GetObjectItem(stats.get(), "reqs_per_event_def_priority"));
-    ASSERT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "auth_enabled_sasl"));
-    ASSERT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "auth_sasl_engine"));
-
-    // skip extensions, loggers and daemons
-
-    // Skip audit.. it is "optional" and we don't pass it to the config
-}
-
 TEST_P(StatsTest, TestAuditNoAccess) {
     MemcachedConnection& conn = getConnection();
 
