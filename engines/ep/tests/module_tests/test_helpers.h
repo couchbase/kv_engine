@@ -39,8 +39,14 @@ Item make_item(
         uint32_t exptime = 0,
         protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON);
 
-/// Make an item representing a pending SyncWrite.
-Item makePendingItem(StoredDocKey key, std::string value);
+/// Make a queued_item representing a pending SyncWrite.
+queued_item makePendingItem(StoredDocKey key, std::string value);
+
+/// Make a queued_item representing a commited (normal mutation).
+queued_item makeCommittedItem(StoredDocKey key, std::string value);
+
+/// Make a queued_item representing a commited SyncWrite.
+queued_item makeCommittedviaPrepareItem(StoredDocKey key, std::string value);
 
 std::unique_ptr<Item> makeCompressibleItem(Vbid vbid,
                                            const DocKey& key,

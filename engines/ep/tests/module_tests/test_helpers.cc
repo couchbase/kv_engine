@@ -46,10 +46,21 @@ Item make_item(Vbid vbid,
     return item;
 }
 
-Item makePendingItem(StoredDocKey key, std::string value) {
-    Item i(key, 0, 0, value.data(), value.size());
-    i.setPendingSyncWrite({cb::durability::Level::Majority, 0});
-    return i;
+queued_item makeCommittedItem(StoredDocKey key, std::string value) {
+    queued_item qi{new Item(key, 0, 0, value.data(), value.size())};
+    return qi;
+}
+
+queued_item makeCommittedviaPrepareItem(StoredDocKey key, std::string value) {
+    queued_item qi{new Item(key, 0, 0, value.data(), value.size())};
+    qi->setCommittedviaPrepareSyncWrite();
+    return qi;
+}
+
+queued_item makePendingItem(StoredDocKey key, std::string value) {
+    queued_item qi{new Item(key, 0, 0, value.data(), value.size())};
+    qi->setPendingSyncWrite({cb::durability::Level::Majority, 0});
+    return qi;
 }
 
 std::unique_ptr<Item> makeCompressibleItem(Vbid vbid,

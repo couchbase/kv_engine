@@ -4074,7 +4074,7 @@ TEST_F(SingleThreadedEPBucketTest, Durability_DoNotPersistPendings) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     auto item = makePendingItem(makeStoredDocKey("key"), "value");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(item, cookie));
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
 
     const auto& ckptMgr = getEPBucket().getVBucket(vbid)->checkpointManager;
     ASSERT_EQ(1, ckptMgr->getNumOpenChkItems());

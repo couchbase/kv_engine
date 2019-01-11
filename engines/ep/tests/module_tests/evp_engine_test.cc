@@ -105,7 +105,7 @@ void EventuallyPersistentEngineTest::store_pending_item(
     auto item = makePendingItem(makeStoredDocKey(key), value);
     uint64_t cas;
     EXPECT_EQ(ENGINE_EWOULDBLOCK,
-              engine->storeInner(cookie, &item, cas, OPERATION_SET))
+              engine->storeInner(cookie, item.get(), cas, OPERATION_SET))
             << "pending SyncWrite should initially block (until durability "
                "met).";
 }

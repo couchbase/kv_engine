@@ -32,11 +32,6 @@ public:
           key("key", CollectionID::Default) {
     }
 
-    Item makeCommittedItem(StoredDocKey key, std::string value) {
-        Item i(key, 0, 0, value.data(), value.size());
-        return i;
-    }
-
     HashTable ht;
     StoredDocKey key;
 };
@@ -51,7 +46,7 @@ using namespace std::string_literals;
 // using Pending perspective, but *not* via Committed.
 TEST_F(HashTablePerspectiveTest, PendingItem) {
     auto i = makePendingItem(key, "pending"s);
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(i));
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*i));
 
     // Should be able to get via findForWrite (Pending perspective)
     {
@@ -76,7 +71,7 @@ TEST_F(HashTablePerspectiveTest, PendingItem) {
 // // Committed but and Pending perspective.
 TEST_F(HashTablePerspectiveTest, CommittedItem) {
     auto i = makeCommittedItem(key, "committed"s);
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(i));
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*i));
 
     // Should be able to get via findForWrite (Pending perspective)
     {
@@ -105,10 +100,10 @@ TEST_F(HashTablePerspectiveTest, CorrectItemForEachPersisective) {
     // Setup -create both committed and pending items.
     // Attempt setting the item again with a committed value.
     auto committed = makeCommittedItem(key, "committed"s);
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(committed));
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*committed));
 
     auto pending = makePendingItem(key, "pending"s);
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(pending));
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*pending));
 
     // Test - check both perspectives find the correct item.
     {
@@ -134,28 +129,28 @@ TEST_F(HashTablePerspectiveTest, CorrectItemForEachPersisective) {
 // to committed - commit() must be used.
 TEST_F(HashTablePerspectiveTest, DenyReplacePendingWithCommitted) {
     auto pending = makePendingItem(key, "pending"s);
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(pending));
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*pending));
 
     // Attempt setting the item again with a committed value.
     auto committed = makeCommittedItem(key, "committed"s);
-    ASSERT_EQ(MutationStatus::IsPendingSyncWrite, ht.set(committed));
+    ASSERT_EQ(MutationStatus::IsPendingSyncWrite, ht.set(*committed));
 }
 
 // Test that the normal set() method cannot be used to change a pending item
 // to another pending - commit() must be used.
 TEST_F(HashTablePerspectiveTest, DenyReplacePendingWithPending) {
     auto pending = makePendingItem(key, "pending"s);
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(pending));
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*pending));
 
     // Attempt setting the item again with a committed value.
     auto pending2 = makePendingItem(key, "pending2"s);
-    ASSERT_EQ(MutationStatus::IsPendingSyncWrite, ht.set(pending2));
+    ASSERT_EQ(MutationStatus::IsPendingSyncWrite, ht.set(*pending2));
 }
 
 // Test adding a pending item and then committing it.
 TEST_F(HashTablePerspectiveTest, Commit) {
     auto pending = makePendingItem(key, "pending"s);
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(pending));
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*pending));
 
     { // locking scope.
         // Check preconditions - pending item should be found as pending.
@@ -181,9 +176,9 @@ TEST_F(HashTablePerspectiveTest, Commit) {
 // pending SyncWrite which should replace the previous committed.
 TEST_F(HashTablePerspectiveTest, CommitExisting) {
     auto committed = makeCommittedItem(key, "valueA"s);
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(committed));
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*committed));
     auto pending = makePendingItem(key, "valueB"s);
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(pending));
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*pending));
     ASSERT_EQ(2, ht.getNumItems());
 
     { // locking scope.
@@ -212,7 +207,7 @@ TEST_F(HashTablePerspectiveTest, CommitExisting) {
 // Negative test - check it is not possible to commit a non-pending item.
 TEST_F(HashTablePerspectiveTest, CommitNonPendingFails) {
     auto committed = makeCommittedItem(key, "valueA"s);
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(committed));
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*committed));
 
     { // locking scope.
         // Check preconditions - item should be found as committed.
