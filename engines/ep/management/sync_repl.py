@@ -30,6 +30,10 @@ if op == "get":
     print (client.get(key))
 elif op == "set":
     print (client.set(key, 0, 0, value))
+elif op == "loop_set":
+    count = int(sys.argv[8])
+    for i in range(count):
+        print (client.set(key, 0, 0, value + "_" + str(i)))
 elif op == "setD":
     print (client.setDurable(key, 0, 0, value))
 elif op == "bulk_setD":
@@ -39,7 +43,7 @@ elif op == "bulk_setD":
 elif op == "loop_setD":
     count = int(sys.argv[8])
     for i in range(count):
-        print (client.setDurable(key, 0, 0, value))
+        print (client.setDurable(key, 0, 0, value + "_" + str(i)))
 elif op == "add":
     print (client.add(key, 0, 0, value))
 elif op == "addD":
