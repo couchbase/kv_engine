@@ -143,10 +143,10 @@ static void register_callback(EngineIface* eh,
 static void create_listen_sockets();
 
 /* stats */
-static void stats_init(void);
+static void stats_init();
 
 /* defaults */
-static void settings_init(void);
+static void settings_init();
 
 /** exported globals **/
 struct stats stats;
@@ -170,9 +170,9 @@ static engine_event_handler_array_t engine_event_handlers;
  * terminated.
  */
 char reset_stats_time[80];
-static void set_stats_reset_time(void)
+static void set_stats_reset_time()
 {
-    time_t now = time(NULL);
+    time_t now = time(nullptr);
 #ifdef WIN32
     ctime_s(reset_stats_time, sizeof(reset_stats_time), &now);
 #else
@@ -185,7 +185,7 @@ static void set_stats_reset_time(void)
 }
 
 void disassociate_bucket(Connection& connection) {
-    Bucket& b = all_buckets.at(connection.getBucketIndex());
+    Bucket& b = connection.getBucket();
     std::lock_guard<std::mutex> guard(b.mutex);
     b.clients--;
 
@@ -362,8 +362,8 @@ static void register_callback(EngineIface* eh,
 
 static void free_callbacks() {
     // free per-bucket callbacks.
-    for (size_t idx = 0; idx < all_buckets.size(); ++idx) {
-        for (auto& type_vec : all_buckets[idx].engine_event_handlers) {
+    for (auto& bucket : all_buckets) {
+        for (auto& type_vec : bucket.engine_event_handlers) {
             type_vec.clear();
         }
     }
@@ -374,7 +374,7 @@ static void free_callbacks() {
     }
 }
 
-static void stats_init(void) {
+static void stats_init() {
     set_stats_reset_time();
     stats.conn_structs.reset();
     stats.total_conns.reset();
@@ -401,9 +401,14 @@ void stats_reset(Cookie& cookie) {
 }
 
 static size_t get_number_of_worker_threads() {
-    size_t ret;
+    size_t ret = 0;
     char *override = getenv("MEMCACHED_NUM_CPUS");
-    if (override == NULL) {
+    if (override) {
+        try {
+            ret = std::stoull(override);
+        } catch (...) {
+        }
+    } else {
         // No override specified; determine worker thread count based
         // on the CPU count:
         //     <5 cores: create 4 workers.
@@ -416,12 +421,12 @@ static size_t get_number_of_worker_threads() {
         if (ret < 4) {
             ret = 4;
         }
-    } else {
-        ret = std::stoull(override);
-        if (ret == 0) {
-            ret = 4;
-        }
     }
+
+    if (ret == 0) {
+        ret = 4;
+    }
+
     return ret;
 }
 
@@ -443,7 +448,7 @@ static void verbosity_changed_listener(const std::string&, Settings &s) {
         logger->set_level(settings.getLogLevel());
     }
 
-    perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
+    perform_callbacks(ON_LOG_LEVEL, nullptr, nullptr);
 }
 
 static void scramsha_fallback_salt_changed_listener(const std::string&,
@@ -491,7 +496,7 @@ static std::string configure_numa_policy() {
     // Attempt to set the default NUMA memory policy to interleaved,
     // unless overridden by our env var.
     const char* mem_policy_env = getenv("MEMCACHED_NUMA_MEM_POLICY");
-    if (mem_policy_env != NULL && strcmp("disable", mem_policy_env) == 0) {
+    if (mem_policy_env && strcmp("disable", mem_policy_env) == 0) {
         return std::string("NOT setting memory allocation policy - disabled "
                 "via MEMCACHED_NUMA_MEM_POLICY='") + mem_policy_env + "'";
     } else {
@@ -507,7 +512,7 @@ static std::string configure_numa_policy() {
 }
 #endif  // HAVE_LIBNUMA
 
-static void settings_init(void) {
+static void settings_init() {
     // Set up the listener functions
     settings.addChangeListener("breakpad",
                                breakpad_changed_listener);
@@ -553,7 +558,7 @@ static void settings_init(void) {
 
     char *tmp = getenv("MEMCACHED_TOP_KEYS");
     settings.setTopkeysSize(20);
-    if (tmp != NULL) {
+    if (tmp) {
         int count;
         if (safe_strtol(tmp, count)) {
             settings.setTopkeysSize(count);
@@ -594,12 +599,12 @@ static void settings_init(void) {
  * This is also the place to initialize any additional files needed by
  * Memcached.
  */
-static void update_settings_from_config(void)
+static void update_settings_from_config()
 {
     std::string root(DESTINATION_ROOT);
 
     if (!settings.getRoot().empty()) {
-        root = settings.getRoot().c_str();
+        root = settings.getRoot();
     }
 
     if (settings.getErrorMapsDir().empty()) {
@@ -623,17 +628,17 @@ static void update_settings_from_config(void)
 
 struct {
     std::mutex mutex;
-    bool disabled;
-    ssize_t count;
-    uint64_t num_disable;
+    bool disabled = false;
+    ssize_t count = 0;
+    uint64_t num_disable = 0;
 } listen_state;
 
-bool is_listen_disabled(void) {
+bool is_listen_disabled() {
     std::lock_guard<std::mutex> guard(listen_state.mutex);
     return listen_state.disabled;
 }
 
-uint64_t get_listen_disabled_num(void) {
+uint64_t get_listen_disabled_num() {
     std::lock_guard<std::mutex> guard(listen_state.mutex);
     return listen_state.num_disable;
 }
@@ -798,7 +803,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
  * connecting to one of the server sockets. It runs in the context of the
  * listen thread
  */
-void listen_event_handler(evutil_socket_t, short which, void *arg) {
+void listen_event_handler(evutil_socket_t, short, void *arg) {
     auto& c = *reinterpret_cast<ServerSocket*>(arg);
 
     if (memcached_shutdown) {
@@ -1087,7 +1092,7 @@ static bool server_socket(const NetworkInterface& interf) {
             union {
                 struct sockaddr_in in;
                 struct sockaddr_in6 in6;
-            } my_sockaddr;
+            } my_sockaddr{};
             socklen_t len = sizeof(my_sockaddr);
             if (getsockname(sfd, (struct sockaddr*)&my_sockaddr, &len)==0) {
                 if (next->ai_addr->sa_family == AF_INET) {
@@ -1235,13 +1240,13 @@ static struct event* sigterm_event;
 
 static bool install_signal_handlers() {
     // SIGTERM - Used to shut down memcached cleanly
-    sigterm_event = evsignal_new(main_base, SIGTERM, sigterm_handler, NULL);
-    if (sigterm_event == NULL) {
+    sigterm_event = evsignal_new(main_base, SIGTERM, sigterm_handler, nullptr);
+    if (!sigterm_event) {
         LOG_WARNING("Failed to allocate SIGTERM handler");
         return false;
     }
 
-    if (event_add(sigterm_event, NULL) < 0) {
+    if (event_add(sigterm_event, nullptr) < 0) {
         LOG_WARNING("Failed to install SIGTERM handler");
         return false;
     }
@@ -1254,7 +1259,7 @@ static void release_signal_handlers() {
 }
 #endif
 
-const char* get_server_version(void) {
+const char* get_server_version() {
     if (strlen(PRODUCT_VERSION) == 0) {
         return "unknown";
     } else {
@@ -1265,7 +1270,7 @@ const char* get_server_version(void) {
 static std::condition_variable shutdown_cv;
 static std::mutex shutdown_cv_mutex;
 static bool memcached_can_shutdown = false;
-void shutdown_server(void) {
+void shutdown_server() {
 
     std::unique_lock<std::mutex> lk(shutdown_cv_mutex);
     if (!memcached_can_shutdown) {
@@ -1278,7 +1283,7 @@ void shutdown_server(void) {
     event_base_loopbreak(main_base);
 }
 
-void enable_shutdown(void) {
+void enable_shutdown() {
     std::unique_lock<std::mutex> lk(shutdown_cv_mutex);
     memcached_can_shutdown = true;
     shutdown_cv.notify_all();
@@ -1592,7 +1597,7 @@ struct ServerCookieApi : public ServerCookieIface {
 
 class ServerApi : public SERVER_HANDLE_V1 {
 public:
-    ServerApi() {
+    ServerApi() : server_handle_v1_t() {
         hooks_api.add_new_hook = AllocHooks::add_new_hook;
         hooks_api.remove_new_hook = AllocHooks::remove_new_hook;
         hooks_api.add_delete_hook = AllocHooks::add_delete_hook;
@@ -1618,7 +1623,7 @@ protected:
     ServerCookieApi server_cookie_api;
     ServerLogApi server_log_api;
     ServerCallbackApi callback_api;
-    ServerAllocatorIface hooks_api;
+    ServerAllocatorIface hooks_api{};
     ServerDocumentApi document_api;
 };
 
@@ -1994,7 +1999,7 @@ void DestroyBucketThread::run() {
     task->makeRunnable();
 }
 
-static void initialize_buckets(void) {
+static void initialize_buckets() {
     size_t numthread = settings.getNumWorkerThreads() + 1;
     for (auto &b : all_buckets) {
         b.stats.resize(numthread);
@@ -2010,7 +2015,7 @@ static void initialize_buckets(void) {
     nobucket.state = BucketState::Ready;
 }
 
-static void cleanup_buckets(void) {
+static void cleanup_buckets() {
     for (auto &bucket : all_buckets) {
         bool waiting;
 
@@ -2057,7 +2062,7 @@ void delete_all_buckets() {
      */
     class DestroyBucketTask : public Task {
     public:
-        DestroyBucketTask(const std::string& name_)
+        explicit DestroyBucketTask(const std::string& name_)
             : thread(name_, false, nullptr, this)
         {
             // empty
@@ -2102,7 +2107,7 @@ void delete_all_buckets() {
         }
         all_bucket_lock.unlock();
 
-        if (task.get() != nullptr) {
+        if (task) {
             auto& dbt = dynamic_cast<DestroyBucketTask&>(*task);
             LOG_INFO("Waiting for delete of {} to complete", name);
             dbt.thread.waitForState(Couchbase::ThreadState::Zombie);
@@ -2111,7 +2116,7 @@ void delete_all_buckets() {
     } while (!done);
 }
 
-static void set_max_filehandles(void) {
+static void set_max_filehandles() {
     const uint64_t maxfiles = settings.getMaxconns() +
                             (3 * (settings.getNumWorkerThreads() + 2)) +
                             1024;
@@ -2169,11 +2174,8 @@ static void initialize_sasl() {
     using namespace cb::sasl;
     logging::set_log_callback(sasl_log_callback);
     server::initialize();
-    if (mechanism::plain::authenticate("default", "") == Error::OK) {
-        set_default_bucket_enabled(true);
-    } else {
-        set_default_bucket_enabled(false);
-    }
+    set_default_bucket_enabled(
+            mechanism::plain::authenticate("default", "") == Error::OK);
 
     if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
         // Speed up the unit tests ;)
@@ -2295,14 +2297,20 @@ extern "C" int memcached_main(int argc, char **argv) {
     initialize_audit();
 
     /* inform interested parties of initial verbosity level */
-    perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
+    perform_callbacks(ON_LOG_LEVEL, nullptr, nullptr);
 
     set_max_filehandles();
 
     /* Aggregate the maximum number of connections */
     settings.calculateMaxconns();
 
-    if (getenv("MEMCACHED_CRASH_TEST") == NULL) {
+    if (getenv("MEMCACHED_CRASH_TEST")) {
+        // The crash tests wants the system to generate a crash.
+        // I tried to rethrow the exception instead of logging
+        // the error, but for some reason the python test script
+        // didn't like that..
+        initialize_engine_map();
+    } else {
         try {
             initialize_engine_map();
         } catch (const std::exception& error) {
@@ -2310,12 +2318,6 @@ extern "C" int memcached_main(int argc, char **argv) {
                         "Unable to initialize engine map: {}",
                         error.what());
         }
-    } else {
-        // The crash tests wants the system to generate a crash.
-        // I tried to rethrow the exception instead of logging
-        // the error, but for some reason the python test script
-        // didn't like that..
-        initialize_engine_map();
     }
 
     /* Initialize bucket engine */
