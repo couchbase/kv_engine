@@ -185,18 +185,6 @@ private:
 };
 
 /**
- * Get the name of the associated bucket. Note that this function must
- * only be called while the current connection is being served (otherwise
- * a race may occur causing the data to be returned to be modified).
- *
- * The client should not try to modify (or release) the returned pointer
- * as it points into the static area of the bucket array. The entry
- * is valid as long as the current connection is being served (unless it
- * tries to switch bucket/delete bucket, then it is invalidated).
- */
-extern const char* getBucketName(const Connection* c);
-
-/**
  * All of the buckets are stored in the following array. Index 0 is reserved
  * for the "no bucket" where all connections start off (unless there is a
  * bucket named "default", and there is a username named "default"

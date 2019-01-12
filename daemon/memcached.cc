@@ -108,10 +108,6 @@
 static std::mutex buckets_lock;
 std::array<Bucket, COUCHBASE_MAX_NUM_BUCKETS + 1> all_buckets;
 
-const char* getBucketName(const Connection* c) {
-    return all_buckets[c->getBucketIndex()].name;
-}
-
 void bucketsForEach(std::function<bool(Bucket&, void*)> fn, void *arg) {
     std::lock_guard<std::mutex> all_bucket_lock(buckets_lock);
     for (Bucket& bucket : all_buckets) {

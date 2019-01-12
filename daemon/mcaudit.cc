@@ -178,7 +178,7 @@ void audit_dcp_open(const Connection* c) {
         LOG_INFO("Open DCP stream with admin credentials");
     } else {
         auto root = create_memcached_audit_object(c);
-        cJSON_AddStringToObject(root.get(), "bucket", getBucketName(c));
+        cJSON_AddStringToObject(root.get(), "bucket", c->getBucket().name);
 
         do_audit(c, MEMCACHED_AUDIT_OPENED_DCP_CONNECTION, root,
                  "Failed to send DCP open connection "
