@@ -216,15 +216,28 @@ if md2core_exe and gdb_exe:
             os.remove(minidump)
             cleanup_and_exit(7)
 
+        # To avoid invoking gdb multiple times, lets collect all of the
+        # information in a single pass. To make it easy to figure out
+        # the output from each command, run 'show print pretty' and use
+        # the expected output from that command to split the data
+        logging.info('GDB: Collect information from the minidump file')
+        gdb_output = invoke_gdb(gdb_exe, memcached_exe, core_file,
+                                ['set print pretty off',
+                                 'show print pretty',
+                                 'info shared',
+                                 'show print pretty',
+                                 'backtrace',
+                                 'show print pretty',
+                                 'x/x $sp'])
+        gdb_output = gdb_output.split("Pretty formatting of structures is off.")
+
         # Check for shared library information, and symbols successfully ead
         # (needed for any useful backtraces).
         # Shared libraries may change over time, but we explicitly asked for
         # crash_engine.so in the config so we should have that.
         logging.info('GDB: Checking for shared library information')
-        gdb_output = invoke_gdb(gdb_exe, memcached_exe, core_file,
-                                ['info shared'])
         m = re.search("^0x[0-9a-f]+\s+0x[0-9a-f]+\s+(\w+)\s+([^\s]+crash_engine\.so$)",
-                      gdb_output, re.MULTILINE)
+                      gdb_output[1], re.MULTILINE)
         if not m:
             logging.error("FAIL - GDB unable to show information for " +
                   "crash_engine.so shared library.")
@@ -240,9 +253,7 @@ if md2core_exe and gdb_exe:
         # particular trace. Instead we check that all frames but the first have
         # a useful-looking symbol (and not just a random address.)
         logging.info('GDB: Checking for sensible backtrace')
-        gdb_output = invoke_gdb(gdb_exe, memcached_exe, core_file,
-                                ['backtrace'])
-        lines = gdb_output.splitlines()
+        lines = gdb_output[2].splitlines()
 
         # Discard all those lines before the stacktrace
         backtrace = [i for i in lines if re.match('#\d+', i)]
@@ -274,9 +285,7 @@ if md2core_exe and gdb_exe:
         # Check we can read stack memory. Another tricky one as again we have
         # no idea where we crashed. Just ensure that we get *something* back
         logging.info('GDB: Checking for readable stack memory')
-        gdb_output = invoke_gdb(gdb_exe, memcached_exe, core_file,
-                                ['x/x $sp'])
-        m = re.search('(0x[0-9a-f]+):\s(0x[0-9a-f]+)?', gdb_output)
+        m = re.search('(0x[0-9a-f]+):\s(0x[0-9a-f]+)?', gdb_output[3])
         if not m:
             logging.error("FAIL - GDB failed to output memory disassembly when " +
                   "attempting to examine stack.")
