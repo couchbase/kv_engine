@@ -873,7 +873,8 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
     EXPECT_TRUE(json["flags"].is_number());
 
     if (mcd_env->getTestBucket().supportsLastModifiedVattr()) {
-        EXPECT_TRUE(json["last_modified"].is_string());
+        EXPECT_NE(json.end(), json.find("last_modified"));
+        EXPECT_STREQ("string", json["last_modified"].type_name());
     }
 
     // Verify exptime is showing as 0 (document has no expiry)
