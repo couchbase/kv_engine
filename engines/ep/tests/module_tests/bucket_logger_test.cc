@@ -29,6 +29,9 @@ void BucketLoggerTest::SetUp() {
     // Store the oldLogLevel for tearDown
     oldLogLevel = globalBucketLogger->level();
 
+    if (globalBucketLogger) {
+        globalBucketLogger->unregister();
+    }
     SpdloggerTest::SetUp();
     globalBucketLogger =
             BucketLogger::createBucketLogger(globalBucketLoggerName);

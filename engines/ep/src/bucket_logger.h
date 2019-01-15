@@ -184,12 +184,8 @@ protected:
     /// Overriden sink_it_ method to log via ServerAPI logger.
     void sink_it_(spdlog::details::log_msg& msg) override;
 
-    /**
-     * Overriden flush_ method. Does nothing as this logger has no sinks.
-     * The default behaviour would be to iterate through sinks, but as we
-     * pass a nullptr on creation we cannot do that.
-     */
-    void flush_() override{};
+    /// Overriden flush_ method to flush via the ServerAPI logger.
+    void flush_() override;
 
     template <typename... Args>
     void logInner(spdlog::level::level_enum lvl,

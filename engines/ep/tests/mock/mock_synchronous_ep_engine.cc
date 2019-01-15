@@ -39,6 +39,8 @@ SynchronousEPEngine::SynchronousEPEngine(std::string extra_config)
         }
     }
 
+    name = "SynchronousEPEngine";
+
     // workload is needed by EPStore's constructor (to construct the
     // VBucketMap).
     workload = new WorkLoadPolicy(/*workers*/ 1, /*shards*/ 1);

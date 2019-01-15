@@ -43,6 +43,10 @@ void BucketLogger::sink_it_(spdlog::details::log_msg& msg) {
     spdLogger->log(msg.level, msgString);
 }
 
+void BucketLogger::flush_() {
+    spdLogger->flush();
+}
+
 void BucketLogger::setLoggerAPI(ServerLogIface* api) {
     BucketLogger::loggerAPI.store(api, std::memory_order_relaxed);
 

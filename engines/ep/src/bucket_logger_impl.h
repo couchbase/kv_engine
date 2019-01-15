@@ -113,6 +113,14 @@ void BucketLogger::logInner(spdlog::level::level_enum lvl,
                             const char* fmt,
                             const Args&... args) {
     EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
+    // Disable memory tracking for the formatting and logging of the message.
+    // This is necessary because the message will be written to disk (and
+    // subsequently freed) by the shared background thread (as part of
+    // spdlog::async_logger) and hence we do not know which engine to associate
+    // the deallocation to.
+    // Instead account any log message memory to "NonBucket" (it is only
+    // transient and typically small - of the order of the log message length).
+    NonBucketAllocationGuard guard;
     const auto prefixedFmt = prefixStringWithBucketName(engine, fmt);
     spdlog::logger::log(lvl, prefixedFmt.c_str(), args...);
 }
@@ -120,6 +128,9 @@ void BucketLogger::logInner(spdlog::level::level_enum lvl,
 template <typename T>
 void BucketLogger::logInner(spdlog::level::level_enum lvl, const T& msg) {
     EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
+    // See comment in above logInner overload for why NonBucketAllocationGuard
+    // is required.
+    NonBucketAllocationGuard guard;
     const auto prefixedMsg = prefixStringWithBucketName(engine, "");
     spdlog::logger::log(lvl, "{}{}", prefixedMsg.c_str(), msg);
 }
