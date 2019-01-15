@@ -167,8 +167,16 @@ unique_cJSON_ptr Connection::toJSON() const {
     cJSON_AddNumberToObject(obj, "bucket_index", getBucketIndex());
     cJSON_AddBoolToObject(obj, "internal", isInternal());
     if (authenticated) {
-        cJSON_AddStringToObject(obj, "username", username.c_str());
+        if (internal) {
+            // We want to be able to map these connections, and given
+            // that it is internal we don't reveal any user data
+            cJSON_AddStringToObject(obj, "username", username);
+        } else {
+            using cb::logtags::tagUserData;
+            cJSON_AddStringToObject(obj, "username", tagUserData(username));
         }
+    }
+
         if (sasl_conn != NULL) {
             cJSON_AddUintPtrToObject(obj, "sasl_conn",
                                        (uintptr_t)sasl_conn.get());
