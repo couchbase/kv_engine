@@ -31,8 +31,7 @@ class BucketLoggerTest : virtual public SpdloggerTest {
 protected:
     void SetUp() override;
     void TearDown() override;
-    void setUpLogger(const spdlog::level::level_enum level,
-                     const size_t cyclesize = 20 * 1024) override;
+    void setUpLogger() override;
 
     // Old logging level so we can reset the logger in TearDown
     spdlog::level::level_enum oldLogLevel;

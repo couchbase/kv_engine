@@ -33,7 +33,7 @@ TEST_F(SpdloggerTest, FmtStyleFormatting) {
     const uint32_t value = 0xdeadbeef;
     LOG_INFO("FmtStyleFormatting {:x}", value);
     cb::logger::shutdown();
-    files = cb::io::findFilesWithPrefix(filename);
+    files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
     EXPECT_EQ(1,
               countInFile(files.front(), "INFO FmtStyleFormatting deadbeef"));
@@ -46,7 +46,7 @@ TEST_F(SpdloggerTest, FmtStyleFormatting) {
 TEST_F(SpdloggerTest, BasicHooksTest) {
     cb::logger::shutdown();
 
-    files = cb::io::findFilesWithPrefix(filename);
+    files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
     EXPECT_EQ(1, countInFile(files.front(), openingHook));
     EXPECT_EQ(1, countInFile(files.front(), closingHook));
@@ -62,7 +62,9 @@ protected:
     void SetUp() override {
         RemoveFiles();
         // Use a 2 k file size to make sure that we rotate :)
-        setUpLogger(spdlog::level::level_enum::debug, 2048);
+        config.log_level = spdlog::level::level_enum::debug;
+        config.cyclesize = 2048;
+        setUpLogger();
     }
 };
 
@@ -79,7 +81,7 @@ TEST_F(FileRotationTest, MultipleFilesTest) {
     }
     cb::logger::shutdown();
 
-    files = cb::io::findFilesWithPrefix(filename);
+    files = cb::io::findFilesWithPrefix(config.filename);
     EXPECT_LT(1, files.size());
     for (auto& file : files) {
         EXPECT_EQ(1, countInFile(file, openingHook))
@@ -117,7 +119,7 @@ TEST_F(FileRotationTest, HandleOpenFileErrors) {
 
     LOG_DEBUG("Hey, this is a test");
     cb::logger::flush();
-    files = cb::io::findFilesWithPrefix(filename);
+    files = cb::io::findFilesWithPrefix(config.filename);
     EXPECT_EQ(1, files.size());
 
     // Bring down out open file limit to a more conservative level (to
@@ -171,14 +173,14 @@ TEST_F(FileRotationTest, HandleOpenFileErrors) {
 
     // Verify that we didn't get a new file while we didn't have any
     // free file descriptors
-    files = cb::io::findFilesWithPrefix(filename);
+    files = cb::io::findFilesWithPrefix(config.filename);
     EXPECT_EQ(1, files.size());
 
     // Add a log entry, and we should get a new file
     LOG_DEBUG("Logging to the next file");
     cb::logger::flush();
 
-    files = cb::io::findFilesWithPrefix(filename);
+    files = cb::io::findFilesWithPrefix(config.filename);
     EXPECT_EQ(2, files.size());
 
     // Restore the filedescriptors
@@ -196,7 +198,7 @@ TEST_F(SpdloggerTest, VbidClassTest) {
     const Vbid value = Vbid(1023);
     LOG_INFO("VbidClassTest {}", value);
     cb::logger::shutdown();
-    files = cb::io::findFilesWithPrefix(filename);
+    files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
     EXPECT_EQ(1, countInFile(files.front(), "INFO VbidClassTest vb:1023"));
 }

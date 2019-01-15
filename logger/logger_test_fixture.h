@@ -17,6 +17,7 @@
 #pragma once
 
 #include "logger.h"
+#include "logger_config.h"
 
 #include <platform/dirutils.h>
 
@@ -25,6 +26,8 @@
 
 class SpdloggerTest : virtual public ::testing::Test {
 protected:
+    SpdloggerTest();
+
 /*
  * Unset a few environment variables which affect how the logger works.
  * unsetenv() is not supported on Windows.
@@ -38,18 +41,14 @@ protected:
 
 #endif
 
-    virtual void SetUp();
-    virtual void TearDown();
+    void SetUp() override;
+    void TearDown() override;
 
     /**
-     * Helper function - initializes a cb logger object using the given
-     * parameters
-     *
-     * @param level the minimum logging level
-     * @param cyclesize the size to use before switching file (default 100MB)
+     * Helper function - initializes a cb logger object using the 'config'
+     * member variable.
      */
-    virtual void setUpLogger(const spdlog::level::level_enum level,
-                             const size_t cyclesize = 100 * 1024 * 1024);
+    virtual void setUpLogger();
 
     /**
      * Helper function - removes the files in the test working directory that
@@ -69,7 +68,9 @@ protected:
     std::string getLogContents();
 
     std::vector<std::string> files;
-    std::string filename{"spdlogger_test"};
+
+    cb::logger::Config config;
+
     const std::string openingHook = "---------- Opening logfile: ";
     const std::string closingHook = "---------- Closing logfile";
 };

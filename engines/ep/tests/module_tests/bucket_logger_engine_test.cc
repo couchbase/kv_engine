@@ -20,17 +20,16 @@
 #include <engines/ep/src/bucket_logger.h>
 
 void BucketLoggerEngineTest::SetUp() {
-    // Write to a different file in case other parent class fixtures are
+    // Override some logger config params before calling parent class SetUp():
+
+    // 1. Write to a different file in case other parent class fixtures are
     // running in parallel
-    filename = "spdlogger_engine_test";
-
-    // Store the oldLogLevel for tearDown
-    oldLogLevel = globalBucketLogger->level();
-
-    // Set up the logger with a greater file size so logs are output to a
+    config.filename = "spdlogger_engine_test";
+    // 2. Set up the logger with a greater file size so logs are output to a
     // single file
-    setUpLogger(spdlog::level::level_enum::trace, 100 * 1024);
+    config.cyclesize = 100 * 1024;
 
+    BucketLoggerTest::SetUp();
     EventuallyPersistentEngineTest::SetUp();
 }
 
@@ -46,7 +45,7 @@ TEST_F(BucketLoggerEngineTest, EngineTest) {
     // Flush the logger to ensure log file has required contents. Flushing
     // instead of shutting it down as the engine is still running
     cb::logger::flush();
-    files = cb::io::findFilesWithPrefix(filename);
+    files = cb::io::findFilesWithPrefix(config.filename);
     EXPECT_EQ(1,
               countInFile(files.back(),
                           "INFO (default) EPEngine::initialize: using "

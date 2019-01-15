@@ -17,10 +17,18 @@
 
 #include "logger_test_fixture.h"
 
-#include "logger_config.h"
+#include <gsl/gsl>
+
+SpdloggerTest::SpdloggerTest() {
+    // Use default values from cb::logger::Config, apart from:
+    config.log_level = spdlog::level::level_enum::debug;
+    config.filename = "spdlogger_test";
+    config.unit_test = true; // Enable unit test mode (synchronous logging)
+    config.console = false; // Don't print to stderr
+}
 
 void SpdloggerTest::SetUp() {
-    setUpLogger(spdlog::level::level_enum::debug);
+    setUpLogger();
 }
 
 void SpdloggerTest::TearDown() {
@@ -29,27 +37,20 @@ void SpdloggerTest::TearDown() {
 }
 
 void SpdloggerTest::RemoveFiles() {
-    files = cb::io::findFilesWithPrefix(filename);
+    Expects(!config.filename.empty());
+    files = cb::io::findFilesWithPrefix(config.filename);
     for (const auto& file : files) {
         cb::io::rmrf(file);
     }
 }
 
-void SpdloggerTest::setUpLogger(const spdlog::level::level_enum level,
-                                const size_t cyclesize) {
+void SpdloggerTest::setUpLogger() {
     RemoveFiles();
-
-    cb::logger::Config config;
-    config.filename = filename;
-    config.cyclesize = cyclesize;
-    config.buffersize = 8192; // 8192 items (the default)
-    config.unit_test = true;
-    config.console = false;
 
     const auto ret = cb::logger::initialize(config);
     EXPECT_FALSE(ret) << ret.get();
 
-    cb::logger::get()->set_level(level);
+    cb::logger::get()->set_level(config.log_level);
 }
 
 int SpdloggerTest::countInFile(const std::string& file,
@@ -68,7 +69,7 @@ int SpdloggerTest::countInFile(const std::string& file,
 }
 
 std::string SpdloggerTest::getLogContents() {
-    files = cb::io::findFilesWithPrefix(filename);
+    files = cb::io::findFilesWithPrefix(config.filename);
     std::string ret;
 
     for (const auto& file : files) {
