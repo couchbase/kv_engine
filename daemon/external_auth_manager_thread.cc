@@ -278,15 +278,23 @@ void ExternalAuthManagerThread::processRequestQueue() {
     // period of time.
     std::vector<std::unique_ptr<AuthenticationRequestServerEvent>> events;
     // Just authenticate if we've got an entry which is newer than 2x of the
-    // push interval
-    const auto now = std::chrono::steady_clock::now() -
-                     2 * activeUsersPushInterval.load();
+    // push interval (and that it is newer than the max rbac cache age)
+    const auto then = std::chrono::steady_clock::now() -
+                      2 * activeUsersPushInterval.load();
     while (!incomingRequests.empty()) {
-        const auto timestamp = cb::rbac::getExternalUserTimestamp(
+        using namespace std::chrono;
+
+        const auto ts = cb::rbac::getExternalUserTimestamp(
                 incomingRequests.front()->getUsername());
-        const bool authenticate = (timestamp && (timestamp.get() > now));
+        const auto timestamp = ts ? ts.get() : steady_clock::time_point{};
+        const uint64_t age = static_cast<uint64_t>(
+                duration_cast<seconds>(timestamp.time_since_epoch()).count());
+
+        const bool authOnly =
+                (timestamp > then) &&
+                (age >= rbacCacheEpoch.load(std::memory_order_acquire));
         events.emplace_back(std::make_unique<AuthenticationRequestServerEvent>(
-                next, *incomingRequests.front(), authenticate));
+                next, *incomingRequests.front(), authOnly));
         requestMap[next++] = std::make_pair(provider, incomingRequests.front());
         incomingRequests.pop();
     }
@@ -315,6 +323,13 @@ void ExternalAuthManagerThread::processRequestQueue() {
 
     // Acquire the lock
     mutex.lock();
+}
+
+void ExternalAuthManagerThread::setRbacCacheEpoch(
+        std::chrono::steady_clock::time_point tp) {
+    using namespace std::chrono;
+    const auto age = duration_cast<seconds>(tp.time_since_epoch()).count();
+    rbacCacheEpoch.store(static_cast<uint64_t>(age), std::memory_order_release);
 }
 
 void ExternalAuthManagerThread::processResponseQueue() {

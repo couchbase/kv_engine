@@ -19,6 +19,7 @@
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
 #include <daemon/executorpool.h>
+#include <daemon/external_auth_manager_thread.h>
 #include <daemon/memcached.h>
 #include <daemon/settings.h>
 #include <logger/logger.h>
@@ -77,5 +78,9 @@ ENGINE_ERROR_CODE RbacReloadCommandContext::reload() {
 }
 
 void RbacReloadCommandContext::done() {
+    if (externalAuthManager) {
+        externalAuthManager->setRbacCacheEpoch(
+                std::chrono::steady_clock::now());
+    }
     cookie.sendResponse(cb::mcbp::Status::Success);
 }

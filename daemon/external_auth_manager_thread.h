@@ -102,6 +102,8 @@ public:
         condition_variable.notify_one();
     }
 
+    void setRbacCacheEpoch(std::chrono::steady_clock::time_point tp);
+
 protected:
     /// The main loop of the thread
     void run() override;
@@ -230,6 +232,22 @@ protected:
      * provider
      */
     std::chrono::steady_clock::time_point activeUsersLastSent;
+
+    /**
+     * It should be possible for the authentication provider to
+     * invalidate the entire cache, but we can't simply drop the
+     * current cache as that would cause all of the connected clients
+     * to be disconnected. Instead the authentication provider may
+     * tell us to start requesting a new RBAC entry if the cached
+     * one is older than a given time point. Combined with the logic
+     * that we'll push all of the connected users the authentication
+     * provider can make sure that all of the connections use the
+     * correct RBAC definition. Ideally we would have stored this
+     * as a std::chrono::steady_clock::TimePoint, but that don't
+     * play well with std::atomic, so we're storing the raw
+     * number of seconds instead.
+     */
+    std::atomic<uint64_t> rbacCacheEpoch{{}};
 };
 
 extern std::unique_ptr<ExternalAuthManagerThread> externalAuthManager;
