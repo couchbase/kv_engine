@@ -57,6 +57,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
 
         switch (feature) {
         case cb::mcbp::Feature::Invalid:
+        case cb::mcbp::Feature::Invalid2:
         case cb::mcbp::Feature::TLS:
             // known, but we don't support them
             break;
@@ -68,7 +69,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::SNAPPY:
         case cb::mcbp::Feature::XERROR:
         case cb::mcbp::Feature::SELECT_BUCKET:
-        case cb::mcbp::Feature::COLLECTIONS:
+        case cb::mcbp::Feature::Collections:
         case cb::mcbp::Feature::Duplex:
         case cb::mcbp::Feature::ClustermapChangeNotification:
         case cb::mcbp::Feature::UnorderedExecution:
@@ -95,7 +96,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::XATTR:
         case cb::mcbp::Feature::XERROR:
         case cb::mcbp::Feature::SELECT_BUCKET:
-        case cb::mcbp::Feature::COLLECTIONS:
+        case cb::mcbp::Feature::Invalid2:
         case cb::mcbp::Feature::SNAPPY:
         case cb::mcbp::Feature::JSON:
         case cb::mcbp::Feature::Tracing:
@@ -103,6 +104,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::SyncReplication:
         case cb::mcbp::Feature::Duplex:
         case cb::mcbp::Feature::UnorderedExecution:
+        case cb::mcbp::Feature::Collections:
             // No other dependency
             break;
 
@@ -222,6 +224,7 @@ void process_hello_packet_executor(Cookie& cookie) {
 
         switch (feature) {
         case cb::mcbp::Feature::Invalid:
+        case cb::mcbp::Feature::Invalid2:
         case cb::mcbp::Feature::TLS:
             // Not implemented
             LOG_INFO("{}: {} requested unupported feature {}",
@@ -274,7 +277,7 @@ void process_hello_packet_executor(Cookie& cookie) {
             // The SyncReplication is only informative
             added = true;
             break;
-        case cb::mcbp::Feature::COLLECTIONS:
+        case cb::mcbp::Feature::Collections:
             // Allow KV engine to chicken out
             if (settings.isCollectionsEnabled()) {
                 connection.setCollectionsSupported(true);

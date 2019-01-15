@@ -83,7 +83,7 @@ TEST(DatatypeTest, EnableFeatures) {
                  std::invalid_argument);
     EXPECT_THROW(datatype.enable(cb::mcbp::Feature::SELECT_BUCKET),
                  std::invalid_argument);
-    EXPECT_THROW(datatype.enable(cb::mcbp::Feature::COLLECTIONS),
+    EXPECT_THROW(datatype.enable(cb::mcbp::Feature::Collections),
                  std::invalid_argument);
     EXPECT_THROW(datatype.enable(cb::mcbp::Feature::XERROR),
                  std::invalid_argument);

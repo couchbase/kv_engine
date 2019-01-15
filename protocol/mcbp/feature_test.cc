@@ -20,6 +20,7 @@
 
 const std::map<cb::mcbp::Feature, std::string> blueprint = {
         {{cb::mcbp::Feature::Invalid, "Invalid"},
+         {cb::mcbp::Feature::Invalid2, "Invalid2"},
          {cb::mcbp::Feature::TLS, "TLS"},
          {cb::mcbp::Feature::TCPNODELAY, "TCP nodelay"},
          {cb::mcbp::Feature::MUTATION_SEQNO, "Mutation seqno"},
@@ -27,7 +28,7 @@ const std::map<cb::mcbp::Feature, std::string> blueprint = {
          {cb::mcbp::Feature::XATTR, "XATTR"},
          {cb::mcbp::Feature::XERROR, "XERROR"},
          {cb::mcbp::Feature::SELECT_BUCKET, "Select bucket"},
-         {cb::mcbp::Feature::COLLECTIONS, "Collections"},
+         {cb::mcbp::Feature::Collections, "Collections"},
          {cb::mcbp::Feature::SNAPPY, "Snappy"},
          {cb::mcbp::Feature::JSON, "JSON"},
          {cb::mcbp::Feature::Duplex, "Duplex"},

@@ -40,7 +40,7 @@ enum class Feature : uint16_t {
     XATTR = 0x06, // enables xattr support and set_with_meta.datatype == xattr
     XERROR = 0x07,
     SELECT_BUCKET = 0x08,
-    COLLECTIONS = 0x09,
+    Invalid2 = 0x09, // Used to be collections
     SNAPPY = 0x0a,
     JSON = 0x0b,
     Duplex = 0x0c,
@@ -62,7 +62,9 @@ enum class Feature : uint16_t {
     /// Does the server support alternative request packets
     AltRequestSupport = 0x10,
     /// Do the server support Synchronous Replication
-    SyncReplication = 0x11
+    SyncReplication = 0x11,
+
+    Collections = 0x12,
 };
 
 } // namespace mcbp

@@ -1765,7 +1765,6 @@ The following features is defined:
 | 0x0006 | XATTR |
 | 0x0007 | XERROR |
 | 0x0008 | Select bucket |
-| 0x0009 | Collections |
 | 0x000a | Snappy |
 | 0x000b | JSON |
 | 0x000c | Duplex |
@@ -1774,6 +1773,7 @@ The following features is defined:
 | 0x000f | Tracing |
 | 0x0010 | AltRequest support |
 | 0x0011 | SyncReplication support |
+| 0x0012 | Collections |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill

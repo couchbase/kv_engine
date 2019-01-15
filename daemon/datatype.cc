@@ -32,8 +32,9 @@ bool Datatype::isSupported(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::TCPDELAY:
     case cb::mcbp::Feature::XERROR:
     case cb::mcbp::Feature::SELECT_BUCKET:
-    case cb::mcbp::Feature::COLLECTIONS:
+    case cb::mcbp::Feature::Collections:
     case cb::mcbp::Feature::Invalid:
+    case cb::mcbp::Feature::Invalid2:
     case cb::mcbp::Feature::Duplex:
     case cb::mcbp::Feature::ClustermapChangeNotification:
     case cb::mcbp::Feature::UnorderedExecution:
@@ -64,8 +65,9 @@ void Datatype::enable(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::TCPDELAY:
     case cb::mcbp::Feature::XERROR:
     case cb::mcbp::Feature::SELECT_BUCKET:
-    case cb::mcbp::Feature::COLLECTIONS:
+    case cb::mcbp::Feature::Collections:
     case cb::mcbp::Feature::Invalid:
+    case cb::mcbp::Feature::Invalid2:
     case cb::mcbp::Feature::ClustermapChangeNotification:
     case cb::mcbp::Feature::UnorderedExecution:
     case cb::mcbp::Feature::Tracing:

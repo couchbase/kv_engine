@@ -37,8 +37,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "XERROR";
     case cb::mcbp::Feature::SELECT_BUCKET:
         return "Select bucket";
-    case cb::mcbp::Feature::COLLECTIONS:
-        return "Collections";
+    case cb::mcbp::Feature::Invalid2:
+        return "Invalid2";
     case cb::mcbp::Feature::SNAPPY:
         return "Snappy";
     case cb::mcbp::Feature::JSON:
@@ -55,6 +55,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "AltRequestSupport";
     case cb::mcbp::Feature::SyncReplication:
         return "SyncReplication";
+    case cb::mcbp::Feature::Collections:
+        return "Collections";
     }
 
     throw std::invalid_argument(
