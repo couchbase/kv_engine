@@ -48,27 +48,23 @@ public:
 
     /**
      * Create a StoredDocKey from a DocKey
+     *
      * @param key DocKey that is to be copied-in
+     * @param pending Prefix for Pending SyncWrite?
      */
-    StoredDocKey(const DocKey& key) {
-        if (key.getEncoding() == DocKeyEncodesCollectionId::Yes) {
-            keydata.resize(key.size());
-            std::copy(key.data(), key.data() + key.size(), keydata.begin());
-        } else {
-            // This key is for the default collection (which has a fixed value)
-            keydata.resize(key.size() + 1);
-            keydata[0] = DefaultCollectionLeb128Encoded;
-            std::copy(key.data(), key.data() + key.size(), keydata.begin() + 1);
-        }
-    }
+    StoredDocKey(const DocKey& key, bool pending = false);
 
     /**
      * Create a StoredDocKey from a std::string (test code uses this)
+     *
      * @param key std::string to be copied-in
      * @param cid the CollectionID that the key applies to (and will be encoded
      *        into the stored data)
+     * @param pending Prefix for Pending SyncWrite?
      */
-    StoredDocKey(const std::string& key, CollectionID cid);
+    StoredDocKey(const std::string& key,
+                 CollectionID cid,
+                 bool pending = false);
 
     const uint8_t* data() const {
         return reinterpret_cast<const uint8_t*>(keydata.data());

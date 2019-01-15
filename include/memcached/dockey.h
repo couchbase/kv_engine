@@ -59,8 +59,10 @@ public:
         /// To weave system things into the users namespace, reserve 1
         System = 1,
 
+        /// Prefix for pending SyncWrites
+        DurabilityPrepare = 2,
+
         /// Reserved for future use
-        Reserved2 = 2,
         Reserved3 = 3,
         Reserved4 = 4,
         Reserved5 = 5,
@@ -72,7 +74,7 @@ public:
     }
 
     CollectionID(CollectionIDType value) : value(value) {
-        if (value > System && value <= Reserved7) {
+        if (value > DurabilityPrepare && value <= Reserved7) {
             throw std::invalid_argument("CollectionID: invalid value:" +
                                         std::to_string(value));
         }

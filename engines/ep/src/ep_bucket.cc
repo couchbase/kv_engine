@@ -318,16 +318,6 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             for (const auto& item : items) {
 
                 if (!item->shouldPersist()) {
-                    // @todo-durability: remove as soon as persistence for
-                    //     Prepare has been implemented
-                    if (item->getOperation() == queue_op::pending_sync_write) {
-                        // A Pending has been accounted as dirty, so we need to
-                        // update stats as if it is flushed (note that the
-                        // pending will be also removed from queue as if it
-                        // was persisted)
-                        --stats.diskQueueSize;
-                        vb->doStatsForFlushing(*item, item->size());
-                    }
                     continue;
                 }
 

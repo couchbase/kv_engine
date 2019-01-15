@@ -367,6 +367,7 @@ public:
         switch (op) {
         case queue_op::mutation:
         case queue_op::commit_sync_write:
+        case queue_op::pending_sync_write:
         case queue_op::system_event:
         case queue_op::set_vbucket_state:
             return true;
@@ -374,7 +375,6 @@ public:
         case queue_op::empty:
         case queue_op::checkpoint_start:
         case queue_op::checkpoint_end:
-        case queue_op::pending_sync_write:
             return false;
         }
         // Silence GCC warning
@@ -474,6 +474,11 @@ public:
                     "queue_op:" +
                     to_string(op));
         }
+    }
+
+    /// Returns if this is a Pending SyncWrite
+    bool isPending() const {
+        return op == queue_op::pending_sync_write;
     }
 
     /**

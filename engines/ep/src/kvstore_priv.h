@@ -41,10 +41,18 @@ typedef union {
 
 class IORequest {
 public:
-    IORequest(Vbid vbId,
+    /**
+     * @param vbid
+     * @param cb callback to the engine
+     * @param del Is deletion?
+     * @param key The key of the item to persist
+     * @param pending Prefix for Pending SyncWrite?
+     */
+    IORequest(Vbid vbid,
               MutationRequestCallback& cb,
               bool del,
-              const DocKey itmKey);
+              const DocKey key,
+              bool pending = false);
 
     virtual ~IORequest() {
     }

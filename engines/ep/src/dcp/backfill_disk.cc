@@ -86,9 +86,17 @@ void CacheCallback::callback(CacheLookup& lookup) {
     }
 
     // For system events, don't bother with the get, just return
-    if (lookup.getCollectionsHandle().getKey().getCollectionID() ==
-        CollectionID::System) {
+    auto cid = lookup.getCollectionsHandle().getKey().getCollectionID();
+    if (cid == CollectionID::System) {
         setStatus(ENGINE_SUCCESS);
+        return;
+    }
+
+    // @todo-durability: Backfill for Pending SyncWrite.
+    //     Note that by setting status=ENGINE_KEY_EEXISTS the caller will skip
+    //     the lookup (the indirect caller is KVStore::scan)
+    if (cid == CollectionID::DurabilityPrepare) {
+        setStatus(ENGINE_KEY_EEXISTS);
         return;
     }
 

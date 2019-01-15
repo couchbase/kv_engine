@@ -20,12 +20,44 @@
 #include <iostream>
 #include <sstream>
 
-StoredDocKey::StoredDocKey(const std::string& key, CollectionID cid) {
+StoredDocKey::StoredDocKey(const DocKey& key, bool pending) {
+    uint8_t keyOffset = 0;
+    if (pending) {
+        // 1 byte for Prepare prefix
+        keydata.resize(1);
+        keydata[0] = CollectionID::DurabilityPrepare;
+        keyOffset++;
+    }
+
+    if (key.getEncoding() == DocKeyEncodesCollectionId::No) {
+        // 1 byte for the Default CollectionID
+        keydata.resize(keyOffset + 1);
+        keydata[keyOffset] = DefaultCollectionLeb128Encoded;
+        keyOffset++;
+    }
+
+    keydata.resize(keyOffset + key.size());
+    std::copy(key.data(), key.data() + key.size(), keydata.begin() + keyOffset);
+}
+
+StoredDocKey::StoredDocKey(const std::string& key,
+                           CollectionID cid,
+                           bool pending) {
+    uint8_t keyOffset = 0;
+    if (pending) {
+        // 1 byte for Prepare prefix
+        keydata.resize(1);
+        keydata[0] = CollectionID::DurabilityPrepare;
+        keyOffset++;
+    }
+
     cb::mcbp::unsigned_leb128<CollectionIDType> leb128(cid);
-    keydata.resize(key.size() + leb128.size());
-    std::copy(key.begin(),
-              key.end(),
-              std::copy(leb128.begin(), leb128.end(), keydata.begin()));
+    keydata.resize(keyOffset + leb128.size() + key.size());
+    std::copy(
+            key.begin(),
+            key.end(),
+            std::copy(
+                    leb128.begin(), leb128.end(), keydata.begin() + keyOffset));
 }
 
 CollectionID StoredDocKey::getCollectionID() const {

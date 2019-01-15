@@ -548,8 +548,9 @@ void vbucket_state::reset() {
 IORequest::IORequest(Vbid vbId,
                      MutationRequestCallback& cb,
                      bool del,
-                     const DocKey itmKey)
-    : vbucketId(vbId), deleteItem(del), key(itmKey) {
+                     const DocKey itmKey,
+                     bool pending)
+    : vbucketId(vbId), deleteItem(del), key(itmKey, pending) {
     if (del) {
         callback.delCb = cb.delCb;
     } else {

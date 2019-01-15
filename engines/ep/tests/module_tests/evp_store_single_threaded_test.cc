@@ -4081,7 +4081,7 @@ TEST_F(SingleThreadedEPBucketTest, testValidTombstonePurgeOnRetainErroneousTombs
     EXPECT_EQ(2, store->getVBucket(vbid)->getPurgeSeqno());
 }
 
-TEST_F(SingleThreadedEPBucketTest, Durability_DoNotPersistPendings) {
+TEST_F(SingleThreadedEPBucketTest, Durability_PersistPendings) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     auto item = makePendingItem(makeStoredDocKey("key"), "value");
@@ -4090,12 +4090,21 @@ TEST_F(SingleThreadedEPBucketTest, Durability_DoNotPersistPendings) {
     const auto& ckptMgr = getEPBucket().getVBucket(vbid)->checkpointManager;
     ASSERT_EQ(1, ckptMgr->getNumOpenChkItems());
     ASSERT_EQ(1, ckptMgr->getNumItemsForPersistence());
-    ASSERT_EQ(1, engine->getEpStats().diskQueueSize);
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(1, stats.diskQueueSize);
 
-    EXPECT_EQ(std::make_pair(false, size_t(0)),
-              getEPBucket().flushVBucket(vbid));
+    // Item must be flushed
+    EXPECT_EQ(
+            std::make_pair(false /*more_to_flush*/, size_t(1) /*num_flushed*/),
+            getEPBucket().flushVBucket(vbid));
+
+    // Item must have been removed from the disk queue
     EXPECT_EQ(0, ckptMgr->getNumItemsForPersistence());
-    EXPECT_EQ(0, engine->getEpStats().diskQueueSize);
+    EXPECT_EQ(0, stats.diskQueueSize);
+
+    // @todo: The item count must not increase when flushing Pending SyncWrites
+    const auto& vb = *getEPBucket().getVBucket(vbid);
+    EXPECT_EQ(1 /*must be 0*/, vb.getNumItems());
 }
 
 INSTANTIATE_TEST_CASE_P(XattrSystemUserTest,

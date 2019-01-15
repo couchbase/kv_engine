@@ -223,7 +223,7 @@ CouchRequest::CouchRequest(const Item& it,
                            MutationRequestCallback& cb,
                            bool del,
                            bool persistDocNamespace)
-    : IORequest(it.getVBucketId(), cb, del, it.getKey()),
+    : IORequest(it.getVBucketId(), cb, del, it.getKey(), it.isPending()),
       value(it.getValue()),
       fileRevNum(rev) {
     // Collections: TODO: Temporary switch to ensure upgrades don't break.

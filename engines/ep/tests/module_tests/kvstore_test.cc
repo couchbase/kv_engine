@@ -1797,6 +1797,31 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
     gc.callback(gv);
 }
 
+TEST_F(CouchstoreTest, Durability_PersistPrepare) {
+    StoredDocKey key = makeStoredDocKey("key");
+    Item item(key,
+              0 /*flags*/,
+              0 /*expiry*/,
+              "value",
+              5 /*value_size*/,
+              PROTOCOL_BINARY_RAW_BYTES,
+              0 /*cas*/);
+    using namespace cb::durability;
+    item.setPendingSyncWrite(Requirements());
+
+    WriteCallback wc;
+    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->set(item, wc);
+    kvstore->commit(flush);
+
+    GetValue gv = kvstore->get(key, Vbid(0));
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    StoredDocKey prefixedKey(key, true /*pending*/);
+    gv = kvstore->get(prefixedKey, Vbid(0));
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+}
+
 static int testCompactionUpgradeHook(DocInfo** info, const sized_buf* item) {
     // Examine the metadata of the doc, we expect that the first compaction
     // upgraded us to V1
