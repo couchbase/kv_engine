@@ -1000,6 +1000,12 @@ public:
             throw std::logic_error(
                     "EPDiskRollbackCB::callback: dbHandle is NULL");
         }
+
+        // Skip system keys, they aren't stored in the hashtable
+        if (val.item->getKey().getCollectionID().isSystem()) {
+            return;
+        }
+
         // This is the item in its current state, after the rollback seqno
         // (i.e. the state that we are reverting)
         UniqueItemPtr postRbSeqnoItem(std::move(val.item));
@@ -1084,7 +1090,8 @@ void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
     vb.checkpointManager->getAllItemsForPersistence(items);
     for (const auto& item : items) {
         if (item->getBySeqno() > rollbackSeqno &&
-            !item->isCheckPointMetaItem()) {
+            !item->isCheckPointMetaItem() &&
+            !item->getKey().getCollectionID().isSystem()) {
             GetValue gcb = getROUnderlying(vb.getId())
                                    ->get(item->getKey(), vb.getId(), false);
 

@@ -462,13 +462,9 @@ public:
         case queue_op::commit_sync_write:
             return CommittedState::CommittedViaPrepare;
         case queue_op::mutation:
+        case queue_op::system_event:
             return CommittedState::CommittedViaMutation;
         default:
-            // @todo MB-32571: Remove the return, throw exception instead -
-            // logically we should never attempt to add system events or
-            // similar to the HashTable.
-            return CommittedState::CommittedViaMutation;
-
             throw std::logic_error(
                     "Item::getCommitted(): Called on Item with unexpected "
                     "queue_op:" +

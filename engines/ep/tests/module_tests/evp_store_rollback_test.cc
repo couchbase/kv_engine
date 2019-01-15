@@ -453,6 +453,7 @@ protected:
             EXPECT_EQ(rollback_item.getBySeqno(),
                       store->getVBucket(vbid)->getHighSeqno());
         }
+        EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumSystemItems());
     }
 
 protected:
