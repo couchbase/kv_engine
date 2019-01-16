@@ -1146,6 +1146,109 @@ TEST_P(STItemPagerTest, phaseWhenPolicyChange) {
     }
 }
 
+class MB_32669 : public STPersistentExpiryPagerTest {
+public:
+    void SetUp() override {
+        config_string += "compression_mode=active;";
+        STPersistentExpiryPagerTest::SetUp();
+        store->enableItemCompressor();
+        initialNonIoTasks++;
+    }
+
+    void runItemCompressor() {
+        auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        runNextTask(lpNonioQ, "Item Compressor");
+    }
+};
+
+// Test that an xattr value which is compressed, evicted and then expired
+// doesn't trigger an exception
+TEST_P(MB_32669, expire_a_compressed_and_evicted_xattr_document) {
+    // 1) Add bucket a TTL'd xattr document
+    auto key = makeStoredDocKey("key");
+    auto expiry = ep_abs_time(ep_current_time() + 5);
+    auto value = createXattrValue(std::string(100, 'a'), true /*sys xattrs*/);
+    auto item =
+            make_item(vbid, key, value, expiry, PROTOCOL_BINARY_DATATYPE_XATTR);
+    ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
+
+    if (std::get<0>(GetParam()) == "persistent") {
+        EXPECT_EQ(std::make_pair(false, size_t(1)),
+                  getEPBucket().flushVBucket(vbid));
+    }
+
+    // Sanity check - should have not hit high watermark (otherwise the
+    // item pager will run automatically and aggressively delete items).
+    auto& stats = engine->getEpStats();
+    ASSERT_LE(stats.getEstimatedTotalMemoryUsed(), stats.getMaxDataSize() * 0.8)
+            << "Expected to not have exceeded 80% of bucket quota";
+
+    // 2) Run the compressor
+    runItemCompressor();
+
+    // 2.1) And validate the document is now snappy
+    ItemMetaData metadata;
+    uint32_t deleted;
+    uint8_t datatype;
+
+    EXPECT_EQ(
+            ENGINE_SUCCESS,
+            store->getMetaData(key, vbid, cookie, metadata, deleted, datatype));
+    ASSERT_EQ(PROTOCOL_BINARY_DATATYPE_SNAPPY,
+              datatype & PROTOCOL_BINARY_DATATYPE_SNAPPY);
+
+    // 3) Evict key so it is no longer resident.
+    evict_key(vbid, key);
+
+    // 4) Move time forward by 11s, so key should be expired.
+    TimeTraveller wyldStallyns(11);
+
+    // Sanity check - should still have item present (and non-resident)
+    // in VBucket.
+    ASSERT_EQ(1, engine->getVBucket(vbid)->getNumItems());
+    ASSERT_EQ(1, engine->getVBucket(vbid)->getNumNonResidentItems());
+
+    wakeUpExpiryPager();
+
+    if (std::get<0>(GetParam()) == "persistent") {
+        EXPECT_EQ(std::make_pair(false, size_t(1)),
+                  getEPBucket().flushVBucket(vbid));
+    }
+
+    EXPECT_EQ(0, engine->getVBucket(vbid)->getNumItems())
+            << "Should have 0 items after running expiry pager";
+    EXPECT_EQ(0, engine->getVBucket(vbid)->getNumNonResidentItems())
+            << "Should have 0 non-resident items after running expiry pager";
+
+    // Check our item has been deleted and the xattrs pruned
+    get_options_t options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    GetValue gv = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+
+    runBGFetcherTask();
+    gv = store->get(key, vbid, cookie, options);
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+
+    EXPECT_TRUE(gv.item->isDeleted());
+    auto get_itm = gv.item.get();
+    auto get_data = const_cast<char*>(get_itm->getData());
+
+    cb::char_buffer value_buf{get_data, get_itm->getNBytes()};
+    cb::xattr::Blob new_blob(value_buf, false);
+
+    // expect sys attributes to remain
+    const std::string& cas_str{"{\"cas\":\"0xdeadbeefcafefeed\"}"};
+    const std::string& sync_str = to_string(new_blob.get("_sync"));
+
+    EXPECT_EQ(cas_str, sync_str) << "Unexpected system xattrs";
+    EXPECT_TRUE(new_blob.get("user").empty())
+            << "The user attribute should be gone";
+    EXPECT_TRUE(new_blob.get("meta").empty())
+            << "The meta attribute should be gone";
+}
+
 // TODO: Ideally all of these tests should run with or without jemalloc,
 // however we currently rely on jemalloc for accurate memory tracking; and
 // hence it is required currently.
@@ -1175,6 +1278,8 @@ INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
 INSTANTIATE_TEST_CASE_P(Persistent,
                         STPersistentExpiryPagerTest,
                         persistentConfigValues, );
+
+INSTANTIATE_TEST_CASE_P(Persistent, MB_32669, persistentConfigValues, );
 
 INSTANTIATE_TEST_CASE_P(Ephemeral, STEphemeralItemPagerTest, ephConfigValues, );
 
