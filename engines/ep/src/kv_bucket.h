@@ -652,6 +652,8 @@ public:
         accessScanner.lastTaskRuntime = ProcessClock::now();
     }
 
+    void enableItemCompressor();
+
     void setAllBloomFilters(bool to);
 
     float getBfiltersResidencyThreshold() {
