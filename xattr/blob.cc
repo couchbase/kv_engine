@@ -55,7 +55,18 @@ Blob& Blob::assign(cb::char_buffer buffer, bool compressed) {
                     cb::compression::Algorithm::Snappy,
                     {static_cast<const char*>(buffer.data()), buffer.size()},
                     decompressed)) {
-            throw std::runtime_error("Blob::assign failed to inflate");
+            // inflate (de-compress) failed.  Try to grab the
+            // uncompressedLength for debugging purposes - zero indicates
+            // that it failed to return the uncompressedLength.
+            size_t uncompressedLength =
+                    cb::compression::get_uncompressed_length(
+                            cb::compression::Algorithm::Snappy,
+                            {static_cast<const char*>(buffer.data()),
+                             buffer.size()});
+            throw std::runtime_error(
+                    "Blob::assign failed to inflate.  buffer.size:" +
+                    std::to_string(buffer.size()) + " uncompressedLength:" +
+                    std::to_string(uncompressedLength));
         }
 
         // Connect blob to the decompressed xattrs after resizing which in
