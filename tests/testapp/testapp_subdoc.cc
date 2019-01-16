@@ -1591,6 +1591,26 @@ TEST_P(SubdocTestappTest, SubdocExpiry_Single) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
     EXPECT_EQ("[\"b\"]", result.second);
 
+    /*
+     * Additional document for MB-32364, checking if a single path mutation
+     * ignores the expiry if docflags are included in extras.
+     */
+
+    // Perform an UPSERT, explicitly encoding an expiry of 1s.
+    BinprotSubdocCommand upsert1(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                                 "doc_flags",
+                                 "foo",
+                                 "\"a\"",
+                                 SUBDOC_FLAG_NONE,
+                                 mcbp::subdoc::doc_flag::Mkdoc);
+    upsert1.setExpiry(1);
+    EXPECT_SUBDOC_CMD(upsert1, PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+
+    // Try to read the doc_flags document immediately - should exist.
+    result = fetch_value("doc_flags");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+    EXPECT_EQ("{\"foo\":\"a\"}", result.second);
+
     // Sleep for 2s seconds.
     // TODO: it would be great if we could somehow accelerate time from the
     // harness, and not add 2s to the runtime of the test...
@@ -1604,6 +1624,10 @@ TEST_P(SubdocTestappTest, SubdocExpiry_Single) {
     result = fetch_value("permanent");
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
     EXPECT_EQ("[\"b\"]", result.second);
+
+    // Try to read the doc_flag document - shouldn't exist.
+    result = fetch_value("doc_flags");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, result.first);
 }
 
 // Test handling of not-my-vbucket for a SUBDOC_GET
