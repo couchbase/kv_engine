@@ -673,7 +673,8 @@ protected:
     }
 
     ENGINE_ERROR_CODE set_vb_state(Vbid vbid, vbucket_state_t state) {
-        return engine->getKVBucket()->setVBucketState(vbid, state, true);
+        return engine->getKVBucket()->setVBucketState(
+                vbid, state, TransferVB::Yes);
     }
 
     /**

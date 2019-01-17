@@ -770,7 +770,7 @@ ENGINE_ERROR_CODE KVBucket::addBackfillItem(Item& itm,
 
 ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,
                                             vbucket_state_t to,
-                                            bool transfer,
+                                            TransferVB transfer,
                                             const void* cookie) {
     // MB-25197: we shouldn't process setVBState if warmup hasn't yet loaded
     // the vbucket state data.
@@ -793,7 +793,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,
 ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
         Vbid vbid,
         vbucket_state_t to,
-        bool transfer,
+        TransferVB transfer,
         bool notify_dcp,
         std::unique_lock<std::mutex>& vbset,
         WriterLockHolder* vbStateLock) {
@@ -807,7 +807,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
 
         if (oldstate != to && notify_dcp) {
             bool closeInboundStreams = false;
-            if (to == vbucket_state_active && !transfer) {
+            if (to == vbucket_state_active && transfer == TransferVB::No) {
                 /**
                  * Close inbound (passive) streams into the vbucket
                  * only in case of a failover.
@@ -834,7 +834,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
             collectionsManager->update(*vb);
         }
 
-        if (to == vbucket_state_active && !transfer) {
+        if (to == vbucket_state_active && transfer == TransferVB::No) {
             const snapshot_range_t range = vb->getPersistedSnapshot();
             auto highSeqno = range.end == vb->getPersistenceSeqno()
                                      ? range.end
@@ -997,7 +997,7 @@ bool KVBucket::resetVBucket_UNLOCKED(LockedVBucketPtr& vb,
         // Delete and recreate the vbucket database file
         setVBucketState_UNLOCKED(vb->getId(),
                                  vbstate,
-                                 false /*transfer*/,
+                                 TransferVB::No,
                                  true /*notifyDcp*/,
                                  vbset);
 

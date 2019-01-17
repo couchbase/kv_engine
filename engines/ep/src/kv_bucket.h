@@ -277,7 +277,7 @@ public:
      */
     ENGINE_ERROR_CODE setVBucketState(Vbid vbid,
                                       vbucket_state_t state,
-                                      bool transfer = false,
+                                      TransferVB transfer = TransferVB::No,
                                       const void* cookie = nullptr);
 
     /**
@@ -300,7 +300,7 @@ public:
     ENGINE_ERROR_CODE setVBucketState_UNLOCKED(
             Vbid vbid,
             vbucket_state_t state,
-            bool transfer,
+            TransferVB transfer,
             bool notify_dcp,
             std::unique_lock<std::mutex>& vbset,
             WriterLockHolder* vbStateLock = nullptr);

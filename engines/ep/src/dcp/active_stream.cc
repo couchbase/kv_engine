@@ -408,7 +408,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
                 engine->getKVBucket()->setVBucketState_UNLOCKED(
                         vb_,
                         vbucket_state_dead,
-                        false /* transfer */,
+                        TransferVB::No,
                         false /* notify_dcp */,
                         epVbSetLh,
                         &vbStateLh);

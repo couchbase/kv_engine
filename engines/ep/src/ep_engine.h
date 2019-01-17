@@ -570,7 +570,7 @@ public:
                                       Vbid vbid,
                                       vbucket_state_t to,
                                       const nlohmann::json& meta,
-                                      bool transfer,
+                                      TransferVB transfer,
                                       uint64_t cas);
 
     cb::mcbp::Status setParam(const cb::mcbp::Request& req, std::string& msg);

@@ -20,7 +20,6 @@
 #include <boost/optional/optional_fwd.hpp>
 
 #include <list>
-#include <map>
 #include <memory>
 #include <string>
 
@@ -44,6 +43,13 @@ enum class WantsDeleted : char { No, Yes };
 enum class TrackReference : char { No, Yes };
 enum class QueueExpired : char { No, Yes };
 enum class CheckConflicts : char { No, Yes };
+
+/**
+ * Used by setVBucketState - indicates that the vbucket is transferred
+ * to the active post a failover and/or rebalance.
+ */
+enum class TransferVB : char { No, Yes };
+std::ostream& operator<<(std::ostream&, TransferVB transfer);
 
 std::string to_string(GenerateBySeqno generateBySeqno);
 std::string to_string(GenerateCas generateCas);

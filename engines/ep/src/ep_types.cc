@@ -98,3 +98,14 @@ std::ostream& operator<<(std::ostream& os,
             "operator<<(item_eviction_policy_t) unknown value " +
             std::to_string(static_cast<int>(policy)));
 }
+
+std::ostream& operator<<(std::ostream& os, TransferVB transfer) {
+    switch (transfer) {
+    case TransferVB::No:
+        return os << "No";
+    case TransferVB::Yes:
+        return os << "Yes";
+    }
+    throw std::invalid_argument("operator<<(TransferVB) unknown value " +
+                                std::to_string(static_cast<int>(transfer)));
+}
