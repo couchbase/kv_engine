@@ -2521,7 +2521,8 @@ Collections::VB::PersistedManifest CouchKVStore::readCollectionsManifest(
             &db, (void*)id.buf, id.size, lDoc.getLocalDocAddress());
     if (errCode != COUCHSTORE_SUCCESS) {
         if (errCode == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
-            logger.info("CouchKVStore::readCollectionsManifest: doc not found");
+            logger.debug(
+                    "CouchKVStore::readCollectionsManifest: doc not found");
         } else {
             logger.warn(
                     "CouchKVStore::readCollectionsManifest: "
