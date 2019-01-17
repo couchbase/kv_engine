@@ -1465,6 +1465,12 @@ static_assert(sizeof(SetParamPayload) == 4, "Unexpected size");
 #define SKIP_CONFLICT_RESOLUTION_FLAG 0x08
 
 /**
+ * This flag is used by deleteWithMeta packets to specify if the delete sent
+ * instead represents an expiration.
+ */
+#define IS_EXPIRATION 0x10
+
+/**
  * This flag is used with the get meta response packet. If set it
  * specifies that the item recieved has been deleted, but that the
  * items meta data is still contained in ep-engine. Eg. the item

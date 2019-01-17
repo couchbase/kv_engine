@@ -905,9 +905,9 @@ TEST_P(EPStoreEvictionTest, expiredItemCount) {
 
     flush_vbucket_to_disk(vbid);
     ASSERT_EQ(1, store->getVBucket(vbid)->getNumItems());
-
+    ASSERT_EQ(0, store->getVBucket(vbid)->numExpiredItems);
     // Travel past expiry time
-    TimeTraveller arron(64000);
+    TimeTraveller missy(64000);
 
     // Trigger expiry on a GET
     auto gv = store->get(key, vbid, cookie, NONE);
@@ -915,6 +915,7 @@ TEST_P(EPStoreEvictionTest, expiredItemCount) {
 
     flush_vbucket_to_disk(vbid);
     EXPECT_EQ(0, store->getVBucket(vbid)->getNumItems());
+    EXPECT_EQ(1, store->getVBucket(vbid)->numExpiredItems);
 }
 
 class EPStoreEvictionBloomOnOffTest

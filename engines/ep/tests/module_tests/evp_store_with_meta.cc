@@ -1378,6 +1378,19 @@ TEST_P(AddSetWithMetaTest, MB_31141) {
     EXPECT_EQ(275, result.item->getNBytes());
 }
 
+TEST_P(DelWithMetaTest, isExpirationOption) {
+    // Trigger the basic DelWithMetaTest with the IS_EXPIRATION option
+    ItemMetaData itemMeta{0xdeadbeef, 0xf00dcafe, 0xfacefeed, expiry};
+    // A delete_w_meta against an empty bucket queues a BGFetch (get = ewblock)
+    // A delete_w_meta(with_value) sets the new value (get = success)
+    oneOpAndCheck(op,
+                  itemMeta,
+                  IS_EXPIRATION,
+                  withValue,
+                  cb::mcbp::Status::Success,
+                  withValue ? ENGINE_SUCCESS : ENGINE_EWOULDBLOCK);
+}
+
 auto opcodeValues = ::testing::Values(cb::mcbp::ClientOpcode::SetWithMeta,
                                       cb::mcbp::ClientOpcode::SetqWithMeta,
                                       cb::mcbp::ClientOpcode::AddWithMeta,

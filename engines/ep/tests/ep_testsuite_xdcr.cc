@@ -3095,6 +3095,41 @@ static enum test_result test_MB29119(EngineIface* h) {
     return SUCCESS;
 }
 
+/*
+ * Test that we can send option of IS_EXPIRATION
+ */
+static enum test_result test_expiration_options(EngineIface* h) {
+    const char* key = "delete_with_meta_key";
+    const size_t keylen = strlen(key);
+    ItemMetaData itemMeta;
+    itemMeta.revSeqno = 10;
+    itemMeta.cas = 0x1;
+    itemMeta.exptime = 10;
+    itemMeta.flags = 0xdeadbeef;
+
+    // store an item
+    checkeq(ENGINE_SUCCESS,
+            store(h,
+                  NULL,
+                  OPERATION_SET,
+                  key,
+                  "somevalue",
+                  nullptr,
+                  0,
+                  Vbid(0),
+                  100),
+            "Failed set.");
+    wait_for_flusher_to_settle(h);
+
+    // delete an item with meta data indicating expiration
+    checkeq(ENGINE_SUCCESS,
+            del_with_meta(h, key, keylen, Vbid(0), &itemMeta, 0, IS_EXPIRATION),
+            "Expected delete success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
+
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char *default_dbname = "./ep_testsuite_xdcr";
@@ -3429,6 +3464,13 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  nullptr,
                  prepare_full_eviction,
+                 cleanup),
+        TestCase("delete with meta with expiration option",
+                 test_expiration_options,
+                 test_setup,
+                 teardown,
+                 NULL,
+                 prepare,
                  cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)};

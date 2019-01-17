@@ -4636,12 +4636,25 @@ cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMetaInner(
 
     return std::make_pair(cb::engine_errc(ret), metadata);
 }
-
-bool EventuallyPersistentEngine::decodeWithMetaOptions(
+bool EventuallyPersistentEngine::decodeSetWithMetaOptions(
         cb::const_byte_buffer extras,
         GenerateCas& generateCas,
         CheckConflicts& checkConflicts,
         PermittedVBStates& permittedVBStates) {
+    // DeleteSource not needed by SetWithMeta, so set to default of explicit
+    DeleteSource deleteSource = DeleteSource::Explicit;
+    return EventuallyPersistentEngine::decodeWithMetaOptions(extras,
+                                                             generateCas,
+                                                             checkConflicts,
+                                                             permittedVBStates,
+                                                             deleteSource);
+}
+bool EventuallyPersistentEngine::decodeWithMetaOptions(
+        cb::const_byte_buffer extras,
+        GenerateCas& generateCas,
+        CheckConflicts& checkConflicts,
+        PermittedVBStates& permittedVBStates,
+        DeleteSource& deleteSource) {
     bool forceFlag = false;
     if (extras.size() == 28 || extras.size() == 30) {
         const size_t fixed_extras_size = 24;
@@ -4666,6 +4679,10 @@ bool EventuallyPersistentEngine::decodeWithMetaOptions(
             permittedVBStates.set(vbucket_state_pending);
             checkConflicts = CheckConflicts::No;
         }
+
+        if (options & IS_EXPIRATION) {
+            deleteSource = DeleteSource::TTL;
+        }
     }
 
     // Validate options
@@ -4683,6 +4700,30 @@ bool EventuallyPersistentEngine::decodeWithMetaOptions(
 
     // So if either check1/2/3 is true, return false
     return !(check1 || check2 || check3);
+}
+
+/**
+ * This is a helper function for set/deleteWithMeta, used to extract nmeta
+ * from the packet.
+ * @param emd Extended Metadata (edited by this function)
+ * @param value nmeta is removed from the value by this function
+ * @param extras
+ */
+void extractNmetaFromExtras(cb::const_byte_buffer& emd,
+                            cb::const_byte_buffer& value,
+                            cb::const_byte_buffer extras) {
+    if (extras.size() == 26 || extras.size() == 30) {
+        // 26 = nmeta
+        // 30 = options and nmeta (options followed by nmeta)
+        // The extras is stored last, so copy out the two last bytes in
+        // the extras field and use them as nmeta
+        uint16_t nmeta;
+        memcpy(&nmeta, extras.end() - sizeof(nmeta), sizeof(nmeta));
+        nmeta = ntohs(nmeta);
+        // Correct the vallen
+        emd = {value.data() + value.size() - nmeta, nmeta};
+        value = {value.data(), value.size() - nmeta};
+    }
 }
 
 protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
@@ -4725,25 +4766,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
     CheckConflicts checkConflicts = CheckConflicts::Yes;
     PermittedVBStates permittedVBStates{vbucket_state_active};
     GenerateCas generateCas = GenerateCas::No;
-    if (!decodeWithMetaOptions(
+    if (!decodeSetWithMetaOptions(
                 extras, generateCas, checkConflicts, permittedVBStates)) {
         return ENGINE_EINVAL;
     }
 
     auto value = request.getValue();
     cb::const_byte_buffer emd;
-    if (extras.size() == 26 || extras.size() == 30) {
-        // 26 = nmeta
-        // 30 = options and nmeta (options followed by nmeta)
-        // The extras is stored last, so copy out the two last bytes in
-        // the extras field and use them as nmeta
-        uint16_t nmeta;
-        memcpy(&nmeta, extras.end() - sizeof(nmeta), sizeof(nmeta));
-        nmeta = ntohs(nmeta);
-        // Correct the vallen
-        emd = {value.data() + value.size() - nmeta, nmeta};
-        value = {value.data(), value.size() - nmeta};
-    }
+    extractNmetaFromExtras(emd, value, extras);
 
     if (value.size() > maxItemSize) {
         EP_LOG_WARN(
@@ -4943,25 +4973,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     CheckConflicts checkConflicts = CheckConflicts::Yes;
     PermittedVBStates permittedVBStates{vbucket_state_active};
     GenerateCas generateCas = GenerateCas::No;
-    if (!decodeWithMetaOptions(
-                extras, generateCas, checkConflicts, permittedVBStates)) {
+    DeleteSource deleteSource = DeleteSource::Explicit;
+    if (!decodeWithMetaOptions(extras,
+                               generateCas,
+                               checkConflicts,
+                               permittedVBStates,
+                               deleteSource)) {
         return ENGINE_EINVAL;
     }
 
     auto value = request.getValue();
     cb::const_byte_buffer emd;
-    if (extras.size() == 26 || extras.size() == 30) {
-        // 26 = nmeta
-        // 30 = options and nmeta (options followed by nmeta)
-        // The extras is stored last, so copy out the two last bytes in
-        // the extras field and use them as nmeta
-        uint16_t nmeta;
-        memcpy(&nmeta, extras.end() - sizeof(nmeta), sizeof(nmeta));
-        nmeta = ntohs(nmeta);
-        // Correct the vallen
-        emd = {value.data() + value.size() - nmeta, nmeta};
-        value = {value.data(), value.size() - nmeta};
-    }
+    extractNmetaFromExtras(emd, value, extras);
 
     auto key = makeDocKey(cookie, request.getKey());
     uint64_t bySeqno = 0;
@@ -4988,7 +5011,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
                                  GenerateBySeqno::Yes,
                                  generateCas,
                                  emd,
-                                 DeleteSource::Explicit);
+                                 deleteSource);
         } else {
             // A delete with a value
             ret = setWithMeta(request.getVBucket(),

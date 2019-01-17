@@ -5406,6 +5406,88 @@ static enum test_result test_dcp_replica_stream_expiry_disabled(
     return test_dcp_replica_stream_expiries(h, EnableExpiryOutput::No);
 }
 
+/*
+ * Test that we can send option of IS_EXPIRATION through deleteWithMeta and
+ * stream an expiration from the outcome.
+ */
+static test_result test_stream_deleteWithMeta_expiration(
+        EngineIface* h, EnableExpiryOutput enableExpiryOutput) {
+    const char* key = "delete_with_meta_key";
+    const size_t keylen = strlen(key);
+    ItemMetaData itemMeta;
+    itemMeta.revSeqno = 10;
+    itemMeta.cas = 0x1;
+    itemMeta.flags = 0xdeadbeef;
+
+    // store an item
+    checkeq(ENGINE_SUCCESS,
+            store(h,
+                  NULL,
+                  OPERATION_SET,
+                  key,
+                  "somevalue",
+                  nullptr,
+                  0,
+                  Vbid(0)),
+            "Failed set.");
+    wait_for_flusher_to_settle(h);
+
+    // check the item stat
+    auto temp = get_int_stat(h, "curr_items_tot");
+    checkeq(1, temp, "Expected an item");
+
+    // delete an item with meta data indicating expiration
+    checkeq(ENGINE_SUCCESS,
+            del_with_meta(h, key, keylen, Vbid(0), &itemMeta, 0, IS_EXPIRATION),
+            "Expected delete success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
+
+    wait_for_flusher_to_settle(h);
+
+    // check the item stat
+    temp = get_int_stat(h, "curr_items_tot");
+    checkeq(0, temp, "Expected item to be removed");
+
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, 2};
+    if (enableExpiryOutput == EnableExpiryOutput::Yes) {
+        ctx.exp_expirations = 1;
+    } else {
+        ctx.exp_deletions = 1;
+    }
+    ctx.exp_markers = 1;
+
+    const void* cookie = testHarness->create_cookie();
+    TestDcpConsumer tdc("unittest", cookie, h);
+    uint32_t flags = cb::mcbp::request::DcpOpenPayload::Producer;
+    tdc.openConnection(flags);
+
+    if (enableExpiryOutput == EnableExpiryOutput::Yes) {
+        checkeq(ENGINE_SUCCESS,
+                tdc.sendControlMessage("enable_expiry_opcode", "true"),
+                "Failed to enable_expiry_opcode");
+    }
+
+    tdc.addStreamCtx(ctx);
+
+    tdc.run(false);
+
+    testHarness->destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static enum test_result test_stream_deleteWithMeta_expiration_enabled(
+        EngineIface* h) {
+    return test_stream_deleteWithMeta_expiration(h, EnableExpiryOutput::Yes);
+}
+
+static enum test_result test_stream_deleteWithMeta_expiration_disabled(
+        EngineIface* h) {
+    return test_stream_deleteWithMeta_expiration(h, EnableExpiryOutput::No);
+}
+
 static enum test_result test_dcp_persistence_seqno(EngineIface* h) {
     /* write 2 items */
     const int num_items = 2;
@@ -7409,6 +7491,24 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  NULL,
                  prepare,
+                 cleanup),
+        TestCase("test MB-32443 delete with meta with expiration stream "
+                 "- ExpiryOutput Disabled",
+                 test_stream_deleteWithMeta_expiration_disabled,
+                 test_setup,
+                 teardown,
+                 NULL,
+                /* TODO RDB: curr_items not correct under RocksDB */
+                 prepare_skip_broken_under_rocks,
+                 cleanup),
+        TestCase("test MB-32443 delete with meta with expiration stream "
+                 "- ExpiryOutput Enabled",
+                 test_stream_deleteWithMeta_expiration_enabled,
+                 test_setup,
+                 teardown,
+                 NULL,
+                /* TODO RDB: curr_items not correct under RocksDB */
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test noop mandatory",test_dcp_noop_mandatory,
                  test_setup, teardown, NULL, prepare, cleanup),

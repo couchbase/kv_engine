@@ -891,13 +891,26 @@ protected:
      *        not be performed.
      * @param permittedVBStates[out] updates with replica and pending if the
      *        options contain force.
+     * @param deleteSource Changes to TTL if IS_EXPIRATION flag (del_with_meta)
      * @return true if everything is OK, false for an invalid combination of
      *              options
      */
     bool decodeWithMetaOptions(cb::const_byte_buffer extras,
                                GenerateCas& generateCas,
                                CheckConflicts& checkConflicts,
-                               PermittedVBStates& permittedVBStates);
+                               PermittedVBStates& permittedVBStates,
+                               DeleteSource& deleteSource);
+
+    /**
+     * Private wrapper method for decodeWithMetaOptions called from setWithMeta
+     * to abstract out deleteSource, which is unused by setWithMeta.
+     * @return true if everything is OK, false for an invalid combination of
+     *              options
+     */
+    bool decodeSetWithMetaOptions(cb::const_byte_buffer extras,
+                                  GenerateCas& generateCas,
+                                  CheckConflicts& checkConflicts,
+                                  PermittedVBStates& permittedVBStates);
 
     /**
      * Sends error response, using the specified error and response callback
