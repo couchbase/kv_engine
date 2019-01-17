@@ -362,17 +362,21 @@ public:
      * Sets the vbucket state to a desired state
      *
      * @param to desired vbucket state
+     * @param meta optional meta information to apply alongside the state.
      */
-    void setState(vbucket_state_t to);
+    void setState(vbucket_state_t to, const nlohmann::json& meta = {});
 
     /**
      * Sets the vbucket state to a desired state with the 'stateLock' already
      * acquired
      *
      * @param to desired vbucket state
+     * @param meta optional meta information to apply alongside the state.
      * @param vbStateLock write lock holder on 'stateLock'
      */
-    void setState_UNLOCKED(vbucket_state_t to, WriterLockHolder& vbStateLock);
+    void setState_UNLOCKED(vbucket_state_t to,
+                           const nlohmann::json& meta,
+                           WriterLockHolder& vbStateLock);
 
     cb::RWLock& getStateLock() {return stateLock;}
 
@@ -1379,6 +1383,14 @@ public:
             const Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     /**
+     * Helper function to validate the specified setVbucketState meta
+     * information.
+     * @returns An empty string if the information is valid,
+     * otherwise string describing the (first) validation failure.
+     */
+    static std::string validateSetStateMeta(const nlohmann::json& meta);
+
+    /**
      * Inform the vBucket that sequence number(s) have been acknowledged by
      * a replica node.
      *
@@ -1916,6 +1928,12 @@ private:
     Vbid id;
     std::atomic<vbucket_state_t>    state;
     cb::RWLock                      stateLock;
+
+    // TEMP: replication topology from ns_server.
+    // @todo-durabilty: remove this once DurabilityMonitor is tracking
+    // the topology.
+    nlohmann::json replicationTopology;
+
     vbucket_state_t                 initialState;
     std::mutex                           pendingOpLock;
     std::vector<const void*>        pendingOps;

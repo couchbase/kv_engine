@@ -6595,6 +6595,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "vb_0:backfill_queue_size",
               "vb_0:rollback_item_count",
               "vb_0:hp_vb_req_size",
+              "vb_0:topology",
               "vb_0:total_abs_drift",
               "vb_0:total_abs_drift_count",
               "vb_0:uuid",

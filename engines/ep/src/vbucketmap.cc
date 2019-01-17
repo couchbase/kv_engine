@@ -183,6 +183,7 @@ void VBucketMap::VBucketConfigChangeListener::sizeValueChanged(const std::string
 
 vbucket_state_t VBucketMap::setState(VBucketPtr vb,
                                      vbucket_state_t newState,
+                                     const nlohmann::json& meta,
                                      WriterLockHolder* vbStateLock) {
     if (!vb) {
         throw std::invalid_argument(
@@ -192,9 +193,9 @@ vbucket_state_t VBucketMap::setState(VBucketPtr vb,
 
     vbucket_state_t oldState = vb->getState();
     if (vbStateLock) {
-        vb->setState_UNLOCKED(newState, *vbStateLock);
+        vb->setState_UNLOCKED(newState, meta, *vbStateLock);
     } else {
-        vb->setState(newState);
+        vb->setState(newState, meta);
     }
 
     decVBStateCount(oldState);

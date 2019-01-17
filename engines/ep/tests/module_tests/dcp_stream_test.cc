@@ -1036,7 +1036,7 @@ TEST_P(StreamTest, MB_25820_callback_not_invoked_on_dead_vb_stream_request) {
     setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
     ASSERT_EQ(ENGINE_SUCCESS,
               engine->getKVBucket()->setVBucketState(
-                      vbid, vbucket_state_dead, TransferVB::Yes));
+                      vbid, vbucket_state_dead, {}, TransferVB::Yes));
     uint64_t vbUuid = vb0->failovers->getLatestUUID();
     // Given the vbucket state is dead we should return not my vbucket.
     EXPECT_EQ(ENGINE_NOT_MY_VBUCKET,

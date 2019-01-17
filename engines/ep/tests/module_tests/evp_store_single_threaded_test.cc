@@ -2513,8 +2513,11 @@ TEST_F(WarmupTest, MB_25197) {
         // Do a setVBState but don't flush it through. This call should be
         // failed ewouldblock whilst warmup has yet to attempt to create VBs.
         EXPECT_EQ(ENGINE_EWOULDBLOCK,
-                  store->setVBucketState(
-                          vbid, vbucket_state_active, TransferVB::No, cookie));
+                  store->setVBucketState(vbid,
+                                         vbucket_state_active,
+                                         {},
+                                         TransferVB::No,
+                                         cookie));
         executor.runCurrentTask();
     }
 

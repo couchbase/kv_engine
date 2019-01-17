@@ -135,12 +135,14 @@ public:
      * Set the state of the vBucket and set VBucketMap invariants
      * @param vb pointer to the vBucket to change
      * @param newState desired state
+     * @param meta optional meta information to apply alongside the state.
      * @param an optional lock (using nullptr) for the vBucket. Will be
      *        acquired by this function if not supplied
      * @return the old state of the vBucket
      */
     vbucket_state_t setState(VBucketPtr vb,
                              vbucket_state_t newState,
+                             const nlohmann::json& meta,
                              WriterLockHolder* vbStateLock);
 
 private:

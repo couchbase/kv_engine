@@ -5831,7 +5831,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setVBucketState(
         const nlohmann::json& meta,
         TransferVB transfer,
         uint64_t cas) {
-    auto status = kvBucket->setVBucketState(vbid, to, transfer, cookie);
+    auto status = kvBucket->setVBucketState(vbid, to, meta, transfer, cookie);
 
     if (status == ENGINE_EWOULDBLOCK) {
         return status;

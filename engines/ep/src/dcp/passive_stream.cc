@@ -787,7 +787,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
 
 void PassiveStream::processSetVBucketState(SetVBucketState* state) {
     engine->getKVBucket()->setVBucketState(
-            vb_, state->getState(), TransferVB::Yes);
+            vb_, state->getState(), {}, TransferVB::Yes);
     {
         LockHolder lh(streamMutex);
         pushToReadyQ(std::make_unique<SetVBucketStateResponse>(

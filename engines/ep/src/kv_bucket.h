@@ -269,6 +269,7 @@ public:
      *
      * @param vbid vbucket id
      * @param state desired state of the vbucket
+     * @param meta optional meta information to apply alongside the state
      * @param transfer indicates that the vbucket is transferred to the active
      *                 post a failover and/or rebalance
      * @param cookie under certain conditions we may use ewouldblock
@@ -277,6 +278,7 @@ public:
      */
     ENGINE_ERROR_CODE setVBucketState(Vbid vbid,
                                       vbucket_state_t state,
+                                      const nlohmann::json& meta = {},
                                       TransferVB transfer = TransferVB::No,
                                       const void* cookie = nullptr);
 
@@ -285,6 +287,7 @@ public:
      *
      * @param vbid vbucket id
      * @param state desired state of the vbucket
+     * @param meta optional meta information to apply alongside the state
      * @param transfer indicates that the vbucket is transferred to the active
      *                 post a failover and/or rebalance
      * @param notify_dcp indicates whether we must consider closing DCP streams
@@ -300,6 +303,7 @@ public:
     ENGINE_ERROR_CODE setVBucketState_UNLOCKED(
             Vbid vbid,
             vbucket_state_t state,
+            const nlohmann::json& meta,
             TransferVB transfer,
             bool notify_dcp,
             std::unique_lock<std::mutex>& vbset,

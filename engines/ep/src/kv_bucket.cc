@@ -770,6 +770,7 @@ ENGINE_ERROR_CODE KVBucket::addBackfillItem(Item& itm,
 
 ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,
                                             vbucket_state_t to,
+                                            const nlohmann::json& meta,
                                             TransferVB transfer,
                                             const void* cookie) {
     // MB-25197: we shouldn't process setVBState if warmup hasn't yet loaded
@@ -787,12 +788,14 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,
 
     // Lock to prevent a race condition between a failed update and add.
     std::unique_lock<std::mutex> lh(vbsetMutex);
-    return setVBucketState_UNLOCKED(vbid, to, transfer, true /*notifyDcp*/, lh);
+    return setVBucketState_UNLOCKED(
+            vbid, to, meta, transfer, true /*notifyDcp*/, lh);
 }
 
 ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
         Vbid vbid,
         vbucket_state_t to,
+        const nlohmann::json& meta,
         TransferVB transfer,
         bool notify_dcp,
         std::unique_lock<std::mutex>& vbset,
@@ -803,7 +806,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
     }
 
     if (vb) {
-        auto oldstate = vbMap.setState(vb, to, vbStateLock);
+        auto oldstate = vbMap.setState(vb, to, meta, vbStateLock);
 
         if (oldstate != to && notify_dcp) {
             bool closeInboundStreams = false;
@@ -997,6 +1000,7 @@ bool KVBucket::resetVBucket_UNLOCKED(LockedVBucketPtr& vb,
         // Delete and recreate the vbucket database file
         setVBucketState_UNLOCKED(vb->getId(),
                                  vbstate,
+                                 {},
                                  TransferVB::No,
                                  true /*notifyDcp*/,
                                  vbset);

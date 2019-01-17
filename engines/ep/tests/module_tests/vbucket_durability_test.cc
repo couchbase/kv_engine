@@ -24,6 +24,10 @@
 
 #include "../mock/mock_durability_monitor.h"
 
+#include <gmock/gmock.h>
+
+using namespace std::string_literals;
+
 void VBucketDurabilityTest::SetUp() {
     VBucketTest::SetUp();
     ht = &vbucket->ht;
@@ -161,3 +165,104 @@ INSTANTIATE_TEST_CASE_P(
                 return "FULL_EVICTION";
             }
         });
+
+// Positive test for validateSetStateMeta 'topology' key - check that
+// valid topology values are accepted.
+TEST(VBucketDurabilityTest, validateSetStateMetaTopology) {
+    using nlohmann::json;
+
+    // Single chain, one node
+    EXPECT_EQ(""s,
+              VBucket::validateSetStateMeta(
+                      {{"topology", json::array({{"active"}})}}));
+
+    // Single chain, two nodes.
+    EXPECT_EQ(""s,
+              VBucket::validateSetStateMeta(
+                      {{"topology", json::array({{"active", "replica1"}})}}));
+
+    // Single chain, three nodes.
+    EXPECT_EQ(""s,
+              VBucket::validateSetStateMeta(
+                      {{"topology",
+                        json::array({{"active", "replica1", "replica2"}})}}));
+
+    // Single chain, four nodes.
+    EXPECT_EQ(""s,
+              VBucket::validateSetStateMeta({{"topology",
+                                              json::array({{"active",
+                                                            "replica1",
+                                                            "replica2",
+                                                            "replica3"}})}}));
+
+    // Two chains, one node
+    EXPECT_EQ(""s,
+              VBucket::validateSetStateMeta(
+                      {{"topology", json::array({{"activeA"}, {"activeB"}})}}));
+
+    // Two chains, two nodes.
+    EXPECT_EQ(""s,
+              VBucket::validateSetStateMeta(
+                      {{"topology",
+                        json::array({{"activeA", "replicaA1"},
+                                     {"activeB", "replicaB1"}})}}));
+
+    // Two chains, three nodes.
+    EXPECT_EQ(
+            ""s,
+            VBucket::validateSetStateMeta(
+                    {{"topology",
+                      json::array({{"activeA", "replicaA1", "replicaA2"},
+                                   {"activeB", "replicaB1", "replicaB2"}})}}));
+
+    // Two chains, four nodes.
+    EXPECT_EQ(""s,
+              VBucket::validateSetStateMeta({{"topology",
+                                              json::array({{"activeA",
+                                                            "replicaA1",
+                                                            "replicaA2",
+                                                            "replicaA3"},
+                                                           {"activeB",
+                                                            "replicaB1",
+                                                            "replicaB2",
+                                                            "replicaB3"}})}}));
+}
+
+TEST(VBucketDurabilityTest, validateSetStateMetaTopologyNegative) {
+    using nlohmann::json;
+    using testing::HasSubstr;
+
+    // Too few (0) chains (empty json::array)
+    EXPECT_THAT(VBucket::validateSetStateMeta({{"topology", json::array({})}}),
+                HasSubstr("topology' must contain 1..2 elements"));
+
+    // Too many (>2) chains
+    EXPECT_THAT(
+            VBucket::validateSetStateMeta(
+                    {{"topology",
+                      json::array({{"activeA"}, {"activeB"}, {"activeC"}})}}),
+            HasSubstr("topology' must contain 1..2 elements"));
+
+    // Two chains, second contains too many (5) nodes.
+    EXPECT_THAT(
+            VBucket::validateSetStateMeta({{"topology",
+                                            json::array({{"active", "replica"},
+                                                         {"active",
+                                                          "replica1",
+                                                          "replica2",
+                                                          "replica3",
+                                                          "replica4"}})}}),
+            HasSubstr("chain[1] must contain 1..4 nodes"));
+
+    // Incorrect structure - flat array not nested.
+    EXPECT_THAT(VBucket::validateSetStateMeta(
+                        {{"topology", json::array({"activeA", "replica"})}}),
+                HasSubstr("chain[0] must be an array"));
+
+    // Incorrect structure - elements are not strings.
+    EXPECT_THAT(VBucket::validateSetStateMeta(
+                        {{"topology",
+                          json::array({{"activeA", "replicaA1"},
+                                       {"activeB", 1.1}})}}),
+                HasSubstr("chain[1] node[1] must be a string"));
+}

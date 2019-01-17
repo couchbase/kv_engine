@@ -50,6 +50,8 @@
 #include <string>
 #include <vector>
 
+using namespace std::string_literals;
+
 /* Macros */
 const auto MIN_CHK_FLUSH_TIMEOUT = std::chrono::seconds(10);
 const auto MAX_CHK_FLUSH_TIMEOUT = std::chrono::seconds(30);
@@ -375,26 +377,100 @@ VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
     return result;
 }
 
-void VBucket::setState(vbucket_state_t to) {
+void VBucket::setState(vbucket_state_t to, const nlohmann::json& meta) {
     WriterLockHolder wlh(stateLock);
-    setState_UNLOCKED(to, wlh);
+    setState_UNLOCKED(to, meta, wlh);
+}
+
+std::string VBucket::validateSetStateMeta(const nlohmann::json& meta) {
+    if (!meta.is_object()) {
+        return "'meta' must be an object if specified, found:"s + meta.dump();
+    }
+    for (const auto& el : meta.items()) {
+        if (el.key() == "topology") {
+            const auto& topology = el.value();
+            // Topology must be an array with 1..2 chain elements; and
+            // each chain is an array of 1..4 strings:
+            //   [[<active>, <replica>, ...], [<active>, <replica>, ...]]
+            if (!topology.is_array()) {
+                return "'topology' must be an array, found:"s + topology.dump();
+            }
+            if ((topology.size() < 1) || (topology.size() > 2)) {
+                return "'topology' must contain 1..2 elements, found:"s +
+                       topology.dump();
+            }
+            for (const auto& chain : topology.items()) {
+                const auto& chainId = chain.key();
+                const auto& nodes = chain.value();
+                if (!nodes.is_array()) {
+                    return "'topology' chain["s + chainId +
+                           "] must be an array, found:" + nodes.dump();
+                }
+                if ((nodes.size() < 1) || (nodes.size() > 4)) {
+                    return "'topology' chain["s + chainId +
+                           "] must contain 1..4 nodes, found:" + nodes.dump();
+                }
+                for (const auto& node : nodes.items()) {
+                    if (!node.value().is_string()) {
+                        return "'topology' chain[" + chainId + "] node[" +
+                               node.key() + "] must be a string, found:" +
+                               node.value().dump();
+                    }
+                }
+            }
+        } else {
+            return "'topology' contains unsupported key:"s + el.key() +
+                   " with value:" + el.value().dump();
+        }
+    }
+    return {};
 }
 
 void VBucket::setState_UNLOCKED(vbucket_state_t to,
-                                WriterLockHolder &vbStateLock) {
+                                const nlohmann::json& meta,
+                                WriterLockHolder& vbStateLock) {
     vbucket_state_t oldstate = state;
+
+    // Validate (optional) meta content.
+    if (!meta.is_null()) {
+        if (to != vbucket_state_active) {
+            throw std::invalid_argument(
+                    "VBucket::setState: meta only permitted for state:active, "
+                    "found state:"s +
+                    VBucket::toString(to) + " meta:" + meta.dump());
+        }
+        auto error = validateSetStateMeta(meta);
+        if (!error.empty()) {
+            throw std::invalid_argument("VBucket::setState: " + error);
+        }
+    }
 
     if (to == vbucket_state_active &&
         checkpointManager->getOpenCheckpointId() < 2) {
         checkpointManager->setOpenCheckpointId(2);
     }
 
-    EP_LOG_INFO("VBucket::setState: transitioning {} from:{} to:{}",
+    EP_LOG_INFO("VBucket::setState: transitioning {} from:{} to:{}{}",
                 id,
                 VBucket::toString(oldstate),
-                VBucket::toString(to));
+                VBucket::toString(to),
+                meta.is_null() ? ""s : (" meta:"s + meta.dump()));
 
     state = to;
+
+    if (!meta.is_null()) {
+        // Register the new topology with the durability monitor.
+        const auto& topology = meta.at("topology");
+        // @todo-durability: Do once ns_server is populating the
+        // topology; currently we are just using a hardcoded topology with
+        // a single replica named "replica".
+
+        // Temporary: record topology in VBucket object
+        // @todo-durability: Once the DurabilityMonitor is tracking the 'real'
+        // chains from ns_server we can just use the topology from there to
+        // avoid duplication.
+        replicationTopology = topology;
+    }
 }
 
 vbucket_state VBucket::getVBucketState() const {
@@ -2290,6 +2366,7 @@ void VBucket::_addStats(bool details, ADD_STAT add_stat, const void* c) {
         addStat("hp_vb_req_size", getHighPriorityChkSize(), add_stat, c);
         addStat("might_contain_xattrs", mightContainXattrs(), add_stat, c);
         addStat("max_deleted_revid", ht.getMaxDeletedRevSeqno(), add_stat, c);
+        addStat("topology", replicationTopology.dump(), add_stat, c);
         hlc.addStats(statPrefix, add_stat, c);
     }
 }
