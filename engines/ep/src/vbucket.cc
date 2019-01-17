@@ -904,7 +904,12 @@ VBNotifyCtx VBucket::queueDirty(
     if (qi->getCommitted() == CommittedState::Pending) {
         // Register this mutation with the durability monitor.
         const auto cookie = durabilityCtx->cookie;
-        durabilityMonitor->addSyncWrite(cookie, qi);
+        auto ret = durabilityMonitor->addSyncWrite(cookie, qi);
+        if (ret != ENGINE_SUCCESS) {
+            throw std::logic_error(
+                    "VBucket::queueDirty:: addSyncWrite error: " +
+                    cb::to_string(cb::to_engine_errc(ret)));
+        }
     }
 
     return notifyCtx;
@@ -2924,7 +2929,8 @@ bool VBucket::isLogicallyNonExistent(
 ENGINE_ERROR_CODE VBucket::seqnoAcknowledged(const std::string& replicaId,
                                              uint64_t inMemorySeqno,
                                              uint64_t onDiskSeqno) {
-    return durabilityMonitor->seqnoAckReceived(replicaId, inMemorySeqno);
+    return durabilityMonitor->seqnoAckReceived(
+            replicaId, inMemorySeqno, onDiskSeqno);
 }
 
 void VBucket::DeferredDeleter::operator()(VBucket* vb) const {

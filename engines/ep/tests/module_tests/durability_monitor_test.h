@@ -48,29 +48,35 @@ public:
 
 protected:
     /**
-     * Add a SyncWrite for tracking
+     * Adds a SyncWrite for tracking.
      *
      * @param seqno
+     * @param req The Durability Requirements
      * @return the error code from the underlying engine
      */
-    void addSyncWrite(int64_t seqno);
+    void addSyncWrite(int64_t seqno, cb::durability::Requirements req = {});
 
     /**
-     * Add a number of SyncWrites with seqno in [start, end]
+     * Adds a number of SyncWrites with seqno in [start, end].
      *
      * @param seqnoStart
      * @param seqnoEnd
+     * @param req The Durability Requirements
      * @return the number of added SyncWrites
      */
-    size_t addSyncWrites(int64_t seqnoStart, int64_t seqnoEnd);
+    size_t addSyncWrites(int64_t seqnoStart,
+                         int64_t seqnoEnd,
+                         cb::durability::Requirements req = {});
 
     /**
-     * Add the given mutations for tracking
+     * Adds the given mutations for tracking.
      *
      * @param seqnos the mutations to be added
+     * @param req The Durability Requirements
      * @return the number of added SyncWrites
      */
-    size_t addSyncWrites(const std::vector<int64_t>& seqnos);
+    size_t addSyncWrites(const std::vector<int64_t>& seqnos,
+                         cb::durability::Requirements req = {});
 
     /**
      * Stores the given item via VBucket::processSet.

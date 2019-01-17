@@ -64,6 +64,11 @@ class VBucket;
  */
 class DurabilityMonitor {
 public:
+    struct ReplicaSeqnos {
+        int64_t memory;
+        int64_t disk;
+    };
+
     // Note: constructor and destructor implementation in the .cc file to allow
     // the forward declaration of ReplicationChain in the header
     DurabilityMonitor(VBucket& vb);
@@ -94,15 +99,17 @@ public:
     /**
      * Expected to be called by memcached at receiving a DCP_SEQNO_ACK packet.
      *
-     * @param replica the replica that sent the ACK
-     * @param memorySeqno the ack'ed memory-seqno
+     * @param replica The replica that sent the ACK
+     * @param memorySeqno The ack'ed memory-seqno
+     * @param diskSeqno The ack'ed disk-seqno
      * @return ENGINE_SUCCESS if the operation succeeds, an error code otherwise
      * @throw std::logic_error if the received seqno is unexpected
      *
      * @todo: Expand for  supporting a full {memorySeqno, diskSeqno} ACK.
      */
     ENGINE_ERROR_CODE seqnoAckReceived(const std::string& replica,
-                                       int64_t memorySeqno);
+                                       int64_t memorySeqno,
+                                       int64_t diskSeqno);
 
     /**
      * Output DurabiltyMonitor stats.
@@ -116,8 +123,13 @@ protected:
     class SyncWrite;
     struct ReplicationChain;
     struct Position;
+    struct ReplicaPosition;
 
     using Container = std::list<SyncWrite>;
+
+    enum class Tracking : uint8_t { Memory, Disk };
+
+    std::string to_string(Tracking tracking) const;
 
     /**
      * @param lg the object lock
@@ -132,14 +144,16 @@ protected:
     size_t getReplicationChainSize(const std::lock_guard<std::mutex>& lg) const;
 
     /**
-     * Returns the next position for a replica memory iterator.
+     * Returns the next position for a replica iterator.
      *
      * @param lg the object lock
      * @param replica
+     * @param tracking Memory or Disk?
      * @return the iterator to the next position for the given replica
      */
-    Container::iterator getReplicaMemoryNext(
-            const std::lock_guard<std::mutex>& lg, const std::string& replica);
+    Container::iterator getReplicaNext(const std::lock_guard<std::mutex>& lg,
+                                       const std::string& replica,
+                                       Tracking tracking);
 
     /**
      * Advance a replica tracking to the next Position in the tracked Container.
@@ -150,49 +164,45 @@ protected:
      *
      * @param lg the object lock
      * @param replica
+     * @param tracking Memory or Disk?
      */
-    void advanceReplicaMemoryPosition(const std::lock_guard<std::mutex>& lg,
-                                      const std::string& replica);
+    void advanceReplicaPosition(const std::lock_guard<std::mutex>& lg,
+                                const std::string& replica,
+                                Tracking tracking);
 
     /**
-     * Update a replica tracking with the last ack'ed memory-seqno
+     * Returns the seqnos of the SyncWrites currently pointed by the internal
+     * memory/disk tracking for Replica.
+     * E.g., if we have a tracked SyncWrite list like {s:1, s:2} and we receive
+     * a SeqnoAck{mem:2, disk:1}, then the internal memory/disk tracking
+     * will be {mem:2, disk:1}, which is what this function returns.
+     * Note that this may differ from Replica AckSeqno. Using the same example,
+     * if we receive a SeqnoAck{mem:100, disk:100} then the internal tracking
+     * will still point to {mem:2, disk:1}, which is what this function will
+     * return again.
      *
      * @param lg the object lock
      * @param replica
-     * @param seqno the last ack'ed seqno by the tracked replica
+     * @return the {memory, disk} seqnos of the tracked writes for replica
      */
-    void updateReplicaMemoryAckSeqno(const std::lock_guard<std::mutex>& lg,
-                                     const std::string& replica,
-                                     int64_t seqno);
+    ReplicaSeqnos getReplicaWriteSeqnos(const std::lock_guard<std::mutex>& lg,
+                                        const std::string& replica) const;
 
     /**
-     * Returns the memory-seqno of the last ack'ed SyncWrite for the replica.
+     * Returns the last {memSeqno, diskSeqno} ack'ed by Replica.
+     * Note that this may differ from Replica WriteSeqno.
      *
      * @param lg the object lock
      * @param replica
-     * @return the memory-seqno of the last ack'ed SyncWrite
-     *
-     * @todo: Expand for supporting and disk-seqno
+     * @return the last {memory, disk} seqnos ack'ed by replica
      */
-    int64_t getReplicaMemorySyncWriteSeqno(
-            const std::lock_guard<std::mutex>& lg,
-            const std::string& replica) const;
-
-    /**
-     * Returns the last ack'ed memory-seqno for the replica.
-     *
-     * @param lg the object lock
-     * @param replica
-     * @return the last ack'ed memory-seqno
-     *
-     * @todo: Expand for supporting and disk-seqno
-     */
-    int64_t getReplicaMemoryAckSeqno(const std::lock_guard<std::mutex>& lg,
-                                     const std::string& replica) const;
+    ReplicaSeqnos getReplicaAckSeqnos(const std::lock_guard<std::mutex>& lg,
+                                      const std::string& replica) const;
 
     /**
      * Remove the given SyncWrte from tracking.
      *
+     * @param lg the object lock
      * @param pos the Position of the SyncWrite to be removed
      * @return single-element list of the removed SyncWrite.
      */
@@ -207,6 +217,21 @@ protected:
      * @param cookie The cookie of the connection to notify.
      */
     void commit(const StoredDocKey& key, int64_t seqno, const void* cookie);
+
+    /**
+     * Updates a replica memory/disk tracking as driven by the new ack-seqno.
+     *
+     * @param lg The object lock
+     * @param replica The replica that ack'ed the given seqno
+     * @param tracking Memory or Disk?
+     * @param ackSeqno
+     * @param [out] toCommit
+     */
+    void processSeqnoAck(const std::lock_guard<std::mutex>& lg,
+                         const std::string& replica,
+                         Tracking tracking,
+                         int64_t ackSeqno,
+                         Container& toCommit);
 
     // The VBucket owning this DurabilityMonitor instance
     VBucket& vb;

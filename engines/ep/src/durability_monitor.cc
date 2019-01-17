@@ -39,7 +39,7 @@
  *         received. It may point to Container::end (e.g, when the pointed
  *         SyncWrite is the last element in Container and it is removed).
  *
- * - lastSyncWriteSeqno: Stores always the seqno of the last SyncWrite
+ * - lastWriteSeqno: Stores always the seqno of the last SyncWrite
  *         acknowledged by the tracked replica, even when Position::it points to
  *         Container::end. Used for validation at seqno-ack received and stats.
  *
@@ -47,9 +47,16 @@
  *         replica. Used for validation at seqno-ack received and stats.
  */
 struct DurabilityMonitor::Position {
+    Position(const Container::iterator& it) : it(it) {
+    }
     Container::iterator it;
-    Monotonic<int64_t> lastSyncWriteSeqno;
-    Monotonic<int64_t> lastAckSeqno;
+    WeaklyMonotonic<int64_t, ThrowExceptionPolicy> lastWriteSeqno{0};
+    WeaklyMonotonic<int64_t, ThrowExceptionPolicy> lastAckSeqno{0};
+};
+
+struct DurabilityMonitor::ReplicaPosition {
+    Position memory;
+    Position disk;
 };
 
 /*
@@ -102,14 +109,23 @@ struct DurabilityMonitor::ReplicationChain {
     ReplicationChain(const std::vector<std::string>& nodes,
                      const Container::iterator& it)
         : majority(nodes.size() / 2 + 1) {
-        for (auto node : nodes) {
-            memoryPositions[node] = {it, 0 /*lastSeqno*/, 0 /*lastAckSeqno*/};
+        for (const auto& node : nodes) {
+            // This check ensures that there is no duplicate in the given chain
+            if (!positions
+                         .emplace(node,
+                                  ReplicaPosition{Position(it), Position(it)})
+                         .second) {
+                throw std::invalid_argument(
+                        "ReplicationChain::ReplicationChain: Duplicate node: " +
+                        node);
+            }
         }
+        Ensures(positions.size() == nodes.size());
     }
 
     // Index of replica Positions. The key is the replica id.
-    // A Position embeds the in-memory state of the tracked replica.
-    std::unordered_map<std::string, Position> memoryPositions;
+    // A Position embeds the seqno-state of the tracked replica.
+    std::unordered_map<std::string, ReplicaPosition> positions;
 
     // Majority in the arithmetic definition: NumReplicas / 2 + 1
     const uint8_t majority;
@@ -144,7 +160,14 @@ ENGINE_ERROR_CODE DurabilityMonitor::registerReplicationChain(
 ENGINE_ERROR_CODE DurabilityMonitor::addSyncWrite(const void* cookie,
                                                   queued_item item) {
     auto durReq = item->getDurabilityReqs();
-    if (durReq.getLevel() != cb::durability::Level::Majority ||
+
+    if (durReq.getLevel() == cb::durability::Level::None) {
+        throw std::invalid_argument(
+                "DurabilityMonitor::addSyncWrite: Level::None");
+    }
+
+    if (durReq.getLevel() ==
+                cb::durability::Level::MajorityAndPersistOnMaster ||
         durReq.getTimeout() != 0) {
         return ENGINE_ENOTSUP;
     }
@@ -160,7 +183,15 @@ ENGINE_ERROR_CODE DurabilityMonitor::addSyncWrite(const void* cookie,
 }
 
 ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
-        const std::string& replica, int64_t memorySeqno) {
+        const std::string& replica, int64_t memorySeqno, int64_t diskSeqno) {
+    if (memorySeqno < diskSeqno) {
+        throw std::invalid_argument(
+                "DurabilityMonitor::seqnoAckReceived: memorySeqno < diskSeqno "
+                "(" +
+                std::to_string(memorySeqno) + " < " +
+                std::to_string(diskSeqno) + ")");
+    }
+
     // Note:
     // TSan spotted that in the execution path to DM::addSyncWrites we acquire
     // HashBucketLock first and then a lock to DM::state.m, while here we
@@ -200,51 +231,13 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
         if (state.trackedWrites.empty()) {
             throw std::logic_error(
                     "DurabilityManager::seqnoAckReceived: No tracked "
-                    "SyncWrite, "
-                    "but replica ack'ed memorySeqno:" +
-                    std::to_string(memorySeqno));
-        }
-
-        auto next = getReplicaMemoryNext(lg, replica);
-
-        if (next == state.trackedWrites.end()) {
-            throw std::logic_error(
-                    "DurabilityManager::seqnoAckReceived: No pending "
-                    "SyncWrite, "
-                    "but replica ack'ed memorySeqno:" +
-                    std::to_string(memorySeqno));
-        }
-
-        int64_t pendingSeqno = next->getBySeqno();
-        if (memorySeqno < pendingSeqno) {
-            throw std::logic_error(
-                    "DurabilityManager::seqnoAckReceived: Ack'ed seqno is "
-                    "behind "
-                    "pending seqno {ack'ed: " +
+                    "SyncWrite, but replica ack'ed {memorySeqno:" +
                     std::to_string(memorySeqno) +
-                    ", pending:" + std::to_string(pendingSeqno) + "}");
+                    ", diskSeqno:" + std::to_string(diskSeqno));
         }
 
-        do {
-            // Update replica tracking
-            advanceReplicaMemoryPosition(lg, replica);
-
-            // Note: In this first implementation (1 replica) the Durability
-            // Requirement for the pending SyncWrite is implicitly verified
-            // at this point.
-
-            toCommit.splice(
-                    toCommit.end(),
-                    removeSyncWrite(
-                            lg, state.firstChain->memoryPositions.at(replica)));
-
-            // Note: process up to the ack'ed memory seqno
-        } while ((next = getReplicaMemoryNext(lg, replica)) !=
-                         state.trackedWrites.end() &&
-                 next->getBySeqno() <= memorySeqno);
-
-        // We keep track of the actual ack'ed seqno
-        updateReplicaMemoryAckSeqno(lg, replica, memorySeqno);
+        processSeqnoAck(lg, replica, Tracking::Memory, memorySeqno, toCommit);
+        // @todo: Process disk-seqno
     }
 
     // Commit the verified SyncWrites
@@ -272,29 +265,56 @@ void DurabilityMonitor::addStats(ADD_STAT addStat, const void* cookie) const {
                 buf, sizeof(buf), "vb_%d:replication_chain_first:size", vbid);
         add_casted_stat(buf, getReplicationChainSize(lg), addStat, cookie);
 
-        for (const auto& entry : state.firstChain->memoryPositions) {
+        for (const auto& entry : state.firstChain->positions) {
             const auto* replica = entry.first.c_str();
             const auto& pos = entry.second;
 
             checked_snprintf(
                     buf,
                     sizeof(buf),
-                    "vb_%d:replication_chain_first:%s:last_sync_write_seqno",
+                    "vb_%d:replication_chain_first:%s:memory:last_write_seqno",
                     vbid,
                     replica);
-            add_casted_stat(buf, pos.lastSyncWriteSeqno, addStat, cookie);
-            checked_snprintf(buf,
-                             sizeof(buf),
-                             "vb_%d:replication_chain_first:%s:last_ack_seqno",
-                             vbid,
-                             replica);
-            add_casted_stat(buf, pos.lastAckSeqno, addStat, cookie);
+            add_casted_stat(buf, pos.memory.lastWriteSeqno, addStat, cookie);
+            checked_snprintf(
+                    buf,
+                    sizeof(buf),
+                    "vb_%d:replication_chain_first:%s:memory:last_ack_seqno",
+                    vbid,
+                    replica);
+            add_casted_stat(buf, pos.memory.lastAckSeqno, addStat, cookie);
+
+            checked_snprintf(
+                    buf,
+                    sizeof(buf),
+                    "vb_%d:replication_chain_first:%s:disk:last_write_seqno",
+                    vbid,
+                    replica);
+            add_casted_stat(buf, pos.memory.lastWriteSeqno, addStat, cookie);
+            checked_snprintf(
+                    buf,
+                    sizeof(buf),
+                    "vb_%d:replication_chain_first:%s:disk:last_ack_seqno",
+                    vbid,
+                    replica);
+            add_casted_stat(buf, pos.disk.lastAckSeqno, addStat, cookie);
         }
 
     } catch (const std::exception& e) {
         EP_LOG_WARN("DurabilityMonitor::addStats: error building stats: {}",
                     e.what());
     }
+}
+
+std::string DurabilityMonitor::to_string(Tracking tracking) const {
+    auto value = std::to_string(static_cast<uint8_t>(tracking));
+    switch (tracking) {
+    case Tracking::Memory:
+        return value + ":memory";
+    case Tracking::Disk:
+        return value + ":disk";
+    };
+    return value + ":invalid";
 }
 
 size_t DurabilityMonitor::getNumTracked(
@@ -304,12 +324,16 @@ size_t DurabilityMonitor::getNumTracked(
 
 size_t DurabilityMonitor::getReplicationChainSize(
         const std::lock_guard<std::mutex>& lg) const {
-    return state.firstChain->memoryPositions.size();
+    return state.firstChain->positions.size();
 }
 
-DurabilityMonitor::Container::iterator DurabilityMonitor::getReplicaMemoryNext(
-        const std::lock_guard<std::mutex>& lg, const std::string& replica) {
-    const auto& it = state.firstChain->memoryPositions.at(replica).it;
+DurabilityMonitor::Container::iterator DurabilityMonitor::getReplicaNext(
+        const std::lock_guard<std::mutex>& lg,
+        const std::string& replica,
+        Tracking tracking) {
+    const auto& pos = state.firstChain->positions.at(replica);
+    const auto& it =
+            (tracking == Tracking::Memory ? pos.memory.it : pos.disk.it);
     // Note: Container::end could be the new position when the pointed SyncWrite
     //     is removed from Container and the iterator repositioned.
     //     In that case next=Container::begin
@@ -317,34 +341,40 @@ DurabilityMonitor::Container::iterator DurabilityMonitor::getReplicaMemoryNext(
                                              : std::next(it);
 }
 
-void DurabilityMonitor::advanceReplicaMemoryPosition(
-        const std::lock_guard<std::mutex>& lg, const std::string& replica) {
-    auto& pos = state.firstChain->memoryPositions.at(replica);
-    pos.it++;
-    // Note that Position::lastSyncWriteSeqno is always set to the current
-    // pointed SyncWrite to keep the replica seqno-state for when the pointed
-    // SyncWrite is removed
-    pos.lastSyncWriteSeqno = pos.it->getBySeqno();
-}
-
-void DurabilityMonitor::updateReplicaMemoryAckSeqno(
+void DurabilityMonitor::advanceReplicaPosition(
         const std::lock_guard<std::mutex>& lg,
         const std::string& replica,
-        int64_t seqno) {
-    auto& pos = state.firstChain->memoryPositions.at(replica);
-    pos.lastAckSeqno = seqno;
+        Tracking tracking) {
+    const auto& pos_ = state.firstChain->positions.at(replica);
+    auto& pos = const_cast<Position&>(tracking == Tracking::Memory ? pos_.memory
+                                                                   : pos_.disk);
+
+    if (pos.it == state.trackedWrites.end()) {
+        pos.it = state.trackedWrites.begin();
+    } else {
+        pos.it++;
+    }
+
+    Expects(pos.it != state.trackedWrites.end());
+
+    // Note that Position::lastWriteSeqno is always set to the current
+    // pointed SyncWrite to keep the replica seqno-state for when the pointed
+    // SyncWrite is removed
+    pos.lastWriteSeqno = pos.it->getBySeqno();
 }
 
-int64_t DurabilityMonitor::getReplicaMemorySyncWriteSeqno(
+DurabilityMonitor::ReplicaSeqnos DurabilityMonitor::getReplicaWriteSeqnos(
         const std::lock_guard<std::mutex>& lg,
         const std::string& replica) const {
-    return state.firstChain->memoryPositions.at(replica).lastSyncWriteSeqno;
+    const auto& pos = state.firstChain->positions.at(replica);
+    return {pos.memory.lastWriteSeqno, pos.disk.lastWriteSeqno};
 }
 
-int64_t DurabilityMonitor::getReplicaMemoryAckSeqno(
+DurabilityMonitor::ReplicaSeqnos DurabilityMonitor::getReplicaAckSeqnos(
         const std::lock_guard<std::mutex>& lg,
         const std::string& replica) const {
-    return state.firstChain->memoryPositions.at(replica).lastAckSeqno;
+    const auto& pos = state.firstChain->positions.at(replica);
+    return {pos.memory.lastAckSeqno, pos.disk.lastAckSeqno};
 }
 
 DurabilityMonitor::Container DurabilityMonitor::removeSyncWrite(
@@ -356,7 +386,7 @@ DurabilityMonitor::Container DurabilityMonitor::removeSyncWrite(
 
     // Note that Position.seqno stays set to the original value. That way we
     // keep the replica seqno-state even after the SyncWrite is removed.
-    auto committedSeqno = pos.lastSyncWriteSeqno;
+    auto removeSeqno = pos.lastWriteSeqno;
     Container::iterator prev;
     // Note: iterators in state.trackedWrites are never singular, Container::end
     //     is used as placeholder element for when an iterator cannot point to
@@ -370,9 +400,23 @@ DurabilityMonitor::Container DurabilityMonitor::removeSyncWrite(
     auto& pos_ = const_cast<Position&>(pos);
     Container removed;
     removed.splice(removed.end(), state.trackedWrites, pos_.it);
-    pos_.it = prev;
 
-    Ensures(pos_.lastSyncWriteSeqno == committedSeqno);
+    // Removing the element at pos.it from trackedWrites invalidates any
+    // iterator that points to that element. So, we have to reposition the
+    // invalidated iterators after the removal.
+    // Note: the following will pick up also pos.it itself.
+    // Note: O(N) with N=<number of iterators>, max(N)=12
+    //     (max 2 chains, 3 replicas, 2 iterators per replica)
+    for (const auto& entry : state.firstChain->positions) {
+        if (entry.second.memory.lastWriteSeqno == removeSeqno) {
+            const_cast<Position&>(entry.second.memory).it = prev;
+        }
+        if (entry.second.disk.lastWriteSeqno == removeSeqno) {
+            const_cast<Position&>(entry.second.disk).it = prev;
+        }
+    }
+
+    Ensures(pos_.lastWriteSeqno == removeSeqno);
 
     return removed;
 }
@@ -393,4 +437,58 @@ void DurabilityMonitor::commit(const StoredDocKey& key,
 
     // 3) send a response with Success back to the client
     vb.notifyClientOfCommit(cookie);
+}
+
+void DurabilityMonitor::processSeqnoAck(const std::lock_guard<std::mutex>& lg,
+                                        const std::string& replica,
+                                        Tracking tracking,
+                                        int64_t ackSeqno,
+                                        Container& toCommit) {
+    if (tracking == Tracking::Disk) {
+        throw std::invalid_argument(
+                "DurabilityMonitor::processSeqnoAck: Tracking::Disk not "
+                "supported");
+    }
+
+    // Note: process up to the ack'ed seqno
+    DurabilityMonitor::Container::iterator next;
+    while ((next = getReplicaNext(lg, replica, tracking)) !=
+                   state.trackedWrites.end() &&
+           next->getBySeqno() <= ackSeqno) {
+        // Update replica tracking
+        advanceReplicaPosition(lg, replica, tracking);
+
+        // Note
+        // Supporting only:
+        // - 1 replica
+        // - Level {Majority}
+        // So the Durability Requirements for a tracked SyncWrite are verified
+        // as soon as the tracking iterator points to it.
+
+        const auto& pos_ = state.firstChain->positions.at(replica);
+        const auto& pos =
+                (tracking == Tracking::Memory ? pos_.memory : pos_.disk);
+        auto removed = removeSyncWrite(lg, pos);
+        toCommit.splice(toCommit.end(), removed);
+    }
+
+    // We keep track of the actual ack'ed seqno
+    const auto& pos_ = state.firstChain->positions.at(replica);
+    auto& pos = const_cast<Position&>(tracking == Tracking::Memory ? pos_.memory
+                                                                   : pos_.disk);
+
+    // Note: using WeaklyMonotonic, as receiving the same seqno multiple times
+    // for the same node is ok. That just means that the node has not advanced
+    // any of memory/disk seqnos.
+    // E.g., imagine the following DCP_SEQNO_ACK sequence:
+    //
+    // {mem:1, disk:0} -> {mem:2, disk:0}
+    //
+    // That is legal, and it means that the node has enqueued seqnos {1, 2}
+    // but not persisted anything yet.
+    //
+    // @todo: By doing this I don't catch the case where the replica has ack'ed
+    //     both the same mem/disk seqnos twice (which shouldn't happen).
+    //     It would be good to catch that, useful for replica logic-check.
+    pos.lastAckSeqno = ackSeqno;
 }

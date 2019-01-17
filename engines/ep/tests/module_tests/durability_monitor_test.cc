@@ -22,7 +22,8 @@
 
 #include "../mock/mock_synchronous_ep_engine.h"
 
-void DurabilityMonitorTest::addSyncWrite(int64_t seqno) {
+void DurabilityMonitorTest::addSyncWrite(int64_t seqno,
+                                         cb::durability::Requirements req) {
     auto numTracked = monitor->public_getNumTracked();
     auto item = Item(makeStoredDocKey("key" + std::to_string(seqno)),
                      0 /*flags*/,
@@ -33,20 +34,21 @@ void DurabilityMonitorTest::addSyncWrite(int64_t seqno) {
                      0 /*cas*/,
                      seqno);
     using namespace cb::durability;
-    item.setPendingSyncWrite(Requirements(Level::Majority, 0 /*timeout*/));
+    item.setPendingSyncWrite(req);
+    // Note: necessary for non-auto-generated seqno
+    vb->checkpointManager->createSnapshot(seqno, seqno);
     // Note: need to go through VBucket::processSet to set the given bySeqno
     ASSERT_EQ(MutationStatus::WasClean, processSet(item));
     ASSERT_EQ(numTracked + 1, monitor->public_getNumTracked());
 }
 
 size_t DurabilityMonitorTest::addSyncWrites(int64_t seqnoStart,
-                                            int64_t seqnoEnd) {
-    // Note: necessary for non-auto-generated seqnos
-    vb->checkpointManager->createSnapshot(seqnoStart, seqnoEnd);
+                                            int64_t seqnoEnd,
+                                            cb::durability::Requirements req) {
     size_t expectedNumTracked = monitor->public_getNumTracked();
     size_t added = 0;
     for (auto seqno = seqnoStart; seqno <= seqnoEnd; seqno++) {
-        addSyncWrite(seqno);
+        addSyncWrite(seqno, req);
         added++;
         expectedNumTracked++;
         EXPECT_EQ(expectedNumTracked, monitor->public_getNumTracked());
@@ -54,19 +56,16 @@ size_t DurabilityMonitorTest::addSyncWrites(int64_t seqnoStart,
     return added;
 }
 
-size_t DurabilityMonitorTest::addSyncWrites(
-        const std::vector<int64_t>& seqnos) {
+size_t DurabilityMonitorTest::addSyncWrites(const std::vector<int64_t>& seqnos,
+                                            cb::durability::Requirements req) {
     if (seqnos.empty()) {
         throw std::logic_error(
                 "DurabilityMonitorTest::addSyncWrites: seqnos list is empty");
     }
-    // Note: necessary for non-auto-generated seqnos
-    vb->checkpointManager->createSnapshot(seqnos.at(0),
-                                          seqnos.at(seqnos.size() - 1));
     size_t expectedNumTracked = monitor->public_getNumTracked();
     size_t added = 0;
     for (auto seqno : seqnos) {
-        addSyncWrite(seqno);
+        addSyncWrite(seqno, req);
         added++;
         expectedNumTracked++;
         EXPECT_EQ(expectedNumTracked, monitor->public_getNumTracked());
@@ -98,7 +97,7 @@ TEST_F(DurabilityMonitorTest, AddSyncWrite) {
 
 TEST_F(DurabilityMonitorTest, SeqnoAckReceivedNoTrackedSyncWrite) {
     try {
-        monitor->seqnoAckReceived(replica, 1 /*memSeqno*/);
+        monitor->seqnoAckReceived(replica, 1 /*memSeqno*/, 0 /*diskSeqno*/);
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find("No tracked SyncWrite") !=
                     std::string::npos);
@@ -107,14 +106,20 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedNoTrackedSyncWrite) {
     FAIL();
 }
 
-TEST_F(DurabilityMonitorTest, SeqnoAckReceivedSmallerThanPending) {
-    addSyncWrites({1} /*seqnos*/);
+TEST_F(DurabilityMonitorTest, SeqnoAckReceivedSmallerThanLastAcked) {
+    addSyncWrites({1, 2} /*seqnos*/);
+
+    // This call removes seqno:1
+    ASSERT_NO_THROW(monitor->seqnoAckReceived(
+            replica, 1 /*memSeqno*/, 0 /*diskSeqno*/));
+    ASSERT_EQ(1, monitor->public_getNumTracked());
+    ASSERT_EQ(1, monitor->public_getReplicaWriteSeqnos(replica).memory);
+    ASSERT_EQ(1, monitor->public_getReplicaAckSeqnos(replica).memory);
+
     try {
-        auto seqno = monitor->public_getReplicaMemorySyncWriteSeqno(replica);
-        monitor->seqnoAckReceived(replica, seqno - 1 /*memSeqno*/);
+        monitor->seqnoAckReceived(replica, 0 /*memSeqno*/, 0 /*diskSeqno*/);
     } catch (const std::logic_error& e) {
-        EXPECT_TRUE(std::string(e.what()).find(
-                            "Ack'ed seqno is behind pending seqno") !=
+        EXPECT_TRUE(std::string(e.what()).find("Monotonic") !=
                     std::string::npos);
         return;
     }
@@ -126,26 +131,26 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedEqualPending) {
     int64_t seqnoEnd = 3;
     auto numItems = addSyncWrites(seqnoStart, seqnoEnd);
     ASSERT_EQ(3, numItems);
-    ASSERT_EQ(0, monitor->public_getReplicaMemorySyncWriteSeqno(replica));
-    ASSERT_EQ(0, monitor->public_getReplicaMemoryAckSeqno(replica));
+    ASSERT_EQ(0, monitor->public_getReplicaWriteSeqnos(replica).memory);
+    ASSERT_EQ(0, monitor->public_getReplicaAckSeqnos(replica).memory);
 
     for (int64_t seqno = seqnoStart; seqno <= seqnoEnd; seqno++) {
-        EXPECT_NO_THROW(monitor->seqnoAckReceived(replica, seqno /*memSeqno*/));
+        EXPECT_NO_THROW(monitor->seqnoAckReceived(
+                replica, seqno /*memSeqno*/, 0 /*diskSeqno*/));
         // Check that the tracking advances by 1 at each cycle
-        EXPECT_EQ(seqno,
-                  monitor->public_getReplicaMemorySyncWriteSeqno(replica));
-        EXPECT_EQ(seqno, monitor->public_getReplicaMemoryAckSeqno(replica));
+        EXPECT_EQ(seqno, monitor->public_getReplicaWriteSeqnos(replica).memory);
+        EXPECT_EQ(seqno, monitor->public_getReplicaAckSeqnos(replica).memory);
         // Check that we committed and removed 1 SyncWrite
         EXPECT_EQ(--numItems, monitor->public_getNumTracked());
         // Check that seqno-tracking is not lost after commit+remove
-        EXPECT_EQ(seqno,
-                  monitor->public_getReplicaMemorySyncWriteSeqno(replica));
-        EXPECT_EQ(seqno, monitor->public_getReplicaMemoryAckSeqno(replica));
+        EXPECT_EQ(seqno, monitor->public_getReplicaWriteSeqnos(replica).memory);
+        EXPECT_EQ(seqno, monitor->public_getReplicaAckSeqnos(replica).memory);
     }
 
     // All ack'ed, committed and removed.
     try {
-        monitor->seqnoAckReceived(replica, seqnoEnd + 1 /*memSeqno*/);
+        monitor->seqnoAckReceived(
+                replica, seqnoEnd + 1 /*memSeqno*/, 0 /*diskSeqno*/);
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find("No tracked SyncWrite") !=
                     std::string::npos);
@@ -157,72 +162,75 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedEqualPending) {
 TEST_F(DurabilityMonitorTest,
        SeqnoAckReceivedGreaterThanPending_ContinuousSeqnos) {
     ASSERT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
-    ASSERT_EQ(0, monitor->public_getReplicaMemorySyncWriteSeqno(replica));
+    ASSERT_EQ(0, monitor->public_getReplicaWriteSeqnos(replica).memory);
 
     int64_t memoryAckSeqno = 2;
     // Receive a seqno-ack in the middle of tracked seqnos
     EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(replica, memoryAckSeqno));
+              monitor->seqnoAckReceived(
+                      replica, memoryAckSeqno, 0 /*diskSeqno*/));
     // Check that the tracking has advanced to the ack'ed seqno
     EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaMemorySyncWriteSeqno(replica));
+              monitor->public_getReplicaWriteSeqnos(replica).memory);
     EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaMemoryAckSeqno(replica));
+              monitor->public_getReplicaAckSeqnos(replica).memory);
     // Check that we committed and removed 2 SyncWrites
     EXPECT_EQ(1, monitor->public_getNumTracked());
     // Check that seqno-tracking is not lost after commit+remove
     EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaMemorySyncWriteSeqno(replica));
+              monitor->public_getReplicaWriteSeqnos(replica).memory);
     EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaMemoryAckSeqno(replica));
+              monitor->public_getReplicaAckSeqnos(replica).memory);
 }
 
 TEST_F(DurabilityMonitorTest, SeqnoAckReceivedGreaterThanPending_SparseSeqnos) {
     ASSERT_EQ(3, addSyncWrites({1, 3, 5} /*seqnos*/));
-    ASSERT_EQ(0, monitor->public_getReplicaMemorySyncWriteSeqno(replica));
+    ASSERT_EQ(0, monitor->public_getReplicaWriteSeqnos(replica).memory);
 
     int64_t memoryAckSeqno = 4;
     // Receive a seqno-ack in the middle of tracked seqnos
     EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(replica, memoryAckSeqno));
+              monitor->seqnoAckReceived(
+                      replica, memoryAckSeqno, 0 /*diskSeqno*/));
     // Check that the tracking has advanced to the last tracked seqno before
     // the ack'ed seqno
-    EXPECT_EQ(3, monitor->public_getReplicaMemorySyncWriteSeqno(replica));
+    EXPECT_EQ(3, monitor->public_getReplicaWriteSeqnos(replica).memory);
     // Check that the ack-seqno has been updated correctly
     EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaMemoryAckSeqno(replica));
+              monitor->public_getReplicaAckSeqnos(replica).memory);
     // Check that we committed and removed 2 SyncWrites
     EXPECT_EQ(1, monitor->public_getNumTracked());
     // Check that seqno-tracking is not lost after commit+remove
-    EXPECT_EQ(3, monitor->public_getReplicaMemorySyncWriteSeqno(replica));
+    EXPECT_EQ(3, monitor->public_getReplicaWriteSeqnos(replica).memory);
     EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaMemoryAckSeqno(replica));
+              monitor->public_getReplicaAckSeqnos(replica).memory);
 }
 
 TEST_F(DurabilityMonitorTest,
        SeqnoAckReceivedGreaterThanLastTracked_ContinuousSeqnos) {
     ASSERT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
-    ASSERT_EQ(0, monitor->public_getReplicaMemorySyncWriteSeqno(replica));
+    ASSERT_EQ(0, monitor->public_getReplicaWriteSeqnos(replica).memory);
 
     int64_t memoryAckSeqno = 4;
     // Receive a seqno-ack greater than the last tracked seqno
     EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(replica, memoryAckSeqno));
+              monitor->seqnoAckReceived(
+                      replica, memoryAckSeqno, 0 /*diskSeqno*/));
     // Check that the tracking has advanced to the last tracked seqno
-    EXPECT_EQ(3, monitor->public_getReplicaMemorySyncWriteSeqno(replica));
+    EXPECT_EQ(3, monitor->public_getReplicaWriteSeqnos(replica).memory);
     // Check that the ack-seqno has been updated correctly
     EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaMemoryAckSeqno(replica));
+              monitor->public_getReplicaAckSeqnos(replica).memory);
     // Check that we committed and removed all SyncWrites
     EXPECT_EQ(0, monitor->public_getNumTracked());
     // Check that seqno-tracking is not lost after commit+remove
-    EXPECT_EQ(3, monitor->public_getReplicaMemorySyncWriteSeqno(replica));
+    EXPECT_EQ(3, monitor->public_getReplicaWriteSeqnos(replica).memory);
     EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaMemoryAckSeqno(replica));
+              monitor->public_getReplicaAckSeqnos(replica).memory);
 
     // All ack'ed, committed and removed.
     try {
-        monitor->seqnoAckReceived(replica, 20 /*memSeqno*/);
+        monitor->seqnoAckReceived(replica, 20 /*memSeqno*/, 0 /*diskSeqno*/);
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find("No tracked SyncWrite") !=
                     std::string::npos);
@@ -234,29 +242,43 @@ TEST_F(DurabilityMonitorTest,
 TEST_F(DurabilityMonitorTest,
        SeqnoAckReceivedGreaterThanLastTracked_SparseSeqnos) {
     ASSERT_EQ(3, addSyncWrites({1, 3, 5} /*seqnos*/));
-    ASSERT_EQ(0, monitor->public_getReplicaMemorySyncWriteSeqno(replica));
+    ASSERT_EQ(0, monitor->public_getReplicaWriteSeqnos(replica).memory);
 
     int64_t memoryAckSeqno = 10;
     // Receive a seqno-ack greater than the last tracked seqno
     EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(replica, memoryAckSeqno));
+              monitor->seqnoAckReceived(
+                      replica, memoryAckSeqno, 0 /*diskSeqno*/));
     // Check that the tracking has advanced to the last tracked seqno
-    EXPECT_EQ(5, monitor->public_getReplicaMemorySyncWriteSeqno(replica));
+    EXPECT_EQ(5, monitor->public_getReplicaWriteSeqnos(replica).memory);
     // Check that the ack-seqno has been updated correctly
     EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaMemoryAckSeqno(replica));
+              monitor->public_getReplicaAckSeqnos(replica).memory);
     // Check that we committed and removed all SyncWrites
     EXPECT_EQ(0, monitor->public_getNumTracked());
     // Check that seqno-tracking is not lost after commit+remove
-    EXPECT_EQ(5, monitor->public_getReplicaMemorySyncWriteSeqno(replica));
+    EXPECT_EQ(5, monitor->public_getReplicaWriteSeqnos(replica).memory);
     EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaMemoryAckSeqno(replica));
+              monitor->public_getReplicaAckSeqnos(replica).memory);
 
     // All ack'ed, committed and removed.
     try {
-        monitor->seqnoAckReceived(replica, 20 /*memSeqno*/);
+        monitor->seqnoAckReceived(replica, 20 /*memSeqno*/, 0 /*diskSeqno*/);
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find("No tracked SyncWrite") !=
+                    std::string::npos);
+        return;
+    }
+    FAIL();
+}
+
+TEST_F(DurabilityMonitorTest,
+       SeqnoAckReceived_MemorySeqnoSmallerThanDiskSeqno) {
+    addSyncWrites({1} /*seqnos*/);
+    try {
+        monitor->seqnoAckReceived(replica, 0 /*memSeqno*/, 1 /*diskSeqno*/);
+    } catch (const std::logic_error& e) {
+        EXPECT_TRUE(std::string(e.what()).find("memorySeqno < diskSeqno") !=
                     std::string::npos);
         return;
     }
