@@ -1650,8 +1650,7 @@ protected:
         initialize_time_functions(get_mock_server_api()->core);
 
         /* Set up one vbucket in the bucket */
-        engine.getKVBucket()->setVBucketState(
-                vbid, vbucket_state_active, false);
+        engine.getKVBucket()->setVBucketState(vbid, vbucket_state_active);
     }
 
     void TearDown() override {
@@ -1748,7 +1747,7 @@ TEST_F(DcpConnMapTest, DeleteNotifierConnOnUncleanDCPConnMapDelete) {
  */
 TEST_F(DcpConnMapTest, DeleteConsumerConnOnUncleanDCPConnMapDelete) {
     /* Consumer stream needs a replica vbucket */
-    engine.getKVBucket()->setVBucketState(vbid, vbucket_state_replica, false);
+    engine.getKVBucket()->setVBucketState(vbid, vbucket_state_replica);
 
     /* Create a new Dcp consumer */
     const void* dummyMockCookie = create_mock_cookie();
@@ -2295,7 +2294,7 @@ public:
         SingleThreadedKVBucketTest::SetUp();
 
         /* Start an active vb and add 3 items */
-        store->setVBucketState(vbid, vbucket_state_active, false);
+        store->setVBucketState(vbid, vbucket_state_active);
         addItems(3);
 
         producers = std::make_unique<MockDcpMessageProducers>(engine.get());

@@ -54,10 +54,8 @@ protected:
                        uint32_t exp_time = 0) {
         // Setup the source (active) Bucket.
         EXPECT_EQ(ENGINE_SUCCESS,
-                  engine->getKVBucket()->setVBucketState(
-                          vbid,
-                          vbucket_state_active, /*transfer*/
-                          false));
+                  engine->getKVBucket()->setVBucketState(vbid,
+                                                         vbucket_state_active));
 
         // Add some items to the source Bucket.
         auto key1 = makeStoredDocKey("key1");
@@ -122,9 +120,7 @@ protected:
         // Setup destination (replica) Bucket.
         EXPECT_EQ(ENGINE_SUCCESS,
                   replicaEngine->getKVBucket()->setVBucketState(
-                          vbid,
-                          vbucket_state_replica, /*transfer*/
-                          false));
+                          vbid, vbucket_state_replica));
 
         // Setup the consumer.
         consumer = std::make_shared<MockDcpConsumer>(

@@ -38,7 +38,7 @@
 #include <thread>
 
 TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
-    store->setVBucketState(vbid, vbucket_state_replica, false);
+    store->setVBucketState(vbid, vbucket_state_replica);
     ASSERT_EQ(ENGINE_SUCCESS,
               consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
 
@@ -965,7 +965,7 @@ TEST_P(CollectionsDcpParameterizedTest, vb_promotion_update_manifest) {
     // Active is now aware of fruit, proving that we updated the manifest,
     // but replica is not. Change the state of replica to active to update
     // the replica manifest.
-    store->setVBucketState(replicaVB, vbucket_state_active, false);
+    store->setVBucketState(replicaVB, vbucket_state_active);
     EXPECT_TRUE(replica->lockCollections().exists(CollectionEntry::fruit));
 }
 
@@ -979,7 +979,7 @@ public:
                 "features=false";
         SingleThreadedKVBucketTest::SetUp();
         // Start vbucket as active to allow us to store items directly to it.
-        store->setVBucketState(vbid, vbucket_state_active, false);
+        store->setVBucketState(vbid, vbucket_state_active);
     }
 
     void TearDown() override {
@@ -1003,7 +1003,7 @@ public:
         SingleThreadedKVBucketTest::SetUp();
         producers = std::make_unique<CollectionsDcpTestProducers>(engine.get());
         // Start vbucket as active to allow us to store items directly to it.
-        store->setVBucketState(vbid, vbucket_state_active, false);
+        store->setVBucketState(vbid, vbucket_state_active);
     }
 };
 

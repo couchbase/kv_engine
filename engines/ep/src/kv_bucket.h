@@ -277,7 +277,7 @@ public:
      */
     ENGINE_ERROR_CODE setVBucketState(Vbid vbid,
                                       vbucket_state_t state,
-                                      bool transfer,
+                                      bool transfer = false,
                                       const void* cookie = nullptr);
 
     /**

@@ -34,7 +34,7 @@ protected:
     // Do the specific setup for these tests
     void internalSetUp() {
         // Start vbucket as active to allow us to store items directly to it.
-        store->setVBucketState(vbid, vbucket_state_active, false);
+        store->setVBucketState(vbid, vbucket_state_active);
     }
 
     Collections::VB::PersistedManifest getManifest(Vbid vb) const {

@@ -124,7 +124,7 @@ protected:
                 << "Memory tracker not enabled - cannot continue";
 
         for (int ii = 0; ii < noOfVBs; ii++) {
-            store->setVBucketState(Vbid(ii), vbucket_state_active, false);
+            store->setVBucketState(Vbid(ii), vbucket_state_active);
         }
 
         // Sanity check - to ensure memory usage doesn't increase without us
@@ -368,7 +368,7 @@ TEST_P(STHashTableEvictionTest, DISABLED_STHashTableEvictionItemPagerTest) {
     accessPattern();
 
     for (int ii = 0; ii < noOfVBs / 2; ii++) {
-        store->setVBucketState(Vbid(ii), vbucket_state_replica, false);
+        store->setVBucketState(Vbid(ii), vbucket_state_replica);
     }
 
     eviction();

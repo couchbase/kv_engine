@@ -33,7 +33,7 @@ class WithMetaTest : public SingleThreadedEPBucketTest {
 public:
     void SetUp() override {
         SingleThreadedEPBucketTest::SetUp();
-        store->setVBucketState(vbid, vbucket_state_active, false);
+        store->setVBucketState(vbid, vbucket_state_active);
         expiry = ep_real_time() + 31557600; // +1 year in seconds
     }
 
@@ -424,7 +424,7 @@ TEST_P(AllWithMetaTest, regenerateCASInvalid) {
 }
 
 TEST_P(AllWithMetaTest, forceFail) {
-    store->setVBucketState(vbid, vbucket_state_replica, false);
+    store->setVBucketState(vbid, vbucket_state_replica);
     ItemMetaData itemMeta{1, 0, 0, expiry};
     oneOpAndCheck(GetParam(),
                   itemMeta,
@@ -435,7 +435,7 @@ TEST_P(AllWithMetaTest, forceFail) {
 }
 
 TEST_P(AllWithMetaTest, forceSuccessReplica) {
-    store->setVBucketState(vbid, vbucket_state_replica, false);
+    store->setVBucketState(vbid, vbucket_state_replica);
     ItemMetaData itemMeta{1, 0, 0, expiry};
     oneOpAndCheck(GetParam(),
                   itemMeta,
@@ -446,7 +446,7 @@ TEST_P(AllWithMetaTest, forceSuccessReplica) {
 }
 
 TEST_P(AllWithMetaTest, forceSuccessPending) {
-    store->setVBucketState(vbid, vbucket_state_pending, false);
+    store->setVBucketState(vbid, vbucket_state_pending);
     ItemMetaData itemMeta{1, 0, 0, expiry};
     oneOpAndCheck(GetParam(),
                   itemMeta,
@@ -541,23 +541,22 @@ TEST_P(AllWithMetaTest, nmvb) {
 
     // Set a dead VB
     EXPECT_EQ(ENGINE_SUCCESS,
-              store->setVBucketState(
-                      Vbid(vbid.get() + 1), vbucket_state_dead, false));
+              store->setVBucketState(Vbid(vbid.get() + 1), vbucket_state_dead));
     EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, callEngine(GetParam(), swm));
 
     // update the VB in the packet to the pending one
     auto packet = reinterpret_cast<protocol_binary_request_header*>(swm.data());
     packet->request.setVBucket(Vbid(vbid.get() + 2));
     EXPECT_EQ(ENGINE_SUCCESS,
-              store->setVBucketState(
-                      Vbid(vbid.get() + 2), vbucket_state_pending, false));
+              store->setVBucketState(Vbid(vbid.get() + 2),
+                                     vbucket_state_pending));
     EXPECT_EQ(ENGINE_EWOULDBLOCK, callEngine(GetParam(), swm));
     EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
     // Re-run the op now active, else we have a memory leak
-    EXPECT_EQ(ENGINE_SUCCESS,
-              store->setVBucketState(
-                      Vbid(vbid.get() + 2), vbucket_state_active, false));
+    EXPECT_EQ(
+            ENGINE_SUCCESS,
+            store->setVBucketState(Vbid(vbid.get() + 2), vbucket_state_active));
     EXPECT_EQ(ENGINE_SUCCESS, callEngine(GetParam(), swm));
 }
 

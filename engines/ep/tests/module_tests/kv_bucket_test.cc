@@ -440,7 +440,7 @@ TEST_P(KVBucketParamTest, ReplaceNMVB) {
 
 // Check pending vbucket returns EWOULDBLOCK.
 TEST_P(KVBucketParamTest, ReplacePendingVB) {
-    store->setVBucketState(vbid, vbucket_state_pending, false);
+    store->setVBucketState(vbid, vbucket_state_pending);
     auto item = make_item(vbid, makeStoredDocKey("key"), "value2");
     EXPECT_EQ(ENGINE_EWOULDBLOCK, store->replace(item, cookie));
 }
@@ -1202,7 +1202,7 @@ TEST_P(KVBucketParamTest, testGetPendingOpsStat) {
    auto key = makeStoredDocKey("key");
    store_item(vbid, key, "value");
 
-   store->setVBucketState(vbid, vbucket_state_pending, false);
+   store->setVBucketState(vbid, vbucket_state_pending);
 
    get_options_t options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
@@ -1292,7 +1292,7 @@ public:
         config_string += "warmup=false";
         KVBucketTest::SetUp();
         // Have all the objects, activate vBucket zero so we can store data.
-        store->setVBucketState(vbid, vbucket_state_active, false);
+        store->setVBucketState(vbid, vbucket_state_active);
     }
 };
 
@@ -1321,7 +1321,7 @@ public:
         config_string += "max_ttl=86400";
         KVBucketTest::SetUp();
         // Have all the objects, activate vBucket zero so we can store data.
-        store->setVBucketState(vbid, vbucket_state_active, false);
+        store->setVBucketState(vbid, vbucket_state_active);
     }
 };
 
@@ -1391,5 +1391,5 @@ void KVBucketParamTest::SetUp() {
     KVBucketTest::SetUp();
 
     // Have all the objects, activate vBucket zero so we can store data.
-    store->setVBucketState(vbid, vbucket_state_active, false);
+    store->setVBucketState(vbid, vbucket_state_active);
 }

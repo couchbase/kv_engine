@@ -75,7 +75,7 @@ protected:
         ASSERT_TRUE(MemoryTracker::trackingMemoryAllocations())
             << "Memory tracker not enabled - cannot continue";
 
-        store->setVBucketState(vbid, vbucket_state_active, false);
+        store->setVBucketState(vbid, vbucket_state_active);
 
         // Sanity check - to ensure memory usage doesn't increase without us
         // noticing.
@@ -315,9 +315,9 @@ TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
     const Vbid replicaVB = Vbid(2);
 
     // Set pendingVB online, initially as active (so we can populate it).
-    store->setVBucketState(pendingVB, vbucket_state_active, false);
+    store->setVBucketState(pendingVB, vbucket_state_active);
     // Set replicaVB online, initially as active (so we can populate it).
-    store->setVBucketState(replicaVB, vbucket_state_active, false);
+    store->setVBucketState(replicaVB, vbucket_state_active);
 
     // Add a document to both the active and pending vbucket.
     const std::string value(512, 'x'); // 512B value to use for documents.
@@ -329,10 +329,10 @@ TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
         ASSERT_EQ(ENGINE_SUCCESS, storeItem(pendingItem));
     }
 
-    store->setVBucketState(pendingVB, vbucket_state_pending, false);
+    store->setVBucketState(pendingVB, vbucket_state_pending);
 
     auto count = populateUntilTmpFail(replicaVB);
-    store->setVBucketState(replicaVB, vbucket_state_replica, false);
+    store->setVBucketState(replicaVB, vbucket_state_replica);
 
     runNextTask(lpNonioQ, "Paging out items.");
     runNextTask(lpNonioQ, "Item pager on vb:0");
@@ -649,7 +649,7 @@ TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
             evictionPolicy);
 
     pv->setCurrentBucket(engine->getKVBucket()->getVBucket(vbid));
-    store->setVBucketState(vbid, vbucket_state_replica, false);
+    store->setVBucketState(vbid, vbucket_state_replica);
     for (int ii = 0; ii <= Item::initialFreqCount; ii++) {
         pv->setFreqCounterThreshold(0);
         pv->getItemEviction().reset();
@@ -658,7 +658,7 @@ TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
     }
 
     // Now make the document eligible for eviction.
-    store->setVBucketState(vbid, vbucket_state_active, false);
+    store->setVBucketState(vbid, vbucket_state_active);
     flushVBucketToDiskIfPersistent(vbid);
 
     // Check still not be able to evict, because the frequency count is still
@@ -686,7 +686,7 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
     const Vbid active_vb = Vbid(0);
     const Vbid replica_vb = Vbid(1);
     // Set vBucket 1 online, initially as active (so we can populate it).
-    store->setVBucketState(replica_vb, vbucket_state_active, false);
+    store->setVBucketState(replica_vb, vbucket_state_active);
 
     auto& stats = engine->getEpStats();
     ASSERT_LE(stats.getEstimatedTotalMemoryUsed(), 40 * 1024)
@@ -718,7 +718,7 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
 
     // Flip vb 1 to be a replica (and hence should not be a candidate for
     // any paging out.
-    store->setVBucketState(replica_vb, vbucket_state_replica, false);
+    store->setVBucketState(replica_vb, vbucket_state_replica);
     //  If ephemeral and not running the expiry Pager then only run for one
     // vbucket (as we are skipping the replica vbucket).
     auto vbCount = ((std::get<0>(GetParam()) == "ephemeral") &&

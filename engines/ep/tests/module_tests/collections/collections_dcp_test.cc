@@ -38,7 +38,7 @@ void CollectionsDcpTest::SetUp() {
 
 void CollectionsDcpTest::internalSetUp() {
     // Start vbucket as active to allow us to store items directly to it.
-    store->setVBucketState(vbid, vbucket_state_active, false);
+    store->setVBucketState(vbid, vbucket_state_active);
     producers = std::make_unique<CollectionsDcpTestProducers>(engine.get());
     createDcpObjects({{}} /*collections on, but no filter*/);
 }
@@ -73,7 +73,7 @@ void CollectionsDcpTest::createDcpStream(
 void CollectionsDcpTest::createDcpConsumer() {
     consumer = std::make_shared<MockDcpConsumer>(
             *engine, cookieC, "test_consumer");
-    store->setVBucketState(replicaVB, vbucket_state_replica, false);
+    store->setVBucketState(replicaVB, vbucket_state_replica);
     ASSERT_EQ(ENGINE_SUCCESS,
               consumer->addStream(/*opaque*/ 0,
                                   replicaVB,

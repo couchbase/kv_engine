@@ -986,7 +986,7 @@ TEST_P(CollectionsParameterizedTest, basic) {
     // Add some more VBuckets just so there's some iteration happening
     const int extraVbuckets = 2;
     for (int vb = vbid.get() + 1; vb <= (vbid.get() + extraVbuckets); vb++) {
-        store->setVBucketState(Vbid(vb), vbucket_state_active, false);
+        store->setVBucketState(Vbid(vb), vbucket_state_active);
     }
 
     CollectionsManifest cm(CollectionEntry::meat);
@@ -1012,9 +1012,9 @@ TEST_P(CollectionsParameterizedTest, basic2) {
     // Add active and replica
     for (int vb = vbid.get() + 1; vb <= (vbid.get() + extraVbuckets); vb++) {
         if (vb & 1) {
-            store->setVBucketState(Vbid(vb), vbucket_state_active, false);
+            store->setVBucketState(Vbid(vb), vbucket_state_active);
         } else {
-            store->setVBucketState(Vbid(vb), vbucket_state_replica, false);
+            store->setVBucketState(Vbid(vb), vbucket_state_replica);
         }
     }
 
@@ -1047,7 +1047,7 @@ TEST_P(CollectionsParameterizedTest, cid_clash) {
     // Add some more VBuckets just so there's some iteration happening
     const int extraVbuckets = 2;
     for (int vb = vbid.get() + 1; vb <= (vbid.get() + extraVbuckets); vb++) {
-        store->setVBucketState(Vbid(vb), vbucket_state_active, false);
+        store->setVBucketState(Vbid(vb), vbucket_state_active);
     }
 
     CollectionsManifest cm;

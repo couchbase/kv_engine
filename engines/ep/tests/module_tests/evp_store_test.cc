@@ -118,8 +118,7 @@ class EPStoreEvictionTest : public EPBucketTest,
         EPBucketTest::SetUp();
 
         // Have all the objects, activate vBucket zero so we can store data.
-        store->setVBucketState(vbid, vbucket_state_active, false);
-
+        store->setVBucketState(vbid, vbucket_state_active);
     }
 };
 
@@ -936,7 +935,7 @@ public:
         EPBucketTest::SetUp();
 
         // Have all the objects, activate vBucket zero so we can store data.
-        store->setVBucketState(vbid, vbucket_state_active, false);
+        store->setVBucketState(vbid, vbucket_state_active);
     }
 };
 
@@ -1115,7 +1114,7 @@ class EPStoreFullEvictionNoBloomFIlterTest : public EPBucketTest {
         EPBucketTest::SetUp();
 
         // Have all the objects, activate vBucket zero so we can store data.
-        store->setVBucketState(vbid, vbucket_state_active, false);
+        store->setVBucketState(vbid, vbucket_state_active);
     }
 };
 

@@ -39,7 +39,7 @@
 
 void StatTest::SetUp() {
     SingleThreadedEPBucketTest::SetUp();
-    store->setVBucketState(vbid, vbucket_state_active, false);
+    store->setVBucketState(vbid, vbucket_state_active);
 }
 
 std::map<std::string, std::string> StatTest::get_stat(const char* statkey) {

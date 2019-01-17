@@ -58,8 +58,8 @@ protected:
                     ";max_size=1000000000";
         EngineFixture::SetUp(state);
         if (state.thread_index == 0) {
-            engine->getKVBucket()->setVBucketState(
-                    Vbid(0), vbucket_state_active, false);
+            engine->getKVBucket()->setVBucketState(Vbid(0),
+                                                   vbucket_state_active);
         }
     }
 
@@ -127,8 +127,8 @@ protected:
 
         EngineFixture::SetUp(state);
         if (state.thread_index == 0) {
-            engine->getKVBucket()->setVBucketState(
-                    Vbid(0), vbucket_state_active, false);
+            engine->getKVBucket()->setVBucketState(Vbid(0),
+                                                   vbucket_state_active);
         }
     }
 

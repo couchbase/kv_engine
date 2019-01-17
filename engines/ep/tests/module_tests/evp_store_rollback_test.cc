@@ -51,7 +51,7 @@ class RollbackTest : public SingleThreadedEPBucketTest,
         }
 
         // Start vbucket as active to allow us to store items directly to it.
-        store->setVBucketState(vbid, vbucket_state_active, false);
+        store->setVBucketState(vbid, vbucket_state_active);
 
         // For any rollback tests which actually want to rollback, we need
         // to ensure that we don't rollback more than 50% of the seqno count
@@ -145,7 +145,7 @@ public:
 
         // Test - rollback to seqno of item_v1 and verify that the previous value
         // of the item has been restored.
-        store->setVBucketState(vbid, vbStateAtRollback, false);
+        store->setVBucketState(vbid, vbStateAtRollback);
         ASSERT_EQ(TaskStatus::Complete,
                   store->rollback(vbid, item_v1.getBySeqno()));
         auto result =
@@ -183,7 +183,7 @@ public:
 
         // Test - rollback to seqno of item_v1 and verify that the previous
         // value of the item has been restored.
-        store->setVBucketState(vbid, vbStateAtRollback, false);
+        store->setVBucketState(vbid, vbStateAtRollback);
         ASSERT_EQ(TaskStatus::Complete,
                   store->rollback(vbid, item_v1.getBySeqno()));
         ASSERT_EQ(item_v1.getBySeqno(),
@@ -263,7 +263,7 @@ protected:
         }
 
         // Test - rollback to seqno before this test
-        store->setVBucketState(vbid, vbStateAtRollback, false);
+        store->setVBucketState(vbid, vbStateAtRollback);
         ASSERT_EQ(TaskStatus::Complete, store->rollback(vbid, rbSeqno));
         ASSERT_EQ(rbSeqno, store->getVBucket(vbid)->getHighSeqno());
 
@@ -405,7 +405,7 @@ protected:
         }
 
         // Rollback should succeed, but rollback to 0
-        store->setVBucketState(vbid, vbStateAtRollback, false);
+        store->setVBucketState(vbid, vbStateAtRollback);
         EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollback));
 
         // These keys should be gone after the rollback
@@ -577,7 +577,7 @@ TEST_P(RollbackTest, RollbackDeletionAndCreationDocCountsOneFlush) {
 TEST_P(RollbackTest, RollbackFromZeroDocCounts) {
     // Trigger a rollback to zero by rolling back to a seqno just before the
     // halfway point between start and end (2 in this case)
-    store->setVBucketState(vbid, vbStateAtRollback, false);
+    store->setVBucketState(vbid, vbStateAtRollback);
     auto docKey = makeStoredDocKey("dummy1");
     ASSERT_EQ(
             TaskStatus::Complete,
@@ -624,7 +624,7 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
     auto item_v2 = store_item(vbid, makeStoredDocKey("rollback-cp-2"), "gone");
 
     /* do rollback */
-    store->setVBucketState(vbid, vbStateAtRollback, false);
+    store->setVBucketState(vbid, vbStateAtRollback);
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackReqSeqno));
 
     /* confirm that we have rolled back to the disk snapshot */
@@ -650,7 +650,7 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
  */
 TEST_P(RollbackTest, MB21784) {
     // Make the vbucket a replica
-    store->setVBucketState(vbid, vbucket_state_replica, false);
+    store->setVBucketState(vbid, vbucket_state_replica);
     // Perform a rollback
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, initial_seqno))
             << "rollback did not return success";
@@ -722,7 +722,7 @@ public:
             vbStateAtRollback = vbucket_state_replica;
         }
 
-        store->setVBucketState(vbid, vbucket_state_active, false);
+        store->setVBucketState(vbid, vbucket_state_active);
         consumer = std::make_shared<MockDcpConsumer>(
                 *engine, cookie, "test_consumer");
         vb = store->getVBucket(vbid);
@@ -814,7 +814,7 @@ public:
             vb->failovers->createEntry(items * (ii + 1));
         }
 
-        store->setVBucketState(vbid, vbStateAtRollback, false);
+        store->setVBucketState(vbid, vbStateAtRollback);
     }
 
     uint64_t addStream(int nitems) {
@@ -982,7 +982,7 @@ public:
 
     void SetUp() override {
         SingleThreadedEPBucketTest::SetUp();
-        store->setVBucketState(vbid, vbucket_state_active, false);
+        store->setVBucketState(vbid, vbucket_state_active);
         vb = store->getVBucket(vbid);
         producers = std::make_unique<MockDcpMessageProducers>(engine.get());
         engine->setDcpConnMap(std::make_unique<MockDcpConnMap>(*engine));
@@ -1017,7 +1017,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     bool new_ckpt_created;
     EXPECT_EQ(0, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
 
-    store->setVBucketState(vbid, vbucket_state_replica, false);
+    store->setVBucketState(vbid, vbucket_state_replica);
 
     get_mock_server_api()->cookie->reserve(cookie);
 
