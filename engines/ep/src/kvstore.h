@@ -131,12 +131,7 @@ struct compaction_ctx {
     struct CompactionStats stats;
     /// pointer as context cannot be constructed until deeper inside storage
     std::unique_ptr<Collections::VB::EraserContext> eraserContext;
-    std::function<bool(const DocKey,
-                       int64_t,
-                       bool,
-                       uint32_t,
-                       Collections::VB::EraserContext&)>
-            collectionsEraser;
+    Collections::IsDroppedCb collectionsEraser;
 };
 
 /**

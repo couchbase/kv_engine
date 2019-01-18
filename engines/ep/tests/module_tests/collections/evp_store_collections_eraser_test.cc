@@ -15,19 +15,15 @@
  *   limitations under the License.
  */
 
+#include "ephemeral_vb.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 
-class CollectionsEraserTest
-        : public SingleThreadedKVBucketTest,
-          public ::testing::WithParamInterface<std::string> {
+class CollectionsEraserTest : public STParameterizedBucketTest {
 public:
     void SetUp() override {
-        // Enable collections (which will enable namespace persistence).
-        config_string += "collections_enabled=true;";
-        config_string += GetParam();
-        SingleThreadedKVBucketTest::SetUp();
+        STParameterizedBucketTest::SetUp();
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
         vb = store->getVBucket(vbid);
     }
@@ -37,9 +33,38 @@ public:
         SingleThreadedKVBucketTest::TearDown();
     }
 
-    bool isFullEviction() const {
-        return GetParam().find("item_eviction_policy=full_eviction") !=
-               std::string::npos;
+    void runEraser() {
+        if (persistent()) {
+            runCompaction();
+        } else {
+            EphemeralVBucket* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
+            // Boiler-plate to get a callback so we can call purgeStaleItems
+            Collections::VB::EraserContext eraserContext(evb->getManifest());
+            auto isDroppedCb = std::bind(&KVBucket::collectionsEraseKey,
+                                         store,
+                                         vb->getId(),
+                                         std::placeholders::_1,
+                                         std::placeholders::_2,
+                                         std::placeholders::_3,
+                                         std::placeholders::_4,
+                                         std::ref(eraserContext));
+            evb->purgeStaleItems(isDroppedCb);
+        }
+    }
+
+    void flush_vbucket_to_disk(Vbid vbid, size_t expected = 1) {
+        flushVBucketToDiskIfPersistent(vbid, expected);
+    }
+
+    /// Override so we recreate the vbucket for ephemeral tests
+    void resetEngineAndWarmup() {
+        SingleThreadedKVBucketTest::resetEngineAndWarmup();
+        if (!persistent()) {
+            // Persistent will recreate the VB from the disk metadata so for
+            // ephemeral do an explicit set state.
+            EXPECT_EQ(ENGINE_SUCCESS,
+                      store->setVBucketState(vbid, vbucket_state_active));
+        }
     }
 
     VBucketPtr vb;
@@ -65,10 +90,16 @@ TEST_P(CollectionsEraserTest, basic) {
     EXPECT_EQ(2, vb->getNumItems());
 
     // Evict one of the keys, we should still erase it
-    evict_key(vbid, StoredDocKey{"dairy:butter", CollectionEntry::dairy});
-
+    if (persistent()) {
+        evict_key(vbid, StoredDocKey{"dairy:butter", CollectionEntry::dairy});
+    }
     // delete the collection
     vb->updateFromManifest({cm.remove(CollectionEntry::dairy)});
+
+    // @todo MB-26334: persistent buckets don't track the system event counts
+    if (!persistent()) {
+        EXPECT_EQ(1, vb->getNumSystemItems());
+    }
 
     flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
 
@@ -80,6 +111,13 @@ TEST_P(CollectionsEraserTest, basic) {
     EXPECT_EQ(0, vb->getNumItems());
 
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
+
+    // @todo MB-26334: persistent buckets don't track the system event counts
+    if (!persistent()) {
+        // The system event still exists as a tombstone and will reside in the
+        // system until tombstone purging removes it.
+        EXPECT_EQ(1, vb->getNumSystemItems());
+    }
 }
 
 TEST_P(CollectionsEraserTest, basic_2_collections) {
@@ -293,6 +331,12 @@ TEST_P(CollectionsEraserTest, erase_and_reset) {
     vb.reset();
     resetEngineAndWarmup();
 
+    if (!persistent()) {
+        // The final expects only apply to persistent buckets that will remember
+        // the collection state
+        return;
+    }
+
     // Now reset and warmup and expect the manifest to come back with the same
     // correct view of collections
     vb = store->getVBucket(vbid);
@@ -300,30 +344,15 @@ TEST_P(CollectionsEraserTest, erase_and_reset) {
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 }
 
-struct PrintTestName {
-    std::string operator()(
-            const ::testing::TestParamInfo<std::string>& info) const {
-        if ("bucket_type=persistent;item_eviction_policy=value_only" ==
-            info.param) {
-            return "PersistentVE";
-        } else if (
-                "bucket_type=persistent;item_eviction_policy=full_eviction" ==
-                info.param) {
-            return "PersistentFE";
-        } else if ("bucket_type=ephemeral" == info.param) {
-            return "Ephemeral";
-        } else {
-            throw std::invalid_argument("PrintTestName::Unknown info.param:" +
-                                        info.param);
-        }
-    }
-};
+static auto allConfigValues = ::testing::Values(
+        std::make_tuple(std::string("ephemeral"), std::string("auto_delete")),
+        std::make_tuple(std::string("ephemeral"), std::string("fail_new_data")),
+        std::make_tuple(std::string("persistent"),
+                        std::string("full_eviction")),
+        std::make_tuple(std::string("persistent"), std::string("value_only")));
 
-// @todo add ephemeral config
-INSTANTIATE_TEST_CASE_P(
-        CollectionsEraserTests,
-        CollectionsEraserTest,
-        ::testing::Values(
-                "bucket_type=persistent;item_eviction_policy=value_only",
-                "bucket_type=persistent;item_eviction_policy=full_eviction"),
-        PrintTestName());
+// Test cases which run for persistent and ephemeral buckets
+INSTANTIATE_TEST_CASE_P(CollectionsEraserTests,
+                        CollectionsEraserTest,
+                        allConfigValues,
+                        STParameterizedBucketTestPrintName());

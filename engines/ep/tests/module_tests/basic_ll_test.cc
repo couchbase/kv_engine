@@ -862,7 +862,7 @@ TEST_F(BasicLinkedListTest, UpdateDuringPurge) {
        the updated item */
     bool sendUpdateOnce = true;
     bool afterFirst = false;
-    basicLL->purgeTombstones(numItems, [&]() {
+    basicLL->purgeTombstones(numItems, {}, [&]() {
         /* By sending the update in the callback, we are simulating a
            scenario where an update happens in between the purge */
         if (sendUpdateOnce && afterFirst) {
@@ -935,8 +935,8 @@ TEST_F(BasicLinkedListTest, PurgePauseResume) {
 
     /* Expect all items to be purged and atleast one pause-resume */
     while (purged != numPurgeItems) {
-        purged += basicLL->purgeTombstones(numItems + numPurgeItems,
-                                           []() { return true; });
+        purged += basicLL->purgeTombstones(
+                numItems + numPurgeItems, {}, []() { return true; });
         ++numPaused;
     }
     EXPECT_EQ(0, basicLL->getNumStaleItems());
@@ -973,8 +973,8 @@ TEST_F(BasicLinkedListTest, PurgePauseResumeWithUpdate) {
 
     /* Expect all items to be purged and atleast one pause-resume */
     while (purged != numPurgeItems) {
-        purged += basicLL->purgeTombstones(numItems + numPurgeItems,
-                                           []() { return true; });
+        purged += basicLL->purgeTombstones(
+                numItems + numPurgeItems, {}, []() { return true; });
         if (numPaused == -1) {
             /* During one pause, update some list element (last element here) */
             updateItem(numItems + numPurgeItems /*high seqno*/,
@@ -1013,8 +1013,8 @@ TEST_F(BasicLinkedListTest, PurgePauseResumeWithUpdateAtPausedPoint) {
 
     /* Expect all items to be purged and atleast one pause-resume */
     while (purged != numPurgeItems) {
-        purged += basicLL->purgeTombstones(numItems + numPurgeItems,
-                                           []() { return true; });
+        purged += basicLL->purgeTombstones(
+                numItems + numPurgeItems, {}, []() { return true; });
         if (numPaused == -1) {
             /* After first call to purgeTombstones() we know that the list is
              paused at seqno 2. Update that element */

@@ -62,7 +62,7 @@ public:
             std::function<void(cb::const_byte_buffer)> saveManifestCb);
 
 private:
-    int collectionsErased = 0;
+    size_t collectionsErased = 0;
 
     /// The manifest which collection erasing can compare keys.
     Manifest& manifest;

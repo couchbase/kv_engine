@@ -1782,4 +1782,5 @@ static auto allConfigValues = ::testing::Values(
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_CASE_P(CollectionsDcpEphemeralOrPersistent,
                         CollectionsDcpParameterizedTest,
-                        allConfigValues, );
+                        allConfigValues,
+                        STParameterizedBucketTestPrintName());

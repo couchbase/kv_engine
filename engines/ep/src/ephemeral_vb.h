@@ -192,6 +192,8 @@ public:
 
     /** Purge any stale items in this VBucket's sequenceList.
      *
+     * @param isDroppedCb Callback function that the purger uses to check if a
+     *                    key belongs to a dropped collection.
      * @param shouldPause Callback function that indicates if tombstone purging
      *                    should pause. This is called for every element in the
      *                    sequence list when we iterate over the list during the
@@ -202,9 +204,10 @@ public:
      *
      * @return Number of items purged.
      */
-    size_t purgeStaleItems(std::function<bool()> shouldPauseCbk = []() {
-        return false;
-    });
+    size_t purgeStaleItems(
+            Collections::IsDroppedEphemeralCb isDroppedCb =
+                    [](const DocKey, int64_t, bool, uint32_t) { return false; },
+            std::function<bool()> shouldPauseCbk = []() { return false; });
 
     void setupDeferredDeletion(const void* cookie) override;
 

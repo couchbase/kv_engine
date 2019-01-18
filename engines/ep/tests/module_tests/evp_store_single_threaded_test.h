@@ -171,7 +171,7 @@ protected:
  *
  * Parameterised on a pair of:
  * - bucket_type (ephemeral of persistent)
- * - ephemeral_full_policy (for specifying ephemeral auto-delete & fail_new_data
+ * - eviction type (for specifying ephemeral auto-delete & fail_new_data
  *   eviction modes). If empty then unused (persistent buckets).
  */
 class STParameterizedBucketTest
@@ -179,8 +179,12 @@ class STParameterizedBucketTest
       public ::testing::WithParamInterface<
               std::tuple<std::string, std::string>> {
 public:
-    bool persistent() {
+    bool persistent() const {
         return std::get<0>(GetParam()) == "persistent";
+    }
+
+    bool isFullEviction() const {
+        return persistent() && std::get<1>(GetParam()) == "full_eviction";
     }
 
 protected:
@@ -189,10 +193,21 @@ protected:
             config_string += ";";
         }
         config_string += "bucket_type=" + std::get<0>(GetParam());
-        auto ephFullPolicy = std::get<1>(GetParam());
-        if (!ephFullPolicy.empty()) {
-            config_string += ";ephemeral_full_policy=" + ephFullPolicy;
+        auto evictionPolicy = std::get<1>(GetParam());
+
+        if (!evictionPolicy.empty()) {
+            if (persistent()) {
+                config_string += ";item_eviction_policy=" + evictionPolicy;
+            } else {
+                config_string += ";ephemeral_full_policy=" + evictionPolicy;
+            }
         }
+
         SingleThreadedKVBucketTest::SetUp();
     }
+};
+
+struct STParameterizedBucketTestPrintName {
+    std::string operator()(const ::testing::TestParamInfo<
+                           ::testing::tuple<std::string, std::string>>&) const;
 };

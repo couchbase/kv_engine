@@ -29,6 +29,8 @@
 #include <vector>
 
 #include "config.h"
+#include "collections/collections_types.h"
+#include "collections/eraser_context.h"
 #include "item.h"
 #include "memcached/engine_error.h"
 #include "stored-value.h"
@@ -327,6 +329,8 @@ public:
      *
      * @param purgeUpToSeqno Indicates the max seqno (inclusive) that could be
      *                       purged
+     * @param isDroppedKey Callback function the purger will use to determine if
+     *                     a key is belongs to a dropped collection.
      * @param shouldPause Callback function that indicates if tombstone purging
      *                    should pause. This is called for every element in the
      *                    sequence list when we iterate over the list during the
@@ -338,10 +342,12 @@ public:
      * @return The number of items purged from the sequence list (and hence
      *         deleted).
      */
-    virtual size_t purgeTombstones(seqno_t purgeUpToSeqno,
-                                   std::function<bool()> shouldPause = []() {
-                                       return false;
-                                   }) = 0;
+    virtual size_t purgeTombstones(
+            seqno_t purgeUpToSeqno,
+
+            Collections::IsDroppedEphemeralCb isDroppedKey,
+
+            std::function<bool()> shouldPause = []() { return false; }) = 0;
 
     /**
      * Updates the number of deleted items in the sequence list whenever

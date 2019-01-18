@@ -185,7 +185,7 @@ EphTombstoneHTCleaner::getPurgerVisitor() {
  */
 class EphemeralVBucket::StaleItemDeleter : public PauseResumeVBVisitor {
 public:
-    StaleItemDeleter() {
+    StaleItemDeleter(EphemeralBucket& bucket) : bucket(bucket) {
     }
 
     bool visit(VBucket& vb) override {
@@ -196,10 +196,20 @@ public:
                     "non-Ephemeral bucket");
         }
 
+        Collections::VB::EraserContext eraserContext(vb.getManifest());
+        auto isDroppedCb = std::bind(&KVBucket::collectionsEraseKey,
+                                     &bucket,
+                                     vb.getId(),
+                                     std::placeholders::_1,
+                                     std::placeholders::_2,
+                                     std::placeholders::_3,
+                                     std::placeholders::_4,
+                                     std::ref(eraserContext));
+
         /// The lambda function passed indicates if the "StaleItemDeleter"
         /// should be paused. It can be called by the module(s) implementing the
         /// purge at the desired granularity
-        numItemsDeleted += vbucket->purgeStaleItems([this]() {
+        numItemsDeleted += vbucket->purgeStaleItems(isDroppedCb, [this]() {
             shouldContinueVisiting =
                     progressTracker.shouldContinueVisiting(numVisitedItems++);
             return !(shouldContinueVisiting);
@@ -222,6 +232,9 @@ public:
     }
 
 protected:
+    /// The bucket we are associated with.
+    EphemeralBucket& bucket;
+
     /// Count of how many items have been deleted for all visited vBuckets.
     size_t numItemsDeleted = 0;
 
@@ -249,7 +262,7 @@ bool EphTombstoneStaleItemDeleter::run() {
     // starting from the beginning.
     if (bucketPosition == bucket.endPosition()) {
         staleItemDeleteVbVisitor =
-                std::make_unique<EphemeralVBucket::StaleItemDeleter>();
+                std::make_unique<EphemeralVBucket::StaleItemDeleter>(bucket);
         bucketPosition = bucket.startPosition();
 
         EP_LOG_DEBUG("{} starting", getDescription());

@@ -275,7 +275,22 @@ namespace VB {
  */
 using PersistedManifest = std::vector<uint8_t>;
 
+class EraserContext;
 } // namespace VB
+
+/**
+ * Callback function types for processing against dropped collections.
+ * Ephemeral is different as it can bind the eraser context upfront whilst
+ * persistent code path defers the creation of the EraserContext.
+ */
+using IsDroppedEphemeralCb =
+        std::function<bool(const DocKey, int64_t, bool, uint32_t)>;
+using IsDroppedCb = std::function<bool(const DocKey,
+                                       int64_t,
+                                       bool,
+                                       uint32_t,
+                                       Collections::VB::EraserContext&)>;
+
 } // end namespace Collections
 
 std::ostream& operator<<(std::ostream& os,

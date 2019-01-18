@@ -231,8 +231,10 @@ void BasicLinkedList::markItemStale(std::lock_guard<std::mutex>& listWriteLg,
     v->toOrderedStoredValue()->markStale(listWriteLg, newSv);
 }
 
-size_t BasicLinkedList::purgeTombstones(seqno_t purgeUpToSeqno,
-                                        std::function<bool()> shouldPause) {
+size_t BasicLinkedList::purgeTombstones(
+        seqno_t purgeUpToSeqno,
+        Collections::IsDroppedEphemeralCb isDroppedKeyCb,
+        std::function<bool()> shouldPause) {
     // Purge items marked as stale from the seqList.
     //
     // Strategy - we try to ensure that this function does not block
@@ -297,6 +299,14 @@ size_t BasicLinkedList::purgeTombstones(seqno_t purgeUpToSeqno,
     for (auto it = startIt; it != seqList.end();) {
         if ((it->getBySeqno() > purgeUpToSeqno) ||
             (it->getBySeqno() <= 0) /* last item with no valid seqno yet */) {
+            if (isDroppedKeyCb) {
+                // The last key in the list must remain, however it maybe a
+                // system event that finalises the drop of a collection.
+                isDroppedKeyCb(it->getKey(),
+                               it->getBySeqno(),
+                               it->isDeleted(),
+                               it->getFlags());
+            }
             break;
         }
 
@@ -312,13 +322,22 @@ size_t BasicLinkedList::purgeTombstones(seqno_t purgeUpToSeqno,
             std::lock_guard<std::mutex> writeGuard(getListWriteLock());
             stale = it->isStale(writeGuard);
         }
-        // Only stale items are purged.
-        if (!stale) {
-            ++it;
-        } else {
+
+        bool isDropped = false;
+        if (!stale && isDroppedKeyCb) {
+            isDropped = isDroppedKeyCb(it->getKey(),
+                                       it->getBySeqno(),
+                                       it->isDeleted(),
+                                       it->getFlags());
+        }
+
+        // Only stale or dropped items are purged.
+        if (stale || isDropped) {
             // Checks pass, remove from list and delete.
-            it = purgeListElem(it);
+            it = purgeListElem(it, stale);
             ++purgedCount;
+        } else {
+            ++it;
         }
 
         if (shouldPause()) {
@@ -418,20 +437,23 @@ std::ostream& operator <<(std::ostream& os, const BasicLinkedList& ll) {
     return os;
 }
 
-OrderedLL::iterator BasicLinkedList::purgeListElem(OrderedLL::iterator it) {
+OrderedLL::iterator BasicLinkedList::purgeListElem(OrderedLL::iterator it,
+                                                   bool isStale) {
     StoredValue::UniquePtr purged(&*it);
     {
         std::lock_guard<std::mutex> lckGd(getListWriteLock());
         it = seqList.erase(it);
     }
 
-    /* Update the stats tracking the memory owned by the list */
-    staleSize.fetch_sub(purged->size());
-    staleMetaDataSize.fetch_sub(purged->metaDataSize());
+    if (isStale) {
+        /* Update the stats tracking the memory owned by the list */
+        staleSize.fetch_sub(purged->size());
+        staleMetaDataSize.fetch_sub(purged->metaDataSize());
+        --numStaleItems;
+    }
+
     st.coreLocal.get()->currentSize.fetch_sub(purged->metaDataSize());
 
-    // Similary for the item counts:
-    --numStaleItems;
     if (purged->isDeleted()) {
         --numDeletedItems;
     }
