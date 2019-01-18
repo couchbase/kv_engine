@@ -128,41 +128,21 @@ void ServerSocket::acceptNewClient() {
         return;
     }
 
-    int port_conns;
-    ListeningPort* port_instance;
-    int curr_conns = stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
-    {
-        std::lock_guard<std::mutex> guard(stats_mutex);
-        port_instance = get_listening_port_instance(listen_port);
-        cb_assert(port_instance);
-        port_conns = ++port_instance->curr_conns;
-    }
+    size_t curr_conns =
+            stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
 
-    if (curr_conns >= settings.getMaxconns() ||
-        port_conns >= port_instance->maxconns) {
-        {
-            std::lock_guard<std::mutex> guard(stats_mutex);
-            --port_instance->curr_conns;
-        }
+    if (curr_conns >= settings.getMaxConnections()) {
         stats.rejected_conns++;
         LOG_WARNING(
-                "Too many open connections. Current/Limit for port "
-                "{}: {}/{}; total: {}/{}",
-                port_instance->port,
-                port_conns,
-                port_instance->maxconns,
+                R"(Too many open connections. total: {}/{})",
                 curr_conns,
-                settings.getMaxconns());
+                settings.getMaxConnections());
 
         safe_close(client);
         return;
     }
 
     if (cb::net::set_socket_noblocking(client) == -1) {
-        {
-            std::lock_guard<std::mutex> guard(stats_mutex);
-            --port_instance->curr_conns;
-        }
         LOG_WARNING("Failed to make socket non-blocking. closing it");
         safe_close(client);
         return;

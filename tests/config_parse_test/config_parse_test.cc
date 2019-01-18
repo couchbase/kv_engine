@@ -288,7 +288,6 @@ TEST_F(SettingsTest, Interfaces) {
         EXPECT_EQ(0, ifc0.port);
         EXPECT_EQ(NetworkInterface::Protocol::Optional, ifc0.ipv4);
         EXPECT_EQ(NetworkInterface::Protocol::Optional, ifc0.ipv6);
-        EXPECT_EQ(10, ifc0.maxconn);
         EXPECT_EQ("*", ifc0.host);
     } catch (std::exception& exception) {
         FAIL() << exception.what();
@@ -836,6 +835,28 @@ TEST_F(SettingsTest, max_packet_size) {
     }
 }
 
+TEST_F(SettingsTest, max_connections) {
+    nonNumericValuesShouldFail("max_connections");
+
+    nlohmann::json obj;
+    const size_t maxconn = 100;
+    obj["max_connections"] = maxconn;
+    Settings settings(obj);
+    EXPECT_EQ(maxconn, settings.getMaxConnections());
+    EXPECT_TRUE(settings.has.max_connections);
+}
+
+TEST_F(SettingsTest, system_connections) {
+    nonNumericValuesShouldFail("system_connections");
+
+    nlohmann::json obj;
+    const size_t maxconn = 100;
+    obj["system_connections"] = maxconn;
+    Settings settings(obj);
+    EXPECT_EQ(maxconn, settings.getSystemConnections());
+    EXPECT_TRUE(settings.has.system_connections);
+}
+
 TEST_F(SettingsTest, SaslMechanisms) {
     nonStringValuesShouldFail("sasl_mechanisms");
 
@@ -1072,7 +1093,6 @@ TEST(SettingsUpdateTest, InterfaceSomeValuesMayChange) {
 
     settings.addInterface(ifc);
 
-    ifc.maxconn = 10;
     ifc.tcp_nodelay = false;
     ifc.ssl.key.assign("/opt/couchbase/security/key.pem");
     ifc.ssl.cert.assign("/opt/couchbase/security/cert.pem");
@@ -1080,13 +1100,11 @@ TEST(SettingsUpdateTest, InterfaceSomeValuesMayChange) {
     updated.addInterface(ifc);
 
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    EXPECT_NE(ifc.maxconn, settings.getInterfaces()[0].maxconn);
     EXPECT_NE(ifc.tcp_nodelay, settings.getInterfaces()[0].tcp_nodelay);
     EXPECT_NE(ifc.ssl.key, settings.getInterfaces()[0].ssl.key);
     EXPECT_NE(ifc.ssl.cert, settings.getInterfaces()[0].ssl.cert);
 
     EXPECT_NO_THROW(settings.updateSettings(updated));
-    EXPECT_EQ(ifc.maxconn, settings.getInterfaces()[0].maxconn);
     EXPECT_EQ(ifc.tcp_nodelay, settings.getInterfaces()[0].tcp_nodelay);
     EXPECT_EQ(ifc.ssl.key, settings.getInterfaces()[0].ssl.key);
     EXPECT_EQ(ifc.ssl.cert, settings.getInterfaces()[0].ssl.cert);
@@ -1175,6 +1193,36 @@ TEST(SettingsUpdateTest, UpdatingLoggerSettingsShouldFail) {
     updated.setLoggerConfig(config);
     EXPECT_THROW(settings.updateSettings(updated, false),
                  std::invalid_argument);
+}
+
+TEST(SettingsUpdateTest, MaxConnectionsIsDynamic) {
+    Settings updated;
+    Settings settings;
+    settings.setMaxConnections(10);
+    // setting it to the same value should work
+    updated.setMaxConnections(10);
+    settings.updateSettings(updated, false);
+
+    // changing it should work
+    updated.setMaxConnections(1000);
+    ;
+    settings.updateSettings(updated, true);
+    EXPECT_EQ(1000, settings.getMaxConnections());
+}
+
+TEST(SettingsUpdateTest, SystemConnectionsIsDynamic) {
+    Settings updated;
+    Settings settings;
+    settings.setSystemConnections(10);
+    // setting it to the same value should work
+    updated.setSystemConnections(10);
+    settings.updateSettings(updated, false);
+
+    // changing it should work
+    updated.setSystemConnections(1000);
+    ;
+    settings.updateSettings(updated, true);
+    EXPECT_EQ(1000, settings.getSystemConnections());
 }
 
 TEST(SettingsUpdateTest, DefaultReqIsDynamic) {

@@ -177,13 +177,10 @@ static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
                  stats.daemon_conns);
         add_stat(cookie, add_stat_callback, "curr_connections",
                  stats.curr_conns.load(std::memory_order_relaxed));
-        for (auto& instance : stats.listening_ports) {
-            std::string key =
-                "max_conns_on_port_" + std::to_string(instance.port);
-            add_stat(cookie, add_stat_callback, key.c_str(), instance.maxconns);
-            key = "curr_conns_on_port_" + std::to_string(instance.port);
-            add_stat(cookie, add_stat_callback, key.c_str(), instance.curr_conns);
-        }
+        add_stat(cookie,
+                 add_stat_callback,
+                 "system_connections",
+                 stats.system_conns.load(std::memory_order_relaxed));
         add_stat(cookie, add_stat_callback, "total_connections", stats.total_conns);
         add_stat(cookie, add_stat_callback, "connection_structures",
                  stats.conn_structs);

@@ -200,6 +200,9 @@ struct stats {
     /** The current number of connections to the server */
     std::atomic<unsigned int> curr_conns;
 
+    /// The number of system connections
+    std::atomic<unsigned int> system_conns;
+
     /** The total number of connections to the server since start (or reset) */
     Couchbase::RelaxedAtomic<unsigned int> total_conns;
 

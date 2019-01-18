@@ -27,6 +27,7 @@
 #include "mcbp.h"
 #include "mcbp_executors.h"
 #include "sasl_tasks.h"
+#include "settings.h"
 
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
@@ -397,11 +398,60 @@ bool StateMachine::conn_validate() {
             // We should not be receiving a server command.
             // Audit and log
             audit_invalid_packet(cookie, cookie.getPacket());
-            LOG_WARNING("{}: Received a server command. Closing connection");
+            LOG_WARNING("{}: Received a server command. Closing connection",
+                        connection.getId());
             connection.setState(StateMachine::State::closing);
             return true;
         }
     } // We don't currently have any validators for response packets
+
+    if (!connection.isInternal()) {
+        // Disconnect the client if we're starting to run out of connections
+        const auto sys = settings.getSystemConnections();
+        const auto max = settings.getMaxConnections();
+        const auto user = max - sys;
+
+        if (stats.curr_conns > user && stats.system_conns < (sys / 2)) {
+            // The logic is as follows:
+            //   As long as we've got at least 50% of the system reserved
+            //   connections free, we'll just let the client use the socket.
+            //   If we're beyond that point, we'll disconnect this client
+            //   if one of the following is true:
+            //      * The connection is authenticated
+            //      * The command isn't one of:
+            //          * HELLO
+            //          * SASL_LIST_MECH
+            //          * SASL_AUTH
+            //          * SASL_STEP
+
+            bool authentication = false;
+            if (header.isRequest()) {
+                const auto& request = header.getRequest();
+                if (cb::mcbp::is_client_magic(request.getMagic())) {
+                    auto opcode = request.getClientOpcode();
+                    using cb::mcbp::ClientOpcode;
+                    authentication = opcode == ClientOpcode::Hello ||
+                                     opcode == ClientOpcode::SaslListMechs ||
+                                     opcode == ClientOpcode::SaslAuth ||
+                                     opcode == ClientOpcode::SaslStep;
+                }
+            }
+
+            if (!authentication || connection.isAuthenticated()) {
+                LOG_WARNING(
+                        "{}: Shutting down client ({}) as we're running out of"
+                        " connections: System: {}/{} User: {}/{}",
+                        connection.getId(),
+                        connection.getDescription(),
+                        stats.system_conns,
+                        sys,
+                        stats.curr_conns,
+                        max);
+                setCurrentState(State::closing);
+                return true;
+            }
+        }
+    }
 
     connection.setState(StateMachine::State::execute);
     return true;
@@ -554,23 +604,6 @@ bool StateMachine::conn_send_data() {
 }
 
 bool StateMachine::conn_immediate_close() {
-    {
-        std::lock_guard<std::mutex> guard(stats_mutex);
-        auto* port_instance =
-                get_listening_port_instance(connection.getParentPort());
-        if (port_instance) {
-            --port_instance->curr_conns;
-        } else {
-            // There isn't any point of throwing an exception here, as it would
-            // just put us back in the "closing path" of the connection.
-            // Instead just log it
-            LOG_WARNING(
-                    "{}: conn_immediate_close: Failed to map parent port: {}",
-                    connection.getId(),
-                    connection.toJSON().dump());
-        }
-    }
-
     disassociate_bucket(connection);
 
     // Do the final cleanup of the connection:

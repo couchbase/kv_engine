@@ -173,9 +173,7 @@ public:
      * An internal user is a user which is used by one of the components
      * in Couchbase (like ns_server, indexer etc).
      */
-    void setInternal(bool internal) {
-        Connection::internal = internal;
-    }
+    void setInternal(bool internal);
 
     /**
      * Update the username to reflect what the user used from the SASL

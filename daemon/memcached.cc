@@ -132,6 +132,11 @@ std::unique_ptr<ExecutorPool> executorPool;
 /* Mutex for global stats */
 std::mutex stats_mutex;
 
+/// The maximum number of file handles we may have. During startup
+/// we'll try to increase the allowed number of file handles to the
+/// limit specified for the current user.
+static size_t max_file_handles;
+
 /*
  * forward declarations
  */
@@ -430,6 +435,33 @@ static size_t get_number_of_worker_threads() {
     return ret;
 }
 
+/// We might not support as many connections as requested if
+/// we don't have enough file descriptors available
+static void recalculate_max_connections() {
+    const auto maxconn = settings.getMaxConnections();
+    const auto system = (3 * (settings.getNumWorkerThreads() + 2)) + 1024;
+    const uint64_t maxfiles = maxconn + system;
+
+    if (max_file_handles < maxfiles) {
+        const auto newmax = max_file_handles - system;
+        settings.setMaxConnections(newmax, false);
+        LOG_WARNING(
+                "max_connections is set higher than the available number of "
+                "file descriptors available. Reduce max_connections to: {}",
+                newmax);
+
+        if (newmax > settings.getSystemConnections()) {
+            LOG_WARNING(
+                    "system_connections > max_connections. Reduce "
+                    "system_connections to {}",
+                    settings.getSystemConnections(),
+                    newmax,
+                    newmax / 2);
+            settings.setSystemConnections(newmax / 2);
+        }
+    }
+}
+
 static void breakpad_changed_listener(const std::string&, Settings &s) {
     cb::breakpad::initialize(s.getBreakpadSettings());
 }
@@ -473,12 +505,10 @@ static void interfaces_changed_listener(const std::string&, Settings &s) {
     for (const auto& ifc : s.getInterfaces()) {
         auto* port = get_listening_port_instance(ifc.port);
         if (port != nullptr) {
-            port->maxconns = ifc.maxconn;
             port->tcp_nodelay = ifc.tcp_nodelay;
             port->setSslSettings(ifc.ssl.key, ifc.ssl.cert);
         }
     }
-    s.calculateMaxconns();
 }
 
 #ifdef HAVE_LIBNUMA
@@ -516,6 +546,10 @@ static void settings_init() {
     // Set up the listener functions
     settings.addChangeListener("breakpad",
                                breakpad_changed_listener);
+    settings.addChangeListener("max_connections",
+                               [](const std::string&, Settings& s) -> void {
+                                   recalculate_max_connections();
+                               });
     settings.addChangeListener("ssl_minimum_protocol",
                                ssl_minimum_protocol_changed_listener);
     settings.addChangeListener("ssl_cipher_list",
@@ -978,9 +1012,6 @@ static void add_listening_port(const NetworkInterface *interf, in_port_t port, s
     if (descr == nullptr) {
         ListeningPort newport(port, interf->host, interf->tcp_nodelay);
 
-        newport.curr_conns = 1;
-        newport.maxconns = interf->maxconn;
-
         newport.setSslSettings(interf->ssl.key, interf->ssl.cert);
 
         if (family == AF_INET) {
@@ -998,7 +1029,6 @@ static void add_listening_port(const NetworkInterface *interf, in_port_t port, s
         } else if (family == AF_INET6) {
             descr->ipv6 = true;
         }
-        ++descr->curr_conns;
     }
 }
 
@@ -2119,32 +2149,6 @@ void delete_all_buckets() {
     } while (!done);
 }
 
-static void set_max_filehandles() {
-    const uint64_t maxfiles = settings.getMaxconns() +
-                            (3 * (settings.getNumWorkerThreads() + 2)) +
-                            1024;
-
-    auto limit = cb::io::maximizeFileDescriptors(maxfiles);
-
-    if (limit < maxfiles) {
-        LOG_WARNING(
-                "Failed to set the number of file descriptors "
-                "to {} due to system resource restrictions. "
-                "This may cause the system to misbehave once you reach a "
-                "high connection count as the system won't be able open "
-                "new files on the system. The maximum number of file "
-                "descriptors is currently set to {}. The system "
-                "is configured to allow {} number of client connections, "
-                "and in addition to that the overhead of the worker "
-                "threads is {}. Finally the backed database needs to "
-                "open files to persist data.",
-                int(maxfiles),
-                int(limit),
-                settings.getMaxconns(),
-                (3 * (settings.getNumWorkerThreads() + 2)));
-    }
-}
-
 /**
  * The log function used from SASL
  *
@@ -2197,6 +2201,10 @@ extern "C" int memcached_main(int argc, char **argv) {
     // allocation).
     const std::string numa_status = configure_numa_policy();
 #endif
+
+    max_file_handles = cb::io::maximizeFileDescriptors(
+            std::numeric_limits<uint32_t>::max());
+
     std::unique_ptr<ParentMonitor> parent_monitor;
 
     try {
@@ -2302,10 +2310,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     /* inform interested parties of initial verbosity level */
     perform_callbacks(ON_LOG_LEVEL, nullptr, nullptr);
 
-    set_max_filehandles();
-
-    /* Aggregate the maximum number of connections */
-    settings.calculateMaxconns();
+    recalculate_max_connections();
 
     if (getenv("MEMCACHED_CRASH_TEST")) {
         // The crash tests wants the system to generate a crash.

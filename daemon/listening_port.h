@@ -41,12 +41,6 @@ public:
      */
     const in_port_t port;
 
-    /** The current number of connections connected to this port */
-    int curr_conns;
-
-    /** The maximum number of connections allowed for this port */
-    int maxconns;
-
     /** The hostname this port is bound to ("*" means all interfaces) */
     const std::string host;
 

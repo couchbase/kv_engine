@@ -24,11 +24,6 @@
 #include <nlohmann/json.hpp>
 #include <utilities/json_utilities.h>
 
-static void handle_interface_maxconn(NetworkInterface& ifc,
-                                     nlohmann::json::const_iterator it) {
-    ifc.maxconn = gsl::narrow<int>(cb::jsonGet<size_t>(it));
-}
-
 static void handle_interface_port(NetworkInterface& ifc,
                                   nlohmann::json::const_iterator it) {
     ifc.port = in_port_t(cb::jsonGet<size_t>(it));
@@ -133,7 +128,6 @@ NetworkInterface::NetworkInterface(const nlohmann::json& json) {
     };
 
     std::vector<interface_config_tokens> handlers = {
-            {"maxconn", handle_interface_maxconn},
             {"port", handle_interface_port},
             {"host", handle_interface_host},
             {"ipv4", handle_interface_ipv4},

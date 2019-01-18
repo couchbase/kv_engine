@@ -300,23 +300,26 @@ public:
         notify_changed("root");
     }
 
-    /**
-     * Get the aggregated number of max connections allowed
-     *
-     * @return the sum of maxconns specified for all interfaces
-     */
-    int getMaxconns() const {
-        return maxconns;
+    size_t getMaxConnections() const {
+        return max_connections;
     }
 
-    /**
-     * Calculate the aggregated count of all connections
-     */
-    void calculateMaxconns() {
-        maxconns = 0;
-        for (auto& ifc : interfaces) {
-            maxconns += ifc.maxconn;
+    void setMaxConnections(size_t max_connections, bool notify = true) {
+        Settings::max_connections = max_connections;
+        has.max_connections = true;
+        if (notify) {
+            notify_changed("max_connections");
         }
+    }
+
+    size_t getSystemConnections() const {
+        return system_connections;
+    }
+
+    void setSystemConnections(size_t system_connections) {
+        Settings::system_connections = system_connections;
+        has.system_connections = true;
+        notify_changed("system_connections");
     }
 
     /**
@@ -926,6 +929,12 @@ protected:
     std::atomic<std::chrono::microseconds> active_external_users_push_interval{
             std::chrono::minutes(5)};
 
+    /// The maximum number of connections allowed
+    size_t max_connections = 60000;
+
+    /// The pool of connections reserved for system usage
+    size_t system_connections = 5000;
+
 public:
     /**
      * Flags for each of the above config options, indicating if they were
@@ -970,6 +979,8 @@ public:
         bool scramsha_fallback_salt;
         bool external_auth_service;
         bool active_external_users_push_interval = false;
+        bool max_connections = false;
+        bool system_connections = false;
     } has;
 
 protected:
@@ -989,14 +1000,6 @@ protected:
     std::map<std::string, std::deque<void (*)(const std::string& key, Settings& obj)> > change_listeners;
 
     void notify_changed(const std::string& key);
-
-    /*************************************************************************
-     * These settings are not exposed to the user, and are either derived from
-     * the above, or not directly configurable:
-     */
-protected:
-    int maxconns;           /* Total number of permitted connections. Derived
-                               from sum of all individual interfaces */
 };
 
 extern Settings settings;

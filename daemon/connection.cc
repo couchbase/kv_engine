@@ -244,7 +244,7 @@ void Connection::restartAuthentication() {
         externalAuthManager->logoff(username);
     }
     sasl_conn.reset();
-    internal = false;
+    setInternal(false);
     authenticated = false;
     username = "";
 }
@@ -1273,6 +1273,9 @@ Connection::Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc)
 }
 
 Connection::~Connection() {
+    if (internal) {
+        --stats.system_conns;
+    }
     if (authenticated && domain == cb::sasl::Domain::External) {
         externalAuthManager->logoff(username);
     }
@@ -1320,6 +1323,16 @@ void Connection::setConnectionId(cb::const_char_buffer uuid) {
 
 bool Connection::shouldDelete() {
     return getState() == StateMachine::State ::destroyed;
+}
+
+void Connection::setInternal(bool internal) {
+    if (Connection::internal) {
+        --stats.system_conns;
+    }
+    Connection::internal = internal;
+    if (internal) {
+        ++stats.system_conns;
+    }
 }
 
 size_t Connection::getNumberOfCookies() const {

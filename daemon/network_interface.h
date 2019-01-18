@@ -39,7 +39,6 @@ public:
         std::string key;
         std::string cert;
     } ssl;
-    int maxconn = 1000;
     in_port_t port = 11211;
     Protocol ipv6 = Protocol::Optional;
     Protocol ipv4 = Protocol::Optional;

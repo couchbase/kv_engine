@@ -19,8 +19,6 @@
 
 ListeningPort::ListeningPort(in_port_t port, std::string host, bool tcp_nodelay)
     : port(port),
-      curr_conns(1),
-      maxconns(0),
       host(std::move(host)),
       ipv6(false),
       ipv4(false),

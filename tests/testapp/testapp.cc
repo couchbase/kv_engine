@@ -412,16 +412,17 @@ nlohmann::json TestappTest::generate_config(uint16_t ssl_port) {
         ret["verbosity"] = memcached_verbose - 1;
     }
 
+    ret["max_connections"] = Testapp::MAX_CONNECTIONS;
+    ret["system_connections"] = Testapp::MAX_CONNECTIONS / 4;
+
     ret["stdin_listener"] = false;
     ret["interfaces"][0]["port"] = 0;
     ret["interfaces"][0]["ipv4"] = "optional";
     ret["interfaces"][0]["ipv6"] = "optional";
-    ret["interfaces"][0]["maxconn"] = Testapp::MAX_CONNECTIONS;
     ret["interfaces"][0]["host"] = "*";
     ret["interfaces"][1]["port"] = ssl_port;
     ret["interfaces"][1]["ipv4"] = "optional";
     ret["interfaces"][1]["ipv6"] = "optional";
-    ret["interfaces"][1]["maxconn"] = Testapp::MAX_CONNECTIONS;
     ret["interfaces"][1]["host"] = "*";
     ret["interfaces"][1]["ssl"]["key"] = pem_path;
     ret["interfaces"][1]["ssl"]["cert"] = cert_path;

@@ -55,9 +55,7 @@ Settings::Settings()
       reqs_per_event_low_priority(0),
       default_reqs_per_event(00),
       max_packet_size(0),
-      topkeys_size(0),
-      maxconns(0) {
-
+      topkeys_size(0) {
     verbose.store(0);
     connection_idle_time.reset();
     dedupe_nmvb_maps.store(false);
@@ -435,6 +433,22 @@ static void handle_max_packet_size(Settings& s, const nlohmann::json& obj) {
                        1024);
 }
 
+static void handle_max_connections(Settings& s, const nlohmann::json& obj) {
+    if (!obj.is_number_unsigned()) {
+        cb::throwJsonTypeError(
+                R"("max_connections" must be a positive number)");
+    }
+    s.setMaxConnections(obj.get<size_t>());
+}
+
+static void handle_system_connections(Settings& s, const nlohmann::json& obj) {
+    if (!obj.is_number_unsigned()) {
+        cb::throwJsonTypeError(
+                R"("system_connections" must be a positive number)");
+    }
+    s.setSystemConnections(obj.get<size_t>());
+}
+
 /**
  * Handle the "sasl_mechanisms" tag in the settings
  *
@@ -606,6 +620,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"ssl_minimum_protocol", handle_ssl_minimum_protocol},
             {"breakpad", handle_breakpad},
             {"max_packet_size", handle_max_packet_size},
+            {"max_connections", handle_max_connections},
+            {"system_connections", handle_system_connections},
             {"sasl_mechanisms", handle_sasl_mechanisms},
             {"ssl_sasl_mechanisms", handle_ssl_sasl_mechanisms},
             {"stdin_listener", handle_stdin_listener},
@@ -876,6 +892,24 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
     }
 
+    if (other.has.max_connections) {
+        if (other.max_connections != max_connections) {
+            LOG_INFO(R"(Change max connections from {} to {})",
+                     max_connections,
+                     other.max_connections);
+            setMaxConnections(other.max_connections);
+        }
+    }
+
+    if (other.has.system_connections) {
+        if (other.system_connections != system_connections) {
+            LOG_INFO(R"(Change max connections from {} to {})",
+                     system_connections,
+                     other.system_connections);
+            setSystemConnections(other.system_connections);
+        }
+    }
+
     if (other.has.xattr_enabled) {
         if (other.xattr_enabled != xattr_enabled) {
             LOG_INFO("{} XATTR",
@@ -904,16 +938,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             if (i1.port == 0 || i2.port == 0) {
                 // we can't look at dynamic ports...
                 continue;
-            }
-
-            if (i2.maxconn != i1.maxconn) {
-                LOG_INFO("Change max connections for {}:{} from {} to {}",
-                         i1.host,
-                         i1.port,
-                         i1.maxconn,
-                         i2.maxconn);
-                i1.maxconn = i2.maxconn;
-                changed = true;
             }
 
             if (i2.tcp_nodelay != i1.tcp_nodelay) {
