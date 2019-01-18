@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2011 Couchbase, Inc
+ *     Copyright 2019 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -14,12 +14,12 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <platform/cbassert.h>
-#include <cstdio>
-#include <stdlib.h>
-#include <string.h>
-#include <strings.h>
-#include <cerrno>
+
+#include <json_utilities.h>
+#include <platform/dirutils.h>
+
+#include <nlohmann/json.hpp>
+
 #include <sys/stat.h>
 #include <string>
 #include <sstream>
@@ -27,215 +27,232 @@
 #include <fstream>
 #include <map>
 
-#include <ctype.h>
-#include <vector>
+std::stringstream prototypes;
+std::stringstream initialization;
+std::stringstream implementation;
 
-#include <cJSON_utils.h>
+typedef std::string (*getValidatorCode)(const std::string&,
+                                        const nlohmann::json&);
 
-using namespace std;
+std::map<std::string, getValidatorCode> validators;
+std::map<std::string, std::string> datatypes;
 
-stringstream prototypes;
-stringstream initialization;
-stringstream implementation;
-
-typedef string (*getValidatorCode)(const std::string &, cJSON*);
-
-std::map<string, getValidatorCode> validators;
-map<string, string> datatypes;
-
-static string getDatatype(const std::string& key, cJSON* o);
-
-static string getRangeValidatorCode(const std::string &key, cJSON *o) {
-    cJSON* validator = cJSON_GetObjectItem(o, "validator");
-
-    cJSON* n = cJSON_GetArrayItem(validator, 0);
-    if (n == NULL) {
-        return "";
-    }
-
-    // the range validator should contain a "min" or a "max" element
-    cJSON* min = cJSON_GetObjectItem(n, "min");
-    cJSON* max = cJSON_GetObjectItem(n, "max");
-
-    if (min == nullptr && max == nullptr) {
-        cerr << "Incorrect syntax for a range validator specified for"
-             << "\"" << key << "\"." << endl
-             <<"You need at least one of a min or a max clause." << endl;
+static std::string getDatatype(const std::string& key,
+                               const nlohmann::json& json) {
+    auto ret = json["type"].get<std::string>();
+    auto iter = datatypes.find(ret);
+    if (iter == datatypes.end()) {
+        std::cerr << "Invalid datatype specified for \"" << key << "\": " << ret
+                  << std::endl;
         exit(1);
     }
 
-    if (min && (min->type != cJSON_Number && min->type != cJSON_Double)) {
-        cerr << "Incorrect datatype for the range validator specified for "
-             << "\"" << key << "\"." << endl
-             << "Only numbers are supported." << endl;
-        exit(1);
-    }
-    if (max && !(max->type == cJSON_Number || max->type == cJSON_Double ||
-            (max->type == cJSON_String &&
-             std::string(max->valuestring) == "NUM_CPU"))) {
-        cerr << "Incorrect datatype for the range validator specified for "
-        << "\"" << key << "\"." << endl
-        << "Only numbers are supported." << endl;
+    return iter->second;
+}
+
+static std::string getRangeValidatorCode(const std::string& key,
+                                         const nlohmann::json& json) {
+    // We've already made the checks to verify that these objects exist
+    auto validator = json["validator"];
+    auto first = validator.begin();
+
+    auto min = first->find("min");
+    auto max = first->find("max");
+    if (min == first->end() && max == first->end()) {
+        std::cerr << "Incorrect syntax for a range validator specified for"
+                  << "\"" << key << "\"." << std::endl
+                  << "You need at least one of a min or a max clause."
+                  << std::endl;
         exit(1);
     }
 
-    string validator_type;
-    string mins;
-    string maxs;
+    // If min exists and is not a numeric type
+    if (min != first->end() &&
+        !(min->type() == nlohmann::json::value_t::number_integer ||
+          min->type() == nlohmann::json::value_t::number_unsigned ||
+          min->type() == nlohmann::json::value_t::number_float)) {
+        std::cerr << "Incorrect datatype for the range validator specified for "
+                  << "\"" << key << "\"." << std::endl
+                  << "Only numbers are supported." << std::endl;
+        exit(1);
+    }
 
-    if (getDatatype(key, o) == "float") {
+    // If max exists and is not of the correct type
+    if (max != first->end() &&
+        !(max->type() == nlohmann::json::value_t::number_integer ||
+          max->type() == nlohmann::json::value_t::number_unsigned ||
+          max->type() == nlohmann::json::value_t::number_float ||
+          (max->type() == nlohmann::json::value_t::string &&
+           max->get<std::string>() == "NUM_CPU"))) {
+        std::cerr << "Incorrect datatype for the range validator specified for "
+                  << "\"" << key << "\"." << std::endl
+                  << "Only numbers are supported." << std::endl;
+        exit(1);
+    }
+
+    std::string validator_type;
+    std::string mins;
+    std::string maxs;
+
+    if (getDatatype(key, json) == "float") {
         validator_type = "FloatRangeValidator";
-        if (min) {
-            if (min->type == cJSON_Double) {
-                mins = to_string(min->valuedouble);
-            } else {
-                mins = to_string(min->valueint);
-            }
+        if (min != first->end()) {
+            mins = std::to_string(min->get<float>());
         } else {
             mins = "std::numeric_limits<float>::min()";
         }
-        if (max) {
-            if (max->type == cJSON_Double) {
-                maxs = to_string(max->valuedouble);
-            } else {
-                maxs = to_string(max->valueint);
-            }
+        if (max != first->end()) {
+            maxs = std::to_string(max->get<float>());
         } else {
             maxs = "std::numeric_limits<float>::max()";
         }
-
-    } else if (getDatatype(key, o) == "ssize_t") {
+    } else if (getDatatype(key, json) == "ssize_t") {
         validator_type = "SSizeRangeValidator";
-        if (min) {
-            mins = to_string(min->valueint);
+        if (min != first->end()) {
+            mins = std::to_string(min->get<int64_t>());
         } else {
             mins = "std::numeric_limits<ssize_t>::min()";
         }
-        if (max) {
-            maxs = to_string(max->valueint);
+        if (max != first->end()) {
+            maxs = std::to_string(max->get<int64_t>());
         } else {
             maxs = "std::numeric_limits<ssize_t>::max()";
         }
     } else {
         validator_type = "SizeRangeValidator";
-        if (min) {
-            mins = to_string(min->valueint);
+        if (min != first->end()) {
+            mins = std::to_string(min->get<uint64_t>());
         } else {
-            mins = "std::numeric_limits<size_t>::min()";
+            mins = "std::numeric_limits<size_t>::main()";
         }
-        if (max && max->type == cJSON_String &&
-            std::string(max->valuestring) == "NUM_CPU") {
+        if (max != first->end() &&
+            max->type() == nlohmann::json::value_t::string &&
+            max->get<std::string>() == "NUM_CPU") {
             maxs = "Couchbase::get_available_cpu_count()";
-        }
-        else if (max) {
-            maxs = to_string(max->valueint);
+        } else if (max != first->end()) {
+            maxs = std::to_string(max->get<uint64_t>());
         } else {
             maxs = "std::numeric_limits<size_t>::max()";
         }
     }
 
-    string out = "(new " + validator_type + "())->min(" + mins + ")->max(" + maxs + ")";
+    std::string out = "(new " + validator_type + "())->min(" + mins +
+                      ")->max(" + maxs + ")";
     return out;
 }
 
-static string getEnumValidatorCode(const std::string &key, cJSON *o) {
-    cJSON *validator = cJSON_GetObjectItem(o, "validator");
+static std::string getEnumValidatorCode(const std::string& key,
+                                        const nlohmann::json& json) {
+    // We've already made the checks to verify if these objects exist
+    auto validator = json["validator"];
+    auto first = validator.begin();
 
-    cJSON *n = cJSON_GetArrayItem(validator, 0);
-    if (n == NULL) {
-        return "";
-    }
-
-    if (n->type != cJSON_Array) {
-        cerr << "Incorrect enum value for " << key
-             << ".  Array of values is required." << endl;
+    if (first->type() != nlohmann::json::value_t::array) {
+        std::cerr << "Incorrect enum value for " << key
+                  << ".  Array of values is required." << std::endl;
         exit(1);
     }
 
-    if (cJSON_GetArraySize(n) < 1) {
-        cerr << "At least one validator enum element is required ("
-             << key << ")" << endl;
+    if (first->size() < 1) {
+        std::cerr << "At least one validator enum element is required (" << key
+                  << ")" << std::endl;
         exit(1);
     }
 
-    stringstream ss;
+    std::stringstream ss;
     ss << "(new EnumValidator())";
 
-    for (cJSON* p(n->child); p; p = p->next) {
-        if (p->type != cJSON_String) {
-            cerr << "Incorrect validator for " << key
-                 << ", all enum entries must be strings." << endl;
+    for (auto& obj : *first) {
+        if (obj.type() != nlohmann::json::value_t::string) {
+            std::cerr << "Incorrect validator for " << key
+                      << ", all enum entries must be strings." << std::endl;
             exit(1);
         }
-        ss << "\n\t\t->add(" << to_string(p) << ")";
+        ss << "\n\t\t->add(\"" << obj.get<std::string>() << "\")";
     }
     return ss.str();
 }
 
 static void initialize() {
-    prototypes << "/*" << endl
-               << " *     Copyright 2011 Couchbase, Inc" << endl
-               << " *" << endl
+    prototypes << "/*" << std::endl
+               << " *     Copyright 2019 Couchbase, Inc" << std::endl
+               << " *" << std::endl
                << " *   Licensed under the Apache License, Version 2.0 (the "
                   "\"License\");"
-               << endl
+               << std::endl
                << " *   you may not use this file except in compliance with "
                   "the License."
-               << endl
-               << " *   You may obtain a copy of the License at" << endl
-               << " *" << endl
-               << " *       http://www.apache.org/licenses/LICENSE-2.0" << endl
-               << " *" << endl
+               << std::endl
+               << " *   You may obtain a copy of the License at" << std::endl
+               << " *" << std::endl
+               << " *       http://www.apache.org/licenses/LICENSE-2.0"
+               << std::endl
+               << " *" << std::endl
                << " *   Unless required by applicable law or agreed to in "
                   "writing, software"
-               << endl
+               << std::endl
                << " *   distributed under the License is distributed on an "
                   "\"AS IS\" BASIS,"
-               << endl
+               << std::endl
                << " *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either "
                   "express or implied."
-               << endl
+               << std::endl
                << " *   See the License for the specific language governing "
                   "permissions and"
-               << endl
-               << " *   limitations under the License." << endl
-               << " */" << endl
-               << endl
-               << "// ###########################################" << endl
-               << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << endl
-               << "// ###########################################" << endl
-               << "#pragma once" << endl
-               << endl
-               << "#include \"config.h\"" << endl
-               << endl
-               << "#include <string>" << endl;
+               << std::endl
+               << " *   limitations under the License." << std::endl
+               << " */" << std::endl
+               << std::endl
+               << "// ###########################################" << std::endl
+               << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << std::endl
+               << "// ###########################################" << std::endl
+               << "#pragma once" << std::endl
+               << std::endl
+               << "#include \"config.h\"" << std::endl
+               << std::endl
+               << "#include <string>" << std::endl;
 
-    implementation
-        << "/*" << endl
-        << " *     Copyright 2011 Couchbase, Inc" << endl
-        << " *" << endl
-        << " *   Licensed under the Apache License, Version 2.0 (the \"License\");" << endl
-        << " *   you may not use this file except in compliance with the License." << endl
-        << " *   You may obtain a copy of the License at" << endl
-        << " *" << endl
-        << " *       http://www.apache.org/licenses/LICENSE-2.0" << endl
-        << " *" << endl
-        << " *   Unless required by applicable law or agreed to in writing, software" << endl
-        << " *   distributed under the License is distributed on an \"AS IS\" BASIS," << endl
-        << " *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied." << endl
-        << " *   See the License for the specific language governing permissions and" << endl
-        << " *   limitations under the License." << endl
-        << " */" << endl
-        << endl
-        << "// ###########################################" << endl
-        << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << endl
-        << "// ###########################################" << endl
-        << endl
-        << "#include \"config.h\"" << endl
-        << "#include \"configuration.h\"" << endl
-        << "#include \"configuration_impl.h\"" << endl
-        << "#include <platform/sysinfo.h>" << endl
-        << "#include <limits>" << endl;
+    implementation << "/*" << std::endl
+                   << " *     Copyright 2019 Couchbase, Inc" << std::endl
+                   << " *" << std::endl
+                   << " *   Licensed under the Apache License, Version 2.0 "
+                      "(the \"License\");"
+                   << std::endl
+                   << " *   you may not use this file except in compliance "
+                      "with the License."
+                   << std::endl
+                   << " *   You may obtain a copy of the License at"
+                   << std::endl
+                   << " *" << std::endl
+                   << " *       http://www.apache.org/licenses/LICENSE-2.0"
+                   << std::endl
+                   << " *" << std::endl
+                   << " *   Unless required by applicable law or agreed to in "
+                      "writing, software"
+                   << std::endl
+                   << " *   distributed under the License is distributed on an "
+                      "\"AS IS\" BASIS,"
+                   << std::endl
+                   << " *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, "
+                      "either express or implied."
+                   << std::endl
+                   << " *   See the License for the specific language "
+                      "governing permissions and"
+                   << std::endl
+                   << " *   limitations under the License." << std::endl
+                   << " */" << std::endl
+                   << std::endl
+                   << "// ###########################################"
+                   << std::endl
+                   << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << std::endl
+                   << "// ###########################################"
+                   << std::endl
+                   << std::endl
+                   << "#include \"config.h\"" << std::endl
+                   << "#include \"configuration.h\"" << std::endl
+                   << "#include \"configuration_impl.h\"" << std::endl
+                   << "#include <platform/sysinfo.h>" << std::endl
+                   << "#include <limits>" << std::endl;
     validators["range"] = getRangeValidatorCode;
     validators["enum"] = getEnumValidatorCode;
     datatypes["bool"] = "bool";
@@ -246,102 +263,74 @@ static void initialize() {
     datatypes["std::string"] = "std::string";
 }
 
-static string getString(cJSON *i) {
-    if (i == NULL) {
-        return "";
-    }
-    cb_assert(i->type == cJSON_String);
-    return i->valuestring;
-}
-
-static bool isReadOnly(cJSON *o) {
-    cJSON *i = cJSON_GetObjectItem(o, "dynamic");
-    if (i == nullptr) {
-        cerr << "\"dynamic\" attribute needs to be specified for "
-             << o->string << endl;
+static bool isReadOnly(const nlohmann::json& json) {
+    try {
+        return !cb::jsonGet<bool>(json, "dynamic");
+    } catch (const nlohmann::json::exception& e) {
+        std::cerr << e.what() << std::endl;
         exit(1);
     }
-
-    if (i->type == cJSON_False) {
-        return true;
-    }
-
-    cb_assert(i->type == cJSON_True);
     return false;
 }
 
-static bool hasAliases(cJSON* o) {
-    cJSON* i = cJSON_GetObjectItem(o, "aliases");
-    if (i == NULL) {
+static bool hasAliases(const nlohmann::json& json) {
+    auto aliases = json.find("aliases");
+    if (aliases == json.end()) {
         return false;
     }
 
-    if (i->type == cJSON_String || i->type == cJSON_Array) {
+    if (aliases->type() == nlohmann::json::value_t::string ||
+        aliases->type() == nlohmann::json::value_t::array) {
         return true;
     }
 
     return false;
 }
 
-static std::vector<std::string> getAliases(cJSON* o) {
-    cJSON* aliases = cJSON_GetObjectItem(o, "aliases");
+static std::vector<std::string> getAliases(const nlohmann::json& json) {
+    auto aliases = json.find("aliases");
 
     std::vector<std::string> output;
 
-    if (aliases->type == cJSON_String) {
-        output.emplace_back(aliases->valuestring);
-    } else if (aliases->type == cJSON_Array) {
-        int count = cJSON_GetArraySize(aliases);
-
-        for (int i = 0; i < count; i++) {
-            output.emplace_back(cJSON_GetArrayItem(aliases, i)->valuestring);
+    if (aliases->type() == nlohmann::json::value_t::string) {
+        output.emplace_back(aliases->get<std::string>());
+    } else if (aliases->type() == nlohmann::json::value_t::array) {
+        for (auto elem : *aliases) {
+            output.emplace_back(elem.get<std::string>());
         }
     }
 
     return output;
 }
 
-static string getDatatype(const std::string &key, cJSON *o) {
-    cJSON *i = cJSON_GetObjectItem(o, "type");
-    cb_assert(i != NULL && i->type == cJSON_String);
-    string ret = i->valuestring;
+static std::string getValidator(const std::string& key,
+                                const nlohmann::json& json) {
+    auto validator = json.find("validator");
+    if (validator == json.end()) {
+        // No validator found
+        return "";
+    }
 
-    map<string, string>::iterator iter = datatypes.find(ret);
-    if (iter == datatypes.end()) {
-        cerr << "Invalid datatype specified for \"" << key << "\": "
-             << i->valuestring << endl;
+    // Abort early if the validator is bad
+    if (validator->size() != 1) {
+        std::cerr << "Only one validator can be specified for " << key
+                  << std::endl;
         exit(1);
     }
 
-    return iter->second;
-}
+    // Get the validator json (first element)
+    auto first = validator->begin();
 
-static string getValidator(const std::string &key, cJSON *o) {
-    if (o == NULL) {
-        return "";
-    }
-
-    cJSON* validator = cJSON_GetObjectItem(o, "validator");
-
-    if (validator == NULL) {
-        return "";
-    }
-
-    cJSON* n = cJSON_GetArrayItem(validator, 0);
-    if (n == NULL) {
-        return "";
-    }
-
-    std::map<string, getValidatorCode>::iterator iter;
-    iter = validators.find(string(n->string));
+    // Lookup the correct function from the map
+    std::map<std::string, getValidatorCode>::iterator iter;
+    iter = validators.find(first.key());
     if (iter == validators.end()) {
-        cerr << "Unknown validator specified for \"" << key
-             << "\": \"" << n->string << "\""
-             << endl;
+        std::cerr << "Unknown validator specified for \"" << key << "\": \""
+                  << first->get<std::string>() << "\"" << std::endl;
         exit(1);
     }
 
-    return (iter->second)(key, o);
+    return (iter->second)(key, json);
 }
 
 /**
@@ -350,24 +339,16 @@ static string getValidator(const std::string &key, cJSON *o) {
  * Generates code to be used in generated_configuration.cc constructing the
  * Requirement object and adding the appropriate requirements.
  * @param key key to generate requirements for
- * @param o json object representing the config parameter
+ * @param json json object representing the config parameter
  * @param params json object of all parameters, required to determine the
  * intended type of the required parameter.
  * @return string of the code constructing a Requirement object.
  */
-static string getRequirements(const std::string& key, cJSON* o, cJSON* params) {
-    if (o == NULL) {
-        return "";
-    }
-
-    cJSON* requirements = cJSON_GetObjectItem(o, "requires");
-
-    if (requirements == NULL) {
-        return "";
-    }
-
-    ssize_t num = cJSON_GetArraySize(requirements);
-    if (num <= 0) {
+static std::string getRequirements(const std::string& key,
+                                   const nlohmann::json& json,
+                                   const nlohmann::json& params) {
+    auto requirements = json.find("requires");
+    if (requirements == json.end() || requirements->size() <= 0) {
         return "";
     }
 
@@ -375,47 +356,51 @@ static string getRequirements(const std::string& key, cJSON* o, cJSON* params) {
 
     ss << "(new Requirement)\n";
 
-    for (int ii = 0; ii < num; ++ii) {
-        cJSON* req = cJSON_GetArrayItem(requirements, ii);
-        char* req_key = req->string;
+    for (auto req : requirements->items()) {
+        auto reqKey = req.key();
 
-        cJSON* req_param = cJSON_GetObjectItem(params, req_key);
-
-        if (req_param == NULL) {
-            cerr << "Required parameter \"" << req_key << "\" for parameter \""
-                 << key << "\" does not exist" << endl;
+        auto reqParam = params.find(key);
+        if (reqParam == params.end()) {
+            std::cerr << "Required parameter \"" << reqKey
+                      << "\" for parameter \"" << key << "\" does not exist"
+                      << std::endl;
             exit(1);
         }
 
-        string type = getDatatype(req_key, req_param);
-        string value;
+        auto type = getDatatype(reqKey, params[reqKey]);
+        std::string value;
 
-        switch (req->type) {
-        case cJSON_String:
-            value = std::string("\"") + req->valuestring + "\"";
+        switch (req.value().type()) {
+        case nlohmann::json::value_t::string:
+            value = std::string("\"") + req.value().get<std::string>() + "\"";
             break;
-        case cJSON_Double:
-            value = std::to_string(req->valuedouble);
+        case nlohmann::json::value_t::number_unsigned:
+            value = std::to_string(req.value().get<uint64_t>());
             break;
-        case cJSON_Number:
-            value = std::to_string(req->valueint);
+        case nlohmann::json::value_t::number_integer:
+            value = std::to_string(req.value().get<int64_t>());
             break;
-        case cJSON_True:
-            value = "true";
+        case nlohmann::json::value_t::number_float:
+            value = std::to_string(req.value().get<float_t>());
             break;
-        case cJSON_False:
-            value = "false";
+        case nlohmann::json::value_t::boolean:
+            value = req.value().get<bool>() ? "true" : "false";
+            break;
+        case nlohmann::json::value_t::array:
+        case nlohmann::json::value_t::discarded:
+        case nlohmann::json::value_t::null:
+        case nlohmann::json::value_t::object:
             break;
         }
 
-        ss << "        ->add(\"" << req_key << "\", (" << type << ")" << value
+        ss << "        ->add(\"" << reqKey << "\", (" << type << ")" << value
            << ")";
     }
 
     return ss.str();
 }
 
-static string getGetterPrefix(const string &str) {
+static std::string getGetterPrefix(const std::string& str) {
     if (str.compare("bool") == 0) {
         return "is";
     } else {
@@ -423,11 +408,11 @@ static string getGetterPrefix(const string &str) {
     }
 }
 
-static string getCppName(const string &str) {
-    stringstream ss;
+static std::string getCppName(const std::string& str) {
+    std::stringstream ss;
     bool doUpper = true;
 
-    string::const_iterator iter;
+    std::string::const_iterator iter;
     for (iter = str.begin(); iter != str.end(); ++iter) {
         if (*iter == '_') {
             doUpper = true;
@@ -443,71 +428,70 @@ static string getCppName(const string &str) {
     return ss.str();
 }
 
-static void generate(cJSON* o, cJSON* params) {
-    cb_assert(o != NULL);
+static void generate(const nlohmann::json& params, const std::string& key) {
+    std::string cppName = getCppName(key);
 
-    string config_name = o->string;
-    string cppname = getCppName(config_name);
-    string type = getDatatype(config_name, o);
-    string defaultVal = getString(cJSON_GetObjectItem(o, "default"));
+    auto json = params[key];
+    std::string type = getDatatype(key, json);
+    std::string defaultVal = json["default"].get<std::string>();
 
     if (defaultVal.compare("max") == 0 || defaultVal.compare("min") == 0) {
         if (type.compare("std::string") != 0) {
-            stringstream ss;
+            std::stringstream ss;
             ss << "std::numeric_limits<" << type << ">::" << defaultVal << "()";
             defaultVal = ss.str();
         }
     }
 
-    string validator = getValidator(config_name, o);
-    string requirements = getRequirements(config_name, o, params);
+    std::string validator = getValidator(key, json);
+    std::string requirements = getRequirements(key, json, params);
 
     // Generate prototypes
-    prototypes << "    " << type
-               << " " << getGetterPrefix(type)
-               << cppname << "() const;" << endl;
-    if  (!isReadOnly(o)) {
-        prototypes << "    void set" << cppname << "(const " << type
-                   << " &nval);" << endl;
+    prototypes << "    " << type << " " << getGetterPrefix(type) << cppName
+               << "() const;" << std::endl;
+    if (!isReadOnly(json)) {
+        prototypes << "    void set" << cppName << "(const " << type
+                   << " &nval);" << std::endl;
     }
 
     // Generate initialization code
-    initialization << "    setParameter(\"" << config_name << "\", ";
+    initialization << "    setParameter(\"" << key << "\", ";
     if (type.compare("std::string") == 0) {
-        initialization << "(const char*)\"" << defaultVal << "\");" << endl;
+        initialization << "(const char*)\"" << defaultVal << "\");"
+                       << std::endl;
     } else {
-        initialization << "(" << type << ")" << defaultVal << ");" << endl;
+        initialization << "(" << type << ")" << defaultVal << ");" << std::endl;
     }
     if (!validator.empty()) {
-        initialization << "    setValueValidator(\"" << config_name
-                       << "\", " << validator << ");" << endl;
+        initialization << "    setValueValidator(\"" << key << "\", "
+                       << validator << ");" << std::endl;
     }
     if (!requirements.empty()) {
-        initialization << "    setRequirements(\"" << config_name << "\", "
-                       << requirements << ");" << endl;
+        initialization << "    setRequirements(\"" << key << "\", "
+                       << requirements << ");" << std::endl;
     }
-    if (hasAliases(o)) {
-        for (std::string alias : getAliases(o)) {
-            initialization << "    addAlias(\"" << config_name << "\", \""
-                           << alias << "\");" << endl;
+    if (hasAliases(json)) {
+        for (std::string alias : getAliases(json)) {
+            initialization << "    addAlias(\"" << key << "\", \"" << alias
+                           << "\");" << std::endl;
         }
     }
 
     // Generate the getter
     implementation << type << " Configuration::" << getGetterPrefix(type)
-                   << cppname << "() const {" << endl
+                   << cppName << "() const {" << std::endl
                    << "    return "
-                   << "getParameter<" << datatypes[type] << ">(\""
-                   << config_name << "\");" << endl
-                   << "}" << endl;
+                   << "getParameter<" << datatypes[type] << ">(\"" << key
+                   << "\");" << std::endl
+                   << "}" << std::endl;
 
-    if  (!isReadOnly(o)) {
+    if (!isReadOnly(json)) {
         // generate the setter
-        implementation << "void Configuration::set" << cppname
-                       << "(const " << type << " &nval) {" << endl
-                       << "    setParameter(\"" << config_name
-                       << "\", nval);" << endl
-                       << "}" << endl;
+        implementation << "void Configuration::set" << cppName << "(const "
+                       << type << " &nval) {" << std::endl
+                       << "    setParameter(\"" << key << "\", nval);"
+                       << std::endl
+                       << "}" << std::endl;
     }
 }
 
@@ -517,7 +501,8 @@ static void generate(cJSON* o, cJSON* params) {
  */
 int main(int argc, char **argv) {
     if (argc < 4) {
-        cerr << "Usage: " << argv[0] << "<input config file> <header> <source>\n";
+        std::cerr << "Usage: " << argv[0]
+                  << "<input config file> <header> <source>\n";
         return 1;
     }
 
@@ -527,48 +512,32 @@ int main(int argc, char **argv) {
 
     initialize();
 
-    struct stat st;
-    if (stat(file, &st) == -1) {
-        cerr << "Failed to look up " << file << ": "
-             << strerror(errno) << endl;
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(cb::io::loadFile(file));
+    } catch (const nlohmann::json::exception& e) {
+        std::cerr << "Failed to parse JSON. e.what()=" << e.what() << std::endl;
         return 1;
     }
 
-    std::vector<char> data(st.st_size + 1);
-    data[st.st_size] = 0;
-    ifstream input(file);
-    input.read(data.data(), data.size());
-    input.close();
-
-    cJSON *c = cJSON_Parse(data.data());
-    if (c == NULL) {
-        cerr << "Failed to parse JSON.. probably syntax error" << endl;
+    auto params = json.find("params");
+    if (params == json.end()) {
+        std::cerr << "FATAL: could not find \"params\" section" << std::endl;
         return 1;
     }
 
-    cJSON *params = cJSON_GetObjectItem(c, "params");
-    if (params == NULL) {
-        cerr << "FATAL: could not find \"params\" section" << endl;
-        return 1;
+    for (const auto& obj : params->items()) {
+        generate(*params, obj.key());
     }
 
-    int num = cJSON_GetArraySize(params);
-    for (int ii = 0; ii < num; ++ii) {
-        generate(cJSON_GetArrayItem(params, ii), params);
-    }
-
-    ofstream headerfile(header);
+    std::ofstream headerfile(header);
     headerfile << prototypes.str();
     headerfile.close();
 
-    ofstream implfile(source);
-    implfile << implementation.str() << endl
-             << "void Configuration::initialize() {" << endl
-             << initialization.str()
-             << "}" << endl;
+    std::ofstream implfile(source);
+    implfile << implementation.str() << std::endl
+             << "void Configuration::initialize() {" << std::endl
+             << initialization.str() << "}" << std::endl;
     implfile.close();
-
-    cJSON_Delete(c);
-
     return 0;
 }

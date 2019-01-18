@@ -152,7 +152,7 @@ ADD_EXECUTABLE(gencode tools/gencode.cc)
 TARGET_LINK_LIBRARIES(gencode platform dirutils)
 
 ADD_EXECUTABLE(genconfig tools/genconfig.cc)
-TARGET_LINK_LIBRARIES(genconfig cJSON platform)
+TARGET_LINK_LIBRARIES(genconfig platform dirutils mcd_util)
 
 add_subdirectory(tools/couchfile_upgrade)
 include_directories(tools/couchfile_upgrade)
