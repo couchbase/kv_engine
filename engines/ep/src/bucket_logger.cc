@@ -31,55 +31,16 @@ BucketLogger::BucketLogger(const std::string& name, const std::string& p)
     set_level(spdLogger->level());
 }
 
-BucketLogger::BucketLogger(const BucketLogger& other)
-    : spdlog::logger(other.name(), nullptr) {
-    spdLogger = other.spdLogger;
-    set_level(spdLogger->level());
-}
-
 BucketLogger::~BucketLogger() {
     unregister();
 }
 
 void BucketLogger::sink_it_(spdlog::details::log_msg& msg) {
-    // Get the engine pointer for logging the bucket name.
-    // Normally we would wish to stop tracking memory at this point to avoid
-    // tracking any allocations or de-allocations done by the logging library
-    // such as buffer allocations, or by ourselves in formatting the string.
-    // However, as this method is overriden from an spdlog instance,
-    // allocations have already been made and tracked as part of formatting
-    // this message (from the BucketLogger->log() call to this point). There
-    // is little point spending the overhead to switch thread to avoid
-    // tracking the allocations of our custom formatting as this is the
-    // case. Memory is not allocated in actually logging the message, this is
-    // done at creation of the logger where we allocate a fixed size buffer.
-    // As such, we don't have to worry about the tracking implications of
-    // allocation on the calling thread and de-allocation on the processing
-    // worker thread when using the async mode.
-    EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
-
-    std::string fmtString;
-
-    // Append the id (if set)
-    if (connectionId != 0) {
-        fmtString.append(std::to_string(connectionId) + ": ");
-    }
-
-    // Append the engine name (if applicable)
-    if (engine) {
-        fmtString.append('(' + std::string(engine->getName().c_str()) + ") ");
-    } else {
-        fmtString.append("(No Engine) ");
-    }
-
-    // Append the given prefix (if set)
-    if (prefix.size() > 0) {
-        fmtString.append(prefix + " ");
-    }
-
-    // Append the rest of the message and log
-    fmtString.append(msg.raw.data(), msg.raw.size());
-    spdLogger->log(msg.level, fmtString);
+    // Use the underlying ServerAPI spdlogger to log.
+    // Ideally we'd directly call spdLogger->sink_it() but it's protected so
+    // instead call log() which will call sink_it_() itself.
+    std::string msgString(msg.raw.begin(), msg.raw.end());
+    spdLogger->log(msg.level, msgString);
 }
 
 void BucketLogger::setLoggerAPI(ServerLogIface* api) {
@@ -107,13 +68,43 @@ std::shared_ptr<BucketLogger> BucketLogger::createBucketLogger(
             std::shared_ptr<BucketLogger>(new BucketLogger(uname, p));
 
     // Register the logger in the logger library registry
-    loggerAPI.load(std::memory_order_relaxed)->register_spdlogger(bucketLogger);
+    getServerLogIface()->register_spdlogger(bucketLogger);
     return bucketLogger;
 }
 
 void BucketLogger::unregister() {
     // Unregister the logger in the logger library registry
-    loggerAPI.load(std::memory_order_relaxed)->unregister_spdlogger(name());
+    getServerLogIface()->unregister_spdlogger(name());
+}
+
+std::string BucketLogger::prefixStringWithBucketName(
+        const EventuallyPersistentEngine* engine, const char* fmt) {
+    std::string fmtString;
+
+    // Append the id (if set)
+    if (connectionId != 0) {
+        fmtString.append(std::to_string(connectionId) + ": ");
+    }
+
+    // Append the engine name (if applicable)
+    if (engine) {
+        fmtString.append('(' + std::string(engine->getName().c_str()) + ") ");
+    } else {
+        fmtString.append("(No Engine) ");
+    }
+
+    // Append the given prefix (if set)
+    if (prefix.size() > 0) {
+        fmtString.append(prefix + " ");
+    }
+
+    // Append the original format string
+    fmtString.append(fmt);
+    return fmtString;
+}
+
+ServerLogIface* BucketLogger::getServerLogIface() {
+    return loggerAPI.load(std::memory_order_relaxed);
 }
 
 std::atomic<ServerLogIface*> BucketLogger::loggerAPI;

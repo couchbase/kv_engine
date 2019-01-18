@@ -21,6 +21,8 @@
 #include <memcached/server_log_iface.h>
 #include <spdlog/fmt/ostr.h>
 
+class EventuallyPersistentEngine;
+
 const std::string globalBucketLoggerName = "globalBucketLogger";
 
 /**
@@ -47,13 +49,40 @@ const std::string globalBucketLoggerName = "globalBucketLogger";
  *   |           |            |             |             |
  * LogLevel      ID      EngineName      Prefix      LogMessage
  *
- * Requires some indirection to do so as the format library in spdlog requires
- * type safety and we don't want to inline a lot of message formatting as
- * macros. One global BucketLogger object is created without sinks to perform
- * the spd style formatting without logging. Instead of "sinking" this message
- * with the BucketLogger we override the sink_it_ method to prepend the
- * engine name and log the message as a pre-formatted string using the
- * original spdlog::logger passed via the SERVER_API.
+ * Features
+ * ========
+ *
+ * BucketLogger provides a log() method to allow callers to print log messages
+ * using the same functionality as normal spdlog:
+ *   1. const char* message
+ *   2. Any printable type (supports stream operator<<)
+ *   3. fmtlib-style message with variable arguments
+ * It also provides convenience methods (debug(), info(), warn() etc) which
+ * call log() at the given level.
+ *
+ * One global BucketLogger object is created to handle logging for all ep-engine
+ * instances. It uses the thread-local currentEngine from ObjectRegistry to
+ * determine the bucket name to prefix. This is sufficient to handle the
+ * majority of logging uses.
+ * To simplify usage (so the caller doesn't have to explicitly call on the
+ * globalBucketLogger object) EP_LOG_xxx() macros are provided - this also
+ * matches previous API to reduce code-churn in integrating spdlog.
+ *
+ * If a customised prefix is needed (for example for a DCP ActiveStream object
+ * which wants to prefix all messages with the stream name) then explicit
+ * instances of BucketLogger can be created with a custom prefix. These still
+ * retrieve the engine name via ObjectRegistry::getCurrentEngine().
+ *
+ * Implementation
+ * ==============
+ *
+ * On construction, a BucketLogger stores a pointer to the memcached
+ * spdlog::logger that is responsible for (printing/sinking) to various outputs
+ * (stderr, memcached.log with file rotation...) via various sinks.
+ *
+ * BucketLogger:log() hides the parent class' log() method with its own, which
+ * prepends the previously mentioned fields to the user's message, then calls
+ * the log() method on the stored spdlog::logger to (print/sink) the message.
  *
  * BucketLoggers should be created using the create method to ensure each logger
  * is registered correctly. BucketLoggers must be registered to ensure that
@@ -65,6 +94,63 @@ class BucketLogger : public spdlog::logger {
 public:
     /// Unregister this BucketLogger on destruction
     ~BucketLogger();
+
+    /**
+     * Record a log message for the bucket currently associated with the calling
+     * thread. Log message will have the bucket name prepended (assuming a
+     * bucket is currently selected).
+     * @param lvl The log level to report at
+     * @param fmt The format string to use (fmtlib style).
+     * @param args Variable arguments to include in the format string.
+     */
+    template <typename... Args>
+    void log(spdlog::level::level_enum lvl,
+             const char* fmt,
+             const Args&... args);
+    template <typename... Args>
+    void log(spdlog::level::level_enum lvl, const char* msg);
+    template <typename T>
+    void log(spdlog::level::level_enum lvl, const T& msg);
+
+    /*
+     * The following convenience functions simplify logging a message at the
+     * named level (trace, debug, info, ...)
+     */
+    template <typename... Args>
+    void trace(const char* fmt, const Args&... args);
+
+    template <typename... Args>
+    void debug(const char* fmt, const Args&... args);
+
+    template <typename... Args>
+    void info(const char* fmt, const Args&... args);
+
+    template <typename... Args>
+    void warn(const char* fmt, const Args&... args);
+
+    template <typename... Args>
+    void error(const char* fmt, const Args&... args);
+
+    template <typename... Args>
+    void critical(const char* fmt, const Args&... args);
+
+    template <typename T>
+    void trace(const T& msg);
+
+    template <typename T>
+    void debug(const T& msg);
+
+    template <typename T>
+    void info(const T& msg);
+
+    template <typename T>
+    void warn(const T& msg);
+
+    template <typename T>
+    void error(const T& msg);
+
+    template <typename T>
+    void critical(const T& msg);
 
     /**
      * Informs the BucketLogger class of the current logging API.
@@ -95,7 +181,7 @@ public:
     void unregister();
 
 protected:
-    /// Overriden sink_it_ method where we perform our custom bucket formatting
+    /// Overriden sink_it_ method to log via ServerAPI logger.
     void sink_it_(spdlog::details::log_msg& msg) override;
 
     /**
@@ -104,6 +190,20 @@ protected:
      * pass a nullptr on creation we cannot do that.
      */
     void flush_() override{};
+
+    template <typename... Args>
+    void logInner(spdlog::level::level_enum lvl,
+                  const char* fmt,
+                  const Args&... args);
+    template <typename T>
+    void logInner(spdlog::level::level_enum lvl, const T& msg);
+
+    /**
+     * Helper function which prefixes the string with the name of the
+     * specified engine, or "No Engine" if engine is null.
+     */
+    std::string prefixStringWithBucketName(
+            const EventuallyPersistentEngine* engine, const char* fmt);
 
     /**
      * Connection ID prefix that is printed if set (printed before any other
@@ -130,9 +230,10 @@ protected:
      */
     BucketLogger(const std::string& name, const std::string& prefix = "");
 
-private:
-    BucketLogger(const BucketLogger& other);
+    /// Convenience function to obtain a pointer to the ServerLogIface
+    static ServerLogIface* getServerLogIface();
 
+private:
     /// Memcached logger API used to construct each instance of the BucketLogger
     static std::atomic<ServerLogIface*> loggerAPI;
 
@@ -149,13 +250,9 @@ private:
 // spdlogger we create to respect runtime verbosity changes
 extern std::shared_ptr<BucketLogger> globalBucketLogger;
 
-#define EP_LOG_FMT(severity, ...)                     \
-    do {                                              \
-        auto bucketLogger = globalBucketLogger.get(); \
-        if (bucketLogger->should_log(severity)) {     \
-            bucketLogger->log(severity, __VA_ARGS__); \
-        }                                             \
-    } while (false)
+// Convenience macros which call globalBucketLogger->log() with the given level
+// and arguments.
+#define EP_LOG_FMT(severity, ...) globalBucketLogger->log(severity, __VA_ARGS__)
 
 #define EP_LOG_TRACE(...) \
     EP_LOG_FMT(spdlog::level::level_enum::trace, __VA_ARGS__)
@@ -171,3 +268,5 @@ extern std::shared_ptr<BucketLogger> globalBucketLogger;
 
 #define EP_LOG_CRITICAL(...) \
     EP_LOG_FMT(spdlog::level::level_enum::critical, __VA_ARGS__)
+
+#include "bucket_logger_impl.h"

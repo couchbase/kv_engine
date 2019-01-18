@@ -56,18 +56,6 @@ void BucketLoggerTest::setUpLogger() {
 }
 
 /**
- * Test that the new fmt-style formatting works correctly
- */
-TEST_F(BucketLoggerTest, FmtStyleFormatting) {
-    globalBucketLogger->log(
-            spdlog::level::level_enum::info, "{}", "formattedtext");
-    cb::logger::shutdown();
-    files = cb::io::findFilesWithPrefix(config.filename);
-    ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
-    EXPECT_EQ(1, countInFile(files.front(), "INFO (No Engine) formattedtext"));
-}
-
-/**
  * Test that the EP_LOG_TRACE Macro works correctly
  */
 TEST_F(BucketLoggerTest, TraceMacro) {
