@@ -2520,10 +2520,18 @@ bool KVBucket::collectionsEraseKey(
         const DocKey key,
         int64_t bySeqno,
         bool deleted,
+        uint32_t flags,
         Collections::VB::EraserContext& eraserContext) {
     auto vb = getVBucket(vbid);
     boost::optional<CollectionID> completedCollection;
     if (!vb) {
+        return false;
+    }
+
+    auto collectionId = key.getCollectionID();
+    // SystemEvents for Collections only (i.e. scope events are ignored)
+    if (collectionId.isSystem() &&
+        SystemEvent(flags) != SystemEvent::Collection) {
         return false;
     }
 
@@ -2536,11 +2544,11 @@ bool KVBucket::collectionsEraseKey(
         // marker which has been left behind from a completed collection delete
         // and will stay with us until tombstone purging removes it.
         if (!cHandle.found()) {
-            if (key.getCollectionID() != CollectionID::System) {
+            if (!collectionId.isSystem()) {
                 throw std::logic_error(
                         "KVBucket::collectionsEraseKey: given a key with an "
                         "unknown collection id:" +
-                        key.getCollectionID().to_string() +
+                        collectionId.to_string() +
                         " seqno:" + std::to_string(bySeqno));
             }
             return false;

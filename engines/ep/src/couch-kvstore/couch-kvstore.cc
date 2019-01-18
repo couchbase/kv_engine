@@ -843,6 +843,7 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
                                ctx->config->shouldPersistDocNamespace()),
                     int64_t(info->db_seq),
                     info->deleted,
+                    metadata->getFlags(),
                     *ctx->eraserContext)) {
             if (!info->deleted) {
                 ctx->stats.collectionsItemsPurged++;
