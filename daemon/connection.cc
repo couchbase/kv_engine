@@ -2033,7 +2033,7 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
     req.setExtlen(gsl::narrow<uint8_t>(sizeof(DcpDeletionV1Payload)));
     req.setKeylen(gsl::narrow<uint16_t>(key.size()));
     req.setBodylen(gsl::narrow<uint32_t>(
-            sizeof(DcpDeletionV1Payload) + key.size() + nmeta +
+            sizeof(DcpDeletionV1Payload) + key.size() + nmeta + info.nbytes +
             (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0)));
     req.setOpaque(opaque);
     req.setVBucket(vbucket);
