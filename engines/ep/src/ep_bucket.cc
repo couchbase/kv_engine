@@ -33,6 +33,8 @@
 #include "vb_visitors.h"
 #include "warmup.h"
 
+#include "dcp/dcpconnmap.h"
+
 /**
  * Callback class used by EpStore, for adding relevant keys
  * to bloomfilter during compaction.
@@ -337,8 +339,19 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
 
             SystemEventFlush sef(vb->getManifest());
 
-            for (const auto& item : items) {
+            // For Durability, a node must acknowledge the last persisted seqno.
+            // Given that:
+            // - a FlushBatch may or may not contain SyncWrites
+            // - a FlushBatch is persisted atomically
+            // then:
+            // 1) we sign the current FlushBatch as "containing at least one
+            //     Prepare mutation" (done by setting the pendingSyncWrite flag
+            //     when a Prepare is processed)
+            // 2) we acknowledge the last persisted seqno only /after/ the
+            //     FlushBatch has been committed (and only if the flag is set)
+            bool pendingSyncWrite = false;
 
+            for (const auto& item : items) {
                 if (!item->shouldPersist()) {
                     continue;
                 }
@@ -372,6 +385,11 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                     auto cb = flushOneDelOrSet(item, vb.getVB());
                     if (cb) {
                         pcbs.emplace_back(std::move(cb));
+                    }
+
+                    // At least one pending SyncWrite in the FlushBatch?
+                    if (item->isPending()) {
+                        pendingSyncWrite = true;
                     }
 
                     maxSeqno = std::max(maxSeqno, (uint64_t)item->getBySeqno());
@@ -466,6 +484,13 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);
                 if (highSeqno > 0 && highSeqno != vb->getPersistenceSeqno()) {
                     vb->setPersistenceSeqno(highSeqno);
+                }
+
+                // If this is an Active node, then it must notify the local
+                // DurabilityMonitor. If this is a Replica node, then it must
+                // send a SeqnoAck to the Active.
+                if (pendingSyncWrite) {
+                    vb->notifyPersistenceToDurabilityMonitor(engine);
                 }
             }
 

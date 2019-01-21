@@ -101,4 +101,11 @@ public:
     uint32_t public_getSyncReplNegotiationOpaque() const {
         return syncReplNegotiation.opaque;
     }
+
+    /**
+     * Used for simulating a successful Consumer-Producer Sync Repl handshake.
+     */
+    void enableSyncReplication() {
+        supportsSyncReplication = true;
+    }
 };

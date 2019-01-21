@@ -80,6 +80,13 @@ public:
 
     void addStats(const AddStatFn& add_stat, const void* c) override;
 
+    /**
+     * Push a SeqnoAck message over this stream.
+     * The memory/disk seqnos in the SeqnoAck payload are respectively the
+     * high-seqno and the last-persisted-seqno for VBucket.
+     */
+    void seqnoAck();
+
     static const size_t batchSize;
 
 protected:

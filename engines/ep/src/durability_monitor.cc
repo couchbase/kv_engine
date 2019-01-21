@@ -427,6 +427,33 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
     return ENGINE_SUCCESS;
 }
 
+void DurabilityMonitor::notifyLocalPersistence() {
+    // We must release the lock to state.m before calling back to VBucket (in
+    // commit()) to avoid a lock inversion with HashBucketLock (same issue as
+    // at seqnoAckReceived(), details in there).
+    Container toCommit;
+    {
+        std::lock_guard<std::mutex> lg(state.m);
+        if (!state.firstChain) {
+            throw std::logic_error(
+                    "DurabilityMonitor::notifyLocalPeristence: FirstChain not "
+                    "registered");
+        }
+
+        // Note: For the Active, everything up-to last-persisted-seqno is in
+        //     consistent state.
+        processSeqnoAck(lg,
+                        state.firstChain->active,
+                        Tracking::Disk,
+                        vb.getPersistenceSeqno(),
+                        toCommit);
+    }
+
+    for (const auto& entry : toCommit) {
+        commit(entry.getKey(), entry.getBySeqno(), entry.getCookie());
+    }
+}
+
 void DurabilityMonitor::addStats(const AddStatFn& addStat,
                                  const void* cookie) const {
     std::lock_guard<std::mutex> lg(state.m);

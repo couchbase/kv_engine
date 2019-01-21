@@ -294,20 +294,21 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
         processorTaskId = ExecutorPool::get()->schedule(task);
     }
 
-    streams.insert({vbucket,
-                    makePassiveStream(engine_,
-                                      shared_from_this(),
-                                      getName(),
-                                      flags,
-                                      new_opaque,
-                                      vbucket,
-                                      start_seqno,
-                                      end_seqno,
-                                      vbucket_uuid,
-                                      snap_start_seqno,
-                                      snap_end_seqno,
-                                      high_seqno,
-                                      vb_manifest_uid)});
+    stream = makePassiveStream(engine_,
+                               shared_from_this(),
+                               getName(),
+                               flags,
+                               new_opaque,
+                               vbucket,
+                               start_seqno,
+                               end_seqno,
+                               vbucket_uuid,
+                               snap_start_seqno,
+                               snap_end_seqno,
+                               high_seqno,
+                               vb_manifest_uid);
+    registerStream(stream);
+
     ready.push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
 
@@ -319,7 +320,7 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque,
                                            cb::mcbp::DcpStreamId sid) {
     lastMessageTime = ep_current_time();
     if (doDisconnect()) {
-        streams.erase(vbucket);
+        removeStream(vbucket);
         return ENGINE_DISCONNECT;
     }
 
@@ -339,7 +340,7 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque,
 
     uint32_t bytesCleared = stream->setDead(END_STREAM_CLOSED);
     flowControl.incrFreedBytes(bytesCleared);
-    streams.erase(vbucket);
+    removeStream(vbucket);
     scheduleNotifyIfNecessary();
 
     return ENGINE_SUCCESS;
@@ -1079,6 +1080,16 @@ bool DcpConsumer::doRollback(uint32_t opaque,
     return false; // Do not reschedule the rollback
 }
 
+void DcpConsumer::seqnoAckStream(Vbid vbid) {
+    auto stream = findStream(vbid);
+    if (!stream) {
+        throw std::logic_error(
+                "DcpConsumer::seqnoAckStream: Stream not found for " +
+                vbid.to_string());
+    }
+    stream->seqnoAck();
+}
+
 void DcpConsumer::addStats(const AddStatFn& add_stat, const void* c) {
     ConnHandler::addStats(add_stat, c);
 
@@ -1336,10 +1347,17 @@ void DcpConsumer::closeAllStreams() {
     std::lock_guard<PassiveStreamMap> guard(streams);
 
     streams.for_each(
-        [](PassiveStreamMap::value_type& iter) {
-            iter.second->setDead(END_STREAM_DISCONNECTED);
-        },
-        guard);
+            [this](PassiveStreamMap::value_type& iter) {
+                auto* stream = iter.second.get();
+                stream->setDead(END_STREAM_DISCONNECTED);
+                // From MB-32886 we need to add DCP Consumers to the DCP
+                // Connection Map (done only for Producers previously). So, we
+                // have to ensure that this connection is removed from the
+                // Connection Map when a stream is closed.
+                engine_.getDcpConnMap().removeVBConnByVBId(
+                        getCookie(), stream->getVBucket());
+            },
+            guard);
     streams.clear(guard);
 }
 
@@ -1721,4 +1739,15 @@ void DcpConsumer::setDisconnect() {
     closeAllStreams();
 
     scheduleNotify();
+}
+
+void DcpConsumer::registerStream(std::shared_ptr<PassiveStream> stream) {
+    auto vbid = stream->getVBucket();
+    streams.insert({vbid, stream});
+    engine_.getDcpConnMap().addVBConnByVBId(shared_from_this(), vbid);
+}
+
+void DcpConsumer::removeStream(Vbid vbid) {
+    streams.erase(vbid);
+    engine_.getDcpConnMap().removeVBConnByVBId(getCookie(), vbid);
 }

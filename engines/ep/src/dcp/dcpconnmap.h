@@ -67,6 +67,15 @@ public:
 
     void notifyVBConnections(Vbid vbid, uint64_t bySeqno);
 
+    /**
+     * Send a SeqnoAck message over the PassiveStream for the given VBucket.
+     * The memory/disk seqnos in the SeqnoAck payload are respectively the
+     * high-seqno and the last-persisted-seqno for VBucket.
+     *
+     * @param vbid
+     */
+    void seqnoAckVBPassiveStream(Vbid vbid);
+
     void notifyBackfillManagerTasks();
 
     void removeVBConnections(DcpProducer& prod);

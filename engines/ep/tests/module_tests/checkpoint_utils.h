@@ -25,7 +25,7 @@
 class CheckpointManagerTestIntrospector {
 public:
     static const CheckpointList& public_getCheckpointList(
-            CheckpointManager& checkpointManager) {
+            const CheckpointManager& checkpointManager) {
         return checkpointManager.checkpointList;
     }
 };

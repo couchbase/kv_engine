@@ -226,6 +226,15 @@ public:
 
     bool doRollback(uint32_t opaque, Vbid vbid, uint64_t rollbackSeqno);
 
+    /**
+     * Send a SeqnoAck message over the PassiveStream for the given VBucket.
+     * The memory/disk seqnos in the SeqnoAck payload are respectively the
+     * high-seqno and the last-persisted-seqno for VBucket.
+     *
+     * @param vbid
+     */
+    void seqnoAckStream(Vbid vbid);
+
     void addStats(const AddStatFn& add_stat, const void* c) override;
 
     void aggregateQueueStats(ConnCounter& aggregator) override;
@@ -439,6 +448,22 @@ protected:
                                      uint64_t revSeqno,
                                      cb::const_byte_buffer meta,
                                      uint32_t deleteTime);
+
+    /**
+     * Register a stream to this Consumer and add the VB-to-Consumer
+     * mapping into DcpConnMap.
+     *
+     * @param stream The PassiveStream
+     */
+    void registerStream(std::shared_ptr<PassiveStream> stream);
+
+    /**
+     * Remove a stream from this Consumer and remove the VB-to-Consumer
+     * mapping from DcpConnMap.
+     *
+     * @param vbid The stream to be removed
+     */
+    void removeStream(Vbid vbid);
 
     /**
      * RAII helper class to update the flowControl object with the number of

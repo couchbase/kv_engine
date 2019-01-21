@@ -1442,6 +1442,15 @@ public:
                                         uint64_t inMemorySeqno,
                                         uint64_t onDiskSeqno);
 
+    /**
+     * Notify the DurabilityMonitor that the Flusher has persisted all the
+     * items remaining for this VBucket.
+     *
+     * @param engine The engine
+     */
+    void notifyPersistenceToDurabilityMonitor(
+            EventuallyPersistentEngine& engine);
+
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 

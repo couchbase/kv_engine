@@ -25,7 +25,9 @@
 #include "../mock/mock_stream.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "bgfetcher.h"
+#include "checkpoint.h"
 #include "checkpoint_manager.h"
+#include "checkpoint_utils.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
@@ -3777,9 +3779,20 @@ TEST_F(SingleThreadedEPBucketTest, Durability_PersistPendings) {
     auto item = makePendingItem(makeStoredDocKey("key"), "value");
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
 
-    const auto& ckptMgr = getEPBucket().getVBucket(vbid)->checkpointManager;
-    ASSERT_EQ(1, ckptMgr->getNumOpenChkItems());
-    ASSERT_EQ(1, ckptMgr->getNumItemsForPersistence());
+    const auto& ckptMgr = *getEPBucket().getVBucket(vbid)->checkpointManager;
+    ASSERT_EQ(1, ckptMgr.getNumOpenChkItems());
+    ASSERT_EQ(1, ckptMgr.getNumItemsForPersistence());
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    ckptMgr);
+    ASSERT_EQ(1, ckptList.size());
+    ASSERT_EQ(1, ckptList.front()->getNumItems());
+    for (const auto& qi : *ckptList.front()) {
+        if (!qi->isCheckPointMetaItem()) {
+            EXPECT_EQ(CommittedState::Pending, qi->getCommitted());
+            EXPECT_EQ(queue_op::pending_sync_write, qi->getOperation());
+        }
+    }
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(1, stats.diskQueueSize);
 
@@ -3789,12 +3802,92 @@ TEST_F(SingleThreadedEPBucketTest, Durability_PersistPendings) {
             getEPBucket().flushVBucket(vbid));
 
     // Item must have been removed from the disk queue
-    EXPECT_EQ(0, ckptMgr->getNumItemsForPersistence());
+    EXPECT_EQ(0, ckptMgr.getNumItemsForPersistence());
     EXPECT_EQ(0, stats.diskQueueSize);
 
     // @todo: The item count must not increase when flushing Pending SyncWrites
     const auto& vb = *getEPBucket().getVBucket(vbid);
     EXPECT_EQ(1 /*must be 0*/, vb.getNumItems());
+}
+
+TEST_F(SingleThreadedEPBucketTest, Durability_ActiveLocalNotifyPersistedSeqno) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    const cb::durability::Requirements reqs = {
+            cb::durability::Level::PersistToMajority, 0 /*timeout*/};
+
+    for (uint8_t seqno = 1; seqno <= 3; seqno++) {
+        auto item = makePendingItem(
+                makeStoredDocKey("key" + std::to_string(seqno)), "value", reqs);
+        ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+    }
+
+    const auto& vb = getEPBucket().getVBucket(vbid);
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *vb->checkpointManager);
+
+    auto checkPending = [&ckptList]() -> void {
+        ASSERT_EQ(1, ckptList.size());
+        const auto& ckpt = *ckptList.front();
+        EXPECT_EQ(3, ckpt.getNumItems());
+        for (const auto& qi : ckpt) {
+            if (!qi->isCheckPointMetaItem()) {
+                EXPECT_EQ(CommittedState::Pending, qi->getCommitted());
+                EXPECT_EQ(queue_op::pending_sync_write, qi->getOperation());
+            }
+        }
+    };
+
+    // No replica has ack'ed yet
+    checkPending();
+
+    // Replica acks disk-seqno
+    EXPECT_EQ(
+            ENGINE_SUCCESS,
+            vb->seqnoAcknowledged("replica", 3 /*memSeqno*/, 3 /*diskSeqno*/));
+    // Active has not persisted, so Durability Requirements not satisfied yet
+    checkPending();
+
+    // Flusher runs on Active. This:
+    // - persists all pendings
+    // - and notifies local DurabilityMonitor of persistence
+    EXPECT_EQ(
+            std::make_pair(false /*more_to_flush*/, size_t(3) /*num_flushed*/),
+            getEPBucket().flushVBucket(vbid));
+
+    // When seqno:1 is persisted:
+    //
+    // - the Flusher notifies the local DurabilityMonitor
+    // - seqno:1 is satisfied, so it is committed
+    // - the open checkpoint containes the seqno:1:prepare, so it is closed and
+    //     seqno:1:committed is enqueued in a new open checkpoint (that is how
+    //     we avoid SyncWrite de-duplication currently)
+    // - the next committed seqnos are enqueued into the same open checkpoint
+    //
+    // So after Flush we have 2 checkpoints: the first (closed) containing only
+    // pending SWs and the second (open) containing only committed SWs
+    ASSERT_EQ(2, ckptList.size());
+
+    // Remove the closed checkpoint (that makes the check on Committed easier)
+    bool newOpenCkptCreated{false};
+    vb->checkpointManager->removeClosedUnrefCheckpoints(*vb,
+                                                        newOpenCkptCreated);
+    ASSERT_FALSE(newOpenCkptCreated);
+
+    // Durability Requirements satisfied, all committed
+    ASSERT_EQ(1, ckptList.size());
+    const auto& ckpt = *ckptList.front();
+    EXPECT_EQ(3, ckpt.getNumItems());
+    for (const auto& qi : ckpt) {
+        if (!qi->isCheckPointMetaItem()) {
+            EXPECT_EQ(CommittedState::CommittedViaPrepare, qi->getCommitted());
+            EXPECT_EQ(queue_op::commit_sync_write, qi->getOperation());
+        }
+    }
 }
 
 INSTANTIATE_TEST_CASE_P(XattrSystemUserTest,

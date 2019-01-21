@@ -27,6 +27,8 @@
 #include "replicationthrottle.h"
 #include "statwriter.h"
 
+#include <gsl.h>
+
 #include <memory>
 
 const std::string passiveStreamLoggingPrefix =
@@ -626,19 +628,32 @@ ENGINE_ERROR_CODE PassiveStream::processExpiration(
 ENGINE_ERROR_CODE PassiveStream::processPrepare(
         MutationConsumerMessage* prepare) {
     auto result = processMessage(prepare, MessageType::Prepare);
+    Expects(prepare->getItem()->getBySeqno() ==
+            engine->getVBucket(vb_)->getHighSeqno());
+    seqnoAck();
+    return result;
+}
 
+void PassiveStream::seqnoAck() {
+    // Durability
+    // To ensure consistency at failure scenario the SeqnoAck payload must
+    // always be:
+    // memSeqno = high-seqno
+    // diskSeqno = last-persisted-seqno for VBucket
+    //
+    // This function is called for sending a SeqnoAck to the Active after:
+    // 1) a Prepare has been received over this PassiveStream
+    // 2) the Flusher has persisted all the items remaining for this VBucket
     {
+        VBucketPtr vb = engine->getVBucket(vb_);
         LockHolder lh(streamMutex);
-        // @todo-durability add in the correct on-disk seqno.
         pushToReadyQ(std::make_unique<SeqnoAcknowledgement>(
                 opaque_,
-                prepare->getVBucket(),
-                prepare->getItem()->getBySeqno(),
-                0));
+                vb_,
+                vb->getHighSeqno() /*memSeqno*/,
+                vb->getPersistenceSeqno()) /*diskSeqno*/);
     }
     notifyStreamReady();
-
-    return result;
 }
 
 ENGINE_ERROR_CODE PassiveStream::processCommit(const CommitSyncWrite& commit) {

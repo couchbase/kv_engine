@@ -24,6 +24,7 @@
 #include "checkpoint_manager.h"
 #include "collections/collection_persisted_stats.h"
 #include "conflict_resolution.h"
+#include "dcp/dcpconnmap.h"
 #include "durability_monitor.h"
 #include "ep_engine.h"
 #include "ep_time.h"
@@ -3025,6 +3026,19 @@ ENGINE_ERROR_CODE VBucket::seqnoAcknowledged(const std::string& replicaId,
                                              uint64_t onDiskSeqno) {
     return durabilityMonitor->seqnoAckReceived(
             replicaId, inMemorySeqno, onDiskSeqno);
+}
+
+void VBucket::notifyPersistenceToDurabilityMonitor(
+        EventuallyPersistentEngine& engine) {
+    // @todo-durability: Always delegate the DurabilityMonitor for
+    //     SeqnoAck (even for Replica). Requires that we implement
+    //     the DurabilityMonitor for Replica.
+    ReaderLockHolder wlh(stateLock);
+    if (getState() == vbucket_state_active) {
+        durabilityMonitor->notifyLocalPersistence();
+    } else if (getState() == vbucket_state_replica) {
+        engine.getDcpConnMap().seqnoAckVBPassiveStream(getId());
+    }
 }
 
 void VBucket::DeferredDeleter::operator()(VBucket* vb) const {

@@ -40,7 +40,10 @@ Item make_item(
         protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON);
 
 /// Make a queued_item representing a pending SyncWrite.
-queued_item makePendingItem(StoredDocKey key, std::string value);
+queued_item makePendingItem(StoredDocKey key,
+                            std::string value,
+                            cb::durability::Requirements reqs = {
+                                    cb::durability::Level::Majority, 0});
 
 /// Make a queued_item representing a commited (normal mutation).
 queued_item makeCommittedItem(StoredDocKey key, std::string value);

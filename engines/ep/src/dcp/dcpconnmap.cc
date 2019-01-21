@@ -414,6 +414,29 @@ void DcpConnMap::notifyVBConnections(Vbid vbid, uint64_t bySeqno) {
     }
 }
 
+void DcpConnMap::seqnoAckVBPassiveStream(Vbid vbid) {
+    size_t index = vbid.get() % vbConnLockNum;
+    std::lock_guard<std::mutex> lg(vbConnLocks[index]);
+
+    // Note: logically we can have only one Consumer per VBucket, but I keep
+    // using the existing vbConns mapping for now (originally added for tracking
+    // only Producers).
+    // @todo-durability: not clear yet if for Consumers we can simplify by
+    //     keeping a 1-to-1 VB-to-Consumer mapping
+    for (auto& connection : vbConns[vbid.get()]) {
+        auto* consumer = dynamic_cast<DcpConsumer*>(connection.get());
+        if (consumer) {
+            // Note: Sync Repl enabled at Consumer only if Producer supports it.
+            //     This is to prevent that 6.5 Consumers send DCP_SEQNO_ACK to
+            //     pre-6.5 Producers (e.g., topology change in a 6.5 cluster
+            //     where a new pre-6.5 Active is elected).
+            if (consumer->isSyncReplicationEnabled()) {
+                consumer->seqnoAckStream(vbid);
+            }
+        }
+    }
+}
+
 void DcpConnMap::notifyBackfillManagerTasks() {
     LockHolder lh(connsLock);
     for (const auto& cookieToConn : map_) {
