@@ -20,7 +20,6 @@
 
 #include "client_cert_config.h"
 
-#include <cJSON.h>
 #include <memcached/openssl.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/pipe.h>

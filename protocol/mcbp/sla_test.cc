@@ -16,7 +16,6 @@
  */
 #include "config.h"
 
-#include <cJSON_utils.h>
 #include <gtest/gtest.h>
 #include <mcbp/mcbp.h>
 #include <nlohmann/json.hpp>

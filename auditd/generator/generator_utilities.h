@@ -42,7 +42,7 @@ void set_enterprise_edition(bool enable);
  * Load the requested file and parse it as JSON
  *
  * @param fname the name of the file
- * @return the cJSON representation of the file
+ * @return the json representation of the file
  * @throws std::system_error if we fail to read the file
  *         std::runtime_error if we fail to parse the content of the file
  */

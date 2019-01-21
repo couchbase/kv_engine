@@ -16,7 +16,6 @@
  */
 #pragma once
 
-#include <cJSON.h>
 #include <memcached/engine.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/sized_buffer.h>
@@ -63,7 +62,7 @@ public:
 
     /**
      * Passing a set of topkeys, and relevant context data will
-     * return a cJSON object containing an array of topkeys:
+     * return a json object containing an array of topkeys:
      * {
      *   "topkeys": [
      *      {

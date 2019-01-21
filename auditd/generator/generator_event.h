@@ -22,8 +22,6 @@
 #include <cstdint>
 #include <string>
 
-struct cJSON;
-
 /**
  * The Event class represents the information needed for a single
  * audit event entry.

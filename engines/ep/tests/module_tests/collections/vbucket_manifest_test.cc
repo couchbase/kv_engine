@@ -25,8 +25,6 @@
 #include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/test_helpers.h"
 
-#include <cJSON_utils.h>
-
 #include <gtest/gtest.h>
 
 class MockVBManifest : public Collections::VB::Manifest {

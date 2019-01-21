@@ -45,7 +45,6 @@
 #include "warmup.h"
 
 #include <JSON_checker.h>
-#include <cJSON_utils.h>
 #include <logger/logger.h>
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>

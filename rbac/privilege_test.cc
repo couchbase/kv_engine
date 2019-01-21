@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 
-#include <cJSON_utils.h>
 #include <gtest/gtest.h>
 #include <memcached/rbac.h>
 #include <nlohmann/json.hpp>

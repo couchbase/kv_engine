@@ -22,7 +22,6 @@
 #include "item_eviction.h"
 #include "objectregistry.h"
 
-#include <cJSON.h>
 #include <platform/compress.h>
 #include <xattr/utils.h>
 #include <chrono>

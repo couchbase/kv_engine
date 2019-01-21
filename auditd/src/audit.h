@@ -31,8 +31,6 @@
 #include <queue>
 #include <unordered_map>
 
-struct cJSON;
-
 class AuditImpl : public cb::audit::Audit {
 public:
     // Implementation of the public API

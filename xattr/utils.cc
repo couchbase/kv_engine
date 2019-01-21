@@ -16,12 +16,14 @@
  */
 #include "config.h"
 
-#include <cJSON_utils.h>
-#include <unordered_set>
 #include <memcached/protocol_binary.h>
 #include <xattr/blob.h>
 #include <xattr/key_validator.h>
 #include <xattr/utils.h>
+
+#include <nlohmann/json.hpp>
+
+#include <unordered_set>
 
 namespace cb {
 namespace xattr {
@@ -96,8 +98,9 @@ bool validate(const cb::const_char_buffer& blob) {
             offset += valuebuf.len + 1; // swallow '\0'
 
             // Validate the value (must be legal json)
-            unique_cJSON_ptr payload{cJSON_Parse(valuebuf.buf)};
-            if (!payload) {
+            try {
+                auto payload = nlohmann::json::parse(valuebuf.buf);
+            } catch (const nlohmann::json::exception&) {
                 // Failed to parse the JSON
                 return false;
             }

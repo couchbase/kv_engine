@@ -23,7 +23,6 @@
 
 class AuditImpl;
 class AuditConfig;
-struct cJSON;
 
 class Event {
 public:

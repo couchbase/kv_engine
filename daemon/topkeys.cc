@@ -258,7 +258,7 @@ static void tk_iterfunc(const std::string& key, const topkey_item_t& it,
 }
 
 /**
- * Passing in a list of keys, context, and cJSON array will populate that
+ * Passing in a list of keys, context, and json array will populate that
  * array with an object for each key in the following format:
  * {
  *    "key": "somekey",
@@ -296,7 +296,7 @@ ENGINE_ERROR_CODE TopKeys::doStats(const void* cookie,
 
 /**
  * Passing a set of topkeys, and relevant context data will
- * return a cJSON object containing an array of topkeys (with each key
+ * return a json object containing an array of topkeys (with each key
  * appearing as in the example above for tk_jsonfunc):
  * {
  *   "topkeys": [
