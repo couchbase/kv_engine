@@ -36,6 +36,20 @@ VBucketMemoryDeletionTask::VBucketMemoryDeletionTask(
             "Removing (dead) " + vbucket->getId().to_string() + " from memory";
 }
 
+VBucketMemoryDeletionTask::~VBucketMemoryDeletionTask() {
+    // This task will free the VBucket, which may result in Items being freed
+    // For safety, set the engine pointer in the ObjectRegistry (MB-32579)
+    auto* e = ObjectRegistry::onSwitchThread(engine, true);
+    {
+        vbucket.reset();
+
+        // Best effort force the description to deallocate, swap with an empty
+        std::string empty;
+        description.swap(empty);
+    }
+    ObjectRegistry::onSwitchThread(e);
+}
+
 std::string VBucketMemoryDeletionTask::getDescription() {
     return description;
 }
