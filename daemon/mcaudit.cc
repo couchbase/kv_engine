@@ -28,11 +28,13 @@
 #include "runtime.h"
 #include "settings.h"
 
-#include <cJSON_utils.h>
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
 #include <memcached/isotime.h>
 #include <platform/string_hex.h>
+
+#include <nlohmann/json.hpp>
+
 #include <sstream>
 
 static cb::audit::UniqueAuditPtr auditHandle;
@@ -82,27 +84,26 @@ void setEnabled(uint32_t id, bool enable) {
 }
 
 /**
- * Create the typical memcached audit object. It constists of a
+ * Create the typical memcached audit object. It consists of a
  * timestamp, the socket endpoints and the creds. Then each audit event
  * may add event-specific content.
  *
  * @param c the connection object
- * @return the cJSON object containing the basic information
+ * @return the json object containing the basic information
  */
-static unique_cJSON_ptr create_memcached_audit_object(const Connection* c) {
-    cJSON *root = cJSON_CreateObject();
+static nlohmann::json create_memcached_audit_object(const Connection* c) {
+    nlohmann::json domain;
+    domain["domain"] = "memcached";
+    domain["user"] = c->getUsername();
 
-    std::string timestamp = ISOTime::generatetimestamp();
-    cJSON_AddStringToObject(root, "timestamp", timestamp.c_str());
+    nlohmann::json root;
 
-    cJSON_AddStringToObject(root, "peername", c->getPeername().c_str());
-    cJSON_AddStringToObject(root, "sockname", c->getSockname().c_str());
-    cJSON *domain = cJSON_CreateObject();
-    cJSON_AddStringToObject(domain, "domain", "memcached");
-    cJSON_AddStringToObject(domain, "user", c->getUsername());
-    cJSON_AddItemToObject(root, "real_userid", domain);
+    root["timestamp"] = ISOTime::generatetimestamp();
+    root["peername"] = c->getPeername();
+    root["sockname"] = c->getSockname();
+    root["real_userid"] = domain;
 
-    return unique_cJSON_ptr(root);
+    return root;
 }
 
 /**
@@ -115,9 +116,9 @@ static unique_cJSON_ptr create_memcached_audit_object(const Connection* c) {
  */
 static void do_audit(const Connection* c,
                      uint32_t id,
-                     unique_cJSON_ptr& event,
+                     const nlohmann::json& event,
                      const char* warn) {
-    auto text = to_string(event, false);
+    auto text = event.dump();
     if (!auditHandle->put_event(id, text)) {
         LOG_WARNING("{}: {}", warn, text);
     }
@@ -128,7 +129,7 @@ void audit_auth_failure(const Connection* c, const char* reason) {
         return;
     }
     auto root = create_memcached_audit_object(c);
-    cJSON_AddStringToObject(root.get(), "reason", reason);
+    root["reason"] = reason;
 
     do_audit(c, MEMCACHED_AUDIT_AUTHENTICATION_FAILED, root,
              "Failed to send AUTH FAILED audit event");
@@ -151,7 +152,7 @@ void audit_bucket_selection(const Connection& c) {
     // Don't audit that we're jumping into the "no bucket"
     if (bucket.type != BucketType::NoBucket) {
         auto root = create_memcached_audit_object(&c);
-        cJSON_AddStringToObject(root.get(), "bucket", c.getBucket().name);
+        root["bucket"] = c.getBucket().name;
         do_audit(&c,
                  MEMCACHED_AUDIT_SELECT_BUCKET,
                  root,
@@ -164,7 +165,7 @@ void audit_bucket_flush(const Connection* c, const char* bucket) {
         return;
     }
     auto root = create_memcached_audit_object(c);
-    cJSON_AddStringToObject(root.get(), "bucket", bucket);
+    root["bucket"] = bucket;
 
     do_audit(c, MEMCACHED_AUDIT_EXTERNAL_MEMCACHED_BUCKET_FLUSH, root,
              "Failed to send EXTERNAL_MEMCACHED_BUCKET_FLUSH audit event");
@@ -178,7 +179,7 @@ void audit_dcp_open(const Connection* c) {
         LOG_INFO("Open DCP stream with admin credentials");
     } else {
         auto root = create_memcached_audit_object(c);
-        cJSON_AddStringToObject(root.get(), "bucket", c->getBucket().name);
+        root["bucket"] = c->getBucket().name;
 
         do_audit(c, MEMCACHED_AUDIT_OPENED_DCP_CONNECTION, root,
                  "Failed to send DCP open connection "
@@ -191,7 +192,7 @@ void audit_set_privilege_debug_mode(const Connection* c, bool enable) {
         return;
     }
     auto root = create_memcached_audit_object(c);
-    cJSON_AddBoolToObject(root.get(), "enable", enable);
+    root["enable"] = enable;
     do_audit(c, MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED, root,
              "Failed to send modifications in privilege debug state "
              "audit event to audit daemon");
@@ -206,10 +207,10 @@ void audit_privilege_debug(const Connection* c,
         return;
     }
     auto root = create_memcached_audit_object(c);
-    cJSON_AddStringToObject(root.get(), "command", command.c_str());
-    cJSON_AddStringToObject(root.get(), "bucket", bucket.c_str());
-    cJSON_AddStringToObject(root.get(), "privilege", privilege.c_str());
-    cJSON_AddStringToObject(root.get(), "context", context.c_str());
+    root["command"] = command;
+    root["bucket"] = bucket;
+    root["privilege"] = privilege;
+    root["context"] = context;
 
     do_audit(c, MEMCACHED_AUDIT_PRIVILEGE_DEBUG, root,
              "Failed to send privilege debug audit event to audit daemon");
@@ -233,7 +234,7 @@ void audit_command_access_failed(const Cookie& cookie) {
                            "Access to command is not allowed:",
                            reinterpret_cast<const char*>(packet.data()),
                            packet.size());
-    cJSON_AddStringToObject(root.get(), "packet", buffer);
+    root["packet"] = buffer;
     do_audit(&connection, MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE, root, buffer);
 }
 
@@ -253,8 +254,7 @@ void audit_invalid_packet(const Cookie& cookie, cb::const_byte_buffer packet) {
     }
     ss << "Invalid packet: " << cb::to_hex(packet) << trunc;
     const auto message = ss.str();
-    cJSON_AddStringToObject(
-            root.get(), "packet", message.c_str() + strlen("Invalid packet: "));
+    root["packet"] = message.c_str() + strlen("Invalid packet: ");
     do_audit(
             &connection, MEMCACHED_AUDIT_INVALID_PACKET, root, message.c_str());
 }
@@ -301,9 +301,8 @@ void add(const Cookie& cookie, Operation operation) {
 
     const auto& connection = cookie.getConnection();
     auto root = create_memcached_audit_object(&connection);
-    cJSON_AddStringToObject(root.get(), "bucket", connection.getBucket().name);
-    cJSON_AddStringToObject(
-            root.get(), "key", cookie.getPrintableRequestKey().c_str());
+    root["bucket"] = connection.getBucket().name;
+    root["key"] = cookie.getPrintableRequestKey();
 
     switch (operation) {
     case Operation::Read:
