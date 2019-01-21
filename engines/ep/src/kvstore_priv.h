@@ -25,7 +25,6 @@
 
 #include "callbacks.h"
 #include "kvstore.h"
-#include <cJSON.h>
 #include <unordered_map>
 
 class KVStoreConfig;
@@ -90,25 +89,3 @@ protected:
     StoredDocKey key;
     size_t dataSize;
 };
-
-inline const std::string getJSONObjString(const cJSON* i) {
-    if (i == NULL) {
-        return "";
-    }
-    if (i->type != cJSON_String) {
-        throw std::invalid_argument("getJSONObjString: type of object (" +
-                                    std::to_string(i->type) +
-                                    ") is not cJSON_String");
-    }
-    return i->valuestring;
-}
-
-inline const bool getJSONObjBool(const cJSON* i) {
-    if (i == nullptr) {
-        return false;
-    } else if (i->type != cJSON_True && i->type != cJSON_False) {
-        throw std::invalid_argument("getJSONObjBool: type of object (" +
-                                    std::to_string(i->type) + ") is not bool");
-    }
-    return i->type == cJSON_True;
-}
