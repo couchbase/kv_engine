@@ -24,6 +24,7 @@
 #include "dcp/producer.h"
 #include "dcp/stream.h"
 #include "evp_store_single_threaded_test.h"
+#include "memory_tracker.h"
 #include "tasks.h"
 #include "test_helpers.h"
 #include "thread_gate.h"
@@ -144,6 +145,59 @@ TEST_F(StatTest, vbucket_takeover_stats_stream_not_active) {
     producer->closeStream(/*opaque*/ 0, vbid);
 }
 
+// MB-32589: Check that _hash-dump stats correctly accounts temporary memory.
+TEST_F(StatTest, HashStatsMemUsed) {
+    // Enable memory tracking hooks
+    MemoryTracker::getInstance(*get_mock_server_api()->alloc_hooks);
+    engine->getEpStats().memoryTrackerEnabled.store(true);
+
+    ASSERT_TRUE(engine->getEpStats().memoryTrackerEnabled);
+
+    // Add some items to VBucket 0 so the stats call has some data to
+    // dump.
+    store_item(0, makeStoredDocKey("key1"), std::string(100, 'x'));
+    store_item(0, makeStoredDocKey("key2"), std::string(100, 'y'));
+
+    auto baselineMemory = engine->getEpStats().getPreciseTotalMemoryUsed();
+
+    // Perform the stats call. Should be associated with an engine at this
+    // point (as setup by EvpGetStats in the 'real' environment).
+    auto oldEngine = ObjectRegistry::getCurrentEngine();
+    ASSERT_TRUE(oldEngine);
+
+    cb::const_char_buffer key{"_hash-dump 0"};
+    struct Cookie : public cb::tracing::Traceable {
+        int addStats_calls = 0;
+    } state;
+
+    auto callback = [](const char* key,
+                       const uint16_t klen,
+                       const char* val,
+                       const uint32_t vlen,
+                       gsl::not_null<const void*> cookie) {
+        Cookie& state =
+                *reinterpret_cast<Cookie*>(const_cast<void*>(cookie.get()));
+        state.addStats_calls++;
+
+        // This callback should run in the memcache-context so no engine should
+        // be assigned to the current thread.
+        EXPECT_FALSE(ObjectRegistry::getCurrentEngine());
+    };
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              engine->getStats(&state, key.data(), key.size(), callback));
+
+    // Sanity check - should have had at least 1 call to ADD_STATS (otherwise
+    // the test isn't valid).
+    ASSERT_GT(state.addStats_calls, 0);
+
+    // Should still be associated with the same engine.
+    EXPECT_EQ(oldEngine, ObjectRegistry::getCurrentEngine());
+
+    // Any temporary memory should have been freed by now, and accounted
+    // correctly.
+    EXPECT_EQ(baselineMemory, engine->getEpStats().getPreciseTotalMemoryUsed());
+}
 
 TEST_P(DatatypeStatTest, datatypesInitiallyZero) {
     // Check that the datatype stats initialise to 0
