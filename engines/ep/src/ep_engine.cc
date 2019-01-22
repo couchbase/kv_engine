@@ -118,7 +118,6 @@ static ENGINE_ERROR_CODE sendResponse(const AddResponseFn& response,
                                       uint64_t cas,
                                       const void* cookie) {
     ENGINE_ERROR_CODE rv = ENGINE_FAILED;
-    NonBucketAllocationGuard guard;
     if (response(key, keylen, ext, extlen, body, bodylen, datatype,
                  status, cas, cookie)) {
         rv = ENGINE_SUCCESS;
@@ -1208,7 +1207,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::unknown_command(
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     auto engine = acquireEngine(this);
-    auto ret = processUnknownCommand(engine.get(), cookie, request, response);
+
+    // The AddResponseFn callback may allocate memory (temporary buffers for
+    // data) which will be de-allocated inside the server, after the
+    // engine call (response) has returned. As such we do not want to
+    // account such memory against this bucket.
+    // Create an exit border guard around the original callback.
+    // Perf: use std::cref to avoid copying (and the subsequent `new` call) of
+    // the input function.
+    auto addResponseExitBorderGuard = makeExitBorderGuard(std::cref(response));
+
+    auto ret = processUnknownCommand(
+            engine.get(), cookie, request, addResponseExitBorderGuard);
     return ret;
 }
 
