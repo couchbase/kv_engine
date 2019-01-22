@@ -276,3 +276,55 @@ TEST_F(DurabilityMonitorTest,
     }
     FAIL();
 }
+
+// @todo: Refactor test suite and expand test cases
+TEST_F(DurabilityMonitorTest, SeqnoAckReceived_PersistToMajority) {
+    ASSERT_EQ(3,
+              addSyncWrites({1, 3, 5} /*seqnos*/,
+                            {cb::durability::Level::PersistToMajority,
+                             0 /*timeout*/}));
+    ASSERT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).disk);
+    EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(replica).disk);
+
+    int64_t memAckSeqno = 10, diskAckSeqno = 10;
+
+    // Receive a seqno-ack greater than the last tracked seqno
+    EXPECT_EQ(ENGINE_SUCCESS,
+              monitor->seqnoAckReceived(replica, memAckSeqno, diskAckSeqno));
+
+    // Check that we have not committed as the active has not ack'ed the
+    // persisted seqno
+    EXPECT_EQ(3, monitor->public_getNumTracked());
+
+    // Check that the tracking for Replica has been updated correctly
+    EXPECT_EQ(5, monitor->public_getNodeWriteSeqnos(replica).disk);
+    EXPECT_EQ(diskAckSeqno, monitor->public_getNodeAckSeqnos(replica).disk);
+
+    // Check that the tracking for Active has not moved yet
+    EXPECT_EQ(0, monitor->public_getNodeWriteSeqnos(active).disk);
+    EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(active).disk);
+
+    // @todo: Simulating the active->active disk-seqno ack with the next call.
+    //     Note that this feature has not been implemented yet, and probably
+    //     I will implement it using a different code path (in some way I have
+    //     to notify the DurabilityMonitor at persistence).
+    EXPECT_EQ(ENGINE_SUCCESS,
+              monitor->seqnoAckReceived(active, memAckSeqno, diskAckSeqno));
+
+    // Check that we committed and removed all SyncWrites
+    EXPECT_EQ(0, monitor->public_getNumTracked());
+
+    // Check that the tracking for Active has been updated correctly
+    EXPECT_EQ(5, monitor->public_getNodeWriteSeqnos(active).disk);
+    EXPECT_EQ(diskAckSeqno, monitor->public_getNodeAckSeqnos(active).disk);
+
+    // All ack'ed, committed and removed.
+    try {
+        monitor->seqnoAckReceived(replica, 20 /*memSeqno*/, 20 /*diskSeqno*/);
+    } catch (const std::logic_error& e) {
+        EXPECT_TRUE(std::string(e.what()).find("No tracked SyncWrite") !=
+                    std::string::npos);
+        return;
+    }
+    FAIL();
+}

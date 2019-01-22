@@ -60,12 +60,57 @@ struct DurabilityMonitor::NodePosition {
 };
 
 /*
+ * Represents a VBucket Replication Chain in the ns_server meaning,
+ * i.e. a list of active/replica nodes where the VBucket resides.
+ */
+struct DurabilityMonitor::ReplicationChain {
+    /**
+     * @param nodes The list of active/replica nodes in the ns_server format:
+     *     {active, replica1, replica2, replica3}
+     */
+    ReplicationChain(const std::vector<std::string>& nodes,
+                     const Container::iterator& it)
+        : majority(nodes.size() / 2 + 1), active(nodes.at(0)) {
+        for (const auto& node : nodes) {
+            // This check ensures that there is no duplicate in the given chain
+            if (!positions
+                         .emplace(node,
+                                  NodePosition{Position(it), Position(it)})
+                         .second) {
+                throw std::logic_error(
+                        "ReplicationChain::ReplicationChain: Duplicate node: " +
+                        node);
+            }
+        }
+        Ensures(positions.size() == nodes.size());
+    }
+
+    size_t getSize() const {
+        return positions.size();
+    }
+
+    // Index of node Positions. The key is the node id.
+    // A Position embeds the seqno-state of the tracked node.
+    std::unordered_map<std::string, NodePosition> positions;
+
+    // Majority in the arithmetic definition: num-nodes / 2 + 1
+    const uint8_t majority;
+
+    const std::string active;
+};
+
+/*
  * Represents a tracked SyncWrite.
  */
 class DurabilityMonitor::SyncWrite {
 public:
-    SyncWrite(const void* cookie, queued_item item)
-        : item(item), cookie(cookie) {
+    SyncWrite(const void* cookie,
+              queued_item item,
+              const ReplicationChain& chain)
+        : cookie(cookie), item(item), majority(chain.getSize() / 2 + 1) {
+        for (const auto& entry : chain.positions) {
+            acks[entry.first] = Ack();
+        }
     }
 
     const StoredDocKey& getKey() const {
@@ -84,7 +129,60 @@ public:
         return cookie;
     }
 
+    /**
+     * Notify this SyncWrite that it has been ack'ed by node.
+     *
+     * @param node
+     * @param tracking Memory or Disk ack?
+     */
+    void ack(const std::string& node, Tracking tracking) {
+        if (acks.find(node) == acks.end()) {
+            throw std::logic_error("SyncWrite::ack: Node not valid: " + node);
+        }
+
+        auto& flag = (tracking == Tracking::Memory ? acks.at(node).memory
+                                                   : acks.at(node).disk);
+        if (flag) {
+            throw std::logic_error("SyncWrite::ack: ACK duplicate for node: " +
+                                   node + ", tracking:" + to_string(tracking));
+        }
+        flag = true;
+
+        auto& count = (tracking == Tracking::Memory ? ackCount.memory
+                                                    : ackCount.disk);
+        count++;
+    }
+
+    /**
+     * @return true if the Durability Requirements are satisfied for this
+     *     SyncWrite, false otherwise
+     */
+    bool isVerified() const {
+        bool ret{false};
+
+        switch (getDurabilityReqs().getLevel()) {
+        case cb::durability::Level::Majority:
+            ret = ackCount.memory >= majority;
+            break;
+        case cb::durability::Level::MajorityAndPersistOnMaster:
+            throw std::logic_error(
+                    "SyncWrite::isVerified: Level::MajorityAndPersistOnMaster "
+                    "not supported");
+        case cb::durability::Level::None:
+            throw std::logic_error("SyncWrite::isVerified: Level::None");
+        case cb::durability::Level::PersistToMajority:
+            ret = ackCount.disk >= majority;
+            break;
+        }
+
+        return ret;
+    }
+
 private:
+    // Client cookie associated with this SyncWrite request, to be notified
+    // when the SyncWrite completes.
+    const void* cookie;
+
     // An Item stores all the info that the DurabilityMonitor needs:
     // - seqno
     // - Durability Requirements
@@ -92,40 +190,20 @@ private:
     // CheckpointManager can be safely removed.
     const queued_item item;
 
-    // Client cookie associated with this SyncWrite request, to be notified
-    // when the SyncWrite completes.
-    const void* cookie;
-};
+    struct Ack {
+        bool memory{false};
+        bool disk{false};
+    };
 
-/*
- * Represents a VBucket Replication Chain in the ns_server meaning,
- * i.e. a list of active/replica nodes where the VBucket resides.
- */
-struct DurabilityMonitor::ReplicationChain {
-    /**
-     * @param nodes The list of active/replica nodes in the ns_server format:
-     *     {active, replica1, replica2, replica3}
-     */
-    ReplicationChain(const std::vector<std::string>& nodes,
-                     const Container::iterator& it)
-        : majority(nodes.size() / 2 + 1) {
-        for (const auto& node : nodes) {
-            // This check ensures that there is no duplicate in the given chain
-            if (!positions
-                         .emplace(node,
-                                  NodePosition{Position(it), Position(it)})
-                         .second) {
-                throw std::invalid_argument(
-                        "ReplicationChain::ReplicationChain: Duplicate node: " +
-                        node);
-            }
-        }
-        Ensures(positions.size() == nodes.size());
-    }
+    // Keeps track of node acks. Entry: <node, ack>
+    std::unordered_map<std::string, Ack> acks;
 
-    // Index of node Positions. The key is the replica id.
-    // A Position embeds the seqno-state of the tracked node.
-    std::unordered_map<std::string, NodePosition> positions;
+    // This optimization eliminates the need of scanning the ACK map for
+    // verifying Durability Requirements
+    struct {
+        Monotonic<uint8_t> memory{0};
+        Monotonic<uint8_t> disk{0};
+    } ackCount;
 
     // Majority in the arithmetic definition: num-nodes / 2 + 1
     const uint8_t majority;
@@ -144,6 +222,10 @@ ENGINE_ERROR_CODE DurabilityMonitor::registerReplicationChain(
                 "allowed");
     }
 
+    // @todo: Not sure yet how ns_server behaves if num-replica=0.
+    //     Most likely we can accept a replication-chain with only the Active
+    //     and we can move this check into DM::addSyncWrite(), where we
+    //     will return DURABILTY_IMPOSSIBLE if chain-size==1.
     if (nodes.size() == 1) {
         throw std::logic_error(
                 "DurabilityMonitor::registerReplicationChain: Chain contains "
@@ -183,7 +265,12 @@ ENGINE_ERROR_CODE DurabilityMonitor::addSyncWrite(const void* cookie,
         throw std::logic_error(
                 "DurabilityMonitor::addSyncWrite: no chain registered");
     }
-    state.trackedWrites.push_back(SyncWrite(cookie, item));
+    state.trackedWrites.push_back(SyncWrite(cookie, item, *state.firstChain));
+
+    // By logic, before this call the item has been enqueued into the
+    // CheckpointManager. So, the memory-tracking for the active has implicitly
+    // advanced.
+    advanceNodePosition(lg, state.firstChain->active, Tracking::Memory);
 
     return ENGINE_SUCCESS;
 }
@@ -243,7 +330,7 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
         }
 
         processSeqnoAck(lg, replica, Tracking::Memory, memorySeqno, toCommit);
-        // @todo: Process disk-seqno
+        processSeqnoAck(lg, replica, Tracking::Disk, diskSeqno, toCommit);
     }
 
     // Commit the verified SyncWrites
@@ -313,7 +400,7 @@ void DurabilityMonitor::addStats(const AddStatFn& addStat,
     }
 }
 
-std::string DurabilityMonitor::to_string(Tracking tracking) const {
+std::string DurabilityMonitor::to_string(Tracking tracking) {
     auto value = std::to_string(static_cast<uint8_t>(tracking));
     switch (tracking) {
     case Tracking::Memory:
@@ -368,6 +455,9 @@ void DurabilityMonitor::advanceNodePosition(
     // pointed SyncWrite to keep the replica seqno-state for when the pointed
     // SyncWrite is removed
     pos.lastWriteSeqno = pos.it->getBySeqno();
+
+    // Update the SyncWrite ack-counters, necessary for DurReqs verification
+    pos.it->ack(node, tracking);
 }
 
 DurabilityMonitor::NodeSeqnos DurabilityMonitor::getNodeWriteSeqnos(
@@ -449,12 +539,6 @@ void DurabilityMonitor::processSeqnoAck(const std::lock_guard<std::mutex>& lg,
                                         Tracking tracking,
                                         int64_t ackSeqno,
                                         Container& toCommit) {
-    if (tracking == Tracking::Disk) {
-        throw std::invalid_argument(
-                "DurabilityMonitor::processSeqnoAck: Tracking::Disk not "
-                "supported");
-    }
-
     // Note: process up to the ack'ed seqno
     DurabilityMonitor::Container::iterator next;
     while ((next = getNodeNext(lg, node, tracking)) !=
@@ -463,18 +547,15 @@ void DurabilityMonitor::processSeqnoAck(const std::lock_guard<std::mutex>& lg,
         // Update replica tracking
         advanceNodePosition(lg, node, tracking);
 
-        // Note
-        // Supporting only:
-        // - 1 replica
-        // - Level {Majority}
-        // So the Durability Requirements for a tracked SyncWrite are verified
-        // as soon as the tracking iterator points to it.
-
-        const auto& pos_ = state.firstChain->positions.at(node);
+        const auto& nodePos = state.firstChain->positions.at(node);
         const auto& pos =
-                (tracking == Tracking::Memory ? pos_.memory : pos_.disk);
-        auto removed = removeSyncWrite(lg, pos);
-        toCommit.splice(toCommit.end(), removed);
+                (tracking == Tracking::Memory ? nodePos.memory : nodePos.disk);
+
+        // Check if Durability Requirements satisfied now, and add for commit
+        if (pos.it->isVerified()) {
+            auto removed = removeSyncWrite(lg, pos);
+            toCommit.splice(toCommit.end(), removed);
+        }
     }
 
     // We keep track of the actual ack'ed seqno

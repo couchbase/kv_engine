@@ -129,7 +129,7 @@ protected:
 
     enum class Tracking : uint8_t { Memory, Disk };
 
-    std::string to_string(Tracking tracking) const;
+    static std::string to_string(Tracking tracking);
 
     /**
      * @param lg the object lock
