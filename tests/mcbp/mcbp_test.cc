@@ -313,6 +313,18 @@ TEST_P(GetValidatorTest, InvalidKey) {
         // Non collections, anything goes
         return;
     }
+
+    // Test invalid collection IDs
+    for (CollectionIDType id = 1; id < 8; id++) {
+        cb::mcbp::unsigned_leb128<CollectionIDType> invalidId(id);
+        std::copy(invalidId.begin(),
+                  invalidId.end(),
+                  blob + sizeof(request.bytes));
+        std::string expected = "Invalid collection-id:" + std::to_string(id);
+        EXPECT_EQ(expected,
+                  validate_error_context(
+                          cb::mcbp::ClientOpcode(std::get<0>(GetParam()))));
+    }
     // Collections requires the leading bytes to be a valid unsigned leb128
     // (varint), so if all key bytes are 0x80 (no stop byte) illegal.
     std::fill(blob + sizeof(request.bytes),

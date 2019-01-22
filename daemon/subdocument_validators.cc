@@ -44,7 +44,6 @@ static cb::mcbp::Status validate_basic_header_fields(Cookie& cookie) {
     }
 
     if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
         return cb::mcbp::Status::Einval;
     }
 

@@ -71,6 +71,13 @@ bool is_document_key_valid(Cookie& cookie) {
         cookie.setErrorContext("No logical key found");
         return false;
     }
+    // The range of collections permissible on the wire is restricted (no
+    // internally reserved values are allowed)
+    if (CollectionID::isReserved(leb.first)) {
+        cookie.setErrorContext("Invalid collection-id:" +
+                               std::to_string(leb.first));
+        return false;
+    }
 
     // The maximum length depends on the collection-ID
     const auto maxLen = ((leb.first == CollectionID::Default)

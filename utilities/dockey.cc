@@ -25,6 +25,10 @@ std::string CollectionID::to_string() const {
     return sstream.str();
 }
 
+bool CollectionID::isReserved(CollectionIDType value) {
+    return value >= System && value <= Reserved7;
+}
+
 std::string ScopeID::to_string() const {
     std::stringstream sstream;
     sstream << "0x" << std::hex << value;

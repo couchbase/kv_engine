@@ -97,6 +97,11 @@ public:
 
     std::string to_string() const;
 
+    /**
+     * @return if the value is a value reserved by KV
+     */
+    static bool isReserved(CollectionIDType value);
+
 private:
     CollectionIDType value;
 };
