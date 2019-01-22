@@ -64,7 +64,7 @@ class VBucket;
  */
 class DurabilityMonitor {
 public:
-    struct ReplicaSeqnos {
+    struct NodeSeqnos {
         int64_t memory;
         int64_t disk;
     };
@@ -123,7 +123,7 @@ protected:
     class SyncWrite;
     struct ReplicationChain;
     struct Position;
-    struct ReplicaPosition;
+    struct NodePosition;
 
     using Container = std::list<SyncWrite>;
 
@@ -144,35 +144,35 @@ protected:
     size_t getReplicationChainSize(const std::lock_guard<std::mutex>& lg) const;
 
     /**
-     * Returns the next position for a replica iterator.
+     * Returns the next position for a node iterator.
      *
      * @param lg the object lock
-     * @param replica
+     * @param node
      * @param tracking Memory or Disk?
-     * @return the iterator to the next position for the given replica
+     * @return the iterator to the next position for the given node
      */
-    Container::iterator getReplicaNext(const std::lock_guard<std::mutex>& lg,
-                                       const std::string& replica,
-                                       Tracking tracking);
+    Container::iterator getNodeNext(const std::lock_guard<std::mutex>& lg,
+                                    const std::string& node,
+                                    Tracking tracking);
 
     /**
-     * Advance a replica tracking to the next Position in the tracked Container.
-     * Note that a Position tracks a replica in terms of both:
+     * Advance a node tracking to the next Position in the tracked Container.
+     * Note that a Position tracks a node in terms of both:
      * - iterator to a SyncWrite in the tracked Container
-     * - seqno of the last SyncWrite ack'ed by the replica
+     * - seqno of the last SyncWrite ack'ed by the node
      * This function advances both iterator and seqno.
      *
      * @param lg the object lock
-     * @param replica
+     * @param node
      * @param tracking Memory or Disk?
      */
-    void advanceReplicaPosition(const std::lock_guard<std::mutex>& lg,
-                                const std::string& replica,
-                                Tracking tracking);
+    void advanceNodePosition(const std::lock_guard<std::mutex>& lg,
+                             const std::string& node,
+                             Tracking tracking);
 
     /**
      * Returns the seqnos of the SyncWrites currently pointed by the internal
-     * memory/disk tracking for Replica.
+     * memory/disk tracking for Node.
      * E.g., if we have a tracked SyncWrite list like {s:1, s:2} and we receive
      * a SeqnoAck{mem:2, disk:1}, then the internal memory/disk tracking
      * will be {mem:2, disk:1}, which is what this function returns.
@@ -182,22 +182,22 @@ protected:
      * return again.
      *
      * @param lg the object lock
-     * @param replica
-     * @return the {memory, disk} seqnos of the tracked writes for replica
+     * @param node
+     * @return the {memory, disk} seqnos of the tracked writes for node
      */
-    ReplicaSeqnos getReplicaWriteSeqnos(const std::lock_guard<std::mutex>& lg,
-                                        const std::string& replica) const;
+    NodeSeqnos getNodeWriteSeqnos(const std::lock_guard<std::mutex>& lg,
+                                  const std::string& node) const;
 
     /**
-     * Returns the last {memSeqno, diskSeqno} ack'ed by Replica.
-     * Note that this may differ from Replica WriteSeqno.
+     * Returns the last {memSeqno, diskSeqno} ack'ed by Node.
+     * Note that this may differ from Node WriteSeqno.
      *
      * @param lg the object lock
-     * @param replica
-     * @return the last {memory, disk} seqnos ack'ed by replica
+     * @param node
+     * @return the last {memory, disk} seqnos ack'ed by Node
      */
-    ReplicaSeqnos getReplicaAckSeqnos(const std::lock_guard<std::mutex>& lg,
-                                      const std::string& replica) const;
+    NodeSeqnos getNodeAckSeqnos(const std::lock_guard<std::mutex>& lg,
+                                const std::string& node) const;
 
     /**
      * Remove the given SyncWrte from tracking.
@@ -219,16 +219,16 @@ protected:
     void commit(const StoredDocKey& key, int64_t seqno, const void* cookie);
 
     /**
-     * Updates a replica memory/disk tracking as driven by the new ack-seqno.
+     * Updates a node memory/disk tracking as driven by the new ack-seqno.
      *
      * @param lg The object lock
-     * @param replica The replica that ack'ed the given seqno
+     * @param node The node that ack'ed the given seqno
      * @param tracking Memory or Disk?
      * @param ackSeqno
      * @param [out] toCommit
      */
     void processSeqnoAck(const std::lock_guard<std::mutex>& lg,
-                         const std::string& replica,
+                         const std::string& node,
                          Tracking tracking,
                          int64_t ackSeqno,
                          Container& toCommit);

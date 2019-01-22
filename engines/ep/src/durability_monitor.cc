@@ -54,7 +54,7 @@ struct DurabilityMonitor::Position {
     WeaklyMonotonic<int64_t, ThrowExceptionPolicy> lastAckSeqno{0};
 };
 
-struct DurabilityMonitor::ReplicaPosition {
+struct DurabilityMonitor::NodePosition {
     Position memory;
     Position disk;
 };
@@ -99,12 +99,12 @@ private:
 
 /*
  * Represents a VBucket Replication Chain in the ns_server meaning,
- * i.e. a list of replica nodes where the VBucket replicas reside.
+ * i.e. a list of active/replica nodes where the VBucket resides.
  */
 struct DurabilityMonitor::ReplicationChain {
     /**
-     * @param nodes ns_server-like set of replica ids, eg:
-     *     {replica1, replica2, ..}
+     * @param nodes The list of active/replica nodes in the ns_server format:
+     *     {active, replica1, replica2, replica3}
      */
     ReplicationChain(const std::vector<std::string>& nodes,
                      const Container::iterator& it)
@@ -113,7 +113,7 @@ struct DurabilityMonitor::ReplicationChain {
             // This check ensures that there is no duplicate in the given chain
             if (!positions
                          .emplace(node,
-                                  ReplicaPosition{Position(it), Position(it)})
+                                  NodePosition{Position(it), Position(it)})
                          .second) {
                 throw std::invalid_argument(
                         "ReplicationChain::ReplicationChain: Duplicate node: " +
@@ -123,11 +123,11 @@ struct DurabilityMonitor::ReplicationChain {
         Ensures(positions.size() == nodes.size());
     }
 
-    // Index of replica Positions. The key is the replica id.
-    // A Position embeds the seqno-state of the tracked replica.
-    std::unordered_map<std::string, ReplicaPosition> positions;
+    // Index of node Positions. The key is the replica id.
+    // A Position embeds the seqno-state of the tracked node.
+    std::unordered_map<std::string, NodePosition> positions;
 
-    // Majority in the arithmetic definition: NumReplicas / 2 + 1
+    // Majority in the arithmetic definition: num-nodes / 2 + 1
     const uint8_t majority;
 };
 
@@ -140,11 +140,17 @@ ENGINE_ERROR_CODE DurabilityMonitor::registerReplicationChain(
         const std::vector<std::string>& nodes) {
     if (nodes.size() == 0) {
         throw std::logic_error(
-                "DurabilityMonitor::registerReplicationChain: empty chain not "
+                "DurabilityMonitor::registerReplicationChain: Empty chain not "
                 "allowed");
     }
 
-    if (nodes.size() > 1) {
+    if (nodes.size() == 1) {
+        throw std::logic_error(
+                "DurabilityMonitor::registerReplicationChain: Chain contains "
+                "only the active node");
+    }
+
+    if (nodes.size() > 2) {
         return ENGINE_ENOTSUP;
     }
 
@@ -327,11 +333,11 @@ size_t DurabilityMonitor::getReplicationChainSize(
     return state.firstChain->positions.size();
 }
 
-DurabilityMonitor::Container::iterator DurabilityMonitor::getReplicaNext(
+DurabilityMonitor::Container::iterator DurabilityMonitor::getNodeNext(
         const std::lock_guard<std::mutex>& lg,
-        const std::string& replica,
+        const std::string& node,
         Tracking tracking) {
-    const auto& pos = state.firstChain->positions.at(replica);
+    const auto& pos = state.firstChain->positions.at(node);
     const auto& it =
             (tracking == Tracking::Memory ? pos.memory.it : pos.disk.it);
     // Note: Container::end could be the new position when the pointed SyncWrite
@@ -341,11 +347,11 @@ DurabilityMonitor::Container::iterator DurabilityMonitor::getReplicaNext(
                                              : std::next(it);
 }
 
-void DurabilityMonitor::advanceReplicaPosition(
+void DurabilityMonitor::advanceNodePosition(
         const std::lock_guard<std::mutex>& lg,
-        const std::string& replica,
+        const std::string& node,
         Tracking tracking) {
-    const auto& pos_ = state.firstChain->positions.at(replica);
+    const auto& pos_ = state.firstChain->positions.at(node);
     auto& pos = const_cast<Position&>(tracking == Tracking::Memory ? pos_.memory
                                                                    : pos_.disk);
 
@@ -363,17 +369,15 @@ void DurabilityMonitor::advanceReplicaPosition(
     pos.lastWriteSeqno = pos.it->getBySeqno();
 }
 
-DurabilityMonitor::ReplicaSeqnos DurabilityMonitor::getReplicaWriteSeqnos(
-        const std::lock_guard<std::mutex>& lg,
-        const std::string& replica) const {
-    const auto& pos = state.firstChain->positions.at(replica);
+DurabilityMonitor::NodeSeqnos DurabilityMonitor::getNodeWriteSeqnos(
+        const std::lock_guard<std::mutex>& lg, const std::string& node) const {
+    const auto& pos = state.firstChain->positions.at(node);
     return {pos.memory.lastWriteSeqno, pos.disk.lastWriteSeqno};
 }
 
-DurabilityMonitor::ReplicaSeqnos DurabilityMonitor::getReplicaAckSeqnos(
-        const std::lock_guard<std::mutex>& lg,
-        const std::string& replica) const {
-    const auto& pos = state.firstChain->positions.at(replica);
+DurabilityMonitor::NodeSeqnos DurabilityMonitor::getNodeAckSeqnos(
+        const std::lock_guard<std::mutex>& lg, const std::string& node) const {
+    const auto& pos = state.firstChain->positions.at(node);
     return {pos.memory.lastAckSeqno, pos.disk.lastAckSeqno};
 }
 
@@ -440,7 +444,7 @@ void DurabilityMonitor::commit(const StoredDocKey& key,
 }
 
 void DurabilityMonitor::processSeqnoAck(const std::lock_guard<std::mutex>& lg,
-                                        const std::string& replica,
+                                        const std::string& node,
                                         Tracking tracking,
                                         int64_t ackSeqno,
                                         Container& toCommit) {
@@ -452,11 +456,11 @@ void DurabilityMonitor::processSeqnoAck(const std::lock_guard<std::mutex>& lg,
 
     // Note: process up to the ack'ed seqno
     DurabilityMonitor::Container::iterator next;
-    while ((next = getReplicaNext(lg, replica, tracking)) !=
+    while ((next = getNodeNext(lg, node, tracking)) !=
                    state.trackedWrites.end() &&
            next->getBySeqno() <= ackSeqno) {
         // Update replica tracking
-        advanceReplicaPosition(lg, replica, tracking);
+        advanceNodePosition(lg, node, tracking);
 
         // Note
         // Supporting only:
@@ -465,7 +469,7 @@ void DurabilityMonitor::processSeqnoAck(const std::lock_guard<std::mutex>& lg,
         // So the Durability Requirements for a tracked SyncWrite are verified
         // as soon as the tracking iterator points to it.
 
-        const auto& pos_ = state.firstChain->positions.at(replica);
+        const auto& pos_ = state.firstChain->positions.at(node);
         const auto& pos =
                 (tracking == Tracking::Memory ? pos_.memory : pos_.disk);
         auto removed = removeSyncWrite(lg, pos);
@@ -473,7 +477,7 @@ void DurabilityMonitor::processSeqnoAck(const std::lock_guard<std::mutex>& lg,
     }
 
     // We keep track of the actual ack'ed seqno
-    const auto& pos_ = state.firstChain->positions.at(replica);
+    const auto& pos_ = state.firstChain->positions.at(node);
     auto& pos = const_cast<Position&>(tracking == Tracking::Memory ? pos_.memory
                                                                    : pos_.disk);
 

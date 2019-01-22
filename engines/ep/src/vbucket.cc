@@ -238,7 +238,7 @@ VBucket::VBucket(Vbid i,
 
     // @todo-durability: Register the replication chain via the new
     // SET_VBUCKET_STATE message instead of here.
-    durabilityMonitor->registerReplicationChain({{"replica"}});
+    durabilityMonitor->registerReplicationChain({"active", "replica"});
 }
 
 VBucket::~VBucket() {

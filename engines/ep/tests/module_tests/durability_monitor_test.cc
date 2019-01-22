@@ -113,8 +113,8 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedSmallerThanLastAcked) {
     ASSERT_NO_THROW(monitor->seqnoAckReceived(
             replica, 1 /*memSeqno*/, 0 /*diskSeqno*/));
     ASSERT_EQ(1, monitor->public_getNumTracked());
-    ASSERT_EQ(1, monitor->public_getReplicaWriteSeqnos(replica).memory);
-    ASSERT_EQ(1, monitor->public_getReplicaAckSeqnos(replica).memory);
+    ASSERT_EQ(1, monitor->public_getNodeWriteSeqnos(replica).memory);
+    ASSERT_EQ(1, monitor->public_getNodeAckSeqnos(replica).memory);
 
     try {
         monitor->seqnoAckReceived(replica, 0 /*memSeqno*/, 0 /*diskSeqno*/);
@@ -131,20 +131,20 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedEqualPending) {
     int64_t seqnoEnd = 3;
     auto numItems = addSyncWrites(seqnoStart, seqnoEnd);
     ASSERT_EQ(3, numItems);
-    ASSERT_EQ(0, monitor->public_getReplicaWriteSeqnos(replica).memory);
-    ASSERT_EQ(0, monitor->public_getReplicaAckSeqnos(replica).memory);
+    ASSERT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).memory);
+    ASSERT_EQ(0, monitor->public_getNodeAckSeqnos(replica).memory);
 
     for (int64_t seqno = seqnoStart; seqno <= seqnoEnd; seqno++) {
         EXPECT_NO_THROW(monitor->seqnoAckReceived(
                 replica, seqno /*memSeqno*/, 0 /*diskSeqno*/));
         // Check that the tracking advances by 1 at each cycle
-        EXPECT_EQ(seqno, monitor->public_getReplicaWriteSeqnos(replica).memory);
-        EXPECT_EQ(seqno, monitor->public_getReplicaAckSeqnos(replica).memory);
+        EXPECT_EQ(seqno, monitor->public_getNodeWriteSeqnos(replica).memory);
+        EXPECT_EQ(seqno, monitor->public_getNodeAckSeqnos(replica).memory);
         // Check that we committed and removed 1 SyncWrite
         EXPECT_EQ(--numItems, monitor->public_getNumTracked());
         // Check that seqno-tracking is not lost after commit+remove
-        EXPECT_EQ(seqno, monitor->public_getReplicaWriteSeqnos(replica).memory);
-        EXPECT_EQ(seqno, monitor->public_getReplicaAckSeqnos(replica).memory);
+        EXPECT_EQ(seqno, monitor->public_getNodeWriteSeqnos(replica).memory);
+        EXPECT_EQ(seqno, monitor->public_getNodeAckSeqnos(replica).memory);
     }
 
     // All ack'ed, committed and removed.
@@ -162,7 +162,7 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedEqualPending) {
 TEST_F(DurabilityMonitorTest,
        SeqnoAckReceivedGreaterThanPending_ContinuousSeqnos) {
     ASSERT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
-    ASSERT_EQ(0, monitor->public_getReplicaWriteSeqnos(replica).memory);
+    ASSERT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).memory);
 
     int64_t memoryAckSeqno = 2;
     // Receive a seqno-ack in the middle of tracked seqnos
@@ -171,21 +171,19 @@ TEST_F(DurabilityMonitorTest,
                       replica, memoryAckSeqno, 0 /*diskSeqno*/));
     // Check that the tracking has advanced to the ack'ed seqno
     EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaWriteSeqnos(replica).memory);
-    EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaAckSeqnos(replica).memory);
+              monitor->public_getNodeWriteSeqnos(replica).memory);
+    EXPECT_EQ(memoryAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
     // Check that we committed and removed 2 SyncWrites
     EXPECT_EQ(1, monitor->public_getNumTracked());
     // Check that seqno-tracking is not lost after commit+remove
     EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaWriteSeqnos(replica).memory);
-    EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaAckSeqnos(replica).memory);
+              monitor->public_getNodeWriteSeqnos(replica).memory);
+    EXPECT_EQ(memoryAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
 }
 
 TEST_F(DurabilityMonitorTest, SeqnoAckReceivedGreaterThanPending_SparseSeqnos) {
     ASSERT_EQ(3, addSyncWrites({1, 3, 5} /*seqnos*/));
-    ASSERT_EQ(0, monitor->public_getReplicaWriteSeqnos(replica).memory);
+    ASSERT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).memory);
 
     int64_t memoryAckSeqno = 4;
     // Receive a seqno-ack in the middle of tracked seqnos
@@ -194,22 +192,20 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedGreaterThanPending_SparseSeqnos) {
                       replica, memoryAckSeqno, 0 /*diskSeqno*/));
     // Check that the tracking has advanced to the last tracked seqno before
     // the ack'ed seqno
-    EXPECT_EQ(3, monitor->public_getReplicaWriteSeqnos(replica).memory);
+    EXPECT_EQ(3, monitor->public_getNodeWriteSeqnos(replica).memory);
     // Check that the ack-seqno has been updated correctly
-    EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaAckSeqnos(replica).memory);
+    EXPECT_EQ(memoryAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
     // Check that we committed and removed 2 SyncWrites
     EXPECT_EQ(1, monitor->public_getNumTracked());
     // Check that seqno-tracking is not lost after commit+remove
-    EXPECT_EQ(3, monitor->public_getReplicaWriteSeqnos(replica).memory);
-    EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaAckSeqnos(replica).memory);
+    EXPECT_EQ(3, monitor->public_getNodeWriteSeqnos(replica).memory);
+    EXPECT_EQ(memoryAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
 }
 
 TEST_F(DurabilityMonitorTest,
        SeqnoAckReceivedGreaterThanLastTracked_ContinuousSeqnos) {
     ASSERT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
-    ASSERT_EQ(0, monitor->public_getReplicaWriteSeqnos(replica).memory);
+    ASSERT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).memory);
 
     int64_t memoryAckSeqno = 4;
     // Receive a seqno-ack greater than the last tracked seqno
@@ -217,16 +213,14 @@ TEST_F(DurabilityMonitorTest,
               monitor->seqnoAckReceived(
                       replica, memoryAckSeqno, 0 /*diskSeqno*/));
     // Check that the tracking has advanced to the last tracked seqno
-    EXPECT_EQ(3, monitor->public_getReplicaWriteSeqnos(replica).memory);
+    EXPECT_EQ(3, monitor->public_getNodeWriteSeqnos(replica).memory);
     // Check that the ack-seqno has been updated correctly
-    EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaAckSeqnos(replica).memory);
+    EXPECT_EQ(memoryAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
     // Check that we committed and removed all SyncWrites
     EXPECT_EQ(0, monitor->public_getNumTracked());
     // Check that seqno-tracking is not lost after commit+remove
-    EXPECT_EQ(3, monitor->public_getReplicaWriteSeqnos(replica).memory);
-    EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaAckSeqnos(replica).memory);
+    EXPECT_EQ(3, monitor->public_getNodeWriteSeqnos(replica).memory);
+    EXPECT_EQ(memoryAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
 
     // All ack'ed, committed and removed.
     try {
@@ -242,7 +236,7 @@ TEST_F(DurabilityMonitorTest,
 TEST_F(DurabilityMonitorTest,
        SeqnoAckReceivedGreaterThanLastTracked_SparseSeqnos) {
     ASSERT_EQ(3, addSyncWrites({1, 3, 5} /*seqnos*/));
-    ASSERT_EQ(0, monitor->public_getReplicaWriteSeqnos(replica).memory);
+    ASSERT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).memory);
 
     int64_t memoryAckSeqno = 10;
     // Receive a seqno-ack greater than the last tracked seqno
@@ -250,16 +244,14 @@ TEST_F(DurabilityMonitorTest,
               monitor->seqnoAckReceived(
                       replica, memoryAckSeqno, 0 /*diskSeqno*/));
     // Check that the tracking has advanced to the last tracked seqno
-    EXPECT_EQ(5, monitor->public_getReplicaWriteSeqnos(replica).memory);
+    EXPECT_EQ(5, monitor->public_getNodeWriteSeqnos(replica).memory);
     // Check that the ack-seqno has been updated correctly
-    EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaAckSeqnos(replica).memory);
+    EXPECT_EQ(memoryAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
     // Check that we committed and removed all SyncWrites
     EXPECT_EQ(0, monitor->public_getNumTracked());
     // Check that seqno-tracking is not lost after commit+remove
-    EXPECT_EQ(5, monitor->public_getReplicaWriteSeqnos(replica).memory);
-    EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getReplicaAckSeqnos(replica).memory);
+    EXPECT_EQ(5, monitor->public_getNodeWriteSeqnos(replica).memory);
+    EXPECT_EQ(memoryAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
 
     // All ack'ed, committed and removed.
     try {
