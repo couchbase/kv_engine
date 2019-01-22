@@ -199,6 +199,10 @@ public:
     void loadCollectionCountsForShard(uint16_t shardId);
     void done();
 
+    WarmupState::State getWarmupState() {
+        return state.getState();
+    }
+
 private:
     template <typename T>
     void addStat(const char* nm,
