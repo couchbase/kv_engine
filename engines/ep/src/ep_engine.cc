@@ -298,12 +298,42 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::unlock(
     return acquireEngine(this)->unlockInner(cookie, key, vbucket, cas);
 }
 
+/**
+ * generic lambda function which creates an "ExitBorderGuard" thunk - a wrapper
+ * around the passed-in function which uses NonBucketAllocationGuard to switch
+ * away from the current engine before invoking 'wrapped', then switches back to
+ * the original engine after wrapped returns.
+ *
+ * The intended use-case of this is to invoke methods / callbacks outside
+ * of ep-engine without mis-accounting memory - we need to ensure that any
+ * memory allocated from inside the callback is *not* accounted to ep-engine,
+ * but when the callback returns we /do/ account any subsequent allocations
+ * to the given engine.
+ */
+auto makeExitBorderGuard = [](auto&& wrapped) {
+    return [wrapped](auto&&... args) {
+        NonBucketAllocationGuard exitGuard;
+        return wrapped(std::forward<decltype(args)>(args)...);
+    };
+};
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::get_stats(
         gsl::not_null<const void*> cookie,
         cb::const_char_buffer key,
         const AddStatFn& add_stat) {
-    return acquireEngine(this)->getStats(
-            cookie, key.data(), gsl::narrow_cast<int>(key.size()), add_stat);
+    // The AddStatFn callback may allocate memory (temporary buffers for
+    // stat data) which will be de-allocated inside the server, after the
+    // engine call (get_stat) has returned. As such we do not want to
+    // account such memory against this bucket.
+    // Create an exit border guard around the original callback.
+    // Perf: use std::cref to avoid copying (and the subsequent `new` call) of
+    // the input add_stat function.
+    auto addStatExitBorderGuard = makeExitBorderGuard(std::cref(add_stat));
+
+    return acquireEngine(this)->getStats(cookie,
+                                         key.data(),
+                                         gsl::narrow_cast<int>(key.size()),
+                                         addStatExitBorderGuard);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::store(
@@ -3217,11 +3247,6 @@ public:
     }
 
     ~AddStatsStream() {
-        // The AddStatFn callback may allocate memory (temporary buffers for
-        // stat data) which will be de-allocated inside the server (i.e.
-        // after the engine call has returned). As such we do not want to
-        // account such memory against this bucket.
-        NonBucketAllocationGuard statsCallbackGuard;
         auto value = buf.str();
         callback(key.data(), key.size(), value.data(), value.size(), cookie);
     }

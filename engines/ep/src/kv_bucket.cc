@@ -1032,7 +1032,6 @@ static void add_stat(const char* key,
                      gsl::not_null<const void*> cookie) {
     void* ptr = const_cast<void*>(cookie.get());
     snapshot_stats_t* snap = static_cast<snapshot_stats_t*>(ptr);
-    ObjectRegistry::onSwitchThread(snap->engine);
     std::string k(key, klen);
     std::string v(val, vlen);
     snap->smap.insert(std::pair<std::string, std::string>(k, v));

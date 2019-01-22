@@ -166,10 +166,9 @@ TEST_F(StatTest, HashStatsMemUsed) {
 
     auto baselineMemory = engine->getEpStats().getPreciseTotalMemoryUsed();
 
-    // Perform the stats call. Should be associated with an engine at this
-    // point (as setup by EvpGetStats in the 'real' environment).
-    auto oldEngine = ObjectRegistry::getCurrentEngine();
-    ASSERT_TRUE(oldEngine);
+    // Perform the stats call from 'memcached' context
+    // (i.e. no engine yet selected).
+    ObjectRegistry::onSwitchThread(nullptr);
 
     cb::const_char_buffer key{"_hash-dump 0"};
     struct Cookie : public cb::tracing::Traceable {
@@ -185,20 +184,16 @@ TEST_F(StatTest, HashStatsMemUsed) {
                 *reinterpret_cast<Cookie*>(const_cast<void*>(cookie.get()));
         state.addStats_calls++;
 
-        // This callback should run in the memcache-context so no engine should
+        // This callback should run in the memcached-context so no engine should
         // be assigned to the current thread.
         EXPECT_FALSE(ObjectRegistry::getCurrentEngine());
     };
 
-    ASSERT_EQ(ENGINE_SUCCESS,
-              engine->getStats(&state, key.data(), key.size(), callback));
+    ASSERT_EQ(ENGINE_SUCCESS, engine->get_stats(&state, key, callback));
 
     // Sanity check - should have had at least 1 call to ADD_STATS (otherwise
     // the test isn't valid).
     ASSERT_GT(state.addStats_calls, 0);
-
-    // Should still be associated with the same engine.
-    EXPECT_EQ(oldEngine, ObjectRegistry::getCurrentEngine());
 
     // Any temporary memory should have been freed by now, and accounted
     // correctly.
