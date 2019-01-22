@@ -2012,6 +2012,8 @@ static void initialize_buckets() {
     nobucket.setEngine(new_engine_instance(
             BucketType::NoBucket, "<internal>", get_server_api));
     cb_assert(nobucket.getEngine());
+    nobucket.max_document_size = nobucket.getEngine()->getMaxItemSize();
+    nobucket.supportedFeatures = nobucket.getEngine()->getFeatures();
     nobucket.type = BucketType::NoBucket;
     nobucket.state = BucketState::Ready;
 }
