@@ -129,7 +129,7 @@ public:
     /**
      * Add statistics for this filter, currently just depicts the object's state
      */
-    void addStats(ADD_STAT add_stat,
+    void addStats(const AddStatFn& add_stat,
                   const void* c,
                   const std::string& prefix,
                   Vbid vb) const;

@@ -49,7 +49,7 @@ public:
 
     bool isBufferSufficientlyDrained();
 
-    void addStats(ADD_STAT add_stat, const void *c);
+    void addStats(const AddStatFn& add_stat, const void* c);
 
 private:
     void setBufSizeWithinBounds(size_t &bufSize);

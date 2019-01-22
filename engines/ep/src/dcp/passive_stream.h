@@ -79,7 +79,7 @@ public:
     virtual ENGINE_ERROR_CODE messageReceived(
             std::unique_ptr<DcpResponse> response);
 
-    void addStats(ADD_STAT add_stat, const void* c) override;
+    void addStats(const AddStatFn& add_stat, const void* c) override;
 
     static const size_t batchSize;
 

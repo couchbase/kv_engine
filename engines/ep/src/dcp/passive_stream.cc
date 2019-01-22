@@ -844,7 +844,7 @@ void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
     }
 }
 
-void PassiveStream::addStats(ADD_STAT add_stat, const void* c) {
+void PassiveStream::addStats(const AddStatFn& add_stat, const void* c) {
     Stream::addStats(add_stat, c);
 
     try {

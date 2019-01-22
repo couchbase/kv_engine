@@ -208,7 +208,7 @@ public:
 
     bool doRollback(uint32_t opaque, Vbid vbid, uint64_t rollbackSeqno);
 
-    void addStats(ADD_STAT add_stat, const void *c) override;
+    void addStats(const AddStatFn& add_stat, const void* c) override;
 
     void aggregateQueueStats(ConnCounter& aggregator) override;
 

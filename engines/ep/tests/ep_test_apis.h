@@ -375,7 +375,7 @@ bool get_bool_stat(EngineIface* h,
 
 ENGINE_ERROR_CODE get_stats(gsl::not_null<EngineIface*> h,
                             cb::const_char_buffer key,
-                            ADD_STAT callback);
+                            const AddStatFn& callback);
 
 /* This is used to get stat info specified by 'histo_info' from histogram of
  * "statname" which is got by running stats on "statkey"

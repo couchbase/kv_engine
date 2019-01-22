@@ -117,7 +117,7 @@ public:
      * @param addStat the callback to memcached
      * @param cookie
      */
-    void addStats(ADD_STAT addStat, const void* cookie) const;
+    void addStats(const AddStatFn& addStat, const void* cookie) const;
 
 protected:
     class SyncWrite;

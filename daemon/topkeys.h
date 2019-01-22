@@ -58,7 +58,7 @@ public:
 
     ENGINE_ERROR_CODE stats(const void* cookie,
                             rel_time_t current_time,
-                            ADD_STAT add_stat);
+                            const AddStatFn& add_stat);
 
     /**
      * Passing a set of topkeys, and relevant context data will
@@ -82,7 +82,7 @@ protected:
 
     ENGINE_ERROR_CODE doStats(const void* cookie,
                               rel_time_t current_time,
-                              ADD_STAT add_stat);
+                              const AddStatFn& add_stat);
 
     ENGINE_ERROR_CODE do_json_stats(nlohmann::json& object,
                                     rel_time_t current_time);

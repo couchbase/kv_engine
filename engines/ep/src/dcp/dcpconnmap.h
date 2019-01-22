@@ -127,7 +127,7 @@ public:
 
     /* Use this only for any quick direct stats from DcpConnMap. To collect
        individual conn stats from conn lists please use ConnStatBuilder */
-    void addStats(ADD_STAT add_stat, const void *c);
+    void addStats(const AddStatFn& add_stat, const void* c);
 
     /* Updates the minimum compression ratio to be achieved for docs by
      * all the producers, which will be in effect if the producer side

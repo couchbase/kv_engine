@@ -34,7 +34,9 @@ public:
 
     StatsTask(const StatsTask&) = delete;
 
-    StatsTask(Connection& connection_, Cookie& cookie_, ADD_STAT add_stats_);
+    StatsTask(Connection& connection_,
+              Cookie& cookie_,
+              const AddStatFn& add_stats_);
 
     void notifyExecutionComplete() override;
 
@@ -45,7 +47,7 @@ public:
 protected:
     Connection& connection;
     Cookie& cookie;
-    ADD_STAT add_stats;
+    AddStatFn add_stats;
     ENGINE_ERROR_CODE command_error;
 };
 
@@ -57,7 +59,7 @@ public:
 
     StatsTaskConnectionStats(Connection& connection_,
                              Cookie& cookie_,
-                             ADD_STAT add_stats_,
+                             const AddStatFn& add_stats_,
                              const int64_t fd_);
 
     Status execute() override;

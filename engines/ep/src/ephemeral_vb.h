@@ -109,7 +109,9 @@ public:
 
     bool areDeletedItemsAlwaysResident() const override;
 
-    void addStats(bool details, ADD_STAT add_stat, const void* c) override;
+    void addStats(bool details,
+                  const AddStatFn& add_stat,
+                  const void* c) override;
 
     KVShard* getShard() override {
         return nullptr;

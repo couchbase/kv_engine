@@ -199,7 +199,7 @@ public:
      * @param add_stat the callback to add statistics
      * @param c the cookie for the connection who wants the stats
      */
-    void addStats(ADD_STAT add_stat, const void *c) const;
+    void addStats(const AddStatFn& add_stat, const void* c) const;
 
     /**
      * Add a listener for changes for a key. The configuration class takes

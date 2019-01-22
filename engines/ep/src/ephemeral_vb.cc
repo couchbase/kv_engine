@@ -144,7 +144,7 @@ bool EphemeralVBucket::areDeletedItemsAlwaysResident() const {
 }
 
 void EphemeralVBucket::addStats(bool details,
-                                ADD_STAT add_stat,
+                                const AddStatFn& add_stat,
                                 const void* c) {
     // Include base class statistics:
     _addStats(details, add_stat, c);

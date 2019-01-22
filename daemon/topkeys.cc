@@ -109,7 +109,7 @@ void TopKeys::updateKey(const void* key,
 
 ENGINE_ERROR_CODE TopKeys::stats(const void* cookie,
                                  rel_time_t current_time,
-                                 ADD_STAT add_stat) {
+                                 const AddStatFn& add_stat) {
     if (settings.isTopkeysEnabled()) {
         return doStats(cookie, current_time, add_stat);
     }
@@ -220,13 +220,16 @@ void TopKeys::doUpdateKey(const void* key,
 }
 
 struct tk_context {
-    tk_context(const void* c, ADD_STAT a, rel_time_t t, nlohmann::json* arr)
+    tk_context(const void* c,
+               const AddStatFn& a,
+               rel_time_t t,
+               nlohmann::json* arr)
         : cookie(c), add_stat(a), current_time(t), array(arr) {
         // empty
     }
 
     const void *cookie;
-    ADD_STAT add_stat;
+    AddStatFn add_stat;
     rel_time_t current_time;
     nlohmann::json* array;
 };
@@ -284,7 +287,7 @@ static void tk_jsonfunc(const std::string& key, const topkey_item_t& it,
 
 ENGINE_ERROR_CODE TopKeys::doStats(const void* cookie,
                                    rel_time_t current_time,
-                                   ADD_STAT add_stat) {
+                                   const AddStatFn& add_stat) {
     struct tk_context context(cookie, add_stat, current_time, nullptr);
 
     for (auto& shard : shards) {

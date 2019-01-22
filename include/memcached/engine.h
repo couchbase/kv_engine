@@ -490,7 +490,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      */
     virtual ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
                                         cb::const_char_buffer key,
-                                        ADD_STAT add_stat) = 0;
+                                        const AddStatFn& add_stat) = 0;
 
     /**
      * Reset the stats.

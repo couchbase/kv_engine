@@ -297,7 +297,7 @@ void ConnHandler::releaseReference()
     }
 }
 
-void ConnHandler::addStats(ADD_STAT add_stat, const void* c) {
+void ConnHandler::addStats(const AddStatFn& add_stat, const void* c) {
     addStat("type", getType(), add_stat, c);
     addStat("created", created.load(), add_stat, c);
     addStat("pending_disconnect", disconnect.load(), add_stat, c);

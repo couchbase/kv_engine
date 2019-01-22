@@ -545,8 +545,10 @@ uint64_t VBucket::getQueueAge() {
 }
 
 template <typename T>
-void VBucket::addStat(const char *nm, const T &val, ADD_STAT add_stat,
-                      const void *c) {
+void VBucket::addStat(const char* nm,
+                      const T& val,
+                      const AddStatFn& add_stat,
+                      const void* c) {
     std::string stat = statPrefix;
     if (nm != NULL) {
         add_prefixed_stat(statPrefix, nm, val, add_stat, c);
@@ -1284,7 +1286,7 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm) {
     return ret;
 }
 
-void VBucket::addDurabilityMonitorStats(ADD_STAT addStat,
+void VBucket::addDurabilityMonitorStats(const AddStatFn& addStat,
                                         const void* cookie) const {
     durabilityMonitor->addStats(addStat, cookie);
 }
@@ -2330,7 +2332,9 @@ bool VBucket::hasMemoryForStoredValue(
     }
 }
 
-void VBucket::_addStats(bool details, ADD_STAT add_stat, const void* c) {
+void VBucket::_addStats(bool details,
+                        const AddStatFn& add_stat,
+                        const void* c) {
     addStat(NULL, toString(state), add_stat, c);
     if (details) {
         size_t numItems = getNumItems();

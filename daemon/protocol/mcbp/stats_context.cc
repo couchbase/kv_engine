@@ -49,7 +49,7 @@
 // Generic add_stat<T>. Uses std::to_string which requires heap allocation.
 template <typename T>
 void add_stat(Cookie& cookie,
-              ADD_STAT add_stat_callback,
+              const AddStatFn& add_stat_callback,
               const char* name,
               const T& val) {
     std::string value = std::to_string(val);
@@ -63,7 +63,7 @@ void add_stat(Cookie& cookie,
 // Specializations for common, integer types. Uses stack buffer for
 // int-to-string conversion.
 void add_stat(Cookie& cookie,
-              ADD_STAT add_stat_callback,
+              const AddStatFn& add_stat_callback,
               const char* name,
               int32_t val) {
     char buf[16];
@@ -77,7 +77,7 @@ void add_stat(Cookie& cookie,
 }
 
 void add_stat(Cookie& cookie,
-              ADD_STAT add_stat_callback,
+              const AddStatFn& add_stat_callback,
               const char* name,
               uint32_t val) {
     char buf[16];
@@ -91,7 +91,7 @@ void add_stat(Cookie& cookie,
 }
 
 void add_stat(Cookie& cookie,
-              ADD_STAT add_stat_callback,
+              const AddStatFn& add_stat_callback,
               const char* name,
               int64_t val) {
     char buf[32];
@@ -105,7 +105,7 @@ void add_stat(Cookie& cookie,
 }
 
 void add_stat(Cookie& cookie,
-              ADD_STAT add_stat_callback,
+              const AddStatFn& add_stat_callback,
               const char* name,
               uint64_t val) {
     char buf[32];
@@ -119,7 +119,7 @@ void add_stat(Cookie& cookie,
 }
 
 void add_stat(Cookie& cookie,
-              ADD_STAT add_stat_callback,
+              const AddStatFn& add_stat_callback,
               const char* name,
               const std::string& value) {
     add_stat_callback(name,
@@ -130,7 +130,7 @@ void add_stat(Cookie& cookie,
 }
 
 void add_stat(Cookie& cookie,
-              ADD_STAT add_stat_callback,
+              const AddStatFn& add_stat_callback,
               const char* name,
               const char* value) {
     add_stat_callback(name,
@@ -141,7 +141,7 @@ void add_stat(Cookie& cookie,
 }
 
 void add_stat(Cookie& cookie,
-              ADD_STAT add_stat_callback,
+              const AddStatFn& add_stat_callback,
               const char* name,
               const bool value) {
     if (value) {
@@ -152,7 +152,7 @@ void add_stat(Cookie& cookie,
 }
 
 /* return server specific stats only */
-static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
+static ENGINE_ERROR_CODE server_stats(const AddStatFn& add_stat_callback,
                                       Cookie& cookie) {
     rel_time_t now = mc_time_get_current_time();
 

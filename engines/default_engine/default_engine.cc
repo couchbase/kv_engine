@@ -466,7 +466,7 @@ ENGINE_ERROR_CODE default_engine::unlock(gsl::not_null<const void*> cookie,
 
 ENGINE_ERROR_CODE default_engine::get_stats(gsl::not_null<const void*> cookie,
                                             cb::const_char_buffer key,
-                                            ADD_STAT add_stat) {
+                                            const AddStatFn& add_stat) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     if (key.empty()) {

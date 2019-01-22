@@ -126,7 +126,7 @@ ENGINE_ERROR_CODE bucket_flush(Cookie& cookie);
 
 ENGINE_ERROR_CODE bucket_get_stats(Cookie& cookie,
                                    cb::const_char_buffer key,
-                                   ADD_STAT add_stat);
+                                   const AddStatFn& add_stat);
 
 /**
  * Calls the underlying engine DCP add-stream

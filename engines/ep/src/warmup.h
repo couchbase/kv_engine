@@ -140,7 +140,7 @@ public:
 
     size_t getEstimatedItemCount();
 
-    void addStats(ADD_STAT add_stat, const void *c) const;
+    void addStats(const AddStatFn& add_stat, const void* c) const;
 
     std::chrono::steady_clock::duration getTime() {
         return warmup.load();
@@ -201,7 +201,10 @@ public:
 
 private:
     template <typename T>
-    void addStat(const char *nm, const T &val, ADD_STAT add_stat, const void *c) const;
+    void addStat(const char* nm,
+                 const T& val,
+                 const AddStatFn& add_stat,
+                 const void* c) const;
 
     /* Returns the number of KV stores that holds the states of all the vbuckets */
     uint16_t getNumKVStores();

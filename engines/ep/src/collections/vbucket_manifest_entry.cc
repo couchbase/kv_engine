@@ -32,7 +32,7 @@ std::string Collections::VB::ManifestEntry::getExceptionString(
 bool Collections::VB::ManifestEntry::addStats(const std::string& cid,
                                               Vbid vbid,
                                               const void* cookie,
-                                              ADD_STAT add_stat) const {
+                                              const AddStatFn& add_stat) const {
     try {
         const int bsize = 512;
         char buffer[bsize];

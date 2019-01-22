@@ -102,7 +102,7 @@ struct mock_engine : public EngineIface, public DcpIface {
 
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
                                 cb::const_char_buffer key,
-                                ADD_STAT add_stat) override;
+                                const AddStatFn& add_stat) override;
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
 
@@ -590,7 +590,7 @@ ENGINE_ERROR_CODE mock_engine::unlock(gsl::not_null<const void*> cookie,
 
 ENGINE_ERROR_CODE mock_engine::get_stats(gsl::not_null<const void*> cookie,
                                          cb::const_char_buffer key,
-                                         ADD_STAT add_stat) {
+                                         const AddStatFn& add_stat) {
     auto engine_fn = std::bind(
             &EngineIface::get_stats, the_engine, cookie, key, add_stat);
 

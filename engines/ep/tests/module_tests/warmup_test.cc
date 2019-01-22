@@ -37,7 +37,7 @@ class WarmupDisabledTest : public EventuallyPersistentEngineTest {
     }
 };
 
-// Mock implementation of an ADD_STAT callback.
+// Mock implementation of an AddStatFn callback.
 class MockAddStat : public cb::tracing::Traceable {
 public:
     MOCK_CONST_METHOD2(Callback, void(std::string key, std::string value));

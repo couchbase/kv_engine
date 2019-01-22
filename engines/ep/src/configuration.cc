@@ -272,7 +272,7 @@ void Configuration::requirementsMetOrThrow(const std::string& key) const {
     }
 }
 
-void Configuration::addStats(ADD_STAT add_stat, const void *c) const {
+void Configuration::addStats(const AddStatFn& add_stat, const void* c) const {
     LockHolder lh(mutex);
     for (const auto& attribute :  attributes) {
         if (!requirementsMet(*attribute.second)) {

@@ -239,8 +239,11 @@ bool KVStore::snapshotStats(const std::map<std::string,
 }
 
 template <typename T>
-void KVStore::addStat(const std::string &prefix, const char *stat, T &val,
-                           ADD_STAT add_stat, const void *c) {
+void KVStore::addStat(const std::string& prefix,
+                      const char* stat,
+                      T& val,
+                      const AddStatFn& add_stat,
+                      const void* c) {
     std::stringstream fullstat;
     fullstat << prefix << ":" << stat;
     add_casted_stat(fullstat.str().c_str(), val, add_stat, c);
@@ -252,7 +255,7 @@ KVStore::KVStore(KVStoreConfig& config, bool read_only)
 
 KVStore::~KVStore() = default;
 
-void KVStore::addStats(ADD_STAT add_stat, const void *c) {
+void KVStore::addStats(const AddStatFn& add_stat, const void* c) {
     const char* backend = configuration.getBackend().c_str();
 
     uint16_t shardId = configuration.getShardId();
@@ -414,7 +417,7 @@ void KVStore::addStats(ADD_STAT add_stat, const void *c) {
     }
 }
 
-void KVStore::addTimingStats(ADD_STAT add_stat, const void *c) {
+void KVStore::addTimingStats(const AddStatFn& add_stat, const void* c) {
     uint16_t shardId = configuration.getShardId();
     std::stringstream prefixStream;
 

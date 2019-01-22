@@ -113,7 +113,7 @@ BackfillManager::BackfillManager(EventuallyPersistentEngine& e)
 }
 
 void BackfillManager::addStats(DcpProducer& conn,
-                               ADD_STAT add_stat,
+                               const AddStatFn& add_stat,
                                const void* c) {
     LockHolder lh(lock);
     conn.addStat("backfill_buffer_bytes_read", buffer.bytesRead, add_stat, c);

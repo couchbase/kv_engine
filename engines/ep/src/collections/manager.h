@@ -78,12 +78,13 @@ public:
     /**
      * Do 'add_stat' calls for the bucket to retrieve summary collection stats
      */
-    void addCollectionStats(const void* cookie, ADD_STAT add_stat) const;
+    void addCollectionStats(const void* cookie,
+                            const AddStatFn& add_stat) const;
 
     /**
      * Do 'add_stat' calls for the bucket to retrieve summary scope stats
      */
-    void addScopeStats(const void* cookie, ADD_STAT add_stat) const;
+    void addScopeStats(const void* cookie, const AddStatFn& add_stat) const;
 
     /**
      * For development, log as much collections stuff as we can
@@ -100,7 +101,7 @@ public:
      */
     static ENGINE_ERROR_CODE doCollectionStats(KVBucket& bucket,
                                                const void* cookie,
-                                               ADD_STAT add_stat,
+                                               const AddStatFn& add_stat,
                                                const std::string& statKey);
 
     /**
@@ -108,7 +109,7 @@ public:
      */
     static ENGINE_ERROR_CODE doScopeStats(KVBucket& bucket,
                                           const void* cookie,
-                                          ADD_STAT add_stat,
+                                          const AddStatFn& add_stat,
                                           const std::string& statKey);
 
 private:
@@ -128,4 +129,4 @@ private:
 };
 
 std::ostream& operator<<(std::ostream& os, const Manager& manager);
-}
+} // namespace Collections

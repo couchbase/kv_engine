@@ -189,9 +189,10 @@ public:
      */
     std::string toJson() const;
 
-    void addCollectionStats(const void* cookie, ADD_STAT add_stat) const;
+    void addCollectionStats(const void* cookie,
+                            const AddStatFn& add_stat) const;
 
-    void addScopeStats(const void* cookie, ADD_STAT add_stat) const;
+    void addScopeStats(const void* cookie, const AddStatFn& add_stat) const;
 
     /**
      * Write to std::cerr this

@@ -49,7 +49,7 @@ public:
     /* Allow us to call normally protected methods */
 
     ENGINE_ERROR_CODE public_doDcpVbTakeoverStats(const void* cookie,
-                                                  ADD_STAT add_stat,
+                                                  const AddStatFn& add_stat,
                                                   std::string& key,
                                                   Vbid vbid) {
         return doDcpVbTakeoverStats(cookie, add_stat, key, vbid);

@@ -97,10 +97,10 @@ public:
     std::pair<uint64_t, bool> getLastPersistedCheckpointId(Vbid vb) override;
 
     ENGINE_ERROR_CODE getFileStats(const void* cookie,
-                                   ADD_STAT add_stat) override;
+                                   const AddStatFn& add_stat) override;
 
-    ENGINE_ERROR_CODE getPerVBucketDiskStats(const void* cookie,
-                                             ADD_STAT add_stat) override;
+    ENGINE_ERROR_CODE getPerVBucketDiskStats(
+            const void* cookie, const AddStatFn& add_stat) override;
     /**
      * Creates a VBucket object.
      */

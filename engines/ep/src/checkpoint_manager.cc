@@ -1104,7 +1104,8 @@ size_t CheckpointManager::getMemoryOverhead() const {
     return getMemoryOverhead_UNLOCKED();
 }
 
-void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
+void CheckpointManager::addStats(const AddStatFn& add_stat,
+                                 const void* cookie) {
     LockHolder lh(queueLock);
     char buf[256];
 

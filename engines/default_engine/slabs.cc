@@ -276,9 +276,13 @@ static void do_slabs_free(struct default_engine *engine, void *ptr, const size_t
     return;
 }
 
-void add_statistics(const void *cookie, ADD_STAT add_stats,
-                    const char* prefix, int num, const char *key,
-                    const char *fmt, ...) {
+void add_statistics(const void* cookie,
+                    const AddStatFn& add_stats,
+                    const char* prefix,
+                    int num,
+                    const char* key,
+                    const char* fmt,
+                    ...) {
     char name[80];
     char val[80];
     int klen = 0;
@@ -324,7 +328,9 @@ void add_statistics(const void *cookie, ADD_STAT add_stats,
 }
 
 /*@null@*/
-static void do_slabs_stats(struct default_engine *engine, ADD_STAT add_stats, const void *cookie) {
+static void do_slabs_stats(struct default_engine* engine,
+                           const AddStatFn& add_stats,
+                           const void* cookie) {
     unsigned int i;
     unsigned int total = 0;
 
@@ -407,7 +413,9 @@ void slabs_free(struct default_engine *engine, void *ptr, size_t size, unsigned 
     cb_mutex_exit(&engine->slabs.lock);
 }
 
-void slabs_stats(struct default_engine *engine, ADD_STAT add_stats, const void *c) {
+void slabs_stats(struct default_engine* engine,
+                 const AddStatFn& add_stats,
+                 const void* c) {
     cb_mutex_enter(&engine->slabs.lock);
     do_slabs_stats(engine, add_stats, c);
     cb_mutex_exit(&engine->slabs.lock);

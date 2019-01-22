@@ -364,6 +364,6 @@ ENGINE_ERROR_CODE reconfigure_audit(Cookie& cookie) {
     return ENGINE_FAILED;
 }
 
-void stats_audit(ADD_STAT add_stats, Cookie& cookie) {
+void stats_audit(const AddStatFn& add_stats, Cookie& cookie) {
     auditHandle->stats(add_stats, &cookie);
 }

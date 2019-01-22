@@ -841,7 +841,7 @@ std::pair<uint64_t, bool> EPBucket::getLastPersistedCheckpointId(Vbid vb) {
 }
 
 ENGINE_ERROR_CODE EPBucket::getFileStats(const void* cookie,
-                                         ADD_STAT add_stat) {
+                                         const AddStatFn& add_stat) {
     const auto numShards = vbMap.getNumShards();
     DBFileInfo totalInfo;
 
@@ -859,10 +859,11 @@ ENGINE_ERROR_CODE EPBucket::getFileStats(const void* cookie,
 }
 
 ENGINE_ERROR_CODE EPBucket::getPerVBucketDiskStats(const void* cookie,
-                                                   ADD_STAT add_stat) {
+                                                   const AddStatFn& add_stat) {
     class DiskStatVisitor : public VBucketVisitor {
     public:
-        DiskStatVisitor(const void* c, ADD_STAT a) : cookie(c), add_stat(a) {
+        DiskStatVisitor(const void* c, const AddStatFn& a)
+            : cookie(c), add_stat(a) {
         }
 
         void visitBucket(VBucketPtr& vb) override {
@@ -888,7 +889,7 @@ ENGINE_ERROR_CODE EPBucket::getPerVBucketDiskStats(const void* cookie,
 
     private:
         const void* cookie;
-        ADD_STAT add_stat;
+        AddStatFn add_stat;
     };
 
     DiskStatVisitor dsv(cookie, add_stat);

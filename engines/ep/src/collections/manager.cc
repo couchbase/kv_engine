@@ -160,7 +160,7 @@ void Collections::Manager::logAll(KVBucket& bucket) const {
 }
 
 void Collections::Manager::addCollectionStats(const void* cookie,
-                                              ADD_STAT add_stat) const {
+                                              const AddStatFn& add_stat) const {
     std::lock_guard<std::mutex> lg(lock);
     if (current) {
         current->addCollectionStats(cookie, add_stat);
@@ -170,7 +170,7 @@ void Collections::Manager::addCollectionStats(const void* cookie,
 }
 
 void Collections::Manager::addScopeStats(const void* cookie,
-                                         ADD_STAT add_stat) const {
+                                         const AddStatFn& add_stat) const {
     std::lock_guard<std::mutex> lg(lock);
     if (current) {
         current->addScopeStats(cookie, add_stat);
@@ -191,7 +191,7 @@ public:
 
 class CollectionDetailedVBucketVisitor : public VBucketVisitor {
 public:
-    CollectionDetailedVBucketVisitor(const void* c, ADD_STAT a)
+    CollectionDetailedVBucketVisitor(const void* c, const AddStatFn& a)
         : cookie(c), add_stat(a) {
     }
 
@@ -207,13 +207,13 @@ public:
 
 private:
     const void* cookie;
-    ADD_STAT add_stat;
+    AddStatFn add_stat;
     bool success = true;
 };
 
 class ScopeDetailedVBucketVisitor : public VBucketVisitor {
 public:
-    ScopeDetailedVBucketVisitor(const void* c, ADD_STAT a)
+    ScopeDetailedVBucketVisitor(const void* c, const AddStatFn& a)
         : cookie(c), add_stat(a) {
     }
 
@@ -229,7 +229,7 @@ public:
 
 private:
     const void* cookie;
-    ADD_STAT add_stat;
+    AddStatFn add_stat;
     bool success = true;
 };
 
@@ -244,7 +244,7 @@ private:
 ENGINE_ERROR_CODE Collections::Manager::doCollectionStats(
         KVBucket& bucket,
         const void* cookie,
-        ADD_STAT add_stat,
+        const AddStatFn& add_stat,
         const std::string& statKey) {
     bool success = true;
     if (cb_isPrefix(statKey, "collections-details")) {
@@ -312,7 +312,7 @@ ENGINE_ERROR_CODE Collections::Manager::doCollectionStats(
 ENGINE_ERROR_CODE Collections::Manager::doScopeStats(
         KVBucket& bucket,
         const void* cookie,
-        ADD_STAT add_stat,
+        const AddStatFn& add_stat,
         const std::string& statKey) {
     bool success = true;
     if (cb_isPrefix(statKey, "scopes-details")) {

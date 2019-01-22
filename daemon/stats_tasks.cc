@@ -25,7 +25,7 @@
 
 StatsTaskConnectionStats::StatsTaskConnectionStats(Connection& connection_,
                                                    Cookie& cookie_,
-                                                   ADD_STAT add_stats_,
+                                                   const AddStatFn& add_stats_,
                                                    const int64_t fd_)
     : StatsTask(connection_, cookie_, add_stats_) {
     fd = fd_;
@@ -68,7 +68,7 @@ Task::Status StatsTaskConnectionStats::execute() {
 
 StatsTask::StatsTask(Connection& connection_,
                      Cookie& cookie_,
-                     ADD_STAT add_stats_)
+                     const AddStatFn& add_stats_)
     : connection(connection_),
       cookie(cookie_),
       add_stats(add_stats_),

@@ -400,7 +400,9 @@ bool EPVBucket::areDeletedItemsAlwaysResident() const {
     return false;
 }
 
-void EPVBucket::addStats(bool details, ADD_STAT add_stat, const void* c) {
+void EPVBucket::addStats(bool details,
+                         const AddStatFn& add_stat,
+                         const void* c) {
     _addStats(details, add_stat, c);
 
     if (details) {

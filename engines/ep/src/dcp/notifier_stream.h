@@ -42,7 +42,7 @@ public:
 
     void notifySeqnoAvailable(uint64_t seqno) override;
 
-    void addStats(ADD_STAT add_stat, const void* c) override;
+    void addStats(const AddStatFn& add_stat, const void* c) override;
 
 private:
     void transitionState(StreamState newState);

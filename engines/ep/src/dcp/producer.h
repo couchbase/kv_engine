@@ -100,9 +100,11 @@ public:
      */
     bool handleResponse(const protocol_binary_response_header* resp) override;
 
-    void addStats(ADD_STAT add_stat, const void *c) override;
+    void addStats(const AddStatFn& add_stat, const void* c) override;
 
-    void addTakeoverStats(ADD_STAT add_stat, const void* c, const VBucket& vb);
+    void addTakeoverStats(const AddStatFn& add_stat,
+                          const void* c,
+                          const VBucket& vb);
 
     void aggregateQueueStats(ConnCounter& aggregator) override;
 
@@ -252,7 +254,7 @@ public:
          */
         void setBufferSize(size_t maxBytes);
 
-        void addStats(ADD_STAT add_stat, const void *c);
+        void addStats(const AddStatFn& add_stat, const void* c);
 
         /**
          * Insert N bytes into the buffer.

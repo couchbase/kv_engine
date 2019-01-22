@@ -301,7 +301,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::unlock(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::get_stats(
         gsl::not_null<const void*> cookie,
         cb::const_char_buffer key,
-        ADD_STAT add_stat) {
+        const AddStatFn& add_stat) {
     return acquireEngine(this)->getStats(
             cookie, key.data(), gsl::narrow_cast<int>(key.size()), add_stat);
 }
@@ -2482,9 +2482,8 @@ bool EventuallyPersistentEngine::enableTraffic(bool enable) {
     return trafficEnabled.compare_exchange_strong(inverse, enable);
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
-                                                           ADD_STAT add_stat) {
-
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
+        const void* cookie, const AddStatFn& add_stat) {
     configuration.addStats(add_stat, cookie);
 
     EPStats &epstats = getEpStats();
@@ -2962,8 +2961,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
-                                                           ADD_STAT add_stat) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(
+        const void* cookie, const AddStatFn& add_stat) {
     add_casted_stat(
             "bytes", stats.getPreciseTotalMemoryUsed(), add_stat, cookie);
     add_casted_stat(
@@ -3023,28 +3022,34 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
-                                                       const void *cookie,
-                                                       ADD_STAT add_stat,
-                                                       const char* stat_key,
-                                                       int nkey,
-                                                       bool prevStateRequested,
-                                                       bool details) {
+        const void* cookie,
+        const AddStatFn& add_stat,
+        const char* stat_key,
+        int nkey,
+        bool prevStateRequested,
+        bool details) {
     class StatVBucketVisitor : public VBucketVisitor {
     public:
         StatVBucketVisitor(KVBucketIface* store,
-                           const void *c, ADD_STAT a,
-                           bool isPrevStateRequested, bool detailsRequested) :
-            eps(store), cookie(c), add_stat(a),
-            isPrevState(isPrevStateRequested),
-            isDetailsRequested(detailsRequested) {}
+                           const void* c,
+                           const AddStatFn& a,
+                           bool isPrevStateRequested,
+                           bool detailsRequested)
+            : eps(store),
+              cookie(c),
+              add_stat(a),
+              isPrevState(isPrevStateRequested),
+              isDetailsRequested(detailsRequested) {
+        }
 
         void visitBucket(VBucketPtr &vb) override {
             addVBStats(cookie, add_stat, vb, eps, isPrevState,
                        isDetailsRequested);
         }
 
-        static void addVBStats(const void *cookie, ADD_STAT add_stat,
-                               VBucketPtr &vb,
+        static void addVBStats(const void* cookie,
+                               const AddStatFn& add_stat,
+                               VBucketPtr& vb,
                                KVBucketIface* store,
                                bool isPrevStateRequested,
                                bool detailsRequested) {
@@ -3072,7 +3077,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
     private:
         KVBucketIface* eps;
         const void *cookie;
-        ADD_STAT add_stat;
+        AddStatFn add_stat;
         bool isPrevState;
         bool isDetailsRequested;
     };
@@ -3100,13 +3105,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
-                                                          ADD_STAT add_stat) {
-
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(
+        const void* cookie, const AddStatFn& add_stat) {
     class StatVBucketVisitor : public VBucketVisitor {
     public:
         StatVBucketVisitor(const void* c,
-                           ADD_STAT a,
+                           const AddStatFn& a,
                            BucketCompressionMode compressMode)
             : cookie(c), add_stat(a), compressionMode(compressMode) {
         }
@@ -3182,7 +3186,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
         }
 
         const void *cookie;
-        ADD_STAT add_stat;
+        AddStatFn add_stat;
         BucketCompressionMode compressionMode;
     };
 
@@ -3206,12 +3210,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
  */
 class AddStatsStream : public std::ostream {
 public:
-    AddStatsStream(std::string key, ADD_STAT callback, const void* cookie)
+    AddStatsStream(std::string key,
+                   const AddStatFn& callback,
+                   const void* cookie)
         : std::ostream(&buf), key(key), callback(callback), cookie(cookie) {
     }
 
     ~AddStatsStream() {
-        // The ADD_STAT callback may allocate memory (temporary buffers for
+        // The AddStatFn callback may allocate memory (temporary buffers for
         // stat data) which will be de-allocated inside the server (i.e.
         // after the engine call has returned). As such we do not want to
         // account such memory against this bucket.
@@ -3222,13 +3228,15 @@ public:
 
 private:
     std::string key;
-    ADD_STAT callback;
+    AddStatFn callback;
     const void* cookie;
     std::stringbuf buf;
 };
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashDump(
-        const void* cookie, ADD_STAT addStat, cb::const_char_buffer keyArgs) {
+        const void* cookie,
+        const AddStatFn& addStat,
+        cb::const_char_buffer keyArgs) {
     if (keyArgs.empty()) {
         // Must specify a vbucket.
         return ENGINE_EINVAL;
@@ -3250,7 +3258,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashDump(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointDump(
-        const void* cookie, ADD_STAT addStat, cb::const_char_buffer keyArgs) {
+        const void* cookie,
+        const AddStatFn& addStat,
+        cb::const_char_buffer keyArgs) {
     if (keyArgs.empty()) {
         // Must specify a vbucket.
         return ENGINE_EINVAL;
@@ -3273,17 +3283,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointDump(
 
 class StatCheckpointVisitor : public VBucketVisitor {
 public:
-    StatCheckpointVisitor(KVBucketIface* kvs, const void *c,
-                          ADD_STAT a) : kvBucket(kvs), cookie(c),
-                                        add_stat(a) {}
+    StatCheckpointVisitor(KVBucketIface* kvs, const void* c, const AddStatFn& a)
+        : kvBucket(kvs), cookie(c), add_stat(a) {
+    }
 
     void visitBucket(VBucketPtr &vb) override {
         addCheckpointStat(cookie, add_stat, kvBucket, vb);
     }
 
-    static void addCheckpointStat(const void *cookie, ADD_STAT add_stat,
+    static void addCheckpointStat(const void* cookie,
+                                  const AddStatFn& add_stat,
                                   KVBucketIface* eps,
-                                  VBucketPtr &vb) {
+                                  VBucketPtr& vb) {
         if (!vb) {
             return;
         }
@@ -3314,16 +3325,20 @@ public:
 
     KVBucketIface* kvBucket;
     const void *cookie;
-    ADD_STAT add_stat;
+    AddStatFn add_stat;
 };
 
 
 class StatCheckpointTask : public GlobalTask {
 public:
-    StatCheckpointTask(EventuallyPersistentEngine *e, const void *c,
-            ADD_STAT a) : GlobalTask(e, TaskId::StatCheckpointTask,
-                                     0, false),
-                          ep(e), cookie(c), add_stat(a) { }
+    StatCheckpointTask(EventuallyPersistentEngine* e,
+                       const void* c,
+                       const AddStatFn& a)
+        : GlobalTask(e, TaskId::StatCheckpointTask, 0, false),
+          ep(e),
+          cookie(c),
+          add_stat(a) {
+    }
     bool run(void) {
         TRACE_EVENT0("ep-engine/task", "StatsCheckpointTask");
         StatCheckpointVisitor scv(ep->getKVBucket(), cookie, add_stat);
@@ -3346,16 +3361,15 @@ public:
 private:
     EventuallyPersistentEngine *ep;
     const void *cookie;
-    ADD_STAT add_stat;
+    AddStatFn add_stat;
 };
 /// @endcond
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(
-                                                          const void *cookie,
-                                                          ADD_STAT add_stat,
-                                                          const char* stat_key,
-                                                          int nkey) {
-
+        const void* cookie,
+        const AddStatFn& add_stat,
+        const char* stat_key,
+        int nkey) {
     if (nkey == 10) {
         void* es = getEngineSpecific(cookie);
         if (es == NULL) {
@@ -3384,7 +3398,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doDurabilityMonitorStats(
-        const void* cookie, ADD_STAT add_stat, const char* stat_key, int nkey) {
+        const void* cookie,
+        const AddStatFn& add_stat,
+        const char* stat_key,
+        int nkey) {
     const uint8_t size = 18; // size  of "durability-monitor"
     if (nkey == size) {
         // Case stat_key = "durability-monitor"
@@ -3416,8 +3433,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDurabilityMonitorStats(
  * Function object to send stats for a single dcp connection.
  */
 struct ConnStatBuilder {
-    ConnStatBuilder(const void *c, ADD_STAT as, ConnCounter& tc)
-        : cookie(c), add_stat(as), aggregator(tc) {}
+    ConnStatBuilder(const void* c, const AddStatFn& as, ConnCounter& tc)
+        : cookie(c), add_stat(as), aggregator(tc) {
+    }
 
     void operator()(std::shared_ptr<ConnHandler> tc) {
         ++aggregator.totalConns;
@@ -3431,7 +3449,7 @@ struct ConnStatBuilder {
     }
 
     const void *cookie;
-    ADD_STAT    add_stat;
+    AddStatFn add_stat;
     ConnCounter& aggregator;
 };
 
@@ -3508,11 +3526,10 @@ struct ConnAggStatBuilder {
 
 /// @endcond
 
-static void showConnAggStat(const std::string &prefix,
-                            ConnCounter *counter,
-                            const void *cookie,
-                            ADD_STAT add_stat) {
-
+static void showConnAggStat(const std::string& prefix,
+                            ConnCounter* counter,
+                            const void* cookie,
+                            const AddStatFn& add_stat) {
     try {
         char statname[80] = {0};
         const size_t sl(sizeof(statname));
@@ -3545,10 +3562,10 @@ static void showConnAggStat(const std::string &prefix,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(
-                                                        const void *cookie,
-                                                        ADD_STAT add_stat,
-                                                        const char *sepPtr,
-                                                        size_t sep_len) {
+        const void* cookie,
+        const AddStatFn& add_stat,
+        const char* sepPtr,
+        size_t sep_len) {
     // In practice, this will be 1, but C++ doesn't let me use dynamic
     // array sizes.
     const size_t max_sep_len(8);
@@ -3571,8 +3588,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doDcpStats(const void *cookie,
-                                                         ADD_STAT add_stat) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doDcpStats(
+        const void* cookie, const AddStatFn& add_stat) {
     ConnCounter aggregator;
     ConnStatBuilder dcpVisitor(cookie, add_stat, aggregator);
     dcpConnMap_->each(dcpVisitor);
@@ -3600,7 +3617,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDcpStats(const void *cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doEvictionStats(
-        const void* cookie, ADD_STAT add_stat) {
+        const void* cookie, const AddStatFn& add_stat) {
     /**
      * The "evicted" histogram stats provide an aggregated view of what the
      * execution frequencies are for all the items that evicted when running
@@ -3630,11 +3647,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEvictionStats(
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void* cookie,
-                                                         ADD_STAT add_stat,
-                                                         Vbid vbid,
-                                                         const DocKey& key,
-                                                         bool validate) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(
+        const void* cookie,
+        const AddStatFn& add_stat,
+        Vbid vbid,
+        const DocKey& key,
+        bool validate) {
     ENGINE_ERROR_CODE rv = ENGINE_FAILED;
 
     std::unique_ptr<Item> it;
@@ -3688,7 +3706,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void* cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doVbIdFailoverLogStats(
-        const void* cookie, ADD_STAT add_stat, Vbid vbid) {
+        const void* cookie, const AddStatFn& add_stat, Vbid vbid) {
     VBucketPtr vb = getVBucket(vbid);
     if(!vb) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -3697,15 +3715,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVbIdFailoverLogStats(
     return ENGINE_SUCCESS;
 }
 
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doAllFailoverLogStats(
-                                                           const void *cookie,
-                                                           ADD_STAT add_stat) {
+        const void* cookie, const AddStatFn& add_stat) {
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     class StatVBucketVisitor : public VBucketVisitor {
     public:
-        StatVBucketVisitor(const void *c, ADD_STAT a) :
-            cookie(c), add_stat(a) {}
+        StatVBucketVisitor(const void* c, const AddStatFn& a)
+            : cookie(c), add_stat(a) {
+        }
 
         void visitBucket(VBucketPtr &vb) override {
             vb->failovers->addStats(cookie, vb->getId(), add_stat);
@@ -3713,7 +3730,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doAllFailoverLogStats(
 
     private:
         const void *cookie;
-        ADD_STAT add_stat;
+        AddStatFn add_stat;
     };
 
     StatVBucketVisitor svbv(cookie, add_stat);
@@ -3722,10 +3739,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doAllFailoverLogStats(
     return rv;
 }
 
-
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
-                                                           ADD_STAT add_stat) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(
+        const void* cookie, const AddStatFn& add_stat) {
     add_casted_stat("bg_wait", stats.bgWaitHisto, add_stat, cookie);
     add_casted_stat("bg_load", stats.bgLoadHisto, add_stat, cookie);
     add_casted_stat("set_with_meta", stats.setWithMetaHisto, add_stat, cookie);
@@ -3782,10 +3797,8 @@ static std::string getTaskDescrForStats(TaskId id) {
            to_string(GlobalTask::getTaskType(id)) + "]";
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doSchedulerStats(const void
-                                                                *cookie,
-                                                                ADD_STAT
-                                                                add_stat) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doSchedulerStats(
+        const void* cookie, const AddStatFn& add_stat) {
     for (TaskId id : GlobalTask::allTaskIds) {
         add_casted_stat(getTaskDescrForStats(id).c_str(),
                         stats.schedulingHisto[static_cast<int>(id)],
@@ -3796,10 +3809,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSchedulerStats(const void
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doRunTimeStats(const void
-                                                                *cookie,
-                                                                ADD_STAT
-                                                                add_stat) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doRunTimeStats(
+        const void* cookie, const AddStatFn& add_stat) {
     for (TaskId id : GlobalTask::allTaskIds) {
         add_casted_stat(getTaskDescrForStats(id).c_str(),
                         stats.taskRuntimeHisto[static_cast<int>(id)],
@@ -3810,26 +3821,22 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doRunTimeStats(const void
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void
-                                                                *cookie,
-                                                                ADD_STAT
-                                                                add_stat) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(
+        const void* cookie, const AddStatFn& add_stat) {
     ExecutorPool::get()->doWorkerStat(ObjectRegistry::getCurrentEngine(),
                                       cookie, add_stat);
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doTasksStats(const void* cookie,
-                                                           ADD_STAT add_stat) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doTasksStats(
+        const void* cookie, const AddStatFn& add_stat) {
     ExecutorPool::get()->doTasksStat(
             ObjectRegistry::getCurrentEngine(), cookie, add_stat);
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void
-                                                              *cookie,
-                                                              ADD_STAT
-                                                              add_stat) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(
+        const void* cookie, const AddStatFn& add_stat) {
     try {
         char statname[80] = {0};
         ExecutorPool* expool = ExecutorPool::get();
@@ -3889,9 +3896,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void
     return ENGINE_SUCCESS;
 }
 
-void EventuallyPersistentEngine::addSeqnoVbStats(const void *cookie,
-                                                 ADD_STAT add_stat,
-                                                 const VBucketPtr &vb) {
+void EventuallyPersistentEngine::addSeqnoVbStats(const void* cookie,
+                                                 const AddStatFn& add_stat,
+                                                 const VBucketPtr& vb) {
     // MB-19359: An atomic read of vbucket state without acquiring the
     // reader lock for state should suffice here.
     uint64_t relHighSeqno = vb->getHighSeqno();
@@ -3970,10 +3977,11 @@ bool EventuallyPersistentEngine::fetchLookupResult(const void* cookie,
     }
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
-                                                          ADD_STAT add_stat,
-                                                          const char* stat_key,
-                                                          int nkey) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(
+        const void* cookie,
+        const AddStatFn& add_stat,
+        const char* stat_key,
+        int nkey) {
     if (nkey > 14) {
         std::string value(stat_key + 14, nkey - 14);
 
@@ -4023,21 +4031,26 @@ void EventuallyPersistentEngine::runVbStatePersistTask(Vbid vbid) {
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doCollectionStats(
-        const void* cookie, ADD_STAT add_stat, const std::string& statKey) {
+        const void* cookie,
+        const AddStatFn& add_stat,
+        const std::string& statKey) {
     return Collections::Manager::doCollectionStats(
             *kvBucket, cookie, add_stat, statKey);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doScopeStats(
-        const void* cookie, ADD_STAT add_stat, const std::string& statKey) {
+        const void* cookie,
+        const AddStatFn& add_stat,
+        const std::string& statKey) {
     return Collections::Manager::doScopeStats(
             *kvBucket, cookie, add_stat, statKey);
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
-                                                       const char* stat_key,
-                                                       int nkey,
-                                                       ADD_STAT add_stat) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
+        const void* cookie,
+        const char* stat_key,
+        int nkey,
+        const AddStatFn& add_stat) {
     ScopeTimer2<MicrosecondStopwatch, TracerStopwatch> timer(
             MicrosecondStopwatch(stats.getStatsCmdHisto),
             TracerStopwatch(cookie, cb::tracing::TraceCode::GETSTATS));
@@ -5170,7 +5183,7 @@ bool EventuallyPersistentEngine::isDegradedMode() const {
 
 ENGINE_ERROR_CODE
 EventuallyPersistentEngine::doDcpVbTakeoverStats(const void* cookie,
-                                                 ADD_STAT add_stat,
+                                                 const AddStatFn& add_stat,
                                                  std::string& key,
                                                  Vbid vbid) {
     VBucketPtr vb = getVBucket(vbid);

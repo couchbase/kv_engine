@@ -1401,8 +1401,10 @@ void Warmup::transition(WarmupState::State to, bool force) {
 }
 
 template <typename T>
-void Warmup::addStat(const char *nm, const T &val, ADD_STAT add_stat,
-                     const void *c) const {
+void Warmup::addStat(const char* nm,
+                     const T& val,
+                     const AddStatFn& add_stat,
+                     const void* c) const {
     std::string name = "ep_warmup";
     if (nm != NULL) {
         name.append("_");
@@ -1414,8 +1416,7 @@ void Warmup::addStat(const char *nm, const T &val, ADD_STAT add_stat,
     add_casted_stat(name.data(), value.str().data(), add_stat, c);
 }
 
-void Warmup::addStats(ADD_STAT add_stat, const void *c) const
-{
+void Warmup::addStats(const AddStatFn& add_stat, const void* c) const {
     using namespace std::chrono;
 
     EPStats& stats = store.getEPEngine().getEpStats();

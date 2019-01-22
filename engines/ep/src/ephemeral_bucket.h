@@ -50,13 +50,13 @@ public:
 
     /// File stats not supported for Ephemeral buckets.
     ENGINE_ERROR_CODE getFileStats(const void* cookie,
-                                   ADD_STAT add_stat) override {
+                                   const AddStatFn& add_stat) override {
         return ENGINE_KEY_ENOENT;
     }
 
     /// Disk stats not supported for Ephemeral buckets.
-    ENGINE_ERROR_CODE getPerVBucketDiskStats(const void* cookie,
-                                             ADD_STAT add_stat) override {
+    ENGINE_ERROR_CODE getPerVBucketDiskStats(
+            const void* cookie, const AddStatFn& add_stat) override {
         return ENGINE_KEY_ENOENT;
     }
 
@@ -136,7 +136,7 @@ protected:
                                       VBucketCountVisitor& pending,
                                       VBucketCountVisitor& dead,
                                       const void* cookie,
-                                      ADD_STAT add_stat) override;
+                                      const AddStatFn& add_stat) override;
 
     // Protected member variables /////////////////////////////////////////////
 

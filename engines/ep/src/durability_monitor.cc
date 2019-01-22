@@ -254,7 +254,8 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
     return ENGINE_SUCCESS;
 }
 
-void DurabilityMonitor::addStats(ADD_STAT addStat, const void* cookie) const {
+void DurabilityMonitor::addStats(const AddStatFn& addStat,
+                                 const void* cookie) const {
     std::lock_guard<std::mutex> lg(state.m);
     char buf[256];
 

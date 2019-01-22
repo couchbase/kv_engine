@@ -166,7 +166,7 @@ public:
     bool addStats(const std::string& cid,
                   Vbid vbid,
                   const void* cookie,
-                  ADD_STAT add_stat) const;
+                  const AddStatFn& add_stat) const;
 
 private:
     /**

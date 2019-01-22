@@ -158,7 +158,9 @@ public:
             std::chrono::duration_cast<std::chrono::nanoseconds>(threshold).count();
     }
 
-    void addStats(const std::string& prefix, ADD_STAT add_stat, const void *c) const;
+    void addStats(const std::string& prefix,
+                  const AddStatFn& add_stat,
+                  const void* c) const;
 
     void resetStats();
 

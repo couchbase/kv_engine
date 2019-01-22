@@ -93,7 +93,7 @@ void ActiveStreamCheckpointProcessorTask::cancelTask() {
 }
 
 void ActiveStreamCheckpointProcessorTask::addStats(const std::string& name,
-                                                   ADD_STAT add_stat,
+                                                   const AddStatFn& add_stat,
                                                    const void* c) const {
     // Take a copy of the queue data under lock; then format it to stats.
     std::queue<Vbid> qCopy;

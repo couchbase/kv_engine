@@ -21,7 +21,9 @@
 
 #include <cinttypes>
 
-void HLC::addStats(const std::string& prefix, ADD_STAT add_stat, const void *c) const {
+void HLC::addStats(const std::string& prefix,
+                   const AddStatFn& add_stat,
+                   const void* c) const {
     auto maxCas = getMaxHLC();
     add_prefixed_stat(prefix.data(), "max_cas", maxCas, add_stat, c);
 
@@ -64,7 +66,6 @@ void HLC::addStats(const std::string& prefix, ADD_STAT add_stat, const void *c) 
     // These are printed "as is" so we know what is being compared. Do not convert to microseconds
     add_prefixed_stat(prefix.data(), "drift_ahead_threshold", driftAheadThreshold.load(), add_stat, c);
     add_prefixed_stat(prefix.data(), "drift_behind_threshold", driftBehindThreshold.load(), add_stat, c);
-
 }
 
 void HLC::resetStats() {

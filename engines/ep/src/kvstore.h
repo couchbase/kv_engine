@@ -550,7 +550,7 @@ public:
      * @param add_stat the callback function to add statistics
      * @param c the cookie to pass to the callback function
      */
-    void addStats(ADD_STAT add_stat, const void *c);
+    void addStats(const AddStatFn& add_stat, const void* c);
 
     /**
      * Request the specified statistic name from the kvstore.
@@ -570,7 +570,7 @@ public:
      * @param add_stat the callback function to add statistics
      * @param c the cookie to pass to the callback function
      */
-    virtual void addTimingStats(ADD_STAT add_stat, const void* c);
+    virtual void addTimingStats(const AddStatFn& add_stat, const void* c);
 
     /**
      * Resets kvstore specific stats
@@ -890,8 +890,11 @@ protected:
 
     void createDataDir(const std::string& dbname);
     template <typename T>
-    void addStat(const std::string& prefix, const char* nm, T& val,
-                 ADD_STAT add_stat, const void* c);
+    void addStat(const std::string& prefix,
+                 const char* nm,
+                 T& val,
+                 const AddStatFn& add_stat,
+                 const void* c);
 
     /**
      * Updates the cached state for a vbucket

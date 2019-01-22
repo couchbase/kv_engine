@@ -526,7 +526,7 @@ public:
 
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
                                 cb::const_char_buffer key,
-                                ADD_STAT add_stat) override {
+                                const AddStatFn& add_stat) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (should_inject_error(Cmd::GET_STATS, cookie, err)) {
             return err;

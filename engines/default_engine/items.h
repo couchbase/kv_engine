@@ -270,9 +270,9 @@ void item_stats_reset(struct default_engine *engine);
  *                 push statistics into the response
  * @param cookie cookie provided by the core to identify the client
  */
-void item_stats(struct default_engine *engine,
-                ADD_STAT add_stat,
-                const void *cookie);
+void item_stats(struct default_engine* engine,
+                const AddStatFn& add_stat,
+                const void* cookie);
 
 /**
  * Get detaild item statitistics
@@ -281,8 +281,9 @@ void item_stats(struct default_engine *engine,
  *                 push statistics into the response
  * @param cookie cookie provided by the core to identify the client
  */
-void item_stats_sizes(struct default_engine *engine,
-                      ADD_STAT add_stat, const void *cookie);
+void item_stats_sizes(struct default_engine* engine,
+                      const AddStatFn& add_stat,
+                      const void* cookie);
 
 /**
  * Flush expired items from the cache

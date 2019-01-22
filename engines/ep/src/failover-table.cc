@@ -250,7 +250,9 @@ void FailoverTable::cacheTableJSON() {
     cachedTableJSON = json.dump();
 }
 
-void FailoverTable::addStats(const void* cookie, Vbid vbid, ADD_STAT add_stat) {
+void FailoverTable::addStats(const void* cookie,
+                             Vbid vbid,
+                             const AddStatFn& add_stat) {
     std::lock_guard<std::mutex> lh(lock);
     try {
         char statname[80] = {0};

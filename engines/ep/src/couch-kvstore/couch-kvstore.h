@@ -528,8 +528,11 @@ protected:
                          VBStatePersist options);
 
     template <typename T>
-    void addStat(const std::string &prefix, const char *nm, T &val,
-                 ADD_STAT add_stat, const void *c);
+    void addStat(const std::string& prefix,
+                 const char* nm,
+                 T& val,
+                 const AddStatFn& add_stat,
+                 const void* c);
 
     void operator=(const CouchKVStore &from);
 

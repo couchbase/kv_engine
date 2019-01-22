@@ -426,8 +426,9 @@ int do_item_replace(struct default_engine *engine,
     return do_item_link(engine, cookie, new_it);
 }
 
-static void do_item_stats(struct default_engine *engine,
-                          ADD_STAT add_stats, const void *c) {
+static void do_item_stats(struct default_engine* engine,
+                          const AddStatFn& add_stats,
+                          const void* c) {
     int i;
     rel_time_t current_time = engine->server.core->get_current_time();
     for (i = 0; i < POWER_LARGEST; i++) {
@@ -475,9 +476,9 @@ static void do_item_stats(struct default_engine *engine,
 
 /** dumps out a list of objects of each size, with granularity of 32 bytes */
 /*@null@*/
-static void do_item_stats_sizes(struct default_engine *engine,
-                                ADD_STAT add_stats, const void *c) {
-
+static void do_item_stats_sizes(struct default_engine* engine,
+                                const AddStatFn& add_stats,
+                                const void* c) {
     /* max 1MB object, divided into 32 bytes size buckets */
     const int num_buckets = 32768;
     unsigned int* histogram = static_cast<unsigned int*>
@@ -1036,18 +1037,17 @@ void item_flush_expired(struct default_engine *engine) {
     cb_mutex_exit(&engine->items.lock);
 }
 
-void item_stats(struct default_engine *engine,
-                   ADD_STAT add_stat, const void *cookie)
-{
+void item_stats(struct default_engine* engine,
+                const AddStatFn& add_stat,
+                const void* cookie) {
     cb_mutex_enter(&engine->items.lock);
     do_item_stats(engine, add_stat, cookie);
     cb_mutex_exit(&engine->items.lock);
 }
 
-
-void item_stats_sizes(struct default_engine *engine,
-                      ADD_STAT add_stat, const void *cookie)
-{
+void item_stats_sizes(struct default_engine* engine,
+                      const AddStatFn& add_stat,
+                      const void* cookie) {
     cb_mutex_enter(&engine->items.lock);
     do_item_stats_sizes(engine, add_stat, cookie);
     cb_mutex_exit(&engine->items.lock);

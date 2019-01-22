@@ -1845,7 +1845,7 @@ void reset_stats(gsl::not_null<EngineIface*> h) {
 
 ENGINE_ERROR_CODE get_stats(gsl::not_null<EngineIface*> h,
                             cb::const_char_buffer key,
-                            ADD_STAT callback) {
+                            const AddStatFn& callback) {
     const auto* cookie = testHarness->create_cookie();
     auto ret = h->get_stats(cookie, key, callback);
     testHarness->destroy_cookie(cookie);

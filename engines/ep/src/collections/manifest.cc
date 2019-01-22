@@ -276,7 +276,8 @@ std::string Manifest::toJson() const {
     return json.str();
 }
 
-void Manifest::addCollectionStats(const void* cookie, ADD_STAT add_stat) const {
+void Manifest::addCollectionStats(const void* cookie,
+                                  const AddStatFn& add_stat) const {
     try {
         const int bsize = 512;
         char buffer[bsize];
@@ -302,7 +303,8 @@ void Manifest::addCollectionStats(const void* cookie, ADD_STAT add_stat) const {
     }
 }
 
-void Manifest::addScopeStats(const void* cookie, ADD_STAT add_stat) const {
+void Manifest::addScopeStats(const void* cookie,
+                             const AddStatFn& add_stat) const {
     try {
         const int bsize = 512;
         char buffer[bsize];

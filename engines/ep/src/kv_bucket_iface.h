@@ -343,7 +343,7 @@ public:
      * active,replica buckets.
      */
     virtual void getAggregatedVBucketStats(const void* cookie,
-                                           ADD_STAT add_stat) = 0;
+                                           const AddStatFn& add_stat) = 0;
 
     /**
      * Get file statistics
@@ -355,7 +355,7 @@ public:
      *         from the store.
      */
     virtual ENGINE_ERROR_CODE getFileStats(const void* cookie,
-                                           ADD_STAT add_stat) = 0;
+                                           const AddStatFn& add_stat) = 0;
 
     /**
      * Get detailed (per-vbucket) disk stats.
@@ -366,8 +366,8 @@ public:
      *         ENGINE_KEY_ENOENT if per-vbucket disk stats are not available
      *         from the store.
      */
-    virtual ENGINE_ERROR_CODE getPerVBucketDiskStats(const void* cookie,
-                                                     ADD_STAT add_stat) = 0;
+    virtual ENGINE_ERROR_CODE getPerVBucketDiskStats(
+            const void* cookie, const AddStatFn& add_stat) = 0;
 
     /**
      * Complete a batch of background fetch of a non resident value or metadata.
@@ -614,9 +614,10 @@ public:
      */
     virtual bool isMemoryUsageTooHigh() = 0;
 
-    virtual void addKVStoreStats(ADD_STAT add_stat, const void* cookie) = 0;
+    virtual void addKVStoreStats(const AddStatFn& add_stat,
+                                 const void* cookie) = 0;
 
-    virtual void addKVStoreTimingStats(ADD_STAT add_stat,
+    virtual void addKVStoreTimingStats(const AddStatFn& add_stat,
                                        const void* cookie) = 0;
 
     /**

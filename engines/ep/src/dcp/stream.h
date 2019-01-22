@@ -89,7 +89,7 @@ public:
 
     uint64_t getSnapEndSeqno() { return snap_end_seqno_; }
 
-    virtual void addStats(ADD_STAT add_stat, const void *c);
+    virtual void addStats(const AddStatFn& add_stat, const void* c);
 
     virtual std::unique_ptr<DcpResponse> next() = 0;
 

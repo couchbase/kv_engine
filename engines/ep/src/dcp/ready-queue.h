@@ -66,7 +66,9 @@ public:
 
     bool empty();
 
-    void addStats(const std::string& prefix, ADD_STAT add_stat, const void* c);
+    void addStats(const std::string& prefix,
+                  const AddStatFn& add_stat,
+                  const void* c);
 
 private:
     std::mutex lock;

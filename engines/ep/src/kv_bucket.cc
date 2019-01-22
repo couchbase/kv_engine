@@ -1055,7 +1055,7 @@ void KVBucket::snapshotStats() {
 }
 
 void KVBucket::getAggregatedVBucketStats(const void* cookie,
-                                         ADD_STAT add_stat) {
+                                         const AddStatFn& add_stat) {
     // Create visitors for each of the four vBucket states, and collect
     // stats for each.
     auto active = makeVBCountVisitor(vbucket_state_active);
@@ -1076,7 +1076,7 @@ void KVBucket::getAggregatedVBucketStats(const void* cookie,
                                                         replica->getNumItems() +
                                                         pending->getNumItems());
 
-    // And finally actually return the stats using the ADD_STAT callback.
+    // And finally actually return the stats using the AddStatFn callback.
     appendAggregatedVBucketStats(
             *active, *replica, *pending, *dead, cookie, add_stat);
 }
@@ -1091,7 +1091,7 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
                                             VBucketCountVisitor& pending,
                                             VBucketCountVisitor& dead,
                                             const void* cookie,
-                                            ADD_STAT add_stat) {
+                                            const AddStatFn& add_stat) {
 // Simplify the repetition of calling add_casted_stat with `add_stat` and
 // cookie each time. (Note: if we had C++14 we could use a polymorphic
 // lambda, but for now will have to stick to C++98 and macros :).
@@ -2277,7 +2277,7 @@ void KVBucket::resetUnderlyingStats(void)
     }
 }
 
-void KVBucket::addKVStoreStats(ADD_STAT add_stat, const void* cookie) {
+void KVBucket::addKVStoreStats(const AddStatFn& add_stat, const void* cookie) {
     for (size_t i = 0; i < vbMap.shards.size(); i++) {
         /* Add the different KVStore instances into a set and then
          * retrieve the stats from each instance separately. This
@@ -2295,7 +2295,8 @@ void KVBucket::addKVStoreStats(ADD_STAT add_stat, const void* cookie) {
     }
 }
 
-void KVBucket::addKVStoreTimingStats(ADD_STAT add_stat, const void* cookie) {
+void KVBucket::addKVStoreTimingStats(const AddStatFn& add_stat,
+                                     const void* cookie) {
     for (size_t i = 0; i < vbMap.shards.size(); i++) {
         std::set<KVStore*> underlyingSet;
         underlyingSet.insert(vbMap.shards[i]->getRWUnderlying());

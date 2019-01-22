@@ -68,7 +68,7 @@ bool DcpReadyQueue::empty() {
 }
 
 void DcpReadyQueue::addStats(const std::string& prefix,
-                             ADD_STAT add_stat,
+                             const AddStatFn& add_stat,
                              const void* c) {
     // Take a copy of the queue data under lock; then format it to stats.
     std::queue<Vbid> qCopy;

@@ -160,7 +160,7 @@ public:
 
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*>,
                                 cb::const_char_buffer key,
-                                ADD_STAT) override {
+                                const AddStatFn&) override {
         return ENGINE_NO_BUCKET;
     }
 

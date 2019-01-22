@@ -56,7 +56,7 @@ public:
 
     virtual ~BackfillManager();
 
-    void addStats(DcpProducer& conn, ADD_STAT add_stat, const void* c);
+    void addStats(DcpProducer& conn, const AddStatFn& add_stat, const void* c);
 
     void schedule(VBucket& vb,
                   std::shared_ptr<ActiveStream> stream,

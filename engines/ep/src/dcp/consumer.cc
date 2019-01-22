@@ -1057,7 +1057,7 @@ bool DcpConsumer::doRollback(uint32_t opaque,
     return false; // Do not reschedule the rollback
 }
 
-void DcpConsumer::addStats(ADD_STAT add_stat, const void *c) {
+void DcpConsumer::addStats(const AddStatFn& add_stat, const void* c) {
     ConnHandler::addStats(add_stat, c);
 
     // Make a copy of all valid streams (under lock), and then call addStats

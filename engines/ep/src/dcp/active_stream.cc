@@ -589,7 +589,7 @@ bool ActiveStream::isCompressionEnabled() {
     return false;
 }
 
-void ActiveStream::addStats(ADD_STAT add_stat, const void* c) {
+void ActiveStream::addStats(const AddStatFn& add_stat, const void* c) {
     Stream::addStats(add_stat, c);
 
     try {
@@ -692,7 +692,7 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void* c) {
     filter.addStats(add_stat, c, name_, vb_);
 }
 
-void ActiveStream::addTakeoverStats(ADD_STAT add_stat,
+void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
                                     const void* cookie,
                                     const VBucket& vb) {
     LockHolder lh(streamMutex);

@@ -181,7 +181,7 @@ public:
 
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
                                 cb::const_char_buffer key,
-                                ADD_STAT add_stat) override;
+                                const AddStatFn& add_stat) override;
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
 
@@ -456,7 +456,7 @@ public:
     ENGINE_ERROR_CODE getStats(const void* cookie,
                                const char* stat_key,
                                int nkey,
-                               ADD_STAT add_stat);
+                               const AddStatFn& add_stat);
 
     void resetStats();
 
@@ -815,61 +815,80 @@ protected:
 
     bool enableTraffic(bool enable);
 
-    ENGINE_ERROR_CODE doEngineStats(const void *cookie, ADD_STAT add_stat);
-    ENGINE_ERROR_CODE doMemoryStats(const void *cookie, ADD_STAT add_stat);
-    ENGINE_ERROR_CODE doVBucketStats(const void *cookie, ADD_STAT add_stat,
+    ENGINE_ERROR_CODE doEngineStats(const void* cookie,
+                                    const AddStatFn& add_stat);
+    ENGINE_ERROR_CODE doMemoryStats(const void* cookie,
+                                    const AddStatFn& add_stat);
+    ENGINE_ERROR_CODE doVBucketStats(const void* cookie,
+                                     const AddStatFn& add_stat,
                                      const char* stat_key,
                                      int nkey,
                                      bool prevStateRequested,
                                      bool details);
-    ENGINE_ERROR_CODE doHashStats(const void *cookie, ADD_STAT add_stat);
+    ENGINE_ERROR_CODE doHashStats(const void* cookie,
+                                  const AddStatFn& add_stat);
     ENGINE_ERROR_CODE doHashDump(const void* cookie,
-                                 ADD_STAT addStat,
+                                 const AddStatFn& addStat,
                                  cb::const_char_buffer keyArgs);
-    ENGINE_ERROR_CODE doCheckpointStats(const void *cookie, ADD_STAT add_stat,
-                                        const char* stat_key, int nkey);
+    ENGINE_ERROR_CODE doCheckpointStats(const void* cookie,
+                                        const AddStatFn& add_stat,
+                                        const char* stat_key,
+                                        int nkey);
     ENGINE_ERROR_CODE doDurabilityMonitorStats(const void* cookie,
-                                               ADD_STAT add_stat,
+                                               const AddStatFn& add_stat,
                                                const char* stat_key,
                                                int nkey);
     ENGINE_ERROR_CODE doCheckpointDump(const void* cookie,
-                                       ADD_STAT addStat,
+                                       const AddStatFn& addStat,
                                        cb::const_char_buffer keyArgs);
-    ENGINE_ERROR_CODE doDcpStats(const void *cookie, ADD_STAT add_stat);
-    ENGINE_ERROR_CODE doEvictionStats(const void* cookie, ADD_STAT add_stat);
-    ENGINE_ERROR_CODE doConnAggStats(const void *cookie, ADD_STAT add_stat,
-                                     const char *sep, size_t nsep);
-    ENGINE_ERROR_CODE doTimingStats(const void *cookie, ADD_STAT add_stat);
-    ENGINE_ERROR_CODE doSchedulerStats(const void *cookie, ADD_STAT add_stat);
-    ENGINE_ERROR_CODE doRunTimeStats(const void *cookie, ADD_STAT add_stat);
-    ENGINE_ERROR_CODE doDispatcherStats(const void *cookie, ADD_STAT add_stat);
-    ENGINE_ERROR_CODE doTasksStats(const void* cookie, ADD_STAT add_stat);
+    ENGINE_ERROR_CODE doDcpStats(const void* cookie, const AddStatFn& add_stat);
+    ENGINE_ERROR_CODE doEvictionStats(const void* cookie,
+                                      const AddStatFn& add_stat);
+    ENGINE_ERROR_CODE doConnAggStats(const void* cookie,
+                                     const AddStatFn& add_stat,
+                                     const char* sep,
+                                     size_t nsep);
+    ENGINE_ERROR_CODE doTimingStats(const void* cookie,
+                                    const AddStatFn& add_stat);
+    ENGINE_ERROR_CODE doSchedulerStats(const void* cookie,
+                                       const AddStatFn& add_stat);
+    ENGINE_ERROR_CODE doRunTimeStats(const void* cookie,
+                                     const AddStatFn& add_stat);
+    ENGINE_ERROR_CODE doDispatcherStats(const void* cookie,
+                                        const AddStatFn& add_stat);
+    ENGINE_ERROR_CODE doTasksStats(const void* cookie,
+                                   const AddStatFn& add_stat);
     ENGINE_ERROR_CODE doKeyStats(const void* cookie,
-                                 ADD_STAT add_stat,
+                                 const AddStatFn& add_stat,
                                  Vbid vbid,
                                  const DocKey& key,
                                  bool validate = false);
 
     ENGINE_ERROR_CODE doDcpVbTakeoverStats(const void* cookie,
-                                           ADD_STAT add_stat,
+                                           const AddStatFn& add_stat,
                                            std::string& key,
                                            Vbid vbid);
     ENGINE_ERROR_CODE doVbIdFailoverLogStats(const void* cookie,
-                                             ADD_STAT add_stat,
+                                             const AddStatFn& add_stat,
                                              Vbid vbid);
-    ENGINE_ERROR_CODE doAllFailoverLogStats(const void *cookie, ADD_STAT add_stat);
-    ENGINE_ERROR_CODE doWorkloadStats(const void *cookie, ADD_STAT add_stat);
-    ENGINE_ERROR_CODE doSeqnoStats(const void *cookie, ADD_STAT add_stat,
-                                   const char* stat_key, int nkey);
-    void addSeqnoVbStats(const void *cookie, ADD_STAT add_stat,
-                                  const VBucketPtr &vb);
+    ENGINE_ERROR_CODE doAllFailoverLogStats(const void* cookie,
+                                            const AddStatFn& add_stat);
+    ENGINE_ERROR_CODE doWorkloadStats(const void* cookie,
+                                      const AddStatFn& add_stat);
+    ENGINE_ERROR_CODE doSeqnoStats(const void* cookie,
+                                   const AddStatFn& add_stat,
+                                   const char* stat_key,
+                                   int nkey);
+    void addSeqnoVbStats(const void* cookie,
+                         const AddStatFn& add_stat,
+                         const VBucketPtr& vb);
 
     ENGINE_ERROR_CODE doCollectionStats(const void* cookie,
-                                        ADD_STAT add_stat,
+                                        const AddStatFn& add_stat,
                                         const std::string& statKey);
 
     ENGINE_ERROR_CODE doScopeStats(const void* cookie,
-                                   ADD_STAT add_stat,
+                                   const AddStatFn& add_stat,
                                    const std::string& statKey);
 
     void addLookupResult(const void* cookie, std::unique_ptr<Item> result);

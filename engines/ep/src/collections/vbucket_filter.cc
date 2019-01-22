@@ -349,7 +349,7 @@ bool Filter::processScopeEvent(const Item& item) {
     return false;
 }
 
-void Filter::addStats(ADD_STAT add_stat,
+void Filter::addStats(const AddStatFn& add_stat,
                       const void* c,
                       const std::string& prefix,
                       Vbid vb) const {

@@ -88,9 +88,14 @@ void slabs_free(struct default_engine *engine, void *ptr, size_t size, unsigned 
 void slabs_adjust_mem_requested(struct default_engine *engine, unsigned int id, size_t old, size_t ntotal);
 
 /** Fill buffer with stats */ /*@null@*/
-void slabs_stats(struct default_engine *engine, ADD_STAT add_stats, const void *c);
+void slabs_stats(struct default_engine* engine,
+                 const AddStatFn& add_stats,
+                 const void* c);
 
-void add_statistics(const void *cookie, ADD_STAT add_stats,
-                    const char *prefix, int num, const char *key,
-                    const char *fmt, ...);
-
+void add_statistics(const void* cookie,
+                    const AddStatFn& add_stats,
+                    const char* prefix,
+                    int num,
+                    const char* key,
+                    const char* fmt,
+                    ...);

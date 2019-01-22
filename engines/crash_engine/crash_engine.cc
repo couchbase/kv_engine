@@ -113,7 +113,7 @@ public:
 
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
                                 cb::const_char_buffer key,
-                                ADD_STAT add_stat) override;
+                                const AddStatFn& add_stat) override;
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
 
@@ -269,7 +269,7 @@ ENGINE_ERROR_CODE CrashEngine::unlock(gsl::not_null<const void*> cookie,
 
 ENGINE_ERROR_CODE CrashEngine::get_stats(gsl::not_null<const void*> cookie,
                                          cb::const_char_buffer key,
-                                         ADD_STAT add_stat) {
+                                         const AddStatFn& add_stat) {
     return ENGINE_FAILED;
 }
 

@@ -60,7 +60,7 @@ public:
 
     /// Outputs statistics related to this task via the given callback.
     void addStats(const std::string& name,
-                  ADD_STAT add_stat,
+                  const AddStatFn& add_stat,
                   const void* c) const;
 
 private:

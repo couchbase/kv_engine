@@ -44,7 +44,7 @@ void StatTest::SetUp() {
 }
 
 std::map<std::string, std::string> StatTest::get_stat(const char* statkey) {
-    // Define a lambda to use as the ADD_STAT callback. Note we cannot use
+    // Define a lambda to use as the AddStatFn callback. Note we cannot use
     // a capture for the statistics map (as it's a C-style callback), so
     // instead pass via the cookie.
     struct StatMap : cb::tracing::Traceable {

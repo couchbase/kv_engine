@@ -129,7 +129,8 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
     }
 }
 
-void DcpProducer::BufferLog::addStats(ADD_STAT add_stat, const void *c) {
+void DcpProducer::BufferLog::addStats(const AddStatFn& add_stat,
+                                      const void* c) {
     ReaderLockHolder rlh(logLock);
     if (isEnabled_UNLOCKED()) {
         producer.addStat("max_buffer_bytes", maxBytes, add_stat, c);
@@ -1185,7 +1186,7 @@ void DcpProducer::scheduleBackfillManager(VBucket& vb,
     backfillMgr->schedule(vb, s, start, end);
 }
 
-void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
+void DcpProducer::addStats(const AddStatFn& add_stat, const void* c) {
     ConnHandler::addStats(add_stat, c);
 
     addStat("items_sent", getItemsSent(), add_stat, c);
@@ -1252,7 +1253,7 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("num_streams", valid_streams.size(), add_stat, c);
 }
 
-void DcpProducer::addTakeoverStats(ADD_STAT add_stat,
+void DcpProducer::addTakeoverStats(const AddStatFn& add_stat,
                                    const void* c,
                                    const VBucket& vb) {
     // Only do takeover stats on 'traditional' streams

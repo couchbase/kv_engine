@@ -66,7 +66,7 @@ public:
      * @param add_stats a callback function to add information to the response
      * @param cookie the cookie representing the command
      */
-    virtual void stats(ADD_STAT add_stats,
+    virtual void stats(const AddStatFn& add_stats,
                        gsl::not_null<const void*> cookie) = 0;
 
     /**

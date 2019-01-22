@@ -133,8 +133,9 @@ public:
 
     void unregisterTaskable(Taskable& taskable, bool force);
 
-    void doWorkerStat(EventuallyPersistentEngine *engine, const void *cookie,
-                      ADD_STAT add_stat);
+    void doWorkerStat(EventuallyPersistentEngine* engine,
+                      const void* cookie,
+                      const AddStatFn& add_stat);
 
     /**
      * Generates stats regarding currently running tasks, as displayed by
@@ -142,10 +143,11 @@ public:
      */
     void doTasksStat(EventuallyPersistentEngine* engine,
                      const void* cookie,
-                     ADD_STAT add_stat);
+                     const AddStatFn& add_stat);
 
-    void doTaskQStat(EventuallyPersistentEngine *engine, const void *cookie,
-                     ADD_STAT add_stat);
+    void doTaskQStat(EventuallyPersistentEngine* engine,
+                     const void* cookie,
+                     const AddStatFn& add_stat);
 
     size_t getNumWorkersStat(void) {
         LockHolder lh(tMutex);

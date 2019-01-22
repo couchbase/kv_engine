@@ -610,7 +610,9 @@ public:
      */
     virtual bool areDeletedItemsAlwaysResident() const = 0;
 
-    virtual void addStats(bool details, ADD_STAT add_stat, const void* c) = 0;
+    virtual void addStats(bool details,
+                          const AddStatFn& add_stat,
+                          const void* c) = 0;
 
     /**
      * Output DurabiltyMonitor stats.
@@ -618,7 +620,8 @@ public:
      * @param addStat the callback to memcached
      * @param cookie
      */
-    void addDurabilityMonitorStats(ADD_STAT addStat, const void* cookie) const;
+    void addDurabilityMonitorStats(const AddStatFn& addStat,
+                                   const void* cookie) const;
 
     virtual KVShard* getShard() = 0;
 
@@ -1666,12 +1669,12 @@ protected:
             UseActiveVBMemThreshold useActiveVBMemThrehsold =
                     UseActiveVBMemThreshold::No);
 
-    void _addStats(bool details, ADD_STAT add_stat, const void* c);
+    void _addStats(bool details, const AddStatFn& add_stat, const void* c);
 
     template <typename T>
     void addStat(const char* nm,
                  const T& val,
-                 ADD_STAT add_stat,
+                 const AddStatFn& add_stat,
                  const void* c);
 
     /* This member holds the eviction policy used */

@@ -997,7 +997,7 @@ uint64_t Manifest::getPersistedHighSeqno(CollectionID collection) const {
 
 bool Manifest::addCollectionStats(Vbid vbid,
                                   const void* cookie,
-                                  ADD_STAT add_stat) const {
+                                  const AddStatFn& add_stat) const {
     try {
         const int bsize = 512;
         char buffer[bsize];
@@ -1031,7 +1031,7 @@ bool Manifest::addCollectionStats(Vbid vbid,
 
 bool Manifest::addScopeStats(Vbid vbid,
                              const void* cookie,
-                             ADD_STAT add_stat) const {
+                             const AddStatFn& add_stat) const {
     const int bsize = 512;
     char buffer[bsize];
     try {

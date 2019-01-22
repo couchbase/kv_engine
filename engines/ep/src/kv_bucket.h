@@ -191,7 +191,7 @@ public:
     void snapshotStats() override;
 
     void getAggregatedVBucketStats(const void* cookie,
-                                   ADD_STAT add_stat) override;
+                                   const AddStatFn& add_stat) override;
 
     void completeBGFetchMulti(Vbid vbId,
                               std::vector<bgfetched_item_t>& fetchedItems,
@@ -523,9 +523,11 @@ public:
      */
     void checkAndMaybeFreeMemory();
 
-    void addKVStoreStats(ADD_STAT add_stat, const void* cookie) override;
+    void addKVStoreStats(const AddStatFn& add_stat,
+                         const void* cookie) override;
 
-    void addKVStoreTimingStats(ADD_STAT add_stat, const void* cookie) override;
+    void addKVStoreTimingStats(const AddStatFn& add_stat,
+                               const void* cookie) override;
 
     bool getKVStoreStat(const char* name, size_t& value,
                         KVSOption option) override;
@@ -717,7 +719,7 @@ protected:
                                               VBucketCountVisitor& pending,
                                               VBucketCountVisitor& dead,
                                               const void* cookie,
-                                              ADD_STAT add_stat);
+                                              const AddStatFn& add_stat);
 
     /**
      * Returns the callback function to be invoked when a SyncWrite is

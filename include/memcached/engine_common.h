@@ -3,6 +3,7 @@
 
 #include <mcbp/protocol/status.h>
 #include <stdint.h>
+#include <functional>
 #include <gsl/gsl>
 
 struct EngineIface;
@@ -16,11 +17,11 @@ struct EngineIface;
  * @param vlen length of the value
  * @param cookie magic callback cookie
  */
-typedef void (*ADD_STAT)(const char* key,
-                         const uint16_t klen,
-                         const char* val,
-                         const uint32_t vlen,
-                         gsl::not_null<const void*> cookie);
+using AddStatFn = std::function<void(const char* key,
+                                     const uint16_t klen,
+                                     const char* val,
+                                     const uint32_t vlen,
+                                     gsl::not_null<const void*> cookie)>;
 
 /**
  * Callback for adding a response backet

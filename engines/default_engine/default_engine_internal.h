@@ -172,7 +172,7 @@ struct default_engine : public EngineIface {
 
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
                                 cb::const_char_buffer key,
-                                ADD_STAT add_stat) override;
+                                const AddStatFn& add_stat) override;
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
 

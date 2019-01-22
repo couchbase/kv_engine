@@ -145,7 +145,7 @@ void NotifierStream::transitionState(StreamState newState) {
     state_ = newState;
 }
 
-void NotifierStream::addStats(ADD_STAT add_stat, const void* c) {
+void NotifierStream::addStats(const AddStatFn& add_stat, const void* c) {
     Stream::addStats(add_stat, c);
 }
 

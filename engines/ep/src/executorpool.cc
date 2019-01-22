@@ -709,8 +709,9 @@ void ExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
     _unregisterTaskable(taskable, force);
 }
 
-void ExecutorPool::doTaskQStat(EventuallyPersistentEngine *engine,
-                               const void *cookie, ADD_STAT add_stat) {
+void ExecutorPool::doTaskQStat(EventuallyPersistentEngine* engine,
+                               const void* cookie,
+                               const AddStatFn& add_stat) {
     if (engine->getEpStats().isShutdown) {
         return;
     }
@@ -770,8 +771,10 @@ void ExecutorPool::doTaskQStat(EventuallyPersistentEngine *engine,
     }
 }
 
-static void addWorkerStats(const char *prefix, ExecutorThread *t,
-                           const void *cookie, ADD_STAT add_stat) {
+static void addWorkerStats(const char* prefix,
+                           ExecutorThread* t,
+                           const void* cookie,
+                           const AddStatFn& add_stat) {
     char statname[80] = {0};
 
     try {
@@ -805,8 +808,9 @@ static void addWorkerStats(const char *prefix, ExecutorThread *t,
     }
 }
 
-void ExecutorPool::doWorkerStat(EventuallyPersistentEngine *engine,
-                               const void *cookie, ADD_STAT add_stat) {
+void ExecutorPool::doWorkerStat(EventuallyPersistentEngine* engine,
+                                const void* cookie,
+                                const AddStatFn& add_stat) {
     if (engine->getEpStats().isShutdown) {
         return;
     }
@@ -822,7 +826,7 @@ void ExecutorPool::doWorkerStat(EventuallyPersistentEngine *engine,
 
 void ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
                                const void* cookie,
-                               ADD_STAT add_stat) {
+                               const AddStatFn& add_stat) {
     if (engine->getEpStats().isShutdown) {
         return;
     }

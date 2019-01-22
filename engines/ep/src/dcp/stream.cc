@@ -189,7 +189,7 @@ uint64_t Stream::getReadyQueueMemory() {
     return readyQueueMemory.load(std::memory_order_relaxed);
 }
 
-void Stream::addStats(ADD_STAT add_stat, const void *c) {
+void Stream::addStats(const AddStatFn& add_stat, const void* c) {
     try {
         const int bsize = 1024;
         char buffer[bsize];

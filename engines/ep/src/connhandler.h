@@ -249,7 +249,10 @@ public:
     virtual const char *getType() const = 0;
 
     template <typename T>
-    void addStat(const char *nm, const T &val, ADD_STAT add_stat, const void *c) const {
+    void addStat(const char* nm,
+                 const T& val,
+                 const AddStatFn& add_stat,
+                 const void* c) const {
         std::stringstream tap;
         tap << name << ":" << nm;
         std::stringstream value;
@@ -258,11 +261,14 @@ public:
         add_casted_stat(n.data(), value.str().data(), add_stat, c);
     }
 
-    void addStat(const char *nm, bool val, ADD_STAT add_stat, const void *c) const {
+    void addStat(const char* nm,
+                 bool val,
+                 const AddStatFn& add_stat,
+                 const void* c) const {
         addStat(nm, val ? "true" : "false", add_stat, c);
     }
 
-    virtual void addStats(ADD_STAT add_stat, const void* c);
+    virtual void addStats(const AddStatFn& add_stat, const void* c);
 
     virtual void aggregateQueueStats(ConnCounter& stats_aggregator) {
         // Empty

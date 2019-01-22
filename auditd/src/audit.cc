@@ -388,7 +388,8 @@ void AuditImpl::notify_io_complete(gsl::not_null<const void*> cookie,
     cookie_api->notify_io_complete(cookie, status);
 }
 
-void AuditImpl::stats(ADD_STAT add_stats, gsl::not_null<const void*> cookie) {
+void AuditImpl::stats(const AddStatFn& add_stats,
+                      gsl::not_null<const void*> cookie) {
     const auto* enabled = config.is_auditd_enabled() ? "true" : "false";
     add_stats("enabled",
               (uint16_t)strlen("enabled"),
