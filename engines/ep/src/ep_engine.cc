@@ -2522,7 +2522,12 @@ bool EventuallyPersistentEngine::hasMemoryForItemAllocation(
 
 bool EventuallyPersistentEngine::enableTraffic(bool enable) {
     bool inverse = !enable;
-    return trafficEnabled.compare_exchange_strong(inverse, enable);
+    bool bTrafficEnabled =
+            trafficEnabled.compare_exchange_strong(inverse, enable);
+    if (bTrafficEnabled) {
+        EP_LOG_INFO("EventuallyPersistentEngine::enableTraffic() result true");
+    }
+    return bTrafficEnabled;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
@@ -5176,6 +5181,9 @@ EventuallyPersistentEngine::handleTrafficControlCmd(
             return ENGINE_ENOMEM;
         } else {
             if (enableTraffic(true)) {
+                EP_LOG_INFO(
+                        "EventuallyPersistentEngine::handleTrafficControlCmd() "
+                        "Data traffic to persistence engine is enabled");
                 setErrorContext(
                         cookie,
                         "Data traffic to persistence engine is enabled");
@@ -5635,7 +5643,23 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
                  cb::mcbp::request::DcpOpenPayload::Notifier)) {
         handler = dcpConnMap_->newProducer(cookie, connName, flags);
     } else {
-        handler = dcpConnMap_->newConsumer(cookie, connName);
+        if (!kvBucket->isWarmingUp()) { // dont accept dcp consumer open
+                                        // requests during warm up
+            handler = dcpConnMap_->newConsumer(cookie, connName);
+            EP_LOG_INFO(
+                    "EventuallyPersistentEngine::dcpOpen: opening new DCP "
+                    "Consumer handler - stream name:{}, opaque:{}, seqno:{}, "
+                    "flags:0b{}",
+                    connName,
+                    opaque,
+                    seqno,
+                    std::bitset<sizeof(flags) * 8>(flags).to_string());
+        } else {
+            EP_LOG_WARN(
+                    "EventuallyPersistentEngine::dcpOpen: not opening new DCP "
+                    "Consumer handler as EPEngine is still warming up");
+            return ENGINE_TMPFAIL;
+        }
     }
 
     if (handler == nullptr) {
