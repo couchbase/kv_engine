@@ -804,7 +804,9 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
         std::unique_lock<std::mutex>& vbset,
         WriterLockHolder* vbStateLock) {
     VBucketPtr vb = vbMap.getBucket(vbid);
-    if (vb && to == vb->getState()) {
+    // Return success immediately if the new state is the same as the old,
+    // and no extra metadata was included.
+    if (vb && to == vb->getState() && meta.empty()) {
         return ENGINE_SUCCESS;
     }
 
