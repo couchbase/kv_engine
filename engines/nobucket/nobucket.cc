@@ -169,7 +169,7 @@ public:
 
     ENGINE_ERROR_CODE unknown_command(const void*,
                                       const cb::mcbp::Request& request,
-                                      ADD_RESPONSE) override {
+                                      const AddResponseFn&) override {
         return ENGINE_NO_BUCKET;
     }
 
@@ -428,7 +428,7 @@ private:
     static cb::engine_errc collections_get_manifest(
             gsl::not_null<EngineIface*> handle,
             gsl::not_null<const void*> cookie,
-            ADD_RESPONSE response) {
+            const AddResponseFn& response) {
         return cb::engine_errc::no_bucket;
     }
 

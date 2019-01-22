@@ -35,7 +35,8 @@
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
 
-ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie, ADD_RESPONSE response);
+ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie,
+                                         const AddResponseFn& response);
 
 void bucket_item_set_cas(Connection& c, gsl::not_null<item*> it, uint64_t cas);
 

@@ -106,7 +106,7 @@ static inline EPHandle acquireEngine(EngineIface* handle) {
  * Call the response callback and return the appropriate value so that
  * the core knows what to do..
  */
-static ENGINE_ERROR_CODE sendResponse(ADD_RESPONSE response,
+static ENGINE_ERROR_CODE sendResponse(const AddResponseFn& response,
                                       const void* key,
                                       uint16_t keylen,
                                       const void* ext,
@@ -768,7 +768,7 @@ cb::mcbp::Status EventuallyPersistentEngine::setParam(
 static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine* e,
                                     const void* cookie,
                                     const cb::mcbp::Request& request,
-                                    ADD_RESPONSE response) {
+                                    const AddResponseFn& response) {
     Vbid vbucket = request.getVBucket();
     VBucketPtr vb = e->getVBucket(vbucket);
     if (!vb) {
@@ -792,7 +792,7 @@ static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine* e,
 static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine* e,
                                     const void* cookie,
                                     const cb::mcbp::Request& request,
-                                    ADD_RESPONSE response) {
+                                    const AddResponseFn& response) {
     nlohmann::json meta;
     vbucket_state_t state;
     auto extras = request.getExtdata();
@@ -842,7 +842,7 @@ static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine* e,
 static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
                                     const void* cookie,
                                     const cb::mcbp::Request& req,
-                                    ADD_RESPONSE response) {
+                                    const AddResponseFn& response) {
     Vbid vbucket = req.getVBucket();
     auto value = req.getValue();
     bool sync = value.size() == 7 && memcmp(value.data(), "async=0", 7) == 0;
@@ -909,7 +909,7 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
         const cb::mcbp::Request& request,
-        ADD_RESPONSE response,
+        const AddResponseFn& response,
         const void* cookie) {
     DocKey key = makeDocKey(cookie, request.getKey());
 
@@ -947,7 +947,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
 static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
                                    const void* cookie,
                                    const cb::mcbp::Request& req,
-                                   ADD_RESPONSE response) {
+                                   const AddResponseFn& response) {
     const auto res = cb::mcbp::Status::Success;
     CompactionConfig compactionConfig;
     uint64_t cas = req.getCas();
@@ -1034,7 +1034,7 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
 static ENGINE_ERROR_CODE processUnknownCommand(EventuallyPersistentEngine* h,
                                                const void* cookie,
                                                const cb::mcbp::Request& request,
-                                               ADD_RESPONSE response) {
+                                               const AddResponseFn& response) {
     auto res = cb::mcbp::Status::UnknownCommand;
     std::string dynamic_msg;
     const char* msg = nullptr;
@@ -1176,7 +1176,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(EventuallyPersistentEngine* h,
 ENGINE_ERROR_CODE EventuallyPersistentEngine::unknown_command(
         const void* cookie,
         const cb::mcbp::Request& request,
-        ADD_RESPONSE response) {
+        const AddResponseFn& response) {
     auto engine = acquireEngine(this);
     auto ret = processUnknownCommand(engine.get(), cookie, request, response);
     return ret;
@@ -1730,7 +1730,7 @@ static cb::engine_errc EvpCollectionsSetManifest(
 static cb::engine_errc EvpCollectionsGetManifest(
         gsl::not_null<EngineIface*> handle,
         gsl::not_null<const void*> cookie,
-        ADD_RESPONSE response) {
+        const AddResponseFn& response) {
     auto engine = acquireEngine(handle);
     auto rv = engine->getKVBucket()->getCollections();
     return cb::engine_errc(sendResponse(response,
@@ -4247,7 +4247,7 @@ void EventuallyPersistentEngine::resetStats() {
 ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         const void* cookie,
         const cb::mcbp::Request& req,
-        ADD_RESPONSE response) {
+        const AddResponseFn& response) {
     size_t offset = 0;
 
     const auto value = req.getValue();
@@ -4347,7 +4347,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
         const void* cookie,
         const cb::mcbp::Request& request,
-        ADD_RESPONSE response) {
+        const AddResponseFn& response) {
     Vbid vb_id = request.getVBucket();
     auto value = request.getValue();
     uint64_t vb_uuid = static_cast<uint64_t>(
@@ -4426,7 +4426,7 @@ VBucketPtr EventuallyPersistentEngine::getVBucket(Vbid vbucket) {
 ENGINE_ERROR_CODE EventuallyPersistentEngine::handleLastClosedCheckpoint(
         const void* cookie,
         const cb::mcbp::Request& request,
-        ADD_RESPONSE response) {
+        const AddResponseFn& response) {
     VBucketPtr vb = getVBucket(request.getVBucket());
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -4450,7 +4450,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleLastClosedCheckpoint(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::handleCreateCheckpoint(
         const void* cookie,
         const cb::mcbp::Request& req,
-        ADD_RESPONSE response) {
+        const AddResponseFn& response) {
     VBucketPtr vb = getVBucket(req.getVBucket());
 
     if (!vb || vb->getState() != vbucket_state_active) {
@@ -4500,7 +4500,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleCreateCheckpoint(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::handleCheckpointPersistence(
         const void* cookie,
         const cb::mcbp::Request& request,
-        ADD_RESPONSE response) {
+        const AddResponseFn& response) {
     auto vbucket = request.getVBucket();
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
@@ -4572,7 +4572,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleCheckpointPersistence(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::handleSeqnoPersistence(
         const void* cookie,
         const cb::mcbp::Request& req,
-        ADD_RESPONSE response) {
+        const AddResponseFn& response) {
     const Vbid vbucket = req.getVBucket();
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
@@ -4775,7 +4775,7 @@ DocKey EventuallyPersistentEngine::makeDocKey(const void* cookie,
 ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
         const void* cookie,
         const cb::mcbp::Request& request,
-        ADD_RESPONSE response) {
+        const AddResponseFn& response) {
     if (isDegradedMode()) {
         return ENGINE_TMPFAIL;
     }
@@ -4982,7 +4982,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
         const void* cookie,
         const cb::mcbp::Request& request,
-        ADD_RESPONSE response) {
+        const AddResponseFn& response) {
     if (isDegradedMode()) {
         return ENGINE_TMPFAIL;
     }
@@ -5120,7 +5120,7 @@ ENGINE_ERROR_CODE
 EventuallyPersistentEngine::handleTrafficControlCmd(
         const void* cookie,
         const cb::mcbp::Request& request,
-        ADD_RESPONSE response) {
+        const AddResponseFn& response) {
     switch (request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::EnableTraffic:
         if (kvBucket->isWarmingUp()) {
@@ -5245,7 +5245,7 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void* cookie,
 ENGINE_ERROR_CODE
 EventuallyPersistentEngine::returnMeta(const void* cookie,
                                        const cb::mcbp::Request& req,
-                                       ADD_RESPONSE response) {
+                                       const AddResponseFn& response) {
     using cb::mcbp::request::ReturnMetaPayload;
     using cb::mcbp::request::ReturnMetaType;
 
@@ -5401,7 +5401,7 @@ class FetchAllKeysTask : public GlobalTask {
 public:
     FetchAllKeysTask(EventuallyPersistentEngine* e,
                      const void* c,
-                     ADD_RESPONSE resp,
+                     const AddResponseFn& resp,
                      const DocKey start_key_,
                      Vbid vbucket,
                      uint32_t count_,
@@ -5473,7 +5473,7 @@ private:
     EventuallyPersistentEngine *engine;
     const void *cookie;
     const std::string description;
-    ADD_RESPONSE response;
+    AddResponseFn response;
     StoredDocKey start_key;
     Vbid vbid;
     uint32_t count;
@@ -5483,7 +5483,7 @@ private:
 ENGINE_ERROR_CODE
 EventuallyPersistentEngine::getAllKeys(const void* cookie,
                                        const cb::mcbp::Request& request,
-                                       ADD_RESPONSE response) {
+                                       const AddResponseFn& response) {
     if (!getKVBucket()->isGetAllKeysSupported()) {
         return ENGINE_ENOTSUP;
     }
@@ -5551,8 +5551,8 @@ void EventuallyPersistentEngine::notifyIOComplete(const void* cookie,
     }
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(const void *cookie,
-                                                       ADD_RESPONSE response) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(
+        const void* cookie, const AddResponseFn& response) {
     GetValue gv(kvBucket->getRandomKey());
     ENGINE_ERROR_CODE ret = gv.getStatus();
 
@@ -5708,7 +5708,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::compactDB(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
         const void* cookie,
         const cb::mcbp::Request& request,
-        ADD_RESPONSE response) {
+        const AddResponseFn& response) {
     static_assert(sizeof(vbucket_state_t) == 4,
                   "Unexpected size for vbucket_state_t");
     auto extras = request.getExtdata();
@@ -5803,7 +5803,7 @@ void EventuallyPersistentEngine::updateDcpMinCompressionRatio(float value) {
  * the core knows what to do..
  */
 ENGINE_ERROR_CODE EventuallyPersistentEngine::sendErrorResponse(
-        ADD_RESPONSE response,
+        const AddResponseFn& response,
         cb::mcbp::Status status,
         uint64_t cas,
         const void* cookie) {
@@ -5822,7 +5822,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sendErrorResponse(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::sendMutationExtras(
-        ADD_RESPONSE response,
+        const AddResponseFn& response,
         Vbid vbucket,
         uint64_t bySeqno,
         cb::mcbp::Status status,
@@ -5867,7 +5867,7 @@ std::unique_ptr<KVBucket> EventuallyPersistentEngine::makeBucket(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::setVBucketState(
         const void* cookie,
-        ADD_RESPONSE response,
+        const AddResponseFn& response,
         Vbid vbid,
         vbucket_state_t to,
         const nlohmann::json& meta,

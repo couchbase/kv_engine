@@ -545,7 +545,7 @@ public:
      */
     ENGINE_ERROR_CODE unknown_command(const void* cookie,
                                       const cb::mcbp::Request& req,
-                                      ADD_RESPONSE response) override {
+                                      const AddResponseFn& response) override {
         const auto opcode = req.getClientOpcode();
         if (opcode == cb::mcbp::ClientOpcode::EwouldblockCtl) {
             using cb::mcbp::request::EWB_Payload;
@@ -952,7 +952,7 @@ protected:
     ENGINE_ERROR_CODE handleBlockMonitorFile(const void* cookie,
                                              uint32_t id,
                                              const std::string& file,
-                                             ADD_RESPONSE response);
+                                             const AddResponseFn& response);
 
     /**
      * Handle the control message for suspend
@@ -966,7 +966,7 @@ protected:
      */
     ENGINE_ERROR_CODE handleSuspend(const void* cookie,
                                     uint32_t id,
-                                    ADD_RESPONSE response);
+                                    const AddResponseFn& response);
 
     /**
      * Handle the control message for resume
@@ -978,7 +978,7 @@ protected:
      */
     ENGINE_ERROR_CODE handleResume(const void* cookie,
                                    uint32_t id,
-                                   ADD_RESPONSE response);
+                                   const AddResponseFn& response);
 
     /**
      * @param cookie the cookie executing the operation
@@ -987,9 +987,10 @@ protected:
      * @param response Response callback used to send a response to the client
      * @return Standard engine error codes
      */
-    ENGINE_ERROR_CODE setItemCas(const void *cookie,
-                                 const std::string& key, uint32_t cas,
-                                 ADD_RESPONSE response);
+    ENGINE_ERROR_CODE setItemCas(const void* cookie,
+                                 const std::string& key,
+                                 uint32_t cas,
+                                 const AddResponseFn& response);
 
 private:
     // Shared state between the main thread of execution and the background
@@ -1008,7 +1009,7 @@ private:
     static cb::engine_errc collections_get_manifest(
             gsl::not_null<EngineIface*> handle,
             gsl::not_null<const void*> cookie,
-            ADD_RESPONSE response);
+            const AddResponseFn& response);
 
     static cb::EngineErrorGetCollectionIDResult collections_get_collection_id(
             gsl::not_null<EngineIface*> handle,
@@ -1790,7 +1791,7 @@ cb::engine_errc EWB_Engine::collections_set_manifest(
 cb::engine_errc EWB_Engine::collections_get_manifest(
         gsl::not_null<EngineIface*> handle,
         gsl::not_null<const void*> cookie,
-        ADD_RESPONSE response) {
+        const AddResponseFn& response) {
     EWB_Engine* ewb = to_engine(handle);
     if (ewb->real_engine->collections.get_manifest == nullptr) {
         return cb::engine_errc::not_supported;
@@ -1890,10 +1891,11 @@ void NotificationThread::run() {
     engine.process_notifications();
 }
 
-ENGINE_ERROR_CODE EWB_Engine::handleBlockMonitorFile(const void* cookie,
-                                                     uint32_t id,
-                                                     const std::string& file,
-                                                     ADD_RESPONSE response) {
+ENGINE_ERROR_CODE EWB_Engine::handleBlockMonitorFile(
+        const void* cookie,
+        uint32_t id,
+        const std::string& file,
+        const AddResponseFn& response) {
     if (file.empty()) {
         return ENGINE_EINVAL;
     }
@@ -1947,7 +1949,7 @@ ENGINE_ERROR_CODE EWB_Engine::handleBlockMonitorFile(const void* cookie,
 
 ENGINE_ERROR_CODE EWB_Engine::handleSuspend(const void* cookie,
                                             uint32_t id,
-                                            ADD_RESPONSE response) {
+                                            const AddResponseFn& response) {
     if (suspend(cookie, id)) {
         LOG_DEBUG("Registered connection {} as {} to be suspended", cookie, id);
         response(nullptr,
@@ -1968,8 +1970,9 @@ ENGINE_ERROR_CODE EWB_Engine::handleSuspend(const void* cookie,
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::handleResume(const void* cookie, uint32_t id,
-                                           ADD_RESPONSE response) {
+ENGINE_ERROR_CODE EWB_Engine::handleResume(const void* cookie,
+                                           uint32_t id,
+                                           const AddResponseFn& response) {
     if (resume(id)) {
         LOG_DEBUG("Connection with id {} will be resumed", id);
         response(nullptr,
@@ -1992,10 +1995,10 @@ ENGINE_ERROR_CODE EWB_Engine::handleResume(const void* cookie, uint32_t id,
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::setItemCas(const void *cookie,
+ENGINE_ERROR_CODE EWB_Engine::setItemCas(const void* cookie,
                                          const std::string& key,
                                          uint32_t cas,
-                                         ADD_RESPONSE response) {
+                                         const AddResponseFn& response) {
     uint64_t cas64 = cas;
     if (cas == static_cast<uint32_t>(-1)) {
         cas64 = LOCKED_CAS;

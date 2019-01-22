@@ -68,7 +68,7 @@ struct collections_interface {
      */
     cb::engine_errc (*get_manifest)(gsl::not_null<EngineIface*> handle,
                                     gsl::not_null<const void*> cookie,
-                                    ADD_RESPONSE response);
+                                    const AddResponseFn& response);
 
     cb::EngineErrorGetCollectionIDResult (*get_collection_id)(
             gsl::not_null<EngineIface*> handle,

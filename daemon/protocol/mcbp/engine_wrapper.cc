@@ -26,7 +26,7 @@
 #include <tracing/trace_helpers.h>
 
 ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie,
-                                         ADD_RESPONSE response) {
+                                         const AddResponseFn& response) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->unknown_command(
             &cookie, cookie.getRequest(Cookie::PacketContent::Full), response);

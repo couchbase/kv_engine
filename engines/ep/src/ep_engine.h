@@ -187,7 +187,7 @@ public:
 
     ENGINE_ERROR_CODE unknown_command(const void* cookie,
                                       const cb::mcbp::Request& request,
-                                      ADD_RESPONSE response) override;
+                                      const AddResponseFn& response) override;
 
     void item_set_cas(gsl::not_null<item*> item, uint64_t cas) override;
 
@@ -488,19 +488,19 @@ public:
 
     ENGINE_ERROR_CODE setWithMeta(const void* cookie,
                                   const cb::mcbp::Request& request,
-                                  ADD_RESPONSE response);
+                                  const AddResponseFn& response);
 
     ENGINE_ERROR_CODE deleteWithMeta(const void* cookie,
                                      const cb::mcbp::Request& request,
-                                     ADD_RESPONSE response);
+                                     const AddResponseFn& response);
 
     ENGINE_ERROR_CODE returnMeta(const void* cookie,
                                  const cb::mcbp::Request& req,
-                                 ADD_RESPONSE response);
+                                 const AddResponseFn& response);
 
     ENGINE_ERROR_CODE getAllKeys(const void* cookie,
                                  const cb::mcbp::Request& request,
-                                 ADD_RESPONSE response);
+                                 const AddResponseFn& response);
 
     CONN_PRIORITY getDCPPriority(const void* cookie);
 
@@ -557,16 +557,16 @@ public:
 
     ENGINE_ERROR_CODE observe(const void* cookie,
                               const cb::mcbp::Request& request,
-                              ADD_RESPONSE response);
+                              const AddResponseFn& response);
 
     ENGINE_ERROR_CODE observe_seqno(const void* cookie,
                                     const cb::mcbp::Request& request,
-                                    ADD_RESPONSE response);
+                                    const AddResponseFn& response);
 
     VBucketPtr getVBucket(Vbid vbucket);
 
     ENGINE_ERROR_CODE setVBucketState(const void* cookie,
-                                      ADD_RESPONSE response,
+                                      const AddResponseFn& response,
                                       Vbid vbid,
                                       vbucket_state_t to,
                                       const nlohmann::json& meta,
@@ -597,7 +597,7 @@ public:
                                      std::string& msg);
 
     ENGINE_ERROR_CODE getReplicaCmd(const cb::mcbp::Request& request,
-                                    ADD_RESPONSE response,
+                                    const AddResponseFn& response,
                                     const void* cookie);
 
     ~EventuallyPersistentEngine();
@@ -640,23 +640,23 @@ public:
     ENGINE_ERROR_CODE handleLastClosedCheckpoint(
             const void* cookie,
             const cb::mcbp::Request& request,
-            ADD_RESPONSE response);
+            const AddResponseFn& response);
     ENGINE_ERROR_CODE handleCreateCheckpoint(const void* cookie,
                                              const cb::mcbp::Request& request,
-                                             ADD_RESPONSE response);
+                                             const AddResponseFn& response);
 
     ENGINE_ERROR_CODE handleCheckpointPersistence(
             const void* cookie,
             const cb::mcbp::Request& request,
-            ADD_RESPONSE response);
+            const AddResponseFn& response);
 
     ENGINE_ERROR_CODE handleSeqnoPersistence(const void* cookie,
                                              const cb::mcbp::Request& req,
-                                             ADD_RESPONSE response);
+                                             const AddResponseFn& response);
 
     ENGINE_ERROR_CODE handleTrafficControlCmd(const void* cookie,
                                               const cb::mcbp::Request& request,
-                                              ADD_RESPONSE response);
+                                              const AddResponseFn& response);
 
     size_t getGetlDefaultTimeout() const {
         return getlDefaultTimeout;
@@ -684,8 +684,8 @@ public:
         workloadPriority = p;
     }
 
-    ENGINE_ERROR_CODE getRandomKey(const void *cookie,
-                                   ADD_RESPONSE response);
+    ENGINE_ERROR_CODE getRandomKey(const void* cookie,
+                                   const AddResponseFn& response);
 
     void setCompressionMode(const std::string& compressModeStr);
 
@@ -734,7 +734,7 @@ public:
     ENGINE_ERROR_CODE getAllVBucketSequenceNumbers(
             const void* cookie,
             const cb::mcbp::Request& request,
-            ADD_RESPONSE response);
+            const AddResponseFn& response);
 
     void updateDcpMinCompressionRatio(float value);
 
@@ -942,7 +942,7 @@ protected:
      *
      * @return status of sending response
      */
-    ENGINE_ERROR_CODE sendErrorResponse(ADD_RESPONSE response,
+    ENGINE_ERROR_CODE sendErrorResponse(const AddResponseFn& response,
                                         cb::mcbp::Status status,
                                         uint64_t cas,
                                         const void* cookie);
@@ -959,7 +959,7 @@ protected:
      * @param cookie conn cookie
      * @returns NMVB if VB can't be located, or the ADD_RESPONSE return code.
      */
-    ENGINE_ERROR_CODE sendMutationExtras(ADD_RESPONSE response,
+    ENGINE_ERROR_CODE sendMutationExtras(const AddResponseFn& response,
                                          Vbid vbucket,
                                          uint64_t bySeqno,
                                          cb::mcbp::Status status,

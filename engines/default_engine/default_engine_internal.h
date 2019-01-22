@@ -178,7 +178,7 @@ struct default_engine : public EngineIface {
 
     ENGINE_ERROR_CODE unknown_command(const void* cookie,
                                       const cb::mcbp::Request& request,
-                                      ADD_RESPONSE response) override;
+                                      const AddResponseFn& response) override;
 
     void item_set_cas(gsl::not_null<item*> item, uint64_t cas) override;
 

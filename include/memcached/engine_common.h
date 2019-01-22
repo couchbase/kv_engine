@@ -39,13 +39,13 @@ using AddStatFn = std::function<void(const char* key,
  * @return true if return message was successfully created, false if an
  *              error occured that prevented the message from being sent
  */
-typedef bool (*ADD_RESPONSE)(const void* key,
-                             uint16_t keylen,
-                             const void* ext,
-                             uint8_t extlen,
-                             const void* body,
-                             uint32_t bodylen,
-                             uint8_t datatype,
-                             cb::mcbp::Status status,
-                             uint64_t cas,
-                             const void* cookie);
+using AddResponseFn = std::function<bool(const void* key,
+                                         uint16_t keylen,
+                                         const void* ext,
+                                         uint8_t extlen,
+                                         const void* body,
+                                         uint32_t bodylen,
+                                         uint8_t datatype,
+                                         cb::mcbp::Status status,
+                                         uint64_t cas,
+                                         const void* cookie)>;

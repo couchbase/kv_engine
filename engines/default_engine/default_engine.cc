@@ -711,7 +711,7 @@ static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
 static bool set_vbucket(struct default_engine* e,
                         const void* cookie,
                         const cb::mcbp::Request& request,
-                        ADD_RESPONSE response) {
+                        const AddResponseFn& response) {
     vbucket_state_t state;
     auto extras = request.getExtdata();
     std::copy(extras.begin(), extras.end(), reinterpret_cast<uint8_t*>(&state));
@@ -733,7 +733,7 @@ static bool set_vbucket(struct default_engine* e,
 static bool get_vbucket(struct default_engine* e,
                         const void* cookie,
                         const cb::mcbp::Request& request,
-                        ADD_RESPONSE response) {
+                        const AddResponseFn& response) {
     vbucket_state_t state;
     state = get_vbucket_state(e, request.getVBucket());
     state = vbucket_state_t(ntohl(state));
@@ -753,7 +753,7 @@ static bool get_vbucket(struct default_engine* e,
 static bool rm_vbucket(struct default_engine* e,
                        const void* cookie,
                        const cb::mcbp::Request& request,
-                       ADD_RESPONSE response) {
+                       const AddResponseFn& response) {
     set_vbucket_state(e, request.getVBucket(), vbucket_state_dead);
     return response(nullptr,
                     0,
@@ -767,9 +767,9 @@ static bool rm_vbucket(struct default_engine* e,
                     cookie);
 }
 
-static bool scrub_cmd(struct default_engine *e,
-                      const void *cookie,
-                      ADD_RESPONSE response) {
+static bool scrub_cmd(struct default_engine* e,
+                      const void* cookie,
+                      const AddResponseFn& response) {
     auto res = cb::mcbp::Status::Success;
     if (!item_start_scrub(e)) {
         res = cb::mcbp::Status::Ebusy;
@@ -794,7 +794,7 @@ static bool scrub_cmd(struct default_engine *e,
 static bool set_param(struct default_engine* e,
                       const void* cookie,
                       const cb::mcbp::Request& request,
-                      ADD_RESPONSE response) {
+                      const AddResponseFn& response) {
     using cb::mcbp::request::SetParamPayload;
     auto extras = request.getExtdata();
     auto* payload = reinterpret_cast<const SetParamPayload*>(extras.data());
@@ -851,7 +851,7 @@ static bool set_param(struct default_engine* e,
 ENGINE_ERROR_CODE default_engine::unknown_command(
         const void* cookie,
         const cb::mcbp::Request& request,
-        ADD_RESPONSE response) {
+        const AddResponseFn& response) {
     bool sent;
 
     switch (request.getClientOpcode()) {

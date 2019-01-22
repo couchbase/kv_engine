@@ -510,7 +510,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      */
     virtual ENGINE_ERROR_CODE unknown_command(const void* cookie,
                                               const cb::mcbp::Request& request,
-                                              ADD_RESPONSE response) {
+                                              const AddResponseFn& response) {
         return ENGINE_ENOTSUP;
     }
 

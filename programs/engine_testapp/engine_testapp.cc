@@ -108,7 +108,7 @@ struct mock_engine : public EngineIface, public DcpIface {
 
     ENGINE_ERROR_CODE unknown_command(const void* cookie,
                                       const cb::mcbp::Request& request,
-                                      ADD_RESPONSE response) override;
+                                      const AddResponseFn& response) override;
 
     void item_set_cas(gsl::not_null<item*> item, uint64_t cas) override;
 
@@ -638,7 +638,7 @@ void mock_engine::reset_stats(gsl::not_null<const void*> cookie) {
 
 ENGINE_ERROR_CODE mock_engine::unknown_command(const void* cookie,
                                                const cb::mcbp::Request& request,
-                                               ADD_RESPONSE response) {
+                                               const AddResponseFn& response) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(&EngineIface::unknown_command,
                                the_engine,
