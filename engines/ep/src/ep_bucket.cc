@@ -20,6 +20,7 @@
 #include "bgfetcher.h"
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
+#include "collections/manager.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "ep_vb.h"
@@ -669,6 +670,14 @@ ENGINE_ERROR_CODE EPBucket::scheduleCompaction(Vbid vbid,
     return ENGINE_EWOULDBLOCK;
 }
 
+ENGINE_ERROR_CODE EPBucket::cancelCompaction(Vbid vbid) {
+    LockHolder lh(compactionLock);
+    for (const auto& task : compactionTasks) {
+        task.second->cancel();
+    }
+    return ENGINE_SUCCESS;
+}
+
 void EPBucket::flushOneDeleteAll() {
     for (auto vbid : vbMap.getBuckets()) {
         auto vb = getLockedVBucket(vbid);
@@ -767,7 +776,8 @@ void EPBucket::compactInternal(const CompactionConfig& config,
 
     EP_LOG_INFO(
             "Compaction of db file id: {} completed ({}). "
-            "tombstones_purged:{}, collection_items_erased:alive:{},deleted{}, "
+            "tombstones_purged:{}, "
+            "collection_items_erased:alive:{},deleted:{}, "
             "pre{{size:{}, items:{}, deleted_items:{}, purge_seqno:{}}}, "
             "post{{size:{}, items:{}, deleted_items:{}, purge_seqno:{}}}",
             config.db_file_id.get(),
@@ -1261,6 +1271,8 @@ void EPBucket::warmupCompleted() {
     ExecutorPool* iom = ExecutorPool::get();
     ExTask task = std::make_shared<StatSnap>(&engine, 0, false);
     statsSnapshotTaskId = iom->schedule(task);
+
+    collectionsManager->warmupCompleted(*this);
 }
 
 void EPBucket::stopWarmup(void) {

@@ -181,6 +181,22 @@ void Collections::Manager::addScopeStats(const void* cookie,
     }
 }
 
+/**
+ * Perform actions for a completed warmup - currently check if any
+ * collections are 'deleting' and require erasing retriggering.
+ */
+void Collections::Manager::warmupCompleted(KVBucket& bucket) const {
+    for (Vbid::id_type i = 0; i < bucket.getVBuckets().getSize(); i++) {
+        Vbid vbid = Vbid(i);
+        auto vb = bucket.getVBuckets().getBucket(vbid);
+        if (vb) {
+            if (vb->lockCollections().isDropInProgress()) {
+                Collections::VB::Flush::triggerPurge(vbid, bucket);
+            }
+        }
+    }
+}
+
 class CollectionCountVBucketVisitor : public VBucketVisitor {
 public:
     void visitBucket(VBucketPtr& vb) override {

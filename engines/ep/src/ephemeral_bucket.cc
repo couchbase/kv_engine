@@ -171,6 +171,10 @@ ENGINE_ERROR_CODE EphemeralBucket::scheduleCompaction(Vbid vbid,
     return ENGINE_ENOTSUP;
 }
 
+ENGINE_ERROR_CODE EphemeralBucket::cancelCompaction(Vbid vbid) {
+    return ENGINE_ENOTSUP;
+}
+
 VBucketPtr EphemeralBucket::makeVBucket(
         Vbid id,
         vbucket_state_t state,

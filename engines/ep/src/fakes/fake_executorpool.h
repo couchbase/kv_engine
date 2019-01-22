@@ -238,6 +238,10 @@ private:
      * Run the task and record if it was rescheduled.
      */
     void run() {
+        if (currentTask->isdead()) {
+            rescheduled = false;
+            return;
+        }
         rescheduled = currentTask->run();
     }
 

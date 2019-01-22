@@ -922,6 +922,10 @@ void Manifest::trackEndSeqno(int64_t seqno) {
     }
 }
 
+bool Manifest::isDropInProgress() const {
+    return nDeletingCollections > 0;
+}
+
 CreateEventData Manifest::getCreateEventData(
         cb::const_char_buffer serialisedManifest) {
     auto manifest = flatbuffers::GetRoot<SerialisedManifest>(

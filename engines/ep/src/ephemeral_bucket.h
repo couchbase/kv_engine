@@ -40,6 +40,8 @@ public:
                                          const CompactionConfig& c,
                                          const void* ck) override;
 
+    ENGINE_ERROR_CODE cancelCompaction(Vbid vbid) override;
+
     /// Eviction not supported for Ephemeral buckets - without some backing
     /// storage, there is nowhere to evict /to/.
     cb::mcbp::Status evictKey(const DocKey& key,

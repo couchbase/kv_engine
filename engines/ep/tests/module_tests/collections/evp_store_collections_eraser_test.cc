@@ -456,6 +456,49 @@ TEST_P(CollectionsEraserTest, tombstone_cleaner) {
     EXPECT_EQ(0, vb->getNumSystemItems());
 }
 
+// Test that a collection erase "resumes" after a restart/warmup
+TEST_P(CollectionsEraserTest, erase_after_warmup) {
+    if (!persistent()) {
+        return;
+    }
+
+    // add a collection
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
+
+    flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+
+    // add some items
+    store_item(
+            vbid, StoredDocKey{"dairy:milk", CollectionEntry::dairy}, "nice");
+    store_item(vbid,
+               StoredDocKey{"dairy:butter", CollectionEntry::dairy},
+               "lovely");
+
+    flush_vbucket_to_disk(vbid, 2 /* 2 x items */);
+
+    EXPECT_EQ(2, vb->getNumItems());
+
+    // Evict one of the keys, we should still erase it
+    evict_key(vbid, StoredDocKey{"dairy:butter", CollectionEntry::dairy});
+
+    // delete the collection
+    vb->updateFromManifest({cm.remove(CollectionEntry::dairy)});
+
+    flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+    vb.reset();
+
+    store->cancelCompaction(vbid);
+    resetEngineAndWarmup();
+
+    // Now the eraser should ready to run, warmup will have noticed a dropped
+    // collection in the manifest and schedule the eraser
+    runCollectionsEraser();
+    vb = store->getVBucket(vbid);
+    EXPECT_EQ(0, vb->getNumItems());
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
+}
+
 static auto allConfigValues = ::testing::Values(
         std::make_tuple(std::string("ephemeral"), std::string("auto_delete")),
         std::make_tuple(std::string("ephemeral"), std::string("fail_new_data")),

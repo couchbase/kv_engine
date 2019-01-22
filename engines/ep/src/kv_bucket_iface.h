@@ -433,6 +433,13 @@ public:
                                                  const void* ck) = 0;
 
     /**
+     * Cancels compaction of a database file
+     *
+     * @param vbid The vbucket being compacted
+     */
+    virtual ENGINE_ERROR_CODE cancelCompaction(Vbid vbid) = 0;
+
+    /**
      * Get the database file id for the compaction request
      *
      * @param req compaction request structure

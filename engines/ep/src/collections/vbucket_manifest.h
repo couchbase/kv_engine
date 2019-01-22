@@ -227,6 +227,14 @@ public:
         }
 
         /**
+         * @return true if a collection drop is in-progress, at least 1
+         * collection is in the state isDeleting
+         */
+        bool isDropInProgress() const {
+            return manifest->isDropInProgress();
+        }
+
+        /**
          * Dump this VB::Manifest to std::cerr
          */
         void dump() const {
@@ -1260,6 +1268,12 @@ protected:
      * @param seqno an endSeqno for a deleted collection
      */
     void trackEndSeqno(int64_t seqno);
+
+    /**
+     * @return true if a collection drop is in-progress, at least 1 collection
+     *         is in the state isDeleting
+     */
+    bool isDropInProgress() const;
 
     /**
      * Return a patched PersistedManifest object cloned and mutated from the

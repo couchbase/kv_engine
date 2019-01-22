@@ -87,6 +87,12 @@ public:
     void addScopeStats(const void* cookie, const AddStatFn& add_stat) const;
 
     /**
+     * Perform actions for a completed warmup - currently check if any
+     * collections are 'deleting' and require erasing retriggering.
+     */
+    void warmupCompleted(KVBucket& bucket) const;
+
+    /**
      * For development, log as much collections stuff as we can
      */
     void logAll(KVBucket& bucket) const;

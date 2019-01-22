@@ -769,8 +769,7 @@ protected:
     }
 
     void wakeUpExpiryPager() {
-        store->disableExpiryPager();
-        store->enableExpiryPager();
+        store->wakeUpExpiryPager();
         // Expiry pager consists of two Tasks - the parent ExpiryPager task,
         // and then a per-vBucket task (via VCVBAdapter) - which there is
         // just one of as we only have one vBucket online.

@@ -107,10 +107,14 @@ void Collections::VB::Flush::setPersistedHighSeqno(const DocKey& key,
 }
 
 void Collections::VB::Flush::checkAndTriggerPurge(Vbid vbid,
-                                                  EPBucket& bucket) const {
+                                                  KVBucket& bucket) const {
     if (!deletedCollections.empty()) {
-        CompactionConfig config;
-        config.db_file_id = vbid;
-        bucket.scheduleCompaction(vbid, config, nullptr);
+        triggerPurge(vbid, bucket);
     }
+}
+
+void Collections::VB::Flush::triggerPurge(Vbid vbid, KVBucket& bucket) {
+    CompactionConfig config;
+    config.db_file_id = vbid;
+    bucket.scheduleCompaction(vbid, config, nullptr);
 }

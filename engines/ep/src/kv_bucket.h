@@ -312,13 +312,6 @@ public:
 
     Vbid getDBFileId(const cb::mcbp::Request& req) override;
 
-    /**
-     * Remove completed compaction tasks or wake snoozed tasks
-     *
-     * @param db_file_id vbucket id for couchstore.
-     */
-    void updateCompactionTasks(Vbid db_file_id);
-
     bool resetVBucket(Vbid vbid) override;
 
     void visit(VBucketVisitor &visitor) override;

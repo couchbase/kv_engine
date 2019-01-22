@@ -23,7 +23,7 @@
 #include <unordered_set>
 #include <vector>
 
-class EPBucket;
+class KVBucket;
 
 namespace Collections {
 namespace VB {
@@ -102,7 +102,9 @@ public:
      * those of any dropped collections. The actual task currently scheduled is
      * compaction.
      */
-    void checkAndTriggerPurge(Vbid vbid, EPBucket& bucket) const;
+    void checkAndTriggerPurge(Vbid vbid, KVBucket& bucket) const;
+
+    static void triggerPurge(Vbid vbid, KVBucket& bucket);
 
 private:
     /**

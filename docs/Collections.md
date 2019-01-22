@@ -68,14 +68,23 @@ Value        (39-43): The textual string "World"
 ## Error Code 0x88, Unknown collection
 
 The unknown collection error is used when a request is made, referencing a
-collection by ID or name (see 0xbb get collection) and the node could not
-match the collection against its manifest.
+collection and the node could not match the collection against its manifest.
+The same error can be see on "opcode 0xbb Get Collection ID" when an unknown
+"scope.name" is used.
 
-To assist the client in determining the full cause of the error, memcached will
-return the uid of the manifest used in failing the command.
+The response packet for the unknown collection error includes the UID of the
+manifest the server used in determining the collection doesn't exist. The format
+of the returned value is a JSON document with the following format. The context
+field's value is the UID of the manifest in the same format as the JSON manifest
+(a hex number in a string with no leading 0x).
 
-__The exact definition of extra data is yet to be confirmed__
-
+```
+{
+  "error": {
+    "context": "1f"
+  }
+}
+```
 
 ## 0xb9 - Set Collections Manifest
 

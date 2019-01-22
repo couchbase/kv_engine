@@ -83,6 +83,8 @@ public:
                                          const CompactionConfig& c,
                                          const void* ck) override;
 
+    ENGINE_ERROR_CODE cancelCompaction(Vbid vbid) override;
+
     /**
      * Compaction of a database file
      *
