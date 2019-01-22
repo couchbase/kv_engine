@@ -1043,7 +1043,7 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
             }
         }
 
-        return stream != nullptr;
+        return true;
     } else if (opcode == cb::mcbp::ClientOpcode::DcpMutation ||
                opcode == cb::mcbp::ClientOpcode::DcpDeletion ||
                opcode == cb::mcbp::ClientOpcode::DcpExpiration ||

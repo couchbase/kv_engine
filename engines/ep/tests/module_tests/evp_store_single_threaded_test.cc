@@ -3511,6 +3511,21 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
     producer->cancelCheckpointCreatorTask();
 }
 
+// Verify that handleResponse against an unknown stream returns true, MB-32724
+// demonstrated a case where false will cause a failure.
+TEST_F(SingleThreadedEPBucketTest, MB_32724) {
+    auto p = std::make_shared<MockDcpProducer>(*engine, cookie, "mb-32724", 0);
+
+    p->createCheckpointProcessorTask();
+
+    MockDcpMessageProducers producers(engine.get());
+
+    protocol_binary_response_header message;
+    message.response.setMagic(cb::mcbp::Magic::ClientResponse);
+    message.response.setOpcode(cb::mcbp::ClientOpcode::DcpSetVbucketState);
+    EXPECT_TRUE(p->handleResponse(&message));
+}
+
 /* When a backfill is activated along with a slow stream trigger,
  * the stream end message gets stuck in the readyQ as the stream is
  * never notified as ready to send it. As the stream transitions state
