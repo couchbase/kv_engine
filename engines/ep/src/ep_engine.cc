@@ -802,6 +802,13 @@ static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine* e,
         state = vbucket_state_t(extras.front());
         auto val = request.getValue();
         if (!val.empty()) {
+            if (state != vbucket_state_active) {
+                e->setErrorContext(
+                        cookie,
+                        "vbucket meta may only be set on active vbuckets");
+                return ENGINE_EINVAL;
+            }
+
             try {
                 const nlohmann::detail::input_adapter adapter(
                         reinterpret_cast<const char*>(val.data()), val.size());
