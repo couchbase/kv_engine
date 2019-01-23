@@ -474,6 +474,8 @@ public:
         accessScanner.lastTaskRuntime = std::chrono::steady_clock::now();
     }
 
+    void enableItemCompressor();
+
     void setAllBloomFilters(bool to) override;
 
     float getBfiltersResidencyThreshold() override {

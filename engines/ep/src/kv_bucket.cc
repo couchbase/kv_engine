@@ -418,8 +418,7 @@ bool KVBucket::initialize() {
     ExecutorPool::get()->schedule(defragmenterTask);
 #endif
 
-    itemCompressorTask = std::make_shared<ItemCompressorTask>(&engine, stats);
-    ExecutorPool::get()->schedule(itemCompressorTask);
+    enableItemCompressor();
 
     /*
      * Creates the ItemFreqDecayer task which is used to ensure that the
@@ -533,6 +532,10 @@ void KVBucket::getValue(Item& it) {
     } else if (!gv.item->isDeleted()) {
         it.replaceValue(gv.item->getValue().get());
     }
+
+    // Ensure the datatype is set from what we loaded. MB-32669 was an example
+    // of an issue where they could differ.
+    it.setDataType(gv.item->getDataType());
 }
 
 void KVBucket::runPreExpiryHook(VBucket& vb, Item& it) {
@@ -2144,6 +2147,11 @@ void KVBucket::resetAccessScannerStartTime() {
             accessScanner.task = ExecutorPool::get()->schedule(task);
         }
     }
+}
+
+void KVBucket::enableItemCompressor() {
+    itemCompressorTask = std::make_shared<ItemCompressorTask>(&engine, stats);
+    ExecutorPool::get()->schedule(itemCompressorTask);
 }
 
 void KVBucket::setAllBloomFilters(bool to) {
