@@ -853,7 +853,6 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
         return ENGINE_EWOULDBLOCK;
     }
 
-    NonBucketAllocationGuard guard;
     switch (resp->getEvent()) {
         case DcpResponse::Event::AddStream:
         {
@@ -1339,7 +1338,6 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
-        NonBucketAllocationGuard guard;
         ret = producers->control(opaque, noopCtrlMsg, val);
         pendingEnableNoop = false;
         return ret;
@@ -1356,7 +1354,6 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
         auto intervalCount =
                 producerIsVersion5orHigher ? dcpNoopTxInterval.count() : 180;
         std::string interval = std::to_string(intervalCount);
-        NonBucketAllocationGuard guard;
         ret = producers->control(opaque, noopIntervalCtrlMsg, interval);
         pendingSendNoopInterval = false;
         return ret;
@@ -1381,7 +1378,6 @@ ENGINE_ERROR_CODE DcpConsumer::handleGetErrorMap(
     if (getErrorMapState == GetErrorMapState::PendingRequest) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
-        NonBucketAllocationGuard guard;
         // Note: just send 0 as version to get the default error map loaded
         //     from file at startup. The error map returned is not used, we
         //     just want to issue a valid request.
@@ -1403,7 +1399,6 @@ ENGINE_ERROR_CODE DcpConsumer::handlePriority(struct dcp_message_producers* prod
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("high");
-        NonBucketAllocationGuard guard;
         ret = producers->control(opaque, priorityCtrlMsg, val);
         pendingSetPriority = false;
         return ret;
@@ -1417,7 +1412,6 @@ ENGINE_ERROR_CODE DcpConsumer::handleExtMetaData(struct dcp_message_producers* p
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
-        NonBucketAllocationGuard guard;
         ret = producers->control(opaque, extMetadataCtrlMsg, val);
         pendingEnableExtMetaData = false;
         return ret;
@@ -1431,7 +1425,6 @@ ENGINE_ERROR_CODE DcpConsumer::supportCursorDropping(struct dcp_message_producer
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
-        NonBucketAllocationGuard guard;
         ret = producers->control(opaque, cursorDroppingCtrlMsg, val);
         pendingSupportCursorDropping = false;
         return ret;
@@ -1446,7 +1439,6 @@ ENGINE_ERROR_CODE DcpConsumer::supportHifiMFU(
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
-        NonBucketAllocationGuard guard;
         ret = producers->control(opaque, hifiMFUCtrlMsg, val);
         pendingSupportHifiMFU = false;
         return ret;
@@ -1462,7 +1454,6 @@ ENGINE_ERROR_CODE DcpConsumer::sendStreamEndOnClientStreamClose(
     if (pendingSendStreamEndOnClientStreamClose) {
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
-        NonBucketAllocationGuard guard;
         ENGINE_ERROR_CODE ret = producers->control(
                 opaque, sendStreamEndOnClientStreamCloseCtrlMsg, val);
         pendingSendStreamEndOnClientStreamClose = false;
@@ -1476,7 +1467,6 @@ ENGINE_ERROR_CODE DcpConsumer::enableExpiryOpcode(
     if (pendingEnableExpiryOpcode) {
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
-        NonBucketAllocationGuard guard;
         ENGINE_ERROR_CODE ret =
                 producers->control(opaque, enableOpcodeExpiryCtrlMsg, val);
         pendingEnableExpiryOpcode = false;
@@ -1489,7 +1479,6 @@ ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
         dcp_message_producers* producers) {
     if (pendingEnableSyncReplication) {
         uint32_t opaque = ++opaqueCounter;
-        NonBucketAllocationGuard guard;
         ENGINE_ERROR_CODE ret = producers->control(
                 opaque, "enable_synchronous_replication", "true");
         pendingEnableSyncReplication = false;

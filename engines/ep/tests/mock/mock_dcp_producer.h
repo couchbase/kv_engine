@@ -186,6 +186,15 @@ public:
     ENGINE_ERROR_CODE stepAndExpect(MockDcpMessageProducers* producers,
                                     cb::mcbp::ClientOpcode expectedOpcode);
 
+    /**
+     * Call step(), but wrap the producers with a DcpMsgProducersBorderGuard (
+     * in the same way it is called from EvPEngine::step().
+     *
+     * Useful when operating directly on a (Mock)DcpProducer object without
+     * ep_engine, but need to ensure currentEngine switching is still correct.
+     */
+    ENGINE_ERROR_CODE stepWithBorderGuard(dcp_message_producers& producers);
+
     void enableMultipleStreamRequests() {
         multipleStreamRequests = MultipleStreamRequests::Yes;
     }

@@ -623,8 +623,6 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         }
     }
 
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL,
-                                                                     true);
     switch (resp->getEvent()) {
         case DcpResponse::Event::StreamEnd:
         {
@@ -790,8 +788,6 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             break;
         }
     }
-
-    ObjectRegistry::onSwitchThread(epe);
 
     if (ret == ENGINE_E2BIG) {
         rejectResp = std::move(resp);
@@ -1552,10 +1548,7 @@ ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(
     // Check to see if waiting for a noop reply.
     // If not try to send a noop to the consumer if the interval has passed
     if (!noopCtx.pendingRecv && elapsedTime >= noopCtx.dcpNoopTxInterval) {
-        EventuallyPersistentEngine *epe = ObjectRegistry::
-                onSwitchThread(NULL, true);
         const auto ret = producers->noop(++noopCtx.opaque);
-        ObjectRegistry::onSwitchThread(epe);
 
         if (ret == ENGINE_SUCCESS) {
             noopCtx.pendingRecv = true;

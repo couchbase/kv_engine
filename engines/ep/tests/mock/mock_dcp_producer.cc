@@ -16,8 +16,8 @@
  */
 
 #include "mock_dcp_producer.h"
+#include "dcp/msg_producers_border_guard.h"
 #include "mock_dcp.h"
-
 #include "mock_stream.h"
 
 #include <gtest/gtest.h>
@@ -63,6 +63,12 @@ ENGINE_ERROR_CODE MockDcpProducer::stepAndExpect(
     auto rv = step(producers);
     EXPECT_EQ(expectedOpcode, producers->last_op);
     return rv;
+}
+
+ENGINE_ERROR_CODE MockDcpProducer::stepWithBorderGuard(
+        dcp_message_producers& producers) {
+    DcpMsgProducersBorderGuard guardedProducers(producers);
+    return step(&guardedProducers);
 }
 
 std::shared_ptr<Stream> MockDcpProducer::findStream(Vbid vbid) {

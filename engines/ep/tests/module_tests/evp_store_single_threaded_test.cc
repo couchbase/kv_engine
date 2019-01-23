@@ -27,8 +27,8 @@
 #include "bgfetcher.h"
 #include "checkpoint_manager.h"
 #include "dcp/dcpconnmap.h"
-#include "ephemeral_tombstone_purger.h"
 #include "ep_time.h"
+#include "ephemeral_tombstone_purger.h"
 #include "evp_store_test.h"
 #include "failover-table.h"
 #include "fakes/fake_executorpool.h"
@@ -228,7 +228,7 @@ void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
     // Next step which will process a snapshot marker and then the caller
     // should now be able to step through the checkpoint
     if (expectedOp != cb::mcbp::ClientOpcode::Invalid) {
-        EXPECT_EQ(ENGINE_SUCCESS, producer.step(&producers));
+        EXPECT_EQ(ENGINE_SUCCESS, producer.stepWithBorderGuard(producers));
         EXPECT_EQ(expectedOp, producers.last_op);
         if (expectedOp == cb::mcbp::ClientOpcode::DcpSnapshotMarker) {
             if (fromMemory) {
@@ -240,7 +240,7 @@ void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
             }
         }
     } else {
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, producer.step(&producers));
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, producer.stepWithBorderGuard(producers));
     }
 }
 
@@ -2445,7 +2445,7 @@ TEST_P(STParameterizedBucketTest, enable_expiry_output) {
                                   inMemory);
 
         // Now step the producer to transfer the delete/tombstone
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+        EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(producers));
     };
 
     // Expire a key and check that the delete_time we receive is the

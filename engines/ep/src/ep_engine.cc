@@ -29,6 +29,7 @@
 #include "dcp/consumer.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/flow-control-manager.h"
+#include "dcp/msg_producers_border_guard.h"
 #include "dcp/producer.h"
 #include "ep_bucket.h"
 #include "ep_vb.h"
@@ -1238,7 +1239,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::step(
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        return conn->step(producers);
+        DcpMsgProducersBorderGuard guardedProducers(*producers);
+        return conn->step(&guardedProducers);
     }
     return ENGINE_DISCONNECT;
 }

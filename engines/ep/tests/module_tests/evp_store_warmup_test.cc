@@ -345,8 +345,8 @@ TEST_F(WarmupTest, produce_delete_times) {
                                   cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                                   inMemory);
 
-        // Now step the producer to transfer the delete/tombstone
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+        // Now step the producer to transfer the delete/tombstone.
+        EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(producers));
     };
 
     step(false);

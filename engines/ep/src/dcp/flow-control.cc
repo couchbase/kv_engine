@@ -65,11 +65,8 @@ ENGINE_ERROR_CODE FlowControl::handleFlowCtl(
             lh.unlock();
             /* Send a buffer ack when at least 20% of the buffer is drained */
             uint64_t opaque = consumerConn->incrOpaqueCounter();
-            EventuallyPersistentEngine *epe =
-                                    ObjectRegistry::onSwitchThread(NULL, true);
             ret = producers->buffer_acknowledgement(
                     opaque, Vbid(0), ackable_bytes);
-            ObjectRegistry::onSwitchThread(epe);
             lastBufferAck = ep_current_time();
             ackedBytes.fetch_add(ackable_bytes);
             freedBytes.fetch_sub(ackable_bytes);
@@ -79,11 +76,8 @@ ENGINE_ERROR_CODE FlowControl::handleFlowCtl(
             lh.unlock();
             /* Ack at least every 5 seconds */
             uint64_t opaque = consumerConn->incrOpaqueCounter();
-            EventuallyPersistentEngine *epe =
-                                    ObjectRegistry::onSwitchThread(NULL, true);
             ret = producers->buffer_acknowledgement(
                     opaque, Vbid(0), ackable_bytes);
-            ObjectRegistry::onSwitchThread(epe);
             lastBufferAck = ep_current_time();
             ackedBytes.fetch_add(ackable_bytes);
             freedBytes.fetch_sub(ackable_bytes);
