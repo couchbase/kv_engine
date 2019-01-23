@@ -49,4 +49,9 @@ void processMutations(MockPassiveStream& stream,
                       const int64_t seqnoEnd);
 
 std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
-        uint64_t seqno, Vbid vbid, const std::string& value, uint64_t opaque);
+        uint64_t seqno,
+        Vbid vbid,
+        const std::string& value,
+        uint64_t opaque,
+        cb::durability::Requirements reqs = {cb::durability::Level::None,
+                                             0 /*timeout*/});

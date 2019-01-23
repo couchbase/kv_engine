@@ -60,7 +60,8 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
       cur_snapshot_start(0),
       cur_snapshot_end(0),
       cur_snapshot_type(Snapshot::None),
-      cur_snapshot_ack(false) {
+      cur_snapshot_ack(false),
+      cur_snapshot_prepare(false) {
     LockHolder lh(streamMutex);
     streamRequest_UNLOCKED(vb_uuid);
     itemsReady.store(true);
@@ -546,6 +547,14 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
                                                      message->getExtMetaData());
         }
         switchComplete = true;
+
+        // If the the stream has received and successfully processed a pending
+        // SyncWrite, then we have to flag that the Replica must send a SeqnoAck
+        // at receiving the snapshot-end mutation.
+        if (messageType == MessageType::Prepare && ret == ENGINE_SUCCESS) {
+            cur_snapshot_prepare.store(true);
+        }
+
         break;
     case MessageType::Expiration:
         deleteSource = DeleteSource::TTL;
@@ -613,22 +622,7 @@ ENGINE_ERROR_CODE PassiveStream::processExpiration(
 
 ENGINE_ERROR_CODE PassiveStream::processPrepare(
         MutationConsumerMessage* prepare) {
-    auto result = processMessage(prepare, MessageType::Prepare);
-
-    // @todo-durability: Don't send the ACK directly; should be done once we
-    // get to the end of a snapshot.
-    {
-        LockHolder lh(streamMutex);
-        // @todo-durability add in the correct on-disk seqno.
-        pushToReadyQ(std::make_unique<SeqnoAcknowledgement>(
-                opaque_,
-                prepare->getVBucket(),
-                prepare->getItem()->getBySeqno(),
-                0));
-    }
-    notifyStreamReady();
-
-    return result;
+    return processMessage(prepare, MessageType::Prepare);
 }
 
 ENGINE_ERROR_CODE PassiveStream::processCommit(const CommitSyncWrite& commit) {
@@ -832,15 +826,37 @@ void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
             }
         }
 
+        // Notify only once (if necessary)
+        bool pendingNotify{false};
+
         if (cur_snapshot_ack) {
             {
                 LockHolder lh(streamMutex);
                 pushToReadyQ(std::make_unique<SnapshotMarkerResponse>(
                         opaque_, cb::mcbp::Status::Success));
             }
-            notifyStreamReady();
+            pendingNotify = true;
             cur_snapshot_ack = false;
         }
+
+        if (cur_snapshot_prepare) {
+            {
+                LockHolder lh(streamMutex);
+                // @todo-durability: add in the correct on-disk seqno.
+                pushToReadyQ(std::make_unique<SeqnoAcknowledgement>(
+                        opaque_,
+                        vb_,
+                        byseqno /*memory-seqno*/,
+                        0 /*disk-seqno*/));
+            }
+            pendingNotify = true;
+            cur_snapshot_prepare.store(false);
+        }
+
+        if (pendingNotify) {
+            notifyStreamReady();
+        }
+
         cur_snapshot_type.store(Snapshot::None);
     }
 }
@@ -904,6 +920,12 @@ void PassiveStream::addStats(const AddStatFn& add_stat, const void* c) {
                              name_.c_str(),
                              vb_.get());
             add_casted_stat(buf, cur_snapshot_end.load(), add_stat, c);
+            checked_snprintf(buf,
+                             bsize,
+                             "%s:stream_%d_cur_snapshot_contains_prepare",
+                             name_.c_str(),
+                             vb_.get());
+            add_casted_stat(buf, cur_snapshot_prepare.load(), add_stat, c);
         }
     } catch (std::exception& error) {
         EP_LOG_WARN("PassiveStream::addStats: Failed to build stats: {}",
