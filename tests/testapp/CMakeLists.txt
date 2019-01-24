@@ -111,7 +111,18 @@ add_sanitizers(memcached_testapp)
 # Roughly calibrated to be 2x what the expected time is on the
 # slowest Jenkins platform/config.
 
+OPTION(CB_VERBOSE_MEMCACHED_TESTAPP
+        "Trigger verbose output of memcached_testapp"
+        OFF)
+
+set(VERBOSE_EXTRA_ARG "")
+if(CB_VERBOSE_MEMCACHED_TESTAPP)
+    message(STATUS "Setting memcached_testapp to verbose output")
+    set(VERBOSE_EXTRA_ARG "-v")
+endif(CB_VERBOSE_MEMCACHED_TESTAPP)
+
 gtest_discover_tests(memcached_testapp
+    EXTRA_ARGS ${VERBOSE_EXTRA_ARG}
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
     TEST_PREFIX memcached_testapp.default.
     ONE_CTEST_PER_SUITE
@@ -119,7 +130,7 @@ gtest_discover_tests(memcached_testapp
     PROPERTIES TIMEOUT 300)
 
 gtest_discover_tests(memcached_testapp
-    EXTRA_ARGS -E ep
+    EXTRA_ARGS -E ep ${VERBOSE_EXTRA_ARG}
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
     TEST_PREFIX memcached_testapp.ep.
     ONE_CTEST_PER_SUITE
