@@ -417,12 +417,12 @@ nlohmann::json TestappTest::generate_config(uint16_t ssl_port) {
 
     ret["stdin_listener"] = false;
     ret["interfaces"][0]["port"] = 0;
-    ret["interfaces"][0]["ipv4"] = "optional";
-    ret["interfaces"][0]["ipv6"] = "optional";
+    ret["interfaces"][0]["ipv4"] = "required";
+    ret["interfaces"][0]["ipv6"] = "required";
     ret["interfaces"][0]["host"] = "*";
     ret["interfaces"][1]["port"] = ssl_port;
-    ret["interfaces"][1]["ipv4"] = "optional";
-    ret["interfaces"][1]["ipv6"] = "optional";
+    ret["interfaces"][1]["ipv4"] = "required";
+    ret["interfaces"][1]["ipv6"] = "required";
     ret["interfaces"][1]["host"] = "*";
     ret["interfaces"][1]["ssl"]["key"] = pem_path;
     ret["interfaces"][1]["ssl"]["cert"] = cert_path;
