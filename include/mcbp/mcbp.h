@@ -35,7 +35,7 @@
 #include <nlohmann/json_fwd.hpp>
 
 #include <chrono>
-#include <ostream>
+#include <iosfwd>
 #include <vector>
 
 namespace cb {

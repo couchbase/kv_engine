@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include <ostream>
+#include <iosfwd>
 #include <string>
 
 namespace cb {

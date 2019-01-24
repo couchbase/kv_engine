@@ -21,11 +21,11 @@
 #endif
 
 #include <cstdlib>
-#include <sstream>
 #include <cstring>
-#include <system_error>
+#include <iosfwd>
 #include <iostream>
 #include <string>
+#include <system_error>
 
 #include <platform/strerror.h>
 

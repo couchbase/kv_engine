@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include <chrono>
-#include <ostream>
+#include <iosfwd>
 
 #ifdef WIN32
 #include <platform/platform.h>

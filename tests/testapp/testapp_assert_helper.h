@@ -18,7 +18,7 @@
 
 #include "config.h"
 #include "testapp.h"
-#include <sstream>
+#include <iosfwd>
 #include <type_traits>
 
 #include <include/memcached/util.h>

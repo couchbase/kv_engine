@@ -19,9 +19,9 @@
 #include <platform/dynamic.h>
 
 #include <cstdint>
-#include <ostream>
-#include <system_error>
+#include <iosfwd>
 #include <string>
+#include <system_error>
 
 namespace cb {
 namespace mcbp {

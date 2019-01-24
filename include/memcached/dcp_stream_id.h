@@ -23,7 +23,7 @@
 #include <platform/socket.h>
 
 #include <stdint.h>
-#include <ostream>
+#include <iosfwd>
 
 namespace cb {
 namespace mcbp {

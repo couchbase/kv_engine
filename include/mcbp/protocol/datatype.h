@@ -18,7 +18,7 @@
 
 #include <nlohmann/json_fwd.hpp>
 #include <cstdint>
-#include <sstream>
+#include <iosfwd>
 
 namespace cb {
 namespace mcbp {
@@ -89,31 +89,7 @@ inline bool is_valid(const protocol_binary_datatype_t datatype) {
     return datatype <= highest;
 }
 
-inline std::string to_string(const protocol_binary_datatype_t datatype) {
-    if (is_valid(datatype)) {
-        if (is_raw(datatype)) {
-            return std::string{"raw"};
-        } else {
-            std::stringstream ss;
-            if (is_snappy(datatype)) {
-                ss << "snappy,";
-            }
-            if (is_json(datatype)) {
-                ss << "json,";
-            }
-            if (is_xattr(datatype)) {
-                ss << "xattr,";
-            }
-
-            // remove the last ','
-            std::string ret = ss.str();
-            ret.resize(ret.size() - 1);
-            return ret;
-        }
-    } else {
-        return std::string{"invalid"};
-    }
-}
+std::string to_string(protocol_binary_datatype_t datatype);
 
 } // namespace datatype
 } // namespace mcbp

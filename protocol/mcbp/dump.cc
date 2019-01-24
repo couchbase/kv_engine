@@ -26,6 +26,7 @@
 #include <cctype>
 #include <cstring>
 #include <iomanip>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 

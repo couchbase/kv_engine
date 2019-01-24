@@ -40,3 +40,29 @@ nlohmann::json toJSON(cb::mcbp::Datatype datatype) {
 
     return ret;
 }
+
+std::string mcbp::datatype::to_string(protocol_binary_datatype_t datatype) {
+    if (is_valid(datatype)) {
+        if (is_raw(datatype)) {
+            return std::string{"raw"};
+        } else {
+            std::stringstream ss;
+            if (is_snappy(datatype)) {
+                ss << "snappy,";
+            }
+            if (is_json(datatype)) {
+                ss << "json,";
+            }
+            if (is_xattr(datatype)) {
+                ss << "xattr,";
+            }
+
+            // remove the last ','
+            std::string ret = ss.str();
+            ret.resize(ret.size() - 1);
+            return ret;
+        }
+    } else {
+        return std::string{"invalid"};
+    }
+}

@@ -30,8 +30,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <iosfwd>
 #include <list>
-#include <sstream>
 #include <utility>
 #include <vector>
 

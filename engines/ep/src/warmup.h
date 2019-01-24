@@ -29,8 +29,8 @@
 #include <atomic>
 #include <chrono>
 #include <deque>
+#include <iosfwd>
 #include <map>
-#include <ostream>
 #include <string>
 #include <unordered_set>
 #include <vector>
