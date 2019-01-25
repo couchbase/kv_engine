@@ -20,6 +20,7 @@
 #include "collections/manifest.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
+#include "statwriter.h"
 #include "string_utils.h"
 #include "vbucket.h"
 

@@ -27,6 +27,7 @@
 #include "flusher.h"
 #include "persistence_callback.h"
 #include "replicationthrottle.h"
+#include "statwriter.h"
 #include "tasks.h"
 
 /**

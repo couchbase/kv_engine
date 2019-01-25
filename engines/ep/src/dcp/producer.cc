@@ -23,6 +23,7 @@
 #include "collections/manager.h"
 #include "collections/vbucket_filter.h"
 #include "common.h"
+#include "connhandler_impl.h"
 #include "dcp/active_stream.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/backfill-manager.h"
@@ -33,6 +34,7 @@
 #include "item_eviction.h"
 #include "kv_bucket.h"
 #include "snappy-c.h"
+#include "statwriter.h"
 
 #include <memcached/server_cookie_iface.h>
 

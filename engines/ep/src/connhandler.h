@@ -19,7 +19,6 @@
 
 #include "config.h"
 
-#include "statwriter.h"
 #include "utility.h"
 
 #include <memcached/dcp.h>
@@ -252,21 +251,7 @@ public:
     void addStat(const char* nm,
                  const T& val,
                  const AddStatFn& add_stat,
-                 const void* c) const {
-        std::stringstream tap;
-        tap << name << ":" << nm;
-        std::stringstream value;
-        value << val;
-        std::string n = tap.str();
-        add_casted_stat(n.data(), value.str().data(), add_stat, c);
-    }
-
-    void addStat(const char* nm,
-                 bool val,
-                 const AddStatFn& add_stat,
-                 const void* c) const {
-        addStat(nm, val ? "true" : "false", add_stat, c);
-    }
+                 const void* c) const;
 
     virtual void addStats(const AddStatFn& add_stat, const void* c);
 

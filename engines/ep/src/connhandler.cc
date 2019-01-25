@@ -18,6 +18,7 @@
 #include "config.h"
 #include "connhandler.h"
 #include "bucket_logger.h"
+#include "connhandler_impl.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 

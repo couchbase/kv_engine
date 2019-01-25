@@ -21,6 +21,7 @@
 #include "dcp/producer.h"
 #include "ep_time.h"
 #include "kv_bucket.h"
+#include "statwriter.h"
 
 ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            std::shared_ptr<DcpProducer> p,

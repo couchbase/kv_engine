@@ -20,6 +20,7 @@
 #include "dcp/producer.h"
 #include "ep_engine.h"
 #include "executorpool.h"
+#include "statwriter.h"
 
 #include <climits>
 
