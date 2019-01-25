@@ -22,10 +22,11 @@
 #include "checkpoint_types.h"
 #include "cursor.h"
 #include "ep_types.h"
-#include "item.h"
 #include "monotonic.h"
+#include "queue_op.h"
 
 #include <memcached/engine_common.h>
+#include <memcached/vbucket.h>
 #include <memory>
 #include <unordered_map>
 
@@ -38,6 +39,8 @@ class VBucket;
 
 template <typename... RV>
 class Callback;
+
+using LockHolder = std::lock_guard<std::mutex>;
 
 /**
  * Representation of a checkpoint manager that maintains the list of checkpoints
@@ -70,10 +73,7 @@ public:
 
     uint64_t getLastClosedCheckpointId();
 
-    void setOpenCheckpointId(uint64_t id) {
-        LockHolder lh(queueLock);
-        setOpenCheckpointId_UNLOCKED(lh, id);
-    }
+    void setOpenCheckpointId(uint64_t id);
 
     /**
      * Remove closed unreferenced checkpoints and return them through the
@@ -253,10 +253,7 @@ public:
         return getNumItemsForCursor(persistenceCursor);
     }
 
-    void clear(vbucket_state_t vbState) {
-        LockHolder lh(queueLock);
-        clear_UNLOCKED(vbState, lastBySeqno);
-    }
+    void clear(vbucket_state_t vbState);
 
     /**
      * Clear all the checkpoints managed by this checkpoint manager.
@@ -342,20 +339,11 @@ public:
 
     void notifyFlusher();
 
-    void setBySeqno(int64_t seqno) {
-        LockHolder lh(queueLock);
-        lastBySeqno = seqno;
-    }
+    void setBySeqno(int64_t seqno);
 
-    int64_t getHighSeqno() const {
-        LockHolder lh(queueLock);
-        return lastBySeqno;
-    }
+    int64_t getHighSeqno() const;
 
-    int64_t nextBySeqno() {
-        LockHolder lh(queueLock);
-        return ++lastBySeqno;
-    }
+    int64_t nextBySeqno();
 
     /// @return the persistence cursor which can be null
     CheckpointCursor* getPersistenceCursor() const {

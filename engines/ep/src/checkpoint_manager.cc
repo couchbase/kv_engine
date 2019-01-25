@@ -78,6 +78,11 @@ uint64_t CheckpointManager::getLastClosedCheckpointId() {
     return getLastClosedCheckpointId_UNLOCKED(lh);
 }
 
+void CheckpointManager::setOpenCheckpointId(uint64_t id) {
+    LockHolder lh(queueLock);
+    setOpenCheckpointId_UNLOCKED(lh, id);
+}
+
 void CheckpointManager::setOpenCheckpointId_UNLOCKED(const LockHolder& lh,
                                                      uint64_t id) {
     auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
@@ -777,6 +782,21 @@ void CheckpointManager::notifyFlusher() {
     }
 }
 
+void CheckpointManager::setBySeqno(int64_t seqno) {
+    LockHolder lh(queueLock);
+    lastBySeqno = seqno;
+}
+
+int64_t CheckpointManager::getHighSeqno() const {
+    LockHolder lh(queueLock);
+    return lastBySeqno;
+}
+
+int64_t CheckpointManager::nextBySeqno() {
+    LockHolder lh(queueLock);
+    return ++lastBySeqno;
+}
+
 void CheckpointManager::dump() const {
     std::cerr << *this << std::endl;
 }
@@ -898,6 +918,11 @@ size_t CheckpointManager::getNumItemsForCursor_UNLOCKED(
         return result;
     }
     return 0;
+}
+
+void CheckpointManager::clear(vbucket_state_t vbState) {
+    LockHolder lh(queueLock);
+    clear_UNLOCKED(vbState, lastBySeqno);
 }
 
 bool CheckpointManager::isLastMutationItemInCheckpoint(
