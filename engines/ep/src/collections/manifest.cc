@@ -36,6 +36,48 @@
 
 namespace Collections {
 
+// strings used in JSON parsing
+static constexpr char const* ScopesKey = "scopes";
+static constexpr nlohmann::json::value_t ScopesType =
+        nlohmann::json::value_t::array;
+static constexpr char const* CollectionsKey = "collections";
+static constexpr nlohmann::json::value_t CollectionsType =
+        nlohmann::json::value_t::array;
+static constexpr char const* NameKey = "name";
+static constexpr nlohmann::json::value_t NameType =
+        nlohmann::json::value_t::string;
+static constexpr char const* UidKey = "uid";
+static constexpr nlohmann::json::value_t UidType =
+        nlohmann::json::value_t::string;
+static constexpr char const* MaxTtlKey = "max_ttl";
+static constexpr nlohmann::json::value_t MaxTtlType =
+        nlohmann::json::value_t::number_unsigned;
+
+/**
+ * Get json sub-object from the json object for key and check the type.
+ * @param json The parent object in which to find key.
+ * @param key The key to look for.
+ * @param expectedType The type the found object must be.
+ * @return A json object for key.
+ * @throws std::invalid_argument if key is not found or the wrong type.
+ */
+nlohmann::json getJsonObject(const nlohmann::json& object,
+                             const std::string& key,
+                             nlohmann::json::value_t expectedType);
+
+/**
+ * Constructor helper function, throws invalid_argument with a string
+ * indicating if the expectedType.
+ *
+ * @param errorKey the JSON key being looked up
+ * @param object object to check
+ * @param expectedType the type we expect object to be
+ * @throws std::invalid_argument if !expectedType
+ */
+static void throwIfWrongType(const std::string& errorKey,
+                             const nlohmann::json& object,
+                             nlohmann::json::value_t expectedType);
+
 Manifest::Manifest(cb::const_char_buffer json,
                    size_t maxNumberOfScopes,
                    size_t maxNumberOfCollections)
@@ -195,15 +237,15 @@ Manifest::Manifest(cb::const_char_buffer json,
     }
 }
 
-nlohmann::json Manifest::getJsonObject(const nlohmann::json& object,
-                                       const std::string& key,
-                                       nlohmann::json::value_t expectedType) {
+nlohmann::json getJsonObject(const nlohmann::json& object,
+                             const std::string& key,
+                             nlohmann::json::value_t expectedType) {
     return cb::getJsonObject(object, key, expectedType, "Manifest");
 }
 
-void Manifest::throwIfWrongType(const std::string& errorKey,
-                                const nlohmann::json& object,
-                                nlohmann::json::value_t expectedType) {
+void throwIfWrongType(const std::string& errorKey,
+                      const nlohmann::json& object,
+                      nlohmann::json::value_t expectedType) {
     cb::throwIfWrongType(errorKey, object, expectedType, "Manifest");
 }
 

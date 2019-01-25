@@ -31,6 +31,7 @@
 #include "vbucket_state.h"
 
 #include <memcached/engine.h>
+#include <nlohmann/json.hpp>
 #include <platform/atomic_duration.h>
 #include <platform/non_negative_counter.h>
 #include <relaxed_atomic.h>
@@ -1939,6 +1940,7 @@ private:
     // TEMP: replication topology from ns_server.
     // @todo-durabilty: remove this once DurabilityMonitor is tracking
     // the topology.
+    // Should also be able to remove #include <nlohmann/json.hpp> above.
     nlohmann::json replicationTopology;
 
     vbucket_state_t                 initialState;

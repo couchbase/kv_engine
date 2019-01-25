@@ -27,7 +27,6 @@
 #include "vbucket.h"
 
 #include <mcbp/protocol/unsigned_leb128.h>
-
 #include <memory>
 
 namespace Collections {

@@ -28,6 +28,16 @@
 #include <memory>
 
 namespace Collections {
+
+static constexpr nlohmann::json::value_t CollectionsType =
+        nlohmann::json::value_t::array;
+static constexpr nlohmann::json::value_t ScopeType =
+        nlohmann::json::value_t::string;
+static constexpr nlohmann::json::value_t UidType =
+        nlohmann::json::value_t::string;
+static constexpr nlohmann::json::value_t StreamIdType =
+        nlohmann::json::value_t::number_unsigned;
+
 namespace VB {
 
 Filter::Filter(boost::optional<cb::const_char_buffer> jsonFilter,

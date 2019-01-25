@@ -27,6 +27,7 @@
 #include <platform/sized_buffer.h>
 
 #include <functional>
+#include <list>
 #include <mutex>
 #include <set>
 #include <unordered_map>
@@ -1265,22 +1266,6 @@ protected:
     mutable cb::RWLock rwlock;
 
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
-
-    static constexpr char const* CollectionsKey = "collections";
-    static constexpr nlohmann::json::value_t CollectionsType =
-            nlohmann::json::value_t::array;
-    static constexpr char const* UidKey = "uid";
-    static constexpr nlohmann::json::value_t UidType =
-            nlohmann::json::value_t::string;
-    static constexpr char const* SidKey = "sid";
-    static constexpr nlohmann::json::value_t SidType =
-            nlohmann::json::value_t::string;
-    static constexpr char const* StartSeqnoKey = "startSeqno";
-    static constexpr nlohmann::json::value_t StartSeqnoType =
-            nlohmann::json::value_t::string;
-    static constexpr char const* EndSeqnoKey = "endSeqno";
-    static constexpr nlohmann::json::value_t EndSeqnoType =
-            nlohmann::json::value_t::string;
 };
 
 /// Note that the VB::Manifest << operator does not obtain the rwlock

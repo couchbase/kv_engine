@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <algorithm>
 #include <cstdint>
 #include <string>
@@ -28,22 +28,6 @@
 
 namespace Collections {
 
-// strings used in JSON parsing
-static constexpr char const* ScopesKey = "scopes";
-static constexpr nlohmann::json::value_t ScopesType =
-        nlohmann::json::value_t::array;
-static constexpr char const* CollectionsKey = "collections";
-static constexpr nlohmann::json::value_t CollectionsType =
-        nlohmann::json::value_t::array;
-static constexpr char const* NameKey = "name";
-static constexpr nlohmann::json::value_t NameType =
-        nlohmann::json::value_t::string;
-static constexpr char const* UidKey = "uid";
-static constexpr nlohmann::json::value_t UidType =
-        nlohmann::json::value_t::string;
-static constexpr char const* MaxTtlKey = "max_ttl";
-static constexpr nlohmann::json::value_t MaxTtlType =
-        nlohmann::json::value_t::number_unsigned;
 static const size_t MaxCollectionNameSize = 30;
 
 struct CollectionEntry {
@@ -206,31 +190,6 @@ private:
      * @param identifier ID to check
      */
     void enableDefaultCollection(CollectionID identifier);
-
-    /**
-     * Get json sub-object from the json object for key and check the type.
-     * @param json The parent object in which to find key.
-     * @param key The key to look for.
-     * @param expectedType The type the found object must be.
-     * @return A json object for key.
-     * @throws std::invalid_argument if key is not found or the wrong type.
-     */
-    nlohmann::json getJsonObject(const nlohmann::json& object,
-                                 const std::string& key,
-                                 nlohmann::json::value_t expectedType);
-
-    /**
-     * Constructor helper function, throws invalid_argument with a string
-     * indicating if the expectedType.
-     *
-     * @param errorKey the JSON key being looked up
-     * @param object object to check
-     * @param expectedType the type we expect object to be
-     * @throws std::invalid_argument if !expectedType
-     */
-    static void throwIfWrongType(const std::string& errorKey,
-                                 const nlohmann::json& object,
-                                 nlohmann::json::value_t expectedType);
 
     /**
      * Check if the std::string represents a legal collection name.

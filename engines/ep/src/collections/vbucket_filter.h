@@ -22,7 +22,7 @@
 
 #include <memcached/dcp_stream_id.h>
 #include <memcached/engine_common.h>
-#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <platform/sized_buffer.h>
 
 #include <memory>
@@ -239,17 +239,9 @@ protected:
 
     // keys and types used in JSON parsing
     static const char* CollectionsKey;
-    static constexpr nlohmann::json::value_t CollectionsType =
-            nlohmann::json::value_t::array;
     static const char* ScopeKey;
-    static constexpr nlohmann::json::value_t ScopeType =
-            nlohmann::json::value_t::string;
     static const char* UidKey;
-    static constexpr nlohmann::json::value_t UidType =
-            nlohmann::json::value_t::string;
     static const char* StreamIdKey;
-    static constexpr nlohmann::json::value_t StreamIdType =
-            nlohmann::json::value_t::number_unsigned;
 };
 
 std::ostream& operator<<(std::ostream& os, const Filter& filter);
