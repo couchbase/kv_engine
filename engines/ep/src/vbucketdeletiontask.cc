@@ -20,6 +20,7 @@
 #include "ep_vb.h"
 #include "executorpool.h"
 #include "kvshard.h"
+#include "kvstore.h"
 
 #include <phosphor/phosphor.h>
 #include <chrono>

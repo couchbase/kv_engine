@@ -19,11 +19,13 @@
 
 #include "config.h"
 
+#include "kvstore.h"
 #include "task_type.h"
 #include "vbucket.h"
 
 /* Forward declarations */
 class ExtendedMetaData;
+struct CompactionConfig;
 class ConflictResolution;
 class DefragmenterTask;
 class Flusher;

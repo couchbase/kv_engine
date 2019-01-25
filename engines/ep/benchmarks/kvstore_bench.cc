@@ -23,6 +23,7 @@
 #include "rocksdb-kvstore/rocksdb-kvstore_config.h"
 #endif
 #include "tests/module_tests/test_helpers.h"
+#include "vbucket_state.h"
 
 #include <benchmark/benchmark.h>
 #include <gtest/gtest.h>

@@ -35,7 +35,7 @@
 #include "tools/couchfile_upgrade/input_couchfile.h"
 #include "tools/couchfile_upgrade/output_couchfile.h"
 #include "vbucket_bgfetch_item.h"
-
+#include "vbucket_state.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>

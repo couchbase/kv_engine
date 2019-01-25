@@ -31,6 +31,7 @@
 #include "failover-table.h"
 #include "flusher.h"
 #include "hash_table.h"
+#include "kvstore.h"
 #include "pre_link_document_context.h"
 #include "statwriter.h"
 #include "stored_value_factories.h"

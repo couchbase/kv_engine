@@ -26,8 +26,9 @@
 #include "hash_table.h"
 #include "hlc.h"
 #include "item_pager.h"
-#include "kvstore.h"
 #include "monotonic.h"
+#include "vbucket_bgfetch_item.h"
+#include "vbucket_state.h"
 
 #include <memcached/engine.h>
 #include <platform/atomic_duration.h>
@@ -47,6 +48,9 @@ class EventuallyPersistentEngine;
 class DCPBackfill;
 class RollbackResult;
 class VBucketBGFetchItem;
+
+template <typename... RV>
+class Callback;
 
 /**
  * The following will be used to identify

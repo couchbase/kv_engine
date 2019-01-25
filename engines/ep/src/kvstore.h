@@ -26,7 +26,6 @@
 
 #include <memcached/engine_common.h>
 #include <platform/histogram.h>
-#include <platform/n_byte_integer.h>
 
 #include <relaxed_atomic.h>
 #include <atomic>
@@ -163,43 +162,6 @@ public:
     NoLookupCallback() {}
     ~NoLookupCallback() {}
     void callback(CacheLookup&) {}
-};
-
-struct vbucket_state {
-    vbucket_state() : hlcCasEpochSeqno(HlcCasSeqnoUninitialised) {
-    }
-
-    vbucket_state(vbucket_state_t _state,
-                  uint64_t _chkid,
-                  uint64_t _maxDelSeqNum,
-                  int64_t _highSeqno,
-                  uint64_t _purgeSeqno,
-                  uint64_t _lastSnapStart,
-                  uint64_t _lastSnapEnd,
-                  uint64_t _maxCas,
-                  int64_t _hlcCasEpochSeqno,
-                  bool _mightContainXattrs,
-                  std::string _failovers,
-                  bool _supportsCollections);
-
-    std::string toJSON() const;
-
-    bool needsToBePersisted(const vbucket_state& vbstate);
-
-    void reset();
-
-    vbucket_state_t state;
-    uint64_t checkpointId;
-    cb::uint48_t maxDeletedSeqno;
-    int64_t highSeqno;
-    uint64_t purgeSeqno;
-    uint64_t lastSnapStart;
-    uint64_t lastSnapEnd;
-    uint64_t maxCas;
-    int64_t hlcCasEpochSeqno;
-    bool mightContainXattrs;
-    std::string failovers;
-    bool supportsCollections;
 };
 
 struct DBFileInfo {
