@@ -48,6 +48,7 @@
 #include "flusher.h"
 #include "htresizer.h"
 #include "item_compressor.h"
+#include "item_freq_decayer.h"
 #include "kv_bucket.h"
 #include "kvshard.h"
 #include "kvstore.h"

@@ -17,6 +17,36 @@
 
 #include "mock_stream.h"
 #include "checkpoint_manager.h"
+#include "vbucket.h"
+
+MockActiveStream::MockActiveStream(EventuallyPersistentEngine* e,
+                                   std::shared_ptr<MockDcpProducer> p,
+                                   uint32_t flags,
+                                   uint32_t opaque,
+                                   VBucket& vb,
+                                   uint64_t st_seqno,
+                                   uint64_t en_seqno,
+                                   uint64_t vb_uuid,
+                                   uint64_t snap_start_seqno,
+                                   uint64_t snap_end_seqno,
+                                   IncludeValue includeValue,
+                                   IncludeXattrs includeXattrs)
+    : ActiveStream(e,
+                   p,
+                   p->getName(),
+                   flags,
+                   opaque,
+                   vb,
+                   st_seqno,
+                   en_seqno,
+                   vb_uuid,
+                   snap_start_seqno,
+                   snap_end_seqno,
+                   includeValue,
+                   includeXattrs,
+                   IncludeDeleteTime::No,
+                   {{}, vb.getManifest()}) {
+}
 
 void MockActiveStream::public_registerCursor(CheckpointManager& manager,
                                              const std::string& name,

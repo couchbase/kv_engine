@@ -18,7 +18,6 @@
 #pragma once
 
 #include "config.h"
-#include "checkpoint.h"
 #include "cursor.h"
 #include "dcp/dcp-types.h"
 

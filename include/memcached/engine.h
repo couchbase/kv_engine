@@ -14,7 +14,6 @@
 #include <utility>
 
 #include <boost/optional/optional_fwd.hpp>
-#include <spdlog/common.h>
 #include <gsl/gsl>
 
 #include <mcbp/protocol/datatype.h>

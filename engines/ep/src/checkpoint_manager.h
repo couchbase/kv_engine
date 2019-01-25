@@ -19,14 +19,15 @@
 
 #include "config.h"
 
-#include "callbacks.h"
+#include "checkpoint_types.h"
 #include "cursor.h"
 #include "ep_types.h"
 #include "item.h"
 #include "monotonic.h"
 
-#include <map>
+#include <memcached/engine_common.h>
 #include <memory>
+#include <unordered_map>
 
 class Checkpoint;
 class CheckpointConfig;
@@ -34,6 +35,9 @@ class CheckpointCursor;
 class EPStats;
 class PreLinkDocumentContext;
 class VBucket;
+
+template <typename... RV>
+class Callback;
 
 /**
  * Representation of a checkpoint manager that maintains the list of checkpoints
@@ -336,12 +340,7 @@ public:
 
     bool incrCursor(CheckpointCursor &cursor);
 
-    void notifyFlusher() {
-        if (flusherCB) {
-            Vbid vbid = vbucketId;
-            flusherCB->callback(vbid);
-        }
-    }
+    void notifyFlusher();
 
     void setBySeqno(int64_t seqno) {
         LockHolder lh(queueLock);

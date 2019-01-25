@@ -137,3 +137,25 @@ void ActiveStreamCheckpointProcessorTask::addStats(const std::string& name,
 
     add_casted_stat((prefix + "notified").c_str(), notified, add_stat, c);
 }
+
+std::shared_ptr<StreamContainer<std::shared_ptr<Stream>>>
+ActiveStreamCheckpointProcessorTask::queuePop() {
+    Vbid vbid = Vbid(0);
+    {
+        LockHolder lh(workQueueLock);
+        if (queue.empty()) {
+            return nullptr;
+        }
+        vbid = queue.front();
+        queue.pop();
+        queuedVbuckets.erase(vbid);
+    }
+
+    /* findStream acquires DcpProducer::streamsMutex, hence called
+       without acquiring workQueueLock */
+    auto producer = producerPtr.lock();
+    if (producer) {
+        return producer->findStreams(vbid);
+    }
+    return nullptr;
+}

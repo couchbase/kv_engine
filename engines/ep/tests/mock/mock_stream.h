@@ -17,14 +17,12 @@
 
 #pragma once
 
-#include "collections/vbucket_filter.h"
 #include "dcp/active_stream.h"
 #include "dcp/consumer.h"
 #include "dcp/passive_stream.h"
 #include "dcp/producer.h"
 #include "dcp/stream.h"
 #include "tests/mock/mock_dcp_producer.h"
-#include "vbucket.h"
 
 class CheckpointManager;
 
@@ -45,23 +43,7 @@ public:
                      uint64_t snap_start_seqno,
                      uint64_t snap_end_seqno,
                      IncludeValue includeValue = IncludeValue::Yes,
-                     IncludeXattrs includeXattrs = IncludeXattrs::Yes)
-        : ActiveStream(e,
-                       p,
-                       p->getName(),
-                       flags,
-                       opaque,
-                       vb,
-                       st_seqno,
-                       en_seqno,
-                       vb_uuid,
-                       snap_start_seqno,
-                       snap_end_seqno,
-                       includeValue,
-                       includeXattrs,
-                       IncludeDeleteTime::No,
-                       {{}, vb.getManifest()}) {
-    }
+                     IncludeXattrs includeXattrs = IncludeXattrs::Yes);
 
     // Expose underlying protected ActiveStream methods as public
     std::vector<queued_item> public_getOutstandingItems(VBucket& vb) {

@@ -15,13 +15,14 @@
  *   limitations under the License.
  */
 
-#include "../mock/mock_stream.h"
+#include "checkpoint_manager.h"
 #include "dcp_stream_test.h"
 #include "ep_engine.h"
 #include "test_helpers.h"
+#include "vbucket.h"
 #include <engines/ep/tests/mock/mock_dcp.h>
+#include <engines/ep/tests/mock/mock_dcp_producer.h>
 
-#include "checkpoint_manager.h" // DEBUG
 /**
  * Test fixture for tests relating to DCP Streams and synchrnous replication.
  */

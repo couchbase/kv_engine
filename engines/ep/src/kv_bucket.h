@@ -18,7 +18,6 @@
 
 #include "ep_types.h"
 #include "executorpool.h"
-#include "item_freq_decayer.h"
 #include "kv_bucket_iface.h"
 #include "mutation_log.h"
 #include "stored-value.h"

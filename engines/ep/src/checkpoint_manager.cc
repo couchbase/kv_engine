@@ -770,6 +770,13 @@ bool CheckpointManager::incrCursor(CheckpointCursor &cursor) {
     return incrCursor(cursor);
 }
 
+void CheckpointManager::notifyFlusher() {
+    if (flusherCB) {
+        Vbid vbid = vbucketId;
+        flusherCB->callback(vbid);
+    }
+}
+
 void CheckpointManager::dump() const {
     std::cerr << *this << std::endl;
 }

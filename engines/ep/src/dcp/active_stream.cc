@@ -19,9 +19,11 @@
 
 #include "checkpoint_manager.h"
 #include "dcp/producer.h"
+#include "dcp/response.h"
 #include "ep_time.h"
 #include "kv_bucket.h"
 #include "statwriter.h"
+#include <memcached/protocol_binary.h>
 
 ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            std::shared_ptr<DcpProducer> p,

@@ -19,7 +19,6 @@
 
 #include <boost/optional/optional_fwd.hpp>
 
-#include <list>
 #include <memory>
 #include <string>
 
@@ -64,10 +63,6 @@ typedef struct {
     uint64_t start;
     snapshot_range_t range;
 } snapshot_info_t;
-
-// List of Checkpoints used by class CheckpointManager to store Checkpoints for
-// a given vBucket.
-using CheckpointList = std::list<std::unique_ptr<Checkpoint>>;
 
 /**
  * The following options can be specified

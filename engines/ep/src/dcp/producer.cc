@@ -29,6 +29,7 @@
 #include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/notifier_stream.h"
+#include "dcp/response.h"
 #include "executorpool.h"
 #include "failover-table.h"
 #include "item_eviction.h"

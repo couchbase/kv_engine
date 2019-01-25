@@ -18,16 +18,19 @@
 #pragma once
 
 #include "dcp/active_stream.h"
-#include "dcp/producer.h"
 #include "globaltask.h"
 
 #include <memcached/engine_common.h>
 
 #include <queue>
+#include <string>
 #include <unordered_set>
 
 class ActiveStream;
 class DcpProducer;
+class Stream;
+template <class E>
+class StreamContainer;
 
 class ActiveStreamCheckpointProcessorTask : public GlobalTask {
 public:
@@ -63,26 +66,7 @@ public:
                   const void* c) const;
 
 private:
-    std::shared_ptr<StreamContainer<std::shared_ptr<Stream>>> queuePop() {
-        Vbid vbid = Vbid(0);
-        {
-            LockHolder lh(workQueueLock);
-            if (queue.empty()) {
-                return nullptr;
-            }
-            vbid = queue.front();
-            queue.pop();
-            queuedVbuckets.erase(vbid);
-        }
-
-        /* findStream acquires DcpProducer::streamsMutex, hence called
-           without acquiring workQueueLock */
-        auto producer = producerPtr.lock();
-        if (producer) {
-            return producer->findStreams(vbid);
-        }
-        return nullptr;
-    }
+    std::shared_ptr<StreamContainer<std::shared_ptr<Stream>>> queuePop();
 
     bool queueEmpty() {
         LockHolder lh(workQueueLock);

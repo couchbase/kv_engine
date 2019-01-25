@@ -27,6 +27,7 @@
 #include <memcached/engine_error.h>
 #include <memcached/vbucket.h>
 
+#include <atomic>
 #include <mutex>
 #include <string>
 

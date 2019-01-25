@@ -25,6 +25,7 @@
 #include "vbucket.h"
 
 /* Forward declarations */
+struct CompactionConfig;
 class ExtendedMetaData;
 struct CompactionConfig;
 class ConflictResolution;

@@ -23,7 +23,6 @@
 #include "connhandler.h"
 #include "dcp/dcp-types.h"
 #include "dcp/ready-queue.h"
-#include "dcp/response.h"
 #include "dcp/stream_container.h"
 #include "ep_engine.h"
 #include "monotonic.h"
@@ -32,6 +31,8 @@
 class BackfillManager;
 class CheckpointCursor;
 class DcpResponse;
+class MutationResponse;
+class VBucket;
 
 class DcpProducer : public ConnHandler,
                     public std::enable_shared_from_this<DcpProducer> {

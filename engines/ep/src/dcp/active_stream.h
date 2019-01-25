@@ -17,11 +17,11 @@
 
 #pragma once
 
-#include "checkpoint.h"
 #include "collections/vbucket_filter.h"
 #include "dcp/stream.h"
 #include <spdlog/common.h>
 
+class CheckpointManager;
 class VBucket;
 
 class ActiveStream : public Stream,
