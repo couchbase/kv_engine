@@ -16,8 +16,6 @@ import requests
 import sys
 import time
 
-serverURL = 'http://cv.jenkins.couchbase.com/'
-
 # Create argparser so the user can specify which job to search
 argParser = argparse.ArgumentParser()
 argParser.add_argument('--job', '-j', type=str,
@@ -40,9 +38,14 @@ argParser.add_argument('--format', '-f', default="plain", type=str,
                        help="Select the format to print results. "
                             "Available formats are: "
                             "plain (default), log-line, jira")
+argParser.add_argument('--url-prefix', '-u', type=str, default='cv',
+                       help='Determine the endpoint of logs to check, ' \
+                            'http://<url-prefix>.jenkins.couchbase.com')
 
 args = argParser.parse_args()
 job = 'job/' + args.job + '/'
+
+serverURL = 'http://' + str(args.url_prefix) + '.jenkins.couchbase.com/'
 
 availableFormats = ["plain", "log-line", "jira"]
 outputFormat = args.format.lower()
