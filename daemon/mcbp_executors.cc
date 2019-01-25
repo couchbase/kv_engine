@@ -927,20 +927,7 @@ void execute_response_packet(Cookie& cookie,
 }
 
 static cb::mcbp::Status validate_packet_execusion_constraints(Cookie& cookie) {
-    /*
-     * Check if the current packet use an invalid datatype value. It may be
-     * considered invalid for two reasons:
-     *
-     *    1) it is using an unknown value
-     *    2) The connected client has not enabled the datatype
-     *    3) The bucket has disabled the datatype
-     *
-     */
     const auto& header = cookie.getHeader();
-    if (!cookie.getConnection().isDatatypeEnabled(header.getDatatype())) {
-        cookie.setErrorContext("Invalid datatype provided");
-        return cb::mcbp::Status::Einval;
-    }
 
     /*
      * Protect ourself from someone trying to kill us by sending insanely

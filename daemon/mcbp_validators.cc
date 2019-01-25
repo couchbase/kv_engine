@@ -34,15 +34,6 @@
 
 using cb::mcbp::Status;
 
-static inline bool may_accept_xattr(const Cookie& cookie) {
-    auto& req = cookie.getHeader();
-    if (mcbp::datatype::is_xattr(req.getDatatype())) {
-        return cookie.getConnection().isXattrEnabled();
-    }
-
-    return true;
-}
-
 bool is_document_key_valid(Cookie& cookie) {
     const auto& req = cookie.getRequest(Cookie::PacketContent::Header);
     const auto& key = req.getKey();
@@ -284,11 +275,13 @@ Status McbpValidator::verify_header(Cookie& cookie,
                                     ExpectedCas expected_cas,
                                     uint8_t expected_datatype_mask) {
     const auto& header = cookie.getHeader();
+    auto& connection = cookie.getConnection();
 
     if (!header.isValid()) {
         cookie.setErrorContext("Request header invalid");
         return Status::Einval;
     }
+
     if (!mcbp::datatype::is_valid(header.getDatatype())) {
         cookie.setErrorContext("Request datatype invalid");
         return Status::Einval;
@@ -318,7 +311,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
         }
         // Fall-through to check against max key length
     case ExpectedKeyLen::Any:
-        const auto maxKeyLen = cookie.getConnection().isCollectionsSupported()
+        const auto maxKeyLen = connection.isCollectionsSupported()
                                        ? MaxCollectionsKeyLen
                                        : KEY_MAX_LENGTH;
 
@@ -369,6 +362,28 @@ Status McbpValidator::verify_header(Cookie& cookie,
 
     if ((~expected_datatype_mask) & header.getDatatype()) {
         cookie.setErrorContext("Request datatype invalid");
+        return Status::Einval;
+    }
+
+    if (!connection.isDatatypeEnabled(header.getDatatype())) {
+        uint8_t result = 0;
+        const auto datatypes = header.getDatatype();
+        for (int ii = 0; ii < 8; ++ii) {
+            const auto bit = uint8_t(1 << ii);
+            if ((bit & datatypes) != bit) {
+                continue;
+            }
+            if (mcbp::datatype::is_valid(protocol_binary_datatype_t(ii))) {
+                if (!connection.isDatatypeEnabled(bit)) {
+                    result |= bit;
+                }
+            }
+        }
+
+        cookie.setErrorContext(
+                "Datatype (" +
+                mcbp::datatype::to_string(protocol_binary_datatype_t(result)) +
+                ") not enabled for the connection");
         return Status::Einval;
     }
 
@@ -695,11 +710,6 @@ static Status dcp_mutation_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if (!may_accept_xattr(cookie)) {
-        cookie.setErrorContext("Connection not Xattr enabled");
-        return Status::Einval;
-    }
-
     auto& header = cookie.getHeader();
     const auto datatype = header.getDatatype();
 
@@ -860,11 +870,6 @@ static Status dcp_prepare_validator(Cookie& cookie) {
     }
 
     if (!is_document_key_valid(cookie)) {
-        return Status::Einval;
-    }
-
-    if (!may_accept_xattr(cookie)) {
-        cookie.setErrorContext("Connection not Xattr enabled");
         return Status::Einval;
     }
 
@@ -1571,10 +1576,6 @@ static Status mutate_with_meta_validator(Cookie& cookie) {
         return status;
     }
     if (!is_document_key_valid(cookie)) {
-        return Status::Einval;
-    }
-    if (!may_accept_xattr(cookie)) {
-        cookie.setErrorContext("Connection not Xattr enabled");
         return Status::Einval;
     }
 

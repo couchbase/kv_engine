@@ -63,7 +63,10 @@ public:
 cb::mcbp::Status ValidatorTest::validate(cb::mcbp::ClientOpcode opcode,
                                          void* packet) {
     // Mockup a McbpConnection and Cookie for the validator chain
+    connection.enableDatatype(cb::mcbp::Feature::JSON);
     connection.enableDatatype(cb::mcbp::Feature::XATTR);
+    connection.enableDatatype(cb::mcbp::Feature::SNAPPY);
+
     const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);
     const size_t size = sizeof(req) + req.getBodylen();
     cb::const_byte_buffer buffer{static_cast<uint8_t*>(packet), size};
@@ -3674,7 +3677,7 @@ TEST_P(CommandSpecificErrorContextTest, DcpMutation) {
     header.setBodylen(extlen + 10);
     header.setDatatype(cb::mcbp::Datatype::Xattr);
     connection.disableAllDatatypes();
-    EXPECT_EQ("Connection not Xattr enabled",
+    EXPECT_EQ("Datatype (xattr) not enabled for the connection",
               validate_error_context(cb::mcbp::ClientOpcode::DcpMutation));
 
     // Request body must be valid Xattr blob if datatype is Xattr
@@ -3965,7 +3968,7 @@ TEST_P(CommandSpecificErrorContextTest, MutateWithMeta) {
     header.setBodylen(34);
     header.setDatatype(cb::mcbp::Datatype::Xattr);
     connection.disableAllDatatypes();
-    EXPECT_EQ("Connection not Xattr enabled",
+    EXPECT_EQ("Datatype (xattr) not enabled for the connection",
               validate_error_context(cb::mcbp::ClientOpcode::AddWithMeta));
 
     // If datatype is Xattr, command value must be valid xattr blob
