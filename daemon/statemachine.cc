@@ -171,7 +171,7 @@ bool StateMachine::conn_ship_log() {
         if (connection.read->rsize() >= sizeof(cb::mcbp::Header)) {
             try_read_mcbp_command(connection.getCookieObject());
         } else {
-            connection.setState(StateMachine::State::read_packet_header);
+            setCurrentState(State::read_packet_header);
         }
 
         /* we're going to process something.. let's proceed */
@@ -199,7 +199,7 @@ bool StateMachine::conn_ship_log() {
             switch (connection.remapErrorCode(ret)) {
             case ENGINE_SUCCESS:
                 /* The engine got more data it wants to send */
-                connection.setState(StateMachine::State::send_data);
+                setCurrentState(State::send_data);
                 connection.setWriteAndGo(StateMachine::State::ship_log);
                 break;
             case ENGINE_EWOULDBLOCK:
@@ -213,7 +213,7 @@ bool StateMachine::conn_ship_log() {
                         connection.getId(),
                         std::to_string(ret),
                         connection.getDescription());
-                connection.setState(StateMachine::State::closing);
+                setCurrentState(State::closing);
             }
         }
     }
@@ -223,7 +223,7 @@ bool StateMachine::conn_ship_log() {
                 R"({}: conn_ship_log - Unable to update libevent, closing connection {})",
                 connection.getId(),
                 connection.getDescription());
-        connection.setState(StateMachine::State::closing);
+        setCurrentState(State::closing);
     }
 
     return cont;
@@ -241,10 +241,10 @@ bool StateMachine::conn_waiting() {
                 "{}",
                 connection.getId(),
                 connection.getDescription());
-        connection.setState(StateMachine::State::closing);
+        setCurrentState(State::closing);
         return true;
     }
-    connection.setState(StateMachine::State::read_packet_header);
+    setCurrentState(State::read_packet_header);
     return false;
 }
 
@@ -256,13 +256,13 @@ bool StateMachine::conn_read_packet_header() {
     auto res = connection.tryReadNetwork();
     switch (res) {
     case Connection::TryReadResult::NoDataReceived:
-        connection.setState(StateMachine::State::waiting);
+        setCurrentState(State::waiting);
         break;
     case Connection::TryReadResult::DataReceived:
         if (connection.read->rsize() >= sizeof(cb::mcbp::Header)) {
-            connection.setState(StateMachine::State::parse_cmd);
+            setCurrentState(State::parse_cmd);
         } else {
-            connection.setState(StateMachine::State::waiting);
+            setCurrentState(State::waiting);
         }
         break;
     case Connection::TryReadResult::SocketClosed:
@@ -276,7 +276,7 @@ bool StateMachine::conn_read_packet_header() {
                     connection.getId(),
                     connection.getDescription());
         }
-        connection.setState(StateMachine::State::closing);
+        setCurrentState(State::closing);
         break;
     case Connection::TryReadResult::MemoryError: /* Failed to allocate more
                                                     memory */
@@ -316,11 +316,11 @@ bool StateMachine::conn_new_cmd() {
 
         connection.shrinkBuffers();
         if (connection.read->rsize() >= sizeof(cb::mcbp::Header)) {
-            connection.setState(StateMachine::State::parse_cmd);
+            setCurrentState(State::parse_cmd);
         } else if (connection.isSslEnabled()) {
-            connection.setState(StateMachine::State::read_packet_header);
+            setCurrentState(State::read_packet_header);
         } else {
-            connection.setState(StateMachine::State::waiting);
+            setCurrentState(State::waiting);
         }
     } else {
         connection.yield();
@@ -345,7 +345,7 @@ bool StateMachine::conn_new_cmd() {
                         "libevent settings, closing connection {}",
                         connection.getId(),
                         connection.getDescription());
-                connection.setState(StateMachine::State::closing);
+                setCurrentState(State::closing);
                 return true;
             }
         }
@@ -400,7 +400,7 @@ bool StateMachine::conn_validate() {
             audit_invalid_packet(cookie, cookie.getPacket());
             LOG_WARNING("{}: Received a server command. Closing connection",
                         connection.getId());
-            connection.setState(StateMachine::State::closing);
+            setCurrentState(State::closing);
             return true;
         }
     } // We don't currently have any validators for response packets
@@ -453,7 +453,7 @@ bool StateMachine::conn_validate() {
         }
     }
 
-    connection.setState(StateMachine::State::execute);
+    setCurrentState(State::execute);
     return true;
 }
 
@@ -473,7 +473,7 @@ bool StateMachine::conn_execute() {
     // We've executed the packet, and given that we're not blocking we
     // we should move over to the next state. Just do a sanity check
     // for that.
-    if (connection.getState() == StateMachine::State::execute) {
+    if (currentState == StateMachine::State::execute) {
         throw std::logic_error(
                 "conn_execute: Should leave conn_execute for !EWOULDBLOCK");
     }
@@ -528,7 +528,7 @@ bool StateMachine::conn_read_packet_body() {
                              cb::const_byte_buffer{input.data(),
                                                    sizeof(cb::mcbp::Request) +
                                                            req->getBodylen()});
-            connection.setState(StateMachine::State::validate);
+            setCurrentState(State::validate);
         }
 
         return true;
@@ -536,7 +536,7 @@ bool StateMachine::conn_read_packet_body() {
 
     if (res == 0) { /* end of stream */
         // Note: we do not log a clean connection shutdown
-        connection.setState(StateMachine::State::closing);
+        setCurrentState(State::closing);
         return true;
     }
 
@@ -549,7 +549,7 @@ bool StateMachine::conn_read_packet_body() {
                     "connection {}",
                     connection.getId(),
                     connection.getDescription());
-            connection.setState(StateMachine::State::closing);
+            setCurrentState(State::closing);
             return true;
         }
 
@@ -565,7 +565,7 @@ bool StateMachine::conn_read_packet_body() {
                 connection.getDescription(),
                 errormsg);
 
-    connection.setState(StateMachine::State::closing);
+    setCurrentState(State::closing);
     return true;
 }
 
@@ -580,7 +580,7 @@ bool StateMachine::conn_send_data() {
 
         // We're done sending the response to the client. Enter the next
         // state in the state machine
-        connection.setState(connection.getWriteAndGo());
+        setCurrentState(connection.getWriteAndGo());
         break;
 
     case Connection::TransmitResult::Incomplete:
@@ -627,7 +627,7 @@ bool StateMachine::conn_immediate_close() {
     // Set the connection to the sentinal state destroyed and return
     // false to break out of the event loop (and have the the framework
     // delete the connection object).
-    connection.setState(StateMachine::State::destroyed);
+    setCurrentState(State::destroyed);
 
     return false;
 }
