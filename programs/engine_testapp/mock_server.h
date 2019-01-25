@@ -6,6 +6,7 @@
 #include <platform/platform.h>
 
 #include <atomic>
+#include <bitset>
 #include <string>
 
 #include "tracing/tracer.h"

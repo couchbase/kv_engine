@@ -18,7 +18,6 @@
 #pragma once
 
 #include <memcached/mcd_util-visibility.h>
-#include <platform/bitset.h>
 #include <platform/socket.h>
 #include <string>
 
@@ -39,14 +38,6 @@ typedef struct {
     uint64_t uuid;
     uint64_t seqno;
 } vbucket_failover_t;
-
-struct PermittedVBStatesMap {
-    size_t map(vbucket_state_t in) {
-        return in - 1;
-    }
-};
-
-using PermittedVBStates = cb::bitset<4, vbucket_state_t, PermittedVBStatesMap>;
 
 /**
  * Vbid - a custom type class to control the use of vBucket ID's and their

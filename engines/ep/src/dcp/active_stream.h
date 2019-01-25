@@ -20,7 +20,9 @@
 #include "checkpoint.h"
 #include "collections/vbucket_filter.h"
 #include "dcp/stream.h"
-#include "vbucket.h"
+#include <spdlog/common.h>
+
+class VBucket;
 
 class ActiveStream : public Stream,
                      public std::enable_shared_from_this<ActiveStream> {

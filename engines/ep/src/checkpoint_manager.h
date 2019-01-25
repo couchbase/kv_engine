@@ -24,7 +24,6 @@
 #include "ep_types.h"
 #include "item.h"
 #include "monotonic.h"
-#include "vbucket.h"
 
 #include <map>
 #include <memory>

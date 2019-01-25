@@ -24,6 +24,7 @@
 #include "dcp/producer.h"
 #include "dcp/stream.h"
 #include "tests/mock/mock_dcp_producer.h"
+#include "vbucket.h"
 
 class CheckpointManager;
 

@@ -23,10 +23,10 @@
 
 #include "config.h"
 
-#include <memcached/engine.h>
-
 #include <gtest/gtest.h>
+#include <memcached/vbucket.h>
 
+struct EngineIface;
 class EventuallyPersistentEngine;
 
 class EventuallyPersistentEngineTest : virtual public ::testing::Test {

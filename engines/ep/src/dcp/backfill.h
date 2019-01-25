@@ -19,8 +19,6 @@
 
 #include "config.h"
 
-#include "vbucket.h"
-
 class ActiveStream;
 class ScanContext;
 

@@ -49,7 +49,9 @@
 #include <list>
 
 class EventuallyPersistentEngine;
+class GlobalTask;
 class VBucket;
+using ExTask = std::shared_ptr<GlobalTask>;
 
 struct BackfillScanBuffer {
     size_t bytesRead;

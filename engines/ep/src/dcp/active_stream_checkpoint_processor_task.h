@@ -20,7 +20,6 @@
 #include "dcp/active_stream.h"
 #include "dcp/producer.h"
 #include "globaltask.h"
-#include "vbucket.h"
 
 #include <memcached/engine_common.h>
 
