@@ -16,12 +16,14 @@
  */
 #include "testapp_bucket.h"
 
+#include <platform/cb_malloc.h>
+#include <platform/dirutils.h>
+#include <utilities/json_utilities.h>
+
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
-#include <platform/cb_malloc.h>
-#include <platform/dirutils.h>
 #include <thread>
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
@@ -395,44 +397,24 @@ TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
 intptr_t getConnectionId(MemcachedConnection& conn) {
     const std::string agent_name{"getConnectionId 1.0"};
     conn.hello("getConnectionId", "1.0", "test connections test");
-    unique_cJSON_ptr stats;
-    stats = conn.stats("connections");
-    if (!stats) {
+
+    auto stats = conn.statsN("connections");
+    if (stats.empty()) {
         throw std::runtime_error("getConnectionId: stats connections failed");
     }
 
     // Unfortuately they're all mapped as a " " : "json" pairs, so lets
     // validate that at least thats true:
-    for (auto* conn = stats.get()->child; conn != nullptr; conn = conn->next) {
-        unique_cJSON_ptr json(cJSON_Parse(conn->valuestring));
-        if (!json) {
-            throw std::runtime_error(
-                    std::string{"getConnectionId: Failed to decode json ["} +
-                    conn->valuestring + "]");
-        }
-
-        auto* ptr = cJSON_GetObjectItem(json.get(), "agent_name");
-        if (ptr != nullptr) {
-            if (ptr->type != cJSON_String) {
-                throw std::runtime_error(
-                        "getConnectionId: Invalid type for agent_name: " +
-                        std::to_string(ptr->type));
-            }
-
-            if (agent_name == std::string{ptr->valuestring}) {
-                ptr = cJSON_GetObjectItem(json.get(), "socket");
-                if (ptr == nullptr) {
-                    throw std::runtime_error(
-                            "getConnectionId: Socket element is not there");
-                }
-
-                if (ptr->type != cJSON_Number) {
-                    throw std::runtime_error(
-                            "getConnectionId: Invalid type for socket: " +
-                            std::to_string(ptr->type));
-                }
-
-                return gsl::narrow<intptr_t>(ptr->valueint);
+    for (const auto connStr : stats) {
+        auto conn = nlohmann::json::parse(connStr.get<std::string>());
+        auto agent = conn.find("agent_name");
+        if (agent != conn.end()) {
+            // "agent_name" definitely exists, but we might still want to throw
+            // if it's the wrong type. Just use this helper function because we
+            // need to get the value out anyway and it's easier to read.
+            if (agent_name == cb::jsonGet<std::string>(conn, "agent_name")) {
+                return gsl::narrow<intptr_t>(
+                        cb::jsonGet<size_t>(conn, "socket"));
             }
         }
     }
