@@ -102,16 +102,7 @@ public:
         return !operator==(ci);
     }
 
-    auto& operator*() {
-        if (isAtEnd()) {
-            throw std::out_of_range(
-                    "CheckpointIterator *() "
-                    "index is pointing to 'end'");
-        }
-        return getElement();
-    }
-
-    const auto& operator*() const {
+    auto& operator*() const {
         if (isAtEnd()) {
             throw std::out_of_range(
                     "CheckpointIterator *() const "

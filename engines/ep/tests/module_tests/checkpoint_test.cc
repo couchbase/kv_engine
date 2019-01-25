@@ -30,6 +30,7 @@
 #include "tests/module_tests/test_helpers.h"
 #include "thread_gate.h"
 
+#include "../mock/mock_checkpoint.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 
@@ -1601,4 +1602,34 @@ TYPED_TEST(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
 
     // Should be back to the initialOverhead
     EXPECT_EQ(initialOverhead, this->manager->getMemoryOverhead());
+}
+
+// Test that when an item is deduped the entry remains in the checkpoint
+// queue, just that it now points to an expelled element.
+TYPED_TEST(CheckpointTest, dedupeToNullTest) {
+    MockCheckpoint chkpt(this->global_stats, 1, 0, 0, Vbid(0));
+
+    ASSERT_EQ(0, chkpt.getCheckpointQueueSize());
+    ASSERT_EQ(0, chkpt.getNumItems());
+    queued_item qi{new Item(makeStoredDocKey("key0"),
+                            Vbid(0),
+                            queue_op::mutation,
+                            /*revSeq*/ 0,
+                            /*bySeq*/ 0)};
+
+    chkpt.queueDirty(qi, this->manager.get());
+    ASSERT_EQ(1, chkpt.getCheckpointQueueSize());
+    ASSERT_EQ(1, chkpt.getNumItems());
+    queued_item qi2{new Item(makeStoredDocKey("key0"),
+                             Vbid(0),
+                             queue_op::mutation,
+                             /*revSeq*/ 0,
+                             /*bySeq*/ 0)};
+
+    chkpt.queueDirty(qi2, this->manager.get());
+    // The CheckpointQueue should contain the nullptr and the pointer to the
+    // latest version of key0.
+    EXPECT_EQ(2, chkpt.getCheckpointQueueSize());
+    // The CheckpointQueue should only contain one non-null element.
+    EXPECT_EQ(1, chkpt.getNumItems());
 }

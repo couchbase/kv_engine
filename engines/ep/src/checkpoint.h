@@ -466,6 +466,17 @@ public:
      */
     void addItemToCheckpoint(const queued_item& qi);
 
+protected:
+    // Protected so can be accessed for testing
+
+    // Allocator used for tracking memory used by the CheckpointQueue
+    // Need to be placed before the definition of the CheckpointQueue as
+    // it is used in its construction.
+    MemoryTrackingAllocator<queued_item> trackingAllocator;
+
+    // Queue containing all the items that belong to the checkpoint.
+    CheckpointQueue toWrite;
+
 private:
     EPStats                       &stats;
     uint64_t                       checkpointId;
@@ -482,9 +493,6 @@ private:
     // Count of the number of cursors that reside in the checkpoint
     cb::NonNegativeCounter<size_t> numOfCursorsInCheckpoint = 0;
 
-    // Allocator used for tracking memory used by the CheckpointQueue
-    MemoryTrackingAllocator<queued_item> trackingAllocator;
-    CheckpointQueue toWrite;
     checkpoint_index               keyIndex;
     /* Index for meta keys like "dummy_key" */
     checkpoint_index               metaKeyIndex;
