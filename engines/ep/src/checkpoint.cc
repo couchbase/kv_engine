@@ -126,10 +126,6 @@ void Checkpoint::setState_UNLOCKED(checkpoint_state state) {
     checkpointState = state;
 }
 
-bool Checkpoint::keyExists(const DocKey& key) {
-    return keyIndex.find(key) != keyIndex.end();
-}
-
 QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                                         CheckpointManager* checkpointManager) {
     if (checkpointState != CHECKPOINT_OPEN) {

@@ -404,8 +404,6 @@ public:
         return ChkptQueueIterator(toWrite, ChkptQueueIterator::Position::end);
     }
 
-    bool keyExists(const DocKey& key);
-
     /**
      * Return the memory overhead of this checkpoint instance, except for the memory used by
      * all the items belonging to this checkpoint. The memory overhead of those items is
