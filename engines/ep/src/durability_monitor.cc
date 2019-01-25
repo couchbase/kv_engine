@@ -222,23 +222,21 @@ ENGINE_ERROR_CODE DurabilityMonitor::registerReplicationChain(
                 "allowed");
     }
 
-    // @todo: Not sure yet how ns_server behaves if num-replica=0.
-    //     Most likely we can accept a replication-chain with only the Active
-    //     and we can move this check into DM::addSyncWrite(), where we
-    //     will return DURABILTY_IMPOSSIBLE if chain-size==1.
-    if (nodes.size() == 1) {
+    // Max Active + MaxReplica
+    if (nodes.size() > 1 + maxReplicas) {
         throw std::logic_error(
-                "DurabilityMonitor::registerReplicationChain: Chain contains "
-                "only the active node");
+                "DurabilityMonitor::registerReplicationChain: Too many nodes "
+                "in chain: " +
+                std::to_string(nodes.size()));
     }
 
-    if (nodes.size() > 2) {
-        return ENGINE_ENOTSUP;
-    }
-
-    // Statically create a single RC. This will be expanded for creating
-    // multiple RCs dynamically.
     std::lock_guard<std::mutex> lg(state.m);
+
+    // Note: Topology changes (i.e., reset of replication-chain) are implicitly
+    //     supported. With the current model the new replication-chain will
+    //     kick-in at the first new SyncWrite added to tracking.
+    // @todo: Check if the above is legal
+    // @todo: Add support for SecondChain
     state.firstChain = std::make_unique<ReplicationChain>(
             nodes, state.trackedWrites.begin());
 
@@ -261,16 +259,23 @@ ENGINE_ERROR_CODE DurabilityMonitor::addSyncWrite(const void* cookie,
     }
 
     std::lock_guard<std::mutex> lg(state.m);
+
     if (!state.firstChain) {
         throw std::logic_error(
                 "DurabilityMonitor::addSyncWrite: no chain registered");
     }
+
     state.trackedWrites.push_back(SyncWrite(cookie, item, *state.firstChain));
 
     // By logic, before this call the item has been enqueued into the
     // CheckpointManager. So, the memory-tracking for the active has implicitly
     // advanced.
-    advanceNodePosition(lg, state.firstChain->active, Tracking::Memory);
+    const auto& thisNode = state.firstChain->active;
+    advanceNodePosition(lg, thisNode, Tracking::Memory);
+    updateNodeAck(lg, thisNode, Tracking::Memory, item->getBySeqno());
+
+    Ensures(getNodeWriteSeqnos(lg, thisNode).memory == item->getBySeqno());
+    Ensures(getNodeAckSeqnos(lg, thisNode).memory == item->getBySeqno());
 
     return ENGINE_SUCCESS;
 }
@@ -460,6 +465,30 @@ void DurabilityMonitor::advanceNodePosition(
     pos.it->ack(node, tracking);
 }
 
+void DurabilityMonitor::updateNodeAck(const std::lock_guard<std::mutex>& lg,
+                                      const std::string& node,
+                                      Tracking tracking,
+                                      int64_t seqno) {
+    const auto& pos_ = state.firstChain->positions.at(node);
+    auto& pos = const_cast<Position&>(tracking == Tracking::Memory ? pos_.memory
+                                                                   : pos_.disk);
+
+    // Note: using WeaklyMonotonic, as receiving the same seqno multiple times
+    // for the same node is ok. That just means that the node has not advanced
+    // any of memory/disk seqnos.
+    // E.g., imagine the following DCP_SEQNO_ACK sequence:
+    //
+    // {mem:1, disk:0} -> {mem:2, disk:0}
+    //
+    // That is legal, and it means that the node has enqueued seqnos {1, 2}
+    // but not persisted anything yet.
+    //
+    // @todo: By doing this I don't catch the case where the replica has ack'ed
+    //     both the same mem/disk seqnos twice (which shouldn't happen).
+    //     It would be good to catch that, useful for replica logic-check.
+    pos.lastAckSeqno = seqno;
+}
+
 DurabilityMonitor::NodeSeqnos DurabilityMonitor::getNodeWriteSeqnos(
         const std::lock_guard<std::mutex>& lg, const std::string& node) const {
     const auto& pos = state.firstChain->positions.at(node);
@@ -559,22 +588,5 @@ void DurabilityMonitor::processSeqnoAck(const std::lock_guard<std::mutex>& lg,
     }
 
     // We keep track of the actual ack'ed seqno
-    const auto& pos_ = state.firstChain->positions.at(node);
-    auto& pos = const_cast<Position&>(tracking == Tracking::Memory ? pos_.memory
-                                                                   : pos_.disk);
-
-    // Note: using WeaklyMonotonic, as receiving the same seqno multiple times
-    // for the same node is ok. That just means that the node has not advanced
-    // any of memory/disk seqnos.
-    // E.g., imagine the following DCP_SEQNO_ACK sequence:
-    //
-    // {mem:1, disk:0} -> {mem:2, disk:0}
-    //
-    // That is legal, and it means that the node has enqueued seqnos {1, 2}
-    // but not persisted anything yet.
-    //
-    // @todo: By doing this I don't catch the case where the replica has ack'ed
-    //     both the same mem/disk seqnos twice (which shouldn't happen).
-    //     It would be good to catch that, useful for replica logic-check.
-    pos.lastAckSeqno = ackSeqno;
+    updateNodeAck(lg, node, tracking, ackSeqno);
 }

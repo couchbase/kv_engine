@@ -328,3 +328,86 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceived_PersistToMajority) {
     }
     FAIL();
 }
+
+TEST_F(DurabilityMonitorTest, RegisterChain_Empty) {
+    try {
+        monitor->registerReplicationChain({});
+    } catch (const std::logic_error& e) {
+        EXPECT_TRUE(std::string(e.what()).find("Empty chain") !=
+                    std::string::npos);
+        return;
+    }
+    FAIL();
+}
+
+TEST_F(DurabilityMonitorTest, RegisterChain_TooManyNodes) {
+    try {
+        monitor->registerReplicationChain(
+                {"active", "replica1", "replica2", "replica3", "replica4"});
+    } catch (const std::logic_error& e) {
+        EXPECT_TRUE(std::string(e.what()).find("Too many nodes in chain") !=
+                    std::string::npos);
+        return;
+    }
+    FAIL();
+}
+
+TEST_F(DurabilityMonitorTest, RegisterChain_NodeDuplicate) {
+    try {
+        monitor->registerReplicationChain({"node1", "node1"});
+    } catch (const std::logic_error& e) {
+        EXPECT_TRUE(std::string(e.what()).find("Duplicate node") !=
+                    std::string::npos);
+        return;
+    }
+    FAIL();
+}
+
+// @todo: Extend to disk-seqno
+TEST_F(DurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {
+    const std::string active = "active";
+    const std::string replica1 = "replica1";
+    const std::string replica2 = "replica2";
+    const std::string replica3 = "replica3";
+
+    ASSERT_NO_THROW(monitor->registerReplicationChain(
+            {active, replica1, replica2, replica3}));
+    ASSERT_EQ(4, monitor->public_getReplicationChainSize());
+
+    addSyncWrite(1 /*seqno*/);
+
+    // Active has implicitly ack'ed (SyncWrite added for tracking /after/ being
+    // enqueued into the CheckpointManager)
+    EXPECT_EQ(1, monitor->public_getNodeWriteSeqnos(active).memory);
+    EXPECT_EQ(1, monitor->public_getNodeAckSeqnos(active).memory);
+
+    // Nothing ack'ed yet for replica
+    for (const auto& replica : {replica1, replica2, replica3}) {
+        EXPECT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).memory);
+        EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(replica).memory);
+    }
+    // Nothing committed
+    EXPECT_EQ(1, monitor->public_getNumTracked());
+
+    // replica2 acks
+    EXPECT_EQ(ENGINE_SUCCESS,
+              monitor->seqnoAckReceived(
+                      replica2, 1 /*memSeqno*/, 0 /*diskSeqno*/));
+    EXPECT_EQ(1, monitor->public_getNodeWriteSeqnos(replica2).memory);
+    EXPECT_EQ(1, monitor->public_getNodeAckSeqnos(replica2).memory);
+    // Nothing committed yet
+    EXPECT_EQ(1, monitor->public_getNumTracked());
+
+    // replica3 acks
+    EXPECT_EQ(ENGINE_SUCCESS,
+              monitor->seqnoAckReceived(
+                      replica3, 1 /*memSeqno*/, 0 /*diskSeqno*/));
+    EXPECT_EQ(1, monitor->public_getNodeWriteSeqnos(replica3).memory);
+    EXPECT_EQ(1, monitor->public_getNodeAckSeqnos(replica3).memory);
+    // Requirements verified, committed
+    EXPECT_EQ(0, monitor->public_getNumTracked());
+
+    // replica1 has not ack'ed yet
+    EXPECT_EQ(0, monitor->public_getNodeWriteSeqnos(replica1).memory);
+    EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(replica1).memory);
+}

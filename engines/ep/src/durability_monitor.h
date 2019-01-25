@@ -39,28 +39,7 @@ class VBucket;
  *
  * DM internals (describing by example).
  *
- * num_replicas: 1
- * durability_level: Majority (tracking only in-memory seqno)
- * M: Memory-seqno position of tracked replica
- *
- * Tracked:        rEnd        2        6        7        8        15
- *                 ^
- *                 M
- *
- * At seqno-ack received, M is moved to the latest seqno <= seqno-ack.
- * Currently (1 replica, in-memory seqno, 1 replication-chain only), at each
- * move the Durability Requirements of the SyncWrite at the new position are
- * implicitly verified, so the SyncWrite at the new position is committed and
- * removed.
- * E.g., at receiving a seqno-12 ack the new internal state will be:
- *
- * Tracked:        rEnd        15
- *                 ^
- *                 M
- *
- * Note that M maintains internally the tracked replica state (last ack'ed
- * seqno and last ack'ed SyncWrite seqno) even after the pointed SyncWrite is
- * removed.
+ * @todo: Update deferred, internals changing frequently these days :)
  */
 class DurabilityMonitor {
 public:
@@ -171,6 +150,28 @@ protected:
                              Tracking tracking);
 
     /**
+     * We track both the memory/disk seqnos ack'ed by nodes.
+     * Note that this may be different from the current SyncWrite tracked for
+     * the node.
+     * E.g., if we have one tracked SyncWrite{seqno:1, Level:Majority}, then
+     * the DurabilityMonitor may receive a SeqnoAck{mem:1000, disk:0}.
+     * At that point the memory-tracking for that node will be:
+     *
+     *     {writeSeqno:1, ackSeqno:1000}
+     *
+     * This function updates the tracking with the last seqno ack'ed by node.
+     *
+     * @param lg the object lock
+     * @param node
+     * @param tracking Memory or Disk?
+     * @param seqno New ack seqno
+     */
+    void updateNodeAck(const std::lock_guard<std::mutex>& lg,
+                       const std::string& node,
+                       Tracking tracking,
+                       int64_t seqno);
+
+    /**
      * Returns the seqnos of the SyncWrites currently pointed by the internal
      * memory/disk tracking for Node.
      * E.g., if we have a tracked SyncWrite list like {s:1, s:2} and we receive
@@ -244,4 +245,6 @@ protected:
         std::unique_ptr<ReplicationChain> firstChain;
         Container trackedWrites;
     } state;
+
+    const size_t maxReplicas = 3;
 };
