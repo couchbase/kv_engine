@@ -18,12 +18,11 @@
 #pragma once
 
 #include "dcp/active_stream.h"
-#include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/producer.h"
 #include "dcp/stream.h"
-#include "kv_bucket.h"
-#include "mock_dcp_backfill_mgr.h"
 
+class ActiveStreamCheckpointProcessorTask;
+struct BackfillScanBuffer;
 class MockActiveStream;
 class MockDcpMessageProducers;
 
@@ -37,15 +36,7 @@ public:
                     const void* cookie,
                     const std::string& name,
                     uint32_t flags,
-                    bool startTask = true)
-        : DcpProducer(
-                  theEngine,
-                  cookie,
-                  name,
-                  flags,
-                  startTask) {
-        backfillMgr = std::make_shared<MockDcpBackfillManager>(engine_);
-    }
+                    bool startTask = true);
 
     ENGINE_ERROR_CODE maybeDisconnect() {
         return DcpProducer::maybeDisconnect();
@@ -108,11 +99,7 @@ public:
         DcpProducer::scheduleCheckpointProcessorTask();
     }
 
-    ActiveStreamCheckpointProcessorTask& getCheckpointSnapshotTask() const {
-        LockHolder guard(checkpointCreator->mutex);
-        return *static_cast<ActiveStreamCheckpointProcessorTask*>(
-                checkpointCreator->task.get());
-    }
+    ActiveStreamCheckpointProcessorTask& getCheckpointSnapshotTask() const;
 
     /**
      * Finds the stream for a given vbucket
@@ -130,30 +117,16 @@ public:
     /**
      * Sets the backfill buffer size (max limit) to a particular value
      */
-    void setBackfillBufferSize(size_t newSize) {
-        return std::dynamic_pointer_cast<MockDcpBackfillManager>(
-                       backfillMgr.load())
-                ->setBackfillBufferSize(newSize);
-    }
+    void setBackfillBufferSize(size_t newSize);
 
-    bool getBackfillBufferFullStatus() {
-        return std::dynamic_pointer_cast<MockDcpBackfillManager>(
-                       backfillMgr.load())
-                ->getBackfillBufferFullStatus();
-    }
+    bool getBackfillBufferFullStatus();
 
     /*
      * @return A reference to BackfillManager::scanBuffer
      */
-    auto& public_getBackfillScanBuffer() {
-        return std::dynamic_pointer_cast<MockDcpBackfillManager>(
-                       backfillMgr.load())
-                ->public_getBackfillScanBuffer();
-    }
+    BackfillScanBuffer& public_getBackfillScanBuffer();
 
-    void bytesForceRead(size_t bytes) {
-        backfillMgr->bytesForceRead(bytes);
-    }
+    void bytesForceRead(size_t bytes);
 
     BackfillManager& getBFM() {
         return *(backfillMgr.load());

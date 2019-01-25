@@ -29,6 +29,7 @@
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_manager.h"
+#include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/dcp-types.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"

@@ -16,13 +16,25 @@
  */
 
 #include "mock_dcp_producer.h"
+#include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/msg_producers_border_guard.h"
 #include "mock_dcp.h"
+#include "mock_dcp_backfill_mgr.h"
 #include "mock_stream.h"
+#include "vbucket.h"
 
 #include <gtest/gtest.h>
 
 extern cb::mcbp::ClientOpcode last_op;
+
+MockDcpProducer::MockDcpProducer(EventuallyPersistentEngine& theEngine,
+                                 const void* cookie,
+                                 const std::string& name,
+                                 uint32_t flags,
+                                 bool startTask)
+    : DcpProducer(theEngine, cookie, name, flags, startTask) {
+    backfillMgr = std::make_shared<MockDcpBackfillManager>(engine_);
+}
 
 std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
         uint32_t flags,
@@ -86,6 +98,13 @@ std::shared_ptr<Stream> MockDcpProducer::findStream(Vbid vbid) {
     return nullptr;
 }
 
+ActiveStreamCheckpointProcessorTask&
+MockDcpProducer::getCheckpointSnapshotTask() const {
+    LockHolder guard(checkpointCreator->mutex);
+    return *static_cast<ActiveStreamCheckpointProcessorTask*>(
+            checkpointCreator->task.get());
+}
+
 std::pair<std::shared_ptr<Stream>, bool> MockDcpProducer::findStream(
         Vbid vbid, cb::mcbp::DcpStreamId sid) {
     auto rv = streams.find(vbid);
@@ -100,4 +119,23 @@ std::pair<std::shared_ptr<Stream>, bool> MockDcpProducer::findStream(
         return {nullptr, true};
     }
     return {nullptr, false};
+}
+
+void MockDcpProducer::setBackfillBufferSize(size_t newSize) {
+    return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr.load())
+            ->setBackfillBufferSize(newSize);
+}
+
+bool MockDcpProducer::getBackfillBufferFullStatus() {
+    return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr.load())
+            ->getBackfillBufferFullStatus();
+}
+
+BackfillScanBuffer& MockDcpProducer::public_getBackfillScanBuffer() {
+    return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr.load())
+            ->public_getBackfillScanBuffer();
+}
+
+void MockDcpProducer::bytesForceRead(size_t bytes) {
+    backfillMgr->bytesForceRead(bytes);
 }

@@ -37,7 +37,7 @@ public:
         return buffer.full;
     }
 
-    auto& public_getBackfillScanBuffer() {
+    BackfillScanBuffer& public_getBackfillScanBuffer() {
         return scanBuffer;
     }
 };

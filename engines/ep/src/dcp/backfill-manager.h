@@ -49,6 +49,14 @@
 #include <list>
 
 class EventuallyPersistentEngine;
+class VBucket;
+
+struct BackfillScanBuffer {
+    size_t bytesRead;
+    size_t itemsRead;
+    size_t maxBytes;
+    size_t maxItems;
+};
 
 class BackfillManager : public std::enable_shared_from_this<BackfillManager> {
 public:
@@ -100,12 +108,7 @@ protected:
     } buffer;
 
     //! The scan buffer is for the current stream being backfilled
-    struct {
-        size_t bytesRead;
-        size_t itemsRead;
-        size_t maxBytes;
-        size_t maxItems;
-    } scanBuffer;
+    BackfillScanBuffer scanBuffer;
 
 private:
 

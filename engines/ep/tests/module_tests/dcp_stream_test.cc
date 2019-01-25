@@ -24,7 +24,9 @@
 #include "dcp/backfill_memory.h"
 #include "ep_engine.h"
 #include "ephemeral_vb.h"
+#include "executorpool.h"
 #include "failover-table.h"
+#include "kv_bucket.h"
 #include "test_helpers.h"
 #include <programs/engine_testapp/mock_server.h>
 #include <xattr/utils.h>

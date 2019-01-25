@@ -20,6 +20,7 @@
  */
 
 #include "checkpoint_manager.h"
+#include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
 #include "dcp/stream.h"
