@@ -16,6 +16,7 @@
  */
 
 #include <mcbp/protocol/status.h>
+#include <ostream>
 
 namespace cb {
 namespace mcbp {

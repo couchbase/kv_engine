@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cctype>
 #include <iterator>
+#include <ostream>
 #include <stdexcept>
 
 namespace cb {
