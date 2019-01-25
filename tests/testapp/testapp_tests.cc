@@ -939,12 +939,9 @@ TEST_P(McdTestappTest, ExceedMaxPacketSize) {
     safe_send(&request, sizeof(request), false);
 
     // the server will read the header, and figure out that the packet
-    // is too big and just return an error
-    std::vector<uint8_t> blob;
-    ASSERT_TRUE(safe_recv_packet(blob));
-    mcbp_validate_response_header(*reinterpret_cast<Response*>(blob.data()),
-                                  ClientOpcode::Set,
-                                  Status::Einval);
+    // is too big and close the socket
+    std::vector<uint8_t> blob(1024);
+    EXPECT_EQ(0, phase_recv(blob.data(), blob.size()));
     reconnect_to_server();
 }
 

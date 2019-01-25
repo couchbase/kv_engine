@@ -926,21 +926,6 @@ void execute_response_packet(Cookie& cookie,
             "execute_response_packet: provided packet is not a response");
 }
 
-static cb::mcbp::Status validate_packet_execusion_constraints(Cookie& cookie) {
-    const auto& header = cookie.getHeader();
-
-    /*
-     * Protect ourself from someone trying to kill us by sending insanely
-     * large packets.
-     */
-    if (header.getBodylen() > settings.getMaxPacketSize()) {
-        cookie.setErrorContext("Packet is too big");
-        return cb::mcbp::Status::Einval;
-    }
-
-    return cb::mcbp::Status::Success;
-}
-
 void try_read_mcbp_command(Cookie& cookie) {
     auto& c = cookie.getConnection();
     auto input = c.read->rdata();
@@ -977,25 +962,20 @@ void try_read_mcbp_command(Cookie& cookie) {
         return;
     }
 
-    c.addMsgHdr(true);
-
-    if (header.isRequest()) {
-        auto reason = validate_packet_execusion_constraints(cookie);
-        if (reason != cb::mcbp::Status::Success) {
-            cookie.sendResponse(reason);
-            LOG_WARNING(
-                    "{}: try_read_mcbp_command - "
-                    "validate_packet_execusion_constraints returned {} - "
-                    "closing "
-                    "connection {}",
-                    c.getId(),
-                    std::to_string(static_cast<uint16_t>(reason)),
-                    c.getDescription());
-            c.setWriteAndGo(StateMachine::State::closing);
-            return;
-        }
+    // Protect ourself from someone trying to kill us by sending insanely
+    // large packets.
+    if (header.getBodylen() > settings.getMaxPacketSize()) {
+        LOG_WARNING(
+                "{}: The package size ({}) exceeds the limit ({}) for what "
+                "the system accepts.. Disconnecting client",
+                c.getId(),
+                header.getBodylen(),
+                settings.getMaxPacketSize());
+        c.setState(StateMachine::State::closing);
+        return;
     }
 
+    c.addMsgHdr(true);
     if (c.isPacketAvailable()) {
         // we've got the entire packet spooled up, just go execute
         cookie.setPacket(Cookie::PacketContent::Full,
