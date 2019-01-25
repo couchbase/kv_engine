@@ -18,7 +18,9 @@
 
 #include "dcp/dcp-types.h"
 #include "evp_engine_test.h"
-#include "vbucket.h"
+#include "vbucket_fwd.h"
+#include <memcached/engine_error.h>
+#include <gsl/gsl>
 
 class Item;
 class MockDcpProducer;

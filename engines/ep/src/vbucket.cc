@@ -35,6 +35,7 @@
 #include "pre_link_document_context.h"
 #include "statwriter.h"
 #include "stored_value_factories.h"
+#include "vb_filter.h"
 #include "vbucket.h"
 #include "vbucketdeletiontask.h"
 

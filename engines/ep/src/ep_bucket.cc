@@ -29,6 +29,7 @@
 #include "replicationthrottle.h"
 #include "statwriter.h"
 #include "tasks.h"
+#include "vb_visitors.h"
 
 /**
  * Callback class used by EpStore, for adding relevant keys

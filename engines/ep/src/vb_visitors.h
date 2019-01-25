@@ -21,11 +21,9 @@
 
 #include "hash_table.h"
 #include "vb_filter.h"
+#include "vbucket_fwd.h"
 
 class HashTableVisitor;
-class VBucket;
-
-using VBucketPtr = std::shared_ptr<VBucket>;
 
 /**
  * vbucket-aware hashtable visitor.

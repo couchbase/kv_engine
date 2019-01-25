@@ -29,6 +29,7 @@
 #include "kv_bucket.h"
 #include "mutation_log.h"
 #include "statwriter.h"
+#include "vb_visitors.h"
 #include "vbucket_bgfetch_item.h"
 
 #include <platform/timeutils.h>

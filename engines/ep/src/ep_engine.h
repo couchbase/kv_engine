@@ -26,7 +26,7 @@
 #include "stats.h"
 #include "storeddockey.h"
 #include "taskable.h"
-#include "vb_visitors.h"
+#include "vbucket_fwd.h"
 
 #include <memcached/engine.h>
 #include <memcached/server_callback_iface.h>

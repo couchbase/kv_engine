@@ -20,6 +20,7 @@
 #include "dcp/stream.h"
 #include "locks.h"
 #include "spdlog/common.h"
+#include "vbucket_fwd.h"
 
 #include <memcached/engine_error.h>
 
@@ -28,9 +29,6 @@ class ChangeSeparatorCollectionEvent;
 class CreateOrDeleteCollectionEvent;
 class EventuallyPersistentEngine;
 class SystemEventMessage;
-class VBucket;
-
-using VBucketPtr = std::shared_ptr<VBucket>;
 
 class PassiveStream : public Stream {
 public:

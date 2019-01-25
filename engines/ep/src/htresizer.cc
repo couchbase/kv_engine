@@ -20,6 +20,7 @@
 #include "ep_engine.h"
 #include "htresizer.h"
 #include "kv_bucket_iface.h"
+#include "vb_visitors.h"
 
 #include <phosphor/phosphor.h>
 

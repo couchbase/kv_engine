@@ -28,6 +28,7 @@
 #include "item_pager.h"
 #include "monotonic.h"
 #include "vbucket_bgfetch_item.h"
+#include "vbucket_fwd.h"
 #include "vbucket_state.h"
 
 #include <memcached/engine.h>
@@ -2019,8 +2020,6 @@ private:
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };
-
-using VBucketPtr = std::shared_ptr<VBucket>;
 
 /**
  * Represents a locked VBucket that provides RAII semantics for the lock.
