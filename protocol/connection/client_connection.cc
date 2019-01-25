@@ -608,6 +608,28 @@ unique_cJSON_ptr MemcachedConnection::stats(const std::string& subcommand) {
     return ret;
 }
 
+nlohmann::json MemcachedConnection::statsN(const std::string& subcommand) {
+    nlohmann::json ret;
+
+    for (auto& pair : statsMap(subcommand)) {
+        const std::string& key = pair.first;
+        const std::string& value = pair.second;
+        if (value == "false") {
+            ret[key] = false;
+        } else if (value == "true") {
+            ret[key] = true;
+        } else {
+            try {
+                int64_t val = std::stoll(value);
+                ret[key] = val;
+            } catch (const std::exception&) {
+                ret[key] = value;
+            }
+        }
+    }
+    return ret;
+}
+
 void MemcachedConnection::setSslCertFile(const std::string& file)  {
     if (file.empty()) {
         ssl_cert_file.clear();

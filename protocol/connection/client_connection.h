@@ -31,6 +31,8 @@
 #include <platform/sized_buffer.h>
 #include <platform/socket.h>
 
+#include <nlohmann/json_fwd.hpp>
+
 #include <chrono>
 #include <cstdlib>
 #include <stdexcept>
@@ -474,6 +476,7 @@ public:
     std::map<std::string, std::string> statsMap(const std::string& subcommand);
 
     unique_cJSON_ptr stats(const std::string& subcommand);
+    nlohmann::json statsN(const std::string& subcommand);
 
     /**
      * Instruct the audit daemon to reload the configuration
