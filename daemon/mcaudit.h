@@ -73,10 +73,10 @@ void audit_command_access_failed(const Cookie& cookie);
 /**
  * Send an audit event for a invalid and thus rejected packet
  *
- * @param cookie the cookie repreresenting the operation
+ * @param c the connection the packet arrived on
  * @param packet the packet to dump in the audit event
  */
-void audit_invalid_packet(const Cookie& cookie, cb::const_byte_buffer packet);
+void audit_invalid_packet(const Connection& c, cb::const_byte_buffer packet);
 
 /**
  * Send an audit event for the change in privilege debug

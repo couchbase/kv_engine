@@ -241,12 +241,11 @@ void audit_command_access_failed(const Cookie& cookie) {
     do_audit(MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE, root, buffer);
 }
 
-void audit_invalid_packet(const Cookie& cookie, cb::const_byte_buffer packet) {
+void audit_invalid_packet(const Connection& c, cb::const_byte_buffer packet) {
     if (!isEnabled(MEMCACHED_AUDIT_INVALID_PACKET)) {
         return;
     }
-    const auto& connection = cookie.getConnection();
-    auto root = create_memcached_audit_object(connection);
+    auto root = create_memcached_audit_object(c);
     std::stringstream ss;
     std::string trunc;
     const cb::const_byte_buffer::size_type max_dump_size = 256;
