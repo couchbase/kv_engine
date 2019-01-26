@@ -444,7 +444,7 @@ static void config_reload_executor(Cookie& cookie) {
     const bool old_priv_debug = settings.isPrivilegeDebug();
     reload_config_file();
     if (settings.isPrivilegeDebug() != old_priv_debug) {
-        audit_set_privilege_debug_mode(&cookie.getConnection(),
+        audit_set_privilege_debug_mode(cookie.getConnection(),
                                        settings.isPrivilegeDebug());
     }
     cookie.sendResponse(cb::mcbp::Status::Success);

@@ -91,16 +91,16 @@ void setEnabled(uint32_t id, bool enable) {
  * @param c the connection object
  * @return the json object containing the basic information
  */
-static nlohmann::json create_memcached_audit_object(const Connection* c) {
+static nlohmann::json create_memcached_audit_object(const Connection& c) {
     nlohmann::json domain;
     domain["domain"] = "memcached";
-    domain["user"] = c->getUsername();
+    domain["user"] = c.getUsername();
 
     nlohmann::json root;
 
     root["timestamp"] = ISOTime::generatetimestamp();
-    root["peername"] = c->getPeername();
-    root["sockname"] = c->getSockname();
+    root["peername"] = c.getPeername();
+    root["sockname"] = c.getSockname();
     root["real_userid"] = domain;
 
     return root;
@@ -109,13 +109,11 @@ static nlohmann::json create_memcached_audit_object(const Connection* c) {
 /**
  * Convert the JSON object to text and send it to the audit framework
  *
- * @param c the connection object requesting the call
  * @param id the audit identifier
  * @param event the payload of the audit description
  * @param warn what to log if we're failing to put the audit event
  */
-static void do_audit(const Connection* c,
-                     uint32_t id,
+static void do_audit(uint32_t id,
                      const nlohmann::json& event,
                      const char* warn) {
     auto text = event.dump();
@@ -124,23 +122,25 @@ static void do_audit(const Connection* c,
     }
 }
 
-void audit_auth_failure(const Connection* c, const char* reason) {
+void audit_auth_failure(const Connection& c, const char* reason) {
     if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_FAILED)) {
         return;
     }
     auto root = create_memcached_audit_object(c);
     root["reason"] = reason;
 
-    do_audit(c, MEMCACHED_AUDIT_AUTHENTICATION_FAILED, root,
+    do_audit(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
+             root,
              "Failed to send AUTH FAILED audit event");
 }
 
-void audit_auth_success(const Connection* c) {
+void audit_auth_success(const Connection& c) {
     if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED)) {
         return;
     }
     auto root = create_memcached_audit_object(c);
-    do_audit(c, MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED, root,
+    do_audit(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED,
+             root,
              "Failed to send AUTH SUCCESS audit event");
 }
 
@@ -151,54 +151,56 @@ void audit_bucket_selection(const Connection& c) {
     const auto& bucket = c.getBucket();
     // Don't audit that we're jumping into the "no bucket"
     if (bucket.type != BucketType::NoBucket) {
-        auto root = create_memcached_audit_object(&c);
+        auto root = create_memcached_audit_object(c);
         root["bucket"] = c.getBucket().name;
-        do_audit(&c,
-                 MEMCACHED_AUDIT_SELECT_BUCKET,
+        do_audit(MEMCACHED_AUDIT_SELECT_BUCKET,
                  root,
                  "Failed to send SELECT BUCKET audit event");
     }
 }
 
-void audit_bucket_flush(const Connection* c, const char* bucket) {
+void audit_bucket_flush(const Connection& c, const char* bucket) {
     if (!isEnabled(MEMCACHED_AUDIT_EXTERNAL_MEMCACHED_BUCKET_FLUSH)) {
         return;
     }
     auto root = create_memcached_audit_object(c);
     root["bucket"] = bucket;
 
-    do_audit(c, MEMCACHED_AUDIT_EXTERNAL_MEMCACHED_BUCKET_FLUSH, root,
+    do_audit(MEMCACHED_AUDIT_EXTERNAL_MEMCACHED_BUCKET_FLUSH,
+             root,
              "Failed to send EXTERNAL_MEMCACHED_BUCKET_FLUSH audit event");
 }
 
-void audit_dcp_open(const Connection* c) {
+void audit_dcp_open(const Connection& c) {
     if (!isEnabled(MEMCACHED_AUDIT_OPENED_DCP_CONNECTION)) {
         return;
     }
-    if (c->isInternal()) {
+    if (c.isInternal()) {
         LOG_INFO("Open DCP stream with admin credentials");
     } else {
         auto root = create_memcached_audit_object(c);
-        root["bucket"] = c->getBucket().name;
+        root["bucket"] = c.getBucket().name;
 
-        do_audit(c, MEMCACHED_AUDIT_OPENED_DCP_CONNECTION, root,
+        do_audit(MEMCACHED_AUDIT_OPENED_DCP_CONNECTION,
+                 root,
                  "Failed to send DCP open connection "
                  "audit event to audit daemon");
     }
 }
 
-void audit_set_privilege_debug_mode(const Connection* c, bool enable) {
+void audit_set_privilege_debug_mode(const Connection& c, bool enable) {
     if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED)) {
         return;
     }
     auto root = create_memcached_audit_object(c);
     root["enable"] = enable;
-    do_audit(c, MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED, root,
+    do_audit(MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED,
+             root,
              "Failed to send modifications in privilege debug state "
              "audit event to audit daemon");
 }
 
-void audit_privilege_debug(const Connection* c,
+void audit_privilege_debug(const Connection& c,
                            const std::string& command,
                            const std::string& bucket,
                            const std::string& privilege,
@@ -212,7 +214,8 @@ void audit_privilege_debug(const Connection* c,
     root["privilege"] = privilege;
     root["context"] = context;
 
-    do_audit(c, MEMCACHED_AUDIT_PRIVILEGE_DEBUG, root,
+    do_audit(MEMCACHED_AUDIT_PRIVILEGE_DEBUG,
+             root,
              "Failed to send privilege debug audit event to audit daemon");
 }
 
@@ -221,7 +224,7 @@ void audit_command_access_failed(const Cookie& cookie) {
         return;
     }
     const auto& connection = cookie.getConnection();
-    auto root = create_memcached_audit_object(&connection);
+    auto root = create_memcached_audit_object(connection);
     char buffer[256];
     memset(buffer, 0, sizeof(buffer));
     const auto packet = cookie.getPacket();
@@ -235,7 +238,7 @@ void audit_command_access_failed(const Cookie& cookie) {
                            reinterpret_cast<const char*>(packet.data()),
                            packet.size());
     root["packet"] = buffer;
-    do_audit(&connection, MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE, root, buffer);
+    do_audit(MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE, root, buffer);
 }
 
 void audit_invalid_packet(const Cookie& cookie, cb::const_byte_buffer packet) {
@@ -243,7 +246,7 @@ void audit_invalid_packet(const Cookie& cookie, cb::const_byte_buffer packet) {
         return;
     }
     const auto& connection = cookie.getConnection();
-    auto root = create_memcached_audit_object(&connection);
+    auto root = create_memcached_audit_object(connection);
     std::stringstream ss;
     std::string trunc;
     const cb::const_byte_buffer::size_type max_dump_size = 256;
@@ -255,8 +258,7 @@ void audit_invalid_packet(const Cookie& cookie, cb::const_byte_buffer packet) {
     ss << "Invalid packet: " << cb::to_hex(packet) << trunc;
     const auto message = ss.str();
     root["packet"] = message.c_str() + strlen("Invalid packet: ");
-    do_audit(
-            &connection, MEMCACHED_AUDIT_INVALID_PACKET, root, message.c_str());
+    do_audit(MEMCACHED_AUDIT_INVALID_PACKET, root, message.c_str());
 }
 
 bool mc_audit_event(uint32_t audit_eventid, cb::const_byte_buffer payload) {
@@ -300,32 +302,28 @@ void add(const Cookie& cookie, Operation operation) {
     }
 
     const auto& connection = cookie.getConnection();
-    auto root = create_memcached_audit_object(&connection);
+    auto root = create_memcached_audit_object(connection);
     root["bucket"] = connection.getBucket().name;
     root["key"] = cookie.getPrintableRequestKey();
 
     switch (operation) {
     case Operation::Read:
-        do_audit(&connection,
-                 MEMCACHED_AUDIT_DOCUMENT_READ,
+        do_audit(MEMCACHED_AUDIT_DOCUMENT_READ,
                  root,
                  "Failed to send document read audit event to audit daemon");
         break;
     case Operation::Lock:
-        do_audit(&connection,
-                 MEMCACHED_AUDIT_DOCUMENT_LOCKED,
+        do_audit(MEMCACHED_AUDIT_DOCUMENT_LOCKED,
                  root,
                  "Failed to send document locked audit event to audit daemon");
         break;
     case Operation::Modify:
-        do_audit(&connection,
-                 MEMCACHED_AUDIT_DOCUMENT_MODIFY,
+        do_audit(MEMCACHED_AUDIT_DOCUMENT_MODIFY,
                  root,
                  "Failed to send document modify audit event to audit daemon");
         break;
     case Operation::Delete:
-        do_audit(&connection,
-                 MEMCACHED_AUDIT_DOCUMENT_DELETE,
+        do_audit(MEMCACHED_AUDIT_DOCUMENT_DELETE,
                  root,
                  "Failed to send document delete audit event to audit daemon");
         break;

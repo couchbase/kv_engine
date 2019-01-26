@@ -163,7 +163,7 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::authFailure() {
     auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
     if (auth_task->getError() == cb::sasl::Error::NO_USER ||
         auth_task->getError() == cb::sasl::Error::PASSWORD_ERROR) {
-        audit_auth_failure(&connection,
+        audit_auth_failure(connection,
                            auth_task->getError() == cb::sasl::Error::NO_USER
                                    ? "Unknown user"
                                    : "Incorrect password");

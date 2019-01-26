@@ -334,7 +334,7 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
         const std::string context = privilegeContext.to_string();
 
         if (settings.isPrivilegeDebug()) {
-            audit_privilege_debug(this,
+            audit_privilege_debug(*this,
                                   command,
                                   all_buckets[bucketIndex].name,
                                   privilege_string,
@@ -685,7 +685,7 @@ bool Connection::tryAuthFromSslCert(const std::string& userName) {
                 cb::rbac::createInitialContext(getUsername(), getDomain());
         setAuthenticated(true);
         setInternal(context.second);
-        audit_auth_success(this);
+        audit_auth_success(*this);
         LOG_INFO(
                 "{}: Client {} authenticated as '{}' via X509 "
                 "certificate",
@@ -737,10 +737,11 @@ int Connection::sslPreConnection() {
             // audit event being "empty"
             if (certResult.first == cb::x509::Status::NotPresent) {
                 audit_auth_failure(
-                        this, "Client did not provide an X.509 certificate");
+                        *this, "Client did not provide an X.509 certificate");
             } else {
                 audit_auth_failure(
-                        this, "Failed to use client provided X.509 certificate");
+                        *this,
+                        "Failed to use client provided X.509 certificate");
             }
             cb::net::set_econnreset();
             if (!certResult.second.empty()) {

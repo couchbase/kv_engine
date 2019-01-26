@@ -69,7 +69,7 @@ void SaslAuthTask::notifyExecutionComplete() {
         // Success
         connection.setAuthenticated(true);
         connection.setInternal(context.second);
-        audit_auth_success(&connection);
+        audit_auth_success(connection);
         LOG_INFO("{}: Client {} authenticated as {}",
                  connection.getId(),
                  connection.getPeername(),
