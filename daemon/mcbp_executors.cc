@@ -940,17 +940,6 @@ void try_read_mcbp_command(Cookie& cookie) {
             c.isTracingEnabled());
 
     const auto& header = cookie.getHeader();
-    if (settings.getVerbose() > 1) {
-        try {
-            LOG_TRACE(">{} Read command {}", c.getId(), header.toJSON().dump());
-        } catch (const std::exception&) {
-            // Failed to decode the header.. do a raw dump instead
-            LOG_TRACE(">{} Read command {}",
-                      c.getId(),
-                      cb::to_hex({input.data(), sizeof(header)}));
-        }
-    }
-
     if (!header.isValid()) {
         LOG_WARNING(
                 "{}: Invalid packet format detected (magic: {:x}), closing "
@@ -960,6 +949,17 @@ void try_read_mcbp_command(Cookie& cookie) {
         audit_invalid_packet(c, input);
         c.setState(StateMachine::State::closing);
         return;
+    }
+
+    if (settings.getVerbose() > 1) {
+        try {
+            LOG_TRACE(">{} Read command {}", c.getId(), header.toJSON().dump());
+        } catch (const std::exception&) {
+            // Failed to decode the header.. do a raw dump instead
+            LOG_TRACE(">{} Read command {}",
+                      c.getId(),
+                      cb::to_hex({input.data(), sizeof(header)}));
+        }
     }
 
     // Protect ourself from someone trying to kill us by sending insanely
