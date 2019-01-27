@@ -18,7 +18,6 @@
 
 #include "buckets.h"
 #include "cookie.h"
-#include "debug_helpers.h"
 #include "memcached.h"
 #include "settings.h"
 #include "utilities/logtags.h"
@@ -29,6 +28,7 @@
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 #include <platform/compress.h>
+#include <platform/string_hex.h>
 
 static cb::const_byte_buffer mcbp_add_header(Cookie& cookie,
                                              cb::Pipe& pipe,
@@ -120,17 +120,9 @@ void mcbp_add_header(Cookie& cookie,
                       header->toJSON().dump());
         } catch (const std::exception&) {
             // Failed.. do a raw dump instead
-            char buffer[1024];
-            if (bytes_to_output_string(
-                        buffer,
-                        sizeof(buffer),
-                        connection.getId(),
-                        false,
-                        "Writing bin response:",
-                        reinterpret_cast<const char*>(wbuf.data()),
-                        wbuf.size()) != -1) {
-                LOG_TRACE("{}", buffer);
-            }
+            LOG_TRACE("<{} Sending: {}",
+                      connection.getId(),
+                      cb::to_hex({wbuf.data(), sizeof(cb::mcbp::Header)}));
         }
     }
 

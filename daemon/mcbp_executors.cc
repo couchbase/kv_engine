@@ -19,7 +19,6 @@
 
 #include "buckets.h"
 #include "config_parse.h"
-#include "debug_helpers.h"
 #include "external_auth_manager_thread.h"
 #include "ioctl.h"
 #include "mc_time.h"
@@ -973,20 +972,10 @@ void try_read_mcbp_command(Cookie& cookie) {
         try {
             LOG_TRACE(">{} Read command {}", c.getId(), header.toJSON().dump());
         } catch (const std::exception&) {
-            // Failed to decode the header.. do a raw multiline dump
-            // instead
-            char buffer[1024];
-            ssize_t nw;
-            nw = bytes_to_output_string(buffer,
-                                        sizeof(buffer),
-                                        c.getId(),
-                                        true,
-                                        "Read binary protocol data:",
-                                        (const char*)input.data(),
-                                        sizeof(cb::mcbp::Request));
-            if (nw != -1) {
-                LOG_TRACE("{}", buffer);
-            }
+            // Failed to decode the header.. do a raw dump instead
+            LOG_TRACE(">{} Read command {}",
+                      c.getId(),
+                      cb::to_hex({input.data(), sizeof(header)}));
         }
     }
 
