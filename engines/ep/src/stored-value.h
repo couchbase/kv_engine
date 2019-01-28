@@ -734,6 +734,8 @@ public:
      */
     bool operator==(const StoredValue& other) const;
 
+    bool operator!=(const StoredValue& other) const;
+
     /// Return how many bytes are need to store item given key as a StoredValue
     static size_t getRequiredStorage(const DocKey& key);
 
@@ -754,9 +756,9 @@ public:
         return static_cast<CommittedState>(committed);
     }
 
-    /// Sets the Committed state of the SV to "Committed"
-    void setCommitted() {
-        committed = static_cast<uint8_t>(CommittedState::CommittedViaPrepare);
+    /// Sets the Committed state of the SV to the specified value.
+    void setCommitted(CommittedState value) {
+        committed = static_cast<uint8_t>(value);
     }
 
 protected:
@@ -866,11 +868,6 @@ protected:
 
     void setDeletionSource(DeleteSource delSource) {
         deletionSource = static_cast<uint8_t>(delSource);
-    }
-
-    /// Sets the commited state to the specified value.
-    void setCommitted(CommittedState value) {
-        committed = static_cast<uint8_t>(value);
     }
 
     friend class StoredValueFactory;

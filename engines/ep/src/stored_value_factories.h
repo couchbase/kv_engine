@@ -72,10 +72,8 @@ public:
     StoredValue::UniquePtr operator()(const Item& itm,
                                       StoredValue::UniquePtr next) override;
 
-    StoredValue::UniquePtr copyStoredValue(const StoredValue& other,
-                                           StoredValue::UniquePtr next) override {
-        throw std::logic_error("Copy of StoredValue is not supported");
-    }
+    StoredValue::UniquePtr copyStoredValue(
+            const StoredValue& other, StoredValue::UniquePtr next) override;
 
 private:
     EPStats* stats;

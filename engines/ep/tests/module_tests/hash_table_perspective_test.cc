@@ -21,6 +21,8 @@
 #include "stored_value_factories.h"
 #include "tests/module_tests/test_helpers.h"
 
+using namespace std::string_literals;
+
 /*
  * Tests related to using the HashTable via the Pending and Committed
  * perspectives, as used by Synchronous Writes.
@@ -32,6 +34,22 @@ public:
           key("key", CollectionID::Default) {
     }
 
+    /// Put a pending SyncDelete into the HashTable.
+    void setupPendingDelete(StoredDocKey key) {
+        auto committed = makeCommittedItem(key, "value"s);
+        ASSERT_EQ(MutationStatus::WasClean, ht.set(*committed));
+        { // locking scope.
+            auto result = ht.findForWrite(key);
+            ASSERT_TRUE(result.storedValue);
+            auto deleted = ht.unlocked_softDelete(result.lock,
+                                                  *result.storedValue,
+                                                  /*onlyMarkDeleted*/ false,
+                                                  DeleteSource::Explicit,
+                                                  HashTable::SyncDelete::Yes);
+            ASSERT_EQ(DeletionStatus::Success, deleted.status);
+        }
+    }
+
     HashTable ht;
     StoredDocKey key;
 };
@@ -39,8 +57,6 @@ public:
 // Test that for each of the 4 possible states a key could be in
 // (not present, committed only, pending only, committed + pending)
 // that accessing via the Committed perspective gives the expected result.
-
-using namespace std::string_literals;
 
 // Test that we can add a Pending item to the HashTable; and then find it when
 // using Pending perspective, but *not* via Committed.
@@ -257,4 +273,105 @@ TEST_F(HashTablePerspectiveTest, MutationAfterCommit) {
 
     // Should be CommittedViaMutation
     EXPECT_EQ(CommittedState::CommittedViaMutation, readView->getCommitted());
+}
+
+// Positive test - check that an item can have a pending delete added
+// (SyncDelete).
+TEST_F(HashTablePerspectiveTest, SyncDeletePending) {
+    // Perform a regular mutation (so we have something to delete).
+    auto committed = makeCommittedItem(key, "committed"s);
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*committed));
+    ASSERT_EQ(1, ht.getNumItems());
+
+    // Test: Now delete it via a SyncDelete.
+    { // locking scope.
+        auto result = ht.findForWrite(key);
+        ASSERT_TRUE(result.storedValue);
+        EXPECT_EQ(DeletionStatus::Success,
+                  ht.unlocked_softDelete(result.lock,
+                                         *result.storedValue,
+                                         /*onlyMarkDeleted*/ false,
+                                         DeleteSource::Explicit,
+                                         HashTable::SyncDelete::Yes)
+                          .status);
+    }
+
+    // Check postconditions:
+    // 1. Original item should still be the same (when looking up via
+    // findForRead):
+    auto* readView = ht.findForRead(key).storedValue;
+    ASSERT_TRUE(readView);
+    EXPECT_FALSE(readView->isDeleted());
+    EXPECT_EQ(committed->getValue(), readView->getValue());
+
+    // 2. Pending delete should be visible via findForWrite:
+    auto* writeView = ht.findForWrite(key).storedValue;
+    ASSERT_TRUE(writeView);
+    EXPECT_TRUE(writeView->isDeleted());
+    EXPECT_EQ(CommittedState::Pending, writeView->getCommitted());
+    EXPECT_NE(*readView, *writeView);
+
+    // Should currently have 2 items:
+    EXPECT_EQ(2, ht.getNumItems());
+}
+
+// Positive test - check that a pending sync delete can be committed.
+TEST_F(HashTablePerspectiveTest, SyncDeleteCommit) {
+    setupPendingDelete(key);
+
+    // Test - commit the pending SyncDelete.
+    { // locking scope.
+        auto result = ht.findForWrite(key);
+        ASSERT_TRUE(result.storedValue);
+        ASSERT_EQ(CommittedState::Pending, result.storedValue->getCommitted());
+        ht.commit(result.lock, *result.storedValue);
+    }
+
+    // Check postconditions:
+    // 1. Upon commit, both read and write view should show same deleted item.
+    auto* readView = ht.findForRead(key, TrackReference::Yes, WantsDeleted::Yes)
+                             .storedValue;
+    ASSERT_TRUE(readView);
+    auto* writeView = ht.findForWrite(key).storedValue;
+    ASSERT_TRUE(writeView);
+
+    EXPECT_EQ(readView, writeView);
+    EXPECT_TRUE(readView->isDeleted());
+    EXPECT_FALSE(readView->getValue());
+
+    EXPECT_EQ(CommittedState::CommittedViaPrepare, readView->getCommitted());
+
+    // Should currently have 1 item:
+    EXPECT_EQ(1, ht.getNumItems());
+}
+
+// Negative test - check that if a key has a pending SyncDelete it cannot
+// otherwise be modified.
+TEST_F(HashTablePerspectiveTest, PendingSyncWriteToPendingDeleteFails) {
+    setupPendingDelete(key);
+
+    // Test - attempt to mutate a key which has a pending SyncDelete against it
+    // with a pending SyncWrite.
+    auto pending = makePendingItem(key, "pending"s);
+    ASSERT_EQ(MutationStatus::IsPendingSyncWrite, ht.set(*pending));
+}
+
+// Negative test - check that if a key has a pending SyncDelete it cannot
+// otherwise be modified.
+TEST_F(HashTablePerspectiveTest, PendingSyncDeleteToPendingDeleteFails) {
+    setupPendingDelete(key);
+
+    // Test - attempt to mutate a key which has a pending SyncDelete against it
+    // with a pending SyncDelete.
+    { // locking scope.
+        auto result = ht.findForWrite(key);
+
+        ASSERT_EQ(DeletionStatus::IsPendingSyncWrite,
+                  ht.unlocked_softDelete(result.lock,
+                                         *result.storedValue,
+                                         /*onlyMarkDeleted*/ false,
+                                         DeleteSource::Explicit,
+                                         HashTable::SyncDelete::Yes)
+                          .status);
+    }
 }

@@ -34,13 +34,25 @@ public:
     }
 
 protected:
+    /// Specification of a SyncWrite to store, as used by storeSyncWrites.
+    struct SyncWriteSpec {
+        explicit SyncWriteSpec(int64_t seqno) : seqno(seqno) {
+        }
+        SyncWriteSpec(int64_t seqno, bool deletion = false)
+            : seqno(seqno), deletion(deletion) {
+        }
+
+        int64_t seqno;
+        bool deletion = false;
+    };
+
     /**
      * Store the given Sync mutations into VBucket
      *
-     * @param seqnos the mutations to be added
+     * @param writes the mutations to be added
      * @return the number of stored SyncWrites
      */
-    size_t storeSyncWrites(const std::vector<int64_t>& seqnos);
+    size_t storeSyncWrites(const std::vector<SyncWriteSpec>& writes);
 
     /**
      * Tests the baseline progress of a set of SyncWrites in Vbucket:
@@ -49,9 +61,9 @@ protected:
      * 3) VBucket receives a SeqnoAck that satisfies the DurReqs for all SWs
      * 4) mutations in state "committed" in both HashTable and CheckpointManager
      *
-     * @param seqnos the set of mutations to test
+     * @param writes the set of mutations to test
      */
-    void testSyncWrites(const std::vector<int64_t>& seqnos);
+    void testSyncWrites(const std::vector<SyncWriteSpec>& writes);
 
     // All owned by VBucket
     HashTable* ht;

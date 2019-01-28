@@ -217,7 +217,7 @@ protected:
         { /* hbl lock scope */
             auto result = ht.findForWrite(makeStoredDocKey(key));
 
-            ht.unlocked_softDelete(result.lock.getHTLock(),
+            ht.unlocked_softDelete(result.lock,
                                    *result.storedValue,
                                    /* onlyMarkDeleted */ false,
                                    DeleteSource::Explicit);

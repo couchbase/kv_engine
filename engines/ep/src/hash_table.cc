@@ -21,6 +21,7 @@
 #include "stats.h"
 #include "stored_value_factories.h"
 
+#include <memcached/3rd_party/folly/lang/Assume.h>
 #include <phosphor/phosphor.h>
 #include <platform/compress.h>
 
@@ -323,7 +324,7 @@ void HashTable::commit(const HashTable::HashBucketLock& hbl, StoredValue& v) {
     }
 
     // Change the pending item to Committed.
-    v.setCommitted();
+    v.setCommitted(CommittedState::CommittedViaPrepare);
 
     // Update stats for pending -> Committed item
     valueStats.epilogue(pendingPreProps, &v);
@@ -372,9 +373,7 @@ HashTable::UpdateResult HashTable::unlocked_updateStoredValue(
 
         return {status, &v};
     }
-
-    throw std::logic_error(
-            "HashTable::unlocked_updateStoredValue: unreachable");
+    folly::assume_unreachable();
 }
 
 StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
@@ -529,19 +528,54 @@ HashTable::unlocked_replaceByCopy(const HashBucketLock& hbl,
     return {values[hbl.getBucketNum()].get().get(), std::move(releasedSv)};
 }
 
-void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
-                                    StoredValue& v,
-                                    bool onlyMarkDeleted,
-                                    DeleteSource delSource) {
-    const auto preProps = valueStats.prologue(&v);
+HashTable::DeleteResult HashTable::unlocked_softDelete(
+        const HashBucketLock& hbl,
+        StoredValue& v,
+        bool onlyMarkDeleted,
+        DeleteSource delSource,
+        HashTable::SyncDelete syncDelete) {
+    switch (v.getCommitted()) {
+    case CommittedState::Pending:
+        // Cannot update a SV if it's a Pending item.
+        return {DeletionStatus::IsPendingSyncWrite, nullptr};
 
-    if (onlyMarkDeleted) {
-        v.markDeleted(delSource);
-    } else {
-        v.del(delSource);
+    case CommittedState::CommittedViaMutation:
+    case CommittedState::CommittedViaPrepare:
+        if (syncDelete == SyncDelete::Yes) {
+            // Logically we /can/ delete a non-Pending StoredValue with a
+            // SyncDelete, however internally this is implemented as a separate
+            // (new) StoredValue object for the Pending delete.
+
+            // Clone the existing StoredValue (for it's key, CAS, other
+            // metadata), set the opcode to pending and call del() to prepare it
+            // as a deleted item. The existing StoredValue keeps the same state
+            // until we Commit the pending one.
+            auto pendingDel = valFact->copyStoredValue(
+                    v, std::move(values[hbl.getBucketNum()]));
+            pendingDel->setCommitted(CommittedState::Pending);
+            pendingDel->del(delSource);
+
+            // Adding a new item into the HashTable; update stats.
+            const auto emptyProperties = valueStats.prologue(nullptr);
+            valueStats.epilogue(emptyProperties, pendingDel.get().get());
+            values[hbl.getBucketNum()] = std::move(pendingDel);
+
+            return {DeletionStatus::Success,
+                    values[hbl.getBucketNum()].get().get()};
+        }
+        // non-syncDelete requests, can directly update existing SV.
+        const auto preProps = valueStats.prologue(&v);
+
+        if (onlyMarkDeleted) {
+            v.markDeleted(delSource);
+        } else {
+            v.del(delSource);
+        }
+
+        valueStats.epilogue(preProps, &v);
+        return {DeletionStatus::Success, &v};
     }
-
-    valueStats.epilogue(preProps, &v);
+    folly::assume_unreachable();
 }
 
 StoredValue* HashTable::unlocked_find(const DocKey& key,

@@ -627,7 +627,7 @@ TEST_P(HashTableStatsTest, SoftDelete) {
         // Mark the item as deleted. Locking scope.
         auto htRes = ht.findForWrite(key, WantsDeleted::No);
         ASSERT_NE(nullptr, htRes.storedValue);
-        ht.unlocked_softDelete(htRes.lock.getHTLock(),
+        ht.unlocked_softDelete(htRes.lock,
                                *htRes.storedValue,
                                /*onlyMarkDeleted*/ true,
                                DeleteSource::Explicit);
@@ -900,7 +900,7 @@ TEST_F(HashTableTest, CopyDeletedItem) {
     StoredDocKey copyKey = makeStoredDocKey(std::string(std::to_string(0)));
     auto replace = ht.findForWrite(copyKey);
 
-    ht.unlocked_softDelete(replace.lock.getHTLock(),
+    ht.unlocked_softDelete(replace.lock,
                            *replace.storedValue,
                            /* onlyMarkDeleted */ false,
                            DeleteSource::Explicit);
@@ -951,7 +951,7 @@ TEST_F(HashTableTest, LockAfterDelete) {
         auto toDelete = ht.findForWrite(key);
         sv = toDelete.storedValue;
         TimeTraveller toTheFuture(1985);
-        ht.unlocked_softDelete(toDelete.lock.getHTLock(),
+        ht.unlocked_softDelete(toDelete.lock,
                                *sv,
                                /* onlyMarkDeleted */ false,
                                DeleteSource::Explicit);

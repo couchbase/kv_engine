@@ -67,6 +67,12 @@ enum class TempAddStatus : uint8_t {
     BgFetch //Schedule a background fetch
 };
 
+/// Result from delete options.
+enum class DeletionStatus : uint8_t {
+    Success, // Item was successfully marked as deleted.
+    IsPendingSyncWrite, //!< The item a pending SyncWrite and can't be deleted.
+};
+
 /**
  * A container of StoredValue instances.
  *
@@ -747,21 +753,44 @@ public:
      */
     std::pair<StoredValue*, StoredValue::UniquePtr> unlocked_replaceByCopy(
             const HashBucketLock& hbl, const StoredValue& vToCopy);
+
+    enum class SyncDelete {
+        // A normal, non-synchronous, instant delete.
+        No,
+        /// A SyncDelete which not complete until it's durability requirements
+        // have been met.
+        Yes,
+    };
+
+    /**
+     * Result of a Delete operation.
+     */
+    struct DeleteResult {
+        /// Status of the operation.
+        DeletionStatus status;
+        // If the update was successful (Success); points to the delete value;
+        // otherwise nullptr.
+        StoredValue* deletedValue;
+    };
+
     /**
      * Logically (soft) delete the item in ht
      * Assumes that HT bucket lock is grabbed.
      * Also assumes that v is in the hash table.
      *
-     * @param htLock Hash table lock that must be held
+     * @param hbl Hash table bucket lock that must be held.
      * @param v Reference to the StoredValue to be soft deleted
      * @param onlyMarkDeleted indicates if we must reset the StoredValue or
      *                        just mark deleted
      * @param delSource The source of the deletion (explicit or expiry)
+     * @param syncDelete Is this a regular or durable delete?
+     * @return the outcome of the deletion attempt.
      */
-    void unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
-                             StoredValue& v,
-                             bool onlyMarkDeleted,
-                             DeleteSource delSource);
+    DeleteResult unlocked_softDelete(const HashBucketLock& hbl,
+                                     StoredValue& v,
+                                     bool onlyMarkDeleted,
+                                     DeleteSource delSource,
+                                     SyncDelete syncDelete = SyncDelete::No);
 
     /**
      * Find an item within a specific bucket assuming you already

@@ -269,6 +269,10 @@ bool StoredValue::operator==(const StoredValue& other) const {
             getCommitted() == other.getCommitted());
 }
 
+bool StoredValue::operator!=(const StoredValue& other) const {
+    return !(*this == other);
+}
+
 bool StoredValue::deleteImpl(DeleteSource delSource) {
     if (isDeleted() && !getValue()) {
         // SV is already marked as deleted and has no value - no further

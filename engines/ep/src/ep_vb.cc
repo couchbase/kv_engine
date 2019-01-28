@@ -562,7 +562,7 @@ std::tuple<StoredValue*, VBNotifyCtx> EPVBucket::softDeleteStoredValue(
         const VBQueueItemCtx& queueItmCtx,
         uint64_t bySeqno,
         DeleteSource deleteSource) {
-    ht.unlocked_softDelete(hbl.getHTLock(), v, onlyMarkDeleted, deleteSource);
+    ht.unlocked_softDelete(hbl, v, onlyMarkDeleted, deleteSource);
 
     if (queueItmCtx.genBySeqno == GenerateBySeqno::No) {
         v.setBySeqno(bySeqno);

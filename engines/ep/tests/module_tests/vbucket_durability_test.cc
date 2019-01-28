@@ -40,7 +40,7 @@ void VBucketDurabilityTest::SetUp() {
 }
 
 size_t VBucketDurabilityTest::storeSyncWrites(
-        const std::vector<int64_t>& seqnos) {
+        const std::vector<SyncWriteSpec>& seqnos) {
     if (seqnos.empty()) {
         throw std::logic_error(
                 "VBucketDurabilityTest::addSyncWrites: seqnos list is empty");
@@ -61,21 +61,24 @@ size_t VBucketDurabilityTest::storeSyncWrites(
     //     need to set the Checkpoint snapshot boundaries manually in this case
     //     (e.g., [1, 5]), the set fails otherwise.
     // I go with the latter way, that is the reason of the the following call.
-    ckptMgr->createSnapshot(seqnos.at(0), seqnos.at(seqnos.size() - 1));
+    ckptMgr->createSnapshot(seqnos.front().seqno, seqnos.back().seqno);
     EXPECT_EQ(1, ckptMgr->getNumCheckpoints());
 
     size_t numStored = ht->getNumItems();
     size_t numCkptItems = ckptMgr->getNumItems();
     size_t numTracked = monitor->public_getNumTracked();
-    for (auto seqno : seqnos) {
-        auto item = Item(makeStoredDocKey("key" + std::to_string(seqno)),
+    for (auto write : seqnos) {
+        auto item = Item(makeStoredDocKey("key" + std::to_string(write.seqno)),
                          0 /*flags*/,
                          0 /*exp*/,
                          "value",
                          5 /*valueSize*/,
                          PROTOCOL_BINARY_RAW_BYTES,
                          0 /*cas*/,
-                         seqno);
+                         write.seqno);
+        if (write.deletion) {
+            item.setDeleted();
+        }
         using namespace cb::durability;
         item.setPendingSyncWrite(Requirements(Level::Majority, 0 /*timeout*/));
         VBQueueItemCtx ctx;
@@ -92,12 +95,13 @@ size_t VBucketDurabilityTest::storeSyncWrites(
     return numStored;
 }
 
-void VBucketDurabilityTest::testSyncWrites(const std::vector<int64_t>& seqnos) {
-    auto numStored = storeSyncWrites(seqnos);
-    ASSERT_EQ(seqnos.size(), numStored);
+void VBucketDurabilityTest::testSyncWrites(
+        const std::vector<SyncWriteSpec>& writes) {
+    auto numStored = storeSyncWrites(writes);
+    ASSERT_EQ(writes.size(), numStored);
 
-    for (auto seqno : seqnos) {
-        auto key = makeStoredDocKey("key" + std::to_string(seqno));
+    for (auto write : writes) {
+        auto key = makeStoredDocKey("key" + std::to_string(write.seqno));
 
         EXPECT_EQ(nullptr, ht->findForRead(key).storedValue);
         const auto sv = ht->findForWrite(key).storedValue;
@@ -122,17 +126,19 @@ void VBucketDurabilityTest::testSyncWrites(const std::vector<int64_t>& seqnos) {
 
     // The active sends DCP_PREPARE messages to the replica, here I simulate
     // the replica DCP_SEQNO_ACK response
-    vbucket->seqnoAcknowledged(replica,
-                               seqnos.at(seqnos.size() - 1) /*memorySeqno*/,
-                               0 /*diskSeqno*/);
+    vbucket->seqnoAcknowledged(
+            replica, writes.back().seqno /*memorySeqno*/, 0 /*diskSeqno*/);
 
-    for (auto seqno : seqnos) {
-        auto key = makeStoredDocKey("key" + std::to_string(seqno));
+    for (auto write : writes) {
+        auto key = makeStoredDocKey("key" + std::to_string(write.seqno));
 
-        const auto sv = ht->findForRead(key).storedValue;
+        const auto sv =
+                ht->findForRead(key, TrackReference::Yes, WantsDeleted::Yes)
+                        .storedValue;
         EXPECT_NE(nullptr, sv);
         EXPECT_NE(nullptr, ht->findForWrite(key).storedValue);
         EXPECT_EQ(CommittedState::CommittedViaPrepare, sv->getCommitted());
+        EXPECT_EQ(write.deletion, sv->isDeleted());
     }
 
     ASSERT_EQ(1, ckptList.size());
@@ -149,8 +155,21 @@ TEST_P(VBucketDurabilityTest, SyncWrites_ContinuousSeqnos) {
     testSyncWrites({1, 2, 3});
 }
 
+TEST_P(VBucketDurabilityTest, SyncWrites_ContinuousDeleteSeqnos) {
+    testSyncWrites({{1, true}, {2, true}, {3, true}});
+}
+
 TEST_P(VBucketDurabilityTest, SyncWrites_SparseSeqnos) {
     testSyncWrites({1, 3, 10, 20, 30});
+}
+
+TEST_P(VBucketDurabilityTest, SyncWrites_SparseDeleteSeqnos) {
+    testSyncWrites({{1, true}, {3, true}, {10, true}, {20, true}, {30, true}});
+}
+
+// Mix of Mutations and Deletions.
+TEST_P(VBucketDurabilityTest, SyncWrites_SparseMixedSeqnos) {
+    testSyncWrites({{1, true}, 3, {10, true}, {20, true}, 30});
 }
 
 // Test cases which run in both Full and Value eviction
