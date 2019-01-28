@@ -39,6 +39,7 @@
 #include "vbucket.h"
 #include "vbucketdeletiontask.h"
 
+#include <memcached/3rd_party/folly/lang/Assume.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/server_document_iface.h>
 #include <platform/compress.h>
@@ -1430,6 +1431,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         uint64_t& cas,
         const void* cookie,
         EventuallyPersistentEngine& engine,
+        boost::optional<cb::durability::Requirements> durability,
         ItemMetaData* itemMeta,
         mutation_descr_t& mutInfo,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
@@ -1484,19 +1486,27 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
     } else {
         ItemMetaData metadata;
         metadata.revSeqno = v->getRevSeqno() + 1;
+        VBQueueItemCtx queueItmCtx;
+        if (durability) {
+            queueItmCtx.durability = DurabilityItemCtx{*durability, cookie};
+        }
         std::tie(delrv, v, notifyCtx) =
                 processSoftDelete(hbl,
                                   *v,
                                   cas,
                                   metadata,
-                                  VBQueueItemCtx{},
+                                  queueItmCtx,
                                   /*use_meta*/ false,
                                   /*bySeqno*/ v->getBySeqno(),
                                   DeleteSource::Explicit);
     }
 
     uint64_t seqno = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+
+    // For pending SyncDeletes we initially return EWOULDBLOCK; will notify
+    // client when request is committed / aborted later.
+    ENGINE_ERROR_CODE ret = durability ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
+
     switch (delrv) {
     case MutationStatus::NoMem:
         ret = ENGINE_ENOMEM;
@@ -2654,15 +2664,23 @@ VBucket::processSoftDelete(const HashTable::HashBucketLock& hbl,
     v.setRevSeqno(metadata.revSeqno);
     VBNotifyCtx notifyCtx;
     StoredValue* newSv;
-    std::tie(newSv, notifyCtx) =
+    DeletionStatus delStatus;
+    std::tie(newSv, delStatus, notifyCtx) =
             softDeleteStoredValue(hbl,
                                   v,
                                   /*onlyMarkDeleted*/ false,
                                   queueItmCtx,
                                   bySeqno,
                                   deleteSource);
-    ht.updateMaxDeletedRevSeqno(metadata.revSeqno);
-    return std::make_tuple(rv, newSv, notifyCtx);
+    switch (delStatus) {
+    case DeletionStatus::Success:
+        ht.updateMaxDeletedRevSeqno(metadata.revSeqno);
+        return std::make_tuple(rv, newSv, notifyCtx);
+
+    case DeletionStatus::IsPendingSyncWrite:
+        return std::make_tuple(MutationStatus::IsPendingSyncWrite, &v, empty);
+    }
+    folly::assume_unreachable();
 }
 
 std::tuple<MutationStatus, StoredValue*, VBNotifyCtx>
@@ -2700,15 +2718,24 @@ VBucket::processExpiredItem(
     v.setRevSeqno(v.getRevSeqno() + 1);
     VBNotifyCtx notifyCtx;
     StoredValue* newSv;
-    std::tie(newSv, notifyCtx) =
+    DeletionStatus delStatus;
+    std::tie(newSv, delStatus, notifyCtx) =
             softDeleteStoredValue(hbl,
                                   v,
                                   onlyMarkDeleted,
                                   VBQueueItemCtx{},
                                   v.getBySeqno(),
                                   DeleteSource::TTL);
-    ht.updateMaxDeletedRevSeqno(newSv->getRevSeqno() + 1);
-    return std::make_tuple(MutationStatus::NotFound, newSv, notifyCtx);
+    switch (delStatus) {
+    case DeletionStatus::Success:
+        ht.updateMaxDeletedRevSeqno(newSv->getRevSeqno() + 1);
+        return std::make_tuple(MutationStatus::NotFound, newSv, notifyCtx);
+
+    case DeletionStatus::IsPendingSyncWrite:
+        return std::make_tuple(
+                MutationStatus::IsPendingSyncWrite, newSv, VBNotifyCtx{});
+    }
+    folly::assume_unreachable();
 }
 
 bool VBucket::deleteStoredValue(const HashTable::HashBucketLock& hbl,

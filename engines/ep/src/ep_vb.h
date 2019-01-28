@@ -237,7 +237,7 @@ private:
             const VBQueueItemCtx& queueItmCtx,
             GenerateRevSeqno genRevSeqno) override;
 
-    std::tuple<StoredValue*, VBNotifyCtx> softDeleteStoredValue(
+    std::tuple<StoredValue*, DeletionStatus, VBNotifyCtx> softDeleteStoredValue(
             const HashTable::HashBucketLock& hbl,
             StoredValue& v,
             bool onlyMarkDeleted,

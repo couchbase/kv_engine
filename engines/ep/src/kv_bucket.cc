@@ -1717,12 +1717,14 @@ std::string KVBucket::validateKey(const DocKey& key,
     }
 }
 
-ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
-                                       uint64_t& cas,
-                                       Vbid vbucket,
-                                       const void* cookie,
-                                       ItemMetaData* itemMeta,
-                                       mutation_descr_t& mutInfo) {
+ENGINE_ERROR_CODE KVBucket::deleteItem(
+        const DocKey& key,
+        uint64_t& cas,
+        Vbid vbucket,
+        const void* cookie,
+        boost::optional<cb::durability::Requirements> durability,
+        ItemMetaData* itemMeta,
+        mutation_descr_t& mutInfo) {
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb || vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
@@ -1752,7 +1754,8 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
             return ENGINE_UNKNOWN_COLLECTION;
         }
 
-        return vb->deleteItem(cas, cookie, engine, itemMeta, mutInfo, cHandle);
+        return vb->deleteItem(
+                cas, cookie, engine, durability, itemMeta, mutInfo, cHandle);
     }
 }
 

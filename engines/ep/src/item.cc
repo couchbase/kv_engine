@@ -283,14 +283,11 @@ bool Item::decompressValue() {
 void Item::setDeleted(DeleteSource cause) {
     switch (op) {
     case queue_op::mutation:
+    case queue_op::pending_sync_write:
     case queue_op::commit_sync_write:
         deleted = 1; // true
         deletionCause = static_cast<uint8_t>(cause);
         break;
-    case queue_op::pending_sync_write:
-        throw std::logic_error(
-                "Item::setDeleted: Cannot mark a pending_sync_write as "
-                "deleted.");
     case queue_op::system_event:
         if (cause == DeleteSource::TTL) {
             throw std::logic_error(

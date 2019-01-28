@@ -989,6 +989,7 @@ public:
      * @param[in,out] cas value to match; new cas after logical delete
      * @param cookie the cookie representing the client to store the item
      * @param engine Reference to ep engine
+     * @param durability Optional durability requirements for this deletion.
      * @param[out] itemMeta pointer to item meta data that needs to be returned
      *                      as a result the delete. A NULL pointer indicates
      *                      that no meta data needs to be returned.
@@ -1003,6 +1004,7 @@ public:
             uint64_t& cas,
             const void* cookie,
             EventuallyPersistentEngine& engine,
+            boost::optional<cb::durability::Requirements> durability,
             ItemMetaData* itemMeta,
             mutation_descr_t& mutInfo,
             const Collections::VB::Manifest::CachingReadHandle& cHandle);
@@ -1792,18 +1794,21 @@ private:
      * @param bySeqno seqno of the key being deleted
      * @param deleteSource The source of the delete (explicit or TTL [expiry])
      *
-     * @return pointer to the updated StoredValue. It can be same as that of
-     *         v or different value if a new StoredValue is created for the
-     *         update.
-     *         notification info.
+     * @return - pointer to the updated StoredValue. If deletionStatus is
+     *           Success then a valid pointer, it can be same as that of
+     *           v or different value if a new StoredValue is created for the
+     *           update.
+     *           If DeletionStatus is IsPendingSyncWrite then nullptr.
+     *         - status of the delete.
+     *         - notification info.
      */
-    virtual std::tuple<StoredValue*, VBNotifyCtx> softDeleteStoredValue(
-            const HashTable::HashBucketLock& hbl,
-            StoredValue& v,
-            bool onlyMarkDeleted,
-            const VBQueueItemCtx& queueItmCtx,
-            uint64_t bySeqno,
-            DeleteSource deleteSource) = 0;
+    virtual std::tuple<StoredValue*, DeletionStatus, VBNotifyCtx>
+    softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
+                          StoredValue& v,
+                          bool onlyMarkDeleted,
+                          const VBQueueItemCtx& queueItmCtx,
+                          uint64_t bySeqno,
+                          DeleteSource deleteSource) = 0;
 
     /**
 

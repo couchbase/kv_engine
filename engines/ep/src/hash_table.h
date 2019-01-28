@@ -73,6 +73,7 @@ enum class DeletionStatus : uint8_t {
     IsPendingSyncWrite, //!< The item a pending SyncWrite and can't be deleted.
 };
 
+enum class DeletionDurability : uint8_t {};
 /**
  * A container of StoredValue instances.
  *

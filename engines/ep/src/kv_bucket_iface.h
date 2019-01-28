@@ -263,17 +263,20 @@ public:
      * @param[in, out] cas the CAS ID for a CASed delete (0 to override)
      * @param vbucket the vbucket for the key
      * @param cookie the cookie representing the client
+     * @param durability Optional durability requirements for this delete.
      * @param[out] itemMeta the pointer to the metadata memory.
      * @param[out] mutInfo mutation information
      *
      * @return the result of the operation
      */
-    virtual ENGINE_ERROR_CODE deleteItem(const DocKey& key,
-                                         uint64_t& cas,
-                                         Vbid vbucket,
-                                         const void* cookie,
-                                         ItemMetaData* itemMeta,
-                                         mutation_descr_t& mutInfo) = 0;
+    virtual ENGINE_ERROR_CODE deleteItem(
+            const DocKey& key,
+            uint64_t& cas,
+            Vbid vbucket,
+            const void* cookie,
+            boost::optional<cb::durability::Requirements> durability,
+            ItemMetaData* itemMeta,
+            mutation_descr_t& mutInfo) = 0;
 
     /**
      * Delete an item in the store from a non-front end operation (DCP, XDCR)

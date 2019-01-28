@@ -1620,9 +1620,6 @@ ENGINE_ERROR_CODE DcpConsumer::prepare(
         uint8_t nru,
         DocumentState document_state,
         cb::durability::Requirements durability) {
-    // @todo-durability: Add support for prepared deletes..
-    Expects(document_state == DocumentState::Alive);
-
     lastMessageTime = ep_current_time();
 
     if (by_seqno == 0) {
@@ -1643,6 +1640,9 @@ ENGINE_ERROR_CODE DcpConsumer::prepare(
                               nru,
                               nru /*freqCounter */));
     item->setPendingSyncWrite(durability);
+    if (document_state == DocumentState::Deleted) {
+        item->setDeleted();
+    }
 
     const auto msgBytes =
             MutationResponse::prepareBaseMsgBytes + key.size() + value.size();

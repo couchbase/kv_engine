@@ -217,7 +217,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::remove(
         boost::optional<cb::durability::Requirements> durability,
         mutation_descr_t& mut_info) {
     return acquireEngine(this)->itemDelete(
-            cookie, key, cas, vbucket, nullptr, mut_info);
+            cookie, key, cas, vbucket, durability, nullptr, mut_info);
 }
 
 void EventuallyPersistentEngine::release(gsl::not_null<item*> itm) {
@@ -2170,21 +2170,52 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemDelete(
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
+        boost::optional<cb::durability::Requirements> durability,
         ItemMetaData* item_meta,
         mutation_descr_t& mut_info) {
-    ENGINE_ERROR_CODE ret = kvBucket->deleteItem(key,
-                                                 cas,
-                                                 vbucket,
-                                                 cookie,
-                                                 item_meta,
-                                                 mut_info);
+    // Check if this is a in-progress durable delete which has now completed -
+    // (see 'case EWOULDBLOCK' at the end of this function where we record
+    // the fact we must block the client until the SycnWrite is durable).
+    if (durability && getEngineSpecific(cookie) != nullptr) {
+        // Non-null means this is the second call to this function after
+        // the SyncWrite has completed.
+        // Clear the engineSpecific, and return SUCCESS.
+        storeEngineSpecific(cookie, nullptr);
+        // @todo-durability - add support for non-sucesss (e.g. Aborted) when
+        // we support non-successful completions of SyncWrites.
+        return ENGINE_SUCCESS;
+    }
 
-    if (ret == ENGINE_KEY_ENOENT || ret == ENGINE_NOT_MY_VBUCKET) {
+    ENGINE_ERROR_CODE ret = kvBucket->deleteItem(
+            key, cas, vbucket, cookie, durability, item_meta, mut_info);
+
+    switch (ret) {
+    case ENGINE_KEY_ENOENT:
+        // FALLTHROUGH
+    case ENGINE_NOT_MY_VBUCKET:
         if (isDegradedMode()) {
             return ENGINE_TMPFAIL;
         }
-    } else if (ret == ENGINE_SUCCESS) {
+        break;
+
+    case ENGINE_EWOULDBLOCK:
+        if (durability) {
+            // Record the fact that we are blocking to wait for SyncDelete
+            // completion; so the next call to this function should return
+            // the result of the SyncWrite (see call to getEngineSpecific at
+            // the head of this function).
+            // (just store non-null value to indicate this).
+            storeEngineSpecific(cookie, reinterpret_cast<void*>(0x1));
+        }
+        break;
+
+    case ENGINE_SUCCESS:
         ++stats.numOpsDelete;
+        break;
+
+    default:
+        // No special handling.
+        break;
     }
     return ret;
 }
@@ -5348,6 +5379,7 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
                                    cas,
                                    req.getVBucket(),
                                    cookie,
+                                   {},
                                    &itm_meta,
                                    mutation_descr);
         if (ret == ENGINE_SUCCESS) {

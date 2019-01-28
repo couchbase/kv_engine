@@ -149,6 +149,11 @@ TEST_P(DurabilityTest, ReplaceMaybeSupported) {
     executeMutationCommand(ClientOpcode::Replace);
 }
 
+TEST_P(DurabilityTest, DeleteMaybeSupported) {
+    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
+    executeCommand(ClientOpcode::Delete, {}, {}, getExpectedStatus());
+}
+
 TEST_P(DurabilityTest, IncrementMaybeSupported) {
     executeArithmeticOperation(ClientOpcode::Increment);
 }

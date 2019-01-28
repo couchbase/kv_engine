@@ -545,6 +545,7 @@ TEST_P(EPStoreEvictionTest, checkIfResidentAfterBgFetch) {
                                 cas,
                                 vbid,
                                 /*cookie*/ cookie,
+                                {},
                                 /*itemMeta*/ nullptr,
                                 mutation_descr));
 
@@ -786,6 +787,7 @@ TEST_P(EPStoreEvictionTest, getDeletedItemWithNoValue) {
                                 cas,
                                 vbid,
                                 /*cookie*/ cookie,
+                                {},
                                 /*itemMeta*/ nullptr,
                                 mutation_descr));
 

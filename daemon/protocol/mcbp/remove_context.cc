@@ -157,7 +157,13 @@ ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {
 
 ENGINE_ERROR_CODE RemoveCommandContext::removeItem() {
     uint64_t new_cas = input_cas;
-    auto ret = bucket_remove(cookie, key, new_cas, vbucket, {}, mutation_descr);
+    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+    auto ret = bucket_remove(cookie,
+                             key,
+                             new_cas,
+                             vbucket,
+                             request.getDurabilityRequirements(),
+                             mutation_descr);
 
     if (ret == ENGINE_SUCCESS) {
         cookie.setCas(new_cas);

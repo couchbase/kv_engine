@@ -389,6 +389,7 @@ public:
      * @param cas CAS value of the mutation that needs to be returned
      *            back to the client
      * @param vbucket vbucket id to which the deleted key corresponds to
+     * @param durability Optional durability requirements for this deletion.
      * @param item_meta pointer to item meta data that needs to be
      *                  as a result the delete. A NULL pointer indicates
      *                  that no meta data needs to be returned.
@@ -398,12 +399,14 @@ public:
      * @returns ENGINE_SUCCESS if the delete was successful or
      *          an error code indicating the error
      */
-    ENGINE_ERROR_CODE itemDelete(const void* cookie,
-                                 const DocKey& key,
-                                 uint64_t& cas,
-                                 Vbid vbucket,
-                                 ItemMetaData* item_meta,
-                                 mutation_descr_t& mut_info);
+    ENGINE_ERROR_CODE itemDelete(
+            const void* cookie,
+            const DocKey& key,
+            uint64_t& cas,
+            Vbid vbucket,
+            boost::optional<cb::durability::Requirements> durability,
+            ItemMetaData* item_meta,
+            mutation_descr_t& mut_info);
 
     void itemRelease(item* itm);
 

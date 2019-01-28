@@ -121,6 +121,7 @@ public:
                                         cas,
                                         vbid,
                                         /*cookie*/ nullptr,
+                                        {},
                                         /*itemMeta*/ nullptr,
                                         mutation_descr));
         }

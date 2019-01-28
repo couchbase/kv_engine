@@ -212,6 +212,7 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
                                 cas,
                                 vbid,
                                 cookie,
+                                {},
                                 nullptr,
                                 mutation_descr));
 

@@ -198,6 +198,7 @@ void KVBucketTest::delete_item(Vbid vbid, const DocKey& key) {
                                 cas,
                                 vbid,
                                 cookie,
+                                {},
                                 /*itemMeta*/ nullptr,
                                 mutation_descr));
 }
@@ -475,6 +476,7 @@ TEST_P(KVBucketParamTest, SetCASDeleted) {
                                 cas,
                                 vbid,
                                 cookie,
+                                {},
                                 /*itemMeta*/ nullptr,
                                 mutation_descr));
 
@@ -750,7 +752,7 @@ TEST_P(KVBucketParamTest, mb22824) {
     mutation_descr_t mutation_descr;
     EXPECT_EQ(ENGINE_KEY_ENOENT,
               store->deleteItem(
-                      key, cas, vbid, cookie, &itemMeta2, mutation_descr));
+                      key, cas, vbid, cookie, {}, &itemMeta2, mutation_descr));
 
     // Should be getting the same CAS from the failed delete as getMetaData
     EXPECT_EQ(itemMeta1.cas, itemMeta2.cas);

@@ -315,6 +315,7 @@ TEST_P(DatatypeStatTest, datatypeDeletion) {
                       cas,
                       Vbid(0),
                       cookie,
+                      {},
                       nullptr,
                       mutation_descr);
     vals = get_stat(nullptr);

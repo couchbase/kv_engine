@@ -28,6 +28,7 @@
 #include "stored_value_factories.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucketdeletiontask.h"
+#include <memcached/3rd_party/folly/lang/Assume.h>
 
 EphemeralVBucket::EphemeralVBucket(
         Vbid i,
@@ -103,15 +104,21 @@ bool EphemeralVBucket::pageOut(const HashTable::HashBucketLock& lh,
     VBQueueItemCtx queueCtx;
     v->setRevSeqno(v->getRevSeqno() + 1);
     StoredValue* newSv;
+    DeletionStatus status;
     VBNotifyCtx notifyCtx;
-    std::tie(newSv, notifyCtx) = softDeleteStoredValue(
+    std::tie(newSv, status, notifyCtx) = softDeleteStoredValue(
             lh, *v, /*onlyMarkDeleted*/ false, queueCtx, 0);
-    ht.updateMaxDeletedRevSeqno(newSv->getRevSeqno());
-    notifyNewSeqno(notifyCtx);
+    switch (status) {
+    case DeletionStatus::Success:
+        ht.updateMaxDeletedRevSeqno(newSv->getRevSeqno());
+        notifyNewSeqno(notifyCtx);
+        autoDeleteCount++;
+        return true;
 
-    autoDeleteCount++;
-
-    return true;
+    case DeletionStatus::IsPendingSyncWrite:
+        return false;
+    }
+    folly::assume_unreachable();
 }
 
 bool EphemeralVBucket::eligibleToPageOut(const HashTable::HashBucketLock& lh,
@@ -489,13 +496,16 @@ std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
     return {v, notifyCtx};
 }
 
-std::tuple<StoredValue*, VBNotifyCtx> EphemeralVBucket::softDeleteStoredValue(
-        const HashTable::HashBucketLock& hbl,
-        StoredValue& v,
-        bool onlyMarkDeleted,
-        const VBQueueItemCtx& queueItmCtx,
-        uint64_t bySeqno,
-        DeleteSource deleteSource) {
+std::tuple<StoredValue*, DeletionStatus, VBNotifyCtx>
+EphemeralVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
+                                        StoredValue& v,
+                                        bool onlyMarkDeleted,
+                                        const VBQueueItemCtx& queueItmCtx,
+                                        uint64_t bySeqno,
+                                        DeleteSource deleteSource) {
+    // @todo-durability: Handle durability requirements in queueItemCtx -
+    // see EPVBucket impl
+
     std::lock_guard<std::mutex> lh(sequenceLock);
 
     StoredValue* newSv = &v;
@@ -575,7 +585,7 @@ std::tuple<StoredValue*, VBNotifyCtx> EphemeralVBucket::softDeleteStoredValue(
 
     seqList->updateNumDeletedItems(oldValueDeleted, true);
 
-    return std::make_tuple(newSv, notifyCtx);
+    return std::make_tuple(newSv, DeletionStatus::Success, notifyCtx);
 }
 
 VBNotifyCtx EphemeralVBucket::commitStoredValue(

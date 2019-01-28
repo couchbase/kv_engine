@@ -159,12 +159,14 @@ public:
                              const void* cookie,
                              time_t exptime) override;
 
-    ENGINE_ERROR_CODE deleteItem(const DocKey& key,
-                                 uint64_t& cas,
-                                 Vbid vbucket,
-                                 const void* cookie,
-                                 ItemMetaData* itemMeta,
-                                 mutation_descr_t& mutInfo) override;
+    ENGINE_ERROR_CODE deleteItem(
+            const DocKey& key,
+            uint64_t& cas,
+            Vbid vbucket,
+            const void* cookie,
+            boost::optional<cb::durability::Requirements> durability,
+            ItemMetaData* itemMeta,
+            mutation_descr_t& mutInfo) override;
 
     ENGINE_ERROR_CODE deleteWithMeta(const DocKey& key,
                                      uint64_t& cas,

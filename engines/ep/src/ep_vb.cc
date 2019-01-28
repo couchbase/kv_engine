@@ -29,6 +29,7 @@
 #include "tasks.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucketdeletiontask.h"
+#include <memcached/3rd_party/folly/lang/Assume.h>
 
 EPVBucket::EPVBucket(
         Vbid i,
@@ -527,6 +528,8 @@ EPVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
         result.storedValue = &v;
     } else {
         result = ht.unlocked_updateStoredValue(hbl, v, itm);
+        // @todo-durability - what about if unlocked_updateStoredValue() returns
+        // IsPendingSyncWrite - don't think we should throw there...
         if (!result.storedValue) {
             throw std::logic_error(
                     "EPVBucket::updateStoredValue: Failed to obtain valid SV "
@@ -555,20 +558,33 @@ std::pair<StoredValue*, VBNotifyCtx> EPVBucket::addNewStoredValue(
     return {v, queueDirty(*v, queueItmCtx)};
 }
 
-std::tuple<StoredValue*, VBNotifyCtx> EPVBucket::softDeleteStoredValue(
-        const HashTable::HashBucketLock& hbl,
-        StoredValue& v,
-        bool onlyMarkDeleted,
-        const VBQueueItemCtx& queueItmCtx,
-        uint64_t bySeqno,
-        DeleteSource deleteSource) {
-    ht.unlocked_softDelete(hbl, v, onlyMarkDeleted, deleteSource);
+std::tuple<StoredValue*, DeletionStatus, VBNotifyCtx>
+EPVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
+                                 StoredValue& v,
+                                 bool onlyMarkDeleted,
+                                 const VBQueueItemCtx& queueItmCtx,
+                                 uint64_t bySeqno,
+                                 DeleteSource deleteSource) {
+    const auto isSyncDelete = queueItmCtx.durability
+                                      ? HashTable::SyncDelete::Yes
+                                      : HashTable::SyncDelete::No;
+    auto result = ht.unlocked_softDelete(
+            hbl, v, onlyMarkDeleted, deleteSource, isSyncDelete);
+    switch (result.status) {
+    case DeletionStatus::Success:
+        // Proceed to queue the deletion into the CheckpointManager.
+        if (queueItmCtx.genBySeqno == GenerateBySeqno::No) {
+            result.deletedValue->setBySeqno(bySeqno);
+        }
+        return std::make_tuple(result.deletedValue,
+                               result.status,
+                               queueDirty(*result.deletedValue, queueItmCtx));
 
-    if (queueItmCtx.genBySeqno == GenerateBySeqno::No) {
-        v.setBySeqno(bySeqno);
-    }
-
-    return std::make_tuple(&v, queueDirty(v, queueItmCtx));
+    case DeletionStatus::IsPendingSyncWrite:
+        return std::make_tuple(
+                result.deletedValue, result.status, VBNotifyCtx{});
+    };
+    folly::assume_unreachable();
 }
 
 VBNotifyCtx EPVBucket::commitStoredValue(const HashTable::HashBucketLock& hbl,
