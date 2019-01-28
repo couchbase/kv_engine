@@ -1,0 +1,69 @@
+//
+//     Copyright 2019 Couchbase, Inc
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//       http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+// Schema for data that at least couch-kvstore stores in order to maintain the
+// collections/kvstore.h objects.
+
+// Note from flatbuffers documentation these are the sizes of the types
+//  * 8 bit: byte, ubyte, bool
+//  * 16 bit: short, ushort
+//  * 32 bit: int, uint, float
+//  * 64 bit: long, ulong, double
+
+namespace Collections.KVStore;
+
+// Metadata for a single collection
+table Collection {
+    startSeqno:long;
+    scopeId:uint;
+    collectionId:uint;
+    // The TTL is optional, ttlValid determines if the value of ttl should be
+    // used when processing new items.
+    ttlValid:bool;
+    maxTtl:uint;
+    name:string;
+}
+
+// All of the open collections
+table OpenCollections {
+    // The open collection entries
+    entries:[Collection];
+}
+
+// All of the open scopes
+table Scopes {
+    entries:[uint];
+}
+
+table Dropped {
+    startSeqno:long;
+    endSeqno:long;
+    collectionId:uint;
+}
+
+// The collections which are dropped but not completely purged from storage
+table DroppedCollections {
+    entries:[Dropped];
+}
+
+table CommittedManifest {
+    uid:ulong;
+}
+
+root_type OpenCollections;
+root_type DroppedCollections;
+root_type Scopes;
+root_type CommittedManifest;

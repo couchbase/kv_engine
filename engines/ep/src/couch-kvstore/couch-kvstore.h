@@ -200,8 +200,11 @@ public:
             throw std::invalid_argument("CouchKVStore::begin: txCtx is null");
         }
         if (isReadOnly()) {
-            throw std::logic_error("CouchKVStore::begin: Not valid on a "
-                    "read-only object.");
+            throw std::logic_error(
+                    "CouchKVStore::begin: Not valid on a read-only object.");
+        }
+        if (collectionsMeta.needsCommit) {
+            throw std::logic_error("CouchKVStore::begin needsCommit:true");
         }
         intransaction = true;
         transactionCtx = std::move(txCtx);
@@ -457,6 +460,18 @@ public:
      */
     uint64_t prepareToDelete(Vbid vbid) override;
 
+    /**
+     * CouchKVStore implements this method as a read of 3 _local documents
+     */
+    Collections::KVStore::Manifest getCollectionsManifest_new(
+            Vbid vbid) override;
+
+    /**
+     * CouchKVStore implements this method as a read of 1 _local document
+     */
+    std::vector<Collections::KVStore::DroppedCollection> getDroppedCollections(
+            Vbid vbid) override;
+
 protected:
     /**
      * Internal RAII class for managing a Db* and having it closed when
@@ -550,6 +565,11 @@ protected:
 
         LocalDoc* getLocalDoc() {
             return localDoc;
+        }
+
+        cb::const_byte_buffer getBuffer() const {
+            return {reinterpret_cast<const uint8_t*>(localDoc->json.buf),
+                    localDoc->json.size};
         }
 
     private:
@@ -656,6 +676,93 @@ protected:
 
     Collections::VB::PersistedStats getCollectionStats(
             const KVFileHandle& kvFileHandle, CollectionID collection) override;
+
+    /**
+     * Read a document from the local docs index
+     *
+     * Internally logs errors from couchstore
+     *
+     * @param db The database handle to read from
+     * @param name The name of the document to read
+     * @return LocalDocHolder storing null if name does not exist
+     */
+    LocalDocHolder readLocalDoc(Db& db, const std::string& name);
+
+    /**
+     * Write a document to the local docs index
+     *
+     * Internally logs errors from couchstore
+     *
+     * @param db The database handle to write to
+     * @param name The name of the document to write
+     * @param data The data to write
+     * @return error code success or other (non-success is logged)
+     */
+    couchstore_error_t writeLocalDoc(Db& db,
+                                     const std::string& name,
+                                     cb::const_char_buffer data);
+
+    /**
+     * Sync the KVStore::collectionsMeta structures to the database.
+     *
+     * @param db The database handle to update
+     * @return error code success or other (non-success is logged)
+     */
+    couchstore_error_t updateCollectionsMeta(Db& db);
+
+    /**
+     * Called from updateCollectionsMeta this function maintains the current
+     * uid committed
+     *
+     * @param db The database handle to update
+     * @return error code success or other (non-success is logged)
+     */
+    couchstore_error_t updateManifestUid(Db& db);
+
+    /**
+     * Called from updateCollectionsMeta this function maintains the set of open
+     * collections, adding newly opened collections and removing those which are
+     * dropped.
+     *
+     * @param db The database handle to update
+     * @return error code success or other (non-success is logged)
+     */
+    couchstore_error_t updateOpenCollections(Db& db);
+
+    /**
+     * Called from updateCollectionsMeta this function maintains the set of
+     * dropped collections.
+     *
+     * @param db The database handle to update
+     * @return error code success or other (non-success is logged)
+     */
+    couchstore_error_t updateDroppedCollections(Db& db);
+
+    /**
+     * Called from updateCollectionsMeta this function maintains the set of
+     * open scopes.
+     *
+     * @param db The database handle to update
+     * @return error code success or other (non-success is logged)
+     */
+    couchstore_error_t updateScopes(Db& db);
+
+    /**
+     * read local document to get the vector of dropped collections from an
+     * already open db handle
+     * @param db The database handle to read from
+     * @return a vector of dropped collections (can be empty)
+     */
+    std::vector<Collections::KVStore::DroppedCollection> getDroppedCollections(
+            Db& db);
+
+    /**
+     * read local document to get the count of dropped collections from an
+     * already open db handle
+     * @param db The database handle to read from
+     * @return number of collections still to be fully purged.
+     */
+    size_t getDroppedCollectionCount(Db& db);
 
     void setDocsCommitted(uint16_t docs);
     void closeDatabaseHandle(Db *db);

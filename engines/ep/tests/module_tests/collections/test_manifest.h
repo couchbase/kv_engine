@@ -186,6 +186,11 @@ public:
         return toJson();
     }
 
+    // Convert the manifest to a vector of objects
+    // primarily for CollectionsKVStore tests
+    std::vector<Collections::CollectionMetaData> getCreateEventVector() const;
+    std::vector<ScopeID> getScopeIdVector() const;
+
 private:
     void updateUid();
     std::string toJson() const;

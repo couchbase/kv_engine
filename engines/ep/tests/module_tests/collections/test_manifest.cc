@@ -16,8 +16,10 @@
  */
 
 #include "tests/module_tests/collections/test_manifest.h"
-#include <nlohmann/json.hpp>
 
+#include <memcached/dockey.h>
+
+#include <nlohmann/json.hpp>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -144,4 +146,34 @@ std::string CollectionsManifest::toJson() const {
 void CollectionsManifest::setUid(const std::string& uid) {
     this->uid = strtoull(uid.c_str(), nullptr, 16);
     updateUid();
+}
+
+std::vector<Collections::CollectionMetaData>
+CollectionsManifest::getCreateEventVector() const {
+    std::vector<Collections::CollectionMetaData> rv;
+    for (const auto& scope : json["scopes"]) {
+        for (const auto& collection : scope["collections"]) {
+            cb::ExpiryLimit maxTtl;
+            auto ttl = collection.find("max_ttl");
+            if (ttl != collection.end()) {
+                maxTtl = std::chrono::seconds(ttl->get<int32_t>());
+            }
+            ScopeID sid =
+                    Collections::makeScopeID(scope["uid"].get<std::string>());
+            CollectionID cid = Collections::makeCollectionID(
+                    collection["uid"].get<std::string>());
+            std::string name = collection["name"].get<std::string>();
+
+            rv.push_back({sid, cid, name, maxTtl});
+        }
+    }
+    return rv;
+}
+
+std::vector<ScopeID> CollectionsManifest::getScopeIdVector() const {
+    std::vector<ScopeID> rv;
+    for (const auto& scope : json["scopes"]) {
+        rv.push_back(Collections::makeScopeID(scope["uid"].get<std::string>()));
+    }
+    return rv;
 }

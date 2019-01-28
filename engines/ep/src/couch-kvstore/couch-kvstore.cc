@@ -17,6 +17,7 @@
 
 #include "config.h"
 #include "collections/collection_persisted_stats.h"
+#include "collections/kvstore_generated.h"
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -249,6 +250,14 @@ CouchRequest::CouchRequest(const Item& it,
     dbDocInfo.id = dbDoc.id;
     dbDocInfo.content_meta = getContentMeta(it);
 }
+
+namespace Collections {
+static constexpr const char* manifestName = "_local/collections/manifest";
+static constexpr const char* openCollectionsName = "_local/collections/open";
+static constexpr const char* scopesName = "_local/scope/open";
+static constexpr const char* droppedCollectionsName =
+        "_local/collections/dropped";
+} // namespace Collections
 
 CouchKVStore::CouchKVStore(KVStoreConfig& config)
     : CouchKVStore(config, *couchstore_get_default_file_ops()) {
@@ -2068,6 +2077,18 @@ couchstore_error_t CouchKVStore::saveDocs(
         }
 
         auto cs_begin = std::chrono::steady_clock::now();
+
+        if (collectionsMeta.needsCommit) {
+            errCode = updateCollectionsMeta(*db);
+            if (errCode) {
+                logger.warn(
+                        "CouchKVStore::saveDocs: updateCollectionsMeta "
+                        "error:{} [{}]",
+                        couchstore_strerror(errCode),
+                        couchkvstore_strerrno(db, errCode));
+            }
+        }
+
         errCode = couchstore_commit(db);
         st.commitHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
@@ -3021,6 +3042,412 @@ uint64_t CouchKVStore::prepareToDelete(Vbid vbid) {
     cachedFileSize[vbid.get()] = 0;
     cachedSpaceUsed[vbid.get()] = 0;
     return (*dbFileRevMap)[vbid.get()];
+}
+
+CouchKVStore::LocalDocHolder CouchKVStore::readLocalDoc(
+        Db& db, const std::string& name) {
+    sized_buf id;
+    id.buf = const_cast<char*>(name.data());
+    id.size = name.size();
+
+    LocalDocHolder lDoc;
+    auto errCode = couchstore_open_local_document(
+            &db, (void*)id.buf, id.size, lDoc.getLocalDocAddress());
+    if (errCode != COUCHSTORE_SUCCESS) {
+        if (errCode == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+            logger.debug("CouchKVStore::readLocalDoc({}): doc not found", name);
+        } else {
+            logger.warn(
+                    "CouchKVStore::readLocalDoc({}): "
+                    "couchstore_open_local_document error:{}",
+                    name,
+                    couchstore_strerror(errCode));
+        }
+
+        return {};
+    }
+
+    return lDoc;
+}
+
+couchstore_error_t CouchKVStore::writeLocalDoc(Db& db,
+                                               const std::string& name,
+                                               cb::const_char_buffer data) {
+    LocalDoc lDoc;
+    lDoc.id.buf = const_cast<char*>(name.data());
+    lDoc.id.size = name.size();
+
+    lDoc.json.buf = const_cast<char*>(data.data());
+    lDoc.json.size = data.size();
+    lDoc.deleted = 0;
+
+    couchstore_error_t errCode = couchstore_save_local_document(&db, &lDoc);
+
+    if (errCode != COUCHSTORE_SUCCESS) {
+        logger.warn(
+                "CouchKVStore::writeLocalDoc (name:{}, size:{}}) "
+                "couchstore_save_local_document "
+                "error:{} [{}]",
+                name,
+                data.size(),
+                couchstore_strerror(errCode),
+                couchkvstore_strerrno(&db, errCode));
+    }
+
+    return errCode;
+}
+
+template <class T>
+static void verifyFlatbuffersData(cb::const_byte_buffer buf,
+                                  const std::string& caller) {
+    flatbuffers::Verifier v(buf.data(), buf.size());
+    if (v.VerifyBuffer<T>(nullptr)) {
+        return;
+    }
+
+    std::stringstream ss;
+    ss << "CouchKVStore::verifyFlatbuffersData: " << caller
+       << " data invalid, ptr:" << reinterpret_cast<const void*>(buf.data())
+       << ", size:" << buf.size();
+
+    throw std::runtime_error(ss.str());
+}
+
+Collections::KVStore::Manifest CouchKVStore::getCollectionsManifest_new(
+        Vbid vbid) {
+    DbHolder db(*this);
+
+    couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (errCode != COUCHSTORE_SUCCESS) {
+        return {};
+    }
+
+    auto manifest = readLocalDoc(*db.getDb(), Collections::manifestName);
+    auto collections =
+            readLocalDoc(*db.getDb(), Collections::openCollectionsName);
+    auto scopes = readLocalDoc(*db.getDb(), Collections::scopesName);
+
+    Collections::KVStore::Manifest rv;
+
+    if (manifest.getLocalDoc()) {
+        verifyFlatbuffersData<Collections::KVStore::CommittedManifest>(
+                manifest.getBuffer(), "getCollectionsManifest(manifest)");
+        auto fbData =
+                flatbuffers::GetRoot<Collections::KVStore::CommittedManifest>(
+                        reinterpret_cast<const uint8_t*>(
+                                manifest.getLocalDoc()->json.buf));
+        rv.manifestUid = fbData->uid();
+    }
+
+    if (collections.getLocalDoc()) {
+        verifyFlatbuffersData<Collections::KVStore::OpenCollections>(
+                collections.getBuffer(), "getCollectionsManifest(open)");
+
+        auto fbData =
+                flatbuffers::GetRoot<Collections::KVStore::OpenCollections>(
+                        reinterpret_cast<const uint8_t*>(
+                                collections.getLocalDoc()->json.buf));
+        for (const auto& entry : *fbData->entries()) {
+            cb::ExpiryLimit maxTtl;
+            if (entry->ttlValid()) {
+                maxTtl = std::chrono::seconds(entry->maxTtl());
+            }
+
+            rv.collections.push_back(
+                    {entry->startSeqno(),
+                     Collections::CollectionMetaData{entry->scopeId(),
+                                                     entry->collectionId(),
+                                                     entry->name()->str(),
+                                                     maxTtl}});
+        }
+    } else {
+        // Nothing on disk - the default collection is assumed
+        rv.collections.push_back(
+                {0,
+                 {ScopeID::Default,
+                  CollectionID::Default,
+                  Collections::DefaultCollectionIdentifier.data(),
+                  {}}});
+    }
+
+    if (scopes.getLocalDoc()) {
+        verifyFlatbuffersData<Collections::KVStore::Scopes>(
+                scopes.getBuffer(), "getCollectionsManifest(scopes)");
+        auto fbData = flatbuffers::GetRoot<Collections::KVStore::Scopes>(
+                reinterpret_cast<const uint8_t*>(
+                        scopes.getLocalDoc()->json.buf));
+        for (const auto& entry : *fbData->entries()) {
+            rv.scopes.push_back(entry);
+        }
+    } else {
+        // Nothing on disk - the default scope is assumed
+        rv.scopes.push_back(ScopeID::Default);
+    }
+
+    // Do dropped collections exist?
+    rv.droppedCollectionsExist = getDroppedCollectionCount(*db.getDb()) > 0;
+    return rv;
+}
+
+std::vector<Collections::KVStore::DroppedCollection>
+CouchKVStore::getDroppedCollections(Vbid vbid) {
+    DbHolder db(*this);
+
+    couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (errCode != COUCHSTORE_SUCCESS) {
+        return {};
+    }
+
+    return getDroppedCollections(*db.getDb());
+}
+
+std::vector<Collections::KVStore::DroppedCollection>
+CouchKVStore::getDroppedCollections(Db& db) {
+    auto dropped = readLocalDoc(db, Collections::droppedCollectionsName);
+
+    if (!dropped.getLocalDoc()) {
+        return {};
+    }
+
+    std::vector<Collections::KVStore::DroppedCollection> rv;
+    verifyFlatbuffersData<Collections::KVStore::DroppedCollections>(
+            dropped.getBuffer(), "getDroppedCollections()");
+    auto fbData =
+            flatbuffers::GetRoot<Collections::KVStore::DroppedCollections>(
+                    reinterpret_cast<const uint8_t*>(
+                            dropped.getLocalDoc()->json.buf));
+    for (const auto& entry : *fbData->entries()) {
+        rv.push_back({entry->startSeqno(),
+                      entry->endSeqno(),
+                      entry->collectionId()});
+    }
+    return rv;
+}
+
+size_t CouchKVStore::getDroppedCollectionCount(Db& db) {
+    auto dropped = readLocalDoc(db, Collections::droppedCollectionsName);
+
+    if (!dropped.getLocalDoc()) {
+        return {};
+    }
+
+    std::vector<Collections::KVStore::DroppedCollection> rv;
+    verifyFlatbuffersData<Collections::KVStore::DroppedCollections>(
+            dropped.getBuffer(), "getDroppedCollections()");
+    auto fbData =
+            flatbuffers::GetRoot<Collections::KVStore::DroppedCollections>(
+                    reinterpret_cast<const uint8_t*>(
+                            dropped.getLocalDoc()->json.buf));
+    return fbData->entries()->size();
+}
+
+couchstore_error_t CouchKVStore::updateCollectionsMeta(Db& db) {
+    auto err = updateManifestUid(db);
+    if (err != COUCHSTORE_SUCCESS) {
+        return err;
+    }
+
+    if (!collectionsMeta.collections.empty() ||
+        !collectionsMeta.droppedCollections.empty()) {
+        err = updateOpenCollections(db);
+        if (err != COUCHSTORE_SUCCESS) {
+            return err;
+        }
+    }
+
+    if (!collectionsMeta.droppedCollections.empty()) {
+        err = updateDroppedCollections(db);
+        if (err != COUCHSTORE_SUCCESS) {
+            return err;
+        }
+    }
+
+    if (!collectionsMeta.scopes.empty() ||
+        !collectionsMeta.droppedScopes.empty()) {
+        err = updateScopes(db);
+        if (err != COUCHSTORE_SUCCESS) {
+            return err;
+        }
+    }
+
+    collectionsMeta.clear();
+    return COUCHSTORE_SUCCESS;
+}
+
+couchstore_error_t CouchKVStore::updateManifestUid(Db& db) {
+    // write back, no read required
+    flatbuffers::FlatBufferBuilder builder;
+    auto toWrite = Collections::KVStore::CreateCommittedManifest(
+            builder, collectionsMeta.manifestUid);
+    builder.Finish(toWrite);
+    cb::const_char_buffer buffer{
+            reinterpret_cast<const char*>(builder.GetBufferPointer()),
+            builder.GetSize()};
+    return writeLocalDoc(db, Collections::manifestName, buffer);
+}
+
+couchstore_error_t CouchKVStore::updateOpenCollections(Db& db) {
+    flatbuffers::FlatBufferBuilder builder;
+    std::vector<flatbuffers::Offset<Collections::KVStore::Collection>>
+            openCollections;
+    for (const auto& event : collectionsMeta.collections) {
+        const auto& meta = event.metaData;
+        auto newEntry = Collections::KVStore::CreateCollection(
+                builder,
+                event.startSeqno,
+                meta.sid,
+                meta.cid,
+                meta.maxTtl.is_initialized(),
+                meta.maxTtl.is_initialized() ? meta.maxTtl.get().count() : 0,
+                builder.CreateString(meta.name.data(), meta.name.size()));
+        openCollections.push_back(newEntry);
+    }
+
+    // And 'merge' with the data we read
+    auto collections = readLocalDoc(db, Collections::openCollectionsName);
+    if (collections.getLocalDoc()) {
+        verifyFlatbuffersData<Collections::KVStore::OpenCollections>(
+                collections.getBuffer(), "updateOpenCollections()");
+        auto fbData =
+                flatbuffers::GetRoot<Collections::KVStore::OpenCollections>(
+                        reinterpret_cast<const uint8_t*>(
+                                collections.getLocalDoc()->json.buf));
+        for (const auto& entry : *fbData->entries()) {
+            auto p = [entry](const Collections::KVStore::DroppedCollection& c) {
+                return c.collectionId == entry->collectionId();
+            };
+            auto result =
+                    std::find_if(collectionsMeta.droppedCollections.begin(),
+                                 collectionsMeta.droppedCollections.end(),
+                                 p);
+
+            // If not found in dropped collections add to output
+            if (result == collectionsMeta.droppedCollections.end()) {
+                auto newEntry = Collections::KVStore::CreateCollection(
+                        builder,
+                        entry->startSeqno(),
+                        entry->scopeId(),
+                        entry->collectionId(),
+                        entry->ttlValid(),
+                        entry->maxTtl(),
+                        builder.CreateString(entry->name()));
+                openCollections.push_back(newEntry);
+            } else {
+                // Here we maintain the startSeqno of the dropped collection
+                result->startSeqno = entry->startSeqno();
+            }
+        }
+    } else {
+        // Nothing on disk - assume the default collection lives
+        auto newEntry = Collections::KVStore::CreateCollection(
+                builder,
+                0,
+                ScopeID::Default,
+                CollectionID::Default,
+                false /* ttl invalid*/,
+                0,
+                builder.CreateString(
+                        Collections::DefaultCollectionIdentifier.data()));
+        openCollections.push_back(newEntry);
+    }
+
+    auto collectionsVector = builder.CreateVector(openCollections);
+    auto toWrite = Collections::KVStore::CreateOpenCollections(
+            builder, collectionsVector);
+
+    builder.Finish(toWrite);
+
+    // write back
+    cb::const_char_buffer buffer{
+            reinterpret_cast<const char*>(builder.GetBufferPointer()),
+            builder.GetSize()};
+    return writeLocalDoc(db, Collections::openCollectionsName, buffer);
+}
+
+couchstore_error_t CouchKVStore::updateDroppedCollections(Db& db) {
+    flatbuffers::FlatBufferBuilder builder;
+    std::vector<flatbuffers::Offset<Collections::KVStore::Dropped>>
+            droppedCollections;
+    for (const auto& dropped : collectionsMeta.droppedCollections) {
+        auto newEntry =
+                Collections::KVStore::CreateDropped(builder,
+                                                    dropped.startSeqno,
+                                                    dropped.endSeqno,
+                                                    dropped.collectionId);
+        droppedCollections.push_back(newEntry);
+    }
+
+    // And 'merge' with the data we read
+    auto dropped = readLocalDoc(db, Collections::droppedCollectionsName);
+    if (dropped.getLocalDoc()) {
+        verifyFlatbuffersData<Collections::KVStore::DroppedCollections>(
+                dropped.getBuffer(), "updateDroppedCollections()");
+        auto fbData =
+                flatbuffers::GetRoot<Collections::KVStore::DroppedCollections>(
+                        reinterpret_cast<const uint8_t*>(
+                                dropped.getLocalDoc()->json.buf));
+        for (const auto& entry : *fbData->entries()) {
+            auto newEntry =
+                    Collections::KVStore::CreateDropped(builder,
+                                                        entry->startSeqno(),
+                                                        entry->endSeqno(),
+                                                        entry->collectionId());
+            droppedCollections.push_back(newEntry);
+        }
+    }
+
+    auto vector = builder.CreateVector(droppedCollections);
+    auto final =
+            Collections::KVStore::CreateDroppedCollections(builder, vector);
+    builder.Finish(final);
+
+    // write back
+    cb::const_char_buffer buffer{
+            reinterpret_cast<const char*>(builder.GetBufferPointer()),
+            builder.GetSize()};
+    return writeLocalDoc(db, Collections::droppedCollectionsName, buffer);
+}
+
+couchstore_error_t CouchKVStore::updateScopes(Db& db) {
+    flatbuffers::FlatBufferBuilder builder;
+    std::vector<ScopeIDType> openScopes;
+    for (const auto& sid : collectionsMeta.scopes) {
+        openScopes.push_back(sid);
+    }
+
+    // And 'merge' with the data we read (remove any dropped)
+    auto scopes = readLocalDoc(db, Collections::scopesName);
+    if (scopes.getLocalDoc()) {
+        verifyFlatbuffersData<Collections::KVStore::Scopes>(scopes.getBuffer(),
+                                                            "updateScopes()");
+        auto fbData = flatbuffers::GetRoot<Collections::KVStore::Scopes>(
+                reinterpret_cast<const uint8_t*>(
+                        scopes.getLocalDoc()->json.buf));
+
+        for (const auto& sid : *fbData->entries()) {
+            auto result = std::find(collectionsMeta.droppedScopes.begin(),
+                                    collectionsMeta.droppedScopes.end(),
+                                    sid);
+
+            // If not found in dropped scopes add to output
+            if (result == collectionsMeta.droppedScopes.end()) {
+                openScopes.push_back(sid);
+            }
+        }
+    } else {
+        // Nothing on disk, the default scope is assumed to exist
+        openScopes.push_back(ScopeID::Default);
+    }
+
+    auto vector = builder.CreateVector(openScopes);
+    auto final = Collections::KVStore::CreateScopes(builder, vector);
+    builder.Finish(final);
+
+    // write back
+    cb::const_char_buffer buffer{
+            reinterpret_cast<const char*>(builder.GetBufferPointer()),
+            builder.GetSize()};
+    return writeLocalDoc(db, Collections::scopesName, buffer);
 }
 
 /* end of couch-kvstore.cc */

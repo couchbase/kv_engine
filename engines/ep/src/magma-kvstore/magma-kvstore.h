@@ -218,6 +218,20 @@ public:
         return 0;
     }
 
+    Collections::KVStore::Manifest getCollectionsManifest_new(
+            Vbid vbid) override {
+        throw std::logic_error(
+                "Unimplemented MagmaKVStore getCollectionsManifest");
+        return {};
+    }
+
+    std::vector<Collections::KVStore::DroppedCollection> getDroppedCollections(
+            Vbid vbid) override {
+        throw std::logic_error(
+                "Unimplemented MagmaKVStore getDroppedCollections");
+        return {};
+    }
+
 private:
     // This is used for synchonization in `openDB` to avoid that we open two
     // instances on the same DB (e.g., this would be possible

@@ -482,15 +482,63 @@ uint64_t KVStore::getLastPersistedSeqno(Vbid vbid) {
 
 void KVStore::setSystemEvent(
         const Item& item, Callback<TransactionContext, mutation_result>& cb) {
-    // Passthrough
-    // @todo: use item to update the metadata we need to store
+    switch (SystemEvent(item.getFlags())) {
+    case SystemEvent::Collection: {
+        auto createEvent = Collections::VB::Manifest::getCreateEventData(
+                {item.getData(), item.getNBytes()});
+        collectionsMeta.collections.push_back(
+                {item.getBySeqno(), createEvent.metaData});
+        collectionsMeta.setUid(createEvent.manifestUid);
+        break;
+    }
+    case SystemEvent::Scope: {
+        auto scopeEvent = Collections::VB::Manifest::getCreateScopeEventData(
+                {item.getData(), item.getNBytes()});
+        collectionsMeta.scopes.push_back(
+                Collections::getScopeIDFromKey(item.getKey()));
+        collectionsMeta.setUid(scopeEvent.manifestUid);
+        break;
+    }
+    default:
+        throw std::invalid_argument("KVStore::setSystemEvent: unknown event:" +
+                                    std::to_string(item.getFlags()));
+    }
+    collectionsMeta.needsCommit = true;
     set(item, cb);
 }
 
 void KVStore::delSystemEvent(const Item& item,
                              Callback<TransactionContext, int>& cb) {
-    // Passthrough
-    // @todo: use item to update the metadata we need to store
+    switch (SystemEvent(item.getFlags())) {
+    case SystemEvent::Collection: {
+        auto dropEvent = Collections::VB::Manifest::getDropEventData(
+                {item.getData(), item.getNBytes()});
+        // The startSeqno is unknown, so here we set to zero. The Underlying
+        // kvstore can discover the real startSeqno when processing the open
+        // collection list against the dropped collection list. A kvstore which
+        // can atomically drop a collection has no need for this, but one which
+        // will background purge dropped collection should maintain the start.
+        // Note: couch-kvstore will set the dropped start-seqno.
+        collectionsMeta.droppedCollections.push_back(
+                {0,
+                 item.getBySeqno(),
+                 Collections::getCollectionIDFromKey(item.getKey())});
+        collectionsMeta.setUid(dropEvent.manifestUid);
+        break;
+    }
+    case SystemEvent::Scope: {
+        auto dropEvent = Collections::VB::Manifest::getDropScopeEventData(
+                {item.getData(), item.getNBytes()});
+        collectionsMeta.droppedScopes.push_back(
+                Collections::getScopeIDFromKey(item.getKey()));
+        collectionsMeta.setUid(dropEvent.manifestUid);
+        break;
+    }
+    default:
+        throw std::invalid_argument("KVStore::delSystemEvent: unknown event:" +
+                                    std::to_string(item.getFlags()));
+    }
+    collectionsMeta.needsCommit = true;
     del(item, cb);
 }
 

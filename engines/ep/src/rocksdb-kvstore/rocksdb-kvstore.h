@@ -326,6 +326,20 @@ public:
         return 0;
     }
 
+    Collections::KVStore::Manifest getCollectionsManifest_new(
+            Vbid vbid) override {
+        throw std::logic_error(
+                "Unimplemented RocksDBKVStore getCollectionsManifest");
+        return {};
+    }
+
+    std::vector<Collections::KVStore::DroppedCollection> getDroppedCollections(
+            Vbid vbid) override {
+        throw std::logic_error(
+                "Unimplemented RocksDBKVStore getDroppedCollections");
+        return {};
+    }
+
 protected:
     // Write a batch of updates to the given database; measuring the time
     // taken and adding the timer to the commit histogram.

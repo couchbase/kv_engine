@@ -21,6 +21,7 @@
 
 #include "callbacks.h"
 #include "collections/eraser_context.h"
+#include "collections/kvstore.h"
 #include "collections/scan_context.h"
 #include "storeddockey.h"
 
@@ -856,6 +857,29 @@ public:
     void delSystemEvent(const Item& item,
                         Callback<TransactionContext, int>& cb);
 
+    /**
+     * Return data that EPBucket requires for the creation of a
+     * Collections::VB::Manifest
+     *
+     * @todo rename when conflicting getCollectionsManifest is removed
+     *
+     * @param vbid vbucket to get data from
+     * @return the persisted manifest data for the given vbid
+     */
+    virtual Collections::KVStore::Manifest getCollectionsManifest_new(
+            Vbid vbid) = 0;
+
+    /**
+     * Return all collections that are dropped, i.e. not open but still exist
+     * The implementation of this method can return empty vector if the
+     * underlying KV store atomically drops collections
+     *
+     * @param vbid vbucket to get data from
+     * @return vector of collections that are dropped but still may have data
+     */
+    virtual std::vector<Collections::KVStore::DroppedCollection>
+    getDroppedCollections(Vbid vbid) = 0;
+
 protected:
 
     /* all stats */
@@ -869,6 +893,9 @@ protected:
     Couchbase::RelaxedAtomic<uint16_t> cachedValidVBCount;
 
     PersistenceCallbacks pcbs;
+
+    /// Metadata that the underlying implementation must persist
+    Collections::KVStore::CommitMetaData collectionsMeta;
 
     void createDataDir(const std::string& dbname);
     template <typename T>

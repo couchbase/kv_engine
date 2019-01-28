@@ -17,6 +17,8 @@
 
 #include "config.h"
 
+#include "kvstore_test.h"
+
 #include <platform/dirutils.h>
 
 #include "bucket_logger.h"
@@ -227,29 +229,17 @@ static void add_stat_callback(const char* key,
                                std::string(val, vlen)));
 }
 
-/**
- * Test fixture for KVStore tests.
- */
-class KVStoreTest : public ::testing::Test {
-public:
-    KVStoreTest() : flush(manifest) {
-    }
+KVStoreTest::KVStoreTest() : flush(manifest) {
+}
 
-protected:
-    void SetUp() override {
-        auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
-        data_dir = std::string(info->test_case_name()) + "_" + info->name() +
-            ".db";
-    }
+void KVStoreTest::SetUp() {
+    auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
+    data_dir = std::string(info->test_case_name()) + "_" + info->name() + ".db";
+}
 
-    void TearDown() override {
-        cb::io::rmrf(data_dir);
-    }
-
-    std::string data_dir;
-    Collections::VB::Manifest manifest;
-    Collections::VB::Flush flush;
-};
+void KVStoreTest::TearDown() {
+    cb::io::rmrf(data_dir);
+}
 
 /// Test fixture for tests which run only on Couchstore.
 class CouchKVStoreTest : public KVStoreTest {
@@ -2129,44 +2119,32 @@ public:
     MOCK_METHOD2(callback, void(TransactionContext& txCtx, int& value));
 };
 
-// Test fixture for tests which run on all KVStore implementations (Couchstore
-// and RocksDB).
-// The string parameter represents the KVStore implementation that each test
-// of this class will use (e.g., "couchdb" and "rocksdb").
-class KVStoreParamTest : public KVStoreTest,
-                         public ::testing::WithParamInterface<std::string> {
-protected:
-    void SetUp() override {
-        KVStoreTest::SetUp();
-        Configuration config;
-        config.setDbname(data_dir);
-        // `GetParam` returns the string parameter representing the KVStore
-        // implementation
-        config.setBackend(GetParam());
-        if (config.getBackend() == "couchdb") {
-            kvstoreConfig =
-                    std::make_unique<KVStoreConfig>(config, 0 /*shardId*/);
-        }
+void KVStoreParamTest::SetUp() {
+    KVStoreTest::SetUp();
+    Configuration config;
+    config.setDbname(data_dir);
+    // `GetParam` returns the string parameter representing the KVStore
+    // implementation
+    config.setBackend(GetParam());
+    if (config.getBackend() == "couchdb") {
+        kvstoreConfig = std::make_unique<KVStoreConfig>(config, 0 /*shardId*/);
+    }
 #ifdef EP_USE_ROCKSDB
-        else if (config.getBackend() == "rocksdb") {
-            kvstoreConfig = std::make_unique<RocksDBKVStoreConfig>(
-                    config, 0 /*shardId*/);
-        }
+    else if (config.getBackend() == "rocksdb") {
+        kvstoreConfig =
+                std::make_unique<RocksDBKVStoreConfig>(config, 0 /*shardId*/);
+    }
 #endif
-        kvstore = setup_kv_store(*kvstoreConfig);
-    }
+    kvstore = setup_kv_store(*kvstoreConfig);
+}
 
-    void TearDown() override {
-        // Under RocksDB, removing the database folder (which is equivalent to
-        // calling rocksdb::DestroyDB()) for a live DB is an undefined
-        // behaviour. So, close the DB before destroying it.
-        kvstore.reset();
-        KVStoreTest::TearDown();
-    }
-
-    std::unique_ptr<KVStoreConfig> kvstoreConfig;
-    std::unique_ptr<KVStore> kvstore;
-};
+void KVStoreParamTest::TearDown() {
+    // Under RocksDB, removing the database folder (which is equivalent to
+    // calling rocksdb::DestroyDB()) for a live DB is an undefined
+    // behaviour. So, close the DB before destroying it.
+    kvstore.reset();
+    KVStoreTest::TearDown();
+}
 
 // Test basic set / get of a document
 TEST_P(KVStoreParamTest, BasicTest) {
@@ -2402,7 +2380,7 @@ TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
     EXPECT_EQ(kvstore->getVBucketState(vbid)->highSeqno, 10);
 }
 
-std::string kvstoreTestParams[] = {
+static std::string kvstoreTestParams[] = {
 #ifdef EP_USE_ROCKSDB
         "rocksdb",
 #endif
