@@ -980,6 +980,9 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
             supportsSyncReplication = true;
             return ENGINE_SUCCESS;
         }
+    } else if (key == "consumer_name") {
+        consumerName = valueStr;
+        return ENGINE_SUCCESS;
     }
 
     logger->warn("Invalid ctrl parameter '{}' for {}", valueStr, keyStr);

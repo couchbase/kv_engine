@@ -487,6 +487,9 @@ protected:
     /// Does this DCP Producer support synchronous replication via DCP_PREPARE/
     /// DCP_COMMIT ?
     Couchbase::RelaxedAtomic<bool> supportsSyncReplication = false;
+    // SyncReplication: Producer needs to know the Consumer name to identify
+    // the source of received SeqnoAck messages.
+    std::string consumerName;
 
     /// Timestamp of when we last transmitted a message to our peer.
     Couchbase::RelaxedAtomic<rel_time_t> lastSendTime;

@@ -491,6 +491,9 @@ protected:
     bool pendingSupportHifiMFU;
     bool pendingEnableExpiryOpcode;
     bool pendingEnableSyncReplication;
+    // SyncReplication: Producer needs to know the Consumer name to identify
+    // the source of received SeqnoAck messages.
+    bool pendingSendConsumerName;
 
     /*
      * MB-29441: The following variables are used to set the the proper

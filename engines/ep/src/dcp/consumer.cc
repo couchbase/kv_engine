@@ -182,6 +182,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
             (config.getHtEvictionPolicy() == "hifi_mfu");
     pendingEnableExpiryOpcode = true;
     pendingEnableSyncReplication = true;
+    pendingSendConsumerName = true;
 }
 
 DcpConsumer::~DcpConsumer() {
@@ -1494,6 +1495,18 @@ ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
         pendingEnableSyncReplication = false;
         return ret;
     }
+
+    if (pendingSendConsumerName) {
+        uint32_t opaque = ++opaqueCounter;
+        NonBucketAllocationGuard guard;
+        // @todo: Temporarily passing the connection name in place of consumer
+        //     name. Change when adding the consumer-name to DCP_OPEN.
+        ENGINE_ERROR_CODE ret =
+                producers->control(opaque, "consumer_name", getName().c_str());
+        pendingSendConsumerName = false;
+        return ret;
+    }
+
     return ENGINE_FAILED;
 }
 
