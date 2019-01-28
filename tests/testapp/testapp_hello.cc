@@ -58,26 +58,24 @@ TEST_F(HelloTest, AgentName) {
     conn.executeCommand(cmd, resp);
     ASSERT_TRUE(resp.isSuccess());
 
-    auto stats = conn.stats("connections");
+    auto stats = conn.statsN("connections");
     bool found = false;
 
     // look over all of the entries and verify that it's set :)
     // validate that at least thats true:
-    for (auto* conn = stats.get()->child; conn != nullptr; conn = conn->next) {
-        unique_cJSON_ptr json(cJSON_Parse(conn->valuestring));
-        ASSERT_NE(nullptr, json.get());
-        // the _this_ pointer should at least be there
-        ASSERT_NE(nullptr, cJSON_GetObjectItem(json.get(), "connection"));
-        auto* ptr = cJSON_GetObjectItem(json.get(), "agent_name");
-        if (ptr != nullptr) {
-            ASSERT_EQ(cJSON_String, ptr->type);
-            ASSERT_EQ(agentname.substr(0, MaxSavedAgentName), ptr->valuestring);
+    for (const auto connStr : stats) {
+        auto conn = nlohmann::json::parse(connStr.get<std::string>());
+        ASSERT_NE(conn.end(), conn.find("connection"));
+        auto agent = conn.find("agent_name");
+        if (agent != conn.end()) {
+            auto agentStr = agent->get<std::string>();
+            ASSERT_EQ(agentname.substr(0, MaxSavedAgentName), agentStr);
             found = true;
             break;
         }
     }
 
-    EXPECT_TRUE(found) << "connection not found in stats: " + to_string(stats);
+    EXPECT_TRUE(found) << "connection not found in stats: " + stats.dump();
 }
 
 /**
@@ -91,33 +89,28 @@ TEST_F(HelloTest, JsonAgentInformation) {
     conn.executeCommand(cmd, resp);
     ASSERT_TRUE(resp.isSuccess());
 
-    auto stats = conn.stats("connections");
+    auto stats = conn.statsN("connections");
     bool found = false;
 
     // look over all of the entries and verify that it's set :)
     // validate that at least thats true:
-    for (auto* conn = stats.get()->child; conn != nullptr; conn = conn->next) {
-        unique_cJSON_ptr json(cJSON_Parse(conn->valuestring));
-        ASSERT_NE(nullptr, json.get());
-        // the _this_ pointer should at least be there
-        ASSERT_NE(nullptr, cJSON_GetObjectItem(json.get(), "connection"));
-        auto* ptr = cJSON_GetObjectItem(json.get(), "agent_name");
-        if (ptr != nullptr) {
-            ASSERT_EQ(cJSON_String, ptr->type);
-            if (strcmp("AgentInformation", ptr->valuestring) == 0) {
-                // We should have the uuid here!
-                auto* id = cJSON_GetObjectItem(json.get(), "connection_id");
-                ASSERT_NE(nullptr, id);
-                EXPECT_EQ(cJSON_String, id->type);
-                EXPECT_STREQ("c21fee83af4e7943/c21fee83af4e7943",
-                             id->valuestring);
+    for (const auto connStr : stats) {
+        auto conn = nlohmann::json::parse(connStr.get<std::string>());
+        ASSERT_NE(conn.end(), conn.find("connection"));
+        auto agent = conn.find("agent_name");
+        if (agent != conn.end()) {
+            auto agentStr = agent->get<std::string>();
+            if (agentStr == "AgentInformation") {
+                // We should have the uuid here
+                EXPECT_EQ("c21fee83af4e7943/c21fee83af4e7943",
+                          conn["connection_id"].get<std::string>());
                 found = true;
                 break;
             }
         }
     }
 
-    EXPECT_TRUE(found) << "connection not found in stats: " + to_string(stats);
+    EXPECT_TRUE(found) << "connection not found in stats: " + stats.dump();
 }
 
 /**
@@ -126,47 +119,43 @@ TEST_F(HelloTest, JsonAgentInformation) {
  */
 TEST_F(HelloTest, JsonAgentInformationStringsTruncated) {
     auto& conn = getConnection();
-    const std::string agent =
+    const std::string agentname =
             "AgentInformation which is longer than what we're going to save "
             "for it";
     const std::string cid =
             "Id which is longer than what we're going to store for it... Ok?";
 
-    ASSERT_LE(MaxSavedAgentName, agent.size());
+    ASSERT_LE(MaxSavedAgentName, agentname.size());
     ASSERT_LE(MaxSavedConnectionId, cid.size());
 
-    BinprotHelloCommand cmd(R"({"a":")" + agent + R"(","i":")" + cid + R"("})");
+    BinprotHelloCommand cmd(R"({"a":")" + agentname + R"(","i":")" + cid +
+                            R"("})");
     BinprotHelloResponse resp;
     conn.executeCommand(cmd, resp);
     ASSERT_TRUE(resp.isSuccess());
 
-    auto stats = conn.stats("connections");
+    auto stats = conn.statsN("connections");
     bool found = false;
 
     // look over all of the entries and verify that it's set :)
     // validate that at least thats true:
-    for (auto* conn = stats.get()->child; conn != nullptr; conn = conn->next) {
-        unique_cJSON_ptr json(cJSON_Parse(conn->valuestring));
-        ASSERT_NE(nullptr, json.get());
-        // the _this_ pointer should at least be there
-        ASSERT_NE(nullptr, cJSON_GetObjectItem(json.get(), "connection"));
-        auto* ptr = cJSON_GetObjectItem(json.get(), "agent_name");
-        if (ptr != nullptr) {
-            ASSERT_EQ(cJSON_String, ptr->type);
-            if (agent.substr(0, MaxSavedAgentName) == ptr->valuestring) {
+    for (const auto connStr : stats) {
+        auto conn = nlohmann::json::parse(connStr.get<std::string>());
+        ASSERT_NE(conn.end(), conn.find("connection"));
+        auto agent = conn.find("agent_name");
+        if (agent != conn.end()) {
+            if (agentname.substr(0, MaxSavedAgentName) ==
+                agent->get<std::string>()) {
                 // We should have the uuid here!
-                auto* id = cJSON_GetObjectItem(json.get(), "connection_id");
-                ASSERT_NE(nullptr, id);
-                EXPECT_EQ(cJSON_String, id->type);
-                EXPECT_EQ(cid.substr(0, MaxSavedConnectionId), id->valuestring);
-                ;
+                EXPECT_EQ(cid.substr(0, MaxSavedConnectionId),
+                          conn["connection_id"].get<std::string>());
                 found = true;
                 break;
             }
         }
     }
 
-    EXPECT_TRUE(found) << "connection not found in stats: " + to_string(stats);
+    EXPECT_TRUE(found) << "connection not found in stats: " + stats.dump();
 }
 
 /// Verify that the server gives me AltRequestSupport
