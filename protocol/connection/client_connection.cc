@@ -17,7 +17,6 @@
 #include "config.h"
 
 #include "client_connection.h"
-#include "cJSON_utils.h"
 #include "client_mcbp_commands.h"
 
 #include <cbsasl/client.h>
@@ -1405,16 +1404,20 @@ static std::string formatMcbpExceptionMsg(const std::string& prefix,
     // probably a JSON error context that's been included with the response body
     if (mcbp::datatype::is_json(response.getDatatype()) &&
         !response.isSuccess()) {
-        unique_cJSON_ptr json =
-                unique_cJSON_ptr(cJSON_Parse(response.getDataString().c_str()));
-        if (json != nullptr && json->type == cJSON_Object) {
-            auto* error = cJSON_GetObjectItem(json.get(), "error");
-            if (error != nullptr && error->type == cJSON_Object) {
-                auto* ctx = cJSON_GetObjectItem(error, "context");
-                if (ctx != nullptr && ctx->type == cJSON_String) {
-                    context = ctx->valuestring;
+        nlohmann::json json;
+        try {
+            auto json = nlohmann::json::parse(response.getDataString());
+            if (json.type() == nlohmann::json::value_t::object) {
+                auto error = json.find("error");
+                if (error != json.end()) {
+                    auto ctx = error->find("context");
+                    if (ctx != error->end() &&
+                        ctx->type() == nlohmann::json::value_t::string) {
+                        context = ctx->get<std::string>();
+                    }
                 }
             }
+        } catch (const nlohmann::json::exception&) {
         }
     }
     return formatMcbpExceptionMsg(prefix, response.getStatus(), context);
