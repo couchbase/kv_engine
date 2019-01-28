@@ -21,10 +21,13 @@
 
 #include "testapp.h"
 
-#include <platform/dirutils.h>
 #include "testapp_client_test.h"
 #include "memcached_audit_events.h"
 #include "auditd/auditd_audit_events.h"
+
+#include <cJSON.h>
+#include <cJSON_utils.h>
+#include <platform/dirutils.h>
 
 #include <fstream>
 #include <string>

@@ -18,6 +18,8 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
+#include <cJSON.h>
+#include <cJSON_utils.h>
 
 class ErrmapTest : public TestappClientTest {
 public:

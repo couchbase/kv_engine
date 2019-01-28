@@ -17,7 +17,8 @@
 #pragma once
 
 #include "client_connection.h"
-#include <cJSON_utils.h>
+
+#include <nlohmann/json_fwd.hpp>
 
 class ConnectionMap {
 public:
@@ -25,7 +26,7 @@ public:
      * Initialize the connection map with connections matching the ports
      * opened from Memcached
      */
-    void initialize(cJSON* ports);
+    void initialize(const nlohmann::json& ports);
 
     /**
      * Invalidate all of the connections

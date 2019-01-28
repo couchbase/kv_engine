@@ -18,6 +18,8 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
+#include <cJSON.h>
+#include <cJSON_utils.h>
 #include <platform/compress.h>
 #include <protocol/connection/client_connection.h>
 #include <algorithm>

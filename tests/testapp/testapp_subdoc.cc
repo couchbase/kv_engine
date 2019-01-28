@@ -24,6 +24,7 @@
 #include "testapp_subdoc_common.h"
 
 #include <cJSON.h>
+#include <cJSON_utils.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/util.h> // for memcached_protocol_errcode_2_text()
 #include <platform/cb_malloc.h>

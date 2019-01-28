@@ -23,6 +23,7 @@
 
 #include <include/memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
+#include <utilities/json_utilities.h>
 #include <atomic>
 #include <csignal>
 #include <thread>
@@ -458,22 +459,6 @@ void write_config_to_file(const std::string& config, const std::string& fname) {
     }
 }
 
-/**
- * Load and parse the content of a file into a cJSON array
- *
- * @param file the name of the file
- * @return the decoded cJSON representation
- * @throw a string if something goes wrong
- */
-static unique_cJSON_ptr loadJsonFile(const std::string& file) {
-    unique_cJSON_ptr ret(cJSON_Parse(cb::io::loadFile(file).c_str()));
-    if (ret.get() == nullptr) {
-        throw std::logic_error("Failed to parse: " + file);
-    }
-
-    return ret;
-}
-
 void TestappTest::verify_server_running() {
     if (embedded_memcached_server) {
         // we don't monitor this thread...
@@ -551,43 +536,37 @@ void TestappTest::parse_portnumber_file(in_port_t& port_out,
     port_out = (in_port_t)-1;
     ssl_port_out = (in_port_t)-1;
 
-    unique_cJSON_ptr portnumbers;
-    portnumbers = loadJsonFile(portnumber_file);
-    ASSERT_NE(nullptr, portnumbers);
-    connectionMap.initialize(portnumbers.get());
+    // We'll throw here if anything goes wrong
+    const nlohmann::json portnumbers =
+            nlohmann::json::parse(cb::io::loadFile(portnumber_file));
 
-    cJSON* array = cJSON_GetObjectItem(portnumbers.get(), "ports");
-    ASSERT_NE(nullptr, array) << "ports not found in portnumber file";
+    connectionMap.initialize(portnumbers);
 
-    auto numEntries = cJSON_GetArraySize(array);
-    for (int ii = 0; ii < numEntries; ++ii) {
-        auto obj = cJSON_GetArrayItem(array, ii);
-
-        auto protocol = cJSON_GetObjectItem(obj, "protocol");
-        if (strcmp(protocol->valuestring, "memcached") != 0) {
+    auto array = portnumbers["ports"];
+    for (auto obj : array) {
+        auto proto = obj.find("protocol");
+        if (proto == obj.end() || proto->get<std::string>() != "memcached") {
             // the new test use the connectionmap
             continue;
         }
 
-        auto family = cJSON_GetObjectItem(obj, "family");
-        if (strcmp(family->valuestring, "AF_INET") != 0) {
+        auto fam = obj.find("family");
+        if (fam == obj.end() || fam->get<std::string>() != "AF_INET") {
             // For now we don't test IPv6
             continue;
         }
-        auto ssl = cJSON_GetObjectItem(obj, "ssl");
-        ASSERT_NE(nullptr, ssl);
-        auto port = cJSON_GetObjectItem(obj, "port");
-        ASSERT_NE(nullptr, port);
 
-        in_port_t* out_port;
-        if (ssl->type == cJSON_True) {
-            out_port = &ssl_port_out;
+        auto ssl = cb::jsonGet<bool>(obj, "ssl");
+        auto port = cb::jsonGet<size_t>(obj, "port");
+
+        in_port_t* outPort;
+        if (ssl) {
+            outPort = &ssl_port_out;
         } else {
-            out_port = &port_out;
+            outPort = &port_out;
         }
-        *out_port = static_cast<in_port_t>(port->valueint);
+        *outPort = static_cast<in_port_t>(port);
     }
-
     EXPECT_EQ(0, remove(portnumber_file.c_str()));
 }
 

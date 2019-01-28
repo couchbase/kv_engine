@@ -21,6 +21,9 @@
 
 #include "testapp_subdoc_common.h"
 
+#include <cJSON.h>
+#include <cJSON_utils.h>
+
 // Test multi-path lookup command - simple single SUBDOC_GET
 TEST_P(SubdocTestappTest, SubdocMultiLookup_GetSingle) {
     store_document("dict", "{\"key1\":1,\"key2\":\"two\", \"key3\":3.0}");

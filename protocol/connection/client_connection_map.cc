@@ -16,6 +16,9 @@
  */
 #include "client_connection_map.h"
 
+#include <nlohmann/json.hpp>
+#include <utilities/json_utilities.h>
+
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the ConnectionMap class
 /////////////////////////////////////////////////////////////////////////
@@ -41,63 +44,38 @@ bool ConnectionMap::contains(bool ssl, sa_family_t family) {
     }
 }
 
-void ConnectionMap::initialize(cJSON* ports) {
+void ConnectionMap::initialize(const nlohmann::json& ports) {
     invalidate();
-    cJSON* array = cJSON_GetObjectItem(ports, "ports");
-    if (array == nullptr) {
-        std::string msg("ports not found in portnumber file: ");
-        msg.append(to_string(ports, false));
-        throw std::runtime_error(msg);
+    auto array = ports.find("ports");
+    if (array == ports.end()) {
+        throw std::runtime_error("ports not found in portnumber file: " +
+                                 ports.dump());
     }
 
-    auto numEntries = cJSON_GetArraySize(array);
     sa_family_t family;
-    for (int ii = 0; ii < numEntries; ++ii) {
-        auto obj = cJSON_GetArrayItem(array, ii);
-        auto fam = cJSON_GetObjectItem(obj, "family");
-        if (strcmp(fam->valuestring, "AF_INET") == 0) {
+    for (const auto obj : *array) {
+        // auto fam = port.find("family");
+        auto fam = cb::jsonGet<std::string>(obj, "family");
+        if (fam == "AF_INET") {
             family = AF_INET;
-        } else if (strcmp(fam->valuestring, "AF_INET6") == 0) {
-            family = AF_INET6;
         } else {
-            std::string msg("Unsupported network family: ");
-            msg.append(to_string(obj, false));
-            throw std::runtime_error(msg);
+            family = AF_INET6;
         }
 
-        auto ssl = cJSON_GetObjectItem(obj, "ssl");
-        if (ssl == nullptr) {
-            std::string msg("ssl missing for entry: ");
-            msg.append(to_string(obj, false));
-            throw std::runtime_error(msg);
-        }
-
-        auto port = cJSON_GetObjectItem(obj, "port");
-        if (port == nullptr) {
-            std::string msg("port missing for entry: ");
-            msg.append(to_string(obj, false));
-            throw std::runtime_error(msg);
-        }
-
-        auto protocol = cJSON_GetObjectItem(obj, "protocol");
-        if (protocol == nullptr) {
-            std::string msg("protocol missing for entry: ");
-            msg.append(to_string(obj, false));
-            throw std::runtime_error(msg);
-        }
-
-        auto portval = static_cast<in_port_t>(port->valueint);
-        bool useSsl = ssl->type == cJSON_True ? true : false;
+        auto ssl = cb::jsonGet<bool>(obj, "ssl");
+        auto port = cb::jsonGet<size_t>(obj, "port");
+        auto protocol = cb::jsonGet<std::string>(obj, "protocol");
 
         MemcachedConnection* connection;
-        if (strcmp(protocol->valuestring, "memcached") != 0) {
+        if (protocol != "memcached") {
             throw std::logic_error(
                     "ConnectionMap::initialize: Invalid value passed for "
                     "protocol: " +
-                    std::string(protocol->valuestring));
+                    std::string(protocol));
         }
 
-        connection = new MemcachedConnection("", portval, family, useSsl);
+        auto portVal = static_cast<in_port_t>(port);
+        connection = new MemcachedConnection("", portVal, family, ssl);
         connections.push_back(std::unique_ptr<MemcachedConnection>{connection});
     }
 }
