@@ -30,24 +30,6 @@ Bucket::Bucket()
     std::memset(name, 0, sizeof(name));
 }
 
-Bucket::Bucket(const Bucket& other)
-{
-    std::lock_guard<std::mutex> guard(other.mutex);
-    clients = other.clients;
-    state = other.state.load();
-    type = other.type;
-    std::copy(std::begin(other.name), std::end(other.name),
-              std::begin(name));
-    engine_event_handlers = other.engine_event_handlers;
-    engine = other.engine;
-    stats = other.stats;
-    timings = other.timings;
-    subjson_operation_times = other.subjson_operation_times;
-    topkeys = other.topkeys;
-    responseCounters = other.responseCounters;
-    supportedFeatures = other.supportedFeatures;
-}
-
 bool Bucket::supports(cb::engine::Feature feature) {
     return supportedFeatures.find(feature) != supportedFeatures.end();
 }

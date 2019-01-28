@@ -78,10 +78,11 @@ class Bucket {
 public:
     Bucket();
 
-    /* Copy-construct. Note acquires the lock of `other` ensuring a
-     * consistent state is copied.
-     */
-    Bucket(const Bucket& other);
+    /// The bucket contains pointers to other objects and we don't want to
+    /// make a deep copy of them (or "share" the pointers). No one should need
+    /// to create a copy of the bucket anyway, so it's most likely a bug
+    /// if people ended up making a copy.
+    Bucket(const Bucket& other) = delete;
 
     /// @returns a pointer to the actual engine serving the request
     EngineIface* getEngine() const;
