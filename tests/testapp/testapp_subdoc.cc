@@ -74,9 +74,6 @@ void SubdocTestappTest::test_subdoc_get_binary(bool compress,
     EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "binary", "[0]"),
                   cb::mcbp::Status::SubdocDocNotJson);
 
-    unique_cJSON_ptr statsNew(cJSON_Parse(
-            cJSON_GetObjectItem(conn.stats("responses").get(), "responses")
-                    ->valuestring));
     EXPECT_EQ(notJsonCount + 1,
               getResponseCount(cb::mcbp::Status::SubdocDocNotJson));
 

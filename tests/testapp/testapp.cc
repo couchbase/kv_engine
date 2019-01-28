@@ -1311,19 +1311,17 @@ BinprotSubdocResponse TestappTest::getXattr(const std::string& path,
 }
 
 int TestappTest::getResponseCount(cb::mcbp::Status statusCode) {
-    unique_cJSON_ptr stats(cJSON_Parse(
-            cJSON_GetObjectItem(
-                    getConnection().stats("responses detailed").get(),
-                    "responses")
-                    ->valuestring));
+    auto stats = getConnection().statsN("responses detailed");
+    auto responses =
+            nlohmann::json::parse(stats["responses"].get<std::string>());
     std::stringstream stream;
     stream << std::hex << uint16_t(statusCode);
-    const auto *obj = cJSON_GetObjectItem(stats.get(), stream.str().c_str());
-    if (obj == nullptr) {
+    auto obj = responses.find(stream.str());
+    if (obj == responses.end()) {
         return 0;
     }
 
-    return gsl::narrow<int>(obj->valueint);
+    return gsl::narrow<int>(obj->get<size_t>());
 }
 
 cb::mcbp::Datatype TestappTest::expectedJSONDatatype() const {
