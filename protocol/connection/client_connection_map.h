@@ -17,6 +17,7 @@
 #pragma once
 
 #include "client_connection.h"
+#include <cJSON_utils.h>
 
 class ConnectionMap {
 public:

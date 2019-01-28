@@ -45,7 +45,7 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
 
 TEST_P(StatsTest, TestDefaultStats) {
     MemcachedConnection& conn = getConnection();
-    auto stats = conn.statsN("");
+    auto stats = conn.stats("");
 
     // Don't expect the entire stats set, but we should at least have
     // the pid
@@ -68,7 +68,7 @@ TEST_P(StatsTest, TestGetMeta) {
         auto meta = conn.getMeta(doc.info.id, Vbid(0), GetMetaVersion::V1);
         EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
     }
-    auto stats = conn.statsN("");
+    auto stats = conn.stats("");
 
     auto cmd_get = stats["cmd_get"].get<size_t>();
     EXPECT_EQ(0, cmd_get);
@@ -83,7 +83,7 @@ TEST_P(StatsTest, TestGetMeta) {
         auto meta = conn.getMeta("no_key", Vbid(0), GetMetaVersion::V1);
         EXPECT_EQ(cb::mcbp::Status::KeyEnoent, meta.first);
     }
-    stats = conn.statsN("");
+    stats = conn.stats("");
 
     cmd_get = stats["cmd_get"].get<size_t>();
     EXPECT_EQ(0, cmd_get);
@@ -99,20 +99,20 @@ TEST_P(StatsTest, StatsResetIsPrivileged) {
     MemcachedConnection& conn = getConnection();
 
     try {
-        conn.statsN("reset");
+        conn.stats("reset");
         FAIL() << "reset is a privileged operation";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied());
     }
 
     conn.authenticate("@admin", "password", "PLAIN");
-    conn.statsN("reset");
+    conn.stats("reset");
 }
 
 TEST_P(StatsTest, TestReset) {
     MemcachedConnection& conn = getConnection();
 
-    auto stats = conn.statsN("");
+    auto stats = conn.stats("");
     ASSERT_FALSE(stats.empty());
 
     auto before = stats["cmd_get"].get<size_t>();
@@ -121,24 +121,24 @@ TEST_P(StatsTest, TestReset) {
         EXPECT_THROW(conn.get("foo", Vbid(0)), ConnectionError);
     }
 
-    stats = conn.statsN("");
+    stats = conn.stats("");
     EXPECT_NE(before, stats["cmd_get"].get<size_t>());
 
     // the cmd_get counter does work.. now check that reset sets it back..
     resetBucket();
 
-    stats = conn.statsN("");
+    stats = conn.stats("");
     EXPECT_EQ(0, stats["cmd_get"].get<size_t>());
 
     // Just ensure that the "reset timings" is detected
     // @todo add a separate test case for cmd timings stats
     conn.authenticate("@admin", "password", "PLAIN");
     conn.selectBucket("default");
-    stats = conn.statsN("reset timings");
+    stats = conn.stats("reset timings");
 
     // Just ensure that the "reset bogus" is detected..
     try {
-        conn.statsN("reset bogus");
+        conn.stats("reset bogus");
         FAIL()<<"stats reset bogus should throw an exception (non a valid cmd)";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isInvalidArguments());
@@ -155,7 +155,7 @@ TEST_P(StatsTest, TestReset) {
 TEST_P(StatsTest, Test_MB_17815) {
     MemcachedConnection& conn = getConnection();
 
-    auto stats = conn.statsN("");
+    auto stats = conn.stats("");
     EXPECT_EQ(0, stats["cmd_set"].get<size_t>());
 
     conn.configureEwouldBlockEngine(EWBEngineMode::Sequence,
@@ -169,7 +169,7 @@ TEST_P(StatsTest, Test_MB_17815) {
     doc.value = memcached_cfg.dump();
 
     conn.mutate(doc, Vbid(0), MutationType::Add);
-    stats = conn.statsN("");
+    stats = conn.stats("");
     EXPECT_EQ(1, stats["cmd_set"].get<size_t>());
 }
 
@@ -184,7 +184,7 @@ TEST_P(StatsTest, Test_MB_17815) {
 TEST_P(StatsTest, Test_MB_17815_Append) {
     MemcachedConnection& conn = getConnection();
 
-    auto stats = conn.statsN("");
+    auto stats = conn.stats("");
     EXPECT_EQ(0, stats["cmd_set"].get<size_t>());
 
     // Allow first SET to succeed and then return EWOULDBLOCK for
@@ -204,7 +204,7 @@ TEST_P(StatsTest, Test_MB_17815_Append) {
 
     // Now append to the same doc
     conn.mutate(doc, Vbid(0), MutationType::Append);
-    stats = conn.statsN("");
+    stats = conn.stats("");
     EXPECT_EQ(2, stats["cmd_set"].get<size_t>());
 }
 
@@ -215,7 +215,7 @@ TEST_P(StatsTest, Test_MB_17815_Append) {
 TEST_P(StatsTest, Test_MB_29259_Append) {
     MemcachedConnection& conn = getConnection();
 
-    auto stats = conn.statsN("");
+    auto stats = conn.stats("");
     EXPECT_EQ(0, stats["cmd_set"].get<size_t>());
 
     Document doc;
@@ -232,7 +232,7 @@ TEST_P(StatsTest, Test_MB_29259_Append) {
         EXPECT_TRUE(error.isNotStored());
     }
 
-    stats = conn.statsN("");
+    stats = conn.stats("");
     EXPECT_EQ(1, stats["cmd_set"].get<size_t>());
 }
 
@@ -251,7 +251,7 @@ TEST_P(StatsTest, TestAppend) {
     for (int i = 0; i < 10; i++) {
         conn.mutate(doc, Vbid(0), MutationType::Append);
     }
-    auto stats = conn.statsN("");
+    auto stats = conn.stats("");
     // In total we expect 11 sets, since there was the initial set
     // and then 10 appends
     EXPECT_EQ(11, stats["cmd_set"].get<size_t>());
@@ -261,7 +261,7 @@ TEST_P(StatsTest, TestAuditNoAccess) {
     MemcachedConnection& conn = getConnection();
 
     try {
-        conn.statsN("audit");
+        conn.stats("audit");
         FAIL() << "stats audit should throw an exception (non privileged)";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied());
@@ -272,7 +272,7 @@ TEST_P(StatsTest, TestAudit) {
     MemcachedConnection& conn = getConnection();
     conn.authenticate("@admin", "password", "PLAIN");
 
-    auto stats = conn.statsN("audit");
+    auto stats = conn.stats("audit");
     EXPECT_EQ(2, stats.size());
     EXPECT_EQ(false, stats["enabled"].get<bool>());
     EXPECT_EQ(0, stats["dropped_events"].get<size_t>());
@@ -284,7 +284,7 @@ TEST_P(StatsTest, TestBucketDetailsNoAccess) {
     MemcachedConnection& conn = getConnection();
 
     try {
-        conn.statsN("bucket_details");
+        conn.stats("bucket_details");
         FAIL() <<
                "stats bucket_details should throw an exception (non privileged)";
     } catch (ConnectionError& error) {
@@ -296,7 +296,7 @@ TEST_P(StatsTest, TestBucketDetails) {
     MemcachedConnection& conn = getConnection();
     conn.authenticate("@admin", "password", "PLAIN");
 
-    auto stats = conn.statsN("bucket_details");
+    auto stats = conn.stats("bucket_details");
     ASSERT_EQ(1, stats.size());
     ASSERT_EQ("bucket details", stats.begin().key());
 
@@ -324,13 +324,13 @@ TEST_P(StatsTest, TestBucketDetails) {
 }
 
 TEST_P(StatsTest, TestSchedulerInfo) {
-    auto stats = getConnection().statsN("worker_thread_info");
+    auto stats = getConnection().stats("worker_thread_info");
     // We should at least have an entry for the first thread
     EXPECT_NE(stats.end(), stats.find("0"));
 }
 
 TEST_P(StatsTest, TestSchedulerInfo_Aggregate) {
-    auto stats = getConnection().statsN("worker_thread_info aggregate");
+    auto stats = getConnection().stats("worker_thread_info aggregate");
     EXPECT_NE(stats.end(), stats.find("aggregate"));
 }
 
@@ -345,7 +345,7 @@ TEST_P(StatsTest, TestSchedulerInfo_InvalidSubcommand) {
 
 TEST_P(StatsTest, TestAggregate) {
     MemcachedConnection& conn = getConnection();
-    auto stats = conn.statsN("aggregate");
+    auto stats = conn.stats("aggregate");
     // Don't expect the entire stats set, but we should at least have
     // the pid
     EXPECT_NE(stats.end(), stats.find("pid"));
@@ -355,7 +355,7 @@ TEST_P(StatsTest, TestConnections) {
     MemcachedConnection& conn = getConnection();
     conn.hello("TestConnections", "1.0", "test connections test");
 
-    auto stats = conn.statsN("connections");
+    auto stats = conn.stats("connections");
     // We have at _least_ 2 connections
     ASSERT_LE(2, stats.size());
 
@@ -383,7 +383,7 @@ TEST_P(StatsTest, TestConnections) {
     }
 
     ASSERT_NE(-1, sock) << "Failed to locate the connection object";
-    stats = conn.statsN("connections " + std::to_string(sock));
+    stats = conn.stats("connections " + std::to_string(sock));
 
     ASSERT_EQ(1, stats.size());
     EXPECT_EQ(sock,
@@ -394,7 +394,7 @@ TEST_P(StatsTest, TestConnections) {
 TEST_P(StatsTest, TestConnectionsInvalidNumber) {
     MemcachedConnection& conn = getConnection();
     try {
-        auto stats = conn.statsN("connections xxx");
+        auto stats = conn.stats("connections xxx");
         FAIL() << "Did not detect incorrect connection number";
 
     } catch (ConnectionError& error) {
@@ -415,7 +415,7 @@ TEST_P(StatsTest, TestTopkeys) {
         conn.mutate(doc, Vbid(0), MutationType::Set);
     }
 
-    auto stats = conn.statsN("topkeys");
+    auto stats = conn.stats("topkeys");
     EXPECT_NE(stats.end(), stats.find(name));
 }
 
@@ -433,7 +433,7 @@ TEST_P(StatsTest, TestTopkeysJson) {
     }
 
     auto stats = nlohmann::json::parse(
-            conn.statsN("topkeys_json").begin()->get<std::string>());
+            conn.stats("topkeys_json").begin()->get<std::string>());
     bool found = false;
     for (const auto i : stats) {
         for (const auto j : i) {
@@ -449,7 +449,7 @@ TEST_P(StatsTest, TestTopkeysJson) {
 
 TEST_P(StatsTest, TestSubdocExecute) {
     MemcachedConnection& conn = getConnection();
-    auto stats = conn.statsN("subdoc_execute");
+    auto stats = conn.stats("subdoc_execute");
     auto array = nlohmann::json::parse(stats.begin()->get<std::string>());
 
     // check there are ten items in the json array
@@ -471,21 +471,21 @@ TEST_P(StatsTest, TracingStatsIsPrivileged) {
     MemcachedConnection& conn = getConnection();
 
     try {
-        conn.statsN("tracing");
+        conn.stats("tracing");
         FAIL() << "tracing is a privileged operation";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied());
     }
 
     conn.authenticate("@admin", "password", "PLAIN");
-    conn.statsN("tracing");
+    conn.stats("tracing");
 }
 
 TEST_P(StatsTest, TestTracingStats) {
     MemcachedConnection& conn = getConnection();
     conn.authenticate("@admin", "password", "PLAIN");
 
-    auto stats = conn.statsN("tracing");
+    auto stats = conn.stats("tracing");
 
     // Just check that we got some stats, no need to check all of them
     // as we don't want memcached to be testing phosphor's logic
@@ -525,7 +525,7 @@ TEST_P(NoBucketStatsTest, TestTopkeysNoBucket) {
     conn.authenticate("@admin", "password", "PLAIN");
 
     // The actual request is expected fail with a nobucket exception.
-    EXPECT_THROW(conn.statsN("topkeys"), std::runtime_error);
+    EXPECT_THROW(conn.stats("topkeys"), std::runtime_error);
 }
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,

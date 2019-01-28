@@ -58,7 +58,7 @@ TEST_F(HelloTest, AgentName) {
     conn.executeCommand(cmd, resp);
     ASSERT_TRUE(resp.isSuccess());
 
-    auto stats = conn.statsN("connections");
+    auto stats = conn.stats("connections");
     bool found = false;
 
     // look over all of the entries and verify that it's set :)
@@ -89,7 +89,7 @@ TEST_F(HelloTest, JsonAgentInformation) {
     conn.executeCommand(cmd, resp);
     ASSERT_TRUE(resp.isSuccess());
 
-    auto stats = conn.statsN("connections");
+    auto stats = conn.stats("connections");
     bool found = false;
 
     // look over all of the entries and verify that it's set :)
@@ -134,7 +134,7 @@ TEST_F(HelloTest, JsonAgentInformationStringsTruncated) {
     conn.executeCommand(cmd, resp);
     ASSERT_TRUE(resp.isSuccess());
 
-    auto stats = conn.statsN("connections");
+    auto stats = conn.stats("connections");
     bool found = false;
 
     // look over all of the entries and verify that it's set :)

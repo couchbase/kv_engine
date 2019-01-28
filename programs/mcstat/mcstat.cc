@@ -38,7 +38,7 @@ static void request_stat(MemcachedConnection& connection,
                          bool format) {
     try {
         if (json) {
-            auto stats = connection.statsN(key);
+            auto stats = connection.stats(key);
             std::cout << stats.dump(format ? 1 : -1, '\t') << std::endl;
         } else {
             connection.stats(

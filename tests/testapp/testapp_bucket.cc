@@ -245,7 +245,7 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
             while (!deleting) {
                 usleep(10);  // Avoid busy-wait ;-)
                 auto details = nlohmann::json::parse(
-                        connection->statsN("bucket_details")
+                        connection->stats("bucket_details")
                                 .begin()
                                 ->get<std::string>());
                 auto bucketDetails = details["buckets"];
@@ -325,7 +325,7 @@ TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
          std::this_thread::sleep_for(std::chrono::milliseconds(500))) {
         // Get stats for all connections, then locate this connection
         // - should be the one with dcp:true.
-        auto all_stats = conn.statsN("connections");
+        auto all_stats = conn.stats("connections");
         boost::optional<nlohmann::json> my_conn_stats;
 
         for (const auto conn_str : all_stats) {
@@ -398,7 +398,7 @@ intptr_t getConnectionId(MemcachedConnection& conn) {
     const std::string agent_name{"getConnectionId 1.0"};
     conn.hello("getConnectionId", "1.0", "test connections test");
 
-    auto stats = conn.statsN("connections");
+    auto stats = conn.stats("connections");
     if (stats.empty()) {
         throw std::runtime_error("getConnectionId: stats connections failed");
     }
@@ -434,7 +434,7 @@ int64_t getTotalSent(const nlohmann::json& payload) {
 
 static nlohmann::json getConnectionStats(MemcachedConnection& conn,
                                          intptr_t id) {
-    const auto stats = conn.statsN("connections " + std::to_string(id));
+    const auto stats = conn.stats("connections " + std::to_string(id));
     if (stats.empty()) {
         throw std::runtime_error("getConnectionStats(): nothing returned");
     }

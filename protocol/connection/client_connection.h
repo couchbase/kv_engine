@@ -19,8 +19,6 @@
 #include "config.h"
 
 #include <boost/optional/optional_fwd.hpp>
-#include <cJSON.h>
-#include <cJSON_utils.h>
 #include <engines/ewouldblock_engine/ewouldblock_engine.h>
 #include <memcached/engine_error.h>
 #include <memcached/openssl.h>
@@ -487,8 +485,7 @@ public:
      */
     std::map<std::string, std::string> statsMap(const std::string& subcommand);
 
-    unique_cJSON_ptr stats(const std::string& subcommand);
-    nlohmann::json statsN(const std::string& subcommand);
+    nlohmann::json stats(const std::string& subcommand);
 
     /**
      * Instruct the audit daemon to reload the configuration

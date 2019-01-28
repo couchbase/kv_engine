@@ -46,7 +46,7 @@
  * @param bio connection to the server.
  */
 static int get_verbosity(MemcachedConnection& connection) {
-    auto stats = connection.statsN("settings");
+    auto stats = connection.stats("settings");
     if (stats) {
         auto verbosity = stats.find("verbosity");
         if (verbosity == stats.end()) {
