@@ -1726,7 +1726,8 @@ void CreateBucketThread::create() {
         all_buckets[ii].type = type;
         strcpy(all_buckets[ii].name, name.c_str());
         try {
-            all_buckets[ii].topkeys = new TopKeys(settings.getTopkeysSize());
+            all_buckets[ii].topkeys =
+                    std::make_unique<TopKeys>(settings.getTopkeysSize());
         } catch (const std::bad_alloc &) {
             result = ENGINE_ENOMEM;
             LOG_WARNING("{} Create bucket [{}] failed - out of memory",
@@ -1752,8 +1753,7 @@ void CreateBucketThread::create() {
             bucket.state = BucketState::None;
             bucket.name[0] = '\0';
             bucket.setEngine(nullptr);
-            delete bucket.topkeys;
-            bucket.topkeys = nullptr;
+            bucket.topkeys.reset();
         }
 
         LOG_WARNING(
@@ -1807,8 +1807,7 @@ void CreateBucketThread::create() {
         bucket.state = BucketState::None;
         bucket.name[0] = '\0';
         bucket.setEngine(nullptr);
-        delete bucket.topkeys;
-        bucket.topkeys = nullptr;
+        bucket.topkeys.reset();
 
         result = ENGINE_NOT_STORED;
     }
@@ -2012,9 +2011,8 @@ void DestroyBucketThread::destroy() {
         bucket.state = BucketState::None;
         bucket.setEngine(nullptr);
         bucket.name[0] = '\0';
-        delete bucket.topkeys;
+        bucket.topkeys.reset();
         bucket.responseCounters.fill(0);
-        bucket.topkeys = nullptr;
     }
     // don't need lock because all timing data uses atomics
     bucket.timings.reset();
@@ -2075,7 +2073,7 @@ static void cleanup_buckets() {
 
         if (bucket.state == BucketState::Ready) {
             bucket.getEngine()->destroy(false);
-            delete bucket.topkeys;
+            bucket.topkeys.reset();
         }
     }
 }

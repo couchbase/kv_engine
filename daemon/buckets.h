@@ -27,6 +27,7 @@
 #include <nlohmann/json_fwd.hpp>
 
 #include <condition_variable>
+#include <memory>
 
 struct thread_stats;
 struct DcpIface;
@@ -76,7 +77,7 @@ typedef std::array<std::vector<struct engine_event_handler>,
 
 class Bucket {
 public:
-    Bucket() = default;
+    Bucket();
 
     /// The bucket contains pointers to other objects and we don't want to
     /// make a deep copy of them (or "share" the pointers). No one should need
@@ -151,7 +152,7 @@ public:
     /**
      * Topkeys
      */
-    TopKeys* topkeys = nullptr;
+    std::unique_ptr<TopKeys> topkeys;
 
     /**
      * The validator chains to use for this bucket when receiving MCBP commands.

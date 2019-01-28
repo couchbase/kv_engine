@@ -17,8 +17,11 @@
 #include "buckets.h"
 #include "mc_time.h"
 #include "stats.h"
+#include "topkeys.h"
 #include <memcached/dcp.h>
 #include <memcached/engine.h>
+
+Bucket::Bucket() = default;
 
 bool Bucket::supports(cb::engine::Feature feature) {
     return supportedFeatures.find(feature) != supportedFeatures.end();
