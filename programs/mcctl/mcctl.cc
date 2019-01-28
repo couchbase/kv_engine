@@ -46,10 +46,14 @@
  * @param bio connection to the server.
  */
 static int get_verbosity(MemcachedConnection& connection) {
-    auto stats = connection.stats("settings");
+    auto stats = connection.statsN("settings");
     if (stats) {
-        auto* obj = cJSON_GetObjectItem(stats.get(), "verbosity");
-        if (obj && obj->type == cJSON_Number) {
+        auto verbosity = stats.find("verbosity");
+        if (verbosity == stats.end()) {
+            std::cerr << "Verbosity not returned from the server" << std::endl;
+            return EXIT_FAILURE;
+        } else if (verbosity->type() ==
+                   nlohmann::json::value_t::number_integer) {
             const char* levels[] = {"warning",
                                     "info",
                                     "debug",
@@ -57,20 +61,19 @@ static int get_verbosity(MemcachedConnection& connection) {
                                     "unknown"};
             const char* ptr = levels[4];
 
-            if (obj->valueint > -1 && obj->valueint < 4) {
-                ptr = levels[obj->valueint];
+            auto numVerbosity = verbosity->get<int>();
+
+            if (numVerbosity > -1 && numVerbosity < 4) {
+                ptr = levels[numVerbosity];
             }
             std::cerr << ptr << std::endl;
-        } else if (obj) {
-            std::cerr << "Invalid object type returned from the server: "
-                      << obj->type << std::endl;
-            return EXIT_FAILURE;
         } else {
-            std::cerr << "Verbosity not returned from the server" << std::endl;
+            std::cerr << "Invalid object type returned from the server: "
+                      << verbosity->type_name() << std::endl;
             return EXIT_FAILURE;
         }
     } else {
-        std::cerr << "Verbosity not returned from the server" << std::endl;
+        std::cerr << "Settings stats not returned from the server" << std::endl;
         return EXIT_FAILURE;
     }
 
