@@ -76,7 +76,7 @@ typedef std::array<std::vector<struct engine_event_handler>,
 
 class Bucket {
 public:
-    Bucket();
+    Bucket() = default;
 
     /// The bucket contains pointers to other objects and we don't want to
     /// make a deep copy of them (or "share" the pointers). No one should need
@@ -105,24 +105,24 @@ public:
      * The number of clients currently connected to the bucket (performed
      * a SASL_AUTH to the bucket.
      */
-    uint32_t clients;
+    uint32_t clients{0};
 
     /**
      * The current state of the bucket. Atomic as we permit it to be
      * read without acquiring the mutex, for example in
      * is_bucket_dying().
      */
-    std::atomic<BucketState> state;
+    std::atomic<BucketState> state{BucketState::None};
 
     /**
      * The type of bucket
      */
-    BucketType type;
+    BucketType type{BucketType::Unknown};
 
     /**
      * The name of the bucket (and space for the '\0')
      */
-    char name[MAX_BUCKET_NAME_LENGTH + 1];
+    char name[MAX_BUCKET_NAME_LENGTH + 1]{};
 
     /**
      * An array of registered event handler vectors, one for each type.
@@ -151,7 +151,7 @@ public:
     /**
      * Topkeys
      */
-    TopKeys *topkeys;
+    TopKeys* topkeys = nullptr;
 
     /**
      * The validator chains to use for this bucket when receiving MCBP commands.
@@ -174,12 +174,12 @@ public:
     /**
      * The maximum document size for this bucket
      */
-    size_t max_document_size;
+    size_t max_document_size = default_max_item_size;
 
     /**
      * The set of features that the bucket supports
      */
-    cb::engine::FeatureSet supportedFeatures;
+    cb::engine::FeatureSet supportedFeatures{};
 
     /**
      * Convenience function to check if the bucket supports the feature by
@@ -188,7 +188,7 @@ public:
     bool supports(cb::engine::Feature feature);
 
 private:
-    EngineIface* engine;
+    EngineIface* engine{nullptr};
 
     /**
      * The dcp interface for the connected bucket. May be null if the
