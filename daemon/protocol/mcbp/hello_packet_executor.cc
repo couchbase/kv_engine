@@ -282,7 +282,7 @@ void process_hello_packet_executor(Cookie& cookie) {
         case cb::mcbp::Feature::Collections:
             // Allow KV engine to chicken out
             if (settings.isCollectionsEnabled()) {
-                auto bucket = connection.getBucket();
+                auto& bucket = connection.getBucket();
                 // Abort if the engine cannot support collections
                 if (bucket.supports(cb::engine::Feature::Collections)) {
                     connection.setCollectionsSupported(true);
