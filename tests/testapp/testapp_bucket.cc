@@ -234,7 +234,7 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
             second_conn->encodeCmdGet("dummy_key_where_never_return", Vbid(0));
 
     // Send the get operation, however we will not get a response from the
-    // engine, and so it will block indefinately.
+    // engine, and so it will block indefinitely.
     second_conn->sendFrame(frame);
     std::thread resume{
         [&connection, &testfile]() {
@@ -242,15 +242,17 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
             bool deleting = false;
             while (!deleting) {
                 usleep(10);  // Avoid busy-wait ;-)
-                auto details = connection->stats("bucket_details");
-                auto* obj = cJSON_GetObjectItem(details.get(), "bucket details");
-                unique_cJSON_ptr buckets(cJSON_Parse(obj->valuestring));
-                for (auto* b = buckets->child->child; b != nullptr; b = b->next) {
-                    auto *name = cJSON_GetObjectItem(b, "name");
-                    if (name != nullptr) {
-                        if (std::string(name->valuestring) == "bucket") {
-                            auto *state = cJSON_GetObjectItem(b, "state");
-                            if (std::string(state->valuestring) == "destroying") {
+                auto details = nlohmann::json::parse(
+                        connection->statsN("bucket_details")
+                                .begin()
+                                ->get<std::string>());
+                auto bucketDetails = details["buckets"];
+                for (const auto bucket : bucketDetails) {
+                    auto name = bucket.find("name");
+                    if (name != bucket.end()) {
+                        if (name->get<std::string>() == "bucket") {
+                            if (bucket["state"].get<std::string>() ==
+                                "destroying") {
                                 deleting = true;
                             }
                         }
@@ -321,24 +323,19 @@ TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
          std::this_thread::sleep_for(std::chrono::milliseconds(500))) {
         // Get stats for all connections, then locate this connection
         // - should be the one with dcp:true.
-        auto all_stats = conn.stats("connections");
-        unique_cJSON_ptr my_conn_stats;
-        for (size_t ii{0}; my_conn_stats.get() == nullptr; ii++) {
-            auto* conn_stats = cJSON_GetObjectItem(all_stats.get(),
-                                                   std::to_string(ii).c_str());
-            if (conn_stats == nullptr) {
-                // run out of connections.
-                break;
-            }
-            // Each value is a string containing escaped JSON.
-            unique_cJSON_ptr conn_json{cJSON_Parse(conn_stats->valuestring)};
-            auto* dcp_flag = cJSON_GetObjectItem(conn_json.get(), "dcp");
-            if (dcp_flag != nullptr && dcp_flag->type == cJSON_True) {
-                my_conn_stats.swap(conn_json);
+        auto all_stats = conn.statsN("connections");
+        boost::optional<nlohmann::json> my_conn_stats;
+
+        for (const auto conn_str : all_stats) {
+            auto conn_stats =
+                    nlohmann::json::parse(conn_str.get<std::string>());
+            auto dcp_flag = conn_stats.find("dcp");
+            if (dcp_flag != conn_stats.end() && dcp_flag->get<bool>() == true) {
+                my_conn_stats = conn_stats;
             }
         }
 
-        if (my_conn_stats.get() == nullptr) {
+        if (!my_conn_stats) {
             // Connection isn't in DCP state yet (we are racing here with
             // processing messages on second_conn). Retry on next iteration.
             continue;
@@ -346,17 +343,18 @@ TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
 
         // Check how many bytes have been sent and see if it is
         // unchanged from the previous sample.
-        auto* total_send = cJSON_GetObjectItem(my_conn_stats.get(),
-                                               "total_send");
-        ASSERT_NE(nullptr, total_send)
-            << "Missing 'total_send' field in connection stats";
+        auto total_send = my_conn_stats->find("total_send");
 
-        if (total_send->valueint == previous_total_send) {
+        ASSERT_NE(my_conn_stats->end(), total_send)
+                << "Missing 'total_send' field in connection stats";
+
+        auto total_send_value = total_send->get<int>();
+        if (total_send_value == previous_total_send) {
             // Unchanged - assume sendQ is now full.
             break;
         }
 
-        previous_total_send = total_send->valueint;
+        previous_total_send = total_send_value;
     };
 
     // Once we call deleteBucket below, it will hang forever (if the bug is
@@ -423,60 +421,28 @@ intptr_t getConnectionId(MemcachedConnection& conn) {
             "getConnectionId: Failed to locate the connection");
 }
 
-int64_t getTotalSent(cJSON* payload) {
-    auto* ptr = cJSON_GetObjectItem(payload, "ssl");
-    if (ptr == nullptr) {
-        throw std::runtime_error("getTotalSent(): missing tag ssl");
-    }
-    auto* enabled = cJSON_GetObjectItem(ptr, "enabled");
-    if (enabled == nullptr) {
-        throw std::runtime_error("getTotalSent(): missing tag ssl::enabled");
-    }
-    if (enabled->type == cJSON_True) {
-        ptr = cJSON_GetObjectItem(ptr, "total_send");
-        if (ptr == nullptr) {
-            throw std::runtime_error(
-                    "getTotalSent(): missing tag ssl::total_send");
-        }
-        if (ptr->type != cJSON_Number) {
-            throw std::runtime_error(
-                    "getTotalSent(): Invalid type for tag ssl::total_send");
-        }
-    } else if (enabled->type == cJSON_False) {
-        ptr = cJSON_GetObjectItem(payload, "total_send");
-        if (ptr == nullptr) {
-            throw std::runtime_error("getTotalSent(): missing tag total_send");
-        }
-        if (ptr->type != cJSON_Number) {
-            throw std::runtime_error(
-                    "getTotalSent(): Invalid type for tag total_send");
-        }
+int64_t getTotalSent(const nlohmann::json& payload) {
+    auto enabled = cb::jsonGet<bool>(payload["ssl"], "enabled");
+    if (enabled) {
+        return cb::jsonGet<int64_t>(payload["ssl"], "total_send");
     } else {
-        throw std::runtime_error(
-                "getTotalSent(): Invalid type for tag ssl::enabled");
+        return cb::jsonGet<int64_t>(payload, "total_send");
     }
-
-    return ptr->valueint;
 }
 
-static unique_cJSON_ptr getConnectionStats(MemcachedConnection& conn,
-                                           intptr_t id) {
-    const auto stats = conn.stats("connections " + std::to_string(id));
-    if (!stats) {
+static nlohmann::json getConnectionStats(MemcachedConnection& conn,
+                                         intptr_t id) {
+    const auto stats = conn.statsN("connections " + std::to_string(id));
+    if (stats.empty()) {
         throw std::runtime_error("getConnectionStats(): nothing returned");
     }
 
-    if (cJSON_GetArraySize(stats.get()) != 1) {
+    if (stats.size() != 1) {
         throw std::runtime_error(
                 "getConnectionStats(): Expected a single entry");
     }
 
-    unique_cJSON_ptr ret(cJSON_Parse(stats.get()->child->valuestring));
-    if (!ret) {
-        throw std::runtime_error(
-                "getConnectionStats(): Failed to parse payload");
-    }
-    return ret;
+    return nlohmann::json::parse(stats.begin()->get<std::string>());
 }
 
 /**
@@ -532,11 +498,9 @@ TEST_P(BucketTest, MB29639TestDeleteWhileSendDataAndFullWriteBuffer) {
     do {
         // Is the server currently blocked?
         auto json = getConnectionStats(*second_conn, id);
-        auto* ptr = cJSON_GetObjectItem(json.get(), "state");
-        ASSERT_NE(nullptr, ptr);
-        ASSERT_EQ(cJSON_String, ptr->type);
-        if (strcmp(ptr->valuestring, "send_data") == 0) {
-            int64_t totalSend = getTotalSent(json.get());
+        auto state = json["state"];
+        if (json["state"].get<std::string>() == "send_data") {
+            int64_t totalSend = getTotalSent(json);
 
             // We're in the send_data state, but we might not be blocked
             // yet.. take a quick pause and check that we're still in
@@ -544,11 +508,9 @@ TEST_P(BucketTest, MB29639TestDeleteWhileSendDataAndFullWriteBuffer) {
             std::this_thread::sleep_for(std::chrono::microseconds(100));
 
             json = getConnectionStats(*second_conn, id);
-            ptr = cJSON_GetObjectItem(json.get(), "state");
-            ASSERT_NE(nullptr, ptr);
-            ASSERT_EQ(cJSON_String, ptr->type);
-            if (strcmp(ptr->valuestring, "send_data") == 0) {
-                if (totalSend == getTotalSent(json.get())) {
+            state = json["state"];
+            if (json["state"].get<std::string>() == "send_data") {
+                if (totalSend == getTotalSent(json)) {
                     blocked.store(true);
                 }
             }
