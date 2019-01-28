@@ -268,6 +268,41 @@ struct DropScopeEventDcpData {
  */
 std::string getUnknownCollectionErrorContext(uint64_t manifestUid);
 
+/**
+ * For creation of collection SystemEvents - The SystemEventFactory
+ * glues the CollectionID into the event key (so create of x doesn't
+ * collide with create of y). This method yields the 'keyExtra' parameter
+ *
+ * @param collection The value to turn into a string
+ * @return the keyExtra parameter to be passed to SystemEventFactory
+ */
+std::string makeCollectionIdIntoString(CollectionID collection);
+
+/**
+ * For creation of scope SystemEvents - The SystemEventFactory
+ * glues the ScopeID into the event key (so create of x doesn't
+ * collide with create of y). This method yields the 'keyExtra' parameter
+ *
+ * @param sid The ScopeId to turn into a string
+ * @return the keyExtra parameter to be passed to SystemEventFactory
+ */
+std::string makeScopeIdIntoString(ScopeID sid);
+
+/**
+ * For creation of collection SystemEvents - The SystemEventFactory
+ * glues the CollectionID into the event key (so create of x doesn't
+ * collide with create of y). This method basically reverses
+ * makeCollectionIdIntoString so we can get a CollectionID from a
+ * SystemEvent key
+ *
+ * @param key DocKey from a SystemEvent
+ * @return the ID which was in the event
+ */
+CollectionID getCollectionIDFromKey(const DocKey& key);
+
+/// Same as getCollectionIDFromKey but for events changing scopes
+ScopeID getScopeIDFromKey(const DocKey& key);
+
 namespace VB {
 /**
  * The PersistedManifest which stores a copy of the VB::Manifest, the actual

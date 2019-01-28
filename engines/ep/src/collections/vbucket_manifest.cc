@@ -26,7 +26,6 @@
 #include "statwriter.h"
 #include "vbucket.h"
 
-#include <mcbp/protocol/unsigned_leb128.h>
 #include <memory>
 
 namespace Collections {
@@ -636,27 +635,6 @@ time_t Manifest::processExpiryTime(const container::const_iterator entry,
         t = ep_limit_abstime(t, enforcedTtl);
     }
     return t;
-}
-
-std::string Manifest::makeCollectionIdIntoString(CollectionID collection) {
-    cb::mcbp::unsigned_leb128<CollectionIDType> leb128(collection);
-    return std::string(reinterpret_cast<const char*>(leb128.data()),
-                       leb128.size());
-}
-
-std::string Manifest::makeScopeIdIntoString(ScopeID sid) {
-    cb::mcbp::unsigned_leb128<ScopeIDType> leb128(sid);
-    return std::string(reinterpret_cast<const char*>(leb128.data()),
-                       leb128.size());
-}
-
-CollectionID Manifest::getCollectionIDFromKey(const DocKey& key) {
-    if (key.getCollectionID() != CollectionID::System) {
-        throw std::invalid_argument("getCollectionIDFromKey: non-system key");
-    }
-    return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
-                   SystemEventFactory::getKeyExtra(key))
-            .first;
 }
 
 std::unique_ptr<Item> Manifest::createSystemEvent(

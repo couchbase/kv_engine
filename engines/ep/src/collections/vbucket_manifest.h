@@ -681,18 +681,6 @@ public:
             cb::const_char_buffer serialisedManifest);
 
     /**
-     * For creation of collection SystemEvents - The SystemEventFactory
-     * glues the CollectionID into the event key (so create of x doesn't
-     * collide with create of y). This method basically reverses
-     * makeCollectionIdIntoString so we can get a CollectionID from a
-     * SystemEvent key
-     *
-     * @param key DocKey from a SystemEvent
-     * @return the ID which was in the event
-     */
-    static CollectionID getCollectionIDFromKey(const DocKey& key);
-
-    /**
      * Create a SystemEvent Item, the Item's value will contain data for later
      * consumption by patchSerialisedData/getSystemEventData
      *
@@ -1139,26 +1127,6 @@ protected:
      * @param seqno an endSeqno for a deleted collection
      */
     void trackEndSeqno(int64_t seqno);
-
-    /**
-     * For creation of collection SystemEvents - The SystemEventFactory
-     * glues the CollectionID into the event key (so create of x doesn't
-     * collide with create of y). This method yields the 'keyExtra' parameter
-     *
-     * @param collection The value to turn into a string
-     * @return the keyExtra parameter to be passed to SystemEventFactory
-     */
-    static std::string makeCollectionIdIntoString(CollectionID collection);
-
-    /**
-     * For creation of scope SystemEvents - The SystemEventFactory
-     * glues the ScopeID into the event key (so create of x doesn't
-     * collide with create of y). This method yields the 'keyExtra' parameter
-     *
-     * @param sid The ScopeId to turn into a string
-     * @return the keyExtra parameter to be passed to SystemEventFactory
-     */
-    static std::string makeScopeIdIntoString(ScopeID sid);
 
     /**
      * Return a patched PersistedManifest object cloned and mutated from the

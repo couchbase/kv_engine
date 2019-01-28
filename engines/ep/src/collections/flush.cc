@@ -33,8 +33,7 @@ void Collections::VB::Flush::processManifestChange(const queued_item& item) {
 
     // Save the collection-ID of every collection delete
     if (item->isDeleted()) {
-        deletedCollections.push_back(
-                VB::Manifest::getCollectionIDFromKey(item->getKey()));
+        deletedCollections.push_back(getCollectionIDFromKey(item->getKey()));
     }
 }
 

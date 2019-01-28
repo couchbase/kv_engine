@@ -17,6 +17,9 @@
 
 #include "collections/collections_types.h"
 #include "collections/vbucket_serialised_manifest_entry_generated.h"
+#include "systemevent.h"
+
+#include <mcbp/protocol/unsigned_leb128.h>
 
 #include <cctype>
 #include <cstring>
@@ -55,6 +58,36 @@ std::string getUnknownCollectionErrorContext(uint64_t manifestUid) {
     std::stringstream ss;
     ss << std::hex << manifestUid;
     return ss.str();
+}
+
+std::string makeCollectionIdIntoString(CollectionID collection) {
+    cb::mcbp::unsigned_leb128<CollectionIDType> leb128(collection);
+    return std::string(reinterpret_cast<const char*>(leb128.data()),
+                       leb128.size());
+}
+
+std::string makeScopeIdIntoString(ScopeID sid) {
+    cb::mcbp::unsigned_leb128<ScopeIDType> leb128(sid);
+    return std::string(reinterpret_cast<const char*>(leb128.data()),
+                       leb128.size());
+}
+
+CollectionID getCollectionIDFromKey(const DocKey& key) {
+    if (!key.getCollectionID().isSystem()) {
+        throw std::invalid_argument("getCollectionIDFromKey: non-system key");
+    }
+    return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+                   SystemEventFactory::getKeyExtra(key))
+            .first;
+}
+
+ScopeID getScopeIDFromKey(const DocKey& key) {
+    if (!key.getCollectionID().isSystem()) {
+        throw std::invalid_argument("getCollectionIDFromKey: non-system key");
+    }
+    return cb::mcbp::decode_unsigned_leb128<ScopeIDType>(
+                   SystemEventFactory::getKeyExtra(key))
+            .first;
 }
 
 } // end namespace Collections

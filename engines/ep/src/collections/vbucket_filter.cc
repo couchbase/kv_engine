@@ -233,8 +233,7 @@ bool Filter::remove(const Item& item) {
         return false;
     }
 
-    CollectionID collection =
-            VB::Manifest::getCollectionIDFromKey(item.getKey());
+    CollectionID collection = getCollectionIDFromKey(item.getKey());
     if (collection == CollectionID::Default && defaultAllowed) {
         defaultAllowed = false;
         return true;
