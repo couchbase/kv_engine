@@ -470,8 +470,9 @@ protected:
         }
 
         DbHolder(const DbHolder&) = delete;
-        DbHolder(const DbHolder&&) = delete;
-        DbHolder operator=(const DbHolder&) = delete;
+        DbHolder(DbHolder&&) = delete;
+        DbHolder& operator=(const DbHolder&) = delete;
+        DbHolder& operator=(DbHolder&&) = delete;
 
         Db** getDbAddress() {
             return &db;
@@ -516,6 +517,45 @@ protected:
         CouchKVStore& kvstore;
         Db* db;
         uint64_t fileRev;
+    };
+
+    /**
+     * RAII holder for a couchstore LocalDoc object
+     */
+    class LocalDocHolder {
+    public:
+        LocalDocHolder() : localDoc(nullptr) {
+        }
+
+        ~LocalDocHolder() {
+            if (localDoc) {
+                couchstore_free_local_document(localDoc);
+            }
+        }
+
+        LocalDocHolder(const LocalDocHolder&) = delete;
+        LocalDocHolder& operator=(const LocalDocHolder&) = delete;
+
+        LocalDocHolder(LocalDocHolder&& other) : localDoc(other.localDoc) {
+            other.localDoc = nullptr;
+        }
+
+        LocalDocHolder& operator=(LocalDocHolder&& other) {
+            localDoc = other.localDoc;
+            other.localDoc = nullptr;
+            return *this;
+        }
+
+        LocalDoc** getLocalDocAddress() {
+            return &localDoc;
+        }
+
+        LocalDoc* getLocalDoc() {
+            return localDoc;
+        }
+
+    private:
+        LocalDoc* localDoc;
     };
 
     /*
@@ -741,35 +781,6 @@ private:
     CouchKVStore(KVStoreConfig& config,
                  std::shared_ptr<RevisionMap> dbFileRevMap);
 
-    /**
-     * RAII holder for a couchstore LocalDoc object
-     */
-    class LocalDocHolder {
-    public:
-        LocalDocHolder() : localDoc(nullptr) {
-        }
-
-        ~LocalDocHolder() {
-            if (localDoc) {
-                couchstore_free_local_document(localDoc);
-            }
-        }
-
-        LocalDocHolder(const DbHolder&) = delete;
-        LocalDocHolder(const DbHolder&&) = delete;
-        LocalDocHolder operator=(const DbHolder&) = delete;
-
-        LocalDoc** getLocalDocAddress() {
-            return &localDoc;
-        }
-
-        LocalDoc* getLocalDoc() {
-            return localDoc;
-        }
-
-    private:
-        LocalDoc* localDoc;
-    };
 
     class CouchKVFileHandle : public ::KVFileHandle {
     public:
