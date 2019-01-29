@@ -101,6 +101,7 @@
 
 #include "atomic.h"
 
+#include <platform/cacheline_padded.h>
 #include <platform/rwlock.h>
 
 #include <algorithm>
@@ -130,12 +131,12 @@ public:
     using size_type = typename base_map_type::size_type;
 
     bool empty() const {
-        std::shared_lock<cb::RWLock> guard(this->rwlock); // internally locked
+        std::shared_lock<cb::RWLock> guard(*this->rwlock); // internally locked
         return map.empty();
     }
 
     size_type size() const {
-        std::shared_lock<cb::RWLock> guard(this->rwlock); // internally locked
+        std::shared_lock<cb::RWLock> guard(*this->rwlock); // internally locked
         return map.size();
     }
 
@@ -336,19 +337,19 @@ public:
 
     /* Explicitly locks the container. */
     void lock() {
-        rwlock.lock();
+        rwlock->lock();
     }
 
     void unlock() {
-        rwlock.unlock();
+        rwlock->unlock();
     }
 
     void lock_shared() {
-        rwlock.lock_shared();
+        rwlock->lock_shared();
     }
 
     void unlock_shared() {
-        rwlock.unlock_shared();
+        rwlock->unlock_shared();
     }
 
 private:
@@ -374,5 +375,13 @@ private:
     }
 
     std::unordered_map<Key, T, Hash, KeyEqual, Allocator> map;
-    mutable cb::RWLock rwlock;
+
+    // MB-32107
+    // Cacheline padded as it was identified that this lock shared with the
+    // preceeding map and in the case of the DcpProducer some following atomic
+    // variables. As this mutex occupies 56 bytes on Linux (almost an entire
+    // cache line) we should pad it to prevent the shuffling of members in the
+    // DcpProducer class moving this mutex and causing false sharing that
+    // affects performance.
+    mutable cb::CachelinePadded<cb::RWLock> rwlock;
 };
