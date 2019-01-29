@@ -416,3 +416,47 @@ TEST_F(OrderedStoredValueTest, copyStoreValue) {
 
     EXPECT_EQ(100, copy->getFreqCounterValue());
 }
+
+/**
+ * Test fixture for implementation testing of StoredValue, requiring access
+ * to protected items in StoredValue
+ */
+template <typename Factory>
+class StoredValueProtectedTest : public ValueTest<Factory> {
+public:
+    void setDeleteSource(DeleteSource delSource, StoredValue::UniquePtr& sv) {
+        return sv->setDeletionSource(delSource);
+    }
+};
+
+using ValueFactories =
+        ::testing::Types<StoredValueFactory, OrderedStoredValueFactory>;
+TYPED_TEST_CASE(StoredValueProtectedTest, ValueFactories);
+
+/**
+ * Check that deleteSource does not get compared between two non-deleted values.
+ * This requires the use of StoredValueProtectedTest as deleteSource cannot be
+ * changed publicly without deleting the stored value, which is required to
+ * fully test this issue.
+ */
+
+TYPED_TEST(StoredValueProtectedTest, MB_32835) {
+    auto sv2 = this->factory(this->item, {});
+    Item itm(makeStoredDocKey("k"),
+             0,
+             0,
+             (const value_t)TaggedPtr<Blob>{},
+             PROTOCOL_BINARY_RAW_BYTES,
+             0,
+             1);
+    this->sv->setValue(itm);
+    sv2->setValue(itm);
+
+    this->setDeleteSource(DeleteSource::TTL, this->sv);
+    ASSERT_EQ(false, this->sv->isDeleted());
+
+    this->setDeleteSource(DeleteSource::Explicit, sv2);
+    ASSERT_EQ(false, sv2->isDeleted());
+
+    EXPECT_EQ(this->sv, sv2);
+}

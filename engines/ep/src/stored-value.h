@@ -875,6 +875,13 @@ protected:
 
     friend class StoredValueFactory;
 
+    /**
+     * Granting friendship to StoredValueProtected test fixture to access
+     * protected elements in order to test the implementation of StoredValue.
+     */
+    template <typename T>
+    friend class StoredValueProtectedTest;
+
     /// Tagged pointer; contains both a pointer to the value (Blob) and a tag
     /// which stores the frequency counter for this SV.
     value_t value;
