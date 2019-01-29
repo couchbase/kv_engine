@@ -61,9 +61,9 @@ Engine* createEngine(const std::string& so, const std::string& function) {
     return new Engine(so, engine_ref);
 }
 
-std::map<BucketType, Engine *> map;
+std::map<Bucket::Type, Engine*> map;
 
-EngineIface* new_engine_instance(BucketType type,
+EngineIface* new_engine_instance(Bucket::Type type,
                                  const std::string& name,
                                  GET_SERVER_API get_server_api) {
     EngineIface* ret = nullptr;
@@ -80,11 +80,11 @@ EngineIface* new_engine_instance(BucketType type,
 }
 
 void initialize_engine_map() {
-    map[BucketType::NoBucket] =
+    map[Bucket::Type::NoBucket] =
             createEngine("nobucket.so", "create_no_bucket_instance");
-    map[BucketType::Memcached] =
+    map[Bucket::Type::Memcached] =
             createEngine("default_engine.so", "create_instance");
-    map[BucketType::Couchstore] = createEngine("ep.so", "create_instance");
+    map[Bucket::Type::Couchstore] = createEngine("ep.so", "create_instance");
     if (getenv("MEMCACHED_UNIT_TESTS") != NULL) {
         // The crash test just wants to create a coredump within the
         // crash_engine to ensure that breakpad successfuly creates
@@ -102,19 +102,19 @@ void initialize_engine_map() {
             // Not reached, but to mute code analyzers
             delete engine;
         }
-        map[BucketType::EWouldBlock] =
+        map[Bucket::Type::EWouldBlock] =
                 createEngine("ewouldblock_engine.so", "create_instance");
     }
 }
 
-BucketType module_to_bucket_type(const char* module) {
+Bucket::Type module_to_bucket_type(const char* module) {
     std::string nm = cb::io::basename(module);
     for (auto entry : map) {
         if (entry.second->getModule() == nm) {
             return entry.first;
         }
     }
-    return BucketType::Unknown;
+    return Bucket::Type::Unknown;
 }
 
 void shutdown_engine_map(void)

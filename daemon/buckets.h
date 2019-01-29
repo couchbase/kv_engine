@@ -34,36 +34,6 @@ struct DcpIface;
 class TopKeys;
 class Connection;
 
-enum class BucketState : uint8_t {
-    /** This bucket entry is not used */
-    None,
-    /** The bucket is currently being created (may not be used yet) */
-    Creating,
-    /** The bucket is currently initializing itself */
-    Initializing,
-    /** The bucket is ready for use */
-    Ready,
-    /**
-     * The bucket is currently being stopped. Awaiting clients to
-     * be disconnected.
-     */
-    Stopping,
-    /** The bucket is currently being destroyed. */
-    Destroying
-};
-
-std::string to_string(BucketState state);
-
-enum class BucketType : uint8_t {
-    Unknown,
-    NoBucket,
-    Memcached,
-    Couchstore,
-    EWouldBlock
-};
-
-std::string to_string(BucketType type);
-
 #define MAX_BUCKET_NAME_LENGTH 100
 
 struct engine_event_handler {
@@ -77,6 +47,30 @@ typedef std::array<std::vector<struct engine_event_handler>,
 
 class Bucket {
 public:
+    enum class State : uint8_t {
+        /// This bucket entry is not used
+        None,
+        /// The bucket is currently being created (may not be used yet)
+        Creating,
+        /// The bucket is currently initializing itself
+        Initializing,
+        /// The bucket is ready for use
+        Ready,
+        /// The bucket is currently being stopped. Awaiting clients to
+        /// be disconnected.
+        Stopping,
+        /// The bucket is currently being destroyed.
+        Destroying
+    };
+
+    enum class Type : uint8_t {
+        Unknown,
+        NoBucket,
+        Memcached,
+        Couchstore,
+        EWouldBlock
+    };
+
     Bucket();
 
     /// The bucket contains pointers to other objects and we don't want to
@@ -113,12 +107,12 @@ public:
      * read without acquiring the mutex, for example in
      * is_bucket_dying().
      */
-    std::atomic<BucketState> state{BucketState::None};
+    std::atomic<State> state{State::None};
 
     /**
      * The type of bucket
      */
-    BucketType type{BucketType::Unknown};
+    Bucket::Type type{Bucket::Type::Unknown};
 
     /**
      * The name of the bucket (and space for the '\0')
@@ -193,6 +187,10 @@ private:
     DcpIface* bucketDcp{nullptr};
 };
 
+std::string to_string(Bucket::State state);
+
+std::string to_string(Bucket::Type type);
+
 /**
  * All of the buckets are stored in the following array. Index 0 is reserved
  * for the "no bucket" where all connections start off (unless there is a
@@ -259,6 +257,6 @@ namespace BucketValidator {
      * @param errors where to store a textual description of the problems
      * @return true if the bucket type is valid and supported, false otherwise
      */
-    bool validateBucketType(const BucketType& type, std::string& errors);
+    bool validateBucketType(const Bucket::Type& type, std::string& errors);
 }
 

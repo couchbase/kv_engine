@@ -150,7 +150,7 @@ void audit_bucket_selection(const Connection& c) {
     }
     const auto& bucket = c.getBucket();
     // Don't audit that we're jumping into the "no bucket"
-    if (bucket.type != BucketType::NoBucket) {
+    if (bucket.type != Bucket::Type::NoBucket) {
         auto root = create_memcached_audit_object(c);
         root["bucket"] = c.getBucket().name;
         do_audit(MEMCACHED_AUDIT_SELECT_BUCKET,

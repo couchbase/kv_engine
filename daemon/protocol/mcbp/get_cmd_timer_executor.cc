@@ -85,8 +85,8 @@ static std::pair<ENGINE_ERROR_CODE, TimingHistogram> maybe_get_timings(
 
     std::pair<ENGINE_ERROR_CODE, TimingHistogram> ret = std::make_pair(ENGINE_KEY_ENOENT, TimingHistogram{});
     std::lock_guard<std::mutex> guard(bucket.mutex);
-    if (bucket.type != BucketType::NoBucket &&
-        bucket.state == BucketState::Ready && bucketname == bucket.name) {
+    if (bucket.type != Bucket::Type::NoBucket &&
+        bucket.state == Bucket::State::Ready && bucketname == bucket.name) {
         ret = get_timings(cookie, bucket, opcode);
     }
 

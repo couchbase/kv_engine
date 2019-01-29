@@ -76,8 +76,8 @@ namespace BucketValidator {
         return true;
     }
 
-    bool validateBucketType(const BucketType& type, std::string& errors) {
-        if (type == BucketType::Unknown) {
+    bool validateBucketType(const Bucket::Type& type, std::string& errors) {
+        if (type == Bucket::Type::Unknown) {
             errors.assign("BucketValidator::validateBucketType: "
                               "Unsupported bucket type");
             return false;
@@ -87,35 +87,35 @@ namespace BucketValidator {
     }
 }
 
-std::string to_string(BucketType type) {
+std::string to_string(Bucket::Type type) {
     switch (type) {
-    case BucketType::Memcached:
+    case Bucket::Type::Memcached:
         return "Memcached";
-    case BucketType::Couchstore:
+    case Bucket::Type::Couchstore:
         return "Couchstore";
-    case BucketType::EWouldBlock:
+    case Bucket::Type::EWouldBlock:
         return "EWouldBlock";
-    case BucketType::NoBucket:
+    case Bucket::Type::NoBucket:
         return "No Bucket";
-    case BucketType::Unknown:
+    case Bucket::Type::Unknown:
         return "Uknown";
     }
     throw std::logic_error("Invalid bucket type: " + std::to_string(int(type)));
 }
 
-std::string to_string(BucketState state) {
+std::string to_string(Bucket::State state) {
     switch (state) {
-    case BucketState::None:
+    case Bucket::State::None:
         return "none";
-    case BucketState::Creating:
+    case Bucket::State::Creating:
         return "creating";
-    case BucketState::Initializing:
+    case Bucket::State::Initializing:
         return "initializing";
-    case BucketState::Ready:
+    case Bucket::State::Ready:
         return "ready";
-    case BucketState::Stopping:
+    case Bucket::State::Stopping:
         return "stopping";
-    case BucketState::Destroying:
+    case Bucket::State::Destroying:
         return "destroying";
     }
     throw std::invalid_argument("Invalid bucket state: " +

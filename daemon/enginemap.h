@@ -29,7 +29,7 @@
  *                       underlying engine)
  * @return the allocated handle if successful
  */
-EngineIface* new_engine_instance(BucketType type,
+EngineIface* new_engine_instance(Bucket::Type type,
                                  const std::string& name,
                                  GET_SERVER_API get_server_api);
 
@@ -40,7 +40,7 @@ EngineIface* new_engine_instance(BucketType type,
  * @param return the constant representing the bucket or UNKNOWN for
  *               unknown shared objects
  */
-BucketType module_to_bucket_type(const char* module);
+Bucket::Type module_to_bucket_type(const char* module);
 
 /**
  * Initialize the engine map with the different types of supported

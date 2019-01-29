@@ -29,7 +29,7 @@ class McbpCreateBucketTask : public Task {
 public:
     McbpCreateBucketTask(const std::string& name_,
                          const std::string& config_,
-                         const BucketType& type_,
+                         const Bucket::Type& type_,
                          Cookie& cookie_)
         : thread(name_, config_, type_, cookie_.getConnection(), this),
           cookie(cookie_) {
@@ -79,7 +79,7 @@ ENGINE_ERROR_CODE CreateRemoveBucketCommandContext::create() {
     }
 
     std::string errors;
-    BucketType type = module_to_bucket_type(value.c_str());
+    auto type = module_to_bucket_type(value.c_str());
     task = std::make_shared<McbpCreateBucketTask>(name, config, type, cookie);
     std::lock_guard<std::mutex> guard(task->getMutex());
     reinterpret_cast<McbpCreateBucketTask*>(task.get())->start();

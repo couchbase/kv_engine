@@ -29,7 +29,7 @@
 void get_cluster_config_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto& bucket = connection.getBucket();
-    if (bucket.type == BucketType::NoBucket) {
+    if (bucket.type == Bucket::Type::NoBucket) {
         if (connection.isXerrorSupport()) {
             cookie.setErrorContext("No bucket selected");
             cookie.sendResponse(cb::mcbp::Status::NoBucket);
@@ -61,7 +61,7 @@ void get_cluster_config_executor(Cookie& cookie) {
 void set_cluster_config_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto& bucket = connection.getBucket();
-    if (bucket.type == BucketType::NoBucket) {
+    if (bucket.type == Bucket::Type::NoBucket) {
         if (connection.isXerrorSupport()) {
             cookie.setErrorContext("No bucket selected");
             cookie.sendResponse(cb::mcbp::Status::NoBucket);

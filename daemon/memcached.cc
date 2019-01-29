@@ -113,7 +113,7 @@ void bucketsForEach(std::function<bool(Bucket&, void*)> fn, void *arg) {
     for (Bucket& bucket : all_buckets) {
         bool do_break = false;
         std::lock_guard<std::mutex> guard(bucket.mutex);
-        if (bucket.state == BucketState::Ready) {
+        if (bucket.state == Bucket::State::Ready) {
             if (!fn(bucket, arg)) {
                 do_break = true;
             }
@@ -196,7 +196,7 @@ void disassociate_bucket(Connection& connection) {
 
     connection.setBucketIndex(0);
 
-    if (b.clients == 0 && b.state == BucketState::Destroying) {
+    if (b.clients == 0 && b.state == Bucket::State::Destroying) {
         b.cond.notify_one();
     }
 }
@@ -212,7 +212,7 @@ bool associate_bucket(Connection& connection, const char* name) {
     for (size_t ii = 1; ii < all_buckets.size() && !found; ++ii) {
         Bucket &b = all_buckets.at(ii);
         std::lock_guard<std::mutex> guard(b.mutex);
-        if (b.state == BucketState::Ready && strcmp(b.name, name) == 0) {
+        if (b.state == Bucket::State::Ready && strcmp(b.name, name) == 0) {
             b.clients++;
             connection.setBucketIndex(gsl::narrow<int>(ii));
             audit_bucket_selection(connection);
@@ -714,7 +714,7 @@ void safe_close(SOCKET sfd) {
 static nlohmann::json get_bucket_details_UNLOCKED(const Bucket& bucket,
                                                   size_t idx) {
     nlohmann::json json;
-    if (bucket.state != BucketState::None) {
+    if (bucket.state != Bucket::State::None) {
         try {
             json["index"] = idx;
             json["state"] = to_string(bucket.state.load());
@@ -744,7 +744,7 @@ bool is_bucket_dying(Connection& c) {
     bool disconnect = memcached_shutdown;
     auto& b = c.getBucket();
 
-    if (b.state != BucketState::Ready) {
+    if (b.state != Bucket::State::Ready) {
         disconnect = true;
     }
 
@@ -1695,8 +1695,7 @@ void CreateBucketThread::create() {
     for (ii = 0; ii < all_buckets.size() && !found; ++ii) {
         std::lock_guard<std::mutex> guard(all_buckets[ii].mutex);
         if (first_free == all_buckets.size() &&
-            all_buckets[ii].state == BucketState::None)
-        {
+            all_buckets[ii].state == Bucket::State::None) {
             first_free = ii;
         }
         if (name == all_buckets[ii].name) {
@@ -1722,7 +1721,7 @@ void CreateBucketThread::create() {
          * we can release the global lock..
          */
         std::lock_guard<std::mutex> guard(all_buckets[ii].mutex);
-        all_buckets[ii].state = BucketState::Creating;
+        all_buckets[ii].state = Bucket::State::Creating;
         all_buckets[ii].type = type;
         strcpy(all_buckets[ii].name, name.c_str());
         try {
@@ -1750,7 +1749,7 @@ void CreateBucketThread::create() {
     if (engine == nullptr) {
         {
             std::lock_guard<std::mutex> guard(bucket.mutex);
-            bucket.state = BucketState::None;
+            bucket.state = Bucket::State::None;
             bucket.name[0] = '\0';
             bucket.setEngine(nullptr);
             bucket.topkeys.reset();
@@ -1768,7 +1767,7 @@ void CreateBucketThread::create() {
     bucket.setEngine(engine);
     {
         std::lock_guard<std::mutex> guard(bucket.mutex);
-        bucket.state = BucketState::Initializing;
+        bucket.state = Bucket::State::Initializing;
     }
 
     try {
@@ -1790,7 +1789,7 @@ void CreateBucketThread::create() {
     if (result == ENGINE_SUCCESS) {
         {
             std::lock_guard<std::mutex> guard(bucket.mutex);
-            bucket.state = BucketState::Ready;
+            bucket.state = Bucket::State::Ready;
         }
         LOG_INFO("{} - Bucket [{}] created successfully",
                  connection.getId(),
@@ -1800,11 +1799,11 @@ void CreateBucketThread::create() {
     } else {
         {
             std::lock_guard<std::mutex> guard(bucket.mutex);
-            bucket.state = BucketState::Destroying;
+            bucket.state = Bucket::State::Destroying;
         }
         engine->destroy(false);
         std::lock_guard<std::mutex> guard(bucket.mutex);
-        bucket.state = BucketState::None;
+        bucket.state = Bucket::State::None;
         bucket.name[0] = '\0';
         bucket.setEngine(nullptr);
         bucket.topkeys.reset();
@@ -1849,9 +1848,9 @@ void DestroyBucketThread::destroy() {
         std::lock_guard<std::mutex> guard(all_buckets[ii].mutex);
         if (name == all_buckets[ii].name) {
             idx = ii;
-            if (all_buckets[ii].state == BucketState::Ready) {
+            if (all_buckets[ii].state == Bucket::State::Ready) {
                 ret = ENGINE_SUCCESS;
-                all_buckets[ii].state = BucketState::Destroying;
+                all_buckets[ii].state = Bucket::State::Destroying;
             } else {
                 ret = ENGINE_KEY_EEXISTS;
             }
@@ -2008,7 +2007,7 @@ void DestroyBucketThread::destroy() {
 
     {
         std::lock_guard<std::mutex> guard(bucket.mutex);
-        bucket.state = BucketState::None;
+        bucket.state = Bucket::State::None;
         bucket.setEngine(nullptr);
         bucket.name[0] = '\0';
         bucket.topkeys.reset();
@@ -2038,12 +2037,12 @@ static void initialize_buckets() {
     // in the array is "no bucket"
     auto &nobucket = all_buckets.at(0);
     nobucket.setEngine(new_engine_instance(
-            BucketType::NoBucket, "<internal>", get_server_api));
+            Bucket::Type::NoBucket, "<internal>", get_server_api));
     cb_assert(nobucket.getEngine());
     nobucket.max_document_size = nobucket.getEngine()->getMaxItemSize();
     nobucket.supportedFeatures = nobucket.getEngine()->getFeatures();
-    nobucket.type = BucketType::NoBucket;
-    nobucket.state = BucketState::Ready;
+    nobucket.type = Bucket::Type::NoBucket;
+    nobucket.state = Bucket::State::Ready;
 }
 
 static void cleanup_buckets() {
@@ -2055,10 +2054,10 @@ static void cleanup_buckets() {
             {
                 std::lock_guard<std::mutex> guard(bucket.mutex);
                 switch (bucket.state.load()) {
-                case BucketState::Stopping:
-                case BucketState::Destroying:
-                case BucketState::Creating:
-                case BucketState::Initializing:
+                case Bucket::State::Stopping:
+                case Bucket::State::Destroying:
+                case Bucket::State::Creating:
+                case Bucket::State::Initializing:
                     waiting = true;
                     break;
                 default:
@@ -2071,7 +2070,7 @@ static void cleanup_buckets() {
             }
         } while (waiting);
 
-        if (bucket.state == BucketState::Ready) {
+        if (bucket.state == Bucket::State::Ready) {
             bucket.getEngine()->destroy(false);
             bucket.topkeys.reset();
         }
@@ -2122,11 +2121,11 @@ void delete_all_buckets() {
         std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
         /*
          * Start at one (not zero) because zero is reserved for "no bucket".
-         * The "no bucket" has a state of BucketState::Ready but no name.
+         * The "no bucket" has a state of Bucket::State::Ready but no name.
          */
         for (size_t ii = 1; ii < all_buckets.size() && done; ++ii) {
             std::lock_guard<std::mutex> bucket_guard(all_buckets[ii].mutex);
-            if (all_buckets[ii].state == BucketState::Ready) {
+            if (all_buckets[ii].state == Bucket::State::Ready) {
                 name.assign(all_buckets[ii].name);
                 LOG_INFO("Scheduling delete for bucket {}", name);
                 task = std::make_shared<DestroyBucketTask>(name);

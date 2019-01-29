@@ -43,7 +43,7 @@ std::pair<ENGINE_ERROR_CODE, std::string> list_bucket(Connection& connection) {
 
         {
             std::lock_guard<std::mutex> guard(bucket.mutex);
-            if (bucket.state == BucketState::Ready) {
+            if (bucket.state == Bucket::State::Ready) {
                 bucketname = bucket.name;
             }
         }

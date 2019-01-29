@@ -188,7 +188,7 @@ Connection* conn_new(const SOCKET sfd,
     associate_initial_bucket(*c);
 
     const auto& bucket = c->getBucket();
-    if (bucket.type != BucketType::NoBucket) {
+    if (bucket.type != Bucket::Type::NoBucket) {
         LOG_INFO("{}: Accepted new client connected to bucket:[{}]",
                  c->getId(),
                  bucket.name);
