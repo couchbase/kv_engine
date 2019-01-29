@@ -356,6 +356,8 @@ bool StateMachine::conn_new_cmd() {
 }
 
 bool StateMachine::conn_validate() {
+    static McbpValidator packetValidator;
+
     if (is_bucket_dying(connection)) {
         return true;
     }
@@ -376,8 +378,7 @@ bool StateMachine::conn_validate() {
                 return true;
             }
 
-            auto& bucket = cookie.getConnection().getBucket();
-            auto result = bucket.validator.validate(opcode, cookie);
+            auto result = packetValidator.validate(opcode, cookie);
             if (result != cb::mcbp::Status::Success) {
                 LOG_WARNING(
                         R"({}: Invalid format specified for "{}" - Status: "{}" - Closing connection. Packet:[{}] Reason:"{}")",

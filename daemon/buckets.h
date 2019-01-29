@@ -154,11 +154,6 @@ public:
      */
     std::unique_ptr<TopKeys> topkeys;
 
-    /**
-     * The validator chains to use for this bucket when receiving MCBP commands.
-     */
-    McbpValidator validator;
-
     using ResponseCounter = Couchbase::RelaxedAtomic<uint64_t>;
 
     /**
