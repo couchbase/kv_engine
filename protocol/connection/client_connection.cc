@@ -31,6 +31,7 @@
 #include <platform/strerror.h>
 
 #include <cerrno>
+#include <functional>
 #include <gsl/gsl>
 #include <iostream>
 #include <limits>
@@ -943,12 +944,12 @@ MutationInfo MemcachedConnection::store(const std::string& id,
     return mutate(doc, vbucket, MutationType::Set);
 }
 
-std::map<std::string, std::string> MemcachedConnection::statsMap(
-        const std::string& subcommand) {
-    BinprotGenericCommand command(cb::mcbp::ClientOpcode::Stat, subcommand);
-    sendCommand(command);
+void MemcachedConnection::stats(
+        std::function<void(const std::string&, const std::string&)> callback,
+        const std::string& group) {
+    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Stat, group);
+    sendCommand(cmd);
 
-    std::map<std::string, std::string> ret;
     int counter = 0;
 
     while (true) {
@@ -968,9 +969,16 @@ std::map<std::string, std::string> MemcachedConnection::statsMap(
         if (key.empty()) {
             key = std::to_string(counter++);
         }
-        ret.insert(std::make_pair(key, response.getDataString()));
+        callback(key, response.getDataString());
     }
+}
 
+std::map<std::string, std::string> MemcachedConnection::statsMap(
+        const std::string& subcommand) {
+    std::map<std::string, std::string> ret;
+    stats([&ret](const std::string& key,
+                 const std::string& value) -> void { ret[key] = value; },
+          subcommand);
     return ret;
 }
 

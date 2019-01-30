@@ -35,6 +35,7 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <functional>
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
@@ -467,6 +468,17 @@ public:
                        Vbid vbucket,
                        std::string value,
                        cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw);
+
+    /**
+     * Get statistics from the server, and fire a callback with the key and
+     * value of each reported stat
+     *
+     * @param callback the callback to call for each stat
+     * @param group the stats group to request
+     */
+    void
+    stats(std::function<void(const std::string&, const std::string&)> callback,
+          const std::string& group = std::string{});
 
     /**
      * Get stats as a map
