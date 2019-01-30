@@ -999,11 +999,7 @@ void ActiveStream::processItems(std::vector<queued_item>& items,
             }
         }
 
-        if (mutations.empty()) {
-            // If we only got checkpoint start or ends check to see if there are
-            // any more snapshots before pausing the stream.
-            nextCheckpointItemTask(streamMutex);
-        } else {
+        if (!mutations.empty()) {
             snapshot(mutations, mark);
         }
     }
