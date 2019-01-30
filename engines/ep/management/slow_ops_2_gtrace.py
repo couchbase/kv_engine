@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #   Copyright 2018 Couchbase, Inc
 #
@@ -28,7 +28,7 @@ import fileinput
 import json
 import re
 
-print '['
+print('[')
 first = True
 for line in fileinput.input():
     m = re.search("Slow operation. (.*)", line)
@@ -50,7 +50,7 @@ for line in fileinput.input():
             event['ts'] = int(start_us) / 1000
             event['dur'] = dur
             if not first:
-                print ',',
+                print(',', end=' ')
             first = False
-            print json.dumps(event)
-print ']'
+            print(json.dumps(event))
+print(']')

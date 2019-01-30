@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import getpass
 import inspect
@@ -22,18 +22,18 @@ def cmd_decorator(f):
         min = max - defaults
 
         if len(args) < min:
-            print >> sys.stderr, ("Error: too few arguments - command "
+            print(("Error: too few arguments - command "
                                   "expected a minimum of %s but was passed "
                                   "%s: %s"
-                                  % (min - 1, len(args) - 1, list(args[1:])))
+                                  % (min - 1, len(args) - 1, list(args[1:]))), file=sys.stderr)
             sys.exit(2)
 
         if spec.varargs is None:
             if len(args) > max:
-                print >> sys.stderr, ("Error: too many arguments - command "
+                print(("Error: too many arguments - command "
                                       "expected a maximum of %s but was passed "
                                       "%s: %s"
-                                      % (max - 1, len(args) - 1, list(args[1:])))
+                                      % (max - 1, len(args) - 1, list(args[1:]))), file=sys.stderr)
                 sys.exit(2)
 
         bucket = kwargs.pop('bucketName', None)
@@ -54,7 +54,7 @@ def cmd_decorator(f):
             try:
                 mc.sasl_auth_plain(username, password)
             except mc_bin_client.MemcachedError:
-                print ("Authentication error for user:{0} bucket:{1}"
+                print("Authentication error for user:{0} bucket:{1}"
                        .format(username, bucket))
                 sys.exit(1)
 
@@ -67,9 +67,9 @@ def cmd_decorator(f):
             if kwargs.pop('allBuckets', None):
                 buckets = mc.list_buckets()
                 for bucket in buckets:
-                    print '*' * 78
-                    print bucket
-                    print
+                    print('*' * 78)
+                    print(bucket)
+                    print()
                     mc.bucket_select(bucket)
                     f(*args, **kwargs)
             elif bucket is not None:
@@ -78,7 +78,7 @@ def cmd_decorator(f):
             else:
                 f(*args, **kwargs)
         except mc_bin_client.ErrorEaccess:
-            print ("No access to bucket:{0} - permission denied "
+            print("No access to bucket:{0} - permission denied "
                    "or bucket does not exist.".format(bucket))
             sys.exit(1)
 
