@@ -17,8 +17,8 @@
 
 #include "config.h"
 
-#include <cJSON.h>
 #include <getopt.h>
+#include <nlohmann/json.hpp>
 #include <programs/getpass.h>
 #include <programs/hostname_utils.h>
 #include <protocol/connection/client_connection.h>
@@ -37,47 +37,20 @@ static void request_stat(MemcachedConnection& connection,
                          bool json,
                          bool format) {
     try {
-        auto stats = connection.stats(key);
         if (json) {
-            std::cout << to_string(stats, format) << std::endl;
+            auto stats = connection.statsN(key);
+            std::cout << stats.dump(format ? 1 : -1, '\t') << std::endl;
         } else {
-            for (auto* obj = stats.get()->child;
-                 obj != nullptr; obj = obj->next) {
-                switch (obj->type) {
-                case cJSON_String:
-                    std::cout << obj->string << " " << obj->valuestring
-                              << std::endl;
-                    break;
-                case cJSON_Number:
-                    std::cout << obj->string << " " << obj->valueint
-                              << std::endl;
-                    break;
-                case cJSON_False:
-                    std::cout << obj->string << " false" << std::endl;
-                    break;
-                case cJSON_True:
-                    std::cout << obj->string << " true" << std::endl;
-                    break;
-                case cJSON_NULL:
-                    std::cout << obj->string << " null" << std::endl;
-                    break;
-                case cJSON_Array:
-                case cJSON_Object:
-                    std::cout << obj->string << " " << to_string(obj)
-                              << std::endl;
-                    break;
-                default:
-                    std::cerr << "Unknown element for: " << obj->string
-                              << std::endl;
-                    exit(EXIT_FAILURE);
-                    break;
-                }
-            }
+            connection.stats(
+                    [](const std::string& key,
+                       const std::string& value) -> void {
+                        std::cout << key << " " << value << std::endl;
+                    },
+                    key);
         }
     } catch (const ConnectionError& ex) {
         std::cerr << ex.what() << std::endl;
     }
-
 }
 
 static void usage() {
