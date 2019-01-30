@@ -122,7 +122,7 @@ void OutputCouchFile::writeLocalDocument(const std::string& documentName,
 }
 
 void OutputCouchFile::writeUpgradeBegin(const InputCouchFile& input) const {
-    writeSupportsCollections(input.getLocalDocument("_local/vbstate"), false);
+    writeSupportsNamespaces(input.getLocalDocument("_local/vbstate"), false);
 }
 
 void OutputCouchFile::writeUpgradeComplete(const InputCouchFile& input) const {
@@ -137,11 +137,11 @@ void OutputCouchFile::writeUpgradeComplete(const InputCouchFile& input) const {
     }
     setCollectionStats(collection, {info.doc_count, info.last_sequence});
 
-    writeSupportsCollections(input.getLocalDocument("_local/vbstate"), true);
+    writeSupportsNamespaces(input.getLocalDocument("_local/vbstate"), true);
 }
 
-void OutputCouchFile::writeSupportsCollections(const std::string& vbs,
-                                               bool value) const {
+void OutputCouchFile::writeSupportsNamespaces(const std::string& vbs,
+                                              bool value) const {
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(vbs);
@@ -151,7 +151,7 @@ void OutputCouchFile::writeSupportsCollections(const std::string& vbs,
                 " json:" +
                 vbs + " exception:" + e.what());
     }
-    json[CollectionsSupportedKey] = value;
+    json[NamespacesSupportedKey] = value;
     writeLocalDocument("_local/vbstate", json.dump());
 }
 

@@ -41,7 +41,7 @@ struct vbucket_state {
                   int64_t _hlcCasEpochSeqno,
                   bool _mightContainXattrs,
                   std::string _failovers,
-                  bool _supportsCollections);
+                  bool _supportsNamespaces);
 
     std::string toJSON() const;
 
@@ -60,5 +60,5 @@ struct vbucket_state {
     int64_t hlcCasEpochSeqno;
     bool mightContainXattrs;
     std::string failovers;
-    bool supportsCollections;
+    bool supportsNamespaces;
 };

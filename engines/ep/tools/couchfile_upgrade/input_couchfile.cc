@@ -110,23 +110,23 @@ std::string InputCouchFile::getLocalDocument(
 }
 
 bool InputCouchFile::isCompletelyNamespaced() const {
-    auto value = getCollectionsSupported();
+    auto value = getSupportsNamespaces();
     return value.is_initialized() && value.get();
 }
 
 bool InputCouchFile::isPartiallyNamespaced() const {
-    auto value = getCollectionsSupported();
+    auto value = getSupportsNamespaces();
     return value.is_initialized() && !value.get();
 }
 
-boost::optional<bool> InputCouchFile::getCollectionsSupported() const {
+boost::optional<bool> InputCouchFile::getSupportsNamespaces() const {
     auto vbstate = getLocalDocument("_local/vbstate");
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(vbstate);
     } catch (const nlohmann::json::exception& e) {
         throw std::invalid_argument(
-                "InputCouchFile::getCollectionsSupported cannot parse "
+                "InputCouchFile::getSupportsNamespaces cannot parse "
                 " json:" +
                 vbstate + " exception:" + e.what());
     }
@@ -134,7 +134,7 @@ boost::optional<bool> InputCouchFile::getCollectionsSupported() const {
     boost::optional<bool> rv;
 
     try {
-        auto supported = json.at(CollectionsSupportedKey);
+        auto supported = json.at(NamespacesSupportedKey);
         rv = supported.get<bool>();
     } catch (const nlohmann::json::exception) {
         // no entry - we will return rv uninitialised

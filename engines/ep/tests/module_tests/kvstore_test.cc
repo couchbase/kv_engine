@@ -29,6 +29,7 @@
 #endif
 #include "collections/collection_persisted_stats.h"
 #include "src/internal.h"
+#include "test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/test_fileops.h"
 #include "thread_gate.h"
@@ -192,7 +193,7 @@ static void initialize_kv_store(KVStore* kvstore, Vbid vbid = Vbid(0)) {
                         0,
                         false,
                         failoverLog,
-                        false);
+                        true /*supportsNamespaces*/);
     // simulate the setVbState by incrementing the rev
     kvstore->incrementRevision(vbid);
     kvstore->snapshotVBucket(
@@ -258,8 +259,7 @@ public:
 };
 
 TEST_F(CouchKVStoreTest, CompressedTest) {
-    KVStoreConfig config(
-            1024, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
+    KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
     auto kvstore = setup_kv_store(config);
 
     kvstore->begin(std::make_unique<TransactionContext>());
@@ -297,8 +297,7 @@ TEST_F(CouchKVStoreTest, CompressedTest) {
 
 // Verify the stats returned from operations are accurate.
 TEST_F(CouchKVStoreTest, StatsTest) {
-    KVStoreConfig config(
-            1024, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
+    KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
     auto kvstore = setup_kv_store(config);
 
     // Perform a transaction with a single mutation (set) in it.
@@ -315,8 +314,9 @@ TEST_F(CouchKVStoreTest, StatsTest) {
     kvstore->addStats(add_stat_callback, &stats);
     EXPECT_EQ("1", stats["rw_0:io_num_write"]);
     const size_t io_write_bytes = stoul(stats["rw_0:io_write_bytes"]);
-    EXPECT_EQ(key.size() + value.size() +
-              MetaData::getMetaDataSize(MetaData::Version::V1),
+    // 1 (for the namespace)
+    EXPECT_EQ(1 + key.size() + value.size() +
+                      MetaData::getMetaDataSize(MetaData::Version::V1),
               io_write_bytes);
 
     // Hard to determine exactly how many bytes should have been written, but
@@ -328,8 +328,7 @@ TEST_F(CouchKVStoreTest, StatsTest) {
 
 // Verify the compaction stats returned from operations are accurate.
 TEST_F(CouchKVStoreTest, CompactStatsTest) {
-    KVStoreConfig config(
-            1, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
+    KVStoreConfig config(1, 4, data_dir, "couchdb", 0);
     auto kvstore = setup_kv_store(config);
 
     // Perform a transaction with a single mutation (set) in it.
@@ -372,8 +371,7 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
 // Regression test for MB-17517 - ensure that if a couchstore file has a max
 // CAS of -1, it is detected and reset to zero when file is loaded.
 TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
-    KVStoreConfig config(
-            1024, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
+    KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
     auto kvstore = KVStoreFactory::create(config);
     ASSERT_NE(nullptr, kvstore.rw);
 
@@ -390,7 +388,7 @@ TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
                         /*hlcEpoch*/ 0,
                         /*xattrs_present*/ false,
                         failoverLog,
-                        false);
+                        true /*supportsNamespaces*/);
     EXPECT_TRUE(kvstore.rw->snapshotVBucket(
             Vbid(0), state, VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT));
     EXPECT_EQ(~0ull, kvstore.rw->listPersistedVbuckets()[0]->maxCas);
@@ -407,8 +405,7 @@ TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
 // item count from a file which doesn't exist yet propagates the
 // error so the caller can detect (and retry as necessary).
 TEST_F(CouchKVStoreTest, MB_18580_ENOENT) {
-    KVStoreConfig config(
-            1024, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
+    KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
     // Create a read-only kvstore (which disables item count caching), then
     // attempt to get the count from a non-existent vbucket.
     auto kvstore = KVStoreFactory::create(config);
@@ -436,11 +433,9 @@ public:
 // check they do what we expect, that is create a new couchfile with all keys
 // moved into a specified collection.
 TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
-    KVStoreConfig config1(
-            1024, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
+    KVStoreConfig config1(1024, 4, data_dir, "couchdb", 0);
 
-    KVStoreConfig config2(
-            1024, 4, data_dir, "couchdb", 0, true /*persistnamespace*/);
+    KVStoreConfig config2(1024, 4, data_dir, "couchdb", 0);
 
     // Test setup, create a new file
     auto kvstore = setup_kv_store(config1);
@@ -464,6 +459,8 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
     }
 
     kvstore->commit(flush);
+
+    rewriteCouchstoreVBState(Vbid(0), data_dir, 2, false /*no namespaces*/);
 
     // Use the upgrade tool's objects to run an upgrade
     // setup_kv_store will have progressed the rev to .2
@@ -590,12 +587,7 @@ public:
         : data_dir("CouchKVStoreErrorInjectionTest.db"),
           ops(create_default_file_ops()),
           logger("couchKVStoreTest"),
-          config(KVStoreConfig(1024,
-                               4,
-                               data_dir,
-                               "couchdb",
-                               0,
-                               false /*persistnamespace*/)
+          config(KVStoreConfig(1024, 4, data_dir, "couchdb", 0)
                          .setLogger(logger)
                          .setBuffered(false)),
           manifest({}),
@@ -763,7 +755,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_save_local_document) {
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, pwrite(_, _, _, _, _))
             .WillOnce(Return(COUCHSTORE_ERROR_WRITE)).RetiresOnSaturation();
-        EXPECT_CALL(ops, pwrite(_, _, _, _, _)).Times(6).RetiresOnSaturation();
+        EXPECT_CALL(ops, pwrite(_, _, _, _, _)).Times(5).RetiresOnSaturation();
 
         kvstore->commit(flush);
     }
@@ -1391,7 +1383,7 @@ public:
                      uint64_t rev,
                      MutationRequestCallback& cb,
                      bool del)
-        : CouchRequest(it, rev, cb, del, false /*persist namespace*/) {
+        : CouchRequest(it, rev, cb, del) {
     }
 
     ~MockCouchRequest() {}
@@ -1448,12 +1440,7 @@ public:
     CouchstoreTest()
         : data_dir("CouchstoreTest.db"),
           vbid(0),
-          config(KVStoreConfig(1024,
-                               4,
-                               data_dir,
-                               "couchdb",
-                               0,
-                               false /*persistnamespace*/)
+          config(KVStoreConfig(1024, 4, data_dir, "couchdb", 0)
                          .setBuffered(false)),
           manifest({}),
           flush(manifest) {
@@ -1480,7 +1467,7 @@ public:
                             0,
                             false,
                             failoverLog,
-                            false);
+                            true /*supportsNamespaces*/);
         // simulate a setVBState - increment the dbFile revision
         kvstore->incrementRevision(vbid);
         kvstore->snapshotVBucket(

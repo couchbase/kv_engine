@@ -22,7 +22,7 @@
 
 #include <libcouchstore/couch_db.h>
 
-constexpr const char* CollectionsSupportedKey = "collections_supported";
+constexpr const char* NamespacesSupportedKey = "namespaces_supported";
 
 /**
  * CouchFile manages access to a couchfile, hiding the couchstore API calls

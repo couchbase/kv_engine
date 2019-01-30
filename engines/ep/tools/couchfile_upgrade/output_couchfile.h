@@ -46,13 +46,13 @@ public:
 
     /**
      * Write to the output file that an upgrade has begun
-     * adds "collections_supported:false" to the _local vbstate
+     * adds "namespaces_supported:false" to the _local vbstate
      */
     void writeUpgradeBegin(const InputCouchFile& input) const;
 
     /**
      * Write to the output file that an upgrade has complete
-     * adds "collections_supported:true" to the _local vbstate
+     * adds "namespaces_supported:true" to the _local vbstate
      */
     void writeUpgradeComplete(const InputCouchFile& input) const;
 
@@ -70,7 +70,7 @@ protected:
     void writeLocalDocument(const std::string& documentName,
                             const std::string& value) const;
 
-    void writeSupportsCollections(const std::string& vbs, bool value) const;
+    void writeSupportsNamespaces(const std::string& vbs, bool value) const;
 
     /**
      * Update item of the new file, this creates the _local counter doc

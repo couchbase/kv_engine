@@ -27,6 +27,10 @@
 #include "checkpoint_manager.h"
 #include "vbucket.h"
 
+#include <libcouchstore/couch_db.h>
+
+#include <gtest/gtest.h>
+
 StoredDocKey makeStoredDocKey(const std::string& string, CollectionID ns) {
     return StoredDocKey(string, ns);
 }
@@ -152,4 +156,40 @@ TimeTraveller::TimeTraveller(int by) : by(by) {
 TimeTraveller::~TimeTraveller() {
     // restore original timeline.
     mock_time_travel(-by);
+}
+
+void rewriteCouchstoreVBState(Vbid vbucket,
+                              const std::string& dbDir,
+                              int revision,
+                              bool namespacesSupported) {
+    std::string filename = dbDir + "/" + std::to_string(vbucket.get()) +
+                           ".couch." + std::to_string(revision);
+    Db* handle;
+    couchstore_error_t err = couchstore_open_db(
+            filename.c_str(), COUCHSTORE_OPEN_FLAG_CREATE, &handle);
+
+    ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to open new database";
+
+    nlohmann::json vbstateJson;
+    vbstateJson["state"] = "active";
+    vbstateJson["checkpoint_id"] = "1";
+    vbstateJson["max_deleted_seqno"] = "0";
+    if (namespacesSupported) {
+        vbstateJson["namespaces_supported"] = true;
+    }
+
+    auto str = vbstateJson.dump();
+
+    LocalDoc vbstate;
+    vbstate.id.buf = (char*)"_local/vbstate";
+    vbstate.id.size = sizeof("_local/vbstate") - 1;
+    vbstate.json.buf = const_cast<char*>(str.data());
+    vbstate.json.size = str.size();
+    vbstate.deleted = 0;
+
+    err = couchstore_save_local_document(handle, &vbstate);
+    ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to write local document";
+    couchstore_commit(handle);
+    couchstore_close_file(handle);
+    couchstore_free_db(handle);
 }

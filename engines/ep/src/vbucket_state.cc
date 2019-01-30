@@ -33,7 +33,7 @@ vbucket_state::vbucket_state(vbucket_state_t _state,
                              int64_t _hlcCasEpochSeqno,
                              bool _mightContainXattrs,
                              std::string _failovers,
-                             bool _supportsCollections)
+                             bool _supportsNamespaces)
     : state(_state),
       checkpointId(_chkid),
       maxDeletedSeqno(_maxDelSeqNum),
@@ -45,7 +45,7 @@ vbucket_state::vbucket_state(vbucket_state_t _state,
       hlcCasEpochSeqno(_hlcCasEpochSeqno),
       mightContainXattrs(_mightContainXattrs),
       failovers(std::move(_failovers)),
-      supportsCollections(_supportsCollections) {
+      supportsNamespaces(_supportsNamespaces) {
 }
 
 std::string vbucket_state::toJSON() const {
@@ -59,8 +59,8 @@ std::string vbucket_state::toJSON() const {
               << ",\"max_cas\": \"" << maxCas << "\""
               << ",\"might_contain_xattrs\": "
               << (mightContainXattrs ? "true" : "false")
-              << ",\"supports_collections\": "
-              << (supportsCollections ? "true" : "false") << "}";
+              << ",\"namespaces_supported\": "
+              << (supportsNamespaces ? "true" : "false") << "}";
 
     return jsonState.str();
 }
@@ -88,4 +88,5 @@ void vbucket_state::reset() {
     hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
     mightContainXattrs = false;
     failovers.clear();
+    supportsNamespaces = true;
 }

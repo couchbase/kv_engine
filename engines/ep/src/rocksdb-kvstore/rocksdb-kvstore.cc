@@ -893,11 +893,8 @@ rocksdb::StatsLevel RocksDBKVStore::getStatsLevel(
 }
 
 rocksdb::Slice RocksDBKVStore::getKeySlice(const DocKey& key) {
-    // TODO: Allow RocksDB to support collections (which means storing and
-    // dealing with the collection-ID prefix)
-    auto storageKey = key.makeDocKeyWithoutCollectionID();
-    return rocksdb::Slice(reinterpret_cast<const char*>(storageKey.data()),
-                          storageKey.size());
+    return rocksdb::Slice(reinterpret_cast<const char*>(key.data()),
+                          key.size());
 }
 
 rocksdb::Slice RocksDBKVStore::getSeqnoSlice(const int64_t* seqno) {
@@ -966,6 +963,7 @@ void RocksDBKVStore::readVBState(const VBHandle& vbh) {
     uint64_t maxCas = 0;
     int64_t hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
     bool mightContainXattrs = false;
+    bool supportsNamespaces = false;
 
     auto key = getVbstateKey();
     std::string vbstate;
@@ -1009,6 +1007,7 @@ void RocksDBKVStore::readVBState(const VBHandle& vbh) {
         auto maxCasValue = json.find("max_cas");
         auto hlcCasEpoch = json.find("hlc_epoch");
         mightContainXattrs = json.value("might_contain_xattrs", false);
+        supportsNamespaces = json.value("namespaces_supported", false);
 
         auto failover_json = json.find("failover_table");
         if (vb_state.empty() || checkpoint_id.empty() ||
@@ -1066,7 +1065,7 @@ void RocksDBKVStore::readVBState(const VBHandle& vbh) {
                                             hlcCasEpochSeqno,
                                             mightContainXattrs,
                                             failovers,
-                                            false);
+                                            supportsNamespaces);
 }
 
 rocksdb::Status RocksDBKVStore::saveVBStateToBatch(const VBHandle& vbh,
@@ -1092,6 +1091,8 @@ rocksdb::Status RocksDBKVStore::saveVBStateToBatch(const VBHandle& vbh,
         jsonState << ",\"might_contain_xattrs\": false";
     }
 
+    // This KV writes namespaces
+    jsonState << ",\"namespaces_supported\": true";
     jsonState << "}";
 
     auto key = getVbstateKey();
@@ -1455,10 +1456,9 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
 
         rocksdb::Slice valSlice(valueStr);
 
-        // TODO RDB: Deal with collections
         DocKey key(reinterpret_cast<const uint8_t*>(keySlice.data()),
                    keySlice.size(),
-                   DocKeyEncodesCollectionId::No);
+                   DocKeyEncodesCollectionId::Yes);
 
         std::unique_ptr<Item> itm =
                 makeItem(ctx->vbid, key, valSlice, isMetaOnly);

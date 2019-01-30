@@ -42,8 +42,7 @@ public:
                   uint16_t _maxShards,
                   const std::string& _dbname,
                   const std::string& _backend,
-                  uint16_t _shardId,
-                  bool persistDocNamespace);
+                  uint16_t _shardId);
 
     virtual ~KVStoreConfig();
 
@@ -93,14 +92,6 @@ public:
      */
     KVStoreConfig& setBuffered(bool _buffered);
 
-    bool shouldPersistDocNamespace() const {
-        return persistDocNamespace;
-    }
-
-    void setPersistDocNamespace(bool value) {
-        persistDocNamespace = value;
-    }
-
     uint64_t getPeriodicSyncBytes() const {
         return periodicSyncBytes;
     }
@@ -119,7 +110,6 @@ private:
     uint16_t shardId;
     BucketLogger* logger;
     bool buffered;
-    bool persistDocNamespace;
 
     /**
      * If non-zero, tell storage layer to issue a sync() operation after every

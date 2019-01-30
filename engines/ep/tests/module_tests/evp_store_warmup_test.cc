@@ -26,44 +26,8 @@
 #include "test_helpers.h"
 #include "warmup.h"
 
-#include <libcouchstore/couch_db.h>
-
 class WarmupTest : public SingleThreadedKVBucketTest {
 public:
-    /**
-     * Test is currently using couchstore API directly to make the VB appear old
-     */
-    static void rewriteVBStateAs25x(Vbid vbucket) {
-        std::string filename = std::string(test_dbname) + "/" +
-                               std::to_string(vbucket.get()) + ".couch.1";
-        Db* handle;
-        couchstore_error_t err = couchstore_open_db(
-                filename.c_str(), COUCHSTORE_OPEN_FLAG_CREATE, &handle);
-
-        ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to open new database";
-
-        // Create a 2.5 _local/vbstate
-        // Note: adding 'collections_supported' keeps these tests running
-        // when collections is enabled, a true offline upgrade would do this
-        // as well (as long as couchfile_upgrade was invoked).
-        std::string vbstate2_5_x =
-                R"({"state": "active",
-                    "checkpoint_id": "1",
-                    "max_deleted_seqno": "0",
-                    "collections_supported":true})";
-        LocalDoc vbstate;
-        vbstate.id.buf = (char*)"_local/vbstate";
-        vbstate.id.size = sizeof("_local/vbstate") - 1;
-        vbstate.json.buf = (char*)vbstate2_5_x.c_str();
-        vbstate.json.size = vbstate2_5_x.size();
-        vbstate.deleted = 0;
-
-        err = couchstore_save_local_document(handle, &vbstate);
-        ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to write local document";
-        couchstore_commit(handle);
-        couchstore_close_file(handle);
-        couchstore_free_db(handle);
-    }
 
     void resetEngineAndWarmup(std::string new_config = "") {
         resetEngineAndEnableWarmup(new_config);
@@ -113,7 +77,7 @@ TEST_F(WarmupTest, setFreqSaturatedCallback) {
     // Store an item, then make the VB appear old ready for warmup
     store_item(vbid, makeStoredDocKey("key1"), "value");
     flush_vbucket_to_disk(vbid);
-    rewriteVBStateAs25x(vbid);
+    rewriteCouchstoreVBState(vbid, test_dbname, 1);
 
     // Resetting the engine and running warmup will result in the
     // Warmup::createVBuckets being invoked for vbid.
@@ -139,7 +103,7 @@ TEST_F(WarmupTest, hlcEpoch) {
     // Store an item, then make the VB appear old ready for warmup
     store_item(vbid, makeStoredDocKey("key1"), "value");
     flush_vbucket_to_disk(vbid);
-    rewriteVBStateAs25x(vbid);
+    rewriteCouchstoreVBState(vbid, test_dbname, 1);
 
     resetEngineAndWarmup();
 
@@ -218,7 +182,7 @@ TEST_F(WarmupTest, mightContainXattrs) {
     // Store an item, then make the VB appear old ready for warmup
     store_item(vbid, makeStoredDocKey("key1"), "value");
     flush_vbucket_to_disk(vbid);
-    rewriteVBStateAs25x(vbid);
+    rewriteCouchstoreVBState(vbid, test_dbname, 1);
 
     resetEngineAndWarmup();
     {

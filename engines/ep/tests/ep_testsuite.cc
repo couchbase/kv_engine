@@ -6314,12 +6314,12 @@ static void force_vbstate_to_25x(std::string dbname, int vbucket) {
     checkeq(COUCHSTORE_SUCCESS, err, "Failed to open new database");
 
     // Create 2.5 _local/vbstate
-    // Note: unconditionally adding collection_supported to keep this test
-    // working regardless of collections being enabled.
+    // Note: unconditionally adding namespaces_supported to keep this test
+    // working.
     std::string vbstate2_5_x = R"({"state": "active",
                                    "checkpoint_id": "1",
                                    "max_deleted_seqno": "0",
-                                   "collections_supported":true})";
+                                   "namespaces_supported":true})";
     LocalDoc vbstate;
     vbstate.id.buf = (char *)"_local/vbstate";
     vbstate.id.size = sizeof("_local/vbstate") - 1;

@@ -67,16 +67,11 @@ extern "C" {
 }
 
 struct kvstats_ctx {
-    kvstats_ctx(bool persistDocNamespace,
-                Collections::VB::Flush& collectionsFlush)
-        : persistDocNamespace(persistDocNamespace),
-          collectionsFlush(collectionsFlush) {
+    kvstats_ctx(Collections::VB::Flush& collectionsFlush)
+        : collectionsFlush(collectionsFlush) {
     }
     /// A map of key to bool. If true, the key exists in the VB datafile
     std::unordered_map<StoredDocKey, bool> keyStats;
-    /// Collections: When enabled this means persisted keys have namespaces
-    bool persistDocNamespace;
-
     /// Collection flusher data for managing manifest changes and item counts
     Collections::VB::Flush& collectionsFlush;
 };
@@ -172,11 +167,10 @@ static std::string couchkvstore_strerrno(Db *db, couchstore_error_t err) {
     }
 }
 
-static DocKey makeDocKey(const sized_buf buf, bool restoreNamespace) {
+static DocKey makeDocKey(const sized_buf buf) {
     return DocKey(reinterpret_cast<const uint8_t*>(buf.buf),
                   buf.size,
-                  restoreNamespace ? DocKeyEncodesCollectionId::Yes
-                                   : DocKeyEncodesCollectionId::No);
+                  DocKeyEncodesCollectionId::Yes);
 }
 
 struct GetMultiCbCtx {
@@ -190,15 +184,12 @@ struct GetMultiCbCtx {
 };
 
 struct AllKeysCtx {
-    AllKeysCtx(std::shared_ptr<Callback<const DocKey&>> callback,
-               uint32_t cnt,
-               bool persistDocNamespace)
-        : cb(callback), count(cnt), persistDocNamespace(persistDocNamespace) {
+    AllKeysCtx(std::shared_ptr<Callback<const DocKey&>> callback, uint32_t cnt)
+        : cb(callback), count(cnt) {
     }
 
     std::shared_ptr<Callback<const DocKey&>> cb;
     uint32_t count;
-    bool persistDocNamespace{false};
 };
 
 couchstore_content_meta_flags CouchRequest::getContentMeta(const Item& it) {
@@ -221,23 +212,12 @@ couchstore_content_meta_flags CouchRequest::getContentMeta(const Item& it) {
 CouchRequest::CouchRequest(const Item& it,
                            uint64_t rev,
                            MutationRequestCallback& cb,
-                           bool del,
-                           bool persistDocNamespace)
+                           bool del)
     : IORequest(it.getVBucketId(), cb, del, it.getKey(), it.isPending()),
       value(it.getValue()),
       fileRevNum(rev) {
-    // Collections: TODO: Temporary switch to ensure upgrades don't break.
-    if (!persistDocNamespace) {
-        auto noprefix = cb::mcbp::skip_unsigned_leb128<CollectionIDType>(
-                {key.data(), key.size()});
-        dbDoc.id = {const_cast<char*>(
-                            reinterpret_cast<const char*>(noprefix.data())),
-                    noprefix.size()};
-    } else {
-        dbDoc.id = {
-                const_cast<char*>(reinterpret_cast<const char*>(key.data())),
+    dbDoc.id = {const_cast<char*>(reinterpret_cast<const char*>(key.data())),
                 key.size()};
-    }
 
     if (it.getNBytes()) {
         dbDoc.data.buf = const_cast<char *>(value->getData());
@@ -427,12 +407,7 @@ void CouchKVStore::set(const Item& itm,
 
     // each req will be de-allocated after commit
     requestcb.setCb = &cb;
-    CouchRequest* req =
-            new CouchRequest(itm,
-                             fileRev,
-                             requestcb,
-                             deleteItem,
-                             configuration.shouldPersistDocNamespace());
+    CouchRequest* req = new CouchRequest(itm, fileRev, requestcb, deleteItem);
     pendingReqsQ.push_back(req);
 }
 
@@ -459,18 +434,11 @@ GetValue CouchKVStore::getWithHeader(void* dbHandle,
     Db *db = (Db *)dbHandle;
     auto start = std::chrono::steady_clock::now();
     DocInfo *docInfo = NULL;
-    sized_buf id;
     GetValue rv;
 
-    if (!configuration.shouldPersistDocNamespace()) {
-        auto noprefix = cb::mcbp::skip_unsigned_leb128<CollectionIDType>(
-                {key.data(), key.size()});
-        id = {const_cast<char*>(reinterpret_cast<const char*>(noprefix.data())),
-              noprefix.size()};
-    } else {
-        id = {const_cast<char*>(reinterpret_cast<const char*>(key.data())),
-              key.size()};
-    }
+    sized_buf id = {
+            const_cast<char*>(reinterpret_cast<const char*>(key.data())),
+            key.size()};
 
     couchstore_error_t errCode = couchstore_docinfo_by_id(db, (uint8_t *)id.buf,
                                                           id.size, &docInfo);
@@ -544,17 +512,9 @@ void CouchKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
     size_t idx = 0;
     std::vector<sized_buf> ids(itms.size());
     for (auto& item : itms) {
-        if (!configuration.shouldPersistDocNamespace()) {
-            auto noprefix = cb::mcbp::skip_unsigned_leb128<CollectionIDType>(
-                    {item.first.data(), item.first.size()});
-            ids[idx] = {const_cast<char*>(
-                                reinterpret_cast<const char*>(noprefix.data())),
-                        noprefix.size()};
-        } else {
             ids[idx] = {const_cast<char*>(reinterpret_cast<const char*>(
                                 item.first.data())),
                         item.first.size()};
-        }
 
         ++idx;
     }
@@ -600,12 +560,7 @@ void CouchKVStore::del(const Item& itm, Callback<TransactionContext, int>& cb) {
     uint64_t fileRev = (*dbFileRevMap)[itm.getVBucketId().get()];
     MutationRequestCallback requestcb;
     requestcb.delCb = &cb;
-    CouchRequest* req =
-            new CouchRequest(itm,
-                             fileRev,
-                             requestcb,
-                             true,
-                             configuration.shouldPersistDocNamespace());
+    CouchRequest* req = new CouchRequest(itm, fileRev, requestcb, true);
     pendingReqsQ.push_back(req);
 }
 
@@ -795,8 +750,7 @@ static int notify_expired_item(DocInfo& info,
         }
     }
 
-    // Collections: TODO: Restore to stored namespace
-    Item it(makeDocKey(info.id, ctx.config->shouldPersistDocNamespace()),
+    Item it(makeDocKey(info.id),
             metadata.getFlags(),
             metadata.getExptime(),
             data.buf,
@@ -838,13 +792,11 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
 
         // Is the collections eraser installed?
         if (ctx->collectionsEraser &&
-            ctx->collectionsEraser(
-                    makeDocKey(info->id,
-                               ctx->config->shouldPersistDocNamespace()),
-                    int64_t(info->db_seq),
-                    info->deleted,
-                    metadata->getFlags(),
-                    *ctx->eraserContext)) {
+            ctx->collectionsEraser(makeDocKey(info->id),
+                                   int64_t(info->db_seq),
+                                   info->deleted,
+                                   metadata->getFlags(),
+                                   *ctx->eraserContext)) {
             if (!info->deleted) {
                 ctx->stats.collectionsItemsPurged++;
             } else {
@@ -908,9 +860,7 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
 
     if (ctx->bloomFilterCallback) {
         bool deleted = info->deleted;
-        // Collections: TODO: Permanently restore to stored namespace
-        DocKey key = makeDocKey(
-                info->id, ctx->config->shouldPersistDocNamespace());
+        DocKey key = makeDocKey(info->id);
 
         try {
             ctx->bloomFilterCallback->callback(
@@ -1714,18 +1664,15 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
     }
 
     if (metaOnly == GetMetaOnly::Yes) {
-        // Collections: TODO: Permanently restore to stored namespace
-        auto it = std::make_unique<Item>(
-                makeDocKey(docinfo->id,
-                           configuration.shouldPersistDocNamespace()),
-                metadata->getFlags(),
-                metadata->getExptime(),
-                nullptr,
-                docinfo->size,
-                metadata->getDataType(),
-                metadata->getCas(),
-                docinfo->db_seq,
-                vbId);
+        auto it = std::make_unique<Item>(makeDocKey(docinfo->id),
+                                         metadata->getFlags(),
+                                         metadata->getExptime(),
+                                         nullptr,
+                                         docinfo->size,
+                                         metadata->getDataType(),
+                                         metadata->getCas(),
+                                         docinfo->db_seq,
+                                         vbId);
 
         it->setRevSeqno(docinfo->rev_seq);
 
@@ -1772,22 +1719,19 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
         }
 
         try {
-            // Collections: TODO: Restore to stored namespace
-            auto it = std::make_unique<Item>(
-                    makeDocKey(docinfo->id,
-                               configuration.shouldPersistDocNamespace()),
-                    metadata->getFlags(),
-                    metadata->getExptime(),
-                    valuePtr,
-                    valuelen,
-                    datatype,
-                    metadata->getCas(),
-                    docinfo->db_seq,
-                    vbId,
-                    docinfo->rev_seq);
+            auto it = std::make_unique<Item>(makeDocKey(docinfo->id),
+                                             metadata->getFlags(),
+                                             metadata->getExptime(),
+                                             valuePtr,
+                                             valuelen,
+                                             datatype,
+                                             metadata->getCas(),
+                                             docinfo->db_seq,
+                                             vbId,
+                                             docinfo->rev_seq);
 
-             if (docinfo->deleted) {
-                 it->setDeleted(metadata->getDeleteSource());
+            if (docinfo->deleted) {
+                it->setDeleted(metadata->getDeleteSource());
              }
              docValue = GetValue(std::move(it));
         } catch (std::bad_alloc&) {
@@ -1823,9 +1767,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
                         ") is greater than " + std::to_string(UINT16_MAX));
     }
 
-    // Collections: TODO: Permanently restore to stored namespace
-    DocKey docKey = makeDocKey(
-            docinfo->id, sctx->config.shouldPersistDocNamespace());
+    DocKey docKey = makeDocKey(docinfo->id);
 
     auto collectionsRHandle = sctx->collectionsContext.lockCollections(
             docKey, true /*system allowed*/);
@@ -1894,9 +1836,8 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
         }
     }
 
-    // Collections: TODO: Permanently restore to stored namespace
     auto it = std::make_unique<Item>(
-            DocKey(makeDocKey(key, sctx->config.shouldPersistDocNamespace())),
+            DocKey(makeDocKey(key)),
             metadata->getFlags(),
             metadata->getExptime(),
             value.buf,
@@ -1979,8 +1920,7 @@ bool CouchKVStore::commit2couchstore(Collections::VB::Flush& collectionsFlush) {
     }
 
     // The docinfo callback needs to know if the CollectionID feature is on
-    kvstats_ctx kvctx(configuration.shouldPersistDocNamespace(),
-                      collectionsFlush);
+    kvstats_ctx kvctx(collectionsFlush);
     // flush all
     couchstore_error_t errCode =
             saveDocs(vbucket2flush, docs, docinfos, kvctx, collectionsFlush);
@@ -2016,33 +1956,30 @@ static void saveDocsCallback(const DocInfo* oldInfo,
         if (oldInfo) {
             // Old is not deleted
             if (!oldInfo->deleted) {
-                auto itr = cbCtx->keyStats.find(
-                        makeDocKey(newInfo->id, cbCtx->persistDocNamespace));
+                auto itr = cbCtx->keyStats.find(makeDocKey(newInfo->id));
                 if (itr != cbCtx->keyStats.end()) {
                     itr->second = true; // mark this key as replaced
                 }
 
                 // New is deleted, so decrement count
-                if (newInfo->deleted && cbCtx->persistDocNamespace) {
-                    cbCtx->collectionsFlush.decrementDiskCount(makeDocKey(
-                            newInfo->id, cbCtx->persistDocNamespace));
+                if (newInfo->deleted) {
+                    cbCtx->collectionsFlush.decrementDiskCount(
+                            makeDocKey(newInfo->id));
                 }
-            } else if (!newInfo->deleted && cbCtx->persistDocNamespace) {
+            } else if (!newInfo->deleted) {
                 // Adding an item
                 cbCtx->collectionsFlush.incrementDiskCount(
-                        makeDocKey(newInfo->id, cbCtx->persistDocNamespace));
+                        makeDocKey(newInfo->id));
             }
-        } else if (!newInfo->deleted && cbCtx->persistDocNamespace) {
+        } else if (!newInfo->deleted) {
             // Adding an item
-            cbCtx->collectionsFlush.incrementDiskCount(
-                    makeDocKey(newInfo->id, cbCtx->persistDocNamespace));
+            cbCtx->collectionsFlush.incrementDiskCount(makeDocKey(newInfo->id));
         }
 
         // Set the highest seqno that we are persisting regardless of if it
         // is a mutation or deletion
-        cbCtx->collectionsFlush.setPersistedHighSeqno(
-                makeDocKey(newInfo->id, cbCtx->persistDocNamespace),
-                newInfo->db_seq);
+        cbCtx->collectionsFlush.setPersistedHighSeqno(makeDocKey(newInfo->id),
+                                                      newInfo->db_seq);
     }
 }
 
@@ -2080,8 +2017,7 @@ couchstore_error_t CouchKVStore::saveDocs(
             for (size_t idx = 0; idx < docs.size(); idx++) {
                 ids[idx] = docinfos[idx]->id;
                 maxDBSeqno = std::max(maxDBSeqno, docinfos[idx]->db_seq);
-                DocKey key = makeDocKey(
-                        ids[idx], configuration.shouldPersistDocNamespace());
+                DocKey key = makeDocKey(ids[idx]);
                 kvctx.keyStats[key] = false;
             }
 
@@ -2112,15 +2048,12 @@ couchstore_error_t CouchKVStore::saveDocs(
             }
         }
 
-        // Only saving collection stats if collections enabled
-        if (configuration.shouldPersistDocNamespace()) {
             collectionsFlush.saveCollectionStats(
                     std::bind(&CouchKVStore::saveCollectionStats,
                               this,
                               std::ref(*db),
                               std::placeholders::_1,
                               std::placeholders::_2));
-        }
 
         errCode = saveVBState(db, *state);
         if (errCode != COUCHSTORE_SUCCESS) {
@@ -2252,7 +2185,7 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db* db, Vbid vbId) {
     uint64_t maxCas = 0;
     int64_t hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
     bool mightContainXattrs = false;
-    bool supportsCollections = false;
+    bool supportsNamespaces = false;
 
     DbInfo info;
     errCode = couchstore_db_info(db, &info);
@@ -2311,7 +2244,7 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db* db, Vbid vbId) {
         auto maxCasValue = json.find("max_cas");
         auto hlcCasEpoch = json.find("hlc_epoch");
         mightContainXattrs = json.value("might_contain_xattrs", false);
-        supportsCollections = json.value("collections_supported", false);
+        supportsNamespaces = json.value("namespaces_supported", false);
 
         auto failover_json = json.find("failover_table");
         if (vb_state.empty() || checkpoint_id.empty() ||
@@ -2433,7 +2366,7 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db* db, Vbid vbId) {
                                             hlcCasEpochSeqno,
                                             mightContainXattrs,
                                             failovers,
-                                            supportsCollections);
+                                            supportsNamespaces);
 
     return couchErr2EngineErr(errCode);
 }
@@ -2459,11 +2392,8 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db,
         jsonState << ",\"might_contain_xattrs\": false";
     }
 
-    // Only mark the VB as supporting collections if enabled in the config
-    if (vbState.supportsCollections &&
-        configuration.shouldPersistDocNamespace()) {
-        jsonState << ",\"collections_supported\": true";
-    }
+    // This KV writes namespaces
+    jsonState << ",\"namespaces_supported\": true";
 
     jsonState << "}";
 
@@ -2628,9 +2558,7 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
     }
 
     GetMultiCbCtx *cbCtx = static_cast<GetMultiCbCtx *>(ctx);
-    // Collections: TODO: Permanently restore to stored namespace
-    DocKey key = makeDocKey(docinfo->id,
-                            cbCtx->cks.getConfig().shouldPersistDocNamespace());
+    DocKey key = makeDocKey(docinfo->id);
     KVStoreStats& st = cbCtx->cks.getKVStoreStat();
 
     vb_bgfetch_queue_t::iterator qitr = cbCtx->fetches.find(key);
@@ -2944,7 +2872,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
 
 int populateAllKeys(Db *db, DocInfo *docinfo, void *ctx) {
     AllKeysCtx *allKeysCtx = (AllKeysCtx *)ctx;
-    DocKey key = makeDocKey(docinfo->id, allKeysCtx->persistDocNamespace);
+    DocKey key = makeDocKey(docinfo->id);
     (allKeysCtx->cb)->callback(key);
     if (--(allKeysCtx->count) <= 0) {
         //Only when count met is less than the actual number of entries
@@ -2963,25 +2891,18 @@ CouchKVStore::getAllKeys(Vbid vbid,
     if(errCode == COUCHSTORE_SUCCESS) {
         sized_buf ref = {NULL, 0};
 
-        if (!configuration.shouldPersistDocNamespace()) {
-            auto noprefix = cb::mcbp::skip_unsigned_leb128<CollectionIDType>(
-                    {start_key.data(), start_key.size()});
-            ref.buf = (char*)noprefix.data();
-            ref.size = noprefix.size();
-        } else {
             ref.buf = (char*)start_key.data();
             ref.size = start_key.size();
-        }
 
-        AllKeysCtx ctx(cb, count, configuration.shouldPersistDocNamespace());
-        errCode = couchstore_all_docs(db,
-                                      &ref,
-                                      COUCHSTORE_NO_DELETES,
-                                      populateAllKeys,
-                                      static_cast<void*>(&ctx));
-        if (errCode == COUCHSTORE_SUCCESS ||
-                errCode == COUCHSTORE_ERROR_CANCEL)  {
-            return ENGINE_SUCCESS;
+            AllKeysCtx ctx(cb, count);
+            errCode = couchstore_all_docs(db,
+                                          &ref,
+                                          COUCHSTORE_NO_DELETES,
+                                          populateAllKeys,
+                                          static_cast<void*>(&ctx));
+            if (errCode == COUCHSTORE_SUCCESS ||
+                errCode == COUCHSTORE_ERROR_CANCEL) {
+                return ENGINE_SUCCESS;
         } else {
             logger.warn(
                     "CouchKVStore::getAllKeys: couchstore_all_docs "

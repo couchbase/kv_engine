@@ -42,8 +42,7 @@ KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
                     config.getMaxNumShards(),
                     config.getDbname(),
                     config.getBackend(),
-                    shardid,
-                    config.isCollectionsEnabled()) {
+                    shardid) {
     setPeriodicSyncBytes(config.getFsyncAfterEveryNBytesWritten());
     config.addValueChangedListener(
             "fsync_after_every_n_bytes_written",
@@ -54,16 +53,14 @@ KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
                              uint16_t _maxShards,
                              const std::string& _dbname,
                              const std::string& _backend,
-                             uint16_t _shardId,
-                             bool _persistDocNamespace)
+                             uint16_t _shardId)
     : maxVBuckets(_maxVBuckets),
       maxShards(_maxShards),
       dbname(_dbname),
       backend(_backend),
       shardId(_shardId),
       logger(globalBucketLogger.get()),
-      buffered(true),
-      persistDocNamespace(_persistDocNamespace) {
+      buffered(true) {
 }
 
 KVStoreConfig::~KVStoreConfig() = default;

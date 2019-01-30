@@ -57,7 +57,7 @@ private:
 
     bool isPartiallyNamespaced() const;
 
-    boost::optional<bool> getCollectionsSupported() const;
+    boost::optional<bool> getSupportsNamespaces() const;
 
     LocalDocPtr openLocalDocument(const std::string& documentName) const;
 };

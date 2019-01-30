@@ -486,7 +486,7 @@ vbucket_state VBucket::getVBucketState() const {
                           hlc.getEpochSeqno(),
                           mightContainXattrs(),
                           failovers->toJSON(),
-                          true /*will only be written if collections enabled*/};
+                          true /*supportsNamespaces*/};
 }
 
 const nlohmann::json& VBucket::getReplicationTopology() const {

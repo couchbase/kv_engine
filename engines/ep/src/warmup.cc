@@ -849,12 +849,12 @@ void Warmup::createVBuckets(uint16_t shardId) {
         Vbid vbid = itr.first;
         vbucket_state vbs = itr.second;
 
-        // Collections requires that the VBucket datafiles have the collection
-        // meta-data applied.
-        if (!vbs.supportsCollections && config.isCollectionsEnabled()) {
+        // Collections and sync-repl requires that the VBucket datafiles have
+        // 'namespacing' applied to the key space
+        if (!vbs.supportsNamespaces) {
             EP_LOG_CRITICAL(
                     "Warmup::createVBuckets aborting warmup as {} datafile "
-                    "is unusable (does not support collections)",
+                    "is unusable, name-spacing is not enabled.",
                     vbid);
             return;
         }

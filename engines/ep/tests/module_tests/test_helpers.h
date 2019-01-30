@@ -104,3 +104,13 @@ private:
  */
 std::chrono::microseconds decayingSleep(std::chrono::microseconds uSeconds);
 
+/**
+ * Rewrite the vbstate of the vbucket/revision
+ * i.e. the file @ dbDir/<vbid>.couch.<revision>
+ * This method makes the vbstate appear to be from the past so we can test
+ * some upgrade scenarios.
+ */
+void rewriteCouchstoreVBState(Vbid vbucket,
+                              const std::string& dbDir,
+                              int revision,
+                              bool namespacesSupported = true);
