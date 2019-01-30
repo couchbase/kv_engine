@@ -1604,13 +1604,12 @@ spdlog::level::level_enum ActiveStream::getTransitionStateLogLevel(
 }
 
 void ActiveStream::notifyStreamReady(bool force) {
-    auto producer = producerPtr.lock();
-    if (!producer) {
-        return;
-    }
-
     bool inverse = false;
     if (force || itemsReady.compare_exchange_strong(inverse, true)) {
+        auto producer = producerPtr.lock();
+        if (!producer) {
+            return;
+        }
         producer->notifyStreamReady(vb_);
     }
 }
