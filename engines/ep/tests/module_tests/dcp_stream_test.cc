@@ -1062,6 +1062,112 @@ TEST_P(StreamTest, validate_compression_control_message_allowed) {
     destroy_dcp_stream();
 }
 
+// Test that ActiveStream::processItems correctly encodes a Snapshot marker
+// (with CHK flag set) when processItems() is called with a single
+// checkpoint_start item.
+TEST_P(StreamTest, ProcessItemsSingleCheckpointStart) {
+    setup_dcp_stream();
+
+    // Setup - put a single checkpoint_start item into a vector to be passed
+    // to ActiveStream::processItems()
+    std::vector<queued_item> items;
+    items.push_back(queued_item(new Item(makeStoredDocKey("start"),
+                                         vbid,
+                                         queue_op::checkpoint_start,
+                                         2,
+                                         1)));
+
+    // Test - call processItems() twice: once with a single checkpoint_start
+    // item, then with a single mutation.
+    // (We need the single mutation to actually cause a SnapshotMarker to be
+    // generated, as SnapshotMarkers cannot represent an empty snapshot).
+    stream->public_processItems(items);
+
+    items.clear();
+    auto mutation = makeCommittedItem(makeStoredDocKey("mutation"), "value");
+    mutation->setBySeqno(2);
+    items.push_back(mutation);
+    stream->public_processItems(items);
+
+    // Validate - check that we have two items in the readyQ (SnapshotMarker &
+    // DcpMutation), and that the SnapshotMarker is correctly encoded (should
+    // have CHK flag set).
+    const auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(2, readyQ.size());
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, readyQ.front()->getEvent());
+    auto& snapMarker = dynamic_cast<SnapshotMarker&>(*readyQ.front());
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, snapMarker.getFlags());
+
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ.back()->getEvent());
+}
+
+// Variation on ProcessItemsSingleCheckpointStart - test that
+// ActiveStream::processItems correctly encodes a Snapshot marker (with CHK
+// flag set) when processItems() is called with multiple items but
+// checkpoint_start item is the last item in the batch.
+TEST_P(StreamTest, ProcessItemsCheckpointStartIsLastItem) {
+    setup_dcp_stream();
+
+    // Setup - call ActiveStream::processItems() with the end of one checkpoint
+    // and the beginning of the next:
+    //     mutatation, checkpoint_end, checkpoint_start
+    std::vector<queued_item> items;
+    auto mutation1 = makeCommittedItem(makeStoredDocKey("M1"), "value");
+    mutation1->setBySeqno(10);
+    items.push_back(mutation1);
+    items.push_back(queued_item(new Item(makeStoredDocKey("end"),
+                                         vbid,
+                                         queue_op::checkpoint_end,
+                                         1,
+                                         /*seqno*/ 10)));
+    items.push_back(queued_item(new Item(makeStoredDocKey("start"),
+                                         vbid,
+                                         queue_op::checkpoint_start,
+                                         2,
+                                         /*seqno*/ 11)));
+
+    // Test - call processItems() twice: once with the items above, then with
+    // a single mutation.
+    stream->public_processItems(items);
+
+    items.clear();
+    auto mutation2 = makeCommittedItem(makeStoredDocKey("M2"), "value");
+    mutation2->setBySeqno(11);
+    items.push_back(mutation2);
+    stream->public_processItems(items);
+
+    // Validate - check that we have four items in the readyQ with the correct
+    // state:
+    //    1. SnapshotMarker(10,10)
+    //    2. Mutation(M1, 10)
+    //    3. SnapshotMarker(11, 11, CHK)
+    //    4. Mutation(M2, 11)
+    const auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(4, readyQ.size());
+
+    // First snapshotMarker should be for seqno 10 and _not_ have the CHK flag
+    // set.
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, readyQ.front()->getEvent());
+    auto& snapMarker1 = dynamic_cast<SnapshotMarker&>(*readyQ.front());
+    EXPECT_EQ(MARKER_FLAG_MEMORY, snapMarker1.getFlags());
+    // Don't care about startSeqno for this snapshot...
+    EXPECT_EQ(10, snapMarker1.getEndSeqno());
+
+    stream->public_nextQueuedItem();
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ.front()->getEvent());
+
+    // Second snapshotMarker should be for seqno 11 and have the CHK flag set.
+    stream->public_nextQueuedItem();
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, readyQ.front()->getEvent());
+    auto& snapMarker2 = dynamic_cast<SnapshotMarker&>(*readyQ.front());
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, snapMarker2.getFlags());
+    EXPECT_EQ(11, snapMarker2.getStartSeqno());
+    EXPECT_EQ(11, snapMarker2.getEndSeqno());
+
+    stream->public_nextQueuedItem();
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ.front()->getEvent());
+}
+
 class CacheCallbackTest : public StreamTest {
 protected:
     void SetUp() override {

@@ -234,8 +234,7 @@ private:
 
     std::unique_ptr<DcpResponse> deadPhase();
 
-    void snapshot(std::deque<std::unique_ptr<DcpResponse>>& snapshot,
-                  bool mark);
+    void snapshot(std::deque<std::unique_ptr<DcpResponse>>& snapshot);
 
     void endStream(end_stream_status_t reason);
 
@@ -299,6 +298,13 @@ private:
 
     //! The last known seqno pointed to by the checkpoint cursor
     std::atomic<uint64_t> curChkSeqno;
+
+    /**
+     * Should the next snapshot marker have the 'checkpoint' flag
+     * (MARKER_FLAG_CHK) set?
+     * See comments in processItems() for usage of this variable.
+     */
+    bool nextSnapshotIsCheckpoint = false;
 
     //! The current vbucket state to send in the takeover stream
     vbucket_state_t takeoverState;

@@ -968,11 +968,33 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
 void ActiveStream::processItems(std::vector<queued_item>& items,
                                 const LockHolder& streamMutex) {
     if (!items.empty()) {
-        bool mark = false;
-        if (items.front()->getOperation() == queue_op::checkpoint_start) {
-            mark = true;
-        }
-
+        // Transform the sequence of items from the CheckpointManager into
+        // a sequence of DCP messages which this stream should receive. There
+        // are a couple of sublties to watch out for here:
+        //
+        // 1. Unlike CheckpointManager, In DCP there are no individual 'start' /
+        // end messages book-ending mutations - instead we prefix a sequence of
+        // mutations with a snapshot_marker{start, end, flags}. However, we do
+        // not know the end seqno until we get to the end of the checkpoint. To
+        // handle this we accumulate the set of mutations which will make up a
+        // snapshot into 'mutations', and when we encounter the next
+        // checkpoint_start message we call snapshot() on our mutations to
+        // prepend the snapshot_marker; followed by the mutations it contains.
+        //
+        // 2. For each checkpoint_start item we need to create a snapshot with
+        // the MARKER_FLAG_CHK set - so the destination knows this represents
+        // a consistent point and should create it's own checkpoint on this
+        // boundary.
+        // However, a snapshot marker must contain at least 1
+        // (non-snapshot_start) item, but if the last item in `items` is a
+        // checkpoint_marker then it is not possible to create a valid snapshot
+        // (yet). We must instead defer calling snapshot() until we have at
+        // least one item - i.e on a later call to processItems.
+        // Therefore we record the pending MARKER_FLAG_CHK as part of the
+        // object's state in nextSnapshotIsCheckpoint. When we subsequently
+        // receive at least one more mutation (and hence can enqueue a
+        // SnapshotMarker), we can use nextSnapshotIsCheckpoint to snapshot
+        // it correctly.
         std::deque<std::unique_ptr<DcpResponse>> mutations;
         for (auto& qi : items) {
             if (shouldProcessItem(*qi)) {
@@ -989,18 +1011,18 @@ void ActiveStream::processItems(std::vector<queued_item>& items,
                    previous checkpoint and hence we must create a snapshot and
                    put them onto readyQ */
                 if (!mutations.empty()) {
-                    snapshot(mutations, mark);
+                    snapshot(mutations);
                     /* clear out all the mutations since they are already put
                        onto the readyQ */
                     mutations.clear();
                 }
                 /* mark true as it indicates a new checkpoint snapshot */
-                mark = true;
+                nextSnapshotIsCheckpoint = true;
             }
         }
 
         if (!mutations.empty()) {
-            snapshot(mutations, mark);
+            snapshot(mutations);
         }
     }
 
@@ -1032,8 +1054,7 @@ bool ActiveStream::shouldProcessItem(const Item& item) {
     return true;
 }
 
-void ActiveStream::snapshot(std::deque<std::unique_ptr<DcpResponse>>& items,
-                            bool mark) {
+void ActiveStream::snapshot(std::deque<std::unique_ptr<DcpResponse>>& items) {
     if (items.empty()) {
         return;
     }
@@ -1059,7 +1080,7 @@ void ActiveStream::snapshot(std::deque<std::unique_ptr<DcpResponse>>& items,
         uint64_t snapStart = *seqnoStart;
         uint64_t snapEnd = *seqnoEnd;
 
-        if (mark) {
+        if (nextSnapshotIsCheckpoint) {
             flags |= MARKER_FLAG_CHK;
         }
 
@@ -1078,6 +1099,8 @@ void ActiveStream::snapshot(std::deque<std::unique_ptr<DcpResponse>>& items,
         pushToReadyQ(std::make_unique<SnapshotMarker>(
                 opaque_, vb_, snapStart, snapEnd, flags, sid));
         lastSentSnapEndSeqno.store(snapEnd, std::memory_order_relaxed);
+        // Now we have created a SnapshotMarker, clear nextSnapshotIsCheckpoint.
+        nextSnapshotIsCheckpoint = false;
     }
 
     for (auto& item : items) {
