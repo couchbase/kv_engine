@@ -243,13 +243,11 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
             // wait until we've started to delete the bucket
             bool deleting = false;
             while (!deleting) {
-                usleep(10);  // Avoid busy-wait ;-)
-                auto details = nlohmann::json::parse(
-                        connection->stats("bucket_details")
-                                .begin()
-                                ->get<std::string>());
-                auto bucketDetails = details["buckets"];
-                for (const auto bucket : bucketDetails) {
+                // Avoid busy-wait ;-)
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                auto details = connection->stats("bucket_details");
+                auto bucketDetails = details["bucket details"];
+                for (const auto& bucket : bucketDetails["buckets"]) {
                     auto name = bucket.find("name");
                     if (name != bucket.end()) {
                         if (name->get<std::string>() == "bucket") {
@@ -328,9 +326,7 @@ TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
         auto all_stats = conn.stats("connections");
         boost::optional<nlohmann::json> my_conn_stats;
 
-        for (const auto conn_str : all_stats) {
-            auto conn_stats =
-                    nlohmann::json::parse(conn_str.get<std::string>());
+        for (const auto& conn_stats : all_stats) {
             auto dcp_flag = conn_stats.find("dcp");
             if (dcp_flag != conn_stats.end() && dcp_flag->get<bool>() == true) {
                 my_conn_stats = conn_stats;
@@ -397,24 +393,20 @@ TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
 intptr_t getConnectionId(MemcachedConnection& conn) {
     const std::string agent_name{"getConnectionId 1.0"};
     conn.hello("getConnectionId", "1.0", "test connections test");
-
     auto stats = conn.stats("connections");
     if (stats.empty()) {
         throw std::runtime_error("getConnectionId: stats connections failed");
     }
 
-    // Unfortuately they're all mapped as a " " : "json" pairs, so lets
-    // validate that at least thats true:
-    for (const auto connStr : stats) {
-        auto conn = nlohmann::json::parse(connStr.get<std::string>());
-        auto agent = conn.find("agent_name");
-        if (agent != conn.end()) {
+    for (const auto& entry : stats) {
+        auto agent = entry.find("agent_name");
+        if (agent != entry.end()) {
             // "agent_name" definitely exists, but we might still want to throw
             // if it's the wrong type. Just use this helper function because we
             // need to get the value out anyway and it's easier to read.
-            if (agent_name == cb::jsonGet<std::string>(conn, "agent_name")) {
+            if (agent_name == cb::jsonGet<std::string>(entry, "agent_name")) {
                 return gsl::narrow<intptr_t>(
-                        cb::jsonGet<size_t>(conn, "socket"));
+                        cb::jsonGet<size_t>(entry, "socket"));
             }
         }
     }
@@ -444,7 +436,7 @@ static nlohmann::json getConnectionStats(MemcachedConnection& conn,
                 "getConnectionStats(): Expected a single entry");
     }
 
-    return nlohmann::json::parse(stats.begin()->get<std::string>());
+    return stats.front();
 }
 
 /**

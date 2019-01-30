@@ -1293,8 +1293,7 @@ BinprotSubdocResponse TestappTest::getXattr(const std::string& path,
 
 int TestappTest::getResponseCount(cb::mcbp::Status statusCode) {
     auto stats = getConnection().stats("responses detailed");
-    auto responses =
-            nlohmann::json::parse(stats["responses"].get<std::string>());
+    auto responses = stats["responses"];
     std::stringstream stream;
     stream << std::hex << uint16_t(statusCode);
     auto obj = responses.find(stream.str());

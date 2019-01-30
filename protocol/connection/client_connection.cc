@@ -572,23 +572,20 @@ void MemcachedConnection::read(Frame& frame, size_t bytes) {
 
 nlohmann::json MemcachedConnection::stats(const std::string& subcommand) {
     nlohmann::json ret;
-
-    for (auto& pair : statsMap(subcommand)) {
-        const std::string& key = pair.first;
-        const std::string& value = pair.second;
-        if (value == "false") {
-            ret[key] = false;
-        } else if (value == "true") {
-            ret[key] = true;
-        } else {
-            try {
-                int64_t val = std::stoll(value);
-                ret[key] = val;
-            } catch (const std::exception&) {
-                ret[key] = value;
-            }
-        }
-    }
+    stats(
+            [&ret](const std::string& key, const std::string& value) -> void {
+                if (value.empty()) {
+                    ret[key] = "";
+                    return;
+                }
+                try {
+                    auto v = nlohmann::json::parse(value);
+                    ret[key] = v;
+                } catch (const nlohmann::json::exception&) {
+                    ret[key] = value;
+                }
+            },
+            subcommand);
     return ret;
 }
 

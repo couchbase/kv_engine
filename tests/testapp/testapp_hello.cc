@@ -63,11 +63,10 @@ TEST_F(HelloTest, AgentName) {
 
     // look over all of the entries and verify that it's set :)
     // validate that at least thats true:
-    for (const auto connStr : stats) {
-        auto conn = nlohmann::json::parse(connStr.get<std::string>());
-        ASSERT_NE(conn.end(), conn.find("connection"));
-        auto agent = conn.find("agent_name");
-        if (agent != conn.end()) {
+    for (const auto& c : stats) {
+        ASSERT_NE(c.end(), c.find("connection"));
+        auto agent = c.find("agent_name");
+        if (agent != c.end()) {
             auto agentStr = agent->get<std::string>();
             ASSERT_EQ(agentname.substr(0, MaxSavedAgentName), agentStr);
             found = true;
@@ -94,16 +93,15 @@ TEST_F(HelloTest, JsonAgentInformation) {
 
     // look over all of the entries and verify that it's set :)
     // validate that at least thats true:
-    for (const auto connStr : stats) {
-        auto conn = nlohmann::json::parse(connStr.get<std::string>());
-        ASSERT_NE(conn.end(), conn.find("connection"));
-        auto agent = conn.find("agent_name");
-        if (agent != conn.end()) {
+    for (const auto& c : stats) {
+        ASSERT_NE(c.end(), c.find("connection"));
+        auto agent = c.find("agent_name");
+        if (agent != c.end()) {
             auto agentStr = agent->get<std::string>();
             if (agentStr == "AgentInformation") {
                 // We should have the uuid here
                 EXPECT_EQ("c21fee83af4e7943/c21fee83af4e7943",
-                          conn["connection_id"].get<std::string>());
+                          c["connection_id"].get<std::string>());
                 found = true;
                 break;
             }
@@ -139,16 +137,15 @@ TEST_F(HelloTest, JsonAgentInformationStringsTruncated) {
 
     // look over all of the entries and verify that it's set :)
     // validate that at least thats true:
-    for (const auto connStr : stats) {
-        auto conn = nlohmann::json::parse(connStr.get<std::string>());
-        ASSERT_NE(conn.end(), conn.find("connection"));
-        auto agent = conn.find("agent_name");
-        if (agent != conn.end()) {
+    for (const auto& c : stats) {
+        ASSERT_NE(c.end(), c.find("connection"));
+        auto agent = c.find("agent_name");
+        if (agent != c.end()) {
             if (agentname.substr(0, MaxSavedAgentName) ==
                 agent->get<std::string>()) {
                 // We should have the uuid here!
                 EXPECT_EQ(cid.substr(0, MaxSavedConnectionId),
-                          conn["connection_id"].get<std::string>());
+                          c["connection_id"].get<std::string>());
                 found = true;
                 break;
             }

@@ -302,8 +302,7 @@ TEST_P(StatsTest, TestBucketDetails) {
 
     // bucket details contains a single entry which is named "buckets" and
     // contains an array
-    auto array =
-            nlohmann::json::parse(stats.begin()->get<std::string>())["buckets"];
+    auto array = stats.front()["buckets"];
     EXPECT_EQ(nlohmann::json::value_t::array, array.type());
 
     // we have two bucket2, nobucket and default
@@ -311,7 +310,7 @@ TEST_P(StatsTest, TestBucketDetails) {
 
     // Validate each bucket entry (I should probably extend it with checking
     // of the actual values
-    for (const auto bucket : array) {
+    for (const auto& bucket : array) {
         EXPECT_EQ(5, bucket.size());
         EXPECT_NE(bucket.end(), bucket.find("index"));
         EXPECT_NE(bucket.end(), bucket.find("state"));
@@ -363,16 +362,15 @@ TEST_P(StatsTest, TestConnections) {
 
     // Unfortuately they're all mapped as a " " : "json" pairs, so lets
     // validate that at least thats true:
-    for (const auto connStr : stats) {
-        auto conn = nlohmann::json::parse(connStr.get<std::string>());
-        EXPECT_NE(conn.end(), conn.find("connection"));
+    for (const auto& entry : stats) {
+        EXPECT_NE(entry.end(), entry.find("connection"));
         if (sock == -1) {
-            auto agent = conn.find("agent_name");
-            if (agent != conn.end()) {
+            auto agent = entry.find("agent_name");
+            if (agent != entry.end()) {
                 ASSERT_EQ(nlohmann::json::value_t::string, agent->type());
                 if (agent->get<std::string>() == "TestConnections 1.0") {
-                    auto socket = conn.find("socket");
-                    if (socket != conn.end()) {
+                    auto socket = entry.find("socket");
+                    if (socket != entry.end()) {
                         EXPECT_EQ(nlohmann::json::value_t::number_unsigned,
                                   socket->type());
                         sock = gsl::narrow<int>(socket->get<size_t>());
@@ -386,9 +384,7 @@ TEST_P(StatsTest, TestConnections) {
     stats = conn.stats("connections " + std::to_string(sock));
 
     ASSERT_EQ(1, stats.size());
-    EXPECT_EQ(sock,
-              nlohmann::json::parse(stats.begin()->get<std::string>())["socket"]
-                      .get<size_t>());
+    EXPECT_EQ(sock, stats.front()["socket"].get<size_t>());
 }
 
 TEST_P(StatsTest, TestConnectionsInvalidNumber) {
@@ -432,10 +428,9 @@ TEST_P(StatsTest, TestTopkeysJson) {
         conn.mutate(doc, Vbid(0), MutationType::Set);
     }
 
-    auto stats = nlohmann::json::parse(
-            conn.stats("topkeys_json").begin()->get<std::string>());
+    auto stats = conn.stats("topkeys_json").front();
     bool found = false;
-    for (const auto i : stats) {
+    for (const auto& i : stats) {
         for (const auto j : i) {
             if (name == j["key"]) {
                 found = true;
@@ -450,7 +445,7 @@ TEST_P(StatsTest, TestTopkeysJson) {
 TEST_P(StatsTest, TestSubdocExecute) {
     MemcachedConnection& conn = getConnection();
     auto stats = conn.stats("subdoc_execute");
-    auto array = nlohmann::json::parse(stats.begin()->get<std::string>());
+    auto array = stats.front();
 
     // check there are ten items in the json array
     EXPECT_EQ(10, array.size());
