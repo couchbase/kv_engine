@@ -22,6 +22,8 @@
 #include "memcached/engine_common.h"
 #include "memcached/engine_error.h"
 
+#include <nlohmann/json.hpp>
+
 #include <list>
 #include <mutex>
 
@@ -54,13 +56,19 @@ public:
     ~DurabilityMonitor();
 
     /**
-     * Registers the Replication Chain.
+     * Sets the Replication Topology.
      *
-     * @param nodes the set of replicas representing the chain
-     * @return ENGINE_SUCCESS if the operation succeeds, an error code otherwise
+     * @param topology The topology encoded as nlohmann::json array of (max 2)
+     *     replication chains. Each replication chain is itself a
+     *     nlohmann::json array of nodes representing the chain.
+     * @throw std::invalid_argument
      */
-    ENGINE_ERROR_CODE registerReplicationChain(
-            const std::vector<std::string>& nodes);
+    void setReplicationTopology(const nlohmann::json& topology);
+
+    /**
+     * @return the replication topology
+     */
+    const nlohmann::json& getReplicationTopology() const;
 
     /**
      * Start tracking a new SyncWrite.
@@ -241,6 +249,7 @@ protected:
     // Any state change must happen under lock(state.m).
     struct {
         mutable std::mutex m;
+        nlohmann::json replicationTopology;
         // @todo: Expand for supporting the SecondChain.
         std::unique_ptr<ReplicationChain> firstChain;
         Container trackedWrites;

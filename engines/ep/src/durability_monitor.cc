@@ -214,33 +214,51 @@ DurabilityMonitor::DurabilityMonitor(VBucket& vb) : vb(vb) {
 
 DurabilityMonitor::~DurabilityMonitor() = default;
 
-ENGINE_ERROR_CODE DurabilityMonitor::registerReplicationChain(
-        const std::vector<std::string>& nodes) {
-    if (nodes.size() == 0) {
-        throw std::logic_error(
-                "DurabilityMonitor::registerReplicationChain: Empty chain not "
+void DurabilityMonitor::setReplicationTopology(const nlohmann::json& topology) {
+    // @todo: Add support for SecondChain
+
+    if (!topology.is_array()) {
+        throw std::invalid_argument(
+                "DurabilityMonitor::setReplicationTopology: Topology is not an "
+                "array");
+    }
+
+    if (topology.size() == 0) {
+        throw std::invalid_argument(
+                "DurabilityMonitor::setReplicationTopology: Topology is empty");
+    }
+
+    const std::vector<std::string>& firstChain = topology.at(0);
+
+    if (firstChain.size() == 0) {
+        throw std::invalid_argument(
+                "DurabilityMonitor::setReplicationTopology: Empty chain not "
                 "allowed");
     }
 
     // Max Active + MaxReplica
-    if (nodes.size() > 1 + maxReplicas) {
+    if (firstChain.size() > 1 + maxReplicas) {
         throw std::logic_error(
-                "DurabilityMonitor::registerReplicationChain: Too many nodes "
+                "DurabilityMonitor::setReplicationTopology: Too many nodes "
                 "in chain: " +
-                std::to_string(nodes.size()));
+                std::to_string(firstChain.size()));
     }
 
     std::lock_guard<std::mutex> lg(state.m);
+
+    state.replicationTopology = topology;
 
     // Note: Topology changes (i.e., reset of replication-chain) are implicitly
     //     supported. With the current model the new replication-chain will
     //     kick-in at the first new SyncWrite added to tracking.
     // @todo: Check if the above is legal
-    // @todo: Add support for SecondChain
     state.firstChain = std::make_unique<ReplicationChain>(
-            nodes, state.trackedWrites.begin());
+            firstChain, state.trackedWrites.begin());
+}
 
-    return ENGINE_SUCCESS;
+const nlohmann::json& DurabilityMonitor::getReplicationTopology() const {
+    std::lock_guard<std::mutex> lg(state.m);
+    return state.replicationTopology;
 }
 
 ENGINE_ERROR_CODE DurabilityMonitor::addSyncWrite(const void* cookie,

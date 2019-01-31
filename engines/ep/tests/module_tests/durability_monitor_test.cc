@@ -329,21 +329,32 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceived_PersistToMajority) {
     FAIL();
 }
 
-TEST_F(DurabilityMonitorTest, RegisterChain_Empty) {
+TEST_F(DurabilityMonitorTest, SetTopology_NotAnArray) {
     try {
-        monitor->registerReplicationChain({});
+        monitor->setReplicationTopology(nlohmann::json::object());
     } catch (const std::logic_error& e) {
-        EXPECT_TRUE(std::string(e.what()).find("Empty chain") !=
+        EXPECT_TRUE(std::string(e.what()).find("Topology is not an array") !=
                     std::string::npos);
         return;
     }
     FAIL();
 }
 
-TEST_F(DurabilityMonitorTest, RegisterChain_TooManyNodes) {
+TEST_F(DurabilityMonitorTest, SetTopology_Empty) {
     try {
-        monitor->registerReplicationChain(
-                {"active", "replica1", "replica2", "replica3", "replica4"});
+        monitor->setReplicationTopology(nlohmann::json::array());
+    } catch (const std::logic_error& e) {
+        EXPECT_TRUE(std::string(e.what()).find("Topology is empty") !=
+                    std::string::npos);
+        return;
+    }
+    FAIL();
+}
+
+TEST_F(DurabilityMonitorTest, SetTopology_TooManyNodesInChain) {
+    try {
+        monitor->setReplicationTopology(nlohmann::json::array(
+                {{"active", "replica1", "replica2", "replica3", "replica4"}}));
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find("Too many nodes in chain") !=
                     std::string::npos);
@@ -352,9 +363,10 @@ TEST_F(DurabilityMonitorTest, RegisterChain_TooManyNodes) {
     FAIL();
 }
 
-TEST_F(DurabilityMonitorTest, RegisterChain_NodeDuplicate) {
+TEST_F(DurabilityMonitorTest, SetTopology_NodeDuplicateIncChain) {
     try {
-        monitor->registerReplicationChain({"node1", "node1"});
+        monitor->setReplicationTopology(
+                nlohmann::json::array({{"node1", "node1"}}));
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find("Duplicate node") !=
                     std::string::npos);
@@ -370,8 +382,8 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {
     const std::string replica2 = "replica2";
     const std::string replica3 = "replica3";
 
-    ASSERT_NO_THROW(monitor->registerReplicationChain(
-            {active, replica1, replica2, replica3}));
+    ASSERT_NO_THROW(monitor->setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2, replica3}})));
     ASSERT_EQ(4, monitor->public_getReplicationChainSize());
 
     addSyncWrite(1 /*seqno*/);

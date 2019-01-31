@@ -1938,12 +1938,6 @@ private:
     std::atomic<vbucket_state_t>    state;
     cb::RWLock                      stateLock;
 
-    // TEMP: replication topology from ns_server.
-    // @todo-durabilty: remove this once DurabilityMonitor is tracking
-    // the topology.
-    // Should also be able to remove #include <nlohmann/json.hpp> above.
-    nlohmann::json replicationTopology;
-
     vbucket_state_t                 initialState;
     std::mutex                           pendingOpLock;
     std::vector<const void*>        pendingOps;
