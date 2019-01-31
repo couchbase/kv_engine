@@ -283,8 +283,8 @@ bool Filter::processCollectionEvent(const Item& item) {
         auto dcpData = VB::Manifest::getCreateEventData(
                 {item.getData(), item.getNBytes()});
         manifestUid = dcpData.manifestUid;
-        sid = dcpData.sid;
-        cid = dcpData.cid;
+        sid = dcpData.metaData.sid;
+        cid = dcpData.metaData.cid;
     } else {
         auto dcpData = VB::Manifest::getDropEventData(
                 {item.getData(), item.getNBytes()});

@@ -902,10 +902,10 @@ CreateEventData Manifest::getCreateEventData(
         maxTtl = std::chrono::seconds(mutatedEntry->maxTtl());
     }
     return {manifest->uid(),
-            mutatedEntry->scopeId(),
-            mutatedEntry->collectionId(),
-            manifest->mutatedName()->str(),
-            maxTtl};
+            {mutatedEntry->scopeId(),
+             mutatedEntry->collectionId(),
+             manifest->mutatedName()->str(),
+             maxTtl}};
 }
 
 DropEventData Manifest::getDropEventData(

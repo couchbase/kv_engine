@@ -134,14 +134,26 @@ static inline ScopeID makeScopeID(const std::string& uid) {
 }
 
 /**
+ * The metadata of a single collection
+ */
+struct CollectionMetaData {
+    ScopeID sid; // The scope that the collection belongs to
+    CollectionID cid; // The collection's ID
+    std::string name; // The collection's name
+    cb::ExpiryLimit maxTtl; // The collection's max_ttl
+
+    bool operator==(const CollectionMetaData& other) const {
+        return sid == other.sid && cid == other.cid && name == other.name &&
+               maxTtl == other.maxTtl;
+    }
+};
+
+/**
  * All of the data a system event needs
  */
 struct CreateEventData {
     ManifestUid manifestUid; // The Manifest which generated the event
-    ScopeID sid; // The scope that the collection belongs to
-    CollectionID cid; // The collection the event belongs to
-    std::string name; // The collection name
-    cb::ExpiryLimit maxTtl; // The collection's max_ttl
+    CollectionMetaData metaData; // The data of the new collection
 };
 
 struct DropEventData {
@@ -167,8 +179,10 @@ struct DropScopeEventData {
  * byte order
  */
 struct CreateEventDcpData {
-    CreateEventDcpData(const CreateEventData& data)
-        : manifestUid(data.manifestUid), sid(data.sid), cid(data.cid) {
+    CreateEventDcpData(const CreateEventData& ev)
+        : manifestUid(ev.manifestUid),
+          sid(ev.metaData.sid),
+          cid(ev.metaData.cid) {
     }
     /// The manifest uid stored in network byte order ready for sending
     ManifestUidNetworkOrder manifestUid;
@@ -187,11 +201,12 @@ struct CreateEventDcpData {
  * the layout to be used on the wire and is in the correct byte order
  */
 struct CreateWithMaxTtlEventDcpData {
-    CreateWithMaxTtlEventDcpData(const CreateEventData& data)
-        : manifestUid(data.manifestUid),
-          sid(data.sid),
-          cid(data.cid),
-          maxTtl(htonl(gsl::narrow_cast<uint32_t>(data.maxTtl.get().count()))) {
+    CreateWithMaxTtlEventDcpData(const CreateEventData& ev)
+        : manifestUid(ev.manifestUid),
+          sid(ev.metaData.sid),
+          cid(ev.metaData.cid),
+          maxTtl(htonl(gsl::narrow_cast<uint32_t>(
+                  ev.metaData.maxTtl.get().count()))) {
     }
     /// The manifest uid stored in network byte order ready for sending
     ManifestUidNetworkOrder manifestUid;

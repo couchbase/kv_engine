@@ -121,7 +121,7 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
             // friend
             auto data = Collections::VB::Manifest::getCreateEventData(
                     {item->getData(), item->getNBytes()});
-            if (data.maxTtl) {
+            if (data.metaData.maxTtl) {
                 return std::unique_ptr<
                         CollectionCreateWithMaxTtlProducerMessage>{
                         new CollectionCreateWithMaxTtlProducerMessage(

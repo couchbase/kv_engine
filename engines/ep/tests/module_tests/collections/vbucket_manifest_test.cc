@@ -422,12 +422,13 @@ public:
                         auto dcpData =
                                 Collections::VB::Manifest::getCreateEventData(
                                         {qi->getData(), qi->getNBytes()});
-                        replica.wlock().replicaAdd(vbR,
-                                                   dcpData.manifestUid,
-                                                   {dcpData.sid, dcpData.cid},
-                                                   dcpData.name,
-                                                   dcpData.maxTtl,
-                                                   qi->getBySeqno());
+                        replica.wlock().replicaAdd(
+                                vbR,
+                                dcpData.manifestUid,
+                                {dcpData.metaData.sid, dcpData.metaData.cid},
+                                dcpData.metaData.name,
+                                dcpData.metaData.maxTtl,
+                                qi->getBySeqno());
                     }
                     break;
                 }

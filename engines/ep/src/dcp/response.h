@@ -813,11 +813,11 @@ class CollectionCreateProducerMessage : public SystemEventProducerMessage {
 public:
     CollectionCreateProducerMessage(uint32_t opaque,
                                     const queued_item& itm,
-                                    const Collections::CreateEventData& data,
+                                    const Collections::CreateEventData& ev,
                                     cb::mcbp::DcpStreamId sid)
         : SystemEventProducerMessage(opaque, itm, sid),
-          key(data.name),
-          eventData{data} {
+          key(ev.metaData.name),
+          eventData{ev} {
     }
 
     cb::const_char_buffer getKey() const override {
@@ -844,11 +844,11 @@ public:
     CollectionCreateWithMaxTtlProducerMessage(
             uint32_t opaque,
             const queued_item& itm,
-            const Collections::CreateEventData& data,
+            const Collections::CreateEventData& ev,
             cb::mcbp::DcpStreamId sid)
         : SystemEventProducerMessage(opaque, itm, sid),
-          key(data.name),
-          eventData{data} {
+          key(ev.metaData.name),
+          eventData{ev} {
     }
 
     cb::const_char_buffer getKey() const override {
