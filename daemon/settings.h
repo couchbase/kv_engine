@@ -301,11 +301,12 @@ public:
     }
 
     size_t getMaxConnections() const {
-        return max_connections;
+        return max_connections.load(std::memory_order_consume);
     }
 
     void setMaxConnections(size_t max_connections, bool notify = true) {
-        Settings::max_connections = max_connections;
+        Settings::max_connections.store(max_connections,
+                                        std::memory_order_release);
         has.max_connections = true;
         if (notify) {
             notify_changed("max_connections");
@@ -313,13 +314,18 @@ public:
     }
 
     size_t getSystemConnections() const {
-        return system_connections;
+        return system_connections.load(std::memory_order_consume);
     }
 
     void setSystemConnections(size_t system_connections) {
-        Settings::system_connections = system_connections;
+        Settings::system_connections.store(system_connections,
+                                           std::memory_order_release);
         has.system_connections = true;
         notify_changed("system_connections");
+    }
+
+    size_t getMaxUserConnections() const {
+        return getMaxConnections() - getSystemConnections();
     }
 
     /**
@@ -930,10 +936,10 @@ protected:
             std::chrono::minutes(5)};
 
     /// The maximum number of connections allowed
-    size_t max_connections = 60000;
+    std::atomic<size_t> max_connections{60000};
 
     /// The pool of connections reserved for system usage
-    size_t system_connections = 5000;
+    std::atomic<size_t> system_connections{5000};
 
 public:
     /**

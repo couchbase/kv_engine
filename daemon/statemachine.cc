@@ -407,25 +407,19 @@ bool StateMachine::conn_validate() {
         }
     } // We don't currently have any validators for response packets
 
-    if (!connection.isInternal()) {
-        // Disconnect the client if we're starting to run out of connections
-        const auto sys = settings.getSystemConnections();
-        const auto max = settings.getMaxConnections();
-        const auto user = max - sys;
-
-        if (stats.curr_conns > user && stats.system_conns < (sys / 2)) {
-            // The logic is as follows:
-            //   As long as we've got at least 50% of the system reserved
-            //   connections free, we'll just let the client use the socket.
-            //   If we're beyond that point, we'll disconnect this client
-            //   if one of the following is true:
-            //      * The connection is authenticated
-            //      * The command isn't one of:
-            //          * HELLO
-            //          * SASL_LIST_MECH
-            //          * SASL_AUTH
-            //          * SASL_STEP
-
+    // Make sure that we don't run out of connections by using the following
+    // logic:
+    //    * Connections already authenticated is allowed to continue to
+    //      stay connected
+    //    * If we've consumed all of the connections reserved for normal
+    //      client access the client is disconnected if it tries to run
+    //      a command which isn't part of the "authentication phase" (hello,
+    //      sasl list mech, sasl auth, sasl step)
+    //    * As part of the authentication we check the limits for user/system
+    //      connections and disconnects clients which doesn't map to a
+    //      system connection if all user connections is used
+    if (!connection.isAuthenticated()) {
+        if (stats.getCurrConnections() > settings.getMaxUserConnections()) {
             bool authentication = false;
             if (header.isRequest()) {
                 const auto& request = header.getRequest();
@@ -439,16 +433,12 @@ bool StateMachine::conn_validate() {
                 }
             }
 
-            if (!authentication || connection.isAuthenticated()) {
+            if (!authentication) {
                 LOG_WARNING(
                         "{}: Shutting down client ({}) as we're running out of"
-                        " connections: System: {}/{} User: {}/{}",
+                        " connections",
                         connection.getId(),
-                        connection.getDescription(),
-                        stats.system_conns,
-                        sys,
-                        stats.curr_conns,
-                        max);
+                        connection.getDescription());
                 setCurrentState(State::closing);
                 return true;
             }

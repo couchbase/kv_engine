@@ -753,6 +753,31 @@ int Connection::sslPreConnection() {
             }
             return -1;
         }
+
+        if (!saslAuthEnabled) {
+            // SASL is disabled iff the client authenticated by using the
+            // X.509 certificate. Given that the client is authenticated
+            // we need to check the connection limits.
+            size_t current = stats.getUserConnections();
+            size_t limit = settings.getMaxUserConnections();
+
+            if (isInternal()) {
+                current = stats.getSystemConnections();
+                limit = settings.getSystemConnections();
+            }
+
+            if (current > limit) {
+                LOG_WARNING(
+                        "{}: Shutting down client X.509 authenticated client "
+                        "({}) as we're running out of connections: {} of {}",
+                        getId(),
+                        getDescription(),
+                        current,
+                        limit);
+                cb::net::set_econnreset();
+                return -1;
+            }
+        }
     } else {
         if (ssl.getError(r) == SSL_ERROR_WANT_READ) {
             ssl.drainBioSendPipe(socketDescriptor);
