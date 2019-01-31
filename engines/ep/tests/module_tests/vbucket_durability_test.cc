@@ -286,3 +286,9 @@ TEST(VBucketDurabilityTest, validateSetStateMetaTopologyNegative) {
                                        {"activeB", 1.1}})}}),
                 HasSubstr("chain[1] node[1] must be a string"));
 }
+
+TEST_P(VBucketDurabilityTest, SetVBucketState_ClearTopologyAtReplica) {
+    ASSERT_FALSE(vbucket->getReplicationTopology().is_null());
+    vbucket->setState(vbucket_state_replica);
+    ASSERT_TRUE(vbucket->getReplicationTopology().is_null());
+}

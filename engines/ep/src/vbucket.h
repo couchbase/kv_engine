@@ -391,6 +391,11 @@ public:
     vbucket_state getVBucketState() const;
 
     /**
+     * @return the replication topology set for this VBucket
+     */
+    const nlohmann::json& getReplicationTopology() const;
+
+    /**
      * This method performs operations on the stored value prior
      * to expiring the item.
      *

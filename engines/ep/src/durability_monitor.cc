@@ -215,7 +215,12 @@ DurabilityMonitor::DurabilityMonitor(VBucket& vb) : vb(vb) {
 DurabilityMonitor::~DurabilityMonitor() = default;
 
 void DurabilityMonitor::setReplicationTopology(const nlohmann::json& topology) {
-    // @todo: Add support for SecondChain
+    // @todo: Add support for DurabilityMonitor at Replica
+    if (vb.getState() == vbucket_state_t::vbucket_state_replica) {
+        throw std::invalid_argument(
+                "DurabilityMonitor::setReplicationTopology: Not supported at "
+                "Replica");
+    }
 
     if (!topology.is_array()) {
         throw std::invalid_argument(
@@ -228,6 +233,7 @@ void DurabilityMonitor::setReplicationTopology(const nlohmann::json& topology) {
                 "DurabilityMonitor::setReplicationTopology: Topology is empty");
     }
 
+    // @todo: Add support for SecondChain
     const std::vector<std::string>& firstChain = topology.at(0);
 
     if (firstChain.size() == 0) {
