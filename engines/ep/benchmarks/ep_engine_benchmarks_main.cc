@@ -47,5 +47,9 @@ int main(int argc, char** argv) {
      * If we get a 0 return, then return 1 from main to signal an error
      * occurred.
      */
-    return ::benchmark::RunSpecifiedBenchmarks() == 0 ? 1 : 0;
+    auto result = ::benchmark::RunSpecifiedBenchmarks();
+
+    globalBucketLogger.reset();
+
+    return result == 0 ? 1 : 0;
 }
