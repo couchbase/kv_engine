@@ -1,0 +1,17 @@
+#! /bin/sh
+
+export EP_ENGINE_VERSION="@EP_ENGINE_VERSION@"
+
+CWD="`pwd`"
+D0="`dirname "$0"`"
+cd "$D0/../lib/python"
+root="`pwd`"
+cd "$CWD"
+
+if test -z "$PYTHONPATH"; then
+   PYTHONPATH="$root"
+else
+   PYTHONPATH="$root:$PYTHONPATH"
+fi
+export PYTHONPATH
+exec "$root"/`basename "$0"` "$@"

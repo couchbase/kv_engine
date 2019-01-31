@@ -98,8 +98,51 @@ SET(EP_ENGINE_VERSION "${MEMCACHED_VERSION}")
 CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/src/config.cmake.h
                 ${CMAKE_CURRENT_BINARY_DIR}/src/config.h)
 
-# Build Python tools
-ADD_SUBDIRECTORY(management)
+# Generate the python wrappers
+CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
+                ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbepctl)
+CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
+                ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbstats)
+CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
+                ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbcompact)
+CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
+                ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbvdiff)
+CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
+                ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbvbucketctl)
+CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
+                ${CMAKE_CURRENT_BINARY_DIR}/wrapper/kv_trace_dump)
+
+# Generate the cbstats wrapper that lets us run from the build/kv_engine dir
+SET(CLI_PATH "${CMAKE_SOURCE_DIR}/couchbase-cli")
+SET(CBSTATS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/management/")
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/wrapper/cbstats
+               ${CMAKE_BINARY_DIR}/kv_engine/cbstats)
+
+SET(Python_ADDITIONAL_VERSIONS 2.6)
+FIND_PACKAGE(PythonInterp)
+
+# to avoid cluttering source dir with name + "c" files
+SET(ENV{PYTHONDONTWRITEBYTECODE} 1)
+
+if (NOT EP_BYPASS_TESTS)
+    # runs cbstats & cbepctl - will fail on basic syntax errors
+    IF (WIN32)
+        FIND_PACKAGE(PythonInterp)
+    ENDIF (WIN32)
+    ADD_TEST(NAME cbstats_test
+            COMMAND ${PYTHON_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/management/cbstats --help)
+    # cbstats needs the natsort library from couchbase-cli so add it to the
+    # python path for this test
+    SET_PROPERTY(TEST cbstats_test PROPERTY ENVIRONMENT
+                "PYTHONPATH=${CMAKE_SOURCE_DIR}/couchbase-cli")
+    ADD_TEST(NAME cbepctl_test
+             COMMAND ${PYTHON_EXECUTABLE}
+             ${CMAKE_CURRENT_SOURCE_DIR}/management/cbepctl --help)
+    ADD_TEST(NAME kv_trace_dump_test
+             COMMAND ${PYTHON_EXECUTABLE}
+             ${CMAKE_CURRENT_SOURCE_DIR}/management/kv_trace_dump --help)
+endif (NOT EP_BYPASS_TESTS)
 
 IF (WIN32)
    INCLUDE_DIRECTORIES(AFTER ${CMAKE_SOURCE_DIR}/platform/include/win32)
@@ -635,6 +678,33 @@ if (NOT EP_BYPASS_TESTS)
 
     #SET_TARGET_PROPERTIES(generated_testsuite PROPERTIES PREFIX "")
 endif (NOT EP_BYPASS_TESTS)
+
+INSTALL(PROGRAMS
+        ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbepctl
+        ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbstats
+        ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbcompact
+        ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbvdiff
+        ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbvbucketctl
+        ${CMAKE_CURRENT_BINARY_DIR}/wrapper/kv_trace_dump
+        management/cbanalyze-core
+        DESTINATION bin)
+
+INSTALL(PROGRAMS
+        management/cbepctl
+        management/cbstats
+        management/cbcompact
+        management/cbvdiff
+        management/cbvbucketctl
+        management/kv_trace_dump
+        DESTINATION lib/python)
+
+INSTALL(FILES
+        management/clitool.py
+        management/cli_auth_utils.py
+        management/mc_bin_client.py
+        management/mc_bin_server.py
+        management/memcacheConstants.py
+        DESTINATION lib/python)
 
 INSTALL(FILES
         docs/stats.org
