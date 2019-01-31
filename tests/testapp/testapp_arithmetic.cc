@@ -14,10 +14,17 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include "testapp_client_test.h"
 #include <cctype>
 #include <limits>
 #include <thread>
-#include "testapp_arithmetic.h"
+
+class ArithmeticTest : public TestappXattrClientTest {};
+
+/**
+ * Test fixture for arithmetic tests which always need XATTR support on.
+ */
+class ArithmeticXattrOnTest : public TestappXattrClientTest {};
 
 INSTANTIATE_TEST_CASE_P(
         TransportProtocols,

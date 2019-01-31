@@ -14,7 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "testapp_bucket.h"
+#include "testapp_client_test.h"
 
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
@@ -25,6 +25,8 @@
 #include <condition_variable>
 #include <mutex>
 #include <thread>
+
+class BucketTest : public TestappClientTest {};
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         BucketTest,

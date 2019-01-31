@@ -23,13 +23,11 @@ set(memcached_testapp_SOURCES
     testapp.cc
     testapp.h
     testapp_arithmetic.cc
-    testapp_arithmetic.h
     testapp_assert_helper.h
     testapp_audit.cc
     testapp_binprot.cc
     testapp_binprot.h
     testapp_bucket.cc
-    testapp_bucket.h
     testapp_cert_tests.cc
     testapp_client_test.cc
     testapp_cmd_timers.cc
@@ -58,7 +56,6 @@ set(memcached_testapp_SOURCES
     testapp_shutdown.cc
     testapp_ssl_utils.cc
     testapp_stats.cc
-    testapp_stats.h
     testapp_subdoc.cc
     testapp_subdoc_common.cc
     testapp_subdoc_common.h

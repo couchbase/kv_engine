@@ -14,11 +14,11 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include "testapp_client_test.h"
 #include <mcbp/mcbp.h>
 #include <cctype>
 #include <limits>
 #include <thread>
-#include "testapp_arithmetic.h"
 
 /**
  * This test contains tests to verify that we may tune the MCBP SLA

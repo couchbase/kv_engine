@@ -15,10 +15,10 @@
  *   limitations under the License.
  */
 
+#include "testapp_xattr.h"
 #include <cctype>
 #include <limits>
 #include <thread>
-#include "testapp_arithmetic.h"
 
 class ClusterConfigTest : public TestappXattrClientTest {
 protected:

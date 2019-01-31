@@ -14,9 +14,28 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "testapp_stats.h"
 
+#include "testapp_client_test.h"
 #include <gsl/gsl>
+
+class StatsTest : public TestappClientTest {
+public:
+    void SetUp() {
+        TestappClientTest::SetUp();
+        // Let all tests start with an empty set of stats (There is
+        // a special test case that tests that reset actually work)
+        resetBucket();
+    }
+
+protected:
+    void resetBucket() {
+        MemcachedConnection& conn = getConnection();
+        ASSERT_NO_THROW(conn.authenticate("@admin", "password", "PLAIN"));
+        ASSERT_NO_THROW(conn.selectBucket("default"));
+        ASSERT_NO_THROW(conn.stats("reset"));
+        ASSERT_NO_THROW(conn.reconnect());
+    }
+};
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         StatsTest,
