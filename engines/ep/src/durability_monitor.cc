@@ -423,7 +423,7 @@ size_t DurabilityMonitor::getNumTracked(
 
 size_t DurabilityMonitor::getReplicationChainSize(
         const std::lock_guard<std::mutex>& lg) const {
-    return state.firstChain->positions.size();
+    return state.firstChain ? state.firstChain->positions.size() : 0;
 }
 
 DurabilityMonitor::Container::iterator DurabilityMonitor::getNodeNext(

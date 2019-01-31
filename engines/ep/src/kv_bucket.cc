@@ -896,7 +896,9 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
         // Before adding the VB to the map increment the revision
         getRWUnderlying(vbid)->incrementRevision(vbid);
 
-        // If active, update the VB from the bucket's collection state
+        // If active, update the VB from the bucket's collection state.
+        // Note: Must be done /before/ adding the new VBucket to vbMap so that
+        // it has the correct collections state when it is exposed to operations
         if (to == vbucket_state_active) {
             collectionsManager->update(*newvb);
         }
@@ -904,6 +906,18 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
         if (vbMap.addBucket(newvb) == ENGINE_ERANGE) {
             return ENGINE_ERANGE;
         }
+
+        // @todo-durability: Can the following happen?
+        //     For now necessary at least for tests.
+        // Durability: Re-set vb-state for applying the ReplicationChain
+        //     encoded in 'meta'. This is for supporting the case where
+        //     ns_server issues a single set-vb-state call for creating an
+        //     Active VBucket.
+        // Note: Must be done /after/ the new VBucket has been added to vbMap.
+        if (to == vbucket_state_active) {
+            vbMap.setState(newvb, to, meta, vbStateLock);
+        }
+
         // When the VBucket is constructed we initialize
         // persistenceSeqno(0) && persistenceCheckpointId(0)
         newvb->setBucketCreation(true);

@@ -32,6 +32,7 @@ void VBucketDurabilityTest::SetUp() {
     VBucketTest::SetUp();
     ht = &vbucket->ht;
     ckptMgr = vbucket->checkpointManager.get();
+    vbucket->setState(vbucket_state_active);
     // Note: MockDurabilityMonitor is used only for accessing the base
     //     class protected members, it doesn't change the base class layout
     monitor = reinterpret_cast<MockDurabilityMonitor*>(

@@ -237,10 +237,6 @@ VBucket::VBucket(Vbid i,
             persisted_snapshot_end,
             getMaxCas(),
             failovers ? std::to_string(failovers->getLatestUUID()) : "<>");
-
-    // @todo-durability: Register the replication chain via the new
-    // SET_VBUCKET_STATE message instead of here.
-    durabilityMonitor->registerReplicationChain({"active", "replica"});
 }
 
 VBucket::~VBucket() {
@@ -473,6 +469,9 @@ void VBucket::setState_UNLOCKED(vbucket_state_t to,
         // avoid duplication.
         replicationTopology = topology;
     }
+
+    // @todo-durability: Use the given topology in place of hard-coded nodes
+    durabilityMonitor->registerReplicationChain({"active", "replica"});
 }
 
 vbucket_state VBucket::getVBucketState() const {
@@ -905,7 +904,9 @@ VBNotifyCtx VBucket::queueDirty(
     v.setBySeqno(qi->getBySeqno());
     notifyCtx.bySeqno = qi->getBySeqno();
 
-    if (qi->getCommitted() == CommittedState::Pending) {
+    // @todo-durability: Add support DurabilityMonitor at Replica
+    if (getState() == vbucket_state_t::vbucket_state_active &&
+        qi->getCommitted() == CommittedState::Pending) {
         // Register this mutation with the durability monitor.
         const auto cookie = durabilityCtx->cookie;
         auto ret = durabilityMonitor->addSyncWrite(cookie, qi);
