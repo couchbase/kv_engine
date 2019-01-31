@@ -666,13 +666,13 @@ static Frame to_frame(const BinprotCommand& command) {
 }
 
 std::unique_ptr<MemcachedConnection> MemcachedConnection::clone() {
-    auto* result = new MemcachedConnection(
+    auto result = std::make_unique<MemcachedConnection>(
             this->host, this->port, this->family, this->ssl);
     result->setSslCertFile(this->ssl_cert_file);
     result->setSslKeyFile(this->ssl_key_file);
     result->connect();
     result->applyFeatures("", this->effective_features);
-    return std::unique_ptr<MemcachedConnection>{result};
+    return result;
 }
 
 void MemcachedConnection::recvFrame(Frame& frame) {
