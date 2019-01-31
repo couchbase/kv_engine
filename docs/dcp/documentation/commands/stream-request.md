@@ -309,14 +309,6 @@ If the consumer needs to rollback its data before reconnecting.
 
 If the failover log could not be sent to due a failure to allocate memory.
 
-**PROTOCOL_BINARY_RESPONSE_ETEMPFAIL (0x86)**
-
-This error code is returned when the engine cannot complete a request at this 
-time, but in the future it may be able to.
-
-* For instance, if a request is received for vbucket that is still in warm-up, 
-this error code will be returned.
-
 **PROTOCOL_BINARY_RESPONSE_MANIFEST_IS_AHEAD (0x8b)**
 
 The client's manifest `uid` (encoded in the [stream-request value](stream-request-value.md))
