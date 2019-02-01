@@ -7,7 +7,7 @@ add_library(memcached_logger SHARED
             custom_rotating_file_sink.h
             logger_test_fixture.h)
 
-target_link_libraries(memcached_logger cJSON platform dirutils spdlog)
+target_link_libraries(memcached_logger platform dirutils spdlog)
 set_target_properties(memcached_logger PROPERTIES SOVERSION 1.0.0)
 generate_export_header(memcached_logger
                        EXPORT_MACRO_NAME LOGGER_PUBLIC_API

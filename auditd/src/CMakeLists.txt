@@ -7,7 +7,12 @@ add_library(auditd STATIC
             event.cc event.h
             eventdescriptor.cc
             eventdescriptor.h)
-target_link_libraries(auditd memcached_logger mcd_time mcd_util cJSON JSON_checker platform dirutils)
+target_link_libraries(auditd
+                      memcached_logger
+                      mcd_time
+                      mcd_util
+                      platform
+                      dirutils)
 add_dependencies(auditd generate_audit_descriptors)
 
 

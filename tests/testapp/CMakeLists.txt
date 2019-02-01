@@ -3,7 +3,7 @@ include(CouchbaseGoogleTest)
 INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/external)
 
 ADD_EXECUTABLE(generate_test_cbsaslpw generate_test_cbsaslpw.cc)
-TARGET_LINK_LIBRARIES(generate_test_cbsaslpw cbsasl cJSON platform
+TARGET_LINK_LIBRARIES(generate_test_cbsaslpw cbsasl platform
                       ${OPENSSL_LIBRARIES})
 
 add_library(testapp_auth_provider OBJECT auth_provider.h auth_provider.cc)
