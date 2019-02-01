@@ -19,7 +19,6 @@
 
 #include "config.h"
 
-#include "checkpoint_iterator.h"
 #include "checkpoint_types.h"
 #include "ep_types.h"
 #include "item.h"
@@ -62,15 +61,11 @@ const char* to_string(enum checkpoint_state);
 typedef std::list<queued_item, MemoryTrackingAllocator<queued_item>>
         CheckpointQueue;
 
-// Iterator for the Checkpoint queue.  The Iterator is templated on the
-// queue type (CheckpointQueue).
-using ChkptQueueIterator = CheckpointIterator<CheckpointQueue>;
-
 /**
  * A checkpoint index entry.
  */
 struct index_entry {
-    ChkptQueueIterator position;
+    CheckpointQueue::iterator position;
     int64_t mutation_id;
 };
 
@@ -90,7 +85,7 @@ class VBucket;
  * series.
  *
  * CheckpointCursors are similar to STL-style iterators but for Checkpoints.
- * A consumer (DCP or persistence) will have one CheckpointCursor, initially
+ * A consumer (DCP, TAP, persistence) will have one CheckpointCursor, initially
  * positioned at the first item they want. As they read items from the
  * Checkpoint the Cursor is advanced, allowing them to continue from where
  * they left off when they next attempt to read items.
@@ -108,10 +103,16 @@ class CheckpointCursor {
     friend class CheckpointManager;
     friend class Checkpoint;
 public:
+    CheckpointCursor() {
+    }
+
+    CheckpointCursor(const std::string& n)
+        : name(n), currentCheckpoint(), currentPos() {
+    }
 
     CheckpointCursor(const std::string& n,
                      CheckpointList::iterator checkpoint,
-                     ChkptQueueIterator pos)
+                     CheckpointQueue::iterator pos)
         : name(n),
           currentCheckpoint(checkpoint),
           currentPos(pos),
@@ -151,9 +152,7 @@ private:
 
     std::string                      name;
     CheckpointList::iterator currentCheckpoint;
-
-    // Specify the current position in the checkpoint
-    ChkptQueueIterator currentPos;
+    CheckpointQueue::iterator currentPos;
 
     // Number of times a cursor has been moved or processed.
     std::atomic<size_t>              numVisits;
@@ -389,20 +388,28 @@ public:
         snapEndSeqno = seqno;
     }
 
-    /**
-     * Returns an iterator pointing to the beginning of the CheckpointQueue,
-     * toWrite.
-     */
-    ChkptQueueIterator begin() {
-        return ChkptQueueIterator(toWrite, ChkptQueueIterator::Position::begin);
+    CheckpointQueue::iterator begin() {
+        return toWrite.begin();
     }
 
-    /**
-     * Returns an iterator pointing to the 'end' of the CheckpointQueue,
-     * toWrite.
-     */
-    ChkptQueueIterator end() {
-        return ChkptQueueIterator(toWrite, ChkptQueueIterator::Position::end);
+    CheckpointQueue::const_iterator begin() const {
+        return toWrite.begin();
+    }
+
+    CheckpointQueue::iterator end() {
+        return toWrite.end();
+    }
+
+    CheckpointQueue::const_iterator end() const {
+        return toWrite.end();
+    }
+
+    CheckpointQueue::reverse_iterator rbegin() {
+        return toWrite.rbegin();
+    }
+
+    CheckpointQueue::reverse_iterator rend() {
+        return toWrite.rend();
     }
 
     /**

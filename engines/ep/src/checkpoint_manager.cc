@@ -274,7 +274,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
         } else if (startBySeqno <= en) {
             // Requested sequence number lies within this checkpoint.
             // Calculate which item to position the cursor at.
-            ChkptQueueIterator iitr = (*itr)->begin();
+            CheckpointQueue::iterator iitr = (*itr)->begin();
             while (++iitr != (*itr)->end() &&
                     (startBySeqno >=
                      static_cast<uint64_t>((*iitr)->getBySeqno()))) {
@@ -927,7 +927,7 @@ void CheckpointManager::clear(vbucket_state_t vbState) {
 
 bool CheckpointManager::isLastMutationItemInCheckpoint(
                                                    CheckpointCursor &cursor) {
-    ChkptQueueIterator it = cursor.currentPos;
+    CheckpointQueue::iterator it = cursor.currentPos;
     ++it;
     if (it == (*(cursor.currentCheckpoint))->end() ||
         (*it)->getOperation() == queue_op::checkpoint_end) {
