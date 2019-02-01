@@ -110,12 +110,19 @@ protected:
 
     void TearDown() override;
 
-    /*
+    /**
      * Change the vbucket state, and run the VBStatePeristTask (if necessary
      * for this bucket type).
      * On return the state will be changed and the task completed.
+     *
+     * @param vbid
+     * @param newState
+     * @param meta Optional meta information to apply alongside the state
+     *
      */
-    void setVBucketStateAndRunPersistTask(Vbid vbid, vbucket_state_t newState);
+    void setVBucketStateAndRunPersistTask(Vbid vbid,
+                                          vbucket_state_t newState,
+                                          const nlohmann::json& meta = {});
 
     /*
      * Set the stats isShutdown and attempt to drive all tasks to cancel for

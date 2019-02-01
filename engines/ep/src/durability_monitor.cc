@@ -412,15 +412,7 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
 
         if (!state.firstChain) {
             throw std::logic_error(
-                    "DurabilityMonitor::seqnoAckReceived: no chain registered");
-        }
-
-        if (state.trackedWrites.empty()) {
-            throw std::logic_error(
-                    "DurabilityManager::seqnoAckReceived: No tracked "
-                    "SyncWrite, but replica ack'ed {memorySeqno:" +
-                    std::to_string(memorySeqno) +
-                    ", diskSeqno:" + std::to_string(diskSeqno));
+                    "DurabilityMonitor::seqnoAckReceived: FirstChain not set");
         }
 
         processSeqnoAck(lg, replica, Tracking::Memory, memorySeqno, toCommit);

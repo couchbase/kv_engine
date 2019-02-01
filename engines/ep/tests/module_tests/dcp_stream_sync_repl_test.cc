@@ -18,6 +18,7 @@
 #include "checkpoint_manager.h"
 #include "dcp_stream_test.h"
 #include "ep_engine.h"
+#include "kv_bucket.h"
 #include "test_helpers.h"
 #include "vbucket.h"
 #include <engines/ep/tests/mock/mock_dcp.h>
@@ -26,7 +27,16 @@
 /**
  * Test fixture for tests relating to DCP Streams and synchrnous replication.
  */
-class DcpStreamSyncReplTest : public StreamTest {};
+class DcpStreamSyncReplTest : public StreamTest {
+    void SetUp() override {
+        StreamTest::SetUp();
+        // Need a valid replication chain to be able to perform SyncWrites
+        engine->getKVBucket()->setVBucketState(
+                vbid,
+                vbucket_state_active,
+                {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    }
+};
 
 /// Test that a pending SyncWrite is not sent to DCP consumer which doesn't
 /// support sync replication.

@@ -1006,9 +1006,7 @@ ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
             in_memory_seqno,
             on_disk_seqno);
 
-    // @todo-durability: Use the real name of the consumer we are associated
-    // with.
-    return vb->seqnoAcknowledged("replica", in_memory_seqno, on_disk_seqno);
+    return vb->seqnoAcknowledged(consumerName, in_memory_seqno, on_disk_seqno);
 }
 
 bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
