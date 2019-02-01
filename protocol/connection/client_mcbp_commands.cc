@@ -1470,7 +1470,7 @@ BinprotSetControlTokenCommand::BinprotSetControlTokenCommand(uint64_t token_,
                                                              uint64_t oldtoken)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetCtrlToken),
       token(token_) {
-    setCas(htonll(cas));
+    setCas(htonll(oldtoken));
 }
 
 void BinprotSetClusterConfigCommand::encode(std::vector<uint8_t>& buf) const {

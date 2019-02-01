@@ -267,3 +267,13 @@ TEST_P(RegressionTest, MB_32081) {
     conn.recvResponse(rsp);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataString();
 }
+
+/// BinprotSetControlTokenCommand did not use the provided old token,
+/// but always used 0 (override)
+TEST_P(RegressionTest, SetCtrlToken) {
+    auto& conn = getAdminConnection();
+    const auto rsp =
+            conn.execute(BinprotSetControlTokenCommand{32, token - 10});
+    ASSERT_FALSE(rsp.isSuccess());
+    EXPECT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus());
+}
