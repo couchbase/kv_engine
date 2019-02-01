@@ -226,7 +226,7 @@ TEST_F(CollectionsDcpTest, failover_partial_drop) {
     auto mockPassiveStream = dynamic_cast<MockPassiveStream*>(
             consumer->getVbucketStream(vbid).get());
     auto uidFilter = mockPassiveStream->public_createStreamReqValue();
-    ASSERT_EQ("{\"uid\":\"4\"}", uidFilter);
+    ASSERT_EQ("{\"uid\":\"5\"}", uidFilter);
 
     // Now attempt to resume the stream. Setup the producer using the vb
     // manifest uid the consumer has. We should fail with collections
@@ -394,7 +394,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_non_default_scope) {
     EXPECT_EQ(producers->last_key, ScopeEntry::shop1.name);
 
     // MB-32124: check the manifest uid was transferred
-    EXPECT_EQ(88, producers->last_collection_manifest_uid);
+    EXPECT_EQ(89, producers->last_collection_manifest_uid);
 
     cm.add(CollectionEntry::meat, ScopeEntry::shop1);
     vb->updateFromManifest({cm});
@@ -494,8 +494,8 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
               producers->last_system_event);
 
     // And now the new manifest-UID is exposed
-    // The cm will have uid 3 + 1 (for the addition of the default scope)
-    EXPECT_EQ(4, replica->lockCollections().getManifestUid());
+    // The cm will have uid 4 + 1 (for the addition of the default scope)
+    EXPECT_EQ(5, replica->lockCollections().getManifestUid());
 
     // Remove two
     vb->updateFromManifest(
@@ -505,13 +505,13 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
-    EXPECT_EQ(4, replica->lockCollections().getManifestUid());
+    EXPECT_EQ(5, replica->lockCollections().getManifestUid());
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
-    EXPECT_EQ(6, replica->lockCollections().getManifestUid());
+    EXPECT_EQ(7, replica->lockCollections().getManifestUid());
 
     // Add and remove
     vb->updateFromManifest(
@@ -521,13 +521,13 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
-    EXPECT_EQ(6, replica->lockCollections().getManifestUid());
+    EXPECT_EQ(7, replica->lockCollections().getManifestUid());
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
-    EXPECT_EQ(8, replica->lockCollections().getManifestUid());
+    EXPECT_EQ(9, replica->lockCollections().getManifestUid());
 }
 
 // Test that a create/delete don't dedup (collections creates new checkpoints)
@@ -1799,8 +1799,8 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::meat.getId(), producers->last_collection_id);
     EXPECT_EQ(CollectionEntry::meat.name, producers->last_key);
-    // Final change of the update, moves to the new UID of 3
-    EXPECT_EQ(3, producers->last_collection_manifest_uid);
+    // Final change of the update, moves to the new UID of 4
+    EXPECT_EQ(4, producers->last_collection_manifest_uid);
 
     // Not dead yet...
     EXPECT_TRUE(vb0Stream->isActive());
@@ -1819,7 +1819,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
     EXPECT_EQ(CollectionEntry::meat.getId(), producers->last_collection_id);
     // Drop scope triggers 2 changes, the drop collection doesn't expose the
     // new manifest yet.
-    EXPECT_EQ(3, producers->last_collection_manifest_uid);
+    EXPECT_EQ(4, producers->last_collection_manifest_uid);
 
     EXPECT_EQ(
             ENGINE_SUCCESS,
@@ -1833,7 +1833,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
     EXPECT_EQ(mcbp::systemevent::id::DropScope, producers->last_system_event);
     EXPECT_EQ(ScopeEntry::shop1.getId(), producers->last_scope_id);
     // Now we are fully at the new manifest
-    EXPECT_EQ(4, producers->last_collection_manifest_uid);
+    EXPECT_EQ(5, producers->last_collection_manifest_uid);
 
     // Done... collection deletion of meat has closed the stream
     EXPECT_FALSE(vb0Stream->isActive());

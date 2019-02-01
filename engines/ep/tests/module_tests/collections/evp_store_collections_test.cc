@@ -373,19 +373,19 @@ TEST_P(CollectionsParameterizedTest, get_collection_id) {
     // Success cases next
     rv = store->getCollectionID(".");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
-    EXPECT_EQ(2, ntohll(rv.extras.data.manifestId));
+    EXPECT_EQ(3, ntohll(rv.extras.data.manifestId));
     EXPECT_EQ(CollectionEntry::defaultC.getId(),
               rv.extras.data.collectionId.to_host());
 
     rv = store->getCollectionID(".dairy");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
-    EXPECT_EQ(2, ntohll(rv.extras.data.manifestId));
+    EXPECT_EQ(3, ntohll(rv.extras.data.manifestId));
     EXPECT_EQ(CollectionEntry::dairy.getId(),
               rv.extras.data.collectionId.to_host());
 
     rv = store->getCollectionID("_default.dairy");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
-    EXPECT_EQ(2, ntohll(rv.extras.data.manifestId));
+    EXPECT_EQ(3, ntohll(rv.extras.data.manifestId));
     EXPECT_EQ(CollectionEntry::dairy.getId(),
               rv.extras.data.collectionId.to_host());
 }
@@ -777,6 +777,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
     {
         auto vb = store->getVBucket(vbid);
 
+        // add performs a +1 on the manifest uid
         vb->updateFromManifest({cm.add(CollectionEntry::meat)});
 
         // Trigger a flush to disk. Flushes the meat create event
@@ -803,8 +804,8 @@ TEST_F(CollectionsWarmupTest, warmup) {
 
     resetEngineAndWarmup();
 
-    // validate the manifest uid comes back
-    EXPECT_EQ(0xface2,
+    // validate the manifest uid comes back as expected
+    EXPECT_EQ(0xface2 + 1,
               store->getVBucket(vbid)->lockCollections().getManifestUid());
 
     // validate we warmup the item count and high seqno
@@ -943,7 +944,7 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnCreate) {
 
         // Add the meat collection
         CollectionsManifest cm;
-        cm.setUid(0xface2);
+        cm.setUid(0xface2); // cm.add will +1 this uid
         vb->updateFromManifest({cm.add(CollectionEntry::meat)});
 
         flush_vbucket_to_disk(vbid, 1);
@@ -952,7 +953,7 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnCreate) {
     resetEngineAndWarmup();
 
     // validate the manifest uid comes back
-    EXPECT_EQ(0xface2,
+    EXPECT_EQ(0xface2 + 1,
               store->getVBucket(vbid)->lockCollections().getManifestUid());
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().exists(
             CollectionEntry::meat));
@@ -966,7 +967,7 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnDelete) {
 
         // Delete the $default collection
         CollectionsManifest cm;
-        cm.setUid(0xface2);
+        cm.setUid(0xface2); // cm.remove will +1 this uid
         vb->updateFromManifest({cm.remove(CollectionEntry::defaultC)});
 
         flush_vbucket_to_disk(vbid, 1);
@@ -975,7 +976,7 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnDelete) {
     resetEngineAndWarmup();
 
     // validate the manifest uid comes back
-    EXPECT_EQ(0xface2,
+    EXPECT_EQ(0xface2 + 1,
               store->getVBucket(vbid)->lockCollections().getManifestUid());
 }
 

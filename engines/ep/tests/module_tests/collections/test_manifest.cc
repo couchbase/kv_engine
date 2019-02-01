@@ -130,11 +130,11 @@ CollectionsManifest& CollectionsManifest::remove(
 }
 
 void CollectionsManifest::updateUid() {
+    uid++;
+
     std::stringstream ss;
     ss << std::hex << uid;
-
     json["uid"] = ss.str();
-    uid++;
 }
 
 std::string CollectionsManifest::toJson() const {
