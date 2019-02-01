@@ -207,11 +207,7 @@ public:
         return reason == cb::mcbp::Status::E2big;
     }
 
-    std::string getErrorReference() const;
-
     std::string getErrorContext() const;
-
-    std::string getPayload() const;
 
 private:
     const cb::mcbp::Status reason;
@@ -222,10 +218,7 @@ private:
  * Exception thrown when the received response deosn't match our expections.
  */
 struct ValidationError : public std::runtime_error {
-    ValidationError(const char* msg) : std::runtime_error(msg) {
-    }
-
-    ValidationError(const std::string& msg) : std::runtime_error(msg) {
+    explicit ValidationError(const std::string& msg) : std::runtime_error(msg) {
     }
 };
 
@@ -267,7 +260,7 @@ public:
      *               or use AF_UNSPEC to just pick one)
      * @param ssl connect over SSL or not
      */
-    MemcachedConnection(const std::string& host,
+    MemcachedConnection(std::string host,
                         in_port_t port,
                         sa_family_t family,
                         bool ssl);
@@ -290,16 +283,6 @@ public:
         return ssl;
     }
 
-    bool isSynchronous() const {
-        return synchronous;
-    }
-
-    void setSynchronous(bool enable) {
-        if (!enable) {
-            std::runtime_error("MemcachedConnection::setSynchronous: Not implemented");
-        }
-    }
-
     /**
      * Set the SSL Certificate file to use
      *
@@ -320,10 +303,6 @@ public:
      * @thows std::exception if an error occurs
      */
     void connect();
-
-    bool isConnected() const {
-        return sock != INVALID_SOCKET;
-    }
 
     /**
      * Close the connection to the server
@@ -359,7 +338,7 @@ public:
      */
     void createBucket(const std::string& name,
                       const std::string& config,
-                      const BucketType type);
+                      BucketType type);
 
     /**
      * Delete the named bucket
@@ -428,7 +407,7 @@ public:
     /*
      * Form a Frame representing a CMD_GET
      */
-    Frame encodeCmdGet(const std::string& id, Vbid vbucket);
+    static Frame encodeCmdGet(const std::string& id, Vbid vbucket);
 
     MutationInfo mutate(const Document& doc, Vbid vbucket, MutationType type) {
         return mutate(doc.info,
@@ -551,15 +530,6 @@ public:
             ENGINE_ERROR_CODE err_code = ENGINE_EWOULDBLOCK,
             uint32_t value = 0,
             const std::string& key = "");
-
-    /**
-     * Disable the ewouldblock engine entirely.
-     */
-    void disableEwouldBlockEngine() {
-        // We disable the engine by telling it to inject the given error
-        // the next 0 times
-        configureEwouldBlockEngine(EWBEngineMode::Next_N, ENGINE_SUCCESS, 0);
-    }
 
     /**
      * Identify ourself to the server.
@@ -713,10 +683,6 @@ public:
         setFeature(cb::mcbp::Feature::JSON, enable);
     }
 
-    void setDatatypeCompressed(bool enable) {
-        setFeature(cb::mcbp::Feature::SNAPPY, enable);
-    }
-
     void setMutationSeqnoSupport(bool enable) {
         setFeature(cb::mcbp::Feature::MUTATION_SEQNO, enable);
     }
@@ -777,7 +743,6 @@ protected:
                                              frame.payload.size()));
     }
 
-    void sendBuffer(cb::const_byte_buffer& buf);
     void sendBuffer(const std::vector<iovec>& buf);
 
     void sendBufferPlain(cb::const_byte_buffer buf);
@@ -792,10 +757,9 @@ protected:
     bool ssl;
     std::string ssl_cert_file;
     std::string ssl_key_file;
-    SSL_CTX* context;
-    BIO* bio;
-    SOCKET sock;
-    bool synchronous;
+    SSL_CTX* context = nullptr;
+    BIO* bio = nullptr;
+    SOCKET sock = INVALID_SOCKET;
     boost::optional<std::chrono::microseconds> traceData;
 
     typedef std::unordered_set<uint16_t> Featureset;

@@ -1402,7 +1402,7 @@ BinprotSetWithMetaCommand::BinprotSetWithMetaCommand(const Document& doc,
                                                      uint64_t operationCas,
                                                      uint64_t seqno,
                                                      uint32_t options,
-                                                     std::vector<uint8_t> meta)
+                                                     std::vector<uint8_t>& meta)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetWithMeta),
       doc(doc),
       seqno(seqno),

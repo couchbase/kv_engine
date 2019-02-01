@@ -71,25 +71,18 @@ void Document::compress() {
     cb::compression::Buffer buf;
     cb::compression::deflate(cb::compression::Algorithm::Snappy, value, buf);
     value = {buf.data(), buf.size()};
-    info.datatype = cb::mcbp::Datatype(int(info.datatype) |
-                                       int(cb::mcbp::Datatype::Snappy));
+    info.datatype = cb::mcbp::Datatype(uint8_t(info.datatype) |
+                                       uint8_t(cb::mcbp::Datatype::Snappy));
 }
 
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the MemcachedConnection class
 /////////////////////////////////////////////////////////////////////////
-MemcachedConnection::MemcachedConnection(const std::string& host,
+MemcachedConnection::MemcachedConnection(std::string host,
                                          in_port_t port,
                                          sa_family_t family,
                                          bool ssl)
-    : host(host),
-      port(port),
-      family(family),
-      ssl(ssl),
-      context(nullptr),
-      bio(nullptr),
-      sock(INVALID_SOCKET),
-      synchronous(false) {
+    : host(std::move(host)), port(port), family(family), ssl(ssl) {
     if (ssl) {
         char* env = getenv("COUCHBASE_SSL_CLIENT_CERT_PATH");
         if (env != nullptr) {
@@ -366,7 +359,7 @@ void MemcachedConnection::connect() {
         // appear to be happy with having the underlying socket closed
         // immediately; I suspect due to the additional out-of-band
         // messages SSL may send/recv in addition to normal traffic.
-        struct linger sl;
+        struct linger sl {};
         sl.l_onoff = 1;
         sl.l_linger = 0;
         cb::net::setsockopt(sock,
@@ -378,7 +371,7 @@ void MemcachedConnection::connect() {
 }
 
 void MemcachedConnection::sendBufferSsl(cb::const_byte_buffer buf) {
-    const char* data = reinterpret_cast<const char*>(buf.data());
+    const auto* data = reinterpret_cast<const char*>(buf.data());
     cb::const_byte_buffer::size_type nbytes = buf.size();
     cb::const_byte_buffer::size_type offset = 0;
 
@@ -404,7 +397,7 @@ void MemcachedConnection::sendBufferSsl(const std::vector<iovec>& list) {
 }
 
 void MemcachedConnection::sendBufferPlain(cb::const_byte_buffer buf) {
-    const char* data = reinterpret_cast<const char*>(buf.data());
+    const auto* data = reinterpret_cast<const char*>(buf.data());
     cb::const_byte_buffer::size_type nbytes = buf.size();
     cb::const_byte_buffer::size_type offset = 0;
 
@@ -429,8 +422,7 @@ void MemcachedConnection::sendBufferPlain(const std::vector<iovec>& iov) {
     }
 
     // Encode sendmsg() message header.
-    msghdr msg;
-    std::memset(&msg, 0, sizeof(msg));
+    msghdr msg{};
     // sendmsg() doesn't actually change the value of msg_iov; but as
     // it's a C API it doesn't have a const modifier. Therefore need
     // to cast away const.
@@ -531,14 +523,6 @@ void MemcachedConnection::sendFrame(const Frame& frame) {
     if (packet_dump) {
         cb::mcbp::dump(frame.payload.data(), std::cerr);
     }
-}
-
-void MemcachedConnection::sendBuffer(cb::const_byte_buffer& buf) {
-    iovec iov;
-    iov.iov_base = const_cast<uint8_t*>(buf.data());
-    iov.iov_len = buf.size();
-    std::vector<iovec> list(1, iov);
-    sendBuffer(list);
 }
 
 void MemcachedConnection::sendBuffer(const std::vector<iovec>& list) {
@@ -696,7 +680,7 @@ void MemcachedConnection::sendCommand(const BinprotCommand& command) {
     // body.
 
     std::vector<iovec> message;
-    iovec iov;
+    iovec iov{};
     iov.iov_base = encoded.header.data();
     iov.iov_len = encoded.header.size();
     message.push_back(iov);
@@ -767,7 +751,7 @@ void MemcachedConnection::authenticate(const std::string& username,
 
 void MemcachedConnection::createBucket(const std::string& name,
                                        const std::string& config,
-                                       const BucketType type) {
+                                       BucketType type) {
     std::string module;
     switch (type) {
     case BucketType::Memcached:
@@ -814,8 +798,7 @@ void MemcachedConnection::selectBucket(const std::string& name) {
 
     if (!response.isSuccess()) {
         throw ConnectionError(
-                std::string("Select bucket [" + name + "] failed").c_str(),
-                response);
+                std::string{"Select bucket [" + name + "] failed"}, response);
     }
 }
 
@@ -1339,11 +1322,11 @@ void MemcachedConnection::disablePersistence() {
 std::pair<cb::mcbp::Status, GetMetaResponse> MemcachedConnection::getMeta(
         const std::string& key, Vbid vbucket, GetMetaVersion version) {
     BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetMeta, key};
+    cmd.setVBucket(vbucket);
     const std::vector<uint8_t> extras = {uint8_t(version)};
     cmd.setExtras(extras);
-    sendCommand(cmd);
-    BinprotResponse resp;
-    recvResponse(resp);
+
+    auto resp = execute(cmd);
 
     GetMetaResponse meta;
     memcpy(&meta, resp.getPayload(), resp.getBodylen());
@@ -1436,16 +1419,7 @@ ConnectionError::ConnectionError(const std::string& prefix,
       payload(response.getDataString()) {
 }
 
-std::string ConnectionError::getErrorReference() const {
-    const auto decoded = nlohmann::json::parse(payload);
-    return decoded["error"]["ref"];
-}
-
 std::string ConnectionError::getErrorContext() const {
     const auto decoded = nlohmann::json::parse(payload);
     return decoded["error"]["context"];
-}
-
-std::string ConnectionError::getPayload() const {
-    return payload;
 }
