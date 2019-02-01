@@ -68,21 +68,42 @@ struct DurabilityMonitor::ReplicationChain {
      * @param nodes The list of active/replica nodes in the ns_server format:
      *     {active, replica1, replica2, replica3}
      */
-    ReplicationChain(const std::vector<std::string>& nodes,
+    ReplicationChain(const VBucket& vb,
+                     const std::vector<std::string>& nodes,
                      const Container::iterator& it)
-        : majority(nodes.size() / 2 + 1), active(nodes.at(0)) {
+        : vb(vb), majority(nodes.size() / 2 + 1), active(nodes.at(0)) {
         for (const auto& node : nodes) {
-            // This check ensures that there is no duplicate in the given chain
-            if (!positions
-                         .emplace(node,
-                                  NodePosition{Position(it), Position(it)})
-                         .second) {
-                throw std::logic_error(
-                        "ReplicationChain::ReplicationChain: Duplicate node: " +
-                        node);
-            }
+            addNode(node, it);
         }
         Ensures(positions.size() == nodes.size());
+    }
+
+    // @todo-durability: Remove as soon as ns_server sets the topology
+    void addNode(const std::string& node, const Container::iterator& it) {
+        // This check ensures that there is no duplicate in the given chain
+        if (!positions.emplace(node, NodePosition{Position(it), Position(it)})
+                     .second) {
+            throw std::logic_error("ReplicationChain::addNode: (" +
+                                   vb.getId().to_string() +
+                                   ") Duplicate node: " + node);
+        }
+        EP_LOG_INFO("ReplicationChain::addNode: ({}) {}", vb.getId(), node);
+    }
+
+    // @todo-durability: Remove as soon as ns_server sets the topology
+    void removeNode(const std::string& node) {
+        if (positions.find(node) == positions.end()) {
+            throw std::logic_error("ReplicationChain::removeNode: (" +
+                                   vb.getId().to_string() +
+                                   ") Node not found: " + node);
+        }
+        if (auto n = positions.erase(node) != 1) {
+            throw std::logic_error("ReplicationChain::removeNode: (" +
+                                   vb.getId().to_string() + ") Erased " +
+                                   std::to_string(n) + " entries for node " +
+                                   node);
+        }
+        EP_LOG_INFO("ReplicationChain::removeNode: ({}) {}", vb.getId(), node);
     }
 
     size_t getSize() const {
@@ -92,6 +113,10 @@ struct DurabilityMonitor::ReplicationChain {
     // Index of node Positions. The key is the node id.
     // A Position embeds the seqno-state of the tracked node.
     std::unordered_map<std::string, NodePosition> positions;
+
+    // @todo: Remove as soon as we can remove the addNode/removeNode
+    //     functions (i.e., when ns_server sets the topology)
+    const VBucket& vb;
 
     // Majority in the arithmetic definition: num-nodes / 2 + 1
     const uint8_t majority;
@@ -210,6 +235,10 @@ private:
 };
 
 DurabilityMonitor::DurabilityMonitor(VBucket& vb) : vb(vb) {
+    // @todo-durability: Remove as soon as ns_server sets the topology
+    if (vb.getState() == vbucket_state_t::vbucket_state_active) {
+        setReplicationTopology(nlohmann::json::array({{"active"}}));
+    }
 }
 
 DurabilityMonitor::~DurabilityMonitor() = default;
@@ -259,7 +288,20 @@ void DurabilityMonitor::setReplicationTopology(const nlohmann::json& topology) {
     //     kick-in at the first new SyncWrite added to tracking.
     // @todo: Check if the above is legal
     state.firstChain = std::make_unique<ReplicationChain>(
-            firstChain, state.trackedWrites.begin());
+            vb, firstChain, state.trackedWrites.begin());
+}
+
+void DurabilityMonitor::addNodeToReplicationChain(const std::string& node) {
+    std::lock_guard<std::mutex> lg(state.m);
+    Expects(state.firstChain != nullptr);
+    state.firstChain->addNode(node, state.trackedWrites.begin());
+}
+
+void DurabilityMonitor::removeNodeFromReplicationChain(
+        const std::string& node) {
+    std::lock_guard<std::mutex> lg(state.m);
+    Expects(state.firstChain != nullptr);
+    state.firstChain->removeNode(node);
 }
 
 const nlohmann::json& DurabilityMonitor::getReplicationTopology() const {
@@ -347,15 +389,7 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
 
         if (!state.firstChain) {
             throw std::logic_error(
-                    "DurabilityMonitor::seqnoAckReceived: no chain registered");
-        }
-
-        if (state.trackedWrites.empty()) {
-            throw std::logic_error(
-                    "DurabilityManager::seqnoAckReceived: No tracked "
-                    "SyncWrite, but replica ack'ed {memorySeqno:" +
-                    std::to_string(memorySeqno) +
-                    ", diskSeqno:" + std::to_string(diskSeqno));
+                    "DurabilityMonitor::seqnoAckReceived: FirstChain not set");
         }
 
         processSeqnoAck(lg, replica, Tracking::Memory, memorySeqno, toCommit);

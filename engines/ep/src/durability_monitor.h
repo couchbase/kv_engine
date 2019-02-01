@@ -66,6 +66,16 @@ public:
     void setReplicationTopology(const nlohmann::json& topology);
 
     /**
+     * @todo-durability: Remove as soon as ns_server sets the topology
+     */
+    void addNodeToReplicationChain(const std::string& node);
+
+    /**
+     * @todo-durability: Remove as soon as ns_server sets the topology
+     */
+    void removeNodeFromReplicationChain(const std::string& node);
+
+    /**
      * @return the replication topology
      */
     const nlohmann::json& getReplicationTopology() const;

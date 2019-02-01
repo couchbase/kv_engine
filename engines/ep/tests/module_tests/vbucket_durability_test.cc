@@ -32,7 +32,9 @@ void VBucketDurabilityTest::SetUp() {
     VBucketTest::SetUp();
     ht = &vbucket->ht;
     ckptMgr = vbucket->checkpointManager.get();
-    vbucket->setState(vbucket_state_active);
+    vbucket->setState(
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{active, replica}})}});
     // Note: MockDurabilityMonitor is used only for accessing the base
     //     class protected members, it doesn't change the base class layout
     monitor = reinterpret_cast<MockDurabilityMonitor*>(
@@ -291,4 +293,68 @@ TEST_P(VBucketDurabilityTest, SetVBucketState_ClearTopologyAtReplica) {
     ASSERT_FALSE(vbucket->getReplicationTopology().is_null());
     vbucket->setState(vbucket_state_replica);
     ASSERT_TRUE(vbucket->getReplicationTopology().is_null());
+}
+
+TEST_P(VBucketDurabilityTest, MultipleReplicas) {
+    const std::string active = "active";
+    const std::string replica1 = "replica1";
+    const std::string replica2 = "replica2";
+    const std::string replica3 = "replica3";
+
+    vbucket->setState(vbucket_state_active,
+                      {{"topology",
+                        nlohmann::json::array(
+                                {{active, replica1, replica2, replica3}})}});
+
+    ASSERT_EQ(1, storeSyncWrites({1} /*seqnos*/));
+
+    auto key = makeStoredDocKey("key1");
+
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *ckptMgr);
+
+    auto checkPending = [this, &key, &ckptList]() -> void {
+        EXPECT_EQ(nullptr, ht->findForRead(key).storedValue);
+        const auto sv = ht->findForWrite(key).storedValue;
+        EXPECT_NE(nullptr, sv);
+        EXPECT_EQ(CommittedState::Pending, sv->getCommitted());
+        EXPECT_EQ(1, ckptList.size());
+        ASSERT_EQ(1, ckptList.front()->getNumItems());
+        for (const auto& qi : *ckptList.front()) {
+            if (!qi->isCheckPointMetaItem()) {
+                EXPECT_EQ(CommittedState::Pending, qi->getCommitted());
+                EXPECT_EQ(queue_op::pending_sync_write, qi->getOperation());
+            }
+        }
+    };
+
+    auto checkCommitted = [this, &key, &ckptList]() -> void {
+        const auto sv = ht->findForRead(key).storedValue;
+        EXPECT_NE(nullptr, sv);
+        EXPECT_NE(nullptr, ht->findForWrite(key).storedValue);
+        EXPECT_EQ(CommittedState::CommittedViaPrepare, sv->getCommitted());
+        EXPECT_EQ(1, ckptList.size());
+        EXPECT_EQ(1, ckptList.front()->getNumItems());
+        for (const auto& qi : *ckptList.front()) {
+            if (!qi->isCheckPointMetaItem()) {
+                EXPECT_EQ(CommittedState::CommittedViaPrepare,
+                          qi->getCommitted());
+                EXPECT_EQ(queue_op::commit_sync_write, qi->getOperation());
+            }
+        }
+    };
+
+    // No replica has ack'ed yet
+    checkPending();
+
+    // replica2 acks, Durability Requirements not satisfied yet
+    vbucket->seqnoAcknowledged(replica2, 1 /*memSeqno*/, 0 /*diskSeqno*/);
+    checkPending();
+
+    // replica3 acks, Durability Requirements satisfied
+    // Note: ensure 1 Ckpt in CM, easier to inspect the CkptList after Commit
+    ckptMgr->clear(*vbucket, 0 /*lastBySeqno*/);
+    vbucket->seqnoAcknowledged(replica3, 1 /*memSeqno*/, 0 /*diskSeqno*/);
+    checkCommitted();
 }
