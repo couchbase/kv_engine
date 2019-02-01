@@ -667,12 +667,12 @@ void EphemeralVBucket::dropKey(
     // collection.
     StoredValue* v = fetchValidValue(hbl,
                                      key,
-                                     WantsDeleted::No,
+                                     WantsDeleted::Yes,
                                      TrackReference::No,
                                      QueueExpired::No,
                                      cHandle);
 
-    if (v && v->getBySeqno() == bySeqno) {
+    if (v && v->getBySeqno() == bySeqno && !key.getCollectionID().isSystem()) {
         // The found key is the correct one to remove from the HT, we only
         // release but do not free at this point, the staleItem remover will
         // now proceed to erase the element from the seq list and free the SV

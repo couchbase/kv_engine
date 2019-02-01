@@ -15,10 +15,12 @@
  *   limitations under the License.
  */
 
+#include "ephemeral_tombstone_purger.h"
 #include "ephemeral_vb.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
+#include "tests/module_tests/test_helpers.h"
 
 class CollectionsEraserTest : public STParameterizedBucketTest {
 public:
@@ -342,6 +344,116 @@ TEST_P(CollectionsEraserTest, erase_and_reset) {
     vb = store->getVBucket(vbid);
     EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy2));
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
+}
+
+// Small numbers of items for easier debug
+TEST_P(CollectionsEraserTest, basic_deleted_items) {
+    // add a collection
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
+
+    flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+
+    // add some items
+    store_item(
+            vbid, StoredDocKey{"dairy:milk", CollectionEntry::dairy}, "nice");
+    store_item(vbid,
+               StoredDocKey{"dairy:butter", CollectionEntry::dairy},
+               "lovely");
+    delete_item(vbid, StoredDocKey{"dairy:butter", CollectionEntry::dairy});
+
+    flush_vbucket_to_disk(vbid, 2 /* 2 x items */);
+
+    EXPECT_EQ(1, vb->getNumItems());
+
+    // delete the collection
+    vb->updateFromManifest({cm.remove(CollectionEntry::dairy)});
+
+    // @todo MB-26334: persistent buckets don't track the system event counts
+    if (!persistent()) {
+        EXPECT_EQ(1, vb->getNumSystemItems());
+    }
+
+    flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+
+    // Deleted, but still exists in the manifest
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy));
+
+    runCollectionsEraser();
+
+    EXPECT_EQ(0, vb->getNumItems());
+
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
+
+    // @todo MB-26334: persistent buckets don't track the system event counts
+    if (!persistent()) {
+        // The system event still exists as a tombstone and will reside in the
+        // system until tombstone purging removes it.
+        EXPECT_EQ(1, vb->getNumSystemItems());
+    }
+}
+
+// Small numbers of items for easier debug
+TEST_P(CollectionsEraserTest, tombstone_cleaner) {
+    // add a collection
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
+
+    flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+
+    // add some items
+    store_item(
+            vbid, StoredDocKey{"dairy:milk", CollectionEntry::dairy}, "nice");
+    store_item(vbid,
+               StoredDocKey{"dairy:butter", CollectionEntry::dairy},
+               "lovely");
+
+    flush_vbucket_to_disk(vbid, 2 /* 2 x items */);
+
+    EXPECT_EQ(2, vb->getNumItems());
+
+    // delete the collection
+    vb->updateFromManifest({cm.remove(CollectionEntry::dairy)});
+
+    // @todo MB-26334: persistent buckets don't track the system event counts
+    if (!persistent()) {
+        EXPECT_EQ(1, vb->getNumSystemItems());
+    }
+
+    flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+
+    // Deleted, but still exists in the manifest
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy));
+
+    runCollectionsEraser();
+
+    EXPECT_EQ(0, vb->getNumItems());
+
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
+
+    // @todo MB-26334: persistent buckets don't track the system event counts
+    if (!persistent()) {
+        // The system event still exists as a tombstone and will reside in the
+        // system until tombstone purging removes it.
+        EXPECT_EQ(1, vb->getNumSystemItems());
+    }
+
+    // We're gonna have to kick ephemeral a bit to mark the collection tombstone
+    // as stale. Travel forward in time then run the HTTombstonePurger.
+    TimeTraveller c(10000000);
+    if (!persistent()) {
+        EphemeralVBucket::HTTombstonePurger purger(0);
+        auto vbptr = store->getVBucket(vbid);
+        EphemeralVBucket* evb = dynamic_cast<EphemeralVBucket*>(vbptr.get());
+        purger.setCurrentVBucket(*evb);
+        evb->ht.visit(purger);
+    }
+
+    // Now that we've run the tasks, we won't have any system events in the hash
+    // table. The collection drop system event should still exist in the backing
+    // store because it's the last item, but it won't be accounted for in the
+    // NumSystemItems stat that looks at the hash table.
+    EXPECT_EQ(0, vb->getNumSystemItems());
 }
 
 static auto allConfigValues = ::testing::Values(
