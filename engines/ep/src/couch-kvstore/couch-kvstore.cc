@@ -1991,8 +1991,10 @@ static void saveDocsCallback(const DocInfo* oldInfo,
 
         // Set the highest seqno that we are persisting regardless of if it
         // is a mutation or deletion
-        cbCtx->collectionsFlush.setPersistedHighSeqno(makeDocKey(newInfo->id),
-                                                      newInfo->db_seq);
+        cbCtx->collectionsFlush.setPersistedHighSeqno(
+                makeDocKey(newInfo->id),
+                newInfo->db_seq,
+                newInfo->deleted);
     }
 }
 

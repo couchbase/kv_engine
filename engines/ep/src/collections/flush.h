@@ -87,8 +87,14 @@ public:
 
     /**
      * Set the highest seqno that needs to be persisted for this collection
+     *
+     * @param key Key of the document being flushed
+     * @param value New seqno value to set
+     * @param deleted Is this document deleted? If it is, and it is a system
+     *        event, then we should not throw an exception if we cannot find
+     *        the collection we wish to update.
      */
-    void setPersistedHighSeqno(const DocKey& key, uint64_t value);
+    void setPersistedHighSeqno(const DocKey& key, uint64_t value, bool deleted);
 
     /**
      * Check to see if this flush should trigger a collection purge which if

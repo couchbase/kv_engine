@@ -399,8 +399,7 @@ TEST_F(CollectionsTest, PersistingHighSeqno) {
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
 
-    // We don't set the persisted high seqno for system events
-    EXPECT_EQ(0,
+    EXPECT_EQ(1,
               vb->getManifest().lock().getPersistedHighSeqno(
                       CollectionEntry::dairy.getId()));
 
@@ -435,11 +434,20 @@ TEST_F(CollectionsTest, PersistingHighSeqno) {
               vb->getManifest().lock().getPersistedHighSeqno(
                       CollectionEntry::dairy.getId()));
 
-    // Finally, check a deletion
+    // Check a deletion
     item2.setDeleted();
     EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, cookie));
     flush_vbucket_to_disk(vbid, 1);
     EXPECT_EQ(5,
+              vb->getManifest().lock().getPersistedHighSeqno(
+                      CollectionEntry::dairy.getId()));
+
+    // And a drop of the collection
+    cm.remove(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
+    flush_vbucket_to_disk(vbid, 1);
+
+    EXPECT_EQ(6,
               vb->getManifest().lock().getPersistedHighSeqno(
                       CollectionEntry::dairy.getId()));
 }
@@ -453,8 +461,7 @@ TEST_F(CollectionsTest, PersistingHighSeqnoMultipleCollections) {
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
 
-    // We don't set the persisted high seqno for system events
-    EXPECT_EQ(0,
+    EXPECT_EQ(1,
               vb->getManifest().lock().getPersistedHighSeqno(
                       CollectionEntry::dairy.getId()));
 
@@ -475,8 +482,7 @@ TEST_F(CollectionsTest, PersistingHighSeqnoMultipleCollections) {
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
 
-    // We don't set the persisted high seqno for system events
-    EXPECT_EQ(0,
+    EXPECT_EQ(3,
               vb->getManifest().lock().getPersistedHighSeqno(
                       CollectionEntry::meat.getId()));
 
@@ -511,6 +517,20 @@ TEST_F(CollectionsTest, PersistingHighSeqnoMultipleCollections) {
               vb->getManifest().lock().getPersistedHighSeqno(
                       CollectionEntry::dairy.getId()));
     EXPECT_EQ(6,
+              vb->getManifest().lock().getPersistedHighSeqno(
+                      CollectionEntry::meat.getId()));
+
+    // And delete them
+    cm.remove(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
+    cm.remove(CollectionEntry::meat);
+    vb->updateFromManifest({cm});
+    flush_vbucket_to_disk(vbid, 2);
+
+    EXPECT_EQ(7,
+              vb->getManifest().lock().getPersistedHighSeqno(
+                      CollectionEntry::dairy.getId()));
+    EXPECT_EQ(8,
               vb->getManifest().lock().getPersistedHighSeqno(
                       CollectionEntry::meat.getId()));
 }
@@ -920,7 +940,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
         EXPECT_EQ(
                 nitems,
                 vb->lockCollections().getItemCount(CollectionEntry::defaultC));
-        EXPECT_EQ(nitems + 1 /* +1 for collection creation*/,
+        EXPECT_EQ(12 /* 1 collection create + 10 items + 1 collection delete */,
                   vb->lockCollections().getPersistedHighSeqno(
                           CollectionEntry::defaultC));
     } // VBucketPtr scope ends

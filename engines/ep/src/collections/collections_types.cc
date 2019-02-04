@@ -72,21 +72,21 @@ std::string makeScopeIdIntoString(ScopeID sid) {
                        leb128.size());
 }
 
-CollectionID getCollectionIDFromKey(const DocKey& key) {
+CollectionID getCollectionIDFromKey(const DocKey& key, const char* separator) {
     if (!key.getCollectionID().isSystem()) {
         throw std::invalid_argument("getCollectionIDFromKey: non-system key");
     }
     return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
-                   SystemEventFactory::getKeyExtra(key))
+                   SystemEventFactory::getKeyExtra(key, separator))
             .first;
 }
 
-ScopeID getScopeIDFromKey(const DocKey& key) {
+ScopeID getScopeIDFromKey(const DocKey& key, const char* separator) {
     if (!key.getCollectionID().isSystem()) {
         throw std::invalid_argument("getCollectionIDFromKey: non-system key");
     }
     return cb::mcbp::decode_unsigned_leb128<ScopeIDType>(
-                   SystemEventFactory::getKeyExtra(key))
+                   SystemEventFactory::getKeyExtra(key, separator))
             .first;
 }
 

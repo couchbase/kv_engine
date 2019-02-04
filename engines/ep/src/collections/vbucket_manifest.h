@@ -182,6 +182,21 @@ public:
             return manifest->getPersistedHighSeqno(collection);
         }
 
+        /**
+         * Set the persisted high seqno of the given colletion to the given
+         * value
+         *
+         * @param collection The collection to update
+         * @param value The value to update the persisted high seqno to
+         * @param noThrow Should we suppress exceptions if we can't find the
+         *                collection?
+         */
+        void setPersistedHighSeqno(CollectionID collection,
+                uint64_t value,
+                bool noThrow = false) const {
+            manifest->setPersistedHighSeqno(collection, value, noThrow);
+        }
+
         bool addCollectionStats(Vbid vbid,
                                 const void* cookie,
                                 const AddStatFn& add_stat) const {
@@ -984,6 +999,17 @@ protected:
      * @return the highest seqno that has been persisted for this collection
      */
     uint64_t getPersistedHighSeqno(CollectionID collection) const;
+
+    /**
+     * Set the high seqno of the given collection to the given value
+     *
+     * @param collection The collection to update
+     * @param value The value to update the collection persisted high seqno to
+     * @param noThrow Should we suppress exceptions if we cannot find the
+     *                collection?
+     */
+    void setPersistedHighSeqno(CollectionID collection, uint64_t value,
+            bool noThrow = false) const;
 
     container::const_iterator end() const {
         return map.end();

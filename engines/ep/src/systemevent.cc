@@ -81,8 +81,9 @@ const cb::const_byte_buffer::iterator SystemEventFactory::findKeyExtra(
 }
 
 // Reverse what makeKey did so we get 'keyExtra' back
-cb::const_byte_buffer SystemEventFactory::getKeyExtra(const DocKey& key) {
-    const uint8_t* collection = findKeyExtra(key, Collections::SystemSeparator);
+cb::const_byte_buffer SystemEventFactory::getKeyExtra(const DocKey& key,
+                                                      const char* separator) {
+    const uint8_t* collection = findKeyExtra(key, separator);
     if (collection) {
         return {collection,
                 gsl::narrow<uint8_t>(key.size() - (collection - key.data()))};

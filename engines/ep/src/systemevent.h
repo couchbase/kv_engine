@@ -93,11 +93,15 @@ public:
     /**
      * Retrieve the 'keyExtra' from a SystemEvent Item's key created by
      * SystemEventFactory make
+     *
      * @param key the DocKey of the SystemEvent
+     * @param separator the separator between the SystemEvent prefix and the
+     *        key extra
      * @return a byte_buffer which should contain the 'keyExtra' data originally
      *  passed to make
      */
-    static cb::const_byte_buffer getKeyExtra(const DocKey& key);
+    static cb::const_byte_buffer getKeyExtra(const DocKey& key,
+                                             const char* separator);
 
 private:
     static std::string makeKey(SystemEvent se,

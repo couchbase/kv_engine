@@ -975,6 +975,21 @@ uint64_t Manifest::getPersistedHighSeqno(CollectionID collection) const {
     return itr->second.getPersistedHighSeqno();
 }
 
+void Manifest::setPersistedHighSeqno(CollectionID collection,
+                                     uint64_t value,
+                                     bool noThrow) const {
+    auto itr = map.find(collection);
+    if (itr == map.end()) {
+        if (noThrow) {
+            return;
+        }
+        throwException<std::logic_error>(
+                __FUNCTION__,
+                "did not find collection:" + collection.to_string());
+    }
+    itr->second.setPersistedHighSeqno(value);
+}
+
 bool Manifest::addCollectionStats(Vbid vbid,
                                   const void* cookie,
                                   const AddStatFn& add_stat) const {

@@ -311,12 +311,17 @@ std::string makeScopeIdIntoString(ScopeID sid);
  * SystemEvent key
  *
  * @param key DocKey from a SystemEvent
+ * @param separator the separator between the SystemEvent prefix and the
+ *        CollectionID
  * @return the ID which was in the event
  */
-CollectionID getCollectionIDFromKey(const DocKey& key);
+CollectionID getCollectionIDFromKey(
+        const DocKey& key,
+        const char* separator = Collections::SystemSeparator);
 
 /// Same as getCollectionIDFromKey but for events changing scopes
-ScopeID getScopeIDFromKey(const DocKey& key);
+ScopeID getScopeIDFromKey(const DocKey& key,
+                          const char* separator = Collections::SystemSeparator);
 
 namespace VB {
 /**
