@@ -613,8 +613,6 @@ public:
 
     virtual bool isWarmingUp() = 0;
 
-    virtual bool maybeEnableTraffic(void) = 0;
-
     /**
      * Checks the memory consumption.
      * To be used by backfill tasks (DCP).
@@ -713,6 +711,8 @@ public:
     /// Check if there were any out-of-memory errors during warmup
     virtual bool isWarmupOOMFailure(void) = 0;
 
+    virtual bool shouldSetVBStateBlock(const void* cookie) = 0;
+
     virtual size_t getActiveResidentRatio() const = 0;
 
     virtual size_t getReplicaResidentRatio() const = 0;
@@ -758,12 +758,6 @@ public:
     virtual bool isGetAllKeysSupported() const = 0;
 
 protected:
-
-    // Methods called during warmup
-    virtual std::vector<vbucket_state *> loadVBucketState() = 0;
-
-    virtual void warmupCompleted() = 0;
-    virtual void stopWarmup(void) = 0;
 
     /**
      * Get metadata and value for a given key

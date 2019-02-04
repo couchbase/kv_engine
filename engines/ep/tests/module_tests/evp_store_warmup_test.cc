@@ -26,44 +26,7 @@
 #include "test_helpers.h"
 #include "warmup.h"
 
-class WarmupTest : public SingleThreadedKVBucketTest {
-public:
-
-    void resetEngineAndWarmup(std::string new_config = "") {
-        resetEngineAndEnableWarmup(new_config);
-        // Now get the engine warmed up
-        runReadersUntilWarmedUp();
-    }
-
-    /**
-     * Destroy engine and replace it with a new engine that can be warmed up.
-     * Finally, run warmup.
-     */
-    void resetEngineAndEnableWarmup(std::string new_config = "") {
-        shutdownAndPurgeTasks(engine.get());
-        std::string config = config_string;
-
-        // check if warmup=false needs replacing with warmup=true
-        size_t pos;
-        std::string warmupT = "warmup=true";
-        std::string warmupF = "warmup=false";
-        if ((pos = config.find(warmupF)) != std::string::npos) {
-            config.replace(pos, warmupF.size(), warmupT);
-        } else {
-            config += warmupT;
-        }
-
-        if (new_config.length() > 0) {
-            config += ";";
-            config += new_config;
-        }
-
-        reinitialise(config);
-
-        engine->getKVBucket()->initializeWarmupTask();
-        engine->getKVBucket()->startWarmupTask();
-    }
-};
+class WarmupTest : public SingleThreadedKVBucketTest {};
 
 // Test that the FreqSaturatedCallback of a vbucket is initialized and after
 // warmup is set to the "wakeup" function of ItemFreqDecayerTask.
@@ -427,8 +390,13 @@ TEST_F(WarmupTest, MB_32577) {
 
     // reinitialise memcached and set everything up for warm up
     reinitialise("");
-    store->initializeWarmupTask();
-    store->startWarmupTask();
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        static_cast<EPBucket*>(engine->getKVBucket())->initializeWarmupTask();
+        static_cast<EPBucket*>(engine->getKVBucket())->startWarmupTask();
+    } else {
+        FAIL() << "Should not reach here - persistent buckets only. type:"
+               << engine->getConfiguration().getBucketType();
+    }
 
     // get hold of a pointer to the WarmUp object
     auto* warmupPtr = store->getWarmup();

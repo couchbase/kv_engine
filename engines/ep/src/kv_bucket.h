@@ -93,17 +93,6 @@ public:
 
     void deinitialize() override;
 
-    /**
-     * Creates a warmup task if the engine configuration has "warmup=true"
-     */
-    void initializeWarmupTask();
-
-    /**
-     * Starts the warmup task if one is present
-     */
-    void startWarmupTask();
-
-
     ENGINE_ERROR_CODE set(Item& item,
                           const void* cookie,
                           cb::StoreIfPredicate predicate = {}) override;
@@ -500,20 +489,6 @@ public:
         cachedResidentRatio.replicaRatio.store(replicaPerc);
     }
 
-    bool isWarmingUp() override;
-
-    /**
-     * Method checks with Warmup if a setVBState should block.
-     * On returning true, Warmup will have saved the cookie ready for
-     * IO notify complete.
-     * If there's no Warmup returns false
-     * @param cookie the callers cookie for later notification.
-     * @return true if setVBState should return EWOULDBLOCK
-     */
-    bool shouldSetVBStateBlock(const void* cookie);
-
-    bool maybeEnableTraffic() override;
-
     bool isMemoryUsageTooHigh() override;
 
     /**
@@ -581,7 +556,19 @@ public:
         return expiryPager.enabled;
     }
 
+    bool isWarmingUp() override;
+
     bool isWarmupOOMFailure() override;
+
+    /**
+     * Method checks with Warmup if a setVBState should block.
+     * On returning true, Warmup will have saved the cookie ready for
+     * IO notify complete.
+     * If there's no Warmup returns false
+     * @param cookie the callers cookie for later notification.
+     * @return true if setVBState should return EWOULDBLOCK
+     */
+    bool shouldSetVBStateBlock(const void* cookie) override;
 
     size_t getActiveResidentRatio() const override;
 
@@ -671,15 +658,6 @@ public:
     void setMaxTtl(size_t max);
 
 protected:
-    // During the warmup phase we might want to enable external traffic
-    // at a given point in time.. The LoadStorageKvPairCallback will be
-    // triggered whenever we want to check if we could enable traffic..
-    friend class LoadStorageKVPairCallback;
-
-    std::vector<vbucket_state *> loadVBucketState() override;
-
-    void warmupCompleted() override;
-    void stopWarmup() override;
 
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,
@@ -733,7 +711,6 @@ protected:
 
     EventuallyPersistentEngine     &engine;
     EPStats                        &stats;
-    std::unique_ptr<Warmup> warmupTask;
     VBucketMap                      vbMap;
     ExTask itemPagerTask;
     ExTask                          chkTask;

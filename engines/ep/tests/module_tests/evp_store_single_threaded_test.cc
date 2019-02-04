@@ -149,7 +149,8 @@ void SingleThreadedKVBucketTest::runReadersUntilWarmedUp() {
  * Destroy engine and replace it with a new engine that can be warmed up.
  * Finally, run warmup.
  */
-void SingleThreadedKVBucketTest::resetEngineAndWarmup(std::string new_config) {
+void SingleThreadedKVBucketTest::resetEngineAndEnableWarmup(
+        std::string new_config) {
     shutdownAndPurgeTasks(engine.get());
     std::string config = config_string;
 
@@ -169,9 +170,18 @@ void SingleThreadedKVBucketTest::resetEngineAndWarmup(std::string new_config) {
     }
 
     reinitialise(config);
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        static_cast<EPBucket*>(engine->getKVBucket())->initializeWarmupTask();
+        static_cast<EPBucket*>(engine->getKVBucket())->startWarmupTask();
+    }
+}
 
-    engine->getKVBucket()->initializeWarmupTask();
-    engine->getKVBucket()->startWarmupTask();
+/**
+ * Destroy engine and replace it with a new engine that can be warmed up.
+ * Finally, run warmup.
+ */
+void SingleThreadedKVBucketTest::resetEngineAndWarmup(std::string new_config) {
+    resetEngineAndEnableWarmup(new_config);
 
     // Now get the engine warmed up
     runReadersUntilWarmedUp();

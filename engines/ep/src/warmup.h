@@ -37,7 +37,7 @@
 
 class Configuration;
 class EPStats;
-class KVBucket;
+class EPBucket;
 class MutationLog;
 class VBucketMap;
 
@@ -89,7 +89,7 @@ private:
  */
 class LoadStorageKVPairCallback : public StatusCallback<GetValue> {
 public:
-    LoadStorageKVPairCallback(KVBucket& ep,
+    LoadStorageKVPairCallback(EPBucket& ep,
                               bool maybeEnableTraffic,
                               WarmupState::State warmupState);
 
@@ -102,7 +102,7 @@ private:
 
     VBucketMap &vbuckets;
     EPStats    &stats;
-    KVBucket& epstore;
+    EPBucket& epstore;
     time_t      startTime;
     bool        hasPurged;
     bool        maybeEnableTraffic;
@@ -125,7 +125,7 @@ private:
 
 class Warmup {
 public:
-    Warmup(KVBucket& st, Configuration& config);
+    Warmup(EPBucket& st, Configuration& config);
 
     void addToTaskSet(size_t taskId);
     void removeFromTaskSet(size_t taskId);
@@ -230,7 +230,7 @@ private:
 
     WarmupState state;
 
-    KVBucket& store;
+    EPBucket& store;
     Configuration& config;
 
     // Unordered set to hold the current executing tasks

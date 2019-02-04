@@ -62,7 +62,6 @@
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucketdeletiontask.h"
-#include "warmup.h"
 
 class StatsValueChangeListener : public ValueChangedListener {
 public:
@@ -139,10 +138,6 @@ public:
             store.setCompactionWriteQueueCap(value);
         } else if (key.compare("exp_pager_stime") == 0) {
             store.setExpiryPagerSleeptime(value);
-        } else if (key.compare("alog_sleep_time") == 0) {
-            store.setAccessScannerSleeptime(value, false);
-        } else if (key.compare("alog_task_time") == 0) {
-            store.resetAccessScannerStartTime();
         } else if (key.compare("mutation_mem_threshold") == 0) {
             double mem_threshold = static_cast<double>(value) / 100;
             VBucket::setMutationMemoryThreshold(mem_threshold);
@@ -169,13 +164,7 @@ public:
     }
 
     virtual void booleanValueChanged(const std::string &key, bool value) {
-        if (key.compare("access_scanner_enabled") == 0) {
-            if (value) {
-                store.enableAccessScannerTask();
-            } else {
-                store.disableAccessScannerTask();
-            }
-        } else if (key.compare("bfilter_enabled") == 0) {
+        if (key.compare("bfilter_enabled") == 0) {
             store.setAllBloomFilters(value);
         } else if (key.compare("exp_pager_enabled") == 0) {
             if (value) {
@@ -384,8 +373,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     // up to the specific KVBucket subclasses.
     itemPagerTask = std::make_shared<ItemPager>(engine, stats);
     disableItemPager();
-
-    initializeWarmupTask();
 }
 
 bool KVBucket::initialize() {
@@ -394,8 +381,6 @@ bool KVBucket::initialize() {
     if (!config.isWarmup()) {
         reset();
     }
-
-    startWarmupTask();
 
     initializeExpiryPager(config);
 
@@ -435,22 +420,7 @@ bool KVBucket::initialize() {
     return true;
 }
 
-void KVBucket::initializeWarmupTask() {
-    if (engine.getConfiguration().isWarmup()) {
-        warmupTask = std::make_unique<Warmup>(*this, engine.getConfiguration());
-    }
-}
-void KVBucket::startWarmupTask() {
-    if (warmupTask) {
-        warmupTask->start();
-    } else {
-        // No warmup, immediately online the bucket.
-        warmupCompleted();
-    }
-}
-
 void KVBucket::deinitialize() {
-    stopWarmup();
     ExecutorPool::get()->stopTaskGroup(engine.getTaskable().getGID(),
                                        NONIO_TASK_IDX, stats.forceShutdown);
 
@@ -481,7 +451,7 @@ const Flusher* KVBucket::getFlusher(uint16_t shardId) {
 }
 
 Warmup* KVBucket::getWarmup(void) const {
-    return warmupTask.get();
+    return nullptr;
 }
 
 bool KVBucket::pauseFlusher() {
@@ -1855,133 +1825,16 @@ void KVBucket::setDeleteAllComplete() {
     diskDeleteAll.compare_exchange_strong(inverse, false);
 }
 
-std::vector<vbucket_state *> KVBucket::loadVBucketState()
-{
-    return getOneROUnderlying()->listPersistedVbuckets();
-}
-
-void KVBucket::warmupCompleted() {
-    // Snapshot VBucket state after warmup to ensure Failover table is
-    // persisted.
-    scheduleVBStatePersist();
-
-    if (engine.getConfiguration().getAlogPath().length() > 0) {
-
-        if (engine.getConfiguration().isAccessScannerEnabled()) {
-            {
-                LockHolder lh(accessScanner.mutex);
-                accessScanner.enabled = true;
-            }
-            EP_LOG_INFO("Access Scanner task enabled");
-            size_t smin = engine.getConfiguration().getAlogSleepTime();
-            setAccessScannerSleeptime(smin, true);
-        } else {
-            LockHolder lh(accessScanner.mutex);
-            accessScanner.enabled = false;
-            EP_LOG_INFO("Access Scanner task disabled");
-        }
-
-        Configuration &config = engine.getConfiguration();
-        config.addValueChangedListener(
-                "access_scanner_enabled",
-                std::make_unique<EPStoreValueChangeListener>(*this));
-        config.addValueChangedListener(
-                "alog_sleep_time",
-                std::make_unique<EPStoreValueChangeListener>(*this));
-        config.addValueChangedListener(
-                "alog_task_time",
-                std::make_unique<EPStoreValueChangeListener>(*this));
-    }
-
-    // "0" sleep_time means that the first snapshot task will be executed
-    // right after warmup. Subsequent snapshot tasks will be scheduled every
-    // 60 sec by default.
-    ExecutorPool *iom = ExecutorPool::get();
-    ExTask task = std::make_shared<StatSnap>(&engine, 0, false);
-    statsSnapshotTaskId = iom->schedule(task);
-}
-
-bool KVBucket::maybeEnableTraffic()
-{
-    // @todo rename.. skal vaere isTrafficDisabled elns
-    double memoryUsed =
-            static_cast<double>(stats.getEstimatedTotalMemoryUsed());
-    double maxSize = static_cast<double>(stats.getMaxDataSize());
-
-    if (memoryUsed  >= stats.mem_low_wat) {
-        EP_LOG_INFO(
-                "Total memory use reached to the low water mark, stop warmup"
-                ": memoryUsed ({}) >= low water mark ({})",
-                memoryUsed,
-                uint64_t(stats.mem_low_wat.load()));
-        return true;
-    } else if (memoryUsed > (maxSize * stats.warmupMemUsedCap)) {
-        EP_LOG_INFO(
-                "Enough MB of data loaded to enable traffic"
-                ": memoryUsed ({}) > (maxSize({}) * warmupMemUsedCap({}))",
-                memoryUsed,
-                maxSize,
-                stats.warmupMemUsedCap.load());
-        return true;
-    } else if (eviction_policy == VALUE_ONLY &&
-               stats.warmedUpValues >=
-                               (stats.warmedUpKeys * stats.warmupNumReadCap)) {
-        // Let ep-engine think we're done with the warmup phase
-        // (we should refactor this into "enableTraffic")
-        EP_LOG_INFO(
-                "Enough number of items loaded to enable traffic (value "
-                "eviction)"
-                ": warmedUpValues({}) >= (warmedUpKeys({}) * "
-                "warmupNumReadCap({}))",
-                uint64_t(stats.warmedUpValues.load()),
-                uint64_t(stats.warmedUpKeys.load()),
-                stats.warmupNumReadCap.load());
-        return true;
-    } else if (eviction_policy == FULL_EVICTION &&
-               stats.warmedUpValues >=
-                            (warmupTask->getEstimatedItemCount() *
-                             stats.warmupNumReadCap)) {
-        // In case of FULL EVICTION, warmed up keys always matches the number
-        // of warmed up values, therefore for honoring the min_item threshold
-        // in this scenario, we can consider warmup's estimated item count.
-        EP_LOG_INFO(
-                "Enough number of items loaded to enable traffic (full "
-                "eviction)"
-                ": warmedUpValues({}) >= (warmup est items({}) * "
-                "warmupNumReadCap({}))",
-                uint64_t(stats.warmedUpValues.load()),
-                uint64_t(warmupTask->getEstimatedItemCount()),
-                stats.warmupNumReadCap.load());
-        return true;
-    }
-    return false;
-}
-
 bool KVBucket::isWarmingUp() {
-    return warmupTask && !warmupTask->isComplete();
-}
-
-bool KVBucket::shouldSetVBStateBlock(const void* cookie) {
-    if (warmupTask) {
-        return warmupTask->shouldSetVBStateBlock(cookie);
-    }
     return false;
 }
 
 bool KVBucket::isWarmupOOMFailure() {
-    return warmupTask && warmupTask->hasOOMFailure();
+    return false;
 }
 
-void KVBucket::stopWarmup(void)
-{
-    // forcefully stop current warmup task
-    if (isWarmingUp()) {
-        EP_LOG_INFO(
-                "Stopping warmup while engine is loading "
-                "data from underlying storage, shutdown = {}",
-                stats.isShutdown ? "yes" : "no");
-        warmupTask->stop();
-    }
+bool KVBucket::shouldSetVBStateBlock(const void* cookie) {
+    return false;
 }
 
 bool KVBucket::isMemoryUsageTooHigh() {

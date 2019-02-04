@@ -133,6 +133,11 @@ protected:
 
     /**
      * Destroy engine and replace it with a new engine that can be warmed up.
+     */
+    void resetEngineAndEnableWarmup(std::string new_config = "");
+
+    /**
+     * Destroy engine and replace it with a new engine that can be warmed up.
      * Finally, run warmup.
      */
     void resetEngineAndWarmup(std::string new_config = "");

@@ -22,10 +22,10 @@
 #include "collections/collection_persisted_stats.h"
 #include "common.h"
 #include "connmap.h"
+#include "ep_bucket.h"
 #include "ep_engine.h"
 #include "ep_vb.h"
 #include "failover-table.h"
-#include "kv_bucket.h"
 #include "mutation_log.h"
 #include "statwriter.h"
 #include "vb_visitors.h"
@@ -41,17 +41,17 @@
 #include <utility>
 
 struct WarmupCookie {
-    WarmupCookie(KVBucket* s, StatusCallback<GetValue>& c)
+    WarmupCookie(EPBucket* s, StatusCallback<GetValue>& c)
         : cb(c), epstore(s), loaded(0), skipped(0), error(0) { /* EMPTY */
     }
     StatusCallback<GetValue>& cb;
-    KVBucket* epstore;
+    EPBucket* epstore;
     size_t loaded;
     size_t skipped;
     size_t error;
 };
 
-void logWarmupStats(KVBucket& epstore) {
+void logWarmupStats(EPBucket& epstore) {
     EPStats& stats = epstore.getEPEngine().getEpStats();
     std::chrono::duration<double, std::chrono::seconds::period> seconds =
             epstore.getWarmup()->getTime();
@@ -74,9 +74,9 @@ void logWarmupStats(KVBucket& epstore) {
 
 class WarmupInitialize : public GlobalTask {
 public:
-    WarmupInitialize(KVBucket& st, Warmup* w) :
-        GlobalTask(&st.getEPEngine(), TaskId::WarmupInitialize, 0, false),
-        _warmup(w) {
+    WarmupInitialize(EPBucket& st, Warmup* w)
+        : GlobalTask(&st.getEPEngine(), TaskId::WarmupInitialize, 0, false),
+          _warmup(w) {
         _warmup->addToTaskSet(uid);
     }
 
@@ -102,7 +102,7 @@ private:
 
 class WarmupCreateVBuckets : public GlobalTask {
 public:
-    WarmupCreateVBuckets(KVBucket& st, uint16_t sh, Warmup* w)
+    WarmupCreateVBuckets(EPBucket& st, uint16_t sh, Warmup* w)
         : GlobalTask(&st.getEPEngine(), TaskId::WarmupCreateVBuckets, 0, false),
           _shardId(sh),
           _warmup(w),
@@ -135,7 +135,7 @@ private:
 
 class WarmupEstimateDatabaseItemCount : public GlobalTask {
 public:
-    WarmupEstimateDatabaseItemCount(KVBucket& st, uint16_t sh, Warmup* w)
+    WarmupEstimateDatabaseItemCount(EPBucket& st, uint16_t sh, Warmup* w)
         : GlobalTask(&st.getEPEngine(),
                      TaskId::WarmupEstimateDatabaseItemCount,
                      0,
@@ -172,7 +172,7 @@ private:
 
 class WarmupKeyDump : public GlobalTask {
 public:
-    WarmupKeyDump(KVBucket& st, uint16_t sh, Warmup* w)
+    WarmupKeyDump(EPBucket& st, uint16_t sh, Warmup* w)
         : GlobalTask(&st.getEPEngine(), TaskId::WarmupKeyDump, 0, false),
           _shardId(sh),
           _warmup(w),
@@ -207,10 +207,10 @@ private:
 
 class WarmupCheckforAccessLog : public GlobalTask {
 public:
-    WarmupCheckforAccessLog(KVBucket& st, Warmup* w) :
-        GlobalTask(&st.getEPEngine(), TaskId::WarmupCheckforAccessLog, 0,
-                   false),
-        _warmup(w) {
+    WarmupCheckforAccessLog(EPBucket& st, Warmup* w)
+        : GlobalTask(
+                  &st.getEPEngine(), TaskId::WarmupCheckforAccessLog, 0, false),
+          _warmup(w) {
         _warmup->addToTaskSet(uid);
     }
 
@@ -238,7 +238,7 @@ private:
 
 class WarmupLoadAccessLog : public GlobalTask {
 public:
-    WarmupLoadAccessLog(KVBucket& st, uint16_t sh, Warmup* w)
+    WarmupLoadAccessLog(EPBucket& st, uint16_t sh, Warmup* w)
         : GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadAccessLog, 0, false),
           _shardId(sh),
           _warmup(w),
@@ -274,7 +274,7 @@ private:
 
 class WarmupLoadingKVPairs : public GlobalTask {
 public:
-    WarmupLoadingKVPairs(KVBucket& st, uint16_t sh, Warmup* w)
+    WarmupLoadingKVPairs(EPBucket& st, uint16_t sh, Warmup* w)
         : GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadingKVPairs, 0, false),
           _shardId(sh),
           _warmup(w),
@@ -311,12 +311,12 @@ private:
 
 class WarmupLoadingData : public GlobalTask {
 public:
-    WarmupLoadingData(KVBucket& st, uint16_t sh, Warmup* w) :
-        GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadingData, 0, false),
-        _shardId(sh),
-        _warmup(w),
-        _description("Warmup - loading data: shard " +
-                     std::to_string(_shardId)) {
+    WarmupLoadingData(EPBucket& st, uint16_t sh, Warmup* w)
+        : GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadingData, 0, false),
+          _shardId(sh),
+          _warmup(w),
+          _description("Warmup - loading data: shard " +
+                       std::to_string(_shardId)) {
         _warmup->addToTaskSet(uid);
     }
 
@@ -348,7 +348,7 @@ private:
 
 class WarmupLoadingCollectionCounts : public GlobalTask {
 public:
-    WarmupLoadingCollectionCounts(KVBucket& st, uint16_t sh, Warmup& w)
+    WarmupLoadingCollectionCounts(EPBucket& st, uint16_t sh, Warmup& w)
         : GlobalTask(&st.getEPEngine(),
                      TaskId::WarmupLoadingCollectionCounts,
                      0,
@@ -383,9 +383,9 @@ private:
 
 class WarmupCompletion : public GlobalTask {
 public:
-    WarmupCompletion(KVBucket& st, Warmup* w) :
-        GlobalTask(&st.getEPEngine(), TaskId::WarmupCompletion, 0, false),
-        _warmup(w) {
+    WarmupCompletion(EPBucket& st, Warmup* w)
+        : GlobalTask(&st.getEPEngine(), TaskId::WarmupCompletion, 0, false),
+          _warmup(w) {
         _warmup->addToTaskSet(uid);
     }
 
@@ -550,7 +550,7 @@ std::ostream& operator <<(std::ostream &out, const WarmupState &state)
 }
 
 LoadStorageKVPairCallback::LoadStorageKVPairCallback(
-        KVBucket& ep, bool maybeEnableTraffic, WarmupState::State warmupState)
+        EPBucket& ep, bool maybeEnableTraffic, WarmupState::State warmupState)
     : vbuckets(ep.vbMap),
       stats(ep.getEPEngine().getEpStats()),
       epstore(ep),
@@ -687,8 +687,8 @@ void LoadStorageKVPairCallback::purge() {
     class EmergencyPurgeVisitor : public VBucketVisitor,
                                   public HashTableVisitor {
     public:
-        EmergencyPurgeVisitor(KVBucket& store) :
-            epstore(store) {}
+        EmergencyPurgeVisitor(EPBucket& store) : epstore(store) {
+        }
 
         void visitBucket(VBucketPtr &vb) override {
             if (vBucketFilter(vb->getId())) {
@@ -706,7 +706,7 @@ void LoadStorageKVPairCallback::purge() {
         }
 
     private:
-        KVBucket& epstore;
+        EPBucket& epstore;
         VBucketPtr currentBucket;
     };
 
@@ -744,7 +744,7 @@ void LoadValueCallback::callback(CacheLookup &lookup)
 //                                                                          //
 //////////////////////////////////////////////////////////////////////////////
 
-Warmup::Warmup(KVBucket& st, Configuration& config_)
+Warmup::Warmup(EPBucket& st, Configuration& config_)
     : state(),
       store(st),
       config(config_),
@@ -902,7 +902,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
                         entry.vb_uuid,
                         entry.by_seqno);
             }
-            KVBucket* bucket = &this->store;
+            EPBucket* bucket = &this->store;
             vb->setFreqSaturatedCallback(
                     [bucket]() { bucket->wakeItemFreqDecayerTask(); });
 

@@ -32,6 +32,8 @@ class EPBucket : public KVBucket {
 public:
     EPBucket(EventuallyPersistentEngine& theEngine);
 
+    ~EPBucket() override;
+
     bool initialize() override;
 
     void deinitialize() override;
@@ -147,7 +149,42 @@ public:
         return retainErroneousTombstones.load();
     }
 
+    Warmup* getWarmup(void) const override;
+
+    bool isWarmingUp() override;
+
+    bool isWarmupOOMFailure() override;
+
+    /**
+     * Method checks with Warmup if a setVBState should block.
+     * On returning true, Warmup will have saved the cookie ready for
+     * IO notify complete.
+     * If there's no Warmup returns false
+     * @param cookie the callers cookie for later notification.
+     * @return true if setVBState should return EWOULDBLOCK
+     */
+    bool shouldSetVBStateBlock(const void* cookie) override;
+
+    /**
+     * Creates a warmup task if the engine configuration has "warmup=true"
+     */
+    void initializeWarmupTask();
+
+    /**
+     * Starts the warmup task if one is present
+     */
+    void startWarmupTask();
+
+    bool maybeEnableTraffic();
+
+    void warmupCompleted();
+
 protected:
+    // During the warmup phase we might want to enable external traffic
+    // at a given point in time.. The LoadStorageKvPairCallback will be
+    // triggered whenever we want to check if we could enable traffic..
+    friend class LoadStorageKVPairCallback;
+
     class ValueChangedListener;
 
     void flushOneDeleteAll();
@@ -169,6 +206,8 @@ protected:
      */
     void updateCompactionTasks(Vbid db_file_id);
 
+    void stopWarmup();
+
     /**
      * Max number of backill items in a single flusher batch before we split
      * into multiple batches.
@@ -180,4 +219,6 @@ protected:
      * compaction
      */
     Couchbase::RelaxedAtomic<bool> retainErroneousTombstones;
+
+    std::unique_ptr<Warmup> warmupTask;
 };
