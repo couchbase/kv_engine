@@ -2662,7 +2662,7 @@ TEST_F(SingleThreadedStreamTest, MB31410) {
     ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
 }
 
-TEST_F(SingleThreadedStreamTest, Durability_MemorySeqnoAckAtSnapshotEnd) {
+TEST_F(SingleThreadedStreamTest, Durability_MemorySeqnoAckAtSyncWriteReceived) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
     auto consumer =
@@ -2681,7 +2681,7 @@ TEST_F(SingleThreadedStreamTest, Durability_MemorySeqnoAckAtSnapshotEnd) {
     ASSERT_EQ(DcpResponse::Event::StreamReq, readyQ.front()->getEvent());
     ASSERT_TRUE(passiveStream->public_popFromReadyQ());
 
-    const uint64_t snapEnd = 4;
+    const uint64_t snapEnd = 3;
 
     // The consumer receives the snapshot-marker
     SnapshotMarker snapshotMarker(opaque,
@@ -2691,51 +2691,49 @@ TEST_F(SingleThreadedStreamTest, Durability_MemorySeqnoAckAtSnapshotEnd) {
                                   dcp_marker_flag_t::MARKER_FLAG_MEMORY,
                                   {});
     passiveStream->processMarker(&snapshotMarker);
-
-    EXPECT_FALSE(passiveStream->public_isSnapshotPrepare());
     EXPECT_EQ(0, readyQ.size());
 
-    // The consumer receives mutations {s:1, s:2, s:3, s:4}, with only s:2
-    // durable. We have to check that we do send a SeqnoAck, but only at
-    // snapshot-end.
+    // The consumer receives mutations {s:1, s:2, s:3}, with only s:2
+    // durable. We have to check that we send a SeqnoAck as soon as the
+    // replica receives a SyncWrite and that no further SeqnoAck is sent at
+    // receiving the snapshot-end mutation.
 
     const std::string value("value");
 
     ASSERT_EQ(ENGINE_SUCCESS,
               passiveStream->messageReceived(makeMutationConsumerMessage(
                       1 /*seqno*/, vbid, value, opaque)));
-    EXPECT_FALSE(passiveStream->public_isSnapshotPrepare());
     EXPECT_EQ(0, readyQ.size());
+
+    const uint64_t syncWriteSeqno = 2;
+
+    auto checkReadyQ = [&readyQ, syncWriteSeqno]() -> void {
+        EXPECT_EQ(1, readyQ.size());
+        ASSERT_EQ(1, readyQ.size());
+        ASSERT_EQ(DcpResponse::Event::SeqnoAcknowledgement,
+                  readyQ.front()->getEvent());
+        const auto* seqnoAck =
+                static_cast<const SeqnoAcknowledgement*>(readyQ.front().get());
+        EXPECT_EQ(ntohll(syncWriteSeqno), seqnoAck->getInMemorySeqno());
+        EXPECT_EQ(0, seqnoAck->getOnDiskSeqno());
+    };
 
     ASSERT_EQ(ENGINE_SUCCESS,
               passiveStream->messageReceived(makeMutationConsumerMessage(
-                      2 /*seqno*/,
+                      syncWriteSeqno,
                       vbid,
                       value,
                       opaque,
                       cb::durability::Requirements())));
-    EXPECT_TRUE(passiveStream->public_isSnapshotPrepare());
-    EXPECT_EQ(0, readyQ.size());
-
-    ASSERT_EQ(ENGINE_SUCCESS,
-              passiveStream->messageReceived(makeMutationConsumerMessage(
-                      3 /*seqno*/, vbid, value, opaque)));
-    EXPECT_TRUE(passiveStream->public_isSnapshotPrepare());
-    EXPECT_EQ(0, readyQ.size());
+    // Verify that we have 1 SeqnoAck with memSeqno=syncWriteSeqno
+    checkReadyQ();
 
     // snapshot-end
     ASSERT_EQ(ENGINE_SUCCESS,
               passiveStream->messageReceived(makeMutationConsumerMessage(
                       snapEnd, vbid, value, opaque)));
-    // prepare-flag cleared
-    EXPECT_FALSE(passiveStream->public_isSnapshotPrepare());
-    ASSERT_EQ(1, readyQ.size());
-    ASSERT_EQ(DcpResponse::Event::SeqnoAcknowledgement,
-              readyQ.front()->getEvent());
-
-    const auto& seqnoAck = static_cast<SeqnoAcknowledgement&>(*readyQ.front());
-    EXPECT_EQ(ntohll(snapEnd), seqnoAck.getInMemorySeqno());
-    EXPECT_EQ(0, seqnoAck.getOnDiskSeqno());
+    // Verify that we still have only 1 SeqnoAck with memSeqno=syncWriteSeqno
+    checkReadyQ();
 
     // Cleanup
     EXPECT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));

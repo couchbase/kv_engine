@@ -215,15 +215,6 @@ protected:
     std::atomic<Snapshot> cur_snapshot_type;
     bool cur_snapshot_ack;
 
-    // For Durability, a Replica has to acknowledge the current in-memory seqno
-    // to the Active. For meeting the Durability consistency requirements, the
-    // Replica must send the SeqnoAck at snapshot boundaries.
-    // To achieve that, (1) we sign the current snapshot as "containing at
-    // least one Prepare mutation" (done by setting the cur_snapshot_prepare
-    // flag when a Prepare is processed) and (2) we send the SeqnoAck only at
-    // receiving the snapshot-end mutation, and only if the flag is set.
-    std::atomic<bool> cur_snapshot_prepare;
-
     // To keep the collections manifest for the Replica consistent we cannot
     // allow it to stream from an Active that is behind in terms of the
     // collections manifest. Send the collections manifest uid to the Active

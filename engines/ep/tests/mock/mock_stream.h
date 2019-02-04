@@ -295,10 +295,6 @@ public:
         processBufferedMessages_postFront_Hook = hook;
     }
 
-    bool public_isSnapshotPrepare() const {
-        return cur_snapshot_prepare;
-    }
-
     std::unique_ptr<DcpResponse> public_popFromReadyQ() {
         return popFromReadyQ();
     }
