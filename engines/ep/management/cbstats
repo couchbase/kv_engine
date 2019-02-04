@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 import clitool
@@ -7,7 +7,6 @@ import codecs
 import datetime
 import inspect
 import itertools
-import json
 import math
 import mc_bin_client
 import re
@@ -17,7 +16,21 @@ from collections import defaultdict
 from difflib import SequenceMatcher
 from operator import itemgetter
 
-from natsort import natsorted
+try:
+    from natsort import natsorted
+except ImportError:
+    sys.exit("Error: could not import natsort. If you're running this from the "
+    "source directory then you need to build then run cbstats from "
+    "build/kv-engine instead.")
+
+try:
+    import simplejson as json
+except ImportError:
+    try:
+        import json
+    except ImportError:
+        sys.exit("Error: could not import json module")
+
 
 BIG_VALUE = 2 ** 60
 SMALL_VALUE = - (2 ** 60)
@@ -41,9 +54,9 @@ def cmd(f):
 def stats_perform(mc, cmd=''):
     try:
         return mc.stats(cmd)
-    except Exception as e:
-        print("Stats '%s' are not available from the requested engine. (%s)"
-                % (cmd, e))
+    except Exception, e:
+        print "Stats '%s' are not available from the requested engine. (%s)"\
+                % (cmd, e)
 
 def stats_formatter(stats, prefix=" "):
     """ Format and output the stats as either json or text
@@ -54,12 +67,12 @@ def stats_formatter(stats, prefix=" "):
                 stats[stat] = _maybeInt(val)
                 if isinstance(stats[stat], str):
                     stats[stat] = _maybeFloat(val)
-            print (json.dumps(natsorted(stats), indent=4))
+            print json.dumps(natsorted(stats), indent=4)
         else:
             longest = max((len(x) + 2) for x in stats.keys())
             for stat, val in natsorted(stats.items()):
                 s = stat + ":"
-                print("%s%s%s" % (prefix, s.ljust(longest), val))
+                print "%s%s%s" % (prefix, s.ljust(longest), val)
 
 
 def table_formatter(columns, data, sort_key=None, reverse=False):
@@ -84,9 +97,9 @@ def table_formatter(columns, data, sort_key=None, reverse=False):
     template += ("{{{0}:>{1}}}  ".format(len(columns) - 1, column_widths[-1])
                 if columns[-1].ralign else ("{" + str(len(columns) - 1) + "}"))
 
-    print(template.format(*columns), "\n")
+    print template.format(*columns), "\n"
     for row in sorted(data, key=sort_key, reverse=reverse):
-        print(template.format(*row))
+        print template.format(*row)
 
 class TaskStat(object):
     """Represents a stat which must be sorted by a different value than is
@@ -193,7 +206,7 @@ def tasks_stats_formatter(stats, sort_by=None, reverse=False, *args):
                     .format(**total_tasks)
             )
 
-            print(headers)
+            print headers
 
             table_columns = [
                     (key, Column(*options)) for key, options in (
@@ -226,7 +239,7 @@ def tasks_stats_formatter(stats, sort_by=None, reverse=False, *args):
                 if isinstance(sort_by, int):
                     sort_key = itemgetter(sort_by)
 
-                elif isinstance(sort_by, str):
+                elif isinstance(sort_by, basestring):
                     if sort_by.isdigit():
                         sort_key = itemgetter(int(sort_by))
                     else:
@@ -297,7 +310,7 @@ def time_label(s):
     for l,sz in sizes:
         product = sz * product
         sizeMap.insert(0, (l, product))
-    lbl, factor = next(itertools.dropwhile(lambda x: x[1] > s, sizeMap))
+    lbl, factor = itertools.dropwhile(lambda x: x[1] > s, sizeMap).next()
 
     # Give some extra granularity for timings in minutes
     if lbl == 'm':
@@ -344,7 +357,7 @@ def histograms(mc, raw_stats):
                       'paged_out_time': sec_label}
 
     histodata = {}
-    for k, v in list(raw_stats.items()):
+    for k, v in raw_stats.items():
         # Parse out a data point
         ka = k.split('_')
         k = '_'.join(ka[0:-1])
@@ -378,7 +391,7 @@ def histograms(mc, raw_stats):
             continue
         avg = sum([x['start'] * x['value'] for x in data_points]) / total
 
-        print(" %s (%d total)" % (name, total))
+        print " %s (%d total)" % (name, total)
 
         total_seen = 0
         non_zero_dp_seen = False
@@ -398,7 +411,7 @@ def histograms(mc, raw_stats):
             toprint  = "    %s : (%6.02f%%) %s" % \
                        (dp['label'].ljust(max_label_len), pcnt,
                        str(dp['value']).rjust(widestval))
-            print(toprint, end=' ')
+            print toprint,
 
             # Render a horizontal bar to represent the size of this value.
             # If available use UTF8 symbols as they give a higher resolution.
@@ -408,29 +421,29 @@ def histograms(mc, raw_stats):
             whole_blocks = int(bar_len);
             if useUTF8():
                 eighths = int((bar_len - whole_blocks) * 8)
-                spark_chars = " ▏▎▍▌▋▊▉"
-                print("%s%s" % ('█' * whole_blocks,
-                                spark_chars[eighths]))
+                spark_chars = u" ▏▎▍▌▋▊▉"
+                print "%s%s" % (u'█' * whole_blocks,
+                                spark_chars[eighths])
             else:
-                print(('#' * whole_blocks))
+                print ('#' * whole_blocks)
 
-        print("    %s : (%s)" % ("Avg".ljust(max_label_len),
-                                dp['lb_fun'](avg).rjust(7)))
+        print "    %s : (%s)" % ("Avg".ljust(max_label_len),
+                                dp['lb_fun'](avg).rjust(7))
 
 @cmd
 def stats_key(mc, key, vb):
     cmd = "key %s %s" % (key, str(vb))
     try:
         vbs = mc.stats(cmd)
-    except mc_bin_client.MemcachedError as e:
-        print(e.message)
+    except mc_bin_client.MemcachedError, e:
+        print e.message
         sys.exit(1)
-    except Exception as e:
-        print("Stats '%s' are not available from the requested engine." % cmd)
+    except Exception, e:
+        print "Stats '%s' are not available from the requested engine." % cmd
         sys.exit(1)
 
     if vbs:
-        print("stats for key", key)
+        print "stats for key", key
         stats_formatter(vbs)
 
 @cmd
@@ -438,15 +451,15 @@ def stats_vkey(mc, key, vb):
     cmd = "vkey %s %s" % (key, str(vb))
     try:
         vbs = mc.stats(cmd)
-    except mc_bin_client.MemcachedError as e:
-        print(e.message)
+    except mc_bin_client.MemcachedError, e:
+        print e.message
         sys.exit(1)
-    except Exception as e:
-        print("Stats '%s' are not available from the requested engine." % cmd)
+    except Exception, e:
+        print "Stats '%s' are not available from the requested engine." % cmd
         sys.exit(1)
 
     if vbs:
-        print("verification for key", key)
+        print "verification for key", key
         stats_formatter(vbs)
 
 @cmd
@@ -461,7 +474,7 @@ def stats_all(mc):
 @cmd
 def stats_timings(mc):
     if output_json:
-        print('Json output not supported for timing stats')
+        print 'Json output not supported for timing stats'
         return
     h = stats_perform(mc, 'timings')
     if h:
@@ -485,7 +498,7 @@ def stats_collections_details(mc, vb=-1):
             cmd = "collections-details %s" % (str(vb))
         stats_formatter(stats_perform(mc, cmd))
     except ValueError:
-        print('Specified vbucket \"%s\" is not valid' % str(vb))
+        print 'Specified vbucket \"%s\" is not valid' % str(vb)
 
 @cmd
 def stats_scopes(mc):
@@ -501,7 +514,7 @@ def stats_scopes_details(mc, vb=-1):
             cmd = "scopes-details %s" % (str(vb))
         stats_formatter(stats_perform(mc, cmd))
     except ValueError:
-        print('Specified vbucket \"%s\" is not valid' % str(vb))
+        print 'Specified vbucket \"%s\" is not valid' % str(vb)
 
 @cmd
 def stats_dcpagg(mc):
@@ -517,11 +530,11 @@ def stats_checkpoint(mc, vb=-1):
             cmd = "checkpoint %s" % (str(vb))
         stats_formatter(stats_perform(mc, cmd))
     except ValueError:
-        print('Specified vbucket \"%s\" is not valid' % str(vb))
+        print 'Specified vbucket \"%s\" is not valid' % str(vb)
 
 @cmd
 def stats_allocator(mc):
-    print(stats_perform(mc, 'allocator')['detailed'])
+    print stats_perform(mc, 'allocator')['detailed']
 
 @cmd
 def stats_slabs(mc):
@@ -549,7 +562,7 @@ def stats_vbucket_details(mc, vb=-1):
             cmd = "vbucket-details %s" % (str(vb))
         stats_formatter(stats_perform(mc, cmd))
     except ValueError:
-        print('Specified vbucket \"%s\" is not valid' % str(vb))
+        print 'Specified vbucket \"%s\" is not valid' % str(vb)
 
 @cmd
 def stats_vbucket_seqno(mc, vb = -1):
@@ -561,7 +574,7 @@ def stats_vbucket_seqno(mc, vb = -1):
             cmd = "vbucket-seqno %s" % (str(vb))
         stats_formatter(stats_perform(mc, cmd))
     except ValueError:
-        print('Specified vbucket \"%s\" is not valid' % str(vb))
+        print 'Specified vbucket \"%s\" is not valid' % str(vb)
 @cmd
 def stats_failovers(mc, vb = -1):
     try:
@@ -572,7 +585,7 @@ def stats_failovers(mc, vb = -1):
             cmd = "failovers %s" % (str(vb))
         stats_formatter(stats_perform(mc, cmd))
     except ValueError:
-        print('Specified vbucket \"%s\" is not valid' % str(vb))
+        print 'Specified vbucket \"%s\" is not valid' % str(vb)
 
 @cmd
 def stats_prev_vbucket(mc):
@@ -609,7 +622,7 @@ def stats_kvstore(mc):
 @cmd
 def stats_kvtimings(mc):
     if output_json:
-        print('Json output not supported for kvtiming stats')
+        print 'Json output not supported for kvtiming stats'
         return
     h = stats_perform(mc, 'kvtimings')
     if h:
@@ -642,7 +655,7 @@ def stats_diskinfo(mc, with_detail=None):
 @cmd
 def stats_eviction(mc):
     if output_json:
-        print('Json output not supported for eviction stats')
+        print 'Json output not supported for eviction stats'
         return
     h = stats_perform(mc, 'eviction')
     if h:
@@ -658,7 +671,7 @@ def stats_hash(mc, with_detail=None):
     mins = []
     maxes = []
     counts = []
-    for k,v in list(h.items()):
+    for k,v in h.items():
         if 'max_dep' in k:
             maxes.append(int(v))
         if 'min_dep' in k:
@@ -691,7 +704,7 @@ def stats_hash(mc, with_detail=None):
 @cmd
 def stats_scheduler(mc):
     if output_json:
-        print('Json output not supported for scheduler stats')
+        print 'Json output not supported for scheduler stats'
         return
     h = stats_perform(mc, 'scheduler')
     if h:
@@ -700,7 +713,7 @@ def stats_scheduler(mc):
 @cmd
 def stats_runtimes(mc):
     if output_json:
-        print('Json output not supported for runtimes stats')
+        print 'Json output not supported for runtimes stats'
         return
     h = stats_perform(mc, 'runtimes')
     if h:
@@ -709,7 +722,7 @@ def stats_runtimes(mc):
 @cmd
 def stats_dispatcher(mc, with_logs='no'):
     if output_json:
-        print('Json output not supported for dispatcher stats')
+        print 'Json output not supported for dispatcher stats'
         return
     with_logs = with_logs == 'logs'
     sorig = stats_perform(mc,'dispatcher')
@@ -718,7 +731,7 @@ def stats_dispatcher(mc, with_logs='no'):
     s = {}
     logs = {}
     slowlogs = {}
-    for k,v in list(sorig.items()):
+    for k,v in sorig.items():
         ak = tuple(k.split(':'))
         if ak[-1] == 'runtime':
             v = time_label(int(v))
@@ -744,14 +757,14 @@ def stats_dispatcher(mc, with_logs='no'):
             s[dispatcher][field] = v
 
     for dispatcher in sorted(s):
-        print(" %s" % dispatcher)
+        print " %s" % dispatcher
         stats_formatter(s[dispatcher], "     ")
         for l,h in [('Slow jobs', slowlogs), ('Recent jobs', logs)]:
             if with_logs and h[dispatcher]:
-                print("     %s:" % l)
+                print "     %s:" % l
                 for offset, fields in sorted(h[dispatcher].items()):
                     stats_formatter(fields, "        ")
-                    print("        ---------")
+                    print "        ---------"
 
 @cmd
 def stats_durability_monitor(mc, vb=-1):
@@ -763,7 +776,7 @@ def stats_durability_monitor(mc, vb=-1):
             cmd = "durability-monitor %s" % (str(vb))
         stats_formatter(stats_perform(mc, cmd))
     except ValueError:
-        print('Specified vbucket \"%s\" is not valid' % str(vb))
+        print 'Specified vbucket \"%s\" is not valid' % str(vb)
 
 @cmd
 def stats_tasks(mc, *args):
@@ -774,7 +787,7 @@ def stats_responses(mc, all=''):
     resps = json.loads(stats_perform(mc, 'responses')['responses'])
     c = mc.get_error_map()['errors']
     d = {}
-    for k, v in resps.items():
+    for k, v in resps.iteritems():
         try:
             if v > 0 or all:
                 d[c[int(k, 16)]['name']] = v

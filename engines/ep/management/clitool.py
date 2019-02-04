@@ -42,38 +42,38 @@ class CliTool(object):
         self.parser.usage = shortUsage  # set usage back to short
 
         if len(args) < 2:
-            print(self.parser.error("Too few arguments"), file=sys.stderr)
+            print >> sys.stderr, self.parser.error("Too few arguments")
             sys.exit(2)
 
         hp, self.cmd = args[:2]
         try:
             (host, port, family) = mc_bin_client.parse_address(hp)
         except Exception as e:
-            print(e)
+            print e
             sys.exit(1)
 
         try:
             mc = mc_bin_client.MemcachedClient(host, port, family)
         except socket.error as e:
-            print('Connection error: %s' % e)
+            print 'Connection error: %s' % e
             sys.exit(1)
 
         f = self.cmds.get(self.cmd)
 
         if not f:
-             print(self.parser.error("Unknown command"))
+             print self.parser.error("Unknown command")
 
         try:
             if callable(f[0]):
                 f[0](mc, *args[2:], **opts.__dict__)
             else:
                 getattr(mc, f[0])(*args[2:])
-        except socket.error as e:
+        except socket.error, e:
             # "Broken pipe" is confusing, so print "Connection refused" instead.
             if type(e) is tuple and e[0] == 32 or \
                     isinstance(e, socket.error) and e.errno == 32:
-                print("Could not connect to %s:%d: "
-                    "Connection refused" % (host, port), file=sys.stderr)
+                print >> sys.stderr, "Could not connect to %s:%d: " \
+                    "Connection refused" % (host, port)
             else:
                 raise
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 A memcached test server.
 
@@ -51,7 +51,7 @@ class BaseBackend(object):
         self.handlers={}
         self.sched=[]
 
-        for id, method in self.CMDS.items():
+        for id, method in self.CMDS.iteritems():
             self.handlers[id]=getattr(self, method, self.handle_unknown)
 
     def _splitKeys(self, fmt, keylen, data):
@@ -60,7 +60,7 @@ class BaseBackend(object):
 
         Return (hdrTuple, key, data)"""
         hdrSize=struct.calcsize(fmt)
-        assert hdrSize <= len(data), "Data too short for " + fmt + ': ' + repr(data)
+        assert hdrSize <= len(data), "Data too short for " + fmt + ': ' + `data`
         hdr=struct.unpack(fmt, data[:hdrSize])
         assert len(data) >= hdrSize + keylen
         key=data[hdrSize:keylen+hdrSize]
@@ -78,7 +78,7 @@ class BaseBackend(object):
 
         now=time.time()
         while self.sched and self.sched[0][0] <= now:
-            print("Running delayed job.")
+            print "Running delayed job."
             heapq.heappop(self.sched)[1]()
 
         hdrs, key, val=self._splitKeys(EXTRA_HDR_FMTS.get(cmd, ''),
@@ -89,7 +89,7 @@ class BaseBackend(object):
 
     def handle_noop(self, cmd, hdrs, key, cas, data):
         """Handle a noop"""
-        print("Noop")
+        print "Noop"
         return 0, 0, ''
 
     def handle_unknown(self, cmd, hdrs, key, cas, data):
@@ -112,11 +112,11 @@ class DictBackend(BaseBackend):
         if rv:
             now=time.time()
             if now >= rv[1]:
-                print(key, "expired")
+                print key, "expired"
                 del self.storage[key]
                 rv=None
         else:
-            print("Miss looking up", key)
+            print "Miss looking up", key
         return rv
 
     def handle_get(self, cmd, hdrs, key, cas, data):
@@ -129,7 +129,7 @@ class DictBackend(BaseBackend):
         return rv
 
     def handle_set(self, cmd, hdrs, key, cas, data):
-        print("Handling a set with", hdrs)
+        print "Handling a set with", hdrs
         val=self.__lookup(key)
         exp, flags=hdrs
         def f(val):
@@ -139,7 +139,7 @@ class DictBackend(BaseBackend):
     def handle_getq(self, cmd, hdrs, key, cas, data):
         rv=self.handle_get(cmd, hdrs, key, cas, data)
         if rv[0] == memcacheConstants.ERR_NOT_FOUND:
-            print("Swallowing miss")
+            print "Swallowing miss"
             rv = None
         return rv
 
@@ -149,7 +149,7 @@ class DictBackend(BaseBackend):
         if exp == 0:
             exp=float(2 ** 31)
         self.storage[key]=(hdrs[0], time.time() + exp, data)
-        print("Stored", self.storage[key], "in", key)
+        print "Stored", self.storage[key], "in", key
         if key in self.held_keys:
             del self.held_keys[key]
         return 0, id(self.storage[key]), ''
@@ -158,10 +158,10 @@ class DictBackend(BaseBackend):
         amount, initial, expiration=hdrs
         rv=self._error(memcacheConstants.ERR_NOT_FOUND, 'Not found')
         val=self.storage.get(key, None)
-        print("Mutating %s, hdrs=%s, val=%s %s" % (key, repr(hdrs), repr(val),
-            multiplier))
+        print "Mutating %s, hdrs=%s, val=%s %s" % (key, `hdrs`, `val`,
+            multiplier)
         if val:
-            val = (val[0], val[1], max(0, int(val[2]) + (multiplier * amount)))
+            val = (val[0], val[1], max(0, long(val[2]) + (multiplier * amount)))
             self.storage[key]=val
             rv=0, id(val), str(val[2])
         else:
@@ -170,8 +170,8 @@ class DictBackend(BaseBackend):
                 rv=0, id(self.storage[key]), str(initial)
         if rv[0] == 0:
             rv = rv[0], rv[1], struct.pack(
-                memcacheConstants.INCRDECR_RES_FMT, int(rv[2]))
-        print("Returning", rv)
+                memcacheConstants.INCRDECR_RES_FMT, long(rv[2]))
+        print "Returning", rv
         return rv
 
     def handle_incr(self, cmd, hdrs, key, cas, data):
@@ -183,7 +183,7 @@ class DictBackend(BaseBackend):
     def __has_hold(self, key):
         rv=False
         now=time.time()
-        print("Looking for hold of", key, "in", self.held_keys, "as of", now)
+        print "Looking for hold of", key, "in", self.held_keys, "as of", now
         if key in self.held_keys:
             if time.time() > self.held_keys[key]:
                 del self.held_keys[key]
@@ -208,7 +208,7 @@ class DictBackend(BaseBackend):
         def f():
             self.storage.clear()
             self.held_keys.clear()
-            print("Flushed")
+            print "Flushed"
         if timebomb_delay:
             heapq.heappush(self.sched, (time.time() + timebomb_delay, f))
         else:
@@ -221,7 +221,7 @@ class DictBackend(BaseBackend):
             if val:
                 del self.storage[key]
                 rv = 0, 0, ''
-            print("Deleted", key, hdrs[0])
+            print "Deleted", key, hdrs[0]
             if hdrs[0] > 0:
                 self.held_keys[key] = time.time() + hdrs[0]
             return rv
@@ -262,24 +262,24 @@ class DictBackend(BaseBackend):
         expected = hmac.HMAC('testpass', self.challenge).hexdigest()
 
         if u == 'testuser' and resp == expected:
-            print("Successful CRAM-MD5 auth.")
+            print "Successful CRAM-MD5 auth."
             return 0, 0, 'OK'
         else:
-            print("Errored a CRAM-MD5 auth.")
+            print "Errored a CRAM-MD5 auth."
             return self._error(memcacheConstants.ERR_AUTH, 'Auth error.')
 
     def _handle_sasl_auth_plain(self, data):
         foruser, user, passwd = data.split("\0")
         if user == 'testuser' and passwd == 'testpass':
-            print("Successful plain auth")
+            print "Successful plain auth"
             return 0, 0, "OK"
         else:
-            print("Bad username/password:  %s/%s" % (user, passwd))
+            print "Bad username/password:  %s/%s" % (user, passwd)
             return self._error(memcacheConstants.ERR_AUTH, 'Auth error.')
 
     def _handle_sasl_auth_cram_md5(self, data):
         assert data == ''
-        print("Issuing %s as a CRAM-MD5 challenge." % self.challenge)
+        print "Issuing %s as a CRAM-MD5 challenge." % self.challenge
         return memcacheConstants.ERR_AUTH_CONTINUE, 0, self.challenge
 
     def handle_sasl_auth(self, cmd, hdrs, key, cas, data):
@@ -290,7 +290,7 @@ class DictBackend(BaseBackend):
         elif mech == 'CRAM-MD5':
             return self._handle_sasl_auth_cram_md5(data)
         else:
-            print("Unhandled auth type:  %s" % mech)
+            print "Unhandled auth type:  %s" % mech
             return self._error(memcacheConstants.ERR_AUTH, 'Auth error.')
 
 class MemcachedBinaryChannel(asyncore.dispatcher):
@@ -339,7 +339,7 @@ class MemcachedBinaryChannel(asyncore.dispatcher):
                 try:
                     status, cas, response = cmdVal
                 except ValueError:
-                    print("Got", cmdVal)
+                    print "Got", cmdVal
                     raise
                 dtype=0
                 extralen=memcacheConstants.EXTRA_HDR_SIZES.get(cmd, 0)

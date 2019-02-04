@@ -1,10 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 import time
 import sys
 
 import clitool
 import cli_auth_utils
+import exceptions
 import mc_bin_client
 import memcacheConstants
 import sys
@@ -25,7 +26,7 @@ def set_param(mc, type, key, val):
     elif type == 'vbucket_param':
         engine_param = memcacheConstants.ENGINE_PARAM_VBUCKET
     else:
-        print('Error: Bad parameter %s' % type)
+        print 'Error: Bad parameter %s' % type
 
     if key == 'replication_throttle_queue_cap' and val == 'infinite':
         val = '-1'
@@ -37,26 +38,26 @@ def set_param(mc, type, key, val):
         if val.endswith("%"):
             _x_ = (val[:len(val)-1])
             if not _x_.isdigit():
-                print('Error: Invalid parameter %s' % val)
+                print 'Error: Invalid parameter %s' % val
                 return
             if float(_x_) > 100:
-                print('Error: Bad parameter %s' % val)
+                print 'Error: Bad parameter %s' % val
                 return
             _quota_ = int(mc.stats()['ep_max_size'])
             val = str(int(float(_x_)*(_quota_)/100))
     if (key == "mem_used_merge_threshold_percent" and
         (float(val) > 100.0 or float(val) < 0.0)):
-        print('Error: Invalid mem_used_merge_threshold_percent value %s' % val)
+        print 'Error: Invalid mem_used_merge_threshold_percent value %s' % val
         return
     try:
         mc.set_param(0, key, val, engine_param)
-        print('set %s to %s' %(key, val))
-    except mc_bin_client.MemcachedError as error:
-        print('Error: %s' % error.msg)
-    except mc_bin_client.TimeoutError as error:
-        print(error)
-    except Exception as e:
-        print('Generic error (%s)' % e)
+        print 'set %s to %s' %(key, val)
+    except mc_bin_client.MemcachedError, error:
+        print 'Error: %s' % error.msg
+    except mc_bin_client.TimeoutError, error:
+        print error
+    except Exception, e:
+        print 'Generic error (%s)' % e
 
 @cmd
 def set_vbucket_param(mc, key, vbucket, val):
@@ -64,13 +65,13 @@ def set_vbucket_param(mc, key, vbucket, val):
 
     try:
         mc.set_param(int(vbucket), key, val, engine_param)
-        print('set %s to %s' %(key, val))
-    except mc_bin_client.MemcachedError as error:
-        print('Error: %s' % error.msg)
-    except mc_bin_client.TimeoutError as error:
-        print(error)
-    except Exception as e:
-        print('Generic error (%s)' % e)
+        print 'set %s to %s' %(key, val)
+    except mc_bin_client.MemcachedError, error:
+        print 'Error: %s' % error.msg
+    except mc_bin_client.TimeoutError, error:
+        print error
+    except Exception, e:
+        print 'Generic error (%s)' % e
 
 @cmd
 def stop(mc):
@@ -91,25 +92,25 @@ def stop(mc):
             success = False
             if stats['ep_flusher_state'] == 'paused':
                 stopped = True
-        print('Persistence stopped')
-    except mc_bin_client.MemcachedError as error:
-        print('Error: %s' % error.msg)
-    except mc_bin_client.TimeoutError as error:
-        print(error)
-    except Exception as e:
-        print('Generic error (%s)' % e)
+        print 'Persistence stopped'
+    except mc_bin_client.MemcachedError, error:
+        print 'Error: %s' % error.msg
+    except mc_bin_client.TimeoutError, error:
+        print error
+    except Exception, e:
+        print 'Generic error (%s)' % e
 
 @cmd
 def start(mc):
     try:
         mc.start_persistence()
-        print('Persistence started')
-    except mc_bin_client.MemcachedError as error:
-        print('Error: %s' % error.msg)
-    except mc_bin_client.TimeoutError as error:
-        print(error)
-    except Exception as e:
-        print('Generic error (%s)' % e)
+        print 'Persistence started'
+    except mc_bin_client.MemcachedError, error:
+        print 'Error: %s' % error.msg
+    except mc_bin_client.TimeoutError, error:
+        print error
+    except Exception, e:
+        print 'Generic error (%s)' % e
 
 @cmd
 def drain(mc):
@@ -122,13 +123,13 @@ def drain(mc):
             time.sleep(2)
             sys.stdout.write('.')
             sys.stdout.flush()
-        print('Write queues drained')
-    except mc_bin_client.MemcachedError as error:
-        print('Error: %s' % error.msg)
-    except mc_bin_client.TimeoutError as error:
-        print(error)
-    except Exception as e:
-        print('Generic error (%s)' % e)
+        print 'Write queues drained'
+    except mc_bin_client.MemcachedError, error:
+        print 'Error: %s' % error.msg
+    except mc_bin_client.TimeoutError, error:
+        print error
+    except Exception, e:
+        print 'Generic error (%s)' % e
 
 @cmd
 def set_collections(mc, filename):
@@ -137,28 +138,28 @@ def set_collections(mc, filename):
         jsonManifestFile = open(filename, "r")
         json = jsonManifestFile.read()
         jsonManifestFile.close()
-        print("Setting collections - {}".format(json))
+        print "Setting collections - {}".format(json)
         mc.set_collections(json)
-
-    except mc_bin_client.MemcachedError as error:
-        print('Error: %s' % error.msg)
-    except mc_bin_client.TimeoutError as error:
-        print(error)
-    except Exception as e:
-        print('Generic error (%s)' % e)
+        
+    except mc_bin_client.MemcachedError, error:
+        print 'Error: %s' % error.msg
+    except mc_bin_client.TimeoutError, error:
+        print error
+    except Exception, e:
+        print 'Generic error (%s)' % e
 
 @cmd
 def get_collections(mc):
 
     try:
-        print(mc.get_collections()[2])
+        print mc.get_collections()[2]
 
-    except mc_bin_client.MemcachedError as error:
-        print('Error: %s' % error.msg)
-    except mc_bin_client.TimeoutError as error:
-        print(error)
-    except Exception as e:
-        print('Generic error (%s)' % e)
+    except mc_bin_client.MemcachedError, error:
+        print 'Error: %s' % error.msg
+    except mc_bin_client.TimeoutError, error:
+        print error
+    except Exception, e:
+        print 'Generic error (%s)' % e
 
 if __name__ == '__main__':
 

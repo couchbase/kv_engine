@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 """
 Evict the specified key from memory.
@@ -15,7 +15,7 @@ PORT = 12000
 if len(sys.argv) < 5:
     msg = ('Usage: {} <user> <password> <bucket> <vbid> <key> <optional: "scopename.collectionname" or collection-ID>'.format(
         sys.argv[0]))
-    print(msg, file=sys.stderr)
+    print >> sys.stderr, msg
     sys.exit(1)
 
 client = mc_bin_client.MemcachedClient(host=HOST, port=PORT)
@@ -37,4 +37,4 @@ if len(sys.argv) == 7:
 
 key = sys.argv[5]
 client.vbucketId = int(sys.argv[4])
-print(client.evict_key(key, collection=collection))
+print client.evict_key(key, collection=collection)
