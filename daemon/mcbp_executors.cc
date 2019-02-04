@@ -123,7 +123,7 @@ static void process_bin_unknown_packet(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
 
     if (ret == ENGINE_SUCCESS) {
-        ret = bucket_unknown_command(cookie, mcbp_response_handler);
+        ret = bucket_unknown_command(cookie, mcbpResponseHandlerFn);
     }
 
     ret = cookie.getConnection().remapErrorCode(ret);

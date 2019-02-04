@@ -130,16 +130,16 @@ void mcbp_add_header(Cookie& cookie,
     connection.addIov(wbuf.data(), wbuf.size());
 }
 
-bool mcbp_response_handler(const void* key,
-                           uint16_t keylen,
-                           const void* ext,
-                           uint8_t extlen,
-                           const void* body,
-                           uint32_t bodylen,
-                           protocol_binary_datatype_t datatype,
-                           cb::mcbp::Status status,
-                           uint64_t cas,
-                           const void* void_cookie) {
+static bool mcbp_response_handler(const void* key,
+                                  uint16_t keylen,
+                                  const void* ext,
+                                  uint8_t extlen,
+                                  const void* body,
+                                  uint32_t bodylen,
+                                  protocol_binary_datatype_t datatype,
+                                  cb::mcbp::Status status,
+                                  uint64_t cas,
+                                  const void* void_cookie) {
     auto* ccookie = reinterpret_cast<const Cookie*>(void_cookie);
     auto* cookie = const_cast<Cookie*>(ccookie);
 
@@ -225,6 +225,14 @@ bool mcbp_response_handler(const void* key,
     dbuf.moveOffset(needed);
     return true;
 }
+
+// Expose a static std::function to wrap mcbp_response_handler, instead of
+// creating a temporary object every time we need to call into an engine.
+// This also avoids problems where a stack-allocated AddResponseFn could go
+// out of scope if someone (e.g. ep-engine's FetchAllKeysTask) needs to take
+// a copy of it and run it on another thread.
+//
+AddResponseFn mcbpResponseHandlerFn = mcbp_response_handler;
 
 void mcbp_collect_timings(Cookie& cookie) {
     // The state machinery cause this method to be called for all kinds

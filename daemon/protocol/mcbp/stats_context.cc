@@ -327,6 +327,12 @@ static void append_stats(const char* key,
     append_bin_stats(key, klen, val, vlen, cookie);
 }
 
+// Create a static std::function to wrap append_stats, instead of creating a
+// temporary object every time we need to call into an engine.
+// This also avoids problems where the stack-allocated AddStatFn could go
+// out of scope if someone needs to take a copy of it and run it on another
+// thread.
+static AddStatFn appendStatsFn = append_stats;
 
 /**
  * This is a very slow thing that you shouldn't use in production ;-)
@@ -436,7 +442,7 @@ static ENGINE_ERROR_CODE stat_sched_executor(const std::string& arg,
 static ENGINE_ERROR_CODE stat_audit_executor(const std::string& arg,
                                              Cookie& cookie) {
     if (arg.empty()) {
-        stats_audit(&append_stats, cookie);
+        stats_audit(appendStatsFn, cookie);
         return ENGINE_SUCCESS;
     } else {
         return ENGINE_EINVAL;
@@ -470,7 +476,7 @@ static ENGINE_ERROR_CODE stat_bucket_details_executor(const std::string& arg,
 static ENGINE_ERROR_CODE stat_aggregate_executor(const std::string& arg,
                                                  Cookie& cookie) {
     if (arg.empty()) {
-        return server_stats(&append_stats, cookie);
+        return server_stats(appendStatsFn, cookie);
     } else {
         return ENGINE_EINVAL;
     }
@@ -497,7 +503,7 @@ static ENGINE_ERROR_CODE stat_connections_executor(const std::string& arg,
     }
 
     std::shared_ptr<Task> task = std::make_shared<StatsTaskConnectionStats>(
-            cookie.getConnection(), cookie, &append_stats, fd);
+            cookie.getConnection(), cookie, appendStatsFn, fd);
     cookie.obtainContext<StatsCommandContext>(cookie).setTask(task);
     std::lock_guard<std::mutex> guard(task->getMutex());
     executorPool->schedule(task, true);
@@ -520,7 +526,7 @@ static ENGINE_ERROR_CODE stat_topkeys_executor(const std::string& arg,
             return ENGINE_NO_BUCKET;
         }
         return bucket.topkeys->stats(
-                &cookie, mc_time_get_current_time(), append_stats);
+                &cookie, mc_time_get_current_time(), appendStatsFn);
     } else {
         return ENGINE_EINVAL;
     }
@@ -694,16 +700,16 @@ static ENGINE_ERROR_CODE stat_tracing_executor(const std::string& arg,
 
 static ENGINE_ERROR_CODE stat_all_stats(const std::string& arg,
                                         Cookie& cookie) {
-    auto ret = bucket_get_stats(cookie, arg, append_stats);
+    auto ret = bucket_get_stats(cookie, arg, appendStatsFn);
     if (ret == ENGINE_SUCCESS) {
-        ret = server_stats(&append_stats, cookie);
+        ret = server_stats(appendStatsFn, cookie);
     }
     return ret;
 }
 
 static ENGINE_ERROR_CODE stat_bucket_stats(const std::string& arg,
                                            Cookie& cookie) {
-    return bucket_get_stats(cookie, arg, append_stats);
+    return bucket_get_stats(cookie, arg, appendStatsFn);
 }
 
 /***************************** STAT HANDLERS *****************************/

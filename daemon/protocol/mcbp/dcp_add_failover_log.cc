@@ -30,7 +30,7 @@ ENGINE_ERROR_CODE add_failover_log(vbucket_failover_t* entries,
         entries[ii].seqno = htonll(entries[ii].seqno);
     }
 
-    if (mcbp_response_handler(NULL,
+    if (mcbpResponseHandlerFn(NULL,
                               0,
                               NULL,
                               0,

@@ -26,7 +26,7 @@
 void collections_get_manifest_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto ret = connection.getBucketEngine()->collections.get_manifest(
-            connection.getBucketEngine(), &cookie, mcbp_response_handler);
+            connection.getBucketEngine(), &cookie, mcbpResponseHandlerFn);
 
     ret = cookie.getConnection().remapErrorCode(ret);
     switch (ret) {

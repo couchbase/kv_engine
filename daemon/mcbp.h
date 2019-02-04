@@ -24,6 +24,7 @@
 #include "connection.h"
 #include "protocol/mcbp/engine_errc_2_mcbp.h"
 #include <mcbp/protocol/datatype.h>
+#include <memcached/engine_common.h>
 
 /**
  * Add a header to the current memcached connection
@@ -43,13 +44,4 @@ void mcbp_add_header(Cookie& cookie,
                      uint32_t body_len,
                      uint8_t datatype);
 
-bool mcbp_response_handler(const void* key,
-                           uint16_t keylen,
-                           const void* ext,
-                           uint8_t extlen,
-                           const void* body,
-                           uint32_t bodylen,
-                           protocol_binary_datatype_t datatype,
-                           cb::mcbp::Status status,
-                           uint64_t cas,
-                           const void* cookie);
+extern AddResponseFn mcbpResponseHandlerFn;
