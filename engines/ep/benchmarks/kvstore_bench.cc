@@ -127,7 +127,7 @@ protected:
                       vbid);
             kvstore->set(item, wc);
         }
-        Collections::VB::Manifest m({});
+        Collections::VB::Manifest m;
         Collections::VB::Flush f(m);
         kvstore->commit(f);
         // Just check that the VBucket High Seqno has been updated correctly

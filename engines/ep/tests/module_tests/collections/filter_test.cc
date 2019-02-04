@@ -53,7 +53,8 @@ public:
              /*newSeqnoCb*/ nullptr,
              NoopSyncWriteCompleteCb,
              config,
-             VALUE_ONLY) {
+             VALUE_ONLY,
+             std::make_unique<Collections::VB::Manifest>()) {
         Collections::Manifest m(cm);
         vbm.wlock().update(vb, m);
     }

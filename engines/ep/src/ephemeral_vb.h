@@ -30,25 +30,24 @@ public:
     class HTTombstonePurger;
     class StaleItemDeleter;
 
-    EphemeralVBucket(
-            Vbid i,
-            vbucket_state_t newState,
-            EPStats& st,
-            CheckpointConfig& chkConfig,
-            KVShard* kvshard,
-            int64_t lastSeqno,
-            uint64_t lastSnapStart,
-            uint64_t lastSnapEnd,
-            std::unique_ptr<FailoverTable> table,
-            NewSeqnoCallback newSeqnoCb,
-            SyncWriteCompleteCallback syncWriteCb,
-            Configuration& config,
-            item_eviction_policy_t evictionPolicy,
-            vbucket_state_t initState = vbucket_state_dead,
-            uint64_t purgeSeqno = 0,
-            uint64_t maxCas = 0,
-            bool mightContainXattrs = false,
-            const Collections::VB::PersistedManifest& collectionsManifest = {});
+    EphemeralVBucket(Vbid i,
+                     vbucket_state_t newState,
+                     EPStats& st,
+                     CheckpointConfig& chkConfig,
+                     KVShard* kvshard,
+                     int64_t lastSeqno,
+                     uint64_t lastSnapStart,
+                     uint64_t lastSnapEnd,
+                     std::unique_ptr<FailoverTable> table,
+                     NewSeqnoCallback newSeqnoCb,
+                     SyncWriteCompleteCallback syncWriteCb,
+                     Configuration& config,
+                     item_eviction_policy_t evictionPolicy,
+                     std::unique_ptr<Collections::VB::Manifest> manifest,
+                     vbucket_state_t initState = vbucket_state_dead,
+                     uint64_t purgeSeqno = 0,
+                     uint64_t maxCas = 0,
+                     bool mightContainXattrs = false);
 
     ENGINE_ERROR_CODE completeBGFetchForSingleItem(
             const DocKey& key,

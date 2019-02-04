@@ -869,24 +869,30 @@ void Warmup::createVBuckets(uint16_t shardId) {
             }
             KVShard* shard = store.getVBuckets().getShardByVbId(vbid);
 
-            vb = store.makeVBucket(
-                    vbid,
-                    vbs.state,
-                    shard,
-                    std::move(table),
-                    std::make_unique<NotifyNewSeqnoCB>(store),
-                    vbs.state,
-                    vbs.highSeqno,
-                    vbs.lastSnapStart,
-                    vbs.lastSnapEnd,
-                    vbs.purgeSeqno,
-                    vbs.maxCas,
-                    vbs.hlcCasEpochSeqno,
-                    vbs.mightContainXattrs,
-                    config.isCollectionsEnabled()
-                            ? store.getROUnderlyingByShard(shardId)
-                                      ->getCollectionsManifest(vbid)
-                            : Collections::VB::PersistedManifest{});
+            std::unique_ptr<Collections::VB::Manifest> manifest;
+            if (config.isCollectionsEnabled()) {
+                manifest = std::make_unique<Collections::VB::Manifest>(
+                        store.getROUnderlyingByShard(shardId)
+                                ->getCollectionsManifest(vbid));
+            } else {
+                manifest = std::make_unique<Collections::VB::Manifest>(
+                        Collections::VB::PersistedManifest{});
+            }
+
+            vb = store.makeVBucket(vbid,
+                                   vbs.state,
+                                   shard,
+                                   std::move(table),
+                                   std::make_unique<NotifyNewSeqnoCB>(store),
+                                   std::move(manifest),
+                                   vbs.state,
+                                   vbs.highSeqno,
+                                   vbs.lastSnapStart,
+                                   vbs.lastSnapEnd,
+                                   vbs.purgeSeqno,
+                                   vbs.maxCas,
+                                   vbs.hlcCasEpochSeqno,
+                                   vbs.mightContainXattrs);
 
             if(vbs.state == vbucket_state_active && !cleanShutdown) {
                 if (static_cast<uint64_t>(vbs.highSeqno) == vbs.lastSnapEnd) {

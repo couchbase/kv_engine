@@ -70,6 +70,7 @@ public:
                            KVShard* shard,
                            std::unique_ptr<FailoverTable> table,
                            NewSeqnoCallback newSeqnoCb,
+                           std::unique_ptr<Collections::VB::Manifest> manifest,
                            vbucket_state_t initState,
                            int64_t lastSeqno,
                            uint64_t lastSnapStart,
@@ -77,9 +78,7 @@ public:
                            uint64_t purgeSeqno,
                            uint64_t maxCas,
                            int64_t hlcEpochSeqno,
-                           bool mightContainXattrs,
-                           const Collections::VB::PersistedManifest&
-                                   collectionsManifest) override;
+                           bool mightContainXattrs) override;
 
     /// Do nothing - no flusher to notify
     void notifyFlusher(const Vbid vbid) override {

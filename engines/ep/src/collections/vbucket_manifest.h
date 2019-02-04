@@ -581,6 +581,15 @@ public:
     friend WriteHandle;
 
     /**
+     * Construct a VBucket::Manifest in the default state
+     *
+     * The manifest will initialise with the following.
+     * - Default Collection enabled.
+     * - uid of 0
+     */
+    Manifest();
+
+    /**
      * Construct a VBucket::Manifest optionally using serialised (flatbuffers)
      * data.
      *
@@ -1209,7 +1218,7 @@ protected:
     /**
      * Does the current set contain the default collection?
      */
-    bool defaultCollectionExists;
+    bool defaultCollectionExists{false};
 
     /**
      * A key below this seqno might be logically deleted and should be checked
@@ -1217,14 +1226,14 @@ protected:
      * StoredValue::state_collection_open when no collections are being deleted
      * and the greatestEndSeqno has no use (all collections exclusively open)
      */
-    int64_t greatestEndSeqno;
+    int64_t greatestEndSeqno{StoredValue::state_collection_open};
 
     /**
      * The manifest tracks how many collections are being deleted so we know
      * when greatestEndSeqno can be set to StoredValue::state_collection_open
      */
     cb::NonNegativeCounter<size_t, cb::ThrowExceptionUnderflowPolicy>
-            nDeletingCollections;
+            nDeletingCollections{0};
 
     /// The manifest UID which updated this vb::manifest
     ManifestUid manifestUid{0};

@@ -44,11 +44,11 @@ EphemeralVBucket::EphemeralVBucket(
         SyncWriteCompleteCallback syncWriteCb,
         Configuration& config,
         item_eviction_policy_t evictionPolicy,
+        std::unique_ptr<Collections::VB::Manifest> manifest,
         vbucket_state_t initState,
         uint64_t purgeSeqno,
         uint64_t maxCas,
-        bool mightContainXattrs,
-        const Collections::VB::PersistedManifest& collectionsManifest)
+        bool mightContainXattrs)
     : VBucket(i,
               newState,
               st,
@@ -63,12 +63,12 @@ EphemeralVBucket::EphemeralVBucket(
               syncWriteCb,
               config,
               evictionPolicy,
+              std::move(manifest),
               initState,
               purgeSeqno,
               maxCas,
               0, // Every item in ephemeral has a HLC cas
-              mightContainXattrs,
-              collectionsManifest),
+              mightContainXattrs),
       seqList(std::make_unique<BasicLinkedList>(i, st)),
       backfillType(BackfillType::None) {
     /* Get the flow control policy */

@@ -232,7 +232,7 @@ static void add_stat_callback(const char* key,
  */
 class KVStoreTest : public ::testing::Test {
 public:
-    KVStoreTest() : manifest({}), flush(manifest) {
+    KVStoreTest() : flush(manifest) {
     }
 
 protected:
@@ -591,7 +591,6 @@ public:
           config(KVStoreConfig(1024, 4, data_dir, "couchdb", 0)
                          .setLogger(logger)
                          .setBuffered(false)),
-          manifest({}),
           flush(manifest) {
         try {
             cb::io::rmrf(data_dir.c_str());
@@ -1443,7 +1442,6 @@ public:
           vbid(0),
           config(KVStoreConfig(1024, 4, data_dir, "couchdb", 0)
                          .setBuffered(false)),
-          manifest({}),
           flush(manifest) {
         try {
             cb::io::rmrf(data_dir.c_str());

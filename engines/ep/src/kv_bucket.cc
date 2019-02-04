@@ -846,7 +846,8 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
                             to,
                             shard,
                             std::move(ft),
-                            std::make_unique<NotifyNewSeqnoCB>(*this));
+                            std::make_unique<NotifyNewSeqnoCB>(*this),
+                            std::make_unique<Collections::VB::Manifest>());
 
         newvb->setFreqSaturatedCallback(
                 [this] { this->wakeItemFreqDecayerTask(); });

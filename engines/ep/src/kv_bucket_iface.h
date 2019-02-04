@@ -732,6 +732,7 @@ public:
             KVShard* shard,
             std::unique_ptr<FailoverTable> table,
             NewSeqnoCallback newSeqnoCb,
+            std::unique_ptr<Collections::VB::Manifest> manifest,
             vbucket_state_t initState = vbucket_state_dead,
             int64_t lastSeqno = 0,
             uint64_t lastSnapStart = 0,
@@ -739,9 +740,7 @@ public:
             uint64_t purgeSeqno = 0,
             uint64_t maxCas = 0,
             int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
-            bool mightContainXattrs = false,
-            const Collections::VB::PersistedManifest& collectionsManifest =
-                    {}) = 0;
+            bool mightContainXattrs = false) = 0;
 
     /**
      * Notify all the clients of a new seqno being added in the vbucket

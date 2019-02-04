@@ -177,6 +177,7 @@ VBucketPtr EphemeralBucket::makeVBucket(
         KVShard* shard,
         std::unique_ptr<FailoverTable> table,
         NewSeqnoCallback newSeqnoCb,
+        std::unique_ptr<Collections::VB::Manifest> manifest,
         vbucket_state_t initState,
         int64_t lastSeqno,
         uint64_t lastSnapStart,
@@ -184,8 +185,7 @@ VBucketPtr EphemeralBucket::makeVBucket(
         uint64_t purgeSeqno,
         uint64_t maxCas,
         int64_t hlcEpochSeqno,
-        bool mightContainXattrs,
-        const Collections::VB::PersistedManifest& collectionsManifest) {
+        bool mightContainXattrs) {
     (void)hlcEpochSeqno; // Ephemeral overrides this to be 0
     // Not using make_shared or allocate_shared
     // 1. make_shared doesn't accept a Deleter
@@ -204,11 +204,11 @@ VBucketPtr EphemeralBucket::makeVBucket(
                                            makeSyncWriteCompleteCB(),
                                            engine.getConfiguration(),
                                            eviction_policy,
+                                           std::move(manifest),
                                            initState,
                                            purgeSeqno,
                                            maxCas,
-                                           mightContainXattrs,
-                                           collectionsManifest),
+                                           mightContainXattrs),
                       VBucket::DeferredDeleter(engine));
 }
 

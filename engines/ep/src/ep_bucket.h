@@ -104,13 +104,14 @@ public:
     ENGINE_ERROR_CODE getPerVBucketDiskStats(
             const void* cookie, const AddStatFn& add_stat) override;
     /**
-     * Creates a VBucket object.
+     * Creates a VBucket object from warmup (can set collection state)
      */
     VBucketPtr makeVBucket(Vbid id,
                            vbucket_state_t state,
                            KVShard* shard,
                            std::unique_ptr<FailoverTable> table,
                            NewSeqnoCallback newSeqnoCb,
+                           std::unique_ptr<Collections::VB::Manifest> manifest,
                            vbucket_state_t initState,
                            int64_t lastSeqno,
                            uint64_t lastSnapStart,
@@ -118,9 +119,7 @@ public:
                            uint64_t purgeSeqno,
                            uint64_t maxCas,
                            int64_t hlcEpochSeqno,
-                           bool mightContainXattrs,
-                           const Collections::VB::PersistedManifest&
-                                   collectionsManifest) override;
+                           bool mightContainXattrs) override;
 
     ENGINE_ERROR_CODE statsVKey(const DocKey& key,
                                 Vbid vbucket,

@@ -29,7 +29,7 @@
 
 class MockVBManifest : public Collections::VB::Manifest {
 public:
-    MockVBManifest() : Collections::VB::Manifest({/* no collection data*/}) {
+    MockVBManifest() {
     }
 
     MockVBManifest(const Collections::VB::PersistedManifest& manifestData)
@@ -186,9 +186,7 @@ public:
     };
 
     ActiveReplicaManifest()
-        : active(),
-          replica(),
-          vbA(Vbid(0),
+        : vbA(Vbid(0),
               vbucket_state_active,
               global_stats,
               checkpoint_config,
@@ -201,7 +199,8 @@ public:
               /*newSeqnoCb*/ nullptr,
               NoopSyncWriteCompleteCb,
               config,
-              VALUE_ONLY),
+              VALUE_ONLY,
+              std::make_unique<Collections::VB::Manifest>()),
           vbR(Vbid(1),
               vbucket_state_replica,
               global_stats,
@@ -215,7 +214,8 @@ public:
               /*newSeqnoCb*/ nullptr,
               NoopSyncWriteCompleteCb,
               config,
-              VALUE_ONLY),
+              VALUE_ONLY,
+              std::make_unique<Collections::VB::Manifest>()),
           lastCompleteDeletionArgs(0) {
     }
 

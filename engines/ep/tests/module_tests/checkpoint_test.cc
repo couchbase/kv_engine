@@ -65,7 +65,8 @@ CheckpointTest<V>::CheckpointTest()
                     /*newSeqnoCb*/ nullptr,
                     NoopSyncWriteCompleteCb,
                     config,
-                    item_eviction_policy_t::VALUE_ONLY)) {
+                    item_eviction_policy_t::VALUE_ONLY,
+                    std::make_unique<Collections::VB::Manifest>())) {
     createManager();
 }
 
@@ -197,20 +198,22 @@ TYPED_TEST_CASE(CheckpointTest, VBucketTypes);
 
 TYPED_TEST(CheckpointTest, basic_chk_test) {
     std::shared_ptr<Callback<Vbid> > cb(new DummyCB());
-    this->vbucket.reset(new TypeParam(Vbid(0),
-                                      vbucket_state_active,
-                                      this->global_stats,
-                                      this->checkpoint_config,
-                                      NULL,
-                                      0,
-                                      0,
-                                      0,
-                                      NULL,
-                                      cb,
-                                      /*newSeqnoCb*/ nullptr,
-                                      NoopSyncWriteCompleteCb,
-                                      this->config,
-                                      item_eviction_policy_t::VALUE_ONLY));
+    this->vbucket.reset(
+            new TypeParam(Vbid(0),
+                          vbucket_state_active,
+                          this->global_stats,
+                          this->checkpoint_config,
+                          NULL,
+                          0,
+                          0,
+                          0,
+                          NULL,
+                          cb,
+                          /*newSeqnoCb*/ nullptr,
+                          NoopSyncWriteCompleteCb,
+                          this->config,
+                          item_eviction_policy_t::VALUE_ONLY,
+                          std::make_unique<Collections::VB::Manifest>()));
 
     this->manager.reset(new CheckpointManager(
             this->global_stats, Vbid(0), this->checkpoint_config, 1, 0, 0, cb));

@@ -31,10 +31,13 @@
 namespace Collections {
 namespace VB {
 
+Manifest::Manifest()
+    : scopes({{ScopeID::Default}}), defaultCollectionExists(true) {
+    addNewCollectionEntry({ScopeID::Default, CollectionID::Default}, {});
+}
+
 Manifest::Manifest(const PersistedManifest& data)
-    : defaultCollectionExists(false),
-      greatestEndSeqno(StoredValue::state_collection_open),
-      nDeletingCollections(0) {
+    : defaultCollectionExists(false) {
     if (data.empty()) {
         // Empty manifest, initialise the manifest with the default collection
         addNewCollectionEntry({ScopeID::Default, CollectionID::Default},

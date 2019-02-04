@@ -47,7 +47,8 @@ void VBucketTest::SetUp() {
                                 /*newSeqnoCb*/ nullptr,
                                 NoopSyncWriteCompleteCb,
                                 config,
-                                eviction_policy));
+                                eviction_policy,
+                                std::make_unique<Collections::VB::Manifest>()));
     cookie = create_mock_cookie();
 }
 

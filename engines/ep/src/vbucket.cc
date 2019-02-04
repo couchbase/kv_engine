@@ -158,12 +158,12 @@ VBucket::VBucket(Vbid i,
                  SyncWriteCompleteCallback syncWriteCb,
                  Configuration& config,
                  item_eviction_policy_t evictionPolicy,
+                 std::unique_ptr<Collections::VB::Manifest> manifest,
                  vbucket_state_t initState,
                  uint64_t purgeSeqno,
                  uint64_t maxCas,
                  int64_t hlcEpochSeqno,
-                 bool mightContainXattrs,
-                 const Collections::VB::PersistedManifest& collectionsManifest)
+                 bool mightContainXattrs)
     : ht(st, std::move(valFact), config.getHtSize(), config.getHtLocks()),
       checkpointManager(std::make_unique<CheckpointManager>(st,
                                                             i,
@@ -210,8 +210,7 @@ VBucket::VBucket(Vbid i,
       deferredDeletionCookie(nullptr),
       newSeqnoCb(std::move(newSeqnoCb)),
       syncWriteCompleteCb(syncWriteCb),
-      manifest(
-              std::make_unique<Collections::VB::Manifest>(collectionsManifest)),
+      manifest(std::move(manifest)),
       mayContainXattrs(mightContainXattrs),
       durabilityMonitor(std::make_unique<DurabilityMonitor>(*this)) {
     if (config.getConflictResolutionType().compare("lww") == 0) {
