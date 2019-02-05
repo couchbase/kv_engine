@@ -43,6 +43,7 @@ built via the Couchbase
 * [Role Based Access Control (RBAC)](docs/rbac.md)
 * [SSL Client Certificate](docs/ssl_client_cert.md)
 * [DCP](docs/dcp/README.md)
+* [Memcached configuration file](docs/memcached.json.adoc)
 
 ### Protocols
 
