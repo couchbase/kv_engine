@@ -458,26 +458,17 @@ void VBucket::setState_UNLOCKED(vbucket_state_t to,
 
     if (to == vbucket_state_active) {
         if (!meta.is_null()) {
-            // Register the new topology with the durability monitor.
-            // Note that 'meta' has been already validated at this point:
-            //     - FirstChain: meta.at("topology").at(0)
-            //     - SecondChain: meta.at("topology").at(1)
+            // Register the new topology with the durability monitor
             durabilityMonitor->setReplicationTopology(meta.at("topology"));
+        } else {
+            // @todo-durability: Remove when ns_server populates the topology
+            durabilityMonitor->setReplicationTopology(
+                    nlohmann::json::array({{"active", "replica"}}));
         }
     } else if (to == vbucket_state_replica) {
         // @todo-durability: Add support for DurabilityMonitor at Replica
         durabilityMonitor = std::make_unique<DurabilityMonitor>(*this);
     }
-}
-
-// @todo-durability: Remove when ns_server populates the topology
-void VBucket::addNodeToReplicationChain(const std::string& node) {
-    durabilityMonitor->addNodeToReplicationChain(node);
-}
-
-// @todo-durability: Remove when ns_server populates the topology
-void VBucket::removeNodeFromReplicationChain(const std::string& node) {
-    durabilityMonitor->removeNodeFromReplicationChain(node);
 }
 
 vbucket_state VBucket::getVBucketState() const {

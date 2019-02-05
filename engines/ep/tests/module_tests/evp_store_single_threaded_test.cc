@@ -87,10 +87,10 @@ void SingleThreadedKVBucketTest::TearDown() {
 }
 
 void SingleThreadedKVBucketTest::setVBucketStateAndRunPersistTask(
-        Vbid vbid, vbucket_state_t newState, const nlohmann::json& meta) {
+        Vbid vbid, vbucket_state_t newState) {
     // Change state - this should add 1 set_vbucket_state op to the
     //VBuckets' persistence queue.
-    EXPECT_EQ(ENGINE_SUCCESS, store->setVBucketState(vbid, newState, meta));
+    EXPECT_EQ(ENGINE_SUCCESS, store->setVBucketState(vbid, newState));
 
     if (engine->getConfiguration().getBucketType() == "persistent") {
         // Trigger the flusher to flush state to disk.

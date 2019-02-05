@@ -384,16 +384,6 @@ public:
                            const nlohmann::json& meta,
                            WriterLockHolder& vbStateLock);
 
-    /**
-     * @todo-durability: Remove as soon as ns_server sets the topology
-     */
-    void addNodeToReplicationChain(const std::string& node);
-
-    /**
-     * @todo-durability: Remove as soon as ns_server sets the topology
-     */
-    void removeNodeFromReplicationChain(const std::string& node);
-
     cb::RWLock& getStateLock() {return stateLock;}
 
     vbucket_state_t getInitialState(void) { return initialState; }

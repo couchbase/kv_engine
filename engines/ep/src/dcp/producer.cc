@@ -256,17 +256,6 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
 
 DcpProducer::~DcpProducer() {
     backfillMgr.reset();
-
-    // @todo-durability: Remove as soon as ns_server sets the topology
-    // Note: Consumer name set only for replica connections
-    if (!consumerName.empty()) {
-        auto activeVBs = engine_.getKVBucket()->getVBucketsInState(
-                vbucket_state_t::vbucket_state_active);
-        for (const auto vbid : activeVBs) {
-            auto vb = engine_.getKVBucket()->getVBucket(vbid);
-            vb->removeNodeFromReplicationChain(consumerName);
-        }
-    }
 }
 
 void DcpProducer::cancelCheckpointCreatorTask() {
@@ -990,15 +979,6 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
         }
     } else if (key == "consumer_name") {
         consumerName = valueStr;
-
-        // @todo-durability: Remove as soon as ns_server sets the topology
-        auto activeVBs = engine_.getKVBucket()->getVBucketsInState(
-                vbucket_state_t::vbucket_state_active);
-        for (const auto vbid : activeVBs) {
-            auto vb = engine_.getKVBucket()->getVBucket(vbid);
-            vb->addNodeToReplicationChain(consumerName);
-        }
-
         return ENGINE_SUCCESS;
     }
 
@@ -1026,7 +1006,9 @@ ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
             in_memory_seqno,
             on_disk_seqno);
 
-    return vb->seqnoAcknowledged(consumerName, in_memory_seqno, on_disk_seqno);
+    // @todo-durability: Use the real name of the consumer we are associated
+    // with.
+    return vb->seqnoAcknowledged("replica", in_memory_seqno, on_disk_seqno);
 }
 
 bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {

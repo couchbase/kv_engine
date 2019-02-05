@@ -33,10 +33,7 @@ class DurabilityMonitorTest : public SingleThreadedKVBucketTest {
 public:
     void SetUp() {
         SingleThreadedKVBucketTest::SetUp();
-        setVBucketStateAndRunPersistTask(
-                vbid,
-                vbucket_state_active,
-                {{"topology", nlohmann::json::array({{active, replica}})}});
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
         vb = store->getVBuckets().getBucket(vbid).get();
         // Note: MockDurabilityMonitor is used only for accessing the base
         //     class protected members, it doesn't change the base class layout
@@ -94,6 +91,8 @@ protected:
     // Owned by VBucket
     MockDurabilityMonitor* monitor;
 
+    // @todo: This is hard-coded in DcpProducer::seqno_acknowledged. Remove
+    //     when we switch to use the real name of the Consumer.
     const std::string active = "active";
     const std::string replica = "replica";
 };

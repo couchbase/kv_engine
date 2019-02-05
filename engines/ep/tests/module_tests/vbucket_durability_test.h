@@ -70,6 +70,7 @@ protected:
     CheckpointManager* ckptMgr;
     MockDurabilityMonitor* monitor;
 
-    const std::string active = "active";
+    // @todo: This is hard-coded in DcpProducer::seqno_acknowledged. Remove
+    //     when we switch to use the real name of the Consumer.
     const std::string replica = "replica";
 };
