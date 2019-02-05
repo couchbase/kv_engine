@@ -18,13 +18,11 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
-#include <cJSON.h>
-#include <cJSON_utils.h>
+#include <nlohmann/json.hpp>
 
 class ErrmapTest : public TestappClientTest {
 public:
-    static bool validateJson(cJSON* json, size_t reqversion);
-    static bool validateJson(const char* s, size_t n, size_t reqversion);
+    static bool validateJson(const nlohmann::json& json, size_t reqversion);
 };
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
@@ -33,27 +31,18 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                                           TransportProtocols::McbpSsl),
                         ::testing::PrintToStringParamName());
 
-bool ErrmapTest::validateJson(cJSON *json, size_t reqversion) {
+bool ErrmapTest::validateJson(const nlohmann::json& json, size_t reqversion) {
     // Validate the JSON
-    cJSON *jversion = cJSON_GetObjectItem(json, "version");
+    auto version = json.find("version");
 
-    EXPECT_NE(nullptr, jversion);
-    if (jversion != nullptr) {
-        EXPECT_LE(jversion->valueint, reqversion);
-    }
+    EXPECT_NE(json.end(), version);
+    EXPECT_GE(reqversion, version->get<int>());
 
-    cJSON *jrev = cJSON_GetObjectItem(json, "revision");
-    EXPECT_NE(nullptr, jrev);
-    if (jrev != nullptr) {
-        EXPECT_EQ(2, jrev->valueint);
-    }
+    auto rev = json.find("revision");
+    EXPECT_NE(json.end(), rev);
+    EXPECT_EQ(2, rev->get<int>());
+
     return !::testing::Test::HasFailure();
-}
-
-bool ErrmapTest::validateJson(const char *s, size_t len, size_t reqversion) {
-    unique_cJSON_ptr ptr(cJSON_Parse(std::string(s, len).c_str()));
-    EXPECT_NE(nullptr, ptr);
-    return validateJson(ptr.get(), reqversion);
 }
 
 TEST_P(ErrmapTest, GetErrmapOk) {
@@ -67,8 +56,8 @@ TEST_P(ErrmapTest, GetErrmapOk) {
 
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     ASSERT_GT(resp.getBodylen(), 0);
-    EXPECT_TRUE(validateJson(reinterpret_cast<const char *>(resp.getPayload()),
-                             resp.getBodylen(), version));
+    EXPECT_TRUE(
+            validateJson(nlohmann::json::parse(resp.getDataString()), version));
 }
 
 TEST_P(ErrmapTest, GetErrmapAnyVersion) {
@@ -82,13 +71,9 @@ TEST_P(ErrmapTest, GetErrmapAnyVersion) {
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     ASSERT_GT(resp.getBodylen(), 0);
 
-    std::string raw_json(reinterpret_cast<const char *>(resp.getPayload()),
-                         resp.getBodylen());
-    unique_cJSON_ptr ptr(cJSON_Parse(raw_json.c_str()));
-
-    ASSERT_TRUE(validateJson(ptr.get(), version));
-    cJSON *jversion = cJSON_GetObjectItem(ptr.get(), "version");
-    ASSERT_EQ(1, jversion->valueint);
+    const auto json = nlohmann::json::parse(resp.getDataString());
+    ASSERT_TRUE(validateJson(json, version));
+    ASSERT_EQ(1, json["version"].get<int>());
 }
 
 TEST_P(ErrmapTest, GetErrmapBadversion) {

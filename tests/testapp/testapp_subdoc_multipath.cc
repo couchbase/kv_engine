@@ -21,8 +21,7 @@
 
 #include "testapp_subdoc_common.h"
 
-#include <cJSON.h>
-#include <cJSON_utils.h>
+#include <nlohmann/json.hpp>
 
 // Test multi-path lookup command - simple single SUBDOC_GET
 TEST_P(SubdocTestappTest, SubdocMultiLookup_GetSingle) {
@@ -71,19 +70,18 @@ TEST_P(SubdocTestappTest, SubdocMultiLookup_ExistsSingle) {
  *   Keys are named "key_0", "key_1"...
  *   Values are strings of the form "value_0", value_1"...
  */
-unique_cJSON_ptr make_flat_dict(int nelements) {
-    cJSON* dict = cJSON_CreateObject();
+nlohmann::json make_flat_dict(int nelements) {
+    nlohmann::json dict;
     for (int i = 0; i < nelements; i++) {
-        std::string key("key_" + std::to_string(i));
-        std::string value("value_" + std::to_string(i));
-        cJSON_AddStringToObject(dict, key.c_str(), value.c_str());
+        dict[std::string{"key_"} + std::to_string(i)] =
+                std::string{"value_"} + std::to_string(i);
     }
-    return unique_cJSON_ptr(dict);
+    return dict;
 }
 
 static void test_subdoc_multi_lookup_getmulti() {
     auto dict = make_flat_dict(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS + 1);
-    store_document("dict", to_string(dict));
+    store_document("dict", dict.dump());
 
     // Lookup the maximum number of allowed paths - should succeed.
     SubdocMultiLookupCmd lookup;
@@ -144,7 +142,7 @@ TEST_P(SubdocTestappTest, SubdocMultiLookup_GetMultiInvalid) {
 // Test multi-path lookup - multiple EXISTS lookups
 TEST_P(SubdocTestappTest, SubdocMultiLookup_ExistsMulti) {
     auto dict = make_flat_dict(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS + 1);
-    store_document("dict", to_string(dict));
+    store_document("dict", dict.dump());
 
     // Lookup the maximum number of allowed paths - should succeed.
     SubdocMultiLookupCmd lookup;
@@ -186,7 +184,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddSingle) {
     expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
 
     // Check the update actually occurred.
-    validate_object("dict", R"({"key":"value"})");
+    validate_json_document("dict", R"({"key":"value"})");
 
     delete_object("dict");
 }
@@ -212,7 +210,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddMulti) {
     expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
 
     // Check the update actually occurred.
-    validate_object("dict", R"({"key1":1,"key2":2,"key3":3})");
+    validate_json_document("dict", R"({"key1":1,"key2":2,"key3":3})");
 
     delete_object("dict");
 }
@@ -237,8 +235,7 @@ static void test_subdoc_multi_mutation_dict_add_max() {
 
     // Check the update actually occurred.
     auto dict = make_flat_dict(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS);
-    const auto expected_str = to_string(dict, false);
-    validate_object("dict", expected_str);
+    validate_json_document("dict", dict.dump());
 
     delete_object("dict");
 
@@ -255,7 +252,7 @@ static void test_subdoc_multi_mutation_dict_add_max() {
     reconnect_to_server();
 
     // Document should be unmodified.
-    validate_object("dict", "{}");
+    validate_json_document("dict", "{}");
 
     delete_object("dict");
 }
@@ -283,7 +280,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddInvalidDuplicate) {
                       {{1, cb::mcbp::Status::SubdocPathEexists}});
 
     // Document should be unmodified.
-    validate_object("dict", "{}");
+    validate_json_document("dict", "{}");
 
     delete_object("dict");
 }
@@ -311,8 +308,8 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddCounter) {
                       {{2, cb::mcbp::Status::Success, "2"}});
 
     // Check the update actually occurred.
-    validate_object("dict",
-                    R"({"count":2,"items":{"foo":1,"bar":2}})");
+    validate_json_document("dict",
+                           R"({"count":2,"items":{"foo":1,"bar":2}})");
 
     delete_object("dict");
 }
@@ -342,7 +339,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddCAS) {
                               "\"value\""});
     expect_subdoc_cmd(mutation, cb::mcbp::Status::KeyEexists, {});
     // Document should be unmodified.
-    validate_object("dict", "{\"int\":1}");
+    validate_json_document("dict", R"({"int":1})");
 
     // 2. Attempt to mutate with correct CAS.
     mutation.cas = cas;
@@ -353,7 +350,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddCAS) {
     EXPECT_NE(cas, new_cas);
 
     // Document should have been updated.
-    validate_object("dict", R"({"int":1,"float":2.0,"string":"value"})");
+    validate_json_document("dict", R"({"int":1,"float":2.0,"string":"value"})");
 
     delete_object("dict");
 }
@@ -398,7 +395,7 @@ void test_subdoc_multi_mutation_dictadd_delete() {
                        {6, cb::mcbp::Status::Success, "1"}});
 
     // Document should have been updated.
-    validate_object("dict", R"({"count":1,"items":{"2":2}})");
+    validate_json_document("dict", R"({"count":1,"items":{"2":2}})");
 
     // 2. Delete the old 'items' dictionary and create a new one.
     mutation.specs.clear();
@@ -424,7 +421,7 @@ void test_subdoc_multi_mutation_dictadd_delete() {
                       cb::mcbp::Status::Success,
                       {{4, cb::mcbp::Status::Success, "2"}});
 
-    validate_object("dict", R"({"count":2,"items":{"4":4,"5":5}})");
+    validate_json_document("dict", R"({"count":2,"items":{"4":4,"5":5}})");
 
     delete_object("dict");
 }
@@ -523,7 +520,7 @@ TEST_P(SubdocTestappTest, SubdocStatsMultiLookup) {
     auto bytes_after_total = extract_single_stat(stats, "bytes_subdoc_lookup_total");
     auto bytes_after_subset = extract_single_stat(stats, "bytes_subdoc_lookup_extracted");
     EXPECT_EQ(1, count_after - count_before);
-    EXPECT_EQ(373, bytes_after_total - bytes_before_total);
+    EXPECT_EQ(321, bytes_after_total - bytes_before_total);
     EXPECT_EQ(246, bytes_after_subset - bytes_before_subset);
 }
 
@@ -582,7 +579,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_MaxResultSpecValue) {
 
     expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, expected_results);
 
-    validate_object("array", expected_json);
+    validate_json_document("array", expected_json);
 
     delete_object("array");
 
@@ -602,7 +599,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_Flags) {
     expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
 
     // Check the update actually occurred.
-    validate_object("array", "[0]");
+    validate_json_document("array", "[0]");
     validate_flags("array", flags);
 
     delete_object("array");
@@ -618,7 +615,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_AddDocFlag) {
                               "test",
                               "56"});
     expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
-    validate_object("AddDocTest", "{\"test\":56}");
+    validate_json_document("AddDocTest", R"({"test":56})");
 
     delete_object("AddDocTest");
 }
@@ -640,7 +637,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_AddDocFlagEEXists) {
 
     // Now the doc is deleted, we should be able to Add successfully
     expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
-    validate_object("AddDocExistsTest", "{\"test\":56}");
+    validate_json_document("AddDocExistsTest", R"({"test":56})");
 
     delete_object("AddDocExistsTest");
 }
@@ -678,7 +675,7 @@ TEST_P(SubdocTestappTest, MB_30278_SubdocBacktickMultiMutation) {
                               "3"});
     expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
 
-    validate_object("dict", R"({"key1`":1,"key2`":2,"key3`":3})");
+    validate_json_document("dict", R"({"key1`":1,"key2`":2,"key3`":3})");
 
     delete_object("dict");
 }

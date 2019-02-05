@@ -25,11 +25,11 @@
 #include "memcached_audit_events.h"
 #include "auditd/auditd_audit_events.h"
 
-#include <cJSON.h>
-#include <cJSON_utils.h>
+#include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 
-#include <fstream>
+#include <cctype>
+#include <sstream>
 #include <string>
 #include <thread>
 
@@ -68,7 +68,9 @@ public:
         connection.reconnect();
     }
 
-    std::vector<unique_cJSON_ptr> readAuditData();
+    std::vector<nlohmann::json> readAuditData();
+
+    std::vector<nlohmann::json> splitJsonData(const std::string& input);
 
     bool searchAuditLogForID(int id,
                              const std::string& username = "",
@@ -80,22 +82,38 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         ::testing::Values(TransportProtocols::McbpPlain),
                         ::testing::PrintToStringParamName());
 
-
-std::vector<unique_cJSON_ptr> AuditTest::readAuditData() {
-    std::vector<unique_cJSON_ptr> rval;
-    auto files = cb::io::findFilesContaining(
-        mcd_env->getAuditLogDir(),
-        "audit.log");
-    for (auto file : files) {
-        std::ifstream auditData(file, std::ifstream::in);
-        while (auditData.good()) {
-            std::string line;
-            std::getline(auditData, line);
-            unique_cJSON_ptr jsonPtr(cJSON_Parse(line.c_str()));
-            if (jsonPtr.get() != nullptr) {
-                rval.push_back(std::move(jsonPtr));
+std::vector<nlohmann::json> AuditTest::splitJsonData(const std::string& input) {
+    std::vector<nlohmann::json> rval;
+    std::istringstream content(input);
+    while (content.good()) {
+        std::string line;
+        std::getline(content, line);
+        while (!line.empty() && std::isspace(line.back())) {
+            line.pop_back();
+        }
+        if (!line.empty()) {
+            try {
+                rval.emplace_back(nlohmann::json::parse(line));
+            } catch (const nlohmann::json::exception&) {
+                // Stop parsing this file
+                if (!content.eof()) {
+                    throw std::runtime_error(
+                            "splitJsonData: Invalid last entry");
+                }
+                break;
             }
         }
+    }
+    return rval;
+}
+
+std::vector<nlohmann::json> AuditTest::readAuditData() {
+    std::vector<nlohmann::json> rval;
+    const auto files =
+            cb::io::findFilesContaining(mcd_env->getAuditLogDir(), "audit.log");
+    for (const auto& file : files) {
+        auto entries = splitJsonData(cb::io::loadFile(file));
+        std::move(entries.begin(), entries.end(), std::back_inserter(rval));
     }
     return rval;
 }
@@ -103,28 +121,26 @@ std::vector<unique_cJSON_ptr> AuditTest::readAuditData() {
 bool AuditTest::searchAuditLogForID(int id,
                                     const std::string& username,
                                     const std::string& bucketname) {
-    // @todo loop up to 5 sec trying to get it..
-    auto timeout = time(NULL) + 5;
+    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(5);
 
     do {
-        auto auditEntries = readAuditData();
+        const auto auditEntries = readAuditData();
         for (auto& entry : auditEntries) {
-            cJSON* idEntry = cJSON_GetObjectItem(entry.get(), "id");
-            if (idEntry && idEntry->valueint == id) {
+            if (entry["id"].get<int>() == id) {
                 // This the type we're searching for..
                 std::string user;
                 std::string bucket;
 
-                auto* obj = cJSON_GetObjectItem(entry.get(), "bucket");
-                if (obj && obj->type == cJSON_String) {
-                    bucket.assign(obj->valuestring);
+                auto iter = entry.find("bucket");
+                if (iter != entry.end()) {
+                    bucket.assign(iter->get<std::string>());
                 }
 
-                obj = cJSON_GetObjectItem(entry.get(), "real_userid");
-                if (obj) {
-                    obj = cJSON_GetObjectItem(obj, "user");
-                    if (obj && obj->type == cJSON_String) {
-                        user.assign(obj->valuestring);
+                iter = entry.find("real_userid");
+                if (iter != entry.end()) {
+                    auto u = iter->find("user");
+                    if (u != iter->end()) {
+                        user.assign(u->get<std::string>());
                     }
                 }
 
@@ -156,11 +172,29 @@ bool AuditTest::searchAuditLogForID(int id,
             }
         }
 
-        // Avoid busy-loop by backing off for 500 µsec
-        usleep(500);
-    } while (time(nullptr) < timeout);
+        // Avoid busy-loop by backing off
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    } while (std::chrono::steady_clock::now() < timeout);
 
     return false;
+}
+
+/**
+ * Add a unit test to verify that we're able to successfully detect any
+ * garbled entries at the end of the file
+ */
+TEST_P(AuditTest, splitJsonData) {
+    // We should accept windows style new line
+    EXPECT_EQ(4, splitJsonData("{}\r\n{}\r\n{}\r\n{}\r\n").size());
+    // And unix style
+    EXPECT_EQ(4, splitJsonData("{}\n{}\n{}\n{}\n").size());
+    // We should be able to parse the data if it doesn't include a newline
+    // at the end or leading / trailing while space and empty lines
+    EXPECT_EQ(4, splitJsonData("{}\n{}\n {} \n\r\n{}").size());
+    // We should allow (and ignore) a garbled entry at the end
+    EXPECT_EQ(4, splitJsonData("{}\n{}\n {} \n\r\n{}\n{\"foo\"").size());
+    // We should fail for garbled entries in the middle of the file
+    EXPECT_THROW(splitJsonData("{\"Foo: false}\n{}"), std::runtime_error);
 }
 
 /**
@@ -204,15 +238,15 @@ TEST_P(AuditTest, AuditIllegalFrame_MB31071) {
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(5);
     do {
         for (auto& entry : readAuditData()) {
-            cJSON* id = cJSON_GetObjectItem(entry.get(), "id");
-            ASSERT_NE(nullptr, id);
-            if (id->valueint == MEMCACHED_AUDIT_INVALID_PACKET) {
+            auto iter = entry.find("id");
+            ASSERT_NE(entry.end(), iter);
+            if (iter->get<int>() == MEMCACHED_AUDIT_INVALID_PACKET) {
                 // Ok, this is the entry types i want... is this the one with
                 // the blob of 300 'a'?
                 // The audit daemon dumps the first 256 bytes and tells us
                 // the number it truncated. For simplicity we'll just search
                 // for that...
-                auto str = to_string(entry.get());
+                auto str = entry.dump();
                 if (str.find(" [truncated 44 bytes]") != std::string::npos) {
                     return;
                 }

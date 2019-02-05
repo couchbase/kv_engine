@@ -775,11 +775,13 @@ std::pair<cb::mcbp::Status, std::string> fetch_value(const std::string& key) {
     return std::make_pair(rsp.getStatus(), rsp.getDataString());
 }
 
-void validate_object(const std::string& key,
-                     const std::string& expected_value) {
+void validate_json_document(const std::string& key,
+                            const std::string& expected_value) {
     auto pair = fetch_value(key);
     EXPECT_EQ(cb::mcbp::Status::Success, pair.first);
-    EXPECT_EQ(expected_value, pair.second);
+    const auto exp = nlohmann::json::parse(expected_value).dump();
+    const auto val = nlohmann::json::parse(pair.second).dump();
+    EXPECT_EQ(exp, val);
 }
 
 void validate_flags(const std::string& key, uint32_t expected_flags) {

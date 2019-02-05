@@ -23,10 +23,9 @@
 #include "testapp_client_test.h"
 #include "testapp_subdoc_common.h"
 
-#include <cJSON.h>
-#include <cJSON_utils.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/util.h> // for memcached_protocol_errcode_2_text()
+#include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
 #include <platform/socket.h>
 
@@ -229,27 +228,20 @@ void SubdocTestappTest::test_subdoc_fetch_dict_nested(
                 (cmd == cb::mcbp::ClientOpcode::SubdocExists));
 
     // Getting a bit complex to do raw (with all the quote escaping so use
-    // cJSON API.
-    unique_cJSON_ptr dict(cJSON_CreateObject());
-    cJSON* name = cJSON_CreateObject();
-    cJSON_AddStringToObject(name, "title", "Mr");
-    cJSON_AddStringToObject(name, "first", "Joseph");
-    cJSON_AddStringToObject(name, "last", "Bloggs");
-    cJSON_AddItemToObject(dict.get(), "name", name);
-
-    cJSON* orders = cJSON_CreateArray();
+    // JSON API
+    nlohmann::json dict;
+    dict["name"]["title"] = "Mr";
+    dict["name"]["first"] = "Joseph";
+    dict["name"]["last"] = "Bloggs";
+    dict["orders"] = nlohmann::json::array();
     for (int i = 0; i < 10; i++) {
-        cJSON* order = cJSON_CreateObject();
-        std::string order_name("order_" + std::to_string(i));
-        cJSON_AddStringToObject(order, "date", "2020-04-04T18:17:04Z");
-        cJSON_AddNumberToObject(order, "count", i * 3);
-        std::string desc("Cool project #" + std::to_string(i));
-        cJSON_AddStringToObject(order, "description", desc.c_str());
-        cJSON_AddItemToArray(orders, order);
+        nlohmann::json o;
+        o["date"] = "2020-04-04T18:17:04Z";
+        o["count"] = i * 3;
+        o["description"] = std::string{"Cool project #"} + std::to_string(i);
+        dict["orders"].emplace_back(o);
     }
-    cJSON_AddItemToObject(dict.get(), "orders", orders);
-
-    const auto dict_str = to_string(dict, false);
+    const auto dict_str = dict.dump();
 
     // Store to Couchbase, optionally compressing first.
     store_document("dict2", dict_str, 0 /*flags*/, 0 /*exptime*/, compressed);
@@ -260,11 +252,11 @@ void SubdocTestappTest::test_subdoc_fetch_dict_nested(
     EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict2", "name.last"), "\"Bloggs\"");
 
     // b). Check successful access to a whole sub-dictionary.
-    const auto name_str = to_string(name, false);
+    const auto name_str = dict["name"].dump();
     EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict2", "name"), name_str);
 
     // c). Check successful access to a whole sub-array.
-    const auto orders_str = to_string(orders, false);
+    const auto orders_str = dict["orders"].dump();
     EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict2", "orders"), orders_str);
 
     // d). Check access to dict in array.
@@ -292,18 +284,15 @@ TEST_P(SubdocTestappTest, SubdocExists_DictNestedCompressed) {
 }
 
 // Creates a nested dictionary with the specified number of levels.
-// Caller is responsible for calling cJSON_Free() on the result when finished
-//with.
-static cJSON* make_nested_dict(int nlevels) {
-    cJSON* child = cJSON_CreateObject();
-    cJSON* parent = nullptr;
+static std::string make_nested_dict(int nlevels) {
+    std::string ret = "{}";
+
     for (int depth = nlevels-1; depth > 0; depth--) {
-        std::string name(std::to_string(depth));
-        parent = cJSON_CreateObject();
-        cJSON_AddItemToObject(parent, name.c_str(), child);
-        child = parent;
+        std::string s = "{\"" + std::to_string(depth) + "\":" + ret + "}";
+        std::swap(ret, s);
     }
-    return parent;
+
+    return ret;
 }
 
 // Deeply nested JSON dictionary; verify limits on how deep documents can be.
@@ -311,9 +300,7 @@ void SubdocTestappTest::test_subdoc_fetch_dict_deep(
         cb::mcbp::ClientOpcode cmd) {
     // a). Should be able to access a deeply nested document as long as the
     // path we ask for is no longer than MAX_SUBDOC_PATH_COMPONENTS.
-    unique_cJSON_ptr max_dict(make_nested_dict(MAX_SUBDOC_PATH_COMPONENTS));
-    const auto max_dict_str = to_string(max_dict, false);
-    store_document("max_dict", max_dict_str);
+    store_document("max_dict", make_nested_dict(MAX_SUBDOC_PATH_COMPONENTS));
 
     std::string valid_max_path(std::to_string(1));
     for (int depth = 2; depth < MAX_SUBDOC_PATH_COMPONENTS; depth++) {
@@ -324,9 +311,8 @@ void SubdocTestappTest::test_subdoc_fetch_dict_deep(
     delete_object("max_dict");
 
     // b). Accessing a deeper document should fail.
-    unique_cJSON_ptr too_deep_dict(make_nested_dict(MAX_SUBDOC_PATH_COMPONENTS + 1));
-    const auto too_deep_dict_str = to_string(too_deep_dict, false);
-    store_document("too_deep_dict", too_deep_dict_str);
+    store_document("too_deep_dict",
+                   make_nested_dict(MAX_SUBDOC_PATH_COMPONENTS + 1));
 
     std::string too_long_path(std::to_string(1));
     for (int depth = 2; depth < MAX_SUBDOC_PATH_COMPONENTS + 1; depth++) {
@@ -346,17 +332,15 @@ TEST_P(SubdocTestappTest, SubdocExists_DictDeep) {
 }
 
 // Creates a nested array with the specified number of levels.
-// Caller is responsible for calling cJSON_Free() on the result when finished
-//with.
-static cJSON* make_nested_array(int nlevels) {
-    cJSON* child = cJSON_CreateArray();
-    cJSON* parent = nullptr;
+
+static std::string make_nested_array(int nlevels) {
+    std::string ret = "[]";
     for (int depth = nlevels-1; depth > 0; depth--) {
-        parent = cJSON_CreateArray();
-        cJSON_AddItemToArray(parent, child);
-        child = parent;
+        std::string s = "[" + ret + "]";
+        std::swap(ret, s);
     }
-    return parent;
+
+    return ret;
 }
 
 std::string make_nested_array_path(int nlevels) {
@@ -372,10 +356,7 @@ void SubdocTestappTest::test_subdoc_fetch_array_deep(
         cb::mcbp::ClientOpcode cmd) {
     // a). Should be able to access a deeply nested document as long as the
     // path we ask for is no longer than MAX_SUBDOC_PATH_COMPONENTS.
-
-    unique_cJSON_ptr max_array(make_nested_array(MAX_SUBDOC_PATH_COMPONENTS));
-    const auto max_array_str = to_string(max_array, false);
-    store_document("max_array", max_array_str);
+    store_document("max_array", make_nested_array(MAX_SUBDOC_PATH_COMPONENTS));
 
     std::string valid_max_path(make_nested_array_path(MAX_SUBDOC_PATH_COMPONENTS));
 
@@ -383,9 +364,8 @@ void SubdocTestappTest::test_subdoc_fetch_array_deep(
     delete_object("max_array");
 
     // b). Accessing a deeper array should fail.
-    unique_cJSON_ptr too_deep_array(make_nested_array(MAX_SUBDOC_PATH_COMPONENTS + 1));
-    const auto too_deep_array_str = to_string(too_deep_array, false);
-    store_document("too_deep_array", too_deep_array_str);
+    store_document("too_deep_array",
+                   make_nested_array(MAX_SUBDOC_PATH_COMPONENTS + 1));
 
     std::string too_long_path(make_nested_array_path(MAX_SUBDOC_PATH_COMPONENTS + 1));
 
@@ -694,10 +674,7 @@ void SubdocTestappTest::test_subdoc_dict_add_upsert_deep(
 
     // a). Check that we can add elements to a document at the maximum nested
     // level.
-    unique_cJSON_ptr one_less_max_dict(
-            make_nested_dict(MAX_SUBDOC_PATH_COMPONENTS - 1));
-    const auto one_less_max_dict_str = to_string(one_less_max_dict, false);
-    store_document("dict", one_less_max_dict_str);
+    store_document("dict", make_nested_dict(MAX_SUBDOC_PATH_COMPONENTS - 1));
 
     std::string one_less_max_path(std::to_string(1));
     for (int depth = 2; depth < MAX_SUBDOC_PATH_COMPONENTS - 1; depth++) {
@@ -788,7 +765,7 @@ void SubdocTestappTest::test_subdoc_delete_simple(bool compress) {
     }
 
     // After deleting everything the dictionary should be empty.
-    validate_object("dict", "{}");
+    validate_json_document("dict", "{}");
     delete_object("dict");
 }
 
@@ -818,7 +795,7 @@ TEST_P(SubdocTestappTest, SubdocDelete_Array) {
     //     3rd element should still be 2; last element should now be 3.
     EXPECT_SD_GET("a", "[2]", "2");
     EXPECT_SD_GET("a", "[-1]", "3");
-    validate_object("a", "[0,1,2,3]");
+    validate_json_document("a", "[0,1,2,3]");
 
     // c). Test deleting at start of array; elements are shuffled down.
     EXPECT_SD_OK(BinprotSubdocCommand(
@@ -826,23 +803,23 @@ TEST_P(SubdocTestappTest, SubdocDelete_Array) {
     //     3rd element should now be 3; last element should still be 3.
     EXPECT_SD_GET("a", "[2]", "3");
     EXPECT_SD_GET("a", "[-1]", "3");
-    validate_object("a", "[1,2,3]");
+    validate_json_document("a", "[1,2,3]");
 
     // d). Test deleting of last element using [-1].
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocDelete, "a", "[-1]"));
     //     Last element should now be 2.
     EXPECT_SD_GET("a", "[-1]", "2");
-    validate_object("a", "[1,2]");
+    validate_json_document("a", "[1,2]");
 
     // e). Delete remaining elements.
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocDelete, "a", "[0]"));
-    validate_object("a", "[2]");
+    validate_json_document("a", "[2]");
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocDelete, "a", "[0]"));
     // Should have an empty array.
-    validate_object("a", "[]");
+    validate_json_document("a", "[]");
 
     delete_object("a");
 }
@@ -895,7 +872,7 @@ TEST_P(SubdocTestappTest, SubdocReplace_SimpleDict) {
         EXPECT_SD_GET("a", "key", replace);
     }
     // Sanity-check the final document
-    validate_object("a", R"({"key":null,"key2":1})");
+    validate_json_document("a", R"({"key":null,"key2":1})");
 
     delete_object("a");
 }
@@ -914,7 +891,7 @@ TEST_P(SubdocTestappTest, SubdocReplace_SimpleArray) {
         EXPECT_SD_GET("a", "[0]", replace);
     }
     // Sanity-check the final document
-    validate_object("a", "[null,1]");
+    validate_json_document("a", "[null,1]");
 
     delete_object("a");
 }
@@ -923,9 +900,7 @@ TEST_P(SubdocTestappTest, SubdocReplace_ArrayDeep) {
     // Test replacing in deeply nested arrays.
 
     // Create an array at one less than the maximum depth and an associated path.
-    unique_cJSON_ptr one_less_max(make_nested_array(MAX_SUBDOC_PATH_COMPONENTS));
-    const auto one_less_max_str = to_string(one_less_max, false);
-    store_document("a", one_less_max_str);
+    store_document("a", make_nested_array(MAX_SUBDOC_PATH_COMPONENTS));
 
     std::string valid_max_path(make_nested_array_path(MAX_SUBDOC_PATH_COMPONENTS));
     EXPECT_SD_GET("a", valid_max_path, "[]");
@@ -960,18 +935,18 @@ TEST_P(SubdocTestappTest, SubdocArrayPushLast_Simple) {
     request.setPath("").setValue("0").setKey("a");
     EXPECT_SD_OK(request);
     EXPECT_SD_GET("a", "[0]", "0");
-    validate_object("a", "[0]");
+    validate_json_document("a", "[0]");
 
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocArrayPushLast, "a", "", "1"));
     EXPECT_SD_GET("a", "[1]", "1");
-    validate_object("a", "[0,1]");
+    validate_json_document("a", "[0,1]");
 
     request.setValue("2").setKey("a");
     BinprotSubdocResponse resp;
     EXPECT_SUBDOC_CMD_RESP(request, cb::mcbp::Status::Success, "", resp);
     EXPECT_SD_GET("a", "[2]", "2");
-    validate_object("a", "[0,1,2]");
+    validate_json_document("a", "[0,1,2]");
 
     // b). Check that using the correct CAS succeeds.
     EXPECT_SD_OK(
@@ -982,8 +957,7 @@ TEST_P(SubdocTestappTest, SubdocArrayPushLast_Simple) {
                                  SUBDOC_FLAG_NONE,
                                  mcbp::subdoc::doc_flag::None,
                                  resp.getCas()));
-    EXPECT_SD_GET("a", "[3]", "3"),
-    validate_object("a", "[0,1,2,3]");
+    EXPECT_SD_GET("a", "[3]", "3"), validate_json_document("a", "[0,1,2,3]");
 
     // c). But using the wrong one fails.
     EXPECT_SD_ERR(
@@ -995,7 +969,7 @@ TEST_P(SubdocTestappTest, SubdocArrayPushLast_Simple) {
                                  mcbp::subdoc::doc_flag::None,
                                  resp.getCas()),
             cb::mcbp::Status::KeyEexists);
-    validate_object("a", "[0,1,2,3]");
+    validate_json_document("a", "[0,1,2,3]");
     delete_object("a");
 
     // d). Check various other object types append successfully.
@@ -1014,13 +988,13 @@ TEST_P(SubdocTestappTest, SubdocArrayPushLast_Simple) {
     store_document("c", "[]");
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocArrayPushLast, "c", "", "0,1"));
-    validate_object("c", "[0,1]");
+    validate_json_document("c", "[0,1]");
     EXPECT_SD_OK(
             BinprotSubdocCommand(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
                                  "c",
                                  "",
                                  "\"two\",3.141,{\"four\":4}"));
-    validate_object("c", R"([0,1,"two",3.141,{"four":4}])");
+    validate_json_document("c", R"([0,1,"two",3.141,{"four":4}])");
 
     delete_object("c");
 
@@ -1043,12 +1017,12 @@ TEST_P(SubdocTestappTest, SubdocArrayPushLast_Nested) {
             cb::mcbp::ClientOpcode::SubdocArrayPushLast, "a", "", "1"));
     EXPECT_SD_GET("a", "[0]", "[]");
     EXPECT_SD_GET("a", "[1]", "1");
-    validate_object("a", "[[],1]");
+    validate_json_document("a", "[[],1]");
 
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocArrayPushLast, "a", "", "2"));
     EXPECT_SD_GET("a", "[2]", "2");
-    validate_object("a", "[[],1,2]");
+    validate_json_document("a", "[[],1,2]");
 
     delete_object("a");
 }
@@ -1059,12 +1033,12 @@ TEST_P(SubdocTestappTest, SubdocArrayPushFirst_Simple) {
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocArrayPushFirst, "a", "", "0"));
     EXPECT_SD_GET("a", "[0]", "0");
-    validate_object("a", "[0]");
+    validate_json_document("a", "[0]");
 
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocArrayPushFirst, "a", "", "1"));
     EXPECT_SD_GET("a", "[0]", "1");
-    validate_object("a", "[1,0]");
+    validate_json_document("a", "[1,0]");
 
     BinprotSubdocResponse resp;
     EXPECT_SUBDOC_CMD_RESP(
@@ -1074,7 +1048,7 @@ TEST_P(SubdocTestappTest, SubdocArrayPushFirst_Simple) {
             "",
             resp);
     EXPECT_SD_GET("a", "[0]", "2");
-    validate_object("a", "[2,1,0]");
+    validate_json_document("a", "[2,1,0]");
 
     // b). Check that using the correct CAS succeeds.
     EXPECT_SD_OK(
@@ -1086,7 +1060,7 @@ TEST_P(SubdocTestappTest, SubdocArrayPushFirst_Simple) {
                                  mcbp::subdoc::doc_flag::None,
                                  resp.getCas()));
     EXPECT_SD_GET("a", "[0]", "3");
-    validate_object("a", "[3,2,1,0]");
+    validate_json_document("a", "[3,2,1,0]");
 
     // c). But using the wrong one fails.
     EXPECT_SUBDOC_CMD(
@@ -1099,7 +1073,7 @@ TEST_P(SubdocTestappTest, SubdocArrayPushFirst_Simple) {
                                  resp.getCas()),
             cb::mcbp::Status::KeyEexists,
             "");
-    validate_object("a", "[3,2,1,0]");
+    validate_json_document("a", "[3,2,1,0]");
     delete_object("a");
 
     // d). Check various other object types prepend successfully.
@@ -1115,13 +1089,13 @@ TEST_P(SubdocTestappTest, SubdocArrayPushFirst_Simple) {
     store_document("c", "[]");
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocArrayPushFirst, "c", "", "0,1"));
-    validate_object("c", "[0,1]");
+    validate_json_document("c", "[0,1]");
     EXPECT_SD_OK(
             BinprotSubdocCommand(cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
                                  "c",
                                  "",
                                  "\"two\",3.141,{\"four\":4}"));
-    validate_object("c", R"(["two",3.141,{"four":4},0,1])");
+    validate_json_document("c", R"(["two",3.141,{"four":4},0,1])");
     delete_object("c");
 
     // f). Check MKDIR_P flag works.
@@ -1143,12 +1117,12 @@ TEST_P(SubdocTestappTest, SubdocArrayPushFirst_Nested) {
             cb::mcbp::ClientOpcode::SubdocArrayPushFirst, "a", "", "1"));
     EXPECT_SD_GET("a", "[0]", "1");
     EXPECT_SD_GET("a", "[1]", "[]");
-    validate_object("a", "[1,[]]");
+    validate_json_document("a", "[1,[]]");
 
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocArrayPushFirst, "a", "", "2"));
     EXPECT_SD_GET("a", "[0]", "2");
-    validate_object("a", "[2,1,[]]");
+    validate_json_document("a", "[2,1,[]]");
 
     delete_object("a");
 }
@@ -1160,14 +1134,14 @@ TEST_P(SubdocTestappTest, SubdocArrayAddUnique_Simple) {
     // a). Add an element which doesn't already exist.
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocArrayAddUnique, "a", "", "0"));
-    validate_object("a", "[0]");
+    validate_json_document("a", "[0]");
 
     // b). Add an element which does already exist.
     EXPECT_SD_ERR(
             BinprotSubdocCommand(
                     cb::mcbp::ClientOpcode::SubdocArrayAddUnique, "a", "", "0"),
             cb::mcbp::Status::SubdocPathEexists);
-    validate_object("a", "[0]");
+    validate_json_document("a", "[0]");
     delete_object("a");
 
     // c). Larger array, add an element which already exists.
@@ -1177,7 +1151,7 @@ TEST_P(SubdocTestappTest, SubdocArrayAddUnique_Simple) {
             BinprotSubdocCommand(
                     cb::mcbp::ClientOpcode::SubdocArrayAddUnique, "b", "", "6"),
             cb::mcbp::Status::SubdocPathEexists);
-    validate_object("b", array);
+    validate_json_document("b", array);
 
     // d). Check that all permitted types of values can be added:
     const std::vector<std::string> valid_unique_values({
@@ -1239,25 +1213,25 @@ TEST_P(SubdocTestappTest, SubdocArrayInsert_Simple) {
     // a). Attempt to insert at position 0 should succeed.
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocArrayInsert, "a", "[0]", "2"));
-    validate_object("a", "[2]");
+    validate_json_document("a", "[2]");
 
     // b). Second insert at zero should succeed and shuffle existing element
     // down.
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocArrayInsert, "a", "[0]", "0"));
-    validate_object("a", "[0,2]");
+    validate_json_document("a", "[0,2]");
 
     // c). Insert at position 1 should shuffle down elements after, leave alone
     // elements before.
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocArrayInsert, "a", "[1]", "1"));
-    validate_object("a", "[0,1,2]");
+    validate_json_document("a", "[0,1,2]");
 
     // d). Insert at len(array) should add to the end, without moving existing
     // elements.
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocArrayInsert, "a", "[3]", "3"));
-    validate_object("a", "[0,1,2,3]");
+    validate_json_document("a", "[0,1,2,3]");
 
     delete_object("a");
 }
@@ -1272,7 +1246,7 @@ TEST_P(SubdocTestappTest, SubdocArrayInsert_Invalid) {
                     cb::mcbp::ClientOpcode::SubdocArrayInsert, "a", "[1]", "0"),
             cb::mcbp::Status::SubdocPathEnoent,
             "");
-    validate_object("a", "[]");
+    validate_json_document("a", "[]");
 
     // b). Insert at position '-1' is invalid.
     EXPECT_SUBDOC_CMD(
@@ -1283,7 +1257,7 @@ TEST_P(SubdocTestappTest, SubdocArrayInsert_Invalid) {
             cb::mcbp::Status::SubdocPathEinval,
             "");
     reconnect_to_server();
-    validate_object("a", "[]");
+    validate_json_document("a", "[]");
 
     // c). MKDIR_P flag is not valid for ARRAY_INSERT
     EXPECT_SUBDOC_CMD(
@@ -1295,7 +1269,7 @@ TEST_P(SubdocTestappTest, SubdocArrayInsert_Invalid) {
             cb::mcbp::Status::Einval,
             "");
     reconnect_to_server();
-    validate_object("a", "[]");
+    validate_json_document("a", "[]");
 
     // d). A path larger than len(array) should fail.
     EXPECT_SUBDOC_CMD(
@@ -1303,7 +1277,7 @@ TEST_P(SubdocTestappTest, SubdocArrayInsert_Invalid) {
                     cb::mcbp::ClientOpcode::SubdocArrayInsert, "a", "[1]", "1"),
             cb::mcbp::Status::SubdocPathEnoent,
             "");
-    validate_object("a", "[]");
+    validate_json_document("a", "[]");
 
     // e). A path whose has component isn't an array subscript should fail.
     EXPECT_SUBDOC_CMD(
@@ -1314,7 +1288,7 @@ TEST_P(SubdocTestappTest, SubdocArrayInsert_Invalid) {
             cb::mcbp::Status::SubdocPathEinval,
             "");
     reconnect_to_server();
-    validate_object("a", "[]");
+    validate_json_document("a", "[]");
 
     delete_object("a");
 
@@ -1325,7 +1299,7 @@ TEST_P(SubdocTestappTest, SubdocArrayInsert_Invalid) {
                     cb::mcbp::ClientOpcode::SubdocArrayInsert, "b", "[0]", "0"),
             cb::mcbp::Status::SubdocPathMismatch,
             "");
-    validate_object("b", "{}");
+    validate_json_document("b", "{}");
     delete_object("b");
 }
 
@@ -1813,7 +1787,7 @@ TEST_P(SubdocTestappTest, SubdocFlags) {
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocReplace, "array", "[0]", "1"));
 
-    validate_object("array", "[1]");
+    validate_json_document("array", "[1]");
     validate_flags("array", flags);
 
     delete_object("array");
@@ -1840,7 +1814,7 @@ TEST_P(SubdocTestappTest, SubdocLockedItem) {
     sd_cmd.setCas(doc.info.cas);
     EXPECT_SUBDOC_CMD(sd_cmd, cb::mcbp::Status::Success, "");
 
-    validate_object("item", "{\"p\":true}");
+    validate_json_document("item", "{\"p\":true}");
 
     delete_object("item");
 }
@@ -2055,7 +2029,7 @@ TEST_P(SubdocTestappTest, SubdocUTF8PathTest) {
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocDictUpsert, "dict", "kéy2👏", "99"));
     EXPECT_SD_GET("dict", "kéy2👏", "99");
-    validate_object("dict", R"({ "kéy1": 1 ,"kéy2👏":99})");
+    validate_json_document("dict", R"({ "kéy1": 1 ,"kéy2👏":99})");
 }
 
 TEST_P(SubdocTestappTest, SubdocUTF8ValTest) {
@@ -2076,7 +2050,7 @@ TEST_P(SubdocTestappTest, SubdocUTF8ValTest) {
     EXPECT_SD_GET("dict", "key2", "\"Ẇ̴̷̦͔͖͚̝̟̋̽ͪ̾ͤ̈́ͯͮͮ̀͗̌ͭ̾͜h̨̥̞͖̬̠͍͖̘̹͎͌̇̂̃ͯͣ͗̆̌̑ͨ̍̊ͪ̆̾̆̚͟͞ȧ̛̰̞̗̞̬̣̹͎̰̝͍͈̮̖̘̫̤̟͆̈́̒͗ͦ̋̓̌̊̋͝ͅţ͒ͮ͋̋̔̽ͥ̂ͭ̒̉̔̃ͫ̌̆̆҉̹͙̟̩̖̩̹̳̜͚̜̜ ͎̲͕̺̔̿̀͒̈́̏̌ͬͫ͒͂ͩͦ̀͝â̢̡̘̫̮̞̩̰̎ͨ̾ͤ̈́͑̉̈ͧ͆̃ͩ͆̚͡ ̧̢̛̙͔̰̹̲̱͔̤̝͖̥͚͓̲̪̯̟̖̏͒̽ͬ̂ͫͩͭ͋̏͊̽͗͊̀ͭ̋͘c̵̴͐̉̇͂̋ͬ̇̃͊ͨ͗̆̄̊́͏̡̡̫̦̦͉̼̙̜͉̯̮̪̫͍̩̼̘̫̻͍o̸̷͕̭̼̺̤͖͚̯̪̥̘̪̼̝̩̮͕̥̟̐͒̏ͭͦͮ̒ͧ̔̉̅̂͜͢͡o̷̢̡͕̟͓̺͚̟̱̜̻͇̘͍̤͓̲ͣͫ̾͛͗̅̐̏͑͆͌̀͜ͅͅͅl̴̡̙̹͖̈̄̌͒ͣ͒̅̏̕ ͛̐̿͋ͦ͛͌̄ͫ̒ͪ͊̀ͤ̀̿͏̶̡҉҉̤͎͖v̸̵̱͇̲͎̩͚̩͈̙̜̳̞̭̯̩̻̮̪ͯ̋̔͗̃̊ͬͮ̄̃͛̂̒̍͘͘a̦̝͇̙̬̬̰̪͙̗̟͙̝̬͛͂͑ͣ̓͑̏ͤ̑̀̚̚͘l͊̔́͋̋ͫ̈́̿̈̉̀͏̡͍͇̲̙̺̮͠uͬ̄̋̔ͪͧͥ͛ͭ̏̅ͫ͊̚͏̧͈̠̱͇͉̦̫͎͠ę̸͔̯̭̤͕̱͈̖͖̯̭̞͈͖ͨ̑̌̓̈ͮ͂̆̀͟ͅ\"");
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocDelete, "dict", "key2", ""));
-    validate_object(
+    validate_json_document(
             "dict",
             R"({ "key1": "Ẇ̴̷̦͔͖͚̝̟̋̽ͪ̾ͤ̈́ͯͮͮ̀͗̌ͭ̾͜h̨̥̞͖̬̠͍͖̘̹͎͌̇̂̃ͯͣ͗̆̌̑ͨ̍̊ͪ̆̾̆̚͟͞ȧ̛̰̞̗̞̬̣̹͎̰̝͍͈̮̖̘̫̤̟͆̈́̒͗ͦ̋̓̌̊̋͝ͅţ͒ͮ͋̋̔̽ͥ̂ͭ̒̉̔̃ͫ̌̆̆҉̹͙̟̩̖̩̹̳̜͚̜̜ ͎̲͕̺̔̿̀͒̈́̏̌ͬͫ͒͂ͩͦ̀͝â̢̡̘̫̮̞̩̰̎ͨ̾ͤ̈́͑̉̈ͧ͆̃ͩ͆̚͡ ̧̢̛̙͔̰̹̲̱͔̤̝͖̥͚͓̲̪̯̟̖̏͒̽ͬ̂ͫͩͭ͋̏͊̽͗͊̀ͭ̋͘c̵̴͐̉̇͂̋ͬ̇̃͊ͨ͗̆̄̊́͏̡̡̫̦̦͉̼̙̜͉̯̮̪̫͍̩̼̘̫̻͍o̸̷͕̭̼̺̤͖͚̯̪̥̘̪̼̝̩̮͕̥̟̐͒̏ͭͦͮ̒ͧ̔̉̅̂͜͢͡o̷̢̡͕̟͓̺͚̟̱̜̻͇̘͍̤͓̲ͣͫ̾͛͗̅̐̏͑͆͌̀͜ͅͅͅl̴̡̙̹͖̈̄̌͒ͣ͒̅̏̕ ͛̐̿͋ͦ͛͌̄ͫ̒ͪ͊̀ͤ̀̿͏̶̡҉҉̤͎͖v̸̵̱͇̲͎̩͚̩͈̙̜̳̞̭̯̩̻̮̪ͯ̋̔͗̃̊ͬͮ̄̃͛̂̒̍͘͘a̦̝͇̙̬̬̰̪͙̗̟͙̝̬͛͂͑ͣ̓͑̏ͤ̑̀̚̚͘l͊̔́͋̋ͫ̈́̿̈̉̀͏̡͍͇̲̙̺̮͠uͬ̄̋̔ͪͧͥ͛ͭ̏̅ͫ͊̚͏̧͈̠̱͇͉̦̫͎͠ę̸͔̯̭̤͕̱͈̖͖̯̭̞͈͖ͨ̑̌̓̈ͮ͂̆̀͟ͅ" })");
 }
@@ -2094,7 +2068,7 @@ TEST_P(SubdocTestappTest, MB_30278_SubdocBacktickLookup) {
                                       "key``",
                                       "\"value\""));
     EXPECT_SD_GET("doc", "key``", "\"value\"");
-    validate_object("doc", R"({"key`":"value"})");
+    validate_json_document("doc", R"({"key`":"value"})");
 }
 
 // MB-30278: Perform two DICT_ADD calls to paths with backticks in them;
@@ -2110,7 +2084,7 @@ TEST_P(SubdocTestappTest, MB_30278_SubdocBacktickDictAdd) {
                                       "doc",
                                       "key2``",
                                       "\"value2\""));
-    validate_object("doc", R"({"key`":"value","key2`":"value2"})");
+    validate_json_document("doc", R"({"key`":"value","key2`":"value2"})");
 }
 
 INSTANTIATE_TEST_CASE_P(
@@ -2204,8 +2178,8 @@ TEST_F(WorkerConcurrencyTest, DISABLED_SubdocArrayPushLast_Concurrent) {
     }
 
     // Validate correct data was written.
-    validate_object("a", expected_a);
-    validate_object("b", expected_b);
+    validate_json_document("a", expected_a);
+    validate_json_document("b", expected_b);
 
     // Restore original socket; free second one.
     *current_sock = sock1;

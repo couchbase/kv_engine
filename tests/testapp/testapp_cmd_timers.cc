@@ -18,8 +18,7 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
-#include <cJSON.h>
-#include <cJSON_utils.h>
+#include <nlohmann/json.hpp>
 #include <platform/compress.h>
 #include <protocol/connection/client_connection.h>
 #include <algorithm>
@@ -58,28 +57,31 @@ public:
 protected:
     /**
      * Get the number of operations in the payload
+     *
      * @param payload the JSON returned from the server
      * @return The number of operations we found in there
      */
     size_t getNumberOfOps(const std::string& payload) {
-        unique_cJSON_ptr json(cJSON_Parse(payload.c_str()));
-        if (!json) {
-            throw std::invalid_argument("Failed to parse payload: " + payload);
-        }
-
         size_t ret = 0;
-        for (auto* obj = json.get()->child; obj != nullptr; obj = obj->next) {
-            if (obj->type == cJSON_Number) {
-                ret += obj->valueint;
-            } else if (obj->type == cJSON_Array) {
-                for (auto* ent = obj->child; ent != nullptr; ent = ent->next) {
-                    if (ent->type == cJSON_Number) {
-                        ret += ent->valueint;
+
+        const auto json = nlohmann::json::parse(payload);
+        for (const auto& entry : json) {
+            if (entry.is_number()) {
+                ret += entry.get<size_t>();
+            } else if (entry.is_array()) {
+                for (const auto& e : entry) {
+                    if (e.is_number()) {
+                        ret += e.get<size_t>();
                     } else {
-                        throw std::invalid_argument("Expected numbers, got " +
-                                                    std::to_string(ent->type));
+                        throw std::invalid_argument(
+                                std::string{"Expected numbers, got "} +
+                                e.type_name());
                     }
                 }
+            } else {
+                throw std::invalid_argument(
+                        std::string{"Expected array or numbers, got "} +
+                        entry.type_name());
             }
         }
 

@@ -359,10 +359,14 @@ void set_datatype_feature(bool enable);
 // the server and value is the documents value (if status == SUCCESS).
 std::pair<cb::mcbp::Status, std::string> fetch_value(const std::string& key);
 
-/* Attempts to get the given key and checks if it's value matches
- * {expected_value}.
+/**
+ * Attempts to get the given key and checks if it's value matches
+ * {expected_value}. Given that the ordering in the JSON documents may be
+ * different we'll convert both to JSON and back and compare the result
+ * (they're logically equal)
  */
-void validate_object(const std::string& key, const std::string& expected_value);
+void validate_json_document(const std::string& key,
+                            const std::string& expected_value);
 
 /* Attempts to get the given key and checks if it's flags matches
  * {expected_flags}.

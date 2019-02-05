@@ -157,9 +157,6 @@ public:
      * modify the configuration (you may write it to the audit configuration
      * file by calling <code>rewriteAuditConfig()</code>
      *
-     * NOTE: You should _NOT_ release the returned cJSON object, you may
-     * only add/replace sub objects by using the appropriate cJSON methods.
-     *
      * @return the root object of the audit configuration.
      */
     nlohmann::json& getAuditConfig() {

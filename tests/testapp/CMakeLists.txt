@@ -85,7 +85,6 @@ target_link_libraries(memcached_testapp
     mcutils
     mc_client_connection
     cbsasl
-    cJSON
     platform
     dirutils
     gtest
