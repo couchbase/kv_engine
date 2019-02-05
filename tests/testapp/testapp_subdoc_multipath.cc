@@ -26,7 +26,7 @@
 
 // Test multi-path lookup command - simple single SUBDOC_GET
 TEST_P(SubdocTestappTest, SubdocMultiLookup_GetSingle) {
-    store_document("dict", "{\"key1\":1,\"key2\":\"two\", \"key3\":3.0}");
+    store_document("dict", R"({"key1":1,"key2":"two", "key3":3.0})");
 
     SubdocMultiLookupCmd lookup;
     lookup.key = "dict";
@@ -45,7 +45,7 @@ TEST_P(SubdocTestappTest, SubdocMultiLookup_GetSingle) {
     lookup.key = "dict";
     lookup.specs.at(0) = {
             cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "keyXX"};
-    expected.push_back({cb::mcbp::Status::SubdocPathEnoent, ""});
+    expected.emplace_back(cb::mcbp::Status::SubdocPathEnoent, "");
     expect_subdoc_cmd(
             lookup, cb::mcbp::Status::SubdocMultiPathFailure, expected);
 
@@ -54,7 +54,7 @@ TEST_P(SubdocTestappTest, SubdocMultiLookup_GetSingle) {
 
 // Test multi-path lookup command - simple single SUBDOC_EXISTS
 TEST_P(SubdocTestappTest, SubdocMultiLookup_ExistsSingle) {
-    store_document("dict", "{\"key1\":1,\"key2\":\"two\", \"key3\":3.0}");
+    store_document("dict", R"({"key1":1,"key2":"two", "key3":3.0})");
 
     SubdocMultiLookupCmd lookup;
     lookup.key = "dict";
@@ -118,7 +118,7 @@ TEST_P(SubdocTestappTest, SubdocMultiLookup_GetMulti) {
 
 // Test multi-path lookup - multiple GET lookups with various invalid paths.
 TEST_P(SubdocTestappTest, SubdocMultiLookup_GetMultiInvalid) {
-    store_document("dict", "{\"key1\":1,\"key2\":\"two\",\"key3\":[0,1,2]}");
+    store_document("dict", R"({"key1":1,"key2":"two","key3":[0,1,2]})");
 
     // Build a multi-path LOOKUP with a variety of invalid paths
     std::vector<std::pair<std::string, cb::mcbp::Status> > bad_paths({
@@ -155,7 +155,7 @@ TEST_P(SubdocTestappTest, SubdocMultiLookup_ExistsMulti) {
 
         lookup.specs.push_back(
                 {cb::mcbp::ClientOpcode::SubdocExists, SUBDOC_FLAG_NONE, key});
-        expected.push_back({cb::mcbp::Status::Success, ""});
+        expected.emplace_back(cb::mcbp::Status::Success, "");
     }
     expect_subdoc_cmd(lookup, cb::mcbp::Status::Success, expected);
 
@@ -186,7 +186,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddSingle) {
     expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
 
     // Check the update actually occurred.
-    validate_object("dict", "{\"key\":\"value\"}");
+    validate_object("dict", R"({"key":"value"})");
 
     delete_object("dict");
 }
@@ -212,7 +212,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddMulti) {
     expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
 
     // Check the update actually occurred.
-    validate_object("dict", "{\"key1\":1,\"key2\":2,\"key3\":3}");
+    validate_object("dict", R"({"key1":1,"key2":2,"key3":3})");
 
     delete_object("dict");
 }
@@ -238,7 +238,7 @@ static void test_subdoc_multi_mutation_dict_add_max() {
     // Check the update actually occurred.
     auto dict = make_flat_dict(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS);
     const auto expected_str = to_string(dict, false);
-    validate_object("dict", expected_str.c_str());
+    validate_object("dict", expected_str);
 
     delete_object("dict");
 
@@ -290,7 +290,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddInvalidDuplicate) {
 
 // Test multi-path mutation command - 2x DictAdd with a Counter update
 TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddCounter) {
-    store_document("dict", "{\"count\":0,\"items\":{}}");
+    store_document("dict", R"({"count":0,"items":{}})");
 
     SubdocMultiMutationCmd mutation;
     mutation.key = "dict";
@@ -312,7 +312,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddCounter) {
 
     // Check the update actually occurred.
     validate_object("dict",
-                    "{\"count\":2,\"items\":{\"foo\":1,\"bar\":2}}");
+                    R"({"count":2,"items":{"foo":1,"bar":2}})");
 
     delete_object("dict");
 }
@@ -353,7 +353,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddCAS) {
     EXPECT_NE(cas, new_cas);
 
     // Document should have been updated.
-    validate_object("dict", "{\"int\":1,\"float\":2.0,\"string\":\"value\"}");
+    validate_object("dict", R"({"int":1,"float":2.0,"string":"value"})");
 
     delete_object("dict");
 }
@@ -361,7 +361,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddCAS) {
 // Test multi-path mutation command - create a bunch of dictionary elements
 // then delete them. (Not a very useful operation but should work).
 void test_subdoc_multi_mutation_dictadd_delete() {
-    store_document("dict", "{\"count\":0,\"items\":{}}");
+    store_document("dict", R"({"count":0,"items":{}})");
 
     // 1. Add a series of paths, then remove two of them.
     SubdocMultiMutationCmd mutation;
@@ -398,7 +398,7 @@ void test_subdoc_multi_mutation_dictadd_delete() {
                        {6, cb::mcbp::Status::Success, "1"}});
 
     // Document should have been updated.
-    validate_object("dict", "{\"count\":1,\"items\":{\"2\":2}}");
+    validate_object("dict", R"({"count":1,"items":{"2":2}})");
 
     // 2. Delete the old 'items' dictionary and create a new one.
     mutation.specs.clear();
@@ -424,7 +424,7 @@ void test_subdoc_multi_mutation_dictadd_delete() {
                       cb::mcbp::Status::Success,
                       {{4, cb::mcbp::Status::Success, "2"}});
 
-    validate_object("dict", "{\"count\":2,\"items\":{\"4\":4,\"5\":5}}");
+    validate_object("dict", R"({"count":2,"items":{"4":4,"5":5}})");
 
     delete_object("dict");
 }

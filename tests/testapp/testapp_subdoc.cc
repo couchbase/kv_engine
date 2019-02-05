@@ -252,8 +252,7 @@ void SubdocTestappTest::test_subdoc_fetch_dict_nested(
     const auto dict_str = to_string(dict, false);
 
     // Store to Couchbase, optionally compressing first.
-    store_document(
-            "dict2", dict_str.c_str(), 0 /*flags*/, 0 /*exptime*/, compressed);
+    store_document("dict2", dict_str, 0 /*flags*/, 0 /*exptime*/, compressed);
 
     // a). Check successful access to individual nested components.
     EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict2", "name.title"), "\"Mr\"");
@@ -413,14 +412,14 @@ void SubdocTestappTest::test_subdoc_dict_add_simple(
     ASSERT_TRUE((cmd == cb::mcbp::ClientOpcode::SubdocDictAdd) ||
                 (cmd == cb::mcbp::ClientOpcode::SubdocDictUpsert));
 
-    const std::vector<std::pair<std::string, std::string>> key_vals({
-            {"int", "2"},
-            {"float", "2.0"},
-            {"object", "{ \"foo\": \"bar\" }"},
-            {"array", "[ \"a\", \"b\", \"c\"]"},
-            {"true", "true"},
-            {"false", "false"},
-            {"null", "null"}});
+    const std::vector<std::pair<std::string, std::string>> key_vals(
+            {{"int", "2"},
+             {"float", "2.0"},
+             {"object", R"({ "foo": "bar" })"},
+             {"array", R"([ "a", "b", "c"])"},
+             {"true", "true"},
+             {"false", "false"},
+             {"null", "null"}});
 
     // a). Attempt to add to non-existent document should fail.
     EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "dict", "int", "2"),
@@ -850,7 +849,7 @@ TEST_P(SubdocTestappTest, SubdocDelete_Array) {
 
 TEST_P(SubdocTestappTest, SubdocDelete_ArrayNested) {
     // Nested array containing different objects.
-    store_document("b", "[0,[10,20,[100]],{\"key\":\"value\"}]");
+    store_document("b", R"([0,[10,20,[100]],{"key":"value"}])");
 
     // Sanity check - 2nd element should be "[10,20,[100]]"
     EXPECT_SD_GET("b", "[1]", "[10,20,[100]]");
@@ -874,18 +873,17 @@ TEST_P(SubdocTestappTest, SubdocDelete_ArrayNested) {
     delete_object("b");
 }
 
-const std::vector<std::string> JSON_VALUES({
-    "1.1",
-    "\"value\"",
-    "{\"inner\":\"dict\"}",
-    "[1,2]",
-    "true",
-    "false",
-    "null"});
+const std::vector<std::string> JSON_VALUES({"1.1",
+                                            "\"value\"",
+                                            R"({"inner":"dict"})",
+                                            "[1,2]",
+                                            "true",
+                                            "false",
+                                            "null"});
 
 TEST_P(SubdocTestappTest, SubdocReplace_SimpleDict) {
     // Simple dictionary, replace first element with various types.
-    store_document("a", "{\"key\":0,\"key2\":1}");
+    store_document("a", R"({"key":0,"key2":1})");
 
     // Sanity check - 'key' should be "0"
     EXPECT_SD_GET("a", "key", "0");
@@ -897,7 +895,7 @@ TEST_P(SubdocTestappTest, SubdocReplace_SimpleDict) {
         EXPECT_SD_GET("a", "key", replace);
     }
     // Sanity-check the final document
-    validate_object("a", "{\"key\":null,\"key2\":1}");
+    validate_object("a", R"({"key":null,"key2":1})");
 
     delete_object("a");
 }
@@ -1022,7 +1020,7 @@ TEST_P(SubdocTestappTest, SubdocArrayPushLast_Simple) {
                                  "c",
                                  "",
                                  "\"two\",3.141,{\"four\":4}"));
-    validate_object("c", "[0,1,\"two\",3.141,{\"four\":4}]");
+    validate_object("c", R"([0,1,"two",3.141,{"four":4}])");
 
     delete_object("c");
 
@@ -1123,7 +1121,7 @@ TEST_P(SubdocTestappTest, SubdocArrayPushFirst_Simple) {
                                  "c",
                                  "",
                                  "\"two\",3.141,{\"four\":4}"));
-    validate_object("c", "[\"two\",3.141,{\"four\":4},0,1]");
+    validate_object("c", R"(["two",3.141,{"four":4},0,1])");
     delete_object("c");
 
     // f). Check MKDIR_P flag works.
@@ -1179,7 +1177,7 @@ TEST_P(SubdocTestappTest, SubdocArrayAddUnique_Simple) {
             BinprotSubdocCommand(
                     cb::mcbp::ClientOpcode::SubdocArrayAddUnique, "b", "", "6"),
             cb::mcbp::Status::SubdocPathEexists);
-    validate_object("b", array.c_str());
+    validate_object("b", array);
 
     // d). Check that all permitted types of values can be added:
     const std::vector<std::string> valid_unique_values({
@@ -1219,7 +1217,7 @@ TEST_P(SubdocTestappTest, SubdocArrayAddUnique_Simple) {
 
     // g). Attempts to add_unique to a array with non-primitive values should
     // fail.
-    store_document("c", "[{\"a\":\"b\"}]");
+    store_document("c", R"([{"a":"b"}])");
     EXPECT_SD_ERR(
             BinprotSubdocCommand(
                     cb::mcbp::ClientOpcode::SubdocArrayAddUnique, "c", "", "1"),
@@ -1347,7 +1345,7 @@ TEST_P(SubdocTestappTest, SubdocGetCount) {
                     "3");
 
     // Check for mismatch
-    store_document("a", "{\"k\":\"v\"}");
+    store_document("a", R"({"k":"v"})");
     EXPECT_SD_ERR(BinprotSubdocCommand(
                           cb::mcbp::ClientOpcode::SubdocGetCount, "a", "k"),
                   cb::mcbp::Status::SubdocPathMismatch);
@@ -1411,15 +1409,13 @@ TEST_P(SubdocTestappTest, SubdocCounter_Simple_MutationSeqno) {
     set_mutation_seqno_feature(false);
 }
 
-static const std::vector<std::string> NOT_INTEGER({
-    "true",
-    "false",
-    "null",
-    "\"string\"",
-    "[0]",
-    "{\"foo\": \"bar\"}",
-    "1.1"
-});
+static const std::vector<std::string> NOT_INTEGER({"true",
+                                                   "false",
+                                                   "null",
+                                                   "\"string\"",
+                                                   "[0]",
+                                                   R"({"foo": "bar"})",
+                                                   "1.1"});
 
 TEST_P(SubdocTestappTest, SubdocCounter_InvalidNotInt) {
     // Cannot increment things which are not integers.
@@ -1921,10 +1917,10 @@ TEST_P(SubdocTestappTest, SubdocStatsLookupExists) {
                               0);
 }
 TEST_P(SubdocTestappTest, SubdocStatsDictAdd) {
-    std::string input("{\"foo\":1,\"bar\":2}");
+    std::string input(R"({"foo":1,"bar":2})");
     std::string path("baz");
     std::string fragment("3");
-    std::string result("{\"foo\":1,\"bar\":2,\"baz\":3}");
+    std::string result(R"({"foo":1,"bar":2,"baz":3})");
     test_subdoc_stats_command(cb::mcbp::ClientOpcode::SubdocDictAdd,
                               MUTATION_TRAITS,
                               input,
@@ -1935,10 +1931,10 @@ TEST_P(SubdocTestappTest, SubdocStatsDictAdd) {
                               fragment.size());
 }
 TEST_P(SubdocTestappTest, SubdocStatsDictUpsert) {
-    std::string input("{\"foo\":1,\"bar\":2}");
+    std::string input(R"({"foo":1,"bar":2})");
     std::string path("bar");
     std::string fragment("3");
-    std::string result("{\"foo\":1,\"bar\":3}");
+    std::string result(R"({"foo":1,"bar":3})");
     test_subdoc_stats_command(cb::mcbp::ClientOpcode::SubdocDictUpsert,
                               MUTATION_TRAITS,
                               input,
@@ -1949,9 +1945,9 @@ TEST_P(SubdocTestappTest, SubdocStatsDictUpsert) {
                               fragment.size());
 }
 TEST_P(SubdocTestappTest, SubdocStatsDelete) {
-    std::string input("{\"foo\":1,\"bar\":2,\"baz\":3}");
+    std::string input(R"({"foo":1,"bar":2,"baz":3})");
     std::string path("baz");
-    std::string result("{\"foo\":1,\"bar\":2}");
+    std::string result(R"({"foo":1,"bar":2})");
     test_subdoc_stats_command(cb::mcbp::ClientOpcode::SubdocDelete,
                               MUTATION_TRAITS,
                               input,
@@ -1962,10 +1958,10 @@ TEST_P(SubdocTestappTest, SubdocStatsDelete) {
                               0);
 }
 TEST_P(SubdocTestappTest, SubdocStatsReplace) {
-    std::string input("{\"foo\":1,\"bar\":2}");
+    std::string input(R"({"foo":1,"bar":2})");
     std::string path("bar");
     std::string fragment("3");
-    std::string result("{\"foo\":1,\"bar\":3}");
+    std::string result(R"({"foo":1,"bar":3})");
     test_subdoc_stats_command(cb::mcbp::ClientOpcode::SubdocReplace,
                               MUTATION_TRAITS,
                               input,
@@ -2029,10 +2025,10 @@ TEST_P(SubdocTestappTest, SubdocStatsArrayAddUnique) {
                               fragment.size());
 }
 TEST_P(SubdocTestappTest, SubdocStatsCounter) {
-    std::string input("{\"foo\":1,\"bar\":2}");
+    std::string input(R"({"foo":1,"bar":2})");
     std::string path("bar");
     std::string fragment("1");
-    std::string result("{\"foo\":1,\"bar\":3}");
+    std::string result(R"({"foo":1,"bar":3})");
     test_subdoc_stats_command(cb::mcbp::ClientOpcode::SubdocCounter,
                               MUTATION_TRAITS,
                               input,
@@ -2059,13 +2055,14 @@ TEST_P(SubdocTestappTest, SubdocUTF8PathTest) {
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocDictUpsert, "dict", "kéy2👏", "99"));
     EXPECT_SD_GET("dict", "kéy2👏", "99");
-    validate_object("dict", "{ \"kéy1\": 1 ,\"kéy2👏\":99}");
+    validate_object("dict", R"({ "kéy1": 1 ,"kéy2👏":99})");
 }
 
 TEST_P(SubdocTestappTest, SubdocUTF8ValTest) {
     // Check that using UTF8 characters in the value works, which it should
 
-    const char dict[] = "{ \"key1\": \"Ẇ̴̷̦͔͖͚̝̟̋̽ͪ̾ͤ̈́ͯͮͮ̀͗̌ͭ̾͜h̨̥̞͖̬̠͍͖̘̹͎͌̇̂̃ͯͣ͗̆̌̑ͨ̍̊ͪ̆̾̆̚͟͞ȧ̛̰̞̗̞̬̣̹͎̰̝͍͈̮̖̘̫̤̟͆̈́̒͗ͦ̋̓̌̊̋͝ͅţ͒ͮ͋̋̔̽ͥ̂ͭ̒̉̔̃ͫ̌̆̆҉̹͙̟̩̖̩̹̳̜͚̜̜ ͎̲͕̺̔̿̀͒̈́̏̌ͬͫ͒͂ͩͦ̀͝â̢̡̘̫̮̞̩̰̎ͨ̾ͤ̈́͑̉̈ͧ͆̃ͩ͆̚͡ ̧̢̛̙͔̰̹̲̱͔̤̝͖̥͚͓̲̪̯̟̖̏͒̽ͬ̂ͫͩͭ͋̏͊̽͗͊̀ͭ̋͘c̵̴͐̉̇͂̋ͬ̇̃͊ͨ͗̆̄̊́͏̡̡̫̦̦͉̼̙̜͉̯̮̪̫͍̩̼̘̫̻͍o̸̷͕̭̼̺̤͖͚̯̪̥̘̪̼̝̩̮͕̥̟̐͒̏ͭͦͮ̒ͧ̔̉̅̂͜͢͡o̷̢̡͕̟͓̺͚̟̱̜̻͇̘͍̤͓̲ͣͫ̾͛͗̅̐̏͑͆͌̀͜ͅͅͅl̴̡̙̹͖̈̄̌͒ͣ͒̅̏̕ ͛̐̿͋ͦ͛͌̄ͫ̒ͪ͊̀ͤ̀̿͏̶̡҉҉̤͎͖v̸̵̱͇̲͎̩͚̩͈̙̜̳̞̭̯̩̻̮̪ͯ̋̔͗̃̊ͬͮ̄̃͛̂̒̍͘͘a̦̝͇̙̬̬̰̪͙̗̟͙̝̬͛͂͑ͣ̓͑̏ͤ̑̀̚̚͘l͊̔́͋̋ͫ̈́̿̈̉̀͏̡͍͇̲̙̺̮͠uͬ̄̋̔ͪͧͥ͛ͭ̏̅ͫ͊̚͏̧͈̠̱͇͉̦̫͎͠ę̸͔̯̭̤͕̱͈̖͖̯̭̞͈͖ͨ̑̌̓̈ͮ͂̆̀͟ͅ\" }";
+    const char dict[] =
+            R"({ "key1": "Ẇ̴̷̦͔͖͚̝̟̋̽ͪ̾ͤ̈́ͯͮͮ̀͗̌ͭ̾͜h̨̥̞͖̬̠͍͖̘̹͎͌̇̂̃ͯͣ͗̆̌̑ͨ̍̊ͪ̆̾̆̚͟͞ȧ̛̰̞̗̞̬̣̹͎̰̝͍͈̮̖̘̫̤̟͆̈́̒͗ͦ̋̓̌̊̋͝ͅţ͒ͮ͋̋̔̽ͥ̂ͭ̒̉̔̃ͫ̌̆̆҉̹͙̟̩̖̩̹̳̜͚̜̜ ͎̲͕̺̔̿̀͒̈́̏̌ͬͫ͒͂ͩͦ̀͝â̢̡̘̫̮̞̩̰̎ͨ̾ͤ̈́͑̉̈ͧ͆̃ͩ͆̚͡ ̧̢̛̙͔̰̹̲̱͔̤̝͖̥͚͓̲̪̯̟̖̏͒̽ͬ̂ͫͩͭ͋̏͊̽͗͊̀ͭ̋͘c̵̴͐̉̇͂̋ͬ̇̃͊ͨ͗̆̄̊́͏̡̡̫̦̦͉̼̙̜͉̯̮̪̫͍̩̼̘̫̻͍o̸̷͕̭̼̺̤͖͚̯̪̥̘̪̼̝̩̮͕̥̟̐͒̏ͭͦͮ̒ͧ̔̉̅̂͜͢͡o̷̢̡͕̟͓̺͚̟̱̜̻͇̘͍̤͓̲ͣͫ̾͛͗̅̐̏͑͆͌̀͜ͅͅͅl̴̡̙̹͖̈̄̌͒ͣ͒̅̏̕ ͛̐̿͋ͦ͛͌̄ͫ̒ͪ͊̀ͤ̀̿͏̶̡҉҉̤͎͖v̸̵̱͇̲͎̩͚̩͈̙̜̳̞̭̯̩̻̮̪ͯ̋̔͗̃̊ͬͮ̄̃͛̂̒̍͘͘a̦̝͇̙̬̬̰̪͙̗̟͙̝̬͛͂͑ͣ̓͑̏ͤ̑̀̚̚͘l͊̔́͋̋ͫ̈́̿̈̉̀͏̡͍͇̲̙̺̮͠uͬ̄̋̔ͪͧͥ͛ͭ̏̅ͫ͊̚͏̧͈̠̱͇͉̦̫͎͠ę̸͔̯̭̤͕̱͈̖͖̯̭̞͈͖ͨ̑̌̓̈ͮ͂̆̀͟ͅ" })";
     store_document("dict", dict);
     EXPECT_SD_OK(BinprotSubdocCommand(cb::mcbp::ClientOpcode::SubdocDictAdd,
                                       "dict",
@@ -2079,7 +2076,9 @@ TEST_P(SubdocTestappTest, SubdocUTF8ValTest) {
     EXPECT_SD_GET("dict", "key2", "\"Ẇ̴̷̦͔͖͚̝̟̋̽ͪ̾ͤ̈́ͯͮͮ̀͗̌ͭ̾͜h̨̥̞͖̬̠͍͖̘̹͎͌̇̂̃ͯͣ͗̆̌̑ͨ̍̊ͪ̆̾̆̚͟͞ȧ̛̰̞̗̞̬̣̹͎̰̝͍͈̮̖̘̫̤̟͆̈́̒͗ͦ̋̓̌̊̋͝ͅţ͒ͮ͋̋̔̽ͥ̂ͭ̒̉̔̃ͫ̌̆̆҉̹͙̟̩̖̩̹̳̜͚̜̜ ͎̲͕̺̔̿̀͒̈́̏̌ͬͫ͒͂ͩͦ̀͝â̢̡̘̫̮̞̩̰̎ͨ̾ͤ̈́͑̉̈ͧ͆̃ͩ͆̚͡ ̧̢̛̙͔̰̹̲̱͔̤̝͖̥͚͓̲̪̯̟̖̏͒̽ͬ̂ͫͩͭ͋̏͊̽͗͊̀ͭ̋͘c̵̴͐̉̇͂̋ͬ̇̃͊ͨ͗̆̄̊́͏̡̡̫̦̦͉̼̙̜͉̯̮̪̫͍̩̼̘̫̻͍o̸̷͕̭̼̺̤͖͚̯̪̥̘̪̼̝̩̮͕̥̟̐͒̏ͭͦͮ̒ͧ̔̉̅̂͜͢͡o̷̢̡͕̟͓̺͚̟̱̜̻͇̘͍̤͓̲ͣͫ̾͛͗̅̐̏͑͆͌̀͜ͅͅͅl̴̡̙̹͖̈̄̌͒ͣ͒̅̏̕ ͛̐̿͋ͦ͛͌̄ͫ̒ͪ͊̀ͤ̀̿͏̶̡҉҉̤͎͖v̸̵̱͇̲͎̩͚̩͈̙̜̳̞̭̯̩̻̮̪ͯ̋̔͗̃̊ͬͮ̄̃͛̂̒̍͘͘a̦̝͇̙̬̬̰̪͙̗̟͙̝̬͛͂͑ͣ̓͑̏ͤ̑̀̚̚͘l͊̔́͋̋ͫ̈́̿̈̉̀͏̡͍͇̲̙̺̮͠uͬ̄̋̔ͪͧͥ͛ͭ̏̅ͫ͊̚͏̧͈̠̱͇͉̦̫͎͠ę̸͔̯̭̤͕̱͈̖͖̯̭̞͈͖ͨ̑̌̓̈ͮ͂̆̀͟ͅ\"");
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocDelete, "dict", "key2", ""));
-    validate_object("dict", "{ \"key1\": \"Ẇ̴̷̦͔͖͚̝̟̋̽ͪ̾ͤ̈́ͯͮͮ̀͗̌ͭ̾͜h̨̥̞͖̬̠͍͖̘̹͎͌̇̂̃ͯͣ͗̆̌̑ͨ̍̊ͪ̆̾̆̚͟͞ȧ̛̰̞̗̞̬̣̹͎̰̝͍͈̮̖̘̫̤̟͆̈́̒͗ͦ̋̓̌̊̋͝ͅţ͒ͮ͋̋̔̽ͥ̂ͭ̒̉̔̃ͫ̌̆̆҉̹͙̟̩̖̩̹̳̜͚̜̜ ͎̲͕̺̔̿̀͒̈́̏̌ͬͫ͒͂ͩͦ̀͝â̢̡̘̫̮̞̩̰̎ͨ̾ͤ̈́͑̉̈ͧ͆̃ͩ͆̚͡ ̧̢̛̙͔̰̹̲̱͔̤̝͖̥͚͓̲̪̯̟̖̏͒̽ͬ̂ͫͩͭ͋̏͊̽͗͊̀ͭ̋͘c̵̴͐̉̇͂̋ͬ̇̃͊ͨ͗̆̄̊́͏̡̡̫̦̦͉̼̙̜͉̯̮̪̫͍̩̼̘̫̻͍o̸̷͕̭̼̺̤͖͚̯̪̥̘̪̼̝̩̮͕̥̟̐͒̏ͭͦͮ̒ͧ̔̉̅̂͜͢͡o̷̢̡͕̟͓̺͚̟̱̜̻͇̘͍̤͓̲ͣͫ̾͛͗̅̐̏͑͆͌̀͜ͅͅͅl̴̡̙̹͖̈̄̌͒ͣ͒̅̏̕ ͛̐̿͋ͦ͛͌̄ͫ̒ͪ͊̀ͤ̀̿͏̶̡҉҉̤͎͖v̸̵̱͇̲͎̩͚̩͈̙̜̳̞̭̯̩̻̮̪ͯ̋̔͗̃̊ͬͮ̄̃͛̂̒̍͘͘a̦̝͇̙̬̬̰̪͙̗̟͙̝̬͛͂͑ͣ̓͑̏ͤ̑̀̚̚͘l͊̔́͋̋ͫ̈́̿̈̉̀͏̡͍͇̲̙̺̮͠uͬ̄̋̔ͪͧͥ͛ͭ̏̅ͫ͊̚͏̧͈̠̱͇͉̦̫͎͠ę̸͔̯̭̤͕̱͈̖͖̯̭̞͈͖ͨ̑̌̓̈ͮ͂̆̀͟ͅ\" }");
+    validate_object(
+            "dict",
+            R"({ "key1": "Ẇ̴̷̦͔͖͚̝̟̋̽ͪ̾ͤ̈́ͯͮͮ̀͗̌ͭ̾͜h̨̥̞͖̬̠͍͖̘̹͎͌̇̂̃ͯͣ͗̆̌̑ͨ̍̊ͪ̆̾̆̚͟͞ȧ̛̰̞̗̞̬̣̹͎̰̝͍͈̮̖̘̫̤̟͆̈́̒͗ͦ̋̓̌̊̋͝ͅţ͒ͮ͋̋̔̽ͥ̂ͭ̒̉̔̃ͫ̌̆̆҉̹͙̟̩̖̩̹̳̜͚̜̜ ͎̲͕̺̔̿̀͒̈́̏̌ͬͫ͒͂ͩͦ̀͝â̢̡̘̫̮̞̩̰̎ͨ̾ͤ̈́͑̉̈ͧ͆̃ͩ͆̚͡ ̧̢̛̙͔̰̹̲̱͔̤̝͖̥͚͓̲̪̯̟̖̏͒̽ͬ̂ͫͩͭ͋̏͊̽͗͊̀ͭ̋͘c̵̴͐̉̇͂̋ͬ̇̃͊ͨ͗̆̄̊́͏̡̡̫̦̦͉̼̙̜͉̯̮̪̫͍̩̼̘̫̻͍o̸̷͕̭̼̺̤͖͚̯̪̥̘̪̼̝̩̮͕̥̟̐͒̏ͭͦͮ̒ͧ̔̉̅̂͜͢͡o̷̢̡͕̟͓̺͚̟̱̜̻͇̘͍̤͓̲ͣͫ̾͛͗̅̐̏͑͆͌̀͜ͅͅͅl̴̡̙̹͖̈̄̌͒ͣ͒̅̏̕ ͛̐̿͋ͦ͛͌̄ͫ̒ͪ͊̀ͤ̀̿͏̶̡҉҉̤͎͖v̸̵̱͇̲͎̩͚̩͈̙̜̳̞̭̯̩̻̮̪ͯ̋̔͗̃̊ͬͮ̄̃͛̂̒̍͘͘a̦̝͇̙̬̬̰̪͙̗̟͙̝̬͛͂͑ͣ̓͑̏ͤ̑̀̚̚͘l͊̔́͋̋ͫ̈́̿̈̉̀͏̡͍͇̲̙̺̮͠uͬ̄̋̔ͪͧͥ͛ͭ̏̅ͫ͊̚͏̧͈̠̱͇͉̦̫͎͠ę̸͔̯̭̤͕̱͈̖͖̯̭̞͈͖ͨ̑̌̓̈ͮ͂̆̀͟ͅ" })");
 }
 
 // MB-30278: Perform a DICT_ADD followed by SD_GET to a path with backticks in
