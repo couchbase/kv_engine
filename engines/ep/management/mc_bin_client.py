@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Binary memcached test client.
 
@@ -6,7 +6,6 @@ Copyright (c) 2007  Dustin Sallings <dustin@spy.net>
 """
 
 import array
-import exceptions
 import hmac
 import json
 import random
@@ -48,9 +47,18 @@ def parse_address(addr):
 
     return host, port, family
 
-class TimeoutError(exceptions.Exception):
+
+def to_bytes(bytes_or_str):
+    if isinstance(bytes_or_str, str):
+        value = bytes_or_str.encode()  # uses 'utf-8' for encoding
+    else:
+        value = bytes_or_str
+    return value  # Instance of bytes
+
+
+class TimeoutError(Exception):
     def __init__(self, time):
-        exceptions.Exception.__init__(self, "Operation timed out")
+        Exception.__init__(self, "Operation timed out")
         self.time = time
 
     def __str__(self):
@@ -87,15 +95,13 @@ class MemcachedErrorMetaclass(type):
         return (super(MemcachedErrorMetaclass, cls)
                 .__call__(*args, **kwargs))
 
-class MemcachedError(exceptions.Exception):
+class MemcachedError(Exception, metaclass=MemcachedErrorMetaclass):
     """Error raised when a command fails."""
-
-    __metaclass__ = MemcachedErrorMetaclass
 
     def __init__(self, status, msg):
         supermsg='Memcached error #' + repr(status)
         if msg: supermsg += ":  " + msg
-        exceptions.Exception.__init__(self, supermsg)
+        Exception.__init__(self, supermsg)
 
         self.status=status
         self.msg=msg
@@ -189,11 +195,11 @@ class MemcachedClient(object):
     def __del__(self):
         self.close()
 
-    def _sendCmd(self, cmd, key, val, opaque, extraHeader='', cas=0, collection=None):
+    def _sendCmd(self, cmd, key, val, opaque, extraHeader=b'', cas=0, collection=None):
         self._sendMsg(cmd, key, val, opaque, extraHeader=extraHeader, cas=cas,
                       vbucketId=self.vbucketId, collection=collection)
 
-    def _sendAltCmd(self, cmd, flex, key, val, opaque, extras='', cas=0,
+    def _sendAltCmd(self, cmd, flex, key, val, opaque, extras=b'', cas=0,
                     dtype=0, collection=None):
         """Send a request in the alternative format supporing flex framing extras"""
         if collection:
@@ -203,9 +209,9 @@ class MemcachedClient(object):
                           len(key), len(extras), dtype, self.vbucketId,
                           len(flex) + len(key) + len(extras) + len(val),
                           opaque, cas)
-        self.s.sendall(msg + flex + extras + key + val)
+        self.s.sendall(msg + flex + extras + to_bytes(key) + to_bytes(val))
 
-    def _sendMsg(self, cmd, key, val, opaque, extraHeader='', cas=0,
+    def _sendMsg(self, cmd, key, val, opaque, extraHeader=b'', cas=0,
                  dtype=0, vbucketId=0,
                  fmt=REQ_PKT_FMT, magic=REQ_MAGIC_BYTE, collection=None):
         if collection:
@@ -214,7 +220,7 @@ class MemcachedClient(object):
         msg=struct.pack(fmt, magic,
             cmd, len(key), len(extraHeader), dtype, vbucketId,
                 len(key) + len(extraHeader) + len(val), opaque, cas)
-        self.s.sendall(msg + extraHeader + key + val)
+        self.s.sendall(msg + extraHeader + to_bytes(key) + to_bytes(val))
 
     def _socketRecv(self, amount):
         ready = select.select([self.s], [], [], 30)
@@ -223,21 +229,21 @@ class MemcachedClient(object):
         raise TimeoutError(30)
 
     def _recvMsg(self):
-        response = ""
+        response = b''
         while len(response) < MIN_RECV_PACKET:
             data = self._socketRecv(MIN_RECV_PACKET - len(response))
-            if data == '':
-                raise exceptions.EOFError("Got empty data (remote died?).")
+            if data == b'':
+                raise EOFError("Got empty data (remote died?).")
             response += data
         assert len(response) == MIN_RECV_PACKET
-        magic, cmd, keylen, extralen, dtype, errcode, remaining, opaque, cas=\
+        magic, cmd, keylen, extralen, dtype, errcode, remaining, opaque, cas = \
             struct.unpack(RES_PKT_FMT, response)
 
-        rv = ""
+        rv = b''
         while remaining > 0:
             data = self._socketRecv(remaining)
-            if data == '':
-                raise exceptions.EOFError("Got empty data (remote died?).")
+            if data == b'':
+                raise EOFError("Got empty data (remote died?).")
             rv += data
             remaining -= len(data)
 
@@ -262,13 +268,13 @@ class MemcachedClient(object):
         cmd, opaque, cas, keylen, extralen, data = self._handleKeyedResponse(myopaque)
         return opaque, cas, data
 
-    def _doCmd(self, cmd, key, val, extraHeader='', cas=0, collection=None):
+    def _doCmd(self, cmd, key, val, extraHeader=b'', cas=0, collection=None):
         """Send a command and await its response."""
         opaque=self.r.randint(0, 2**32)
         self._sendCmd(cmd, key, val, opaque, extraHeader, cas, collection)
         return self._handleSingleResponse(opaque)
 
-    def _doAltCmd(self, cmd, flex, key, val, extraHeader='', cas=0,
+    def _doAltCmd(self, cmd, flex, key, val, extraHeader=b'', cas=0,
                   collection=None):
         """Send an alternative format command (with flex framing extras) and
            await its response."""
@@ -287,7 +293,7 @@ class MemcachedClient(object):
                            cas, collection)
 
     def _cat(self, cmd, key, cas, val, collection):
-        return self._doCmd(cmd, key, val, '', cas, collection)
+        return self._doCmd(cmd, key, val, b'', cas, collection)
 
     def hello(self, name):
         resp = self._doCmd(memcacheConstants.CMD_HELLO, name,
@@ -454,7 +460,7 @@ class MemcachedClient(object):
         """Start a plan auth session."""
         try:
             self.sasl_auth_start('CRAM-MD5', '')
-        except MemcachedError, e:
+        except MemcachedError as e:
             if e.status != memcacheConstants.ERR_AUTH_CONTINUE:
                 raise
             challenge = e.msg
@@ -470,7 +476,7 @@ class MemcachedClient(object):
         return self._doCmd(memcacheConstants.CMD_START_PERSISTENCE, '', '')
 
     def set_param(self, vbucket, key, val, type):
-        print "setting param:", key, val
+        print("setting param:", key, val)
         self.vbucketId = vbucket
         type = struct.pack(memcacheConstants.SET_PARAM_FMT, type)
         return self._doCmd(memcacheConstants.CMD_SET_PARAM, key, val, type)
@@ -485,8 +491,8 @@ class MemcachedClient(object):
 
     def compact_db(self, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes):
         assert isinstance(vbucket, int)
-        assert isinstance(purgeBeforeTs, long)
-        assert isinstance(purgeBeforeSeq, long)
+        assert isinstance(purgeBeforeTs, int)
+        assert isinstance(purgeBeforeSeq, int)
         assert isinstance(dropDeletes, int)
         self.vbucketId = vbucket
         compact = struct.pack(memcacheConstants.COMPACT_DB_PKT_FMT,
@@ -514,7 +520,7 @@ class MemcachedClient(object):
         opaqued=dict(enumerate(keys))
         terminal=len(opaqued)+10
         # Send all of the keys in quiet
-        for k,v in opaqued.iteritems():
+        for k,v in opaqued.items():
             self._sendCmd(memcacheConstants.CMD_GETQ, v, '', k, collection=collection)
 
         self._sendCmd(memcacheConstants.CMD_NOOP, '', '', terminal)
@@ -538,14 +544,14 @@ class MemcachedClient(object):
 
         # If this is a dict, convert it to a pair generator
         if hasattr(items, 'iteritems'):
-            items = items.iteritems()
+            items = items.items()
 
         opaqued=dict(enumerate(items))
         terminal=len(opaqued)+10
         extra=struct.pack(SET_PKT_FMT, flags, exp)
 
         # Send all of the keys in quiet
-        for opaque,kv in opaqued.iteritems():
+        for opaque,kv in opaqued.items():
             self._sendCmd(memcacheConstants.CMD_SETQ, kv[0], kv[1], opaque, extra, collection=collection)
 
         self._sendCmd(memcacheConstants.CMD_NOOP, '', '', terminal)
@@ -557,7 +563,7 @@ class MemcachedClient(object):
             try:
                 opaque, cas, data = self._handleSingleResponse(None)
                 done = opaque == terminal
-            except MemcachedError, e:
+            except MemcachedError as e:
                 failed.append(e)
 
         return failed
@@ -569,10 +575,10 @@ class MemcachedClient(object):
 
         opaqued = dict(enumerate(items))
         terminal = len(opaqued)+10
-        extra = ''
+        extra = b''
 
         # Send all of the keys in quiet
-        for opaque, k in opaqued.iteritems():
+        for opaque, k in opaqued.items():
             self._sendCmd(memcacheConstants.CMD_DELETEQ, k, '', opaque, extra, collection=collection)
 
         self._sendCmd(memcacheConstants.CMD_NOOP, '', '', terminal)
@@ -584,7 +590,7 @@ class MemcachedClient(object):
             try:
                 opaque, cas, data = self._handleSingleResponse(None)
                 done = opaque == terminal
-            except MemcachedError, e:
+            except MemcachedError as e:
                 failed.append(e)
 
         return failed
@@ -598,7 +604,10 @@ class MemcachedClient(object):
         while not done:
             cmd, opaque, cas, klen, extralen, data = self._handleKeyedResponse(None)
             if klen:
-                rv[data[0:klen]] = data[klen:]
+                kv = data.decode()
+                key = kv[0:klen]
+                value = kv[klen:]
+                rv[key] = value
             else:
                 done = True
         return rv
@@ -618,7 +627,7 @@ class MemcachedClient(object):
 
     def delete(self, key, cas=0, collection=None):
         """Delete the value for a given key within the memcached server."""
-        return self._doCmd(memcacheConstants.CMD_DELETE, key, '', '', cas, collection=collection)
+        return self._doCmd(memcacheConstants.CMD_DELETE, key, '', b'', cas, collection=collection)
 
     def deleteDurable(self, key, cas=0,
                       level=memcacheConstants.DURABILITY_LEVEL_MAJORITY,
@@ -626,7 +635,7 @@ class MemcachedClient(object):
         """Delete the value for a given key with the given durability requirements"""
         flex = self._encodeDurabilityFlex(level)
         return self._doAltCmd(memcacheConstants.CMD_DELETE, flex, key,
-                              '', '', cas, collection=collection)
+                              '', b'', cas, collection=collection)
 
     def flush(self, timebomb=0):
         """Flush all storage in a memcached instance."""
@@ -639,8 +648,8 @@ class MemcachedClient(object):
     def list_buckets(self):
         """Get the name of all buckets."""
         opaque, cas, data = self._doCmd(
-            memcacheConstants.CMD_LIST_BUCKETS, '', '', '', 0)
-        return data.strip().split(' ')
+            memcacheConstants.CMD_LIST_BUCKETS, '', '', b'', 0)
+        return data.decode().strip().split(' ')
 
     def get_error_map(self):
         _, _, errmap = self._doCmd(memcacheConstants.CMD_GET_ERROR_MAP, '',
@@ -650,7 +659,7 @@ class MemcachedClient(object):
 
         d = {}
 
-        for k,v in errmap['errors'].iteritems():
+        for k,v in errmap['errors'].items():
             d[int(k, 16)] = v
 
         errmap['errors'] = d
@@ -699,13 +708,13 @@ class MemcachedClient(object):
     # @return a string with the binary encoding
     def _encodeCollectionId(self, key, collection):
         if not self.is_collections_supported():
-                raise exceptions.RuntimeError("Collections are not enabled")
+                raise RuntimeError("Collections are not enabled")
 
         if type(collection) == str:
             # expect scope.collection for name API
             try:
                 collection = self.collection_map[collection]
-            except KeyError, e:
+            except KeyError as e:
                 print("Error: cannot map collection \"{}\" to an ID".format(collection))
                 print("name API expects \"scope.collection\" as the key")
                 raise e
@@ -731,8 +740,8 @@ class MemcachedClient(object):
         for scope in parsed['scopes']:
             try:
                 for collection in scope['collections']:
-                    key = scope[u'name'] + "." + collection[u'name']
-                    self.collection_map[key] = int(collection[u'uid'])
+                    key = scope['name'] + "." + collection['name']
+                    self.collection_map[key] = int(collection['uid'])
             except KeyError:
                 # A scope with no collections is legal
                 pass

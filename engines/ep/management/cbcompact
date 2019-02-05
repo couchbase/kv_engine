@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Example Usage for local host..
 # install/bin/cbcompact 127.0.0.1:12000 compact -b beer-sample 799
@@ -17,13 +17,13 @@ def cmd(f):
         try:
             vbucket = int(args[1])
         except IndexError:
-            print "Must specify a vbucket id after the compact argument"
+            print("Must specify a vbucket id after the compact argument")
             sys.exit(1)
 
         # These arguments are /always/ in kwargs, but if they are not specified
         # on the command line will have the value None.
-        purgeBeforeTs = long(kwargs.pop('purgeBeforeTs') or 0)
-        purgeBeforeSeq = long(kwargs.pop('purgeBeforeSeq') or 0)
+        purgeBeforeTs = int(kwargs.pop('purgeBeforeTs') or 0)
+        purgeBeforeSeq = int(kwargs.pop('purgeBeforeSeq') or 0)
         dropDeletes = int(kwargs.pop('dropDeletes') or 0)
 
         f(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes, **kwargs)
@@ -35,10 +35,10 @@ def compact(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes):
         return mc.compact_db(vbucket, purgeBeforeTs, purgeBeforeSeq,
                              dropDeletes)
      except:
-         print "Unable to compact vbucket %d with the following parameters "\
-               "(purge before time: %d, purge before seqno: %d, drop deletes: "\
-               "%d) in requested engine."\
-             % (vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes)
+         print("Unable to compact vbucket %d with the following parameters "
+               "(purge before time: %d, purge before seqno: %d, drop deletes: "
+               "%d) in requested engine."
+             % (vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes))
 
 def main():
     c = cli_auth_utils.get_authed_clitool()

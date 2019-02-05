@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #   Copyright 2017 Couchbase, Inc
 #
@@ -18,16 +18,12 @@
 # Tool to dump a KV-Engine trace file to JSON; which can be viewed
 # with Chrome's trace viewer (chrome://tracing).
 
-from __future__ import print_function
+
 import argparse
 import distutils.spawn
 import os
 import subprocess
 import sys
-
-# Python 2.6 doesn't have subprocess.check_output
-def check_output(args):
-    return subprocess.Popen(args, stdout=subprocess.PIPE).communicate()[0]
 
 parser = argparse.ArgumentParser(
     description='Dump a KV-Engine trace file as JSON.')
@@ -44,15 +40,25 @@ args = parser.parse_args()
 
 # Locate the mcctl binary
 # 1. If the user specified a location, use that one.
+mcctl_bin = None
 if args.mcctl:
     mcctl_bin = args.mcctl
 else:
     # 2. Try the path
     mcctl_bin = distutils.spawn.find_executable('mcctl')
-    if not mcctl_bin:
-        # 3. Try relative to this script (for when we are installed).
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        mcctl_bin = os.path.join(dir_path, "../../bin/mcctl")
+    # find_executable() has the odd behaviour that it always looks in the
+    # current working directory first, and returns that relative path if
+    # it is. We don't want that though.
+    if not mcctl_bin or mcctl_bin == "mcctl":
+        # 3. Look for mcctl in the same directory as the path used to invoke
+        # kv_trace_dump, which should be INSTALL_DIR/bin. Note: that
+        # location will likely be a symlink on Unix, but we still want that
+        # location, not the location the symlink points to.
+        mcctl_bin = os.path.normpath(
+            os.path.join(
+                os.getcwd(), sys.argv[0], "..", "mcctl"
+            )
+        )
 
 if not os.path.isfile(mcctl_bin):
     print("Error: No mcctl program found at {} - cannot continue.".format(
@@ -65,13 +71,15 @@ mcctl_args = [mcctl_bin,
               '-P', args.password]
 
 subprocess.check_call(mcctl_args + ['set', 'trace.stop'])
-uuid = check_output(mcctl_args + ['get', 'trace.dump.begin'])
+uuid = subprocess.check_output(mcctl_args + ['get', 'trace.dump.begin'],
+                               universal_newlines=True)
 uuid = uuid.strip()
 
 # Repeatedly get chunks, until we get one with zero length.
 while True:
-    chunk = check_output(
-        mcctl_args + ['get', 'trace.dump.chunk?id=' + uuid]).rstrip()
+    chunk = subprocess.check_output(
+        mcctl_args + ['get', 'trace.dump.chunk?id=' + uuid],
+        universal_newlines=True).rstrip()
     if len(chunk) == 0:
         break
     args.outfile.write(chunk)

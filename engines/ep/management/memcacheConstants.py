@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 
 Copyright (c) 2007  Dustin Sallings <dustin@spy.net>
