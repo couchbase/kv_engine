@@ -478,12 +478,13 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
     auto cb = std::make_shared<GetCallback>(true /*expectcompressed*/);
     auto cl = std::make_shared<CollectionsOfflineUpgadeCallback>(cid);
     ScanContext* scanCtx;
-    scanCtx = kvstore2.rw->initScanContext(cb,
-                                           cl,
-                                           Vbid(0),
-                                           1,
-                                           DocumentFilter::ALL_ITEMS,
-                                           ValueFilter::VALUES_COMPRESSED);
+    scanCtx = kvstore2.rw->initScanContext(
+            cb,
+            cl,
+            Vbid(0),
+            1,
+            DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS,
+            ValueFilter::VALUES_COMPRESSED);
 
     ASSERT_NE(nullptr, scanCtx);
     EXPECT_EQ(scan_success, kvstore2.rw->scan(scanCtx));

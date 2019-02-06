@@ -1484,23 +1484,34 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
             continue;
         }
         int64_t byseqno = itm->getBySeqno();
-        auto collectionsRHandle = ctx->collectionsContext.lockCollections(
-                key, true /*allow system*/);
-        CacheLookup lookup(key, byseqno, ctx->vbid, collectionsRHandle);
-        ctx->lookup->callback(lookup);
 
-        int status = ctx->lookup->getStatus();
+        if (!key.getCollectionID().isSystem()) {
+            if (ctx->docFilter !=
+                DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
+                auto cHandle =
+                        ctx->collectionsContext.lockCollections(key, false);
+                if (!cHandle.valid() || cHandle.isLogicallyDeleted(byseqno)) {
+                    ctx->lastReadSeqno = byseqno;
+                    continue;
+                }
+            }
 
-        if (status == ENGINE_KEY_EEXISTS) {
-            ctx->lastReadSeqno = byseqno;
-            continue;
-        } else if (status == ENGINE_ENOMEM) {
-            return scan_again;
+            CacheLookup lookup(key, byseqno, ctx->vbid);
+
+            ctx->lookup->callback(lookup);
+
+            auto status = ctx->lookup->getStatus();
+            if (status == ENGINE_KEY_EEXISTS) {
+                ctx->lastReadSeqno = byseqno;
+                continue;
+            } else if (status == ENGINE_ENOMEM) {
+                return scan_again;
+            }
         }
 
         GetValue rv(std::move(itm), ENGINE_SUCCESS, -1, onlyKeys);
         ctx->callback->callback(rv);
-        status = ctx->callback->getStatus();
+        auto status = ctx->callback->getStatus();
 
         if (status == ENGINE_ENOMEM) {
             return scan_again;

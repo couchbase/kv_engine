@@ -23,6 +23,9 @@
 #include "item.h"
 #include "trace_helpers.h"
 
+#include <list>
+#include <unordered_map>
+
 enum class GetMetaOnly;
 
 class VBucketBGFetchItem {

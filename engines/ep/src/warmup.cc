@@ -20,7 +20,6 @@
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "collections/collection_persisted_stats.h"
-#include "collections/collections_callbacks.h"
 #include "common.h"
 #include "connmap.h"
 #include "ep_engine.h"
@@ -1008,8 +1007,7 @@ void Warmup::keyDumpforShard(uint16_t shardId)
     KVStore* kvstore = store.getROUnderlyingByShard(shardId);
     auto cb = std::make_shared<LoadStorageKVPairCallback>(
             store, false, state.getState());
-    auto cl =
-            std::make_shared<Collections::VB::LogicallyDeletedCallback>(store);
+    auto cl = std::make_shared<NoLookupCallback>();
 
     for (const auto vbid : shardVbIds[shardId]) {
         ScanContext* ctx = kvstore->initScanContext(cb, cl, vbid, 0,

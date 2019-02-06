@@ -1343,6 +1343,7 @@ ScanContext* CouchKVStore::initScanContext(
 static couchstore_docinfos_options getDocFilter(const DocumentFilter& filter) {
     switch (filter) {
     case DocumentFilter::ALL_ITEMS:
+    case DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS:
         return COUCHSTORE_NO_OPTIONS;
     case DocumentFilter::NO_DELETES:
         return COUCHSTORE_NO_DELETES;
@@ -1769,16 +1770,28 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
 
     DocKey docKey = makeDocKey(docinfo->id);
 
-    auto collectionsRHandle = sctx->collectionsContext.lockCollections(
-            docKey, true /*system allowed*/);
-    CacheLookup lookup(docKey, byseqno, vbucketId, collectionsRHandle);
+    // Determine if the key is logically deleted, if it is we skip the key
+    // Note that system event keys (like create scope) are never skipped here
+    if (!docKey.getCollectionID().isSystem()) {
+        if (sctx->docFilter !=
+            DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
+            auto cHandle =
+                    sctx->collectionsContext.lockCollections(docKey, false);
+            if (!cHandle.valid() || cHandle.isLogicallyDeleted(byseqno)) {
+                sctx->lastReadSeqno = byseqno;
+                return COUCHSTORE_SUCCESS;
+            }
+        }
 
-    cl->callback(lookup);
-    if (cl->getStatus() == ENGINE_KEY_EEXISTS) {
-        sctx->lastReadSeqno = byseqno;
-        return COUCHSTORE_SUCCESS;
-    } else if (cl->getStatus() == ENGINE_ENOMEM) {
-        return COUCHSTORE_ERROR_CANCEL;
+        CacheLookup lookup(docKey, byseqno, vbucketId);
+
+        cl->callback(lookup);
+        if (cl->getStatus() == ENGINE_KEY_EEXISTS) {
+            sctx->lastReadSeqno = byseqno;
+            return COUCHSTORE_SUCCESS;
+        } else if (cl->getStatus() == ENGINE_ENOMEM) {
+            return COUCHSTORE_ERROR_CANCEL;
+        }
     }
 
     auto metadata = MetaDataFactory::createMetaData(docinfo->rev_meta);

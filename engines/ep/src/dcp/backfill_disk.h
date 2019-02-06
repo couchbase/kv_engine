@@ -22,8 +22,11 @@
 #include "callbacks.h"
 #include "dcp/backfill.h"
 
+#include <mutex>
+
 class EventuallyPersistentEngine;
 class ScanContext;
+class VBucket;
 
 /* The possible states of the DCPBackfillDisk */
 enum backfill_state_t {
@@ -45,12 +48,9 @@ private:
     /**
      * Attempt to perform the get of lookup
      *
-     * @return nothing if lookup is logically deleted, else return a GetValue
-     *         by performing a vb::get with lookup::getKey.
+     * @return return a GetValue by performing a vb::get with lookup::getKey.
      */
-    boost::optional<GetValue> get(VBucket& vb,
-                                  CacheLookup& lookup,
-                                  ActiveStream& stream);
+    GetValue get(VBucket& vb, CacheLookup& lookup, ActiveStream& stream);
 
     EventuallyPersistentEngine& engine_;
     std::weak_ptr<ActiveStream> streamPtr;

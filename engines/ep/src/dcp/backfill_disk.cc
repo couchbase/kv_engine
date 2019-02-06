@@ -52,23 +52,22 @@ CacheCallback::CacheCallback(EventuallyPersistentEngine& e,
 }
 
 // Do a get and restrict the collections lock scope to just these checks.
-boost::optional<GetValue> CacheCallback::get(VBucket& vb,
-                                             CacheLookup& lookup,
-                                             ActiveStream& stream) {
-    // Check with collections if this key should be loaded, status EEXISTS is
-    // the only way to inform the scan to not continue with this key.
-    if (!lookup.getCollectionsHandle().valid() ||
-        lookup.getCollectionsHandle().isLogicallyDeleted(lookup.getBySeqno())) {
+GetValue CacheCallback::get(VBucket& vb,
+                            CacheLookup& lookup,
+                            ActiveStream& stream) {
+    // getInternal may generate expired items and thus may for example need to
+    // update a collection high-seqno, get a handle on the collection manifest
+    auto cHandle = vb.lockCollections(lookup.getKey());
+    if (!cHandle.valid()) {
         return {};
     }
-
     return vb.getInternal(nullptr,
                           engine_,
                           /*options*/ NONE,
                           /*diskFlushAll*/ false,
                           stream.isKeyOnly() ? VBucket::GetKeyOnly::Yes
                                              : VBucket::GetKeyOnly::No,
-                          lookup.getCollectionsHandle());
+                          cHandle);
 }
 
 void CacheCallback::callback(CacheLookup& lookup) {
@@ -85,41 +84,28 @@ void CacheCallback::callback(CacheLookup& lookup) {
         return;
     }
 
-    // For system events, don't bother with the get, just return
-    auto cid = lookup.getCollectionsHandle().getKey().getCollectionID();
-    if (cid == CollectionID::System) {
-        setStatus(ENGINE_SUCCESS);
-        return;
-    }
-
     // @todo-durability: Backfill for Pending SyncWrite.
     //     Note that by setting status=ENGINE_KEY_EEXISTS the caller will skip
     //     the lookup (the indirect caller is KVStore::scan)
-    if (cid == CollectionID::DurabilityPrepare) {
+    if (lookup.getKey().getCollectionID() == CollectionID::DurabilityPrepare) {
         setStatus(ENGINE_KEY_EEXISTS);
         return;
     }
 
-    auto optionalGv = get(*vb, lookup, *stream_);
-    if (optionalGv.is_initialized()) {
-        auto& gv = optionalGv.get();
-
-        if (gv.getStatus() == ENGINE_SUCCESS) {
-            if (gv.item->getBySeqno() == lookup.getBySeqno()) {
-                if (stream_->backfillReceived(std::move(gv.item),
-                                              BACKFILL_FROM_MEMORY,
-                                              /*force */ false)) {
-                    setStatus(ENGINE_KEY_EEXISTS);
-                    return;
-                }
-                setStatus(ENGINE_ENOMEM); // Pause the backfill
+    auto gv = get(*vb, lookup, *stream_);
+    if (gv.getStatus() == ENGINE_SUCCESS) {
+        if (gv.item->getBySeqno() == lookup.getBySeqno()) {
+            if (stream_->backfillReceived(std::move(gv.item),
+                                          BACKFILL_FROM_MEMORY,
+                                          /*force */ false)) {
+                setStatus(ENGINE_KEY_EEXISTS);
                 return;
             }
+            setStatus(ENGINE_ENOMEM); // Pause the backfill
+            return;
         }
-        setStatus(ENGINE_SUCCESS);
-    } else {
-        setStatus(ENGINE_KEY_EEXISTS);
     }
+    setStatus(ENGINE_SUCCESS);
 }
 
 DiskCallback::DiskCallback(std::shared_ptr<ActiveStream> s) : streamPtr(s) {

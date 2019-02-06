@@ -1099,7 +1099,7 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
 
 std::ostream& operator<<(std::ostream& os,
                          const Manifest::ReadHandle& readHandle) {
-    os << "VB::Manifest::ReadHandle: manifest:" << readHandle.manifest;
+    os << "VB::Manifest::ReadHandle: manifest:" << *readHandle.manifest;
     return os;
 }
 
@@ -1111,7 +1111,8 @@ std::ostream& operator<<(std::ostream& os,
     } else {
         os << "end";
     }
-    os << ", manifest:" << readHandle.manifest;
+    os << ", cid:" << readHandle.key.getCollectionID().to_string();
+    os << ", manifest:" << *readHandle.manifest;
     return os;
 }
 

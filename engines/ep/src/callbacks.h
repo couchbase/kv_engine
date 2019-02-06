@@ -18,10 +18,10 @@
 #pragma once
 
 #include "config.h"
-#include "collections/vbucket_manifest.h"
 
 #include <memcached/dockey.h>
 #include <memcached/engine_error.h>
+#include <memcached/vbucket.h>
 
 #include <memory>
 
@@ -29,11 +29,8 @@ class Item;
 
 class CacheLookup {
 public:
-    CacheLookup(const DocKey& k,
-                int64_t s,
-                Vbid vb,
-                Collections::VB::Manifest::CachingReadHandle& manifestHandle)
-        : key(k), bySeqno(s), vbid(vb), manifestHandle(manifestHandle) {
+    CacheLookup(const DocKey& k, int64_t s, Vbid vb)
+        : key(k), bySeqno(s), vbid(vb) {
     }
 
     ~CacheLookup() {}
@@ -46,16 +43,10 @@ public:
         return vbid;
     }
 
-    const Collections::VB::Manifest::CachingReadHandle& getCollectionsHandle()
-            const {
-        return manifestHandle;
-    }
-
 private:
     DocKey key;
     int64_t bySeqno;
     Vbid vbid;
-    const Collections::VB::Manifest::CachingReadHandle& manifestHandle;
 };
 
 /**

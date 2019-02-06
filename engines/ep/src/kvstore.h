@@ -183,7 +183,8 @@ enum scan_error_t {
 
 enum class DocumentFilter {
     ALL_ITEMS,
-    NO_DELETES
+    NO_DELETES,
+    ALL_ITEMS_AND_DROPPED_COLLECTIONS
 };
 
 enum class ValueFilter {
