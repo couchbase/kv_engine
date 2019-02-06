@@ -41,6 +41,7 @@
 #include "connmap.h"
 #include "dcp/dcpconnmap.h"
 #include "defragmenter.h"
+#include "durability_timeout_task.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "ext_meta_parser.h"
@@ -391,6 +392,12 @@ bool KVBucket::initialize() {
     chkTask = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
             &engine, stats, checkpointRemoverInterval);
     ExecutorPool::get()->schedule(chkTask);
+
+    durabilityTimeoutTask = std::make_shared<DurabilityTimeoutTask>(
+            engine,
+            std::chrono::milliseconds(
+                    config.getDurabilityTimeoutTaskInterval()));
+    ExecutorPool::get()->schedule(durabilityTimeoutTask);
 
     ExTask workloadMonitorTask =
             std::make_shared<WorkLoadMonitor>(&engine, false);
@@ -2062,10 +2069,14 @@ void KVBucket::visit(VBucketVisitor &visitor)
 size_t KVBucket::visit(std::unique_ptr<VBucketVisitor> visitor,
                        const char* lbl,
                        TaskId id,
-                       double sleepTime,
+                       double adaptorSleepTime,
                        std::chrono::microseconds maxExpectedDuration) {
-    auto task = std::make_shared<VBCBAdaptor>(
-            this, id, std::move(visitor), lbl, sleepTime, /*shutdown*/ false);
+    auto task = std::make_shared<VBCBAdaptor>(this,
+                                              id,
+                                              std::move(visitor),
+                                              lbl,
+                                              adaptorSleepTime,
+                                              /*shutdown*/ false);
     task->setMaxExpectedDuration(maxExpectedDuration);
     return ExecutorPool::get()->schedule(task);
 }
@@ -2102,7 +2113,7 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
                          const char* l,
                          double sleep,
                          bool shutdown)
-    : GlobalTask(&s->getEPEngine(), id, 0, shutdown),
+    : GlobalTask(&s->getEPEngine(), id, 0 /*initialSleepTime*/, shutdown),
       store(s),
       visitor(std::move(v)),
       label(l),

@@ -343,6 +343,12 @@
             "dynamic": true,
             "type": "bool"
         },
+        "durability_timeout_task_interval": {
+            "default": "25",
+            "descr": "Interval (in ms) between subsequent runs of the DurabilityTimeoutTask",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "ephemeral_full_policy": {
             "default": "auto_delete",
             "descr": "How should an Ephemeral bucket becoming full be handled?",

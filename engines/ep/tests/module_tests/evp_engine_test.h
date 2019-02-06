@@ -23,6 +23,8 @@
 
 #include "config.h"
 
+#include "../mock/mock_executor_pool.h"
+
 #include <gtest/gtest.h>
 #include <memcached/vbucket.h>
 
@@ -72,6 +74,18 @@ class SetParamTest : public EventuallyPersistentEngineTest,
                      public ::testing::WithParamInterface<std::string> {
     void SetUp() override {
         bucketType = GetParam();
+        EventuallyPersistentEngineTest::SetUp();
+    }
+};
+
+/*
+ * EPEngine-level test fixture for Durability.
+ */
+class DurabilityTest : public EventuallyPersistentEngineTest,
+                       public ::testing::WithParamInterface<std::string> {
+    void SetUp() override {
+        bucketType = GetParam();
+        MockExecutorPool::replaceExecutorPoolWithMock();
         EventuallyPersistentEngineTest::SetUp();
     }
 };

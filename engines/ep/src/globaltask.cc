@@ -31,7 +31,7 @@ std::atomic<size_t> GlobalTask::task_id_counter(1);
 
 GlobalTask::GlobalTask(Taskable& t,
                        TaskId taskId,
-                       double sleeptime,
+                       double initialSleepTime,
                        bool completeBeforeShutdown)
     : blockShutdown(completeBeforeShutdown),
       state(TASK_RUNNING),
@@ -43,17 +43,17 @@ GlobalTask::GlobalTask(Taskable& t,
       previousRuntime(0),
       lastStartTime(0) {
     priority = getTaskPriority(taskId);
-    snooze(sleeptime);
+    snooze(initialSleepTime);
 }
 
-GlobalTask::GlobalTask(EventuallyPersistentEngine *e,
+GlobalTask::GlobalTask(EventuallyPersistentEngine* e,
                        TaskId taskId,
-                       double sleeptime,
+                       double initialSleepTime,
                        bool completeBeforeShutdown)
-      : GlobalTask(e->getTaskable(),
-                   taskId,
-                   sleeptime,
-                   completeBeforeShutdown) {
+    : GlobalTask(e->getTaskable(),
+                 taskId,
+                 initialSleepTime,
+                 completeBeforeShutdown) {
     engine = e;
 }
 

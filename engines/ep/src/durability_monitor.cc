@@ -447,6 +447,13 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
 
 void DurabilityMonitor::processTimeout(
         std::chrono::steady_clock::time_point asOf) {
+    // @todo: Add support for DurabilityMonitor at Replica
+    if (vb.getState() != vbucket_state_active) {
+        throw std::logic_error(
+                "DurabilityMonitor::processTimeout: " + vb.getId().to_string() +
+                " state is: " + VBucket::toString(vb.getState()));
+    }
+
     Container toAbort;
 
     {

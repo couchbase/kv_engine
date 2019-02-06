@@ -508,6 +508,16 @@ const nlohmann::json& VBucket::getReplicationTopology() const {
     return durabilityMonitor->getReplicationTopology();
 }
 
+void VBucket::processDurabilityTimeout(
+        const std::chrono::steady_clock::time_point asOf) {
+    ReaderLockHolder lh(stateLock);
+    // @todo-durability: Add support for DurabilityMonitor at Replica
+    if (getState() != vbucket_state_active) {
+        return;
+    }
+    durabilityMonitor->processTimeout(asOf);
+}
+
 void VBucket::doStatsForQueueing(const Item& qi, size_t itemBytes)
 {
     ++dirtyQueueSize;

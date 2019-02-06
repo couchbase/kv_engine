@@ -715,6 +715,10 @@ protected:
     size_t                          compactionWriteQueueCap;
     float                           compactionExpMemThreshold;
 
+    // Responsible for enforcing the Durability Timeout for the SyncWrites
+    // tracked in this KVBucket.
+    ExTask durabilityTimeoutTask;
+
     /* Vector of mutexes for each vbucket
      * Used by flush operations: flushVB, deleteVB, compactVB, snapshotVB */
     std::vector<std::mutex>       vb_mutexes;

@@ -394,6 +394,14 @@ public:
     const nlohmann::json& getReplicationTopology() const;
 
     /**
+     * Enforce timeout for the expired SyncWrites in this VBucket.
+     *
+     * @param asOf The time to be compared with tracked-SWs' expiry-time
+     */
+    void processDurabilityTimeout(
+            const std::chrono::steady_clock::time_point asOf);
+
+    /**
      * This method performs operations on the stored value prior
      * to expiring the item.
      *

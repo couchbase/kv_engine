@@ -23,6 +23,8 @@
 
 #include "ep_engine.h"
 #include "kv_bucket.h"
+#include "taskqueue.h"
+
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/module_tests/test_helpers.h"
 
@@ -219,6 +221,20 @@ TEST_P(SetParamTest, minCompressionRatioConfigTest) {
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         SetParamTest,
+                        ::testing::Values("persistent", "ephemeral"),
+                        [](const ::testing::TestParamInfo<std::string>& info) {
+                            return info.param;
+                        });
+
+TEST_P(DurabilityTest, TimeoutTaskScheduled) {
+    auto* executor = dynamic_cast<MockExecutorPool*>(ExecutorPool::get());
+    ASSERT_TRUE(executor);
+    EXPECT_TRUE(
+            executor->isTaskScheduled(NONIO_TASK_IDX, "DurabilityTimeoutTask"));
+}
+
+INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
+                        DurabilityTest,
                         ::testing::Values("persistent", "ephemeral"),
                         [](const ::testing::TestParamInfo<std::string>& info) {
                             return info.param;
