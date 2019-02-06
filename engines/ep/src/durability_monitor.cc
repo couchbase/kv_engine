@@ -128,7 +128,12 @@ public:
     SyncWrite(const void* cookie,
               queued_item item,
               const ReplicationChain& chain)
-        : cookie(cookie), item(item), majority(chain.getSize() / 2 + 1) {
+        : cookie(cookie),
+          item(item),
+          majority(chain.getSize() / 2 + 1),
+          expiryTime(std::chrono::steady_clock::now() +
+                     std::chrono::milliseconds(
+                             item->getDurabilityReqs().getTimeout())) {
         for (const auto& entry : chain.positions) {
             acks[entry.first] = Ack();
         }
@@ -178,7 +183,7 @@ public:
      * @return true if the Durability Requirements are satisfied for this
      *     SyncWrite, false otherwise
      */
-    bool isVerified() const {
+    bool isSatisfied() const {
         bool ret{false};
 
         switch (getDurabilityReqs().getLevel()) {
@@ -197,6 +202,16 @@ public:
         }
 
         return ret;
+    }
+
+    /**
+     * Check if this SyncWrite is expired or not.
+     *
+     * @param asOf The time to be compared with this SW's expiry-time
+     * @return true if this SW's expiry-time < asOf, false otherwise
+     */
+    bool isExpired(std::chrono::steady_clock::time_point asOf) const {
+        return expiryTime < asOf;
     }
 
 private:
@@ -228,6 +243,10 @@ private:
 
     // Majority in the arithmetic definition: num-nodes / 2 + 1
     const uint8_t majority;
+
+    // Used for enforcing the Durability Requirements Timeout. It is set when
+    // this SyncWrite is added for tracking into the DurabilityMonitor.
+    const std::chrono::steady_clock::time_point expiryTime;
 
     friend std::ostream& operator<<(std::ostream&, const SyncWrite&);
 };
@@ -342,8 +361,7 @@ ENGINE_ERROR_CODE DurabilityMonitor::addSyncWrite(const void* cookie,
     }
 
     if (durReq.getLevel() ==
-                cb::durability::Level::MajorityAndPersistOnMaster ||
-        durReq.getTimeout() != 0) {
+        cb::durability::Level::MajorityAndPersistOnMaster) {
         return ENGINE_ENOTSUP;
     }
 
@@ -425,6 +443,33 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
     }
 
     return ENGINE_SUCCESS;
+}
+
+void DurabilityMonitor::processTimeout(
+        std::chrono::steady_clock::time_point asOf) {
+    Container toAbort;
+
+    {
+        std::lock_guard<std::mutex> lg(state.m);
+        Container::iterator it = state.trackedWrites.begin();
+        while (it != state.trackedWrites.end()) {
+            if (it->isExpired(asOf)) {
+                // Note: 'it' will be invalidated, so it will need to be reset
+                const auto next = std::next(it);
+
+                auto removed = removeSyncWrite(lg, it);
+                toAbort.splice(toAbort.end(), removed);
+
+                it = next;
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    for (const auto& entry : toAbort) {
+        abort(entry);
+    }
 }
 
 void DurabilityMonitor::notifyLocalPersistence() {
@@ -614,45 +659,48 @@ DurabilityMonitor::NodeSeqnos DurabilityMonitor::getNodeAckSeqnos(
 }
 
 DurabilityMonitor::Container DurabilityMonitor::removeSyncWrite(
-        const std::lock_guard<std::mutex>& lg, const Position& pos) {
-    if (pos.it == state.trackedWrites.end()) {
+        const std::lock_guard<std::mutex>& lg, const Container::iterator& it) {
+    if (it == state.trackedWrites.end()) {
         throw std::logic_error(
                 "DurabilityMonitor::commit: Position points to end");
     }
 
     // Note that Position.seqno stays set to the original value. That way we
     // keep the replica seqno-state even after the SyncWrite is removed.
-    auto removeSeqno = pos.lastWriteSeqno;
+    auto removeSeqno = it->getBySeqno();
     Container::iterator prev;
     // Note: iterators in state.trackedWrites are never singular, Container::end
     //     is used as placeholder element for when an iterator cannot point to
     //     any valid element in Container
-    if (pos.it == state.trackedWrites.begin()) {
+    if (it == state.trackedWrites.begin()) {
         prev = state.trackedWrites.end();
     } else {
-        prev = std::prev(pos.it);
+        prev = std::prev(it);
     }
 
-    auto& pos_ = const_cast<Position&>(pos);
     Container removed;
-    removed.splice(removed.end(), state.trackedWrites, pos_.it);
+    removed.splice(removed.end(), state.trackedWrites, it);
 
-    // Removing the element at pos.it from trackedWrites invalidates any
+    // Removing the element at 'it' from trackedWrites invalidates any
     // iterator that points to that element. So, we have to reposition the
     // invalidated iterators after the removal.
-    // Note: the following will pick up also pos.it itself.
+    // Note: The following will pick up also 'it' itself if 'it' is a
+    //     ReplicationChain iterator. 'it' will stay invalidated otherwise.
     // Note: O(N) with N=<number of iterators>, max(N)=12
     //     (max 2 chains, 3 replicas, 2 iterators per replica)
     for (const auto& entry : state.firstChain->positions) {
-        if (entry.second.memory.lastWriteSeqno == removeSeqno) {
-            const_cast<Position&>(entry.second.memory).it = prev;
+        const auto& nodePos = entry.second;
+        if (nodePos.memory.lastWriteSeqno == removeSeqno) {
+            const auto& pos = nodePos.memory;
+            const_cast<Position&>(pos).it = prev;
+            Ensures(pos.lastWriteSeqno == removeSeqno);
         }
-        if (entry.second.disk.lastWriteSeqno == removeSeqno) {
-            const_cast<Position&>(entry.second.disk).it = prev;
+        if (nodePos.disk.lastWriteSeqno == removeSeqno) {
+            const auto& pos = nodePos.disk;
+            const_cast<Position&>(pos).it = prev;
+            Ensures(pos.lastWriteSeqno == removeSeqno);
         }
     }
-
-    Ensures(pos_.lastWriteSeqno == removeSeqno);
 
     return removed;
 }
@@ -675,6 +723,11 @@ void DurabilityMonitor::commit(const StoredDocKey& key,
     vb.notifyClientOfCommit(cookie);
 }
 
+void DurabilityMonitor::abort(const SyncWrite& sw) {
+    // @todo: VBucket::abort()
+    // @todo: VBucket::notifyClientOfAbort()
+}
+
 void DurabilityMonitor::processSeqnoAck(const std::lock_guard<std::mutex>& lg,
                                         const std::string& node,
                                         Tracking tracking,
@@ -693,14 +746,23 @@ void DurabilityMonitor::processSeqnoAck(const std::lock_guard<std::mutex>& lg,
                 (tracking == Tracking::Memory ? nodePos.memory : nodePos.disk);
 
         // Check if Durability Requirements satisfied now, and add for commit
-        if (pos.it->isVerified()) {
-            auto removed = removeSyncWrite(lg, pos);
+        if (pos.it->isSatisfied()) {
+            auto removed = removeSyncWrite(lg, pos.it);
             toCommit.splice(toCommit.end(), removed);
         }
     }
 
     // We keep track of the actual ack'ed seqno
     updateNodeAck(lg, node, tracking, ackSeqno);
+}
+
+std::unordered_set<int64_t> DurabilityMonitor::getTrackedSeqnos() const {
+    std::lock_guard<std::mutex> lg(state.m);
+    std::unordered_set<int64_t> ret;
+    for (const auto& w : state.trackedWrites) {
+        ret.insert(w.getBySeqno());
+    }
+    return ret;
 }
 
 std::ostream& operator<<(std::ostream& os, const DurabilityMonitor& dm) {

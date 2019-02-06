@@ -26,6 +26,7 @@
 
 #include <list>
 #include <mutex>
+#include <unordered_set>
 
 class StoredDocKey;
 class StoredValue;
@@ -97,6 +98,14 @@ public:
     ENGINE_ERROR_CODE seqnoAckReceived(const std::string& replica,
                                        int64_t memorySeqno,
                                        int64_t diskSeqno);
+
+    /**
+     * Enforce timeout for the expired SyncWrites in the tracked list.
+     *
+     * @param asOf The time to be compared with tracked-SWs' expiry-time
+     * @throw std::logic_error
+     */
+    void processTimeout(std::chrono::steady_clock::time_point asOf);
 
     /**
      * Advances the local disk-tracking to the last persisted seqno for VBucket.
@@ -219,12 +228,12 @@ protected:
     /**
      * Remove the given SyncWrte from tracking.
      *
-     * @param lg the object lock
-     * @param pos the Position of the SyncWrite to be removed
+     * @param lg The object lock
+     * @param it The iterator to the SyncWrite to be removed
      * @return single-element list of the removed SyncWrite.
      */
     Container removeSyncWrite(const std::lock_guard<std::mutex>& lg,
-                              const Position& pos);
+                              const Container::iterator& it);
 
     /**
      * Commit the given SyncWrite.
@@ -234,6 +243,13 @@ protected:
      * @param cookie The cookie of the connection to notify.
      */
     void commit(const StoredDocKey& key, int64_t seqno, const void* cookie);
+
+    /**
+     * Abort the given SyncWrite.
+     *
+     * @param sw The SyncWrite to abort
+     */
+    void abort(const SyncWrite& sw);
 
     /**
      * Updates a node memory/disk tracking as driven by the new ack-seqno.
@@ -249,6 +265,13 @@ protected:
                          Tracking tracking,
                          int64_t ackSeqno,
                          Container& toCommit);
+
+    /**
+     * Test only.
+     *
+     * @return the set of seqnos tracked by this DurabilityMonitor
+     */
+    std::unordered_set<int64_t> getTrackedSeqnos() const;
 
     // The VBucket owning this DurabilityMonitor instance
     VBucket& vb;

@@ -371,3 +371,80 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {
     EXPECT_EQ(0, monitor->public_getNodeWriteSeqnos(replica1).memory);
     EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(replica1).memory);
 }
+
+TEST_F(DurabilityMonitorTest, ProcessTimeout) {
+    ASSERT_NO_THROW(monitor->setReplicationTopology(
+            nlohmann::json::array({{active, replica}})));
+    ASSERT_EQ(2, monitor->public_getReplicationChainSize());
+
+    auto checkMemoryTrack = [this](const std::string& node,
+                                   int64_t expected) -> void {
+        EXPECT_EQ(expected, monitor->public_getNodeWriteSeqnos(node).memory);
+        EXPECT_EQ(expected, monitor->public_getNodeAckSeqnos(node).memory);
+    };
+
+    /*
+     * 1 SyncWrite
+     */
+
+    const auto level = cb::durability::Level::Majority;
+
+    ASSERT_EQ(1, addSyncWrites({1} /*seqno*/, {level, 1 /*timeout*/}));
+    EXPECT_EQ(1, monitor->public_getNumTracked());
+    checkMemoryTrack(active, 1);
+    checkMemoryTrack(replica, 0);
+
+    monitor->processTimeout(std::chrono::steady_clock::now() +
+                            std::chrono::milliseconds(1000));
+
+    EXPECT_EQ(0, monitor->public_getNumTracked());
+    checkMemoryTrack(active, 1);
+    checkMemoryTrack(replica, 0);
+
+    /*
+     * Multiple SyncWrites, ordered by timeout
+     */
+
+    ASSERT_EQ(1, addSyncWrites({101} /*seqno*/, {level, 1 /*timeout*/}));
+    ASSERT_EQ(1, addSyncWrites({102} /*seqno*/, {level, 10}));
+    ASSERT_EQ(1, addSyncWrites({103} /*seqno*/, {level, 20}));
+    EXPECT_EQ(3, monitor->public_getNumTracked());
+    checkMemoryTrack(active, 103);
+    checkMemoryTrack(replica, 0);
+
+    monitor->processTimeout(std::chrono::steady_clock::now() +
+                            std::chrono::milliseconds(10000));
+
+    EXPECT_EQ(0, monitor->public_getNumTracked());
+    checkMemoryTrack(active, 103);
+    checkMemoryTrack(replica, 0);
+
+    /*
+     * Multiple SyncWrites, not ordered by timeout
+     */
+
+    ASSERT_EQ(1, addSyncWrites({201} /*seqno*/, {level, 20 /*timeout*/}));
+    ASSERT_EQ(1, addSyncWrites({202} /*seqno*/, {level, 1}));
+    ASSERT_EQ(1, addSyncWrites({203} /*seqno*/, {level, 50000}));
+    EXPECT_EQ(3, monitor->public_getNumTracked());
+    checkMemoryTrack(active, 203);
+    checkMemoryTrack(replica, 0);
+
+    monitor->processTimeout(std::chrono::steady_clock::now() +
+                            std::chrono::milliseconds(10000));
+
+    EXPECT_EQ(1, monitor->public_getNumTracked());
+    const auto tracked = monitor->public_getTrackedSeqnos();
+    EXPECT_TRUE(tracked.find(201) == tracked.end());
+    EXPECT_TRUE(tracked.find(202) == tracked.end());
+    EXPECT_TRUE(tracked.find(203) != tracked.end());
+    checkMemoryTrack(active, 203);
+    checkMemoryTrack(replica, 0);
+
+    monitor->processTimeout(std::chrono::steady_clock::now() +
+                            std::chrono::milliseconds(100000));
+
+    EXPECT_EQ(0, monitor->public_getNumTracked());
+    checkMemoryTrack(active, 203);
+    checkMemoryTrack(replica, 0);
+}

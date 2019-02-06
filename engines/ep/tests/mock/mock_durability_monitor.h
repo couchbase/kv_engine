@@ -46,6 +46,10 @@ public:
         std::lock_guard<std::mutex> lg(state.m);
         return DurabilityMonitor::getNodeAckSeqnos(lg, replica);
     }
+
+    std::unordered_set<int64_t> public_getTrackedSeqnos() const {
+        return DurabilityMonitor::getTrackedSeqnos();
+    }
 };
 
 /*
