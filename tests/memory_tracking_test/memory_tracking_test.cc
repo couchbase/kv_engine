@@ -80,10 +80,22 @@ void MemoryTrackerTest::AccountingTestThread(void* arg) {
     delete p;
     EXPECT_EQ(0, alloc_size);
 
+    // Test sized delete //////////////////////////////////////////////////
+    p = new char();
+    EXPECT_GT(alloc_size, 0);
+    operator delete(p, sizeof(char));
+    EXPECT_EQ(0, alloc_size);
+
     // Test new[] & delete[] //////////////////////////////////////////////
     p = new char[100];
     EXPECT_GE(alloc_size, 100);
     delete []p;
+    EXPECT_EQ(0, alloc_size);
+
+    // Test sized delete[] ////////////////////////////////////////////////
+    p = new char[100];
+    EXPECT_GE(alloc_size, 100);
+    operator delete[](p, sizeof(char) * 100);
     EXPECT_EQ(0, alloc_size);
 
     // Test cb_malloc() / cb_free() /////////////////////////////////////////////
