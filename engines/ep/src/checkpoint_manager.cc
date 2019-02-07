@@ -591,12 +591,6 @@ bool CheckpointManager::queueDirty(
                     ") - got Ckpt::queueDirty() status:" + to_string(result) +
                     " even after creating a new Checkpoint.");
         }
-        EP_LOG_WARN(
-                "CheckpointManager::queueDirty: Had to create new empty "
-                "checkpoint for item which cannot be de-duplicated. Item:{} "
-                "CheckpointManager:{}",
-                *qi,
-                *this);
     }
 
     lastBySeqno = newLastBySeqno;
