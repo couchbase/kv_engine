@@ -1947,12 +1947,10 @@ void DestroyBucketThread::destroy() {
             guard.unlock();
 
             nlohmann::json json;
-            iterate_all_connections([&bucket, &json](Connection& connection) {
-                if (&connection.getBucket() == &bucket) {
-                    if (!connection.signalIfIdle()) {
-                        json[std::to_string(connection.getId())] =
-                                connection.toJSON();
-                    }
+            iterate_all_connections([&bucket, &json](Connection& conn) {
+                if (&conn.getBucket() == &bucket) {
+                    conn.signalIfIdle();
+                    json[std::to_string(conn.getId())] = conn.toJSON();
                 }
             });
 
