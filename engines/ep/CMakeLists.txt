@@ -338,6 +338,7 @@ if (NOT EP_BYPASS_TESTS)
                    tests/module_tests/bucket_logger_engine_test.cc
                    tests/module_tests/bucket_logger_test.cc
                    tests/module_tests/checkpoint_durability_test.cc
+                   tests/module_tests/checkpoint_iterator_test.cc
                    tests/module_tests/checkpoint_remover_test.h
                    tests/module_tests/checkpoint_remover_test.cc
                    tests/module_tests/checkpoint_test.h
@@ -451,6 +452,7 @@ if (NOT EP_BYPASS_TESTS)
     ADD_EXECUTABLE(ep_engine_benchmarks
                    benchmarks/access_scanner_bench.cc
                    benchmarks/benchmark_memory_tracker.cc
+                   benchmarks/checkpoint_iterator_bench.cc
                    benchmarks/defragmenter_bench.cc
                    benchmarks/engine_fixture.cc
                    benchmarks/ep_engine_benchmarks_main.cc

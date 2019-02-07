@@ -19,6 +19,7 @@
 
 #include "config.h"
 
+#include "checkpoint_iterator.h"
 #include "checkpoint_types.h"
 #include "ep_types.h"
 #include "item.h"
@@ -61,11 +62,15 @@ const char* to_string(enum checkpoint_state);
 typedef std::list<queued_item, MemoryTrackingAllocator<queued_item>>
         CheckpointQueue;
 
+// Iterator for the Checkpoint queue.  The iterator is templated on the
+// queue type (CheckpointQueue).
+using ChkptQueueIterator = CheckpointIterator<CheckpointQueue>;
+
 /**
  * A checkpoint index entry.
  */
 struct index_entry {
-    CheckpointQueue::iterator position;
+    ChkptQueueIterator position;
     int64_t mutation_id;
 };
 
@@ -85,7 +90,7 @@ class VBucket;
  * series.
  *
  * CheckpointCursors are similar to STL-style iterators but for Checkpoints.
- * A consumer (DCP, TAP, persistence) will have one CheckpointCursor, initially
+ * A consumer (DCP or persistence) will have one CheckpointCursor, initially
  * positioned at the first item they want. As they read items from the
  * Checkpoint the Cursor is advanced, allowing them to continue from where
  * they left off when they next attempt to read items.
@@ -103,16 +108,10 @@ class CheckpointCursor {
     friend class CheckpointManager;
     friend class Checkpoint;
 public:
-    CheckpointCursor() {
-    }
-
-    CheckpointCursor(const std::string& n)
-        : name(n), currentCheckpoint(), currentPos() {
-    }
 
     CheckpointCursor(const std::string& n,
                      CheckpointList::iterator checkpoint,
-                     CheckpointQueue::iterator pos)
+                     ChkptQueueIterator pos)
         : name(n),
           currentCheckpoint(checkpoint),
           currentPos(pos),
@@ -152,7 +151,9 @@ private:
 
     std::string                      name;
     CheckpointList::iterator currentCheckpoint;
-    CheckpointQueue::iterator currentPos;
+
+    // Specify the current position in the checkpoint
+    ChkptQueueIterator currentPos;
 
     // Number of times a cursor has been moved or processed.
     std::atomic<size_t>              numVisits;
@@ -362,13 +363,14 @@ public:
                                 CheckpointManager* checkpointManager);
 
     uint64_t getLowSeqno() const {
-        auto pos = toWrite.begin();
+        auto pos = begin();
         pos++;
         return (*pos)->getBySeqno();
     }
 
     uint64_t getHighSeqno() const {
-        auto pos = toWrite.rbegin();
+        auto pos = end();
+        --pos;
         return (*pos)->getBySeqno();
     }
 
@@ -388,34 +390,28 @@ public:
         snapEndSeqno = seqno;
     }
 
-    CheckpointQueue::iterator begin() {
-        return toWrite.begin();
-    }
-
-    CheckpointQueue::const_iterator begin() const {
-        return toWrite.begin();
-    }
-
-    CheckpointQueue::iterator end() {
-        return toWrite.end();
-    }
-
-    CheckpointQueue::const_iterator end() const {
-        return toWrite.end();
-    }
-
-    CheckpointQueue::reverse_iterator rbegin() {
-        return toWrite.rbegin();
-    }
-
-    CheckpointQueue::reverse_iterator rend() {
-        return toWrite.rend();
+    /**
+     * Returns an iterator pointing to the beginning of the CheckpointQueue,
+     * toWrite.
+     */
+    ChkptQueueIterator begin() const {
+        return ChkptQueueIterator(const_cast<CheckpointQueue&>(toWrite),
+                                  ChkptQueueIterator::Position::begin);
     }
 
     /**
-     * Return the memory overhead of this checkpoint instance, except for the memory used by
-     * all the items belonging to this checkpoint. The memory overhead of those items is
-     * accounted separately in "ep_kv_size" stat.
+     * Returns an iterator pointing to the 'end' of the CheckpointQueue,
+     * toWrite.
+     */
+    ChkptQueueIterator end() const {
+        return ChkptQueueIterator(const_cast<CheckpointQueue&>(toWrite),
+                                  ChkptQueueIterator::Position::end);
+    }
+
+    /**
+     * Return the memory overhead of this checkpoint instance, except for the
+     * memory used by all the items belonging to this checkpoint. The memory
+     * overhead of those items is accounted separately in "ep_kv_size" stat.
      * @return memory overhead of this checkpoint instance.
      */
     size_t memorySize() {
