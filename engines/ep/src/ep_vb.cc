@@ -528,12 +528,18 @@ EPVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
         result.storedValue = &v;
     } else {
         result = ht.unlocked_updateStoredValue(hbl, v, itm);
-        // @todo-durability - what about if unlocked_updateStoredValue() returns
-        // IsPendingSyncWrite - don't think we should throw there...
-        if (!result.storedValue) {
+        switch (result.status) {
+        case MutationStatus::WasClean:
+        case MutationStatus::WasDirty:
+            break;
+        case MutationStatus::IsPendingSyncWrite:
+            // Fail; skip queueDirty and return early.
+            return std::make_tuple(
+                    result.storedValue, result.status, VBNotifyCtx{});
+        default:
             throw std::logic_error(
-                    "EPVBucket::updateStoredValue: Failed to obtain valid SV "
-                    "to update from HashTable - status:" +
+                    "EPVBucket::updateStoredValue: Unexpected status from "
+                    "HT::updateStoredValue:" +
                     to_string(result.status));
         }
     }
