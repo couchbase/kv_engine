@@ -63,11 +63,9 @@ enum class ExpireBy { Pager, Compactor, Access };
 /* Structure that holds info needed for notification for an item being updated
    in the vbucket */
 struct VBNotifyCtx {
-    VBNotifyCtx() : bySeqno(0), notifyReplication(false), notifyFlusher(false) {
-    }
-    Monotonic<int64_t> bySeqno;
-    bool notifyReplication;
-    bool notifyFlusher;
+    int64_t bySeqno = 0;
+    bool notifyReplication = false;
+    bool notifyFlusher = false;
 };
 
 /**
