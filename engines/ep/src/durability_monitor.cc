@@ -453,39 +453,43 @@ void DurabilityMonitor::addStats(const AddStatFn& addStat,
                 buf, sizeof(buf), "vb_%d:replication_chain_first:size", vbid);
         add_casted_stat(buf, getReplicationChainSize(lg), addStat, cookie);
 
-        for (const auto& entry : state.firstChain->positions) {
-            const auto* replica = entry.first.c_str();
-            const auto& pos = entry.second;
+        if (state.firstChain) {
+            for (const auto& entry : state.firstChain->positions) {
+                const auto* replica = entry.first.c_str();
+                const auto& pos = entry.second;
 
-            checked_snprintf(
-                    buf,
-                    sizeof(buf),
-                    "vb_%d:replication_chain_first:%s:memory:last_write_seqno",
-                    vbid,
-                    replica);
-            add_casted_stat(buf, pos.memory.lastWriteSeqno, addStat, cookie);
-            checked_snprintf(
-                    buf,
-                    sizeof(buf),
-                    "vb_%d:replication_chain_first:%s:memory:last_ack_seqno",
-                    vbid,
-                    replica);
-            add_casted_stat(buf, pos.memory.lastAckSeqno, addStat, cookie);
+                checked_snprintf(buf,
+                                 sizeof(buf),
+                                 "vb_%d:replication_chain_first:%s:memory:last_"
+                                 "write_seqno",
+                                 vbid,
+                                 replica);
+                add_casted_stat(
+                        buf, pos.memory.lastWriteSeqno, addStat, cookie);
+                checked_snprintf(buf,
+                                 sizeof(buf),
+                                 "vb_%d:replication_chain_first:%s:memory:last_"
+                                 "ack_seqno",
+                                 vbid,
+                                 replica);
+                add_casted_stat(buf, pos.memory.lastAckSeqno, addStat, cookie);
 
-            checked_snprintf(
-                    buf,
-                    sizeof(buf),
-                    "vb_%d:replication_chain_first:%s:disk:last_write_seqno",
-                    vbid,
-                    replica);
-            add_casted_stat(buf, pos.memory.lastWriteSeqno, addStat, cookie);
-            checked_snprintf(
-                    buf,
-                    sizeof(buf),
-                    "vb_%d:replication_chain_first:%s:disk:last_ack_seqno",
-                    vbid,
-                    replica);
-            add_casted_stat(buf, pos.disk.lastAckSeqno, addStat, cookie);
+                checked_snprintf(buf,
+                                 sizeof(buf),
+                                 "vb_%d:replication_chain_first:%s:disk:last_"
+                                 "write_seqno",
+                                 vbid,
+                                 replica);
+                add_casted_stat(
+                        buf, pos.memory.lastWriteSeqno, addStat, cookie);
+                checked_snprintf(
+                        buf,
+                        sizeof(buf),
+                        "vb_%d:replication_chain_first:%s:disk:last_ack_seqno",
+                        vbid,
+                        replica);
+                add_casted_stat(buf, pos.disk.lastAckSeqno, addStat, cookie);
+            }
         }
 
     } catch (const std::exception& e) {
