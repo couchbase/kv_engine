@@ -27,6 +27,10 @@
 #include <gsl.h>
 #include <unordered_map>
 
+// An empty string is used to indicate an undefined node in a replication
+// topology.
+static const std::string UndefinedNode{};
+
 /*
  * Represents the tracked state of a replica.
  * Note that the lifetime of a Position is determined by the logic in
@@ -67,11 +71,29 @@ struct DurabilityMonitor::ReplicationChain {
     /**
      * @param nodes The list of active/replica nodes in the ns_server format:
      *     {active, replica1, replica2, replica3}
+     *
+     * replica node(s) (but not active) can be logically undefined - if:
+     * a) auto-failover has occurred but the cluster hasn't yet been rebalanced
+     *    - as such the old replica (which is now the active) hasn't been
+     *    replaced yet.
+     * b) Bucket has had the replica count increased but not yet reblanced
+     *    (to assign the correct replicas. An undefined replica is represented
+     *    by an empty node name (""s).
      */
     ReplicationChain(const std::vector<std::string>& nodes,
                      const Container::iterator& it)
         : majority(nodes.size() / 2 + 1), active(nodes.at(0)) {
+        if (nodes.at(0) == UndefinedNode) {
+            throw std::invalid_argument(
+                    "ReplicationChain::ReplicationChain: Active node cannot be "
+                    "undefined");
+        }
+
         for (const auto& node : nodes) {
+            if (node == UndefinedNode) {
+                // unassigned, don't register a position in the chain.
+                continue;
+            }
             // This check ensures that there is no duplicate in the given chain
             if (!positions
                          .emplace(node,
@@ -82,7 +104,6 @@ struct DurabilityMonitor::ReplicationChain {
                         node);
             }
         }
-        Ensures(positions.size() == nodes.size());
     }
 
     size_t getSize() const {
@@ -234,7 +255,21 @@ void DurabilityMonitor::setReplicationTopology(const nlohmann::json& topology) {
     }
 
     // @todo: Add support for SecondChain
-    const std::vector<std::string>& firstChain = topology.at(0);
+    std::vector<std::string> firstChain;
+    for (auto& node : topology.at(0).items()) {
+        // First node (active) must be present, remaining (replica) nodes
+        // are allowed to be Null indicating they are undefined.
+        if (node.value().is_string()) {
+            firstChain.push_back(node.value());
+        } else {
+            if (node.key() == "0") {
+                throw std::invalid_argument(
+                        "DurabilityMonitor::setReplicationTopology: first node "
+                        "in chain (active) cannot be undefined");
+            }
+            firstChain.emplace_back(UndefinedNode);
+        }
+    }
 
     if (firstChain.size() == 0) {
         throw std::invalid_argument(

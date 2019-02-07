@@ -215,6 +215,13 @@ TEST(VBucketDurabilityTest, validateSetStateMetaTopology) {
                                                             "replica2",
                                                             "replica3"}})}}));
 
+    // Single chain, four nodes, two undefined.
+    EXPECT_EQ(""s,
+              VBucket::validateSetStateMeta(
+                      {{"topology",
+                        json::array(
+                                {{"active", "replica1", nullptr, nullptr}})}}));
+
     // Two chains, one node
     EXPECT_EQ(""s,
               VBucket::validateSetStateMeta(
@@ -246,6 +253,15 @@ TEST(VBucketDurabilityTest, validateSetStateMetaTopology) {
                                                             "replicaB1",
                                                             "replicaB2",
                                                             "replicaB3"}})}}));
+
+    // Two chains, four nodes, 1 undefined in first; 2 in second.
+    EXPECT_EQ(
+            ""s,
+            VBucket::validateSetStateMeta(
+                    {{"topology",
+                      json::array(
+                              {{"activeA", "replicaA1", "replicaA2", nullptr},
+                               {"activeB", "replicaB1", nullptr, nullptr}})}}));
 }
 
 TEST(VBucketDurabilityTest, validateSetStateMetaTopologyNegative) {
@@ -285,6 +301,13 @@ TEST(VBucketDurabilityTest, validateSetStateMetaTopologyNegative) {
                           json::array({{"activeA", "replicaA1"},
                                        {"activeB", 1.1}})}}),
                 HasSubstr("chain[1] node[1] must be a string"));
+
+    // Incorrect structure - first node (active) cannot be undefined (null).
+    EXPECT_THAT(VBucket::validateSetStateMeta(
+                        {{"topology",
+                          json::array({{nullptr, "replicaA1"},
+                                       {"activeB", "replicaB1"}})}}),
+                HasSubstr("chain[0] node[0] (active) cannot be null"));
 }
 
 TEST_P(VBucketDurabilityTest, SetVBucketState_ClearTopologyAtReplica) {

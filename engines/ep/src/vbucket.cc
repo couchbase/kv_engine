@@ -389,8 +389,14 @@ std::string VBucket::validateSetStateMeta(const nlohmann::json& meta) {
         if (el.key() == "topology") {
             const auto& topology = el.value();
             // Topology must be an array with 1..2 chain elements; and
-            // each chain is an array of 1..4 strings:
+            // each chain is an array of 1..4 nodes.
             //   [[<active>, <replica>, ...], [<active>, <replica>, ...]]
+            //
+            // - The first node (active) must always be a string representing
+            //   the node name.
+            // - The subsequent nodes (replicas) can either be strings
+            //   indicating a defined replica, or Null indicating an undefined
+            //   replica.
             if (!topology.is_array()) {
                 return "'topology' must be an array, found:"s + topology.dump();
             }
@@ -410,7 +416,17 @@ std::string VBucket::validateSetStateMeta(const nlohmann::json& meta) {
                            "] must contain 1..4 nodes, found:" + nodes.dump();
                 }
                 for (const auto& node : nodes.items()) {
-                    if (!node.value().is_string()) {
+                    switch (node.value().type()) {
+                    case nlohmann::json::value_t::string:
+                        break;
+                    case nlohmann::json::value_t::null:
+                        // Null not permitted for active (first) node.
+                        if (node.key() == "0") {
+                            return "'topology' chain[" + chainId + "] node[" +
+                                   node.key() + "] (active) cannot be null";
+                        }
+                        break;
+                    default:
                         return "'topology' chain[" + chainId + "] node[" +
                                node.key() + "] must be a string, found:" +
                                node.value().dump();
