@@ -37,13 +37,6 @@
  */
 class NoBucket : public EngineIface, public DcpIface {
 public:
-    NoBucket() {
-        EngineIface::collections.set_manifest = collections_set_manifest;
-        EngineIface::collections.get_manifest = collections_get_manifest;
-        EngineIface::collections.get_collection_id =
-                collections_get_collection_id;
-    };
-
     ENGINE_ERROR_CODE initialize(const char* config_str) override {
         return ENGINE_SUCCESS;
     }
@@ -417,25 +410,21 @@ public:
         return ret;
     }
 
-private:
-    static cb::engine_errc collections_set_manifest(
-            gsl::not_null<EngineIface*> handle,
+    cb::engine_errc set_collection_manifest(
             gsl::not_null<const void*> cookie,
-            cb::const_char_buffer json) {
+            cb::const_char_buffer json) override {
         return cb::engine_errc::no_bucket;
     }
 
-    static cb::engine_errc collections_get_manifest(
-            gsl::not_null<EngineIface*> handle,
+    cb::engine_errc get_collection_manifest(
             gsl::not_null<const void*> cookie,
-            const AddResponseFn& response) {
+            const AddResponseFn& response) override {
         return cb::engine_errc::no_bucket;
     }
 
-    static cb::EngineErrorGetCollectionIDResult collections_get_collection_id(
-            gsl::not_null<EngineIface*> handle,
+    cb::EngineErrorGetCollectionIDResult get_collection_id(
             gsl::not_null<const void*> cookie,
-            cb::const_char_buffer path) {
+            cb::const_char_buffer path) override {
         return {cb::engine_errc::no_bucket, 0, 0};
     }
 };
@@ -444,7 +433,7 @@ MEMCACHED_PUBLIC_API
 ENGINE_ERROR_CODE create_no_bucket_instance(GET_SERVER_API get_server_api,
                                             EngineIface** handle) {
     try {
-        NoBucket* engine = new NoBucket();
+        auto* engine = new NoBucket();
         *handle = reinterpret_cast<EngineIface*>(engine);
     } catch (std::bad_alloc& e) {
         auto logger = get_server_api()->log->get_spdlogger();

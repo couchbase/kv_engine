@@ -118,6 +118,10 @@ struct mock_engine : public EngineIface, public DcpIface {
     bool get_item_info(gsl::not_null<const item*> item,
                        gsl::not_null<item_info*> item_info) override;
 
+    cb::engine_errc set_collection_manifest(
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer json) override;
+
     bool isXattrEnabled() override {
         return the_engine->isXattrEnabled();
     }
@@ -319,10 +323,6 @@ static void alarm_handler(int sig) {
 // needs to update the pointers the new engine, so when execute_test is
 // cleaning up it has the correct handle.
 static EngineIface* currentEngineHandle = nullptr;
-
-static struct mock_engine* get_handle(EngineIface* handle) {
-    return (struct mock_engine*)handle;
-}
 
 ENGINE_ERROR_CODE mock_engine::initialize(const char* config_str) {
     return the_engine->initialize(config_str);
@@ -644,6 +644,11 @@ bool mock_engine::get_item_info(gsl::not_null<const item*> item,
     return the_engine->get_item_info(item, item_info);
 }
 
+cb::engine_errc mock_engine::set_collection_manifest(
+        gsl::not_null<const void*> cookie, cb::const_char_buffer json) {
+    return the_engine->set_collection_manifest(cookie, json);
+}
+
 ENGINE_ERROR_CODE mock_engine::step(
         gsl::not_null<const void*> cookie,
         gsl::not_null<dcp_message_producers*> producers) {
@@ -949,19 +954,6 @@ ENGINE_ERROR_CODE mock_engine::abort(gsl::not_null<const void*> cookie,
     return the_engine_dcp->abort(cookie, opaque, prepared_seqno, abort_seqno);
 }
 
-static cb::engine_errc mock_collections_set_manifest(
-        gsl::not_null<EngineIface*> handle,
-        gsl::not_null<const void*> cookie,
-        cb::const_char_buffer json) {
-    struct mock_engine* me = get_handle(handle);
-    if (me->the_engine->collections.set_manifest == nullptr) {
-        return cb::engine_errc::not_supported;
-    }
-
-    return me->the_engine->collections.set_manifest(
-            me->the_engine, cookie, json);
-}
-
 static void usage() {
     printf("\n");
     printf("engine_testapp -E <path_to_engine_lib> -T <path_to_testlib>\n");
@@ -1168,8 +1160,6 @@ public:
         EngineIface* handle = nullptr;
 
         if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-            me->collections.set_manifest = mock_collections_set_manifest;
-
             me->the_engine = (EngineIface*)handle;
             me->the_engine_dcp = dynamic_cast<DcpIface*>(handle);
 

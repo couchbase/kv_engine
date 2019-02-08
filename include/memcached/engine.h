@@ -542,7 +542,23 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * The set of collections related functions. May be defined optionally by
      * the engine(s) that support them.
      */
-    collections_interface collections{};
+    virtual cb::engine_errc set_collection_manifest(
+            gsl::not_null<const void*> cookie, cb::const_char_buffer json) {
+        return cb::engine_errc::not_supported;
+    }
+
+    /**
+     * Retrieve the last manifest set using set_manifest (a JSON document)
+     */
+    virtual cb::engine_errc get_collection_manifest(
+            gsl::not_null<const void*> cookie, const AddResponseFn& response) {
+        return cb::engine_errc::not_supported;
+    }
+
+    virtual cb::EngineErrorGetCollectionIDResult get_collection_id(
+            gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
+        return {cb::engine_errc::not_supported, {}, {}};
+    }
 
     /**
      * Ask the engine what features it supports.

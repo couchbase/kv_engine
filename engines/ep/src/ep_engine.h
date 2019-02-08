@@ -198,6 +198,18 @@ public:
     bool get_item_info(gsl::not_null<const item*> item,
                        gsl::not_null<item_info*> item_info) override;
 
+    cb::engine_errc set_collection_manifest(
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer json) override;
+
+    cb::engine_errc get_collection_manifest(
+            gsl::not_null<const void*> cookie,
+            const AddResponseFn& response) override;
+
+    cb::EngineErrorGetCollectionIDResult get_collection_id(
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer path) override;
+
     bool isXattrEnabled() override;
 
     BucketCompressionMode getCompressionMode() override {

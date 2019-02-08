@@ -54,24 +54,3 @@ struct EngineErrorGetCollectionIDResult {
     } extras;
 };
 }
-
-struct collections_interface {
-    /**
-     * Inform the engine of the current collection manifest (a JSON document)
-     */
-    cb::engine_errc (*set_manifest)(gsl::not_null<EngineIface*> handle,
-                                    gsl::not_null<const void*> cookie,
-                                    cb::const_char_buffer json);
-
-    /**
-     * Retrieve the last manifest set using set_manifest (a JSON document)
-     */
-    cb::engine_errc (*get_manifest)(gsl::not_null<EngineIface*> handle,
-                                    gsl::not_null<const void*> cookie,
-                                    const AddResponseFn& response);
-
-    cb::EngineErrorGetCollectionIDResult (*get_collection_id)(
-            gsl::not_null<EngineIface*> handle,
-            gsl::not_null<const void*> cookie,
-            cb::const_char_buffer path);
-};

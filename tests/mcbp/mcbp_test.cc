@@ -4050,13 +4050,6 @@ TEST_P(CommandSpecificErrorContextTest, CollectionsSetManifest) {
     EXPECT_EQ("Request vbucket id must be 0",
               validate_error_context(
                       cb::mcbp::ClientOpcode::CollectionsSetManifest));
-
-    // Attached bucket must support collections
-    header.setVBucket(Vbid(0));
-    EXPECT_EQ("Attached bucket does not support collections",
-              validate_error_context(
-                      cb::mcbp::ClientOpcode::CollectionsSetManifest,
-                      cb::mcbp::Status::NotSupported));
 }
 
 TEST_P(CommandSpecificErrorContextTest, CollectionsGetManifest) {
@@ -4068,11 +4061,6 @@ TEST_P(CommandSpecificErrorContextTest, CollectionsGetManifest) {
     EXPECT_EQ("Request vbucket id must be 0",
               validate_error_context(
                       cb::mcbp::ClientOpcode::CollectionsGetManifest));
-    header.setVBucket(Vbid(0));
-    EXPECT_EQ("Attached bucket does not support collections",
-              validate_error_context(
-                      cb::mcbp::ClientOpcode::CollectionsGetManifest,
-                      cb::mcbp::Status::NotSupported));
 }
 
 TEST_P(CommandSpecificErrorContextTest, CollectionsGetID) {
@@ -4086,10 +4074,6 @@ TEST_P(CommandSpecificErrorContextTest, CollectionsGetID) {
     header.setVBucket(Vbid(1));
     EXPECT_EQ("Request vbucket id must be 0",
               validate_error_context(cb::mcbp::ClientOpcode::CollectionsGetID));
-    header.setVBucket(Vbid(0));
-    EXPECT_EQ("Attached bucket does not support collections",
-              validate_error_context(cb::mcbp::ClientOpcode::CollectionsGetID,
-                                     cb::mcbp::Status::NotSupported));
 }
 
 class GetRandomKeyValidatorTest : public ::testing::WithParamInterface<bool>,

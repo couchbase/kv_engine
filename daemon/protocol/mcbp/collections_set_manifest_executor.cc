@@ -27,8 +27,8 @@ void collections_set_manifest_executor(Cookie& cookie) {
     auto val = req.getValue();
     cb::const_char_buffer jsonBuffer{reinterpret_cast<const char*>(val.data()),
                                      val.size()};
-    auto ret = connection.getBucketEngine()->collections.set_manifest(
-            connection.getBucketEngine(), &cookie, jsonBuffer);
+    auto ret = connection.getBucketEngine()->set_collection_manifest(
+            &cookie, jsonBuffer);
 
     switch (ret) {
     case cb::engine_errc::disconnect:

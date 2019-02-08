@@ -44,9 +44,7 @@ protected:
 };
 
 TEST_F(SetCollectionsValidator, CorrectMessage) {
-    // We expect success because the validator will check all the packet members
-    // then find the collections interface doesn't define a handler
-    EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_F(SetCollectionsValidator, InvalidMagic) {

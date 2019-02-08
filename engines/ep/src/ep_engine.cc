@@ -1756,11 +1756,9 @@ cb::EngineErrorMetadataPair EventuallyPersistentEngine::get_meta(
     return acquireEngine(this)->getMetaInner(cookie, key, vbucket);
 }
 
-static cb::engine_errc EvpCollectionsSetManifest(
-        gsl::not_null<EngineIface*> handle,
-        gsl::not_null<const void*> cookie,
-        cb::const_char_buffer json) {
-    auto engine = acquireEngine(handle);
+cb::engine_errc EventuallyPersistentEngine::set_collection_manifest(
+        gsl::not_null<const void*> cookie, cb::const_char_buffer json) {
+    auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->setCollections(json);
 
     if (cb::engine_errc::success != cb::engine_errc(rv.code().value())) {
@@ -1770,11 +1768,9 @@ static cb::engine_errc EvpCollectionsSetManifest(
     return cb::engine_errc(rv.code().value());
 }
 
-static cb::engine_errc EvpCollectionsGetManifest(
-        gsl::not_null<EngineIface*> handle,
-        gsl::not_null<const void*> cookie,
-        const AddResponseFn& response) {
-    auto engine = acquireEngine(handle);
+cb::engine_errc EventuallyPersistentEngine::get_collection_manifest(
+        gsl::not_null<const void*> cookie, const AddResponseFn& response) {
+    auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->getCollections();
     return cb::engine_errc(sendResponse(response,
                                         nullptr,
@@ -1789,11 +1785,10 @@ static cb::engine_errc EvpCollectionsGetManifest(
                                         cookie));
 }
 
-static cb::EngineErrorGetCollectionIDResult EvpCollectionsGetCollectionID(
-        gsl::not_null<EngineIface*> handle,
-        gsl::not_null<const void*> cookie,
-        cb::const_char_buffer path) {
-    auto engine = acquireEngine(handle);
+cb::EngineErrorGetCollectionIDResult
+EventuallyPersistentEngine::get_collection_id(gsl::not_null<const void*> cookie,
+                                              cb::const_char_buffer path) {
+    auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->getCollectionID(path);
     if (rv.result == cb::engine_errc::unknown_collection) {
         engine->setErrorContext(cookie,
@@ -1829,10 +1824,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    EngineIface::collections.set_manifest = EvpCollectionsSetManifest;
-    EngineIface::collections.get_manifest = EvpCollectionsGetManifest;
-    EngineIface::collections.get_collection_id = EvpCollectionsGetCollectionID;
-
     serverApi = getServerApiFunc();
 }
 

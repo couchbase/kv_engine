@@ -711,6 +711,16 @@ public:
         }
     }
 
+    cb::engine_errc set_collection_manifest(
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer json) override;
+    cb::engine_errc get_collection_manifest(
+            gsl::not_null<const void*> cookie,
+            const AddResponseFn& response) override;
+    cb::EngineErrorGetCollectionIDResult get_collection_id(
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer path) override;
+
     cb::engine::FeatureSet getFeatures() override {
         return real_engine->getFeatures();
     }
@@ -1000,21 +1010,6 @@ private:
     std::queue<const void*> pending_io_ops;
 
     std::atomic<bool> stop_notification_thread;
-
-    static cb::engine_errc collections_set_manifest(
-            gsl::not_null<EngineIface*> handle,
-            gsl::not_null<const void*> cookie,
-            cb::const_char_buffer json);
-
-    static cb::engine_errc collections_get_manifest(
-            gsl::not_null<EngineIface*> handle,
-            gsl::not_null<const void*> cookie,
-            const AddResponseFn& response);
-
-    static cb::EngineErrorGetCollectionIDResult collections_get_collection_id(
-            gsl::not_null<EngineIface*> handle,
-            gsl::not_null<const void*> cookie,
-            cb::const_char_buffer path);
 
     // Base class for all fault injection modes.
     struct FaultInjectMode {
@@ -1318,11 +1313,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     notify_io_thread(new NotificationThread(*this))
 {
     init_wrapped_api(gsa);
-
-    EngineIface::collections = {};
-    EngineIface::collections.set_manifest = collections_set_manifest;
-    EngineIface::collections.get_manifest = collections_get_manifest;
-    EngineIface::collections.get_collection_id = collections_get_collection_id;
 
     clustermap_revno = 1;
 
@@ -1775,45 +1765,6 @@ ENGINE_ERROR_CODE EWB_Engine::abort(gsl::not_null<const void*> cookie,
     }
 }
 
-cb::engine_errc EWB_Engine::collections_set_manifest(
-        gsl::not_null<EngineIface*> handle,
-        gsl::not_null<const void*> cookie,
-        cb::const_char_buffer json) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->collections.set_manifest == nullptr) {
-        return cb::engine_errc::not_supported;
-    } else {
-        return ewb->real_engine->collections.set_manifest(
-                ewb->real_engine, cookie, json);
-    }
-}
-
-cb::engine_errc EWB_Engine::collections_get_manifest(
-        gsl::not_null<EngineIface*> handle,
-        gsl::not_null<const void*> cookie,
-        const AddResponseFn& response) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->collections.get_manifest == nullptr) {
-        return cb::engine_errc::not_supported;
-    } else {
-        return ewb->real_engine->collections.get_manifest(
-                ewb->real_engine, cookie, response);
-    }
-}
-
-cb::EngineErrorGetCollectionIDResult EWB_Engine::collections_get_collection_id(
-        gsl::not_null<EngineIface*> handle,
-        gsl::not_null<const void*> cookie,
-        cb::const_char_buffer path) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->collections.get_collection_id == nullptr) {
-        return {cb::engine_errc::not_supported, 0, 0};
-    } else {
-        return ewb->real_engine->collections.get_collection_id(
-                ewb->real_engine, cookie, path);
-    }
-}
-
 ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, EngineIface** handle) {
     try {
         EWB_Engine* engine = new EWB_Engine(gsa);
@@ -2025,6 +1976,21 @@ ENGINE_ERROR_CODE EWB_Engine::setItemCas(const void* cookie,
              0,
              cookie);
     return ENGINE_SUCCESS;
+}
+
+cb::engine_errc EWB_Engine::set_collection_manifest(
+        gsl::not_null<const void*> cookie, cb::const_char_buffer json) {
+    return real_engine->set_collection_manifest(cookie, json);
+}
+
+cb::engine_errc EWB_Engine::get_collection_manifest(
+        gsl::not_null<const void*> cookie, const AddResponseFn& response) {
+    return real_engine->get_collection_manifest(cookie, response);
+}
+
+cb::EngineErrorGetCollectionIDResult EWB_Engine::get_collection_id(
+        gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
+    return real_engine->get_collection_id(cookie, path);
 }
 
 void BlockMonitorThread::run() {
