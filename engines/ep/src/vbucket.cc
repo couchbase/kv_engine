@@ -1310,6 +1310,10 @@ void VBucket::addDurabilityMonitorStats(const AddStatFn& addStat,
     durabilityMonitor->addStats(addStat, cookie);
 }
 
+void VBucket::dumpDurabilityMonitor(std::ostream& os) const {
+    os << *durabilityMonitor;
+}
+
 ENGINE_ERROR_CODE VBucket::setWithMeta(
         Item& itm,
         uint64_t cas,

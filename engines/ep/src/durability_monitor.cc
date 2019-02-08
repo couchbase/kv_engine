@@ -228,7 +228,37 @@ private:
 
     // Majority in the arithmetic definition: num-nodes / 2 + 1
     const uint8_t majority;
+
+    friend std::ostream& operator<<(std::ostream&, const SyncWrite&);
 };
+
+std::ostream& operator<<(std::ostream& os,
+                         const DurabilityMonitor::SyncWrite& sw) {
+    os << "SW @" << &sw << " "
+       << "cookie:" << sw.cookie << " qi:[key:'" << sw.item->getKey()
+       << "' seqno:" << sw.item->getBySeqno()
+       << " reqs:" << to_string(sw.item->getDurabilityReqs())
+       << "] maj:" << std::to_string(sw.majority)
+       << " #ack:[mem:" << std::to_string(sw.ackCount.memory)
+       << " disk:" << std::to_string(sw.ackCount.disk) << "] acks:[";
+    for (const auto& node : sw.acks) {
+        std::string ackNames;
+        if (node.second.memory) {
+            ackNames += "mem";
+        }
+        if (node.second.disk) {
+            if (node.second.memory) {
+                ackNames += ",";
+            }
+            ackNames += "disk";
+        }
+        if (!ackNames.empty()) {
+            os << node.first << ":" << ackNames << " ";
+        }
+    }
+    os << "]";
+    return os;
+}
 
 DurabilityMonitor::DurabilityMonitor(VBucket& vb) : vb(vb) {
 }
@@ -648,4 +678,16 @@ void DurabilityMonitor::processSeqnoAck(const std::lock_guard<std::mutex>& lg,
 
     // We keep track of the actual ack'ed seqno
     updateNodeAck(lg, node, tracking, ackSeqno);
+}
+
+std::ostream& operator<<(std::ostream& os, const DurabilityMonitor& dm) {
+    std::lock_guard<std::mutex> lg(dm.state.m);
+    os << "DurabilityMonitor[" << &dm
+       << "] with topology:" << dm.state.replicationTopology
+       << " #trackedWrites:" << dm.state.trackedWrites.size() << "\n";
+    for (const auto& w : dm.state.trackedWrites) {
+        os << "    " << w << "\n";
+    }
+    os << "]";
+    return os;
 }

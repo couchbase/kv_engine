@@ -838,13 +838,16 @@ protected:
                                         const AddStatFn& add_stat,
                                         const char* stat_key,
                                         int nkey);
+    ENGINE_ERROR_CODE doCheckpointDump(const void* cookie,
+                                       const AddStatFn& addStat,
+                                       cb::const_char_buffer keyArgs);
     ENGINE_ERROR_CODE doDurabilityMonitorStats(const void* cookie,
                                                const AddStatFn& add_stat,
                                                const char* stat_key,
                                                int nkey);
-    ENGINE_ERROR_CODE doCheckpointDump(const void* cookie,
-                                       const AddStatFn& addStat,
-                                       cb::const_char_buffer keyArgs);
+    ENGINE_ERROR_CODE doDurabilityMonitorDump(const void* cookie,
+                                              const AddStatFn& addStat,
+                                              cb::const_char_buffer keyArgs);
     ENGINE_ERROR_CODE doDcpStats(const void* cookie, const AddStatFn& add_stat);
     ENGINE_ERROR_CODE doEvictionStats(const void* cookie,
                                       const AddStatFn& add_stat);
@@ -898,6 +901,17 @@ protected:
     void addLookupResult(const void* cookie, std::unique_ptr<Item> result);
 
     bool fetchLookupResult(const void* cookie, std::unique_ptr<Item>& itm);
+
+    /// Result of getValidVBucketFromString()
+    struct StatusAndVBPtr {
+        ENGINE_ERROR_CODE status;
+        VBucketPtr vb;
+    };
+    /**
+     * Helper method for stats calls - validates the specified vbucket number
+     * and returns a VBucketPtr (if valid).
+     */
+    StatusAndVBPtr getValidVBucketFromString(cb::const_char_buffer vbNum);
 
     // Initialize all required callbacks of this engine with the underlying
     // server.

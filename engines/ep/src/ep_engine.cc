@@ -3311,22 +3311,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashDump(
         const void* cookie,
         const AddStatFn& addStat,
         cb::const_char_buffer keyArgs) {
-    if (keyArgs.empty()) {
-        // Must specify a vbucket.
-        return ENGINE_EINVAL;
-    }
-    uint16_t vbucket_id;
-    if (!parseUint16(keyArgs.data(), &vbucket_id)) {
-        return ENGINE_EINVAL;
-    }
-    Vbid vbid = Vbid(vbucket_id);
-    VBucketPtr vb = getVBucket(vbid);
-    if (!vb) {
-        return ENGINE_NOT_MY_VBUCKET;
+    auto result = getValidVBucketFromString(keyArgs);
+    if (result.status != ENGINE_SUCCESS) {
+        return result.status;
     }
 
-    AddStatsStream as(std::to_string(vbid.get()), addStat, cookie);
-    as << vb->ht << std::endl;
+    AddStatsStream as(result.vb->getId().to_string(), addStat, cookie);
+    as << result.vb->ht << std::endl;
 
     return ENGINE_SUCCESS;
 }
@@ -3335,22 +3326,29 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointDump(
         const void* cookie,
         const AddStatFn& addStat,
         cb::const_char_buffer keyArgs) {
-    if (keyArgs.empty()) {
-        // Must specify a vbucket.
-        return ENGINE_EINVAL;
-    }
-    uint16_t vbucket_id;
-    if (!parseUint16(keyArgs.data(), &vbucket_id)) {
-        return ENGINE_EINVAL;
-    }
-    Vbid vbid = Vbid(vbucket_id);
-    VBucketPtr vb = getVBucket(vbid);
-    if (!vb) {
-        return ENGINE_NOT_MY_VBUCKET;
+    auto result = getValidVBucketFromString(keyArgs);
+    if (result.status != ENGINE_SUCCESS) {
+        return result.status;
     }
 
-    AddStatsStream as(std::to_string(vbid.get()), addStat, cookie);
-    as << *vb->checkpointManager << std::endl;
+    AddStatsStream as(result.vb->getId().to_string(), addStat, cookie);
+    as << *result.vb->checkpointManager << std::endl;
+
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doDurabilityMonitorDump(
+        const void* cookie,
+        const AddStatFn& addStat,
+        cb::const_char_buffer keyArgs) {
+    auto result = getValidVBucketFromString(keyArgs);
+    if (result.status != ENGINE_SUCCESS) {
+        return result.status;
+    }
+
+    AddStatsStream as(result.vb->getId().to_string(), addStat, cookie);
+    result.vb->dumpDurabilityMonitor(as);
+    as << std::endl;
 
     return ENGINE_SUCCESS;
 }
@@ -4051,6 +4049,25 @@ bool EventuallyPersistentEngine::fetchLookupResult(const void* cookie,
     }
 }
 
+EventuallyPersistentEngine::StatusAndVBPtr
+EventuallyPersistentEngine::getValidVBucketFromString(
+        cb::const_char_buffer vbNum) {
+    if (vbNum.empty()) {
+        // Must specify a vbucket.
+        return {ENGINE_EINVAL, {}};
+    }
+    uint16_t vbucket_id;
+    if (!parseUint16(vbNum.data(), &vbucket_id)) {
+        return {ENGINE_EINVAL, {}};
+    }
+    Vbid vbid = Vbid(vbucket_id);
+    VBucketPtr vb = getVBucket(vbid);
+    if (!vb) {
+        return {ENGINE_NOT_MY_VBUCKET, {}};
+    }
+    return {ENGINE_SUCCESS, vb};
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(
         const void* cookie,
         const AddStatFn& add_stat,
@@ -4303,6 +4320,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
                 cb::const_char_buffer keyArgs(statKey.data() + keyLen,
                                               statKey.size() - keyLen);
                 rv = doHashDump(cookie, add_stat, keyArgs);
+            } else if (cb_isPrefix(statKey, "_durability-dump")) {
+                const size_t keyLen = strlen("_durability-dump");
+                cb::const_char_buffer keyArgs(statKey.data() + keyLen,
+                                              statKey.size() - keyLen);
+                rv = doDurabilityMonitorDump(cookie, add_stat, keyArgs);
             }
             break;
         }

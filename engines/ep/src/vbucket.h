@@ -632,6 +632,9 @@ public:
     void addDurabilityMonitorStats(const AddStatFn& addStat,
                                    const void* cookie) const;
 
+    /// Dump the internal state of the durabilityMonitor to the given stream.
+    void dumpDurabilityMonitor(std::ostream& os) const;
+
     virtual KVShard* getShard() = 0;
 
     /**

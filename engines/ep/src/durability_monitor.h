@@ -256,4 +256,11 @@ protected:
     } state;
 
     const size_t maxReplicas = 3;
+
+    friend std::ostream& operator<<(std::ostream& os,
+                                    const DurabilityMonitor& dm);
+    friend std::ostream& operator<<(std::ostream&,
+                                    const DurabilityMonitor::SyncWrite&);
 };
+
+std::ostream& operator<<(std::ostream& os, const DurabilityMonitor& dm);
