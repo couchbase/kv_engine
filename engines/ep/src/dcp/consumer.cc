@@ -146,7 +146,8 @@ private:
 
 DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
                          const void* cookie,
-                         const std::string& name)
+                         const std::string& name,
+                         const std::string& consumerName_)
     : ConnHandler(engine, cookie, name),
       lastMessageTime(ep_current_time()),
       engine(engine),
@@ -157,6 +158,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
       backoffs(0),
       dcpNoopTxInterval(engine.getConfiguration().getDcpNoopTxInterval()),
       pendingSendStreamEndOnClientStreamClose(true),
+      consumerName(consumerName_),
       producerIsVersion5orHigher(false),
       processorTaskRunning(false),
       flowControl(engine, this),
@@ -182,7 +184,9 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
             (config.getHtEvictionPolicy() == "hifi_mfu");
     pendingEnableExpiryOpcode = true;
     pendingEnableSyncReplication = true;
-    pendingSendConsumerName = true;
+
+    // If a consumer_name was provided then tell the producer about it.
+    pendingSendConsumerName = !consumerName.empty();
 }
 
 DcpConsumer::~DcpConsumer() {
@@ -1494,10 +1498,8 @@ ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
     if (pendingSendConsumerName) {
         uint32_t opaque = ++opaqueCounter;
         NonBucketAllocationGuard guard;
-        // @todo: Temporarily passing the connection name in place of consumer
-        //     name. Change when adding the consumer-name to DCP_OPEN.
-        ENGINE_ERROR_CODE ret =
-                producers->control(opaque, "consumer_name", getName().c_str());
+        ENGINE_ERROR_CODE ret = producers->control(
+                opaque, "consumer_name", consumerName.c_str());
         pendingSendConsumerName = false;
         return ret;
     }

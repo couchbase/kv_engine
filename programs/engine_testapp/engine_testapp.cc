@@ -152,7 +152,8 @@ struct mock_engine : public EngineIface, public DcpIface {
                            uint32_t opaque,
                            uint32_t seqno,
                            uint32_t flags,
-                           cb::const_char_buffer name) override;
+                           cb::const_char_buffer name,
+                           cb::const_char_buffer value) override;
 
     ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*> cookie,
                                  uint32_t opaque,
@@ -648,8 +649,9 @@ ENGINE_ERROR_CODE mock_engine::open(gsl::not_null<const void*> cookie,
                                     uint32_t opaque,
                                     uint32_t seqno,
                                     uint32_t flags,
-                                    cb::const_char_buffer name) {
-    return the_engine_dcp->open(cookie, opaque, seqno, flags, name);
+                                    cb::const_char_buffer name,
+                                    cb::const_char_buffer value) {
+    return the_engine_dcp->open(cookie, opaque, seqno, flags, name, value);
 }
 
 ENGINE_ERROR_CODE mock_engine::add_stream(gsl::not_null<const void*> cookie,

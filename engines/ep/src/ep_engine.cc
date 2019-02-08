@@ -1251,8 +1251,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::open(
         uint32_t opaque,
         uint32_t seqno,
         uint32_t flags,
-        cb::const_char_buffer name) {
-    return acquireEngine(this)->dcpOpen(cookie, opaque, seqno, flags, name);
+        cb::const_char_buffer name,
+        cb::const_char_buffer value) {
+    return acquireEngine(this)->dcpOpen(
+            cookie, opaque, seqno, flags, name, value);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::add_stream(
@@ -5676,7 +5678,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
         uint32_t opaque,
         uint32_t seqno,
         uint32_t flags,
-        cb::const_char_buffer stream_name) {
+        cb::const_char_buffer stream_name,
+        cb::const_char_buffer value) {
     (void) opaque;
     (void) seqno;
     std::string connName = cb::to_string(stream_name);
@@ -5693,17 +5696,27 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
                  cb::mcbp::request::DcpOpenPayload::Notifier)) {
         handler = dcpConnMap_->newProducer(cookie, connName, flags);
     } else {
-        if (!kvBucket->isWarmingUp()) { // dont accept dcp consumer open
-                                        // requests during warm up
-            handler = dcpConnMap_->newConsumer(cookie, connName);
+        // dont accept dcp consumer open requests during warm up
+        if (!kvBucket->isWarmingUp()) {
+            // Check if consumer_name specified in value; if so use in Consumer
+            // object.
+            nlohmann::json jsonValue;
+            std::string consumerName;
+            if (!value.empty()) {
+                jsonValue = nlohmann::json::parse(value);
+                consumerName = jsonValue.at("consumer_name");
+            }
+            handler = dcpConnMap_->newConsumer(cookie, connName, consumerName);
+
             EP_LOG_INFO(
                     "EventuallyPersistentEngine::dcpOpen: opening new DCP "
                     "Consumer handler - stream name:{}, opaque:{}, seqno:{}, "
-                    "flags:0b{}",
+                    "flags:0b{} value:{}",
                     connName,
                     opaque,
                     seqno,
-                    std::bitset<sizeof(flags) * 8>(flags).to_string());
+                    std::bitset<sizeof(flags) * 8>(flags).to_string(),
+                    jsonValue.dump());
         } else {
             EP_LOG_WARN(
                     "EventuallyPersistentEngine::dcpOpen: not opening new DCP "

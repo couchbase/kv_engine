@@ -3594,8 +3594,16 @@ TEST_P(CommandSpecificErrorContextTest, DcpOpen) {
     header.setKeylen(10);
     header.setBodylen(20);
 
-    // No value
-    EXPECT_EQ("Request must not include value",
+    // Non-JSON value
+    EXPECT_EQ("datatype should be set to JSON for non-empty value",
+              validate_error_context(cb::mcbp::ClientOpcode::DcpOpen));
+
+    // JSON value, but unexpected key
+    header.setDatatype(cb::mcbp::Datatype::JSON);
+    nlohmann::json value = {{"unknown_key", "unknown_value"}};
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+    builder.setValue(value.dump());
+    EXPECT_EQ("Unsupported JSON property unknown_key",
               validate_error_context(cb::mcbp::ClientOpcode::DcpOpen));
 
     // DCP_OPEN_UNUSED flag is invalid

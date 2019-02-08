@@ -482,16 +482,18 @@ static Status verify_common_dcp_restrictions(Cookie& cookie) {
 static Status dcp_open_validator(Cookie& cookie) {
     using cb::mcbp::request::DcpOpenPayload;
 
-    auto status = McbpValidator::verify_header(cookie,
-                                               sizeof(DcpOpenPayload),
-                                               ExpectedKeyLen::NonZero,
-                                               ExpectedValueLen::Zero,
-                                               ExpectedCas::Any,
-                                               PROTOCOL_BINARY_RAW_BYTES);
+    auto status = McbpValidator::verify_header(
+            cookie,
+            sizeof(DcpOpenPayload),
+            ExpectedKeyLen::NonZero,
+            ExpectedValueLen::Any,
+            ExpectedCas::Any,
+            PROTOCOL_BINARY_RAW_BYTES | PROTOCOL_BINARY_DATATYPE_JSON);
     if (status != Status::Success) {
         return status;
     }
 
+    // Validate the flags.
     const auto mask = DcpOpenPayload::Producer | DcpOpenPayload::Notifier |
                       DcpOpenPayload::IncludeXattrs | DcpOpenPayload::NoValue |
                       DcpOpenPayload::IncludeDeleteTimes |
@@ -535,6 +537,51 @@ static Status dcp_open_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
+    // Validate the value. If non-empty must be a JSON payload.
+    const auto value = cookie.getHeader().getValue();
+    const auto datatype = cookie.getHeader().getDatatype();
+    if (value.empty()) {
+        if (datatype != PROTOCOL_BINARY_RAW_BYTES) {
+            cookie.setErrorContext("datatype should be set to RAW");
+            return Status::Einval;
+        }
+    } else {
+        if (datatype != PROTOCOL_BINARY_DATATYPE_JSON) {
+            cookie.setErrorContext(
+                    "datatype should be set to JSON for non-empty value");
+            return Status::Einval;
+        }
+        try {
+            auto json = nlohmann::json::parse(value);
+            if (!json.is_object()) {
+                cookie.setErrorContext("value must be JSON of type object");
+                return Status::Einval;
+            }
+            for (const auto& kv : json.items()) {
+                if (kv.key() == "consumer_name") {
+                    if (flags &
+                        (DcpOpenPayload::Producer | DcpOpenPayload::Notifier)) {
+                        cookie.setErrorContext(
+                                "consumer_name only valid for Consumer "
+                                "connections");
+                        return Status::Einval;
+                    }
+                    if (!kv.value().is_string()) {
+                        cookie.setErrorContext(
+                                "consumer_name must be a string");
+                        return Status::Einval;
+                    }
+                } else {
+                    cookie.setErrorContext("Unsupported JSON property " +
+                                           kv.key());
+                    return Status::Einval;
+                }
+            }
+        } catch (const std::exception&) {
+            cookie.setErrorContext("value is not valid JSON");
+            return Status::Einval;
+        }
+    }
     return verify_common_dcp_restrictions(cookie);
 }
 

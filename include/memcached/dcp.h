@@ -397,6 +397,8 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param name Identifier for this connection. Note that the name must be
      *             unique; attempting to (re)connect with a name already in use
      *             will disconnect the existing connection.
+     * @param value An optional JSON value specifying extra information about
+     *              the connection to be opened.
      * @return ENGINE_SUCCESS if the DCP connection was successfully opened,
      *         otherwise error code indicating reason for the failure.
      */
@@ -404,7 +406,8 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
                                    uint32_t opaque,
                                    uint32_t seqno,
                                    uint32_t flags,
-                                   cb::const_char_buffer name) = 0;
+                                   cb::const_char_buffer name,
+                                   cb::const_char_buffer value = {}) = 0;
 
     /**
      * Called from the memcached core to add a vBucket stream to the set of

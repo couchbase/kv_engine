@@ -41,6 +41,14 @@ When setting the Producer or Consumer flag the sender is telling the server what
 
 The connection name is specified using the key field. When selecting a name the only requirement is that the name take up no more space than 256 bytes. It is recommended that the name uses that ASCII character set and uses alpha-numeric characters. It is highly advantageous for improved supportability Couchbase Server that the connection names embed as much contextual information as possible from the client.
 
+As of version 6.5, the _value_ can be used to specify additional information
+about the connection to be opened. If non-empty, the value must be a JSON
+object with the following supported keys:
+
+* `consumer_name` The name the DCP consumer should use to identify itself with
+   the associated DCP producer. Only valid if `DCP type` is `Consumer`.
+
+
 The following example shows the breakdown of the message:
 
       Byte/     0       |       1       |       2       |       3       |

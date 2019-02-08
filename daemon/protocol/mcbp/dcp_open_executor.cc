@@ -50,13 +50,16 @@ void dcp_open_executor(Cookie& cookie) {
 
         if (ret == ENGINE_SUCCESS) {
             auto key = request.getKey();
+            auto value = request.getValue();
 
             ret = dcpOpen(
                     cookie,
                     request.getOpaque(),
                     payload->getSeqno(),
                     flags,
-                    {reinterpret_cast<const char*>(key.data()), key.size()});
+                    {reinterpret_cast<const char*>(key.data()), key.size()},
+                    {reinterpret_cast<const char*>(value.data()),
+                     value.size()});
         }
     }
 

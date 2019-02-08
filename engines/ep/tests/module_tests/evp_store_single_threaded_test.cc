@@ -1633,7 +1633,8 @@ TEST_F(SingleThreadedEPBucketTest, MB19892_BackfillNotDeleted) {
                               /*opaque:unused*/ {},
                               /*seqno:unused*/ {},
                               cb::mcbp::request::DcpOpenPayload::Producer,
-                              name));
+                              name,
+                              {}));
 
     uint64_t rollbackSeqno;
     auto dummy_dcp_add_failover_cb = [](vbucket_failover_t* entry,
@@ -2012,7 +2013,8 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
                               /*opaque:unused*/ {},
                               /*seqno:unused*/ {},
                               cb::mcbp::request::DcpOpenPayload::Producer,
-                              name));
+                              name,
+                              {}));
 
     // ActiveStreamCheckpointProcessorTask and DCPBackfill task are created
     // when the first DCP stream is created.

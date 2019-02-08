@@ -39,14 +39,29 @@ class DcpResponse;
 class PassiveStream;
 class StreamEndResponse;
 
+/**
+ * A DCP Consumer object represents a DCP connection which receives streams
+ * of mutations from another source and ingests those mutations.
+ */
 class DcpConsumer : public ConnHandler,
                     public std::enable_shared_from_this<DcpConsumer> {
     typedef std::map<uint32_t, std::pair<uint32_t, Vbid>> opaque_map;
 
 public:
-
-    DcpConsumer(EventuallyPersistentEngine &e, const void *cookie,
-                const std::string &name);
+    /**
+     * Construct a DCP consumer object.
+     *
+     * @param e Engine which owns this consumer.
+     * @param cookie memcached cookie associated with this DCP consumer.
+     * @param name The name of the connection.
+     * @param consumerName (Optional) consumer_name; if non-empty used by the
+     *        consumer to identify itself to the producer (for Sync
+     *        Replication).
+     */
+    DcpConsumer(EventuallyPersistentEngine& e,
+                const void* cookie,
+                const std::string& name,
+                const std::string& consumerName = {});
 
     virtual ~DcpConsumer();
 
@@ -497,6 +512,10 @@ protected:
     // SyncReplication: Producer needs to know the Consumer name to identify
     // the source of received SeqnoAck messages.
     bool pendingSendConsumerName;
+
+    // Sync Replication: The identifier the consumer should to identify itself
+    // to the producer.
+    const std::string consumerName;
 
     /*
      * MB-29441: The following variables are used to set the the proper

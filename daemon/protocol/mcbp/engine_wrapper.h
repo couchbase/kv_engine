@@ -346,7 +346,8 @@ ENGINE_ERROR_CODE dcpOpen(Cookie& cookie,
                           uint32_t opaque,
                           uint32_t seqno,
                           uint32_t flags,
-                          cb::const_char_buffer name);
+                          cb::const_char_buffer name,
+                          cb::const_char_buffer value);
 
 /**
  * Calls the underlying engine DCP set-vbucket-state

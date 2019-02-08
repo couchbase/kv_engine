@@ -65,9 +65,9 @@ DcpConnMap::~DcpConnMap() {
     EP_LOG_INFO("Deleted dcpConnMap_");
 }
 
-DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
-                                     const std::string &name)
-{
+DcpConsumer* DcpConnMap::newConsumer(const void* cookie,
+                                     const std::string& name,
+                                     const std::string& consumerName) {
     LockHolder lh(connsLock);
 
     std::string conn_name("eq_dcpq:");
@@ -100,8 +100,8 @@ DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
         }
     }
 
-    std::shared_ptr<DcpConsumer> dc =
-            std::make_shared<DcpConsumer>(engine, cookie, conn_name);
+    std::shared_ptr<DcpConsumer> dc = std::make_shared<DcpConsumer>(
+            engine, cookie, conn_name, consumerName);
     auto* result = dc.get();
     EP_LOG_DEBUG("{} Connection created", dc->logHeader());
     map_[cookie] = std::move(dc);

@@ -26,10 +26,12 @@
  */
 class MockDcpConsumer: public DcpConsumer {
 public:
-    MockDcpConsumer(EventuallyPersistentEngine &theEngine, const void *cookie,
-                    const std::string &name)
-    : DcpConsumer(theEngine, cookie, name)
-    {}
+    MockDcpConsumer(EventuallyPersistentEngine& theEngine,
+                    const void* cookie,
+                    const std::string& name,
+                    const std::string& consumerName = {})
+        : DcpConsumer(theEngine, cookie, name, consumerName) {
+    }
 
     void setLastMessageTime(const rel_time_t timeValue) {
         lastMessageTime = timeValue;

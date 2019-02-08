@@ -551,10 +551,11 @@ ENGINE_ERROR_CODE dcpOpen(Cookie& cookie,
                           uint32_t opaque,
                           uint32_t seqno,
                           uint32_t flags,
-                          cb::const_char_buffer name) {
+                          cb::const_char_buffer name,
+                          cb::const_char_buffer value) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->open(&cookie, opaque, seqno, flags, name);
+    auto ret = dcp->open(&cookie, opaque, seqno, flags, name, value);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.open returned ENGINE_DISCONNECT",
                     connection.getId(),

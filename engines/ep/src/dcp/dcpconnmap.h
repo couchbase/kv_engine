@@ -53,12 +53,17 @@ public:
                              uint32_t flags);
 
     /**
-     * Create a new consumer and add it in the list of TapConnections
-     * @param e the engine
-     * @param c the cookie representing the client
+     * Create a new consumer and add it in the list of DCP Connections
+     *
+     * @param cookie the cookie representing the client
+     * @param name The name of the connection
+     * @param consumerName (Optional) If non-empty an identifier for the
+     *        consumer to advertise itself to the producer as.
      * @return Pointer to the new dcp connection
      */
-    DcpConsumer *newConsumer(const void* cookie, const std::string &name);
+    DcpConsumer* newConsumer(const void* cookie,
+                             const std::string& name,
+                             const std::string& consumerName = {});
 
     void notifyVBConnections(Vbid vbid, uint64_t bySeqno);
 

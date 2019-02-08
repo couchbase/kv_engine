@@ -3536,11 +3536,6 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
             "Unexpected key");
     checkne(opaque, producers.last_opaque, "Unexpected opaque");
 
-    dcp_step(h, cookie, producers);
-    checkeq(ClientOpcode::DcpControl, producers.last_op, "Unexpected last_op");
-    checkeq("consumer_name"s, producers.last_key, "Unexpected key");
-    checkne(opaque, producers.last_opaque, "Unexpected opaque");
-
     auto dcp = requireDcpIface(h);
     checkeq(ENGINE_SUCCESS,
             dcp->add_stream(cookie, opaque, vbucket, flags),
