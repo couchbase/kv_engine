@@ -307,17 +307,6 @@ struct mock_engine : public EngineIface, public DcpIface {
 static bool color_enabled;
 static bool verbose_logging = false;
 
-#ifndef WIN32
-#include <sys/wait.h>
-#include <csignal>
-
-static sig_atomic_t alarmed;
-
-static void alarm_handler(int sig) {
-    alarmed = 1;
-}
-#endif
-
 // The handle for the 'current' engine, as used by execute_test.
 // It needs to be globalas the testcase may call reload_engine() and that
 // needs to update the pointers the new engine, so when execute_test is
@@ -971,7 +960,6 @@ static void usage() {
     printf("                             to be executed.\n");
     printf("\n");
     printf("-a <attempts>                Maximum number of attempts for a test.\n");
-    printf("-t <timeout>                 Maximum time to run a test.\n");
     printf("-e <engine_config>           Engine configuration string passed to\n");
     printf("                             the engine.\n");
     printf("-q                           Only print errors.");
@@ -1348,31 +1336,6 @@ static test_result execute_test(engine_test_t test,
     return ret;
 }
 
-static void setup_alarm_handler() {
-#ifndef WIN32
-    struct sigaction sig_handler {};
-
-    sig_handler.sa_handler = alarm_handler;
-    sig_handler.sa_flags = 0;
-    sigemptyset(&sig_handler.sa_mask);
-
-    sigaction(SIGALRM, &sig_handler, nullptr);
-#endif
-}
-
-static void set_test_timeout(int timeout) {
-#ifndef WIN32
-    alarm(timeout);
-#endif
-}
-
-static void clear_test_timeout() {
-#ifndef WIN32
-    alarm(0);
-    alarmed = 0;
-#endif
-}
-
 static void teardown_testsuite(cb_dlhandle_t handle, const char* test_suite) {
     /* Hack to remove the warning from C99 */
     union {
@@ -1393,7 +1356,7 @@ static void teardown_testsuite(cb_dlhandle_t handle, const char* test_suite) {
 }
 
 int main(int argc, char **argv) {
-    int c, exitcode = 0, num_cases = 0, timeout = 0, loop_count = 0;
+    int c, exitcode = 0, num_cases = 0, loop_count = 0;
     bool verbose = false;
     bool quiet = false;
     bool dot = false;
@@ -1456,8 +1419,6 @@ int main(int argc, char **argv) {
     setbuf(stdout, nullptr);
     setbuf(stderr, nullptr);
 
-    setup_alarm_handler();
-
     install_backtrace_terminate_handler();
 
     /* process arguments */
@@ -1467,7 +1428,6 @@ int main(int argc, char **argv) {
                        "E:" /* Engine to load */
                        "e:" /* Engine options */
                        "T:" /* Library with tests to load */
-                       "t:" /* Timeout */
                        "L"  /* Loop until failure */
                        "q"  /* Be more quiet (only report failures) */
                        "."  /* dot mode. */
@@ -1515,9 +1475,6 @@ int main(int argc, char **argv) {
             return 0;
         case 'T':
             test_suite = optarg;
-            break;
-        case 't':
-            timeout = std::stoi(optarg);
             break;
         case 'L':
             loop = true;
@@ -1635,7 +1592,6 @@ int main(int argc, char **argv) {
                     need_newline = false;
                 }
             }
-            set_test_timeout(timeout);
 
             {
                 enum test_result ecode = FAIL;
@@ -1683,7 +1639,6 @@ int main(int argc, char **argv) {
                                         !verbose);
                 }
             }
-            clear_test_timeout();
 
             if (error != 0) {
                 ++exitcode;
