@@ -54,9 +54,9 @@ public:
 
     cb::EngineErrorItemPair allocate(gsl::not_null<const void*>,
                                      const DocKey&,
-                                     const size_t,
-                                     const int,
-                                     const rel_time_t,
+                                     size_t,
+                                     int,
+                                     rel_time_t,
                                      uint8_t,
                                      Vbid) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
@@ -148,8 +148,8 @@ public:
             gsl::not_null<item*>,
             uint64_t,
             ENGINE_STORE_OPERATION,
-            cb::StoreIfPredicate,
-            boost::optional<cb::durability::Requirements>,
+            const cb::StoreIfPredicate&,
+            const boost::optional<cb::durability::Requirements>&,
             DocumentState) override {
         return {cb::engine_errc::no_bucket, 0};
     }

@@ -334,9 +334,9 @@ public:
 
     cb::EngineErrorItemPair allocate(gsl::not_null<const void*> cookie,
                                      const DocKey& key,
-                                     const size_t nbytes,
-                                     const int flags,
-                                     const rel_time_t exptime,
+                                     size_t nbytes,
+                                     int flags,
+                                     rel_time_t exptime,
                                      uint8_t datatype,
                                      Vbid vbucket) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
@@ -498,8 +498,8 @@ public:
             gsl::not_null<item*> item,
             uint64_t cas,
             ENGINE_STORE_OPERATION operation,
-            cb::StoreIfPredicate predicate,
-            boost::optional<cb::durability::Requirements> durability,
+            const cb::StoreIfPredicate& predicate,
+            const boost::optional<cb::durability::Requirements>& durability,
             DocumentState document_state) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         Cmd opcode = (operation == OPERATION_CAS) ? Cmd::CAS : Cmd::STORE;

@@ -47,9 +47,9 @@ public:
 
     cb::EngineErrorItemPair allocate(gsl::not_null<const void*> cookie,
                                      const DocKey& key,
-                                     const size_t nbytes,
-                                     const int flags,
-                                     const rel_time_t exptime,
+                                     size_t nbytes,
+                                     int flags,
+                                     rel_time_t exptime,
                                      uint8_t datatype,
                                      Vbid vbucket) override;
     std::pair<cb::unique_item_ptr, item_info> allocate_ex(
@@ -190,9 +190,9 @@ void CrashEngine::destroy(const bool force) {
 
 cb::EngineErrorItemPair CrashEngine::allocate(gsl::not_null<const void*> cookie,
                                               const DocKey& key,
-                                              const size_t nbytes,
-                                              const int flags,
-                                              const rel_time_t exptime,
+                                              size_t nbytes,
+                                              int flags,
+                                              rel_time_t exptime,
                                               uint8_t datatype,
                                               Vbid vbucket) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);

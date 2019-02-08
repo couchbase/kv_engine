@@ -104,9 +104,9 @@ public:
 
     cb::EngineErrorItemPair allocate(gsl::not_null<const void*> cookie,
                                      const DocKey& key,
-                                     const size_t nbytes,
-                                     const int flags,
-                                     const rel_time_t exptime,
+                                     size_t nbytes,
+                                     int flags,
+                                     rel_time_t exptime,
                                      uint8_t datatype,
                                      Vbid vbucket) override;
     std::pair<cb::unique_item_ptr, item_info> allocate_ex(
@@ -172,8 +172,8 @@ public:
             gsl::not_null<item*> item,
             uint64_t cas,
             ENGINE_STORE_OPERATION operation,
-            cb::StoreIfPredicate predicate,
-            boost::optional<cb::durability::Requirements> durability,
+            const cb::StoreIfPredicate& predicate,
+            const boost::optional<cb::durability::Requirements>& durability,
             DocumentState document_state) override;
 
     // Need to explicilty import EngineIface::flush to avoid warning about
@@ -473,7 +473,7 @@ public:
                                         Item& itm,
                                         uint64_t cas,
                                         ENGINE_STORE_OPERATION operation,
-                                        cb::StoreIfPredicate predicate);
+                                        const cb::StoreIfPredicate& predicate);
 
     ENGINE_ERROR_CODE dcpOpen(const void* cookie,
                               uint32_t opaque,

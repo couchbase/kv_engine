@@ -102,7 +102,7 @@ typedef ENGINE_ERROR_CODE (*CREATE_INSTANCE)(GET_SERVER_API get_server_api,
  * free any globally allocated resources.
  *
  */
-typedef void (* DESTROY_ENGINE)(void);
+typedef void (*DESTROY_ENGINE)();
 
 /**
  * A unique_ptr to use with items returned from the engine interface.
@@ -211,9 +211,9 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      */
     virtual cb::EngineErrorItemPair allocate(gsl::not_null<const void*> cookie,
                                              const DocKey& key,
-                                             const size_t nbytes,
-                                             const int flags,
-                                             const rel_time_t exptime,
+                                             size_t nbytes,
+                                             int flags,
+                                             rel_time_t exptime,
                                              uint8_t datatype,
                                              Vbid vbucket) = 0;
 
@@ -456,8 +456,8 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
             gsl::not_null<item*> item,
             uint64_t cas,
             ENGINE_STORE_OPERATION operation,
-            cb::StoreIfPredicate predicate,
-            boost::optional<cb::durability::Requirements> durability,
+            const cb::StoreIfPredicate& predicate,
+            const boost::optional<cb::durability::Requirements>& durability,
             DocumentState document_state) {
         return {cb::engine_errc::not_supported, 0};
     }
@@ -542,7 +542,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * The set of collections related functions. May be defined optionally by
      * the engine(s) that support them.
      */
-    collections_interface collections;
+    collections_interface collections{};
 
     /**
      * Ask the engine what features it supports.
@@ -588,7 +588,7 @@ public:
      *
      * @param handle_ the handle to the the engine who owns the item
      */
-    ItemDeleter(EngineIface* handle_) : handle(handle_) {
+    explicit ItemDeleter(EngineIface* handle_) : handle(handle_) {
         if (handle == nullptr) {
             throw std::invalid_argument(
                 "cb::ItemDeleter: engine handle cannot be nil");
@@ -598,8 +598,7 @@ public:
     /**
      * Create a copy constructor to allow us to use std::move of the item
      */
-    ItemDeleter(const ItemDeleter& other) : handle(other.handle) {
-    }
+    ItemDeleter(const ItemDeleter& other) = default;
 
     void operator()(item* item) {
         if (handle) {

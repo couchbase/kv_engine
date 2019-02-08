@@ -157,9 +157,9 @@ void EventuallyPersistentEngine::destroy(const bool force) {
 cb::EngineErrorItemPair EventuallyPersistentEngine::allocate(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
-        const size_t nbytes,
-        const int flags,
-        const rel_time_t exptime,
+        size_t nbytes,
+        int flags,
+        rel_time_t exptime,
         uint8_t datatype,
         Vbid vbucket) {
     if (!mcbp::datatype::is_valid(datatype)) {
@@ -359,8 +359,8 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
         gsl::not_null<item*> itm,
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
-        cb::StoreIfPredicate predicate,
-        boost::optional<cb::durability::Requirements> durability,
+        const cb::StoreIfPredicate& predicate,
+        const boost::optional<cb::durability::Requirements>& durability,
         DocumentState document_state) {
     Item& item = static_cast<Item&>(*static_cast<Item*>(itm.get()));
 
@@ -2409,7 +2409,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         Item& item,
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
-        cb::StoreIfPredicate predicate) {
+        const cb::StoreIfPredicate& predicate) {
     ScopeTimer2<MicrosecondStopwatch, TracerStopwatch> timer(
             MicrosecondStopwatch(stats.storeCmdHisto),
             TracerStopwatch(cookie, cb::tracing::TraceCode::STORE));
