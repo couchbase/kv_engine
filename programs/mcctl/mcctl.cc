@@ -27,16 +27,16 @@
 #include <memcached/util.h>
 #include <platform/cb_malloc.h>
 #include <platform/platform.h>
+#include <programs/getpass.h>
 #include <programs/hostname_utils.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/protocol2text.h>
 #include <utilities/terminate_handler.h>
 
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <strings.h>
 
 /**
  * Get the verbosity level on the server.
@@ -184,6 +184,15 @@ int main(int argc, char** argv) {
 
         default:
             usage();
+        }
+    }
+
+    if (password == "-") {
+        password.assign(getpass());
+    } else if (password.empty()) {
+        const char* env_password = std::getenv("CB_PASSWORD");
+        if (env_password) {
+            password = env_password;
         }
     }
 
