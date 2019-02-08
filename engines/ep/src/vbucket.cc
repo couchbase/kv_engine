@@ -937,12 +937,7 @@ VBNotifyCtx VBucket::queueDirty(
         qi->getCommitted() == CommittedState::Pending) {
         // Register this mutation with the durability monitor.
         const auto cookie = durabilityCtx->cookie;
-        auto ret = durabilityMonitor->addSyncWrite(cookie, qi);
-        if (ret != ENGINE_SUCCESS) {
-            throw std::logic_error(
-                    "VBucket::queueDirty:: addSyncWrite error: " +
-                    cb::to_string(cb::to_engine_errc(ret)));
-        }
+        durabilityMonitor->addSyncWrite(cookie, qi);
     }
 
     return notifyCtx;

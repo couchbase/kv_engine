@@ -133,7 +133,8 @@ public:
           majority(chain.getSize() / 2 + 1),
           expiryTime(std::chrono::steady_clock::now() +
                      std::chrono::milliseconds(
-                             item->getDurabilityReqs().getTimeout())) {
+                             item->getDurabilityReqs().getTimeout())),
+          active(chain.active) {
         for (const auto& entry : chain.positions) {
             acks[entry.first] = Ack();
         }
@@ -191,9 +192,8 @@ public:
             ret = ackCount.memory >= majority;
             break;
         case cb::durability::Level::MajorityAndPersistOnMaster:
-            throw std::logic_error(
-                    "SyncWrite::isVerified: Level::MajorityAndPersistOnMaster "
-                    "not supported");
+            ret = ackCount.memory >= majority && acks.at(active).disk;
+            break;
         case cb::durability::Level::None:
             throw std::logic_error("SyncWrite::isVerified: Level::None");
         case cb::durability::Level::PersistToMajority:
@@ -247,6 +247,10 @@ private:
     // Used for enforcing the Durability Requirements Timeout. It is set when
     // this SyncWrite is added for tracking into the DurabilityMonitor.
     const std::chrono::steady_clock::time_point expiryTime;
+
+    // Name of the active node in replication-chain. Used at Durability
+    // Requirements verification.
+    const std::string active;
 
     friend std::ostream& operator<<(std::ostream&, const SyncWrite&);
 };
@@ -351,8 +355,7 @@ const nlohmann::json& DurabilityMonitor::getReplicationTopology() const {
     return state.replicationTopology;
 }
 
-ENGINE_ERROR_CODE DurabilityMonitor::addSyncWrite(const void* cookie,
-                                                  queued_item item) {
+void DurabilityMonitor::addSyncWrite(const void* cookie, queued_item item) {
     auto durReq = item->getDurabilityReqs();
 
     if (durReq.getLevel() == cb::durability::Level::None) {
@@ -360,16 +363,11 @@ ENGINE_ERROR_CODE DurabilityMonitor::addSyncWrite(const void* cookie,
                 "DurabilityMonitor::addSyncWrite: Level::None");
     }
 
-    if (durReq.getLevel() ==
-        cb::durability::Level::MajorityAndPersistOnMaster) {
-        return ENGINE_ENOTSUP;
-    }
-
     std::lock_guard<std::mutex> lg(state.m);
 
     if (!state.firstChain) {
         throw std::logic_error(
-                "DurabilityMonitor::addSyncWrite: no chain registered");
+                "DurabilityMonitor::addSyncWrite: FirstChain not registered");
     }
 
     state.trackedWrites.push_back(SyncWrite(cookie, item, *state.firstChain));
@@ -383,8 +381,6 @@ ENGINE_ERROR_CODE DurabilityMonitor::addSyncWrite(const void* cookie,
 
     Ensures(getNodeWriteSeqnos(lg, thisNode).memory == item->getBySeqno());
     Ensures(getNodeAckSeqnos(lg, thisNode).memory == item->getBySeqno());
-
-    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(

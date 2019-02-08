@@ -262,12 +262,10 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceived_PersistToMajority) {
     EXPECT_EQ(0, monitor->public_getNodeWriteSeqnos(active).disk);
     EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(active).disk);
 
-    // @todo: Simulating the active->active disk-seqno ack with the next call.
-    //     Note that this feature has not been implemented yet, and probably
-    //     I will implement it using a different code path (in some way I have
-    //     to notify the DurabilityMonitor at persistence).
-    EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(active, memAckSeqno, diskAckSeqno));
+    // Simulate the Flusher that notifies the local DurabilityMonitor after
+    // persistence
+    vb->setPersistenceSeqno(diskAckSeqno);
+    monitor->notifyLocalPersistence();
 
     // Check that we committed and removed all SyncWrites
     EXPECT_EQ(0, monitor->public_getNumTracked());
@@ -447,4 +445,45 @@ TEST_F(DurabilityMonitorTest, ProcessTimeout) {
     EXPECT_EQ(0, monitor->public_getNumTracked());
     checkMemoryTrack(active, 203);
     checkMemoryTrack(replica, 0);
+}
+
+TEST_F(DurabilityMonitorTest, MajorityAndPersistActive) {
+    ASSERT_EQ(3,
+              addSyncWrites({1, 3, 5} /*seqnos*/,
+                            {cb::durability::Level::MajorityAndPersistOnMaster,
+                             0 /*timeout*/}));
+    ASSERT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).disk);
+    EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(replica).disk);
+
+    int64_t memAckSeqno = 10, diskAckSeqno = 10;
+
+    // Replica acks that (1) everything enqueued but (2) nothing persisted
+    EXPECT_EQ(ENGINE_SUCCESS,
+              monitor->seqnoAckReceived(replica, memAckSeqno, 0 /*diskSeqno*/));
+
+    // The active has not ack'ed the persisted seqno, so nothing committed yet
+    EXPECT_EQ(3, monitor->public_getNumTracked());
+
+    // Check that the tracking for Replica has been updated correctly
+    EXPECT_EQ(5, monitor->public_getNodeWriteSeqnos(replica).memory);
+    EXPECT_EQ(diskAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
+    EXPECT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).disk);
+    EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(replica).disk);
+
+    // Check that the disk-tracking for Active has not moved yet
+    EXPECT_EQ(0, monitor->public_getNodeWriteSeqnos(active).disk);
+    EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(active).disk);
+
+    // Simulate the Flusher that notifies the local DurabilityMonitor after
+    // persistence
+    vb->setPersistenceSeqno(diskAckSeqno);
+    monitor->notifyLocalPersistence();
+
+    // All committed even if the Replica has not ack'ed the disk-seqno yet,
+    // as Level::MajorityAndPersistOnMaste
+    EXPECT_EQ(0, monitor->public_getNumTracked());
+
+    // Check that the disk-tracking for Active has been updated correctly
+    EXPECT_EQ(5, monitor->public_getNodeWriteSeqnos(active).disk);
+    EXPECT_EQ(diskAckSeqno, monitor->public_getNodeAckSeqnos(active).disk);
 }

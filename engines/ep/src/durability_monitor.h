@@ -80,9 +80,9 @@ public:
      * @param cookie Optional client cookie which will be notified the SyncWrite
      *        completes.
      * @param item the queued_item
-     * @return ENGINE_SUCCESS if the operation succeeds, an error code otherwise
+     * @throw std::logic_error if the replication-chain is not set
      */
-    ENGINE_ERROR_CODE addSyncWrite(const void* cookie, queued_item item);
+    void addSyncWrite(const void* cookie, queued_item item);
 
     /**
      * Expected to be called by memcached at receiving a DCP_SEQNO_ACK packet.
