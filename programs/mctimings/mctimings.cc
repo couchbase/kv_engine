@@ -39,17 +39,13 @@
 // A single bin of a histogram. Holds the raw count and cumulative total (to
 // allow percentile to be calculated).
 struct Bin {
-    uint32_t count;
-    uint64_t cumulative_count;
+    uint32_t count = 0;
+    uint64_t cumulative_count = 0;
 };
 
 class Timings {
 public:
-    Timings(nlohmann::json json) : max(0), ns(Bin()), oldwayout(false) {
-        us.fill(Bin());
-        ms.fill(Bin());
-        halfsec.fill(Bin());
-        wayout.fill(Bin());
+    explicit Timings(const nlohmann::json& json) {
         initialize(json);
     }
 
@@ -62,7 +58,7 @@ public:
         std::cout << "The following data is collected for \""
                   << opcode << "\"" << std::endl;
 
-        int ii;
+        uint32_t ii;
 
         dump("ns", 0, 999, ns);
         for (ii = 0; ii < 100; ++ii) {
@@ -136,7 +132,7 @@ private:
         for (auto count : arr) {
             if (i >= halfsec.size()) {
                 throw std::runtime_error(
-                    "Internal error.. too many \"halfsec\" samples\"");
+                        R"(Internal error.. too many "halfsec" samples")");
             }
             halfsec[i].count = gsl::narrow<uint32_t>(count);
             ++i;
@@ -190,7 +186,7 @@ private:
             int max_width = snprintf(buffer, 0, "%u", max);
             offset += sprintf(buffer + offset, " %*u", max_width, value.count);
 
-            int num = (int)(44.0 * (float) value.count / (float)max);
+            auto num = (int)(44.0 * (float)value.count / (float)max);
             offset += sprintf(buffer + offset, " | ");
             for (int ii = 0; ii < num; ++ii) {
                 offset += sprintf(buffer + offset, "#");
@@ -204,7 +200,7 @@ private:
      * The highest value of all the samples (used to figure out the width
      * used for each sample in the printout)
      */
-    uint32_t max;
+    uint32_t max = 0;
 
     /* We collect timings for <=1 us */
     Bin ns;
@@ -220,9 +216,9 @@ private:
     // [5-9], [10-19], [20-39], [40-79], [80-inf].
     std::array<Bin, 5> wayout;
 
-    bool oldwayout;
+    bool oldwayout = false;
 
-    uint64_t total;
+    uint64_t total{};
 };
 
 std::string opcode2string(cb::mcbp::ClientOpcode opcode) {
@@ -234,7 +230,7 @@ std::string opcode2string(cb::mcbp::ClientOpcode opcode) {
 }
 
 static void request_cmd_timings(MemcachedConnection& connection,
-                                const std::string bucket,
+                                const std::string& bucket,
                                 cb::mcbp::ClientOpcode opcode,
                                 bool verbose,
                                 bool skip,
