@@ -46,17 +46,6 @@ install(TARGETS cbsasl
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
-add_executable(cbsasladm cbsasladm.cc)
-target_link_libraries(cbsasladm
-                      cbsasl
-                      cbsocket
-                      mc_client_connection
-                      mcd_util
-                      mcutils
-                      platform)
-add_sanitizers(cbsasladm)
-install(TARGETS cbsasladm RUNTIME DESTINATION bin)
-
 # Unit tests
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_executable(cbsasl_strcmp_test strcmp_test.cc
