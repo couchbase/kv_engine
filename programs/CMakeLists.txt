@@ -1,27 +1,27 @@
-ADD_LIBRARY(mcutils STATIC
+add_library(mcutils STATIC
             hostname_utils.cc hostname_utils.h)
-TARGET_LINK_LIBRARIES(mcutils mcbp cbsasl ${COUCHBASE_NETWORK_LIBS})
+target_link_libraries(mcutils mcbp cbsasl ${COUCHBASE_NETWORK_LIBS})
 
-ADD_EXECUTABLE(memcached-hostutils-test
-               hostname_utils_test.cc)
-TARGET_LINK_LIBRARIES(memcached-hostutils-test
-                      mcutils
-                      platform
-                      gtest
-                      gtest_main)
-ADD_TEST(NAME memcached-hostutils-test
-         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-         COMMAND memcached-hostutils-test)
-
-ADD_LIBRARY(getpass STATIC
+add_library(getpass STATIC
             getpass.cc getpass.h)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    ADD_SUBDIRECTORY(engine_testapp)
+    add_executable(memcached-hostutils-test
+                   hostname_utils_test.cc)
+    target_link_libraries(memcached-hostutils-test
+                          mcutils
+                          platform
+                          gtest
+                          gtest_main)
+    add_test(NAME memcached-hostutils-test
+             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+             COMMAND memcached-hostutils-test)
+
+    add_subdirectory(engine_testapp)
 endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
 
-ADD_SUBDIRECTORY(mcctl)
-ADD_SUBDIRECTORY(mclogsplit)
-ADD_SUBDIRECTORY(mcstat)
-ADD_SUBDIRECTORY(mctimings)
-ADD_SUBDIRECTORY(mctrace)
+add_subdirectory(mcctl)
+add_subdirectory(mclogsplit)
+add_subdirectory(mcstat)
+add_subdirectory(mctimings)
+add_subdirectory(mctrace)
