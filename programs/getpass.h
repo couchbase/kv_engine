@@ -20,4 +20,4 @@
 
 #include <string>
 
-std::string getpass(std::string prompt = "Password: ");
+std::string getpass(const std::string& prompt = std::string{"Password: "});

@@ -41,19 +41,22 @@ static void setEcho(bool enable) {
 
     SetConsoleMode(stdinHandle, mode);
 #else
-    struct termios tty;
+    struct termios tty {};
     tcgetattr(STDIN_FILENO, &tty);
+    // ECHO is defined as a signed number and we get a warning by using
+    // signed variables when doing bit manipulations
+    const auto echoflag = tcflag_t(ECHO);
     if(!enable) {
-        tty.c_lflag &= ~ECHO;
+        tty.c_lflag &= ~echoflag;
     } else {
-        tty.c_lflag |= ECHO;
+        tty.c_lflag |= echoflag;
     }
 
     (void) tcsetattr(STDIN_FILENO, TCSANOW, &tty);
 #endif
 }
 
-std::string getpass(std::string prompt) {
+std::string getpass(const std::string& prompt) {
     std::string password;
     if (isatty(STDIN_FILENO)) {
         std::cerr << prompt << std::flush;

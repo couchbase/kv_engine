@@ -1,8 +1,4 @@
-ADD_EXECUTABLE(mcctl mcctl.cc)
-TARGET_LINK_LIBRARIES(mcctl
-                      mc_client_connection
-                      mcd_util
-                      mcutils
-                      platform)
+add_executable(mcctl mcctl.cc $<TARGET_OBJECTS:mc_program_utils>)
+target_link_libraries(mcctl mc_client_connection mcd_util platform)
 add_sanitizers(mcctl)
-INSTALL(TARGETS mcctl RUNTIME DESTINATION bin)
+install(TARGETS mcctl RUNTIME DESTINATION bin)

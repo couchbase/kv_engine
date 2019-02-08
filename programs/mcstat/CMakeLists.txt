@@ -1,8 +1,4 @@
-ADD_EXECUTABLE(mcstat mcstat.cc)
-TARGET_LINK_LIBRARIES(mcstat
-                      platform
-                      mcutils
-                      mc_client_connection
-                      getpass)
+add_executable(mcstat mcstat.cc $<TARGET_OBJECTS:mc_program_utils>)
+target_link_libraries(mcstat mc_client_connection platform)
 add_sanitizers(mcstat)
-INSTALL(TARGETS mcstat RUNTIME DESTINATION bin)
+install(TARGETS mcstat RUNTIME DESTINATION bin)

@@ -1,9 +1,7 @@
-add_executable(mctrace mctrace.cc)
+add_executable(mctrace mctrace.cc $<TARGET_OBJECTS:mc_program_utils>)
 target_link_libraries(mctrace
-                      getpass
                       mc_client_connection
                       mcd_util
-                      mcutils
                       platform)
 add_sanitizers(mctrace)
 install(TARGETS mctrace RUNTIME DESTINATION bin)

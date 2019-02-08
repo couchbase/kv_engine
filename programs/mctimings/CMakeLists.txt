@@ -1,8 +1,4 @@
-ADD_EXECUTABLE(mctimings mctimings.cc)
-TARGET_LINK_LIBRARIES(mctimings
-                      mcutils
-                      mc_client_connection
-                      getpass
-                      platform)
+add_executable(mctimings mctimings.cc $<TARGET_OBJECTS:mc_program_utils>)
+target_link_libraries(mctimings mc_client_connection platform)
 add_sanitizers(mctimings)
-INSTALL(TARGETS mctimings RUNTIME DESTINATION bin)
+install(TARGETS mctimings RUNTIME DESTINATION bin)

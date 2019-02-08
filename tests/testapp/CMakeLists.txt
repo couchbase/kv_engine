@@ -82,7 +82,6 @@ target_link_libraries(memcached_testapp
     memcached_daemon
     memcached_logger
     mcd_util
-    mcutils
     mc_client_connection
     cbsasl
     platform
