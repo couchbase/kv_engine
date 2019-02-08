@@ -180,15 +180,13 @@ int main(int argc, char** argv) {
 
     if (ssl_cert.empty() && ssl_key.empty()) {
         // Use normal authentication
-        if (password.empty()) {
+        if (password == "-") {
+            password.assign(getpass());
+        } else if (password.empty()) {
             const char* env_password = std::getenv("CB_PASSWORD");
             if (env_password) {
                 password = env_password;
             }
-        }
-
-        if (password == "-") {
-            password.assign(getpass());
         }
     }
 
