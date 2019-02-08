@@ -87,7 +87,7 @@ struct mock_engine : public EngineIface, public DcpIface {
             gsl::not_null<const void*> cookie,
             const DocKey& key,
             Vbid vbucket,
-            uint32_t expirytime,
+            uint32_t expiryTime,
             boost::optional<cb::durability::Requirements> durability) override;
 
     ENGINE_ERROR_CODE store(
@@ -110,7 +110,7 @@ struct mock_engine : public EngineIface, public DcpIface {
                                       const cb::mcbp::Request& request,
                                       const AddResponseFn& response) override;
 
-    void item_set_cas(gsl::not_null<item*> item, uint64_t cas) override;
+    void item_set_cas(gsl::not_null<item*> item, uint64_t val) override;
 
     void item_set_datatype(gsl::not_null<item*> item,
                            protocol_binary_datatype_t datatype) override;
@@ -177,7 +177,7 @@ struct mock_engine : public EngineIface, public DcpIface {
     ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*> cookie,
                                        uint32_t opaque,
                                        Vbid vbucket,
-                                       dcp_add_failover_log callback) override;
+                                       dcp_add_failover_log cb) override;
 
     ENGINE_ERROR_CODE stream_end(gsl::not_null<const void*> cookie,
                                  uint32_t opaque,
@@ -293,7 +293,7 @@ struct mock_engine : public EngineIface, public DcpIface {
                             uint64_t prepared_seqno,
                             uint64_t abort_seqno) override;
 
-    EngineIface* the_engine;
+    EngineIface* the_engine{};
 
     // Pointer to DcpIface for the underlying engine we are proxying; or
     // nullptr if it doesn't implement DcpIface;
@@ -304,8 +304,8 @@ static bool color_enabled;
 static bool verbose_logging = false;
 
 #ifndef WIN32
-#include <signal.h>
 #include <sys/wait.h>
+#include <csignal>
 
 static sig_atomic_t alarmed;
 
@@ -314,12 +314,11 @@ static void alarm_handler(int sig) {
 }
 #endif
 
-
-// The handles for the 'current' engine, as used by
-// execute_test. These are global as the testcase may call reload_engine() and that
+// The handle for the 'current' engine, as used by execute_test.
+// It needs to be globalas the testcase may call reload_engine() and that
 // needs to update the pointers the new engine, so when execute_test is
-// cleaning up it has the correct handles.
-static EngineIface* handle = nullptr;
+// cleaning up it has the correct handle.
+static EngineIface* currentEngineHandle = nullptr;
 
 static struct mock_engine* get_handle(EngineIface* handle) {
     return (struct mock_engine*)handle;
@@ -335,18 +334,18 @@ void mock_engine::destroy(const bool force) {
 
 // Helper function to convert a cookie (externally represented as
 // void*) to the actual internal type.
-static struct mock_connstruct* to_mock_connstruct(const void* cookie) {
-    return const_cast<struct mock_connstruct*>
-        (reinterpret_cast<const struct mock_connstruct*>(cookie));
+static MockCookie* to_mock_connstruct(const void* cookie) {
+    return const_cast<struct MockCookie*>(
+            reinterpret_cast<const struct MockCookie*>(cookie));
 }
 
 /**
  * Helper function to return a mock_connstruct, either a new one or
  * an existng one.
  **/
-struct mock_connstruct* get_or_create_mock_connstruct(const void* cookie) {
-    struct mock_connstruct *c = to_mock_connstruct(cookie);
-    if (c == NULL) {
+MockCookie* get_or_create_mock_connstruct(const void* cookie) {
+    auto* c = to_mock_connstruct(cookie);
+    if (c == nullptr) {
         c = to_mock_connstruct(create_mock_cookie());
     }
     return c;
@@ -356,7 +355,7 @@ struct mock_connstruct* get_or_create_mock_connstruct(const void* cookie) {
  * Helper function to destroy a mock_connstruct if get_or_create_mock_connstruct
  * created one.
  **/
-void check_and_destroy_mock_connstruct(struct mock_connstruct* c, const void* cookie){
+void check_and_destroy_mock_connstruct(MockCookie* c, const void* cookie) {
     if (c != cookie) {
         destroy_mock_cookie(c);
     }
@@ -368,9 +367,8 @@ void check_and_destroy_mock_connstruct(struct mock_connstruct* c, const void* co
  **/
 template <typename T>
 static std::pair<cb::engine_errc, T> do_blocking_engine_call(
-        gsl::not_null<EngineIface*> handle,
-        struct mock_connstruct* c,
-        std::function<std::pair<cb::engine_errc, T>()> engine_function) {
+        MockCookie* c,
+        const std::function<std::pair<cb::engine_errc, T>()>& engine_function) {
     c->nblocks = 0;
     cb_mutex_enter(&c->mutex);
 
@@ -390,9 +388,8 @@ static std::pair<cb::engine_errc, T> do_blocking_engine_call(
 }
 
 static ENGINE_ERROR_CODE call_engine_and_handle_EWOULDBLOCK(
-        gsl::not_null<EngineIface*> handle,
-        struct mock_connstruct* c,
-        std::function<ENGINE_ERROR_CODE()> engine_function) {
+        MockCookie* c,
+        const std::function<ENGINE_ERROR_CODE()>& engine_function) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     c->nblocks = 0;
     cb_mutex_enter(&c->mutex);
@@ -426,11 +423,8 @@ cb::EngineErrorItemPair mock_engine::allocate(gsl::not_null<const void*> cookie,
                                datatype,
                                vbucket);
 
-    auto* c =
-            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
-
-    return do_blocking_engine_call<cb::unique_item_ptr>(
-            the_engine, c, engine_fn);
+    auto* c = to_mock_connstruct(cookie.get());
+    return do_blocking_engine_call<cb::unique_item_ptr>(c, engine_fn);
 }
 
 std::pair<cb::unique_item_ptr, item_info> mock_engine::allocate_ex(
@@ -453,8 +447,7 @@ std::pair<cb::unique_item_ptr, item_info> mock_engine::allocate_ex(
                                datatype,
                                vbucket);
 
-    auto* c =
-            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
+    auto* c = to_mock_connstruct(cookie.get());
     c->nblocks = 0;
     cb_mutex_enter(&c->mutex);
 
@@ -487,9 +480,8 @@ ENGINE_ERROR_CODE mock_engine::remove(
                                vbucket,
                                durability,
                                std::ref(mut_info));
-    auto* construct =
-            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
-    return call_engine_and_handle_EWOULDBLOCK(this, construct, engine_fn);
+    auto* construct = to_mock_connstruct(cookie.get());
+    return call_engine_and_handle_EWOULDBLOCK(construct, engine_fn);
 }
 
 void mock_engine::release(gsl::not_null<item*> item) {
@@ -507,10 +499,8 @@ cb::EngineErrorItemPair mock_engine::get(gsl::not_null<const void*> cookie,
                                vbucket,
                                documentStateFilter);
 
-    auto* construct =
-            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
-    return do_blocking_engine_call<cb::unique_item_ptr>(
-            this, construct, engine_fn);
+    auto* construct = to_mock_connstruct(cookie.get());
+    return do_blocking_engine_call<cb::unique_item_ptr>(construct, engine_fn);
 }
 
 cb::EngineErrorItemPair mock_engine::get_if(
@@ -520,31 +510,26 @@ cb::EngineErrorItemPair mock_engine::get_if(
         std::function<bool(const item_info&)> filter) {
     auto engine_fn = std::bind(
             &EngineIface::get_if, the_engine, cookie, key, vbucket, filter);
-    auto* construct =
-            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
-
-    return do_blocking_engine_call<cb::unique_item_ptr>(
-            this, construct, engine_fn);
+    auto* construct = to_mock_connstruct(cookie.get());
+    return do_blocking_engine_call<cb::unique_item_ptr>(construct, engine_fn);
 }
 
 cb::EngineErrorItemPair mock_engine::get_and_touch(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         Vbid vbucket,
-        uint32_t expiry_time,
+        uint32_t expiryTime,
         boost::optional<cb::durability::Requirements> durability) {
     auto engine_fn = std::bind(&EngineIface::get_and_touch,
                                the_engine,
                                cookie,
                                key,
                                vbucket,
-                               expiry_time,
+                               expiryTime,
                                durability);
 
-    auto* construct =
-            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
-    return do_blocking_engine_call<cb::unique_item_ptr>(
-            this, construct, engine_fn);
+    auto* construct = to_mock_connstruct(cookie.get());
+    return do_blocking_engine_call<cb::unique_item_ptr>(construct, engine_fn);
 }
 
 cb::EngineErrorItemPair mock_engine::get_locked(
@@ -558,11 +543,9 @@ cb::EngineErrorItemPair mock_engine::get_locked(
                                key,
                                vbucket,
                                lock_timeout);
-    auto* construct =
-            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
+    auto* construct = to_mock_connstruct(cookie.get());
 
-    return do_blocking_engine_call<cb::unique_item_ptr>(
-            this, construct, engine_fn);
+    return do_blocking_engine_call<cb::unique_item_ptr>(construct, engine_fn);
 }
 
 cb::EngineErrorMetadataPair mock_engine::get_meta(
@@ -570,10 +553,9 @@ cb::EngineErrorMetadataPair mock_engine::get_meta(
     auto engine_fn =
             std::bind(&EngineIface::get_meta, the_engine, cookie, key, vbucket);
 
-    auto* construct =
-            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
+    auto* construct = to_mock_connstruct(cookie.get());
 
-    return do_blocking_engine_call<item_info>(this, construct, engine_fn);
+    return do_blocking_engine_call<item_info>(construct, engine_fn);
 }
 
 ENGINE_ERROR_CODE mock_engine::unlock(gsl::not_null<const void*> cookie,
@@ -583,9 +565,8 @@ ENGINE_ERROR_CODE mock_engine::unlock(gsl::not_null<const void*> cookie,
     auto engine_fn = std::bind(
             &EngineIface::unlock, the_engine, cookie, key, vbucket, cas);
 
-    auto* construct =
-            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
-    return call_engine_and_handle_EWOULDBLOCK(this, construct, engine_fn);
+    auto* construct = to_mock_connstruct(cookie.get());
+    return call_engine_and_handle_EWOULDBLOCK(construct, engine_fn);
 }
 
 ENGINE_ERROR_CODE mock_engine::get_stats(gsl::not_null<const void*> cookie,
@@ -594,11 +575,10 @@ ENGINE_ERROR_CODE mock_engine::get_stats(gsl::not_null<const void*> cookie,
     auto engine_fn = std::bind(
             &EngineIface::get_stats, the_engine, cookie, key, add_stat);
 
-    auto* construct =
-            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
+    auto* construct = to_mock_connstruct(cookie.get());
 
     ENGINE_ERROR_CODE ret =
-            call_engine_and_handle_EWOULDBLOCK(this, construct, engine_fn);
+            call_engine_and_handle_EWOULDBLOCK(construct, engine_fn);
     return ret;
 }
 
@@ -618,18 +598,16 @@ ENGINE_ERROR_CODE mock_engine::store(
                                durability,
                                document_state);
 
-    auto* construct =
-            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
+    auto* construct = to_mock_connstruct(cookie.get());
 
-    return call_engine_and_handle_EWOULDBLOCK(this, construct, engine_fn);
+    return call_engine_and_handle_EWOULDBLOCK(construct, engine_fn);
 }
 
 ENGINE_ERROR_CODE mock_engine::flush(gsl::not_null<const void*> cookie) {
     auto engine_fn = std::bind(&EngineIface::flush, the_engine, cookie);
 
-    auto* construct =
-            reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
-    return call_engine_and_handle_EWOULDBLOCK(this, construct, engine_fn);
+    auto* construct = to_mock_connstruct(cookie.get());
+    return call_engine_and_handle_EWOULDBLOCK(construct, engine_fn);
 }
 
 void mock_engine::reset_stats(gsl::not_null<const void*> cookie) {
@@ -639,15 +617,14 @@ void mock_engine::reset_stats(gsl::not_null<const void*> cookie) {
 ENGINE_ERROR_CODE mock_engine::unknown_command(const void* cookie,
                                                const cb::mcbp::Request& request,
                                                const AddResponseFn& response) {
-    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto* c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(&EngineIface::unknown_command,
                                the_engine,
                                static_cast<const void*>(c),
                                std::cref(request),
                                response);
 
-    ENGINE_ERROR_CODE ret =
-            call_engine_and_handle_EWOULDBLOCK(this, c, engine_fn);
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
 
     check_and_destroy_mock_connstruct(c, cookie);
     return ret;
@@ -685,7 +662,7 @@ ENGINE_ERROR_CODE mock_engine::add_stream(gsl::not_null<const void*> cookie,
                                           uint32_t opaque,
                                           Vbid vbucket,
                                           uint32_t flags) {
-    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto* c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(&DcpIface::add_stream,
                                the_engine_dcp,
                                static_cast<const void*>(c),
@@ -693,8 +670,7 @@ ENGINE_ERROR_CODE mock_engine::add_stream(gsl::not_null<const void*> cookie,
                                vbucket,
                                flags);
 
-    ENGINE_ERROR_CODE ret =
-            call_engine_and_handle_EWOULDBLOCK(this, c, engine_fn);
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
 
     check_and_destroy_mock_connstruct(c, cookie);
     return ret;
@@ -775,7 +751,7 @@ ENGINE_ERROR_CODE mock_engine::mutation(gsl::not_null<const void*> cookie,
                                         uint32_t lock_time,
                                         cb::const_byte_buffer meta,
                                         uint8_t nru) {
-    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto* c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(&DcpIface::mutation,
                                the_engine_dcp,
                                static_cast<const void*>(c),
@@ -794,7 +770,7 @@ ENGINE_ERROR_CODE mock_engine::mutation(gsl::not_null<const void*> cookie,
                                meta,
                                nru);
 
-    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
 
     check_and_destroy_mock_connstruct(c, cookie);
     return ret;
@@ -811,7 +787,7 @@ ENGINE_ERROR_CODE mock_engine::deletion(gsl::not_null<const void*> cookie,
                                         uint64_t by_seqno,
                                         uint64_t rev_seqno,
                                         cb::const_byte_buffer meta) {
-    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto* c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(&DcpIface::deletion,
                                the_engine_dcp,
                                static_cast<const void*>(c),
@@ -826,8 +802,7 @@ ENGINE_ERROR_CODE mock_engine::deletion(gsl::not_null<const void*> cookie,
                                rev_seqno,
                                meta);
 
-    ENGINE_ERROR_CODE ret =
-            call_engine_and_handle_EWOULDBLOCK(this, c, engine_fn);
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
 
     check_and_destroy_mock_connstruct(c, cookie);
     return ret;
@@ -844,7 +819,7 @@ ENGINE_ERROR_CODE mock_engine::expiration(gsl::not_null<const void*> cookie,
                                           uint64_t by_seqno,
                                           uint64_t rev_seqno,
                                           uint32_t deleteTime) {
-    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto* c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(&DcpIface::expiration,
                                the_engine_dcp,
                                static_cast<const void*>(c),
@@ -859,8 +834,7 @@ ENGINE_ERROR_CODE mock_engine::expiration(gsl::not_null<const void*> cookie,
                                rev_seqno,
                                deleteTime);
 
-    ENGINE_ERROR_CODE ret =
-            call_engine_and_handle_EWOULDBLOCK(this, c, engine_fn);
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
 
     check_and_destroy_mock_connstruct(c, cookie);
     return ret;
@@ -890,8 +864,9 @@ ENGINE_ERROR_CODE mock_engine::buffer_acknowledgement(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
         Vbid vbucket,
-        uint32_t bb) {
-    return the_engine_dcp->buffer_acknowledgement(cookie, opaque, vbucket, bb);
+        uint32_t buffer_bytes) {
+    return the_engine_dcp->buffer_acknowledgement(
+            cookie, opaque, vbucket, buffer_bytes);
 }
 
 ENGINE_ERROR_CODE mock_engine::response_handler(
@@ -987,7 +962,7 @@ static cb::engine_errc mock_collections_set_manifest(
             me->the_engine, cookie, json);
 }
 
-static void usage(void) {
+static void usage() {
     printf("\n");
     printf("engine_testapp -E <path_to_engine_lib> -T <path_to_testlib>\n");
     printf("               [-e <engine_config>] [-h] [-X]\n");
@@ -1022,7 +997,7 @@ static int report_test(const char* name,
                        bool quiet,
                        bool compact) {
     int rc = 0;
-    const char *msg = NULL;
+    const char* msg = nullptr;
     int color = 0;
     char color_str[8] = { 0 };
     const char *reset_color = color_enabled ? "\033[m" : "";
@@ -1105,7 +1080,7 @@ static int report_test(const char* name,
     return rc;
 }
 
-static engine_reference* engine_ref = NULL;
+static engine_reference* engine_ref = nullptr;
 static bool start_your_engine(const char *engine) {
     if ((engine_ref = load_engine(engine, nullptr)) == nullptr) {
         fprintf(stderr, "Failed to load engine %s.\n", engine);
@@ -1117,7 +1092,7 @@ static bool start_your_engine(const char *engine) {
 static void stop_your_engine() {
     PHOSPHOR_INSTANCE.stop();
     unload_engine(engine_ref);
-    engine_ref = NULL;
+    engine_ref = nullptr;
 }
 
 class MockTestHarness : public test_harness {
@@ -1190,7 +1165,7 @@ public:
 
     EngineIface* create_bucket(bool initialize, const char* cfg) override {
         auto me = std::make_unique<mock_engine>();
-        EngineIface* handle = NULL;
+        EngineIface* handle = nullptr;
 
         if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
             me->collections.set_manifest = mock_collections_set_manifest;
@@ -1203,7 +1178,7 @@ public:
                     fprintf(stderr,
                             "Failed to init engine with config %s.\n",
                             cfg);
-                    return NULL;
+                    return nullptr;
                 }
             }
 
@@ -1227,7 +1202,7 @@ public:
         destroy_mock_event_callbacks();
         stop_your_engine();
         start_your_engine(engine);
-        handle = *h = create_bucket(init, cfg);
+        currentEngineHandle = *h = create_bucket(init, cfg);
     }
 
     void notify_io_complete(const void* cookie,
@@ -1245,8 +1220,8 @@ static test_result execute_test(engine_test_t test,
                                 const char* engine,
                                 const char* default_cfg) {
     enum test_result ret = PENDING;
-    cb_assert(test.tfun != NULL || test.api_v2.tfun != NULL);
-    bool test_api_1 = test.tfun != NULL;
+    cb_assert(test.tfun != nullptr || test.api_v2.tfun != nullptr);
+    bool test_api_1 = test.tfun != nullptr;
 
     /**
      * Combine test.cfg (internal config parameters) and
@@ -1264,11 +1239,11 @@ static test_result execute_test(engine_test_t test,
             std::string::size_type i, j;
             std::map<std::string, std::string> map;
 
-            while (cfg.size() != 0 &&
-                    (i = cfg.find(delimiter)) != std::string::npos) {
+            while (!cfg.empty() &&
+                   (i = cfg.find(delimiter)) != std::string::npos) {
                 std::string temp(cfg.substr(0, i));
                 cfg.erase(0, i + 1);
-                j = temp.find("=");
+                j = temp.find('=');
                 if (j == std::string::npos) {
                     continue;
                 }
@@ -1313,7 +1288,7 @@ static test_result execute_test(engine_test_t test,
     }
 
     harness.set_current_testcase(&test);
-    if (test.prepare != NULL) {
+    if (test.prepare != nullptr) {
         if ((ret = test.prepare(&test)) == SUCCESS) {
             ret = PENDING;
         }
@@ -1336,21 +1311,24 @@ static test_result execute_test(engine_test_t test,
 
         if (test_api_1) {
             // all test (API1) get 1 bucket and they are welcome to ask for more.
-            handle = harness.create_bucket(true,
-                                           test.cfg ? test.cfg : default_cfg);
-            if (test.test_setup != nullptr && !test.test_setup(handle)) {
+            currentEngineHandle = harness.create_bucket(
+                    true, test.cfg ? test.cfg : default_cfg);
+            if (test.test_setup != nullptr &&
+                !test.test_setup(currentEngineHandle)) {
                 fprintf(stderr, "Failed to run setup for test %s\n", test.name);
                 return FAIL;
             }
 
-            ret = test.tfun(handle);
+            ret = test.tfun(currentEngineHandle);
 
-            if (test.test_teardown != nullptr && !test.test_teardown(handle)) {
+            if (test.test_teardown != nullptr &&
+                !test.test_teardown(currentEngineHandle)) {
                 fprintf(stderr, "WARNING: Failed to run teardown for test %s\n", test.name);
             }
 
         } else {
-            if (test.api_v2.test_setup != NULL && !test.api_v2.test_setup(&test)) {
+            if (test.api_v2.test_setup != nullptr &&
+                !test.api_v2.test_setup(&test)) {
                 fprintf(stderr, "Failed to run setup for test %s\n", test.name);
                 return FAIL;
             }
@@ -1358,14 +1336,15 @@ static test_result execute_test(engine_test_t test,
 
             ret = test.api_v2.tfun(&test);
 
-            if (test.api_v2.test_teardown != NULL && !test.api_v2.test_teardown(&test)) {
+            if (test.api_v2.test_teardown != nullptr &&
+                !test.api_v2.test_teardown(&test)) {
                 fprintf(stderr, "WARNING: Failed to run teardown for test %s\n", test.name);
             }
         }
 
-        if (handle) {
-            harness.destroy_bucket(handle, false);
-            handle = nullptr;
+        if (currentEngineHandle) {
+            harness.destroy_bucket(currentEngineHandle, false);
+            currentEngineHandle = nullptr;
         }
 
         destroy_mock_event_callbacks();
@@ -1381,13 +1360,13 @@ static test_result execute_test(engine_test_t test,
 
 static void setup_alarm_handler() {
 #ifndef WIN32
-    struct sigaction sig_handler;
+    struct sigaction sig_handler {};
 
     sig_handler.sa_handler = alarm_handler;
     sig_handler.sa_flags = 0;
     sigemptyset(&sig_handler.sa_mask);
 
-    sigaction(SIGALRM, &sig_handler, NULL);
+    sigaction(SIGALRM, &sig_handler, nullptr);
 #endif
 }
 
@@ -1409,13 +1388,11 @@ static void teardown_testsuite(cb_dlhandle_t handle, const char* test_suite) {
     union {
         TEARDOWN_SUITE teardown_suite;
         void* voidptr;
-    } my_teardown_suite;
+    } my_teardown_suite{};
 
-    memset(&my_teardown_suite, 0, sizeof(my_teardown_suite));
-
-    char *errmsg = NULL;
+    char* errmsg = nullptr;
     void* symbol = cb_dlsym(handle, "teardown_suite", &errmsg);
-    if (symbol == NULL) {
+    if (symbol == nullptr) {
         cb_free(errmsg);
     } else {
         my_teardown_suite.voidptr = symbol;
@@ -1432,14 +1409,14 @@ int main(int argc, char **argv) {
     bool dot = false;
     bool loop = false;
     bool terminate_on_error = false;
-    const char *engine = NULL;
-    const char *engine_args = NULL;
-    const char *test_suite = NULL;
+    const char* engine = nullptr;
+    const char* engine_args = nullptr;
+    const char* test_suite = nullptr;
     std::unique_ptr<std::regex> test_case_regex;
-    engine_test_t *testcases = NULL;
-    cb_dlhandle_t handle;
-    char *errmsg = NULL;
-    void *symbol = NULL;
+    engine_test_t* testcases = nullptr;
+    cb_dlhandle_t dlhandle;
+    char* errmsg = nullptr;
+    void* symbol = nullptr;
     int test_case_id = -1;
 
     /* If a testcase fails, retry up to 'attempts -1' times to allow it
@@ -1452,13 +1429,13 @@ int main(int argc, char **argv) {
     union {
         GET_TESTS get_tests;
         void* voidptr;
-    } my_get_test;
+    } my_get_test{};
 
     /* Hack to remove the warning from C99 */
     union {
         SETUP_SUITE setup_suite;
         void* voidptr;
-    } my_setup_suite;
+    } my_setup_suite{};
 
     cb::logger::createConsoleLogger();
     cb_initialize_sockets();
@@ -1475,19 +1452,19 @@ int main(int argc, char **argv) {
     memset(&my_get_test, 0, sizeof(my_get_test));
     memset(&my_setup_suite, 0, sizeof(my_setup_suite));
 
-    color_enabled = getenv("TESTAPP_ENABLE_COLOR") != NULL;
+    color_enabled = getenv("TESTAPP_ENABLE_COLOR") != nullptr;
 
     /* Allow 'attempts' to also be set via env variable - this allows
        commit-validation scripts to enable retries for all
        engine_testapp-driven tests trivually. */
     const char* attempts_env;
-    if ((attempts_env = getenv("TESTAPP_ATTEMPTS")) != NULL) {
-        attempts = atoi(attempts_env);
+    if ((attempts_env = getenv("TESTAPP_ATTEMPTS")) != nullptr) {
+        attempts = std::stoi(attempts_env);
     }
 
     /* Use unbuffered stdio */
-    setbuf(stdout, NULL);
-    setbuf(stderr, NULL);
+    setbuf(stdout, nullptr);
+    setbuf(stderr, nullptr);
 
     setup_alarm_handler();
 
@@ -1514,7 +1491,7 @@ int main(int argc, char **argv) {
                        )) != -1) {
         switch (c) {
         case 'a':
-            attempts = atoi(optarg);
+            attempts = std::stoi(optarg);
             break;
         case 's' : {
             int spin = 1;
@@ -1524,7 +1501,7 @@ int main(int argc, char **argv) {
             break;
         }
         case 'C' :
-            test_case_id = atoi(optarg);
+            test_case_id = std::stoi(optarg);
             break;
         case 'E':
             engine = optarg;
@@ -1550,7 +1527,7 @@ int main(int argc, char **argv) {
             test_suite = optarg;
             break;
         case 't':
-            timeout = atoi(optarg);
+            timeout = std::stoi(optarg);
             break;
         case 'L':
             loop = true;
@@ -1580,19 +1557,19 @@ int main(int argc, char **argv) {
     }
 
     /* validate args */
-    if (engine == NULL) {
+    if (engine == nullptr) {
         fprintf(stderr, "You must provide a path to the storage engine library.\n");
         return 1;
     }
 
-    if (test_suite == NULL) {
+    if (test_suite == nullptr) {
         fprintf(stderr, "You must provide a path to the testsuite library.\n");
         return 1;
     }
 
     /* load test_suite */
-    handle = cb_dlopen(test_suite, &errmsg);
-    if (handle == NULL) {
+    dlhandle = cb_dlopen(test_suite, &errmsg);
+    if (dlhandle == nullptr) {
         fprintf(stderr, "Failed to load testsuite %s: %s\n", test_suite,
                 errmsg);
         cb_free(errmsg);
@@ -1600,8 +1577,8 @@ int main(int argc, char **argv) {
     }
 
     /* get the test cases */
-    symbol = cb_dlsym(handle, "get_tests", &errmsg);
-    if (symbol == NULL) {
+    symbol = cb_dlsym(dlhandle, "get_tests", &errmsg);
+    if (symbol == nullptr) {
         fprintf(stderr, "Could not find get_tests function in testsuite %s: %s\n", test_suite, errmsg);
         cb_free(errmsg);
         return 1;
@@ -1628,8 +1605,8 @@ int main(int argc, char **argv) {
         /* Just counting */
     }
 
-    symbol = cb_dlsym(handle, "setup_suite", &errmsg);
-    if (symbol == NULL) {
+    symbol = cb_dlsym(dlhandle, "setup_suite", &errmsg);
+    if (symbol == nullptr) {
         cb_free(errmsg);
     } else {
         my_setup_suite.voidptr = symbol;
@@ -1733,10 +1710,10 @@ int main(int argc, char **argv) {
     } while (loop && exitcode == 0);
 
     /* tear down the suite if needed */
-    teardown_testsuite(handle, test_suite);
+    teardown_testsuite(dlhandle, test_suite);
 
     printf("# Passed %d of %d tests\n", num_cases - exitcode, num_cases);
-    cb_dlclose(handle);
+    cb_dlclose(dlhandle);
 
     return exitcode;
 }

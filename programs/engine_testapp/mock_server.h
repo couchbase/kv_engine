@@ -11,27 +11,29 @@
 
 #include "tracing/tracer.h"
 
-struct mock_connstruct : cb::tracing::Traceable {
-    mock_connstruct();
+struct MockCookie : cb::tracing::Traceable {
+    MockCookie();
 
-    uint64_t magic;
-    std::string uname;
-    void *engine_data;
-    bool connected;
-    int sfd;
-    ENGINE_ERROR_CODE status;
-    int nblocks; /* number of ewouldblocks */
-    bool handle_ewouldblock;
-    bool handle_mutation_extras;
+    const uint64_t magic{MAGIC};
+    void* engine_data{};
+    bool connected{};
+    int sfd{};
+    ENGINE_ERROR_CODE status{ENGINE_SUCCESS};
+    int nblocks{0}; /* number of ewouldblocks */
+    bool handle_ewouldblock{true};
+    bool handle_mutation_extras{true};
     std::bitset<8> enabled_datatypes;
-    bool handle_collections_support;
+    bool handle_collections_support{false};
     cb_mutex_t mutex;
     cb_cond_t cond;
-    int references;
-    uint64_t num_io_notifications;
-    uint64_t num_processed_notifications;
+    int references{1};
+    uint64_t num_io_notifications{};
+    uint64_t num_processed_notifications{};
 
-    ~mock_connstruct();
+    void validate() const;
+
+protected:
+    static const uint64_t MAGIC = 0xbeefcafecafebeefULL;
 };
 
 struct mock_callbacks {
@@ -39,17 +41,13 @@ struct mock_callbacks {
     const void *cb_data;
 };
 
-struct mock_stats {
-    uint64_t astat;
-};
+MEMCACHED_PUBLIC_API void mock_init_alloc_hooks();
 
-MEMCACHED_PUBLIC_API void mock_init_alloc_hooks(void);
-
-MEMCACHED_PUBLIC_API SERVER_HANDLE_V1 *get_mock_server_api(void);
+MEMCACHED_PUBLIC_API SERVER_HANDLE_V1* get_mock_server_api();
 
 MEMCACHED_PUBLIC_API void init_mock_server();
 
-MEMCACHED_PUBLIC_API const void *create_mock_cookie(void);
+MEMCACHED_PUBLIC_API const void* create_mock_cookie();
 
 MEMCACHED_PUBLIC_API void destroy_mock_cookie(const void *cookie);
 
@@ -72,9 +70,9 @@ MEMCACHED_PUBLIC_API void waitfor_mock_cookie(const void *cookie);
 
 MEMCACHED_PUBLIC_API void mock_time_travel(int by);
 
-MEMCACHED_PUBLIC_API void disconnect_all_mock_connections(void);
+MEMCACHED_PUBLIC_API void disconnect_all_mock_connections();
 
-MEMCACHED_PUBLIC_API void destroy_mock_event_callbacks(void);
+MEMCACHED_PUBLIC_API void destroy_mock_event_callbacks();
 
 MEMCACHED_PUBLIC_API int get_number_of_mock_cookie_references(const void *cookie);
 

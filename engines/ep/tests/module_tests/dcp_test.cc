@@ -975,8 +975,8 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
 TEST_P(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize();
-    struct mock_connstruct* cookie1 = (struct mock_connstruct*)create_mock_cookie();
-    struct mock_connstruct* cookie2 = (struct mock_connstruct*)create_mock_cookie();
+    auto* cookie1 = (struct MockCookie*)create_mock_cookie();
+    auto* cookie2 = (struct MockCookie*)create_mock_cookie();
     // Create a new Dcp consumer
     DcpConsumer* consumer = connMap.newConsumer(cookie1, "test_consumer");
     EXPECT_NE(nullptr, consumer) << "consumer is null";

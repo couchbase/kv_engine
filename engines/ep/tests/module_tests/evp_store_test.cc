@@ -474,7 +474,7 @@ TEST_P(EPStoreEvictionTest, MB_21976) {
 
     // Mark the status of the cookie so that we can see if notify is called
     lock_mock_cookie(cookie);
-    struct mock_connstruct* c = (struct mock_connstruct *)cookie;
+    auto* c = (MockCookie*)cookie;
     c->status = ENGINE_E2BIG;
     unlock_mock_cookie(cookie);
 
@@ -879,7 +879,7 @@ TEST_P(EPStoreEvictionTest, memOverheadMemoryCondition) {
     size_t count = 0;
     const std::string value(512, 'x'); // 512B value to use for documents.
     ENGINE_ERROR_CODE result;
-    auto dummyCookie = std::make_unique<mock_connstruct>();
+    auto dummyCookie = std::make_unique<MockCookie>();
     for (result = ENGINE_SUCCESS; result == ENGINE_SUCCESS; count++) {
         auto item = make_item(vbid,
                               makeStoredDocKey("key_" + std::to_string(count)),

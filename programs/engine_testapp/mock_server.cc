@@ -28,7 +28,6 @@
 #include <list>
 
 #define REALTIME_MAXDELTA 60*60*24*3
-#define CONN_MAGIC 0xbeefcafe
 
 std::array<std::list<mock_callbacks>, MAX_ENGINE_EVENT_TYPE + 1> mock_event_handlers;
 
@@ -48,49 +47,43 @@ uint64_t session_cas;
 uint8_t session_ctr;
 cb_mutex_t session_mutex;
 
-mock_connstruct::mock_connstruct()
-    : magic(CONN_MAGIC),
-      engine_data(nullptr),
-      connected(true),
-      sfd(0),
-      status(ENGINE_SUCCESS),
-      nblocks(0),
-      handle_ewouldblock(true),
-      handle_mutation_extras(true),
-      handle_collections_support(false),
-      references(1),
-      num_io_notifications(0),
-      num_processed_notifications(0) {
+MockCookie::MockCookie() {
     cb_mutex_initialize(&mutex);
     cb_cond_initialize(&cond);
 }
 
-mock_connstruct::~mock_connstruct() {
+void MockCookie::validate() const {
+    if (magic != MAGIC) {
+        throw std::runtime_error("MockCookie::validate(): Invalid magic");
+    }
 }
 
 /* Forward declarations */
 
-void disconnect_mock_connection(struct mock_connstruct *c);
+void disconnect_mock_connection(struct MockCookie* c);
 
-static mock_connstruct* cookie_to_mock_object(const void* cookie) {
-  return const_cast<mock_connstruct*>(reinterpret_cast<const mock_connstruct*>(cookie));
+static MockCookie* cookie_to_mock_object(const void* cookie) {
+    auto* ret = reinterpret_cast<const MockCookie*>(cookie);
+    ret->validate();
+    return const_cast<MockCookie*>(ret);
 }
 
 static PreLinkFunction pre_link_function;
 
 void mock_set_pre_link_function(PreLinkFunction function) {
-    pre_link_function = function;
+    pre_link_function = std::move(function);
 }
 
 /* time-sensitive callers can call it by hand with this, outside the
    normal ever-1-second timer */
-static rel_time_t mock_get_current_time(void) {
+static rel_time_t mock_get_current_time() {
 #ifdef WIN32
     rel_time_t result = (rel_time_t)(time(NULL) - process_started + time_travel_offset);
 #else
-    struct timeval timer;
-    gettimeofday(&timer, NULL);
-    rel_time_t result = (rel_time_t) (timer.tv_sec - process_started + time_travel_offset);
+    struct timeval timer {};
+    gettimeofday(&timer, nullptr);
+    auto result =
+            (rel_time_t)(timer.tv_sec - process_started + time_travel_offset);
 #endif
     return result;
 }
@@ -239,41 +232,35 @@ struct MockServerCookieApi : public ServerCookieIface {
     void store_engine_specific(gsl::not_null<const void*> cookie,
                                void* engine_data) override {
         auto* c = cookie_to_mock_object(cookie.get());
-        cb_assert(c->magic == CONN_MAGIC);
         c->engine_data = engine_data;
     }
 
     void* get_engine_specific(gsl::not_null<const void*> cookie) override {
-        const auto* c = reinterpret_cast<const mock_connstruct*>(cookie.get());
-        cb_assert(c->magic == CONN_MAGIC);
+        const auto* c = cookie_to_mock_object(cookie.get());
         return c->engine_data;
     }
 
     bool is_datatype_supported(gsl::not_null<const void*> cookie,
                                protocol_binary_datatype_t datatype) override {
-        const auto* c = reinterpret_cast<const mock_connstruct*>(cookie.get());
-        cb_assert(c->magic == CONN_MAGIC);
+        const auto* c = cookie_to_mock_object(cookie.get());
         std::bitset<8> in(datatype);
         return (c->enabled_datatypes & in) == in;
     }
 
     bool is_mutation_extras_supported(
             gsl::not_null<const void*> cookie) override {
-        const auto* c = reinterpret_cast<const mock_connstruct*>(cookie.get());
-        cb_assert(c->magic == CONN_MAGIC);
+        const auto* c = cookie_to_mock_object(cookie.get());
         return c->handle_mutation_extras;
     }
 
     bool is_collections_supported(gsl::not_null<const void*> cookie) override {
-        const auto* c = reinterpret_cast<const mock_connstruct*>(cookie.get());
-        cb_assert(c->magic == CONN_MAGIC);
+        const auto* c = cookie_to_mock_object(cookie.get());
         return c->handle_collections_support;
     }
 
     cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
             gsl::not_null<const void*> cookie) override {
-        const auto* c = reinterpret_cast<const mock_connstruct*>(cookie.get());
-        cb_assert(c->magic == CONN_MAGIC);
+        (void)cookie_to_mock_object(cookie.get()); // validate cookie
         return cb::mcbp::ClientOpcode::Invalid;
     }
 
@@ -321,13 +308,11 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
     void set_priority(gsl::not_null<const void*> cookie,
                       CONN_PRIORITY) override {
-        auto* c = cookie_to_mock_object(cookie.get());
-        cb_assert(c->magic == CONN_MAGIC);
+        (void)cookie_to_mock_object(cookie.get()); // validate cookie
     }
 
     CONN_PRIORITY get_priority(gsl::not_null<const void*> cookie) override {
-        auto* c = cookie_to_mock_object(cookie.get());
-        cb_assert(c->magic == CONN_MAGIC);
+        (void)cookie_to_mock_object(cookie.get()); // validate cookie
         return CONN_PRIORITY_MED;
     }
 
@@ -338,7 +323,6 @@ struct MockServerCookieApi : public ServerCookieIface {
 
     uint64_t get_connection_id(gsl::not_null<const void*> cookie) override {
         auto* c = cookie_to_mock_object(cookie.get());
-        cb_assert(c->magic == CONN_MAGIC);
         return c->sfd;
     }
 
@@ -416,7 +400,7 @@ SERVER_HANDLE_V1* get_mock_server_api() {
 }
 
 void init_mock_server() {
-    process_started = time(0);
+    process_started = time(nullptr);
     time_travel_offset = 0;
     log_level = spdlog::level::level_enum::critical;
 
@@ -426,9 +410,8 @@ void init_mock_server() {
     cb_mutex_initialize(&ref_mutex);
 }
 
-const void *create_mock_cookie(void) {
-    struct mock_connstruct *rv = new mock_connstruct();
-    return rv;
+const void* create_mock_cookie() {
+    return new MockCookie();
 }
 
 void destroy_mock_cookie(const void *cookie) {
@@ -436,7 +419,7 @@ void destroy_mock_cookie(const void *cookie) {
         return;
     }
     cb_mutex_enter(&(ref_mutex));
-    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
+    auto* c = cookie_to_mock_object(cookie);
     disconnect_mock_connection(c);
     if (c->references == 0) {
         delete c;
@@ -445,56 +428,56 @@ void destroy_mock_cookie(const void *cookie) {
 }
 
 void mock_set_ewouldblock_handling(const void *cookie, bool enable) {
-    mock_connstruct *c = cookie_to_mock_object(cookie);
+    auto* c = cookie_to_mock_object(cookie);
     c->handle_ewouldblock = enable;
 }
 
 void mock_set_mutation_extras_handling(const void *cookie, bool enable) {
-    mock_connstruct *c = cookie_to_mock_object(cookie);
+    auto* c = cookie_to_mock_object(cookie);
     c->handle_mutation_extras = enable;
 }
 
 void mock_set_datatype_support(const void* cookie,
                                protocol_binary_datatype_t datatypes) {
-    mock_connstruct *c = cookie_to_mock_object(cookie);
+    auto* c = cookie_to_mock_object(cookie);
     c->enabled_datatypes = std::bitset<8>(datatypes);
 }
 
 void mock_set_collections_support(const void *cookie, bool enable) {
-    mock_connstruct *c = cookie_to_mock_object(cookie);
+    auto* c = cookie_to_mock_object(cookie);
     c->handle_collections_support = enable;
 }
 
 void lock_mock_cookie(const void *cookie) {
-    mock_connstruct *c = cookie_to_mock_object(cookie);
+    auto* c = cookie_to_mock_object(cookie);
     cb_mutex_enter(&c->mutex);
 }
 
 void unlock_mock_cookie(const void *cookie) {
-    mock_connstruct *c = cookie_to_mock_object(cookie);
+    auto* c = cookie_to_mock_object(cookie);
     cb_mutex_exit(&c->mutex);
 }
 
 void waitfor_mock_cookie(const void *cookie) {
-    mock_connstruct *c = cookie_to_mock_object(cookie);
+    auto* c = cookie_to_mock_object(cookie);
     while (c->num_processed_notifications == c->num_io_notifications) {
         cb_cond_wait(&c->cond, &c->mutex);
     }
     c->num_processed_notifications = c->num_io_notifications;
 }
 
-void disconnect_mock_connection(struct mock_connstruct *c) {
+void disconnect_mock_connection(struct MockCookie* c) {
     // ref_mutex already held in calling function
     c->connected = false;
     c->references--;
-    mock_perform_callbacks(ON_DISCONNECT, NULL, c);
+    mock_perform_callbacks(ON_DISCONNECT, nullptr, c);
 }
 
-void disconnect_all_mock_connections(void) {
+void disconnect_all_mock_connections() {
     // Currently does nothing; we don't track mock_connstructs
 }
 
-void destroy_mock_event_callbacks(void) {
+void destroy_mock_event_callbacks() {
     for (int type = 0; type < MAX_ENGINE_EVENT_TYPE; type++) {
         mock_event_handlers[type].clear();
     }
@@ -505,19 +488,18 @@ int get_number_of_mock_cookie_references(const void *cookie) {
         return -1;
     }
     cb_mutex_enter(&(ref_mutex));
-    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
+    auto* c = cookie_to_mock_object(cookie);
     int numberOfReferences = c->references;
     cb_mutex_exit(&(ref_mutex));
     return numberOfReferences;
 }
 
 size_t get_number_of_mock_cookie_io_notifications(const void* cookie) {
-    mock_connstruct* c = cookie_to_mock_object(cookie);
+    auto* c = cookie_to_mock_object(cookie);
     return c->num_io_notifications;
 }
 
 MEMCACHED_PUBLIC_API cb::tracing::Traceable& mock_get_traceable(
         const void* cookie) {
-    mock_connstruct* c = cookie_to_mock_object(cookie);
-    return *c;
+    return *cookie_to_mock_object(cookie);
 }
