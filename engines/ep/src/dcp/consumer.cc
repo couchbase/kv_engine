@@ -1015,7 +1015,7 @@ bool DcpConsumer::handleRollbackResponse(Vbid vbid,
     auto entries = vb->failovers->getNumEntries();
     if (rollbackSeqno == 0 && entries > 1) {
         logger->info(
-                "({}) Received rollback request. Rollback to 0 yet have {}"
+                "({}) Received rollback request. Rollback to 0 yet have {} "
                 "entries remaining. Retrying with previous failover entry",
                 vbid,
                 entries);
