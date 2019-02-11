@@ -220,15 +220,13 @@ public:
 
     Collections::KVStore::Manifest getCollectionsManifest_new(
             Vbid vbid) override {
-        throw std::logic_error(
-                "Unimplemented MagmaKVStore getCollectionsManifest");
+        // TODO: magma has no collections-meta support, return empty
         return {};
     }
 
     std::vector<Collections::KVStore::DroppedCollection> getDroppedCollections(
             Vbid vbid) override {
-        throw std::logic_error(
-                "Unimplemented MagmaKVStore getDroppedCollections");
+        // TODO: magma has no collections-meta support, return empty
         return {};
     }
 

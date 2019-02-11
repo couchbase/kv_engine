@@ -380,6 +380,10 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::system_event(
                 reinterpret_cast<const Collections::CreateEventDcpData*>(
                         eventData.data())
                         ->cid.to_host();
+        last_scope_id =
+                reinterpret_cast<const Collections::CreateEventDcpData*>(
+                        eventData.data())
+                        ->sid.to_host();
 
         last_key.assign(reinterpret_cast<const char*>(key.data()), key.size());
     } else if (event == mcbp::systemevent::id::DeleteCollection) {

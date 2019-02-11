@@ -89,24 +89,16 @@ public:
         return false;
     }
 
-    bool eq(const MockVBManifest& rhs, bool ignoreHighSeqno = false) const {
+    bool operator==(const MockVBManifest& rhs) const {
         std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
         if (rhs.size() != size()) {
             return false;
         }
         // Check all collections match
         for (const auto& e : map) {
-            if (!rhs.compareEntry(e.first, e.second, ignoreHighSeqno)) {
+            if (!rhs.compareEntry(e.first, e.second)) {
                 return false;
             }
-        }
-
-        if (rhs.getGreatestEndSeqno() != getGreatestEndSeqno()) {
-            return false;
-        }
-
-        if (rhs.getNumDeletingCollections() != getNumDeletingCollections()) {
-            return false;
         }
 
         if (scopes.size() != rhs.scopes.size()) {
@@ -126,40 +118,8 @@ public:
         return true;
     }
 
-    bool operator==(const MockVBManifest& rhs) const {
-        return eq(rhs);
-    }
-
     bool operator!=(const MockVBManifest& rhs) const {
         return !(*this == rhs);
-    }
-
-    int64_t getGreatestEndSeqno() const {
-        std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
-        return greatestEndSeqno;
-    }
-
-    size_t getNumDeletingCollections() const {
-        std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
-        return nDeletingCollections;
-    }
-
-    bool isGreatestEndSeqnoCorrect() const {
-        std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
-        // If this is zero greatestEnd should not be a seqno
-        if (nDeletingCollections == 0) {
-            return greatestEndSeqno == StoredValue::state_collection_open;
-        }
-        return greatestEndSeqno >= 0;
-    }
-
-    bool isNumDeletingCollectionsoCorrect() const {
-        std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
-        // If this is zero greatestEnd should not be a seqno
-        if (greatestEndSeqno != StoredValue::state_collection_open) {
-            return nDeletingCollections > 0;
-        }
-        return nDeletingCollections == 0;
     }
 
     // Wire through to private method
@@ -264,38 +224,6 @@ public:
                    << replica;
         }
 
-        auto rv = checkNumDeletingCollections();
-        if (rv != ::testing::AssertionSuccess()) {
-            return rv;
-        }
-        rv = checkGreatestEndSeqno();
-        if (rv != ::testing::AssertionSuccess()) {
-            return rv;
-        }
-
-        return checkJson(*manifest);
-    }
-
-    ::testing::AssertionResult completeDeletion(CollectionID identifier) {
-        try {
-            // As no event is queued, we just call active/replica directly
-            active.wlock().completeDeletion(vbA, identifier);
-            replica.wlock().completeDeletion(vbR, identifier);
-            lastCompleteDeletionArgs = identifier;
-        } catch (std::exception& e) {
-            return ::testing::AssertionFailure()
-                   << "Exception thrown for completeDeletion with e.what:"
-                   << e.what();
-        }
-
-        // As no SystemEvent is generated, just compare the updated manifests
-        if (active != replica) {
-            return ::testing::AssertionFailure()
-                   << "completeDeletion manifest "
-                   << "mismatch (active vs replica)\n"
-                   << active << "\nvs\n"
-                   << replica;
-        }
         return ::testing::AssertionSuccess();
     }
 
@@ -321,12 +249,12 @@ public:
         return ::testing::AssertionSuccess();
     }
 
-    bool isOpen(CollectionID identifier) {
-        return active.isOpen(identifier) && replica.isOpen(identifier);
+    bool exists(CollectionID identifier) {
+        return active.exists(identifier) && replica.exists(identifier);
     }
 
-    bool isDeleting(CollectionID identifier) {
-        return active.isDeleting(identifier) && replica.isDeleting(identifier);
+    bool isOpen(CollectionID identifier) {
+        return active.isOpen(identifier) && replica.isOpen(identifier);
     }
 
     bool checkSize(size_t s) {
@@ -343,54 +271,6 @@ public:
 
     int64_t getLastSeqno() const {
         return lastSeqno;
-    }
-
-    ::testing::AssertionResult checkGreatestEndSeqno(int64_t expectedSeqno) {
-        if (active.getGreatestEndSeqno() != expectedSeqno) {
-            return ::testing::AssertionFailure()
-                   << "active failed expectedSeqno:" << expectedSeqno << "\n"
-                   << active;
-        } else if (replica.getGreatestEndSeqno() != expectedSeqno) {
-            return ::testing::AssertionFailure()
-                   << "replica failed expectedSeqno:" << expectedSeqno << "\n"
-                   << replica;
-        }
-        return ::testing::AssertionSuccess();
-    }
-
-    ::testing::AssertionResult checkNumDeletingCollections(size_t expected) {
-        if (active.getNumDeletingCollections() != expected) {
-            return ::testing::AssertionFailure()
-                   << "active failed expected:" << expected << "\n"
-                   << active;
-        } else if (replica.getNumDeletingCollections() != expected) {
-            return ::testing::AssertionFailure()
-                   << "replica failed expected:" << expected << "\n"
-                   << replica;
-        }
-        return ::testing::AssertionSuccess();
-    }
-
-    ::testing::AssertionResult checkNumDeletingCollections() {
-        if (!active.isNumDeletingCollectionsoCorrect()) {
-            return ::testing::AssertionFailure()
-                   << "checkNumDeletingCollections active failed " << active;
-        } else if (!replica.isNumDeletingCollectionsoCorrect()) {
-            return ::testing::AssertionFailure()
-                   << "checkNumDeletingCollections replica failed " << replica;
-        }
-        return ::testing::AssertionSuccess();
-    }
-
-    ::testing::AssertionResult checkGreatestEndSeqno() {
-        if (!active.isGreatestEndSeqnoCorrect()) {
-            return ::testing::AssertionFailure()
-                   << "checkGreatestEndSeqno active failed " << active;
-        } else if (!replica.isGreatestEndSeqnoCorrect()) {
-            return ::testing::AssertionFailure()
-                   << "checkGreatestEndSeqno replica failed " << replica;
-        }
-        return ::testing::AssertionSuccess();
     }
 
     static void getEventsFromCheckpoint(VBucket& vb,
@@ -436,10 +316,10 @@ public:
                                 Collections::VB::Manifest::getDropEventData(
                                         {qi->getData(), qi->getNBytes()});
                         // A deleted create means beginDelete collection
-                        replica.wlock().replicaBeginDelete(vbR,
-                                                           dcpData.manifestUid,
-                                                           dcpData.cid,
-                                                           qi->getBySeqno());
+                        replica.wlock().replicaDrop(vbR,
+                                                    dcpData.manifestUid,
+                                                    dcpData.cid,
+                                                    qi->getBySeqno());
                     } else {
                         auto dcpData =
                                 Collections::VB::Manifest::getCreateEventData(
@@ -483,42 +363,6 @@ public:
             }
         }
         return rv;
-    }
-
-    /**
-     * Take SystemEvent item and obtain the JSON manifest.
-     * Next create a new/temp MockVBManifest from the JSON.
-     * Finally check that this new object is equal to the test class's active
-     *
-     * @returns gtest assertion fail (with details) or success
-     */
-    ::testing::AssertionResult checkJson(const Item& manifestItem) {
-        try {
-            MockVBManifest newManifest(
-                    Collections::VB::Manifest::getPersistedManifest(
-                            manifestItem));
-            // @todo JimW Collections metadata
-            // We deal with a special case here as the flatbuffers data in
-            // manifestItem does not contain the high seqno, although our
-            // active manifest will know about it. When we load a real
-            // VB::Manifest from a PersistedManifest we update the high seqno
-            // stat at runtime as we don't need to store it in every event.
-            // By settting the eq(..., ignoreHighSeqno) flag to true we will
-            // ignore a difference in the high seqno if a normal equality check
-            // fails. This will be changed soon when we stop sending the entire
-            // manifest in the item.
-            if (!active.eq(newManifest, true)) {
-                return ::testing::AssertionFailure() << "manifest mismatch "
-                                                     << "generated\n"
-                                                     << newManifest << "\nvs\n"
-                                                     << active;
-            }
-        } catch (const std::exception& e) {
-            return ::testing::AssertionFailure()
-                   << "checkMetaData exception caught what:" << e.what();
-        }
-
-        return ::testing::AssertionSuccess();
     }
 
     MockVBManifest active;
@@ -582,8 +426,7 @@ TEST_F(VBucketManifestTest, add_delete_different_scopes) {
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::dairy)));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
-    EXPECT_FALSE(manifest.isOpen(CollectionEntry::dairy));
-    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::dairy));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::dairy));
 
     // We can still use dairy in shop1 scope
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
@@ -602,18 +445,12 @@ TEST_F(VBucketManifestTest, add_delete_same_scopes) {
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::dairy)));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
-    EXPECT_FALSE(manifest.isOpen(CollectionEntry::dairy));
-    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::dairy));
-
-    // We should not be able to add the collection to the other scope until
-    // we have completed deletion
-    cm.add(ScopeEntry::shop1);
-    EXPECT_FALSE(
-            manifest.update(cm.add(CollectionEntry::dairy, ScopeEntry::shop1)));
-    EXPECT_FALSE(manifest.isOpen(CollectionEntry::dairy));
-    EXPECT_TRUE(manifest.completeDeletion(CollectionEntry::dairy));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::dairy));
 
     // Add dairy to shop1 scope - we don't create scope creation/deletion events
+    cm.add(ScopeEntry::shop1);
+    cm.add(CollectionEntry::dairy, ScopeEntry::shop1);
+
     EXPECT_TRUE(manifest.update(cm));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
@@ -624,8 +461,7 @@ TEST_F(VBucketManifestTest, add_delete_same_scopes) {
             cm.remove(CollectionEntry::dairy, ScopeEntry::shop1)));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
-    EXPECT_FALSE(manifest.isOpen(CollectionEntry::dairy));
-    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::dairy));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::dairy));
 }
 
 /**
@@ -662,9 +498,9 @@ TEST_F(VBucketManifestTest, drop_scope) {
     EXPECT_TRUE(manifest.isOpen(CollectionEntry::dairy));
     EXPECT_TRUE(manifest.isOpen(CollectionEntry::meat));
     EXPECT_TRUE(manifest.update(cm.remove(ScopeEntry::shop1)));
-    EXPECT_FALSE(manifest.isOpen(CollectionEntry::fruit));
-    EXPECT_FALSE(manifest.isOpen(CollectionEntry::dairy));
-    EXPECT_FALSE(manifest.isOpen(CollectionEntry::meat));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::fruit));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::dairy));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::meat));
 }
 /**
  * Test that we can drop a scope (simulate this by dropping all the
@@ -685,8 +521,7 @@ TEST_F(VBucketManifestTest, drop_scope_then_add) {
                                     .remove(ScopeEntry::shop1)));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"meat:beef", CollectionEntry::meat}));
-    EXPECT_FALSE(manifest.isOpen(CollectionEntry::meat));
-    EXPECT_TRUE(manifest.completeDeletion(CollectionEntry::meat));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::meat));
 
     // We have no collections, and the scope does not exist
     EXPECT_FALSE(
@@ -699,46 +534,6 @@ TEST_F(VBucketManifestTest, drop_scope_then_add) {
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"meat:beef", CollectionEntry::meat}));
     EXPECT_TRUE(manifest.isOpen(CollectionEntry::meat));
-
-    // We have only 1 collection
-    EXPECT_TRUE(
-            manifest.active.public_getCollectionsForScope(ScopeEntry::shop1));
-    EXPECT_EQ(manifest.active.public_getCollectionsForScope(ScopeEntry::shop1)
-                      ->size(),
-              1);
-}
-
-/**
- * Test that we do not drop a scope when one collection is pending complete
- * deletion
- */
-TEST_F(VBucketManifestTest, drop_scope_then_add_before_complete_deletion) {
-    // Add meat to the shop 1 scope
-    EXPECT_TRUE(manifest.update(
-            cm.add(ScopeEntry::shop1)
-                    .add(CollectionEntry::meat, ScopeEntry::shop1)));
-    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            StoredDocKey{"meat:beef", CollectionEntry::meat}));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::meat));
-
-    // Now remove the meat collection and shop1 scope
-    EXPECT_TRUE(
-            manifest.update(cm.remove(CollectionEntry::meat, ScopeEntry::shop1)
-                                    .remove(ScopeEntry::shop1)));
-    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
-            StoredDocKey{"meat:beef", CollectionEntry::meat}));
-    EXPECT_FALSE(manifest.isOpen(CollectionEntry::meat));
-
-    // And add the dairy collection to the shop 1 scope
-    EXPECT_TRUE(manifest.update(
-            cm.add(ScopeEntry::shop1)
-                    .add(CollectionEntry::dairy, ScopeEntry::shop1)));
-    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::dairy));
-
-    // Now complete the deletion of meat
-    EXPECT_TRUE(manifest.completeDeletion(CollectionEntry::meat));
 
     // We have only 1 collection
     EXPECT_TRUE(
@@ -770,7 +565,6 @@ TEST_F(VBucketManifestTest, add_delete_in_one_update) {
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"vegetable:cucumber", CollectionEntry::vegetable2}));
     EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable2));
-    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
 }
 
 TEST_F(VBucketManifestTest, updates) {
@@ -798,13 +592,12 @@ TEST_F(VBucketManifestTest, updates2) {
                                         .add(CollectionEntry::dairy)));
     EXPECT_TRUE(manifest.checkSize(5));
 
-    // Remove meat and dairy, size is not affected because the delete is only
-    // starting
+    // Remove meat and dairy
     EXPECT_TRUE(manifest.update(
             cm.remove(CollectionEntry::meat).remove(CollectionEntry::dairy)));
-    EXPECT_TRUE(manifest.checkSize(5));
-    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::meat));
-    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::dairy));
+    EXPECT_TRUE(manifest.checkSize(3));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::meat));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::dairy));
 
     // But vegetable is accessible, the others are locked out
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
@@ -826,12 +619,12 @@ TEST_F(VBucketManifestTest, updates3) {
     // Remove everything
     CollectionsManifest cm2(NoDefault{});
     EXPECT_TRUE(manifest.update(cm2));
-    EXPECT_TRUE(manifest.checkSize(5));
-    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::defaultC));
-    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
-    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::fruit));
-    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::meat));
-    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::dairy));
+    EXPECT_TRUE(manifest.checkSize(0));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::defaultC));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::vegetable));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::fruit));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::meat));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::dairy));
 
     // But vegetable is accessible, the others are 'locked' out
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
@@ -846,11 +639,11 @@ TEST_F(VBucketManifestTest, updates3) {
             StoredDocKey{"anykey", CollectionEntry::defaultC}));
 }
 
-TEST_F(VBucketManifestTest, add_beginDelete_add) {
+TEST_F(VBucketManifestTest, add_delete_add) {
     // remove default and add vegetable
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::defaultC)));
     auto seqno = manifest.getLastSeqno(); // seqno of the vegetable addition
-    EXPECT_TRUE(manifest.checkSize(2));
+    EXPECT_TRUE(manifest.checkSize(1));
     EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
@@ -862,28 +655,28 @@ TEST_F(VBucketManifestTest, add_beginDelete_add) {
     // But vegetable is still good
     EXPECT_FALSE(manifest.isLogicallyDeleted(
             StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable},
-            seqno));
+            seqno + 1));
 
     // remove vegetable
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)));
     seqno = manifest.getLastSeqno();
-    EXPECT_TRUE(manifest.checkSize(2));
-    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.checkSize(0));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::vegetable));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
 
-    // vegetable is now a deleting collection
+    // vegetable is now a deleted collection
     EXPECT_TRUE(manifest.isLogicallyDeleted(
             StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable},
             seqno));
 
-    // add vegetable a second time
+    // add vegetable2
     EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::vegetable2)));
     auto oldSeqno = seqno;
     auto newSeqno = manifest.getLastSeqno();
-    EXPECT_TRUE(manifest.checkSize(3));
+    EXPECT_TRUE(manifest.checkSize(1));
     EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable2));
-    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::vegetable));
 
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable2}));
@@ -891,7 +684,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add) {
     // Now we expect older vegetables to be deleting and newer not to be.
     EXPECT_FALSE(manifest.isLogicallyDeleted(
             StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable2},
-            newSeqno));
+            newSeqno + 1));
     EXPECT_TRUE(manifest.isLogicallyDeleted(
             StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable},
             oldSeqno));
@@ -907,19 +700,13 @@ TEST_F(VBucketManifestTest, add_beginDelete_delete) {
     // remove vegetable
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)));
     auto seqno = manifest.getLastSeqno();
-    EXPECT_TRUE(manifest.checkSize(2));
-    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.checkSize(1));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::vegetable));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
     EXPECT_TRUE(manifest.isLogicallyDeleted(
             StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable},
             seqno));
-
-    // finally remove vegetable
-    EXPECT_TRUE(manifest.completeDeletion(CollectionEntry::vegetable));
-    EXPECT_TRUE(manifest.checkSize(1));
-    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
-            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
 }
 
 TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
@@ -931,42 +718,19 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
 
     // remove vegetable
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)));
-    EXPECT_TRUE(manifest.checkSize(2));
-    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.checkSize(1));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::vegetable));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
 
     // add vegetable:2
     EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::vegetable2)));
-    EXPECT_TRUE(manifest.checkSize(3));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable2));
-    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
-
-    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable2}));
-
-    // finally remove vegetable:1
-    EXPECT_TRUE(manifest.completeDeletion(CollectionEntry::vegetable));
     EXPECT_TRUE(manifest.checkSize(2));
-
-    // No longer OpenAndDeleting, now ExclusiveOpen
     EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable2));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::vegetable));
 
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable2}));
-}
-
-TEST_F(VBucketManifestTest, invalidDeletes) {
-    // add vegetable
-    EXPECT_TRUE(manifest.update(cm));
-    // Delete vegetable
-    EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)));
-
-    // Invalid CID
-    EXPECT_FALSE(manifest.completeDeletion(100));
-    EXPECT_FALSE(manifest.completeDeletion(500));
-
-    EXPECT_TRUE(manifest.completeDeletion(CollectionEntry::vegetable));
 }
 
 // Check that a deleting collection doesn't keep adding system events
@@ -1022,17 +786,6 @@ TEST_F(VBucketManifestTest, replica_add_remove) {
             StoredDocKey{"dairy:butter", CollectionEntry::dairy}));
 }
 
-TEST_F(VBucketManifestTest, replica_add_remove_completeDelete) {
-    // add vegetable
-    EXPECT_TRUE(manifest.update(cm));
-
-    // remove vegetable
-    EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)));
-
-    // Finish removal of vegetable
-    EXPECT_TRUE(manifest.completeDeletion(CollectionEntry::vegetable));
-}
-
 TEST_F(VBucketManifestTest, check_applyChanges) {
     std::vector<Collections::VB::Manifest::CollectionAddition>
             changes; // start out empty
@@ -1058,75 +811,6 @@ TEST_F(VBucketManifestTest, check_applyChanges) {
     EXPECT_EQ(9, value.get().identifiers.second);
     EXPECT_EQ("name3", value.get().name);
     EXPECT_EQ(2, manifest.getActiveManifest().size());
-}
-
-class VBucketManifestTestEndSeqno : public VBucketManifestTest {};
-
-TEST_F(VBucketManifestTestEndSeqno, singleAdd) {
-    EXPECT_TRUE(
-            manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
-    EXPECT_TRUE(manifest.checkNumDeletingCollections(0));
-    EXPECT_TRUE(manifest.update(cm));
-    EXPECT_TRUE(
-            manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
-    EXPECT_TRUE(manifest.checkNumDeletingCollections(0));
-    EXPECT_FALSE(manifest.isLogicallyDeleted(
-            StoredDocKey{"vegetable:sprout", CollectionEntry::vegetable}, 1));
-}
-
-TEST_F(VBucketManifestTestEndSeqno, singleDelete) {
-    EXPECT_TRUE(
-            manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
-    EXPECT_TRUE(manifest.checkNumDeletingCollections(0));
-    // remove all collections
-    EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::defaultC)
-                                        .remove(CollectionEntry::vegetable)));
-
-    EXPECT_TRUE(manifest.checkGreatestEndSeqno(1));
-    EXPECT_TRUE(manifest.checkNumDeletingCollections(1));
-    EXPECT_TRUE(manifest.isLogicallyDeleted(
-            StoredDocKey{"vegetable:sprout", CollectionEntry::defaultC}, 1));
-    EXPECT_FALSE(manifest.isLogicallyDeleted(
-            StoredDocKey{"vegetable:sprout", CollectionEntry::defaultC}, 2));
-    EXPECT_TRUE(manifest.completeDeletion(CollectionID::Default));
-    EXPECT_TRUE(
-            manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
-    EXPECT_TRUE(manifest.checkNumDeletingCollections(0));
-}
-
-TEST_F(VBucketManifestTestEndSeqno, addDeleteAdd) {
-    EXPECT_TRUE(
-            manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
-    EXPECT_TRUE(manifest.checkNumDeletingCollections(0));
-
-    // Add
-    EXPECT_TRUE(manifest.update(cm));
-
-    // Delete
-    EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)));
-
-    EXPECT_TRUE(manifest.checkGreatestEndSeqno(2));
-    EXPECT_TRUE(manifest.checkNumDeletingCollections(1));
-    EXPECT_TRUE(manifest.isLogicallyDeleted(
-            StoredDocKey{"vegetable:sprout", CollectionEntry::vegetable}, 1));
-
-    EXPECT_FALSE(manifest.isLogicallyDeleted(
-            StoredDocKey{"vegetable:sprout", CollectionEntry::vegetable}, 3));
-
-    EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::vegetable2)));
-
-    EXPECT_TRUE(manifest.checkGreatestEndSeqno(2));
-    EXPECT_TRUE(manifest.checkNumDeletingCollections(1));
-    EXPECT_TRUE(manifest.isLogicallyDeleted(
-            StoredDocKey{"vegetable:sprout", CollectionEntry::vegetable}, 1));
-
-    EXPECT_FALSE(manifest.isLogicallyDeleted(
-            StoredDocKey{"vegetable:sprout", CollectionEntry::vegetable}, 3));
-
-    EXPECT_TRUE(manifest.completeDeletion(CollectionEntry::vegetable));
-    EXPECT_TRUE(
-            manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
-    EXPECT_TRUE(manifest.checkNumDeletingCollections(0));
 }
 
 class VBucketManifestCachingReadHandle : public VBucketManifestTest {};

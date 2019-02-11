@@ -1488,9 +1488,7 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
         if (!key.getCollectionID().isSystem()) {
             if (ctx->docFilter !=
                 DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
-                auto cHandle =
-                        ctx->collectionsContext.lockCollections(key, false);
-                if (!cHandle.valid() || cHandle.isLogicallyDeleted(byseqno)) {
+                if (ctx->collectionsContext.isLogicallyDeleted(key, byseqno)) {
                     ctx->lastReadSeqno = byseqno;
                     continue;
                 }

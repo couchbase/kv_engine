@@ -84,6 +84,13 @@ Manifest::Manifest(const PersistedManifest& data)
         if (entry->ttlValid()) {
             maxTtl = std::chrono::seconds(entry->maxTtl());
         }
+
+        // Skip out deleted collections - this constructor will soon be removed
+        // and this skipping will no longer be needed.
+        if (entry->startSeqno() < entry->endSeqno()) {
+            continue;
+        }
+
         addNewCollectionEntry({entry->scopeId(), entry->collectionId()},
                               maxTtl,
                               entry->startSeqno(),
@@ -101,7 +108,7 @@ boost::optional<CollectionID> Manifest::applyDeletions(
         changes.pop_back();
     }
     for (const auto id : changes) {
-        beginCollectionDelete(
+        dropCollection(
                 wHandle, vb, manifestUid, id, OptionalSeqno{/*no-seqno*/});
     }
 
@@ -197,11 +204,11 @@ bool Manifest::update(const WriteHandle& wHandle,
                     rv->collectionsToAdd.empty() && rv->scopesToRemove.empty()
                             ? manifest.getUid()
                             : manifestUid;
-            beginCollectionDelete(wHandle,
-                                  vb,
-                                  uid,
-                                  *finalDeletion,
-                                  OptionalSeqno{/*no-seqno*/});
+            dropCollection(wHandle,
+                           vb,
+                           uid,
+                           *finalDeletion,
+                           OptionalSeqno{/*no-seqno*/});
         }
 
         auto finalAddition = applyCreates(wHandle, vb, rv->collectionsToAdd);
@@ -304,20 +311,14 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
         defaultCollectionExists = (*inserted.first).second.isOpen();
     }
 
-    // Did we insert a deleting collection (can happen if restoring from
-    // persisted manifest)
-    if ((*inserted.first).second.isDeleting()) {
-        trackEndSeqno(endSeqno);
-    }
-
     return (*inserted.first).second;
 }
 
-void Manifest::beginCollectionDelete(const WriteHandle& wHandle,
-                                     ::VBucket& vb,
-                                     ManifestUid manifestUid,
-                                     CollectionID cid,
-                                     OptionalSeqno optionalSeqno) {
+void Manifest::dropCollection(const WriteHandle& wHandle,
+                              ::VBucket& vb,
+                              ManifestUid manifestUid,
+                              CollectionID cid,
+                              OptionalSeqno optionalSeqno) {
     bool processingTombstone = false;
     // A replica that receives a collection tombstone is required to persist
     // that tombstone, so the replica can switch to active consistently
@@ -335,7 +336,11 @@ void Manifest::beginCollectionDelete(const WriteHandle& wHandle,
         addNewCollectionEntry({ScopeID::Default, cid}, {});
     }
 
-    auto& entry = getManifestEntry(cid);
+    auto itr = map.find(cid);
+    if (itr == map.end()) {
+        throwException<std::logic_error>(
+                __FUNCTION__, "did not find collection:" + cid.to_string());
+    }
 
     // record the uid of the manifest which removed the collection
     this->manifestUid = manifestUid;
@@ -343,17 +348,17 @@ void Manifest::beginCollectionDelete(const WriteHandle& wHandle,
     auto seqno = queueSystemEvent(wHandle,
                                   vb,
                                   SystemEvent::Collection,
-                                  {entry.getScopeID(), cid},
+                                  {itr->second.getScopeID(), cid},
                                   {/* no name*/},
                                   true /*deleted*/,
                                   optionalSeqno);
 
     EP_LOG_INFO(
-            "collections: {} begin delete of collection:{:x} from scope:{:x}"
+            "collections: {} drop of collection:{:x} from scope:{:x}"
             ", replica:{}, backfill:{}, seqno:{}, manifest:{:x} tombstone:{}",
             vb.getId(),
             cid,
-            entry.getScopeID(),
+            itr->second.getScopeID(),
             optionalSeqno.is_initialized(),
             vb.isBackfillPhase(),
             seqno,
@@ -364,14 +369,9 @@ void Manifest::beginCollectionDelete(const WriteHandle& wHandle,
         defaultCollectionExists = false;
     }
 
-    entry.setEndSeqno(seqno);
+    itr->second.setEndSeqno(seqno);
 
-    trackEndSeqno(seqno);
-
-    if (processingTombstone) {
-        // If this is a tombstone, we can now remove the entry from the manifest
-        completeDeletion(vb, cid);
-    }
+    map.erase(itr);
 }
 
 ManifestEntry& Manifest::getManifestEntry(CollectionID identifier) {
@@ -399,11 +399,6 @@ void Manifest::completeDeletion(::VBucket& vb, CollectionID collectionID) {
     }
 
     map.erase(itr);
-
-    nDeletingCollections--;
-    if (nDeletingCollections == 0) {
-        greatestEndSeqno = StoredValue::state_collection_open;
-    }
 }
 
 void Manifest::addScope(const WriteHandle& wHandle,
@@ -412,7 +407,7 @@ void Manifest::addScope(const WriteHandle& wHandle,
                         ScopeID sid,
                         cb::const_char_buffer scopeName,
                         OptionalSeqno optionalSeqno) {
-    if (std::find(scopes.begin(), scopes.end(), sid) != scopes.end()) {
+    if (isScopeValid(sid)) {
         throwException<std::logic_error>(
                 __FUNCTION__, "scope already exists, scope:" + sid.to_string());
     }
@@ -578,12 +573,8 @@ bool Manifest::doesKeyContainValidCollection(const DocKey& key) const {
     return false;
 }
 
-bool Manifest::doesKeyBelongToScope(const DocKey& key, ScopeID scopeID) const {
-    auto itr = map.find(key.getCollectionID());
-    if (itr != map.end()) {
-        return itr->second.getScopeID() == scopeID;
-    }
-    return false;
+bool Manifest::isScopeValid(ScopeID scopeID) const {
+    return std::find(scopes.begin(), scopes.end(), scopeID) != scopes.end();
 }
 
 Manifest::container::const_iterator Manifest::getManifestEntry(
@@ -595,37 +586,35 @@ Manifest::container::const_iterator Manifest::getManifestEntry(
     return map.find(lookup);
 }
 
+Manifest::container::const_iterator Manifest::getManifestIterator(
+        CollectionID id) const {
+    return map.find(id);
+}
+
 bool Manifest::isLogicallyDeleted(const DocKey& key, int64_t seqno) const {
     // Only do the searching/scanning work for keys in the deleted range.
-    if (seqno <= greatestEndSeqno) {
-        if (key.getCollectionID().isDefaultCollection()) {
-            return !defaultCollectionExists;
-        } else {
-            CollectionID lookup = key.getCollectionID();
-            if (lookup == CollectionID::System) {
-                lookup = getCollectionIDFromKey(key);
-            }
-            auto itr = map.find(lookup);
-            if (itr != map.end()) {
-                return seqno <= itr->second.getEndSeqno();
-            }
-        }
+    if (key.getCollectionID().isDefaultCollection()) {
+        return !defaultCollectionExists;
     }
-    return false;
+
+    CollectionID lookup = key.getCollectionID();
+    if (lookup == CollectionID::System) {
+        lookup = getCollectionIDFromKey(key);
+    }
+    auto itr = map.find(lookup);
+    return isLogicallyDeleted(itr, seqno);
 }
 
 bool Manifest::isLogicallyDeleted(const container::const_iterator entry,
                                   int64_t seqno) const {
     if (entry == map.end()) {
-        throwException<std::invalid_argument>(
-                __FUNCTION__,
-                "iterator is invalid, seqno:" + std::to_string(seqno));
+        // Not in map - definitely deleted (or never existed)
+        return true;
     }
 
-    if (seqno <= greatestEndSeqno) {
-        return seqno <= entry->second.getEndSeqno();
-    }
-    return false;
+    // seqno >= 0 (so temp items etc... are ok) AND the seqno is below the
+    // collection start (start is set on creation and moves with flush)
+    return seqno >= 0 && seqno <= entry->second.getStartSeqno();
 }
 
 boost::optional<CollectionID> Manifest::shouldCompleteDeletion(
@@ -914,16 +903,8 @@ PersistedManifest Manifest::patchSerialisedDataForScopeEvent(const Item& item) {
     return mutableData;
 }
 
-void Manifest::trackEndSeqno(int64_t seqno) {
-    nDeletingCollections++;
-    if (seqno > greatestEndSeqno ||
-        greatestEndSeqno == StoredValue::state_collection_open) {
-        greatestEndSeqno = seqno;
-    }
-}
-
 bool Manifest::isDropInProgress() const {
-    return nDeletingCollections > 0;
+    return dropInProgress;
 }
 
 CreateEventData Manifest::getCreateEventData(
@@ -1076,12 +1057,6 @@ bool Manifest::addCollectionStats(Vbid vbid,
         checked_snprintf(
                 buffer, bsize, "vb_%d:manifest:default_exists", vbid.get());
         add_casted_stat(buffer, defaultCollectionExists, add_stat, cookie);
-        checked_snprintf(
-                buffer, bsize, "vb_%d:manifest:greatest_end", vbid.get());
-        add_casted_stat(buffer, greatestEndSeqno, add_stat, cookie);
-        checked_snprintf(
-                buffer, bsize, "vb_%d:manifest:n_deleting", vbid.get());
-        add_casted_stat(buffer, nDeletingCollections, add_stat, cookie);
     } catch (const std::exception& e) {
         EP_LOG_WARN(
                 "VB::Manifest::addCollectionStats {}, failed to build stats "
@@ -1175,8 +1150,6 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
     os << "VB::Manifest: "
        << "uid:" << manifest.manifestUid
        << ", defaultCollectionExists:" << manifest.defaultCollectionExists
-       << ", greatestEndSeqno:" << manifest.greatestEndSeqno
-       << ", nDeletingCollections:" << manifest.nDeletingCollections
        << ", scopes.size:" << manifest.scopes.size()
        << ", map.size:" << manifest.map.size() << std::endl;
     for (auto& m : manifest.map) {
@@ -1199,7 +1172,7 @@ std::ostream& operator<<(std::ostream& os,
 std::ostream& operator<<(std::ostream& os,
                          const Manifest::CachingReadHandle& readHandle) {
     os << "VB::Manifest::CachingReadHandle: itr:";
-    if (readHandle.iteratorValid()) {
+    if (readHandle.valid()) {
         os << (*readHandle.itr).second;
     } else {
         os << "end";

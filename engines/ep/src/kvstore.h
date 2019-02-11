@@ -22,7 +22,6 @@
 #include "callbacks.h"
 #include "collections/eraser_context.h"
 #include "collections/kvstore.h"
-#include "collections/scan_context.h"
 #include "storeddockey.h"
 
 #include <memcached/engine_common.h>
@@ -131,7 +130,7 @@ struct compaction_ctx {
     struct CompactionStats stats;
     /// pointer as context cannot be constructed until deeper inside storage
     std::unique_ptr<Collections::VB::EraserContext> eraserContext;
-    Collections::IsDroppedCb collectionsEraser;
+    Collections::KVStore::DroppedCb droppedKeyCb;
 };
 
 /**
@@ -213,7 +212,8 @@ public:
                 ValueFilter _valFilter,
                 uint64_t _documentCount,
                 const KVStoreConfig& _config,
-                const Collections::VB::PersistedManifest& manifestData);
+                const std::vector<Collections::KVStore::DroppedCollection>&
+                        droppedCollections);
 
     const std::shared_ptr<StatusCallback<GetValue>> callback;
     const std::shared_ptr<StatusCallback<CacheLookup>> lookup;

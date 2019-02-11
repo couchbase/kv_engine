@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "collections/scan_context.h"
 #include "collections/vbucket_manifest.h"
 
 #pragma once
@@ -23,49 +24,37 @@ namespace Collections {
 namespace VB {
 
 /**
- * The EraserContext holds a reference to the manifest which is used by the
- * erasing process of a collection, keys will be tested for isLogicallyDeleted
- * with this object's manifest.
- *
- * Additionally the class tracks how many collections were fully erased.
- *
+ * The EraserContext subclasses ScanContext and provides extra methods for
+ * tracking when collections are completely erased.
  */
-class EraserContext {
+class EraserContext : public ScanContext {
 public:
-    EraserContext(Manifest& manifest) : manifest(manifest) {
-    }
+    EraserContext(const std::vector<Collections::KVStore::DroppedCollection>&
+                          droppedCollections);
 
     /**
-     * Write lock the manifest which is referenced by the erase context
+     * Called by kvstore for deleted keys, when the deleted key is a drop of a
+     * collection, the set of dropped collections is updated.
+     * @param key The key of the deleted value (will returns if not system)
+     * @param se The flags...SystemEvent of the value
      */
-    Collections::VB::Manifest::WriteHandle wlockCollections() {
-        return manifest.wlock();
-    }
+    void processEndOfCollection(const DocKey& key, SystemEvent se);
 
     /**
-     * Lock the manifest which is referenced by the erase context
+     * @return true if the on-disk collection meta-data should be updated
      */
-    Collections::VB::Manifest::CachingReadHandle lockCollections(
-            const ::DocKey& key, bool allowSystem) const {
-        return manifest.lock(key, allowSystem);
-    }
-
-    bool needToUpdateCollectionsManifest() const {
-        return collectionsErased > 0;
-    }
-
-    void incrementErasedCount() {
-        collectionsErased++;
-    }
-
-    void finaliseCollectionsManifest(
-            std::function<void(cb::const_byte_buffer)> saveManifestCb);
+    bool needToUpdateCollectionsMetadata() const;
 
 private:
-    size_t collectionsErased = 0;
+    friend std::ostream& operator<<(std::ostream&, const EraserContext&);
 
-    /// The manifest which collection erasing can compare keys.
-    Manifest& manifest;
+    /// Remove the cid from ScanContext::dropped set
+    void remove(CollectionID cid);
+
+    bool removed = false;
 };
+
+std::ostream& operator<<(std::ostream&, const EraserContext&);
+
 } // namespace VB
 } // namespace Collections

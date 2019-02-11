@@ -106,7 +106,13 @@ public:
 
     static void triggerPurge(Vbid vbid, KVBucket& bucket);
 
+    void setNeedsPurge() {
+        needsPurge = true;
+    }
+
 private:
+    bool needsPurge = false;
+
     /**
      * Keep track of only the collections that have had a insert/delete in
      * this run of the flusher so we can flush only those collections whose

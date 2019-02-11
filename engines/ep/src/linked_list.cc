@@ -299,14 +299,6 @@ size_t BasicLinkedList::purgeTombstones(
     for (auto it = startIt; it != seqList.end();) {
         if ((it->getBySeqno() > purgeUpToSeqno) ||
             (it->getBySeqno() <= 0) /* last item with no valid seqno yet */) {
-            if (isDroppedKeyCb) {
-                // The last key in the list must remain, however it maybe a
-                // system event that finalises the drop of a collection.
-                isDroppedKeyCb(it->getKey(),
-                               it->getBySeqno(),
-                               it->isDeleted(),
-                               it->getFlags());
-            }
             break;
         }
 
@@ -325,10 +317,7 @@ size_t BasicLinkedList::purgeTombstones(
 
         bool isDropped = false;
         if (!stale && isDroppedKeyCb) {
-            isDropped = isDroppedKeyCb(it->getKey(),
-                                       it->getBySeqno(),
-                                       it->isDeleted(),
-                                       it->getFlags());
+            isDropped = isDroppedKeyCb(it->getKey(), it->getBySeqno());
         }
 
         // Only stale or dropped items are purged.

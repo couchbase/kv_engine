@@ -442,14 +442,8 @@ TEST_F(CollectionsTest, PersistedHighSeqno) {
               vb->getManifest().lock().getPersistedHighSeqno(
                       CollectionEntry::dairy.getId()));
 
-    // And a drop of the collection
-    cm.remove(CollectionEntry::dairy);
-    vb->updateFromManifest({cm});
-    flush_vbucket_to_disk(vbid, 1);
-
-    EXPECT_EQ(6,
-              vb->getManifest().lock().getPersistedHighSeqno(
-                      CollectionEntry::dairy.getId()));
+    // No test of dropped collection as manifest removes the entry, so no seqno
+    // is available for the dropped collection.
 }
 
 // Test persisted high seqno values with multiple collections
@@ -520,19 +514,8 @@ TEST_F(CollectionsTest, PersistedHighSeqnoMultipleCollections) {
               vb->getManifest().lock().getPersistedHighSeqno(
                       CollectionEntry::meat.getId()));
 
-    // And delete them
-    cm.remove(CollectionEntry::dairy);
-    vb->updateFromManifest({cm});
-    cm.remove(CollectionEntry::meat);
-    vb->updateFromManifest({cm});
-    flush_vbucket_to_disk(vbid, 2);
-
-    EXPECT_EQ(7,
-              vb->getManifest().lock().getPersistedHighSeqno(
-                      CollectionEntry::dairy.getId()));
-    EXPECT_EQ(8,
-              vb->getManifest().lock().getPersistedHighSeqno(
-                      CollectionEntry::meat.getId()));
+    // No test of dropped collection as manifest removes the entry, so no seqno
+    // is available for the dropped collection.
 }
 
 // Test high seqno values
@@ -579,14 +562,6 @@ TEST_P(CollectionsParameterizedTest, HighSeqno) {
     item2.setDeleted();
     EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, cookie));
     EXPECT_EQ(5,
-              vb->getManifest().lock().getHighSeqno(
-                      CollectionEntry::dairy.getId()));
-
-    // Finally, check a collection drop
-    cm.remove(CollectionEntry::dairy);
-    vb->updateFromManifest({cm});
-
-    EXPECT_EQ(6,
               vb->getManifest().lock().getHighSeqno(
                       CollectionEntry::dairy.getId()));
 }
@@ -654,19 +629,6 @@ TEST_P(CollectionsParameterizedTest, HighSeqnoMultipleCollections) {
     EXPECT_EQ(6,
               vb->getManifest().lock().getHighSeqno(
                       CollectionEntry::meat.getId()));
-
-    // Finally, check collection drops
-    cm.remove(CollectionEntry::dairy);
-    vb->updateFromManifest({cm});
-    cm.remove(CollectionEntry::meat);
-    vb->updateFromManifest({cm});
-
-    EXPECT_EQ(7,
-              vb->getManifest().lock().getHighSeqno(
-                      CollectionEntry::dairy.getId()));
-    EXPECT_EQ(8,
-              vb->getManifest().lock().getHighSeqno(
-                      CollectionEntry::meat.getId()));
 }
 
 class CollectionsFlushTest : public CollectionsTest {
@@ -680,10 +642,8 @@ public:
 private:
     Collections::VB::PersistedManifest createCollectionAndFlush(
             const std::string& json, CollectionID collection, int items);
-    Collections::VB::PersistedManifest deleteCollectionAndFlush(
+    Collections::VB::PersistedManifest dropCollectionAndFlush(
             const std::string& json, CollectionID collection, int items);
-    Collections::VB::PersistedManifest completeDeletionAndFlush(
-            CollectionID collection, int items);
 
     void storeItems(CollectionID collection,
                     int items,
@@ -735,33 +695,20 @@ CollectionsFlushTest::createCollectionAndFlush(const std::string& json,
     return getManifest(vbid);
 }
 
-Collections::VB::PersistedManifest
-CollectionsFlushTest::deleteCollectionAndFlush(const std::string& json,
-                                               CollectionID collection,
-                                               int items) {
+Collections::VB::PersistedManifest CollectionsFlushTest::dropCollectionAndFlush(
+        const std::string& json, CollectionID collection, int items) {
     VBucketPtr vb = store->getVBucket(vbid);
     storeItems(collection, items);
     vb->updateFromManifest(json);
     // cannot write to collection
     storeItems(collection, items, cb::engine_errc::unknown_collection);
     flush_vbucket_to_disk(vbid, 1 + items); // 1x del(create event) + items
-    // Eraser yet to run, so count will still show items
-    EXPECT_EQ(items, vb->lockCollections().getItemCount(collection));
-    return getManifest(vbid);
-}
-
-Collections::VB::PersistedManifest
-CollectionsFlushTest::completeDeletionAndFlush(CollectionID collection,
-                                               int items) {
-    // complete deletion by triggering the erase of collection (Which calls
-    // completed once it's purged all items of the deleted collection)
+    /// complete deletion by triggering the erase of collection
     runCompaction();
 
     // Default is still ok
     storeItems(CollectionID::Default, items);
     flush_vbucket_to_disk(vbid, items); // just the items
-
-    // No item count check here, the call will throw for the deleted collection
     return getManifest(vbid);
 }
 
@@ -798,7 +745,7 @@ void CollectionsFlushTest::collectionsFlusher(int items) {
     using std::placeholders::_1;
     // Setup the test using a vector of functions to run
     std::vector<testFuctions> test{
-            // First 3 steps - add,delete,complete for the meat collection
+            // First 2 steps - add,delete for the meat collection
             {// 0
              std::bind(&CollectionsFlushTest::createCollectionAndFlush,
                        this,
@@ -810,7 +757,7 @@ void CollectionsFlushTest::collectionsFlusher(int items) {
                        CollectionEntry::meat)},
 
             {// 1
-             std::bind(&CollectionsFlushTest::deleteCollectionAndFlush,
+             std::bind(&CollectionsFlushTest::dropCollectionAndFlush,
                        this,
                        cm.remove(CollectionEntry::meat),
                        CollectionEntry::meat,
@@ -818,17 +765,9 @@ void CollectionsFlushTest::collectionsFlusher(int items) {
              std::bind(&CollectionsFlushTest::cannotWrite,
                        _1,
                        CollectionEntry::meat)},
-            {// 2
-             std::bind(&CollectionsFlushTest::completeDeletionAndFlush,
-                       this,
-                       CollectionEntry::meat,
-                       items),
-             std::bind(&CollectionsFlushTest::cannotWrite,
-                       _1,
-                       CollectionEntry::meat)},
 
-            // Final 4 steps - add,delete,add,complete for the fruit collection
-            {// 3
+            // Final 3 steps - add,delete,add for the fruit collection
+            {// 2
              std::bind(&CollectionsFlushTest::createCollectionAndFlush,
                        this,
                        cm.add(CollectionEntry::dairy),
@@ -837,8 +776,8 @@ void CollectionsFlushTest::collectionsFlusher(int items) {
              std::bind(&CollectionsFlushTest::canWrite,
                        _1,
                        CollectionEntry::dairy)},
-            {// 4
-             std::bind(&CollectionsFlushTest::deleteCollectionAndFlush,
+            {// 3
+             std::bind(&CollectionsFlushTest::dropCollectionAndFlush,
                        this,
                        cm.remove(CollectionEntry::dairy),
                        CollectionEntry::dairy,
@@ -846,19 +785,11 @@ void CollectionsFlushTest::collectionsFlusher(int items) {
              std::bind(&CollectionsFlushTest::cannotWrite,
                        _1,
                        CollectionEntry::dairy)},
-            {// 5
+            {// 4
              std::bind(&CollectionsFlushTest::createCollectionAndFlush,
                        this,
                        cm.add(CollectionEntry::dairy2),
                        CollectionEntry::dairy2,
-                       items),
-             std::bind(&CollectionsFlushTest::canWrite,
-                       _1,
-                       CollectionEntry::dairy2)},
-            {// 6
-             std::bind(&CollectionsFlushTest::completeDeletionAndFlush,
-                       this,
-                       CollectionEntry::dairy,
                        items),
              std::bind(&CollectionsFlushTest::canWrite,
                        _1,
@@ -1033,13 +964,15 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
 
         flush_vbucket_to_disk(vbid, 1);
 
+        // Items still exist until the eraser runs
         EXPECT_EQ(nitems, vb->ht.getNumInMemoryItems());
-        EXPECT_EQ(nitems,
-                  vb->lockCollections().getItemCount(CollectionEntry::meat));
+
+        // Ensure collection purge has executed
+        runCollectionsEraser();
+
+        EXPECT_EQ(0, vb->ht.getNumInMemoryItems());
     } // VBucketPtr scope ends
 
-    // Ensure collection purge has executed
-    runCollectionsEraser();
 
     resetEngineAndWarmup();
 
@@ -1077,20 +1010,18 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
 
         flush_vbucket_to_disk(vbid, 1);
 
+        // Items still exist until the eraser runs
         EXPECT_EQ(nitems, vb->ht.getNumInMemoryItems());
-        EXPECT_EQ(
-                nitems,
-                vb->lockCollections().getItemCount(CollectionEntry::defaultC));
-        EXPECT_EQ(
-                12 /* 1 collection create + 10 items + 1 collection delete */,
-                vb->lockCollections().getHighSeqno(CollectionEntry::defaultC));
-        EXPECT_EQ(12 /* 1 collection create + 10 items + 1 collection delete */,
-                  vb->lockCollections().getPersistedHighSeqno(
-                          CollectionEntry::defaultC));
-    } // VBucketPtr scope ends
 
-    // Ensure collection purge has executed
-    runCollectionsEraser();
+        // But no manifest level stats exist
+        EXPECT_FALSE(store->getVBucket(vbid)->lockCollections().exists(
+                CollectionEntry::defaultC));
+
+        // Ensure collection purge has executed
+        runCollectionsEraser();
+
+        EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumInMemoryItems());
+    } // VBucketPtr scope ends
 
     resetEngineAndWarmup();
 
@@ -1098,8 +1029,6 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
 
     // meat collection still exists
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().exists(
-            CollectionEntry::meat));
-    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
             CollectionEntry::meat));
 }
 
@@ -1204,26 +1133,6 @@ TEST_P(CollectionsParameterizedTest, basic2) {
                     StoredDocKey{"anykey", CollectionEntry::defaultC}));
         }
     }
-}
-
-/**
- * Add a collection, delete it and add it again (i.e. a CID re-use)
- * We should see a failure
- */
-TEST_P(CollectionsParameterizedTest, cid_clash) {
-    // Add some more VBuckets just so there's some iteration happening
-    const int extraVbuckets = 2;
-    for (int vb = vbid.get() + 1; vb <= (vbid.get() + extraVbuckets); vb++) {
-        store->setVBucketState(Vbid(vb), vbucket_state_active);
-    }
-
-    CollectionsManifest cm;
-    EXPECT_EQ(cb::engine_errc::success,
-              store->setCollections({cm.add(CollectionEntry::meat)}).code());
-    EXPECT_EQ(cb::engine_errc::success,
-              store->setCollections({cm.remove(CollectionEntry::meat)}).code());
-    EXPECT_EQ(cb::engine_errc::cannot_apply_collections_manifest,
-              store->setCollections({cm.add(CollectionEntry::meat)}).code());
 }
 
 // Test the compactor doesn't generate expired items for a dropped collection

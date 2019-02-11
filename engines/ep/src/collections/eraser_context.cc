@@ -22,16 +22,38 @@
 namespace Collections {
 namespace VB {
 
-void EraserContext::finaliseCollectionsManifest(
-        std::function<void(cb::const_byte_buffer)> saveManifestCb) {
-    if (!collectionsErased) {
+EraserContext::EraserContext(
+        const std::vector<Collections::KVStore::DroppedCollection>&
+                droppedCollections)
+    : ScanContext(droppedCollections) {
+}
+
+void EraserContext::processEndOfCollection(const DocKey& key, SystemEvent se) {
+    if (!key.getCollectionID().isSystem() || se != SystemEvent::Collection) {
         return;
     }
 
-    auto rhandle = manifest.lock();
-    flatbuffers::FlatBufferBuilder builder;
-    rhandle.populateWithSerialisedData(builder);
-    saveManifestCb({builder.GetBufferPointer(), builder.GetSize()});
+    remove(getCollectionIDFromKey(key));
+}
+
+bool EraserContext::needToUpdateCollectionsMetadata() const {
+    return removed;
+}
+
+void EraserContext::remove(CollectionID id) {
+    auto itr = dropped.find(id);
+    // OK to not find the id. It could be a tombstone
+    if (itr != dropped.end()) {
+        dropped.erase(itr);
+        removed = true;
+    }
+}
+
+std::ostream& operator<<(std::ostream& os, const EraserContext& eraserContext) {
+    os << "EraserContext: removed:"
+       << (eraserContext.removed ? "true, " : "false, ");
+    os << static_cast<const ScanContext&>(eraserContext);
+    return os;
 }
 
 } // namespace VB

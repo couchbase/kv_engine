@@ -209,6 +209,9 @@ protected:
 
     void stopWarmup();
 
+    /// function which is passed down to compactor for dropping keys
+    void dropKey(Vbid vbid, const DocKey& key, int64_t bySeqno);
+
     /**
      * Max number of backill items in a single flusher batch before we split
      * into multiple batches.

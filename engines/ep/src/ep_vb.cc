@@ -740,12 +740,9 @@ void EPVBucket::dropKey(const DocKey& key,
 void EPVBucket::completeDeletion(
         CollectionID identifier,
         Collections::VB::EraserContext& eraserContext) {
-    // Remove the collection's metadata from the in-memory manifest and from
-    // the eraser's context manifest, which in turn will be used to refresh
-    // the compacted datafiles persisted metadata.
-    getManifest().wlock().completeDeletion(*this, identifier);
-    eraserContext.wlockCollections().completeDeletion(*this, identifier);
-    eraserContext.incrementErasedCount();
+    throw std::logic_error(
+            "EPVBucket::completeDeletion: called - this function is to be "
+            "deleted");
 }
 
 /*

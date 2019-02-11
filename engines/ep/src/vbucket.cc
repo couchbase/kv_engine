@@ -2355,10 +2355,10 @@ void VBucket::collectionsRolledBack(KVStore& kvstore) {
     // For each collection in the VB, reload the stats to the point before
     // the rollback seqno
     for (auto& collection : wh) {
-        collection.second.setDiskCount(kvstore.getCollectionStats(
-                *kvstoreContext, collection.first).itemCount);
-        collection.second.resetPersistedHighSeqno(kvstore.getCollectionStats(
-                *kvstoreContext, collection.first).highSeqno);
+        auto stats =
+                kvstore.getCollectionStats(*kvstoreContext, collection.first);
+        collection.second.setDiskCount(stats.itemCount);
+        collection.second.resetPersistedHighSeqno(stats.highSeqno);
         collection.second.resetHighSeqno(
                 collection.second.getPersistedHighSeqno());
     }

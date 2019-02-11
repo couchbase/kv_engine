@@ -630,29 +630,6 @@ public:
         return *replicationThrottle;
     }
 
-    /**
-     * Perform actions for erasing keys based on a vbucket's collection's
-     * manifest. This method examines key@bySeqno against the vbucket's (vbid)
-     * collections manifest to determine if the key should be erased. Once the
-     * code has processed all keys of the collection, the manifest is updated
-     * to finalise the deleted collection.
-     *
-     * @param vbid the vbucket the key belongs too.
-     * @param key the key to examine.
-     * @param bySeqno the seqno for the key.
-     * @param deleted is the key marked as deleted.
-     * @param flags the flags of the item
-     * @param eraserContext context for processing keys against
-     * @return true if the collection manifest for the vbucket determines the
-     *         key at bySeqno is part of a deleted collection.
-     */
-    bool collectionsEraseKey(Vbid vbid,
-                             const DocKey key,
-                             int64_t bySeqno,
-                             bool deleted,
-                             uint32_t flags,
-                             Collections::VB::EraserContext& eraserContext);
-
     /// return the buckets maxTtl value
     std::chrono::seconds getMaxTtl() const;
 

@@ -686,7 +686,7 @@ ENGINE_ERROR_CODE PassiveStream::processSystemEvent(
         break;
     }
     case mcbp::systemevent::id::DeleteCollection: {
-        rv = processBeginDeleteCollection(*vb, {event});
+        rv = processDropCollection(*vb, {event});
         break;
     }
     case mcbp::systemevent::id::CreateScope: {
@@ -732,14 +732,14 @@ ENGINE_ERROR_CODE PassiveStream::processCreateCollection(
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE PassiveStream::processBeginDeleteCollection(
+ENGINE_ERROR_CODE PassiveStream::processDropCollection(
         VBucket& vb, const DropCollectionEvent& event) {
     try {
-        vb.replicaBeginDeleteCollection(event.getManifestUid(),
-                                        event.getCollectionID(),
-                                        event.getBySeqno());
+        vb.replicaDropCollection(event.getManifestUid(),
+                                 event.getCollectionID(),
+                                 event.getBySeqno());
     } catch (std::exception& e) {
-        EP_LOG_WARN("PassiveStream::processBeginDeleteCollection exception {}",
+        EP_LOG_WARN("PassiveStream::processDropCollection exception {}",
                     e.what());
         return ENGINE_EINVAL;
     }

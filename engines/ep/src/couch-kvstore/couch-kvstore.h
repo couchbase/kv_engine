@@ -704,12 +704,24 @@ protected:
                                      cb::const_char_buffer data);
 
     /**
+     * Delete a document from the local docs index
+     *
+     * Internally logs errors from couchstore
+     *
+     * @param db The database handle to write to
+     * @param name The name of the document to delete
+     * @return error code success or other (non-success is logged)
+     */
+    couchstore_error_t deleteLocalDoc(Db& db, const std::string& name);
+
+    /**
      * Sync the KVStore::collectionsMeta structures to the database.
      *
      * @param db The database handle to update
      * @return error code success or other (non-success is logged)
      */
-    couchstore_error_t updateCollectionsMeta(Db& db);
+    couchstore_error_t updateCollectionsMeta(
+            Db& db, Collections::VB::Flush& collectionsFlush);
 
     /**
      * Called from updateCollectionsMeta this function maintains the current
@@ -723,21 +735,32 @@ protected:
     /**
      * Called from updateCollectionsMeta this function maintains the set of open
      * collections, adding newly opened collections and removing those which are
-     * dropped.
+     * dropped. To validate the creation of new collections, this method must
+     * read the dropped collections, which it returns via the std::pair this
+     * can then be passed into updateDroppedCollections so it can avoid a
+     * duplicated read of the dropped collections.
      *
      * @param db The database handle to update
-     * @return error code success or other (non-success is logged)
+     * @return a pair of error code and the dropped collections
      */
-    couchstore_error_t updateOpenCollections(Db& db);
+    std::pair<couchstore_error_t,
+              std::vector<Collections::KVStore::DroppedCollection>>
+    updateOpenCollections(Db& db);
 
     /**
      * Called from updateCollectionsMeta this function maintains the set of
      * dropped collections.
      *
      * @param db The database handle to update
+     * @param dropped This method will only read the dropped collections from
+     *        storage if this optional is not initialised
      * @return error code success or other (non-success is logged)
      */
-    couchstore_error_t updateDroppedCollections(Db& db);
+    couchstore_error_t updateDroppedCollections(
+            Db& db,
+            boost::optional<
+                    std::vector<Collections::KVStore::DroppedCollection>>
+                    dropped);
 
     /**
      * Called from updateCollectionsMeta this function maintains the set of

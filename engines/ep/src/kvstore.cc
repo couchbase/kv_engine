@@ -42,18 +42,20 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-ScanContext::ScanContext(std::shared_ptr<StatusCallback<GetValue>> cb,
-                         std::shared_ptr<StatusCallback<CacheLookup>> cl,
-                         Vbid vb,
-                         size_t id,
-                         int64_t start,
-                         int64_t end,
-                         uint64_t purgeSeqno,
-                         DocumentFilter _docFilter,
-                         ValueFilter _valFilter,
-                         uint64_t _documentCount,
-                         const KVStoreConfig& _config,
-                         const Collections::VB::PersistedManifest& manifestData)
+ScanContext::ScanContext(
+        std::shared_ptr<StatusCallback<GetValue>> cb,
+        std::shared_ptr<StatusCallback<CacheLookup>> cl,
+        Vbid vb,
+        size_t id,
+        int64_t start,
+        int64_t end,
+        uint64_t purgeSeqno,
+        DocumentFilter _docFilter,
+        ValueFilter _valFilter,
+        uint64_t _documentCount,
+        const KVStoreConfig& _config,
+        const std::vector<Collections::KVStore::DroppedCollection>&
+                droppedCollections)
     : callback(cb),
       lookup(cl),
       lastReadSeqno(0),
@@ -67,7 +69,7 @@ ScanContext::ScanContext(std::shared_ptr<StatusCallback<GetValue>> cb,
       documentCount(_documentCount),
       logger(globalBucketLogger.get()),
       config(_config),
-      collectionsContext(manifestData) {
+      collectionsContext(droppedCollections) {
 }
 
 void FileStats::reset() {

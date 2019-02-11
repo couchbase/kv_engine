@@ -765,17 +765,17 @@ public:
     }
 
     /**
-     * Delete a collection from this vbucket with a pre-assigned seqno. I.e.
+     * Drop a collection from this vbucket with a pre-assigned seqno. I.e.
      * this VB is a replica.
      *
      * @param uid the uid of the manifest which made the change
-     * @param cid CollectionID to begin deleting
-     * @param bySeqno The seqno assigned to the collection delete event.
+     * @param cid CollectionID to drop
+     * @param bySeqno The seqno assigned to the collection drop event.
      */
-    void replicaBeginDeleteCollection(Collections::ManifestUid uid,
-                                      CollectionID cid,
-                                      int64_t bySeqno) {
-        manifest->wlock().replicaBeginDelete(*this, uid, cid, bySeqno);
+    void replicaDropCollection(Collections::ManifestUid uid,
+                               CollectionID cid,
+                               int64_t bySeqno) {
+        manifest->wlock().replicaDrop(*this, uid, cid, bySeqno);
     }
 
     /**

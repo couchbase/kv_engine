@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "collections/collection_persisted_stats.h"
 #include "collections/collections_types.h"
 #include "collections/manifest.h"
 #include "collections/vbucket_manifest_entry.h"
@@ -52,7 +53,7 @@ namespace VB {
  * callers only need a cb::const_char_buffer for look-ups.
  *
  * The Manifest allows for an external manager to drive the lifetime of each
- * collection - adding, begin/complete of the deletion phase.
+ * collection.
  *
  * This class is intended to be thread-safe when accessed through the read
  * or write handles (providing RAII locking).
@@ -118,14 +119,13 @@ public:
         }
 
         /**
-         * Does the key belong to the specified scope?
+         * Does the manifest know of the scope?
          *
-         * @param key the document key
          * @param scopeID the scopeID
-         * @return true if it belongs to the given scope, false if not
+         * @return true if it the scope is known
          */
-        bool doesKeyBelongToScope(DocKey key, ScopeID scopeID) const {
-            return manifest->doesKeyBelongToScope(key, scopeID);
+        bool isScopeValid(ScopeID scopeID) const {
+            return manifest->isScopeValid(scopeID);
         }
 
         /**
@@ -309,17 +309,7 @@ public:
          *         valid and open collection.
          */
         bool valid() const {
-            if (iteratorValid()) {
-                return itr->second.isOpen();
-            }
-            return false;
-        }
-
-        /**
-         * @return true if the key used is associated with a known collection
-         */
-        bool found() const {
-            return iteratorValid();
+            return itr != manifest->end();
         }
 
         /**
@@ -353,8 +343,9 @@ public:
          * increment the key's collection item count by 1
          */
         void incrementDiskCount() const {
-            // We don't include system events when counting
-            if (key.getCollectionID() == CollectionID::System) {
+            // We may be flushing keys written to a dropped collection so can
+            // have an invalid iterator or the id is not mapped (system)
+            if (!valid()) {
                 return;
             }
             return manifest->incrementDiskCount(itr);
@@ -370,8 +361,9 @@ public:
          * decrement the key's collection item count by 1
          */
         void decrementDiskCount() const {
-            // We don't include system events when counting
-            if (key.getCollectionID() == CollectionID::System) {
+            // We may be flushing keys written to a dropped collection so can
+            // have an invalid iterator or the id is not mapped (system)
+            if (!valid()) {
                 return;
             }
             return manifest->decrementDiskCount(itr);
@@ -402,6 +394,11 @@ public:
          * higher
          */
         void setPersistedHighSeqno(uint64_t value) const {
+            // 1) We may be flushing keys written to a dropped collection so can
+            //    have an invalid iterator
+            if (!valid()) {
+                return;
+            }
             manifest->setPersistedHighSeqno(itr, value);
         }
 
@@ -417,20 +414,6 @@ public:
          */
         void resetPersistedHighSeqno(uint64_t value) const {
             manifest->resetPersistedHighSeqno(itr, value);
-        }
-
-        /**
-         * Function intended for use by the KVBucket collection's eraser code.
-         *
-         * @return if the key@seqno indicates that we've now hit the end of
-         *         a deleted collection and should call completeDeletion, then
-         *         the return value is initialised with the collection which is
-         *         to be deleted. If the key does not indicate the end, the
-         *         return value is an empty char buffer.
-         */
-        boost::optional<CollectionID> shouldCompleteDeletion(
-                int64_t bySeqno) const {
-            return manifest->shouldCompleteDeletion(key, bySeqno, itr);
         }
 
         /**
@@ -469,10 +452,6 @@ public:
         }
 
     protected:
-        bool iteratorValid() const {
-            return itr != manifest->end();
-        }
-
         friend std::ostream& operator<<(
                 std::ostream& os,
                 const Manifest::CachingReadHandle& readHandle);
@@ -487,6 +466,40 @@ public:
          * The key used in construction of this handle.
          */
         DocKey key;
+    };
+
+    /**
+     * RAII read locking for access to the manifest stats
+     */
+    class StatsReadHandle : private ReadHandle {
+    public:
+        StatsReadHandle(const Manifest* m, cb::RWLock& lock, CollectionID cid)
+            : ReadHandle(m, lock), itr(m->getManifestIterator(cid)) {
+        }
+
+        bool valid() const {
+            return itr != manifest->end();
+        }
+
+        PersistedStats getPersistedStats() const {
+            return {itr->second.getDiskCount(),
+                    itr->second.getPersistedHighSeqno()};
+        }
+
+        void dump() {
+            std::cerr << manifest << std::endl;
+        }
+
+    protected:
+        friend std::ostream& operator<<(
+                std::ostream& os,
+                const Manifest::CachingReadHandle& readHandle);
+
+        /**
+         * An iterator for the key's collection, or end() if the key has no
+         * valid collection.
+         */
+        container::const_iterator itr;
     };
 
     /**
@@ -558,20 +571,20 @@ public:
         }
 
         /**
-         * Begin a delete collection for a replica VB, this is for receiving
+         * Drop collection for a replica VB, this is for receiving
          * collection updates via DCP and the collection already has an end
          * seqno assigned.
          *
-         * @param vb The vbucket to begin collection deletion on.
+         * @param vb The vbucket to drop collection from
          * @param manifestUid the uid of the manifest which made the change
-         * @param cid CollectionID to delete
+         * @param cid CollectionID to drop
          * @param endSeqno The end-seqno assigned to the end collection.
          */
-        void replicaBeginDelete(::VBucket& vb,
-                                ManifestUid manifestUid,
-                                CollectionID cid,
-                                int64_t endSeqno) {
-            manifest.beginCollectionDelete(
+        void replicaDrop(::VBucket& vb,
+                         ManifestUid manifestUid,
+                         CollectionID cid,
+                         int64_t endSeqno) {
+            manifest.dropCollection(
                     *this, vb, manifestUid, cid, OptionalSeqno{endSeqno});
         }
 
@@ -626,6 +639,14 @@ public:
          */
         void setHighSeqno(CollectionID collection, uint64_t value) const {
             manifest.setHighSeqno(collection, value);
+        }
+
+        /**
+         * Set if this VB needs collection purging triggered
+         * @todo: this will be moved to the warmup only constructor in patch 4/5
+         */
+        void setDropInProgress(bool value) const {
+            manifest.setDropInProgress(value);
         }
 
         /// @return iterator to the beginning of the underlying collection map
@@ -687,6 +708,14 @@ public:
 
     CachingReadHandle lock(DocKey key, bool allowSystem = false) const {
         return {this, rwlock, key, allowSystem};
+    }
+
+    /**
+     * Read lock and return a StatsHandle - lookup only requires a collection-ID
+     * @return StatsReadHandle object with read lock on the manifest
+     */
+    StatsReadHandle lock(CollectionID cid) const {
+        return {this, rwlock, cid};
     }
 
     // Explictly delete rvalue StoredDocKey usage. A CachingReadHandle wants to
@@ -872,22 +901,22 @@ protected:
                        OptionalSeqno optionalSeqno);
 
     /**
-     * Begin a delete of the collection.
+     * Drop the collection from the manifest
      *
      * @param wHandle The manifest write handle under which this operation is
      *        currently locked. Required to ensure we lock correctly around
      *        VBucket::notifyNewSeqno
-     * @param vb The vbucket to begin collection deletion on.
+     * @param vb The vbucket to drop the collection from
      * @param manifestUid the uid of the manifest which made the change
-     * @param cid CollectionID to begin delete
+     * @param cid CollectionID to drop
      * @param optionalSeqno Either a seqno to assign to the delete of the
      *        collection or none (none means the checkpoint assigns the seqno).
      */
-    void beginCollectionDelete(const WriteHandle& wHandle,
-                               ::VBucket& vb,
-                               ManifestUid manifestUid,
-                               CollectionID cid,
-                               OptionalSeqno optionalSeqno);
+    void dropCollection(const WriteHandle& wHandle,
+                        ::VBucket& vb,
+                        ManifestUid manifestUid,
+                        CollectionID cid,
+                        OptionalSeqno optionalSeqno);
 
     /**
      * Complete the deletion of a collection, that is all data has been
@@ -948,13 +977,12 @@ protected:
     bool doesKeyContainValidCollection(const DocKey& key) const;
 
     /**
-     * Does the key belong to the specified scope?
+     * Does the manifest contain the scope?
      *
-     * @param key the document key
      * @param scopeID the scopeID
-     * @return true if it belongs to the given scope, false if not
+     * @return true if the scope is known
      */
-    bool doesKeyBelongToScope(const DocKey& key, ScopeID scopeID) const;
+    bool isScopeValid(ScopeID scopeID) const;
 
     /**
      * Given a key and it's seqno, the manifest can determine if that key
@@ -1159,6 +1187,12 @@ protected:
     container::const_iterator getManifestEntry(const DocKey& key,
                                                bool allowSystem) const;
 
+    /**
+     * Get a map iterator for the collection. Can return map.end() for unknown
+     * collections
+     */
+    container::const_iterator getManifestIterator(CollectionID id) const;
+
     /// @return the manifest UID that last updated this vb::manifest
     ManifestUid getManifestUid() const {
         return manifestUid;
@@ -1286,16 +1320,15 @@ protected:
                                     cb::const_char_buffer mutatedName) const;
 
     /**
-     * Update greatestEndSeqno if the seqno is larger
-     * @param seqno an endSeqno for a deleted collection
-     */
-    void trackEndSeqno(int64_t seqno);
-
-    /**
      * @return true if a collection drop is in-progress, at least 1 collection
      *         is in the state isDeleting
      */
     bool isDropInProgress() const;
+
+    /// @todo remove this, will be done via constructor in patch 4/5
+    void setDropInProgress(bool value) {
+        dropInProgress = value;
+    }
 
     /**
      * Return a patched PersistedManifest object cloned and mutated from the
@@ -1379,23 +1412,11 @@ protected:
      */
     bool defaultCollectionExists{false};
 
-    /**
-     * A key below this seqno might be logically deleted and should be checked
-     * against the manifest. This member will be set to
-     * StoredValue::state_collection_open when no collections are being deleted
-     * and the greatestEndSeqno has no use (all collections exclusively open)
-     */
-    int64_t greatestEndSeqno{StoredValue::state_collection_open};
-
-    /**
-     * The manifest tracks how many collections are being deleted so we know
-     * when greatestEndSeqno can be set to StoredValue::state_collection_open
-     */
-    cb::NonNegativeCounter<size_t, cb::ThrowExceptionUnderflowPolicy>
-            nDeletingCollections{0};
-
     /// The manifest UID which updated this vb::manifest
     ManifestUid manifestUid{0};
+
+    /// Does this vbucket need collection purging triggering
+    bool dropInProgress{false};
 
     /**
      * shared lock to allow concurrent readers and safe updates

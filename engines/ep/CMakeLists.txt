@@ -191,12 +191,13 @@ SET(CONFIG_SOURCE src/configuration.cc
   ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc)
 
 SET(COLLECTIONS_SOURCE src/collections/collections_types.cc
+                       src/collections/eraser_context.cc
                        src/collections/flush.cc
                        src/collections/manager.cc
                        src/collections/manifest.cc
                        ${CMAKE_CURRENT_BINARY_DIR}/src/collections/vbucket_serialised_manifest_entry_generated.h
                        ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_generated.h
-                       src/collections/eraser_context.cc
+                       src/collections/scan_context.cc
                        src/collections/vbucket_filter.cc
                        src/collections/vbucket_manifest.cc
                        src/collections/vbucket_manifest_entry.cc)

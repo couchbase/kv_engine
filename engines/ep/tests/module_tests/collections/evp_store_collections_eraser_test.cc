@@ -40,17 +40,8 @@ public:
             runCompaction();
         } else {
             EphemeralVBucket* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
-            // Boiler-plate to get a callback so we can call purgeStaleItems
-            Collections::VB::EraserContext eraserContext(evb->getManifest());
-            auto isDroppedCb = std::bind(&KVBucket::collectionsEraseKey,
-                                         store,
-                                         vb->getId(),
-                                         std::placeholders::_1,
-                                         std::placeholders::_2,
-                                         std::placeholders::_3,
-                                         std::placeholders::_4,
-                                         std::ref(eraserContext));
-            evb->purgeStaleItems(isDroppedCb);
+
+            evb->purgeStaleItems();
         }
     }
 
@@ -105,14 +96,12 @@ TEST_P(CollectionsEraserTest, basic) {
 
     flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
 
-    // Deleted, but still exists in the manifest
-    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy));
+    // Deleted
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
 
     runCollectionsEraser();
 
     EXPECT_EQ(0, vb->getNumItems());
-
-    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
 
     // @todo MB-26334: persistent buckets don't track the system event counts
     if (!persistent()) {
@@ -149,9 +138,8 @@ TEST_P(CollectionsEraserTest, basic_2_collections) {
     vb->updateFromManifest(
             {cm.remove(CollectionEntry::dairy).remove(CollectionEntry::fruit)});
 
-    // Deleted, but still exists in the manifest
-    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy));
-    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::fruit));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 
     flush_vbucket_to_disk(vbid, 2 /* 2 x system */);
 
@@ -189,9 +177,8 @@ TEST_P(CollectionsEraserTest, basic_3_collections) {
     // delete one of the 3 collections
     vb->updateFromManifest({cm.remove(CollectionEntry::fruit)});
 
-    // Deleted, but still exists in the manifest
     EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy));
-    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::fruit));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 
     flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
 
@@ -229,10 +216,9 @@ TEST_P(CollectionsEraserTest, basic_4_collections) {
                                     .remove(CollectionEntry::dairy)
                                     .add(CollectionEntry::dairy2)});
 
-    // Deleted, but still exists in the manifest
-    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
     EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy2));
-    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::fruit));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 
     flush_vbucket_to_disk(vbid, 3 /* 3x system (2 deletes, 1 create) */);
 
@@ -316,10 +302,9 @@ TEST_P(CollectionsEraserTest, erase_and_reset) {
                                     .remove(CollectionEntry::dairy)
                                     .add(CollectionEntry::dairy2)});
 
-    // Deleted, but still exists in the manifest
-    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
     EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy2));
-    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::fruit));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 
     flush_vbucket_to_disk(vbid, 3 /* 3x system (2 deletes, 1 create) */);
 
@@ -376,8 +361,7 @@ TEST_P(CollectionsEraserTest, basic_deleted_items) {
 
     flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
 
-    // Deleted, but still exists in the manifest
-    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
 
     runCollectionsEraser();
 
@@ -422,8 +406,7 @@ TEST_P(CollectionsEraserTest, tombstone_cleaner) {
 
     flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
 
-    // Deleted, but still exists in the manifest
-    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
 
     runCollectionsEraser();
 
@@ -490,6 +473,12 @@ TEST_P(CollectionsEraserTest, erase_after_warmup) {
 
     store->cancelCompaction(vbid);
     resetEngineAndWarmup();
+
+    EXPECT_FALSE(store->getVBucket(vbid)
+                         ->getShard()
+                         ->getRWUnderlying()
+                         ->getDroppedCollections(vbid)
+                         .empty());
 
     // Now the eraser should ready to run, warmup will have noticed a dropped
     // collection in the manifest and schedule the eraser

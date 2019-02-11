@@ -767,6 +767,27 @@ std::unique_ptr<PersistenceCallback> EPBucket::flushOneDelOrSet(
     }
 }
 
+void EPBucket::dropKey(Vbid vbid, const DocKey& key, int64_t bySeqno) {
+    auto vb = getVBucket(vbid);
+    if (!vb) {
+        return;
+    }
+
+    auto collectionId = key.getCollectionID();
+    if (collectionId.isSystem()) {
+        throw std::logic_error("EPBucket::dropKey called for a system key");
+    }
+
+    { // collections read lock scope
+        // @todo this lock could be removed - fetchValidValue requires it
+        // in-case of expiry, however dropKey doesn't generate expired values
+        auto cHandle = vb->lockCollections(key);
+
+        // ... drop it from the VB (hashtable)
+        vb->dropKey(key, bySeqno, cHandle);
+    }
+}
+
 void EPBucket::compactInternal(const CompactionConfig& config,
                                uint64_t purgeSeqno) {
     compaction_ctx ctx(config, purgeSeqno);
@@ -777,14 +798,11 @@ void EPBucket::compactInternal(const CompactionConfig& config,
     ExpiredItemsCBPtr expiry(new ExpiredItemsCallback(*this));
     ctx.expiryCallback = expiry;
 
-    ctx.collectionsEraser = std::bind(&KVBucket::collectionsEraseKey,
-                                      this,
-                                      config.db_file_id,
-                                      std::placeholders::_1,
-                                      std::placeholders::_2,
-                                      std::placeholders::_3,
-                                      std::placeholders::_4,
-                                      std::placeholders::_5);
+    ctx.droppedKeyCb = std::bind(&EPBucket::dropKey,
+                                 this,
+                                 config.db_file_id,
+                                 std::placeholders::_1,
+                                 std::placeholders::_2);
 
     KVShard* shard = vbMap.getShardByVbId(config.db_file_id);
     KVStore* store = shard->getRWUnderlying();

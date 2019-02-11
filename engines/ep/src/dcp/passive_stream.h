@@ -159,8 +159,8 @@ protected:
      * @param vb Vbucket which we apply the delete on.
      * @param event The collection system event deleting the collection.
      */
-    ENGINE_ERROR_CODE processBeginDeleteCollection(
-            VBucket& vb, const DropCollectionEvent& event);
+    ENGINE_ERROR_CODE processDropCollection(VBucket& vb,
+                                            const DropCollectionEvent& event);
 
     /**
      * Process a create scope event, creating the collection on vb

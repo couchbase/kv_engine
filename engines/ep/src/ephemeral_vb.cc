@@ -336,9 +336,21 @@ void EphemeralVBucket::queueBackfillItem(
     stats.coreLocal.get()->memOverhead.fetch_add(sizeof(queued_item));
 }
 
-size_t EphemeralVBucket::purgeStaleItems(
-        Collections::IsDroppedEphemeralCb isDroppedCb,
-        std::function<bool()> shouldPauseCbk) {
+bool EphemeralVBucket::isKeyLogicallyDeleted(const DocKey& key,
+                                             int64_t bySeqno) {
+    auto cid = key.getCollectionID();
+    if (cid.isSystem()) {
+        return false;
+    }
+    auto cHandle = lockCollections(key);
+    if (!cHandle.valid() || cHandle.isLogicallyDeleted(bySeqno)) {
+        dropKey(key, bySeqno, cHandle);
+        return true;
+    }
+    return false;
+}
+
+size_t EphemeralVBucket::purgeStaleItems(std::function<bool()> shouldPauseCbk) {
     // Iterate over the sequence list and delete any stale items. But we do
     // not want to delete the last element in the vbucket, hence we pass
     // 'seqList->getHighSeqno() - 1'.
@@ -350,9 +362,15 @@ size_t EphemeralVBucket::purgeStaleItems(
         /* not enough items to purge */
         return 0;
     }
+
+    auto droppedCallback = std::bind(&EphemeralVBucket::isKeyLogicallyDeleted,
+                                     this,
+                                     std::placeholders::_1,
+                                     std::placeholders::_2);
+
     auto seqListPurged = seqList->purgeTombstones(
             static_cast<seqno_t>(seqList->getHighSeqno()) - 1,
-            isDroppedCb,
+            droppedCallback,
             shouldPauseCbk);
 
     // Update stats and return.

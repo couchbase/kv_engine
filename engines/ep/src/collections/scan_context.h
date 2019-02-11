@@ -15,37 +15,49 @@
  *   limitations under the License.
  */
 
+#pragma once
+
 #include "collections/collections_types.h"
 #include "collections/vbucket_manifest.h"
 
-#pragma once
+#include <unordered_set>
 
 struct DocKey;
 
 namespace Collections {
+
+namespace KVStore {
+struct DroppedCollection;
+}
+
 namespace VB {
 
 /**
  * The ScanContext holds data relevant to performing a scan of the disk index
  * e.g. collection erasing may iterate the index and use data with the
- * ScanContext for choosing which keys to erase.
+ * ScanContext for choosing which keys to ignore.
  */
 class ScanContext {
 public:
-    ScanContext(const PersistedManifest& data) : manifest(data) {
-    }
+    ScanContext(const std::vector<Collections::KVStore::DroppedCollection>&
+                        droppedCollections);
 
-    /**
-     * Lock the manifest which is owned by the scan context
-     */
-    Collections::VB::Manifest::CachingReadHandle lockCollections(
-            const ::DocKey& key, bool allowSystem) const {
-        return manifest.lock(key, allowSystem);
+    bool isLogicallyDeleted(const DocKey& key, int64_t seqno) const;
+
+    /// @return if true dropped set is empty
+    bool empty() const {
+        return dropped.empty();
     }
 
 protected:
-    /// The manifest which collection scan can compare keys.
-    Manifest manifest;
+    friend std::ostream& operator<<(std::ostream&, const ScanContext&);
+
+    std::unordered_set<CollectionID> dropped;
+    int64_t startSeqno = 0;
+    int64_t endSeqno = 0;
 };
+
+std::ostream& operator<<(std::ostream& os, const ScanContext& scanContext);
+
 } // namespace VB
 } // namespace Collections

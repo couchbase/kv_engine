@@ -47,13 +47,17 @@ void Collections::VB::Flush::saveDeletes(
 void Collections::VB::Flush::saveCollectionStats(
         std::function<void(CollectionID, PersistedStats)> cb) const {
     for (const auto c : mutated) {
-        uint64_t itemCount, highSeqno;
+        PersistedStats stats;
         {
-            auto lock = manifest.lock();
-            itemCount = lock.getItemCount(c);
-            highSeqno = lock.getPersistedHighSeqno(c);
+            auto lock = manifest.lock(c);
+            if (!lock.valid()) {
+                // Can be flushing for a dropped collection (no longer in the
+                // manifest)
+                continue;
+            }
+            stats = lock.getPersistedStats();
         }
-        cb(c, {itemCount, highSeqno});
+        cb(c, stats);
     }
 }
 
@@ -108,7 +112,7 @@ void Collections::VB::Flush::setPersistedHighSeqno(const DocKey& key,
 
 void Collections::VB::Flush::checkAndTriggerPurge(Vbid vbid,
                                                   KVBucket& bucket) const {
-    if (!deletedCollections.empty()) {
+    if (needsPurge) {
         triggerPurge(vbid, bucket);
     }
 }

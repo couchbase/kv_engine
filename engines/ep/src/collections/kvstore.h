@@ -116,5 +116,8 @@ struct CommitMetaData {
     bool needsCommit{false};
 };
 
+/// callback to inform KV-engine that KVStore dropped key@seqno
+using DroppedCb = std::function<void(const DocKey&, int64_t)>;
+
 } // end namespace KVStore
 } // end namespace Collections

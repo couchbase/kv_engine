@@ -334,17 +334,10 @@ class EraserContext;
 } // namespace VB
 
 /**
- * Callback function types for processing against dropped collections.
- * Ephemeral is different as it can bind the eraser context upfront whilst
- * persistent code path defers the creation of the EraserContext.
+ * Callback function for processing against dropped collections in an ephemeral
+ * vb, returns true if the key at seqno should be dropped
  */
-using IsDroppedEphemeralCb =
-        std::function<bool(const DocKey, int64_t, bool, uint32_t)>;
-using IsDroppedCb = std::function<bool(const DocKey,
-                                       int64_t,
-                                       bool,
-                                       uint32_t,
-                                       Collections::VB::EraserContext&)>;
+using IsDroppedEphemeralCb = std::function<bool(const DocKey&, int64_t)>;
 
 } // end namespace Collections
 

@@ -196,24 +196,17 @@ public:
                     "non-Ephemeral bucket");
         }
 
-        Collections::VB::EraserContext eraserContext(vb.getManifest());
-        auto isDroppedCb = std::bind(&KVBucket::collectionsEraseKey,
-                                     &bucket,
-                                     vb.getId(),
-                                     std::placeholders::_1,
-                                     std::placeholders::_2,
-                                     std::placeholders::_3,
-                                     std::placeholders::_4,
-                                     std::ref(eraserContext));
-
         /// The lambda function passed indicates if the "StaleItemDeleter"
         /// should be paused. It can be called by the module(s) implementing the
         /// purge at the desired granularity
-        numItemsDeleted += vbucket->purgeStaleItems(isDroppedCb, [this]() {
-            shouldContinueVisiting =
-                    progressTracker.shouldContinueVisiting(numVisitedItems++);
-            return !(shouldContinueVisiting);
-        });
+        numItemsDeleted += vbucket->purgeStaleItems(
+
+                [this]() {
+                    shouldContinueVisiting =
+                            progressTracker.shouldContinueVisiting(
+                                    numVisitedItems++);
+                    return !(shouldContinueVisiting);
+                });
         return shouldContinueVisiting;
     }
 
