@@ -5452,8 +5452,8 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
  */
 class AllKeysCallback : public Callback<const DocKey&> {
 public:
-    AllKeysCallback(bool encodeCollectionID)
-        : encodeCollectionID(encodeCollectionID) {
+    AllKeysCallback(bool collectionsSupported)
+        : collectionsSupported(collectionsSupported) {
         buffer.reserve((avgKeySize + sizeof(uint16_t)) * expNumKeys);
     }
 
@@ -5462,11 +5462,16 @@ public:
         if (key.getCollectionID() == CollectionID::System) {
             // Skip system collection keys
             return;
-        } else if (!encodeCollectionID &&
-                   key.getCollectionID().isDefaultCollection()) {
-            // Only default collection key can be sent back if
-            // encodeCollectionID is false
-            outKey = key.makeDocKeyWithoutCollectionID();
+        }
+
+        if (!collectionsSupported) {
+            if (key.getCollectionID().isDefaultCollection()) {
+                outKey = key.makeDocKeyWithoutCollectionID();
+            } else {
+                // Only default collection key can be sent back if
+                // collectionsSupported is false
+                return;
+            }
         }
 
         if (buffer.size() + outKey.size() + sizeof(uint16_t) > buffer.size()) {
@@ -5487,7 +5492,7 @@ public:
 
 private:
     std::vector<char> buffer;
-    bool encodeCollectionID{false};
+    bool collectionsSupported{false};
     static const int avgKeySize = 32;
     static const int expNumKeys = 1000;
 
@@ -5505,7 +5510,7 @@ public:
                      const DocKey start_key_,
                      Vbid vbucket,
                      uint32_t count_,
-                     bool encodeCollectionID)
+                     bool collectionsSupported)
         : GlobalTask(e, TaskId::FetchAllKeysTask, 0, false),
           engine(e),
           cookie(c),
@@ -5514,7 +5519,7 @@ public:
           start_key(start_key_),
           vbid(vbucket),
           count(count_),
-          encodeCollectionID(encodeCollectionID) {
+          collectionsSupported(collectionsSupported) {
     }
 
     std::string getDescription() {
@@ -5546,7 +5551,7 @@ public:
                                0,
                                cookie);
         } else {
-            auto cb = std::make_shared<AllKeysCallback>(encodeCollectionID);
+            auto cb = std::make_shared<AllKeysCallback>(collectionsSupported);
             err = engine->getKVBucket()->getROUnderlying(vbid)->getAllKeys(
                                                     vbid, start_key, count, cb);
             if (err == ENGINE_SUCCESS) {
@@ -5577,7 +5582,7 @@ private:
     StoredDocKey start_key;
     Vbid vbid;
     uint32_t count;
-    bool encodeCollectionID{false};
+    bool collectionsSupported{false};
 };
 
 ENGINE_ERROR_CODE
