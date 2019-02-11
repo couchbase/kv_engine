@@ -3455,10 +3455,18 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
     using cb::mcbp::ClientOpcode;
 
     MockDcpMessageProducers producers(h);
-    dcp_step(h, cookie, producers);
-    checkeq(ClientOpcode::DcpControl, producers.last_op, "Unexpected last_op");
-    checkeq("connection_buffer_size"s, producers.last_key, "Unexpected key");
-    checkne(opaque, producers.last_opaque, "Unexpected opaque");
+
+    auto dcpStepAndExpectControlMsg =
+            [&h, cookie, opaque, &producers](std::string controlKey) {
+                dcp_step(h, cookie, producers);
+                checkeq(cb::mcbp::ClientOpcode::DcpControl,
+                        producers.last_op,
+                        "Unexpected last_op");
+                checkeq(controlKey, producers.last_key, "Unexpected key");
+                checkne(opaque, producers.last_opaque, "Unexpected opaque");
+            };
+
+    dcpStepAndExpectControlMsg("connection_buffer_size"s);
 
     if (get_bool_stat(h, "ep_dcp_enable_noop")) {
         // MB-29441: Check that the GetErrorMap message is sent
@@ -3479,62 +3487,19 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
         dcpHandleResponse(h, cookie, &resp, producers);
 
         // Check that the enable noop message is sent
-        dcp_step(h, cookie, producers);
-        checkeq(ClientOpcode::DcpControl,
-                producers.last_op,
-                "Unexpected last_op");
-        checkeq("enable_noop"s, producers.last_key, "Unexpected key");
-        checkne(opaque, producers.last_opaque, "Unexpected opaque");
+        dcpStepAndExpectControlMsg("enable_noop"s);
 
         // Check that the set noop interval message is sent
-        dcp_step(h, cookie, producers);
-        checkeq(ClientOpcode::DcpControl,
-                producers.last_op,
-                "Unexpected last_op");
-        checkeq("set_noop_interval"s, producers.last_key, "Unexpected key");
-        checkne(opaque, producers.last_opaque, "Unexpected opaque");
+        dcpStepAndExpectControlMsg("set_noop_interval"s);
     }
 
-    dcp_step(h, cookie, producers);
-    checkeq(ClientOpcode::DcpControl, producers.last_op, "Unexpected last_op");
-    checkeq("set_priority"s, producers.last_key, "Unexpected key");
-    checkne(opaque, producers.last_opaque, "Unexpected opaque");
-
-    dcp_step(h, cookie, producers);
-    checkeq(ClientOpcode::DcpControl, producers.last_op, "Unexpected last_op");
-    checkeq("enable_ext_metadata"s, producers.last_key, "Unexpected key");
-    checkne(opaque, producers.last_opaque, "Unexpected opaque");
-
-    dcp_step(h, cookie, producers);
-    checkeq(ClientOpcode::DcpControl, producers.last_op, "Unexpected last_op");
-    checkeq("supports_cursor_dropping_vulcan"s,
-            producers.last_key,
-            "Unexpected key");
-    checkne(opaque, producers.last_opaque, "Unexpected opaque");
-
-    dcp_step(h, cookie, producers);
-    checkeq(ClientOpcode::DcpControl, producers.last_op, "Unexpected last_op");
-    checkeq("supports_hifi_MFU"s, producers.last_key, "Unexpected key");
-    checkne(opaque, producers.last_opaque, "Unexpected opaque");
-
-    dcp_step(h, cookie, producers);
-    checkeq(ClientOpcode::DcpControl, producers.last_op, "Unexpected last_op");
-    checkeq("send_stream_end_on_client_close_stream"s,
-            producers.last_key,
-            "Unexpected key");
-    checkne(opaque, producers.last_opaque, "Unexpected opaque");
-
-    dcp_step(h, cookie, producers);
-    checkeq(ClientOpcode::DcpControl, producers.last_op, "Unexpected last_op");
-    checkeq("enable_expiry_opcode"s, producers.last_key, "Unexpected key");
-    checkne(opaque, producers.last_opaque, "Unexpected opaque");
-
-    dcp_step(h, cookie, producers);
-    checkeq(ClientOpcode::DcpControl, producers.last_op, "Unexpected last_op");
-    checkeq("enable_synchronous_replication"s,
-            producers.last_key,
-            "Unexpected key");
-    checkne(opaque, producers.last_opaque, "Unexpected opaque");
+    dcpStepAndExpectControlMsg("set_priority"s);
+    dcpStepAndExpectControlMsg("enable_ext_metadata"s);
+    dcpStepAndExpectControlMsg("supports_cursor_dropping_vulcan"s);
+    dcpStepAndExpectControlMsg("supports_hifi_MFU"s);
+    dcpStepAndExpectControlMsg("send_stream_end_on_client_close_stream"s);
+    dcpStepAndExpectControlMsg("enable_expiry_opcode"s);
+    dcpStepAndExpectControlMsg("enable_synchronous_replication"s);
 
     auto dcp = requireDcpIface(h);
     checkeq(ENGINE_SUCCESS,
