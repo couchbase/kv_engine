@@ -3444,6 +3444,30 @@ static test_result test_dcp_takeover_no_items(EngineIface* h) {
     return SUCCESS;
 }
 
+/**
+ * The Consumer-Producer negotiation for Sync Replication happens over
+ * DCP_CONTROL and introduces a blocking step, so we have to simulate the
+ * Producer response for letting dcp_step() proceed.
+ * Note that the blocking DCP_CONTROL request is signed at Consumer by
+ * tracking the opaque value sent to the Producer, so we need to set the
+ * proper opaque.
+ *
+ * @param engine The engine interface
+ * @param cookie The cookie representing the DCP Consumer into the engine
+ * @param producers The MockDcpMessageProducers used by the Consumer
+ */
+static void simulateProdRespAtSyncReplNegotiation(
+        EngineIface* engine,
+        const void* cookie,
+        MockDcpMessageProducers& producers) {
+    protocol_binary_response_header resp{};
+    resp.response.setMagic(cb::mcbp::Magic::ClientResponse);
+    resp.response.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
+    resp.response.setStatus(cb::mcbp::Status::Success);
+    resp.response.setOpaque(producers.last_opaque);
+    dcpHandleResponse(engine, cookie, &resp, producers);
+}
+
 static uint32_t add_stream_for_consumer(EngineIface* h,
                                         const void* cookie,
                                         uint32_t opaque,
@@ -3500,6 +3524,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
     dcpStepAndExpectControlMsg("send_stream_end_on_client_close_stream"s);
     dcpStepAndExpectControlMsg("enable_expiry_opcode"s);
     dcpStepAndExpectControlMsg("enable_synchronous_replication"s);
+    simulateProdRespAtSyncReplNegotiation(h, cookie, producers);
 
     auto dcp = requireDcpIface(h);
     checkeq(ENGINE_SUCCESS,
@@ -4114,6 +4139,26 @@ static enum test_result test_rollback_to_zero(EngineIface* h) {
     return SUCCESS;
 }
 
+/**
+ * Call dcp_step() for the given Consumer (identified by cookie) until all
+ * DCP_CONTROL messages have been processed.
+ *
+ * @param engine The engine interface
+ * @param cookie The cookie representing the DCP Consumer into the engine
+ * @param producers The MockDcpMessageProducers used by the Consumer
+ */
+static void drainDcpControl(EngineIface* engine,
+                            const void* cookie,
+                            MockDcpMessageProducers& producers) {
+    do {
+        dcp_step(engine, cookie, producers);
+        // The Sync Repl negotiation introduces a blocking step
+        if (producers.last_key == "enable_synchronous_replication") {
+            simulateProdRespAtSyncReplNegotiation(engine, cookie, producers);
+        }
+    } while (producers.last_op == cb::mcbp::ClientOpcode::DcpControl);
+}
+
 static enum test_result test_chk_manager_rollback(EngineIface* h) {
     if (!isWarmupEnabled(h)) {
         return SKIPPED;
@@ -4162,9 +4207,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
             dcp->open(cookie, opaque, 0, flags, name),
             "Failed dcp Consumer open connection.");
 
-    do {
-        dcp_step(h, cookie, producers);
-    } while (producers.last_op == cb::mcbp::ClientOpcode::DcpControl);
+    drainDcpControl(h, cookie, producers);
 
     checkeq(ENGINE_SUCCESS,
             dcp->add_stream(cookie, ++opaque, vbid, 0),
@@ -4259,9 +4302,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
             dcp->open(cookie, opaque, 0, flags, name),
             "Failed dcp Consumer open connection.");
 
-    do {
-        dcp_step(h, cookie, producers);
-    } while (producers.last_op == cb::mcbp::ClientOpcode::DcpControl);
+    drainDcpControl(h, cookie, producers);
 
     checkeq(ENGINE_SUCCESS,
             dcp->add_stream(cookie, opaque, Vbid(0), 0),
@@ -4379,9 +4420,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h) {
             dcp->open(cookie, opaque, 0, flags, name),
             "Failed dcp Consumer open connection.");
 
-    do {
-        dcp_step(h, cookie, producers);
-    } while (producers.last_op == cb::mcbp::ClientOpcode::DcpControl);
+    drainDcpControl(h, cookie, producers);
 
     checkeq(ENGINE_SUCCESS,
             dcp->add_stream(cookie, opaque, Vbid(0), 0),

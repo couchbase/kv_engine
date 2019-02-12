@@ -1416,19 +1416,20 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     connMap.initialize();
     const void *cookie = create_mock_cookie();
     // Create a new Dcp consumer
-    DcpConsumer* consumer = connMap.newConsumer(cookie, "mb_20716_consumer");
+    auto& consumer = dynamic_cast<MockDcpConsumer&>(
+            *connMap.newConsumer(cookie, "mb_20716_consumer"));
 
     // Move consumer into paused state (aka EWOULDBLOCK).
     MockDcpMessageProducers producers(handle);
     ENGINE_ERROR_CODE result;
     do {
-        result = consumer->step(&producers);
-        handleProducerResponseIfStepBlocked(*consumer, producers);
+        result = consumer.step(&producers);
+        handleProducerResponseIfStepBlocked(consumer, producers);
     } while (result == ENGINE_SUCCESS);
     EXPECT_EQ(ENGINE_EWOULDBLOCK, result);
 
     // Check preconditions.
-    EXPECT_TRUE(consumer->isPaused());
+    EXPECT_TRUE(consumer.isPaused());
 
     // Hook into notify_io_complete.
     // We (ab)use the engine_specific API to pass a pointer to a count of

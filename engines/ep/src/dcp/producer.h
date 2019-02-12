@@ -192,10 +192,6 @@ public:
         return supportsCursorDropping.load();
     }
 
-    bool isSyncReplicationEnabled() const {
-        return supportsSyncReplication.load();
-    }
-
     /**
      * Notifies the front-end synchronously on this thread that this paused
      * connection should be re-considered for work.
@@ -485,9 +481,7 @@ protected:
     Couchbase::RelaxedAtomic<bool> sendStreamEndOnClientStreamClose;
     Couchbase::RelaxedAtomic<bool> supportsHifiMFU;
     Couchbase::RelaxedAtomic<bool> enableExpiryOpcode;
-    /// Does this DCP Producer support synchronous replication via DCP_PREPARE/
-    /// DCP_COMMIT ?
-    Couchbase::RelaxedAtomic<bool> supportsSyncReplication = false;
+
     // SyncReplication: Producer needs to know the Consumer name to identify
     // the source of received SeqnoAck messages.
     std::string consumerName;

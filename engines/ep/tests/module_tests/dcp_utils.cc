@@ -18,13 +18,14 @@
 #include "test_helpers.h"
 
 #include "../mock/mock_dcp.h"
+#include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_stream.h"
 #include "dcp/consumer.h"
 #include "vbucket.h"
 
 #include <gtest/gtest.h>
 
-void handleProducerResponseIfStepBlocked(DcpConsumer& consumer,
+void handleProducerResponseIfStepBlocked(MockDcpConsumer& consumer,
                                          MockDcpMessageProducers& producers) {
     // MB-29441: Added a call to DcpConsumer::handleGetErrorMap() in
     // DcpConsumer::step().
@@ -36,6 +37,25 @@ void handleProducerResponseIfStepBlocked(DcpConsumer& consumer,
         resp.response.setMagic(cb::mcbp::Magic::ClientResponse);
         resp.response.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);
         resp.response.setStatus(cb::mcbp::Status::Success);
+        consumer.handleResponse(&resp);
+    }
+
+    // The Consumer-Producer negotiation for Sync Replication happens over
+    // DCP_CONTROL and introduces a blocking step.
+    // The blocking DCP_CONTROL request is signed at Consumer by tracking the
+    // opaque value sent to the Producer.
+    // We need to simulate the Producer response (with the proper opaque),
+    // the next calls to step() would block forever in
+    // DcpConsumer::enableSynchronousReplication() otherwise.
+    if (producers.last_op == cb::mcbp::ClientOpcode::DcpControl &&
+        producers.last_opaque ==
+                consumer.public_getSyncReplNegotiationOpaque()) {
+        protocol_binary_response_header resp{};
+        resp.response.setMagic(cb::mcbp::Magic::ClientResponse);
+        resp.response.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
+        // @todo: Success
+        resp.response.setStatus(cb::mcbp::Status::Einval);
+        resp.response.setOpaque(producers.last_opaque);
         consumer.handleResponse(&resp);
     }
 }

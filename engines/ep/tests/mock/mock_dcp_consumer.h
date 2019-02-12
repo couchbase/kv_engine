@@ -93,4 +93,12 @@ public:
                                                    vb_high_seqno,
                                                    vb_manifest_uid);
     }
+
+    /**
+     * @return the opaque sent to the Producer as part of the DCP_CONTROL
+     *     request for the Sync Replication negotiation
+     */
+    uint32_t public_getSyncReplNegotiationOpaque() const {
+        return syncReplNegotiation.opaque;
+    }
 };

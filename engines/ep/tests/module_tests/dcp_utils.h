@@ -20,7 +20,7 @@
 #include <memory>
 #include <string>
 
-class DcpConsumer;
+class MockDcpConsumer;
 class MockDcpMessageProducers;
 class MockPassiveStream;
 class MutationConsumerMessage;
@@ -32,8 +32,9 @@ class Vbid;
  * has put the consumer in a state waiting for a response).
  *
  * @param connection The connection
+ * @param producers The DCP message producers
  */
-void handleProducerResponseIfStepBlocked(DcpConsumer& connection,
+void handleProducerResponseIfStepBlocked(MockDcpConsumer& connection,
                                          MockDcpMessageProducers& producers);
 
 /*

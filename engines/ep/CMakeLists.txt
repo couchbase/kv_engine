@@ -328,6 +328,7 @@ if (NOT EP_BYPASS_TESTS)
     # (We end up compiling most of the src/ files of ep-engine for these unit tests,
     # so simpler / quicker just to link them into a single executable).
     ADD_EXECUTABLE(ep-engine_ep_unit_tests
+                   tests/mock/mock_dcp_conn_map.cc
                    tests/mock/mock_dcp_producer.cc
                    tests/mock/mock_ephemeral_vb.cc
                    tests/mock/mock_stream.cc

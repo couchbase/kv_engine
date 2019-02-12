@@ -61,4 +61,16 @@ public:
                            return c->getName() == name;
                        }) != list.end();
     }
+
+protected:
+    /**
+     * @param engine The engine
+     * @param cookie The cookie that identifies the connection
+     * @param connName The name that identifies the connection
+     * @return a shared instance of MockDcpConsumer
+     */
+    std::shared_ptr<DcpConsumer> makeConsumer(
+            EventuallyPersistentEngine& engine,
+            const void* cookie,
+            const std::string& connName) const override;
 };

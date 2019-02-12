@@ -508,7 +508,21 @@ protected:
     bool pendingSendStreamEndOnClientStreamClose;
     bool pendingSupportHifiMFU;
     bool pendingEnableExpiryOpcode;
-    bool pendingEnableSyncReplication;
+
+    // Maintains the state of the Sync Replication negotiation
+    struct SyncReplNegotiation {
+        enum class State : uint8_t {
+            PendingRequest,
+            PendingResponse,
+            Completed
+        } state;
+
+        // Sync Replication is enabled via DCP_CONTROL like many other DCP
+        // features. This opaque is used to identify the "enable sync repl"
+        // response at DcpConsumer::handleResponse.
+        uint32_t opaque{0};
+    } syncReplNegotiation;
+
     // SyncReplication: Producer needs to know the Consumer name to identify
     // the source of received SeqnoAck messages.
     bool pendingSendConsumerName;

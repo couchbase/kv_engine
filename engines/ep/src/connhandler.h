@@ -260,6 +260,10 @@ public:
         // Empty
     }
 
+    bool isSyncReplicationEnabled() const {
+        return supportsSyncReplication.load();
+    }
+
     const std::string &getName() const {
         return name;
     }
@@ -310,6 +314,9 @@ protected:
 
     //! The bucketLogger for this connection
     std::shared_ptr<BucketLogger> logger;
+
+    /// Does this DCP Connection support Synchronous Replication
+    std::atomic<bool> supportsSyncReplication{false};
 
 private:
 

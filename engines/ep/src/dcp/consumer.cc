@@ -183,8 +183,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     pendingSupportHifiMFU =
             (config.getHtEvictionPolicy() == "hifi_mfu");
     pendingEnableExpiryOpcode = true;
-    pendingEnableSyncReplication = true;
-
+    syncReplNegotiation.state = SyncReplNegotiation::State::PendingRequest;
     // If a consumer_name was provided then tell the producer about it.
     pendingSendConsumerName = !consumerName.empty();
 }
@@ -984,8 +983,21 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
 
         streamAccepted(opaque, status, value.data(), value.size());
         return true;
-    } else if (opcode == cb::mcbp::ClientOpcode::DcpBufferAcknowledgement ||
-               opcode == cb::mcbp::ClientOpcode::DcpControl) {
+    } else if (opcode == cb::mcbp::ClientOpcode::DcpBufferAcknowledgement) {
+        return true;
+    } else if (opcode == cb::mcbp::ClientOpcode::DcpControl) {
+        // The Consumer-Producer negotiation for Sync Replication happens over
+        // DCP_CONTROL and introduces a blocking step.
+        // The blocking DCP_CONTROL request is signed at Consumer by tracking
+        // the opaque value sent to the Producer, so here we can identify it and
+        // complete the negotiation.
+        // Note that a pre-6.5 Producer sends EINVAL as it does not recognize
+        // the Sync Replication negotiation-key.
+        if (resp->response.getOpaque() == syncReplNegotiation.opaque) {
+            syncReplNegotiation.state = SyncReplNegotiation::State::Completed;
+            supportsSyncReplication.store(resp->response.getStatus() ==
+                                          cb::mcbp::Status::Success);
+        }
         return true;
     } else if (opcode == cb::mcbp::ClientOpcode::GetErrorMap) {
         auto status = resp->response.getStatus();
@@ -1093,6 +1105,8 @@ void DcpConsumer::addStats(const AddStatFn& add_stat, const void* c) {
             processorNotification.load(),
             add_stat,
             c);
+
+    addStat("synchronous_replication", isSyncReplicationEnabled(), add_stat, c);
 }
 
 void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator) {
@@ -1487,15 +1501,23 @@ ENGINE_ERROR_CODE DcpConsumer::enableExpiryOpcode(
 
 ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
         dcp_message_producers* producers) {
-    if (pendingEnableSyncReplication) {
+    switch (syncReplNegotiation.state) {
+    case SyncReplNegotiation::State::PendingRequest: {
         uint32_t opaque = ++opaqueCounter;
         ENGINE_ERROR_CODE ret = producers->control(
                 opaque, "enable_synchronous_replication", "true");
-        pendingEnableSyncReplication = false;
+        syncReplNegotiation.state = SyncReplNegotiation::State::PendingResponse;
+        syncReplNegotiation.opaque = opaque;
         return ret;
     }
+    case SyncReplNegotiation::State::PendingResponse:
+        // We have to wait for the response before proceeding
+        return ENGINE_EWOULDBLOCK;
+    case SyncReplNegotiation::State::Completed:
+        break;
+    }
 
-    if (pendingSendConsumerName) {
+    if (pendingSendConsumerName && isSyncReplicationEnabled()) {
         uint32_t opaque = ++opaqueCounter;
         NonBucketAllocationGuard guard;
         ENGINE_ERROR_CODE ret = producers->control(
