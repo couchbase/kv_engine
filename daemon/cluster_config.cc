@@ -21,6 +21,13 @@
 #include <cstdlib>
 #include <stdexcept>
 
+void ClusterConfiguration::setConfiguration(cb::const_char_buffer buffer,
+                                            int rev) {
+    std::lock_guard<std::mutex> guard(mutex);
+    revision = rev;
+    config = std::make_shared<std::string>(buffer.begin(), buffer.end());
+}
+
 void ClusterConfiguration::setConfiguration(cb::const_char_buffer buffer) {
     int rev = getRevisionNumber(buffer);
     if (rev == -1) {

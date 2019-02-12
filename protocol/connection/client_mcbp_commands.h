@@ -912,12 +912,16 @@ protected:
 
 class BinprotSetClusterConfigCommand : public BinprotGenericCommand {
 public:
-    BinprotSetClusterConfigCommand(uint64_t token_, const std::string& config_);
+    BinprotSetClusterConfigCommand(uint64_t token_,
+                                   std::string config,
+                                   int revision = -1,
+                                   const std::string& bucket = {});
 
     void encode(std::vector<uint8_t>& buf) const override;
 
 protected:
     const std::string config;
+    int revision;
 };
 
 class BinprotObserveSeqnoCommand : public BinprotGenericCommand {

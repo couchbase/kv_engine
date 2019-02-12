@@ -1474,13 +1474,24 @@ BinprotSetControlTokenCommand::BinprotSetControlTokenCommand(uint64_t token_,
 }
 
 void BinprotSetClusterConfigCommand::encode(std::vector<uint8_t>& buf) const {
-    writeHeader(buf, config.size(), 0);
+    if (revision < 0) {
+        // Use the old-style message
+        writeHeader(buf, config.size(), 0);
+    } else {
+        writeHeader(buf, config.size(), sizeof(revision));
+        append(buf, uint32_t(revision));
+    }
     buf.insert(buf.end(), config.begin(), config.end());
 }
+
 BinprotSetClusterConfigCommand::BinprotSetClusterConfigCommand(
-        uint64_t token_, const std::string& config_)
-    : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetClusterConfig),
-      config(config_) {
+        uint64_t token_,
+        std::string config,
+        int revision,
+        const std::string& bucket)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetClusterConfig, bucket),
+      config(std::move(config)),
+      revision(revision) {
     setCas(htonll(token_));
 }
 

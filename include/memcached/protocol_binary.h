@@ -181,6 +181,25 @@ private:
 };
 static_assert(sizeof(ArithmeticPayload) == 20, "Unexpected struct size");
 
+class SetClusterConfigPayload {
+public:
+    int32_t getRevision() const {
+        return ntohl(revision);
+    }
+
+    void setRevision(int32_t rev) {
+        revision = htonl(rev);
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    int32_t revision{};
+};
+static_assert(sizeof(SetClusterConfigPayload) == 4, "Unexpected struct size");
+
 class VerbosityPayload {
 public:
     uint32_t getLevel() const {

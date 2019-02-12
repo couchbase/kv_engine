@@ -20,27 +20,63 @@
 #include <daemon/cccp_notification_task.h>
 #include <daemon/cookie.h>
 #include <daemon/executorpool.h>
+#include <daemon/mcaudit.h>
 #include <daemon/mcbp.h>
 #include <daemon/memcached.h>
 #include <daemon/session_cas.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/request.h>
+#include <memcached/protocol_binary.h>
+
+static bool check_access_to_global_config(Cookie& cookie) {
+    using cb::rbac::Privilege;
+    using cb::rbac::PrivilegeAccess;
+
+    auto& conn = cookie.getConnection();
+    const auto xerror = conn.isXerrorSupport();
+
+    switch (conn.checkPrivilege(Privilege::SystemSettings, cookie)) {
+    case PrivilegeAccess::Ok:
+        return true;
+
+    case PrivilegeAccess::Fail:
+        LOG_WARNING("{} {}: no access to Global Cluster Config.{}",
+                    conn.getId(),
+                    conn.getDescription(),
+                    xerror ? "" : " XError not enabled, closing connection");
+        audit_command_access_failed(cookie);
+        if (xerror) {
+            cookie.sendResponse(cb::mcbp::Status::Eaccess);
+        } else {
+            conn.setState(StateMachine::State::closing);
+        }
+
+        return false;
+    case PrivilegeAccess::Stale:
+        LOG_WARNING("{}: Stale authentication context.{}",
+                    conn.getId(),
+                    xerror ? "" : " XError not enabled, closing connection");
+        if (xerror) {
+            cookie.sendResponse(cb::mcbp::Status::AuthStale);
+        } else {
+            conn.setState(StateMachine::State::closing);
+        }
+
+        return false;
+    }
+
+    throw std::invalid_argument(
+            "check_access_to_global_config(): Invalid value returned from "
+            "checkPrivilege)");
+}
 
 void get_cluster_config_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto& bucket = connection.getBucket();
-    if (bucket.type == Bucket::Type::NoBucket) {
-        if (connection.isXerrorSupport()) {
-            cookie.setErrorContext("No bucket selected");
-            cookie.sendResponse(cb::mcbp::Status::NoBucket);
-        } else {
-            LOG_WARNING(
-                    "{}: Can't get cluster configuration without "
-                    "selecting a bucket. Disconnecting {}",
-                    connection.getId(),
-                    connection.getDescription());
-            connection.setState(StateMachine::State::closing);
-        }
+
+    if (bucket.type == Bucket::Type::NoBucket &&
+        !check_access_to_global_config(cookie)) {
+        // Error reason already logged (and next state set)
         return;
     }
 
@@ -59,80 +95,135 @@ void get_cluster_config_executor(Cookie& cookie) {
 }
 
 void set_cluster_config_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    auto& bucket = connection.getBucket();
-    if (bucket.type == Bucket::Type::NoBucket) {
-        if (connection.isXerrorSupport()) {
-            cookie.setErrorContext("No bucket selected");
-            cookie.sendResponse(cb::mcbp::Status::NoBucket);
-        } else {
-            LOG_WARNING(
-                    "{}: Can't set cluster configuration without "
-                    "selecting a bucket. Disconnecting {}",
-                    connection.getId(),
-                    connection.getDescription());
-            connection.setState(StateMachine::State::closing);
-        }
-        return;
-    }
-
     // First validate that the provided configuration is a valid payload
     const auto& req = cookie.getRequest(Cookie::PacketContent::Full);
-    auto cas = req.getCas();
+    auto& connection = cookie.getConnection();
 
-    // verify that this is a legal session cas:
-    if (!session_cas.increment_session_counter(cas)) {
-        cookie.sendResponse(cb::mcbp::Status::KeyEexists);
+    int revision;
+    int bucketIndex = -1;
+    auto payload = req.getValue();
+    cb::const_char_buffer clustermap = {
+            reinterpret_cast<const char*>(payload.data()), payload.size()};
+
+    // Is this a new or an old-style message
+    auto extras = req.getExtdata();
+    if (extras.empty()) {
+        // This is an old style command
+        auto& bucket = connection.getBucket();
+        if (bucket.type == Bucket::Type::NoBucket) {
+            if (connection.isXerrorSupport()) {
+                cookie.setErrorContext("No bucket selected");
+                cookie.sendResponse(cb::mcbp::Status::NoBucket);
+            } else {
+                LOG_WARNING(
+                        "{}: Can't set cluster configuration without "
+                        "selecting a bucket. Disconnecting {}",
+                        connection.getId(),
+                        connection.getDescription());
+                connection.setState(StateMachine::State::closing);
+            }
+            return;
+        }
+        bucketIndex = connection.getBucketIndex();
+        revision = ClusterConfiguration::getRevisionNumber(clustermap);
+        if (revision < 0) {
+            cookie.setErrorContext(
+                    "Revision must be specified as a positive number");
+            cookie.sendResponse(cb::mcbp::Status::Einval);
+            return;
+        }
+        auto& b = connection.getBucket();
+        std::lock_guard<std::mutex> guard(b.mutex);
+        b.clients++;
+    } else {
+        // Locate bucket to operate
+        auto key = req.getKey();
+        const auto bucketname = std::string{
+                reinterpret_cast<const char*>(key.data()), key.size()};
+        for (size_t ii = 0; ii < all_buckets.size() && bucketIndex == -1;
+             ++ii) {
+            Bucket& b = all_buckets.at(ii);
+            std::lock_guard<std::mutex> guard(b.mutex);
+            if (b.state == Bucket::State::Ready &&
+                strcmp(b.name, bucketname.c_str()) == 0) {
+                b.clients++;
+                bucketIndex = int(ii);
+            }
+        }
+        const auto& ext = *reinterpret_cast<
+                const cb::mcbp::request::SetClusterConfigPayload*>(
+                extras.data());
+        revision = ext.getRevision();
+    }
+
+    if (bucketIndex == -1) {
+        cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
         return;
     }
 
+    // verify that this is a legal session cas:
+    auto cas = req.getCas();
+    if (!session_cas.increment_session_counter(cas)) {
+        cookie.sendResponse(cb::mcbp::Status::KeyEexists);
+        std::lock_guard<std::mutex> guard(all_buckets[bucketIndex].mutex);
+        all_buckets[bucketIndex].clients--;
+        return;
+    }
+
+    bool failed = false;
     try {
-        auto payload = req.getValue();
-        cb::const_char_buffer conf{
-                reinterpret_cast<const char*>(payload.data()), payload.size()};
-        bucket.clusterConfiguration.setConfiguration(conf);
+        all_buckets[bucketIndex].clusterConfiguration.setConfiguration(
+                clustermap, revision);
+        if (bucketIndex == 0) {
+            LOG_INFO(
+                    "{}: {} Updated global cluster configuration. New "
+                    "revision: {}",
+                    connection.getId(),
+                    connection.getDescription(),
+                    revision);
+        } else {
+            LOG_INFO(
+                    "{}: {} Updated cluster configuration for bucket [{}]. New "
+                    "revision: {}",
+                    connection.getId(),
+                    connection.getDescription(),
+                    all_buckets[bucketIndex].name,
+                    revision);
+        }
         cookie.setCas(cas);
         cookie.sendResponse(cb::mcbp::Status::Success);
-
-        const long revision =
-                bucket.clusterConfiguration.getConfiguration().first;
-
-        LOG_INFO(
-                "{}: {} Updated cluster configuration for bucket [{}]. New "
-                "revision: {}",
-                connection.getId(),
-                connection.getDescription(),
-                bucket.name,
-                revision);
-
-        // Start an executor job to walk through the connections and tell
-        // them to push new clustermaps
-        std::shared_ptr<Task> task;
-        task = std::make_shared<CccpNotificationTask>(
-                connection.getBucketIndex(), revision);
-        std::lock_guard<std::mutex> guard(task->getMutex());
-        executorPool->schedule(task, true);
-    } catch (const std::invalid_argument& e) {
-        LOG_WARNING(
-                "{}: {} Failed to update cluster configuration for bucket "
-                "[{}] - {}",
-                connection.getId(),
-                connection.getDescription(),
-                bucket.name,
-                e.what());
-        cookie.setErrorContext(e.what());
-        cookie.sendResponse(cb::mcbp::Status::Einval);
     } catch (const std::exception& e) {
         LOG_WARNING(
                 "{}: {} Failed to update cluster configuration for bucket "
                 "[{}] - {}",
                 connection.getId(),
                 connection.getDescription(),
-                bucket.name,
+                all_buckets[bucketIndex].name,
                 e.what());
-        cookie.setErrorContext(e.what());
-        cookie.sendResponse(cb::mcbp::Status::Einternal);
+        failed = true;
+    }
+
+    if (!failed) {
+        try {
+            // Start an executor job to walk through the connections and tell
+            // them to push new clustermaps
+            std::shared_ptr<Task> task;
+            task = std::make_shared<CccpNotificationTask>(
+                    connection.getBucketIndex(), revision);
+            std::lock_guard<std::mutex> guard(task->getMutex());
+            executorPool->schedule(task, true);
+        } catch (const std::exception& e) {
+            LOG_WARNING(
+                    "{}: {} Failed to push cluster notifications for bucket "
+                    "[{}] - {}",
+                    connection.getId(),
+                    connection.getDescription(),
+                    all_buckets[bucketIndex].name,
+                    e.what());
+        }
     }
 
     session_cas.decrement_session_counter();
+    std::lock_guard<std::mutex> guard(all_buckets[bucketIndex].mutex);
+    all_buckets[bucketIndex].clients--;
 }

@@ -41,7 +41,8 @@ TEST_P(RegressionTest, MB_26196) {
     BinprotResponse response;
     conn.executeCommand(cmd, response);
     EXPECT_FALSE(response.isSuccess());
-    EXPECT_EQ(cb::mcbp::Status::NoBucket, response.getStatus());
+    // We don't have access to the global config
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
 
     // Disable xerror
     conn.setXerrorSupport(false);

@@ -203,3 +203,27 @@ TEST_P(ClusterConfigTest, CccpPushNotification) {
                              value.size()};
     EXPECT_EQ(R"({"rev":666})", config);
 }
+
+TEST_P(ClusterConfigTest, SetGlobalClusterConfig) {
+    // Set one for the default bucket
+    setClusterConfig(token, R"({"rev":1000})");
+
+    auto& conn = getAdminConnection();
+    // Set the global config
+    auto rsp = conn.execute(BinprotSetClusterConfigCommand{
+            token, R"({"foo" : "bar"})", 100, ""});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataString();
+    conn.reconnect();
+    conn.authenticate("@admin", "password", "PLAIN");
+
+    rsp = conn.execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::GetClusterConfig});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataString();
+    EXPECT_EQ(R"({"foo" : "bar"})", rsp.getDataString());
+
+    conn.selectBucket("default");
+    rsp = conn.execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::GetClusterConfig});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataString();
+    EXPECT_EQ(R"({"rev":1000})", rsp.getDataString());
+}

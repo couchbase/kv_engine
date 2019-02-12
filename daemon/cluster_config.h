@@ -36,6 +36,8 @@ public:
         : config(std::make_shared<std::string>()), revision(-1) {
     }
 
+    void setConfiguration(cb::const_char_buffer buffer, int rev);
+
     void setConfiguration(cb::const_char_buffer buffer);
 
     /**
