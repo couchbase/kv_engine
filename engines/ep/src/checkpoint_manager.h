@@ -429,8 +429,6 @@ protected:
      */
     void addOpenCheckpoint(uint64_t id, uint64_t snapStart, uint64_t snapEnd);
 
-    void removeInvalidCursorsOnCheckpoint(Checkpoint *pCheckpoint);
-
     bool moveCursorToNextCheckpoint(CheckpointCursor &cursor);
 
     /**
