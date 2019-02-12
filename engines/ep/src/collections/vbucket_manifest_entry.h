@@ -39,20 +39,15 @@ namespace VB {
  */
 class ManifestEntry {
 public:
-    ManifestEntry(ScopeID scopeID,
-                  cb::ExpiryLimit maxTtl,
-                  int64_t startSeqno,
-                  int64_t endSeqno)
+    ManifestEntry(ScopeID scopeID, cb::ExpiryLimit maxTtl, int64_t startSeqno)
         : startSeqno(-1),
-          endSeqno(-1),
           scopeID(scopeID),
           maxTtl(maxTtl),
           diskCount(0),
           highSeqno(0),
           persistedHighSeqno(0) {
-        // Setters validate the start/end range is valid
+        // Setters validates the start valid
         setStartSeqno(startSeqno);
-        setEndSeqno(endSeqno);
     }
 
     /**
@@ -73,34 +68,12 @@ public:
     void setStartSeqno(int64_t seqno) {
         // Enforcing that start/end are not the same, they should always be
         // separated because they represent start/end mutations.
-        if (seqno < 0 || seqno <= startSeqno || seqno == endSeqno) {
+        if (seqno < 0 || seqno <= startSeqno) {
             throwException<std::invalid_argument>(
                     __FUNCTION__,
                     "cannot set startSeqno to " + std::to_string(seqno));
         }
         startSeqno = seqno;
-    }
-
-    int64_t getEndSeqno() const {
-        return endSeqno;
-    }
-
-    void setEndSeqno(int64_t seqno) {
-        // Enforcing that start/end are not the same, they should always be
-        // separated because they represent start/end mutations.
-        if (seqno != StoredValue::state_collection_open &&
-            (seqno <= endSeqno || seqno == startSeqno)) {
-            throwException<std::invalid_argument>(
-                    __FUNCTION__,
-                    "cannot set "
-                    "endSeqno to " +
-                            std::to_string(seqno));
-        }
-        endSeqno = seqno;
-    }
-
-    void resetEndSeqno() {
-        endSeqno = StoredValue::state_collection_open;
     }
 
     ScopeID getScopeID() const {
@@ -109,23 +82,6 @@ public:
 
     cb::ExpiryLimit getMaxTtl() const {
         return maxTtl;
-    }
-
-    /**
-     * A collection is open when the start is greater than the end.
-     * An open collection is one that is readable and writable by the data
-     * path.
-     */
-    bool isOpen() const {
-        return startSeqno > endSeqno;
-    }
-
-    /**
-     * A collection is being deleted when the endSeqno is not the special
-     * state_collection_open value.
-     */
-    bool isDeleting() const {
-        return endSeqno != StoredValue::state_collection_open;
     }
 
     /// increment how many items are stored on disk for this collection
@@ -216,14 +172,10 @@ private:
     }
 
     /**
-     * Collection life-time is recorded as the seqno the collection was added
-     * to the seqno of the point we started to delete it.
-     *
-     * If a collection is not being deleted then endSeqno has a value of
-     * StoredValue::state_collection_open to indicate this.
+     * Start-seqno of the collection is recorded, items of the collection below
+     * the start-seqno are logically deleted
      */
     int64_t startSeqno;
-    int64_t endSeqno;
 
     /// The scope the collection belongs to
     ScopeID scopeID;

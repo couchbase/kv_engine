@@ -29,7 +29,6 @@ Collections::VB::ManifestEntry::ManifestEntry(
 Collections::VB::ManifestEntry& Collections::VB::ManifestEntry::operator=(
         const ManifestEntry& other) {
     startSeqno = other.startSeqno;
-    endSeqno = other.endSeqno;
     scopeID = other.scopeID;
     maxTtl = other.maxTtl;
     diskCount = other.diskCount;
@@ -42,8 +41,7 @@ Collections::VB::ManifestEntry& Collections::VB::ManifestEntry::operator=(
 bool Collections::VB::ManifestEntry::operator==(
         const ManifestEntry& other) const {
     if (scopeID == other.scopeID && startSeqno == other.startSeqno &&
-        endSeqno == other.endSeqno && maxTtl == other.maxTtl &&
-        highSeqno == other.highSeqno &&
+        maxTtl == other.maxTtl && highSeqno == other.highSeqno &&
         persistedHighSeqno == other.persistedHighSeqno) {
         return true;
     }
@@ -77,12 +75,6 @@ bool Collections::VB::ManifestEntry::addStats(const std::string& cid,
                          vbid.get(),
                          cid.c_str());
         add_casted_stat(buffer, getStartSeqno(), add_stat, cookie);
-        checked_snprintf(buffer,
-                         bsize,
-                         "vb_%d:collection:%s:entry:end_seqno",
-                         vbid.get(),
-                         cid.c_str());
-        add_casted_stat(buffer, getEndSeqno(), add_stat, cookie);
         checked_snprintf(buffer,
                          bsize,
                          "vb_%d:collection:%s:entry:high_seqno",
@@ -126,7 +118,6 @@ std::ostream& Collections::VB::operator<<(
         const Collections::VB::ManifestEntry& manifestEntry) {
     os << "ManifestEntry: scope:" << manifestEntry.getScopeID()
        << ", startSeqno:" << manifestEntry.getStartSeqno()
-       << ", endSeqno:" << manifestEntry.getEndSeqno()
        << ", highSeqno:" << manifestEntry.getHighSeqno()
        << ", persistedHighSeqno:" << manifestEntry.getPersistedHighSeqno()
        << ", diskCount:" << manifestEntry.getDiskCount();

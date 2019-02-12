@@ -337,7 +337,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             bool mustCheckpointVBState = false;
             auto& pcbs = rwUnderlying->getPersistenceCbList();
 
-            SystemEventFlush sef(vb->getManifest());
+            Collections::VB::Flush collectionFlush(vb->getManifest());
 
             // For Durability, a node must acknowledge the last persisted seqno.
             // Given that:
@@ -353,17 +353,6 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
 
             for (const auto& item : items) {
                 if (!item->shouldPersist()) {
-                    continue;
-                }
-
-                // Pass the Item through the SystemEventFlush which may filter
-                // the item away (return Skip).
-                if (sef.process(item) == ProcessStatus::Skip) {
-                    // The item has no further flushing actions i.e. we've
-                    // absorbed it in the process function.
-                    // Update stats and carry-on
-                    --stats.diskQueueSize;
-                    vb->doStatsForFlushing(*item, item->size());
                     continue;
                 }
 
@@ -468,10 +457,9 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             /* Perform an explicit commit to disk if the commit
              * interval reaches zero and if there is a non-zero number
              * of items to flush.
-             * Or if there is a manifest item
              */
-            if (items_flushed > 0 || sef.needsCommit()) {
-                commit(*rwUnderlying, sef.getCollectionFlush());
+            if (items_flushed > 0) {
+                commit(*rwUnderlying, collectionFlush);
 
                 // Now the commit is complete, vBucket file must exist.
                 if (vb->setBucketCreation(false)) {
@@ -507,7 +495,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             stats.flusher_todo.store(0);
             stats.totalPersistVBState++;
 
-            sef.getCollectionFlush().checkAndTriggerPurge(vb->getId(), *this);
+            collectionFlush.checkAndTriggerPurge(vb->getId(), *this);
         }
 
         rwUnderlying->pendingTasks();

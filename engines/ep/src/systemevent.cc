@@ -93,24 +93,6 @@ cb::const_byte_buffer SystemEventFactory::getKeyExtra(const DocKey& key,
     }
 }
 
-ProcessStatus SystemEventFlush::process(const queued_item& item) {
-    if (item->getOperation() != queue_op::system_event) {
-        return ProcessStatus::Continue;
-    }
-
-    // All system-events we encounter update the manifest
-    collectionsFlush.processManifestChange(item);
-
-    switch (SystemEvent(item->getFlags())) {
-    case SystemEvent::Collection:
-    case SystemEvent::Scope:
-        return ProcessStatus::Continue; // And flushes an item
-    }
-
-    throw std::invalid_argument("SystemEventFlush::process unknown event " +
-                                std::to_string(item->getFlags()));
-}
-
 std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
         uint32_t opaque, const queued_item& item, cb::mcbp::DcpStreamId sid) {
     // Always ensure decompressed as we are about to use the value

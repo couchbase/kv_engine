@@ -185,12 +185,6 @@ public:
 
     void destroyScanContext(ScanContext* ctx) override;
 
-    Collections::VB::PersistedManifest getCollectionsManifest(
-            Vbid vbid) override {
-        // TODO 2018-10-9 need to implement
-        return {};
-    }
-
     std::unique_ptr<KVFileHandle, KVFileHandleDeleter> makeFileHandle(
             Vbid vbid) override {
         return std::unique_ptr<KVFileHandle, KVFileHandleDeleter>{
@@ -218,8 +212,7 @@ public:
         return 0;
     }
 
-    Collections::KVStore::Manifest getCollectionsManifest_new(
-            Vbid vbid) override {
+    Collections::KVStore::Manifest getCollectionsManifest(Vbid vbid) override {
         // TODO: magma has no collections support, return default manifest
         return Collections::KVStore::Manifest{
                 Collections::KVStore::Manifest::Default{}};

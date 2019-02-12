@@ -735,17 +735,6 @@ public:
     }
 
     /**
-     * Notify that the collection has been fully deleted and it's metadata can
-     * now be fully purged.
-     *
-     * @param identifier ID of the collection that has completed deleting
-     * @param eraserContext The context used by the eraser processing
-     */
-    virtual void completeDeletion(
-            CollectionID identifier,
-            Collections::VB::EraserContext& eraserContext) = 0;
-
-    /**
      * Add a collection to this vbucket with a pre-assigned seqno. I.e.
      * this VB is a replica.
      *
@@ -779,15 +768,6 @@ public:
     }
 
     /**
-     * Get the collection manifest
-     *
-     * @return reference to the manifest
-     */
-    Collections::VB::Manifest& getManifest() {
-        return *manifest;
-    }
-
-    /**
      * Add a scope to this vbucket with a pre-assigned seqno. I.e. this VB is a
      * replica.
      *
@@ -815,6 +795,15 @@ public:
                           ScopeID sid,
                           int64_t bySeqno) {
         manifest->wlock().replicaDropScope(*this, uid, sid, bySeqno);
+    }
+
+    /**
+     * Get the collection manifest
+     *
+     * @return reference to the manifest
+     */
+    Collections::VB::Manifest& getManifest() {
+        return *manifest;
     }
 
     /**

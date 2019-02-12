@@ -2349,7 +2349,7 @@ void VBucket::postProcessRollback(const RollbackResult& rollbackResult,
 
 void VBucket::collectionsRolledBack(KVStore& kvstore) {
     manifest = std::make_unique<Collections::VB::Manifest>(
-            kvstore.getCollectionsManifest_new(getId()));
+            kvstore.getCollectionsManifest(getId()));
     auto kvstoreContext = kvstore.makeFileHandle(getId());
     auto wh = manifest->wlock();
     // For each collection in the VB, reload the stats to the point before

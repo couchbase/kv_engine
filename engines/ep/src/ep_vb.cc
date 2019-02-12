@@ -737,14 +737,6 @@ void EPVBucket::dropKey(const DocKey& key,
     }
 }
 
-void EPVBucket::completeDeletion(
-        CollectionID identifier,
-        Collections::VB::EraserContext& eraserContext) {
-    throw std::logic_error(
-            "EPVBucket::completeDeletion: called - this function is to be "
-            "deleted");
-}
-
 /*
  * Queue the item to the checkpoint and return the seqno the item was
  * allocated.

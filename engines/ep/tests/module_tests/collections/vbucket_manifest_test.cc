@@ -41,21 +41,6 @@ public:
         return exists_UNLOCKED(identifier);
     }
 
-    bool isOpen(CollectionID identifier) const {
-        std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
-        expect_true(exists_UNLOCKED(identifier));
-        auto itr = map.find(identifier);
-        return itr->second.isOpen();
-    }
-
-
-    bool isDeleting(CollectionID identifier) const {
-        std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
-        expect_true(exists_UNLOCKED(identifier));
-        auto itr = map.find(identifier);
-        return itr->second.isDeleting();
-    }
-
     size_t size() const {
         std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
         return map.size();
@@ -251,10 +236,6 @@ public:
         return active.exists(identifier) && replica.exists(identifier);
     }
 
-    bool isOpen(CollectionID identifier) {
-        return active.isOpen(identifier) && replica.isOpen(identifier);
-    }
-
     bool checkSize(size_t s) {
         return active.size() == s && replica.size() == s;
     }
@@ -382,7 +363,7 @@ TEST_F(VBucketManifestTest, collectionExists) {
     EXPECT_TRUE(manifest.update(cm));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::vegetable));
 }
 
 TEST_F(VBucketManifestTest, defaultCollectionExists) {
@@ -398,7 +379,7 @@ TEST_F(VBucketManifestTest, add_to_scope) {
             cm.add(CollectionEntry::vegetable, ScopeEntry::shop1)));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"vegetable:cucumber", CollectionEntry::vegetable}));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::vegetable));
 }
 
 TEST_F(VBucketManifestTest, add_delete_different_scopes) {
@@ -406,7 +387,7 @@ TEST_F(VBucketManifestTest, add_delete_different_scopes) {
     EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::dairy)));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::dairy));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::dairy));
 
     // Add dairy to shop1 scope - we don't create scope creation/deletion events
     cm.add(ScopeEntry::shop1);
@@ -414,7 +395,7 @@ TEST_F(VBucketManifestTest, add_delete_different_scopes) {
             cm.add(CollectionEntry::dairy2, ScopeEntry::shop1)));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"dairy:milk", CollectionEntry::dairy2}));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::dairy2));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::dairy2));
 
     // Remove dairy from default scope
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::dairy)));
@@ -425,7 +406,7 @@ TEST_F(VBucketManifestTest, add_delete_different_scopes) {
     // We can still use dairy in shop1 scope
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"dairy:milk", CollectionEntry::dairy2}));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::dairy2));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::dairy2));
 }
 
 TEST_F(VBucketManifestTest, add_delete_same_scopes) {
@@ -433,7 +414,7 @@ TEST_F(VBucketManifestTest, add_delete_same_scopes) {
     EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::dairy)));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::dairy));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::dairy));
 
     // Remove dairy from default scope
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::dairy)));
@@ -448,7 +429,7 @@ TEST_F(VBucketManifestTest, add_delete_same_scopes) {
     EXPECT_TRUE(manifest.update(cm));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::dairy));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::dairy));
 
     // Remove dairy from shop1 scope
     EXPECT_TRUE(manifest.update(
@@ -476,7 +457,7 @@ TEST_F(VBucketManifestTest, add_to_empty_scope) {
             manifest.update(cm.add(CollectionEntry::meat, ScopeEntry::shop1)));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"meat:beef", CollectionEntry::meat}));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::meat));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::meat));
 }
 
 /**
@@ -488,9 +469,9 @@ TEST_F(VBucketManifestTest, drop_scope) {
             cm.add(CollectionEntry::fruit, ScopeEntry::shop1)
                     .add(CollectionEntry::dairy, ScopeEntry::shop1)
                     .add(CollectionEntry::meat, ScopeEntry::shop1)));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::fruit));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::dairy));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::meat));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::fruit));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::dairy));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::meat));
     EXPECT_TRUE(manifest.update(cm.remove(ScopeEntry::shop1)));
     EXPECT_FALSE(manifest.exists(CollectionEntry::fruit));
     EXPECT_FALSE(manifest.exists(CollectionEntry::dairy));
@@ -507,7 +488,7 @@ TEST_F(VBucketManifestTest, drop_scope_then_add) {
                     .add(CollectionEntry::meat, ScopeEntry::shop1)));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"meat:beef", CollectionEntry::meat}));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::meat));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::meat));
 
     // Now remove the meat collection and shop1 scope
     EXPECT_TRUE(
@@ -527,7 +508,7 @@ TEST_F(VBucketManifestTest, drop_scope_then_add) {
                     .add(CollectionEntry::meat, ScopeEntry::shop1)));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"meat:beef", CollectionEntry::meat}));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::meat));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::meat));
 
     // We have only 1 collection
     EXPECT_TRUE(
@@ -542,7 +523,7 @@ TEST_F(VBucketManifestTest, duplicate_cid_different_scope) {
     EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::dairy)));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::dairy));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::dairy));
 
     // Add dairy to shop1 scope
     EXPECT_FALSE(
@@ -551,33 +532,32 @@ TEST_F(VBucketManifestTest, duplicate_cid_different_scope) {
 
 TEST_F(VBucketManifestTest, add_delete_in_one_update) {
     EXPECT_TRUE(manifest.update(cm));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::vegetable));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"vegetable:cucumber", CollectionEntry::vegetable}));
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)
                                         .add(CollectionEntry::vegetable2)));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"vegetable:cucumber", CollectionEntry::vegetable2}));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable2));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::vegetable2));
 }
 
 TEST_F(VBucketManifestTest, updates) {
     EXPECT_TRUE(manifest.checkSize(1));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::defaultC));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::defaultC));
 
     EXPECT_TRUE(manifest.update(cm));
     EXPECT_TRUE(manifest.checkSize(2));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::vegetable));
 
     EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::fruit)));
     EXPECT_TRUE(manifest.checkSize(3));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::fruit));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::fruit));
 
     EXPECT_TRUE(manifest.update(
             cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)));
     EXPECT_TRUE(manifest.checkSize(5));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::meat));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::meat));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::meat));
 }
 
 TEST_F(VBucketManifestTest, updates2) {
@@ -638,7 +618,7 @@ TEST_F(VBucketManifestTest, add_delete_add) {
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::defaultC)));
     auto seqno = manifest.getLastSeqno(); // seqno of the vegetable addition
     EXPECT_TRUE(manifest.checkSize(1));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::vegetable));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
 
@@ -669,7 +649,7 @@ TEST_F(VBucketManifestTest, add_delete_add) {
     auto oldSeqno = seqno;
     auto newSeqno = manifest.getLastSeqno();
     EXPECT_TRUE(manifest.checkSize(1));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable2));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::vegetable2));
     EXPECT_FALSE(manifest.exists(CollectionEntry::vegetable));
 
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
@@ -687,7 +667,7 @@ TEST_F(VBucketManifestTest, add_delete_add) {
 TEST_F(VBucketManifestTest, add_beginDelete_delete) {
     EXPECT_TRUE(manifest.update(cm));
     EXPECT_TRUE(manifest.checkSize(2));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::vegetable));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
 
@@ -706,7 +686,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_delete) {
 TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
     EXPECT_TRUE(manifest.update(cm));
     EXPECT_TRUE(manifest.checkSize(2));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::vegetable));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
 
@@ -720,7 +700,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
     // add vegetable:2
     EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::vegetable2)));
     EXPECT_TRUE(manifest.checkSize(2));
-    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable2));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::vegetable2));
     EXPECT_FALSE(manifest.exists(CollectionEntry::vegetable));
 
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(

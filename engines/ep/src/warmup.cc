@@ -873,7 +873,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
             if (config.isCollectionsEnabled()) {
                 manifest = std::make_unique<Collections::VB::Manifest>(
                         store.getROUnderlyingByShard(shardId)
-                                ->getCollectionsManifest_new(vbid));
+                                ->getCollectionsManifest(vbid));
             } else {
                 manifest = std::make_unique<Collections::VB::Manifest>();
             }

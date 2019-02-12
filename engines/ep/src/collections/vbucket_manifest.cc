@@ -22,7 +22,6 @@
 #include "collections/events_generated.h"
 #include "collections/kvstore.h"
 #include "collections/manifest.h"
-#include "collections/vbucket_serialised_manifest_entry_generated.h"
 #include "ep_time.h"
 #include "item.h"
 #include "statwriter.h"
@@ -242,8 +241,7 @@ void Manifest::addCollection(const WriteHandle& wHandle,
 
 ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
                                                cb::ExpiryLimit maxTtl,
-                                               int64_t startSeqno,
-                                               int64_t endSeqno) {
+                                               int64_t startSeqno) {
     // This method is only for when the map does not have the collection
     auto itr = map.find(identifiers.second);
     if (itr != map.end()) {
@@ -253,16 +251,15 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
                 ", collection:" +
                         identifiers.second.to_string() +
                         ", scope:" + identifiers.first.to_string() +
-                        ", startSeqno:" + std::to_string(startSeqno) +
-                        ", endSeqno:" + std::to_string(endSeqno));
+                        ", startSeqno:" + std::to_string(startSeqno));
     }
 
-    auto inserted = map.emplace(
-            identifiers.second,
-            ManifestEntry(identifiers.first, maxTtl, startSeqno, endSeqno));
+    auto inserted =
+            map.emplace(identifiers.second,
+                        ManifestEntry(identifiers.first, maxTtl, startSeqno));
 
     if (identifiers.second.isDefaultCollection() && inserted.second) {
-        defaultCollectionExists = (*inserted.first).second.isOpen();
+        defaultCollectionExists = true;
     }
 
     return (*inserted.first).second;
@@ -323,8 +320,6 @@ void Manifest::dropCollection(const WriteHandle& wHandle,
         defaultCollectionExists = false;
     }
 
-    itr->second.setEndSeqno(seqno);
-
     map.erase(itr);
 }
 
@@ -337,22 +332,6 @@ const ManifestEntry& Manifest::getManifestEntry(CollectionID identifier) const {
     }
 
     return itr->second;
-}
-
-void Manifest::completeDeletion(::VBucket& vb, CollectionID collectionID) {
-    auto itr = map.find(collectionID);
-
-    EP_LOG_INFO("collections: {} complete delete of collection:{:x}",
-                vb.getId(),
-                collectionID);
-    // Caller should not be calling in if the collection doesn't exist
-    if (itr == map.end()) {
-        throwException<std::logic_error>(
-                __FUNCTION__,
-                "could not find collection:" + collectionID.to_string());
-    }
-
-    map.erase(itr);
 }
 
 void Manifest::addScope(const WriteHandle& wHandle,
@@ -466,10 +445,9 @@ Manifest::ProcessResult Manifest::processManifest(
     ProcessResult rv = ManifestChanges();
 
     for (const auto& entry : map) {
-        // If the entry is open and not found in the new manifest it must be
+        // If the entry is not found in the new manifest it must be
         // deleted.
-        if (entry.second.isOpen() &&
-            manifest.findCollection(entry.first) == manifest.end()) {
+        if (manifest.findCollection(entry.first) == manifest.end()) {
             rv->collectionsToRemove.push_back(entry.first);
         }
     }
@@ -498,12 +476,6 @@ Manifest::ProcessResult Manifest::processManifest(
                         {std::make_pair(scopeItr->first, m.id),
                          manifest.findCollection(m.id)->second,
                          m.maxTtl});
-            } else if (mapItr->second.isDeleting()) {
-                // trying to add a collection which is deleting, not allowed.
-                EP_LOG_WARN("Attempt to add a deleting collection:{}:{:x}",
-                            manifest.findCollection(m.id)->second,
-                            m.id);
-                return {};
             }
         }
     }
@@ -515,13 +487,8 @@ bool Manifest::doesKeyContainValidCollection(const DocKey& key) const {
     if (defaultCollectionExists &&
         key.getCollectionID().isDefaultCollection()) {
         return true;
-    } else {
-        auto itr = map.find(key.getCollectionID());
-        if (itr != map.end()) {
-            return itr->second.isOpen();
-        }
     }
-    return false;
+    return map.count(key.getCollectionID()) > 0;
 }
 
 bool Manifest::isScopeValid(ScopeID scopeID) const {
@@ -566,19 +533,6 @@ bool Manifest::isLogicallyDeleted(const container::const_iterator entry,
     // seqno >= 0 (so temp items etc... are ok) AND the seqno is below the
     // collection start (start is set on creation and moves with flush)
     return seqno >= 0 && seqno <= entry->second.getStartSeqno();
-}
-
-boost::optional<CollectionID> Manifest::shouldCompleteDeletion(
-        const DocKey& key,
-        int64_t bySeqno,
-        const container::const_iterator entry) const {
-    // If this is a SystemEvent key then...
-    if (key.getCollectionID() == CollectionID::System) {
-        if (entry->second.isDeleting()) {
-            return entry->first; // returning CID
-        }
-    }
-    return {};
 }
 
 void Manifest::processExpiryTime(const container::const_iterator entry,
@@ -666,204 +620,6 @@ int64_t Manifest::queueCollectionSystemEvent(
         vb.checkpointManager->createNewCheckpoint();
     }
     return rv;
-}
-
-void Manifest::populateWithSerialisedData(
-        flatbuffers::FlatBufferBuilder& builder,
-        ScopeCollectionPair identifiers,
-        cb::const_char_buffer collectionName) const {
-    const ManifestEntry* finalEntry = nullptr;
-
-    std::vector<flatbuffers::Offset<SerialisedManifestEntry>> entriesVector;
-
-    for (const auto& collectionEntry : map) {
-        // Check if we find the mutated entry in the map (so we know if we're
-        // mutating it)
-        if (collectionEntry.first == identifiers.second) {
-            // If a collection in the map matches the collection being changed
-            // save the iterator so we can use it when creating the final entry
-            finalEntry = &collectionEntry.second;
-        } else {
-            uint32_t maxTtl = 0;
-            if (collectionEntry.second.getMaxTtl()) {
-                maxTtl = collectionEntry.second.getMaxTtl().get().count();
-            }
-            auto newEntry = CreateSerialisedManifestEntry(
-                    builder,
-                    collectionEntry.second.getStartSeqno(),
-                    collectionEntry.second.getEndSeqno(),
-                    collectionEntry.second.getScopeID(),
-                    collectionEntry.first,
-                    collectionEntry.second.getMaxTtl().is_initialized(),
-                    maxTtl);
-            entriesVector.push_back(newEntry);
-        }
-    }
-
-    // Note that patchSerialisedData will change one of these values when the
-    // real seqno is known.
-    int64_t startSeqno = StoredValue::state_collection_open;
-    int64_t endSeqno = StoredValue::state_collection_open;
-    uint32_t maxTtl = 0;
-    bool maxTtlValid = false;
-    if (finalEntry) {
-        startSeqno = finalEntry->getStartSeqno();
-        endSeqno = finalEntry->getEndSeqno();
-        if (finalEntry->getMaxTtl()) {
-            maxTtl = finalEntry->getMaxTtl().get().count();
-            maxTtlValid = true;
-        }
-    }
-
-    auto newEntry = CreateSerialisedManifestEntry(builder,
-                                                  startSeqno,
-                                                  endSeqno,
-                                                  identifiers.first,
-                                                  identifiers.second,
-                                                  maxTtlValid,
-                                                  maxTtl);
-
-    entriesVector.push_back(newEntry);
-    auto entries = builder.CreateVector(entriesVector);
-
-    std::vector<uint32_t> scopeVector;
-    for (auto sid : scopes) {
-        scopeVector.push_back(uint32_t(sid));
-    }
-
-    auto scopeEntries = builder.CreateVector(scopeVector);
-
-    if (collectionName.data()) {
-        auto manifest = CreateSerialisedManifest(
-                builder,
-                getManifestUid(),
-                entries,
-                scopeEntries,
-                builder.CreateString(collectionName.data(),
-                                     collectionName.size()));
-        builder.Finish(manifest);
-    } else {
-        auto manifest = CreateSerialisedManifest(builder,
-                                                 getManifestUid(),
-                                                 entries,
-                                                 scopeEntries,
-                                                 builder.CreateString(""));
-
-        builder.Finish(manifest);
-    }
-}
-
-void Manifest::populateWithSerialisedData(
-        flatbuffers::FlatBufferBuilder& builder,
-        cb::const_char_buffer mutatedName) const {
-    std::vector<flatbuffers::Offset<SerialisedManifestEntry>> entriesVector;
-
-    for (const auto& collectionEntry : map) {
-        auto newEntry = CreateSerialisedManifestEntry(
-                builder,
-                collectionEntry.second.getStartSeqno(),
-                collectionEntry.second.getEndSeqno(),
-                collectionEntry.second.getScopeID(),
-                collectionEntry.first);
-        entriesVector.push_back(newEntry);
-    }
-
-    auto entries = builder.CreateVector(entriesVector);
-
-    std::vector<uint32_t> scopeVector;
-    for (auto sid : scopes) {
-        scopeVector.push_back(sid);
-    }
-
-    auto scopeEntries = builder.CreateVector(scopeVector);
-
-    if (mutatedName.data()) {
-        auto manifest = CreateSerialisedManifest(
-                builder,
-                getManifestUid(),
-                entries,
-                scopeEntries,
-                builder.CreateString(mutatedName.data(), mutatedName.size()));
-        builder.Finish(manifest);
-    } else {
-        auto manifest = CreateSerialisedManifest(builder,
-                                                 getManifestUid(),
-                                                 entries,
-                                                 scopeEntries,
-                                                 builder.CreateString(""));
-
-        builder.Finish(manifest);
-    }
-}
-
-PersistedManifest Manifest::getPersistedManifest(const Item& item) {
-    switch (SystemEvent(item.getFlags())) {
-    case SystemEvent::Collection:
-        // Collection events need the endSeqno updating
-        return patchSerialisedDataForCollectionEvent(item);
-    case SystemEvent::Scope: {
-        return patchSerialisedDataForScopeEvent(item);
-    }
-    default:
-        throw std::invalid_argument(
-                "Manifest::getManifestData: unknown event:" +
-                std::to_string(int(item.getFlags())));
-    }
-}
-
-PersistedManifest Manifest::patchSerialisedDataForCollectionEvent(
-        const Item& item) {
-    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(item.getData());
-    PersistedManifest mutableData(ptr, ptr + item.getNBytes());
-    auto manifest =
-            flatbuffers::GetMutableRoot<SerialisedManifest>(mutableData.data());
-
-    // Get the last entry from entries, that is the entry to patch
-    auto mutatedEntry = manifest->mutable_entries()->GetMutableObject(
-            manifest->entries()->size() - 1);
-
-    bool failed = false;
-    if (item.isDeleted()) {
-        failed = !mutatedEntry->mutate_endSeqno(item.getBySeqno());
-    } else {
-        failed = !mutatedEntry->mutate_startSeqno(item.getBySeqno());
-    }
-
-    if (failed) {
-        throw std::logic_error(
-                "Manifest::patchSerialisedDataForCollectionEvent failed to "
-                "mutate, new seqno: " +
-                std::to_string(item.getBySeqno()) +
-                " isDeleted:" + std::to_string(item.isDeleted()));
-    }
-
-    return mutableData;
-}
-
-PersistedManifest Manifest::patchSerialisedDataForScopeEvent(const Item& item) {
-    if (!item.isDeleted()) {
-        const uint8_t* ptr = reinterpret_cast<const uint8_t*>(item.getData());
-        return {ptr, ptr + item.getNBytes()};
-    }
-
-    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(item.getData());
-    PersistedManifest mutableData(ptr, ptr + item.getNBytes());
-    auto manifest =
-            flatbuffers::GetMutableRoot<SerialisedManifest>(mutableData.data());
-
-    // Dropping a scope sets the last scope to ScopeID::Default. Why?
-    // The flatbuffers scopes Vector contains as the last element, the ID of the
-    // dropped scope.  The PersistedManifest we want to store (and may roll
-    // back to) must not contain the dropped scope. However flatbuffers
-    // scopes Vector cannot be resized, we cannot just pop_back the last
-    // element. To remove the dropped id we are overwriting it with
-    // ScopeID::Default. If a VB::Manifest is ever constructed from this
-    // flatbuffers data it can cope with the double entry of ScopeID::Default
-    // but importantly it can never bring back the dropped scope.
-    manifest->mutable_scopes()->Mutate(manifest->scopes()->size() - 1,
-                                       ScopeID::Default);
-
-    return mutableData;
 }
 
 bool Manifest::isDropInProgress() const {

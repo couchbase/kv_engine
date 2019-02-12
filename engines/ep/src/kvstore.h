@@ -794,14 +794,6 @@ public:
     virtual void destroyScanContext(ScanContext* ctx) = 0;
 
     /**
-     * KVStore must implement this method which should read and return the
-     * collection manifest data as a std::string (data written by
-     * persistCollectionsManifestItem)
-     */
-    virtual Collections::VB::PersistedManifest getCollectionsManifest(
-            Vbid vbid) = 0;
-
-    /**
      * Obtain a KVFileHandle which holds the KVStore implementation's handle
      * and provides RAII management of the resource.
      *
@@ -864,12 +856,10 @@ public:
      * Return data that EPBucket requires for the creation of a
      * Collections::VB::Manifest
      *
-     * @todo rename when conflicting getCollectionsManifest is removed
-     *
      * @param vbid vbucket to get data from
      * @return the persisted manifest data for the given vbid
      */
-    virtual Collections::KVStore::Manifest getCollectionsManifest_new(
+    virtual Collections::KVStore::Manifest getCollectionsManifest(
             Vbid vbid) = 0;
 
     /**

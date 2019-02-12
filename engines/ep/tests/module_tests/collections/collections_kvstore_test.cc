@@ -184,7 +184,7 @@ public:
         kvstore->begin(std::make_unique<TransactionContext>());
         applyEvents(cm);
         kvstore->commit(flush);
-        auto md = kvstore->getCollectionsManifest_new(Vbid(0));
+        auto md = kvstore->getCollectionsManifest(Vbid(0));
         checkUid(md, cm);
         checkCollections(md, cm, expectedCollections, expectedDropped);
         checkScopes(md, cm, expectedScopes);
@@ -201,7 +201,7 @@ protected:
 
 TEST_P(CollectionsKVStoreTest, initial_meta) {
     // Ask the kvstore for the initial meta
-    auto md = kvstore->getCollectionsManifest_new(Vbid(0));
+    auto md = kvstore->getCollectionsManifest(Vbid(0));
 
     // Expect 1 collection and 1 scope
     EXPECT_EQ(1, md.collections.size());

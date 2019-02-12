@@ -21,30 +21,6 @@
 #include "ep_bucket.h"
 #include "item.h"
 
-void Collections::VB::Flush::processManifestChange(const queued_item& item) {
-    // If we already have a manifest item stored see if the incoming item
-    // has a higher seqno. During the flush of the items, we only want to update
-    // the disk metadata once using the highest seqno manifest item.
-    if ((collectionManifestItem &&
-         item->getBySeqno() > collectionManifestItem->getBySeqno()) ||
-        !collectionManifestItem) {
-        // @todo remove all this code, for now stop tracking the item as it no
-        // longer stores a manifest
-    }
-
-    // Save the collection-ID of every collection delete
-    if (item->isDeleted()) {
-        deletedCollections.push_back(getCollectionIDFromKey(item->getKey()));
-    }
-}
-
-void Collections::VB::Flush::saveDeletes(
-        std::function<void(CollectionID)> callback) const {
-    for (const auto c : deletedCollections) {
-        callback(c);
-    }
-}
-
 void Collections::VB::Flush::saveCollectionStats(
         std::function<void(CollectionID, PersistedStats)> cb) const {
     for (const auto c : mutated) {
@@ -60,12 +36,6 @@ void Collections::VB::Flush::saveCollectionStats(
         }
         cb(c, stats);
     }
-}
-
-Collections::VB::PersistedManifest Collections::VB::Flush::getManifestData()
-        const {
-    return Collections::VB::Manifest::getPersistedManifest(
-            *getCollectionsManifestItem());
 }
 
 void Collections::VB::Flush::incrementDiskCount(const DocKey& key) {

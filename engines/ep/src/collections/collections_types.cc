@@ -16,7 +16,6 @@
  */
 
 #include "collections/collections_types.h"
-#include "collections/vbucket_serialised_manifest_entry_generated.h"
 #include "systemevent.h"
 
 #include <mcbp/protocol/unsigned_leb128.h>
@@ -91,27 +90,3 @@ ScopeID getScopeIDFromKey(const DocKey& key, const char* separator) {
 }
 
 } // end namespace Collections
-
-std::ostream& operator<<(std::ostream& os,
-                         const Collections::VB::PersistedManifest& data) {
-    os << "PersistedManifest:";
-    if (data.empty()) {
-        os << "empty";
-    } else {
-        auto manifest =
-                flatbuffers::GetRoot<Collections::VB::SerialisedManifest>(
-                        reinterpret_cast<const uint8_t*>(data.data()));
-
-        auto entries = manifest->entries();
-        os << "uid:" << manifest->uid()
-           << ", entries:" << entries->size() << std::endl;
-
-        for (const auto& entry : *entries) {
-            os << "scope:0x" << std::hex << entry->scopeId() << ", cid:0x"
-               << std::hex << entry->collectionId()
-               << ", startSeqno:" << entry->startSeqno()
-               << ", endSeqno:" << entry->endSeqno() << std::endl;
-        }
-    }
-    return os;
-}

@@ -31,7 +31,6 @@ const int64_t StoredValue::state_pending_seqno = -2;
 const int64_t StoredValue::state_deleted_key = -3;
 const int64_t StoredValue::state_non_existent_key = -4;
 const int64_t StoredValue::state_temp_init = -5;
-const int64_t StoredValue::state_collection_open = -6;
 
 StoredValue::StoredValue(const Item& itm,
                          UniquePtr n,

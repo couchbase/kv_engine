@@ -325,16 +325,6 @@ CollectionID getCollectionIDFromKey(
 ScopeID getScopeIDFromKey(const DocKey& key,
                           const char* separator = Collections::SystemSeparator);
 
-namespace VB {
-/**
- * The PersistedManifest which stores a copy of the VB::Manifest, the actual
- * format of the data is defined by VB::Manifest
- */
-using PersistedManifest = std::vector<uint8_t>;
-
-class EraserContext;
-} // namespace VB
-
 /**
  * Callback function for processing against dropped collections in an ephemeral
  * vb, returns true if the key at seqno should be dropped
@@ -342,6 +332,3 @@ class EraserContext;
 using IsDroppedEphemeralCb = std::function<bool(const DocKey&, int64_t)>;
 
 } // end namespace Collections
-
-std::ostream& operator<<(std::ostream& os,
-                         const Collections::VB::PersistedManifest& data);

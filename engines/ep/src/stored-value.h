@@ -699,17 +699,6 @@ public:
     static const int64_t state_temp_init;
 
     /**
-     * A special value used by collections to help represent a collections
-     * life-time in sequence-numbers (start to end). If a collection has no
-     * end, it's termed open and has an end sequence-number of
-     * StoredValue::state_collection_open. We do not actually assign this
-     * value to StoredValue objects, but it's here in this "number space" of
-     * special sequence numbers to help ensure it's different to the other
-     * special sequence numbers we define.
-     */
-    static const int64_t state_collection_open;
-
-    /**
      * Return the size in byte of this object; both the fixed fields and the
      * variable-length key. Doesn't include value size (allocated externally).
      */

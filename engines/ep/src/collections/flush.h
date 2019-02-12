@@ -45,29 +45,6 @@ public:
         return manifest;
     }
 
-    void processManifestChange(const queued_item& item);
-
-    /**
-     * @return the item which contains data for a persisted metadata update. Can
-     *         be null when there is no metadata update happening.
-     */
-    const Item* getCollectionsManifestItem() const {
-        return collectionManifestItem.get();
-    }
-
-    /**
-     * @return the data to be persisted when a collection event is part of the
-     *         flusher's batch of Items.
-     */
-    PersistedManifest getManifestData() const;
-
-    /**
-     * Run the specified callback against the list of collections which were
-     * deleted (dropped) by the run of the flusher. Currently this is used to
-     * remove the item count data for the collection from disk.
-     */
-    void saveDeletes(std::function<void(CollectionID)> callback) const;
-
     /**
      * Run the specified callback against the set of collections which have
      * changed their item count during the run of the flusher.
@@ -121,18 +98,9 @@ private:
     std::unordered_set<CollectionID> mutated;
 
     /**
-     * A list of collections which have been deleted in the run of the flusher
+     * ref to the 'parent' manifest for this VB::Flusher, this will receive item
+     * count updates
      */
-    std::vector<CollectionID> deletedCollections;
-
-    /**
-     * Shared pointer to an Item which holds collections manifest data that
-     * maybe needed by the flush::commit (the item represents a collection
-     * create/drop/flush)
-     */
-    queued_item collectionManifestItem;
-
-    /// ref to the 'parent' manifest for this VB::Flusher
     Manifest& manifest;
 };
 

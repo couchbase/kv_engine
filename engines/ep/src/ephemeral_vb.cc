@@ -724,14 +724,6 @@ void EphemeralVBucket::dropKey(
     return;
 }
 
-void EphemeralVBucket::completeDeletion(
-        CollectionID identifier,
-        Collections::VB::EraserContext& eraserContext) {
-    (void)eraserContext;
-    // Remove the collection's metadata from the in-memory manifest
-    getManifest().wlock().completeDeletion(*this, identifier);
-}
-
 int64_t EphemeralVBucket::addSystemEventItem(
         Item* i,
         OptionalSeqno seqno,

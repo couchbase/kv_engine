@@ -1872,16 +1872,12 @@ bool CouchKVStore::commit2couchstore(Collections::VB::Flush& collectionsFlush) {
     bool success = true;
 
     size_t pendingCommitCnt = pendingReqsQ.size();
-    if (pendingCommitCnt == 0 &&
-        !collectionsFlush.getCollectionsManifestItem()) {
+    if (pendingCommitCnt == 0) {
         return success;
     }
 
-    // Use the vbucket of the first item or the manifest item
-    auto vbucket2flush =
-            pendingCommitCnt ? pendingReqsQ[0]->getVBucketId()
-                             : collectionsFlush.getCollectionsManifestItem()
-                                       ->getVBucketId();
+    // Use the vbucket of the first item
+    auto vbucket2flush = pendingReqsQ[0]->getVBucketId();
 
     TRACE_EVENT2("CouchKVStore",
                  "commit2couchstore",
@@ -1889,20 +1885,6 @@ bool CouchKVStore::commit2couchstore(Collections::VB::Flush& collectionsFlush) {
                  vbucket2flush.get(),
                  "pendingCommitCnt",
                  pendingCommitCnt);
-
-    // When an item and a manifest are present, vbucket2flush is read from the
-    // item. Check it matches the manifest
-    if (pendingCommitCnt && collectionsFlush.getCollectionsManifestItem() &&
-        vbucket2flush !=
-                collectionsFlush.getCollectionsManifestItem()->getVBucketId()) {
-        throw std::logic_error(
-                "CouchKVStore::commit2couchstore: manifest/item vbucket "
-                "mismatch vbucket2flush:" +
-                std::to_string(vbucket2flush.get()) + " manifest " +
-                collectionsFlush.getCollectionsManifestItem()
-                        ->getVBucketId()
-                        .to_string());
-    }
 
     std::vector<Doc*> docs(pendingCommitCnt);
     std::vector<DocInfo*> docinfos(pendingCommitCnt);
@@ -2063,13 +2045,6 @@ couchstore_error_t CouchKVStore::saveDocs(
             return errCode;
         }
 
-        if (collectionsFlush.getCollectionsManifestItem()) {
-            auto data = collectionsFlush.getManifestData();
-            saveCollectionsManifest(*db, {data.data(), data.size()});
-        }
-
-        auto cs_begin = std::chrono::steady_clock::now();
-
         if (collectionsMeta.needsCommit) {
             errCode = updateCollectionsMeta(*db, collectionsFlush);
             if (errCode) {
@@ -2080,6 +2055,8 @@ couchstore_error_t CouchKVStore::saveDocs(
                         couchkvstore_strerrno(db, errCode));
             }
         }
+
+        auto cs_begin = std::chrono::steady_clock::now();
 
         errCode = couchstore_commit(db);
         st.commitHisto.add(
@@ -2422,57 +2399,6 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db,
     }
 
     return errCode;
-}
-
-couchstore_error_t CouchKVStore::saveCollectionsManifest(
-        Db& db, cb::const_byte_buffer serialisedManifest) {
-    LocalDoc lDoc;
-    lDoc.id.buf = const_cast<char*>(Collections::CouchstoreManifest);
-    lDoc.id.size = Collections::CouchstoreManifestLen;
-
-    lDoc.json.buf = reinterpret_cast<char*>(
-            const_cast<uint8_t*>(serialisedManifest.data()));
-    lDoc.json.size = serialisedManifest.size();
-    lDoc.deleted = 0;
-    couchstore_error_t errCode = couchstore_save_local_document(&db, &lDoc);
-
-    if (errCode != COUCHSTORE_SUCCESS) {
-        logger.warn(
-                "CouchKVStore::saveCollectionsManifest "
-                "couchstore_save_local_document "
-                "error:{} [{}]",
-                couchstore_strerror(errCode),
-                couchkvstore_strerrno(&db, errCode));
-    }
-
-    return errCode;
-}
-
-Collections::VB::PersistedManifest CouchKVStore::readCollectionsManifest(
-        Db& db) {
-    sized_buf id;
-    id.buf = const_cast<char*>(Collections::CouchstoreManifest);
-    id.size = sizeof(Collections::CouchstoreManifest) - 1;
-
-    LocalDocHolder lDoc;
-    auto errCode = couchstore_open_local_document(
-            &db, (void*)id.buf, id.size, lDoc.getLocalDocAddress());
-    if (errCode != COUCHSTORE_SUCCESS) {
-        if (errCode == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
-            logger.debug(
-                    "CouchKVStore::readCollectionsManifest: doc not found");
-        } else {
-            logger.warn(
-                    "CouchKVStore::readCollectionsManifest: "
-                    "couchstore_open_local_document error:{}",
-                    couchstore_strerror(errCode));
-        }
-
-        return {};
-    }
-
-    return {lDoc.getLocalDoc()->json.buf,
-            lDoc.getLocalDoc()->json.buf + lDoc.getLocalDoc()->json.size};
 }
 
 void CouchKVStore::saveCollectionStats(Db& db,
@@ -2980,19 +2906,6 @@ void CouchKVStore::removeCompactFile(const std::string &filename) {
     }
 }
 
-Collections::VB::PersistedManifest CouchKVStore::getCollectionsManifest(
-        Vbid vbid) {
-    DbHolder db(*this);
-
-    // openDB logs error details
-    couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
-    if (errCode != COUCHSTORE_SUCCESS) {
-        return {};
-    }
-
-    return readCollectionsManifest(*db);
-}
-
 std::unique_ptr<KVFileHandle, KVFileHandleDeleter> CouchKVStore::makeFileHandle(
         Vbid vbid) {
     std::unique_ptr<CouchKVFileHandle, KVFileHandleDeleter> db(
@@ -3111,8 +3024,7 @@ static void verifyFlatbuffersData(cb::const_byte_buffer buf,
     throw std::runtime_error(ss.str());
 }
 
-Collections::KVStore::Manifest CouchKVStore::getCollectionsManifest_new(
-        Vbid vbid) {
+Collections::KVStore::Manifest CouchKVStore::getCollectionsManifest(Vbid vbid) {
     DbHolder db(*this);
 
     couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);

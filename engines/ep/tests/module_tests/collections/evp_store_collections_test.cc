@@ -1096,8 +1096,6 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnCreate) {
               store->getVBucket(vbid)->lockCollections().getManifestUid());
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().exists(
             CollectionEntry::meat));
-    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
-            CollectionEntry::meat));
 }
 
 TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnDelete) {

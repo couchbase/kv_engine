@@ -177,7 +177,7 @@ void Filter::addCollection(const nlohmann::json& object,
     auto cid = makeCollectionID(object.get<std::string>());
     {
         auto rh = manifest.lock();
-        if (!rh.isCollectionOpen(cid)) {
+        if (!rh.exists(cid)) {
             // Error time
             throw cb::engine_error(cb::engine_errc::unknown_collection,
                                    "Filter::addCollection unknown collection:" +

@@ -41,7 +41,7 @@ protected:
         return store->getVBucket(vb)
                 ->getShard()
                 ->getRWUnderlying()
-                ->getCollectionsManifest_new(vbid);
+                ->getCollectionsManifest(vbid);
     }
 };
 
