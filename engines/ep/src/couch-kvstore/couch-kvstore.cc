@@ -761,7 +761,6 @@ static int notify_expired_item(DocInfo& info,
             ctx.compactConfig.db_file_id,
             info.rev_seq);
 
-    it.setRevSeqno(info.rev_seq);
     it.setDeleted(DeleteSource::TTL);
     ctx.expiryCallback->callback(it, currtime);
 
@@ -1651,6 +1650,29 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string>& filenames,
     }
 }
 
+/**
+ * Helper function to create an Item from couchstore DocInfo & related types.
+ */
+static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
+                                                 const DocInfo& docinfo,
+                                                 const MetaData& metadata,
+                                                 sized_buf value) {
+    auto item = std::make_unique<Item>(makeDocKey(docinfo.id),
+                                       metadata.getFlags(),
+                                       metadata.getExptime(),
+                                       value.buf,
+                                       value.size,
+                                       metadata.getDataType(),
+                                       metadata.getCas(),
+                                       docinfo.db_seq,
+                                       vbid,
+                                       docinfo.rev_seq);
+    if (docinfo.deleted) {
+        item->setDeleted(metadata.getDeleteSource());
+    }
+    return item;
+}
+
 couchstore_error_t CouchKVStore::fetchDoc(Db* db,
                                           DocInfo* docinfo,
                                           GetValue& docValue,
@@ -1665,30 +1687,16 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
     }
 
     if (metaOnly == GetMetaOnly::Yes) {
-        auto it = std::make_unique<Item>(makeDocKey(docinfo->id),
-                                         metadata->getFlags(),
-                                         metadata->getExptime(),
-                                         nullptr,
-                                         docinfo->size,
-                                         metadata->getDataType(),
-                                         metadata->getCas(),
-                                         docinfo->db_seq,
-                                         vbId);
+        auto it = makeItemFromDocInfo(
+                vbId, *docinfo, *metadata, {nullptr, docinfo->size});
 
-        it->setRevSeqno(docinfo->rev_seq);
-
-        if (docinfo->deleted) {
-            it->setDeleted(metadata->getDeleteSource());
-        }
         docValue = GetValue(std::move(it));
         // update ep-engine IO stats
         ++st.io_bg_fetch_docs_read;
         st.io_bgfetch_doc_bytes += (docinfo->id.size + docinfo->rev_meta.size);
     } else {
         Doc *doc = nullptr;
-        size_t valuelen = 0;
-        void* valuePtr = nullptr;
-        protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
+        sized_buf value = {nullptr, 0};
         errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc,
                                                    DECOMPRESS_DOC_BODIES);
         if (errCode == COUCHSTORE_SUCCESS) {
@@ -1703,38 +1711,22 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
                             + std::to_string(UINT16_MAX));
             }
 
-            valuelen = doc->data.size;
-            valuePtr = doc->data.buf;
+            value = doc->data;
 
             if (metadata->getVersionInitialisedFrom() == MetaData::Version::V0) {
                 // This is a super old version of a couchstore file.
                 // Try to determine if the document is JSON or raw bytes
-                datatype = determine_datatype(doc->data);
-            } else {
-                datatype = metadata->getDataType();
+                metadata->setDataType(determine_datatype(doc->data));
             }
         } else if (errCode == COUCHSTORE_ERROR_DOC_NOT_FOUND && docinfo->deleted) {
-            datatype = metadata->getDataType();
+            // NOT_FOUND is expected for deleted documents, continue.
         } else {
             return errCode;
         }
 
         try {
-            auto it = std::make_unique<Item>(makeDocKey(docinfo->id),
-                                             metadata->getFlags(),
-                                             metadata->getExptime(),
-                                             valuePtr,
-                                             valuelen,
-                                             datatype,
-                                             metadata->getCas(),
-                                             docinfo->db_seq,
-                                             vbId,
-                                             docinfo->rev_seq);
-
-            if (docinfo->deleted) {
-                it->setDeleted(metadata->getDeleteSource());
-             }
-             docValue = GetValue(std::move(it));
+            auto it = makeItemFromDocInfo(vbId, *docinfo, *metadata, value);
+            docValue = GetValue(std::move(it));
         } catch (std::bad_alloc&) {
             couchstore_free_document(doc);
             return COUCHSTORE_ERROR_ALLOC_FAIL;
@@ -1743,7 +1735,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
         // update ep-engine IO stats
         ++st.io_bg_fetch_docs_read;
         st.io_bgfetch_doc_bytes +=
-                (docinfo->id.size + docinfo->rev_meta.size + valuelen);
+                (docinfo->id.size + docinfo->rev_meta.size + value.size);
 
         couchstore_free_document(doc);
     }
@@ -1849,21 +1841,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
         }
     }
 
-    auto it = std::make_unique<Item>(
-            DocKey(makeDocKey(key)),
-            metadata->getFlags(),
-            metadata->getExptime(),
-            value.buf,
-            value.size,
-            metadata->getDataType(),
-            metadata->getCas(),
-            docinfo->db_seq, // return seq number being persisted on disk
-            vbucketId,
-            docinfo->rev_seq);
-
-    if (docinfo->deleted) {
-        it->setDeleted(metadata->getDeleteSource());
-    }
+    auto it = makeItemFromDocInfo(vbucketId, *docinfo, *metadata, value);
 
     bool onlyKeys = (sctx->valFilter == ValueFilter::KEYS_ONLY) ? true : false;
     GetValue rv(std::move(it), ENGINE_SUCCESS, -1, onlyKeys);
