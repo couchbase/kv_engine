@@ -64,7 +64,7 @@ public:
     Configuration config;
     EPVBucket vb;
     CollectionsManifest cm;
-    Collections::VB::Manifest vbm{{}};
+    Collections::VB::Manifest vbm;
 };
 
 /**
@@ -690,12 +690,16 @@ TEST_F(CollectionsVBFilterTest, remove1) {
              0}));
 
     // Process a deletion of fruit
-    EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
-            SystemEvent::Collection,
-            {ScopeEntry::defaultS, CollectionEntry::fruit},
-            {},
-            true /*delete*/,
-            {})));
+    auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            0,
+            CollectionUid::fruit,
+            CollectionName::fruit,
+            {ScopeUid::defaultS, {}, 0, -6},
+            true,
+            {});
+    auto sz = vbf.size();
+    EXPECT_TRUE(vbf.checkAndUpdate(*ev));
+    EXPECT_EQ(sz - 1, vbf.size());
 
     EXPECT_FALSE(vbf.checkAndUpdate(
             {StoredDocKey{"fruit:apple", CollectionEntry::fruit},
@@ -712,15 +716,16 @@ TEST_F(CollectionsVBFilterTest, remove1) {
              0}));
 
     // Process a deletion of meat
-    auto deleteMeat =
-            vbm.createSystemEvent(SystemEvent::Collection,
-                                  {ScopeEntry::defaultS, CollectionEntry::meat},
-                                  {},
-                                  true /*delete*/,
-                                  {});
-    EXPECT_TRUE(vbf.checkAndUpdate(*deleteMeat));
+    ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            0,
+            CollectionUid::meat,
+            CollectionName::meat,
+            {ScopeUid::defaultS, {}, 0, -6},
+            true,
+            {});
+    EXPECT_TRUE(vbf.checkAndUpdate(*ev));
     EXPECT_TRUE(vbf.empty()); // now empty
-    EXPECT_FALSE(vbf.checkAndUpdate(*deleteMeat)); // no more meat for you
+    EXPECT_FALSE(vbf.checkAndUpdate(*ev)); // no more meat for you
 }
 
 /**
@@ -746,13 +751,16 @@ TEST_F(CollectionsVBFilterTest, remove2) {
              0,
              nullptr,
              0}));
+
     // Process a deletion of $default
-    EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
-            SystemEvent::Collection,
-            {ScopeEntry::defaultS, CollectionEntry::defaultC},
-            {},
-            true /*delete*/,
-            {})));
+    auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            0,
+            CollectionUid::defaultC,
+            CollectionName::defaultC,
+            {ScopeUid::defaultS, {}, 0, -6},
+            true,
+            {});
+    EXPECT_TRUE(vbf.checkAndUpdate(*ev));
     EXPECT_FALSE(vbf.checkAndUpdate(
             {StoredDocKey{"anykey", CollectionEntry::defaultC},
              0,
@@ -766,14 +774,16 @@ TEST_F(CollectionsVBFilterTest, remove2) {
              0,
              nullptr,
              0}));
+
     // Process a deletion of meat
-    auto deleteMeat =
-            vbm.createSystemEvent(SystemEvent::Collection,
-                                  {ScopeEntry::defaultS, CollectionEntry::meat},
-                                  {},
-                                  true /*delete*/,
-                                  {});
-    EXPECT_TRUE(vbf.checkAndUpdate(*deleteMeat));
+    ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            0,
+            CollectionUid::meat,
+            CollectionName::meat,
+            {ScopeUid::defaultS, {}, 0, -6},
+            true,
+            {});
+    EXPECT_TRUE(vbf.checkAndUpdate(*ev));
     EXPECT_FALSE(vbf.checkAndUpdate(
             {StoredDocKey{"meat:apple", CollectionEntry::meat},
              0,
@@ -781,7 +791,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
              nullptr,
              0}));
     EXPECT_TRUE(vbf.empty()); // now empty
-    EXPECT_FALSE(vbf.checkAndUpdate(*deleteMeat)); // no more meat for you
+    EXPECT_FALSE(vbf.checkAndUpdate(*ev)); // no more meat for you
     EXPECT_FALSE(vbf.checkAndUpdate(
             {StoredDocKey{"meat:steak", CollectionEntry::meat},
              0,
@@ -838,28 +848,34 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
     Collections::VB::Filter vbf(json, vbm);
 
     // meat system event is allowed by the meat filter
-    EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
-            SystemEvent::Collection,
-            {ScopeEntry::defaultS, CollectionEntry::meat},
-            {},
+    auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            0,
+            CollectionUid::meat,
+            CollectionName::meat,
+            {ScopeUid::defaultS, {}, 0, -6},
             false,
-            {})));
+            {});
+    EXPECT_TRUE(vbf.checkAndUpdate(*ev));
 
     // $default system event is allowed by the filter
-    EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
-            SystemEvent::Collection,
-            {ScopeEntry::defaultS, CollectionEntry::defaultC},
-            {},
+    ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            0,
+            CollectionUid::defaultC,
+            CollectionName::defaultC,
+            {ScopeUid::defaultS, {}, 0, -6},
             false,
-            {})));
+            {});
+    EXPECT_TRUE(vbf.checkAndUpdate(*ev));
 
     // dairy system event is not allowed by the filter
-    EXPECT_FALSE(vbf.checkAndUpdate(*vbm.createSystemEvent(
-            SystemEvent::Collection,
-            {ScopeEntry::defaultS, CollectionEntry::dairy},
-            {},
+    ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            0,
+            CollectionUid::dairy,
+            CollectionName::dairy,
+            {ScopeUid::defaultS, {}, 0, -6},
             false,
-            {})));
+            {});
+    EXPECT_FALSE(vbf.checkAndUpdate(*ev));
 }
 
 /**
@@ -879,29 +895,35 @@ TEST_F(CollectionsVBFilterTest, system_events2_default_scope) {
 
     Collections::VB::Filter vbf(json, vbm);
 
-    // default (default) system events are not allowed
-    EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
-            SystemEvent::Collection,
-            {ScopeEntry::defaultS, CollectionEntry::defaultC},
-            {},
+    // default (default) system events are allowed
+    auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            0,
+            CollectionUid::defaultC,
+            CollectionName::defaultC,
+            {ScopeUid::defaultS, {}, 0, -6},
             false,
-            {})));
+            {});
+    EXPECT_TRUE(vbf.checkAndUpdate(*ev));
 
-    // dairy (default) system events are not allowed
-    EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
-            SystemEvent::Collection,
-            {ScopeEntry::defaultS, CollectionEntry::dairy},
-            {},
+    // dairy (default) system events are allowed
+    ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            0,
+            CollectionUid::dairy,
+            CollectionName::dairy,
+            {ScopeUid::defaultS, {}, 0, -6},
             false,
-            {})));
+            {});
+    EXPECT_TRUE(vbf.checkAndUpdate(*ev));
 
-    // meat (shop1) system events are allowed
-    EXPECT_FALSE(vbf.checkAndUpdate(
-            *vbm.createSystemEvent(SystemEvent::Collection,
-                                   {ScopeEntry::shop1, CollectionEntry::meat},
-                                   {},
-                                   false,
-                                   {})));
+    // meat (shop1) system events are not allowed
+    ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            0,
+            CollectionUid::meat,
+            CollectionName::meat,
+            {ScopeUid::shop1, {}, 0, -6},
+            false,
+            {});
+    EXPECT_FALSE(vbf.checkAndUpdate(*ev));
 }
 
 /**
@@ -922,28 +944,34 @@ TEST_F(CollectionsVBFilterTest, system_events2_non_default_scope) {
     Collections::VB::Filter vbf(json, vbm);
 
     // meat (shop1) system events are allowed
-    EXPECT_TRUE(vbf.checkAndUpdate(
-            *vbm.createSystemEvent(SystemEvent::Collection,
-                                   {ScopeEntry::shop1, CollectionEntry::meat},
-                                   {},
-                                   false,
-                                   {})));
+    auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            0,
+            CollectionUid::meat,
+            CollectionName::meat,
+            {ScopeUid::shop1, {}, 0, -6},
+            false,
+            {});
+    EXPECT_TRUE(vbf.checkAndUpdate(*ev));
 
     // default (default) system events are not allowed
-    EXPECT_FALSE(vbf.checkAndUpdate(*vbm.createSystemEvent(
-            SystemEvent::Collection,
-            {ScopeEntry::defaultS, CollectionEntry::defaultC},
-            {},
+    ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            0,
+            CollectionUid::defaultC,
+            CollectionName::defaultC,
+            {ScopeUid::defaultS, {}, 0, -6},
             false,
-            {})));
+            {});
+    EXPECT_FALSE(vbf.checkAndUpdate(*ev));
 
     // dairy (default) system events are not allowed
-    EXPECT_FALSE(vbf.checkAndUpdate(*vbm.createSystemEvent(
-            SystemEvent::Collection,
-            {ScopeEntry::defaultS, CollectionEntry::dairy},
-            {},
+    ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            0,
+            CollectionUid::dairy,
+            CollectionName::dairy,
+            {ScopeUid::defaultS, {}, 0, -6},
             false,
-            {})));
+            {});
+    EXPECT_FALSE(vbf.checkAndUpdate(*ev));
 }
 
 /**
@@ -989,25 +1017,21 @@ TEST_F(CollectionsVBFilterTest, add_collection_to_scope_filter) {
     // Only have meat in this filter
     ASSERT_EQ(vbf.size(), 1);
 
-    // Add dairy to the manifest
-    cm.add(CollectionEntry::dairy, ScopeEntry::shop1);
-    m = Collections::Manifest(cm);
-    vbm.wlock().update(vb, m);
-
     // Shop1 system events are allowed
-    ASSERT_TRUE(vbf.checkAndUpdate(
-            *vbm.createSystemEvent(SystemEvent::Collection,
-                                   {ScopeEntry::shop1, CollectionEntry::dairy},
-                                   {},
-                                   false,
-                                   {})));
+    auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            0,
+            CollectionUid::dairy,
+            CollectionName::dairy,
+            {ScopeUid::shop1, {}, 0, -6},
+            false,
+            {});
+    ASSERT_TRUE(vbf.checkAndUpdate(*ev));
 
     EXPECT_EQ(vbf.size(), 2);
 }
 
 /**
- * Test that a collection is removed from a scope filter by creating the correct
- * system events.
+ * Test that collections owned by a scope are removed from a scope filter
  */
 TEST_F(CollectionsVBFilterTest, remove_collection_from_scope_filter) {
     // Initially shop1 has the meat and dairy collections
@@ -1017,6 +1041,7 @@ TEST_F(CollectionsVBFilterTest, remove_collection_from_scope_filter) {
     Collections::Manifest m(cm);
     vbm.wlock().update(vb, m);
 
+    // scope 8 is shop1
     std::string jsonFilter = R"({"scope":"8"})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
     Collections::VB::Filter vbf(json, vbm);
@@ -1024,34 +1049,27 @@ TEST_F(CollectionsVBFilterTest, remove_collection_from_scope_filter) {
     // 2 collections in this filter
     ASSERT_EQ(vbf.size(), 2);
 
-    // Remove dairy from the manifest
-    cm.remove(CollectionEntry::dairy, ScopeEntry::shop1);
-    m = Collections::Manifest(cm);
-    vbm.wlock().update(vb, m);
-
-    // Shop1 system events are allowed
-    ASSERT_TRUE(vbf.checkAndUpdate(
-            *vbm.createSystemEvent(SystemEvent::Collection,
-                                   {ScopeEntry::shop1, CollectionEntry::dairy},
-                                   {},
-                                   true, /* delete */
-                                   {})));
-
+    // Create an event which represents a drop of dairy/shop1
+    auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            0,
+            CollectionUid::dairy,
+            CollectionName::dairy,
+            {ScopeUid::shop1, {}, 0, -6},
+            true,
+            {});
+    ASSERT_TRUE(vbf.checkAndUpdate(*ev));
     ASSERT_EQ(vbf.size(), 1);
 
-    // Remove meat from the manifest
-    cm.remove(CollectionEntry::meat, ScopeEntry::shop1);
-    m = Collections::Manifest(cm);
-    vbm.wlock().update(vb, m);
+    // Create an event which represents a drop of meat/shop1
+    ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            0,
+            CollectionUid::meat,
+            CollectionName::meat,
+            {ScopeUid::shop1, {}, 0, -6},
+            true,
+            {});
 
-    // Shop1 system events are allowed
-    ASSERT_TRUE(vbf.checkAndUpdate(
-            *vbm.createSystemEvent(SystemEvent::Collection,
-                                   {ScopeEntry::shop1, CollectionEntry::meat},
-                                   {},
-                                   true, /* delete */
-                                   {})));
-
+    ASSERT_TRUE(vbf.checkAndUpdate(*ev));
     EXPECT_EQ(vbf.size(), 0);
 }
 
@@ -1078,12 +1096,14 @@ TEST_F(CollectionsVBFilterTest, empty_scope_filter) {
     vbm.wlock().update(vb, m);
 
     // Meat system events are allowed
-    ASSERT_TRUE(vbf.checkAndUpdate(
-            *vbm.createSystemEvent(SystemEvent::Collection,
-                                   {ScopeEntry::shop1, CollectionEntry::meat},
-                                   {},
-                                   false, /* create */
-                                   {})));
+    auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            0,
+            CollectionUid::meat,
+            CollectionName::meat,
+            {ScopeUid::shop1, {}, 0, -6},
+            false,
+            {});
+    ASSERT_TRUE(vbf.checkAndUpdate(*ev));
 
     EXPECT_EQ(vbf.size(), 1);
 }

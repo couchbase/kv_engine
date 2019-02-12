@@ -19,6 +19,8 @@
 
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
+#include "collections/events_generated.h"
+#include "collections/kvstore.h"
 #include "collections/manifest.h"
 #include "collections/vbucket_serialised_manifest_entry_generated.h"
 #include "ep_time.h"
@@ -36,65 +38,17 @@ Manifest::Manifest()
     addNewCollectionEntry({ScopeID::Default, CollectionID::Default}, {});
 }
 
-Manifest::Manifest(const PersistedManifest& data)
-    : defaultCollectionExists(false) {
-    if (data.empty()) {
-        // Empty manifest, initialise the manifest with the default collection
-        addNewCollectionEntry({ScopeID::Default, CollectionID::Default},
-                              {/*no max_ttl*/},
-                              0,
-                              StoredValue::state_collection_open);
-        defaultCollectionExists = true;
-
-        // The default scope always exists
-        scopes.push_back(ScopeID::Default);
-        return;
+Manifest::Manifest(const KVStore::Manifest& data)
+    : defaultCollectionExists(false),
+      manifestUid(data.manifestUid),
+      dropInProgress(data.droppedCollectionsExist) {
+    for (const auto sid : data.scopes) {
+        scopes.insert(sid);
     }
 
-    {
-        flatbuffers::Verifier v(data.data(), data.size());
-        if (!VerifySerialisedManifestBuffer(v)) {
-            throwException<std::invalid_argument>(
-                    __FUNCTION__, "FlatBuffer validation failed.");
-        }
-    }
-
-    auto manifest = flatbuffers::GetRoot<SerialisedManifest>(
-            reinterpret_cast<const uint8_t*>(data.data()));
-
-    manifestUid = manifest->uid();
-
-    // Loading the scopes from PersistedManifest may encounter the Default scope
-    // twice, see comments in patchSerialisedDataForScopeEvent.
-    // We want to add it once.
-    bool addedDefault = false;
-    for (const auto& sid : *manifest->scopes()) {
-        if (sid == ScopeID::Default) {
-            if (addedDefault) {
-                continue;
-            } else {
-                addedDefault = true;
-            }
-        }
-        scopes.push_back(sid);
-    }
-
-    for (const auto& entry : *manifest->entries()) {
-        cb::ExpiryLimit maxTtl;
-        if (entry->ttlValid()) {
-            maxTtl = std::chrono::seconds(entry->maxTtl());
-        }
-
-        // Skip out deleted collections - this constructor will soon be removed
-        // and this skipping will no longer be needed.
-        if (entry->startSeqno() < entry->endSeqno()) {
-            continue;
-        }
-
-        addNewCollectionEntry({entry->scopeId(), entry->collectionId()},
-                              maxTtl,
-                              entry->startSeqno(),
-                              entry->endSeqno());
+    for (const auto& e : data.collections) {
+        const auto& meta = e.metaData;
+        addNewCollectionEntry({meta.sid, meta.cid}, meta.maxTtl, e.startSeqno);
     }
 }
 
@@ -256,13 +210,13 @@ void Manifest::addCollection(const WriteHandle& wHandle,
 
     // 2. Queue a system event, this will take a copy of the manifest ready
     //    for persistence into the vb state file.
-    auto seqno = queueSystemEvent(wHandle,
-                                  vb,
-                                  SystemEvent::Collection,
-                                  identifiers,
-                                  collectionName,
-                                  false /*deleted*/,
-                                  optionalSeqno);
+    auto seqno = queueCollectionSystemEvent(wHandle,
+                                            vb,
+                                            identifiers.second,
+                                            collectionName,
+                                            entry,
+                                            false,
+                                            optionalSeqno);
 
     EP_LOG_INFO(
             "collections: {} adding collection:[name:{},id:{:x}] to "
@@ -345,13 +299,13 @@ void Manifest::dropCollection(const WriteHandle& wHandle,
     // record the uid of the manifest which removed the collection
     this->manifestUid = manifestUid;
 
-    auto seqno = queueSystemEvent(wHandle,
-                                  vb,
-                                  SystemEvent::Collection,
-                                  {itr->second.getScopeID(), cid},
-                                  {/* no name*/},
-                                  true /*deleted*/,
-                                  optionalSeqno);
+    auto seqno = queueCollectionSystemEvent(wHandle,
+                                            vb,
+                                            cid,
+                                            {/*no name*/},
+                                            itr->second,
+                                            true /*delete*/,
+                                            optionalSeqno);
 
     EP_LOG_INFO(
             "collections: {} drop of collection:{:x} from scope:{:x}"
@@ -374,7 +328,7 @@ void Manifest::dropCollection(const WriteHandle& wHandle,
     map.erase(itr);
 }
 
-ManifestEntry& Manifest::getManifestEntry(CollectionID identifier) {
+const ManifestEntry& Manifest::getManifestEntry(CollectionID identifier) const {
     auto itr = map.find(identifier);
     if (itr == map.end()) {
         throwException<std::logic_error>(
@@ -412,13 +366,18 @@ void Manifest::addScope(const WriteHandle& wHandle,
                 __FUNCTION__, "scope already exists, scope:" + sid.to_string());
     }
 
-    scopes.push_back(sid);
+    scopes.insert(sid);
 
     // record the uid of the manifest which added the scope
     this->manifestUid = manifestUid;
 
     flatbuffers::FlatBufferBuilder builder;
-    populateWithSerialisedData(builder, scopeName);
+    auto scope = CreateScope(
+            builder,
+            getManifestUid(),
+            sid,
+            builder.CreateString(scopeName.data(), scopeName.size()));
+    builder.Finish(scope);
 
     auto item = SystemEventFactory::make(
             SystemEvent::Scope,
@@ -452,35 +411,27 @@ void Manifest::dropScope(const WriteHandle& wHandle,
                          ManifestUid manifestUid,
                          ScopeID sid,
                          OptionalSeqno optionalSeqno) {
-    // A replica receiving a dropScope for a scope is allowed, i.e. if we are
-    // creating a new replica, we will see scope tombstones from the active.
-    // The replica use-case is assumed by the optionalSeqno being defined
-    if (!optionalSeqno &&
-        std::find(scopes.begin(), scopes.end(), sid) == scopes.end()) {
+    // An active manifest must store the scope in-order to drop it, the optional
+    // seqno being uninitialised is how we know we're active. A replica though
+    // can accept scope drop events against scopes it doesn't store, i.e. a
+    // tombstone being transmitted from the active.
+    if (!optionalSeqno && scopes.count(sid) == 0) {
         throwException<std::logic_error>(
-                __FUNCTION__, "scope doesn't exist, scope:" + sid.to_string());
+                __FUNCTION__,
+                "no seqno defined and the scope doesn't exist, scope:" +
+                        sid.to_string());
     }
 
-    // The sid must be the back() element for populateWithSerialisedData
-    // 1) In the 'active' usage, the sid already exists in the set, but we
-    //    require it to be the last element when iterating
-    //    (populateWithSerialisedData), remove/push_back is a move to back
-    // 2) In the replica usage, the sid may not exist, but we can be told to
-    //    drop a scope because we see a scope tombstone. So we must add the
-    //    scope so that we generate a system-event which represents what we are
-    //    being told. In this case the remove does nothing and we push the new
-    //    sid to the back
-    scopes.remove(sid);
-    scopes.push_back(sid);
+    // Note: the following erase may actually do nothing if we're processing a
+    // drop-scope tombstone
+    scopes.erase(sid);
 
     // record the uid of the manifest which removed the scope
     this->manifestUid = manifestUid;
 
     flatbuffers::FlatBufferBuilder builder;
-    populateWithSerialisedData(builder, {});
-
-    // And remove
-    scopes.pop_back();
+    auto scope = CreateDroppedScope(builder, getManifestUid(), sid);
+    builder.Finish(scope);
 
     auto item = SystemEventFactory::make(
             SystemEvent::Scope,
@@ -657,45 +608,57 @@ time_t Manifest::processExpiryTime(const container::const_iterator entry,
     return t;
 }
 
-std::unique_ptr<Item> Manifest::createSystemEvent(
-        SystemEvent se,
-        ScopeCollectionPair identifiers,
+std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
+        ManifestUid uid,
+        CollectionID cid,
         cb::const_char_buffer collectionName,
+        const ManifestEntry& entry,
         bool deleted,
-        OptionalSeqno seqno) const {
-    // Create an item (to be queued and written to disk) that represents
-    // the update of a collection and allows the checkpoint to update
-    // the _local document with a persisted version of this object (the entire
-    // manifest is persisted to disk as flatbuffer data).
+        OptionalSeqno seq) {
     flatbuffers::FlatBufferBuilder builder;
-    populateWithSerialisedData(builder, identifiers, collectionName);
+    if (!deleted) {
+        auto collection =
+                CreateCollection(builder,
+                                 uid,
+                                 entry.getScopeID(),
+                                 cid,
+                                 entry.getMaxTtl().is_initialized(),
+                                 entry.getMaxTtl().is_initialized()
+                                         ? (*entry.getMaxTtl()).count()
+                                         : 0,
+                                 builder.CreateString(collectionName.data(),
+                                                      collectionName.size()));
+        builder.Finish(collection);
+    } else {
+        auto collection =
+                CreateDroppedCollection(builder, uid, entry.getScopeID(), cid);
+        builder.Finish(collection);
+    }
+
     auto item = SystemEventFactory::make(
-            se,
-            makeCollectionIdIntoString(identifiers.second),
+            SystemEvent::Collection,
+            makeCollectionIdIntoString(cid),
             {builder.GetBufferPointer(), builder.GetSize()},
-            seqno);
+            seq);
 
     if (deleted) {
         item->setDeleted();
     }
-
     return item;
 }
 
-int64_t Manifest::queueSystemEvent(const WriteHandle& wHandle,
-                                   ::VBucket& vb,
-                                   SystemEvent se,
-                                   ScopeCollectionPair identifiers,
-                                   cb::const_char_buffer collectionName,
-                                   bool deleted,
-                                   OptionalSeqno seq) const {
+int64_t Manifest::queueCollectionSystemEvent(
+        const WriteHandle& wHandle,
+        ::VBucket& vb,
+        CollectionID cid,
+        cb::const_char_buffer collectionName,
+        const ManifestEntry& entry,
+        bool deleted,
+        OptionalSeqno seq) const {
+    auto item = makeCollectionSystemEvent(
+            getManifestUid(), cid, collectionName, entry, deleted, seq);
     // Create and transfer Item ownership to the VBucket
-    auto rv = vb.addSystemEventItem(
-            createSystemEvent(se, identifiers, collectionName, deleted, seq)
-                    .release(),
-            seq,
-            identifiers.second,
-            wHandle);
+    auto rv = vb.addSystemEventItem(item.release(), seq, cid, wHandle);
 
     // If seq is not set, then this is an active vbucket queueing the event.
     // Collection events will end the CP so they don't de-dup.
@@ -907,59 +870,69 @@ bool Manifest::isDropInProgress() const {
     return dropInProgress;
 }
 
-CreateEventData Manifest::getCreateEventData(
-        cb::const_char_buffer serialisedManifest) {
-    auto manifest = flatbuffers::GetRoot<SerialisedManifest>(
-            (const uint8_t*)serialisedManifest.data());
+template <class T>
+static void verifyFlatbuffersData(cb::const_char_buffer buf,
+                                  const std::string& caller) {
+    flatbuffers::Verifier v(reinterpret_cast<const uint8_t*>(buf.data()),
+                            buf.size());
+    if (v.VerifyBuffer<T>(nullptr)) {
+        return;
+    }
 
-    auto mutatedEntry =
-            manifest->entries()->Get(manifest->entries()->size() - 1);
+    std::stringstream ss;
+    ss << "Collections::VB::Manifest::verifyFlatbuffersData: " << caller
+       << " data invalid, ptr:" << reinterpret_cast<const void*>(buf.data())
+       << ", size:" << buf.size();
+
+    throw std::runtime_error(ss.str());
+}
+
+CreateEventData Manifest::getCreateEventData(
+        cb::const_char_buffer flatbufferData) {
+    verifyFlatbuffersData<Collection>(flatbufferData, "getCreateEventData");
+    auto collection = flatbuffers::GetRoot<Collection>(
+            reinterpret_cast<const uint8_t*>(flatbufferData.data()));
 
     // if maxTtlValid needs considering
     cb::ExpiryLimit maxTtl;
-    if (mutatedEntry->ttlValid()) {
-        maxTtl = std::chrono::seconds(mutatedEntry->maxTtl());
+    if (collection->ttlValid()) {
+        maxTtl = std::chrono::seconds(collection->maxTtl());
     }
-    return {manifest->uid(),
-            {mutatedEntry->scopeId(),
-             mutatedEntry->collectionId(),
-             manifest->mutatedName()->str(),
+    return {collection->uid(),
+            {collection->scopeId(),
+             collection->collectionId(),
+             collection->name()->str(),
              maxTtl}};
 }
 
-DropEventData Manifest::getDropEventData(
-        cb::const_char_buffer serialisedManifest) {
-    auto manifest = flatbuffers::GetRoot<SerialisedManifest>(
-            (const uint8_t*)serialisedManifest.data());
+DropEventData Manifest::getDropEventData(cb::const_char_buffer flatbufferData) {
+    verifyFlatbuffersData<DroppedCollection>(flatbufferData,
+                                             "getDropEventData");
+    auto droppedCollection = flatbuffers::GetRoot<DroppedCollection>(
+            (const uint8_t*)flatbufferData.data());
 
-    auto mutatedEntry =
-            manifest->entries()->Get(manifest->entries()->size() - 1);
-
-    return {manifest->uid(),
-            mutatedEntry->scopeId(),
-            mutatedEntry->collectionId()};
+    return {droppedCollection->uid(),
+            droppedCollection->scopeId(),
+            droppedCollection->collectionId()};
 }
 
 CreateScopeEventData Manifest::getCreateScopeEventData(
-        cb::const_char_buffer serialisedManifest) {
-    auto manifest = flatbuffers::GetRoot<SerialisedManifest>(
-            (const uint8_t*)serialisedManifest.data());
+        cb::const_char_buffer flatbufferData) {
+    verifyFlatbuffersData<Scope>(flatbufferData, "getCreateScopeEventData");
+    auto scope = flatbuffers::GetRoot<Scope>(
+            reinterpret_cast<const uint8_t*>(flatbufferData.data()));
 
-    // The last entry in scopes is the ID added
-    auto scopeId = manifest->scopes()->Get(manifest->scopes()->size() - 1);
-
-    return {manifest->uid(), scopeId, manifest->mutatedName()->str()};
+    return {scope->uid(), scope->scopeId(), scope->name()->str()};
 }
 
 DropScopeEventData Manifest::getDropScopeEventData(
-        cb::const_char_buffer serialisedManifest) {
-    auto manifest = flatbuffers::GetRoot<SerialisedManifest>(
-            (const uint8_t*)serialisedManifest.data());
+        cb::const_char_buffer flatbufferData) {
+    verifyFlatbuffersData<DroppedScope>(flatbufferData,
+                                        "getDropScopeEventData");
+    auto droppedScope = flatbuffers::GetRoot<DroppedScope>(
+            reinterpret_cast<const uint8_t*>(flatbufferData.data()));
 
-    // The last entry in scopes is the ID dropped
-    auto scopeId = manifest->scopes()->Get(manifest->scopes()->size() - 1);
-
-    return {manifest->uid(), scopeId};
+    return {droppedScope->uid(), droppedScope->scopeId()};
 }
 
 std::string Manifest::getExceptionString(const std::string& thrower,
@@ -1144,6 +1117,44 @@ boost::optional<std::vector<CollectionID>> Manifest::getCollectionsForScope(
     }
 
     return rv;
+}
+
+bool Manifest::operator==(const Manifest& rhs) const {
+    std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
+    std::lock_guard<cb::ReaderLock> otherReadLock(rhs.rwlock.reader());
+
+    if (rhs.map.size() != map.size()) {
+        return false;
+    }
+    // Check all collections match
+    for (const auto& e : map) {
+        const auto& entry1 = e.second;
+        const auto& entry2 = rhs.getManifestEntry(e.first);
+
+        if (!(entry1 == entry2)) {
+            return false;
+        }
+    }
+
+    if (scopes.size() != rhs.scopes.size()) {
+        return false;
+    }
+    // Check all scopes can be found
+    for (const auto s : scopes) {
+        if (std::find(rhs.scopes.begin(), rhs.scopes.end(), s) ==
+            rhs.scopes.end()) {
+            return false;
+        }
+    }
+    if (rhs.manifestUid != manifestUid) {
+        return false;
+    }
+
+    return true;
+}
+
+bool Manifest::operator!=(const Manifest& rhs) const {
+    return !(*this == rhs);
 }
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {

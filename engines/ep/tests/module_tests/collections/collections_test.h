@@ -37,11 +37,11 @@ protected:
         store->setVBucketState(vbid, vbucket_state_active);
     }
 
-    Collections::VB::PersistedManifest getManifest(Vbid vb) const {
+    Collections::KVStore::Manifest getManifest(Vbid vb) const {
         return store->getVBucket(vb)
                 ->getShard()
                 ->getRWUnderlying()
-                ->getCollectionsManifest(vbid);
+                ->getCollectionsManifest_new(vbid);
     }
 };
 

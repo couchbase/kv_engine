@@ -1,0 +1,50 @@
+//
+//     Copyright 2019 Couchbase, Inc
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//       http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+// Schema for the value of collection system events
+
+namespace Collections.VB;
+
+table Collection {
+    uid:ulong;
+    scopeId:uint;
+    collectionId:uint;
+    ttlValid:bool;
+    maxTtl:uint;
+    name:string;
+}
+
+table DroppedCollection {
+   uid:ulong;
+   scopeId:uint;
+   collectionId:uint;
+}
+
+table Scope {
+    uid:ulong;
+    scopeId:uint;
+    name:string;
+}
+
+table DroppedScope {
+    uid:ulong;
+    scopeId:uint;
+}
+
+root_type Collection;
+root_type DroppedCollection;
+root_type Scope;
+root_type DroppedScope;

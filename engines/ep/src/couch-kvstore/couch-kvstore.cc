@@ -3117,7 +3117,9 @@ Collections::KVStore::Manifest CouchKVStore::getCollectionsManifest_new(
 
     couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode != COUCHSTORE_SUCCESS) {
-        return {};
+        // openDB would of logged any critical error
+        return Collections::KVStore::Manifest{
+                Collections::KVStore::Manifest::Default{}};
     }
 
     auto manifest = readLocalDoc(*db.getDb(), Collections::manifestName);
@@ -3125,7 +3127,7 @@ Collections::KVStore::Manifest CouchKVStore::getCollectionsManifest_new(
             readLocalDoc(*db.getDb(), Collections::openCollectionsName);
     auto scopes = readLocalDoc(*db.getDb(), Collections::scopesName);
 
-    Collections::KVStore::Manifest rv;
+    Collections::KVStore::Manifest rv{Collections::KVStore::Manifest::Empty{}};
 
     if (manifest.getLocalDoc()) {
         verifyFlatbuffersData<Collections::KVStore::CommittedManifest>(

@@ -692,9 +692,9 @@ public:
     void collectionsFlusher(int items);
 
 private:
-    Collections::VB::PersistedManifest createCollectionAndFlush(
+    Collections::KVStore::Manifest createCollectionAndFlush(
             const std::string& json, CollectionID collection, int items);
-    Collections::VB::PersistedManifest dropCollectionAndFlush(
+    Collections::KVStore::Manifest dropCollectionAndFlush(
             const std::string& json, CollectionID collection, int items);
 
     void storeItems(CollectionID collection,
@@ -704,23 +704,23 @@ private:
     /**
      * Create manifest object from persisted manifest and validate if we can
      * write to the collection.
-     * @param data - The persisted manifest data
+     * @param manifest Manifest to check
      * @param collection - a collection name to test for writing
      *
      * @return true if the collection can be written
      */
-    static bool canWrite(const Collections::VB::PersistedManifest& data,
+    static bool canWrite(const Collections::VB::Manifest& manifest,
                          CollectionID collection);
 
     /**
      * Create manifest object from persisted manifest and validate if we can
      * write to the collection.
-     * @param data - The persisted manifest data
+     * @param manifest Manifest to check
      * @param collection - a collection name to test for writing
      *
      * @return true if the collection cannot be written
      */
-    static bool cannotWrite(const Collections::VB::PersistedManifest& data,
+    static bool cannotWrite(const Collections::VB::Manifest& manifest,
                             CollectionID collection);
 };
 
@@ -733,10 +733,8 @@ void CollectionsFlushTest::storeItems(CollectionID collection,
     }
 }
 
-Collections::VB::PersistedManifest
-CollectionsFlushTest::createCollectionAndFlush(const std::string& json,
-                                               CollectionID collection,
-                                               int items) {
+Collections::KVStore::Manifest CollectionsFlushTest::createCollectionAndFlush(
+        const std::string& json, CollectionID collection, int items) {
     VBucketPtr vb = store->getVBucket(vbid);
     // cannot write to collection
     storeItems(collection, items, cb::engine_errc::unknown_collection);
@@ -747,7 +745,7 @@ CollectionsFlushTest::createCollectionAndFlush(const std::string& json,
     return getManifest(vbid);
 }
 
-Collections::VB::PersistedManifest CollectionsFlushTest::dropCollectionAndFlush(
+Collections::KVStore::Manifest CollectionsFlushTest::dropCollectionAndFlush(
         const std::string& json, CollectionID collection, int items) {
     VBucketPtr vb = store->getVBucket(vbid);
     storeItems(collection, items);
@@ -755,7 +753,6 @@ Collections::VB::PersistedManifest CollectionsFlushTest::dropCollectionAndFlush(
     // cannot write to collection
     storeItems(collection, items, cb::engine_errc::unknown_collection);
     flush_vbucket_to_disk(vbid, 1 + items); // 1x del(create event) + items
-    /// complete deletion by triggering the erase of collection
     runCompaction();
 
     // Default is still ok
@@ -764,19 +761,16 @@ Collections::VB::PersistedManifest CollectionsFlushTest::dropCollectionAndFlush(
     return getManifest(vbid);
 }
 
-bool CollectionsFlushTest::canWrite(
-        const Collections::VB::PersistedManifest& data,
-        CollectionID collection) {
-    Collections::VB::Manifest manifest(data);
+bool CollectionsFlushTest::canWrite(const Collections::VB::Manifest& manifest,
+                                    CollectionID collection) {
     std::string key = std::to_string(collection);
     return manifest.lock().doesKeyContainValidCollection(
             StoredDocKey{key, collection});
 }
 
 bool CollectionsFlushTest::cannotWrite(
-        const Collections::VB::PersistedManifest& data,
-        CollectionID collection) {
-    return !canWrite(data, collection);
+        const Collections::VB::Manifest& manifest, CollectionID collection) {
+    return !canWrite(manifest, collection);
 }
 
 /**
@@ -788,9 +782,8 @@ bool CollectionsFlushTest::cannotWrite(
  */
 void CollectionsFlushTest::collectionsFlusher(int items) {
     struct testFuctions {
-        std::function<Collections::VB::PersistedManifest()> function;
-        std::function<bool(const Collections::VB::PersistedManifest&)>
-                validator;
+        std::function<Collections::KVStore::Manifest()> function;
+        std::function<bool(const Collections::VB::Manifest&)> validator;
     };
 
     CollectionsManifest cm(CollectionEntry::meat);
@@ -847,17 +840,17 @@ void CollectionsFlushTest::collectionsFlusher(int items) {
                        _1,
                        CollectionEntry::dairy2)}};
 
-    Collections::VB::PersistedManifest m1;
+    auto m1 = std::make_unique<Collections::VB::Manifest>();
     int step = 0;
     for (auto& f : test) {
-        auto m2 = f.function();
+        auto m2 = std::make_unique<Collections::VB::Manifest>(f.function());
         // The manifest should change for each step
-        EXPECT_NE(m1, m2) << "Failed step:" + std::to_string(step) << "\n"
-                          << m1 << "\n should not match " << m2 << "\n";
-        EXPECT_TRUE(f.validator(m2))
+        EXPECT_NE(*m1, *m2) << "Failed step:" + std::to_string(step) << "\n"
+                            << *m1 << "\n should not match " << *m2 << "\n";
+        EXPECT_TRUE(f.validator(*m2))
                 << "Failed at step:" << std::to_string(step) << " validating "
-                << m2;
-        m1 = m2;
+                << *m2;
+        m1.swap(m2);
         step++;
     }
 }

@@ -135,11 +135,13 @@ static inline ScopeID makeScopeID(const std::string& uid) {
 
 /**
  * The metadata of a single collection
+ *
+ * Default construction yields the default collection
  */
 struct CollectionMetaData {
-    ScopeID sid; // The scope that the collection belongs to
-    CollectionID cid; // The collection's ID
-    std::string name; // The collection's name
+    ScopeID sid{ScopeID::Default}; // The scope that the collection belongs to
+    CollectionID cid{CollectionID::Default}; // The collection's ID
+    std::string name{_DefaultCollectionIdentifier}; // The collection's name
     cb::ExpiryLimit maxTtl; // The collection's max_ttl
 
     bool operator==(const CollectionMetaData& other) const {

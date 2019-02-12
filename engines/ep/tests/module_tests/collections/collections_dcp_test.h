@@ -55,7 +55,7 @@ public:
 
     void internalSetUp();
 
-    Collections::VB::PersistedManifest getManifest(Vbid vb) const;
+    Collections::KVStore::Manifest getPersistedManifest(Vbid vb) const;
 
     void createDcpStream(
             boost::optional<cb::const_char_buffer> collections,

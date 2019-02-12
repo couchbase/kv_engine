@@ -26,6 +26,7 @@
 
 #include "collections/collections_types.h"
 #include "item.h"
+#include <vector>
 
 namespace Collections {
 namespace KVStore {
@@ -42,8 +43,40 @@ struct OpenCollection {
 /**
  * Data that KVStore is required return to from KVStore::getCollectionsManifest
  * This data can be used to construct a Collections::VB::Manifest
+ *
+ * Default construction will result in the "default" manifest
+ * - Default collection exists (since the beginning of time)
+ * - Default Scope exists
+ * - manifest UID of 0
+ * - no dropped collections
  */
 struct Manifest {
+    struct Default {};
+    struct Empty {};
+
+    /**
+     * Default results in the "default" manifest
+     * - Default collection exists (since the beginning of time)
+     * - Default Scope exists
+     * - manifest UID of 0
+     * - no dropped collections
+     */
+    explicit Manifest(Default)
+        : collections{{0, {}}}, scopes{{ScopeID::Default}} {
+    }
+
+    /**
+     * Empty results in
+     * - no collections
+     * - no scopes
+     * - manifest UID of 0
+     * - no dropped collections
+     */
+    explicit Manifest(Empty) {
+    }
+
+    ~Manifest(){};
+
     /// The uid of the last manifest to change the collection state
     ManifestUid manifestUid{0};
 
@@ -58,7 +91,7 @@ struct Manifest {
      * i.e. a collection was dropped but has not yet been 100% erased from
      * storage. KVBucket can decide to schedule purging based on this bool
      */
-    bool droppedCollectionsExist;
+    bool droppedCollectionsExist{false};
 };
 
 /**

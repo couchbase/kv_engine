@@ -171,6 +171,14 @@ ADD_CUSTOM_COMMAND(OUTPUT
                     src/collections/kvstore.in
                   COMMENT "Generating flatbuffers kvstore data")
 
+ADD_CUSTOM_COMMAND(OUTPUT
+                     ${CMAKE_CURRENT_BINARY_DIR}/src/collections/events_generated.h
+                  COMMAND
+                     ${FLATC} -o ${CMAKE_CURRENT_BINARY_DIR}/src/collections/ --cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/collections/events.fbs
+                  DEPENDS
+                    src/collections/events.fbs
+                  COMMENT "Generating flatbuffers - collection events")
+
 # Collections library for things required outside of ep-engine
 ADD_LIBRARY(ep-engine_collections STATIC
   ${CMAKE_CURRENT_BINARY_DIR}/src/collections/vbucket_serialised_manifest_entry_raw_schema.cc
@@ -195,6 +203,7 @@ SET(COLLECTIONS_SOURCE src/collections/collections_types.cc
                        src/collections/flush.cc
                        src/collections/manager.cc
                        src/collections/manifest.cc
+                       ${CMAKE_CURRENT_BINARY_DIR}/src/collections/events_generated.h
                        ${CMAKE_CURRENT_BINARY_DIR}/src/collections/vbucket_serialised_manifest_entry_generated.h
                        ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_generated.h
                        src/collections/scan_context.cc

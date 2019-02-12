@@ -28,7 +28,8 @@ void Collections::VB::Flush::processManifestChange(const queued_item& item) {
     if ((collectionManifestItem &&
          item->getBySeqno() > collectionManifestItem->getBySeqno()) ||
         !collectionManifestItem) {
-        collectionManifestItem = item;
+        // @todo remove all this code, for now stop tracking the item as it no
+        // longer stores a manifest
     }
 
     // Save the collection-ID of every collection delete

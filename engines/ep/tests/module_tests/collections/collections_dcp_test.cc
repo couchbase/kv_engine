@@ -43,12 +43,12 @@ void CollectionsDcpTest::internalSetUp() {
     createDcpObjects({{}} /*collections on, but no filter*/);
 }
 
-Collections::VB::PersistedManifest CollectionsDcpTest::getManifest(
+Collections::KVStore::Manifest CollectionsDcpTest::getPersistedManifest(
         Vbid vb) const {
     return store->getVBucket(vb)
             ->getShard()
             ->getRWUnderlying()
-            ->getCollectionsManifest(vbid);
+            ->getCollectionsManifest_new(vbid);
 }
 
 void CollectionsDcpTest::createDcpStream(
@@ -209,7 +209,19 @@ void CollectionsDcpTest::testDcpCreateDelete(
     // Finally check that the active and replica have the same manifest, our
     // BeginDeleteCollection should of contained enough information to form
     // an equivalent manifest
-    EXPECT_EQ(getManifest(vbid), getManifest(Vbid(vbid.get() + 1)));
+    auto m1 = getPersistedManifest(vbid);
+    auto m2 = getPersistedManifest(Vbid(vbid.get() + 1));
+    EXPECT_EQ(m1.manifestUid, m2.manifestUid);
+
+    auto compare = [](const Collections::KVStore::OpenCollection& a,
+                      const Collections::KVStore::OpenCollection& b) {
+        return a.startSeqno == b.startSeqno && a.metaData == b.metaData;
+    };
+    EXPECT_TRUE(std::equal(m1.collections.begin(),
+                           m1.collections.end(),
+                           m2.collections.begin(),
+                           compare));
+    EXPECT_EQ(m1.scopes, m2.scopes);
 }
 
 void CollectionsDcpTest::resetEngineAndWarmup(std::string new_config) {

@@ -220,13 +220,14 @@ public:
 
     Collections::KVStore::Manifest getCollectionsManifest_new(
             Vbid vbid) override {
-        // TODO: magma has no collections-meta support, return empty
-        return {};
+        // TODO: magma has no collections support, return default manifest
+        return Collections::KVStore::Manifest{
+                Collections::KVStore::Manifest::Default{}};
     }
 
     std::vector<Collections::KVStore::DroppedCollection> getDroppedCollections(
             Vbid vbid) override {
-        // TODO: magma has no collections-meta support, return empty
+        // TODO: magma has no collections support, return empty
         return {};
     }
 

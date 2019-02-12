@@ -41,6 +41,10 @@ class FlatBufferBuilder;
 }
 
 namespace Collections {
+namespace KVStore {
+struct Manifest;
+}
+
 namespace VB {
 
 /**
@@ -641,14 +645,6 @@ public:
             manifest.setHighSeqno(collection, value);
         }
 
-        /**
-         * Set if this VB needs collection purging triggered
-         * @todo: this will be moved to the warmup only constructor in patch 4/5
-         */
-        void setDropInProgress(bool value) const {
-            manifest.setDropInProgress(value);
-        }
-
         /// @return iterator to the beginning of the underlying collection map
         container::iterator begin() {
             return manifest.begin();
@@ -685,8 +681,7 @@ public:
     Manifest();
 
     /**
-     * Construct a VBucket::Manifest optionally using serialised (flatbuffers)
-     * data.
+     * Construct a VBucket::Manifest from KVStore::Manifest
      *
      * Empty data allows for construction where no persisted data was found i.e.
      * an upgrade occurred and this is the first construction of a VB::Manifest
@@ -700,7 +695,7 @@ public:
      *
      * @param data object storing flatbuffer manifest data (or empty)
      */
-    Manifest(const PersistedManifest& data);
+    Manifest(const KVStore::Manifest& data);
 
     ReadHandle lock() const {
         return {this, rwlock};
@@ -743,75 +738,59 @@ public:
      * Get the system event collection create data from a SystemEvent
      * Item's value.
      *
-     * @param serialisedManifest Serialised manifest data created by
-     *        ::populateWithSerialisedData
-     * @returns SystemEventData which carries all of the data which needs to be
-     *          marshalled into a DCP system event message. Inside the returned
-     *          object maybe sized_buffer objects which point into
-     *          serialisedManifest.
+     * @param flatbufferData buffer storing flatbuffer Collections.VB.Collection
+     * @returns CreateEventData which carries all of the data which needs to be
+     *          marshalled into a DCP system event message.
      */
     static CreateEventData getCreateEventData(
-            cb::const_char_buffer serialisedManifest);
+            cb::const_char_buffer flatbufferData);
 
     /**
      * Get the system event collection drop data from a SystemEvent
      * Item's value.
      *
-     * @param serialisedManifest Serialised manifest data created by
-     *        ::populateWithSerialisedData
-     * @returns SystemEventData which carries all of the data which needs to be
-     *          marshalled into a DCP system event message. Inside the returned
-     *          object maybe sized_buffer objects which point into
-     *          serialisedManifest.
+     * @param flatbufferData buffer storing flatbuffer
+     *        Collections.VB.DroppedCollection
+     * @returns DropEventData which carries all of the data which needs to be
+     *          marshalled into a DCP system event message.
      */
-    static DropEventData getDropEventData(
-            cb::const_char_buffer serialisedManifest);
+    static DropEventData getDropEventData(cb::const_char_buffer flatbufferData);
 
     /**
      * Get the system event scope create data from a SystemEvent Item's value.
      *
-     * @param serialisedManifest Serialised manifest data created by
-     *        ::populateWithSerialisedData
-     * @returns SystemEventData which carries all of the data which needs to be
-     *          marshalled into a DCP system event message. Inside the returned
-     *          object maybe sized_buffer objects which point into
-     *          serialisedManifest.
+     * @param flatbufferData buffer storing flatbuffer Collections.VB.Scope
+     * @returns CreateScopeEventData which carries all of the data which needs #
+     *          to be marshalled into a DCP system event message.
      */
     static CreateScopeEventData getCreateScopeEventData(
-            cb::const_char_buffer serialisedManifest);
+            cb::const_char_buffer flatbufferData);
 
     /**
      * Get the system event scope drop data from a SystemEvent Item's value.
      *
-     * @param serialisedManifest Serialised manifest data created by
-     *        ::populateWithSerialisedData
-     * @returns SystemEventData which carries all of the data which needs to be
-     *          marshalled into a DCP system event message. Inside the returned
-     *          object maybe sized_buffer objects which point into
-     *          serialisedManifest.
+     * @param flatbufferData buffer storing flatbuffer
+     *        Collections.VB.DropScope
+     * @returns DropScopeEventData which carries all of the data which needs to
+     *          be marshalled into a DCP system event message.
      */
     static DropScopeEventData getDropScopeEventData(
-            cb::const_char_buffer serialisedManifest);
+            cb::const_char_buffer flatbufferData);
 
     /**
-     * Create a SystemEvent Item, the Item's value will contain data for later
-     * consumption by patchSerialisedData/getSystemEventData
-     *
-     * @param se SystemEvent to create.
-     * @param identifiers ScopeID and CollectionID pair
-     * @param deleted If the Item should be marked deleted.
-     * @param seqno An optional sequence number. If a seqno is specified, the
-     *        returned item will have its bySeqno set to seqno.
-     *
-     * @returns unique_ptr to a new Item that represents the requested
-     *          SystemEvent.
+     * @return an Item that represent a collection create or delete
      */
-    std::unique_ptr<Item> createSystemEvent(
-            SystemEvent se,
-            ScopeCollectionPair identifiers,
+    static std::unique_ptr<Item> makeCollectionSystemEvent(
+            ManifestUid uid,
+            CollectionID cid,
             cb::const_char_buffer collectionName,
+            const ManifestEntry& entry,
             bool deleted,
-            OptionalSeqno seqno) const;
+            OptionalSeqno seq);
+
+    bool operator==(const Manifest& rhs) const;
+
+    bool operator!=(const Manifest& rhs) const;
 
     // local struct for managing collection addition
     struct CollectionAddition {
@@ -1239,9 +1218,9 @@ protected:
      * std::logic_error if the collection was not found.
      *
      * @param collectionID CollectionID of the collection to lookup
-     * @return a reference to the ManifestEntry
+     * @return a const reference to the ManifestEntry
      */
-    ManifestEntry& getManifestEntry(CollectionID collectionID);
+    const ManifestEntry& getManifestEntry(CollectionID collectionID) const;
 
     /**
      * The changes that we need to make to the vBucket manifest derived from
@@ -1270,28 +1249,29 @@ protected:
     ProcessResult processManifest(const Collections::Manifest& manifest) const;
 
     /**
-     * Create an Item that carries a system event and queue it to the vb
-     * checkpoint.
+     * Create an Item that carries a collection system event and queue it to the
+     * vb checkpoint.
      *
      * @param wHandle The manifest write handle under which this operation is
      *        currently locked. Required to ensure we lock correctly around
      *        VBucket::notifyNewSeqno
      * @param vb The vbucket onto which the Item is queued.
-     * @param se The SystemEvent to create and queue.
-     * @param identifiers ScopeID and CollectionID pair
+     * @param cid The collection ID added/removed
+     * @param collectionName Name of the collection (only used by create)
+     * @param entry The ManifestEntry added or removed
      * @param deleted If the Item created should be marked as deleted.
      * @param seqno An optional seqno which if set will be assigned to the
      *        system event.
      *
      * @returns The sequence number of the queued Item.
      */
-    int64_t queueSystemEvent(const WriteHandle& wHandle,
-                             ::VBucket& vb,
-                             SystemEvent se,
-                             ScopeCollectionPair identifiers,
-                             cb::const_char_buffer collectionName,
-                             bool deleted,
-                             OptionalSeqno seqno) const;
+    int64_t queueCollectionSystemEvent(const WriteHandle& wHandle,
+                                       ::VBucket& vb,
+                                       CollectionID cid,
+                                       cb::const_char_buffer collectionName,
+                                       const ManifestEntry& entry,
+                                       bool deleted,
+                                       OptionalSeqno seq) const;
 
     /**
      * Populate a buffer with the serialised state of the manifest. The
@@ -1324,11 +1304,6 @@ protected:
      *         is in the state isDeleting
      */
     bool isDropInProgress() const;
-
-    /// @todo remove this, will be done via constructor in patch 4/5
-    void setDropInProgress(bool value) {
-        dropInProgress = value;
-    }
 
     /**
      * Return a patched PersistedManifest object cloned and mutated from the
@@ -1395,17 +1370,8 @@ protected:
 
     /**
      * The current scopes.
-     *
-     * A std::list is chosen as we need insertion order and reasonably easy
-     * way to remove elements, overall the list should never exceed the
-     * scopes_max_size config variable so we can tolerate a few O(n) operations
-     * when working with create/drop scope.
-     *
-     * Note the insertion order is assumed by populateWithSerialisedData (and
-     * readers of the serialised data). The assumption is that the last mutated
-     * (created or dropped) scope is at the back().
      */
-    std::list<ScopeID> scopes;
+    std::unordered_set<ScopeID> scopes;
 
     /**
      * Does the current set contain the default collection?

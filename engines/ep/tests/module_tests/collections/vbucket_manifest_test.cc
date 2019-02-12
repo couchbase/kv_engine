@@ -32,7 +32,7 @@ public:
     MockVBManifest() {
     }
 
-    MockVBManifest(const Collections::VB::PersistedManifest& manifestData)
+    MockVBManifest(const Collections::KVStore::Manifest& manifestData)
         : Collections::VB::Manifest(manifestData) {
     }
 
@@ -209,9 +209,8 @@ public:
                    << "Exception thrown for update with " << json
                    << ", e.what:" << e.what();
         }
-        queued_item manifest;
         try {
-            manifest = applyCheckpointEventsToReplica();
+            applyCheckpointEventsToReplica();
         } catch (std::exception& e) {
             return ::testing::AssertionFailure()
                    << "Exception thrown for replica update, e.what:"
@@ -223,7 +222,6 @@ public:
                    << active << " replica:\n"
                    << replica;
         }
-
         return ::testing::AssertionSuccess();
     }
 
@@ -299,13 +297,10 @@ public:
      * @param replicaManfiest The replica VB's manifest, we will create/delete
      *         collections against this manifest.
      *
-     * @returns the last queued_item (which would be used to create a json
-     *          manifest)
      */
-    queued_item applyCheckpointEventsToReplica() {
+    void applyCheckpointEventsToReplica() {
         std::vector<queued_item> events;
         getEventsFromCheckpoint(vbA, events);
-        queued_item rv = events.back();
         for (const auto& qi : events) {
             lastSeqno = qi->getBySeqno();
             if (qi->getOperation() == queue_op::system_event) {
@@ -362,7 +357,6 @@ public:
                 }
             }
         }
-        return rv;
     }
 
     MockVBManifest active;
