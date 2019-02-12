@@ -34,7 +34,12 @@ namespace rbac {
 // Every time we create a new PrivilegeDatabase we bump the generation.
 // The PrivilegeContext contains the generation number it was generated
 // from so that we can easily detect if the PrivilegeContext is stale.
-static std::atomic<uint32_t> generation{0};
+// The current_generation contains the version number of the PrivilegeDatabase
+// currently in use, and create_generation is the counter being used
+// to work around race conditions where multiple threads is trying to
+// create and update the RBAC database (last one wins)
+static std::atomic<uint32_t> current_generation{0};
+static std::atomic<uint32_t> create_generation{0};
 
 // The read write lock needed when you want to build a context
 cb::RWLock rwlock;
@@ -128,7 +133,7 @@ PrivilegeMask UserEntry::parsePrivileges(const cJSON* priv, bool buckets) {
 }
 
 PrivilegeDatabase::PrivilegeDatabase(const cJSON* json)
-    : generation(cb::rbac::generation.operator++()) {
+    : generation(cb::rbac::create_generation.operator++()) {
 
     if (json != nullptr) {
         for (auto it = json->child; it != nullptr; it = it->next) {
@@ -172,7 +177,7 @@ std::pair<PrivilegeContext, bool> PrivilegeDatabase::createInitialContext(
 }
 
 PrivilegeAccess PrivilegeContext::check(Privilege privilege) const {
-    if (generation != cb::rbac::generation) {
+    if (generation != cb::rbac::current_generation) {
         return PrivilegeAccess::Stale;
     }
 
@@ -275,6 +280,7 @@ void loadPrivilegeDatabase(const std::string& filename) {
     // Handle race conditions
     if (db->generation < database->generation) {
         db.swap(database);
+        current_generation = db->generation;
     }
 }
 
