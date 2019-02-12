@@ -117,6 +117,18 @@ if(CB_VERBOSE_MEMCACHED_TESTAPP)
     set(VERBOSE_EXTRA_ARG "-v")
 endif(CB_VERBOSE_MEMCACHED_TESTAPP)
 
+# MB-32484: To attempt to identify the cause of the intermittent timeouts in
+# memcached_testapp, use the `timeout` program to signal memcached_testapp with
+# SIGABRT when we timeout; to allow a core dump to be generated of where the
+# process is stuck.
+# Using a timeout value (240s) before the CTest timeout of 300s below so
+# `timeout` fires first.
+find_program (TIMEOUT_EXE timeout)
+if (TIMEOUT_EXE)
+    set_property(TARGET memcached_testapp
+             PROPERTY CB_TEST_EXECUTOR ${TIMEOUT_EXE} --preserve-status --signal=ABRT 240s)
+endif()
+
 gtest_discover_tests(memcached_testapp
     EXTRA_ARGS ${VERBOSE_EXTRA_ARG}
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
