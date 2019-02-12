@@ -40,31 +40,29 @@ boost::optional<nlohmann::json> getOptionalJsonObject(
         const nlohmann::json& object,
         const std::string& key,
         nlohmann::json::value_t expectedType) {
-    try {
-        auto rv = object.at(key);
-        throwIfWrongType(key, rv, expectedType, "");
-        return rv;
-    } catch (const nlohmann::json::exception&) {
+    auto itr = object.find(key);
+    if (itr == object.end()) {
         return {};
     }
+    throwIfWrongType(key, *itr, expectedType, "");
+    return *itr;
 }
 
 nlohmann::json getJsonObject(const nlohmann::json& object,
                              const std::string& key,
                              nlohmann::json::value_t expectedType,
                              const std::string& calledFrom) {
-    try {
-        auto rv = object.at(key);
-        throwIfWrongType(key, rv, expectedType, calledFrom);
-        return rv;
-    } catch (const nlohmann::json::exception& e) {
-        std::string err;
-        if (!calledFrom.empty()) {
-            err.append(calledFrom + ": ");
-        }
-        err.append("cannot find key:" + key + ", e:" + e.what());
-        throw std::invalid_argument(err);
+    auto itr = object.find(key);
+    if (itr != object.end()) {
+        throwIfWrongType(key, *itr, expectedType, calledFrom);
+        return *itr;
     }
+    std::string err;
+    if (!calledFrom.empty()) {
+        err.append(calledFrom + ": ");
+    }
+    err.append("cannot find key:" + key);
+    throw std::invalid_argument(err);
 }
 
 void throwIfWrongType(const std::string& errorKey,
