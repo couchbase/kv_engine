@@ -124,7 +124,7 @@ endif(CB_VERBOSE_MEMCACHED_TESTAPP)
 # Using a timeout value (240s) before the CTest timeout of 300s below so
 # `timeout` fires first.
 find_program (TIMEOUT_EXE timeout)
-if (TIMEOUT_EXE)
+if (TIMEOUT_EXE AND NOT WIN32)
     set_property(TARGET memcached_testapp
              PROPERTY CB_TEST_EXECUTOR ${TIMEOUT_EXE} --preserve-status --signal=ABRT 240s)
 endif()
