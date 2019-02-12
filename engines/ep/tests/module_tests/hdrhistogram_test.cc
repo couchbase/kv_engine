@@ -18,10 +18,12 @@
 #include "config.h"
 
 #include "hdrhistogram.h"
+#include "thread_gate.h"
 
 #include <gtest/gtest.h>
 #include <cmath>
 #include <memory>
+#include <thread>
 #include <utility>
 
 /*
@@ -155,6 +157,59 @@ TEST(HdrHistogramTest, addValueAndCountTest) {
     while (auto result = histogram.getNextValueAndCount(iter)) {
         EXPECT_EQ(0, result->first);
         EXPECT_EQ(100, result->second);
+    }
+}
+
+void addValuesThread(HdrHistogram& histo,
+                     ThreadGate& tg,
+                     unsigned int iterations,
+                     unsigned int size) {
+    // wait for all threads to be ready to start
+    tg.threadUp();
+    for (unsigned int iteration = 0; iteration < iterations; iteration++) {
+        for (unsigned int value = 0; value < size; value++) {
+            histo.addValue(value);
+        }
+    }
+}
+// Test to check that no counts to HdrHistogram are dropped due to
+// incorrect memory order when using parallel writing threads
+TEST(HdrHistogramTest, addValueParallel) {
+    // we want to perform a large amount of addValues so we increase the
+    // probability of dropping a count
+    unsigned int numOfAddIterations = 5000;
+    unsigned int maxVal = 2;
+    HdrHistogram histogram{0, maxVal, 3};
+
+    // Create two threads and get them to add values to a small
+    // histogram so there is a high contention on it's counts.
+    std::vector<std::thread> threads(2);
+    ThreadGate tg(threads.size());
+    for (auto& t : threads) {
+        t = std::thread(addValuesThread,
+                        std::ref(histogram),
+                        std::ref(tg),
+                        numOfAddIterations,
+                        maxVal);
+    }
+    // wait for all the threads to finish
+    for (auto& t : threads) {
+        t.join();
+    }
+
+    ASSERT_EQ(numOfAddIterations * maxVal * threads.size(),
+              histogram.getValueCount());
+    ASSERT_EQ(maxVal - 1, histogram.getMaxValue());
+    ASSERT_EQ(0, histogram.getMinValue());
+
+    HdrHistogram::Iterator iter{
+            histogram.makeLinearIterator(/* valueUnitsPerBucket */ 1)};
+    uint64_t valueCount = 0;
+    // Assert that the right number of values were added to the histogram
+    while (auto result = histogram.getNextValueAndCount(iter)) {
+        ASSERT_EQ(valueCount, result->first);
+        ASSERT_EQ(threads.size() * numOfAddIterations, result->second);
+        ++valueCount;
     }
 }
 

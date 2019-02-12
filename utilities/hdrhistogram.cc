@@ -67,6 +67,20 @@ uint64_t HdrHistogram::getValueCount() const {
     return histogram->total_count;
 }
 
+uint64_t HdrHistogram::getMinValue() const {
+    if (getValueCount()) {
+        return static_cast<uint64_t>(hdr_min(histogram.get()) - 1);
+    }
+    return 0;
+}
+
+uint64_t HdrHistogram::getMaxValue() const {
+    if (getValueCount()) {
+        return static_cast<uint64_t>(hdr_max(histogram.get()) - 1);
+    }
+    return 0;
+}
+
 void HdrHistogram::reset() {
     hdr_reset(histogram.get());
 }

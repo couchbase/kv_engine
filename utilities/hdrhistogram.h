@@ -116,6 +116,16 @@ public:
     uint64_t getValueCount() const;
 
     /**
+     * Returns the min value stored to the histogram
+     */
+    uint64_t getMinValue() const;
+
+    /**
+     * Returns the max value stored to the histogram
+     */
+    uint64_t getMaxValue() const;
+
+    /**
      * Clears the histogram.
      */
     void reset();
