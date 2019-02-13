@@ -106,20 +106,28 @@ every thread that is blocking on the `SyncObject`.
 
 ```c++
 SyncObject syncObject;
-bool sleeping = false;
-void foo1() {
-    LockHolder lockHolder(&syncObject);
-    sleeping = true;
-    syncObject.wait(); // the mutex is released and the thread put to sleep
+T data;
+bool notified = false;
+
+void consumer() {
+    std::unique_lock<std::mutex> lockHolder(syncObject);
+    // Upon call to wait() the mutex is released and the
+    // thread put to sleep
+    syncObject.wait(lockHolder,
+                    [&notified](){ return notified; });
     // when wait returns the mutex is reacquired
-    sleeping = false;
+    ... do something with data ...
+    notified = false;
 }
 
-void foo2() {
-    LockHolder lockHolder(&syncObject);
-    if (sleeping) {
-        syncObject.notifyOne();
+void producer() {
+    // Produce something for consumer to do...
+    {
+        std::unique_lock<std::mutex> lockHolder(syncObject);
+        data = ...;
+        notified = true;
     }
+    syncObject.notifyOne();
 }
 ```
 

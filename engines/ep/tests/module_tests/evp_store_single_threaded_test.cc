@@ -1908,7 +1908,9 @@ TEST_F(SingleThreadedEPBucketTest, MB_27457) {
  */
 static void MB20054_run_backfill_task(EventuallyPersistentEngine* engine,
                                       CheckedExecutor& backfill,
+                                      bool& backfill_signaled,
                                       SyncObject& backfill_cv,
+                                      bool& destroy_signaled,
                                       SyncObject& destroy_cv,
                                       TaskQueue* lpAuxioQ) {
     std::unique_lock<std::mutex> destroy_lh(destroy_cv);
@@ -1923,11 +1925,13 @@ static void MB20054_run_backfill_task(EventuallyPersistentEngine* engine,
     {
         // if we can get the lock, then we know the main thread is waiting
         std::lock_guard<std::mutex> backfill_lock(backfill_cv);
+        backfill_signaled = true;
         backfill_cv.notify_one(); // move the main thread along
     }
 
     // Now wait ourselves for destroy to be completed [B].
-    destroy_cv.wait(destroy_lh);
+    destroy_cv.wait(destroy_lh,
+                    [&destroy_signaled]() { return destroy_signaled; });
 
     // This is the only "hacky" part of the test - we need to somehow
     // keep the DCPBackfill task 'running' - i.e. not call
@@ -2064,7 +2068,9 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
     //  --------------------------------------------------------> time
     //
     SyncObject backfill_cv;
+    bool backfill_signaled = false;
     SyncObject destroy_cv;
+    bool destroy_signaled = false;
     std::thread concurrent_task_thread;
 
     {
@@ -2074,11 +2080,14 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
         concurrent_task_thread = std::thread(MB20054_run_backfill_task,
                                              engine.get(),
                                              std::ref(backfill),
+                                             std::ref(backfill_signaled),
                                              std::ref(backfill_cv),
+                                             std::ref(destroy_signaled),
                                              std::ref(destroy_cv),
                                              lpAuxioQ);
         // [A] Wait for DCPBackfill to complete.
-        backfill_cv.wait(backfill_lh);
+        backfill_cv.wait(backfill_lh,
+                         [&backfill_signaled]() { return backfill_signaled; });
     }
 
     ObjectRegistry::onSwitchThread(engine.get());
@@ -2089,6 +2098,7 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
     {
         // If we can get the lock we know the thread is waiting for destroy.
         std::lock_guard<std::mutex> lh(destroy_cv);
+        destroy_signaled = true;
         destroy_cv.notify_one(); // move the thread on.
     }
 

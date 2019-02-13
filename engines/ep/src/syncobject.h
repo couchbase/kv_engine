@@ -34,9 +34,11 @@ public:
     ~SyncObject() {
     }
 
-    void wait(std::unique_lock<std::mutex>& lock) {
-        cond.wait(lock);
-    }
+    // Note: there is no `wait(lock)` override (without Predicate) provided.
+    // This is because the underlying std::condition_variable::wait(lock)
+    // method can get spurious wakeups, and hence can miss notifications if
+    // using a non-predicated wait - see
+    // http://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#Rconc-wait
 
     template <class Predicate>
     void wait(std::unique_lock<std::mutex>& lock, Predicate pred) {

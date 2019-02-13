@@ -46,9 +46,7 @@ public:
 
     void wait(void) {
         std::unique_lock<std::mutex> lh(so);
-        while (count > 0) {
-            so.wait(lh);
-        }
+        so.wait(lh, [this] { return count == 0; });
     }
 
 private:

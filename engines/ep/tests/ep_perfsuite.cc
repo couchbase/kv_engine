@@ -51,6 +51,7 @@
 
 #include "mock/mock_dcp.h"
 #include "module_tests/test_helpers.h"
+#include "module_tests/thread_gate.h"
 
 // Default number of iterations for tests. Individual tests may
 // override this, but is generally desirable for them to scale the
@@ -841,8 +842,7 @@ static void perf_background_sets(EngineIface* h,
                                  int count,
                                  Doc_format typeOfData,
                                  std::vector<hrtime_t>& insertTimes,
-                                 std::condition_variable& cond_var,
-                                 std::atomic<bool>& setup_benchmark,
+                                 ThreadGate& setup_benchmark,
                                  std::atomic<bool>& running_benchmark) {
     std::vector<std::string> keys;
     const void* cookie = testHarness->create_cookie();
@@ -855,10 +855,9 @@ static void perf_background_sets(EngineIface* h,
             genVectorOfValues(typeOfData, count, ITERATIONS);
 
     int ii = 0;
+
     // update atomic stating we are ready to run the benchmark
-    setup_benchmark = true;
-    // signal the thread performing the stats calls
-    cond_var.notify_one();
+    setup_benchmark.threadUp();
 
     while (running_benchmark) {
         if (ii == count) {
@@ -1409,9 +1408,7 @@ static enum test_result perf_stat_latency(EngineIface* h,
                                           StatRuntime statRuntime,
                                           BackgroundWork backgroundWork,
                                           int active_vbuckets) {
-    std::condition_variable cond_var;
-    std::mutex m;
-    std::atomic<bool> setup_benchmark { false };
+    ThreadGate setup_benchmark(2);
     std::atomic<bool> running_benchmark { true };
     std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
     std::vector<hrtime_t> insert_timings;
@@ -1439,7 +1436,6 @@ static enum test_result perf_stat_latency(EngineIface* h,
                                 iterations_for_fast_stats,
                                 Doc_format::JSON_RANDOM,
                                 std::ref(insert_timings),
-                                std::ref(cond_var),
                                 std::ref(setup_benchmark),
                                 std::ref(running_benchmark)};
 
@@ -1456,10 +1452,7 @@ static enum test_result perf_stat_latency(EngineIface* h,
             dcp_thread.swap(local_dcp_thread);
         }
 
-        std::unique_lock<std::mutex> lock(m);
-        while (!setup_benchmark) {
-            cond_var.wait(lock);
-        }
+        setup_benchmark.threadUp();
 
         // run and measure on this thread.
         perf_stat_latency_core(h, 0, statRuntime);
