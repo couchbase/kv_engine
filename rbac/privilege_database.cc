@@ -20,6 +20,7 @@
 #include <platform/dirutils.h>
 #include <platform/rwlock.h>
 #include <strings.h>
+#include <utilities/logtags.h>
 #include <atomic>
 #include <fstream>
 #include <iostream>
@@ -358,7 +359,20 @@ std::pair<PrivilegeContext, bool> createInitialContext(const std::string& user,
 
 void loadPrivilegeDatabase(const std::string& filename) {
     const auto content = cb::io::loadFile(filename);
-    auto json = nlohmann::json::parse(content);
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(content);
+    } catch (nlohmann::json::exception& exception) {
+        std::stringstream ss;
+        ss << "Failed to parse RBAC database: " << exception.what() << std::endl
+           << cb::userdataStartTag << "RBAC database content: " << std::endl
+           << "===========================================" << std::endl
+           << content << std::endl
+           << "===========================================" << std::endl
+           << cb::userdataEndTag;
+
+        throw std::runtime_error(ss.str());
+    }
     auto database = std::make_unique<PrivilegeDatabase>(json, Domain::Local);
 
     auto& ctx = contexts[to_index(Domain::Local)];

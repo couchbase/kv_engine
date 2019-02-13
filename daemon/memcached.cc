@@ -2285,7 +2285,12 @@ extern "C" int memcached_main(int argc, char **argv) {
     }
 
     LOG_INFO("Loading RBAC configuration from [{}]", settings.getRbacFile());
-    cb::rbac::loadPrivilegeDatabase(settings.getRbacFile());
+    try {
+        cb::rbac::loadPrivilegeDatabase(settings.getRbacFile());
+    } catch (const std::exception& exception) {
+        // We can't run without a privilege database
+        FATAL_ERROR(EXIT_FAILURE, exception.what());
+    }
 
     LOG_INFO("Loading error maps from [{}]", settings.getErrorMapsDir());
     try {
