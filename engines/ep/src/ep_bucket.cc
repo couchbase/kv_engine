@@ -747,13 +747,22 @@ std::unique_ptr<PersistenceCallback> EPBucket::flushOneDelOrSet(
                          bySeqno == -1 ? "disk_insert" : "disk_update",
                          stats.timingLog);
         auto cb = std::make_unique<PersistenceCallback>(qi, qi->getCas());
-        rwUnderlying->set(*qi, *cb);
+        if (qi->isSystemEvent()) {
+            rwUnderlying->setSystemEvent(*qi, *cb);
+
+        } else {
+            rwUnderlying->set(*qi, *cb);
+        }
         return cb;
     } else {
         BlockTimer timer(&stats.diskDelHisto, "disk_delete",
                          stats.timingLog);
         auto cb = std::make_unique<PersistenceCallback>(qi, 0);
-        rwUnderlying->del(*qi, *cb);
+        if (qi->isSystemEvent()) {
+            rwUnderlying->delSystemEvent(*qi, *cb);
+        } else {
+            rwUnderlying->del(*qi, *cb);
+        }
         return cb;
     }
 }

@@ -480,6 +480,20 @@ uint64_t KVStore::getLastPersistedSeqno(Vbid vbid) {
     return 0;
 }
 
+void KVStore::setSystemEvent(
+        const Item& item, Callback<TransactionContext, mutation_result>& cb) {
+    // Passthrough
+    // @todo: use item to update the metadata we need to store
+    set(item, cb);
+}
+
+void KVStore::delSystemEvent(const Item& item,
+                             Callback<TransactionContext, int>& cb) {
+    // Passthrough
+    // @todo: use item to update the metadata we need to store
+    del(item, cb);
+}
+
 IORequest::IORequest(Vbid vbId,
                      MutationRequestCallback& cb,
                      bool del,

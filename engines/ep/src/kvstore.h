@@ -837,6 +837,25 @@ public:
      */
     virtual uint64_t prepareToDelete(Vbid vbid) = 0;
 
+    /**
+     * Set a system event into the KVStore.
+     * Collection system events will be used to maintain extra meta-data before
+     * writing to disk.
+     * @param item The Item representing the event
+     * @param cb a callback object which is called once persisted
+     */
+    void setSystemEvent(const Item& item,
+                        Callback<TransactionContext, mutation_result>& cb);
+    /**
+     * delete a system event in the KVStore.
+     * Collection system events will be used to maintain extra meta-data before
+     * writing to disk.
+     * @param item The Item representing the event
+     * @param cb a callback object which is called once persisted
+     */
+    void delSystemEvent(const Item& item,
+                        Callback<TransactionContext, int>& cb);
+
 protected:
 
     /* all stats */
