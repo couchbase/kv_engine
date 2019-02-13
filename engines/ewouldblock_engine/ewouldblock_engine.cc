@@ -1824,7 +1824,9 @@ void EWB_Engine::process_notifications() {
               (void*)this);
     std::unique_lock<std::mutex> lk(mutex);
     while (!stop_notification_thread) {
-        condvar.wait(lk);
+        condvar.wait(lk, [this] {
+            return (pending_io_ops.size() > 0) || stop_notification_thread;
+        });
         while (!pending_io_ops.empty()) {
             const void* cookie = pending_io_ops.front();
             pending_io_ops.pop();
