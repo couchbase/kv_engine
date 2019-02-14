@@ -47,6 +47,7 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
+#include <gsl.h>
 #include <logtags.h>
 #include <functional>
 #include <list>
@@ -659,6 +660,9 @@ ENGINE_ERROR_CODE VBucket::commit(
                 cb::UserData(ss.str()));
         return ENGINE_EINVAL;
     }
+
+    // Value for Pending must never be ejected
+    Expects(htRes.storedValue->isResident());
 
     VBQueueItemCtx queueItmCtx;
     if (commitSeqno) {

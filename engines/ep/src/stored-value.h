@@ -238,6 +238,11 @@ public:
     }
 
     bool eligibleForEviction(item_eviction_policy_t policy) const {
+        // Pending SyncWrite are always resident
+        if (getCommitted() == CommittedState::Pending) {
+            return false;
+        }
+
         if (policy == VALUE_ONLY) {
             return isResident() && !isDirty() && !isDeleted();
         } else {

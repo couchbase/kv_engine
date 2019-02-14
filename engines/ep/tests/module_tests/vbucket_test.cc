@@ -652,6 +652,45 @@ TEST_P(VBucketEvictionTest, MB21448_UnlockedSetWithCASDeleted) {
             << "When trying to replace-with-CAS a deleted item";
 }
 
+TEST_P(VBucketEvictionTest, Durability_PendingNeverEjected) {
+    // Necessary for enqueueing into the DurabilityMonitor (VBucket::set fails
+    // otherwise)
+    vbucket->setState(
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    ASSERT_EQ(0, vbucket->getNumItems());
+    ASSERT_EQ(0, vbucket->getNumNonResidentItems());
+
+    const auto item = makePendingItem(makeStoredDocKey("key"), "value");
+    VBQueueItemCtx ctx;
+    ctx.durability =
+            DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
+
+    ASSERT_EQ(MutationStatus::WasClean,
+              public_processSet(*item, item->getCas(), ctx));
+
+    auto& ht = vbucket->ht;
+
+    // The Pending is resident
+    EXPECT_EQ(1, ht.getNumItems());
+    EXPECT_EQ(0, ht.getNumInMemoryNonResItems());
+
+    auto storedItem = ht.findForWrite(item->getKey());
+    ASSERT_TRUE(storedItem.storedValue);
+    // Need to clear the dirty flag to ensure that we are testing the right
+    // thing, i.e. that the item is not ejected because it is Pending (not
+    // because it is dirty).
+    storedItem.storedValue->markClean();
+    ASSERT_FALSE(ht.unlocked_ejectItem(storedItem.lock,
+                                       storedItem.storedValue,
+                                       GetParam() /*ejection-policy*/));
+
+    // A Pending is never ejected (Key + Metadata + Value always resident)
+    EXPECT_EQ(1, ht.getNumItems());
+    EXPECT_EQ(0, ht.getNumInMemoryNonResItems());
+}
+
 class VBucketFullEvictionTest : public VBucketTest {};
 
 // This test aims to ensure the vBucket document count is correct in the

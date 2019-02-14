@@ -381,3 +381,104 @@ TEST_P(VBucketDurabilityTest, MultipleReplicas) {
     vbucket->seqnoAcknowledged(replica3, 1 /*memSeqno*/, 0 /*diskSeqno*/);
     checkCommitted();
 }
+
+TEST_P(VBucketDurabilityTest, PendingSkippedAtEjectionAndCommit) {
+    ASSERT_EQ(1, storeSyncWrites({1} /*seqnos*/));
+
+    auto key = makeStoredDocKey("key1");
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *ckptMgr);
+
+    // Note: Replica has not ack'ed yet
+
+    // HashTable state:
+    // not visible at read
+    EXPECT_FALSE(ht->findForRead(key).storedValue);
+    // Note: Need to release the HashBucketLock before calling again the
+    //     HT::find* functions below, deadlock otherwise
+    {
+        // visible at write
+        auto storedItem = ht->findForWrite(key);
+        ASSERT_TRUE(storedItem.storedValue);
+        // item pending
+        EXPECT_EQ(CommittedState::Pending,
+                  storedItem.storedValue->getCommitted());
+        // value is resident
+        ASSERT_TRUE(storedItem.storedValue->getValue());
+        EXPECT_EQ("value", storedItem.storedValue->getValue()->to_s());
+
+        // CheckpointManager state:
+        // 1 checkpoint
+        ASSERT_EQ(1, ckptList.size());
+        // empty-item
+        const auto& ckpt = *ckptList.front();
+        auto it = ckpt.begin();
+        ASSERT_EQ(queue_op::empty, (*it)->getOperation());
+        // 1 metaitem (checkpoint-start)
+        it++;
+        ASSERT_EQ(1, ckpt.getNumMetaItems());
+        EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
+        // 1 non-metaitem is pending and contains the expected value
+        it++;
+        ASSERT_EQ(1, ckpt.getNumItems());
+        EXPECT_EQ(CommittedState::Pending, (*it)->getCommitted());
+        EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
+        EXPECT_EQ("value", (*it)->getValue()->to_s());
+
+        // Need to clear the dirty flag to ensure that we are testing the right
+        // thing, i.e. that the item is not ejected because it is Pending (not
+        // because it is dirty).
+        storedItem.storedValue->markClean();
+        ASSERT_FALSE(ht->unlocked_ejectItem(storedItem.lock,
+                                            storedItem.storedValue,
+                                            GetParam() /*ejection-policy*/));
+    }
+
+    // HashTable state:
+    // not visible at read
+    EXPECT_FALSE(ht->findForRead(key).storedValue);
+    // visible at write
+    const auto* sv = ht->findForWrite(key).storedValue;
+    ASSERT_TRUE(sv);
+    // item pending
+    EXPECT_EQ(CommittedState::Pending, sv->getCommitted());
+    // value is still resident
+    EXPECT_TRUE(sv->getValue());
+
+    // Note: ensure 1 Ckpt in CM, easier to inspect the CkptList after Commit
+    ckptMgr->clear(*vbucket, 0 /*seqno*/);
+
+    // Replica acks, Durability Requirements satisfied, Commit
+    vbucket->seqnoAcknowledged(replica, 1 /*memSeqno*/, 0 /*diskSeqno*/);
+
+    // HashTable state:
+    // visible at read
+    sv = ht->findForRead(key).storedValue;
+    ASSERT_TRUE(sv);
+    // visible at write
+    EXPECT_TRUE(ht->findForWrite(key).storedValue);
+    // still pending
+    EXPECT_EQ(CommittedState::CommittedViaPrepare, sv->getCommitted());
+    // value is resident
+    EXPECT_TRUE(sv->getValue());
+    EXPECT_EQ("value", sv->getValue()->to_s());
+
+    // CheckpointManager state:
+    // 1 checkpoint
+    ASSERT_EQ(1, ckptList.size());
+    // empty-item
+    const auto& ckpt = *ckptList.front();
+    auto it = ckpt.begin();
+    ASSERT_EQ(queue_op::empty, (*it)->getOperation());
+    // 1 metaitem (checkpoint-start)
+    it++;
+    ASSERT_EQ(1, ckpt.getNumMetaItems());
+    EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
+    // 1 non-metaitem is committed and contains the expected value
+    it++;
+    ASSERT_EQ(1, ckpt.getNumItems());
+    EXPECT_EQ(CommittedState::CommittedViaPrepare, (*it)->getCommitted());
+    EXPECT_EQ(queue_op::commit_sync_write, (*it)->getOperation());
+    EXPECT_EQ("value", (*it)->getValue()->to_s());
+}

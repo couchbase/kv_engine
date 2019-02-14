@@ -872,47 +872,39 @@ bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock&,
                 "Unable to delete NULL StoredValue");
     }
 
-    switch (policy) {
-    case VALUE_ONLY:
-        if (vptr->eligibleForEviction(policy)) {
-            const auto preProps = valueStats.prologue(vptr);
-
-            vptr->ejectValue();
-            ++stats.numValueEjects;
-            ++numEjects;
-
-            valueStats.epilogue(preProps, vptr);
-
-            return true;
-        }
-        ++stats.numFailedEjects;
-        return false;
-
-    case FULL_EVICTION:
-        if (vptr->eligibleForEviction(policy)) {
-            const auto preProps = valueStats.prologue(vptr);
-
-            // Remove the item from the hash table.
-            int bucket_num = getBucketForHash(vptr->getKey().hash());
-            auto removed = hashChainRemoveFirst(
-                    values[bucket_num],
-                    [vptr](const StoredValue* v) { return v == vptr; });
-
-            if (removed->isResident()) {
-                ++stats.numValueEjects;
-            }
-            ++numEjects;
-            valueStats.epilogue(preProps, nullptr);
-
-            updateMaxDeletedRevSeqno(vptr->getRevSeqno());
-
-            return true;
-        }
+    if (!vptr->eligibleForEviction(policy)) {
         ++stats.numFailedEjects;
         return false;
     }
 
-    return false;
+    const auto preProps = valueStats.prologue(vptr);
+
+    switch (policy) {
+    case VALUE_ONLY: {
+        vptr->ejectValue();
+        ++stats.numValueEjects;
+        valueStats.epilogue(preProps, vptr);
+        break;
+    }
+    case FULL_EVICTION: {
+        // Remove the item from the hash table.
+        int bucket_num = getBucketForHash(vptr->getKey().hash());
+        auto removed = hashChainRemoveFirst(
+                values[bucket_num],
+                [vptr](const StoredValue* v) { return v == vptr; });
+
+        if (removed->isResident()) {
+            ++stats.numValueEjects;
+        }
+        valueStats.epilogue(preProps, nullptr);
+
+        updateMaxDeletedRevSeqno(vptr->getRevSeqno());
+        break;
+    }
+    }
+
+    ++numEjects;
+    return true;
 }
 
 std::unique_ptr<Item> HashTable::getRandomKeyFromSlot(int slot) {
