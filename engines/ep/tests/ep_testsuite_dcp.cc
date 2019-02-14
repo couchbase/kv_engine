@@ -7335,7 +7335,15 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_agg_stats,
                  test_setup,
                  teardown,
-                 "chk_max_items=100",
+                 "chk_max_items=100;chk_expel_enabled=false",
+                 /*
+                  * Checkpoint expelling needs to be disabled for this test because
+                  * the test expects each of the five streams to contain only a
+                  * single snapshot marker.  This relies on either all the items
+                  * being in memory or all being pulled in from a backfill.  It
+                  * does not expect to retrieve items from a backfill and
+                  * in-memory which results in more than one snaphot marker.
+                  */
                  prepare,
                  cleanup),
         TestCase("test dcp cursor dropping",
@@ -7345,9 +7353,18 @@ BaseTestCase testsuite_testcases[] = {
                  /* max_size set so that it's big enough that we can
                     create at least 1000 items when our residency
                     ratio gets to 90%. See test body for more details. */
-                 "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
-                 "chk_remover_stime=1;max_size=6291456;chk_max_items=8000;"
-                 "ephemeral_full_policy=fail_new_data",
+                 "cursor_dropping_lower_mark=60;"
+                 "cursor_dropping_upper_mark=70;"
+                 "chk_remover_stime=1;"
+                 "max_size=6291456;"
+                 "chk_max_items=8000;"
+                 "ephemeral_full_policy=fail_new_data;"
+                 "chk_expel_enabled=false",
+                 /*
+                  * Checkpoint expelling needs to be disabled for this test because
+                  * the expects to stream from memory.  So if items have been
+                  * expelled the number of mutations streamed is invalid.
+                 */
 
                  // TODO RDB: Cannot store any item (ENGINE_ENOMEM).
                  // Needs to resize 'max_size' to consider RocksDB
@@ -7361,9 +7378,18 @@ BaseTestCase testsuite_testcases[] = {
                  /* max_size set so that it's big enough that we can
                     create at least 1000 items when our residency
                     ratio gets to 90%. See test body for more details. */
-                 "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
-                 "chk_remover_stime=1;max_size=6291456;chk_max_items=8000;"
-                 "ephemeral_full_policy=fail_new_data",
+                 "cursor_dropping_lower_mark=60;"
+                 "cursor_dropping_upper_mark=70;"
+                 "chk_remover_stime=1;"
+                 "max_size=6291456;"
+                 "chk_max_items=8000;"
+                 "ephemeral_full_policy=fail_new_data;"
+                 "chk_expel_enabled=false",
+                 /*
+                  * Checkpoint expelling needs to be disabled for this test because
+                  * the expects to stream from memory.  So if items have been
+                  * expelled the number of mutations streamed is invalid.
+                 */
 
                  // TODO RDB: Cannot store any item (ENGINE_ENOMEM).
                  // Needs to resize 'max_size' to consider RocksDB

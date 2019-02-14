@@ -23,6 +23,7 @@
 #include "checkpoint_types.h"
 #include "ep_types.h"
 #include "item.h"
+#include "monotonic.h"
 #include "stats.h"
 
 #include <platform/non_negative_counter.h>
@@ -87,6 +88,7 @@ using checkpoint_index = std::unordered_map<
 class Checkpoint;
 class CheckpointManager;
 class CheckpointConfig;
+class Cursor;
 class PreLinkDocumentContext;
 class VBucket;
 
@@ -140,12 +142,16 @@ public:
         return *this;
     }
 
-    void decrPos();
-
     /// @returns the id of the current checkpoint the cursor is on
     uint64_t getId() const;
 
 private:
+    /**
+     * Move the cursor's iterator back one if it is not currently pointing to
+     * begin.  If pointing to begin then do nothing.
+     */
+    void decrPos();
+
     /*
      * Calculate the number of items (excluding meta-items) remaining to be
      * processed in the checkpoint the cursor is currently in.
@@ -271,6 +277,73 @@ std::string to_string(QueueDirtyStatus value);
  * and system events - for meta-items like checkpoint start/end they share the
  * same sequence number as the associated op - for checkpoint_start that is the
  * ID of the following op, for checkpoint_end the ID of the proceeding op.
+ *
+ * Expelling
+ * =========
+ *
+ * Items can be expelled (ejected from memory) from the oldest checkpoint that
+ * still has cursors in it.  This can include the open checkpoint.
+ *
+ * Items are expelled items from checkpoints to reduce memory requirements.
+ * This is achieved by identifying the oldest checkpoint that still has cursors
+ * in it.  Then identifying where the first cursor is located. For example in
+ * the diagram below it is seqno 1004.
+ *
+ *                 low                                high
+ *          dummy seqno                              seqno
+ *            |     |                                  |
+ *            |     |                                  |
+ *           \./   \./                                \./
+ *        --------------------------------------------------
+ *        | 1000 | 1001 | 1002 | 1003 | 1004 | 1005 | 1006 |
+ *        --------------------------------------------------
+ *                                      /.\           /.\
+ *                                       |             |
+ *                                       |             |
+ *                                    cursor 1      cursor 2
+ *
+ * It then expels items from the start of the checkpoint upto and including
+ * where the first cursor is located.  The cursor points to the location
+ * that was last processed and therefore it is safe for the item pointed to
+ * by the cursor to be expelled.
+ *
+ *
+ * In the diagram this means expelling 1000, 1001, 1002, 1003 and 1004.
+ * A new dummy is created at the position of where the last cursor pointed
+ * and is assigned the same seqno as the previous dummy.
+ *
+ * After the expel operation the checkpoint in memory is as follows.
+ *
+ *           new   low     high
+ *          dummy seqno   seqno
+ *            |      |      |
+ *            |      |      |
+ *           \./    \./    \./
+ *         ---------------------
+ *         | 1000 | 1005 | 1006 |
+ *         ---------------------
+ *           /.\           /.\
+ *            |             |
+ *            |             |
+ *         cursor 1      cursor 2
+ *
+ *
+ * The number of items (queue_op::mutation) in the checkpoint remains unchanged
+ * after expelling.  In the above example it means the checkpoint still contains
+ * the original six items, as shown below:
+ *
+ *        -------------------------------------------
+ *        | 1001 | 1002 | 1003 | 1004 | 1005 | 1006 |
+ *        -------------------------------------------
+ *                                /.\           /.\
+ *                                 |             |
+ *                                 |             |
+ *                              cursor 1      cursor 2
+ *
+ * If a checkpoint contains a single mutation then it is not expelled.  Also
+ * if the cursor is pointing to a meta-item the position to expel from is moved
+ * backwards until either a mutation item or the dummy item is reached.
+ *
  */
 class Checkpoint {
 public:
@@ -374,9 +447,14 @@ public:
     QueueDirtyStatus queueDirty(const queued_item& qi,
                                 CheckpointManager* checkpointManager);
 
+    /**
+     * Returns the seqno of a non-expelled (and non-dummy) item that has the
+     * lowest seqno.
+     */
     uint64_t getLowSeqno() const {
         auto pos = begin();
-        pos++;
+        // Skip passed the dummy item
+        ++pos;
         return (*pos)->getBySeqno();
     }
 
@@ -457,11 +535,21 @@ public:
      */
     void addItemToCheckpoint(const queued_item& qi);
 
+    /**
+     * Expel those items in the checkpoint where all cursors have passed.
+     * @param expelUpToAndIncluding  a cursor pointing where we will expel
+     *                               upto and including.
+     * @return  a CheckpointQueue of items that have been expelled.
+     */
+    CheckpointQueue expelItems(CheckpointCursor& expelUpToAndIncluding);
+
 private:
     EPStats                       &stats;
     uint64_t                       checkpointId;
     uint64_t                       snapStartSeqno;
     uint64_t                       snapEndSeqno;
+    /// The seqno of the highest expelled item.
+    Monotonic<int64_t> highestExpelledSeqno = 0;
     Vbid vbucketId;
     rel_time_t                     creationTime;
     checkpoint_state               checkpointState;

@@ -268,8 +268,9 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
                                                              (*itr)->begin());
             connCursors[name] = cursor;
             (*itr)->incNumOfCursorsInCheckpoint();
-            result.seqno = (*itr)->getLowSeqno();
+            result.seqno = st;
             result.cursor.setCursor(cursor);
+            result.tryBackfill = true;
             break;
         } else if (startBySeqno <= en) {
             // Requested sequence number lies within this checkpoint.
@@ -296,10 +297,6 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
             break;
         }
     }
-
-    result.tryBackfill = (result.seqno == checkpointList.front()->getLowSeqno())
-                                 ? true
-                                 : false;
 
     if (result.seqno == std::numeric_limits<uint64_t>::max()) {
         /*
@@ -459,6 +456,125 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
     // Also note that this function is O(N), with N being checkpointList.size().
 
     return numUnrefItems;
+}
+
+size_t CheckpointManager::expelUnreferencedCheckpointItems() {
+    CheckpointQueue expelledItems;
+    {
+        LockHolder lh(queueLock);
+
+        auto containsCursors = [](std::unique_ptr<Checkpoint>& c) {
+            if (c->getNumCursorsInCheckpoint() > 0) {
+                return true;
+            }
+            return false;
+        };
+        // Find the oldest checkpoint with cursors in it.
+        auto it = std::find_if(
+                checkpointList.begin(), checkpointList.end(), containsCursors);
+        Checkpoint* currentCheckpoint =
+                (it == checkpointList.end()) ? nullptr : (*it).get();
+
+        if (currentCheckpoint == nullptr) {
+            // There are no eligible checkpoints to expel items from.
+            return 0;
+        }
+
+        if (currentCheckpoint->getNumItems() == 0) {
+            // There are no mutation items in the checkpoint to expel.
+            return 0;
+        }
+
+        auto findLowestCursor =
+                [currentCheckpoint](Cursor& current,
+                                    const cursor_index::value_type& cursor) {
+                    // Get the cursor's current checkpoint.
+                    auto checkpoint =
+                            (*(cursor.second->currentCheckpoint)).get();
+                    // Is the cursor in the checkpoint we are interested in?
+                    if (currentCheckpoint != checkpoint) {
+                        return current;
+                    }
+                    // We are in the same checkpoint, have we found any
+                    // previous cursors?
+                    if (current.lock() == nullptr) {
+                        // No, so this has got to be the lowest we currently
+                        // know about.
+                        current.setCursor(cursor.second);
+                        return current;
+                    }
+                    // We already have a cursor so need to see if this one
+                    // is lower. Get the new cursor's seqno.
+                    auto seqno = (*cursor.second->currentPos)->getBySeqno();
+                    // Does it have a seqno lower than our current lowest?
+                    if ((seqno < (*current.lock()->currentPos)->getBySeqno())) {
+                        // Yes, so make it the new lowest.
+                        current.setCursor(cursor.second);
+                    }
+                    return current;
+                };
+
+        Cursor lowestCursor;
+        // Find the cursor with the lowest seqno that resides in the
+        // currentCheckpoint.
+        lowestCursor = std::accumulate(connCursors.begin(),
+                                       connCursors.end(),
+                                       lowestCursor,
+                                       findLowestCursor);
+
+        // Create a cursor that marks where we will expel upto and
+        // including.
+        auto expelUpToAndIncluding =
+                CheckpointCursor("expelUpToAndIncluding",
+                                 lowestCursor.lock().get()->currentCheckpoint,
+                                 lowestCursor.lock().get()->currentPos);
+
+        if ((*(expelUpToAndIncluding.currentPos))->getBySeqno() ==
+            int64_t(currentCheckpoint->getHighSeqno())) {
+            --expelUpToAndIncluding.currentPos;
+            /*
+             * expelUpToAndIncluding is pointing to the last
+             * mutation item in the checkpoint so move
+             * expelUpToAndIncluding back one.  This ensures that
+             * after expelling there will be at least one mutation
+             * item in the checkpoint (plus the dummy).
+             */
+        }
+
+        /*
+         * As we don't increase the seqno for meta-items we don't want the
+         * last item expelled to be a meta-item, otherwise on registering
+         * a cursor we have a situation where for the same seqno the meta-item
+         * is not in memory but the mutation item is.  Therefore move
+         * expelUpToAndIncluding back until we reach a mutation item, (or the
+         * dummy item).
+         */
+        while ((*expelUpToAndIncluding.currentPos)->isCheckPointMetaItem()) {
+            if (!(*expelUpToAndIncluding.currentPos)
+                         ->isNonEmptyCheckpointMetaItem()) {
+                // Reached the dummy item so just return
+                return 0;
+            }
+            --expelUpToAndIncluding.currentPos;
+        }
+
+        /*
+         * Now have the checkpoint and the expelUpToAndIncluding
+         * cursor we can expel the relevant checkpoint items.  The
+         * method returns the expelled items in the expelledItems
+         * queue thereby ensuring they still have a reference whilst
+         * the queuelock is being held.
+         */
+        expelledItems = currentCheckpoint->expelItems(expelUpToAndIncluding);
+    }
+
+    /*
+     * We are now outside of the queueLock when the method exits,
+     * expelledItems will go out of scope and so the reference count
+     * of expelled items will go to zero and hence will be deleted
+     * outside of the queuelock.
+     */
+    return expelledItems.size();
 }
 
 std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {

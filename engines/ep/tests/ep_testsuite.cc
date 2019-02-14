@@ -6654,6 +6654,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_bfilter_residency_threshold",
               "ep_bucket_type",
               "ep_cache_size",
+              "ep_chk_expel_enabled",
               "ep_chk_max_items",
               "ep_chk_period",
               "ep_chk_remover_stime",
@@ -6843,6 +6844,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_bucket_priority",
               "ep_bucket_type",
               "ep_cache_size",
+              "ep_chk_expel_enabled",
               "ep_chk_max_items",
               "ep_chk_period",
               "ep_chk_persistence_remains",
@@ -8277,10 +8279,20 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown,
                  "max_vbuckets=16;ht_size=7;ht_locks=3",
                  prepare, cleanup),
-        TestCase("test vbucket destroy stats", test_vbucket_destroy_stats,
-                 test_setup, teardown,
-                 "chk_remover_stime=1;chk_period=60",
-                 prepare_ep_bucket, cleanup),
+        TestCase("test vbucket destroy stats",
+                 test_vbucket_destroy_stats,
+                 test_setup,
+                 teardown,
+                 "chk_remover_stime=1;"
+                 "chk_period=60;"
+                 "chk_expel_enabled=false;",
+                /* Checkpoint expelling needs to be disabled for this test because
+                 * the test checks for items being removed by monitoring the
+                 * ep_items_rm_from_checkpoints stat.  If the items have already
+                 * been expelled the stat will not change.
+                 */
+                 prepare_ep_bucket,
+                 cleanup),
         TestCase("test async vbucket destroy restart",
                  test_async_vbucket_destroy_restart,
                  test_setup,

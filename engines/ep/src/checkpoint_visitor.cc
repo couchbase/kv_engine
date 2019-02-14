@@ -26,13 +26,15 @@
 
 CheckpointVisitor::CheckpointVisitor(KVBucketIface* s,
                                      EPStats& st,
-                                     std::atomic<bool>& sfin)
+                                     std::atomic<bool>& sfin,
+                                     ExpelItems expelItems)
     : store(s),
       stats(st),
       removed(0),
       taskStart(std::chrono::steady_clock::now()),
       wasHighMemoryUsage(s->isMemoryUsageTooHigh()),
-      stateFinalizer(sfin) {
+      stateFinalizer(sfin),
+      expelItems(expelItems) {
 }
 
 void CheckpointVisitor::visitBucket(const VBucketPtr& vb) {
@@ -53,6 +55,14 @@ void CheckpointVisitor::visitBucket(const VBucketPtr& vb) {
                      vb->getId());
     }
     removed = 0;
+
+    if (expelItems == ExpelItems::Yes) {
+        auto expelled =
+                vb->checkpointManager->expelUnreferencedCheckpointItems();
+        EP_LOG_DEBUG("Expelled {} unreferenced checkpoint items from {}",
+                     expelled,
+                     vb->getId());
+    }
 }
 
 void CheckpointVisitor::complete() {

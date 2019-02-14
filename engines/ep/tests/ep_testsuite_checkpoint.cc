@@ -278,7 +278,16 @@ BaseTestCase testsuite_testcases[] = {
                  test_checkpoint_deduplication,
                  test_setup,
                  teardown,
-                 "chk_max_items=5000;chk_period=600",
+                 "chk_max_items=5000;"
+                 "chk_period=600;"
+                 "chk_expel_enabled=false",
+                /* Checkpoint expelling needs to be disabled for this test because
+                 * the test checks that 4500 items created 5 times are correctly
+                 * de-duplicated (i.e. 4 * 4500 items are duplicated away).
+                 * If expelling is enabled it is possible that some items will be
+                 * expelled and hence will not get duplicated away.  Therefore the
+                 * expected number of items in the checkpoint will not match.
+                 */
                  prepare,
                  cleanup),
         TestCase("checkpoint: wait for persistence",

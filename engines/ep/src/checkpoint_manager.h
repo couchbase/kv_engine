@@ -91,6 +91,14 @@ public:
             size_t limit = std::numeric_limits<size_t>::max());
 
     /**
+     * Attempt to expel (i.e. eject from memory) items in the oldest checkpoint
+     * that still has cursor registered in it.  This is to help avoid very large
+     * checkpoints which consume a large amount of memory.
+     * @returns  the number of items that have been expelled.
+     */
+    size_t expelUnreferencedCheckpointItems();
+
+    /**
      * Register the cursor for getting items whose bySeqno values are between
      * startBySeqno and endBySeqno, and close the open checkpoint if endBySeqno
      * belongs to the open checkpoint.

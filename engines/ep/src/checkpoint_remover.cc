@@ -118,8 +118,12 @@ bool ClosedUnrefCheckpointRemoverTask::run(void) {
     if (available.compare_exchange_strong(inverse, false)) {
         cursorDroppingIfNeeded();
         KVBucketIface* kvBucket = engine->getKVBucket();
-        auto pv =
-                std::make_unique<CheckpointVisitor>(kvBucket, stats, available);
+
+        auto expelItems = engine->getConfiguration().isChkExpelEnabled()
+                                  ? CheckpointVisitor::ExpelItems::Yes
+                                  : CheckpointVisitor::ExpelItems::No;
+        auto pv = std::make_unique<CheckpointVisitor>(
+                kvBucket, stats, available, expelItems);
 
         // Empirical evidence from perf runs shows that 99.9% of "Checkpoint
         // Remover" task should complete under 50ms

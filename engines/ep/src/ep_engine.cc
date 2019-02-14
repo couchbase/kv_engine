@@ -608,6 +608,8 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
             runDefragmenterTask();
         } else if (key == "compaction_write_queue_cap") {
             getConfiguration().setCompactionWriteQueueCap(std::stoull(val));
+        } else if (key == "chk_expel_enabled") {
+            getConfiguration().setChkExpelEnabled(cb_stob(val));
         } else if (key == "dcp_min_compression_ratio") {
             getConfiguration().setDcpMinCompressionRatio(std::stof(val));
         } else if (key == "dcp_noop_mandatory_for_v5_features") {

@@ -138,8 +138,10 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
         addItemToCheckpoint(qi);
     } else {
         checkpoint_index::iterator it = keyIndex.find(qi->getKey());
-        // Check if this checkpoint already had an item for the same key
-        if (it != keyIndex.end()) {
+        // Check if this checkpoint already has an item for the same key
+        // and the item has not been expelled.
+        if (it != keyIndex.end() &&
+            (it->second.mutation_id > highestExpelledSeqno)) {
             const auto currPos = it->second.position;
             if ((*currPos)->getCommitted() !=
                         CommittedState::CommittedViaMutation ||
@@ -290,6 +292,36 @@ void Checkpoint::addItemToCheckpoint(const queued_item& qi) {
         // Not a meta item
         ++numItems;
     }
+}
+
+CheckpointQueue Checkpoint::expelItems(
+        CheckpointCursor& expelUpToAndIncluding) {
+    CheckpointQueue expelledItems(toWrite.get_allocator());
+
+    ChkptQueueIterator iterator = expelUpToAndIncluding.currentPos;
+
+    // Record the seqno of the last item to be expelled.
+    highestExpelledSeqno =
+            iterator.getUnderlyingIterator()->get()->getBySeqno();
+
+    // Add the item pointed to by the iterator to the expelledItems.
+    expelledItems.push_back(*(iterator.getUnderlyingIterator()));
+
+    // Update the item pointed to by the iterator to become the new dummy.
+    auto dummy = begin().getUnderlyingIterator();
+    iterator.getUnderlyingIterator()->reset(*dummy);
+    /*
+     * Move from (and including) the first item in the checkpoint queue upto
+     * (but not including) the item pointed to by iterator.  The item pointed
+     * to by iterator is now the new dummy item for the checkpoint queue.
+     */
+    expelledItems.splice(++(expelledItems.begin()),
+                         toWrite,
+                         begin().getUnderlyingIterator(),
+                         iterator.getUnderlyingIterator());
+
+    // Return the items that have been expelled in a separate queue.
+    return expelledItems;
 }
 
 std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {

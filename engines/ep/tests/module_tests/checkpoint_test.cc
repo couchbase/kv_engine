@@ -1666,3 +1666,178 @@ TYPED_TEST(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
     // Should be back to the initialOverhead
     EXPECT_EQ(initialOverhead, this->manager->getMemoryOverhead());
 }
+
+// Test that can expel items and that we have the correct behaviour when we
+// register cursors for items that have been expelled.
+TYPED_TEST(CheckpointTest, expelCheckpointItemsTest) {
+    const int itemCount{3};
+
+    for (auto ii = 0; ii < itemCount; ++ii) {
+        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
+    }
+
+    ASSERT_EQ(1, this->manager->getNumCheckpoints()); // Single open checkpoint.
+    ASSERT_EQ(itemCount, this->manager->getNumOpenChkItems());
+    ASSERT_EQ(itemCount, this->manager->getNumItemsForPersistence());
+    ASSERT_EQ(1000 + itemCount, this->manager->getHighSeqno());
+
+    bool isLastMutationItem{true};
+    for (auto ii = 0; ii < itemCount; ++ii) {
+        auto item = this->manager->nextItem(
+                this->manager->getPersistenceCursor(), isLastMutationItem);
+        ASSERT_FALSE(isLastMutationItem);
+    }
+
+    /*
+     * Checkpoint now looks as follows:
+     * 1000 - dummy item
+     * 1001 - checkpoint start
+     * 1001 - 1st item (key0)
+     * 1002 - 2nd item (key1) <<<<<<< persistenceCursor
+     * 1003 - 3rd item (key2)
+     */
+
+    EXPECT_EQ(itemCount + 1, this->manager->expelUnreferencedCheckpointItems());
+
+    /*
+     * After expelling checkpoint now looks as follows:
+     * 1000 - New Dummy Item <<<<<<< persistenceCursor
+     * 1003 - 3rd item (key 2)
+     */
+
+    /*
+     * We have expelled:
+     * 1000 - dummy item
+     * 1001 - checkpoint start
+     * 1001 - 1st item (key 0)
+     * 1002 - 2nd item (key 1)
+     */
+
+    // The full checkpoint still contains the 3 items added.
+    EXPECT_EQ(itemCount, this->manager->getNumOpenChkItems());
+
+    // Try to register a DCP replication cursor from 1001 - an expelled item.
+    std::string dcp_cursor1(DCP_CURSOR_PREFIX + std::to_string(1));
+    CursorRegResult regResult =
+            this->manager->registerCursorBySeqno(dcp_cursor1.c_str(), 1001);
+    EXPECT_EQ(1003, regResult.seqno);
+    EXPECT_TRUE(regResult.tryBackfill);
+
+    // Try to register a DCP replication cursor from 1002 - the dummy item.
+    std::string dcp_cursor2(DCP_CURSOR_PREFIX + std::to_string(2));
+    regResult = this->manager->registerCursorBySeqno(dcp_cursor2.c_str(), 1002);
+    EXPECT_EQ(1003, regResult.seqno);
+    EXPECT_TRUE(regResult.tryBackfill);
+
+    // Try to register a DCP replication cursor from 1003 - the first
+    // valid in-checkpoint item.
+    std::string dcp_cursor3(DCP_CURSOR_PREFIX + std::to_string(3));
+    regResult = this->manager->registerCursorBySeqno(dcp_cursor3.c_str(), 1003);
+    EXPECT_EQ(1004, regResult.seqno);
+    EXPECT_FALSE(regResult.tryBackfill);
+}
+
+// Test that we correctly handle duplicates, where the initial version of the
+// document has been expelled.
+TYPED_TEST(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
+    const int itemCount{3};
+
+    for (auto ii = 0; ii < itemCount; ++ii) {
+        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
+    }
+
+    ASSERT_EQ(1, this->manager->getNumCheckpoints()); // Single open checkpoint.
+    ASSERT_EQ(itemCount, this->manager->getNumOpenChkItems());
+    ASSERT_EQ(itemCount, this->manager->getNumItemsForPersistence());
+    ASSERT_EQ(1000 + itemCount, this->manager->getHighSeqno());
+
+    bool isLastMutationItem{true};
+    for (auto ii = 0; ii < itemCount; ++ii) {
+        auto item = this->manager->nextItem(
+                this->manager->getPersistenceCursor(), isLastMutationItem);
+        ASSERT_FALSE(isLastMutationItem);
+    }
+
+    ASSERT_EQ(itemCount + 1, this->manager->expelUnreferencedCheckpointItems());
+
+    /*
+     * After expelling checkpoint now looks as follows:
+     * 1000 - New Dummy Item <<<<<<< persistenceCursor
+     * 1003 - 3rd item (key2)
+     */
+
+    // Add another item which has been expelled.
+    // Should not find the duplicate and so will re-add.
+    EXPECT_TRUE(this->queueNewItem("key0"));
+
+    /*
+     * Checkpoint now looks as follows:
+     * 1000 - New Dummy Item <<<<<<< persistenceCursor
+     * 1003 - 3rd item (key2)
+     * 1004 - 4th item (key0)  << The New item added >>
+     */
+
+    // The full checkpoint still contains the 4 items added.
+    EXPECT_EQ(itemCount + 1, this->manager->getNumOpenChkItems());
+}
+
+// Test that when the first cursor we come across is pointing to the last
+// item we do not evict this item.  Instead we walk backwards find the
+// first non-meta item and evict from there.
+TYPED_TEST(CheckpointTest, expelCursorPointingToLastItem) {
+    const int itemCount{2};
+
+    for (auto ii = 0; ii < itemCount; ++ii) {
+        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
+    }
+
+    ASSERT_EQ(1, this->manager->getNumCheckpoints()); // Single open checkpoint.
+    ASSERT_EQ(itemCount, this->manager->getNumOpenChkItems());
+    ASSERT_EQ(itemCount, this->manager->getNumItemsForPersistence());
+    ASSERT_EQ(1000 + itemCount, this->manager->getHighSeqno());
+
+    bool isLastMutationItem{true};
+    for (auto ii = 0; ii < itemCount + 1; ++ii) {
+        auto item = this->manager->nextItem(
+                this->manager->getPersistenceCursor(), isLastMutationItem);
+    }
+
+    /*
+     * Checkpoint now looks as follows:
+     * 1000 - dummy item
+     * 1001 - checkpoint start
+     * 1001 - 1st item
+     * 1002 - 2nd item  <<<<<<< persistenceCursor
+     */
+
+    EXPECT_EQ(itemCount + 1 , this->manager->expelUnreferencedCheckpointItems());
+
+    /*
+     * After expelling checkpoint now looks as follows:
+     * 1000 - New Dummy Item <<<<<<< persistenceCursor
+     * 1001 - 2nd item (key2)
+     */
+
+    // The full checkpoint still contains the 3 items added.
+    EXPECT_EQ(itemCount, this->manager->getNumOpenChkItems());
+}
+
+
+// Test that when the first cursor we come across is pointing to the checkpoint
+// start we do not evict this item.  Instead we walk backwards and find the
+// the dummy item, so do not expel any items.
+TYPED_TEST(CheckpointTest, expelCursorPointingToChkptStart) {
+    ASSERT_EQ(1, this->manager->getNumCheckpoints()); // Single open checkpoint.
+
+    bool isLastMutationItem{true};
+    auto item = this->manager->nextItem(
+            this->manager->getPersistenceCursor(), isLastMutationItem);
+
+    /*
+     * Checkpoint now looks as follows:
+     * 1000 - dummy item
+     * 1001 - checkpoint start  <<<<<<< persistenceCursor
+     */
+
+    EXPECT_EQ(0 , this->manager->expelUnreferencedCheckpointItems());
+}
