@@ -35,7 +35,12 @@ struct DatabaseContext {
     // Every time we create a new PrivilegeDatabase we bump the generation.
     // The PrivilegeContext contains the generation number it was generated
     // from so that we can easily detect if the PrivilegeContext is stale.
-    std::atomic<uint32_t> generation{0};
+    // The current_generation contains the version number of the
+    // PrivilegeDatabase currently in use, and create_generation is the counter
+    // being used to work around race conditions where multiple threads is
+    // trying to create and update the RBAC database (last one wins)
+    std::atomic<uint32_t> current_generation{0};
+    std::atomic<uint32_t> create_generation{0};
 
     // The read write lock needed when you want to build a context
     cb::RWLock rwlock;
@@ -178,7 +183,7 @@ PrivilegeMask UserEntry::parsePrivileges(const nlohmann::json& privs,
 }
 
 PrivilegeDatabase::PrivilegeDatabase(const nlohmann::json& json, Domain domain)
-    : generation(contexts[to_index(domain)].generation.operator++()) {
+    : generation(contexts[to_index(domain)].create_generation.operator++()) {
     for (auto it = json.begin(); it != json.end(); ++it) {
         const std::string username = it.key();
         userdb.emplace(username, UserEntry(username, it.value(), domain));
@@ -269,7 +274,7 @@ PrivilegeAccess PrivilegeDatabase::check(const PrivilegeContext& context,
 }
 
 PrivilegeAccess PrivilegeContext::check(Privilege privilege) const {
-    if (generation != contexts[to_index(domain)].generation) {
+    if (generation != contexts[to_index(domain)].current_generation) {
         return PrivilegeAccess::Stale;
     }
 
@@ -365,6 +370,7 @@ void loadPrivilegeDatabase(const std::string& filename) {
     std::lock_guard<cb::WriterLock> guard(ctx.rwlock.writer());
     // Handle race conditions
     if (ctx.db->generation < database->generation) {
+        ctx.current_generation = database->generation;
         ctx.db.swap(database);
     }
 }
