@@ -46,13 +46,14 @@
 
 #include "ep_testsuite_common.h"
 #include "locks.h"
+#include <JSON_checker.h>
 #include <libcouchstore/couch_db.h>
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
+#include <memcached/types.h>
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
-#include <JSON_checker.h>
-#include <memcached/types.h>
+#include <platform/strerror.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
@@ -67,6 +68,13 @@
 #undef ntohl
 #undef htons
 #undef htonl
+#endif
+
+// For chmod() / _chmod()
+#if WIN32
+#include <io.h>
+#else
+#include <sys/stat.h>
 #endif
 
 using namespace std::string_literals;
@@ -7497,15 +7505,32 @@ static enum test_result test_mb20697(EngineIface* h) {
 
     std::string dbname = vals["ep_dbname"];
 
-    /* Nuke the database directory to simulate the commit failure.
-     * In case of failure to remove the directory, then retry atmost
-     * 10 times.
+    /* Make the couchstore files in the db directory unwritable.
+     *
+     * Note we can't just make the directory itself unwritable as other
+     * files (e.g. stats.json) need to be written and we are just testing
+     * document write failures here.
      */
-    int retries = 0;
-    while (rmdb(dbname.c_str()) == FAIL && retries < 10) {
-        retries++;
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
+    const auto dbFiles = cb::io::findFilesContaining(dbname, ".couch.");
+    checkeq(size_t{1},
+            dbFiles.size(),
+            ("Expected to find exactly 1 data file in db directory '"s +
+             dbname + "', found:" + std::to_string(dbFiles.size()))
+                    .c_str());
+
+    auto chmodNoWrite = [dbFiles]() {
+#if WIN32
+        return _chmod(dbFiles.front().c_str(), _S_IREAD);
+#else
+        return chmod(dbFiles.front().c_str(), S_IRUSR | S_IRGRP | S_IROTH);
+#endif
+    };
+
+    checkeq(0,
+            chmodNoWrite(),
+            ("Failed to make file '"s + dbFiles.at(0) +
+             "' read-only: " + cb_strerror())
+                    .c_str());
 
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, "key", "somevalue"),
@@ -7514,9 +7539,22 @@ static enum test_result test_mb20697(EngineIface* h) {
     /* Ensure that this results in commit failure and the stat gets incremented */
     wait_for_stat_change(h, "ep_item_commit_failed", 0);
 
-    // Restore the database directory so the flusher can complete (otherwise
-    // the writer thread can loop forever and we cannot shutdown cleanly.
-    cb::io::mkdirp(dbname);
+    // Restore the file permissions so the flusher can complete (otherwise
+    // the writer thread can loop forever and we cannot shutdown cleanly).
+    auto chmodWrite = [dbFiles]() {
+#if WIN32
+        return _chmod(dbFiles.front().c_str(), _S_IREAD | _S_IWRITE);
+#else
+        return chmod(dbFiles.front().c_str(),
+                     S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+#endif
+    };
+
+    checkeq(0,
+            chmodWrite(),
+            ("Failed to make file '"s + dbFiles.at(0) +
+             "' read-only: " + cb_strerror())
+                    .c_str());
 
     return SUCCESS;
 }
