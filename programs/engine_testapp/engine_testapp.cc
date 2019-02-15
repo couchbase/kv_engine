@@ -54,7 +54,7 @@ struct mock_engine : public EngineIface, public DcpIface {
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
-            boost::optional<cb::durability::Requirements> durability,
+            const boost::optional<cb::durability::Requirements>& durability,
             mutation_descr_t& mut_info) override;
 
     void release(gsl::not_null<item*> item) override;
@@ -88,14 +88,15 @@ struct mock_engine : public EngineIface, public DcpIface {
             const DocKey& key,
             Vbid vbucket,
             uint32_t expiryTime,
-            boost::optional<cb::durability::Requirements> durability) override;
+            const boost::optional<cb::durability::Requirements>& durability)
+            override;
 
     ENGINE_ERROR_CODE store(
             gsl::not_null<const void*> cookie,
             gsl::not_null<item*> item,
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
-            boost::optional<cb::durability::Requirements> durability,
+            const boost::optional<cb::durability::Requirements>& durability,
             DocumentState document_state) override;
 
     ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie) override;
@@ -464,7 +465,7 @@ ENGINE_ERROR_CODE mock_engine::remove(
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
-        boost::optional<cb::durability::Requirements> durability,
+        const boost::optional<cb::durability::Requirements>& durability,
         mutation_descr_t& mut_info) {
     auto engine_fn = std::bind(&EngineIface::remove,
                                the_engine,
@@ -513,7 +514,7 @@ cb::EngineErrorItemPair mock_engine::get_and_touch(
         const DocKey& key,
         Vbid vbucket,
         uint32_t expiryTime,
-        boost::optional<cb::durability::Requirements> durability) {
+        const boost::optional<cb::durability::Requirements>& durability) {
     auto engine_fn = std::bind(&EngineIface::get_and_touch,
                                the_engine,
                                cookie,
@@ -581,7 +582,7 @@ ENGINE_ERROR_CODE mock_engine::store(
         gsl::not_null<item*> item,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
-        boost::optional<cb::durability::Requirements> durability,
+        const boost::optional<cb::durability::Requirements>& durability,
         DocumentState document_state) {
     auto engine_fn = std::bind(&EngineIface::store,
                                the_engine,

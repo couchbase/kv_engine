@@ -235,7 +235,7 @@ ENGINE_ERROR_CODE default_engine::remove(
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
-        boost::optional<cb::durability::Requirements> durability,
+        const boost::optional<cb::durability::Requirements>& durability,
         mutation_descr_t& mut_info) {
     if (durability) {
         return ENGINE_ENOTSUP;
@@ -370,7 +370,7 @@ cb::EngineErrorItemPair default_engine::get_and_touch(
         const DocKey& key,
         Vbid vbucket,
         uint32_t expiry_time,
-        boost::optional<cb::durability::Requirements> durability) {
+        const boost::optional<cb::durability::Requirements>& durability) {
     if (durability) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::not_supported);
     }
@@ -524,7 +524,7 @@ ENGINE_ERROR_CODE default_engine::store(
         gsl::not_null<item*> item,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
-        boost::optional<cb::durability::Requirements> durability,
+        const boost::optional<cb::durability::Requirements>& durability,
         DocumentState document_state) {
     if (durability) {
         return ENGINE_ENOTSUP;

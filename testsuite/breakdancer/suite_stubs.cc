@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <memcached/durability_spec.h>
 #include <memcached/engine.h>
 #include <platform/cb_malloc.h>
 

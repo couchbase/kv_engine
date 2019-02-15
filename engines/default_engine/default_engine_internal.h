@@ -116,7 +116,7 @@ struct default_engine : public EngineIface {
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
-            boost::optional<cb::durability::Requirements> durability,
+            const boost::optional<cb::durability::Requirements>& durability,
             mutation_descr_t& mut_info) override;
 
     void release(gsl::not_null<item*> item) override;
@@ -150,14 +150,15 @@ struct default_engine : public EngineIface {
             const DocKey& key,
             Vbid vbucket,
             uint32_t expirytime,
-            boost::optional<cb::durability::Requirements> durability) override;
+            const boost::optional<cb::durability::Requirements>& durability)
+            override;
 
     ENGINE_ERROR_CODE store(
             gsl::not_null<const void*> cookie,
             gsl::not_null<item*> item,
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
-            boost::optional<cb::durability::Requirements> durability,
+            const boost::optional<cb::durability::Requirements>& durability,
             DocumentState document_state) override;
 
     cb::EngineErrorCasPair store_if(

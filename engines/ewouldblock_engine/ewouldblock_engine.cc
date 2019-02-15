@@ -379,7 +379,7 @@ public:
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
-            boost::optional<cb::durability::Requirements> durability,
+            const boost::optional<cb::durability::Requirements>& durability,
             mutation_descr_t& mut_info) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (should_inject_error(Cmd::REMOVE, cookie, err)) {
@@ -433,7 +433,8 @@ public:
             const DocKey& key,
             Vbid vbucket,
             uint32_t exptime,
-            boost::optional<cb::durability::Requirements> durability) override {
+            const boost::optional<cb::durability::Requirements>& durability)
+            override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (should_inject_error(Cmd::GET, cookie, err)) {
             return cb::makeEngineErrorItemPair(cb::engine_errc::would_block);
@@ -483,7 +484,7 @@ public:
             gsl::not_null<item*> item,
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
-            boost::optional<cb::durability::Requirements> durability,
+            const boost::optional<cb::durability::Requirements>& durability,
             DocumentState document_state) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         Cmd opcode = (operation == OPERATION_CAS) ? Cmd::CAS : Cmd::STORE;

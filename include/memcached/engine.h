@@ -25,7 +25,11 @@
 #include "memcached/types.h"
 #include "memcached/vbucket.h"
 
-#include "durability_spec.h"
+namespace cb {
+namespace durability {
+class Requirements;
+}
+} // namespace cb
 
 namespace cb {
 namespace mcbp {
@@ -282,7 +286,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
-            boost::optional<cb::durability::Requirements> durability,
+            const boost::optional<cb::durability::Requirements>& durability,
             mutation_descr_t& mut_info) = 0;
 
     /**
@@ -395,7 +399,8 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
             const DocKey& key,
             Vbid vbucket,
             uint32_t expirytime,
-            boost::optional<cb::durability::Requirements> durability) = 0;
+            const boost::optional<cb::durability::Requirements>&
+                    durability) = 0;
 
     /**
      * Store an item into the underlying engine with the given
@@ -419,7 +424,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
             gsl::not_null<item*> item,
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
-            boost::optional<cb::durability::Requirements> durability,
+            const boost::optional<cb::durability::Requirements>& durability,
             DocumentState document_state) = 0;
 
     /**

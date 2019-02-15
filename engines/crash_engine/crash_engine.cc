@@ -67,7 +67,7 @@ public:
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
-            boost::optional<cb::durability::Requirements> durability,
+            const boost::optional<cb::durability::Requirements>& durability,
             mutation_descr_t& mut_info) override;
 
     void release(gsl::not_null<item*> item) override;
@@ -101,14 +101,15 @@ public:
             const DocKey& key,
             Vbid vbucket,
             uint32_t expirytime,
-            boost::optional<cb::durability::Requirements>) override;
+            const boost::optional<cb::durability::Requirements>& durability)
+            override;
 
     ENGINE_ERROR_CODE store(
             gsl::not_null<const void*> cookie,
             gsl::not_null<item*> item,
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
-            boost::optional<cb::durability::Requirements> durability,
+            const boost::optional<cb::durability::Requirements>& durability,
             DocumentState document_state) override;
 
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
@@ -215,7 +216,7 @@ ENGINE_ERROR_CODE CrashEngine::remove(
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
-        boost::optional<cb::durability::Requirements> durability,
+        const boost::optional<cb::durability::Requirements>& durability,
         mutation_descr_t& mut_info) {
     return ENGINE_FAILED;
 }
@@ -248,7 +249,7 @@ cb::EngineErrorItemPair CrashEngine::get_and_touch(
         const DocKey&,
         Vbid,
         uint32_t,
-        boost::optional<cb::durability::Requirements>) {
+        const boost::optional<cb::durability::Requirements>&) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
@@ -278,7 +279,7 @@ ENGINE_ERROR_CODE CrashEngine::store(
         gsl::not_null<item*> item,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
-        boost::optional<cb::durability::Requirements> durability,
+        const boost::optional<cb::durability::Requirements>& durability,
         DocumentState) {
     return ENGINE_FAILED;
 }

@@ -72,7 +72,7 @@ public:
             const DocKey&,
             uint64_t&,
             Vbid,
-            boost::optional<cb::durability::Requirements> durability,
+            const boost::optional<cb::durability::Requirements>& durability,
             mutation_descr_t&) override {
         return ENGINE_NO_BUCKET;
     }
@@ -123,16 +123,17 @@ public:
             const DocKey&,
             Vbid,
             uint32_t,
-            boost::optional<cb::durability::Requirements>) override {
+            const boost::optional<cb::durability::Requirements>&) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
-    ENGINE_ERROR_CODE store(gsl::not_null<const void*>,
-                            gsl::not_null<item*>,
-                            uint64_t&,
-                            ENGINE_STORE_OPERATION,
-                            boost::optional<cb::durability::Requirements>,
-                            DocumentState) override {
+    ENGINE_ERROR_CODE store(
+            gsl::not_null<const void*>,
+            gsl::not_null<item*>,
+            uint64_t&,
+            ENGINE_STORE_OPERATION,
+            const boost::optional<cb::durability::Requirements>&,
+            DocumentState) override {
         return ENGINE_NO_BUCKET;
     }
 

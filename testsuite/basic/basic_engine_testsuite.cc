@@ -16,12 +16,13 @@
  */
 
 #include "config.h"
+#include "basic_engine_testsuite.h"
+#include <memcached/durability_spec.h>
+#include <platform/cb_malloc.h>
+#include <platform/platform.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <platform/cb_malloc.h>
-#include <platform/platform.h>
-#include "basic_engine_testsuite.h"
 
 #include <iostream>
 #include <vector>
