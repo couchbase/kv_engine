@@ -125,15 +125,31 @@ static int set_verbosity(MemcachedConnection& connection,
 }
 
 static void usage() {
-    fprintf(stderr,
-            "Usage: mcctl [-h host[:port]] [-p port] [-u user] [-P pass] [-s] "
-            "[-C ssl_cert] [-K ssl_key] <get|set> property [value]\n"
-            "\n"
-            "    get <property>           Returns the value of the given "
-            "property.\n"
-            "    set <property> [value]   Sets `property` to the given value.\n"
-            "    reload <property>        Reload the named property (config, "
-            "sasl)\n");
+    std::cerr << R"(Usage mcctl [options] <get|set|reload> property [value]
+
+Options:
+
+  -h or --host hostname[:port]   The host (with an optional port) to connect to
+  -p or --port port              The port number to connect to
+  -b or --bucket bucketname      The name of the bucket to operate on
+  -u or --user username          The name of the user to authenticate as
+  -P or --password password      The passord to use for authentication
+                                 (use '-' to read from standard input)
+  -s or --ssl                    Connect to the server over SSL
+  -C or --ssl-cert filename      Read the SSL certificate from the specified file
+  -K or --ssl-key filename       Read the SSL private key from the specified file
+  -4 or --ipv4                   Connect over IPv4
+  -6 or --ipv6                   Connect over IPv6
+  --help                         This help text
+
+Commands:
+
+   get <property>                Return the value of the given property
+   set <property> [value]        Sets `property` to the given value
+   reload <property>             Reload the named property (config, sasl, ...)
+
+)";
+
     exit(EXIT_FAILURE);
 }
 
@@ -152,10 +168,26 @@ int main(int argc, char** argv) {
     sa_family_t family = AF_UNSPEC;
     bool secure = false;
 
-    /* Initialize the socket subsystem */
+    // Initialize the socket subsystem
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "46h:p:u:b:P:sC:K:")) != EOF) {
+    struct option long_options[] = {
+            {"ipv4", no_argument, nullptr, '4'},
+            {"ipv6", no_argument, nullptr, '6'},
+            {"host", required_argument, nullptr, 'h'},
+            {"port", required_argument, nullptr, 'p'},
+            {"bucket", required_argument, nullptr, 'b'},
+            {"password", required_argument, nullptr, 'P'},
+            {"user", required_argument, nullptr, 'u'},
+            {"ssl", no_argument, nullptr, 's'},
+            {"ssl-cert", required_argument, nullptr, 'C'},
+            {"ssl-key", required_argument, nullptr, 'K'},
+            {"help", no_argument, nullptr, 0},
+            {nullptr, 0, nullptr, 0}};
+
+    while ((cmd = getopt_long(
+                    argc, argv, "46h:p:u:b:P:sC:K:", long_options, nullptr)) !=
+           EOF) {
         switch (cmd) {
         case '6' :
             family = AF_INET6;
