@@ -54,31 +54,30 @@ static void request_stat(MemcachedConnection& connection,
 }
 
 static void usage() {
-    std::cout << "Usage: mcstat [options] statkey ..." << std::endl
-              << "  -h hostname[:port]  Host (and optional port number) to retrieve stats from"
-              << std::endl
-              << "                      (for IPv6 use: [address]:port if you'd like to specify port)"
-              << std::endl
-              << "  -p port      Port number" << std::endl
-              << "  -u username  Username (currently synonymous with -b)"
-              << std::endl
-              << "  -b bucket    Bucket name" << std::endl
-              << "  -P password  Password (if bucket is password-protected)"
-              << std::endl
-              << "  -S stdin     Read password from stdin (if bucket is password-protected)"
-              << std::endl
-              << "  -s           Connect to node securely (using SSL)"
-              << std::endl
-              << "  -j           Print result as JSON (unformatted)"
-              << std::endl
-              << "  -J           Print result in JSON (formatted)"
-              << std::endl
-              << "  -4           Use IPv4 (default)" << std::endl
-              << "  -6           Use IPv6" << std::endl
-              << "  -C certfile  Use certfile as a client certificate"
-              << std::endl
-              << "  -K keyfile  Use keyfile as a client key" << std::endl
-              << "  statkey ...  Statistic(s) to request" << std::endl;
+    std::cerr << R"(Usage: mcstat [options] statkey ...
+
+Options:
+
+  -h or --host hostname[:port]   The host (with an optional port) to connect to
+                                 (for IPv6 use: [address]:port if you'd like to
+                                 specify port)
+  -p or --port port              The port number to connect to
+  -b or --bucket bucketname      The name of the bucket to operate on
+  -u or --user username          The name of the user to authenticate as
+  -P or --password password      The passord to use for authentication
+                                 (use '-' to read from standard input)
+  -s or --ssl                    Connect to the server over SSL
+  -C or --ssl-cert filename      Read the SSL certificate from the specified file
+  -K or --ssl-key filename       Read the SSL private key from the specified file
+  -4 or --ipv4                   Connect over IPv4
+  -6 or --ipv6                   Connect over IPv6
+  -j or --json                   Print result as JSON (unformatted)
+  -J or --json=pretty            Print result in JSON (formatted)
+  --help                         This help text
+  statkey ...  Statistic(s) to request
+)";
+
+    exit(EXIT_FAILURE);
 }
 
 int main(int argc, char** argv) {
@@ -101,7 +100,26 @@ int main(int argc, char** argv) {
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "46h:p:u:b:P:SsjJC:K:")) != EOF) {
+    struct option long_options[] = {
+            {"ipv4", no_argument, nullptr, '4'},
+            {"ipv6", no_argument, nullptr, '6'},
+            {"host", required_argument, nullptr, 'h'},
+            {"port", required_argument, nullptr, 'p'},
+            {"bucket", required_argument, nullptr, 'b'},
+            {"password", required_argument, nullptr, 'P'},
+            {"user", required_argument, nullptr, 'u'},
+            {"ssl", no_argument, nullptr, 's'},
+            {"ssl-cert", required_argument, nullptr, 'C'},
+            {"ssl-key", required_argument, nullptr, 'K'},
+            {"json", optional_argument, nullptr, 'j'},
+            {"help", no_argument, nullptr, 0},
+            {nullptr, 0, nullptr, 0}};
+
+    while ((cmd = getopt_long(argc,
+                              argv,
+                              "46h:p:u:b:P:SsjJC:K:",
+                              long_options,
+                              nullptr)) != EOF) {
         switch (cmd) {
         case '6' :
             family = AF_INET6;
@@ -125,6 +143,9 @@ int main(int argc, char** argv) {
             password.assign(optarg);
             break;
         case 'S':
+            // Deprecated and not shown in the help text
+            std::cerr << "mcstat: -S is deprecated. Use \'-P -\" instead"
+                      << std::endl;
             password.assign(getpass());
             break;
         case 's':
@@ -135,6 +156,9 @@ int main(int argc, char** argv) {
             // FALLTHROUGH
         case 'j':
             json = true;
+            if (optarg && std::string{optarg} == "pretty") {
+                format = true;
+            }
             break;
         case 'C':
             ssl_cert.assign(optarg);
@@ -148,7 +172,9 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (password.empty()) {
+    if (password == "-") {
+        password.assign(getpass());
+    } else if (password.empty()) {
         const char* env_password = std::getenv("CB_PASSWORD");
         if (env_password) {
             password = env_password;
