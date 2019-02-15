@@ -36,6 +36,11 @@ static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 
 int main(int argc, char **argv) {
     bool verbose_logging = false;
+
+    // Initialise GoogleMock (and GoogleTest), consuming any cmd-line arguments
+    // it owns before we check our own.
+    ::testing::InitGoogleMock(&argc, argv);
+
     // Parse command-line options.
     int cmd;
     bool invalid_argument = false;
@@ -76,7 +81,6 @@ int main(int argc, char **argv) {
     // Need to initialize ep_real_time and friends.
     initialize_time_functions(get_mock_server_api()->core);
 
-    ::testing::InitGoogleMock(&argc, argv);
     auto ret = RUN_ALL_TESTS();
 
     globalBucketLogger.reset();
