@@ -1,117 +1,101 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+
 #include "config.h"
 #include "utilities/engine_loader.h"
-#include <ctype.h>
+
 #include <logger/logger.h>
 #include <memcached/types.h>
-#include <platform/cb_malloc.h>
+#include <platform/dirutils.h>
 #include <platform/platform.h>
-#include <stdio.h>
-#include <string.h>
+#include <cctype>
+#include <cstdio>
 
 struct engine_reference {
+    engine_reference(std::unique_ptr<cb::io::LibraryHandle>& handle,
+                     CREATE_INSTANCE create,
+                     DESTROY_ENGINE destroy)
+        : handle(std::move(handle)), create(create), destroy(destroy) {
+    }
 
-    /* Union hack to remove a warning from C99 */
-    union my_create_u {
-        CREATE_INSTANCE create;
-        void* voidptr;
-    } my_create_instance;
+    ~engine_reference() {
+        destroy();
+    }
 
-    union my_destroy_u {
-        DESTROY_ENGINE destroy;
-        void* voidptr;
-    } my_destroy_engine;
-
-    cb_dlhandle_t handle;
+    std::unique_ptr<cb::io::LibraryHandle> handle;
+    const CREATE_INSTANCE create;
+    const DESTROY_ENGINE destroy;
 };
 
-void unload_engine(engine_reference* engine)
-{
-    if (engine->handle != NULL) {
-        (*engine->my_destroy_engine.destroy)();
-        cb_dlclose(engine->handle);
-        cb_free(engine);
-    }
-}
-
-static void* find_symbol(cb_dlhandle_t handle, const char* function, char** errmsg) {
-    return cb_dlsym(handle, function, errmsg);
+void unload_engine(engine_reference* engine) {
+    delete engine;
 }
 
 engine_reference* load_engine(const char* soname, const char* create_function) {
-    void *create_symbol = NULL;
-    void *destroy_symbol = NULL;
-    char *errmsg = NULL, *create_errmsg = NULL, *destroy_errmsg = NULL;
-    const char* const create_functions[] = { "create_instance",
-                                             "create_default_engine_instance",
-                                             "create_ep_engine_instance",
-                                             NULL };
-    const char* const destroy_functions[] = { "destroy_engine", NULL };
-
-    cb_dlhandle_t handle = cb_dlopen(soname, &errmsg);
-
-    if (handle == NULL) {
+    std::unique_ptr<cb::io::LibraryHandle> handle;
+    CREATE_INSTANCE create = nullptr;
+    DESTROY_ENGINE destroy = nullptr;
+    try {
+        handle = cb::io::loadLibrary(soname);
+    } catch (const std::exception& e) {
         LOG_WARNING(
-                R"(Failed to open library "{}": {})", soname, errmsg);
-        cb_free(errmsg);
-        return NULL;
+                R"(Failed to open library "{}": {})", soname, e.what());
+        return nullptr;
     }
 
     if (create_function) {
-        create_symbol = find_symbol(handle, create_function, &create_errmsg);
+        try {
+            create = handle->find<CREATE_INSTANCE>(create_function);
+        } catch (const std::exception& e) {
+            LOG_WARNING(
+                    "Could not find the function to create an engine instance "
+                    "in {}: {}",
+                    soname,
+                    e.what());
+            return nullptr;
+        }
     } else {
-        int ii = 0;
-        while (create_functions[ii] != NULL && create_symbol == NULL) {
-            create_symbol = find_symbol(handle, create_functions[ii], &create_errmsg);
-            ii++;
+        std::vector<std::string> funcs = {{"create_instance",
+                                           "create_default_engine_instance",
+                                           "create_ep_engine_instance"}};
+
+        for (const auto& func : funcs) {
+            try {
+                create = handle->find<CREATE_INSTANCE>(func);
+                break;
+            } catch (const std::exception&) {
+                // ignore
+            }
+        }
+
+        if (create == nullptr) {
+            LOG_WARNING(
+                    "Could not find the function to create an engine instance "
+                    "in {}",
+                    soname);
+            return nullptr;
         }
     }
-
-    int ii = 0;
-    while (destroy_functions[ii] != NULL && destroy_symbol == NULL) {
-        destroy_symbol =
-                find_symbol(handle, destroy_functions[ii], &destroy_errmsg);
-        ii++;
-    }
-
-    if (create_symbol == NULL) {
-        LOG_WARNING(
-                "Could not find the function to create an engine instance in "
-                "{}: {}",
-                soname,
-                create_errmsg);
-        cb_free(create_errmsg);
-        return NULL;
-    }
-
-    if (destroy_symbol == NULL) {
+    try {
+        destroy = handle->find<DESTROY_ENGINE>("destroy_engine");
+    } catch (const std::exception& e) {
         LOG_WARNING(
                 "Could not find the function to destroy the engine in {}: {}",
                 soname,
-                destroy_errmsg);
-        cb_free(destroy_errmsg);
-        return NULL;
+                e.what());
+        return nullptr;
     }
 
-    // dlopen is success and we found all required symbols.
-    engine_reference* engine_ref = static_cast<engine_reference*>
-        (cb_calloc(1, sizeof(engine_reference)));
-    engine_ref->handle = handle;
-    engine_ref->my_create_instance.voidptr = create_symbol;
-    engine_ref->my_destroy_engine.voidptr = destroy_symbol;
-    return engine_ref;
+    return new engine_reference(handle, create, destroy);
 }
 
 bool create_engine_instance(engine_reference* engine_ref,
                             SERVER_HANDLE_V1* (*get_server_api)(void),
                             EngineIface** engine_handle) {
-    EngineIface* engine = NULL;
+    EngineIface* engine = nullptr;
 
     /* request a instance with protocol version 1 */
-    ENGINE_ERROR_CODE error =
-            (*engine_ref->my_create_instance.create)(get_server_api, &engine);
-
-    if (error != ENGINE_SUCCESS || engine == NULL) {
+    const auto error = engine_ref->create(get_server_api, &engine);
+    if (error != ENGINE_SUCCESS || engine == nullptr) {
         LOG_WARNING("Failed to create instance. Error code: {}", error);
         return false;
     }
@@ -120,9 +104,7 @@ bool create_engine_instance(engine_reference* engine_ref,
 }
 
 bool init_engine_instance(EngineIface* engine, const char* config_str) {
-    ENGINE_ERROR_CODE error;
-
-    error = engine->initialize(config_str);
+    const auto error = engine->initialize(config_str);
     if (error != ENGINE_SUCCESS) {
         engine->destroy(false);
         cb::engine_error err{cb::engine_errc(error),

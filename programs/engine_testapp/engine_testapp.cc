@@ -1338,25 +1338,6 @@ static test_result execute_test(engine_test_t test,
     return ret;
 }
 
-static void teardown_testsuite(cb_dlhandle_t handle, const char* test_suite) {
-    /* Hack to remove the warning from C99 */
-    union {
-        TEARDOWN_SUITE teardown_suite;
-        void* voidptr;
-    } my_teardown_suite{};
-
-    char* errmsg = nullptr;
-    void* symbol = cb_dlsym(handle, "teardown_suite", &errmsg);
-    if (symbol == nullptr) {
-        cb_free(errmsg);
-    } else {
-        my_teardown_suite.voidptr = symbol;
-        if (!(*my_teardown_suite.teardown_suite)()) {
-            fprintf(stderr, "Failed to teardown up test suite %s \n", test_suite);
-        }
-    }
-}
-
 int main(int argc, char **argv) {
     int c, exitcode = 0, num_cases = 0, loop_count = 0;
     bool verbose = false;
@@ -1369,9 +1350,6 @@ int main(int argc, char **argv) {
     const char* test_suite = nullptr;
     std::unique_ptr<std::regex> test_case_regex;
     engine_test_t* testcases = nullptr;
-    cb_dlhandle_t dlhandle;
-    char* errmsg = nullptr;
-    void* symbol = nullptr;
     int test_case_id = -1;
 
     /* If a testcase fails, retry up to 'attempts -1' times to allow it
@@ -1379,18 +1357,6 @@ int main(int argc, char **argv) {
        test failures without having to manually retry the whole
        job. */
     int attempts = 1;
-
-    /* Hack to remove the warning from C99 */
-    union {
-        GET_TESTS get_tests;
-        void* voidptr;
-    } my_get_test{};
-
-    /* Hack to remove the warning from C99 */
-    union {
-        SETUP_SUITE setup_suite;
-        void* voidptr;
-    } my_setup_suite{};
 
     cb::logger::createConsoleLogger();
     cb_initialize_sockets();
@@ -1403,9 +1369,6 @@ int main(int argc, char **argv) {
                   << std::endl;
         exit(EXIT_FAILURE);
     }
-
-    memset(&my_get_test, 0, sizeof(my_get_test));
-    memset(&my_setup_suite, 0, sizeof(my_setup_suite));
 
     color_enabled = getenv("TESTAPP_ENABLE_COLOR") != nullptr;
 
@@ -1516,24 +1479,24 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    /* load test_suite */
-    dlhandle = cb_dlopen(test_suite, &errmsg);
-    if (dlhandle == nullptr) {
-        fprintf(stderr, "Failed to load testsuite %s: %s\n", test_suite,
-                errmsg);
-        cb_free(errmsg);
+    // load test_suite
+    std::unique_ptr<cb::io::LibraryHandle> dlhandle;
+    try {
+        dlhandle = cb::io::loadLibrary(test_suite);
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to load testsuite " << test_suite << ": "
+                  << e.what() << std::endl;
         return 1;
     }
 
-    /* get the test cases */
-    symbol = cb_dlsym(dlhandle, "get_tests", &errmsg);
-    if (symbol == nullptr) {
-        fprintf(stderr, "Could not find get_tests function in testsuite %s: %s\n", test_suite, errmsg);
-        cb_free(errmsg);
+    // get the test cases
+    try {
+        testcases = dlhandle->find<GET_TESTS>("get_tests")();
+    } catch (const std::exception& e) {
+        std::cerr << "Could not find get_tests function in testsuite "
+                  << test_suite << ": " << e.what() << std::endl;
         return 1;
     }
-    my_get_test.voidptr = symbol;
-    testcases = (*my_get_test.get_tests)();
 
     /* set up the suite if needed */
     harness.default_engine_cfg = engine_args;
@@ -1554,15 +1517,15 @@ int main(int argc, char **argv) {
         /* Just counting */
     }
 
-    symbol = cb_dlsym(dlhandle, "setup_suite", &errmsg);
-    if (symbol == nullptr) {
-        cb_free(errmsg);
-    } else {
-        my_setup_suite.voidptr = symbol;
-        if (!(*my_setup_suite.setup_suite)(&harness)) {
-            fprintf(stderr, "Failed to set up test suite %s \n", test_suite);
+    try {
+        auto setup_suite = dlhandle->find<SETUP_SUITE>("setup_suite");
+        if (!setup_suite(&harness)) {
+            std::cerr << "Failed to set up test suite " << test_suite
+                      << std::endl;
             return 1;
         }
+    } catch (const std::exception&) {
+        // ignore
     }
 
     do {
@@ -1656,11 +1619,19 @@ int main(int argc, char **argv) {
         ++loop_count;
     } while (loop && exitcode == 0);
 
-    /* tear down the suite if needed */
-    teardown_testsuite(dlhandle, test_suite);
+    // tear down the suite if needed
+    try {
+        auto teardown_suite = dlhandle->find<TEARDOWN_SUITE>("teardown_suite");
+        if (!teardown_suite()) {
+            std::cerr << "Failed to teardown up test suite " << test_suite
+                      << std::endl;
+        }
+    } catch (const std::exception&) {
+        // ignore
+    }
 
     printf("# Passed %d of %d tests\n", num_cases - exitcode, num_cases);
-    cb_dlclose(dlhandle);
+    dlhandle.reset();
 
     return exitcode;
 }

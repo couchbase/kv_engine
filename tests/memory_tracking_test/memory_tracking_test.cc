@@ -17,9 +17,10 @@
 
 #include "config.h"
 
+#include <platform/cb_malloc.h>
+#include <platform/dirutils.h>
 #include <atomic>
 #include <cstring>
-#include <platform/cb_malloc.h>
 #include <string>
 
 #include "daemon/alloc_hooks.h"
@@ -54,17 +55,6 @@ public:
 
     // function executed by our accounting test thread.
     static void AccountingTestThread(void* arg);
-
-    // Helper function to lookup a symbol in a plugin and return a correctly-typed
-    // function pointer.
-    template <typename T>
-    static T get_plugin_symbol(cb_dlhandle_t handle, const char* symbol_name) {
-        char* errmsg;
-        T symbol = reinterpret_cast<T>(cb_dlsym(handle, symbol_name, &errmsg));
-        cb_assert(symbol != nullptr);
-        return symbol;
-    }
-
     static std::atomic_size_t alloc_size;
 };
 
@@ -142,51 +132,44 @@ void MemoryTrackerTest::AccountingTestThread(void* arg) {
 
     // Test memory allocations performed from another shared library loaded
     // at runtime.
-    char* errmsg = nullptr;
-    cb_dlhandle_t plugin = cb_dlopen("memcached_memory_tracking_plugin",
-                                     &errmsg);
-    EXPECT_NE(plugin, nullptr);
+    auto plugin = cb::io::loadLibrary("memcached_memory_tracking_plugin");
 
     // dlopen()ing a plugin can allocate memory. Reset alloc_size.
     alloc_size = 0;
 
     typedef void* (*plugin_malloc_t)(size_t);
-    auto plugin_malloc =
-        get_plugin_symbol<plugin_malloc_t>(plugin, "plugin_malloc");
+    auto plugin_malloc = plugin->find<plugin_malloc_t>("plugin_malloc");
     p = static_cast<char*>(plugin_malloc(100));
     EXPECT_GE(alloc_size, 100);
 
     typedef void (*plugin_free_t)(void*);
-    auto plugin_free =
-        get_plugin_symbol<plugin_free_t>(plugin, "plugin_free");
+    auto plugin_free = plugin->find<plugin_free_t>("plugin_free");
     plugin_free(p);
     EXPECT_EQ(0, alloc_size);
 
     typedef char* (*plugin_new_char_t)(size_t);
     auto plugin_new_char =
-        get_plugin_symbol<plugin_new_char_t>(plugin, "plugin_new_char_array");
+            plugin->find<plugin_new_char_t>("plugin_new_char_array");
     p = plugin_new_char(200);
     EXPECT_GE(alloc_size, 200);
 
     typedef void (*plugin_delete_array_t)(char*);
     auto plugin_delete_char =
-        get_plugin_symbol<plugin_delete_array_t>(plugin, "plugin_delete_array");
+            plugin->find<plugin_delete_array_t>("plugin_delete_array");
     plugin_delete_char(p);
     EXPECT_EQ(0, alloc_size);
 
     typedef std::string* (*plugin_new_string_t)(const char*);
     auto plugin_new_string =
-        get_plugin_symbol<plugin_new_string_t>(plugin, "plugin_new_string");
+            plugin->find<plugin_new_string_t>("plugin_new_string");
     auto* string = plugin_new_string("duplicate_string");
     EXPECT_GE(alloc_size, 16);
 
     typedef void(*plugin_delete_string_t)(std::string* ptr);
     auto plugin_delete_string =
-        get_plugin_symbol<plugin_delete_string_t>(plugin, "plugin_delete_string");
+            plugin->find<plugin_delete_string_t>("plugin_delete_string");
     plugin_delete_string(string);
     EXPECT_EQ(0, alloc_size);
-
-    cb_dlclose(plugin);
 }
 
 // Test that the various memory allocation / deletion functions are correctly
