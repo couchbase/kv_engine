@@ -61,6 +61,7 @@
 #include <mcbp/mcbp.h>
 #include <memcached/audit_interface.h>
 #include <memcached/rbac.h>
+#include <memcached/server_bucket_iface.h>
 #include <memcached/server_cookie_iface.h>
 #include <memcached/server_core_iface.h>
 #include <memcached/server_document_iface.h>
@@ -1328,6 +1329,21 @@ Cookie& getCookie(gsl::not_null<void*> void_cookie) {
     return *reinterpret_cast<Cookie*>(void_cookie.get());
 }
 
+struct ServerBucketApi : public ServerBucketIface {
+    std::unique_ptr<EngineIface> createBucket(
+            const std::string& module,
+            const std::string& name,
+            SERVER_HANDLE_V1* (*get_server_api)()) const override {
+        auto type = module_to_bucket_type(module.c_str());
+        if (type == Bucket::Type::Unknown) {
+            return {};
+        }
+
+        return std::unique_ptr<EngineIface>{
+                new_engine_instance(type, name, get_server_api)};
+    }
+};
+
 struct ServerCoreApi : public ServerCoreIface {
     rel_time_t get_current_time() override {
         return mc_time_get_current_time();
@@ -1646,6 +1662,7 @@ public:
         cookie = &server_cookie_api;
         alloc_hooks = &hooks_api;
         document = &document_api;
+        bucket = &bucket_api;
     }
 
 protected:
@@ -1655,6 +1672,7 @@ protected:
     ServerCallbackApi callback_api;
     ServerAllocatorIface hooks_api{};
     ServerDocumentApi document_api;
+    ServerBucketApi bucket_api;
 };
 
 /**

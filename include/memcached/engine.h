@@ -62,6 +62,7 @@ class Request;
 
 struct DocKey;
 struct ServerAllocatorIface;
+struct ServerBucketIface;
 struct ServerCoreIface;
 struct ServerCallbackIface;
 struct ServerLogIface;
@@ -77,6 +78,7 @@ struct server_handle_v1_t {
     ServerCookieIface* cookie;
     ServerAllocatorIface* alloc_hooks;
     ServerDocumentIface* document;
+    ServerBucketIface* bucket;
 };
 
 extern "C" {

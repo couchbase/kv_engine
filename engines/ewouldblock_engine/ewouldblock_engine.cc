@@ -80,6 +80,7 @@
 #include <logger/logger.h>
 #include <memcached/dcp.h>
 #include <memcached/engine.h>
+#include <memcached/server_bucket_iface.h>
 #include <memcached/server_callback_iface.h>
 #include <memcached/server_cookie_iface.h>
 #include <memcached/server_log_iface.h>
@@ -294,17 +295,12 @@ public:
             real_engine_config = config.substr(seperator + 1);
         }
 
-        if ((real_engine_ref = load_engine(real_engine_name.c_str(), NULL)) ==
-            NULL) {
-            LOG_CRITICAL(
-                    "ERROR: EWB_Engine::initialize(): Failed to load real "
-                    "engine '{}'",
-                    real_engine_name);
-            std::abort();
-        }
+        real_engine =
+                real_api->bucket->createBucket(real_engine_name,
+                                               "ewouldblock wrapped engine",
+                                               get_wrapped_gsa);
 
-        if (!create_engine_instance(
-                    real_engine_ref, get_wrapped_gsa, &real_engine)) {
+        if (!real_engine) {
             LOG_CRITICAL(
                     "ERROR: EWB_Engine::initialize(): Failed create "
                     "engine instance '{}'",
@@ -312,9 +308,9 @@ public:
             std::abort();
         }
 
-        real_engine_dcp = dynamic_cast<DcpIface*>(real_engine);
+        real_engine_dcp = dynamic_cast<DcpIface*>(real_engine.get());
 
-        engine_map[real_engine] = this;
+        engine_map[real_engine.get()] = this;
         ENGINE_ERROR_CODE res =
                 real_engine->initialize(real_engine_config.c_str());
 
@@ -328,7 +324,11 @@ public:
     }
 
     void destroy(bool force) override {
+        engine_map.erase(real_engine.get());
         real_engine->destroy(force);
+        // destroy() released the object
+        real_engine.release();
+
         delete this;
     }
 
@@ -933,8 +933,7 @@ public:
     GET_SERVER_API gsa;
 
     // Actual engine we are proxying requests to.
-    EngineIface* real_engine;
-    engine_reference* real_engine_ref;
+    std::unique_ptr<EngineIface> real_engine;
 
     // Pointer to DcpIface for the underlying engine we are proxying; or
     // nullptr if it doesn't implement DcpIface;
@@ -1309,8 +1308,6 @@ private:
 
 EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
   : gsa(gsa_),
-    real_engine(NULL),
-    real_engine_ref(nullptr),
     notify_io_thread(new NotificationThread(*this))
 {
     init_wrapped_api(gsa);
@@ -1322,8 +1319,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 }
 
 EWB_Engine::~EWB_Engine() {
-    engine_map.erase(real_engine);
-    cb_free(real_engine_ref);
     stop_notification_thread = true;
     condvar.notify_all();
     notify_io_thread->waitForState(Couchbase::ThreadState::Zombie);
