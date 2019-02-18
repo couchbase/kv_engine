@@ -27,6 +27,17 @@ class HashTableVisitor;
 
 /**
  * vbucket-aware hashtable visitor.
+ *
+ * Implemented by objects which wish to visit all vBuckets in a Bucket - see
+ * KVBucketIface::visit() and KVBucket::visitAsync().
+ *
+ * In the simplest use-case, implement the visitBucket() method of this
+ * interface and call KVBucket::visit(VBucketVisitor&). The visitBucket()
+ * method will then be called for each vBucket in sequence.
+ *
+ * For more advanced use-cases (including use with KVBucketIface::visitAsync())
+ * the non-pure virtual methods can be overridden - typically to allow
+ * visiting to be paused (and subsequently later resumed).
  */
 class VBucketVisitor {
 public:

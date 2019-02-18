@@ -2066,16 +2066,16 @@ void KVBucket::visit(VBucketVisitor &visitor)
     visitor.complete();
 }
 
-size_t KVBucket::visit(std::unique_ptr<VBucketVisitor> visitor,
-                       const char* lbl,
-                       TaskId id,
-                       double adaptorSleepTime,
-                       std::chrono::microseconds maxExpectedDuration) {
+size_t KVBucket::visitAsync(std::unique_ptr<VBucketVisitor> visitor,
+                            const char* lbl,
+                            TaskId id,
+                            double sleepTime,
+                            std::chrono::microseconds maxExpectedDuration) {
     auto task = std::make_shared<VBCBAdaptor>(this,
                                               id,
                                               std::move(visitor),
                                               lbl,
-                                              adaptorSleepTime,
+                                              sleepTime,
                                               /*shutdown*/ false);
     task->setMaxExpectedDuration(maxExpectedDuration);
     return ExecutorPool::get()->schedule(task);

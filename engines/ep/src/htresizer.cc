@@ -57,11 +57,11 @@ bool HashtableResizerTask::run(void) {
     // non-negligible impact on frontend operations.
     const auto maxExpectedDuration = std::chrono::milliseconds(100);
 
-    store.visit(std::move(pv),
-                "Hashtable resizer",
-                TaskId::HashtableResizerVisitorTask,
-                /*sleepTime*/ 0,
-                maxExpectedDuration);
+    store.visitAsync(std::move(pv),
+                     "Hashtable resizer",
+                     TaskId::HashtableResizerVisitorTask,
+                     /*sleepTime*/ 0,
+                     maxExpectedDuration);
 
     snooze(engine->getConfiguration().getHtResizeInterval());
     return true;

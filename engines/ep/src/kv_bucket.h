@@ -36,7 +36,20 @@ class Manager;
 }
 
 /**
- * VBucket visitor callback adaptor.
+ * VBucket Callback Adaptor is a helper task used to implement visitAsync().
+ *
+ * It is used to assist in visiting multiple vBuckets, without creating a
+ * separate task (and associated task overhead) for each vBucket individually.
+ *
+ * The set of vBuckets to visit is obtained by applying
+ * VBucketVisitor::getVBucketFilter() to the set of vBuckets the Bucket has.
+ *
+ * Note that all vBuckets are visited a single call to run(), invoking the
+ * visitor on each one in turn. If this takes a (potentially) long time (causing
+ * other tasks to be delayed in being scheduled), consider having the
+ * VBucketVisitor subclass implment pauseVisitor() to pause (yield) running to
+ * allow other tasks to run.
+ *
  */
 class VBCBAdaptor : public GlobalTask {
 public:
@@ -316,11 +329,11 @@ public:
 
     void visit(VBucketVisitor &visitor) override;
 
-    size_t visit(std::unique_ptr<VBucketVisitor> visitor,
-                 const char* lbl,
-                 TaskId id,
-                 double sleepTime,
-                 std::chrono::microseconds maxExpectedDuration) override;
+    size_t visitAsync(std::unique_ptr<VBucketVisitor> visitor,
+                      const char* lbl,
+                      TaskId id,
+                      double sleepTime,
+                      std::chrono::microseconds maxExpectedDuration) override;
 
     Position pauseResumeVisit(PauseResumeVBVisitor& visitor,
                               Position& start_pos) override;

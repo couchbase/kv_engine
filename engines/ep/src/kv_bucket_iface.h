@@ -456,20 +456,38 @@ public:
     virtual bool resetVBucket(Vbid vbid) = 0;
 
     /**
-     * Run a vBucket visitor, visiting all items. Synchronous.
+     * Visit each VBucket in the Bucket, calling VBucketVisitor::visitBucket()
+     * on each vbucket.
+     *
+     * Note this is synchronous, and hence is only suitable if visitor performs
+     * a small & constant amount of work on each vBucket. See visitAsync() below
+     * for handling large / variable amounts of work.
      */
     virtual void visit(VBucketVisitor& visitor) = 0;
 
     /**
-     * Run a vbucket visitor with separate jobs per vbucket.
+     * Visit each VBucket in the Bucket, calling VBucketVisitor::visitBucket()
+     * on each vBucket.
+     * Visiting is executed in a background task (asynchronously).
      *
-     * Note that this is asynchronous.
+     * This method is suitable where the visitor needs to perform a large and/or
+     * variable amount of work for each vBucket, and hence it should be
+     * performed asynchronously in a background task.
+     * @param visitor Object to visit each bucket with.
+     * @param label Name to associate with the created task.
+     * @param id TaskId to use for the background task. This also dictates which
+     *           TaskQueue (Reader, Writer, AuxIO, NonIO) to use.
+     * @param sleeptime Duration (in s) the task should sleep for when paused.
+     * @param maxExpectedDuration Maximum duration this task is expected to run
+     *                            for. If the duration is exceeded will log a
+     *                            warning.
      */
-    virtual size_t visit(std::unique_ptr<VBucketVisitor> visitor,
-                         const char* lbl,
-                         TaskId id,
-                         double sleepTime,
-                         std::chrono::microseconds maxExpectedDuration) = 0;
+    virtual size_t visitAsync(
+            std::unique_ptr<VBucketVisitor> visitor,
+            const char* lbl,
+            TaskId id,
+            double sleepTime,
+            std::chrono::microseconds maxExpectedDuration) = 0;
 
     /**
      * Visit the items in this epStore, starting the iteration from the
