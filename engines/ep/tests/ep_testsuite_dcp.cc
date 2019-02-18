@@ -6185,12 +6185,6 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h) {
  * works. MB-16915 reveals itself via valgrind.
  */
 static enum test_result test_dcp_early_termination(EngineIface* h) {
-#if defined(WIN32)
-    // MB-33074: This tests intermittently fails on Windows. Disabling
-    // it while the cause is investigated.
-    return SKIPPED;
-#endif
-
     // create enough streams that some backfill tasks should overlap
     // with the connection deletion task.
     const int streams = 100;
