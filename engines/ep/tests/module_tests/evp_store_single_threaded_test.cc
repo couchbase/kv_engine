@@ -3084,6 +3084,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29512) {
 
     // Stop Producer checkpoint processor task
     producer->cancelCheckpointCreatorTask();
+    producer->closeAllStreams();
 }
 
 TEST_F(SingleThreadedEPBucketTest, MB_29541) {

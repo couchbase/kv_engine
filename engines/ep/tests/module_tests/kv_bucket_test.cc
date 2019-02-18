@@ -102,6 +102,7 @@ void KVBucketTest::TearDown() {
 }
 
 void KVBucketTest::destroy() {
+    engine->getDcpConnMap().processPendingNotifications();
     destroy_mock_cookie(cookie);
     destroy_mock_event_callbacks();
     engine->getDcpConnMap().manageConnections();

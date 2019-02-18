@@ -137,6 +137,7 @@ BackfillManager::~BackfillManager() {
         UniqueDCPBackfillPtr backfill = std::move(activeBackfills.front());
         activeBackfills.pop_front();
         backfill->cancel();
+        engine.getDcpConnMap().decrNumActiveSnoozingBackfills();
     }
 
     while (!snoozingBackfills.empty()) {
@@ -144,6 +145,7 @@ BackfillManager::~BackfillManager() {
                 std::move((snoozingBackfills.front()).second);
         snoozingBackfills.pop_front();
         backfill->cancel();
+        engine.getDcpConnMap().decrNumActiveSnoozingBackfills();
     }
 
     while (!pendingBackfills.empty()) {

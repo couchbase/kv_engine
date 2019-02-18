@@ -719,7 +719,7 @@ public:
     // Mock implementation of dcp_message_producers which ... TODO
     class DcpProducers;
 
-    RollbackDcpTest() : cookie(create_mock_cookie()) {
+    RollbackDcpTest() {
     }
 
     void SetUp() override {
@@ -739,7 +739,6 @@ public:
 
     void TearDown() override {
         consumer->closeAllStreams();
-        destroy_mock_cookie(cookie);
         consumer.reset();
         vb.reset();
         SingleThreadedEPBucketTest::TearDown();
@@ -866,7 +865,6 @@ public:
         runNextTask(lpWriteQ);
     }
 
-    const void* cookie;
     std::shared_ptr<MockDcpConsumer> consumer;
     DcpProducers producers;
     VBucketPtr vb;
