@@ -56,7 +56,7 @@ private:
  * DurabilityTimeoutVisitor visits a VBucket for enforcing the Durability
  * Timeout for the SyncWrites tracked by VBucket.
  */
-class DurabilityTimeoutVisitor : public VBucketVisitor {
+class DurabilityTimeoutVisitor : public CappedDurationVBucketVisitor {
 public:
     DurabilityTimeoutVisitor() : startTime(std::chrono::steady_clock::now()) {
     }

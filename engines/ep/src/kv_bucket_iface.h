@@ -39,6 +39,7 @@ class PauseResumeVBVisitor;
 class PersistenceCallback;
 class VBucketMap;
 class VBucketVisitor;
+class PausableVBucketVisitor;
 class Warmup;
 namespace Collections {
 class Manager;
@@ -466,8 +467,8 @@ public:
     virtual void visit(VBucketVisitor& visitor) = 0;
 
     /**
-     * Visit each VBucket in the Bucket, calling VBucketVisitor::visitBucket()
-     * on each vBucket.
+     * Visit each VBucket in the Bucket, calling
+     * PausableVBucketVisitor::visitBucket() on each vBucket.
      * Visiting is executed in a background task (asynchronously).
      *
      * This method is suitable where the visitor needs to perform a large and/or
@@ -483,7 +484,7 @@ public:
      *                            warning.
      */
     virtual size_t visitAsync(
-            std::unique_ptr<VBucketVisitor> visitor,
+            std::unique_ptr<PausableVBucketVisitor> visitor,
             const char* lbl,
             TaskId id,
             double sleepTime,

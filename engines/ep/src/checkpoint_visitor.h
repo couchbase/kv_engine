@@ -29,7 +29,7 @@ class KVBucketIface;
 /**
  * Remove all the closed unreferenced checkpoints for each vbucket.
  */
-class CheckpointVisitor : public VBucketVisitor {
+class CheckpointVisitor : public CappedDurationVBucketVisitor {
 public:
     /**
      * Construct a CheckpointVisitor.

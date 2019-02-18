@@ -2063,10 +2063,9 @@ void KVBucket::visit(VBucketVisitor &visitor)
             visitor.visitBucket(vb);
         }
     }
-    visitor.complete();
 }
 
-size_t KVBucket::visitAsync(std::unique_ptr<VBucketVisitor> visitor,
+size_t KVBucket::visitAsync(std::unique_ptr<PausableVBucketVisitor> visitor,
                             const char* lbl,
                             TaskId id,
                             double sleepTime,
@@ -2109,7 +2108,7 @@ KVBucket::Position KVBucket::endPosition() const
 
 VBCBAdaptor::VBCBAdaptor(KVBucket* s,
                          TaskId id,
-                         std::unique_ptr<VBucketVisitor> v,
+                         std::unique_ptr<PausableVBucketVisitor> v,
                          const char* l,
                          double sleep,
                          bool shutdown)
@@ -2132,8 +2131,9 @@ std::string VBCBAdaptor::getDescription() {
     return std::string(label) + " on " + currentvb.load().to_string();
 }
 
-bool VBCBAdaptor::run(void) {
-    if (!vbList.empty()) {
+bool VBCBAdaptor::run() {
+    visitor->begin();
+    while (!vbList.empty()) {
         currentvb.store(vbList.front());
         VBucketPtr vb = store->getVBucket(currentvb);
         if (vb) {
@@ -2145,12 +2145,10 @@ bool VBCBAdaptor::run(void) {
         }
         vbList.pop();
     }
+    visitor->complete();
 
-    bool isdone = vbList.empty();
-    if (isdone) {
-        visitor->complete();
-    }
-    return !isdone;
+    // Processed all vBuckets now, do not need to run again.
+    return false;
 }
 
 void KVBucket::resetUnderlyingStats(void)

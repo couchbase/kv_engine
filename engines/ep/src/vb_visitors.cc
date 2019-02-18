@@ -19,6 +19,23 @@
 
 #include "vbucket.h"
 
+VBucketVisitor::VBucketVisitor() = default;
+
+VBucketVisitor::VBucketVisitor(const VBucketFilter& filter)
+    : vBucketFilter(filter) {
+}
+
+VBucketVisitor::~VBucketVisitor() = default;
+
+void CappedDurationVBucketVisitor::begin() {
+    // Record when this chunk started so we know when to pause.
+    chunkStart = std::chrono::steady_clock::now();
+}
+
+bool CappedDurationVBucketVisitor::pauseVisitor() {
+    return std::chrono::steady_clock::now() > (chunkStart + maxChunkDuration);
+}
+
 PauseResumeVBAdapter::PauseResumeVBAdapter(
         std::unique_ptr<VBucketAwareHTVisitor> htVisitor)
     : htVisitor(std::move(htVisitor)) {

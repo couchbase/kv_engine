@@ -23,30 +23,27 @@
 #include "vb_filter.h"
 #include "vbucket_fwd.h"
 
+using namespace std::chrono_literals;
+
 class HashTableVisitor;
 
 /**
- * vbucket-aware hashtable visitor.
+ * Base class for a VBucket visitor.
  *
- * Implemented by objects which wish to visit all vBuckets in a Bucket - see
- * KVBucketIface::visit() and KVBucket::visitAsync().
+ * Implemented by objects which wish to visit vBuckets in a Bucket - see
+ * KVBucketIface::visit().
  *
- * In the simplest use-case, implement the visitBucket() method of this
- * interface and call KVBucket::visit(VBucketVisitor&). The visitBucket()
- * method will then be called for each vBucket in sequence.
- *
- * For more advanced use-cases (including use with KVBucketIface::visitAsync())
- * the non-pure virtual methods can be overridden - typically to allow
- * visiting to be paused (and subsequently later resumed).
+ * A filter may be specified to constain the set of vBuckets which will be
+ * visited (for example to only visit vBuckets belonging to a give shard). By
+ * default all vBuckets are visited.
  */
 class VBucketVisitor {
 public:
-    VBucketVisitor() = default;
+    VBucketVisitor();
 
-    VBucketVisitor(const VBucketFilter& filter) : vBucketFilter(filter) {
-    }
+    VBucketVisitor(const VBucketFilter& filter);
 
-    virtual ~VBucketVisitor() = default;
+    virtual ~VBucketVisitor();
 
     /**
      * Begin visiting a bucket.
@@ -59,21 +56,68 @@ public:
         return vBucketFilter;
     }
 
-    /**
-     * Called after all vbuckets have been visited.
-     */
-    virtual void complete() {
-    }
-
-    /**
-     * Return true if visiting vbuckets should be paused temporarily.
-     */
-    virtual bool pauseVisitor() {
-        return false;
+    void setVBucketFilter(VBucketFilter filter) {
+        vBucketFilter = std::move(filter);
     }
 
 protected:
     VBucketFilter vBucketFilter;
+};
+
+/**
+ * A base class for VBucket visitor class which supports pausing after
+ * processing a vBucket, to be later resumed at the next vBucket.
+ *
+ * This is used by KVBucketIface::visitAsync() to allow costly visitors to
+ * pause after some amount of work, sleeping for a period before resuming.
+ *
+ */
+class PausableVBucketVisitor : public VBucketVisitor {
+public:
+    void visitBucket(VBucketPtr& vb) override = 0;
+
+    /**
+     * Called when starting to visit vBuckets, both on initial visit and also
+     * subsequently if visiting was previously paused.
+     */
+    virtual void begin(){};
+
+    /**
+     * Called after all vbuckets have been visited.
+     */
+    virtual void complete(){};
+
+    /**
+     * Return true if visiting vbuckets should be paused temporarily.
+     *
+     * Default implementation pauses if the chunk has been running for
+     * more than maxChunkDuration.
+     */
+    virtual bool pauseVisitor() = 0;
+};
+
+/**
+ * A base class for a vBucket visitor which pauses after a given duration of
+ * time has been spent executing (maxChunkDuration).
+ */
+class CappedDurationVBucketVisitor : public PausableVBucketVisitor {
+    void visitBucket(VBucketPtr& vb) override = 0;
+
+    void begin() override;
+    bool pauseVisitor() override;
+
+protected:
+    /**
+     * Target maximum duration to run the visitor before pausing (yielding),
+     * to avoid blocking other higher priority tasks.
+     * Note: chunk duration is only checked at vBucket boundaries, so
+     * this limit isn't guaranteed - we may exceed it by the duration of a
+     * single vBucket visit.
+     */
+    const std::chrono::steady_clock::duration maxChunkDuration = 25ms;
+
+    /// At what time did the current chunk of vBuckets start visiting?
+    std::chrono::steady_clock::time_point chunkStart;
 };
 
 /**

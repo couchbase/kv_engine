@@ -228,29 +228,24 @@ protected:
      * (memoryCondition). This is either the ItemPager (for buckets where
      * items can be paged out - Persistent or Ephemeral-auto_delete), or
      * the Expiry pager (Ephemeral-fail_new_data).
-     * @param online_vb_count How many vBuckets are online (and hence should
-     *                        have ItemPager tasks run for each).
      */
-    void runHighMemoryPager(size_t online_vb_count = 1) {
+    void runHighMemoryPager() {
         auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
         ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
         ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
 
         if (itemPagerScheduled) {
             // Item pager consists of two Tasks - the parent ItemPager task,
-            // and then a per-vBucket task (via VCVBAdapter) - which there is
-            // just one of as we only have one vBucket online.
+            // and then a task (via VCVBAdapter) to process each vBucket (which
+            // there is just one of as we only have one vBucket online).
             runNextTask(lpNonioQ, "Paging out items.");
             ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
             ASSERT_EQ(initialNonIoTasks + 1, lpNonioQ.getFutureQueueSize());
-            for (size_t ii = 0; ii < online_vb_count; ii++) {
-                runNextTask(lpNonioQ, "Item pager on vb:0");
-            }
+            runNextTask(lpNonioQ, "Item pager on vb:0");
         } else {
             runNextTask(lpNonioQ, "Paging expired items.");
-            for (size_t ii = 0; ii < online_vb_count; ii++) {
-                runNextTask(lpNonioQ, "Expired item remover on vb:0");
-            }
+            // Multiple vBuckets are processed in a single task run.
+            runNextTask(lpNonioQ, "Expired item remover on vb:0");
         }
         // Once complete, should have the same number of tasks we initially
         // had.
@@ -338,10 +333,6 @@ TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
     runNextTask(lpNonioQ, "Item pager on vb:0");
 
     if (std::get<0>(GetParam()) == "ephemeral") {
-        // For ephemeral we do not evict from replicas and so they are
-        // not visited first.  This means there will be another Item
-        // pager task to run.
-        runNextTask(lpNonioQ, "Item pager on vb:0");
         // We should have not evicted from replica vbuckets
         EXPECT_EQ(count, store->getVBucket(replicaVB)->getNumItems());
         // We should have evicted from the active/pending vbuckets
@@ -719,13 +710,7 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
     // Flip vb 1 to be a replica (and hence should not be a candidate for
     // any paging out.
     store->setVBucketState(replica_vb, vbucket_state_replica);
-    //  If ephemeral and not running the expiry Pager then only run for one
-    // vbucket (as we are skipping the replica vbucket).
-    auto vbCount = ((std::get<0>(GetParam()) == "ephemeral") &&
-                    (std::get<1>(GetParam()) != "fail_new_data"))
-                           ? 1
-                           : 2;
-    runHighMemoryPager(vbCount);
+    runHighMemoryPager();
 
     EXPECT_EQ(replica_count, store->getVBucket(replica_vb)->getNumItems())
         << "Replica count should be unchanged after Item Pager";

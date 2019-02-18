@@ -53,8 +53,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
                              size_t agePercentage,
                              size_t freqCounterAgeThreshold,
                              EvictionPolicy evictionPolicy)
-    : VBucketVisitor(vbFilter),
-      ejected(0),
+    : ejected(0),
       freqCounterThreshold(0),
       ageThreshold(0),
       store(s),
@@ -74,6 +73,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
       freqCounterAgeThreshold(freqCounterAgeThreshold),
       maxCas(0),
       evictionPolicy(evictionPolicy) {
+    setVBucketFilter(vbFilter);
 }
 
 bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {

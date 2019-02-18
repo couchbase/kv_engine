@@ -33,7 +33,8 @@
 #include <memory>
 #include <numeric>
 
-class ItemAccessVisitor : public VBucketVisitor, public HashTableVisitor {
+class ItemAccessVisitor : public CappedDurationVBucketVisitor,
+                          public HashTableVisitor {
 public:
     ItemAccessVisitor(KVBucket& _store,
                       Configuration& conf,
@@ -42,9 +43,7 @@ public:
                       std::atomic<bool>& sfin,
                       AccessScanner& aS,
                       uint64_t items_to_scan)
-        : VBucketVisitor(VBucketFilter(
-                  _store.getVBuckets().getShard(sh)->getVBuckets())),
-          store(_store),
+        : store(_store),
           stats(_stats),
           startTime(ep_real_time()),
           taskStart(std::chrono::steady_clock::now()),
@@ -53,6 +52,8 @@ public:
           as(aS),
           items_scanned(0),
           items_to_scan(items_to_scan) {
+        setVBucketFilter(VBucketFilter(
+                _store.getVBuckets().getShard(sh)->getVBuckets()));
         name = conf.getAlogPath();
         std::stringstream s;
         s << shardID;

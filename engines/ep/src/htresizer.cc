@@ -29,7 +29,7 @@
 /**
  * Look at all the hash tables and make sure they're sized appropriately.
  */
-class ResizingVisitor : public VBucketVisitor {
+class ResizingVisitor : public CappedDurationVBucketVisitor {
 public:
     ResizingVisitor() { }
 
