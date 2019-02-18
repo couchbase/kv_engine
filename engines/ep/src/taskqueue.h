@@ -42,7 +42,19 @@ public:
 
     void doWake(size_t &numToWake);
 
-    bool fetchNextTask(ExecutorThread &thread, bool toSleep);
+    /**
+     * Fetch the next task to be run from the task queues, updating
+     * thread::currentTask with the next task to run (if one found).
+     * @returns true if there is a task to run, otherwise false.
+     */
+    bool fetchNextTask(ExecutorThread& thread);
+
+    /**
+     * Sleeps until the next task is ready to run, waking up when ready and
+     * updating thread::currentTask with the task to run.
+     * @returns true if there is a task to run, otherwise false.
+     */
+    bool sleepThenFetchNextTask(ExecutorThread& thread);
 
     void wake(ExTask &task);
 
@@ -66,7 +78,10 @@ private:
     void _schedule(ExTask &task);
     std::chrono::steady_clock::time_point _reschedule(ExTask& task);
     void _checkPendingQueue(void);
-    bool _fetchNextTask(ExecutorThread &thread, bool toSleep);
+    bool _sleepThenFetchNextTask(ExecutorThread& t);
+    bool _fetchNextTask(ExecutorThread& thread);
+    bool _fetchNextTaskInner(ExecutorThread& t,
+                             const std::unique_lock<std::mutex>& lh);
     void _wake(ExTask &task);
     bool _doSleep(ExecutorThread &thread, std::unique_lock<std::mutex>& lock);
     void _doWake_UNLOCKED(size_t &numToWake);

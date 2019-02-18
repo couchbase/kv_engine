@@ -215,13 +215,12 @@ TaskQueue *ExecutorPool::_nextTask(ExecutorThread &t, uint8_t tick) {
         checkNextQ = isLowPrioQset ? lpTaskQ[myq] : checkQ;
     }
     while (t.state == EXECUTOR_RUNNING) {
-        if (checkQ &&
-            checkQ->fetchNextTask(t, false)) {
+        if (checkQ && checkQ->fetchNextTask(t)) {
             return checkQ;
         }
         if (toggle || checkQ == checkNextQ) {
             TaskQueue *sleepQ = getSleepQ(myq);
-            if (sleepQ->fetchNextTask(t, true)) {
+            if (sleepQ->sleepThenFetchNextTask(t)) {
                 return sleepQ;
             } else {
                 return NULL;

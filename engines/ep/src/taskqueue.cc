@@ -115,13 +115,22 @@ bool TaskQueue::_doSleep(ExecutorThread &t,
     return true;
 }
 
-bool TaskQueue::_fetchNextTask(ExecutorThread &t, bool toSleep) {
-    bool ret = false;
+bool TaskQueue::_sleepThenFetchNextTask(ExecutorThread& t) {
     std::unique_lock<std::mutex> lh(mutex);
-
-    if (toSleep && !_doSleep(t, lh)) {
-        return ret; // shutting down
+    if (!_doSleep(t, lh)) {
+        return false; // shutting down
     }
+    return _fetchNextTaskInner(t, lh);
+}
+
+bool TaskQueue::_fetchNextTask(ExecutorThread& t) {
+    std::unique_lock<std::mutex> lh(mutex);
+    return _fetchNextTaskInner(t, lh);
+}
+
+bool TaskQueue::_fetchNextTaskInner(ExecutorThread& t,
+                                    const std::unique_lock<std::mutex>&) {
+    bool ret = false;
 
     size_t numToWake = _moveReadyTasks(t.getCurTime());
 
@@ -147,15 +156,17 @@ bool TaskQueue::_fetchNextTask(ExecutorThread &t, bool toSleep) {
     }
 
     _doWake_UNLOCKED(numToWake);
-    lh.unlock();
-
     return ret;
 }
 
-bool TaskQueue::fetchNextTask(ExecutorThread &thread, bool toSleep) {
+bool TaskQueue::fetchNextTask(ExecutorThread& thread) {
     NonBucketAllocationGuard guard;
-    bool rv = _fetchNextTask(thread, toSleep);
-    return rv;
+    return _fetchNextTask(thread);
+}
+
+bool TaskQueue::sleepThenFetchNextTask(ExecutorThread& thread) {
+    NonBucketAllocationGuard guard;
+    return _sleepThenFetchNextTask(thread);
 }
 
 size_t TaskQueue::_moveReadyTasks(

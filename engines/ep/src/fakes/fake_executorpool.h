@@ -163,7 +163,7 @@ public:
           preFutureQueueSize(queue.getFutureQueueSize()),
           preReadyQueueSize(queue.getReadyQueueSize()),
           rescheduled(false) {
-        if (!queue.fetchNextTask(*this, false)) {
+        if (!queue.fetchNextTask(*this)) {
             throw std::logic_error("CheckedExecutor failed fetchNextTask");
         }
 
