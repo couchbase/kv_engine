@@ -2118,24 +2118,21 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
       label(l),
       sleepTime(sleep),
       maxDuration(std::chrono::microseconds::max()),
-      currentvb(Vbid(0)) {
-    const VBucketFilter& vbFilter = visitor->getVBucketFilter();
-    for (auto vbid : store->getVBuckets().getBuckets()) {
-        if (vbFilter(vbid)) {
-            vbList.push(vbid);
-        }
-    }
+      currentvb(0) {
 }
 
 std::string VBCBAdaptor::getDescription() {
-    return std::string(label) + " on " + currentvb.load().to_string();
+    return std::string(label) + " on " + Vbid(currentvb).to_string();
 }
 
 bool VBCBAdaptor::run() {
     visitor->begin();
-    while (!vbList.empty()) {
-        currentvb.store(vbList.front());
-        VBucketPtr vb = store->getVBucket(currentvb);
+    for (; currentvb < store->getVBuckets().getSize(); currentvb++) {
+        const auto vbid = Vbid(currentvb);
+        if (!visitor->getVBucketFilter()(vbid)) {
+            continue;
+        }
+        VBucketPtr vb = store->getVBucket(vbid);
         if (vb) {
             if (visitor->pauseVisitor()) {
                 snooze(sleepTime);
@@ -2143,7 +2140,6 @@ bool VBCBAdaptor::run() {
             }
             visitor->visitBucket(vb);
         }
-        vbList.pop();
     }
     visitor->complete();
 

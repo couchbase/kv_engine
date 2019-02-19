@@ -67,13 +67,18 @@ public:
     bool run(void);
 
 private:
-    std::queue<Vbid> vbList;
     KVBucket* store;
     std::unique_ptr<PausableVBucketVisitor> visitor;
     const char                 *label;
     double                      sleepTime;
     std::chrono::microseconds maxDuration;
-    std::atomic<Vbid> currentvb;
+
+    /**
+     * Current VBucket.
+     * RelaxedAtomic as this is used by getDescription to generate the task
+     * description, which can be called by threads other than the one executing.
+     */
+    Couchbase::RelaxedAtomic<Vbid::id_type> currentvb;
 
     DISALLOW_COPY_AND_ASSIGN(VBCBAdaptor);
 };

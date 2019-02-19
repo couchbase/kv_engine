@@ -39,11 +39,10 @@ VBucketMap::VBucketMap(Configuration& config, KVBucket& store)
 }
 
 VBucketPtr VBucketMap::getBucket(Vbid id) const {
-    static VBucketPtr emptyVBucket;
     if (id.get() < size) {
         return getShardByVbId(id)->getBucket(id);
     } else {
-        return emptyVBucket;
+        return {};
     }
 }
 
