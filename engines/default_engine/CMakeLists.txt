@@ -20,16 +20,3 @@ INSTALL(TARGETS default_engine
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
-
-if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    if (NOT WIN32)
-        include_directories(AFTER
-                            ${benchmark_SOURCE_DIR}/include)
-
-        add_executable(assoc_bench_test
-                       assoc.h
-                       assoc.cc
-                       assoc_bench_test.cc)
-        target_link_libraries(assoc_bench_test default_engine benchmark platform)
-    endif (NOT WIN32)
-endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
