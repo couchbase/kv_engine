@@ -35,7 +35,7 @@ CheckpointVisitor::CheckpointVisitor(KVBucketIface* s,
       stateFinalizer(sfin) {
 }
 
-void CheckpointVisitor::visitBucket(VBucketPtr& vb) {
+void CheckpointVisitor::visitBucket(const VBucketPtr& vb) {
     bool newCheckpointCreated = false;
     removed = vb->checkpointManager->removeClosedUnrefCheckpoints(
             *vb, newCheckpointCreated);

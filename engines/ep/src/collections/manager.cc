@@ -199,7 +199,7 @@ void Collections::Manager::warmupCompleted(KVBucket& bucket) const {
 
 class CollectionCountVBucketVisitor : public VBucketVisitor {
 public:
-    void visitBucket(VBucketPtr& vb) override {
+    void visitBucket(const VBucketPtr& vb) override {
         if (vb->getState() == vbucket_state_active) {
             vb->lockCollections().updateSummary(summary);
         }
@@ -213,7 +213,7 @@ public:
         : cookie(c), add_stat(a) {
     }
 
-    void visitBucket(VBucketPtr& vb) override {
+    void visitBucket(const VBucketPtr& vb) override {
         success = vb->lockCollections().addCollectionStats(
                           vb->getId(), cookie, add_stat) ||
                   success;
@@ -235,7 +235,7 @@ public:
         : cookie(c), add_stat(a) {
     }
 
-    void visitBucket(VBucketPtr& vb) override {
+    void visitBucket(const VBucketPtr& vb) override {
         success = vb->lockCollections().addScopeStats(
                           vb->getId(), cookie, add_stat) ||
                   success;

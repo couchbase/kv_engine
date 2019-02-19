@@ -76,7 +76,7 @@ public:
 
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override;
 
-    void visitBucket(VBucketPtr& vb) override;
+    void visitBucket(const VBucketPtr& vb) override;
 
     void update();
 
@@ -129,7 +129,7 @@ private:
     // Removes checkpoints that are both closed and unreferenced, thereby
     // freeing the associated memory.
     // @param vb  The vbucket whose eligible checkpoints are removed from.
-    void removeClosedUnrefCheckpoints(VBucketPtr& vb);
+    void removeClosedUnrefCheckpoints(VBucket& vb);
 
     void adjustPercent(double prob, vbucket_state_t state);
 

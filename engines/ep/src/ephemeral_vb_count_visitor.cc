@@ -22,7 +22,7 @@
 #include "vb_count_visitor.h"
 #include "vbucket.h"
 
-void EphemeralVBucket::CountVisitor::visitBucket(VBucketPtr& vb) {
+void EphemeralVBucket::CountVisitor::visitBucket(const VBucketPtr& vb) {
     // Handle base class counts
     VBucketCountVisitor::visitBucket(vb);
 

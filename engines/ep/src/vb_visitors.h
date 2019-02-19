@@ -48,9 +48,11 @@ public:
     /**
      * Begin visiting a bucket.
      *
-     * @param vb the vbucket we are beginning to visit
+     * @param vb the vbucket we are beginning to visit. Passed as const
+     *        shared_ptr which allows caller to retain reference count if
+     *        desired, but not reseat the shared_ptr.
      */
-    virtual void visitBucket(VBucketPtr& vb) = 0;
+    virtual void visitBucket(const VBucketPtr& vb) = 0;
 
     const VBucketFilter& getVBucketFilter() {
         return vBucketFilter;
@@ -74,7 +76,7 @@ protected:
  */
 class PausableVBucketVisitor : public VBucketVisitor {
 public:
-    void visitBucket(VBucketPtr& vb) override = 0;
+    void visitBucket(const VBucketPtr& vb) override = 0;
 
     /**
      * Called when starting to visit vBuckets, both on initial visit and also
@@ -101,7 +103,7 @@ public:
  * time has been spent executing (maxChunkDuration).
  */
 class CappedDurationVBucketVisitor : public PausableVBucketVisitor {
-    void visitBucket(VBucketPtr& vb) override = 0;
+    void visitBucket(const VBucketPtr& vb) override = 0;
 
     void begin() override;
     bool pauseVisitor() override;

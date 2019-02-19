@@ -36,7 +36,7 @@ public:
      */
     CheckpointVisitor(KVBucketIface* s, EPStats& st, std::atomic<bool>& sfin);
 
-    void visitBucket(VBucketPtr& vb) override;
+    void visitBucket(const VBucketPtr& vb) override;
 
     void complete() override;
 

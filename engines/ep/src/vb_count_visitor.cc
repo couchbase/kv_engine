@@ -19,7 +19,7 @@
 
 #include "vbucket.h"
 
-void VBucketCountVisitor::visitBucket(VBucketPtr& vb) {
+void VBucketCountVisitor::visitBucket(const VBucketPtr& vb) {
     ++numVbucket;
     numItems += vb->getNumItems();
     numTempItems += vb->getNumTempItems();
@@ -80,7 +80,7 @@ void VBucketCountVisitor::visitBucket(VBucketPtr& vb) {
     }
 }
 
-void VBucketCountAggregator::visitBucket(VBucketPtr &vb) {
+void VBucketCountAggregator::visitBucket(const VBucketPtr& vb) {
     std::map<vbucket_state_t, VBucketCountVisitor*>::iterator it;
     it = visitorMap.find(vb->getState());
     if ( it != visitorMap.end() ) {

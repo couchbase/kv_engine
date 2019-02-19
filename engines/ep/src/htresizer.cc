@@ -33,7 +33,7 @@ class ResizingVisitor : public CappedDurationVBucketVisitor {
 public:
     ResizingVisitor() { }
 
-    void visitBucket(VBucketPtr &vb) override {
+    void visitBucket(const VBucketPtr& vb) override {
         vb->ht.resize();
     }
 };

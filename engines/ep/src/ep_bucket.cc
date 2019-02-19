@@ -931,7 +931,7 @@ ENGINE_ERROR_CODE EPBucket::getPerVBucketDiskStats(const void* cookie,
             : cookie(c), add_stat(a) {
         }
 
-        void visitBucket(VBucketPtr& vb) override {
+        void visitBucket(const VBucketPtr& vb) override {
             char buf[32];
             Vbid vbid = vb->getId();
             DBFileInfo dbInfo =

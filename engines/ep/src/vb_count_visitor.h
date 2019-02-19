@@ -70,7 +70,7 @@ public:
           totalHLCDriftExceptionCounters() {
     }
 
-    void visitBucket(VBucketPtr& vb) override;
+    void visitBucket(const VBucketPtr& vb) override;
 
     vbucket_state_t getVBucketState() {
         return desired_state;
@@ -250,7 +250,7 @@ private:
  */
 class VBucketCountAggregator : public VBucketVisitor  {
 public:
-    void visitBucket(VBucketPtr &vb) override;
+    void visitBucket(const VBucketPtr& vb) override;
 
     void addVisitor(VBucketCountVisitor* visitor);
 

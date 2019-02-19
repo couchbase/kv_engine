@@ -87,18 +87,17 @@ public:
         return true;
     }
 
-    void update() {
+    void update(Vbid vbid) {
         if (log != nullptr) {
             for (auto it = accessed.begin(); it != accessed.end(); ++it) {
-                log->newItem(currentBucket->getId(), *it);
+                log->newItem(vbid, *it);
             }
         }
         accessed.clear();
     }
 
-    void visitBucket(VBucketPtr &vb) override {
-        currentBucket = vb;
-        update();
+    void visitBucket(const VBucketPtr& vb) override {
+        update(vb->getId());
 
         if (log == nullptr) {
             return;
@@ -107,7 +106,7 @@ public:
         if (vBucketFilter(vb->getId())) {
             while (ht_start != vb->ht.endPosition()) {
                 ht_start = vb->ht.pauseResumeVisit(*this, ht_start);
-                update();
+                update(vb->getId());
                 log->commit1();
                 log->commit2();
                 items_scanned = 0;
@@ -229,8 +228,6 @@ private:
     uint64_t items_scanned;
     // The number of items to scan before we pause
     const uint64_t items_to_scan;
-
-    VBucketPtr currentBucket;
 };
 
 AccessScanner::AccessScanner(KVBucket& _store,

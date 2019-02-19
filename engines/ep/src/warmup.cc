@@ -690,7 +690,7 @@ void LoadStorageKVPairCallback::purge() {
         EmergencyPurgeVisitor(EPBucket& store) : epstore(store) {
         }
 
-        void visitBucket(VBucketPtr &vb) override {
+        void visitBucket(const VBucketPtr& vb) override {
             if (vBucketFilter(vb->getId())) {
                 currentBucket = vb;
                 vb->ht.visit(*this);

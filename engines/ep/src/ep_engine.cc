@@ -3114,35 +3114,36 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
               isDetailsRequested(detailsRequested) {
         }
 
-        void visitBucket(VBucketPtr &vb) override {
-            addVBStats(cookie, add_stat, vb, eps, isPrevState,
+        void visitBucket(const VBucketPtr& vb) override {
+            addVBStats(cookie,
+                       add_stat,
+                       *vb,
+                       eps,
+                       isPrevState,
                        isDetailsRequested);
         }
 
         static void addVBStats(const void* cookie,
                                const AddStatFn& add_stat,
-                               VBucketPtr& vb,
+                               VBucket& vb,
                                KVBucketIface* store,
                                bool isPrevStateRequested,
                                bool detailsRequested) {
-            if (!vb) {
-                return;
-            }
-
             if (isPrevStateRequested) {
                 try {
                     char buf[16];
                     checked_snprintf(
-                            buf, sizeof(buf), "vb_%d", vb->getId().get());
+                            buf, sizeof(buf), "vb_%d", vb.getId().get());
                     add_casted_stat(buf,
-                                    VBucket::toString(vb->getInitialState()),
-                                    add_stat, cookie);
+                                    VBucket::toString(vb.getInitialState()),
+                                    add_stat,
+                                    cookie);
                 } catch (std::exception& error) {
                     EP_LOG_WARN("addVBStats: Failed building stats: {}",
                                 error.what());
                 }
             } else {
-                vb->addStats(detailsRequested, add_stat, cookie);
+                vb.addStats(detailsRequested, add_stat, cookie);
             }
         }
 
@@ -3166,8 +3167,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
             return ENGINE_NOT_MY_VBUCKET;
         }
 
-        StatVBucketVisitor::addVBStats(cookie, add_stat, vb, kvBucket.get(),
-                                       prevStateRequested, details);
+        StatVBucketVisitor::addVBStats(cookie,
+                                       add_stat,
+                                       *vb,
+                                       kvBucket.get(),
+                                       prevStateRequested,
+                                       details);
     }
     else {
         StatVBucketVisitor svbv(kvBucket.get(), cookie, add_stat,
@@ -3187,7 +3192,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(
             : cookie(c), add_stat(a), compressionMode(compressMode) {
         }
 
-        void visitBucket(VBucketPtr &vb) override {
+        void visitBucket(const VBucketPtr& vb) override {
             Vbid vbid = vb->getId();
             char buf[32];
             try {
@@ -3352,25 +3357,21 @@ public:
         : kvBucket(kvs), cookie(c), add_stat(a) {
     }
 
-    void visitBucket(VBucketPtr &vb) override {
-        addCheckpointStat(cookie, add_stat, kvBucket, vb);
+    void visitBucket(const VBucketPtr& vb) override {
+        addCheckpointStat(cookie, add_stat, kvBucket, *vb);
     }
 
     static void addCheckpointStat(const void* cookie,
                                   const AddStatFn& add_stat,
                                   KVBucketIface* eps,
-                                  VBucketPtr& vb) {
-        if (!vb) {
-            return;
-        }
-
-        Vbid vbid = vb->getId();
+                                  VBucket& vb) {
+        Vbid vbid = vb.getId();
         char buf[256];
         try {
             checked_snprintf(buf, sizeof(buf), "vb_%d:state", vbid.get());
-            add_casted_stat(buf, VBucket::toString(vb->getState()),
-                            add_stat, cookie);
-            vb->checkpointManager->addStats(add_stat, cookie);
+            add_casted_stat(
+                    buf, VBucket::toString(vb.getState()), add_stat, cookie);
+            vb.checkpointManager->addStats(add_stat, cookie);
 
             auto result = eps->getLastPersistedCheckpointId(vbid);
             if (result.second) {
@@ -3454,9 +3455,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(
         }
         Vbid vbucketId = Vbid(vbucket_id);
         VBucketPtr vb = getVBucket(vbucketId);
-
-        StatCheckpointVisitor::addCheckpointStat(cookie, add_stat,
-                                                 kvBucket.get(), vb);
+        if (!vb) {
+            return ENGINE_NOT_MY_VBUCKET;
+        }
+        StatCheckpointVisitor::addCheckpointStat(
+                cookie, add_stat, kvBucket.get(), *vb);
     }
 
     return ENGINE_SUCCESS;
@@ -3789,7 +3792,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doAllFailoverLogStats(
             : cookie(c), add_stat(a) {
         }
 
-        void visitBucket(VBucketPtr &vb) override {
+        void visitBucket(const VBucketPtr& vb) override {
             vb->failovers->addStats(cookie, vb->getId(), add_stat);
         }
 

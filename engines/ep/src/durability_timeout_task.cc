@@ -51,6 +51,6 @@ bool DurabilityTimeoutTask::run() {
     return true;
 }
 
-void DurabilityTimeoutVisitor::visitBucket(VBucketPtr& vb) {
+void DurabilityTimeoutVisitor::visitBucket(const VBucketPtr& vb) {
     vb->processDurabilityTimeout(startTime);
 }
