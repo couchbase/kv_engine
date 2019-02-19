@@ -140,7 +140,6 @@ protected:
     }
 
     void TearDown() override {
-        engine->getDcpConnMap().processPendingNotifications();
         producer->cancelCheckpointCreatorTask();
         producer->closeAllStreams();
         producer.reset();

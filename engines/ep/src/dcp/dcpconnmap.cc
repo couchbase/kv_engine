@@ -248,7 +248,11 @@ bool DcpConnMap::handleSlowStream(Vbid vbid, const CheckpointCursor* cursor) {
     size_t lock_num = vbid.get() % vbConnLockNum;
     std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
 
-    for (const auto& connection : vbConns[vbid.get()]) {
+    for (const auto& weakPtr : vbConns[vbid.get()]) {
+        auto connection = weakPtr.lock();
+        if (!connection) {
+            continue;
+        }
         auto* producer = dynamic_cast<DcpProducer*>(connection.get());
         if (producer && producer->handleSlowStream(vbid, cursor)) {
             return true;
@@ -392,9 +396,12 @@ void DcpConnMap::removeVBConnections(DcpProducer& prod) {
     for (const auto vbid : prod.getVBVector()) {
         size_t lock_num = vbid.get() % vbConnLockNum;
         std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
-        std::list<std::shared_ptr<ConnHandler>>& vb_conns = vbConns[vbid.get()];
+        auto& vb_conns = vbConns[vbid.get()];
         for (auto itr = vb_conns.begin(); itr != vb_conns.end(); ++itr) {
-            if (prod.getCookie() == (*itr)->getCookie()) {
+            auto connection = (*itr).lock();
+            // Erase if we cannot lock, or if the cookie matches
+            if (!connection ||
+                (connection && prod.getCookie() == connection->getCookie())) {
                 vb_conns.erase(itr);
                 break;
             }
@@ -406,7 +413,11 @@ void DcpConnMap::notifyVBConnections(Vbid vbid, uint64_t bySeqno) {
     size_t lock_num = vbid.get() % vbConnLockNum;
     std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
 
-    for (auto& connection : vbConns[vbid.get()]) {
+    for (auto& weakPtr : vbConns[vbid.get()]) {
+        auto connection = weakPtr.lock();
+        if (!connection) {
+            continue;
+        }
         auto* producer = dynamic_cast<DcpProducer*>(connection.get());
         if (producer) {
             producer->notifySeqnoAvailable(vbid, bySeqno);
@@ -423,7 +434,11 @@ void DcpConnMap::seqnoAckVBPassiveStream(Vbid vbid) {
     // only Producers).
     // @todo-durability: not clear yet if for Consumers we can simplify by
     //     keeping a 1-to-1 VB-to-Consumer mapping
-    for (auto& connection : vbConns[vbid.get()]) {
+    for (auto& weakPtr : vbConns[vbid.get()]) {
+        auto connection = weakPtr.lock();
+        if (!connection) {
+            continue;
+        }
         auto* consumer = dynamic_cast<DcpConsumer*>(connection.get());
         if (consumer) {
             // Note: Sync Repl enabled at Consumer only if Producer supports it.

@@ -105,7 +105,6 @@ void CollectionsDcpTest::TearDown() {
 }
 
 void CollectionsDcpTest::teardown() {
-    engine->getDcpConnMap().processPendingNotifications();
     destroy_mock_cookie(cookieC);
     destroy_mock_cookie(cookieP);
     if (consumer) {

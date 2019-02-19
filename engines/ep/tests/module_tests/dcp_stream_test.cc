@@ -22,6 +22,7 @@
 #include "checkpoint_manager.h"
 #include "dcp/backfill_disk.h"
 #include "dcp/backfill_memory.h"
+#include "dcp/dcpconnmap.h"
 #include "ep_engine.h"
 #include "ephemeral_vb.h"
 #include "executorpool.h"
@@ -40,6 +41,7 @@ void StreamTest::SetUp() {
 }
 
 void StreamTest::TearDown() {
+    engine->getDcpConnMap().processPendingNotifications();
     if (producer) {
         producer->cancelCheckpointCreatorTask();
     }

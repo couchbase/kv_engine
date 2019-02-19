@@ -34,7 +34,7 @@ public:
         return deadConnections.size();
     }
 
-    AtomicQueue<std::shared_ptr<ConnHandler>>& getPendingNotifications() {
+    AtomicQueue<std::weak_ptr<ConnHandler>>& getPendingNotifications() {
         return pendingNotifications;
     }
 
@@ -57,8 +57,9 @@ public:
         return std::find_if(
                        list.begin(),
                        list.end(),
-                       [&name](const std::shared_ptr<ConnHandler>& c) -> bool {
-                           return c->getName() == name;
+                       [&name](const std::weak_ptr<ConnHandler>& c) -> bool {
+                           auto p = c.lock();
+                           return p && p->getName() == name;
                        }) != list.end();
     }
 

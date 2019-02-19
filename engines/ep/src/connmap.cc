@@ -92,7 +92,7 @@ ConnMap::ConnMap(EventuallyPersistentEngine &theEngine)
     Configuration &config = engine.getConfiguration();
     size_t max_vbs = config.getMaxVbuckets();
     for (size_t i = 0; i < max_vbs; ++i) {
-        vbConns.push_back(std::list<std::shared_ptr<ConnHandler>>());
+        vbConns.push_back(std::list<std::weak_ptr<ConnHandler>>());
     }
 }
 
@@ -138,7 +138,7 @@ void ConnMap::addConnectionToPending(const std::shared_ptr<ConnHandler>& conn) {
 }
 
 void ConnMap::processPendingNotifications() {
-    std::queue<std::shared_ptr<ConnHandler>> queue;
+    std::queue<std::weak_ptr<ConnHandler>> queue;
     pendingNotifications.getAll(queue);
 
     TRACE_EVENT1("ep-engine/ConnMap",
@@ -152,8 +152,8 @@ void ConnMap::processPendingNotifications() {
                           SlowMutexThreshold);
 
     while (!queue.empty()) {
-        auto& conn = queue.front();
-        if (conn.get() && conn->isPaused() && conn->isReserved()) {
+        auto conn = queue.front().lock();
+        if (conn && conn->isPaused() && conn->isReserved()) {
             engine.notifyIOComplete(conn->getCookie(), ENGINE_SUCCESS);
         }
         queue.pop();
@@ -171,9 +171,12 @@ void ConnMap::addVBConnByVBId(std::shared_ptr<ConnHandler> conn, Vbid vbid) {
 }
 
 void ConnMap::removeVBConnByVBId_UNLOCKED(const void* connCookie, Vbid vbid) {
-    std::list<std::shared_ptr<ConnHandler>>& vb_conns = vbConns[vbid.get()];
+    std::list<std::weak_ptr<ConnHandler>>& vb_conns = vbConns[vbid.get()];
     for (auto itr = vb_conns.begin(); itr != vb_conns.end(); ++itr) {
-        if (connCookie == (*itr)->getCookie()) {
+        auto connection = (*itr).lock();
+        // Erase if we cannot lock, or if the cookie matches
+        if (!connection ||
+            (connection && connCookie == connection->getCookie())) {
             vb_conns.erase(itr);
             break;
         }

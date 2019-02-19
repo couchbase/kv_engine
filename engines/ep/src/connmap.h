@@ -124,12 +124,12 @@ protected:
     CookieToConnectionMap map_;
 
     std::vector<std::mutex> vbConnLocks;
-    std::vector<std::list<std::shared_ptr<ConnHandler>>> vbConns;
+    std::vector<std::list<std::weak_ptr<ConnHandler>>> vbConns;
 
     /* Handle to the engine who owns us */
     EventuallyPersistentEngine &engine;
 
-    AtomicQueue<std::shared_ptr<ConnHandler>> pendingNotifications;
+    AtomicQueue<std::weak_ptr<ConnHandler>> pendingNotifications;
     std::shared_ptr<ConnNotifier> connNotifier_;
 
     static size_t vbConnLockNum;
