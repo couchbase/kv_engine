@@ -1,4 +1,4 @@
-ADD_LIBRARY(default_engine SHARED
+ADD_LIBRARY(default_engine MODULE
             assoc.cc
             assoc.h
             default_engine.cc

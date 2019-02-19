@@ -19,7 +19,7 @@ IF(${COUCHBASE_PYTHON})
                       COMMENT "Waiting for testsuite generation to complete")
 
     FOREACH(ID RANGE 9)
-        ADD_LIBRARY(memcached_generated_testsuite_${ID} SHARED
+        ADD_LIBRARY(memcached_generated_testsuite_${ID} MODULE
                     suite_stubs.cc
                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_${ID}.cc)
         SET_TARGET_PROPERTIES(memcached_generated_testsuite_${ID} PROPERTIES PREFIX "")

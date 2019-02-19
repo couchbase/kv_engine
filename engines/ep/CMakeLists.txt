@@ -302,7 +302,7 @@ ADD_LIBRARY(ep_objs OBJECT
 SET_PROPERTY(TARGET ep_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
 add_sanitizers(ep_objs)
 
-ADD_LIBRARY(ep SHARED $<TARGET_OBJECTS:ep_objs>)
+ADD_LIBRARY(ep MODULE $<TARGET_OBJECTS:ep_objs>)
 
 SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep JSON_checker ${EP_STORAGE_LIBS}
@@ -506,7 +506,7 @@ if (NOT EP_BYPASS_TESTS)
     ADD_TEST(NAME ep-engine_ep_unit_tests COMMAND ep-engine_ep_unit_tests)
     ADD_TEST(NAME ep-engine_misc_test COMMAND ep-engine_misc_test)
 
-    ADD_LIBRARY(timing_tests SHARED tests/module_tests/timing_tests.cc)
+    ADD_LIBRARY(timing_tests MODULE tests/module_tests/timing_tests.cc)
     SET_TARGET_PROPERTIES(timing_tests PROPERTIES PREFIX "")
     TARGET_LINK_LIBRARIES(timing_tests mcbp platform)
 
@@ -518,7 +518,7 @@ if (NOT EP_BYPASS_TESTS)
                           mcd_tracing phosphor xattr ${LIBEVENT_LIBRARIES})
     add_sanitizers(ep-engine_sizes)
 
-    ADD_LIBRARY(ep_testsuite SHARED
+    ADD_LIBRARY(ep_testsuite MODULE
                 tests/ep_testsuite.cc
                 $<TARGET_OBJECTS:ep_testsuite_objs>
                 $<TARGET_OBJECTS:mock_dcp>)
@@ -529,7 +529,7 @@ if (NOT EP_BYPASS_TESTS)
                           ${LIBEVENT_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite engine_testapp)
 
-    ADD_LIBRARY(ep_testsuite_basic SHARED
+    ADD_LIBRARY(ep_testsuite_basic MODULE
                 tests/ep_testsuite_basic.cc
                 $<TARGET_OBJECTS:ep_testsuite_objs>
                 $<TARGET_OBJECTS:mock_dcp>
@@ -547,7 +547,7 @@ if (NOT EP_BYPASS_TESTS)
             ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite engine_testapp)
 
-    ADD_LIBRARY(ep_testsuite_dcp SHARED
+    ADD_LIBRARY(ep_testsuite_dcp MODULE
                 tests/ep_testsuite_dcp.cc
                 $<TARGET_OBJECTS:ep_testsuite_objs>
                 $<TARGET_OBJECTS:mock_dcp>
@@ -565,7 +565,7 @@ if (NOT EP_BYPASS_TESTS)
             ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite_dcp engine_testapp)
 
-    ADD_LIBRARY(ep_testsuite_checkpoint SHARED
+    ADD_LIBRARY(ep_testsuite_checkpoint MODULE
                 tests/ep_testsuite_checkpoint.cc
                 $<TARGET_OBJECTS:ep_testsuite_objs>)
     SET_TARGET_PROPERTIES(ep_testsuite_checkpoint PROPERTIES PREFIX "")
@@ -581,7 +581,7 @@ if (NOT EP_BYPASS_TESTS)
             ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite_checkpoint engine_testapp)
 
-    ADD_LIBRARY(ep_testsuite_xdcr SHARED
+    ADD_LIBRARY(ep_testsuite_xdcr MODULE
                 tests/ep_testsuite_xdcr.cc
                 $<TARGET_OBJECTS:ep_testsuite_objs>)
     SET_TARGET_PROPERTIES(ep_testsuite_xdcr PROPERTIES PREFIX "")
@@ -590,7 +590,7 @@ if (NOT EP_BYPASS_TESTS)
                           ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite_xdcr engine_testapp)
 
-    ADD_LIBRARY(ep_perfsuite SHARED
+    ADD_LIBRARY(ep_perfsuite MODULE
                 tests/ep_perfsuite.cc
                 $<TARGET_OBJECTS:ep_testsuite_objs>
                 $<TARGET_OBJECTS:mock_dcp>)
