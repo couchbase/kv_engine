@@ -25,6 +25,7 @@
 #include <fcntl.h>
 #include <atomic>
 #include <cerrno>
+#include <condition_variable>
 #include <csignal>
 #include <cstdint>
 #include <cstdio>
@@ -34,6 +35,7 @@
 #include <netinet/tcp.h> // For TCP_NODELAY etc
 #endif
 #include <memory>
+#include <mutex>
 #include <queue>
 
 extern std::atomic<bool> memcached_shutdown;
@@ -95,8 +97,8 @@ std::vector<TimingHistogram> scheduler_info;
  * Number of worker threads that have finished setting themselves up.
  */
 static size_t init_count = 0;
-static cb_mutex_t init_lock;
-static cb_cond_t init_cond;
+static std::mutex init_mutex;
+static std::condition_variable init_cond;
 
 static void thread_libevent_process(evutil_socket_t, short, void*);
 
@@ -204,11 +206,12 @@ static void worker_libevent(void *arg) {
 
     // Any per-thread setup can happen here; thread_init() will block until
     // all threads have finished initializing.
-    cb_mutex_enter(&init_lock);
-    me.running = true;
-    init_count++;
-    cb_cond_signal(&init_cond);
-    cb_mutex_exit(&init_lock);
+    {
+        std::lock_guard<std::mutex> guard(init_mutex);
+        me.running = true;
+        init_count++;
+        init_cond.notify_all();
+    }
 
     event_base_loop(me.base, 0);
     me.running = false;
@@ -436,9 +439,6 @@ void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats) {
 void thread_init(size_t nthr,
                  struct event_base* main_base,
                  void (*dispatcher_callback)(evutil_socket_t, short, void*)) {
-    cb_mutex_initialize(&init_lock);
-    cb_cond_initialize(&init_cond);
-
     scheduler_info.resize(nthr);
 
     try {
@@ -465,12 +465,9 @@ void thread_init(size_t nthr,
                 worker_libevent, &thread, &thread.thread_id, name.c_str());
     }
 
-    /* Wait for all the threads to set themselves up before returning. */
-    cb_mutex_enter(&init_lock);
-    while (init_count < nthr) {
-        cb_cond_wait(&init_cond, &init_lock);
-    }
-    cb_mutex_exit(&init_lock);
+    // Wait for all the threads to set themselves up before returning.
+    std::unique_lock<std::mutex> lock(init_mutex);
+    init_cond.wait(lock, [&nthr] { return !(init_count < nthr); });
 }
 
 void threads_shutdown() {
