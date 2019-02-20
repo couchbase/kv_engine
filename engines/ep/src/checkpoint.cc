@@ -91,8 +91,7 @@ Checkpoint::Checkpoint(EPStats& st,
                        uint64_t snapStart,
                        uint64_t snapEnd,
                        Vbid vbid)
-    : toWrite(trackingAllocator),
-      stats(st),
+    : stats(st),
       checkpointId(id),
       snapStartSeqno(snapStart),
       snapEndSeqno(snapEnd),
@@ -101,6 +100,7 @@ Checkpoint::Checkpoint(EPStats& st,
       checkpointState(CHECKPOINT_OPEN),
       numItems(0),
       numMetaItems(0),
+      toWrite(trackingAllocator),
       memOverhead(0),
       effectiveMemUsage(0) {
     stats.coreLocal.get()->memOverhead.fetch_add(memorySize());
@@ -218,14 +218,8 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
             // Reduce the size of the checkpoint by the size of the
             // item being removed.
             decrementMemConsumption((*currPos)->size());
-
-            // Expel the item by resetting the pointer to null.  This means
-            // we effectively remove the previous version of the item out of
-            // the checkpoint.  However the entry in the checkpoint remains
-            // so we do not require any special iterator manipulation.  We
-            // simply skip past any entries in the checkpoint queue that
-            // have been expelled.
-            (*currPos).reset();
+            // Remove the existing item for the same key from the list.
+            toWrite.erase(currPos.getUnderlyingIterator());
 
             // Reduce the number of items because addItemToCheckpoint
             // increases the number by one.
