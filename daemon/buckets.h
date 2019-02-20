@@ -120,6 +120,11 @@ public:
     char name[MAX_BUCKET_NAME_LENGTH + 1]{};
 
     /**
+     * Topkeys
+     */
+    std::unique_ptr<TopKeys> topkeys;
+
+    /**
      * An array of registered event handler vectors, one for each type.
      */
     engine_event_handler_array_t engine_event_handlers;
@@ -142,11 +147,6 @@ public:
      *  Sub-document JSON parser (subjson) operation execution time histogram.
      */
     TimingHistogram subjson_operation_times;
-
-    /**
-     * Topkeys
-     */
-    std::unique_ptr<TopKeys> topkeys;
 
     using ResponseCounter = cb::RelaxedAtomic<uint64_t>;
 
