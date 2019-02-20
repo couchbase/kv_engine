@@ -1,14 +1,50 @@
 # Couchbase Binary Protocol - collections commands
 
-## All memcached protocol commands that reference a document
+## All memcached protocol commands that reference a document - encoding collection ID with LEB128
 
 When collections are enabled (by use of HELLO) every command that can reference
 a document is assumed to also encode the collection-ID of the document.
 
-A connection with collections enabled will assume that the key-bytes encodes the
-collection-ID beginning at offset 0 using an unsigned LEB128 format.
+Memcached will expect that every document command (e.g. SET/GET) sent on a collections
+enabled connection encodes the collection-ID beginning at offset 0 using an
+unsigned LEB128 format.
 
-* https://en.wikipedia.org/wiki/LEB128
+* See https://en.wikipedia.org/wiki/LEB128
+
+### LEB128 Encoded Examples
+
+The following table shows collection-ID values and their leb128 encoding. The
+encoding is shown with as `byte0, byte1, byte2`. Clients can use these values to
+check their LEB128 encoding/decoding routines.
+
+| Collection-ID | Encoded leb128 bytes |
+|---------------|----------------------|
+|`0x00`   |  `0x00`|
+|`0x01`   |  `0x01`|
+|`0x7F`   |  `0x7F`|
+|`0x80`   |  `0x80, 0x01`|
+|`0x555`   |  `0xD5, 0x0A`|
+|`0x7FFF`   |  `0xFF, 0xFF, 0x01`|
+|`0xBFFF`   |  `0xFF, 0xFF, 0x02`|
+|`0xFFFF`   |  `0XFF, 0xFF, 0x03`|
+|`0x8000`   |  `0x80, 0x80, 0x02`|
+|`0x5555`   |  `0xD5, 0xAA, 0x01`|
+|`0xCAFEF00`   |  `0x80, 0xDE, 0xBF, 0x65`|
+|`0xCAFEF00D`   |  `0x8D, 0xE0, 0xFB, 0xD7, 0x0C`|
+|`0xFFFFFFFF`   |  `0xFF, 0xFF, 0xFF, 0xFF, 0x0F`|
+
+For example `0x5555` would be encoded into the protocol command field as:
+
+```
+  Byte/     0       |       1       |       2       |
+     /              |               |               |
+    |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+    +---------------+---------------+---------------+
+   0| 0xD5          | 0xAA          | 0x01          |
+    +---------------+---------------+---------------+
+```
+
+### Example command
 
 For example ADD command with collections enabled, adding “Hello” to
 collection-ID 555 with value “World” looks as follows. The leb128 CID is shown

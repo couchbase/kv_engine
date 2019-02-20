@@ -199,3 +199,46 @@ TYPED_TEST(UnsignedLeb128, non_canonical) {
         }
     }
 }
+
+TEST(UnsignedLeb128, collection_ID_encode) {
+    struct TestData {
+        uint32_t value;
+        std::vector<uint8_t> encoded;
+    };
+    // These values we will add to protocol documentation so that clients can
+    // test their leb128 encoders
+    std::vector<TestData> tests = {
+            {0x00, {0x00}},
+            {0x01, {0x01}},
+            {0x7F, {0x7F}},
+            {0x80, {0x80, 0x01}},
+            {0x555, {0xD5, 0x0A}},
+            {0x7FFF, {0xFF, 0xFF, 0x01}},
+            {0xBFFF, {0xFF, 0xFF, 0x02}},
+            {0xFFFF, {0XFF, 0xFF, 0x03}},
+            {0x8000, {0x80, 0x80, 0x02}},
+            {0x5555, {0xD5, 0xAA, 0x01}},
+            {0xcafef00, {0x80, 0xDE, 0xBF, 0x65}},
+            {0xcafef00d, {0x8D, 0xE0, 0xFB, 0xD7, 0x0C}},
+            {0xffffffff, {0xFF, 0xFF, 0xFF, 0xFF, 0x0F}}};
+
+    for (size_t index = 0; index < tests.size(); index++) {
+        const auto& test = tests[index];
+        // Encode the value
+        cb::mcbp::unsigned_leb128<uint32_t> encoded(test.value);
+        ASSERT_EQ(test.encoded.size(), encoded.size())
+                << "size failure for test:" << index;
+        EXPECT_EQ(test.value,
+                  cb::mcbp::decode_unsigned_leb128<uint32_t>(encoded.get())
+                          .first);
+
+        int offset = 0;
+        for (const auto byte : encoded) {
+            // cast away from uint8_t so we get more readable failures
+            EXPECT_EQ(uint32_t(test.encoded[offset]), uint32_t(byte))
+                    << "Mismatch byte-offset:" << offset
+                    << ", test.value:" << test.value << ", test:" << index;
+            offset++;
+        }
+    }
+}
