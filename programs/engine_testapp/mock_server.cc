@@ -2,6 +2,11 @@
 
 #include "config.h"
 
+#include "daemon/alloc_hooks.h"
+#include "daemon/doc_pre_expiry.h"
+#include "daemon/protocol/mcbp/engine_errc_2_mcbp.h"
+#include "mock_server.h"
+#include <logger/logger.h>
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <memcached/server_allocator_iface.h>
@@ -9,23 +14,18 @@
 #include <memcached/server_core_iface.h>
 #include <memcached/server_document_iface.h>
 #include <memcached/server_log_iface.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
-#include <atomic>
-#include <iostream>
 
-#include "daemon/alloc_hooks.h"
-#include "daemon/doc_pre_expiry.h"
-#include "daemon/protocol/mcbp/engine_errc_2_mcbp.h"
-#include "mock_server.h"
-
-#include <logger/logger.h>
 #include <array>
+#include <atomic>
+#include <cstdlib>
+#include <cstring>
+#include <ctime>
 #include <gsl/gsl>
+#include <iostream>
 #include <list>
+#include <mutex>
 
 #define REALTIME_MAXDELTA 60*60*24*3
 
@@ -37,7 +37,7 @@ std::atomic<time_t> process_started;     /* when the mock server was started */
 std::atomic<rel_time_t> time_travel_offset;
 
 /* ref_mutex to guard references, and object deletion in case references becomes zero */
-static cb_mutex_t ref_mutex;
+static std::mutex ref_mutex;
 spdlog::level::level_enum log_level = spdlog::level::level_enum::info;
 
 /**
@@ -45,12 +45,7 @@ spdlog::level::level_enum log_level = spdlog::level::level_enum::info;
  */
 uint64_t session_cas;
 uint8_t session_ctr;
-cb_mutex_t session_mutex;
-
-MockCookie::MockCookie() {
-    cb_mutex_initialize(&mutex);
-    cb_cond_initialize(&cond);
-}
+static std::mutex session_mutex;
 
 void MockCookie::validate() const {
     if (magic != MAGIC) {
@@ -266,7 +261,7 @@ struct MockServerCookieApi : public ServerCookieIface {
 
     bool validate_session_cas(uint64_t cas) override {
         bool ret = true;
-        cb_mutex_enter(&(session_mutex));
+        std::lock_guard<std::mutex> guard(session_mutex);
         if (cas != 0) {
             if (session_cas != cas) {
                 ret = false;
@@ -276,34 +271,30 @@ struct MockServerCookieApi : public ServerCookieIface {
         } else {
             session_ctr++;
         }
-        cb_mutex_exit(&(session_mutex));
         return ret;
     }
 
     void decrement_session_ctr() override {
-        cb_mutex_enter(&(session_mutex));
+        std::lock_guard<std::mutex> guard(session_mutex);
         cb_assert(session_ctr != 0);
         session_ctr--;
-        cb_mutex_exit(&(session_mutex));
     }
 
     ENGINE_ERROR_CODE reserve(gsl::not_null<const void*> cookie) override {
-        cb_mutex_enter(&(ref_mutex));
+        std::lock_guard<std::mutex> guard(ref_mutex);
         auto* c = cookie_to_mock_object(cookie.get());
         c->references++;
-        cb_mutex_exit(&(ref_mutex));
         return ENGINE_SUCCESS;
     }
 
     ENGINE_ERROR_CODE release(gsl::not_null<const void*> cookie) override {
-        cb_mutex_enter(&(ref_mutex));
+        std::lock_guard<std::mutex> guard(ref_mutex);
         auto* c = cookie_to_mock_object(cookie.get());
 
         const int new_rc = --c->references;
         if (new_rc == 0) {
             delete c;
         }
-        cb_mutex_exit(&(ref_mutex));
         return ENGINE_SUCCESS;
     }
     void set_priority(gsl::not_null<const void*> cookie,
@@ -356,11 +347,10 @@ struct MockServerCookieApi : public ServerCookieIface {
     void notify_io_complete(gsl::not_null<const void*> cookie,
                             ENGINE_ERROR_CODE status) override {
         auto* c = cookie_to_mock_object(cookie.get());
-        cb_mutex_enter(&c->mutex);
+        std::lock_guard<std::mutex> guard(c->mutex);
         c->status = status;
         c->num_io_notifications++;
-        cb_cond_signal(&c->cond);
-        cb_mutex_exit(&c->mutex);
+        c->cond.notify_all();
     }
 };
 
@@ -406,8 +396,6 @@ void init_mock_server() {
 
     session_cas = 0x0102030405060708;
     session_ctr = 0;
-    cb_mutex_initialize(&session_mutex);
-    cb_mutex_initialize(&ref_mutex);
 }
 
 const void* create_mock_cookie() {
@@ -418,13 +406,12 @@ void destroy_mock_cookie(const void *cookie) {
     if (cookie == nullptr) {
         return;
     }
-    cb_mutex_enter(&(ref_mutex));
+    std::lock_guard<std::mutex> guard(ref_mutex);
     auto* c = cookie_to_mock_object(cookie);
     disconnect_mock_connection(c);
     if (c->references == 0) {
         delete c;
     }
-    cb_mutex_exit(&(ref_mutex));
 }
 
 void mock_set_ewouldblock_handling(const void *cookie, bool enable) {
@@ -450,20 +437,28 @@ void mock_set_collections_support(const void *cookie, bool enable) {
 
 void lock_mock_cookie(const void *cookie) {
     auto* c = cookie_to_mock_object(cookie);
-    cb_mutex_enter(&c->mutex);
+    c->mutex.lock();
 }
 
 void unlock_mock_cookie(const void *cookie) {
     auto* c = cookie_to_mock_object(cookie);
-    cb_mutex_exit(&c->mutex);
+    c->mutex.unlock();
 }
 
 void waitfor_mock_cookie(const void *cookie) {
     auto* c = cookie_to_mock_object(cookie);
-    while (c->num_processed_notifications == c->num_io_notifications) {
-        cb_cond_wait(&c->cond, &c->mutex);
+
+    std::unique_lock<std::mutex> lock(c->mutex, std::adopt_lock);
+    if (!lock.owns_lock()) {
+        throw std::logic_error("waitfor_mock_cookie: cookie should be locked!");
     }
+
+    c->cond.wait(lock, [&c] {
+        return c->num_processed_notifications != c->num_io_notifications;
+    });
     c->num_processed_notifications = c->num_io_notifications;
+
+    lock.release();
 }
 
 void disconnect_mock_connection(struct MockCookie* c) {
@@ -487,11 +482,9 @@ int get_number_of_mock_cookie_references(const void *cookie) {
     if (cookie == nullptr) {
         return -1;
     }
-    cb_mutex_enter(&(ref_mutex));
+    std::lock_guard<std::mutex> guard(ref_mutex);
     auto* c = cookie_to_mock_object(cookie);
-    int numberOfReferences = c->references;
-    cb_mutex_exit(&(ref_mutex));
-    return numberOfReferences;
+    return c->references;
 }
 
 size_t get_number_of_mock_cookie_io_notifications(const void* cookie) {

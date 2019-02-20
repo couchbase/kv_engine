@@ -360,19 +360,22 @@ static std::pair<cb::engine_errc, T> do_blocking_engine_call(
         MockCookie* c,
         const std::function<std::pair<cb::engine_errc, T>()>& engine_function) {
     c->nblocks = 0;
-    cb_mutex_enter(&c->mutex);
+    std::unique_lock<std::mutex> lock(c->mutex);
 
     auto ret = engine_function();
     while (ret.first == cb::engine_errc::would_block && c->handle_ewouldblock) {
         ++c->nblocks;
-        cb_cond_wait(&c->cond, &c->mutex);
+        c->cond.wait(lock, [&c] {
+            return c->num_processed_notifications != c->num_io_notifications;
+        });
+        c->num_processed_notifications = c->num_io_notifications;
+
         if (c->status == ENGINE_SUCCESS) {
             ret = engine_function();
         } else {
             return std::make_pair(cb::engine_errc(c->status), T());
         }
     }
-    cb_mutex_exit(&c->mutex);
 
     return ret;
 }
@@ -382,16 +385,19 @@ static ENGINE_ERROR_CODE call_engine_and_handle_EWOULDBLOCK(
         const std::function<ENGINE_ERROR_CODE()>& engine_function) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     c->nblocks = 0;
-    cb_mutex_enter(&c->mutex);
+    std::unique_lock<std::mutex> lock(c->mutex);
+
     while (ret == ENGINE_SUCCESS &&
            (ret = engine_function()) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
     {
         ++c->nblocks;
-        cb_cond_wait(&c->cond, &c->mutex);
+        c->cond.wait(lock, [&c] {
+            return c->num_processed_notifications != c->num_io_notifications;
+        });
+        c->num_processed_notifications = c->num_io_notifications;
         ret = c->status;
     }
-    cb_mutex_exit(&c->mutex);
 
     return ret;
 }
@@ -439,14 +445,12 @@ std::pair<cb::unique_item_ptr, item_info> mock_engine::allocate_ex(
 
     auto* c = to_mock_connstruct(cookie.get());
     c->nblocks = 0;
-    cb_mutex_enter(&c->mutex);
+
+    std::lock_guard<std::mutex> guard(c->mutex);
 
     try {
-        auto ret = engine_fn();
-        cb_mutex_exit(&c->mutex);
-        return ret;
+        return engine_fn();
     } catch (const cb::engine_error& error) {
-        cb_mutex_exit(&c->mutex);
         if (error.code() == cb::engine_errc::would_block) {
             throw std::logic_error("mock_allocate_ex: allocate_ex should not block!");
         }

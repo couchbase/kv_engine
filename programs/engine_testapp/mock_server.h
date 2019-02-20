@@ -7,13 +7,13 @@
 
 #include <atomic>
 #include <bitset>
+#include <condition_variable>
+#include <mutex>
 #include <string>
 
 #include "tracing/tracer.h"
 
 struct MockCookie : cb::tracing::Traceable {
-    MockCookie();
-
     const uint64_t magic{MAGIC};
     void* engine_data{};
     bool connected{};
@@ -24,8 +24,8 @@ struct MockCookie : cb::tracing::Traceable {
     bool handle_mutation_extras{true};
     std::bitset<8> enabled_datatypes;
     bool handle_collections_support{false};
-    cb_mutex_t mutex;
-    cb_cond_t cond;
+    std::mutex mutex;
+    std::condition_variable cond;
     int references{1};
     uint64_t num_io_notifications{};
     uint64_t num_processed_notifications{};
