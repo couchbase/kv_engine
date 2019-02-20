@@ -1019,6 +1019,11 @@ Connection::TryReadResult Connection::tryReadNetwork() {
     try {
         read->ensureCapacity(sizeof(cb::mcbp::Request) - read->rsize());
     } catch (const std::bad_alloc&) {
+        LOG_WARNING(
+                "{}: Failed to allocate memory for package header. Closing "
+                "connection {}",
+                getId(),
+                getDescription());
         return TryReadResult::MemoryError;
     }
 
@@ -1051,12 +1056,10 @@ Connection::TryReadResult Connection::tryReadNetwork() {
     // Keep this as INFO as it isn't a problem with the memcached server,
     // it is a network issue (or a bad client not closing the connection
     // cleanly)
-    LOG_INFO(
-            "{} Closing connection {} due to read "
-            "error: {}",
-            getId(),
-            getDescription(),
-            cb_strerror(error));
+    LOG_INFO("{} Closing connection {} due to read error: {}",
+             getId(),
+             getDescription(),
+             cb_strerror(error));
     return TryReadResult::SocketError;
 }
 

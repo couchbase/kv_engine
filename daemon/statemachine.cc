@@ -265,22 +265,10 @@ bool StateMachine::conn_read_packet_header() {
             setCurrentState(State::waiting);
         }
         break;
+    case Connection::TryReadResult::MemoryError:
     case Connection::TryReadResult::SocketClosed:
     case Connection::TryReadResult::SocketError:
-        // Note: we log only in case of SocketError, we do not log a clean
-        // connection shutdown
-        if (res == Connection::TryReadResult::SocketError) {
-            LOG_WARNING(
-                    "{}: conn_read_packet_header - tryReadNetwork returned "
-                    "SocketError - closing connection {}",
-                    connection.getId(),
-                    connection.getDescription());
-        }
         setCurrentState(State::closing);
-        break;
-    case Connection::TryReadResult::MemoryError: /* Failed to allocate more
-                                                    memory */
-        /* State already set by try_read_network */
         break;
     }
 

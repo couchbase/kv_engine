@@ -110,6 +110,7 @@ void MemcachedConnection::close() {
     }
 
     if (sock != INVALID_SOCKET) {
+        cb::net::shutdown(sock, SHUT_RDWR);
         cb::net::closesocket(sock);
         sock = INVALID_SOCKET;
     }
