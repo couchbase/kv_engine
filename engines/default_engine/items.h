@@ -155,7 +155,7 @@ struct items {
    /*
     * serialise access to the items data
    */
-   cb_mutex_t lock;
+   std::mutex lock;
 };
 
 

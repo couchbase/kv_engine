@@ -4,6 +4,8 @@
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
 
+#include <mutex>
+
 /* Slab sizing definitions. */
 #define POWER_SMALLEST 1
 #define POWER_LARGEST 200
@@ -52,7 +54,7 @@ struct slabs {
    /**
     * Access to the slab allocator is protected by this lock
     */
-   cb_mutex_t lock;
+   std::mutex lock;
 };
 
 

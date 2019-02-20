@@ -11,11 +11,13 @@
 
 #include <stdbool.h>
 #include <atomic>
+#include <mutex>
 
 #include <memcached/engine.h>
 #include <memcached/util.h>
 #include <memcached/visibility.h>
 #include <platform/platform.h>
+#include <relaxed_atomic.h>
 
 /** How long an object can reasonably be assumed to be locked before
     harvesting it on a low memory condition. */
@@ -60,22 +62,21 @@ struct config {
  * Statistic information collected by the default engine
  */
 struct engine_stats {
-   cb_mutex_t lock;
-   uint64_t evictions;
-   uint64_t reclaimed;
-   uint64_t curr_bytes;
-   uint64_t curr_items;
-   uint64_t total_items;
+    Couchbase::RelaxedAtomic<uint64_t> evictions{0};
+    Couchbase::RelaxedAtomic<uint64_t> reclaimed{0};
+    Couchbase::RelaxedAtomic<uint64_t> curr_bytes{0};
+    Couchbase::RelaxedAtomic<uint64_t> curr_items{0};
+    Couchbase::RelaxedAtomic<uint64_t> total_items{0};
 };
 
 struct engine_scrubber {
-   cb_mutex_t lock;
-   uint64_t visited;
-   uint64_t cleaned;
-   time_t started;
-   time_t stopped;
-   bool running;
-   bool force_delete;
+    std::mutex lock;
+    uint64_t visited;
+    uint64_t cleaned;
+    time_t started;
+    time_t stopped;
+    bool running;
+    bool force_delete;
 };
 
 struct vbucket_info {

@@ -399,32 +399,26 @@ static void *memory_allocate(struct default_engine *engine, size_t size) {
 }
 
 void *slabs_alloc(struct default_engine *engine, size_t size, unsigned int id) {
-    void *ret;
-
-    cb_mutex_enter(&engine->slabs.lock);
-    ret = do_slabs_alloc(engine, size, id);
-    cb_mutex_exit(&engine->slabs.lock);
-    return ret;
+    std::lock_guard<std::mutex> guard(engine->slabs.lock);
+    return do_slabs_alloc(engine, size, id);
 }
 
 void slabs_free(struct default_engine *engine, void *ptr, size_t size, unsigned int id) {
-    cb_mutex_enter(&engine->slabs.lock);
+    std::lock_guard<std::mutex> guard(engine->slabs.lock);
     do_slabs_free(engine, ptr, size, id);
-    cb_mutex_exit(&engine->slabs.lock);
 }
 
 void slabs_stats(struct default_engine* engine,
                  const AddStatFn& add_stats,
                  const void* c) {
-    cb_mutex_enter(&engine->slabs.lock);
+    std::lock_guard<std::mutex> guard(engine->slabs.lock);
     do_slabs_stats(engine, add_stats, c);
-    cb_mutex_exit(&engine->slabs.lock);
 }
 
 void slabs_adjust_mem_requested(struct default_engine *engine, unsigned int id, size_t old, size_t ntotal)
 {
     slabclass_t *p;
-    cb_mutex_enter(&engine->slabs.lock);
+    std::lock_guard<std::mutex> guard(engine->slabs.lock);
     if (id < POWER_SMALLEST || id > engine->slabs.power_largest) {
         throw std::invalid_argument(
                 "slabs_adjust_mem_requested: Internal error! Invalid slab "
@@ -433,7 +427,6 @@ void slabs_adjust_mem_requested(struct default_engine *engine, unsigned int id, 
 
     p = &engine->slabs.slabclass[id];
     p->requested = p->requested - old + ntotal;
-    cb_mutex_exit(&engine->slabs.lock);
 }
 
 void slabs_destroy(struct default_engine *e)

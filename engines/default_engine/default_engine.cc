@@ -69,11 +69,6 @@ static bool handled_vbucket(struct default_engine* e, Vbid vbid) {
  */
 void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
 {
-    cb_mutex_initialize(&engine->slabs.lock);
-    cb_mutex_initialize(&engine->items.lock);
-    cb_mutex_initialize(&engine->stats.lock);
-    cb_mutex_initialize(&engine->scrubber.lock);
-
     engine->bucket_id = id;
     engine->config.verbose = 0;
     engine->config.oldest_live = 0;
@@ -150,13 +145,6 @@ void destroy_engine_instance(struct default_engine* engine) {
         slabs_destroy(engine);
 
         cb_free(engine->config.uuid);
-
-        /* Clean up the mutexes */
-        cb_mutex_destroy(&engine->items.lock);
-        cb_mutex_destroy(&engine->stats.lock);
-        cb_mutex_destroy(&engine->slabs.lock);
-        cb_mutex_destroy(&engine->scrubber.lock);
-
         engine->initialized = false;
     }
 }
@@ -473,20 +461,18 @@ ENGINE_ERROR_CODE default_engine::get_stats(gsl::not_null<const void*> cookie,
         char val[128];
         int len;
 
-        cb_mutex_enter(&stats.lock);
-        len = sprintf(val, "%" PRIu64, (uint64_t)stats.evictions);
+        len = sprintf(val, "%" PRIu64, stats.evictions.load());
         add_stat("evictions", 9, val, len, cookie);
-        len = sprintf(val, "%" PRIu64, (uint64_t)stats.curr_items);
+        len = sprintf(val, "%" PRIu64, stats.curr_items.load());
         add_stat("curr_items", 10, val, len, cookie);
-        len = sprintf(val, "%" PRIu64, (uint64_t)stats.total_items);
+        len = sprintf(val, "%" PRIu64, stats.total_items.load());
         add_stat("total_items", 11, val, len, cookie);
-        len = sprintf(val, "%" PRIu64, (uint64_t)stats.curr_bytes);
+        len = sprintf(val, "%" PRIu64, stats.curr_bytes.load());
         add_stat("bytes", 5, val, len, cookie);
-        len = sprintf(val, "%" PRIu64, stats.reclaimed);
+        len = sprintf(val, "%" PRIu64, stats.reclaimed.load());
         add_stat("reclaimed", 9, val, len, cookie);
         len = sprintf(val, "%" PRIu64, (uint64_t)config.maxbytes);
         add_stat("engine_maxbytes", 15, val, len, cookie);
-        cb_mutex_exit(&stats.lock);
     } else if (key == "slabs"_ccb) {
         slabs_stats(this, add_stat, cookie);
     } else if (key == "items"_ccb) {
@@ -507,7 +493,7 @@ ENGINE_ERROR_CODE default_engine::get_stats(gsl::not_null<const void*> cookie,
         char val[128];
         int len;
 
-        cb_mutex_enter(&scrubber.lock);
+        std::lock_guard<std::mutex> guard(scrubber.lock);
         if (scrubber.running) {
             add_stat("scrubber:status", 15, "running", 7, cookie);
         } else {
@@ -526,7 +512,6 @@ ENGINE_ERROR_CODE default_engine::get_stats(gsl::not_null<const void*> cookie,
             len = sprintf(val, "%" PRIu64, scrubber.cleaned);
             add_stat("scrubber:cleaned", 16, val, len, cookie);
         }
-        cb_mutex_exit(&scrubber.lock);
     } else {
         ret = ENGINE_KEY_ENOENT;
     }
@@ -616,11 +601,9 @@ ENGINE_ERROR_CODE default_engine::flush(gsl::not_null<const void*> cookie) {
 void default_engine::reset_stats(gsl::not_null<const void*> cookie) {
     item_stats_reset(this);
 
-    cb_mutex_enter(&stats.lock);
-    stats.evictions = 0;
-    stats.reclaimed = 0;
-    stats.total_items = 0;
-    cb_mutex_exit(&stats.lock);
+    stats.evictions.store(0);
+    stats.reclaimed.store(0);
+    stats.total_items.store(0);
 }
 
 static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,

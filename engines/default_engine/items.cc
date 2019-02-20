@@ -65,9 +65,8 @@ static void hash_key_copy_to_item(hash_item* dst, const hash_key* src);
 static const int search_items = 50;
 
 void item_stats_reset(struct default_engine *engine) {
-    cb_mutex_enter(&engine->items.lock);
+    std::lock_guard<std::mutex> guard(engine->items.lock);
     memset(engine->items.itemstats, 0, sizeof(engine->items.itemstats));
-    cb_mutex_exit(&engine->items.lock);
 }
 
 
@@ -132,9 +131,7 @@ hash_item *do_item_alloc(struct default_engine *engine,
             /* I don't want to actually free the object, just steal
              * the item to avoid to grab the slab mutex twice ;-)
              */
-            cb_mutex_enter(&engine->stats.lock);
             engine->stats.reclaimed++;
-            cb_mutex_exit(&engine->stats.lock);
             engine->items.itemstats[id].reclaimed++;
             it->refcount = 1;
             slabs_adjust_mem_requested(engine, it->slabs_clsid, ITEM_ntotal(engine, it), ntotal);
@@ -183,14 +180,10 @@ hash_item *do_item_alloc(struct default_engine *engine,
                     if (search->exptime != 0) {
                         engine->items.itemstats[id].evicted_nonzero++;
                     }
-                    cb_mutex_enter(&engine->stats.lock);
                     engine->stats.evictions++;
-                    cb_mutex_exit(&engine->stats.lock);
                 } else {
                     engine->items.itemstats[id].reclaimed++;
-                    cb_mutex_enter(&engine->stats.lock);
                     engine->stats.reclaimed++;
-                    cb_mutex_exit(&engine->stats.lock);
                 }
                 do_item_unlink(engine, search);
                 break;
@@ -309,11 +302,9 @@ int do_item_link(struct default_engine *engine,
     assoc_insert(crc32c(hash_key_get_key(key), hash_key_get_key_len(key), 0),
                  it);
 
-    cb_mutex_enter(&engine->stats.lock);
     engine->stats.curr_bytes += ITEM_ntotal(engine, it);
     engine->stats.curr_items += 1;
     engine->stats.total_items += 1;
-    cb_mutex_exit(&engine->stats.lock);
 
     auto cas = get_cas_id();
 
@@ -345,10 +336,8 @@ void do_item_unlink(struct default_engine *engine, hash_item *it) {
     const hash_key* key = item_get_key(it);
     if ((it->iflag & ITEM_LINKED) != 0) {
         it->iflag &= ~ITEM_LINKED;
-        cb_mutex_enter(&engine->stats.lock);
         engine->stats.curr_bytes -= ITEM_ntotal(engine, it);
         engine->stats.curr_items -= 1;
-        cb_mutex_exit(&engine->stats.lock);
         assoc_delete(crc32c(hash_key_get_key(key), hash_key_get_key_len(key), 0),
                      key);
         item_unlink_q(engine, it);
@@ -373,10 +362,8 @@ ENGINE_ERROR_CODE do_safe_item_unlink(struct default_engine* engine,
     if (it->cas == stored->cas) {
         if ((stored->iflag & ITEM_LINKED) != 0) {
             stored->iflag &= ~ITEM_LINKED;
-            cb_mutex_enter(&engine->stats.lock);
             engine->stats.curr_bytes -= ITEM_ntotal(engine, stored);
             engine->stats.curr_items -= 1;
-            cb_mutex_exit(&engine->stats.lock);
             assoc_delete(crc32c(hash_key_get_key(key),
                                 hash_key_get_key_len(key), 0),
                          key);
@@ -650,9 +637,12 @@ hash_item *item_alloc(struct default_engine *engine,
     if (!hash_key_create(&hkey, key, nkey, engine, cookie)) {
         return NULL;
     }
-    cb_mutex_enter(&engine->items.lock);
-    it = do_item_alloc(engine, &hkey, flags, exptime, nbytes, cookie, datatype);
-    cb_mutex_exit(&engine->items.lock);
+
+    {
+        std::lock_guard<std::mutex> guard(engine->items.lock);
+        it = do_item_alloc(
+                engine, &hkey, flags, exptime, nbytes, cookie, datatype);
+    }
     hash_key_destroy(&hkey);
     return it;
 }
@@ -684,10 +674,8 @@ hash_item* item_get(struct default_engine* engine,
                     const void* cookie,
                     const hash_key& key,
                     const DocStateFilter state) {
-    cb_mutex_enter(&engine->items.lock);
-    auto* it = do_item_get(engine, &key, state);
-    cb_mutex_exit(&engine->items.lock);
-    return it;
+    std::lock_guard<std::mutex> guard(engine->items.lock);
+    return do_item_get(engine, &key, state);
 }
 
 /*
@@ -695,26 +683,22 @@ hash_item* item_get(struct default_engine* engine,
  * needed.
  */
 void item_release(struct default_engine *engine, hash_item *item) {
-    cb_mutex_enter(&engine->items.lock);
+    std::lock_guard<std::mutex> guard(engine->items.lock);
     do_item_release(engine, item);
-    cb_mutex_exit(&engine->items.lock);
 }
 
 /*
  * Unlinks an item from the LRU and hashtable.
  */
 void item_unlink(struct default_engine *engine, hash_item *item) {
-    cb_mutex_enter(&engine->items.lock);
+    std::lock_guard<std::mutex> guard(engine->items.lock);
     do_item_unlink(engine, item);
-    cb_mutex_exit(&engine->items.lock);
 }
 
 ENGINE_ERROR_CODE safe_item_unlink(struct default_engine *engine,
                                    hash_item *it) {
-    cb_mutex_enter(&engine->items.lock);
-    auto ret = do_safe_item_unlink(engine, it);
-    cb_mutex_exit(&engine->items.lock);
-    return ret;
+    std::lock_guard<std::mutex> guard(engine->items.lock);
+    return do_safe_item_unlink(engine, it);
 }
 
 /*
@@ -732,12 +716,12 @@ ENGINE_ERROR_CODE store_item(struct default_engine *engine,
         item->iflag |= ITEM_ZOMBIE;
     }
 
-    cb_mutex_enter(&engine->items.lock);
+    std::lock_guard<std::mutex> guard(engine->items.lock);
     ret = do_store_item(engine, item, operation, cookie, &stored_item);
     if (ret == ENGINE_SUCCESS) {
         *cas = stored_item->cas;
     }
-    cb_mutex_exit(&engine->items.lock);
+
     return ret;
 }
 
@@ -848,10 +832,11 @@ ENGINE_ERROR_CODE item_get_locked(struct default_engine* engine,
         return ENGINE_TMPFAIL;
     }
 
-    cb_mutex_enter(&engine->items.lock);
-    ENGINE_ERROR_CODE ret = do_item_get_locked(engine, cookie, it, &hkey,
-                                               locktime);
-    cb_mutex_exit(&engine->items.lock);
+    ENGINE_ERROR_CODE ret;
+    {
+        std::lock_guard<std::mutex> guard(engine->items.lock);
+        ret = do_item_get_locked(engine, cookie, it, &hkey, locktime);
+    }
     hash_key_destroy(&hkey);
 
     return ret;
@@ -917,9 +902,11 @@ ENGINE_ERROR_CODE item_unlock(struct default_engine* engine,
         return ENGINE_TMPFAIL;
     }
 
-    cb_mutex_enter(&engine->items.lock);
-    ENGINE_ERROR_CODE ret = do_item_unlock(engine, cookie, &hkey, cas);
-    cb_mutex_exit(&engine->items.lock);
+    ENGINE_ERROR_CODE ret;
+    {
+        std::lock_guard<std::mutex> guard(engine->items.lock);
+        ret = do_item_unlock(engine, cookie, &hkey, cas);
+    }
     hash_key_destroy(&hkey);
 
     return ret;
@@ -993,10 +980,11 @@ ENGINE_ERROR_CODE item_get_and_touch(struct default_engine* engine,
         return ENGINE_TMPFAIL;
     }
 
-    cb_mutex_enter(&engine->items.lock);
-    ENGINE_ERROR_CODE ret = do_item_get_and_touch(engine, cookie, it, &hkey,
-                                                  exptime);
-    cb_mutex_exit(&engine->items.lock);
+    ENGINE_ERROR_CODE ret;
+    {
+        std::lock_guard<std::mutex> guard(engine->items.lock);
+        ret = do_item_get_and_touch(engine, cookie, it, &hkey, exptime);
+    }
     hash_key_destroy(&hkey);
 
     return ret;
@@ -1006,7 +994,7 @@ ENGINE_ERROR_CODE item_get_and_touch(struct default_engine* engine,
  * Flushes expired items after a flush_all call
  */
 void item_flush_expired(struct default_engine *engine) {
-    cb_mutex_enter(&engine->items.lock);
+    std::lock_guard<std::mutex> guard(engine->items.lock);
 
     rel_time_t now = engine->server.core->get_current_time();
     if (now > engine->config.oldest_live) {
@@ -1034,23 +1022,20 @@ void item_flush_expired(struct default_engine *engine) {
             }
         }
     }
-    cb_mutex_exit(&engine->items.lock);
 }
 
 void item_stats(struct default_engine* engine,
                 const AddStatFn& add_stat,
                 const void* cookie) {
-    cb_mutex_enter(&engine->items.lock);
+    std::lock_guard<std::mutex> guard(engine->items.lock);
     do_item_stats(engine, add_stat, cookie);
-    cb_mutex_exit(&engine->items.lock);
 }
 
 void item_stats_sizes(struct default_engine* engine,
                       const AddStatFn& add_stat,
                       const void* cookie) {
-    cb_mutex_enter(&engine->items.lock);
+    std::lock_guard<std::mutex> guard(engine->items.lock);
     do_item_stats_sizes(engine, add_stat, cookie);
-    cb_mutex_exit(&engine->items.lock);
 }
 
 static void do_item_link_cursor(struct default_engine *engine,
@@ -1144,9 +1129,8 @@ static void item_scrub_class(struct default_engine *engine,
     ENGINE_ERROR_CODE ret;
     bool more;
     do {
-        cb_mutex_enter(&engine->items.lock);
+        std::lock_guard<std::mutex> guard(engine->items.lock);
         more = do_item_walk_cursor(engine, cursor, 200, item_scrub, NULL, &ret);
-        cb_mutex_exit(&engine->items.lock);
         if (ret != ENGINE_SUCCESS) {
             break;
         }
@@ -1162,48 +1146,42 @@ void item_scrubber_main(struct default_engine *engine)
     cursor.refcount = 1;
     for (ii = 0; ii < POWER_LARGEST; ++ii) {
         bool skip = false;
-        cb_mutex_enter(&engine->items.lock);
-        if (engine->items.heads[ii] == NULL) {
-            skip = true;
-        } else {
-            /* add the item at the tail */
-            do_item_link_cursor(engine, &cursor, ii);
+        {
+            std::lock_guard<std::mutex> guard(engine->items.lock);
+            if (engine->items.heads[ii] == NULL) {
+                skip = true;
+            } else {
+                /* add the item at the tail */
+                do_item_link_cursor(engine, &cursor, ii);
+            }
         }
-        cb_mutex_exit(&engine->items.lock);
 
         if (!skip) {
             item_scrub_class(engine, &cursor);
         }
     }
 
-    cb_mutex_enter(&engine->scrubber.lock);
-    engine->scrubber.stopped = time(NULL);
+    std::lock_guard<std::mutex> guard(engine->scrubber.lock);
+    engine->scrubber.stopped = time(nullptr);
     engine->scrubber.running = false;
-    cb_mutex_exit(&engine->scrubber.lock);
 }
 
 bool item_start_scrub(struct default_engine *engine)
 {
-    bool ret = false;
+    std::lock_guard<std::mutex> guard(engine->scrubber.lock);
 
-    cb_mutex_enter(&engine->scrubber.lock);
-
-    /*
-        If the scrubber is already scrubbing items, ignore
-    */
+    // If the scrubber is already scrubbing items, ignore
     if (!engine->scrubber.running) {
-
-        engine->scrubber.started = time(NULL);
+        engine->scrubber.started = time(nullptr);
         engine->scrubber.stopped = 0;
         engine->scrubber.visited = 0;
         engine->scrubber.cleaned = 0;
         engine->scrubber.running = true;
         engine_manager_scrub_engine(engine);
-        ret = true;
+        return true;
     }
-    cb_mutex_exit(&engine->scrubber.lock);
 
-    return ret;
+    return false;
 }
 
 static bool hash_key_create(hash_key* hkey,
