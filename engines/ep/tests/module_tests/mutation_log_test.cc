@@ -355,7 +355,7 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
         EXPECT_EQ(0, ml.itemsLogged[int(MutationLogType::Commit2)]);
 
         // See if we got what we expect.
-        std::map<std::string, uint64_t> maps[4];
+        std::set<std::string> maps[4];
         h.apply(&maps, loaderFun);
 
         EXPECT_EQ(0, maps[0].size());
@@ -490,7 +490,7 @@ TEST_F(MutationLogTest, BatchLoad) {
         auto next_it = h.loadBatch(ml.begin(), 2);
         EXPECT_NE(next_it, ml.end());
 
-        std::map<StoredDocKey, uint64_t> maps[2];
+        std::set<StoredDocKey> maps[2];
         h.apply(&maps, loaderFun);
         EXPECT_EQ(2, maps[0].size() + maps[1].size());
 
@@ -631,7 +631,7 @@ TEST_F(MutationLogTest, upgrade) {
         auto next_it = h.loadBatch(ml.begin(), 2);
         EXPECT_NE(next_it, ml.end());
 
-        std::map<StoredDocKey, uint64_t> maps[4]; // 4 <- vbid.get() + 1
+        std::set<StoredDocKey> maps[4]; // 4 <- vbid.get() + 1
         h.apply(&maps, loaderFun);
         for (int i = 0; i < 2; i++) {
             EXPECT_TRUE(maps[vbid.get()].count(makeStoredDocKey(keys[i])) == 1);
