@@ -367,12 +367,6 @@ void Manifest::addScope(const WriteHandle& wHandle,
     auto seqno =
             vb.addSystemEventItem(item.release(), optionalSeqno, {}, wHandle);
 
-    // If seq is not set, then this is an active vbucket queueing the event.
-    // Collection events will end the CP so they don't de-dup.
-    if (!optionalSeqno.is_initialized()) {
-        vb.checkpointManager->createNewCheckpoint();
-    }
-
     EP_LOG_INFO(
             "collections: {} added scope:name:{},id:{:x} "
             "replica:{}, backfill:{}, seqno:{}, manifest:{:x}",
@@ -609,16 +603,17 @@ int64_t Manifest::queueCollectionSystemEvent(
         const ManifestEntry& entry,
         bool deleted,
         OptionalSeqno seq) const {
+    // If seq is not set, then this is an active vbucket queueing the event.
+    // Collection events will end the CP so they don't de-dup.
+    if (!seq.is_initialized() && deleted) {
+        vb.checkpointManager->createNewCheckpoint();
+    }
+
     auto item = makeCollectionSystemEvent(
             getManifestUid(), cid, collectionName, entry, deleted, seq);
     // Create and transfer Item ownership to the VBucket
     auto rv = vb.addSystemEventItem(item.release(), seq, cid, wHandle);
 
-    // If seq is not set, then this is an active vbucket queueing the event.
-    // Collection events will end the CP so they don't de-dup.
-    if (!seq.is_initialized()) {
-        vb.checkpointManager->createNewCheckpoint();
-    }
     return rv;
 }
 
