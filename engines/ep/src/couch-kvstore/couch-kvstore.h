@@ -631,9 +631,10 @@ protected:
                                 kvstats_ctx& kvctx,
                                 Collections::VB::Flush& collectionsFlush);
 
-    void commitCallback(std::vector<CouchRequest *> &committedReqs,
-                        kvstats_ctx &kvctx,
-                        couchstore_error_t errCode);
+    void commitCallback(
+            std::vector<std::unique_ptr<CouchRequest>>& committedReqs,
+            kvstats_ctx& kvctx,
+            couchstore_error_t errCode);
     couchstore_error_t saveVBState(Db *db, const vbucket_state &vbState);
 
     /**
@@ -819,7 +820,7 @@ protected:
     cb::RWLock openDbMutex;
 
     uint16_t numDbFiles;
-    std::vector<CouchRequest *> pendingReqsQ;
+    std::vector<std::unique_ptr<CouchRequest>> pendingReqsQ;
     bool intransaction;
     std::unique_ptr<TransactionContext> transactionCtx;
 

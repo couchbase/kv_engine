@@ -416,8 +416,8 @@ void CouchKVStore::set(const Item& itm,
 
     // each req will be de-allocated after commit
     requestcb.setCb = &cb;
-    CouchRequest* req = new CouchRequest(itm, fileRev, requestcb, deleteItem);
-    pendingReqsQ.push_back(req);
+    pendingReqsQ.push_back(std::make_unique<CouchRequest>(
+            itm, fileRev, requestcb, deleteItem));
 }
 
 GetValue CouchKVStore::get(const StoredDocKey& key, Vbid vb, bool fetchDelete) {
@@ -569,8 +569,8 @@ void CouchKVStore::del(const Item& itm, Callback<TransactionContext, int>& cb) {
     uint64_t fileRev = (*dbFileRevMap)[itm.getVBucketId().get()];
     MutationRequestCallback requestcb;
     requestcb.delCb = &cb;
-    CouchRequest* req = new CouchRequest(itm, fileRev, requestcb, true);
-    pendingReqsQ.push_back(req);
+    pendingReqsQ.push_back(
+            std::make_unique<CouchRequest>(itm, fileRev, requestcb, true));
 }
 
 void CouchKVStore::delVBucket(Vbid vbucket, uint64_t fileRev) {
@@ -1906,8 +1906,8 @@ bool CouchKVStore::commit2couchstore(Collections::VB::Flush& collectionsFlush) {
     std::vector<DocInfo*> docinfos(pendingCommitCnt);
 
     for (size_t i = 0; i < pendingCommitCnt; ++i) {
-        CouchRequest *req = pendingReqsQ[i];
-        docs[i] = (Doc *)req->getDbDoc();
+        auto& req = pendingReqsQ[i];
+        docs[i] = (Doc*)req->getDbDoc();
         docinfos[i] = req->getDbDocInfo();
         if (vbucket2flush != req->getVBucketId()) {
             throw std::logic_error(
@@ -1936,10 +1936,6 @@ bool CouchKVStore::commit2couchstore(Collections::VB::Flush& collectionsFlush) {
 
     commitCallback(pendingReqsQ, kvctx, errCode);
 
-    // clean up
-    for (size_t i = 0; i < pendingCommitCnt; ++i) {
-        delete pendingReqsQ[i];
-    }
     pendingReqsQ.clear();
     return success;
 }
@@ -2138,9 +2134,10 @@ couchstore_error_t CouchKVStore::saveDocs(
     return errCode;
 }
 
-void CouchKVStore::commitCallback(std::vector<CouchRequest *> &committedReqs,
-                                  kvstats_ctx &kvctx,
-                                  couchstore_error_t errCode) {
+void CouchKVStore::commitCallback(
+        std::vector<std::unique_ptr<CouchRequest>>& committedReqs,
+        kvstats_ctx& kvctx,
+        couchstore_error_t errCode) {
     size_t commitSize = committedReqs.size();
 
     for (size_t index = 0; index < commitSize; index++) {

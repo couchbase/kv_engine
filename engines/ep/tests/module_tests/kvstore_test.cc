@@ -1409,9 +1409,9 @@ public:
 
         // each req will be de-allocated after commit
         requestcb.setCb = &cb;
-        MockCouchRequest *req = new MockCouchRequest(itm, fileRev, requestcb, deleteItem);
-        pendingReqsQ.push_back(req);
-        return req;
+        pendingReqsQ.push_back(std::make_unique<MockCouchRequest>(
+                itm, fileRev, requestcb, deleteItem));
+        return static_cast<MockCouchRequest*>(pendingReqsQ.back().get());
     }
 
     bool compactDBInternal(compaction_ctx* hook_ctx,
