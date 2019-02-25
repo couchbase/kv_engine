@@ -69,6 +69,16 @@ public:
             cb::const_char_buffer path) const;
 
     /**
+     * Lookup scope id from path
+     *
+     * @throws cb::engine_error
+     * @return EngineErrorGetScopeIDResult which is status, manifest-uid
+     *  and scope-id
+     */
+    cb::EngineErrorGetScopeIDResult getScopeID(
+            cb::const_char_buffer path) const;
+
+    /**
      * Update the vbucket's manifest with the current Manifest
      * The Manager is locked to prevent current changing whilst this update
      * occurs.

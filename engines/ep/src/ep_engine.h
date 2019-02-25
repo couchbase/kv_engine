@@ -210,6 +210,10 @@ public:
             gsl::not_null<const void*> cookie,
             cb::const_char_buffer path) override;
 
+    cb::EngineErrorGetScopeIDResult get_scope_id(
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer path) override;
+
     bool isXattrEnabled() override;
 
     BucketCompressionMode getCompressionMode() override {

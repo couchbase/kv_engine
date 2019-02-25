@@ -137,6 +137,25 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::getCollectionID(
     return result;
 }
 
+cb::EngineErrorGetScopeIDResult Collections::Manager::getScopeID(
+        cb::const_char_buffer path) const {
+    std::unique_lock<std::mutex> ul(lock);
+    if (!current) {
+        return {cb::engine_errc::no_collections_manifest, 0, 0};
+    }
+
+    auto scope = current->getScopeID(cb::to_string(path));
+    if (!scope) {
+        cb::EngineErrorGetScopeIDResult result{
+                cb::engine_errc::unknown_scope, current->getUid(), 0};
+        return result;
+    }
+
+    cb::EngineErrorGetScopeIDResult result{
+            cb::engine_errc::success, current->getUid(), scope.get()};
+    return result;
+}
+
 void Collections::Manager::update(VBucket& vb) const {
     // Lock manager updates
     std::lock_guard<std::mutex> ul(lock);

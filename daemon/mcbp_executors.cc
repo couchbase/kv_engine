@@ -680,6 +680,8 @@ void initialize_mbcp_lookup_map() {
                   collections_get_manifest_executor);
     setup_handler(cb::mcbp::ClientOpcode::CollectionsGetID,
                   collections_get_collection_id_executor);
+    setup_handler(cb::mcbp::ClientOpcode::CollectionsGetScopeID,
+                  collections_get_scope_id_executor);
 
     setup_handler(cb::mcbp::ClientOpcode::IsaslRefresh, isasl_refresh_executor);
     setup_handler(cb::mcbp::ClientOpcode::SslCertsRefresh,

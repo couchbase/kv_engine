@@ -2395,6 +2395,15 @@ cb::EngineErrorGetCollectionIDResult KVBucket::getCollectionID(
     }
 }
 
+cb::EngineErrorGetScopeIDResult KVBucket::getScopeID(
+        cb::const_char_buffer path) const {
+    try {
+        return collectionsManager->getScopeID(path);
+    } catch (const cb::engine_error& e) {
+        return {cb::engine_errc(e.code().value()), 0, 0};
+    }
+}
+
 const Collections::Manager& KVBucket::getCollectionsManager() const {
     return *collectionsManager.get();
 }

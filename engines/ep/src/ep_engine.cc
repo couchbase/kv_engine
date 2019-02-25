@@ -1800,6 +1800,18 @@ EventuallyPersistentEngine::get_collection_id(gsl::not_null<const void*> cookie,
     return rv;
 }
 
+cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
+        gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
+    auto engine = acquireEngine(this);
+    auto rv = engine->getKVBucket()->getScopeID(path);
+    if (rv.result == cb::engine_errc::unknown_scope) {
+        engine->setErrorContext(cookie,
+                                Collections::getUnknownCollectionErrorContext(
+                                        rv.getManifestId()));
+    }
+    return rv;
+}
+
 cb::engine::FeatureSet EventuallyPersistentEngine::getFeatures() {
     // This function doesn't track memory against the engine, but create a
     // guard regardless to make this explicit because we only call this once per

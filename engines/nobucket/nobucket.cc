@@ -428,6 +428,12 @@ public:
             cb::const_char_buffer path) override {
         return {cb::engine_errc::no_bucket, 0, 0};
     }
+
+    cb::EngineErrorGetScopeIDResult get_scope_id(
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer path) override {
+        return {cb::engine_errc::no_bucket, 0, 0};
+    }
 };
 
 MEMCACHED_PUBLIC_API

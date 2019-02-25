@@ -255,6 +255,10 @@ enum class ClientOpcode : uint8_t {
      * Command to get a collection ID
      */
     CollectionsGetID = 0xbb,
+    /**
+     * Command to get a scope ID
+     */
+    CollectionsGetScopeID = 0xbc,
 
     /**
      * Commands for GO-XDCR

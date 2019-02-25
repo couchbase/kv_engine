@@ -500,9 +500,10 @@ information about a given command.
 | 0xb6 | Get random key |
 | 0xb7 | Seqno persistence |
 | 0xb8 | Get keys |
-| 0xb9 | Collections: set manifest |
-| 0xba | Collections: get manifest |
-| 0xbb | Collections: get collection id |
+| 0xb9 | [Collections: set manifest](Collections.md#0xb9---Set-Collections-Manifest) |
+| 0xba | [Collections: get manifest](Collections.md#0xba---Get-Collections-Manifest) |
+| 0xbb | [Collections: get collection id](Collections.md#0xbb---Get-Collections-ID) |
+| 0xbc | [Collections: get scope id](Collections.md#0xbc---Get-Scope-ID) |
 | 0xc1 | Set drift counter state |
 | 0xc2 | Get adjusted time |
 | 0xc5 | Subdoc get |

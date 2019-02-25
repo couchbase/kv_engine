@@ -158,8 +158,8 @@ public:
     /**
      * Attempt to lookup the collection-id of the path
      *
-     * path is in the form scope.collection
-     * _default scope/collection can be specified explcitly or by omission
+     * path is in the form "scope.collection"
+     * _default scope/collection can be specified explicitly or by omission
      * e.g. .beer == _default.beer
      *      .     == _default._default
      * @return optional CollectionID, undefined if nothing found
@@ -167,6 +167,18 @@ public:
      */
     boost::optional<CollectionID> getCollectionID(
             const std::string& path) const;
+
+    /**
+     * Attempt to lookup the scope-id of the path
+     *
+     * path is in the form "scope"
+     * _default scope can be specified explicitly or by omission
+     * e.g. . == _default
+     *
+     * @return optional ScopeID, undefined if nothing found
+     * @throws cb::engine_error(invalid_argument) for invalid input
+     */
+    boost::optional<ScopeID> getScopeID(const std::string& path) const;
 
     /**
      * @returns this manifest as a std::string (JSON formatted)
@@ -206,7 +218,7 @@ private:
     static bool invalidCollectionID(CollectionID identifier);
 
     /**
-     * validate the path as per getCollectionID(const std::string&)
+     * validate the path for get_collection_id
      * @throws cb::engine_error::invalid_argument
      */
     static void validatePath(const std::string& path);

@@ -53,4 +53,31 @@ struct EngineErrorGetCollectionIDResult {
         char bytes[sizeof(uint64_t) + sizeof(CollectionIDNetworkOrder)];
     } extras;
 };
+
+struct EngineErrorGetScopeIDResult {
+    EngineErrorGetScopeIDResult(engine_errc result,
+                                uint64_t manifestId,
+                                ScopeID scopeId)
+        : result(result), extras(manifestId, scopeId) {
+    }
+
+    uint64_t getManifestId() const {
+        return htonll(extras.data.manifestId);
+    }
+
+    engine_errc result;
+    union _extras {
+        _extras(uint64_t manifestId, ScopeID scopeId)
+            : data(manifestId, scopeId) {
+        }
+        struct _data {
+            _data(uint64_t manifestId, ScopeID scopeId)
+                : manifestId(ntohll(manifestId)), scopeId(scopeId) {
+            }
+            uint64_t manifestId{0};
+            ScopeIDNetworkOrder scopeId{0};
+        } data;
+        char bytes[sizeof(uint64_t) + sizeof(ScopeIDNetworkOrder)];
+    } extras;
+};
 }

@@ -360,6 +360,8 @@ TEST_P(CollectionsParameterizedTest, get_collection_id) {
     EXPECT_EQ(cb::engine_errc::no_collections_manifest, rv.result);
     CollectionsManifest cm;
     cm.add(CollectionEntry::dairy);
+    cm.add(ScopeEntry::shop2);
+    cm.add(CollectionEntry::meat, ScopeEntry::shop2);
     std::string json = cm;
     store->setCollections(json);
     // Check bad 'paths'
@@ -370,24 +372,74 @@ TEST_P(CollectionsParameterizedTest, get_collection_id) {
     rv = store->getCollectionID("dairy");
     EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
 
+    // Unknowns
+    rv = store->getCollectionID("shop1.dairy");
+    EXPECT_EQ(cb::engine_errc::unknown_collection, rv.result);
+    rv = store->getCollectionID(".unknown");
+    EXPECT_EQ(cb::engine_errc::unknown_collection, rv.result);
+
     // Success cases next
     rv = store->getCollectionID(".");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
-    EXPECT_EQ(3, ntohll(rv.extras.data.manifestId));
+    EXPECT_EQ(5, ntohll(rv.extras.data.manifestId));
     EXPECT_EQ(CollectionEntry::defaultC.getId(),
               rv.extras.data.collectionId.to_host());
 
     rv = store->getCollectionID(".dairy");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
-    EXPECT_EQ(3, ntohll(rv.extras.data.manifestId));
+    EXPECT_EQ(5, ntohll(rv.extras.data.manifestId));
     EXPECT_EQ(CollectionEntry::dairy.getId(),
               rv.extras.data.collectionId.to_host());
 
     rv = store->getCollectionID("_default.dairy");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
-    EXPECT_EQ(3, ntohll(rv.extras.data.manifestId));
+    EXPECT_EQ(5, ntohll(rv.extras.data.manifestId));
     EXPECT_EQ(CollectionEntry::dairy.getId(),
               rv.extras.data.collectionId.to_host());
+
+    rv = store->getCollectionID("minimart.meat");
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(5, ntohll(rv.extras.data.manifestId));
+    EXPECT_EQ(CollectionEntry::meat.getId(),
+              rv.extras.data.collectionId.to_host());
+}
+
+TEST_P(CollectionsParameterizedTest, get_scope_id) {
+    auto rv = store->getScopeID("");
+    EXPECT_EQ(cb::engine_errc::no_collections_manifest, rv.result);
+    CollectionsManifest cm;
+    cm.add(ScopeEntry::shop1);
+    cm.add(CollectionEntry::dairy, ScopeEntry::shop1);
+    cm.add(ScopeEntry::shop2);
+    cm.add(CollectionEntry::meat, ScopeEntry::shop2);
+    std::string json = cm;
+    store->setCollections(json);
+
+    // Check bad 'paths', require 1 dot
+    rv = store->getScopeID("..");
+    EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
+    rv = store->getScopeID(""); // empty no good
+    EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
+
+    // Unknowns
+    rv = store->getScopeID("shop711");
+    EXPECT_EQ(cb::engine_errc::unknown_scope, rv.result);
+
+    // Success cases next
+    rv = store->getScopeID("."); // 1 dot
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(6, ntohll(rv.extras.data.manifestId));
+    EXPECT_EQ(ScopeEntry::defaultS.getId(), rv.extras.data.scopeId.to_host());
+
+    rv = store->getScopeID(ScopeEntry::shop1.name);
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(6, ntohll(rv.extras.data.manifestId));
+    EXPECT_EQ(ScopeEntry::shop1.getId(), rv.extras.data.scopeId.to_host());
+
+    rv = store->getScopeID(ScopeEntry::shop2.name);
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(6, ntohll(rv.extras.data.manifestId));
+    EXPECT_EQ(ScopeEntry::shop2.getId(), rv.extras.data.scopeId.to_host());
 }
 
 // Test high seqno values

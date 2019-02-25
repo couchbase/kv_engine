@@ -53,6 +53,7 @@ void dcp_seqno_acknowledged_executor(Cookie& cookie);
 void collections_set_manifest_executor(Cookie& cookie);
 void collections_get_manifest_executor(Cookie& cookie);
 void collections_get_collection_id_executor(Cookie& cookie);
+void collections_get_scope_id_executor(Cookie& cookie);
 
 void drop_privilege_executor(Cookie&);
 

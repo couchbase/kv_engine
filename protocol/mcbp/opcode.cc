@@ -156,6 +156,7 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::CollectionsSetManifest:
     case ClientOpcode::CollectionsGetManifest:
     case ClientOpcode::CollectionsGetID:
+    case ClientOpcode::CollectionsGetScopeID:
     case ClientOpcode::SetDriftCounterState:
     case ClientOpcode::GetAdjustedTime:
     case ClientOpcode::SubdocGet:
@@ -467,6 +468,8 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "COLLECTIONS_GET_MANIFEST";
     case ClientOpcode::CollectionsGetID:
         return "COLLECTIONS_GET_ID";
+    case ClientOpcode::CollectionsGetScopeID:
+        return "COLLECTIONS_GET_SCOPE_ID";
     case ClientOpcode::SetDriftCounterState:
         return "SET_DRIFT_COUNTER_STATE";
     case ClientOpcode::GetAdjustedTime:

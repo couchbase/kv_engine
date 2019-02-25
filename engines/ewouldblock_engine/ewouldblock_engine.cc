@@ -722,6 +722,9 @@ public:
     cb::EngineErrorGetCollectionIDResult get_collection_id(
             gsl::not_null<const void*> cookie,
             cb::const_char_buffer path) override;
+    cb::EngineErrorGetScopeIDResult get_scope_id(
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer path) override;
 
     cb::engine::FeatureSet getFeatures() override {
         return real_engine->getFeatures();
@@ -1992,6 +1995,11 @@ cb::engine_errc EWB_Engine::get_collection_manifest(
 cb::EngineErrorGetCollectionIDResult EWB_Engine::get_collection_id(
         gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
     return real_engine->get_collection_id(cookie, path);
+}
+
+cb::EngineErrorGetScopeIDResult EWB_Engine::get_scope_id(
+        gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
+    return real_engine->get_scope_id(cookie, path);
 }
 
 void BlockMonitorThread::run() {

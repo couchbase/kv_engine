@@ -378,6 +378,10 @@ void Manifest::addScopeStats(const void* cookie,
 }
 
 void Manifest::validatePath(const std::string& path) {
+    if (path.empty()) {
+        throw cb::engine_error(cb::engine_errc::invalid_arguments,
+                               "Manifest::validatePath: path is empty");
+    }
     if (std::count(path.begin(), path.end(), '.') != 1) {
         throw cb::engine_error(
                 cb::engine_errc::invalid_arguments,
@@ -415,6 +419,39 @@ boost::optional<CollectionID> Manifest::getCollectionID(
                     }
                 }
             }
+        }
+    }
+
+    return {};
+}
+
+boost::optional<ScopeID> Manifest::getScopeID(const std::string& path) const {
+    // 0 or 1 . allowed
+    if (std::count(path.begin(), path.end(), '.') > 1) {
+        throw cb::engine_error(
+                cb::engine_errc::invalid_arguments,
+                "Manifest::getScopeID: path must have 1 separator path:" +
+                        path);
+    }
+    if (path.empty()) {
+        throw cb::engine_error(cb::engine_errc::invalid_arguments,
+                               "Manifest::getScopeID: path is empty");
+    }
+
+    int pos = path.find_first_of('.');
+    std::string scope = path.substr(0, pos);
+    if (scope.empty()) {
+        scope = cb::to_string(DefaultScopeIdentifier);
+    }
+
+    if (!(validName(scope))) {
+        throw cb::engine_error(cb::engine_errc::invalid_arguments,
+                               "Manifest::getScopeID invalid scope:" + scope);
+    }
+
+    for (const auto& s : scopes) {
+        if (s.second.name == scope) {
+            return s.first;
         }
     }
 

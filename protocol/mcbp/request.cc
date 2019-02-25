@@ -161,6 +161,7 @@ static bool reorderSupported(ClientOpcode opcode) {
     case ClientOpcode::CollectionsSetManifest:
     case ClientOpcode::CollectionsGetManifest:
     case ClientOpcode::CollectionsGetID:
+    case ClientOpcode::CollectionsGetScopeID:
     case ClientOpcode::SetDriftCounterState:
     case ClientOpcode::GetAdjustedTime:
     case ClientOpcode::SubdocGet:
@@ -392,6 +393,7 @@ bool Request::isQuiet() const {
         case ClientOpcode::CollectionsSetManifest:
         case ClientOpcode::CollectionsGetManifest:
         case ClientOpcode::CollectionsGetID:
+        case ClientOpcode::CollectionsGetScopeID:
         case ClientOpcode::SetDriftCounterState:
         case ClientOpcode::GetAdjustedTime:
         case ClientOpcode::SubdocGet:

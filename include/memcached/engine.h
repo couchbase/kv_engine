@@ -562,6 +562,11 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
         return {cb::engine_errc::not_supported, {}, {}};
     }
 
+    virtual cb::EngineErrorGetScopeIDResult get_scope_id(
+            gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
+        return {cb::engine_errc::not_supported, {}, {}};
+    }
+
     /**
      * Ask the engine what features it supports.
      */

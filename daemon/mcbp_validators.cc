@@ -234,6 +234,7 @@ static bool supportsDurability(cb::mcbp::ClientOpcode opcode) {
     case ClientOpcode::CollectionsSetManifest:
     case ClientOpcode::CollectionsGetManifest:
     case ClientOpcode::CollectionsGetID:
+    case ClientOpcode::CollectionsGetScopeID:
     case ClientOpcode::SetDriftCounterState:
     case ClientOpcode::GetAdjustedTime:
     case ClientOpcode::SubdocGet:
@@ -2293,6 +2294,8 @@ McbpValidator::McbpValidator() {
           collections_get_manifest_validator);
     setup(cb::mcbp::ClientOpcode::CollectionsGetID,
           collections_get_id_validator);
+    setup(cb::mcbp::ClientOpcode::CollectionsGetScopeID,
+          collections_get_id_validator); // same rules as GetID
     setup(cb::mcbp::ClientOpcode::AdjustTimeofday, adjust_timeofday_validator);
     setup(cb::mcbp::ClientOpcode::EwouldblockCtl, ewb_validator);
     setup(cb::mcbp::ClientOpcode::GetRandomKey, get_random_key_validator);
