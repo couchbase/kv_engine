@@ -92,7 +92,9 @@
 #endif
 #include <limits.h>
 #include <math.h>
-#ifndef WIN32
+#ifdef WIN32
+#include <Winbase.h> // For SetDllDirectory
+#else
 #include <netinet/tcp.h> // For TCP_NODELAY etc
 #include <sysexits.h>
 #endif
@@ -642,6 +644,11 @@ static void update_settings_from_config()
 
     if (!settings.getRoot().empty()) {
         root = settings.getRoot();
+#ifdef WIN32
+        std::string libdir = root + "/lib";
+        cb::io::sanitizePath(libdir);
+        SetDllDirectory(libdir.c_str());
+#endif
     }
 
     if (settings.getErrorMapsDir().empty()) {
