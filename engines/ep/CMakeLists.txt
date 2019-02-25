@@ -164,14 +164,8 @@ ADD_CUSTOM_COMMAND(OUTPUT
 # Generate the flatbuffers data used by at least couchstore for storing the collection manifest
 ADD_CUSTOM_COMMAND(OUTPUT
                      ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_generated.h
-                     ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_flatbuffers_schema.cc
                   COMMAND
                      ${FLATC} -o ${CMAKE_CURRENT_BINARY_DIR}/src/collections/ --cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/collections/kvstore.fbs
-                  COMMAND
-                     ${CMAKE_COMMAND}
-                     -DDIR1=${CMAKE_CURRENT_SOURCE_DIR}
-                     -DDIR2=${CMAKE_CURRENT_BINARY_DIR}
-                      -P ${CMAKE_CURRENT_SOURCE_DIR}/src/collections/generate_flatbuffers_raw_schema.cmake
                   DEPENDS
                     src/collections/kvstore.fbs
                     src/collections/kvstore.in
@@ -180,7 +174,6 @@ ADD_CUSTOM_COMMAND(OUTPUT
 # Collections library for things required outside of ep-engine
 ADD_LIBRARY(ep-engine_collections STATIC
   ${CMAKE_CURRENT_BINARY_DIR}/src/collections/vbucket_serialised_manifest_entry_raw_schema.cc
-  ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_flatbuffers_schema.cc
   src/collections/collection_persisted_stats.cc)
 
 SET_PROPERTY(TARGET ep-engine_collections PROPERTY POSITION_INDEPENDENT_CODE 1)
