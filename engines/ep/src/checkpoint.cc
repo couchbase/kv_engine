@@ -101,16 +101,25 @@ Checkpoint::Checkpoint(EPStats& st,
       numItems(0),
       numMetaItems(0),
       toWrite(trackingAllocator),
-      memOverhead(0),
-      effectiveMemUsage(0) {
-    stats.coreLocal.get()->memOverhead.fetch_add(memorySize());
+      keyIndex(keyIndexTrackingAllocator),
+      metaKeyIndex(keyIndexTrackingAllocator),
+      keyIndexMemUsage(0),
+      queuedItemsMemUsage(0) {
+    stats.coreLocal.get()->memOverhead.fetch_add(sizeof(Checkpoint));
 }
 
 Checkpoint::~Checkpoint() {
     EP_LOG_DEBUG("Checkpoint {} for {} is purged from memory",
                  checkpointId,
                  vbucketId);
-    stats.coreLocal.get()->memOverhead.fetch_sub(memorySize());
+    /**
+     * Calculate as best we can the overhead associated with the queue
+     * (toWrite). This is approximated to sizeof(queued_item) * number
+     * of queued_items in the checkpoint.
+     */
+    auto queueMemOverhead = sizeof(queued_item) * toWrite.size();
+    stats.coreLocal.get()->memOverhead.fetch_sub(
+            sizeof(Checkpoint) + keyIndexMemUsage + queueMemOverhead);
 }
 
 size_t Checkpoint::getNumMetaItems() const {
@@ -133,10 +142,6 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                         "(which is" + std::to_string(checkpointState) +
                         ") is not OPEN");
     }
-
-    // Get the CheckpointQueue memory overhead, before the queued_item is
-    // added.
-    auto initialOverhead = memorySize();
 
     QueueDirtyStatus rv;
 
@@ -217,7 +222,7 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
 
             // Reduce the size of the checkpoint by the size of the
             // item being removed.
-            decrementMemConsumption((*currPos)->size());
+            queuedItemsMemUsage -= ((*currPos)->size());
             // Remove the existing item for the same key from the list.
             toWrite.erase(currPos.getUnderlyingIterator());
 
@@ -253,26 +258,20 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
         }
 
         if (rv == QueueDirtyStatus::SuccessNewItem) {
+            auto indexKeyUsage = qi->getKey().size() + sizeof(index_entry);
             /**
-             * Calculate the memory overhead of adding the new item to the
-             * metaKeyIndex / keyIndex.  Note: memOverhead is read by the
-             * call to memorySize (see below).
+             * Calculate as best we can the memory overhead of adding the new
+             * item to the queue (toWrite).  This is approximated to the
+             * addition to metaKeyIndex / keyIndex plus sizeof(queued_item).
              */
-            memOverhead += qi->getKey().size() + sizeof(index_entry);
-
-            // Calculate the increase in memory overhead caused by adding
-            // the new item.
-            int64_t overheadChange = memorySize() - initialOverhead;
-            if (overheadChange < 0) {
-                throw std::logic_error(
-                        "Checkpoint::queueDirty: "
-                        "overheadChange should not be negative. "
-                        "overheadChange:" +
-                        std::to_string(overheadChange) +
-                        "memorySize():" + std::to_string(memorySize()) +
-                        "initialOverhead:" + std::to_string(initialOverhead));
-            }
-            stats.coreLocal.get()->memOverhead.fetch_add(overheadChange);
+            stats.coreLocal.get()->memOverhead.fetch_add(indexKeyUsage +
+                                                         sizeof(queued_item));
+            /**
+             *  Update the total metaKeyIndex / keyIndex memory usage which is
+             *  used when the checkpoint is destructed to manually account
+             *  for the freed memory.
+             */
+            keyIndexMemUsage += indexKeyUsage;
         }
     }
 
@@ -290,7 +289,7 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
 void Checkpoint::addItemToCheckpoint(const queued_item& qi) {
     toWrite.push_back(qi);
     // Increase the size of the checkpoint by the item being added
-    incrementMemConsumption(qi->size());
+    queuedItemsMemUsage += (qi->size());
 
     if (qi->isCheckPointMetaItem()) {
         // empty items act only as a dummy element for the start of the

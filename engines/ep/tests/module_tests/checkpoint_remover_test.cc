@@ -72,21 +72,71 @@ TEST_F(CheckpointRemoverEPTest, CheckpointManagerMemoryUsage) {
     // We should have one checkpoint which is for the state change
     ASSERT_EQ(1, checkpointManager->getNumCheckpoints());
 
+    // The queue (toWrite) is implemented as std:list, therefore
+    // when we add an item it results in the creation of 3 pointers -
+    // forward ptr, backward ptr and ptr to object.
+    const size_t perElementOverhead = 3 * sizeof(uintptr_t);
+
+    // Allocator used for tracking memory used by the CheckpointQueue
+    checkpoint_index::allocator_type memoryTrackingAllocator;
+    // Emulate the Checkpoint metaKeyIndex so we can determine the number
+    // of bytes that should be allocated during its use.
+    checkpoint_index metaKeyIndex(memoryTrackingAllocator);
+    // Emulate the Checkpoint keyIndex so we can determine the number
+    // of bytes that should be allocated during its use.
+    checkpoint_index keyIndex(memoryTrackingAllocator);
+    ChkptQueueIterator iterator =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *checkpointManager)
+                    .front()
+                    ->begin();
+    index_entry entry{iterator, 0};
+
     // Check that the expected memory usage of the checkpoints is correct
     size_t expected_size = 0;
     for (auto& checkpoint :
          CheckpointManagerTestIntrospector::public_getCheckpointList(
                  *checkpointManager)) {
+        // Add the overhead of the Checkpoint object
+        expected_size += sizeof(Checkpoint);
+#ifdef WIN32
+        // On windows for an empty list we still allocate space for
+        // containing one element.
+        expected_size += perElementOverhead;
+#endif
+
         for (auto itr = checkpoint->begin(); itr != checkpoint->end(); ++itr) {
+            // Add the size of the item
             expected_size += (*itr)->size();
+            // Add the size of adding to the queue
+            expected_size += perElementOverhead;
+            // Add to the emulated metaKeyIndex
+            metaKeyIndex.emplace((*itr)->getKey(), entry);
         }
     }
-    ASSERT_EQ(expected_size, checkpointManager->getMemoryUsage());
+
+    const auto metaKeyIndexSize =
+            *(metaKeyIndex.get_allocator().getBytesAllocated());
+    ASSERT_EQ(expected_size + metaKeyIndexSize,
+              checkpointManager->getMemoryUsage());
 
     // Check that the new checkpoint memory usage is equal to the previous
-    // amount + size of new item
+    // amount plus the addition of the new item.
     Item item = store_item(vbid, makeStoredDocKey("key0"), "value");
-    ASSERT_EQ(expected_size + item.size(), checkpointManager->getMemoryUsage());
+    size_t new_expected_size = expected_size;
+    // Add the size of the item
+    new_expected_size += item.size();
+    // Add the size of adding to the queue
+    new_expected_size += perElementOverhead;
+    // Add to the keyIndex
+    keyIndex.emplace(item.getKey(), entry);
+
+    // As the metaKeyIndex and keyIndex share the same allocator, retrieving
+    // the bytes allocated for the keyIndex, will also include the bytes
+    // allocated for the metaKeyIndex.
+    size_t keyIndexSize = *(keyIndex.get_allocator().getBytesAllocated());
+    ASSERT_EQ(new_expected_size + keyIndexSize,
+              checkpointManager->getMemoryUsage());
 }
 
 /**
@@ -160,12 +210,38 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
 
     createDcpStream(*producer);
 
-    auto expectedFreedMemoryFromItems = 0;
+    // The queue (toWrite) is implemented as std:list, therefore
+    // when we add an item it results in the creation of 3 pointers -
+    // forward ptr, backward ptr and ptr to object.
+    const size_t perElementOverhead = 3 * sizeof(uintptr_t);
+
+    // Allocator used for tracking memory used by the CheckpointQueue
+    checkpoint_index::allocator_type memoryTrackingAllocator;
+    // Emulate the Checkpoint keyIndex so we can determine the number
+    // of bytes that should be allocated during its use.
+    checkpoint_index keyIndex(memoryTrackingAllocator);
+    // Grab the initial size of the keyIndex because on Windows an empty
+    // std::unordered_map allocated 200 bytes.
+    const auto initialKeyIndexSize =
+            *(keyIndex.get_allocator().getBytesAllocated());
+    ChkptQueueIterator iterator =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *checkpointManager)
+                    .front()
+                    ->begin();
+    index_entry entry{iterator, 0};
+
+    auto expectedFreedMemoryFromItems = initialSize;
     for (size_t i = 0; i < getMaxCheckpointItems(*vb); i++) {
         std::string doc_key = "key_" + std::to_string(i);
         Item item = store_item(vbid, makeStoredDocKey(doc_key), "value");
         expectedFreedMemoryFromItems += item.size();
+        // Add the size of adding to the queue
+        expectedFreedMemoryFromItems += perElementOverhead;
+        // Add to the emulated keyIndex
+        keyIndex.emplace(item.getKey(), entry);
     }
+
     ASSERT_EQ(1, checkpointManager->getNumCheckpoints());
     ASSERT_EQ(getMaxCheckpointItems(*vb) + 2, checkpointManager->getNumItems());
     ASSERT_NE(0, expectedFreedMemoryFromItems);
@@ -188,12 +264,22 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
     StoredDocKey key("checkpoint_end", CollectionID::System);
     queued_item chkptEnd(new Item(key, vbid, queue_op::checkpoint_end, 0, 0));
 
+    // Add the size of the checkpoint end
+    expectedFreedMemoryFromItems += chkptEnd->size();
+    // Add the size of adding to the queue
+    expectedFreedMemoryFromItems += perElementOverhead;
+    // Add to the emulated keyIndex
+    keyIndex.emplace(key, entry);
+
+    const auto keyIndexSize = *(keyIndex.get_allocator().getBytesAllocated());
+    expectedFreedMemoryFromItems += (keyIndexSize - initialKeyIndexSize);
+
     // Manually handle the slow stream, this is the same logic as the checkpoint
     // remover task uses, just without the overhead of setting up the task
     auto memoryOverhead = checkpointManager->getMemoryOverhead();
     if (engine->getDcpConnMap().handleSlowStream(vbid,
                                                  cursors[0].lock().get())) {
-        ASSERT_EQ(expectedFreedMemoryFromItems + initialSize + chkptEnd->size(),
+        ASSERT_EQ(expectedFreedMemoryFromItems,
                   checkpointManager->getMemoryUsageOfUnrefCheckpoints());
         // Check that the memory of unreferenced checkpoints is greater than or
         // equal to the pre-cursor-dropped memory overhead.

@@ -77,7 +77,12 @@ struct index_entry {
 /**
  * The checkpoint index maps a key to a checkpoint index_entry.
  */
-typedef std::unordered_map<StoredDocKey, index_entry> checkpoint_index;
+using checkpoint_index = std::unordered_map<
+        StoredDocKey,
+        index_entry,
+        std::hash<StoredDocKey>,
+        std::equal_to<StoredDocKey>,
+        MemoryTrackingAllocator<std::pair<const StoredDocKey, index_entry>>>;
 
 class Checkpoint;
 class CheckpointManager;
@@ -409,54 +414,33 @@ public:
     }
 
     /**
-     * Return the memory overhead of this checkpoint instance, except for the
-     * memory used by all the items belonging to this checkpoint. The memory
-     * overhead of those items is accounted separately in "ep_kv_size" stat.
-     * @return memory overhead of this checkpoint instance.
-     */
-    size_t memorySize() {
-        return sizeof(Checkpoint) + getMemoryOverhead();
-    }
-
-    /**
-     * Invoked by the checkpoint manager whenever an item is queued
-     * into the given checkpoint.
-     * @param Amount of memory being added to current usage
-     */
-    void incrementMemConsumption(size_t by) {
-        effectiveMemUsage += by;
-    }
-
-    /**
-     * Invoked by the checkpoint manager when an item is deduped and hence
-     * removed from the checkpoint.
-     * @param by  Amount of memory being decremented from the current usage
-     */
-    void decrementMemConsumption(size_t by) {
-        effectiveMemUsage -= by;
-    }
-
-    /**
-     * Returns the memory held by all the queued items which includes
-     * key, metadata and the blob.
+     * Returns the memory held by the checkpoint, which is the sum of the
+     * memory used by all items held in the checkpoint plus the checkpoint
+     * overhead.
      */
     size_t getMemConsumption() const {
-        return effectiveMemUsage;
+        return queuedItemsMemUsage + getMemoryOverhead();
     }
 
     /**
      * Returns the overhead of the checkpoint.
-     * This is comprised of two components:
-     * 1) The key size + sizeof(index_entry) for each item in the checkpoint.
-     * 2) The size of the ref-counted pointer instances (queued_item) in the
-     *    container plus any overheads.
+     * This is comprised of three components:
+     * 1) The size of the Checkpoint object
+     * 2) The keyIndex / metaKeyIndex usage
+     * 3) The size of the ref-counted pointer instances (queued_item) in the
+     *    container.
      *
      * When it comes to cursor dropping, this is the theoretical guaranteed
      * memory which can be freed, as the checkpoint contains the only
      * references to them.
      */
     size_t getMemoryOverhead() const {
-        return memOverhead + *(toWrite.get_allocator().getBytesAllocated());
+        // The keyIndex and metaKeyIndex share the same allocator and therefore
+        // getting the bytes allocated for the keyIndex map will also include
+        // the metaKeyIndex map.
+        return sizeof(Checkpoint) +
+               *(keyIndex.get_allocator().getBytesAllocated()) +
+               *(toWrite.get_allocator().getBytesAllocated());
     }
 
     /**
@@ -484,15 +468,19 @@ private:
 
     // Allocator used for tracking memory used by the CheckpointQueue
     MemoryTrackingAllocator<queued_item> trackingAllocator;
+    // Allocator used for tracking memory used by the CheckpointQueue
+    checkpoint_index::allocator_type keyIndexTrackingAllocator;
     CheckpointQueue toWrite;
     checkpoint_index               keyIndex;
     /* Index for meta keys like "dummy_key" */
     checkpoint_index               metaKeyIndex;
-    size_t                         memOverhead;
 
-    // The following stat is to contain the memory consumption of all
-    // the queued items in the given checkpoint.
-    cb::NonNegativeCounter<size_t> effectiveMemUsage;
+    // Record the memory overhead of maintaining the keyIndex and metaKeyIndex.
+    // This includes each item's key size and sizeof(index_entry).
+    cb::NonNegativeCounter<size_t> keyIndexMemUsage;
+    // Records the memory consumption of all items in the checkpoint.
+    // This includes each item's key, metadata and the blob.
+    cb::NonNegativeCounter<size_t> queuedItemsMemUsage;
     mutable std::mutex lock;
 
     friend std::ostream& operator <<(std::ostream& os, const Checkpoint& m);

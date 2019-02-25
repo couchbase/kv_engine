@@ -1465,6 +1465,22 @@ TYPED_TEST(CheckpointTest, checkpointMemoryTest) {
     // Get the intial size of the checkpoint.
     auto initialSize = this->manager->getMemoryUsage();
 
+    // Allocator used for tracking memory used by the CheckpointQueue
+    checkpoint_index::allocator_type memoryTrackingAllocator;
+    // Emulate the Checkpoint keyIndex so we can determine the number
+    // of bytes that should be allocated during its use.
+    checkpoint_index keyIndex(memoryTrackingAllocator);
+    // Grab the initial size of the keyIndex because on Windows an empty
+    // std::unordered_map allocated 200 bytes.
+    const auto initialKeyIndexSize =
+            *(keyIndex.get_allocator().getBytesAllocated());
+    ChkptQueueIterator iterator =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *(this->manager))
+                    .front()
+                    ->begin();
+    index_entry entry{iterator, 0};
+
     // Create a queued_item with a 'small' value
     std::string value("value");
     queued_item qiSmall(new Item(makeStoredDocKey("key"),
@@ -1484,8 +1500,25 @@ TYPED_TEST(CheckpointTest, checkpointMemoryTest) {
                               GenerateCas::Yes,
                               /*preLinkDocCtx*/ nullptr);
 
-    // Check that checkpoint size is the initialsize plus size of queued_item.
-    EXPECT_EQ(initialSize + qiSmall->size(), this->manager->getMemoryUsage());
+    // The queue (toWrite) is implemented as std:list, therefore
+    // when we add an item it results in the creation of 3 pointers -
+    // forward ptr, backward ptr and ptr to object.
+    const size_t perElementOverhead = 3 * sizeof(uintptr_t);
+
+    // Check that checkpoint size is the initial size plus the addition of
+    // qiSmall.
+    auto expectedSize = initialSize;
+    // Add the size of the item
+    expectedSize += qiSmall->size();
+    // Add the size of adding to the queue
+    expectedSize += perElementOverhead;
+    // Add to the emulated keyIndex
+    keyIndex.emplace(qiSmall->getKey(), entry);
+
+    auto keyIndexSize = *(keyIndex.get_allocator().getBytesAllocated());
+    expectedSize += (keyIndexSize - initialKeyIndexSize);
+
+    EXPECT_EQ(expectedSize, this->manager->getMemoryUsage());
 
     // Create a queued_item with a 'big' value
     std::string bigValue(1024, 'a');
@@ -1506,8 +1539,20 @@ TYPED_TEST(CheckpointTest, checkpointMemoryTest) {
                               GenerateCas::Yes,
                               /*preLinkDocCtx*/ nullptr);
 
-    // Check that checkpoint size is the initialsize plus size of queued_item.
-    EXPECT_EQ(initialSize + qiBig->size(), this->manager->getMemoryUsage());
+    // Check that checkpoint size is the initial size plus the addition of
+    // qiBig.
+    expectedSize = initialSize;
+    // Add the size of the item
+    expectedSize += qiBig->size();
+    // Add the size of adding to the queue
+    expectedSize += perElementOverhead;
+    // Add to the keyIndex
+    keyIndex.emplace(qiBig->getKey(), entry);
+
+    keyIndexSize = *(keyIndex.get_allocator().getBytesAllocated());
+    expectedSize += (keyIndexSize - initialKeyIndexSize);
+
+    EXPECT_EQ(expectedSize, this->manager->getMemoryUsage());
 
     bool isLastMutationItem;
     // Move cursor to checkpoint start
@@ -1545,6 +1590,23 @@ TYPED_TEST(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
     // Get the intial size of the checkpoint overhead.
     const auto initialOverhead = this->manager->getMemoryOverhead();
 
+    // Allocator used for tracking memory used by the CheckpointQueue
+    checkpoint_index::allocator_type memoryTrackingAllocator;
+    // Emulate the Checkpoint keyIndex so we can determine the number
+    // of bytes that should be allocated during its use.
+    checkpoint_index keyIndex(memoryTrackingAllocator);
+    // Grab the initial size of the keyIndex because on Windows an empty
+    // std::unordered_map allocated 200 bytes.
+    const auto initialKeyIndexSize =
+            *(keyIndex.get_allocator().getBytesAllocated());
+
+    ChkptQueueIterator iterator =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *(this->manager))
+                    .front()
+                    ->begin();
+    index_entry entry{iterator, 0};
+
     // Create a queued_item
     std::string value("value");
     queued_item qiSmall(new Item(makeStoredDocKey("key"),
@@ -1568,9 +1630,11 @@ TYPED_TEST(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
     const auto updatedOverhead = this->manager->getMemoryOverhead();
     // Three pointers - forward, backward and pointer to item
     const auto perElementListOverhead = sizeof(uintptr_t) * 3;
-    // Entry to the keyIndex
-    const auto keyIndexOverhead = sizeof("key") + sizeof(index_entry);
-    EXPECT_EQ(perElementListOverhead + keyIndexOverhead,
+    // Add entry into keyIndex
+    keyIndex.emplace(qiSmall->getKey(), entry);
+
+    const auto keyIndexSize = *(keyIndex.get_allocator().getBytesAllocated());
+    EXPECT_EQ(perElementListOverhead + (keyIndexSize - initialKeyIndexSize),
               updatedOverhead - initialOverhead);
 
     bool isLastMutationItem;
