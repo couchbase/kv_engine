@@ -64,6 +64,7 @@
 #include "ewouldblock_engine.h"
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstring>
 #include <gsl/gsl>
@@ -75,6 +76,7 @@
 #include <random>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <utility>
 
 #include <logger/logger.h>
@@ -1999,7 +2001,7 @@ void BlockMonitorThread::run() {
 
     // @todo Use the file monitoring API's to avoid this "busy" loop
     while (cb::io::isFile(file)) {
-        usleep(100);
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
     }
 
     LOG_DEBUG("Block monitor for file {} stopping (file is gone)", file);

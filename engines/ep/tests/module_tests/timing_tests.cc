@@ -26,11 +26,13 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
 #include <map>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 bool abort_msg(const char *expr, const char *msg, int line);
@@ -71,7 +73,7 @@ extern "C" {
 
 static inline void decayingSleep(useconds_t *sleepTime) {
     static const useconds_t maxSleepTime = 500000;
-    usleep(*sleepTime);
+    std::this_thread::sleep_for(std::chrono::microseconds(*sleepTime));
     *sleepTime = std::min(*sleepTime << 1, maxSleepTime);
 }
 

@@ -27,6 +27,7 @@
 #include <string.h>
 
 #include <algorithm>
+#include <chrono>
 #include <iostream>
 #include <list>
 #include <mutex>
@@ -144,7 +145,7 @@ void encodeWithMetaExt(char *buffer, ItemMetaData *meta);
 
 void decayingSleep(useconds_t *sleepTime) {
     static const useconds_t maxSleepTime = 500000;
-    usleep(*sleepTime);
+    std::this_thread::sleep_for(std::chrono::microseconds(*sleepTime));
     *sleepTime = std::min(*sleepTime << 1, maxSleepTime);
 }
 

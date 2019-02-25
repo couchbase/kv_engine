@@ -4235,7 +4235,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
 
     do {
         dcp_step(h, cookie, producers);
-        usleep(100);
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
     } while (producers.last_op != cb::mcbp::ClientOpcode::DcpStreamReq);
 
     stream_opaque = producers.last_opaque;

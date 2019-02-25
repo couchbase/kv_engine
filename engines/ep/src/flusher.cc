@@ -25,7 +25,9 @@
 #include <platform/timeutils.h>
 
 #include <stdlib.h>
+#include <chrono>
 #include <sstream>
+#include <thread>
 
 Flusher::Flusher(EPBucket* st, KVShard* k)
     : store(st),
@@ -62,7 +64,8 @@ void Flusher::wait(void) {
             EP_LOG_WARN("Flusher::wait: taskId: {} has vanished!", taskId);
             break;
         }
-        usleep(1000);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        ;
     }
     auto endt = std::chrono::steady_clock::now();
     if ((endt - startt).count() > 1000) {

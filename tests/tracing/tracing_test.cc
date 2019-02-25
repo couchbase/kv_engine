@@ -24,6 +24,7 @@
 #include <tracing/tracer.h>
 #include <unistd.h>
 #include <algorithm>
+#include <chrono>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -41,7 +42,7 @@ TEST_F(TracingTest, Basic) {
     EXPECT_EQ(tracer.getTotalMicros().count(), 0);
 
     EXPECT_EQ(tracer.begin(cb::tracing::TraceCode::REQUEST), 0);
-    usleep(10000);
+    std::this_thread::sleep_for(std::chrono::microseconds(10000));
 
     // invalid end check
     EXPECT_FALSE(tracer.end(cb::tracing::TraceCode::GET));

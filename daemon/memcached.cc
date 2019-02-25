@@ -83,7 +83,9 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <algorithm>
+#include <chrono>
 #include <memory>
+#include <thread>
 
 #if HAVE_LIBNUMA
 #include <numa.h>
@@ -2082,7 +2084,7 @@ static void cleanup_buckets() {
                 }
             }
             if (waiting) {
-                usleep(250);
+                std::this_thread::sleep_for(std::chrono::microseconds(250));
             }
         } while (waiting);
 

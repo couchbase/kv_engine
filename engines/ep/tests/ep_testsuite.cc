@@ -4251,7 +4251,8 @@ extern "C" {
     static void bg_set_thread(void *arg) {
         ThreadData* td(static_cast<ThreadData*>(arg));
 
-        usleep(2600); // Exacerbate race condition.
+        std::this_thread::sleep_for(
+                std::chrono::microseconds(2600)); // Exacerbate race condition.
 
         checkeq(ENGINE_SUCCESS,
                 store(td->h, NULL, OPERATION_SET, "k1", "new value"),
@@ -4263,7 +4264,8 @@ extern "C" {
     static void bg_del_thread(void *arg) {
         ThreadData *td(static_cast<ThreadData*>(arg));
 
-        usleep(2600); // Exacerbate race condition.
+        std::this_thread::sleep_for(
+                std::chrono::microseconds(2600)); // Exacerbate race condition.
 
         checkeq(ENGINE_SUCCESS,
                 del(td->h, "k1", 0, Vbid(0)),

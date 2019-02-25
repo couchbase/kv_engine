@@ -13,7 +13,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <chrono>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 #include "default_engine_internal.h"
@@ -82,7 +84,7 @@ ENGINE_ERROR_CODE assoc_init(struct default_engine *engine) {
 void assoc_destroy() {
     if (global_assoc != nullptr) {
         while (global_assoc->expanding) {
-            usleep(250);
+            std::this_thread::sleep_for(std::chrono::microseconds(250));
         }
         delete global_assoc;
         global_assoc = nullptr;

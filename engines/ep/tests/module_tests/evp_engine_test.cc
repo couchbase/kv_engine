@@ -30,6 +30,8 @@
 
 #include <configuration_impl.h>
 #include <platform/dirutils.h>
+#include <chrono>
+#include <thread>
 
 void EventuallyPersistentEngineTest::SetUp() {
     // Paranoia - kill any existing files in case they are left over
@@ -65,7 +67,7 @@ void EventuallyPersistentEngineTest::SetUp() {
 
     // Wait for warmup to complete.
     while (engine->getKVBucket()->isWarmingUp()) {
-        usleep(10);
+        std::this_thread::sleep_for(std::chrono::microseconds(10));
     }
 
     // Once warmup is complete, set VB to active.

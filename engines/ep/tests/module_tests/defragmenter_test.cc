@@ -26,7 +26,8 @@
 #include "vbucket.h"
 
 #include <valgrind/valgrind.h>
-
+#include <chrono>
+#include <thread>
 
 /* Return how many bytes the memory allocator has mapped in RAM - essentially
  * application-allocated bytes plus memory in allocators own data structures
@@ -53,7 +54,7 @@ static bool wait_for_mapped_below(size_t mapped_threshold,
     useconds_t totalSleepTime = 0;
 
     while (get_mapped_bytes() > mapped_threshold) {
-        usleep(sleepTime);
+        std::this_thread::sleep_for(std::chrono::microseconds(sleepTime));
         totalSleepTime += sleepTime;
         if (totalSleepTime > max_sleep_time) {
             return false;
@@ -209,7 +210,7 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
         if (mem_used.load() < expected_mem) {
             break;
         }
-        usleep(100);
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
     }
     if (retries == RETRY_LIMIT) {
         FAIL() << "Exceeded retry count waiting for mem_used be below "

@@ -27,8 +27,10 @@
 #include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
 #include <algorithm>
+#include <chrono>
 #include <list>
 #include <memory>
+#include <thread>
 
 /*
  * Free list management for connections.
@@ -135,7 +137,7 @@ void close_all_connections() {
         }
 
         if (!done) {
-            usleep(500);
+            std::this_thread::sleep_for(std::chrono::microseconds(500));
         }
     } while (!done);
 }
