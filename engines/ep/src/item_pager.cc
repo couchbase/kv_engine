@@ -48,20 +48,18 @@ ItemPager::ItemPager(EventuallyPersistentEngine& e, EPStats& st)
       engine(e),
       stats(st),
       available(new std::atomic<bool>(true)),
-      phase(PAGING_UNREFERENCED),
+      phase(REPLICA_ONLY),
       doEvict(false),
       sleepTime(std::chrono::milliseconds(
               e.getConfiguration().getPagerSleepTimeMs())),
       notified(false) {
-    if (engine.getConfiguration().getHtEvictionPolicy() == "hifi_mfu") {
-        // For the hifi_mfu algorithm if a couchbase/persistent bucket we
-        // want to start visiting the replica vbucket first.  However for
-        // ephemeral we do not evict from replica vbuckets and therefore
-        // we start with active and pending vbuckets.
-        phase = (engine.getConfiguration().getBucketType() == "persistent")
-                        ? REPLICA_ONLY
-                        : ACTIVE_AND_PENDING_ONLY;
-    }
+    // For the hifi_mfu algorithm if a couchbase/persistent bucket we
+    // want to start visiting the replica vbucket first.  However for
+    // ephemeral we do not evict from replica vbuckets and therefore
+    // we start with active and pending vbuckets.
+    phase = (engine.getConfiguration().getBucketType() == "persistent")
+                    ? REPLICA_ONLY
+                    : ACTIVE_AND_PENDING_ONLY;
 }
 
 bool ItemPager::run(void) {
@@ -83,21 +81,6 @@ bool ItemPager::run(void) {
     double current = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
     double upper = static_cast<double>(stats.mem_high_wat);
     double lower = static_cast<double>(stats.mem_low_wat);
-
-    // If we dynamically switch from the hifi_mfu policy to the 2-bit_lru
-    // policy or vice-versa, we will not be in a valid phase.  Therefore
-    // reinitialise to the correct phase for the eviction policy.
-    if (engine.getConfiguration().getHtEvictionPolicy() == "hifi_mfu") {
-        if (phase != REPLICA_ONLY && phase != ACTIVE_AND_PENDING_ONLY) {
-            // Not a valid phase for the hifi_mfu policy, so reinitialise.
-            phase = (engine.getConfiguration().getBucketType() == "persistent")
-                            ? REPLICA_ONLY
-                            : ACTIVE_AND_PENDING_ONLY;
-        }
-    } else if (phase != PAGING_UNREFERENCED && phase != PAGING_RANDOM) {
-        // Not a valid phase for the 2-bit_lru policy, so reinitialise.
-        phase = PAGING_UNREFERENCED;
-    }
 
     if (current <= lower) {
         doEvict = false;
@@ -126,33 +109,27 @@ bool ItemPager::run(void) {
         VBucketFilter filter;
         // For the hifi_mfu algorithm use the phase to filter which vbuckets
         // we want to visit (either replica or active/pending vbuckets).
-        if (cfg.getHtEvictionPolicy() == "hifi_mfu") {
-            vbucket_state_t state;
-            if (phase == REPLICA_ONLY) {
-                state = vbucket_state_replica;
-            } else if (phase == ACTIVE_AND_PENDING_ONLY) {
-                state = vbucket_state_active;
-                auto acceptableVBs = kvBucket->getVBucketsInState(state);
-                for (auto vb : acceptableVBs) {
-                    filter.addVBucket(vb);
-                }
-                state = vbucket_state_pending;
-            } else {
-                throw std::invalid_argument(
-                        "ItemPager::run - "
-                        "phase is invalid for hifi_mfu eviction algorithm");
-            }
+        vbucket_state_t state;
+        if (phase == REPLICA_ONLY) {
+            state = vbucket_state_replica;
+        } else if (phase == ACTIVE_AND_PENDING_ONLY) {
+            state = vbucket_state_active;
             auto acceptableVBs = kvBucket->getVBucketsInState(state);
             for (auto vb : acceptableVBs) {
                 filter.addVBucket(vb);
             }
+            state = vbucket_state_pending;
+        } else {
+            throw std::invalid_argument(
+                    "ItemPager::run - "
+                    "phase is invalid for hifi_mfu eviction algorithm");
+        }
+        auto acceptableVBs = kvBucket->getVBucketsInState(state);
+        for (auto vb : acceptableVBs) {
+            filter.addVBucket(vb);
         }
 
         bool isEphemeral = (cfg.getBucketType() == "ephemeral");
-        PagingVisitor::EvictionPolicy evictionPolicy =
-                (cfg.getHtEvictionPolicy() == "2-bit_lru")
-                        ? PagingVisitor::EvictionPolicy::lru2Bit
-                        : PagingVisitor::EvictionPolicy::hifi_mfu;
 
         auto pv = std::make_unique<PagingVisitor>(
                 *kvBucket,
@@ -166,8 +143,7 @@ bool ItemPager::run(void) {
                 &phase,
                 isEphemeral,
                 cfg.getItemEvictionAgePercentage(),
-                cfg.getItemEvictionFreqCounterAgeThreshold(),
-                evictionPolicy);
+                cfg.getItemEvictionFreqCounterAgeThreshold());
 
         // p99.99 is ~200ms
         const auto maxExpectedDurationForVisitorTask =
@@ -244,10 +220,6 @@ bool ExpiredItemPager::run(void) {
         Configuration& cfg = engine->getConfiguration();
         bool isEphemeral =
                 (engine->getConfiguration().getBucketType() == "ephemeral");
-        PagingVisitor::EvictionPolicy evictionPolicy =
-                (cfg.getHtEvictionPolicy() == "2-bit_lru")
-                        ? PagingVisitor::EvictionPolicy::lru2Bit
-                        : PagingVisitor::EvictionPolicy::hifi_mfu;
         auto pv = std::make_unique<PagingVisitor>(
                 *kvBucket,
                 stats,
@@ -260,8 +232,7 @@ bool ExpiredItemPager::run(void) {
                 /* pager_phase */ nullptr,
                 isEphemeral,
                 cfg.getItemEvictionAgePercentage(),
-                cfg.getItemEvictionFreqCounterAgeThreshold(),
-                evictionPolicy);
+                cfg.getItemEvictionFreqCounterAgeThreshold());
 
         // p99.99 is ~50ms (same as ItemPager).
         const auto maxExpectedDurationForVisitorTask =

@@ -187,7 +187,6 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     setSupportAck(true);
     setReserved(true);
     pause(PausedReason::Initializing);
-
     if (notifyOnly) {
         setLogHeader("DCP (Notifier) " + getName() + " -");
     } else {
@@ -561,20 +560,16 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
 }
 
 uint8_t DcpProducer::encodeItemHotness(const Item& item) const {
-    if (engine_.getConfiguration().getHtEvictionPolicy() == "hifi_mfu") {
-        auto freqCount = item.getFreqCounterValue();
-        if (consumerSupportsHifiMfu) {
-            // The consumer supports the hifi_mfu eviction
-            // policy, therefore use the frequency counter.
-            return freqCount;
-        }
-        // The consumer does not support the hifi_mfu
-        // eviction policy, therefore map from the 8-bit
-        // probabilistic counter (256 states) to NRU (4 states).
-        return ItemEviction::convertFreqCountToNRUValue(freqCount);
+    auto freqCount = item.getFreqCounterValue();
+    if (consumerSupportsHifiMfu) {
+        // The consumer supports the hifi_mfu eviction
+        // policy, therefore use the frequency counter.
+        return freqCount;
     }
-    /* We are using the 2-bit_lru and therefore get the value */
-    return item.getNRUValue();
+    // The consumer does not support the hifi_mfu
+    // eviction policy, therefore map from the 8-bit
+    // probabilistic counter (256 states) to NRU (4 states).
+    return ItemEviction::convertFreqCountToNRUValue(freqCount);
 }
 
 ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {

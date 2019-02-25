@@ -71,8 +71,7 @@ public:
                   std::atomic<item_pager_phase>* phase,
                   bool _isEphemeral,
                   size_t _agePercentage,
-                  size_t _freqCounterAgeThreshold,
-                  EvictionPolicy evictionPolicy);
+                  size_t _freqCounterAgeThreshold);
 
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override;
 
@@ -167,9 +166,6 @@ private:
     // Holds the current vbucket's maxCas value at the point just before we
     // visit all items in the vbucket.
     uint64_t maxCas;
-
-    // The policy used to evict items from the hash table.
-    EvictionPolicy evictionPolicy;
 
     // The VB::Manifest read handle that we use to lock around HashBucket
     // visits. Will contain a nullptr if we aren't currently locking anything.

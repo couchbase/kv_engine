@@ -51,8 +51,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
                              std::atomic<item_pager_phase>* phase,
                              bool _isEphemeral,
                              size_t agePercentage,
-                             size_t freqCounterAgeThreshold,
-                             EvictionPolicy evictionPolicy)
+                             size_t freqCounterAgeThreshold)
     : ejected(0),
       freqCounterThreshold(0),
       ageThreshold(0),
@@ -71,8 +70,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
       isEphemeral(_isEphemeral),
       agePercentage(agePercentage),
       freqCounterAgeThreshold(freqCounterAgeThreshold),
-      maxCas(0),
-      evictionPolicy(evictionPolicy) {
+      maxCas(0) {
     setVBucketFilter(vbFilter);
 }
 
@@ -91,123 +89,99 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
         return true;
     }
 
-    switch (evictionPolicy) {
-    case EvictionPolicy::lru2Bit: {
-        // always evict unreferenced items, or randomly evict referenced
-        // item
-        double r = *pager_phase == PAGING_UNREFERENCED
-                           ? 1
-                           : static_cast<double>(std::rand()) /
-                                     static_cast<double>(RAND_MAX);
+    /*
+     * We take a copy of the freqCounterValue because calling
+     * doEviction can modify the value, and when we want to
+     * add it to the histogram we want to use the original value.
+     */
+    auto storedValueFreqCounter = v.getFreqCounterValue();
+    bool evicted = true;
 
-        if (*pager_phase == PAGING_UNREFERENCED &&
-            v.getNRUValue() == MAX_NRU_VALUE) {
-            doEviction(lh, &v);
-        } else if (*pager_phase == PAGING_RANDOM &&
-                   v.incrNRUValue() == MAX_NRU_VALUE && r <= percent) {
-            doEviction(lh, &v);
-        }
-        return true;
-    }
-    case EvictionPolicy::hifi_mfu: {
+    /*
+     * Calculate the age when the item was last stored / modified.
+     * We do this by taking the item's current cas from the maxCas
+     * (which is the maximum cas value of the current vbucket just
+     * before we begin visiting all the items in the hash table).
+     *
+     * The time is actually stored in the top 48 bits of the cas
+     * therefore we shift the age by casBitsNotTime.
+     *
+     * Note: If the item was written before we switched over to the
+     * hybrid logical clock (HLC) (i.e. the item was written when the
+     * bucket was 4.0/3.x etc...) then the cas value will be low and
+     * so the item will appear very old.  However, this does not
+     * matter as it just means that is likely to be evicted.
+     */
+    uint64_t age = (maxCas > v.getCas()) ? (maxCas - v.getCas()) : 0;
+    age = age >> ItemEviction::casBitsNotTime;
+
+    if ((storedValueFreqCounter <= freqCounterThreshold) &&
+        ((storedValueFreqCounter < freqCounterAgeThreshold) ||
+         (age >= ageThreshold))) {
         /*
-         * We take a copy of the freqCounterValue because calling
-         * doEviction can modify the value, and when we want to
-         * add it to the histogram we want to use the original value.
-         */
-        auto storedValueFreqCounter = v.getFreqCounterValue();
-        bool evicted = true;
-
-        /*
-         * Calculate the age when the item was last stored / modified.
-         * We do this by taking the item's current cas from the maxCas
-         * (which is the maximum cas value of the current vbucket just
-         * before we begin visiting all the items in the hash table).
+         * If the storedValue is eligible for eviction then add its
+         * frequency counter value to the histogram, otherwise add the
+         * maximum (255) to indicate that the storedValue cannot be
+         * evicted.
          *
-         * The time is actually stored in the top 48 bits of the cas
-         * therefore we shift the age by casBitsNotTime.
-         *
-         * Note: If the item was written before we switched over to the
-         * hybrid logical clock (HLC) (i.e. the item was written when the
-         * bucket was 4.0/3.x etc...) then the cas value will be low and
-         * so the item will appear very old.  However, this does not
-         * matter as it just means that is likely to be evicted.
+         * By adding the maximum value for each storedValue that cannot
+         * be evicted we ensure that the histogram is biased correctly
+         * so that we get a frequency threshold that will remove the
+         * correct number of storedValue items.
          */
-        uint64_t age = (maxCas > v.getCas()) ? (maxCas - v.getCas()) : 0;
-        age = age >> ItemEviction::casBitsNotTime;
-
-        if ((storedValueFreqCounter <= freqCounterThreshold) &&
-            ((storedValueFreqCounter < freqCounterAgeThreshold) ||
-             (age >= ageThreshold))) {
-            /*
-             * If the storedValue is eligible for eviction then add its
-             * frequency counter value to the histogram, otherwise add the
-             * maximum (255) to indicate that the storedValue cannot be
-             * evicted.
-             *
-             * By adding the maximum value for each storedValue that cannot
-             * be evicted we ensure that the histogram is biased correctly
-             * so that we get a frequency threshold that will remove the
-             * correct number of storedValue items.
-             */
-            if (!doEviction(lh, &v)) {
-                evicted = false;
-                storedValueFreqCounter = std::numeric_limits<uint8_t>::max();
-            }
-        } else {
+        if (!doEviction(lh, &v)) {
             evicted = false;
-            // If the storedValue is NOT eligible for eviction then
-            // we want to add the maximum value (255).
-            if (!currentBucket->eligibleToPageOut(lh, v)) {
-                storedValueFreqCounter = std::numeric_limits<uint8_t>::max();
-            } else {
-                /*
-                 * MB-29333 - For items that we have visited and did not
-                 * evict just because their frequency counter was too high,
-                 * the frequency counter must be decayed by 1 to
-                 * ensure that they will get evicted if repeatedly
-                 * visited (and assuming their frequency counter is not
-                 * incremented in between visits of the item pager).
-                 */
-                if (storedValueFreqCounter > 0) {
-                    v.setFreqCounterValue(storedValueFreqCounter - 1);
-                }
+            storedValueFreqCounter = std::numeric_limits<uint8_t>::max();
+        }
+    } else {
+        evicted = false;
+        // If the storedValue is NOT eligible for eviction then
+        // we want to add the maximum value (255).
+        if (!currentBucket->eligibleToPageOut(lh, v)) {
+            storedValueFreqCounter = std::numeric_limits<uint8_t>::max();
+        } else {
+            /*
+             * MB-29333 - For items that we have visited and did not
+             * evict just because their frequency counter was too high,
+             * the frequency counter must be decayed by 1 to
+             * ensure that they will get evicted if repeatedly
+             * visited (and assuming their frequency counter is not
+             * incremented in between visits of the item pager).
+             */
+            if (storedValueFreqCounter > 0) {
+                v.setFreqCounterValue(storedValueFreqCounter - 1);
             }
         }
-        itemEviction.addFreqAndAgeToHistograms(storedValueFreqCounter, age);
-
-        if (evicted) {
-            /**
-             * Note: We are not taking a reader lock on the vbucket state.
-             * Therefore it is possible that the stats could be slightly
-             * out.  However given that its just for stats we don't want
-             * to incur any performance cost associated with taking the
-             * lock.
-             */
-            auto& frequencyValuesEvictedHisto =
-                    ((currentBucket->getState() == vbucket_state_active) ||
-                     (currentBucket->getState() == vbucket_state_pending))
-                            ? stats.activeOrPendingFrequencyValuesEvictedHisto
-                            : stats.replicaFrequencyValuesEvictedHisto;
-            frequencyValuesEvictedHisto.addValue(storedValueFreqCounter);
-        }
-
-        // Whilst we are learning it is worth always updating the
-        // threshold. We also want to update the threshold at periodic
-        // intervals.
-        if (itemEviction.isLearning() || itemEviction.isRequiredToUpdate()) {
-            auto thresholds =
-                    itemEviction.getThresholds(percent * 100.0, agePercentage);
-            freqCounterThreshold = thresholds.first;
-            ageThreshold = thresholds.second;
-        }
-
-        return true;
     }
+    itemEviction.addFreqAndAgeToHistograms(storedValueFreqCounter, age);
+
+    if (evicted) {
+        /**
+         * Note: We are not taking a reader lock on the vbucket state.
+         * Therefore it is possible that the stats could be slightly
+         * out.  However given that its just for stats we don't want
+         * to incur any performance cost associated with taking the
+         * lock.
+         */
+        auto& frequencyValuesEvictedHisto =
+                ((currentBucket->getState() == vbucket_state_active) ||
+                 (currentBucket->getState() == vbucket_state_pending))
+                        ? stats.activeOrPendingFrequencyValuesEvictedHisto
+                        : stats.replicaFrequencyValuesEvictedHisto;
+        frequencyValuesEvictedHisto.addValue(storedValueFreqCounter);
     }
-    throw std::invalid_argument(
-            "PagingVisitor::visit - "
-            "EvictionPolicy is invalid");
+
+    // Whilst we are learning it is worth always updating the
+    // threshold. We also want to update the threshold at periodic
+    // intervals.
+    if (itemEviction.isLearning() || itemEviction.isRequiredToUpdate()) {
+        auto thresholds =
+                itemEviction.getThresholds(percent * 100.0, agePercentage);
+        freqCounterThreshold = thresholds.first;
+        ageThreshold = thresholds.second;
+    }
+
+    return true;
 }
 
 void PagingVisitor::visitBucket(const VBucketPtr& vb) {
@@ -243,20 +217,18 @@ void PagingVisitor::visitBucket(const VBucketPtr& vb) {
             itemEviction.reset();
             freqCounterThreshold = 0;
 
-            if (evictionPolicy == EvictionPolicy::hifi_mfu) {
-                // Percent of items in the hash table to be visited
-                // between updating the interval.
-                const double percentOfItems = 0.1;
-                // Calculate the number of items to visit before updating
-                // the interval
-                uint64_t noOfItems =
-                        std::ceil(vb->getNumItems() * (percentOfItems * 0.01));
-                uint64_t interval =
-                        (noOfItems > ItemEviction::learningPopulation)
-                                ? noOfItems
-                                : ItemEviction::learningPopulation;
-                itemEviction.setUpdateInterval(interval);
-            }
+            // Percent of items in the hash table to be visited
+            // between updating the interval.
+            const double percentOfItems = 0.1;
+            // Calculate the number of items to visit before updating
+            // the interval
+            uint64_t noOfItems =
+                    std::ceil(vb->getNumItems() * (percentOfItems * 0.01));
+            uint64_t interval = (noOfItems > ItemEviction::learningPopulation)
+                                        ? noOfItems
+                                        : ItemEviction::learningPopulation;
+            itemEviction.setUpdateInterval(interval);
+
             vb->ht.visit(*this);
             /**
              * Note: We are not taking a reader lock on the vbucket state.
@@ -328,11 +300,7 @@ void PagingVisitor::complete() {
     (*stateFinalizer).compare_exchange_strong(inverse, true);
 
     if (pager_phase && !isBelowLowWaterMark) {
-        if (*pager_phase == PAGING_UNREFERENCED) {
-            *pager_phase = PAGING_RANDOM;
-        } else if (*pager_phase == PAGING_RANDOM) {
-            *pager_phase = PAGING_UNREFERENCED;
-        } else if (*pager_phase == REPLICA_ONLY) {
+        if (*pager_phase == REPLICA_ONLY) {
             *pager_phase = ACTIVE_AND_PENDING_ONLY;
         } else if (*pager_phase == ACTIVE_AND_PENDING_ONLY && !isEphemeral) {
             *pager_phase = REPLICA_ONLY;

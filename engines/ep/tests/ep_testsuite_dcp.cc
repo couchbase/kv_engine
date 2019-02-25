@@ -2570,13 +2570,11 @@ static enum test_result test_dcp_producer_stream_req_mem(EngineIface* h) {
  * from both memory and disk.
  */
 static enum test_result test_dcp_producer_stream_req_dgm(EngineIface* h) {
-    // Test only works for the only 2-bit LRU eviction algorithm as it
+    // Test only works for the now removed 2-bit LRU eviction algorithm as it
     // relies on looking at the LRU state.
     // @todo Investigate converting the test to work with the new hifi_mfu
     // eviction algorithm.
-    if (get_str_stat(h, "ep_ht_eviction_policy") == "hifi_mfu") {
-        return SUCCESS;
-    }
+    return SUCCESS;
 
     const void* cookie = testHarness->create_cookie();
 

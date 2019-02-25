@@ -180,8 +180,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     pendingSetPriority = true;
     pendingEnableExtMetaData = true;
     pendingSupportCursorDropping = true;
-    pendingSupportHifiMFU =
-            (config.getHtEvictionPolicy() == "hifi_mfu");
+    pendingSupportHifiMFU = true;
     pendingEnableExpiryOpcode = true;
     syncReplNegotiation.state = SyncReplNegotiation::State::PendingRequest;
     // If a consumer_name was provided then tell the producer about it.

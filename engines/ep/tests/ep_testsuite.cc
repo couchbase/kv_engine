@@ -2573,15 +2573,6 @@ static enum test_result test_itempager_conf(EngineIface* h) {
 
     check(set_param(h,
                     cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "ht_eviction_policy",
-                    "2-bit_lru"),
-          "Setting ht_eviction_policy should have worked");
-    checkeq("2-bit_lru"s,
-            get_str_stat(h, "ep_ht_eviction_policy"),
-            "ht_eviction_policy did not get set to the correct value");
-
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "item_eviction_age_percentage",
                     "100"),
           "Set item_eviction_age_percentage should have worked");
@@ -6716,7 +6707,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_getl_max_timeout",
               "ep_hlc_drift_ahead_threshold_us",
               "ep_hlc_drift_behind_threshold_us",
-              "ep_ht_eviction_policy",
               "ep_ht_locks",
               "ep_ht_resize_interval",
               "ep_ht_size",
@@ -6939,7 +6929,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_getl_max_timeout",
               "ep_hlc_drift_ahead_threshold_us",
               "ep_hlc_drift_behind_threshold_us",
-              "ep_ht_eviction_policy",
               "ep_ht_locks",
               "ep_ht_resize_interval",
               "ep_ht_size",

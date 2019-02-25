@@ -550,8 +550,6 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setPagerActiveVbPcnt(std::stoull(val));
         } else if (key == "pager_sleep_time_ms") {
             getConfiguration().setPagerSleepTimeMs(std::stoull(val));
-        } else if (key == "ht_eviction_policy") {
-            getConfiguration().setHtEvictionPolicy(val);
         } else if (key == "item_eviction_age_percentage") {
             getConfiguration().setItemEvictionAgePercentage(std::stoull(val));
         } else if (key == "item_eviction_freq_counter_age_threshold") {
@@ -4183,10 +4181,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
     } else if (statKey == "dcp") {
         rv = doDcpStats(cookie, add_stat);
     } else if (statKey == "eviction") {
-        // Only return eviction stats if hifi_mfu eviction policy is used.
-        rv = (configuration.getHtEvictionPolicy() == "hifi_mfu")
-                     ? doEvictionStats(cookie, add_stat)
-                     : ENGINE_EINVAL;
+        rv = doEvictionStats(cookie, add_stat);
     } else if (statKey == "hash") {
         rv = doHashStats(cookie, add_stat);
     } else if (statKey == "vbucket") {
