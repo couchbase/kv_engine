@@ -257,7 +257,9 @@ KVStore::KVStore(KVStoreConfig& config, bool read_only)
 
 KVStore::~KVStore() = default;
 
-void KVStore::addStats(const AddStatFn& add_stat, const void* c) {
+void KVStore::addStats(const AddStatFn& add_stat,
+                       const void* c,
+                       const std::string& args) {
     const char* backend = configuration.getBackend().c_str();
 
     uint16_t shardId = configuration.getShardId();

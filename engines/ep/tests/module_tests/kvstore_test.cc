@@ -301,7 +301,7 @@ TEST_F(CouchKVStoreTest, StatsTest) {
     EXPECT_TRUE(kvstore->commit(flush));
     // Check statistics are correct.
     std::map<std::string, std::string> stats;
-    kvstore->addStats(add_stat_callback, &stats);
+    kvstore->addStats(add_stat_callback, &stats, "");
     EXPECT_EQ("1", stats["rw_0:io_num_write"]);
     const size_t io_write_bytes = stoul(stats["rw_0:io_write_bytes"]);
     // 1 (for the namespace)
@@ -342,7 +342,7 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
     EXPECT_TRUE(kvstore->compactDB(&cctx));
     // Check statistics are correct.
     std::map<std::string, std::string> stats;
-    kvstore->addStats(add_stat_callback, &stats);
+    kvstore->addStats(add_stat_callback, &stats, "");
     EXPECT_EQ("1", stats["rw_0:io_num_write"]);
     const size_t io_write_bytes = stoul(stats["rw_0:io_write_bytes"]);
 
@@ -1267,7 +1267,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, CompactFailedStatsTest) {
 
     // Check the fail compaction statistic is correct.
     std::map<std::string, std::string> stats;
-    kvstore->addStats(add_stat_callback, &stats);
+    kvstore->addStats(add_stat_callback, &stats, "");
 
     EXPECT_EQ("1", stats["rw_0:failure_compaction"]);
 }

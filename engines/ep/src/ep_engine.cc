@@ -4244,8 +4244,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
     } else if (statKey == "kvtimings") {
         getKVBucket()->addKVStoreTimingStats(add_stat, cookie);
         rv = ENGINE_SUCCESS;
-    } else if (statKey == "kvstore") {
-        getKVBucket()->addKVStoreStats(add_stat, cookie);
+    } else if (nkey >= 7 && cb_isPrefix(statKey, "kvstore")) {
+        std::string args(statKey.substr(7, nkey - 7));
+        getKVBucket()->addKVStoreStats(add_stat, cookie, args);
         rv = ENGINE_SUCCESS;
     } else if (statKey == "warmup") {
         const auto* warmup = getKVBucket()->getWarmup();

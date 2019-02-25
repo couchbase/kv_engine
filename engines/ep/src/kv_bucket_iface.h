@@ -646,7 +646,8 @@ public:
     virtual bool isMemoryUsageTooHigh() = 0;
 
     virtual void addKVStoreStats(const AddStatFn& add_stat,
-                                 const void* cookie) = 0;
+                                 const void* cookie,
+                                 const std::string& args) = 0;
 
     virtual void addKVStoreTimingStats(const AddStatFn& add_stat,
                                        const void* cookie) = 0;
