@@ -165,7 +165,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     : ConnHandler(e, cookie, name),
       notifyOnly((flags & cb::mcbp::request::DcpOpenPayload::Notifier) != 0),
       sendStreamEndOnClientStreamClose(false),
-      supportsHifiMFU(false),
+      consumerSupportsHifiMfu(false),
       lastSendTime(ep_current_time()),
       log(*this),
       backfillMgr(std::make_shared<BackfillManager>(engine_)),
@@ -562,7 +562,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
 uint8_t DcpProducer::encodeItemHotness(const Item& item) const {
     if (engine_.getConfiguration().getHtEvictionPolicy() == "hifi_mfu") {
         auto freqCount = item.getFreqCounterValue();
-        if (supportsHifiMFU) {
+        if (consumerSupportsHifiMfu) {
             // The consumer supports the hifi_mfu eviction
             // policy, therefore use the frequency counter.
             return freqCount;
@@ -905,7 +905,7 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
         }
         return ENGINE_SUCCESS;
     } else if (strncmp(param, "supports_hifi_MFU", key.size()) == 0) {
-        supportsHifiMFU = (valueStr == "true");
+        consumerSupportsHifiMfu = (valueStr == "true");
         return ENGINE_SUCCESS;
     } else if (strncmp(param, "set_noop_interval", key.size()) == 0) {
         uint32_t noopInterval;

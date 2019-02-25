@@ -479,7 +479,7 @@ protected:
     Couchbase::RelaxedAtomic<bool> forceValueCompression;
     Couchbase::RelaxedAtomic<bool> supportsCursorDropping;
     Couchbase::RelaxedAtomic<bool> sendStreamEndOnClientStreamClose;
-    Couchbase::RelaxedAtomic<bool> supportsHifiMFU;
+    Couchbase::RelaxedAtomic<bool> consumerSupportsHifiMfu;
     Couchbase::RelaxedAtomic<bool> enableExpiryOpcode;
 
     // SyncReplication: Producer needs to know the Consumer name to identify
