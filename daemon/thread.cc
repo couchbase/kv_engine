@@ -16,6 +16,7 @@
 
 #include <memcached/openssl.h>
 #include <nlohmann/json.hpp>
+#include <openssl/conf.h>
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/platform.h>
@@ -217,7 +218,9 @@ static void worker_libevent(void *arg) {
     me.running = false;
 
     // Event loop exited; cleanup before thread exits.
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
     ERR_remove_state(0);
+#endif
 }
 
 static void drain_notification_channel(evutil_socket_t fd)
