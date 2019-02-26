@@ -434,8 +434,8 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
     }
 
     // Commit the verified SyncWrites
-    for (const auto& entry : toCommit) {
-        commit(entry.getKey(), entry.getBySeqno(), entry.getCookie());
+    for (const auto& sw : toCommit) {
+        commit(sw);
     }
 
     return ENGINE_SUCCESS;
@@ -497,8 +497,8 @@ void DurabilityMonitor::notifyLocalPersistence() {
                         toCommit);
     }
 
-    for (const auto& entry : toCommit) {
-        commit(entry.getKey(), entry.getBySeqno(), entry.getCookie());
+    for (const auto& sw : toCommit) {
+        commit(sw);
     }
 }
 
@@ -708,13 +708,12 @@ DurabilityMonitor::Container DurabilityMonitor::removeSyncWrite(
     return removed;
 }
 
-void DurabilityMonitor::commit(const StoredDocKey& key,
-                               int64_t seqno,
-                               const void* cookie) {
+void DurabilityMonitor::commit(const SyncWrite& sw) {
     // The next call:
     // 1) converts the SyncWrite in the HashTable from Prepare to Committed
     // 2) enqueues a Commit SyncWrite item into the CheckpointManager
-    auto result = vb.commit(key, seqno, {}, vb.lockCollections(key));
+    const auto& key = sw.getKey();
+    auto result = vb.commit(key, sw.getBySeqno(), {}, vb.lockCollections(key));
     if (result != ENGINE_SUCCESS) {
         throw std::logic_error(
                 "DurabilityMonitor::commit: VBucket::commit failed with "
@@ -723,7 +722,7 @@ void DurabilityMonitor::commit(const StoredDocKey& key,
     }
 
     // 3) send a response with Success back to the client
-    vb.notifyClientOfCommit(cookie);
+    vb.notifyClientOfCommit(sw.getCookie());
 }
 
 void DurabilityMonitor::abort(const SyncWrite& sw) {

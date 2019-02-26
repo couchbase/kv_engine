@@ -238,11 +238,9 @@ protected:
     /**
      * Commit the given SyncWrite.
      *
-     * @param key the key of the SyncWrite to be committed
-     * @param seqno the seqno of the SyncWrite to be committed
-     * @param cookie The cookie of the connection to notify.
+     * @param sw The SyncWrite to commit
      */
-    void commit(const StoredDocKey& key, int64_t seqno, const void* cookie);
+    void commit(const SyncWrite& sw);
 
     /**
      * Abort the given SyncWrite.
