@@ -34,7 +34,8 @@ Collections::VB::ManifestEntry& Collections::VB::ManifestEntry::operator=(
     maxTtl = other.maxTtl;
     diskCount = other.diskCount;
     highSeqno.reset(other.highSeqno);
-    persistedHighSeqno = other.persistedHighSeqno;
+    persistedHighSeqno.store(other.persistedHighSeqno,
+                             std::memory_order_relaxed);
     return *this;
 }
 

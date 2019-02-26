@@ -170,19 +170,17 @@ public:
     /// set the highest persisted seqno for this collection if the new value
     /// is greater than the previous one
     void setPersistedHighSeqno(uint64_t value) const {
-        if (value > persistedHighSeqno) {
-            persistedHighSeqno = value;
-        }
+        persistedHighSeqno.store(value, std::memory_order_relaxed);
     }
 
     /// reset the highest persisted seqno for this collection to the given value
     void resetPersistedHighSeqno(uint64_t value = 0) const {
-        persistedHighSeqno = value;
+        persistedHighSeqno.store(value, std::memory_order_relaxed);
     }
 
     /// @return the highest seqno of any persisted item in this collection
     uint64_t getPersistedHighSeqno() const {
-        return persistedHighSeqno;
+        return persistedHighSeqno.load(std::memory_order_relaxed);
     }
 
     /// @return true if successfully added stats, false otherwise
@@ -262,14 +260,16 @@ private:
     /**
      * The highest seqno of any item that has been/is currently being persisted.
      *
-     * Not Monotonic as couchstore does not necessarily call the saveDocs
-     * callback on items in the same order that we queued them.
+     * TSan would warn sporadically of a data race when we make a lot of stats
+     * calls if this was not atomic. We will ignore any attempt to set the value
+     * to something that is not higher than the current value as couchstore
+     * can flush out of order.
      *
      * mutable - the VB:Manifest read/write lock protects this object and
      *           we can do stats updates as long as the read lock is held.
      *           The write lock is really for the Manifest map being changed.
      */
-    mutable uint64_t persistedHighSeqno;
+    mutable AtomicMonotonic<uint64_t, IgnorePolicy> persistedHighSeqno;
 };
 
 std::ostream& operator<<(std::ostream& os, const ManifestEntry& manifestEntry);
