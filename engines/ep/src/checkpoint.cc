@@ -140,12 +140,12 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
 
     QueueDirtyStatus rv;
 
-    checkpoint_index::iterator it = keyIndex.find(qi->getKey());
     // Check if the item is a meta item
     if (qi->isCheckPointMetaItem()) {
         rv = QueueDirtyStatus::SuccessNewItem;
         addItemToCheckpoint(qi);
     } else {
+        checkpoint_index::iterator it = keyIndex.find(qi->getKey());
         // Check if this checkpoint already had an item for the same key
         if (it != keyIndex.end()) {
             const auto currPos = it->second.position;
