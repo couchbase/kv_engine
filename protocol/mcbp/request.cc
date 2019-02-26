@@ -563,6 +563,8 @@ std::string to_string(cb::mcbp::request::FrameInfoId id) {
         return "DurabilityRequirement";
     case FrameInfoId::DcpStreamId:
         return "DcpStreamId";
+    case FrameInfoId::OpenTracingContext:
+        return "OpenTracingContext";
     }
 
     throw std::invalid_argument("to_string(): Invalid frame id: " +

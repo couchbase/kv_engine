@@ -37,7 +37,8 @@ const std::map<cb::mcbp::Feature, std::string> blueprint = {
          {cb::mcbp::Feature::UnorderedExecution, "Unordered execution"},
          {cb::mcbp::Feature::Tracing, "Tracing"},
          {cb::mcbp::Feature::AltRequestSupport, "AltRequestSupport"},
-         {cb::mcbp::Feature::SyncReplication, "SyncReplication"}}};
+         {cb::mcbp::Feature::SyncReplication, "SyncReplication"},
+         {cb::mcbp::Feature::OpenTracing, "OpenTracing"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& entry : blueprint) {

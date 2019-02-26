@@ -30,6 +30,7 @@
 #include <system_error>
 
 #include "log_macros.h"
+#include "opentracing_config.h"
 #include "settings.h"
 #include "ssl_utils.h"
 
@@ -572,6 +573,10 @@ static void handle_breakpad(Settings& s, const nlohmann::json& obj) {
     s.setBreakpadSettings(breakpad);
 }
 
+static void handle_opentracing(Settings& s, const nlohmann::json& obj) {
+    s.setOpenTracingConfig(std::make_shared<OpenTracingConfig>(obj));
+}
+
 void Settings::reconfigure(const nlohmann::json& json) {
     // Nuke the default interface added to the system in settings_init and
     // use the ones in the configuration file.. (this is a bit messy)
@@ -635,7 +640,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"scramsha_fallback_salt", handle_scramsha_fallback_salt},
             {"external_auth_service", handle_external_auth_service},
             {"active_external_users_push_interval",
-             handle_active_external_users_push_interval}};
+             handle_active_external_users_push_interval},
+            {"opentracing", handle_opentracing}};
 
     for (const auto& obj : json.items()) {
         bool found = false;
@@ -1106,6 +1112,34 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                             .count());
             setActiveExternalUsersPushInterval(
                     other.getActiveExternalUsersPushInterval());
+        }
+    }
+
+    if (other.has.opentracing_config) {
+        auto o = other.getOpenTracingConfig();
+        auto m = getOpenTracingConfig();
+        bool update = false;
+
+        if (o->enabled != m->enabled) {
+            LOG_INFO(R"({} OpenTracing)", o->enabled ? "Enable" : "Disable");
+            update = true;
+        }
+
+        if (o->module != m->module) {
+            LOG_INFO(R"(Change OpenTracing module from: "{}" to "{}")",
+                     m->module,
+                     o->module);
+            update = true;
+        }
+        if (o->config != m->config) {
+            LOG_INFO(R"(Change OpenTracing config from: "{}" to "{}")",
+                     m->config,
+                     o->config);
+            update = true;
+        }
+
+        if (update) {
+            setOpenTracingConfig(o);
         }
     }
 }

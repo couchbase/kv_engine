@@ -19,6 +19,7 @@
 #include "buckets.h"
 #include "cookie.h"
 #include "memcached.h"
+#include "opentracing.h"
 #include "settings.h"
 #include "utilities/logtags.h"
 #include "xattr/utils.h"
@@ -256,6 +257,7 @@ void mcbp_collect_timings(Cookie& cookie) {
     const auto endTime = std::chrono::steady_clock::now();
     const auto elapsed = endTime - cookie.getStart();
     cookie.getTracer().end(cb::tracing::TraceCode::REQUEST, endTime);
+    OpenTracing::pushTraceLog(cookie);
 
     // aggregated timing for all buckets
     all_buckets[0].timings.collect(opcode, elapsed);

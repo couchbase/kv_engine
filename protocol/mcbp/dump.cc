@@ -255,6 +255,9 @@ protected:
                        << ntohs(*reinterpret_cast<const uint16_t*>(
                                   payload.data()));
                     break;
+                case cb::mcbp::request::FrameInfoId::OpenTracingContext:
+                    ss << " " << cb::to_hex(payload);
+                    break;
                 }
 
                 vector.emplace_back(ss.str());

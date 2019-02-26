@@ -441,6 +441,17 @@ Status McbpValidator::verify_header(Cookie& cookie,
                     cookie.setErrorContext("DcpStreamId invalid size:" +
                                            std::to_string(data.size()));
                 }
+            case cb::mcbp::request::FrameInfoId::OpenTracingContext:
+                if (data.empty()) {
+                    status = Status::Einval;
+                    cookie.setErrorContext("OpenTracingContext cannot be empty");
+                } else {
+                    // Ideally we should only validate the packet here,
+                    // but given that we've parsed the packet and found all
+                    // the data I need I can might as well store it to avoid
+                    // having to parse it again just to pick out the value
+                    cookie.setOpenTracingContext(data);
+                }
                 return false;
             } // switch (id)
             status = Status::UnknownFrameInfo;

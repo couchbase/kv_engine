@@ -500,6 +500,7 @@ void Cookie::initialize(cb::const_byte_buffer header, bool tracing_enabled) {
     start = std::chrono::steady_clock::now();
     tracer.begin(cb::tracing::TraceCode::REQUEST, start);
     ewouldblock = false;
+    openTracingContext.clear();
 }
 
 void Cookie::reset() {
@@ -512,4 +513,14 @@ void Cookie::reset() {
     dynamicBuffer.clear();
     tracer.clear();
     ewouldblock = false;
+    openTracingContext.clear();
+}
+
+void Cookie::setOpenTracingContext(cb::const_byte_buffer context) {
+    try {
+        openTracingContext.assign(reinterpret_cast<const char*>(context.data()),
+                                  context.size());
+    } catch (const std::bad_alloc&) {
+        // Drop tracing if we run out of memory
+    }
 }

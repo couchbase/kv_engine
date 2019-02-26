@@ -149,6 +149,10 @@ the stream.
 The 2nd and 3rd byte contain a network byte order (uint16) storing the stream
 ID value which was specified in the DCP stream-request that created the stream.
 
+##### ID:3 - OpenTracing context
+
+Request the server to submit trace information by using the supplied context
+information as the parent span. The context must be present (length > 0)
 
 ### Response header
 
@@ -1775,6 +1779,7 @@ The following features is defined:
 | 0x0010 | AltRequest support |
 | 0x0011 | SyncReplication support |
 | 0x0012 | Collections |
+| 0x0013 | OpenTracing |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
@@ -1836,6 +1841,9 @@ The following features is defined:
                     anything on the server). It may be used from the client to
                     know if it may use synchronous replication tags in the
                     mutation requests.
+* `OpenTracing` This is purely informational (it does not enable / disable
+                anything on the server). It may be used from the client to
+                figure out if the server supports OpenTracing or not.)
 
 Response:
 

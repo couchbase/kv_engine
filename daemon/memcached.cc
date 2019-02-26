@@ -41,6 +41,7 @@
 #include "mcbpdestroybuckettask.h"
 #include "memcached/audit_interface.h"
 #include "memcached_openssl.h"
+#include "opentracing.h"
 #include "parent_monitor.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "runtime.h"
@@ -571,6 +572,15 @@ static void settings_init() {
                             s.getActiveExternalUsersPushInterval());
                 }
             });
+
+    settings.addChangeListener(
+            "opentracing_config", [](const std::string&, Settings& s) -> void {
+                auto config = s.getOpenTracingConfig();
+                if (config) {
+                    OpenTracing::updateConfig(*config);
+                }
+            });
+
     NetworkInterface default_interface;
     settings.addInterface(default_interface);
 
@@ -2291,6 +2301,11 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     LOG_INFO("Using SLA configuration: {}", cb::mcbp::sla::to_json().dump());
 
+    auto opentracingconfig = settings.getOpenTracingConfig();
+    if (opentracingconfig) {
+        OpenTracing::updateConfig(*opentracingconfig);
+    }
+
     if (settings.isStdinListenerEnabled()) {
         LOG_INFO("Enable standard input listener");
         start_stdin_listener(shutdown_server);
@@ -2486,6 +2501,11 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     LOG_INFO("Shutting down libevent");
     event_base_free(main_base);
+
+    if (OpenTracing::isEnabled()) {
+        LOG_INFO("Shutting down OpenTracing");
+        OpenTracing::shutdown();
+    }
 
     LOG_INFO("Shutting down logger extension");
     cb::logger::shutdown();

@@ -33,6 +33,7 @@ bool Datatype::isSupported(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::XERROR:
     case cb::mcbp::Feature::SELECT_BUCKET:
     case cb::mcbp::Feature::Collections:
+    case cb::mcbp::Feature::OpenTracing:
     case cb::mcbp::Feature::Invalid:
     case cb::mcbp::Feature::Invalid2:
     case cb::mcbp::Feature::Duplex:
@@ -66,6 +67,7 @@ void Datatype::enable(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::XERROR:
     case cb::mcbp::Feature::SELECT_BUCKET:
     case cb::mcbp::Feature::Collections:
+    case cb::mcbp::Feature::OpenTracing:
     case cb::mcbp::Feature::Invalid:
     case cb::mcbp::Feature::Invalid2:
     case cb::mcbp::Feature::ClustermapChangeNotification:

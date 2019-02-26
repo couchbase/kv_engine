@@ -65,6 +65,9 @@ enum class Feature : uint16_t {
     SyncReplication = 0x11,
 
     Collections = 0x12,
+
+    /// Do the server support OpenTracing
+    OpenTracing = 0x13,
 };
 
 } // namespace mcbp

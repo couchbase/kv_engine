@@ -41,7 +41,8 @@ namespace request {
 enum class FrameInfoId {
     Reorder = 0,
     DurabilityRequirement = 1,
-    DcpStreamId = 2
+    DcpStreamId = 2,
+    OpenTracingContext = 3,
 };
 }
 

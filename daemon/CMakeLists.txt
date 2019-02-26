@@ -82,6 +82,10 @@ ADD_LIBRARY(memcached_daemon STATIC
             memcached_openssl.h
             network_interface.cc
             network_interface.h
+            opentracing.cc
+            opentracing.h
+            opentracing_config.cc
+            opentracing_config.h
             parent_monitor.cc
             parent_monitor.h
             protocol/mcbp/adjust_timeofday_executor.cc
@@ -206,6 +210,12 @@ ADD_LIBRARY(memcached_daemon STATIC
             tracing.cc
             tracing.h
             tracing_types.h)
+
+if (KV_USE_OPENTRACING)
+   target_include_directories(memcached_daemon
+                              PRIVATE AFTER ${OPENTRACING_INCLUDE_DIR})
+   list(APPEND MEMCACHED_EXTRA_LIBS ${OPENTRACING_LIBRARIES})
+endif()
 
 ADD_DEPENDENCIES(memcached_daemon generate_audit_descriptors)
 

@@ -57,6 +57,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "SyncReplication";
     case cb::mcbp::Feature::Collections:
         return "Collections";
+    case cb::mcbp::Feature::OpenTracing:
+        return "OpenTracing";
     }
 
     throw std::invalid_argument(

@@ -449,6 +449,10 @@ public:
         return tracer;
     }
 
+    const cb::tracing::Tracer& getTracer() const {
+        return tracer;
+    }
+
     uint8_t getRefcount() {
         return refcount;
     }
@@ -475,9 +479,19 @@ public:
         Cookie::engine_storage = engine_storage;
     }
 
+    void setOpenTracingContext(cb::const_byte_buffer context);
+
+    const std::string& getOpenTracingContext() const {
+        return openTracingContext;
+    }
+
 protected:
     bool enableTracing = false;
     cb::tracing::Tracer tracer;
+
+    /// The tracing context provided by the client to use as the
+    /// parent span
+    std::string openTracingContext;
 
     /**
      * The connection object this cookie is bound to
