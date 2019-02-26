@@ -1424,9 +1424,10 @@ public:
      * Set the memory threshold on the current bucket quota for accepting a
      * new mutation. This is same across all the vbuckets
      *
-     * @param memThreshold Threshold between 0 and 1
+     * @param memThreshold Threshold between 0 and 100, value is converted to
+     *        double and divided by 100, e.g. 90 sets a value of 0.9
      */
-    static void setMutationMemoryThreshold(double memThreshold);
+    static void setMutationMemoryThreshold(size_t memThreshold);
 
     /**
      * Check if this StoredValue has become logically non-existent.

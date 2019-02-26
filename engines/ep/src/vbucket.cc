@@ -2372,9 +2372,13 @@ void VBucket::dump() const {
               << "]" << std::endl;
 }
 
-void VBucket::setMutationMemoryThreshold(double memThreshold) {
-    if (memThreshold > 0.0 && memThreshold <= 1.0) {
-        mutationMemThreshold = memThreshold;
+void VBucket::setMutationMemoryThreshold(size_t memThreshold) {
+    if (memThreshold > 0 && memThreshold <= 100) {
+        mutationMemThreshold = static_cast<double>(memThreshold) / 100.0;
+    } else {
+        throw std::invalid_argument(
+                "VBucket::setMutationMemoryThreshold invalid memThreshold:" +
+                std::to_string(memThreshold));
     }
 }
 

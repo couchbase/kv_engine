@@ -140,8 +140,7 @@ public:
         } else if (key.compare("exp_pager_stime") == 0) {
             store.setExpiryPagerSleeptime(value);
         } else if (key.compare("mutation_mem_threshold") == 0) {
-            double mem_threshold = static_cast<double>(value) / 100;
-            VBucket::setMutationMemoryThreshold(mem_threshold);
+            VBucket::setMutationMemoryThreshold(value);
         } else if (key.compare("backfill_mem_threshold") == 0) {
             double backfill_threshold = static_cast<double>(value) / 100;
             store.setBackfillMemoryThreshold(backfill_threshold);
@@ -324,9 +323,7 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             "warmup_min_items_threshold",
             std::make_unique<StatsValueChangeListener>(stats, *this));
 
-    double mem_threshold = static_cast<double>
-                                      (config.getMutationMemThreshold()) / 100;
-    VBucket::setMutationMemoryThreshold(mem_threshold);
+    VBucket::setMutationMemoryThreshold(config.getMutationMemThreshold());
     config.addValueChangedListener(
             "mutation_mem_threshold",
             std::make_unique<EPStoreValueChangeListener>(*this));
