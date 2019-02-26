@@ -248,7 +248,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_create_new_checkpoint,
                  test_setup,
                  teardown,
-                 "chk_max_items=5;item_num_based_new_chk=true",
+                 "chk_max_items=5;item_num_based_new_chk=true;chk_period=600",
                  prepare,
                  cleanup),
         TestCase("checkpoint: validate checkpoint config params",
@@ -283,7 +283,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_checkpoint_persistence,
                  test_setup,
                  teardown,
-                 "chk_max_items=500;max_checkpoints=5;item_num_based_new_chk="
+                 "chk_max_items=500;max_checkpoints=5;item_num_based_new_chk=true;chk_period=600"
                  "true",
                  prepare,
                  cleanup),
