@@ -151,6 +151,17 @@ protected:
     //per test min compression ratio configuration
     void setMinCompressionRatio(const float min_compression_ratio);
 
+    /**
+     * Run observe until the given uuid/seqno is persisted.
+     * Note: checks for observe support and fails if the bucket is not capable.
+     */
+    void waitForAtLeastSeqno(Vbid vbid, uint64_t uuid, uint64_t seqno);
+
+    /**
+     *  Store the key and run waitForAtLeastSeqno, returns when persisted
+     */
+    Document storeAndPersistItem(Vbid vbid, std::string key);
+
     static nlohmann::json generate_config(uint16_t ssl_port);
     static nlohmann::json generate_config();
 

@@ -59,33 +59,12 @@ protected:
     }
 
     // Helper functions for tests /////////////////////////////////////////////
-
     Document storeAndPersistItem(std::string key) {
-        MemcachedConnection& conn = getConnection();
-        conn.setMutationSeqnoSupport(true);
-        Document doc;
-        doc.info.id = key;
-        doc.value = "persist me";
-        auto mutation = conn.mutate(doc, vbid, MutationType::Set);
-        EXPECT_NE(0, mutation.seqno);
-        EXPECT_NE(0, mutation.vbucketuuid);
-        doc.info.cas = mutation.cas;
-
-        waitForAtLeastSeqno(mutation.vbucketuuid, mutation.seqno);
-
-        return doc;
+        return TestappTest::storeAndPersistItem(vbid, key);
     }
 
     void waitForAtLeastSeqno(uint64_t uuid, uint64_t seqno) {
-        // Poll for that sequence number to be persisted.
-        ObserveInfo observe;
-        MemcachedConnection& conn = getConnection();
-        do {
-            observe = conn.observeSeqno(vbid, uuid);
-            EXPECT_EQ(0, observe.formatType);
-            EXPECT_EQ(vbid, observe.vbId);
-            EXPECT_EQ(uuid, observe.uuid);
-        } while (observe.lastPersistedSeqno < seqno);
+        TestappTest::waitForAtLeastSeqno(vbid, uuid, seqno);
     }
 
     void shutdownMemcached(ShutdownMode mode) {

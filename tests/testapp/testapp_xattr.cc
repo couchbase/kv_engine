@@ -838,6 +838,12 @@ TEST_P(XattrTest, MB_22691) {
 }
 
 TEST_P(XattrTest, MB_23882_VirtualXattrs) {
+    // MB-32147: Testing last_modified requires at least 1 item to have been
+    // flushed.
+    if (mcd_env->getTestBucket().supportsLastModifiedVattr()) {
+        storeAndPersistItem(Vbid(0), "flushed_key");
+    }
+
     // Test to check that we can get both an xattr and the main body in
     // subdoc multi-lookup
     setBodyAndXattr(value, {{sysXattr, xattrVal}});

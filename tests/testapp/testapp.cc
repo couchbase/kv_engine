@@ -25,6 +25,7 @@
 #include <nlohmann/json.hpp>
 #include <utilities/json_utilities.h>
 #include <atomic>
+#include <chrono>
 #include <csignal>
 #include <thread>
 
@@ -376,6 +377,47 @@ void TestappTest::setMinCompressionRatio(float min_compression_ratio) {
             getAdminConnection(),
             bucketName,
             std::to_string(min_compression_ratio));
+}
+
+void TestappTest::waitForAtLeastSeqno(Vbid vbid,
+                                      uint64_t uuid,
+                                      uint64_t seqno) {
+    ASSERT_TRUE(mcd_env->getTestBucket().supportsPersistence())
+            << "Error: your bucket does not support persistence";
+
+    // Poll for that sequence number to be persisted.
+    ObserveInfo observe;
+    MemcachedConnection& conn = getConnection();
+    do {
+        observe = conn.observeSeqno(vbid, uuid);
+        EXPECT_EQ(0, observe.formatType);
+        EXPECT_EQ(vbid, observe.vbId);
+        EXPECT_EQ(uuid, observe.uuid);
+
+        if (observe.lastPersistedSeqno < seqno) {
+            // Don't busy wait, yield a little. A 2019 poll of sleeps in KV
+            // reveals 100us to be our most popular wait time.
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
+        } else {
+            break;
+        }
+    } while (true);
+}
+
+Document TestappTest::storeAndPersistItem(Vbid vbid, std::string key) {
+    MemcachedConnection& conn = getConnection();
+    conn.setMutationSeqnoSupport(true);
+    Document doc;
+    doc.info.id = key;
+    doc.value = "persist me";
+    auto mutation = conn.mutate(doc, vbid, MutationType::Set);
+    EXPECT_NE(0, mutation.seqno);
+    EXPECT_NE(0, mutation.vbucketuuid);
+    doc.info.cas = mutation.cas;
+
+    waitForAtLeastSeqno(vbid, mutation.vbucketuuid, mutation.seqno);
+
+    return doc;
 }
 
 std::string McdTestappTest::PrintToStringCombinedName(
