@@ -677,6 +677,43 @@ ENGINE_ERROR_CODE VBucket::commit(
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE VBucket::abort(
+        const DocKey& key,
+        int64_t prepareSeqno,
+        boost::optional<int64_t> abortSeqno,
+        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+    auto htRes = ht.findForWrite(key);
+    if (!htRes.storedValue) {
+        // If we are aborting we /should/ always find the pending item.
+        EP_LOG_WARN(
+                "VBucket::abort ({}) failed as no HashTable item found with "
+                "key:{}",
+                id,
+                cb::UserDataView(cb::const_char_buffer(key)));
+        return ENGINE_KEY_ENOENT;
+    }
+
+    if (htRes.storedValue->getCommitted() != CommittedState::Pending) {
+        // We should always find a pending item when aborting; if not
+        // this is a logic error...
+        std::stringstream ss;
+        ss << *htRes.storedValue;
+        EP_LOG_WARN(
+                "VBucket::abort ({}) failed as HashTable value is not "
+                "CommittedState::Pending - {}",
+                id,
+                cb::UserData(ss.str()));
+        return ENGINE_EINVAL;
+    }
+
+    auto notify = abortStoredValue(htRes.lock, *htRes.storedValue, abortSeqno);
+
+    notifyNewSeqno(notify);
+    doCollectionsStats(cHandle, notify);
+
+    return ENGINE_SUCCESS;
+}
+
 void VBucket::notifyClientOfCommit(const void* cookie) {
     EP_LOG_DEBUG("VBucket::notifyClientOfCommit ({}) cookie:{}", id, cookie);
 

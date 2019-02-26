@@ -607,6 +607,14 @@ VBNotifyCtx EPVBucket::commitStoredValue(const HashTable::HashBucketLock& hbl,
     return queueDirty(v, queueItmCtx);
 }
 
+VBNotifyCtx EPVBucket::abortStoredValue(const HashTable::HashBucketLock& hbl,
+                                        StoredValue& v,
+                                        boost::optional<int64_t> abortSeqno) {
+    ht.abort(hbl, v);
+    // @todo: VBucket::queueDirty
+    return {};
+}
+
 void EPVBucket::bgFetch(const DocKey& key,
                         const void* cookie,
                         EventuallyPersistentEngine& engine,

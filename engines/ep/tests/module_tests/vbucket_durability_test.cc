@@ -482,3 +482,62 @@ TEST_P(VBucketDurabilityTest, PendingSkippedAtEjectionAndCommit) {
     EXPECT_EQ(queue_op::commit_sync_write, (*it)->getOperation());
     EXPECT_EQ("value", (*it)->getValue()->to_s());
 }
+
+TEST_P(VBucketDurabilityTest, NonExistingKeyAtAbort) {
+    auto noentKey = makeStoredDocKey("non-existing-key");
+    EXPECT_EQ(ENGINE_KEY_ENOENT,
+              vbucket->abort(noentKey,
+                             0 /*prepareSeqno*/,
+                             {} /*abortSeqno*/,
+                             vbucket->lockCollections(noentKey)));
+}
+
+TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbort) {
+    auto nonPendingKey = makeStoredDocKey("key1");
+    auto nonPendingItem = make_item(vbucket->getId(), nonPendingKey, "value");
+    EXPECT_EQ(MutationStatus::WasClean,
+              public_processSet(nonPendingItem, 0 /*cas*/, VBQueueItemCtx()));
+    EXPECT_EQ(1, ht->getNumItems());
+    // Visible at read
+    const auto* sv = ht->findForRead(nonPendingKey).storedValue;
+    ASSERT_TRUE(sv);
+    const int64_t bySeqno = 1;
+    ASSERT_EQ(bySeqno, sv->getBySeqno());
+    EXPECT_EQ(ENGINE_EINVAL,
+              vbucket->abort(nonPendingKey,
+                             bySeqno /*prepareSeqno*/,
+                             {} /*abortSeqno*/,
+                             vbucket->lockCollections(nonPendingKey)));
+}
+
+TEST_P(VBucketDurabilityTest, Active_PendingRemovedAtAbort) {
+    ASSERT_EQ(1, storeSyncWrites({1} /*seqnos*/));
+
+    auto key = makeStoredDocKey("key1");
+
+    EXPECT_EQ(1, ht->getNumItems());
+    // Not visible at read
+    EXPECT_FALSE(ht->findForRead(key).storedValue);
+    // Note: Need to release the HashBucketLock before calling VBucket::abort
+    //     (which acquires the same HBL), deadlock otherwise
+    {
+        // Visible at write
+        auto storedItem = ht->findForWrite(key);
+        ASSERT_TRUE(storedItem.storedValue);
+        // item pending
+        EXPECT_EQ(CommittedState::Pending,
+                  storedItem.storedValue->getCommitted());
+    }
+
+    // Note: abort-seqno must be provided only at Replica
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vbucket->abort(key,
+                             1 /*prepareSeqno*/,
+                             {} /*abortSeqno*/,
+                             vbucket->lockCollections(key)));
+
+    // StoredValue has gone
+    EXPECT_EQ(0, ht->getNumItems());
+    EXPECT_FALSE(ht->findForRead(key).storedValue);
+    EXPECT_FALSE(ht->findForWrite(key).storedValue);
+}

@@ -631,6 +631,15 @@ VBNotifyCtx EphemeralVBucket::commitStoredValue(
             "EphemeralVBucket::commitStoredValue - not yet implemented");
 }
 
+VBNotifyCtx EphemeralVBucket::abortStoredValue(
+        const HashTable::HashBucketLock& hbl,
+        StoredValue& v,
+        boost::optional<int64_t> abortSeqno) {
+    // @todo-durability: Implement this.
+    throw std::logic_error(
+            "EphemeralVBucket::abortStoredValue - not yet implemented");
+}
+
 void EphemeralVBucket::bgFetch(const DocKey& key,
                                const void* cookie,
                                EventuallyPersistentEngine& engine,

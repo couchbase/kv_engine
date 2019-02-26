@@ -683,6 +683,14 @@ public:
     void commit(const HashBucketLock& hbl, StoredValue& v);
 
     /**
+     * Abort a pending SyncWrite, i.e. remove the existing Pending StoredValue.
+     *
+     * @param hbl Hash table bucket lock that must be held
+     * @param v Reference to the StoredValue to be removed
+     */
+    void abort(const HashBucketLock& hbl, StoredValue& v);
+
+    /**
      * Store the given compressed buffer as a value in the
      * given StoredValue
      *

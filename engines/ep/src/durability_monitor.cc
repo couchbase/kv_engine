@@ -734,7 +734,14 @@ void DurabilityMonitor::commit(const SyncWrite& sw) {
 }
 
 void DurabilityMonitor::abort(const SyncWrite& sw) {
-    // @todo: VBucket::abort()
+    const auto& key = sw.getKey();
+    auto result = vb.abort(
+            key, sw.getBySeqno(), {} /*abortSeqno*/, vb.lockCollections(key));
+    if (result != ENGINE_SUCCESS) {
+        throw std::logic_error(
+                "DurabilityMonitor::abort: VBucket::abort failed with status:" +
+                std::to_string(result));
+    }
     // @todo: VBucket::notifyClientOfAbort()
 }
 

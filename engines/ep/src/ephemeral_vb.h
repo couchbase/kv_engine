@@ -293,6 +293,10 @@ private:
             const VBQueueItemCtx& queueItmCtx,
             boost::optional<int64_t> commitSeqno) override;
 
+    VBNotifyCtx abortStoredValue(const HashTable::HashBucketLock& hbl,
+                                 StoredValue& v,
+                                 boost::optional<int64_t> abortSeqno) override;
+
     void bgFetch(const DocKey& key,
                  const void* cookie,
                  EventuallyPersistentEngine& engine,
