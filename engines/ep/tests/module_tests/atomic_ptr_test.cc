@@ -21,6 +21,8 @@
 #include "locks.h"
 #include "threadtests.h"
 
+#include <platform/cbassert.h>
+
 #define NUM_THREADS 50
 #define NUM_TIMES 10000
 

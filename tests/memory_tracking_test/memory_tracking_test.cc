@@ -17,15 +17,16 @@
 
 #include "config.h"
 
-#include <platform/cb_malloc.h>
-#include <platform/dirutils.h>
-#include <atomic>
-#include <cstring>
-#include <string>
-
 #include "daemon/alloc_hooks.h"
 
 #include <gtest/gtest.h>
+#include <platform/cb_malloc.h>
+#include <platform/dirutils.h>
+#include <platform/platform_thread.h>
+
+#include <atomic>
+#include <cstring>
+#include <string>
 
 #if defined(HAVE_MALLOC_USABLE_SIZE)
 #include <malloc.h>

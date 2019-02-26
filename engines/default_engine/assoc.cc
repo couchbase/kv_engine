@@ -4,12 +4,16 @@
  *
  */
 #include "config.h"
-#include <errno.h>
-#include <fcntl.h>
+
+#include "default_engine_internal.h"
+
 #include <logger/logger.h>
 #include <platform/crc32c.h>
-#include <platform/platform.h>
+#include <platform/platform_thread.h>
 #include <platform/strerror.h>
+
+#include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,7 +22,6 @@
 #include <thread>
 #include <vector>
 
-#include "default_engine_internal.h"
 
 #define hashsize(n) ((size_t)1<<(n))
 #define hashmask(n) (hashsize(n)-1)

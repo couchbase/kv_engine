@@ -20,8 +20,10 @@
 #include <JSON_checker.h>
 #include <event.h>
 #include <memcached/engine_error.h>
+#include <platform/platform_thread.h>
 #include <platform/socket.h>
 #include <subdoc/operations.h>
+
 #include <mutex>
 #include <queue>
 #include <unordered_map>

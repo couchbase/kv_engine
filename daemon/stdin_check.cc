@@ -11,7 +11,7 @@
 #endif
 
 #include <memcached/engine.h>
-#include <platform/platform.h>
+#include <platform/platform_thread.h>
 
 #include "memcached.h"
 

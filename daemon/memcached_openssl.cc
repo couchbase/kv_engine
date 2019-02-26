@@ -15,12 +15,13 @@
  *   limitations under the License.
  */
 #include "config.h"
+
 #include "memcached_openssl.h"
 
 #include <memcached/openssl.h>
 #include <openssl/conf.h>
 #include <openssl/engine.h>
-#include <platform/platform.h>
+#include <platform/platform_thread.h>
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
 

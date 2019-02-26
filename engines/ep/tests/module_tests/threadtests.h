@@ -18,13 +18,16 @@
 
 #include "config.h"
 
+#include "locks.h"
+#include "syncobject.h"
+#include "utility.h"
+
+#include <platform/cbassert.h>
+
 #include <algorithm>
 #include <iostream>
 #include <vector>
 
-#include "locks.h"
-#include "syncobject.h"
-#include "utility.h"
 
 template <typename T>
 class Generator {

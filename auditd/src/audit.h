@@ -22,6 +22,7 @@
 #include "eventdescriptor.h"
 
 #include <memcached/audit_interface.h>
+#include <platform/platform_thread.h>
 
 #include <atomic>
 #include <cinttypes>

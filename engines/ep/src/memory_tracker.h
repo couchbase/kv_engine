@@ -18,16 +18,14 @@
 
 #include "config.h"
 
+#include <memcached/server_allocator_iface.h>
+#include <platform/platform_thread.h>
+
 #include <atomic>
 #include <condition_variable>
 #include <map>
 #include <mutex>
 #include <string>
-
-#include <memcached/server_allocator_iface.h>
-#include <platform/platform.h>
-
-#include <atomic>
 
 /**
  * This class is used by ep-engine to hook into memcached's memory tracking

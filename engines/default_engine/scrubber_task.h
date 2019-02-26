@@ -16,10 +16,11 @@
  */
 #pragma once
 
+#include <platform/platform_thread.h>
+
 #include <condition_variable>
 #include <deque>
 #include <mutex>
-#include <platform/platform.h>
 
 class EngineManager;
 
