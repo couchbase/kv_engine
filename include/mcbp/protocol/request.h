@@ -194,10 +194,17 @@ public:
      *                 if the callback returns false we stop parsing the
      *                 frame extras. Provided to the callback is the
      *                 Frame Info identifier and the content
+     * @param dont_validate_frame_id If set to true the callback will be
+     *                               called with the frame id and size found
+     *                               in the packet (no matter if the frame id
+     *                               is unknown or if the size of the payload
+     *                               don't match the spec). This is mostly
+     *                               used for unit testing
      * @throws std::runtime_error if an unknown frame identifier is received
      *                            or if there is other errors in there.
      */
-    void parseFrameExtras(FrameInfoCallback callback) const;
+    void parseFrameExtras(FrameInfoCallback callback,
+                          bool dont_validate_frame_id = false) const;
 
     /**
      * Parse the Frame Extras section and pick out the optional Durability

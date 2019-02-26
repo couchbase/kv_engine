@@ -22,6 +22,92 @@
 using namespace cb::mcbp;
 using namespace cb::durability;
 
+/**
+ * helper method to encode a frame info value
+ */
+static std::vector<uint8_t> encodeFrameInfo(request::FrameInfoId id,
+                                            cb::const_byte_buffer payload) {
+    std::vector<uint8_t> result;
+
+    auto idbits = static_cast<uint16_t>(id);
+    if (idbits < 0x0f) {
+        result.emplace_back(uint8_t(idbits << 4u));
+    } else {
+        result.emplace_back(0xf0);
+        result.emplace_back(uint8_t(idbits - 0x0f));
+    }
+
+    if (payload.size() < 0x0f) {
+        result[0] |= uint8_t(payload.size());
+    } else {
+        result[0] |= 0x0fu;
+        result.emplace_back(uint8_t(payload.size() - 0x0f));
+    }
+
+    std::copy(payload.begin(), payload.end(), std::back_inserter(result));
+    return result;
+}
+
+TEST(Request_ParseFrameExtras, ExtendedIdAndSize) {
+    uint8_t blob[37];
+    auto fe = encodeFrameInfo(request::FrameInfoId(32), {blob, sizeof(blob)});
+    std::vector<uint8_t> packet(1024);
+    RequestBuilder builder({packet.data(), packet.size()});
+    builder.setMagic(Magic::AltClientRequest);
+    builder.setFramingExtras({fe.data(), fe.size()});
+
+    auto* req = reinterpret_cast<Request*>(packet.data());
+    bool found = false;
+    req->parseFrameExtras(
+            [&found](request::FrameInfoId id,
+                     cb::const_byte_buffer data) -> bool {
+                if (id != request::FrameInfoId(32)) {
+                    ADD_FAILURE() << "Expected ID to be 32";
+                }
+                if (data.size() != 37) {
+                    ADD_FAILURE() << "Expected payload to be 37 bytes";
+                }
+                found = true;
+                return true;
+            },
+            true);
+    EXPECT_TRUE(found);
+}
+
+/// When we hit 15 for frame id or size we need to add an extra byte
+/// containing the additional value, but for the value of 15 this extra
+/// byte is 0. Create a unit test to validate that
+TEST(Request_ParseFrameExtras, ExtendedIdAndSize_Edge) {
+    uint8_t blob[15] = {};
+    auto fe = encodeFrameInfo(request::FrameInfoId(15), {blob, sizeof(blob)});
+    std::vector<uint8_t> expected(18);
+    expected[0] = 0xff;
+    EXPECT_EQ(expected, fe);
+
+    // Verify that we can properly decode it
+    std::vector<uint8_t> packet(1024);
+    RequestBuilder builder({packet.data(), packet.size()});
+    builder.setMagic(Magic::AltClientRequest);
+    builder.setFramingExtras({fe.data(), fe.size()});
+
+    auto* req = reinterpret_cast<Request*>(packet.data());
+    bool found = false;
+    req->parseFrameExtras(
+            [&found](request::FrameInfoId id,
+                     cb::const_byte_buffer data) -> bool {
+                if (id != request::FrameInfoId(15)) {
+                    ADD_FAILURE() << "Expected ID to be 15";
+                }
+                if (data.size() != 15) {
+                    ADD_FAILURE() << "Expected payload to be 15 bytes";
+                }
+                found = true;
+                return true;
+            },
+            true);
+    EXPECT_TRUE(found);
+}
+
 TEST(Request_ParseFrameExtras, Reorder_LegalPacket) {
     std::vector<uint8_t> fe;
     fe.push_back(0x00); // ID 0, length 0
