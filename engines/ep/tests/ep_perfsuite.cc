@@ -31,8 +31,15 @@
 
 #include "config.h"
 
+#include "ep_test_apis.h"
+#include "ep_testsuite_common.h"
+#include "mock/mock_dcp.h"
+#include "module_tests/test_helpers.h"
+#include "module_tests/thread_gate.h"
+
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
+#include <platform/platform_time.h>
 
 #include <algorithm>
 #include <atomic>
@@ -45,13 +52,6 @@
 #include <thread>
 #include <type_traits>
 #include <unordered_map>
-
-#include "ep_testsuite_common.h"
-#include "ep_test_apis.h"
-
-#include "mock/mock_dcp.h"
-#include "module_tests/test_helpers.h"
-#include "module_tests/thread_gate.h"
 
 // Default number of iterations for tests. Individual tests may
 // override this, but is generally desirable for them to scale the

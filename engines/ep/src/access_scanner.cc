@@ -17,10 +17,6 @@
 
 #include "config.h"
 
-#include <iostream>
-
-#include <phosphor/phosphor.h>
-
 #include "access_scanner.h"
 #include "bucket_logger.h"
 #include "ep_time.h"
@@ -30,6 +26,10 @@
 #include "stats.h"
 #include "vb_count_visitor.h"
 
+#include <phosphor/phosphor.h>
+#include <platform/platform_time.h>
+
+#include <iostream>
 #include <memory>
 #include <numeric>
 

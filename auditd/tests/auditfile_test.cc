@@ -19,7 +19,7 @@
 #include "auditfile.h"
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
-#include <platform/platform.h>
+#include <platform/platform_time.h>
 #include <time.h>
 #include <atomic>
 #include <cstring>

@@ -30,6 +30,8 @@
 #include "kv_bucket_iface.h"
 #include "paging_visitor.h"
 
+#include <platform/platform_time.h>
+
 #include <cmath>
 #include <cstdlib>
 #include <iostream>

@@ -19,6 +19,8 @@
 
 #include "statwriter.h"
 
+#include <platform/platform_time.h>
+
 #include <cinttypes>
 
 void HLC::addStats(const std::string& prefix,

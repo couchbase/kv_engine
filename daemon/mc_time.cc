@@ -29,7 +29,10 @@
 #include "executorpool.h"
 #include "memcached.h"
 #include "settings.h"
+
 #include <logger/logger.h>
+#include <platform/platform_time.h>
+
 #include <atomic>
 #include <csignal>
 

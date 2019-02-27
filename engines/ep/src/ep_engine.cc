@@ -56,6 +56,7 @@
 #include <platform/checked_snprintf.h>
 #include <platform/compress.h>
 #include <platform/platform.h>
+#include <platform/platform_time.h>
 #include <platform/scope_timer.h>
 #include <tracing/trace_helpers.h>
 #include <utilities/logtags.h>

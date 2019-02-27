@@ -21,6 +21,7 @@
 #include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
+#include <platform/platform_time.h>
 #include <platform/strerror.h>
 #include <utilities/json_utilities.h>
 

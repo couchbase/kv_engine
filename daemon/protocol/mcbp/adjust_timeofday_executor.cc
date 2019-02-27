@@ -21,6 +21,8 @@
 #include <daemon/mc_time.h>
 #include <memcached/protocol_binary.h>
 
+#include <platform/platform_time.h>
+
 /**
  * The adjust_timeofday_executor implements the ability to mock the internal
  * clock in the memcached server. It is only used during unit testing of

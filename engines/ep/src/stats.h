@@ -27,6 +27,7 @@
 #include <platform/corestore.h>
 #include <platform/histogram.h>
 #include <platform/non_negative_counter.h>
+#include <platform/platform_time.h>
 #include <relaxed_atomic.h>
 
 #include <algorithm>
