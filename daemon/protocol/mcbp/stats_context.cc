@@ -162,7 +162,6 @@ static ENGINE_ERROR_CODE server_stats(const AddStatFn& add_stat_callback,
     try {
         std::lock_guard<std::mutex> guard(stats_mutex);
 
-        add_stat(cookie, add_stat_callback, "pid", long(cb_getpid()));
         add_stat(cookie, add_stat_callback, "uptime", now);
         add_stat(cookie, add_stat_callback, "stat_reset",
                  (const char*)reset_stats_time);

@@ -181,7 +181,8 @@ class EpBucketImpl : public TestBucketImpl {
 public:
     EpBucketImpl(std::string extraConfig = {})
         : TestBucketImpl(extraConfig),
-          dbPath("mc_testapp." + std::to_string(cb_getpid())) {
+          dbPath(cb::io::mkdtemp(
+                  const_cast<char*>(std::string("mc_testapp.XXXXXX").data()))) {
         // Cleanup any files from a previous run still on disk.
         try {
             cb::io::rmrf(dbPath);

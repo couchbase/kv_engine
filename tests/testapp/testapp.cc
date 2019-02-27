@@ -29,6 +29,19 @@
 #include <csignal>
 #include <thread>
 
+/**
+ * We need to grab pids to set up a few env vars correctly e.g.
+ * MEMCACHED_PARENT_MONITOR, include the appropriate header.
+ *
+ * @TODO when we pull folly in we can replace all this with folly's Unistd.h
+ */
+#ifdef WIN32
+#include <process.h>
+#define getpid() _getpid()
+#else
+#include <unistd.h>
+#endif
+
 McdEnvironment* mcd_env = nullptr;
 
 /* test phases (bitmasks) */
@@ -632,8 +645,8 @@ void TestappTest::spawn_embedded_server() {
     char *filename= mcd_port_filename_env + strlen("MEMCACHED_PORT_FILENAME=");
     snprintf(mcd_port_filename_env,
              sizeof(mcd_port_filename_env),
-             "MEMCACHED_PORT_FILENAME=memcached_ports.%lu.%lu",
-             (long)cb_getpid(),
+             "MEMCACHED_PORT_FILENAME=memcached_ports.%u.%lu",
+             (int)getpid(),
              (unsigned long)time(NULL));
     remove(filename);
     portnumber_file.assign(filename);
@@ -650,14 +663,14 @@ void TestappTest::start_external_server() {
     char *filename= mcd_port_filename_env + strlen("MEMCACHED_PORT_FILENAME=");
     snprintf(mcd_parent_monitor_env,
              sizeof(mcd_parent_monitor_env),
-             "MEMCACHED_PARENT_MONITOR=%lu",
-             (unsigned long)cb_getpid());
+             "MEMCACHED_PARENT_MONITOR=%u",
+             (int)getpid());
     putenv(mcd_parent_monitor_env);
 
     snprintf(mcd_port_filename_env,
              sizeof(mcd_port_filename_env),
-             "MEMCACHED_PORT_FILENAME=memcached_ports.%lu.%lu",
-             (long)cb_getpid(),
+             "MEMCACHED_PORT_FILENAME=memcached_ports.%u.%lu",
+             (int)getpid(),
              (unsigned long)time(NULL));
     remove(filename);
     portnumber_file.assign(filename);
@@ -1411,18 +1424,6 @@ int main(int argc, char **argv) {
     if (chdir(testdir.c_str()) != 0) {
         std::cerr << "Failed to change directory to " << testdir << std::endl;
         exit(EXIT_FAILURE);
-    }
-#endif
-
-
-#ifdef __sun
-    {
-        // Use coreadm to set up a corefile pattern to ensure that the corefiles
-        // created from the unit tests (of testapp or memcached) don't
-        // overwrite each other
-        std::string coreadm =
-                "coreadm -p core.%%f.%%p " + std::to_string(cb_getpid());
-        system(coreadm.c_str());
     }
 #endif
 

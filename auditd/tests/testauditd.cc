@@ -126,7 +126,7 @@ class AuditDaemonTest
 public:
     static void SetUpTestCase() {
         // create the test directory
-        testdir = std::string("auditd-test-") + std::to_string(cb_getpid());
+        testdir = cb::io::mktemp("auditd-test-");
         try {
             cb::io::rmrf(testdir);
         } catch (std::system_error& e) {
@@ -137,7 +137,7 @@ public:
         cb::io::mkdirp(testdir);
 
         // create the name of the configuration file to use
-        cfgfile = "test_audit-" + std::to_string(cb_getpid()) + ".json";
+        cfgfile = cb::io::mktemp("test_audit-");
         try {
             cb::io::rmrf(cfgfile);
         } catch (std::system_error& e) {

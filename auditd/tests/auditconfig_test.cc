@@ -32,9 +32,9 @@
 class AuditConfigTest : public ::testing::Test {
 protected:
     static void SetUpTestCase() {
-        testdir = std::string("auditconfig-test-") +
-            std::to_string(cb_getpid());
-        cb::io::mkdirp(testdir);
+        char prefix[] = "auditconfig-test-XXXXXX";
+        testdir = cb::io::mkdtemp(prefix);
+
         // Create the audit_events.json file needed by the configuration
         std::string fname = testdir + std::string("/audit_events.json");
         FILE* fd = fopen(fname.c_str(), "w");

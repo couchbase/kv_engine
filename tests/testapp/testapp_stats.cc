@@ -48,8 +48,8 @@ TEST_P(StatsTest, TestDefaultStats) {
     auto stats = conn.stats("");
 
     // Don't expect the entire stats set, but we should at least have
-    // the pid
-    EXPECT_NE(stats.end(), stats.find("pid"));
+    // the uptime
+    EXPECT_NE(stats.end(), stats.find("uptime"));
 }
 
 TEST_P(StatsTest, TestGetMeta) {
@@ -346,8 +346,8 @@ TEST_P(StatsTest, TestAggregate) {
     MemcachedConnection& conn = getConnection();
     auto stats = conn.stats("aggregate");
     // Don't expect the entire stats set, but we should at least have
-    // the pid
-    EXPECT_NE(stats.end(), stats.find("pid"));
+    // the uptime
+    EXPECT_NE(stats.end(), stats.find("uptime"));
 }
 
 TEST_P(StatsTest, TestConnections) {
