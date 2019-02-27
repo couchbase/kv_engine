@@ -63,6 +63,7 @@ def calc_bin_stats(stats, arena_ID):
         line = stats.readline()
 
     # Extract the raw stats, recording in a list of size classes.
+    output_cropped = False
     classes = list()
     while not line.startswith('large:'):
         if line.strip() == "---":
@@ -94,6 +95,10 @@ def calc_bin_stats(stats, arena_ID):
         line = stats.readline()
         while (line.strip() and
                not line.startswith('--- End jemalloc statistics ---')):
+            if line.startswith('=== Exceeded buffer size - output cropped ==='):
+                output_cropped = True
+                break
+
             if (line.startswith('[') or
                 line.startswith('huge:') or
                 line.strip() == "---"):
@@ -160,6 +165,10 @@ def calc_bin_stats(stats, arena_ID):
     print(FMT.format('total', '', '', '', '', sizeof_fmt(total_allocated), '',
                      '', '', sizeof_fmt(total_frag_memory), ''))
 
+    if output_cropped:
+        print()
+        print("WARNING: Output was cropped due to exceeding buffer size - not "
+              "all sizes classes may be listed.")
 
 if __name__ == '__main__':
     main()
