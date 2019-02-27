@@ -231,11 +231,24 @@ CouchRequest::CouchRequest(const Item& it,
     meta.setFlags(it.getFlags());
     meta.setExptime(it.getExptime());
     meta.setDataType(it.getDataType());
+    if (it.getOperation() == queue_op::pending_sync_write) {
+        meta.setDurabilityOp(it.getOperation());
+        // Note: durabilty timeout /isn't/ persisted as part of a pending
+        // SyncWrite. This is because if we ever read it back from disk
+        // during warmup (i.e. the commit_sync_write was never persisted), we
+        // don't know if the SyncWrite was actually already committed; as such
+        // to ensure consistency the pending SyncWrite *must* eventually commit
+        // (or sit in pending forever).
+        meta.setDurabilityLevel(it.getDurabilityReqs().getLevel());
+    }
 
     dbDocInfo.db_seq = it.getBySeqno();
 
     // Now allocate space to hold the meta and get it ready for storage
-    dbDocInfo.rev_meta.size = MetaData::getMetaDataSize(MetaData::Version::V1);
+    const auto metaVersion = (it.getOperation() == queue_op::pending_sync_write)
+                                     ? MetaData::Version::V3
+                                     : MetaData::Version::V1;
+    dbDocInfo.rev_meta.size = MetaData::getMetaDataSize(metaVersion);
     dbDocInfo.rev_meta.buf = meta.prepareAndGetForPersistence();
 
     dbDocInfo.rev_seq = it.getRevSeqno();

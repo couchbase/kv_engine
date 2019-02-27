@@ -22,6 +22,7 @@
 
 #include "item.h"
 #include <libcouchstore/couch_common.h>
+#include <memcached/3rd_party/folly/lang/Assume.h>
 #include <memcached/protocol_binary.h>
 
 // Bitwise masks for manipulating the flexCode variable inside MetaDataV1
@@ -33,9 +34,15 @@ protected:
     /*
      * Declare the metadata formats in protected visibility.
      *
-     * Each version extends the previous version, thus in memory you have
+     * Each version generally extends the previous version, thus in memory you
+     * have
      * [V0] or
-     * [V0][V1].
+     * [V0][V1]
+     *
+     * V3 is special - given that V2 is no longer used (contained fields which
+     * were subsequently removed); it extends from V1 - i.e.
+     *
+     * [V0][V1][V3]
      */
     class MetaDataV0 {
     public:
@@ -180,8 +187,7 @@ protected:
 
     class MetaDataV2 {
     public:
-        MetaDataV2() : confResMode(0) {
-        }
+        MetaDataV2() = default;
 
         void initialise(const char* raw) {
             confResMode = raw[0];
@@ -193,17 +199,109 @@ protected:
          * This 1 byte extension is never stored out anymore, but may
          * exist from down-level ep-engine.
          */
-        uint8_t confResMode;
+        uint8_t confResMode = 0;
     };
 
     static_assert(sizeof(MetaDataV2) == 1,
                   "MetaDataV2 is not the expected size.");
 
+    /*
+     * V3 is a 2 byte[1] extension storing Synchronous Replication state.
+     *
+     * [1] It /could/ fit all required state into a single byte, however that
+     * would mean it's the same size as V2 (1Byte) and we use metadata size to
+     * distinguish between the different metadata versions. As such 2bytes are
+     * used which logically wastes 1 byte per SyncWrite. If / when we
+     * restructure MetaData to say use variable-length encoding with explicit
+     * versions (a la flex framing extras) the size could be reduced.
+     */
+    class MetaDataV3 {
+    public:
+        // The Operation this represents - maps to queue_op types:
+        enum class Operation : uint8_t {
+            // A pending sync write. Remaining bits in this byte define the
+            // durability_level.
+            // Present in the DurabilityPrepare namespace.
+            Pending = 0,
+            // A committed SyncWrite. Remaining bits are unused.
+            // This exists so we can correctly backfill from disk a Committed
+            // mutation and sent out as a DCP_COMMIT to sync_replication
+            // enabled DCP clients.
+            // Present in the 'normal' (committed) namespace.
+            Commit = 1,
+            // An aborted SyncWrite. Remaining bits are unused.
+            // This exists so we can correctly backfill from disk an Aborted
+            // mutation and sent out as a DCP_ABORT to sync_replication
+            // enabled DCP clients.
+            // Present in the DurabilityPrepare namespace.
+            Abort = 2,
+        };
+
+        MetaDataV3() = default;
+
+        void initialise(const char* raw) {
+            operation = Operation(raw[0]);
+            level = cb::durability::Level(raw[1]);
+        };
+
+        void copyToBuf(char* raw) const {
+            raw[0] = char(operation);
+            raw[1] = char(level);
+        }
+
+        void setDurabilityOp(queue_op op) {
+            switch (op) {
+            case queue_op::pending_sync_write:
+                operation = Operation::Pending;
+                break;
+            default:
+                throw std::invalid_argument(
+                        "MetaDataV3::setDurabilityOp: Unsupported op " +
+                        to_string(op));
+            }
+        }
+
+        queue_op getDurabilityOp() const {
+            switch (operation) {
+            case Operation::Pending:
+                return queue_op::pending_sync_write;
+            default:
+                throw std::invalid_argument(
+                        "MetaDataV3::getDurabiltyOp: Unsupported op " +
+                        std::to_string(int(operation)));
+            }
+        }
+
+        cb::durability::Level getDurabilityLevel() const {
+            return level;
+        }
+
+        void setDurabilityLevel(cb::durability::Level level_) {
+            level = level_;
+        }
+
+    private:
+#pragma pack(1)
+        // Assigning a whole byte to this (see MetaDataV3 class comment)
+        // although only currently need 2 bits.
+        Operation operation;
+
+        // [[if Pending]] cb::durability::Level.
+        // Assigning a whole bytes for this field although only current need 2
+        // bits.
+        cb::durability::Level level;
+#pragma pack()
+    };
+
+    static_assert(sizeof(MetaDataV3) == 2,
+                  "MetaDataV3 is not the expected size.");
+
 public:
     enum class Version {
         V0, // Cas/Exptime/Flags
         V1, // Flex code and datatype
-        V2 // Conflict Resolution Mode - not stored, but can be read
+        V2, // Conflict Resolution Mode - not stored, but can be read
+        V3, // Synchronous Replication state.
         /*
          * !!MetaData Warning!!
          * Sherlock began storing the V2 MetaData.
@@ -222,10 +320,10 @@ public:
      * data has come back from couchstore.
      */
     MetaData(const sized_buf& in) : initVersion(Version::V0) {
-        // Expect metadata to be V0, V1 or V2.
+        // Expect metadata to be V0, V1, V2 or V3
         // V2 part is ignored, but valid to find in storage.
         if (in.size < getMetaDataSize(Version::V0) ||
-            in.size > getMetaDataSize(Version::V2)) {
+            in.size > getMetaDataSize(Version::V3)) {
             throw std::invalid_argument("MetaData::MetaData in.size \"" +
                                         std::to_string(in.size) +
                                         "\" is out of range.");
@@ -242,6 +340,14 @@ public:
         }
 
         // Not initialising V2 from 'in' as V2 is ignored.
+
+        if (in.size >=
+            (sizeof(MetaDataV0) + sizeof(MetaDataV1) + sizeof(MetaDataV3))) {
+            // The size extends enough to include V3 meta, initialise that.
+            allMeta.v3.initialise(in.buf + sizeof(MetaDataV0) +
+                                  sizeof(MetaDataV1));
+            initVersion = Version::V3;
+        }
     }
 
     /*
@@ -249,20 +355,29 @@ public:
      * to a pre-allocated sized_buf ready for passing to couchstore.
      */
     void copyToBuf(sized_buf& out) const {
-        if (out.size != getMetaDataSize(Version::V1)) {
-            throw std::invalid_argument("MetaData::copyToBuf out.size \"" +
-                                        std::to_string(out.size) +
-                                        "\" incorrect size.");
+        if ((out.size != getMetaDataSize(Version::V1) &&
+             (out.size != getMetaDataSize(Version::V3)))) {
+            throw std::invalid_argument(
+                    "MetaData::copyToBuf out.size \"" +
+                    std::to_string(out.size) +
+                    "\" incorrect size (only V1 and V3 supported)");
         }
         // Copy the V0/V1 meta data holders to the output buffer
         allMeta.v0.copyToBuf(out.buf);
         allMeta.v1.copyToBuf(out.buf + sizeof(MetaDataV0));
+
+        // We can write either V1 or V3 at present (V3 contains metadata which
+        // is only applicable to SyncWrites, so we use V1 for non-SyncWrites
+        // and V3 for SyncWrites.
+        if (out.size == getMetaDataSize(Version::V3)) {
+            allMeta.v3.copyToBuf(out.buf + sizeof(MetaDataV0) +
+                                 sizeof(MetaDataV1));
+        }
     }
 
     /*
      * Prepare the metadata for persistence (byte-swap certain fields) and
      * return a pointer to the metadata ready for persistence.
-     * This will change the value obtained by getCas/getExptime only.
      */
     char* prepareAndGetForPersistence() {
         allMeta.v0.prepareForPersistence();
@@ -325,6 +440,22 @@ public:
         return allMeta.v1.getDataType();
     }
 
+    void setDurabilityOp(queue_op op) {
+        allMeta.v3.setDurabilityOp(op);
+    }
+
+    queue_op getDurabilityOp() const {
+        return allMeta.v3.getDurabilityOp();
+    }
+
+    void setDurabilityLevel(cb::durability::Level level) {
+        allMeta.v3.setDurabilityLevel(level);
+    }
+
+    cb::durability::Level getDurabilityLevel() const {
+        return allMeta.v3.getDurabilityLevel();
+    }
+
     Version getVersionInitialisedFrom() const {
         return initVersion;
     }
@@ -337,9 +468,10 @@ public:
             return sizeof(MetaDataV0) + sizeof(MetaDataV1);
         case Version::V2:
             return sizeof(MetaDataV0) + sizeof(MetaDataV1) + sizeof(MetaDataV2);
+        case Version::V3:
+            return sizeof(MetaDataV0) + sizeof(MetaDataV1) + sizeof(MetaDataV3);
         }
-
-        return sizeof(MetaDataV0) + sizeof(MetaDataV1) + sizeof(MetaDataV2);
+        folly::assume_unreachable();
     }
 
 protected:
@@ -348,7 +480,9 @@ protected:
 #pragma pack(1)
         MetaDataV0 v0;
         MetaDataV1 v1;
-        MetaDataV2 v2;
+        // V2 is essentially a dead version, we no longer write it. Therefore
+        // V3 (and upwards) do not include it, and instead just extend V1.
+        MetaDataV3 v3;
 #pragma pack()
     } allMeta;
     Version initVersion;

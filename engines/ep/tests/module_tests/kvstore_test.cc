@@ -1919,6 +1919,7 @@ TEST_F(CouchKVStoreMetaData, basic) {
     EXPECT_EQ(16, MetaData::getMetaDataSize(MetaData::Version::V0));
     EXPECT_EQ(16 + 2, MetaData::getMetaDataSize(MetaData::Version::V1));
     EXPECT_EQ(16 + 2 + 1, MetaData::getMetaDataSize(MetaData::Version::V2));
+    EXPECT_EQ(16 + 2 + 2, MetaData::getMetaDataSize(MetaData::Version::V3));
 }
 
 TEST_F(CouchKVStoreMetaData, overlay) {
@@ -1942,13 +1943,20 @@ TEST_F(CouchKVStoreMetaData, overlay) {
     metadata = MetaDataFactory::createMetaData(meta);
     EXPECT_EQ(MetaData::Version::V1, metadata->getVersionInitialisedFrom());
 
+    // Increase to size of V3; should create V3.
+    data.resize(16 + 2 + 2);
+    meta.buf = data.data();
+    meta.size = data.size();
+    metadata = MetaDataFactory::createMetaData(meta);
+    EXPECT_EQ(MetaData::Version::V3, metadata->getVersionInitialisedFrom());
+
     // Buffers too large and small
-    data.resize(16 + 2 + 1 + 1);
+    data.resize(MetaData::getMetaDataSize(MetaData::Version::V3) + 1);
     meta.buf = data.data();
     meta.size = data.size();
     EXPECT_THROW(MetaDataFactory::createMetaData(meta), std::logic_error);
 
-    data.resize(15);
+    data.resize(MetaData::getMetaDataSize(MetaData::Version::V0) - 1);
     meta.buf = data.data();
     meta.size = data.size();
     EXPECT_THROW(MetaDataFactory::createMetaData(meta), std::logic_error);
@@ -1992,6 +2000,25 @@ TEST_F(CouchKVStoreMetaData, overlayExpands2) {
     delete [] out.buf;
 }
 
+TEST_F(CouchKVStoreMetaData, overlayExpands3) {
+    std::vector<char> data(16 + 2 + 2);
+    sized_buf meta;
+    sized_buf out;
+    meta.buf = data.data();
+    meta.size = data.size();
+
+    // V1 in V1 "moved out"
+    auto metadata = MetaDataFactory::createMetaData(meta);
+    EXPECT_EQ(MetaData::Version::V3, metadata->getVersionInitialisedFrom());
+    out.size = MetaData::getMetaDataSize(MetaData::Version::V3);
+    out.buf = new char[out.size];
+    metadata->copyToBuf(out);
+    EXPECT_EQ(out.size, MetaData::getMetaDataSize(MetaData::Version::V3));
+
+    // We created a copy of the metadata so we must cleanup
+    delete[] out.buf;
+}
+
 TEST_F(CouchKVStoreMetaData, writeToOverlay) {
     std::vector<char> data(16);
     sized_buf meta;
@@ -2013,6 +2040,9 @@ TEST_F(CouchKVStoreMetaData, writeToOverlay) {
     metadata->setFlags(flags);
     metadata->setDeleteSource(deleteSource);
     metadata->setDataType(PROTOCOL_BINARY_DATATYPE_JSON);
+    constexpr auto level = cb::durability::Level::Majority;
+    metadata->setDurabilityLevel(level);
+    metadata->setDurabilityOp(queue_op::pending_sync_write);
 
     // Check they all read back
     EXPECT_EQ(cas, metadata->getCas());
@@ -2021,6 +2051,8 @@ TEST_F(CouchKVStoreMetaData, writeToOverlay) {
     EXPECT_EQ(FLEX_META_CODE, metadata->getFlexCode());
     EXPECT_EQ(deleteSource, metadata->getDeleteSource());
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, metadata->getDataType());
+    EXPECT_EQ(level, metadata->getDurabilityLevel());
+    EXPECT_EQ(queue_op::pending_sync_write, metadata->getDurabilityOp());
 
     // Now we move the metadata out, this will give back a V1 structure
     out.size = MetaData::getMetaDataSize(MetaData::Version::V1);
@@ -2038,6 +2070,16 @@ TEST_F(CouchKVStoreMetaData, writeToOverlay) {
     EXPECT_EQ(deleteSource, metadata->getDeleteSource());
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, metadata->getDataType());
     EXPECT_EQ(out.size, MetaData::getMetaDataSize(MetaData::Version::V1));
+
+    // Now expand to V3; check fields are read / written correctly.
+
+    delete[] out.buf;
+    out.size = MetaData::getMetaDataSize(MetaData::Version::V3);
+    out.buf = new char[out.size];
+    metadata->copyToBuf(out);
+    metadata = MetaDataFactory::createMetaData(out);
+    EXPECT_EQ(MetaData::Version::V3,
+              metadata->getVersionInitialisedFrom()); // Is it V1?
 
     // We moved the metadata so we must cleanup
     delete [] out.buf;
