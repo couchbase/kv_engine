@@ -131,9 +131,14 @@ public:
         : cookie(cookie),
           item(item),
           majority(chain.getSize() / 2 + 1),
-          expiryTime(std::chrono::steady_clock::now() +
-                     std::chrono::milliseconds(
-                             item->getDurabilityReqs().getTimeout())),
+          expiryTime(
+                  item->getDurabilityReqs().getTimeout()
+                          ? std::chrono::steady_clock::now() +
+                                    std::chrono::milliseconds(
+                                            item->getDurabilityReqs()
+                                                    .getTimeout())
+                          : boost::optional<
+                                    std::chrono::steady_clock::time_point>{}),
           active(chain.active) {
         for (const auto& entry : chain.positions) {
             acks[entry.first] = Ack();
@@ -211,6 +216,9 @@ public:
      * @return true if this SW's expiry-time < asOf, false otherwise
      */
     bool isExpired(std::chrono::steady_clock::time_point asOf) const {
+        if (!expiryTime) {
+            return false;
+        }
         return expiryTime < asOf;
     }
 
@@ -246,7 +254,7 @@ private:
 
     // Used for enforcing the Durability Requirements Timeout. It is set when
     // this SyncWrite is added for tracking into the DurabilityMonitor.
-    const std::chrono::steady_clock::time_point expiryTime;
+    const boost::optional<std::chrono::steady_clock::time_point> expiryTime;
 
     // Name of the active node in replication-chain. Used at Durability
     // Requirements verification.

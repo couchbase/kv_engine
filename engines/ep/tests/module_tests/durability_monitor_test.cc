@@ -370,6 +370,23 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {
     EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(replica1).memory);
 }
 
+TEST_F(DurabilityMonitorTest, NeverExpireIfTimeoutNotSet) {
+    ASSERT_NO_THROW(monitor->setReplicationTopology(
+            nlohmann::json::array({{active, replica}})));
+    ASSERT_EQ(2, monitor->public_getReplicationChainSize());
+
+    // Note: Timeout=0 (i.e., no timeout) in default Durability Requirements
+    ASSERT_EQ(1, addSyncWrites({1} /*seqno*/));
+    EXPECT_EQ(1, monitor->public_getNumTracked());
+
+    // Never expire, neither after 1 year !
+    const auto year = std::chrono::hours(24 * 365);
+    monitor->processTimeout(std::chrono::steady_clock::now() + year);
+
+    // Not expired, still tracked
+    EXPECT_EQ(1, monitor->public_getNumTracked());
+}
+
 TEST_F(DurabilityMonitorTest, ProcessTimeout) {
     ASSERT_NO_THROW(monitor->setReplicationTopology(
             nlohmann::json::array({{active, replica}})));
