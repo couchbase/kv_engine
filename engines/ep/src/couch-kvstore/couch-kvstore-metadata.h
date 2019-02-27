@@ -20,9 +20,9 @@
 #include <memory>
 #include <type_traits>
 
+#include "item.h"
 #include <libcouchstore/couch_common.h>
 #include <memcached/protocol_binary.h>
-#include "item.h"
 
 // Bitwise masks for manipulating the flexCode variable inside MetaDataV1
 const uint8_t flexCodeMask = 0x7F;
@@ -39,10 +39,8 @@ protected:
      */
     class MetaDataV0 {
     public:
-        MetaDataV0()
-            : cas(0),
-              exptime(0),
-              flags(0) {}
+        MetaDataV0() : cas(0), exptime(0), flags(0) {
+        }
 
         void initialise(const char* raw) {
             std::memcpy(this, raw, sizeof(MetaDataV0));
@@ -60,7 +58,7 @@ protected:
         }
 
         uint64_t getCas() const {
-           return cas;
+            return cas;
         }
 
         void setCas(uint64_t cas) {
@@ -88,13 +86,13 @@ protected:
             uint64_t casNBO = htonll(cas);
             uint32_t exptimeNBO = htonl(exptime);
             std::memcpy(raw, &casNBO, sizeof(uint64_t));
-            std::memcpy(raw + sizeof(uint64_t),
-                        &exptimeNBO, sizeof(uint32_t));
+            std::memcpy(raw + sizeof(uint64_t), &exptimeNBO, sizeof(uint32_t));
             std::memcpy(raw + sizeof(uint64_t) + sizeof(uint32_t),
-                        &flags, sizeof(uint32_t));
+                        &flags,
+                        sizeof(uint32_t));
         }
 
-     private:
+    private:
         /*
          * V0 knows about CAS, expiry time and flags.
          */
@@ -111,23 +109,23 @@ protected:
 #pragma pack()
     };
 
-static_assert(sizeof(MetaDataV0) == 16,
-              "MetaDataV0 is not the expected size.");
+    static_assert(sizeof(MetaDataV0) == 16,
+                  "MetaDataV0 is not the expected size.");
 
     class MetaDataV1 {
     public:
-        MetaDataV1()
-            : flexCode(0),
-              dataType(PROTOCOL_BINARY_RAW_BYTES) {}
+        MetaDataV1() : flexCode(0), dataType(PROTOCOL_BINARY_RAW_BYTES) {
+        }
 
         void initialise(const char* raw) {
             flexCode = raw[0];
             dataType = raw[1];
 
             if (getFlexCode() != FLEX_META_CODE) {
-                std::invalid_argument("MetaDataV1::initialise illegal "
-                                      "flexCode \"" + std::to_string(flexCode) +
-                                      "\"");
+                std::invalid_argument(
+                        "MetaDataV1::initialise illegal "
+                        "flexCode \"" +
+                        std::to_string(flexCode) + "\"");
             }
         }
 
@@ -177,14 +175,13 @@ static_assert(sizeof(MetaDataV0) == 16,
         uint8_t dataType;
     };
 
-static_assert(sizeof(MetaDataV1) == 2,
-              "MetaDataV1 is not the expected size.");
+    static_assert(sizeof(MetaDataV1) == 2,
+                  "MetaDataV1 is not the expected size.");
 
     class MetaDataV2 {
     public:
-        MetaDataV2()
-            : confResMode(0)
-              {}
+        MetaDataV2() : confResMode(0) {
+        }
 
         void initialise(const char* raw) {
             confResMode = raw[0];
@@ -199,15 +196,14 @@ static_assert(sizeof(MetaDataV1) == 2,
         uint8_t confResMode;
     };
 
-static_assert(sizeof(MetaDataV2) == 1,
-              "MetaDataV2 is not the expected size.");
+    static_assert(sizeof(MetaDataV2) == 1,
+                  "MetaDataV2 is not the expected size.");
 
 public:
-
     enum class Version {
         V0, // Cas/Exptime/Flags
         V1, // Flex code and datatype
-        V2  // Conflict Resolution Mode - not stored, but can be read
+        V2 // Conflict Resolution Mode - not stored, but can be read
         /*
          * !!MetaData Warning!!
          * Sherlock began storing the V2 MetaData.
@@ -218,19 +214,18 @@ public:
          */
     };
 
-    MetaData () {}
+    MetaData() {
+    }
 
     /*
      * Construct metadata from a sized_buf, the assumption is that the
      * data has come back from couchstore.
      */
-    MetaData(const sized_buf& in)
-        : initVersion(Version::V0) {
-
+    MetaData(const sized_buf& in) : initVersion(Version::V0) {
         // Expect metadata to be V0, V1 or V2.
         // V2 part is ignored, but valid to find in storage.
-        if (in.size < getMetaDataSize(Version::V0)
-            || in.size > getMetaDataSize(Version::V2)) {
+        if (in.size < getMetaDataSize(Version::V0) ||
+            in.size > getMetaDataSize(Version::V2)) {
             throw std::invalid_argument("MetaData::MetaData in.size \"" +
                                         std::to_string(in.size) +
                                         "\" is out of range.");
@@ -240,8 +235,7 @@ public:
         allMeta.v0.initialise(in.buf);
 
         // The rest depends on in.size
-        if (in.size >=
-            (sizeof(MetaDataV0) + sizeof(MetaDataV1))) {
+        if (in.size >= (sizeof(MetaDataV0) + sizeof(MetaDataV1))) {
             // The size extends enough to include V1 meta, initialise that.
             allMeta.v1.initialise(in.buf + sizeof(MetaDataV0));
             initVersion = Version::V1;
@@ -280,7 +274,7 @@ public:
     }
 
     uint64_t getCas() const {
-       return allMeta.v0.getCas();
+        return allMeta.v0.getCas();
     }
 
     void setExptime(uint32_t exptime) {
@@ -337,15 +331,12 @@ public:
 
     static size_t getMetaDataSize(Version version) {
         switch (version) {
-            case Version::V0:
-                return sizeof(MetaDataV0);
-            case Version::V1:
-                return sizeof(MetaDataV0) +
-                       sizeof(MetaDataV1);
-            case Version::V2:
-                return sizeof(MetaDataV0) +
-                       sizeof(MetaDataV1) +
-                       sizeof(MetaDataV2);
+        case Version::V0:
+            return sizeof(MetaDataV0);
+        case Version::V1:
+            return sizeof(MetaDataV0) + sizeof(MetaDataV1);
+        case Version::V2:
+            return sizeof(MetaDataV0) + sizeof(MetaDataV1) + sizeof(MetaDataV2);
         }
 
         return sizeof(MetaDataV0) + sizeof(MetaDataV1) + sizeof(MetaDataV2);
