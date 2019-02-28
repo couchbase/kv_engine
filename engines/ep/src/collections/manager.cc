@@ -118,6 +118,15 @@ std::pair<cb::mcbp::Status, std::string> Collections::Manager::getManifest()
     }
 }
 
+bool Collections::Manager::validateGetCollectionIDPath(
+        const std::string& path) {
+    return std::count(path.begin(), path.end(), '.') == 1;
+}
+
+bool Collections::Manager::validateGetScopeIDPath(const std::string& path) {
+    return std::count(path.begin(), path.end(), '.') <= 1;
+}
+
 cb::EngineErrorGetCollectionIDResult Collections::Manager::getCollectionID(
         cb::const_char_buffer path) const {
     std::unique_lock<std::mutex> ul(lock);
@@ -125,16 +134,23 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::getCollectionID(
         return {cb::engine_errc::no_collections_manifest, 0, 0};
     }
 
-    auto collection = current->getCollectionID(cb::to_string(path));
-    if (!collection) {
-        cb::EngineErrorGetCollectionIDResult result{
-                cb::engine_errc::unknown_collection, current->getUid(), 0};
-        return result;
+    auto sPath = cb::to_string(path);
+
+    if (!validateGetCollectionIDPath(sPath)) {
+        return {cb::engine_errc::invalid_arguments, current->getUid(), 0};
     }
 
-    cb::EngineErrorGetCollectionIDResult result{
-            cb::engine_errc::success, current->getUid(), collection.get()};
-    return result;
+    auto scope = current->getScopeID(sPath);
+    if (!scope) {
+        return {cb::engine_errc::unknown_scope, current->getUid(), 0};
+    }
+
+    auto collection = current->getCollectionID(scope.get(), sPath);
+    if (!collection) {
+        return {cb::engine_errc::unknown_collection, current->getUid(), 0};
+    }
+
+    return {cb::engine_errc::success, current->getUid(), collection.get()};
 }
 
 cb::EngineErrorGetScopeIDResult Collections::Manager::getScopeID(
@@ -144,16 +160,17 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::getScopeID(
         return {cb::engine_errc::no_collections_manifest, 0, 0};
     }
 
-    auto scope = current->getScopeID(cb::to_string(path));
-    if (!scope) {
-        cb::EngineErrorGetScopeIDResult result{
-                cb::engine_errc::unknown_scope, current->getUid(), 0};
-        return result;
+    auto sPath = cb::to_string(path);
+    if (!validateGetScopeIDPath(sPath)) {
+        return {cb::engine_errc::invalid_arguments, current->getUid(), 0};
     }
 
-    cb::EngineErrorGetScopeIDResult result{
-            cb::engine_errc::success, current->getUid(), scope.get()};
-    return result;
+    auto scope = current->getScopeID(cb::to_string(sPath));
+    if (!scope) {
+        return {cb::engine_errc::unknown_scope, current->getUid(), 0};
+    }
+
+    return {cb::engine_errc::success, current->getUid(), scope.get()};
 }
 
 void Collections::Manager::update(VBucket& vb) const {

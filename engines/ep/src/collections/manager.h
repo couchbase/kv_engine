@@ -136,6 +136,28 @@ private:
     boost::optional<Vbid> updateAllVBuckets(KVBucket& bucket,
                                             const Manifest& newManifest);
 
+    /**
+     * validate the path is correctly formed for get_collection_id.
+     *
+     * A correctly formed path has exactly 1 separator.
+     *
+     * path components are not validated here as the path is not broken into
+     * scope/collection components.
+     * @returns true if path is correctly formed, false is not
+     */
+    static bool validateGetCollectionIDPath(const std::string& path);
+
+    /**
+     * validate the path is correctly formed for get_scope_id.
+     *
+     * A correctly formed path has 0 or 1 separator.
+     *
+     * path components are not validated here as the path is not broken into
+     * scope/collection components
+     * @returns true if path is correctly formed, false is not
+     */
+    static bool validateGetScopeIDPath(const std::string& path);
+
     friend std::ostream& operator<<(std::ostream& os, const Manager& manager);
 
     mutable std::mutex lock;

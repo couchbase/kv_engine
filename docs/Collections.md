@@ -292,6 +292,11 @@ scope.
 
 Get collection ID was invoked before "0xb9 - Set Collections Manifest"
 
+#### Unknown Scope
+
+If the path is correctly formed and consists of valid collection and scope names
+but the scope couldn't be found, this error is returned.
+
 #### Unknown Collection
 
 If the path is correctly formed and consists of valid collection and scope names
@@ -334,9 +339,12 @@ manifest attempts to return the scope's unique ID.
 
 Example keys:
 
-* `_default` and `.` are equivalent, both will lookup the unique ID of the
+* `_default` and `` are equivalent, both will lookup the unique ID of the
 `_default` scope.
 * `App1` will lookup the unique ID of the `App1` scope.
+
+Note: Get Scope ID can accept a complete path `scope.collection` it ignores the
+the `.collection` part and only examines the scope.
 
 ### Errors
 

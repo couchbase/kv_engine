@@ -369,17 +369,31 @@ TEST_P(CollectionsParameterizedTest, get_collection_id) {
     EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
     rv = store->getCollectionID("..");
     EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
+    rv = store->getCollectionID("a.b.c");
+    EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
     rv = store->getCollectionID("dairy");
+    EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
+    // valid path, just illegal scope
+    rv = store->getCollectionID("#illegal*.meat");
+    EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
+    // valid path, just illegal collection
+    rv = store->getCollectionID("_default.#illegal*");
     EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
 
     // Unknowns
-    rv = store->getCollectionID("shop1.dairy");
-    EXPECT_EQ(cb::engine_errc::unknown_collection, rv.result);
+    rv = store->getCollectionID("shoppe.dairy");
+    EXPECT_EQ(cb::engine_errc::unknown_scope, rv.result);
     rv = store->getCollectionID(".unknown");
     EXPECT_EQ(cb::engine_errc::unknown_collection, rv.result);
 
     // Success cases next
     rv = store->getCollectionID(".");
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(5, ntohll(rv.extras.data.manifestId));
+    EXPECT_EQ(CollectionEntry::defaultC.getId(),
+              rv.extras.data.collectionId.to_host());
+
+    rv = store->getCollectionID("_default.");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(5, ntohll(rv.extras.data.manifestId));
     EXPECT_EQ(CollectionEntry::defaultC.getId(),
@@ -402,6 +416,15 @@ TEST_P(CollectionsParameterizedTest, get_collection_id) {
     EXPECT_EQ(5, ntohll(rv.extras.data.manifestId));
     EXPECT_EQ(CollectionEntry::meat.getId(),
               rv.extras.data.collectionId.to_host());
+
+    // Now we should fail getting _default
+    cm.remove(CollectionEntry::defaultC);
+    json = cm;
+    store->setCollections(json);
+    rv = store->getCollectionID(".");
+    EXPECT_EQ(cb::engine_errc::unknown_collection, rv.result);
+    rv = store->getCollectionID("._default");
+    EXPECT_EQ(cb::engine_errc::unknown_collection, rv.result);
 }
 
 TEST_P(CollectionsParameterizedTest, get_scope_id) {
@@ -415,18 +438,34 @@ TEST_P(CollectionsParameterizedTest, get_scope_id) {
     std::string json = cm;
     store->setCollections(json);
 
-    // Check bad 'paths', require 1 dot
+    // Check bad 'paths', require 0 or 1 dot
     rv = store->getScopeID("..");
     EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
-    rv = store->getScopeID(""); // empty no good
+    // Check bad 'paths', require 0 or 1 dot
+    rv = store->getScopeID("a.b.c");
     EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
 
-    // Unknowns
-    rv = store->getScopeID("shop711");
+    // Illegal scope names
+    rv = store->getScopeID(" .");
+    EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
+    rv = store->getScopeID("#illegal*.");
+    EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
+    rv = store->getScopeID("#illegal*.ignored");
+    EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
+
+    // Valid path, unknown scopes
+    rv = store->getScopeID("megamart");
+    EXPECT_EQ(cb::engine_errc::unknown_scope, rv.result);
+    rv = store->getScopeID("megamart.collection");
     EXPECT_EQ(cb::engine_errc::unknown_scope, rv.result);
 
     // Success cases next
-    rv = store->getScopeID("."); // 1 dot
+    rv = store->getScopeID(""); // no dot = _default
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(6, ntohll(rv.extras.data.manifestId));
+    EXPECT_EQ(ScopeEntry::defaultS.getId(), rv.extras.data.scopeId.to_host());
+
+    rv = store->getScopeID("."); // 1 dot = _default
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(6, ntohll(rv.extras.data.manifestId));
     EXPECT_EQ(ScopeEntry::defaultS.getId(), rv.extras.data.scopeId.to_host());

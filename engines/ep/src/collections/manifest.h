@@ -156,24 +156,35 @@ public:
     }
 
     /**
-     * Attempt to lookup the collection-id of the path
+     * Attempt to lookup the collection-id of the "path" note that this method
+     * skips/ignores the scope part of the path and requires the caller to
+     * specify the scope for the actual ID lookup. getScopeID(path) exists for
+     * this purpose.
      *
-     * path is in the form "scope.collection"
-     * _default scope/collection can be specified explicitly or by omission
-     * e.g. .beer == _default.beer
-     *      .     == _default._default
+     * A path defined as "scope.collection"
+     *
+     * _default collection can be specified by name or by omission
+     * e.g. "." == "_default._default"
+     *      "c1." == "c1._default" (which would fail to find an ID)
+     *
+     * @param scope The scopeID of the scope part of the path
+     * @param path The full path, the scope part is not used
      * @return optional CollectionID, undefined if nothing found
      * @throws cb::engine_error(invalid_argument) for invalid input
      */
     boost::optional<CollectionID> getCollectionID(
-            const std::string& path) const;
+            ScopeID scope, const std::string& path) const;
 
     /**
-     * Attempt to lookup the scope-id of the path
+     * Attempt to lookup the scope-id of the "path", note that this method
+     * ignores the collection part of the path.
      *
-     * path is in the form "scope"
-     * _default scope can be specified explicitly or by omission
-     * e.g. . == _default
+     * A path defined as either "scope.collection" or "scope"
+     *
+     * _default scope can be specified by name or by omission
+     * e.g. ".beer" == _default scope
+     *      ".      == _default scope
+     *      ""      == _default scope
      *
      * @return optional ScopeID, undefined if nothing found
      * @throws cb::engine_error(invalid_argument) for invalid input
@@ -216,12 +227,6 @@ private:
      * Check if the CollectionID is invalid for a Manifest
      */
     static bool invalidCollectionID(CollectionID identifier);
-
-    /**
-     * validate the path for get_collection_id
-     * @throws cb::engine_error::invalid_argument
-     */
-    static void validatePath(const std::string& path);
 
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 

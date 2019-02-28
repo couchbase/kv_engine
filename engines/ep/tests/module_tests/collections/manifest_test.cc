@@ -691,6 +691,64 @@ TEST(ManifestTest, findCollectionByName) {
     EXPECT_EQ(cm.findCollection("fruit", "a_scope_name"), cm.end());
 }
 
+TEST(ManifestTest, getScopeID) {
+    std::string manifest = R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                                "collections":[
+                                    {"name":"_default", "uid":"0"},
+                                    {"name":"meat", "uid":"8"}]},
+                          {"name":"brewerA", "uid":"8",
+                                "collections":[
+                                    {"name":"beer", "uid":"9"},
+                                    {"name":"meat", "uid":"a"}]}]})";
+    Collections::Manifest cm(manifest);
+
+    // getScopeID is called from the context of a get_collection_id or
+    // a get_scope_id command, thus the path it accepts can either be
+    //    * "scope.collection"
+    //    * "scope"
+    // the function ignores anything after a .
+    // The Manifest::getScopeID expects a valid path, it peforms no validation
+    EXPECT_EQ(ScopeID::Default, cm.getScopeID("").get());
+    EXPECT_EQ(ScopeID::Default, cm.getScopeID(".").get());
+    EXPECT_EQ(ScopeID::Default, cm.getScopeID("_default").get());
+    EXPECT_EQ(ScopeID::Default, cm.getScopeID(".ignorethis").get());
+    EXPECT_EQ(ScopeID::Default, cm.getScopeID("_default.ignorethis").get());
+    EXPECT_EQ(8, cm.getScopeID("brewerA").get());
+    EXPECT_EQ(8, cm.getScopeID("brewerA.ignorethis").get());
+
+    // valid input to unknown scopes
+    EXPECT_FALSE(cm.getScopeID("unknown.ignored"));
+    EXPECT_FALSE(cm.getScopeID("unknown"));
+
+    // validation of the path is not done by getScopeID, the following just
+    // results in an invalid lookup of 'junk' but no throwing because of the
+    // "this.that.what"
+    EXPECT_FALSE(cm.getScopeID("junk.this.that.what"));
+
+    // However if the scope name is junk we throw for that
+    try {
+        cm.getScopeID("j*nk.this.that.what");
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(cb::engine_errc::invalid_arguments,
+                  cb::engine_errc(e.code().value()));
+    }
+
+    // valid path but invalid names
+    try {
+        cm.getScopeID("invalid***");
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(cb::engine_errc::invalid_arguments,
+                  cb::engine_errc(e.code().value()));
+    }
+    try {
+        cm.getScopeID("invalid***.ignored");
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(cb::engine_errc::invalid_arguments,
+                  cb::engine_errc(e.code().value()));
+    }
+}
+
 TEST(ManifestTest, getCollectionID) {
     std::string manifest = R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",
@@ -703,52 +761,57 @@ TEST(ManifestTest, getCollectionID) {
                                     {"name":"meat", "uid":"a"}]}]})";
     Collections::Manifest cm(manifest);
 
-    EXPECT_EQ(CollectionID::Default, cm.getCollectionID(".").get());
-    EXPECT_EQ(CollectionID::Default, cm.getCollectionID("_default.").get());
-    EXPECT_EQ(8, cm.getCollectionID(".meat").get());
-    EXPECT_EQ(8, cm.getCollectionID("_default.meat").get());
-    EXPECT_EQ(9, cm.getCollectionID("brewerA.beer").get());
-    EXPECT_EQ(0xa, cm.getCollectionID("brewerA.meat").get());
+    // Note: usage of getCollectionID assumes getScopeID was called first
+    // Note: getCollectionID does not perform validation of the path
+    EXPECT_EQ(CollectionID::Default,
+              cm.getCollectionID(ScopeID::Default, ".").get());
+    EXPECT_EQ(CollectionID::Default,
+              cm.getCollectionID(ScopeID::Default, "_default.").get());
+    EXPECT_EQ(8, cm.getCollectionID(ScopeID::Default, ".meat").get());
+    EXPECT_EQ(8, cm.getCollectionID(ScopeID::Default, "_default.meat").get());
+    EXPECT_EQ(9, cm.getCollectionID(ScopeID(8), "brewerA.beer").get());
+    EXPECT_EQ(0xa, cm.getCollectionID(ScopeID(8), "brewerA.meat").get());
 
+    // getCollectionID doesn't care about the scope part, correct usage
+    // is always to call getScopeID(path) first which is where scope name errors
+    // are caught
+    EXPECT_EQ(0xa, cm.getCollectionID(ScopeID(8), "ignored.meat").get());
+
+    // validation of the path formation is not done by getCollectionID the
+    // following does end up throwing though because it assumes the collection
+    // to lookup is this.that.what, and . is an illegal character
     try {
-        cm.getCollectionID("bogus");
-    } catch (const cb::engine_error& e) {
-        EXPECT_EQ(cb::engine_errc::invalid_arguments,
-                  cb::engine_errc(e.code().value()));
-    }
-    try {
-        cm.getCollectionID("");
-    } catch (const cb::engine_error& e) {
-        EXPECT_EQ(cb::engine_errc::invalid_arguments,
-                  cb::engine_errc(e.code().value()));
-    }
-    try {
-        cm.getCollectionID("..");
-    } catch (const cb::engine_error& e) {
-        EXPECT_EQ(cb::engine_errc::invalid_arguments,
-                  cb::engine_errc(e.code().value()));
-    }
-    try {
-        cm.getCollectionID("a.b.c");
+        cm.getScopeID("junk.this.that.what");
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::invalid_arguments,
                   cb::engine_errc(e.code().value()));
     }
 
+    // valid path but invalid collection component
     try {
-        // Illegal names
-        cm.getCollectionID("invalid***.collection&");
+        cm.getCollectionID(ScopeID::Default, "_default.collection&");
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::invalid_arguments,
                   cb::engine_errc(e.code().value()));
     }
+
+    // unknown scope as first param
+    try {
+        cm.getCollectionID(ScopeID{22}, "_default.meat");
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(cb::engine_errc::unknown_scope,
+                  cb::engine_errc(e.code().value()));
+    }
+
+    // illegal scope name isn't checked here, getScopeID is always called first
+    EXPECT_EQ(0xa, cm.getCollectionID(ScopeID(8), "*#illegal.meat").get());
 
     // Unknown names
-    EXPECT_FALSE(cm.getCollectionID("unknown.collection"));
+    EXPECT_FALSE(cm.getCollectionID(ScopeID::Default, "unknown.collection"));
 
     // Unknown scope
-    EXPECT_FALSE(cm.getCollectionID("unknown.beer"));
+    EXPECT_FALSE(cm.getCollectionID(ScopeID::Default, "unknown.beer"));
 
     // Unknown collection
-    EXPECT_FALSE(cm.getCollectionID("brewerA.ale"));
+    EXPECT_FALSE(cm.getCollectionID(ScopeID::Default, "brewerA.ale"));
 }

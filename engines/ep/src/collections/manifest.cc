@@ -377,47 +377,33 @@ void Manifest::addScopeStats(const void* cookie,
     }
 }
 
-void Manifest::validatePath(const std::string& path) {
-    if (path.empty()) {
-        throw cb::engine_error(cb::engine_errc::invalid_arguments,
-                               "Manifest::validatePath: path is empty");
-    }
-    if (std::count(path.begin(), path.end(), '.') != 1) {
-        throw cb::engine_error(
-                cb::engine_errc::invalid_arguments,
-                "Manifest::validatePath: path must have 1 separator path:" +
-                        path);
-    }
-}
-
 boost::optional<CollectionID> Manifest::getCollectionID(
-        const std::string& path) const {
-    validatePath(path); // throws on engine_error
+        ScopeID scope, const std::string& path) const {
     int pos = path.find_first_of('.');
-    std::string scope = path.substr(0, pos);
     std::string collection = path.substr(pos + 1);
-    if (scope.empty()) {
-        scope = cb::to_string(DefaultScopeIdentifier);
-    }
+
+    // Empty collection part of the path means default collection.
     if (collection.empty()) {
         collection = cb::to_string(DefaultCollectionIdentifier);
     }
 
-    if (!(validName(scope) && validName(collection))) {
-        throw cb::engine_error(cb::engine_errc::invalid_arguments,
-                               "Manifest::getCollectionID invalid scope:" +
-                                       scope + " or collection:" + collection);
+    if (!validName(collection)) {
+        throw cb::engine_error(
+                cb::engine_errc::invalid_arguments,
+                "Manifest::getCollectionID invalid collection:" + collection);
     }
 
-    for (const auto& s : scopes) {
-        if (s.second.name == scope) {
-            for (const auto& c : s.second.collections) {
-                auto cItr = collections.find(c.id);
-                if (cItr != collections.end()) {
-                    if (cItr->second == collection) {
-                        return c.id;
-                    }
-                }
+    auto scopeItr = scopes.find(scope);
+    if (scopeItr == scopes.end()) {
+        throw cb::engine_error(
+                cb::engine_errc::unknown_scope,
+                "Manifest::getCollectionID unknown scope:" + scope.to_string());
+    }
+    for (const auto& c : scopeItr->second.collections) {
+        auto cItr = collections.find(c.id);
+        if (cItr != collections.end()) {
+            if (cItr->second == collection) {
+                return c.id;
             }
         }
     }
@@ -426,20 +412,10 @@ boost::optional<CollectionID> Manifest::getCollectionID(
 }
 
 boost::optional<ScopeID> Manifest::getScopeID(const std::string& path) const {
-    // 0 or 1 . allowed
-    if (std::count(path.begin(), path.end(), '.') > 1) {
-        throw cb::engine_error(
-                cb::engine_errc::invalid_arguments,
-                "Manifest::getScopeID: path must have 1 separator path:" +
-                        path);
-    }
-    if (path.empty()) {
-        throw cb::engine_error(cb::engine_errc::invalid_arguments,
-                               "Manifest::getScopeID: path is empty");
-    }
-
     int pos = path.find_first_of('.');
     std::string scope = path.substr(0, pos);
+
+    // Empty scope part of the path means default scope.
     if (scope.empty()) {
         scope = cb::to_string(DefaultScopeIdentifier);
     }
