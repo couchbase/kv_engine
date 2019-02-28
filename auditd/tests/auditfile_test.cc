@@ -38,8 +38,7 @@ protected:
     nlohmann::json event;
 
     virtual void SetUp() {
-        char prefix[] = "auditfile-test-XXXXXX";
-        testdir = cb::io::mkdtemp(prefix);
+        testdir = cb::io::mkdtemp("auditfile-test-");
         config.set_log_directory(testdir);
         event = create_audit_event();
     }
