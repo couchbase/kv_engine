@@ -100,7 +100,7 @@ DcpConsumer* DcpConnMap::newConsumer(const void* cookie,
         }
     }
 
-    auto consumer = makeConsumer(engine, cookie, conn_name);
+    auto consumer = makeConsumer(engine, cookie, conn_name, consumerName);
     EP_LOG_DEBUG("{} Connection created", consumer->logHeader());
     auto* rawPtr = consumer.get();
     map_[cookie] = std::move(consumer);
@@ -110,8 +110,10 @@ DcpConsumer* DcpConnMap::newConsumer(const void* cookie,
 std::shared_ptr<DcpConsumer> DcpConnMap::makeConsumer(
         EventuallyPersistentEngine& engine,
         const void* cookie,
-        const std::string& connName) const {
-    return std::make_shared<DcpConsumer>(engine, cookie, connName);
+        const std::string& connName,
+        const std::string& consumerName) const {
+    return std::make_shared<DcpConsumer>(
+            engine, cookie, connName, consumerName);
 }
 
 bool DcpConnMap::isPassiveStreamConnected_UNLOCKED(Vbid vbucket) {

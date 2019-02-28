@@ -21,6 +21,8 @@
 std::shared_ptr<DcpConsumer> MockDcpConnMap::makeConsumer(
         EventuallyPersistentEngine& engine,
         const void* cookie,
-        const std::string& connName) const {
-    return std::make_shared<MockDcpConsumer>(engine, cookie, connName);
+        const std::string& connName,
+        const std::string& consumerName) const {
+    return std::make_shared<MockDcpConsumer>(
+            engine, cookie, connName, consumerName);
 }

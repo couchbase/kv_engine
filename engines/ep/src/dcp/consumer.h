@@ -61,7 +61,7 @@ public:
     DcpConsumer(EventuallyPersistentEngine& e,
                 const void* cookie,
                 const std::string& name,
-                const std::string& consumerName = {});
+                const std::string& consumerName);
 
     virtual ~DcpConsumer();
 

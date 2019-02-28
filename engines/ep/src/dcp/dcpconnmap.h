@@ -189,12 +189,14 @@ protected:
      * @param engine The engine
      * @param cookie The cookie that identifies the connection
      * @param connName The name that identifies the connection
+     * @param consumerName The name that identifies the consumer
      * @return a shared instance of DcpConsumer
      */
     virtual std::shared_ptr<DcpConsumer> makeConsumer(
             EventuallyPersistentEngine& engine,
             const void* cookie,
-            const std::string& connName) const;
+            const std::string& connName,
+            const std::string& consumerName) const;
 
     bool isPassiveStreamConnected_UNLOCKED(Vbid vbucket);
 

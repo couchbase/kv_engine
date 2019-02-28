@@ -73,5 +73,6 @@ protected:
     std::shared_ptr<DcpConsumer> makeConsumer(
             EventuallyPersistentEngine& engine,
             const void* cookie,
-            const std::string& connName) const override;
+            const std::string& connName,
+            const std::string& consumerName) const override;
 };
