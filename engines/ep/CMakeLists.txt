@@ -243,6 +243,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/dcp/stream.cc
             src/defragmenter.cc
             src/defragmenter_visitor.cc
+            src/diskdockey.cc
             src/durability_monitor.cc
             src/durability_timeout_task.cc
             src/ep_bucket.cc
@@ -375,6 +376,7 @@ if (NOT EP_BYPASS_TESTS)
                    tests/module_tests/dcp_stream_sync_repl_test.cc
                    tests/module_tests/dcp_test.cc
                    tests/module_tests/dcp_utils.cc
+                   tests/module_tests/diskdockey_test.cc
                    tests/module_tests/durability_monitor_test.cc
                    tests/module_tests/ep_unit_tests_main.cc
                    tests/module_tests/ephemeral_bucket_test.cc
