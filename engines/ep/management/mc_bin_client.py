@@ -255,11 +255,12 @@ class MemcachedClient(object):
         assert myopaque is None or opaque == myopaque, \
             "expected opaque %x, got %x" % (myopaque, opaque)
         if errcode != 0:
+            err_context = rv.decode(errors="backslashreplace")
             if self.error_map is None:
-                msg = rv
+                msg = err_context
             else:
-                err = self.error_map['errors'].get(errcode, rv)
-                msg = "{name} : {desc} : {rv}".format(rv=rv, **err)
+                err = self.error_map['errors'].get(errcode)
+                msg = "{name} : {desc} : {rv}".format(rv=err_context, **err)
 
             raise MemcachedError(errcode,  msg)
         return cmd, opaque, cas, keylen, extralen, rv
