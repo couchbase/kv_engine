@@ -714,20 +714,17 @@ void EphemeralVBucket::dropKey(
         int64_t bySeqno,
         Collections::VB::Manifest::CachingReadHandle& cHandle) {
     const auto& key = cHandle.getKey();
-    auto hbl = ht.getLockedBucket(key);
     // dropKey must not generate expired items as it's used for erasing a
     // collection.
-    StoredValue* v = fetchValidValue(hbl,
-                                     WantsDeleted::Yes,
-                                     TrackReference::No,
-                                     QueueExpired::No,
-                                     cHandle);
+    auto res = fetchValidValue(
+            WantsDeleted::Yes, TrackReference::No, QueueExpired::No, cHandle);
 
-    if (v && v->getBySeqno() == bySeqno && !key.getCollectionID().isSystem()) {
+    if (res.storedValue && res.storedValue->getBySeqno() == bySeqno &&
+        !key.getCollectionID().isSystem()) {
         // The found key is the correct one to remove from the HT, we only
         // release but do not free at this point, the staleItem remover will
         // now proceed to erase the element from the seq list and free the SV
-        ht.unlocked_release(hbl, key).release();
+        ht.unlocked_release(res.lock, key).release();
     }
     return;
 }

@@ -847,17 +847,24 @@ public:
     } backfill;
 
     /**
-     * Gets the valid StoredValue for the key and deletes an expired item if
-     * desired by the caller. Requires the hash bucket to be locked
+     * Searches for a 'valid' StoredValue in the VBucket.
      *
-     * @param hbl Reference to the hash bucket lock
+     * Only looks in the in-memory HashTable; if fully-evicted returns false.
+     *
+     * The definition of 'valid' depends on the value of WantsDeleted: if a
+     * deleted or expired item is found then returns nullptr, unless
+     * WantsDeleted is Yes.
+     * If an expired item is found then will enqueue a delete to clean up the
+     * item unless QueueExpired is No.
+     *
      * @param wantsDeleted
      * @param trackReference
      * @param queueExpired Delete an expired item
      * @param cHandle Collections readhandle (caching mode) for this key
+     * @return a FindResult consisting of a pointer to the StoredValue (if
+     * found) and the associated HashBucketLock which guards it.
      */
-    StoredValue* fetchValidValue(
-            HashTable::HashBucketLock& hbl,
+    HashTable::FindResult fetchValidValue(
             WantsDeleted wantsDeleted,
             TrackReference trackReference,
             QueueExpired queueExpired,

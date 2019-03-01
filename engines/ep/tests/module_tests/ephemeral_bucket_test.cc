@@ -70,13 +70,9 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
     // the HashBucketLock to prevent lock order inversion warnings in ThreadSan.
     auto readHandle = vb->lockCollections();
     auto cHandle = vb->lockCollections(key);
-    auto lock = vb->ht.getLockedBucket(key);
-    auto* value = vb->fetchValidValue(lock,
-                                      WantsDeleted::No,
-                                      TrackReference::Yes,
-                                      QueueExpired::No,
-                                      cHandle);
-    ASSERT_TRUE(vb->pageOut(readHandle, lock, value));
+    auto res = vb->fetchValidValue(
+            WantsDeleted::No, TrackReference::Yes, QueueExpired::No, cHandle);
+    ASSERT_TRUE(vb->pageOut(readHandle, res.lock, res.storedValue));
 
     stats = get_stat("vbucket-details 0");
     EXPECT_EQ("1", stats.at("vb_0:auto_delete_count"));

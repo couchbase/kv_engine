@@ -1602,16 +1602,12 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
         return ENGINE_UNKNOWN_COLLECTION;
     }
 
-    auto hbl = vb->ht.getLockedBucket(key);
-    StoredValue* v = vb->fetchValidValue(hbl,
-                                         WantsDeleted::Yes,
-                                         TrackReference::Yes,
-                                         QueueExpired::Yes,
-                                         cHandle);
-
+    auto res = vb->fetchValidValue(
+            WantsDeleted::Yes, TrackReference::Yes, QueueExpired::Yes, cHandle);
+    auto* v = res.storedValue;
     if (v) {
         if (VBucket::isLogicallyNonExistent(*v, cHandle)) {
-            vb->ht.cleanupIfTemporaryItem(hbl, *v);
+            vb->ht.cleanupIfTemporaryItem(res.lock, *v);
             return ENGINE_KEY_ENOENT;
         }
         if (v->isLocked(currentTime)) {
@@ -1671,16 +1667,12 @@ std::string KVBucket::validateKey(const DocKey& key,
         return "collection_unknown";
     }
 
-    auto hbl = vb->ht.getLockedBucket(key);
-    StoredValue* v = vb->fetchValidValue(hbl,
-                                         WantsDeleted::Yes,
-                                         TrackReference::No,
-                                         QueueExpired::Yes,
-                                         cHandle);
-
+    auto res = vb->fetchValidValue(
+            WantsDeleted::Yes, TrackReference::No, QueueExpired::Yes, cHandle);
+    auto* v = res.storedValue;
     if (v) {
         if (VBucket::isLogicallyNonExistent(*v, cHandle)) {
-            vb->ht.cleanupIfTemporaryItem(hbl, *v);
+            vb->ht.cleanupIfTemporaryItem(res.lock, *v);
             return "item_deleted";
         }
 

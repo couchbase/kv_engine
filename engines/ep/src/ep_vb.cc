@@ -90,19 +90,17 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
     { // locking scope
         ReaderLockHolder rlh(getStateLock());
         auto cHandle = lockCollections(key);
-        auto hbl = ht.getLockedBucket(key);
-        StoredValue* v = nullptr;
-        v = fetchValidValue(
-                hbl,
+        auto res = fetchValidValue(
                 WantsDeleted::Yes,
                 TrackReference::Yes,
                 cHandle.valid() ? QueueExpired::Yes : QueueExpired::No,
                 cHandle);
-
+        auto* v = res.storedValue;
         if (fetched_item.metaDataOnly) {
             if (status == ENGINE_SUCCESS) {
                 if (v && v->isTempInitialItem()) {
-                    ht.unlocked_restoreMeta(hbl.getHTLock(), *fetchedValue, *v);
+                    ht.unlocked_restoreMeta(
+                            res.lock.getHTLock(), *fetchedValue, *v);
                 }
             } else if (status == ENGINE_KEY_ENOENT) {
                 if (v && v->isTempInitialItem()) {
@@ -146,7 +144,7 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
             if (restore) {
                 if (status == ENGINE_SUCCESS) {
                     ht.unlocked_restoreValue(
-                            hbl.getHTLock(), *fetchedValue, *v);
+                            res.lock.getHTLock(), *fetchedValue, *v);
                     if (!v->isResident()) {
                         throw std::logic_error(
                                 "VBucket::completeBGFetchForSingleItem: "
@@ -313,16 +311,15 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
         return ENGINE_UNKNOWN_COLLECTION;
     }
 
-    auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = fetchValidValue(hbl,
-                                     WantsDeleted::Yes,
-                                     TrackReference::Yes,
-                                     QueueExpired::Yes,
-                                     readHandle);
+    auto res = fetchValidValue(WantsDeleted::Yes,
+                               TrackReference::Yes,
+                               QueueExpired::Yes,
+                               readHandle);
 
+    auto* v = res.storedValue;
     if (v) {
         if (VBucket::isLogicallyNonExistent(*v, readHandle)) {
-            ht.cleanupIfTemporaryItem(hbl, *v);
+            ht.cleanupIfTemporaryItem(res.lock, *v);
             return ENGINE_KEY_ENOENT;
         }
         ++stats.numRemainingBgJobs;
@@ -339,7 +336,7 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
         if (eviction == VALUE_ONLY) {
             return ENGINE_KEY_ENOENT;
         } else {
-            TempAddStatus rv = addTempStoredValue(hbl, key);
+            TempAddStatus rv = addTempStoredValue(res.lock, key);
             switch (rv) {
             case TempAddStatus::NoMem:
                 return ENGINE_ENOMEM;
@@ -358,17 +355,16 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
 
 void EPVBucket::completeStatsVKey(const DocKey& key, const GetValue& gcb) {
     auto cHandle = lockCollections(key);
-    auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = fetchValidValue(
-            hbl,
+    auto res = fetchValidValue(
             WantsDeleted::Yes,
             TrackReference::Yes,
             cHandle.valid() ? QueueExpired::Yes : QueueExpired::No,
             cHandle);
 
+    auto* v = res.storedValue;
     if (v && v->isTempInitialItem()) {
         if (gcb.getStatus() == ENGINE_SUCCESS) {
-            ht.unlocked_restoreValue(hbl.getHTLock(), *gcb.item, *v);
+            ht.unlocked_restoreValue(res.lock.getHTLock(), *gcb.item, *v);
             if (!v->isResident()) {
                 throw std::logic_error(
                         "VBucket::completeStatsVKey: "
@@ -430,13 +426,9 @@ void EPVBucket::addStats(bool details,
 cb::mcbp::Status EPVBucket::evictKey(
         const char** msg,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    auto hbl = ht.getLockedBucket(cHandle.getKey());
-    StoredValue* v = fetchValidValue(hbl,
-                                     WantsDeleted::No,
-                                     TrackReference::No,
-                                     QueueExpired::Yes,
-                                     cHandle);
-
+    auto res = fetchValidValue(
+            WantsDeleted::No, TrackReference::No, QueueExpired::Yes, cHandle);
+    auto* v = res.storedValue;
     if (!v) {
         if (eviction == VALUE_ONLY) {
             *msg = "Not found.";
@@ -447,7 +439,7 @@ cb::mcbp::Status EPVBucket::evictKey(
     }
 
     if (v->isResident()) {
-        if (ht.unlocked_ejectItem(hbl, v, eviction)) {
+        if (ht.unlocked_ejectItem(res.lock, v, eviction)) {
             *msg = "Ejected.";
 
             // Add key to bloom filter in case of full eviction mode
@@ -725,17 +717,12 @@ size_t EPVBucket::getNumPersistedDeletes() const {
 
 void EPVBucket::dropKey(int64_t bySeqno,
                         Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    auto hbl = ht.getLockedBucket(cHandle.getKey());
     // dropKey must not generate expired items as it's used for erasing a
     // collection.
-    StoredValue* v = fetchValidValue(hbl,
-                                     WantsDeleted::No,
-                                     TrackReference::No,
-                                     QueueExpired::No,
-                                     cHandle);
-
-    if (v && v->getBySeqno() == bySeqno) {
-        ht.unlocked_del(hbl, v->getKey());
+    auto res = fetchValidValue(
+            WantsDeleted::No, TrackReference::No, QueueExpired::No, cHandle);
+    if (res.storedValue && res.storedValue->getBySeqno() == bySeqno) {
+        ht.unlocked_del(res.lock, res.storedValue->getKey());
     }
 }
 

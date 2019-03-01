@@ -35,13 +35,12 @@ void PersistenceCallback::callback(TransactionContext& txCtx,
 
     if (value.first == 1) {
         auto handle = vbucket.lockCollections(queuedItem->getKey());
-        auto hbl = vbucket.ht.getLockedBucket(queuedItem->getKey());
-        StoredValue* v = vbucket.fetchValidValue(
-                hbl,
+        auto res = vbucket.fetchValidValue(
                 WantsDeleted::Yes,
                 TrackReference::No,
                 handle.valid() ? QueueExpired::Yes : QueueExpired::No,
                 handle);
+        auto* v = res.storedValue;
         if (v) {
             if (v->getCas() == cas) {
                 // mark this item clean only if current and stored cas
@@ -73,19 +72,17 @@ void PersistenceCallback::callback(TransactionContext& txCtx,
         // we do not know the rowid of this object.
         if (value.first == 0) {
             auto handle = vbucket.lockCollections(queuedItem->getKey());
-            auto hbl = vbucket.ht.getLockedBucket(queuedItem->getKey());
-            StoredValue* v = vbucket.fetchValidValue(
-                    hbl,
+            auto res = vbucket.fetchValidValue(
                     WantsDeleted::Yes,
                     TrackReference::No,
                     handle.valid() ? QueueExpired::Yes : QueueExpired::No,
                     handle);
-            if (v) {
+            if (res.storedValue) {
                 EP_LOG_WARN(
                         "PersistenceCallback::callback: Persisting on "
                         "{}, seqno:{} returned 0 updates",
                         queuedItem->getVBucketId(),
-                        v->getBySeqno());
+                        res.storedValue->getBySeqno());
             } else {
                 EP_LOG_WARN(
                         "PersistenceCallback::callback: Error persisting, a key"

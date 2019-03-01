@@ -985,21 +985,14 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
     return notifyCtx;
 }
 
-StoredValue* VBucket::fetchValidValue(
-        HashTable::HashBucketLock& hbl,
+HashTable::FindResult VBucket::fetchValidValue(
         WantsDeleted wantsDeleted,
         TrackReference trackReference,
         QueueExpired queueExpired,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
     const auto& key = cHandle.getKey();
-    if (!hbl.getHTLock()) {
-        throw std::logic_error(
-                "Hash bucket lock not held in "
-                "VBucket::fetchValidValue() for hash bucket: " +
-                std::to_string(hbl.getBucketNum()) + "for key: " +
-                std::string(reinterpret_cast<const char*>(key.data()),
-                            key.size()));
-    }
+    auto hbl = ht.getLockedBucket(key);
+
     if (queueExpired == QueueExpired::Yes && !cHandle.valid()) {
         throw std::invalid_argument(
                 "VBucket::fetchValidValue cannot queue "
@@ -1011,7 +1004,8 @@ StoredValue* VBucket::fetchValidValue(
         // In the deleted case, we ignore expiration time.
         if (v->isExpired(ep_real_time())) {
             if (getState() != vbucket_state_active) {
-                return wantsDeleted == WantsDeleted::Yes ? v : NULL;
+                return {(wantsDeleted == WantsDeleted::Yes) ? v : nullptr,
+                        std::move(hbl)};
             }
 
             // queueDirty only allowed on active VB
@@ -1025,10 +1019,11 @@ StoredValue* VBucket::fetchValidValue(
                 notifyNewSeqno(notifyCtx);
                 doCollectionsStats(cHandle, notifyCtx);
             }
-            return wantsDeleted == WantsDeleted::Yes ? v : NULL;
+            return {(wantsDeleted == WantsDeleted::Yes) ? v : nullptr,
+                    std::move(hbl)};
         }
     }
-    return v;
+    return {v, std::move(hbl)};
 }
 
 void VBucket::incExpirationStat(const ExpireBy source) {
@@ -2012,23 +2007,21 @@ GetValue VBucket::getAndUpdateTtl(
         EventuallyPersistentEngine& engine,
         time_t exptime,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    auto hbl = ht.getLockedBucket(cHandle.getKey());
-    StoredValue* v = fetchValidValue(hbl,
-                                     WantsDeleted::Yes,
-                                     TrackReference::Yes,
-                                     QueueExpired::Yes,
-                                     cHandle);
+    auto res = fetchValidValue(
+            WantsDeleted::Yes, TrackReference::Yes, QueueExpired::Yes, cHandle);
     GetValue gv;
     MutationStatus status;
-    std::tie(status, gv) = processGetAndUpdateTtl(hbl, v, exptime, cHandle);
+    std::tie(status, gv) =
+            processGetAndUpdateTtl(res.lock, res.storedValue, exptime, cHandle);
 
     if (status == MutationStatus::NeedBgFetch) {
-        if (v) {
+        if (res.storedValue) {
             bgFetch(cHandle.getKey(), cookie, engine);
-            return GetValue(nullptr, ENGINE_EWOULDBLOCK, v->getBySeqno());
+            return GetValue(
+                    nullptr, ENGINE_EWOULDBLOCK, res.storedValue->getBySeqno());
         } else {
             ENGINE_ERROR_CODE ec = addTempItemAndBGFetch(
-                    hbl, cHandle.getKey(), cookie, engine, false);
+                    res.lock, cHandle.getKey(), cookie, engine, false);
             return GetValue(NULL, ec, -1, true);
         }
     }
@@ -2049,12 +2042,9 @@ GetValue VBucket::getInternal(
     const bool metadataOnly = (options & ALLOW_META_ONLY);
     const bool getDeletedValue = (options & GET_DELETED_VALUE);
     const bool bgFetchRequired = (options & QUEUE_BG_FETCH);
-    auto hbl = ht.getLockedBucket(cHandle.getKey());
-    StoredValue* v = fetchValidValue(hbl,
-                                     WantsDeleted::Yes,
-                                     trackReference,
-                                     QueueExpired::Yes,
-                                     cHandle);
+    auto res = fetchValidValue(
+            WantsDeleted::Yes, trackReference, QueueExpired::Yes, cHandle);
+    auto* v = res.storedValue;
     if (v) {
         // 1 If SV is deleted and user didn't request deleted items
         // 2 (or) If collection says this key is gone.
@@ -2081,7 +2071,7 @@ GetValue VBucket::getInternal(
         // don't keep temp items in HT).
         if (v->isTempDeletedItem() || v->isTempNonExistentItem()) {
             if (options & DELETE_TEMP) {
-                deleteStoredValue(hbl, *v);
+                deleteStoredValue(res.lock, *v);
             }
             return GetValue();
         }
@@ -2122,8 +2112,11 @@ GetValue VBucket::getInternal(
         if (maybeKeyExistsInFilter(cHandle.getKey())) {
             ENGINE_ERROR_CODE ec = ENGINE_EWOULDBLOCK;
             if (bgFetchRequired) { // Full eviction and need a bg fetch.
-                ec = addTempItemAndBGFetch(
-                        hbl, cHandle.getKey(), cookie, engine, metadataOnly);
+                ec = addTempItemAndBGFetch(res.lock,
+                                           cHandle.getKey(),
+                                           cookie,
+                                           engine,
+                                           metadataOnly);
             }
             return GetValue(NULL, ec, -1, true);
         } else {
@@ -2201,12 +2194,9 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(
         struct key_stats& kstats,
         WantsDeleted wantsDeleted,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    auto hbl = ht.getLockedBucket(cHandle.getKey());
-    StoredValue* v = fetchValidValue(hbl,
-                                     WantsDeleted::Yes,
-                                     TrackReference::Yes,
-                                     QueueExpired::Yes,
-                                     cHandle);
+    auto res = fetchValidValue(
+            WantsDeleted::Yes, TrackReference::Yes, QueueExpired::Yes, cHandle);
+    auto* v = res.storedValue;
 
     if (v) {
         if ((v->isDeleted() || cHandle.isLogicallyDeleted(v->getBySeqno())) &&
@@ -2215,11 +2205,11 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(
         }
 
         if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
-            deleteStoredValue(hbl, *v);
+            deleteStoredValue(res.lock, *v);
             return ENGINE_KEY_ENOENT;
         }
         if (eviction == FULL_EVICTION && v->isTempInitialItem()) {
-            hbl.getHTLock().unlock();
+            res.lock.getHTLock().unlock();
             bgFetch(cHandle.getKey(), cookie, engine, true);
             return ENGINE_EWOULDBLOCK;
         }
@@ -2239,7 +2229,7 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(
         } else {
             if (maybeKeyExistsInFilter(cHandle.getKey())) {
                 return addTempItemAndBGFetch(
-                        hbl, cHandle.getKey(), cookie, engine, true);
+                        res.lock, cHandle.getKey(), cookie, engine, true);
             } else {
                 // If bgFetch were false, or bloomfilter predicted that
                 // item surely doesn't exist on disk, return ENOENT for
@@ -2256,16 +2246,13 @@ GetValue VBucket::getLocked(
         const void* cookie,
         EventuallyPersistentEngine& engine,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    auto hbl = ht.getLockedBucket(cHandle.getKey());
-    StoredValue* v = fetchValidValue(hbl,
-                                     WantsDeleted::Yes,
-                                     TrackReference::Yes,
-                                     QueueExpired::Yes,
-                                     cHandle);
+    auto res = fetchValidValue(
+            WantsDeleted::Yes, TrackReference::Yes, QueueExpired::Yes, cHandle);
+    auto* v = res.storedValue;
 
     if (v) {
         if (isLogicallyNonExistent(*v, cHandle)) {
-            ht.cleanupIfTemporaryItem(hbl, *v);
+            ht.cleanupIfTemporaryItem(res.lock, *v);
             return GetValue(NULL, ENGINE_KEY_ENOENT);
         }
 
@@ -2300,7 +2287,7 @@ GetValue VBucket::getLocked(
         case FULL_EVICTION:
             if (maybeKeyExistsInFilter(cHandle.getKey())) {
                 ENGINE_ERROR_CODE ec = addTempItemAndBGFetch(
-                        hbl, cHandle.getKey(), cookie, engine, false);
+                        res.lock, cHandle.getKey(), cookie, engine, false);
                 return GetValue(NULL, ec, -1, true);
             } else {
                 // As bloomfilter predicted that item surely doesn't exist
@@ -2314,26 +2301,24 @@ GetValue VBucket::getLocked(
 
 void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
     auto handle = manifest->lock(queuedItem.getKey());
-    auto hbl = ht.getLockedBucket(queuedItem.getKey());
-    StoredValue* v = nullptr;
-
-    v = fetchValidValue(hbl,
-                        WantsDeleted::Yes,
-                        TrackReference::No,
-                        handle.valid() ? QueueExpired::Yes : QueueExpired::No,
-                        handle);
+    auto res = fetchValidValue(
+            WantsDeleted::Yes,
+            TrackReference::No,
+            handle.valid() ? QueueExpired::Yes : QueueExpired::No,
+            handle);
+    auto* v = res.storedValue;
 
     // Delete the item in the hash table iff:
     //  1. Item is existent in hashtable, and deleted flag is true
     //  2. rev seqno of queued item matches rev seqno of hash table item
     if (v && v->isDeleted() && (queuedItem.getRevSeqno() == v->getRevSeqno())) {
-        bool isDeleted = deleteStoredValue(hbl, *v);
+        bool isDeleted = deleteStoredValue(res.lock, *v);
         if (!isDeleted) {
             throw std::logic_error(
                     "deletedOnDiskCbk:callback: "
                     "Failed to delete key with seqno:" +
                     std::to_string(v->getBySeqno()) + "' from bucket " +
-                    std::to_string(hbl.getBucketNum()));
+                    std::to_string(res.lock.getBucketNum()));
         }
 
         /**
