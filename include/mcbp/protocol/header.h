@@ -21,6 +21,7 @@
 #include "magic.h"
 
 #include <nlohmann/json_fwd.hpp>
+#include <platform/platform_socket.h>
 #include <platform/sized_buffer.h>
 
 #ifndef WIN32
