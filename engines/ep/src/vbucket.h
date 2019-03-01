@@ -848,7 +848,6 @@ public:
      * desired by the caller. Requires the hash bucket to be locked
      *
      * @param hbl Reference to the hash bucket lock
-     * @param key
      * @param wantsDeleted
      * @param trackReference
      * @param queueExpired Delete an expired item
@@ -856,7 +855,6 @@ public:
      */
     StoredValue* fetchValidValue(
             HashTable::HashBucketLock& hbl,
-            const DocKey& key,
             WantsDeleted wantsDeleted,
             TrackReference trackReference,
             QueueExpired queueExpired,
@@ -1074,7 +1072,6 @@ public:
     /**
      * Evict a key from memory.
      *
-     * @param key Key to evict
      * @param[out] msg Updated to point to a string (with static duration)
      *                 describing the result of the operation.
      * @param cHandle Collections readhandle (caching mode) for this key
@@ -1084,7 +1081,6 @@ public:
      *
      */
     virtual cb::mcbp::Status evictKey(
-            const DocKey& key,
             const char** msg,
             const Collections::VB::Manifest::CachingReadHandle& cHandle) = 0;
 
@@ -1404,12 +1400,10 @@ public:
     /**
      * Implementation dependent method called by the collections erasing code
      *
-     * @param key The key to look for
      * @param bySeqno The seqno of the key to drop
      * @param cHandle Collections readhandle (caching mode) for this key
      */
     virtual void dropKey(
-            const DocKey& key,
             int64_t bySeqno,
             Collections::VB::Manifest::CachingReadHandle& cHandle) = 0;
 

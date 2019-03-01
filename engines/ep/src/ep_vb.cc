@@ -94,7 +94,6 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
         StoredValue* v = nullptr;
         v = fetchValidValue(
                 hbl,
-                key,
                 WantsDeleted::Yes,
                 TrackReference::Yes,
                 cHandle.valid() ? QueueExpired::Yes : QueueExpired::No,
@@ -316,7 +315,6 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
 
     auto hbl = ht.getLockedBucket(key);
     StoredValue* v = fetchValidValue(hbl,
-                                     key,
                                      WantsDeleted::Yes,
                                      TrackReference::Yes,
                                      QueueExpired::Yes,
@@ -363,7 +361,6 @@ void EPVBucket::completeStatsVKey(const DocKey& key, const GetValue& gcb) {
     auto hbl = ht.getLockedBucket(key);
     StoredValue* v = fetchValidValue(
             hbl,
-            key,
             WantsDeleted::Yes,
             TrackReference::Yes,
             cHandle.valid() ? QueueExpired::Yes : QueueExpired::No,
@@ -431,12 +428,10 @@ void EPVBucket::addStats(bool details,
 }
 
 cb::mcbp::Status EPVBucket::evictKey(
-        const DocKey& key,
         const char** msg,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    auto hbl = ht.getLockedBucket(key);
+    auto hbl = ht.getLockedBucket(cHandle.getKey());
     StoredValue* v = fetchValidValue(hbl,
-                                     key,
                                      WantsDeleted::No,
                                      TrackReference::No,
                                      QueueExpired::Yes,
@@ -457,7 +452,7 @@ cb::mcbp::Status EPVBucket::evictKey(
 
             // Add key to bloom filter in case of full eviction mode
             if (eviction == FULL_EVICTION) {
-                addToFilter(key);
+                addToFilter(cHandle.getKey());
             }
             return cb::mcbp::Status::Success;
         }
@@ -727,14 +722,12 @@ size_t EPVBucket::getNumPersistedDeletes() const {
     return shard->getROUnderlying()->getNumPersistedDeletes(getId());
 }
 
-void EPVBucket::dropKey(const DocKey& key,
-                        int64_t bySeqno,
+void EPVBucket::dropKey(int64_t bySeqno,
                         Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    auto hbl = ht.getLockedBucket(key);
+    auto hbl = ht.getLockedBucket(cHandle.getKey());
     // dropKey must not generate expired items as it's used for erasing a
     // collection.
     StoredValue* v = fetchValidValue(hbl,
-                                     key,
                                      WantsDeleted::No,
                                      TrackReference::No,
                                      QueueExpired::No,

@@ -72,7 +72,6 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
     auto cHandle = vb->lockCollections(key);
     auto lock = vb->ht.getLockedBucket(key);
     auto* value = vb->fetchValidValue(lock,
-                                      key,
                                       WantsDeleted::No,
                                       TrackReference::Yes,
                                       QueueExpired::No,

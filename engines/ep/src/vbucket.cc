@@ -986,11 +986,11 @@ VBNotifyCtx VBucket::queueDirty(
 
 StoredValue* VBucket::fetchValidValue(
         HashTable::HashBucketLock& hbl,
-        const DocKey& key,
         WantsDeleted wantsDeleted,
         TrackReference trackReference,
         QueueExpired queueExpired,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+    const auto& key = cHandle.getKey();
     if (!hbl.getHTLock()) {
         throw std::logic_error(
                 "Hash bucket lock not held in "
@@ -2013,7 +2013,6 @@ GetValue VBucket::getAndUpdateTtl(
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
     auto hbl = ht.getLockedBucket(cHandle.getKey());
     StoredValue* v = fetchValidValue(hbl,
-                                     cHandle.getKey(),
                                      WantsDeleted::Yes,
                                      TrackReference::Yes,
                                      QueueExpired::Yes,
@@ -2051,7 +2050,6 @@ GetValue VBucket::getInternal(
     const bool bgFetchRequired = (options & QUEUE_BG_FETCH);
     auto hbl = ht.getLockedBucket(cHandle.getKey());
     StoredValue* v = fetchValidValue(hbl,
-                                     cHandle.getKey(),
                                      WantsDeleted::Yes,
                                      trackReference,
                                      QueueExpired::Yes,
@@ -2204,7 +2202,6 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
     auto hbl = ht.getLockedBucket(cHandle.getKey());
     StoredValue* v = fetchValidValue(hbl,
-                                     cHandle.getKey(),
                                      WantsDeleted::Yes,
                                      TrackReference::Yes,
                                      QueueExpired::Yes,
@@ -2260,7 +2257,6 @@ GetValue VBucket::getLocked(
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
     auto hbl = ht.getLockedBucket(cHandle.getKey());
     StoredValue* v = fetchValidValue(hbl,
-                                     cHandle.getKey(),
                                      WantsDeleted::Yes,
                                      TrackReference::Yes,
                                      QueueExpired::Yes,
@@ -2321,7 +2317,6 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
     StoredValue* v = nullptr;
 
     v = fetchValidValue(hbl,
-                        queuedItem.getKey(),
                         WantsDeleted::Yes,
                         TrackReference::No,
                         handle.valid() ? QueueExpired::Yes : QueueExpired::No,

@@ -772,7 +772,7 @@ void EPBucket::dropKey(Vbid vbid, const DocKey& key, int64_t bySeqno) {
         auto cHandle = vb->lockCollections(key);
 
         // ... drop it from the VB (hashtable)
-        vb->dropKey(key, bySeqno, cHandle);
+        vb->dropKey(bySeqno, cHandle);
     }
 }
 

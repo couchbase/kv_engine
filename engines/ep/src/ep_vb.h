@@ -93,7 +93,6 @@ public:
     void completeStatsVKey(const DocKey& key, const GetValue& gcb) override;
 
     cb::mcbp::Status evictKey(
-            const DocKey& key,
             const char** msg,
             const Collections::VB::Manifest::CachingReadHandle& cHandle)
             override;
@@ -180,12 +179,10 @@ public:
     /**
      * If the key@bySeqno is found, drop it from the hash table
      *
-     * @param key The key to look for
      * @param bySeqno The seqno of the key to remove
      * @param cHandle Collections readhandle (caching mode) for this key
      */
     void dropKey(
-            const DocKey& key,
             int64_t bySeqno,
             Collections::VB::Manifest::CachingReadHandle& cHandle) override;
 

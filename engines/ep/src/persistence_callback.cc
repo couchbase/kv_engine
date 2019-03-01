@@ -38,7 +38,6 @@ void PersistenceCallback::callback(TransactionContext& txCtx,
         auto hbl = vbucket.ht.getLockedBucket(queuedItem->getKey());
         StoredValue* v = vbucket.fetchValidValue(
                 hbl,
-                queuedItem->getKey(),
                 WantsDeleted::Yes,
                 TrackReference::No,
                 handle.valid() ? QueueExpired::Yes : QueueExpired::No,
@@ -77,7 +76,6 @@ void PersistenceCallback::callback(TransactionContext& txCtx,
             auto hbl = vbucket.ht.getLockedBucket(queuedItem->getKey());
             StoredValue* v = vbucket.fetchValidValue(
                     hbl,
-                    queuedItem->getKey(),
                     WantsDeleted::Yes,
                     TrackReference::No,
                     handle.valid() ? QueueExpired::Yes : QueueExpired::No,

@@ -93,7 +93,6 @@ public:
     }
 
     cb::mcbp::Status evictKey(
-            const DocKey& key,
             const char** msg,
             const Collections::VB::Manifest::CachingReadHandle& readHandle)
             override {
@@ -227,7 +226,6 @@ public:
 
     /// Empty method for ephemeral as keys are dropped by the stale item remover
     void dropKey(
-            const DocKey& key,
             int64_t bySeqno,
             Collections::VB::Manifest::CachingReadHandle& cHandle) override;
 

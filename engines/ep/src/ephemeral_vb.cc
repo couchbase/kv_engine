@@ -344,7 +344,7 @@ bool EphemeralVBucket::isKeyLogicallyDeleted(const DocKey& key,
     }
     auto cHandle = lockCollections(key);
     if (!cHandle.valid() || cHandle.isLogicallyDeleted(bySeqno)) {
-        dropKey(key, bySeqno, cHandle);
+        dropKey(bySeqno, cHandle);
         return true;
     }
     return false;
@@ -711,14 +711,13 @@ size_t EphemeralVBucket::getNumPersistedDeletes() const {
 }
 
 void EphemeralVBucket::dropKey(
-        const DocKey& key,
         int64_t bySeqno,
         Collections::VB::Manifest::CachingReadHandle& cHandle) {
+    const auto& key = cHandle.getKey();
     auto hbl = ht.getLockedBucket(key);
     // dropKey must not generate expired items as it's used for erasing a
     // collection.
     StoredValue* v = fetchValidValue(hbl,
-                                     key,
                                      WantsDeleted::Yes,
                                      TrackReference::No,
                                      QueueExpired::No,

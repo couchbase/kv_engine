@@ -486,7 +486,7 @@ cb::mcbp::Status KVBucket::evictKey(const DocKey& key,
             return cb::mcbp::Status::UnknownCollection;
         } // now hold collections read access for the duration of the evict
 
-        return vb->evictKey(key, msg, cHandle);
+        return vb->evictKey(msg, cHandle);
     }
 }
 
@@ -1604,7 +1604,6 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
 
     auto hbl = vb->ht.getLockedBucket(key);
     StoredValue* v = vb->fetchValidValue(hbl,
-                                         key,
                                          WantsDeleted::Yes,
                                          TrackReference::Yes,
                                          QueueExpired::Yes,
@@ -1674,7 +1673,6 @@ std::string KVBucket::validateKey(const DocKey& key,
 
     auto hbl = vb->ht.getLockedBucket(key);
     StoredValue* v = vb->fetchValidValue(hbl,
-                                         key,
                                          WantsDeleted::Yes,
                                          TrackReference::No,
                                          QueueExpired::Yes,
