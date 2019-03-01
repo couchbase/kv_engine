@@ -65,6 +65,7 @@ def invoke_gdb(gdb_exe, program, core_file, commands=[]):
     for c in commands:
         args += ['--eval-command='+c]
 
+    logging.debug("GDB args:" + ', '.join(args))
     gdb = subprocess.Popen(args, stdout=subprocess.PIPE,
                            stderr=subprocess.PIPE)
     gdb.wait()
@@ -216,20 +217,32 @@ if md2core_exe and gdb_exe:
             os.remove(minidump)
             cleanup_and_exit(7)
 
-        # To avoid invoking gdb multiple times, lets collect all of the
-        # information in a single pass. To make it easy to figure out
-        # the output from each command, run 'show print pretty' and use
-        # the expected output from that command to split the data
+        # To avoid invoking gdb multiple times, lets collect all of
+        # the information in a single pass. To make it easy to figure
+        # out the output from each command, echo a fixed delimiter to
+        # split the data.
+        delimiter = '-' * 80
         logging.info('GDB: Collect information from the minidump file')
         gdb_output = invoke_gdb(gdb_exe, memcached_exe, core_file,
                                 ['set print pretty off',
-                                 'show print pretty',
+                                 'echo ' + delimiter + '\\n',
                                  'info shared',
-                                 'show print pretty',
+                                 'echo ' + delimiter + '\\n',
                                  'backtrace',
-                                 'show print pretty',
+                                 'echo ' + delimiter + '\\n',
                                  'x/x $sp'])
-        gdb_output = gdb_output.split("Pretty formatting of structures is off.")
+
+        logging.debug("=== gdb output begin ===")
+        logging.debug(gdb_output)
+        logging.debug("=== gdb output end ===")
+
+        if delimiter not in gdb_output:
+            logging.error("UNTESTABLE - GDB output missing the expected delimiter ('-' * 80).")
+            logging.error("GDB output:")
+            logging.error(gdb_output)
+            cleanup_and_exit(8)
+
+        gdb_output = gdb_output.split(delimiter)
 
         # Check for shared library information, and symbols successfully ead
         # (needed for any useful backtraces).
