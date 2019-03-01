@@ -820,37 +820,6 @@ public:
             Perspective perspective = Perspective::Committed);
 
     /**
-     * Get a lock holder holding a lock for the given bucket
-     *
-     * @param bucket the bucket number to lock
-     * @return HashBucektLock which contains a lock and the hash bucket number
-     */
-    inline HashBucketLock getLockedBucket(int bucket) {
-        return HashBucketLock(bucket, mutexes[mutexForBucket(bucket)]);
-    }
-
-    /**
-     * Get a lock holder holding a lock for the bucket for the given
-     * hash.
-     *
-     * @param h the input hash
-     * @return HashBucketLock which contains a lock and the hash bucket number
-     */
-    inline HashBucketLock getLockedBucketForHash(int h) {
-        while (true) {
-            if (!isActive()) {
-                throw std::logic_error("HashTable::getLockedBucket: "
-                        "Cannot call on a non-active object");
-            }
-            int bucket = getBucketForHash(h);
-            HashBucketLock rv(bucket, mutexes[mutexForBucket(bucket)]);
-            if (bucket == getBucketForHash(h)) {
-                return rv;
-            }
-        }
-    }
-
-    /**
      * Get a lock holder holding a lock for the bucket for the hash of
      * the given key.
      *
@@ -1028,6 +997,38 @@ private:
 
     inline bool isActive() const { return activeState; }
     inline void setActiveState(bool newv) { activeState = newv; }
+
+    /**
+     * Get a lock holder holding a lock for the given bucket
+     *
+     * @param bucket the bucket number to lock
+     * @return HashBucektLock which contains a lock and the hash bucket number
+     */
+    inline HashBucketLock getLockedBucket(int bucket) {
+        return HashBucketLock(bucket, mutexes[mutexForBucket(bucket)]);
+    }
+
+    /**
+     * Get a lock holder holding a lock for the bucket for the given
+     * hash.
+     *
+     * @param h the input hash
+     * @return HashBucketLock which contains a lock and the hash bucket number
+     */
+    inline HashBucketLock getLockedBucketForHash(int h) {
+        while (true) {
+            if (!isActive()) {
+                throw std::logic_error(
+                        "HashTable::getLockedBucket: "
+                        "Cannot call on a non-active object");
+            }
+            int bucket = getBucketForHash(h);
+            HashBucketLock rv(bucket, mutexes[mutexForBucket(bucket)]);
+            if (bucket == getBucketForHash(h)) {
+                return rv;
+            }
+        }
+    }
 
     /**
      * Find the item with the given key.
