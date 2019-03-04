@@ -32,6 +32,7 @@
 #include "vbucket_bgfetch_item.h"
 
 #include <platform/timeutils.h>
+#include <utilities/logtags.h>
 
 #include <array>
 #include <limits>
@@ -417,8 +418,11 @@ static bool batchWarmupCallback(Vbid vbId,
     if (!c->epstore->maybeEnableTraffic()) {
         vb_bgfetch_queue_t items2fetch;
         for (auto& key : fetches) {
+            // Access log only records Committed keys, therefore construct
+            // DiskDocKey with pending == false.
+            DiskDocKey diskKey{key, /*prepared*/ false};
             // Deleted below via a unique_ptr in the next loop
-            vb_bgfetch_item_ctx_t& bg_itm_ctx = items2fetch[key];
+            vb_bgfetch_item_ctx_t& bg_itm_ctx = items2fetch[diskKey];
             bg_itm_ctx.isMetaOnly = GetMetaOnly::No;
             bg_itm_ctx.bgfetched_list.emplace_back(
                     std::make_unique<VBucketBGFetchItem>(nullptr, false));
@@ -447,7 +451,7 @@ static bool batchWarmupCallback(Vbid vbId,
                             "Warmup failed to load data for {}"
                             " key{{{}}} error = {}",
                             vbId,
-                            items.first.c_str(),
+                            cb::UserData{items.first.to_string()},
                             val.getStatus());
                     c->error++;
                 }

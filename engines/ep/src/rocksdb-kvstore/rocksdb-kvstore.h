@@ -170,12 +170,12 @@ public:
     /**
      * Overrides get().
      */
-    GetValue get(const StoredDocKey& key,
+    GetValue get(const DiskDocKey& key,
                  Vbid vb,
                  bool fetchDelete = false) override;
 
     GetValue getWithHeader(void* dbHandle,
-                           const StoredDocKey& key,
+                           const DiskDocKey& key,
                            Vbid vb,
                            GetMetaOnly getMetaOnly,
                            bool fetchDelete = false) override;
@@ -420,16 +420,17 @@ private:
     static rocksdb::StatsLevel getStatsLevel(const std::string& stats_level);
 
     rocksdb::Slice getKeySlice(const DocKey& key);
+    rocksdb::Slice getKeySlice(const DiskDocKey& key);
     rocksdb::Slice getSeqnoSlice(const int64_t* seqno);
     int64_t getNumericSeqno(const rocksdb::Slice& seqnoSlice);
 
     std::unique_ptr<Item> makeItem(Vbid vb,
-                                   const DocKey& key,
+                                   const DiskDocKey& key,
                                    const rocksdb::Slice& s,
                                    GetMetaOnly getMetaOnly);
 
     GetValue makeGetValue(Vbid vb,
-                          const DocKey& key,
+                          const DiskDocKey& key,
                           const std::string& value,
                           GetMetaOnly getMetaOnly = GetMetaOnly::No);
 

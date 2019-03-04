@@ -491,9 +491,10 @@ cb::mcbp::Status KVBucket::evictKey(const DocKey& key,
 }
 
 void KVBucket::getValue(Item& it) {
-    auto gv =
-            getROUnderlying(it.getVBucketId())
-                    ->get(it.getKey(), it.getVBucketId(), true /*fetchDelete*/);
+    auto gv = getROUnderlying(it.getVBucketId())
+                      ->get(DiskDocKey{it},
+                            it.getVBucketId(),
+                            true /*fetchDelete*/);
 
     if (gv.getStatus() != ENGINE_SUCCESS) {
         // Cannot continue to pre_expiry, log this failed get and return

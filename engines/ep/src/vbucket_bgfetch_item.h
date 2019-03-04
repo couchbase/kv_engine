@@ -20,6 +20,7 @@
 #include "config.h"
 
 #include "callbacks.h"
+#include "diskdockey.h"
 #include "item.h"
 #include "trace_helpers.h"
 
@@ -61,5 +62,5 @@ struct vb_bgfetch_item_ctx_t {
 };
 
 using vb_bgfetch_queue_t =
-        std::unordered_map<StoredDocKey, vb_bgfetch_item_ctx_t>;
-using bgfetched_item_t = std::pair<StoredDocKey, const VBucketBGFetchItem*>;
+        std::unordered_map<DiskDocKey, vb_bgfetch_item_ctx_t>;
+using bgfetched_item_t = std::pair<DiskDocKey, const VBucketBGFetchItem*>;

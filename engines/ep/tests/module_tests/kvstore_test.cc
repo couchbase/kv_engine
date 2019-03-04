@@ -626,7 +626,7 @@ protected:
         for(const auto& item: items) {
             vb_bgfetch_item_ctx_t ctx;
             ctx.isMetaOnly = GetMetaOnly::No;
-            itms[item.getKey()] = std::move(ctx);
+            itms[DiskDocKey{item}] = std::move(ctx);
         }
         return itms;
     }
@@ -798,7 +798,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_docinfo_by_id) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
             .WillOnce(Return(COUCHSTORE_ERROR_READ)).RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
-        gv = kvstore->get(items.front().getKey(), Vbid(0));
+        gv = kvstore->get(DiskDocKey{items.front()}, Vbid(0));
     }
     EXPECT_EQ(ENGINE_TMPFAIL, gv.getStatus());
 }
@@ -822,7 +822,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_open_doc_with_docinfo) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
             .WillOnce(Return(COUCHSTORE_ERROR_READ)).RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(5).RetiresOnSaturation();
-        gv = kvstore->get(items.front().getKey(), Vbid(0));
+        gv = kvstore->get(DiskDocKey{items.front()}, Vbid(0));
     }
     EXPECT_EQ(ENGINE_TMPFAIL, gv.getStatus());
 }
@@ -849,7 +849,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_docinfos_by_id) {
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
         kvstore->getMulti(Vbid(0), itms);
     }
-    EXPECT_EQ(ENGINE_TMPFAIL, itms[items.at(0).getKey()].value.getStatus());
+    EXPECT_EQ(ENGINE_TMPFAIL, itms[DiskDocKey{items.at(0)}].value.getStatus());
 }
 
 
@@ -871,7 +871,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_open_doc_with_docinfo) {
 
         EXPECT_EQ(1, kvstore->getKVStoreStat().numGetFailure);
     }
-    EXPECT_EQ(ENGINE_TMPFAIL, itms[items.at(0).getKey()].value.getStatus());
+    EXPECT_EQ(ENGINE_TMPFAIL, itms[DiskDocKey{items.at(0)}].value.getStatus());
 }
 
 /**
@@ -1339,7 +1339,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, corruption_get_open_doc_with_docinfo) {
                 .RetiresOnSaturation();
 
         // Trigger the get().
-        gv = kvstore->get(items.front().getKey(), Vbid(0));
+        gv = kvstore->get(DiskDocKey{items.front()}, Vbid(0));
     }
     EXPECT_EQ(ENGINE_TMPFAIL, gv.getStatus());
 }
@@ -1540,7 +1540,7 @@ TEST_F(CouchstoreTest, noMeta) {
 
     kvstore->commit(flush);
 
-    GetValue gv = kvstore->get(key, Vbid(0));
+    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     checkGetValue(gv, ENGINE_TMPFAIL);
 }
 
@@ -1556,7 +1556,7 @@ TEST_F(CouchstoreTest, shortMeta) {
     request->writeMetaData(meta, 4); // not enough meta!
     kvstore->commit(flush);
 
-    GetValue gv = kvstore->get(key, Vbid(0));
+    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     checkGetValue(gv, ENGINE_TMPFAIL);
 }
 
@@ -1584,7 +1584,7 @@ TEST_F(CouchstoreTest, testV0MetaThings) {
     EXPECT_CALL(gc, expTime(0xaa00bb11));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(PROTOCOL_BINARY_RAW_BYTES));
-    GetValue gv = kvstore->get(key, Vbid(0));
+    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     gc.callback(gv);
 }
 
@@ -1614,7 +1614,7 @@ TEST_F(CouchstoreTest, testV1MetaThings) {
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(PROTOCOL_BINARY_DATATYPE_JSON));
 
-    GetValue gv = kvstore->get(key, Vbid(0));
+    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     gc.callback(gv);
 }
 
@@ -1640,7 +1640,7 @@ TEST_F(CouchstoreTest, fuzzV0) {
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(PROTOCOL_BINARY_RAW_BYTES));
-    GetValue gv = kvstore->get(key, Vbid(0));
+    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     gc.callback(gv);
 }
 
@@ -1667,7 +1667,7 @@ TEST_F(CouchstoreTest, fuzzV1) {
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(expectedDataType)));
-    GetValue gv = kvstore->get(key, Vbid(0));
+    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     gc.callback(gv);
 }
 
@@ -1708,7 +1708,7 @@ TEST_F(CouchstoreTest, testV0WriteReadWriteRead) {
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(meta.ext2)));
-    GetValue gv = kvstore->get(key, Vbid(0));
+    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     gc.callback(gv);
 
     // Write back the item we read (this will write out V1 meta)
@@ -1723,7 +1723,7 @@ TEST_F(CouchstoreTest, testV0WriteReadWriteRead) {
     EXPECT_CALL(gc2, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc2, flags(0x01020304));
     EXPECT_CALL(gc2, datatype(protocol_binary_datatype_t(meta.ext2)));
-    GetValue gv2 = kvstore->get(key, Vbid(0));
+    GetValue gv2 = kvstore->get(DiskDocKey{key}, Vbid(0));
     gc2.callback(gv2);
 }
 
@@ -1769,7 +1769,7 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(meta.ext2)));
-    GetValue gv = kvstore->get(key, Vbid(0));
+    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     gc.callback(gv);
 }
 
@@ -1790,10 +1790,10 @@ TEST_F(CouchstoreTest, Durability_PersistPrepare) {
     kvstore->set(item, wc);
     kvstore->commit(flush);
 
-    GetValue gv = kvstore->get(key, Vbid(0));
+    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 
-    StoredDocKey prefixedKey(key, true /*pending*/);
+    DiskDocKey prefixedKey(key, true /*pending*/);
     gv = kvstore->get(prefixedKey, Vbid(0));
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
 }
@@ -1853,7 +1853,7 @@ TEST_F(CouchstoreTest, testV0CompactionUpgrade) {
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(meta.ext2)));
-    GetValue gv = kvstore->get(key, Vbid(0));
+    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     gc.callback(gv);
 }
 
@@ -1907,7 +1907,7 @@ TEST_F(CouchstoreTest, testV2CompactionUpgrade) {
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(meta.ext2)));
-    GetValue gv = kvstore->get(key, Vbid(0));
+    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     gc.callback(gv);
 }
 
@@ -2198,7 +2198,7 @@ TEST_P(KVStoreParamTest, BasicTest) {
 
     EXPECT_TRUE(kvstore->commit(flush));
 
-    GetValue gv = kvstore->get(key, Vbid(0));
+    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     checkGetValue(gv);
 }
 
@@ -2282,14 +2282,14 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
     // Check that each item has been stored in the right VBucket
     for (auto vbid : vbids) {
         GetValue gv = kvstore->get(
-                makeStoredDocKey("key-" + std::to_string(vbid.get())), vbid);
+                makeDiskDocKey("key-" + std::to_string(vbid.get())), vbid);
         checkGetValue(gv);
     }
 
     // Check that an item is not found in a different VBucket
-    GetValue gv = kvstore->get(makeStoredDocKey("key-0"), Vbid(1));
+    GetValue gv = kvstore->get(makeDiskDocKey("key-0"), Vbid(1));
     checkGetValue(gv, ENGINE_KEY_ENOENT);
-    gv = kvstore->get(makeStoredDocKey("key-1"), Vbid(0));
+    gv = kvstore->get(makeDiskDocKey("key-1"), Vbid(0));
     checkGetValue(gv, ENGINE_KEY_ENOENT);
 }
 
@@ -2394,7 +2394,7 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
 }
 
 TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
-    const std::string key = "key";
+    auto key = makeStoredDocKey("key");
     std::string value = "value";
     WriteCallback wc;
     Vbid vbid = Vbid(0);
@@ -2404,7 +2404,7 @@ TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
     // batch)
     kvstore->begin(std::make_unique<TransactionContext>());
     for (int i = 1; i <= 10; i++) {
-        Item item(makeStoredDocKey(key),
+        Item item(key,
                   0 /*flags*/,
                   0 /*exptime*/,
                   value.c_str(),
@@ -2417,7 +2417,7 @@ TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
     }
     kvstore->commit(flush);
 
-    GetValue gv = kvstore->get(makeStoredDocKey(key), vbid);
+    GetValue gv = kvstore->get(DiskDocKey{key}, vbid);
     checkGetValue(gv);
     EXPECT_EQ(kvstore->getVBucketState(vbid)->highSeqno, 10);
 }

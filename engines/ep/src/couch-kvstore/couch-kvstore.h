@@ -255,7 +255,7 @@ public:
      *        purged yet.
      * @return the result of the get
      */
-    GetValue get(const StoredDocKey& key,
+    GetValue get(const DiskDocKey& key,
                  Vbid vb,
                  bool fetchDelete = false) override;
 
@@ -271,7 +271,7 @@ public:
      * @return the result of the get
      */
     GetValue getWithHeader(void* dbHandle,
-                           const StoredDocKey& key,
+                           const DiskDocKey& key,
                            Vbid vb,
                            GetMetaOnly getMetaOnly,
                            bool fetchDelete = false) override;

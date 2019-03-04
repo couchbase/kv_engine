@@ -210,15 +210,14 @@ void EphemeralVBucket::dump() const {
 }
 
 ENGINE_ERROR_CODE EphemeralVBucket::completeBGFetchForSingleItem(
-        const DocKey& key,
+        const DiskDocKey& key,
         const VBucketBGFetchItem& fetched_item,
         const std::chrono::steady_clock::time_point startTime) {
     /* [EPHE TODO]: Just return error code and make all the callers handle it */
     throw std::logic_error(
             "EphemeralVBucket::completeBGFetchForSingleItem() "
             "is not valid. Called on " +
-            getId().to_string() + "for key: " +
-            std::string(reinterpret_cast<const char*>(key.data()), key.size()));
+            getId().to_string() + "for key: " + key.to_string());
 }
 
 void EphemeralVBucket::resetStats() {

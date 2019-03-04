@@ -82,14 +82,15 @@ EPVBucket::~EPVBucket() {
 }
 
 ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
-        const DocKey& key,
+        const DiskDocKey& key,
         const VBucketBGFetchItem& fetched_item,
         const std::chrono::steady_clock::time_point startTime) {
     ENGINE_ERROR_CODE status = fetched_item.value->getStatus();
     Item* fetchedValue = fetched_item.value->item.get();
     { // locking scope
+        auto docKey = key.getDocKey();
         ReaderLockHolder rlh(getStateLock());
-        auto cHandle = lockCollections(key);
+        auto cHandle = lockCollections(docKey);
         auto res = fetchValidValue(
                 WantsDeleted::Yes,
                 TrackReference::Yes,
@@ -486,8 +487,13 @@ void EPVBucket::queueBackfillItem(queued_item& qi,
 size_t EPVBucket::queueBGFetchItem(const DocKey& key,
                                    std::unique_ptr<VBucketBGFetchItem> fetch,
                                    BgFetcher* bgFetcher) {
+    // While a DiskDocKey supports both the committed and prepared namespaces,
+    // ep-engine doesn't support evicting prepared SyncWrites and as such
+    // we don't allow bgfetching from Prepared namespace - so just construct
+    // DiskDocKey with pending unconditionally false.
+    DiskDocKey diskKey{key, /*pending*/ false};
     LockHolder lh(pendingBGFetchesLock);
-    vb_bgfetch_item_ctx_t& bgfetch_itm_ctx = pendingBGFetches[key];
+    vb_bgfetch_item_ctx_t& bgfetch_itm_ctx = pendingBGFetches[diskKey];
 
     if (bgfetch_itm_ctx.bgfetched_list.empty()) {
         bgfetch_itm_ctx.isMetaOnly = GetMetaOnly::Yes;

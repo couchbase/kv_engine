@@ -161,7 +161,7 @@ public:
         return 0;
     }
 
-    int Get(const StoredDocKey& key, void** value, int* valueLen) {
+    int Get(const DiskDocKey& key, void** value, int* valueLen) {
         return 0;
     }
 
@@ -344,12 +344,12 @@ void MagmaKVStore::set(const Item& item,
     pendingReqs.push_back(std::make_unique<MagmaRequest>(item, callback));
 }
 
-GetValue MagmaKVStore::get(const StoredDocKey& key, Vbid vb, bool fetchDelete) {
+GetValue MagmaKVStore::get(const DiskDocKey& key, Vbid vb, bool fetchDelete) {
     return getWithHeader(nullptr, key, vb, GetMetaOnly::No, fetchDelete);
 }
 
 GetValue MagmaKVStore::getWithHeader(void* dbHandle,
-                                     const StoredDocKey& key,
+                                     const DiskDocKey& key,
                                      Vbid vb,
                                      GetMetaOnly getMetaOnly,
                                      bool fetchDelete) {
@@ -453,7 +453,7 @@ size_t MagmaKVStore::getNumShards() const {
 }
 
 std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
-                                             const DocKey& key,
+                                             const DiskDocKey& key,
                                              const std::string& value,
                                              GetMetaOnly getMetaOnly) {
     Expects(value.size() >= sizeof(magmakv::MetaData));
@@ -466,7 +466,7 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
 
     bool includeValue = getMetaOnly == GetMetaOnly::No && meta.valueSize;
 
-    auto item = std::make_unique<Item>(key,
+    auto item = std::make_unique<Item>(key.getDocKey(),
                                        meta.flags,
                                        meta.exptime,
                                        includeValue ? data : nullptr,
@@ -485,7 +485,7 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
 }
 
 GetValue MagmaKVStore::makeGetValue(Vbid vb,
-                                    const DocKey& key,
+                                    const DiskDocKey& key,
                                     const std::string& value,
                                     GetMetaOnly getMetaOnly) {
     return GetValue(

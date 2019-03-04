@@ -882,7 +882,7 @@ public:
      * @return ENGINE_ERROR_CODE status notified to be to the front end
      */
     virtual ENGINE_ERROR_CODE completeBGFetchForSingleItem(
-            const DocKey& key,
+            const DiskDocKey& key,
             const VBucketBGFetchItem& fetched_item,
             const std::chrono::steady_clock::time_point startTime) = 0;
 

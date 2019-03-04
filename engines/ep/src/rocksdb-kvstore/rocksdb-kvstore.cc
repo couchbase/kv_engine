@@ -598,14 +598,12 @@ void RocksDBKVStore::set(const Item& item,
     pendingReqs.push_back(std::make_unique<RocksRequest>(item, callback));
 }
 
-GetValue RocksDBKVStore::get(const StoredDocKey& key,
-                             Vbid vb,
-                             bool fetchDelete) {
+GetValue RocksDBKVStore::get(const DiskDocKey& key, Vbid vb, bool fetchDelete) {
     return getWithHeader(nullptr, key, vb, GetMetaOnly::No, fetchDelete);
 }
 
 GetValue RocksDBKVStore::getWithHeader(void* dbHandle,
-                                       const StoredDocKey& key,
+                                       const DiskDocKey& key,
                                        Vbid vb,
                                        GetMetaOnly getMetaOnly,
                                        bool fetchDelete) {
@@ -897,6 +895,11 @@ rocksdb::Slice RocksDBKVStore::getKeySlice(const DocKey& key) {
                           key.size());
 }
 
+rocksdb::Slice RocksDBKVStore::getKeySlice(const DiskDocKey& key) {
+    return rocksdb::Slice(reinterpret_cast<const char*>(key.data()),
+                          key.size());
+}
+
 rocksdb::Slice RocksDBKVStore::getSeqnoSlice(const int64_t* seqno) {
     return rocksdb::Slice(reinterpret_cast<const char*>(seqno), sizeof(*seqno));
 }
@@ -909,7 +912,7 @@ int64_t RocksDBKVStore::getNumericSeqno(const rocksdb::Slice& seqnoSlice) {
 }
 
 std::unique_ptr<Item> RocksDBKVStore::makeItem(Vbid vb,
-                                               const DocKey& key,
+                                               const DiskDocKey& key,
                                                const rocksdb::Slice& s,
                                                GetMetaOnly getMetaOnly) {
     assert(s.size() >= sizeof(rockskv::MetaData));
@@ -922,7 +925,7 @@ std::unique_ptr<Item> RocksDBKVStore::makeItem(Vbid vb,
 
     bool includeValue = getMetaOnly == GetMetaOnly::No && meta.valueSize;
 
-    auto item = std::make_unique<Item>(key,
+    auto item = std::make_unique<Item>(key.getDocKey(),
                                        meta.flags,
                                        meta.exptime,
                                        includeValue ? data : nullptr,
@@ -941,7 +944,7 @@ std::unique_ptr<Item> RocksDBKVStore::makeItem(Vbid vb,
 }
 
 GetValue RocksDBKVStore::makeGetValue(Vbid vb,
-                                      const DocKey& key,
+                                      const DiskDocKey& key,
                                       const std::string& value,
                                       GetMetaOnly getMetaOnly) {
     rocksdb::Slice sval(value);
@@ -1456,9 +1459,7 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
 
         rocksdb::Slice valSlice(valueStr);
 
-        DocKey key(reinterpret_cast<const uint8_t*>(keySlice.data()),
-                   keySlice.size(),
-                   DocKeyEncodesCollectionId::Yes);
+        DiskDocKey key{keySlice.data(), keySlice.size()};
 
         std::unique_ptr<Item> itm =
                 makeItem(ctx->vbid, key, valSlice, isMetaOnly);
@@ -1485,16 +1486,17 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
         }
         int64_t byseqno = itm->getBySeqno();
 
-        if (!key.getCollectionID().isSystem()) {
+        if (!key.getDocKey().getCollectionID().isSystem()) {
             if (ctx->docFilter !=
                 DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
-                if (ctx->collectionsContext.isLogicallyDeleted(key, byseqno)) {
+                if (ctx->collectionsContext.isLogicallyDeleted(key.getDocKey(),
+                                                               byseqno)) {
                     ctx->lastReadSeqno = byseqno;
                     continue;
                 }
             }
 
-            CacheLookup lookup(key, byseqno, ctx->vbid);
+            CacheLookup lookup(key.getDocKey(), byseqno, ctx->vbid);
 
             ctx->lookup->callback(lookup);
 

@@ -43,6 +43,7 @@
 #include "bucket_logger.h"
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
+#include "diskdockey.h"
 #include "ep_types.h"
 #include "kvstore_config.h"
 #include "statwriter.h"
@@ -172,6 +173,15 @@ static DocKey makeDocKey(const sized_buf buf) {
     return DocKey(reinterpret_cast<const uint8_t*>(buf.buf),
                   buf.size,
                   DocKeyEncodesCollectionId::Yes);
+}
+
+static DiskDocKey makeDiskDocKey(sized_buf buf) {
+    return DiskDocKey{buf.buf, buf.size};
+}
+
+static sized_buf to_sized_buf(const DiskDocKey& key) {
+    return {const_cast<char*>(reinterpret_cast<const char*>(key.data())),
+            key.size()};
 }
 
 struct GetMultiCbCtx {
@@ -433,7 +443,7 @@ void CouchKVStore::set(const Item& itm,
             itm, fileRev, requestcb, deleteItem));
 }
 
-GetValue CouchKVStore::get(const StoredDocKey& key, Vbid vb, bool fetchDelete) {
+GetValue CouchKVStore::get(const DiskDocKey& key, Vbid vb, bool fetchDelete) {
     DbHolder db(*this);
     couchstore_error_t errCode = openDB(vb, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode != COUCHSTORE_SUCCESS) {
@@ -449,7 +459,7 @@ GetValue CouchKVStore::get(const StoredDocKey& key, Vbid vb, bool fetchDelete) {
 }
 
 GetValue CouchKVStore::getWithHeader(void* dbHandle,
-                                     const StoredDocKey& key,
+                                     const DiskDocKey& key,
                                      Vbid vb,
                                      GetMetaOnly getMetaOnly,
                                      bool fetchDelete) {
@@ -458,9 +468,7 @@ GetValue CouchKVStore::getWithHeader(void* dbHandle,
     DocInfo *docInfo = NULL;
     GetValue rv;
 
-    sized_buf id = {
-            const_cast<char*>(reinterpret_cast<const char*>(key.data())),
-            key.size()};
+    sized_buf id = to_sized_buf(key);
 
     couchstore_error_t errCode = couchstore_docinfo_by_id(db, (uint8_t *)id.buf,
                                                           id.size, &docInfo);
@@ -534,10 +542,7 @@ void CouchKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
     size_t idx = 0;
     std::vector<sized_buf> ids(itms.size());
     for (auto& item : itms) {
-            ids[idx] = {const_cast<char*>(reinterpret_cast<const char*>(
-                                item.first.data())),
-                        item.first.size()};
-
+        ids[idx] = to_sized_buf(item.first);
         ++idx;
     }
 
@@ -2488,7 +2493,7 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
     }
 
     GetMultiCbCtx *cbCtx = static_cast<GetMultiCbCtx *>(ctx);
-    DocKey key = makeDocKey(docinfo->id);
+    auto key = makeDiskDocKey(docinfo->id);
     KVStoreStats& st = cbCtx->cks.getKVStoreStat();
 
     vb_bgfetch_queue_t::iterator qitr = cbCtx->fetches.find(key);

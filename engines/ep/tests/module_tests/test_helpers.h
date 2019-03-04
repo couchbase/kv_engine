@@ -22,6 +22,7 @@
 #pragma once
 
 #include "config.h"
+#include "diskdockey.h"
 #include "item.h"
 #include "storeddockey.h"
 
@@ -65,6 +66,14 @@ std::unique_ptr<Item> makeCompressibleItem(Vbid vbid,
  */
 StoredDocKey makeStoredDocKey(const std::string& string,
                               CollectionID ns = CollectionID::Default);
+
+/**
+ * Create a DiskDocKey object from a std::string.
+ * By default places the key in the default namespace,
+ * CollectionID::Default.
+ */
+DiskDocKey makeDiskDocKey(const std::string& string,
+                          CollectionID ns = CollectionID::Default);
 
 // Creates a new item with the given key and queues it into the given VBucket.
 // manager.

@@ -53,7 +53,7 @@ public:
     ~EPVBucket();
 
     ENGINE_ERROR_CODE completeBGFetchForSingleItem(
-            const DocKey& key,
+            const DiskDocKey& key,
             const VBucketBGFetchItem& fetched_item,
             const std::chrono::steady_clock::time_point startTime) override;
 

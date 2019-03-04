@@ -3637,7 +3637,7 @@ TEST_F(SingleThreadedEPBucketTest, testRetainErroneousTombstones) {
     // KVStore layer to set the delete time to 0.
     auto* kvstore = epstore.getVBucket(vbid)->getShard()
                                             ->getRWUnderlying();
-    GetValue gv = kvstore->get(key1, Vbid(0));
+    GetValue gv = kvstore->get(DiskDocKey{key1}, Vbid(0));
     std::unique_ptr<Item> itm = std::move(gv.item);
     ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
     ASSERT_TRUE(itm->isDeleted());

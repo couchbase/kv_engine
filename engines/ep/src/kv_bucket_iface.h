@@ -30,6 +30,7 @@ class ExtendedMetaData;
 struct CompactionConfig;
 class ConflictResolution;
 class DefragmenterTask;
+class DiskDocKey;
 class Flusher;
 class HashTable;
 class ItemMetaData;
@@ -45,7 +46,7 @@ namespace Collections {
 class Manager;
 }
 
-using bgfetched_item_t = std::pair<StoredDocKey, const VBucketBGFetchItem*>;
+using bgfetched_item_t = std::pair<DiskDocKey, const VBucketBGFetchItem*>;
 
 /**
  * This is the abstract base class that manages the bucket behavior in

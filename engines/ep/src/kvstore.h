@@ -40,6 +40,7 @@
 
 /* Forward declarations */
 class BucketLogger;
+class DiskDocKey;
 class Item;
 class KVStore;
 class KVStoreConfig;
@@ -64,7 +65,7 @@ struct vb_bgfetch_item_ctx_t;
 union protocol_binary_request_compact_db;
 
 using vb_bgfetch_queue_t =
-        std::unordered_map<StoredDocKey, vb_bgfetch_item_ctx_t>;
+        std::unordered_map<DiskDocKey, vb_bgfetch_item_ctx_t>;
 
 enum class GetMetaOnly { Yes, No };
 
@@ -595,12 +596,12 @@ public:
     /**
      * Get an item from the kv store.
      */
-    virtual GetValue get(const StoredDocKey& key,
+    virtual GetValue get(const DiskDocKey& key,
                          Vbid vb,
                          bool fetchDelete = false) = 0;
 
     virtual GetValue getWithHeader(void* dbHandle,
-                                   const StoredDocKey& key,
+                                   const DiskDocKey& key,
                                    Vbid vb,
                                    GetMetaOnly getMetaOnly,
                                    bool fetchDelete = false) = 0;

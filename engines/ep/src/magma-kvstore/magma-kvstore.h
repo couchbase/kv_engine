@@ -74,12 +74,12 @@ public:
     void set(const Item& item,
              Callback<TransactionContext, mutation_result>& cb) override;
 
-    GetValue get(const StoredDocKey& key,
+    GetValue get(const DiskDocKey& key,
                  Vbid vb,
                  bool fetchDelete = false) override;
 
     GetValue getWithHeader(void* dbHandle,
-                           const StoredDocKey& key,
+                           const DiskDocKey& key,
                            Vbid vb,
                            GetMetaOnly getMetaOnly,
                            bool fetchDelete = false) override;
@@ -260,12 +260,12 @@ private:
     std::vector<Vbid> discoverVBuckets();
 
     std::unique_ptr<Item> makeItem(Vbid vb,
-                                   const DocKey& key,
+                                   const DiskDocKey& key,
                                    const std::string& value,
                                    GetMetaOnly getMetaOnly);
 
     GetValue makeGetValue(Vbid vb,
-                          const DocKey& key,
+                          const DiskDocKey& key,
                           const std::string& value,
                           GetMetaOnly getMetaOnly = GetMetaOnly::No);
 
