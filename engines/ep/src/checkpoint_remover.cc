@@ -121,11 +121,16 @@ bool ClosedUnrefCheckpointRemoverTask::run(void) {
         auto pv =
                 std::make_unique<CheckpointVisitor>(kvBucket, stats, available);
 
+        // Empirical evidence from perf runs shows that 99.9% of "Checkpoint
+        // Remover" task should complete under 50ms
+        const auto maxExpectedDurationForVisitorTask =
+                std::chrono::milliseconds(50);
+
         kvBucket->visitAsync(std::move(pv),
                              "Checkpoint Remover",
                              TaskId::ClosedUnrefCheckpointRemoverVisitorTask,
                              /*sleepTime*/ 0,
-                             maxExpectedDuration());
+                             maxExpectedDurationForVisitorTask);
     }
     snooze(sleepTime);
     return true;

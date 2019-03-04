@@ -49,9 +49,9 @@ public:
     }
 
     std::chrono::microseconds maxExpectedDuration() {
-        // Empirical evidence suggests this task runs under 25ms 99.99999% of
-        // the time.
-        return std::chrono::milliseconds(25);
+        // Empirical evidence from perf runs suggests this task runs
+        // under 250ms 99.99999% of the time.
+        return std::chrono::milliseconds(250);
     }
 
 private:

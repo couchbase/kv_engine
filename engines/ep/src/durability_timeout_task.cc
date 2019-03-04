@@ -34,14 +34,15 @@ bool DurabilityTimeoutTask::run() {
     TRACE_EVENT0("ep-engine/task", "DurabilityTimeoutTask");
 
     // @todo: A meaningful value will be the P99.99
-    const auto maxExpectedDuration = std::chrono::milliseconds(100);
+    const auto maxExpectedDurationForVisitorTask =
+            std::chrono::milliseconds(100);
 
     auto& kvBucket = *engine->getKVBucket();
     kvBucket.visitAsync(std::make_unique<DurabilityTimeoutVisitor>(),
                         "DurabilityTimeoutVisitor",
                         TaskId::DurabilityTimeoutVisitor,
                         0 /*adaptorSleepTime*/,
-                        maxExpectedDuration);
+                        maxExpectedDurationForVisitorTask);
 
     // Note: Default unit for std::duration is seconds, so the following gives
     // the seconds-representation (as double) of the given millis (sleepTime)
