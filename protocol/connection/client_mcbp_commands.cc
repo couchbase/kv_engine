@@ -682,11 +682,6 @@ BinprotMutationCommand& BinprotMutationCommand::setValue(const T& value_) {
     value.assign(value_.begin(), value_.end());
     return *this;
 }
-template <typename T>
-BinprotMutationCommand& BinprotMutationCommand::setValueBuffers(const T& bufs) {
-    value_refs.assign(bufs.begin(), bufs.end());
-    return *this;
-}
 BinprotMutationCommand& BinprotMutationCommand::addValueBuffer(
         cb::const_byte_buffer buf) {
     value_refs.emplace_back(buf);

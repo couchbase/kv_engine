@@ -656,17 +656,6 @@ public:
     template <typename T>
     BinprotMutationCommand& setValue(const T& value_);
 
-    /**
-     * Set the value buffers (IO vectors) for the command.
-     * Unlike #setValue() this does not copy the value to the command object
-     *
-     * @param bufs Buffers containing the value. The buffers should be
-     *        considered owned by the command object until it is sent
-     *        over the wire
-     */
-    template <typename T>
-    BinprotMutationCommand& setValueBuffers(const T& bufs);
-
     BinprotMutationCommand& addValueBuffer(cb::const_byte_buffer buf);
 
     BinprotMutationCommand& setDatatype(uint8_t datatype_);
