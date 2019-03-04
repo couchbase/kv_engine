@@ -23,7 +23,7 @@
 
 // Custom deleter for the hdr_histogram struct.
 void HdrHistogram::HdrDeleter::operator()(struct hdr_histogram* val) {
-    free(val);
+    hdr_close(val);
 }
 
 HdrHistogram::HdrHistogram(uint64_t lowestTrackableValue,
