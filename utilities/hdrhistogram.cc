@@ -17,7 +17,6 @@
 
 #include "hdrhistogram.h"
 #include <nlohmann/json.hpp>
-#include <cstdlib> // Required due to the use of free
 #include <iostream>
 #include <sstream>
 
