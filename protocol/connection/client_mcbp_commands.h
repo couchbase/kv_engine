@@ -109,17 +109,6 @@ protected:
     };
 
     /**
-     * Fills the header with the current fields.
-     *
-     * @param[out] header header to write to
-     * @param payload_len length of the "value" of the payload
-     * @param extlen extras length.
-     */
-    void fillHeader(cb::mcbp::Request& header,
-                    size_t payload_len = 0,
-                    size_t extlen = 0) const;
-
-    /**
      * Writes the header to the buffer
      * @param buf Buffer to write to
      * @param payload_len Payload length (excluding keylen and extlen)
@@ -133,6 +122,18 @@ protected:
     std::string key;
     uint64_t cas = 0;
     Vbid vbucket = Vbid(0);
+
+private:
+    /**
+     * Fills the header with the current fields.
+     *
+     * @param[out] header header to write to
+     * @param payload_len length of the "value" of the payload
+     * @param extlen extras length.
+     */
+    void fillHeader(cb::mcbp::Request& header,
+                    size_t payload_len = 0,
+                    size_t extlen = 0) const;
 };
 
 /**

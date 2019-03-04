@@ -637,10 +637,8 @@ void BinprotMutationCommand::encodeHeader(std::vector<uint8_t>& buf) const {
         value_size += vbuf.size();
     }
 
-    // We'll be changing the datatype so we cannot use writeHeader
-    buf.resize(sizeof(cb::mcbp::Request));
+    writeHeader(buf, value_size, extlen);
     auto* header = reinterpret_cast<cb::mcbp::Request*>(buf.data());
-    fillHeader(*header, value_size, extlen);
     header->setDatatype(cb::mcbp::Datatype(datatype));
 
     if (extlen != 0) {
@@ -1366,10 +1364,8 @@ void BinprotSetWithMetaCommand::encode(std::vector<uint8_t>& buf) const {
         extlen += 2;
     }
 
-    // We need to override the datatype so we cannot use writeHeader
-    buf.resize(sizeof(cb::mcbp::Request));
+    writeHeader(buf, doc.value.size(), extlen);
     auto& request = *reinterpret_cast<cb::mcbp::Request*>(buf.data());
-    fillHeader(request, doc.value.size(), extlen);
     request.setDatatype(doc.info.datatype);
     append(buf, getFlags());
     append(buf, getExptime());
