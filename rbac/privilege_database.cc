@@ -429,7 +429,9 @@ void updateExternalUser(const std::string& descr) {
     std::lock_guard<cb::WriterLock> guard(ctx.rwlock.writer());
     auto next = ctx.db->updateUser(username, Domain::External, entry);
     if (next) {
-        // I changed the database.. swap
+        // I changed the database. Update the context gen counter and
+        // swap the databases
+        ctx.current_generation = next->generation;
         ctx.db.swap(next);
     }
 }
