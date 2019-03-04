@@ -118,9 +118,6 @@ BinprotCommand& BinprotCommand::setVBucket(Vbid vbid) {
     return *this;
 }
 
-BinprotCommand::Encoded::Encoded() : header(), bufs() {
-}
-
 void BinprotCommand::ExpiryValue::assign(uint32_t value_) {
     value = value_;
     set = true;

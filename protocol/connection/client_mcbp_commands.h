@@ -63,8 +63,6 @@ public:
     virtual void encode(std::vector<uint8_t>& buf) const;
 
     struct Encoded {
-        Encoded();
-
         /**
          * 'scratch' space for data which isn't owned by anything and is
          * generated on demand. Any data here is sent before the data in the
