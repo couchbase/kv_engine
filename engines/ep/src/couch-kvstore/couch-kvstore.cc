@@ -195,11 +195,12 @@ struct GetMultiCbCtx {
 };
 
 struct AllKeysCtx {
-    AllKeysCtx(std::shared_ptr<Callback<const DocKey&>> callback, uint32_t cnt)
+    AllKeysCtx(std::shared_ptr<Callback<const DiskDocKey&>> callback,
+               uint32_t cnt)
         : cb(callback), count(cnt) {
     }
 
-    std::shared_ptr<Callback<const DocKey&>> cb;
+    std::shared_ptr<Callback<const DiskDocKey&>> cb;
     uint32_t count;
 };
 
@@ -2807,7 +2808,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
 
 int populateAllKeys(Db *db, DocInfo *docinfo, void *ctx) {
     AllKeysCtx *allKeysCtx = (AllKeysCtx *)ctx;
-    DocKey key = makeDocKey(docinfo->id);
+    auto key = makeDiskDocKey(docinfo->id);
     (allKeysCtx->cb)->callback(key);
     if (--(allKeysCtx->count) <= 0) {
         //Only when count met is less than the actual number of entries
@@ -2818,26 +2819,23 @@ int populateAllKeys(Db *db, DocInfo *docinfo, void *ctx) {
 
 ENGINE_ERROR_CODE
 CouchKVStore::getAllKeys(Vbid vbid,
-                         const DocKey start_key,
+                         const DiskDocKey& start_key,
                          uint32_t count,
-                         std::shared_ptr<Callback<const DocKey&>> cb) {
+                         std::shared_ptr<Callback<const DiskDocKey&>> cb) {
     DbHolder db(*this);
     couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if(errCode == COUCHSTORE_SUCCESS) {
-        sized_buf ref = {NULL, 0};
+        sized_buf ref = to_sized_buf(start_key);
 
-            ref.buf = (char*)start_key.data();
-            ref.size = start_key.size();
-
-            AllKeysCtx ctx(cb, count);
-            errCode = couchstore_all_docs(db,
-                                          &ref,
-                                          COUCHSTORE_NO_DELETES,
-                                          populateAllKeys,
-                                          static_cast<void*>(&ctx));
-            if (errCode == COUCHSTORE_SUCCESS ||
-                errCode == COUCHSTORE_ERROR_CANCEL) {
-                return ENGINE_SUCCESS;
+        AllKeysCtx ctx(cb, count);
+        errCode = couchstore_all_docs(db,
+                                      &ref,
+                                      COUCHSTORE_NO_DELETES,
+                                      populateAllKeys,
+                                      static_cast<void*>(&ctx));
+        if (errCode == COUCHSTORE_SUCCESS ||
+            errCode == COUCHSTORE_ERROR_CANCEL) {
+            return ENGINE_SUCCESS;
         } else {
             logger.warn(
                     "CouchKVStore::getAllKeys: couchstore_all_docs "

@@ -1160,8 +1160,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
 TEST_F(CouchKVStoreErrorInjectionTest, getAllKeys_all_docs) {
     populate_items(1);
 
-    auto adcb(std::make_shared<CustomCallback<const DocKey&>>());
-    StoredDocKey start = makeStoredDocKey("");
+    auto adcb(std::make_shared<CustomCallback<const DiskDocKey&>>());
+    auto start = makeDiskDocKey("");
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());

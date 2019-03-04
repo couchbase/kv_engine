@@ -770,9 +770,9 @@ public:
 
     virtual ENGINE_ERROR_CODE getAllKeys(
             Vbid vbid,
-            const DocKey start_key,
+            const DiskDocKey& start_key,
             uint32_t count,
-            std::shared_ptr<Callback<const DocKey&>> cb) = 0;
+            std::shared_ptr<Callback<const DiskDocKey&>> cb) = 0;
 
     /**
      * Create a KVStore Scan Context with the given options. On success,

@@ -5461,23 +5461,23 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
  * This initially allocated buffersize is doubled whenever the length
  * of the buffer holding all the keys, crosses the buffersize.
  */
-class AllKeysCallback : public Callback<const DocKey&> {
+class AllKeysCallback : public Callback<const DiskDocKey&> {
 public:
     AllKeysCallback(bool collectionsSupported)
         : collectionsSupported(collectionsSupported) {
         buffer.reserve((avgKeySize + sizeof(uint16_t)) * expNumKeys);
     }
 
-    void callback(const DocKey& key) {
-        DocKey outKey = key;
-        if (key.getCollectionID() == CollectionID::System) {
+    void callback(const DiskDocKey& key) {
+        auto outKey = key.getDocKey();
+        if (outKey.getCollectionID() == CollectionID::System) {
             // Skip system collection keys
             return;
         }
 
         if (!collectionsSupported) {
-            if (key.getCollectionID().isDefaultCollection()) {
-                outKey = key.makeDocKeyWithoutCollectionID();
+            if (outKey.getCollectionID().isDefaultCollection()) {
+                outKey = outKey.makeDocKeyWithoutCollectionID();
             } else {
                 // Only default collection key can be sent back if
                 // collectionsSupported is false
@@ -5506,7 +5506,6 @@ private:
     bool collectionsSupported{false};
     static const int avgKeySize = 32;
     static const int expNumKeys = 1000;
-
 };
 
 /*
@@ -5590,7 +5589,7 @@ private:
     const void *cookie;
     const std::string description;
     AddResponseFn response;
-    StoredDocKey start_key;
+    DiskDocKey start_key;
     Vbid vbid;
     uint32_t count;
     bool collectionsSupported{false};

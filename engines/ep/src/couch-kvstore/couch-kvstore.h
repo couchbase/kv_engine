@@ -420,9 +420,9 @@ public:
      */
     ENGINE_ERROR_CODE getAllKeys(
             Vbid vbid,
-            const DocKey start_key,
+            const DiskDocKey& start_key,
             uint32_t count,
-            std::shared_ptr<Callback<const DocKey&>> cb) override;
+            std::shared_ptr<Callback<const DiskDocKey&>> cb) override;
 
     ScanContext* initScanContext(
             std::shared_ptr<StatusCallback<GetValue>> cb,
