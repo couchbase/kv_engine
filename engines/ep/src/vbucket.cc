@@ -1026,6 +1026,18 @@ HashTable::FindResult VBucket::fetchValidValue(
     return {v, std::move(hbl)};
 }
 
+HashTable::FindResult VBucket::fetchPreparedValue(
+        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+    const auto& key = cHandle.getKey();
+    auto hbl = ht.getLockedBucket(key);
+    auto* sv = ht.unlocked_find(key,
+                                hbl.getBucketNum(),
+                                WantsDeleted::Yes,
+                                TrackReference::No,
+                                HashTable::Perspective::Pending);
+    return {sv, std::move(hbl)};
+}
+
 void VBucket::incExpirationStat(const ExpireBy source) {
     switch (source) {
     case ExpireBy::Pager:

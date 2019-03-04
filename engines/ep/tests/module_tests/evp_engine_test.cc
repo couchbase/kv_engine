@@ -105,8 +105,11 @@ void EventuallyPersistentEngineTest::store_item(Vbid vbid,
 }
 
 void EventuallyPersistentEngineTest::store_pending_item(
-        Vbid vbid, const std::string& key, const std::string& value) {
-    auto item = makePendingItem(makeStoredDocKey(key), value);
+        Vbid vbid,
+        const std::string& key,
+        const std::string& value,
+        cb::durability::Requirements reqs) {
+    auto item = makePendingItem(makeStoredDocKey(key), value, reqs);
     uint64_t cas;
     EXPECT_EQ(ENGINE_EWOULDBLOCK,
               engine->storeInner(cookie, item.get(), cas, OPERATION_SET))

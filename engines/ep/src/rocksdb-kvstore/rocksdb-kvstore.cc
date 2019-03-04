@@ -1496,7 +1496,7 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
                 }
             }
 
-            CacheLookup lookup(key.getDocKey(), byseqno, ctx->vbid);
+            CacheLookup lookup(key, byseqno, ctx->vbid);
 
             ctx->lookup->callback(lookup);
 

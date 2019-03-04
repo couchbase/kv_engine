@@ -780,6 +780,23 @@ public:
      * to execute the scan. The context should be deleted by the caller using
      * destroyScanContext() when finished with.
      *
+     * The caller specifies two callback objects - GetValue and CacheLookup:
+     *
+     * 1. GetValue callback is invoked for each object loaded from disk, for
+     *    the caller to process that item.
+     * 2. CacheLookup callback an an optimization to avoid loading data from
+     *    disk for already-resident items - it is invoked _before_ loading the
+     *    item's value from disk, to give ep-engine's in-memory cache the
+     *    opportunity to fulfill the item (assuming the item is in memory).
+     *    If this callback has status ENGINE_KEY_EEXISTS then the document is
+     *    considered to have been handled purely from memory and the GetValue
+     *    callback is skipped.
+     *    If this callback has status ENGINE_SUCCESS then it wasn't fulfilled
+     *    from memory, and will instead be loaded from disk and GetValue
+     *    callback invoked.
+     *
+     * @param cb GetValue callback
+     * @param cl Cache lookup callback
      * If the ScanContext cannot be created, returns null.
      */
     virtual ScanContext* initScanContext(

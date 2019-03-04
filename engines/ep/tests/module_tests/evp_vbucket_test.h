@@ -21,7 +21,7 @@
 #include "evp_store_single_threaded_test.h"
 #include "vbucket_test.h"
 
-struct DocKey;
+class DiskDocKey;
 
 /**
  * Fixture class for VBucket tests that require an EPEngine instance

@@ -733,7 +733,15 @@ void LoadValueCallback::callback(CacheLookup &lookup)
             return;
         }
 
-        auto v = vb->ht.findForRead(lookup.getKey());
+        // @todo-durability - Do we need to process prepared namespaced keys
+        // here or are they handled in an earlier warmup phase?
+        // Assuming they can be skipped for now.
+        if (lookup.getKey().isPrepared()) {
+            setStatus(ENGINE_KEY_EEXISTS);
+            return;
+        }
+
+        auto v = vb->ht.findForRead(lookup.getKey().getDocKey());
         if (v.storedValue && v.storedValue->isResident()) {
             setStatus(ENGINE_KEY_EEXISTS);
             return;

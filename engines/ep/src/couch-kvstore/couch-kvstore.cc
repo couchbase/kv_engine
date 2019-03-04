@@ -184,6 +184,46 @@ static sized_buf to_sized_buf(const DiskDocKey& key) {
             key.size()};
 }
 
+/**
+ * Helper function to create an Item from couchstore DocInfo & related types.
+ */
+static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
+                                                 const DocInfo& docinfo,
+                                                 const MetaData& metadata,
+                                                 sized_buf value) {
+    // Strip off the DurabilityPrepare namespace (if present) from the persisted
+    // dockey before we create the in-memory item.
+    auto item = std::make_unique<Item>(makeDiskDocKey(docinfo.id).getDocKey(),
+                                       metadata.getFlags(),
+                                       metadata.getExptime(),
+                                       value.buf,
+                                       value.size,
+                                       metadata.getDataType(),
+                                       metadata.getCas(),
+                                       docinfo.db_seq,
+                                       vbid,
+                                       docinfo.rev_seq);
+    if (docinfo.deleted) {
+        item->setDeleted(metadata.getDeleteSource());
+    }
+
+    if (metadata.getVersionInitialisedFrom() == MetaData::Version::V3) {
+        // Metadata is from a SyncWrite - update the Item appropriately.
+        switch (metadata.getDurabilityOp()) {
+        case queue_op::pending_sync_write:
+            // From disk we return a zero (infinite) timeout; as this could
+            // refer to an already-committed SyncWrite and hence timeout
+            // must be ignored.
+            item->setPendingSyncWrite({metadata.getDurabilityLevel(), 0});
+            break;
+        default:
+            throw std::logic_error("makeItemFromDocInfo: Invalid queue_op:" +
+                                   to_string(metadata.getDurabilityOp()));
+        }
+    }
+    return item;
+}
+
 struct GetMultiCbCtx {
     GetMultiCbCtx(CouchKVStore& c, Vbid v, vb_bgfetch_queue_t& f)
         : cks(c), vbId(v), fetches(f) {
@@ -1682,29 +1722,6 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string>& filenames,
     }
 }
 
-/**
- * Helper function to create an Item from couchstore DocInfo & related types.
- */
-static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
-                                                 const DocInfo& docinfo,
-                                                 const MetaData& metadata,
-                                                 sized_buf value) {
-    auto item = std::make_unique<Item>(makeDocKey(docinfo.id),
-                                       metadata.getFlags(),
-                                       metadata.getExptime(),
-                                       value.buf,
-                                       value.size,
-                                       metadata.getDataType(),
-                                       metadata.getCas(),
-                                       docinfo.db_seq,
-                                       vbid,
-                                       docinfo.rev_seq);
-    if (docinfo.deleted) {
-        item->setDeleted(metadata.getDeleteSource());
-    }
-    return item;
-}
-
 couchstore_error_t CouchKVStore::fetchDoc(Db* db,
                                           DocInfo* docinfo,
                                           GetValue& docValue,
@@ -1792,10 +1809,11 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
                         ") is greater than " + std::to_string(UINT16_MAX));
     }
 
-    DocKey docKey = makeDocKey(docinfo->id);
+    auto diskKey = makeDiskDocKey(docinfo->id);
 
     // Determine if the key is logically deleted, if it is we skip the key
     // Note that system event keys (like create scope) are never skipped here
+    auto docKey = diskKey.getDocKey();
     if (!docKey.getCollectionID().isSystem()) {
         if (sctx->docFilter !=
             DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
@@ -1805,7 +1823,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
             }
         }
 
-        CacheLookup lookup(docKey, byseqno, vbucketId);
+        CacheLookup lookup(diskKey, byseqno, vbucketId);
 
         cl->callback(lookup);
         if (cl->getStatus() == ENGINE_KEY_EEXISTS) {

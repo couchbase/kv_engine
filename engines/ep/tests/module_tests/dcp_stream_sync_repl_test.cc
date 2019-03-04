@@ -23,6 +23,7 @@
 #include "vbucket.h"
 #include <engines/ep/tests/mock/mock_dcp.h>
 #include <engines/ep/tests/mock/mock_dcp_producer.h>
+#include <engines/ep/tests/mock/mock_stream.h>
 
 /**
  * Test fixture for tests relating to DCP Streams and synchrnous replication.
@@ -226,6 +227,55 @@ TEST_P(DcpStreamSyncReplTest, MutationAndPendingWithSyncReplica) {
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
 
     destroy_dcp_stream();
+}
+
+/// Test that backfill of a prepared item is handled correctly.
+TEST_P(DcpStreamSyncReplTest, BackfillPrepare) {
+    if (GetParam() == "ephemeral") {
+        // @todo-durability: This test currently fails under ephmeral as
+        // in-memory backfill doesn't fill in the durability requirements:
+        //     std::logic_error: StoredValue::toItemImpl: attempted to create
+        //     Item from Pending StoredValue without supplying durabilityReqs
+        std::cerr << "NOTE: Skipped under Ephemeral\n";
+        return;
+    }
+
+    // Store a pending item then remove the checkpoint to force backfill.
+    using cb::durability::Level;
+    store_pending_item(vbid, "1", "X", {Level::MajorityAndPersistOnMaster, 0});
+    removeCheckpoint(1);
+
+    // Create sync repl DCP stream
+    setup_dcp_stream(0,
+                     IncludeValue::Yes,
+                     IncludeXattrs::Yes,
+                     {{"enable_synchronous_replication", "true"}});
+
+    MockDcpMessageProducers producers(engine);
+
+    ExecutorPool::get()->setNumAuxIO(1);
+    stream->transitionStateToBackfilling();
+
+    // Wait for the backfill task to have pushed all items to the Stream::readyQ
+    // Note: we expect 1 SnapshotMarker + numItems in the readyQ
+    std::chrono::microseconds uSleepTime(128);
+    while (stream->public_readyQSize() < 1 + 1) {
+        uSleepTime = decayingSleep(uSleepTime);
+    }
+
+    auto item = stream->public_nextQueuedItem();
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, item->getEvent());
+    auto snapMarker = dynamic_cast<SnapshotMarker&>(*item);
+    EXPECT_EQ(0, snapMarker.getStartSeqno());
+    EXPECT_EQ(1, snapMarker.getEndSeqno());
+
+    item = stream->public_nextQueuedItem();
+    EXPECT_EQ(DcpResponse::Event::Prepare, item->getEvent());
+    auto prepare = dynamic_cast<MutationResponse&>(*item);
+    EXPECT_EQ(makeStoredDocKey("1"), prepare.getItem()->getKey());
+    EXPECT_EQ("X", prepare.getItem()->getValue()->to_s());
+    EXPECT_EQ(Level::MajorityAndPersistOnMaster,
+              prepare.getItem()->getDurabilityReqs().getLevel());
 }
 
 // Test cases which run in both Full and Value eviction

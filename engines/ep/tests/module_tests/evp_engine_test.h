@@ -26,6 +26,7 @@
 #include "../mock/mock_executor_pool.h"
 
 #include <gtest/gtest.h>
+#include <memcached/durability_spec.h>
 #include <memcached/vbucket.h>
 
 struct EngineIface;
@@ -51,7 +52,9 @@ protected:
     /// Stored a pending SyncWrite into the given vbucket.
     void store_pending_item(Vbid vbid,
                             const std::string& key,
-                            const std::string& value);
+                            const std::string& value,
+                            cb::durability::Requirements reqs = {
+                                    cb::durability::Level::Majority, 0});
 
     std::string config_string;
 

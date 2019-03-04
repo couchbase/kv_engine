@@ -411,7 +411,7 @@ public:
     }
 
     void callback(CacheLookup& lookup) {
-        EXPECT_EQ(expectedCid, lookup.getKey().getCollectionID());
+        EXPECT_EQ(expectedCid, lookup.getKey().getDocKey().getCollectionID());
         callbacks++;
     }
 

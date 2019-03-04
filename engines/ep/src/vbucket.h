@@ -871,6 +871,19 @@ public:
             const Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     /**
+     * Searches for a Prepared SyncWrite in the VBucket.
+     *
+     * Only looks in the in-memory HashTable (Prepared items are never
+     * evicted).
+     *
+     * @param cHandle Collections readhandle (caching mode) for this key
+     * @return a FindResult consisting of a pointer to the StoredValue (if
+     * found) and the associated HashBucketLock which guards it.
+     */
+    HashTable::FindResult fetchPreparedValue(
+            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+
+    /**
      * Complete the background fetch for the specified item. Depending on the
      * state of the item, restore it to the hashtable as appropriate,
      * potentially queuing it as dirty.

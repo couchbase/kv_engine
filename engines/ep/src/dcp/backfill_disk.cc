@@ -57,7 +57,7 @@ GetValue CacheCallback::get(VBucket& vb,
                             ActiveStream& stream) {
     // getInternal may generate expired items and thus may for example need to
     // update a collection high-seqno, get a handle on the collection manifest
-    auto cHandle = vb.lockCollections(lookup.getKey());
+    auto cHandle = vb.lockCollections(lookup.getKey().getDocKey());
     if (!cHandle.valid()) {
         return {};
     }
@@ -84,11 +84,11 @@ void CacheCallback::callback(CacheLookup& lookup) {
         return;
     }
 
-    // @todo-durability: Backfill for Pending SyncWrite.
-    //     Note that by setting status=ENGINE_KEY_EEXISTS the caller will skip
-    //     the lookup (the indirect caller is KVStore::scan)
-    if (lookup.getKey().getCollectionID() == CollectionID::DurabilityPrepare) {
-        setStatus(ENGINE_KEY_EEXISTS);
+    // If diskKey is in Prepared namespace then the in-memory StoredValue isn't
+    // sufficient - as it doesn't contain the durability requirements (level).
+    // Must get from disk.
+    if (lookup.getKey().isPrepared()) {
+        setStatus(ENGINE_SUCCESS);
         return;
     }
 

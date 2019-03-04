@@ -18,6 +18,7 @@
 #pragma once
 
 #include "config.h"
+#include "diskdockey.h"
 
 #include <memcached/dockey.h>
 #include <memcached/engine_error.h>
@@ -29,13 +30,15 @@ class Item;
 
 class CacheLookup {
 public:
-    CacheLookup(const DocKey& k, int64_t s, Vbid vb)
+    CacheLookup(const DiskDocKey& k, int64_t s, Vbid vb)
         : key(k), bySeqno(s), vbid(vb) {
     }
 
     ~CacheLookup() {}
 
-    DocKey getKey() { return key; }
+    const DiskDocKey& getKey() {
+        return key;
+    }
 
     int64_t getBySeqno() { return bySeqno; }
 
@@ -44,7 +47,7 @@ public:
     }
 
 private:
-    DocKey key;
+    DiskDocKey key;
     int64_t bySeqno;
     Vbid vbid;
 };
