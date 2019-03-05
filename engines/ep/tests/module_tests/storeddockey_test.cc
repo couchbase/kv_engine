@@ -63,6 +63,16 @@ TEST_P(StoredDocKeyTest, constructors) {
     EXPECT_EQ(GetParam(), key3.getCollectionID());
 }
 
+// Test that a StoredDocKey cannot be created with a reserved namespace.
+TEST(StoredDocKeyTest, ReservedIsInvalid) {
+    for (CollectionIDType cid = CollectionID::DurabilityPrepare;
+         cid <= CollectionID::Reserved7;
+         cid++) {
+        EXPECT_THROW({ StoredDocKey reserved("key", cid); },
+                     std::invalid_argument);
+    }
+}
+
 TEST(StoredDocKey, no_encoded_collectionId) {
     // Test construction from a DocKey which is a view onto a key with no
     // encoded prefix

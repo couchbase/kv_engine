@@ -114,8 +114,7 @@ public:
         : IORequest(item.getVBucketId(),
                     callback,
                     item.isDeleted(),
-                    item.getKey(),
-                    item.isPending()),
+                    DiskDocKey{item}),
           docBody(item.getValue()) {
         docMeta = rockskv::MetaData(
                 item.isDeleted(),

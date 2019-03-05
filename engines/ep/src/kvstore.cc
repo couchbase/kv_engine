@@ -549,9 +549,8 @@ void KVStore::delSystemEvent(const Item& item,
 IORequest::IORequest(Vbid vbId,
                      MutationRequestCallback& cb,
                      bool del,
-                     const DocKey itmKey,
-                     bool pending)
-    : vbucketId(vbId), deleteItem(del), key(itmKey, pending) {
+                     DiskDocKey itmKey)
+    : vbucketId(vbId), deleteItem(del), key(std::move(itmKey)) {
     if (del) {
         callback.delCb = cb.delCb;
     } else {

@@ -127,15 +127,6 @@ public:
         return dbDocInfo.id.size;
     }
 
-    /**
-     * Get the key of a document to be persisted
-     *
-     * @return key of a document to be persisted
-     */
-    const StoredDocKey& getKey(void) const {
-        return key;
-    }
-
 protected:
     static couchstore_content_meta_flags getContentMeta(const Item& it);
 

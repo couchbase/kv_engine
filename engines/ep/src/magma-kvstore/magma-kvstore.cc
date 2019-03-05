@@ -95,8 +95,7 @@ public:
         : IORequest(item.getVBucketId(),
                     callback,
                     item.isDeleted(),
-                    item.getKey(),
-                    item.isPending()),
+                    DiskDocKey{item}),
           docBody(item.getValue()),
           updatedExistingItem(false) {
         docMeta = magmakv::MetaData(
@@ -123,9 +122,6 @@ public:
         return getKey().size();
     }
 
-    const char* getKeyData() const {
-        return getKey().c_str();
-    }
     size_t getBodySize() const {
         return docBody ? docBody->valueSize() : 0;
     }

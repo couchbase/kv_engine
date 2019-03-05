@@ -20,44 +20,24 @@
 #include <iostream>
 #include <sstream>
 
-StoredDocKey::StoredDocKey(const DocKey& key, bool pending) {
-    uint8_t keyOffset = 0;
-    if (pending) {
-        // 1 byte for Prepare prefix
-        keydata.resize(1);
-        keydata[0] = CollectionID::DurabilityPrepare;
-        keyOffset++;
-    }
-
-    if (key.getEncoding() == DocKeyEncodesCollectionId::No) {
+StoredDocKey::StoredDocKey(const DocKey& key) {
+    if (key.getEncoding() == DocKeyEncodesCollectionId::Yes) {
+        keydata.resize(key.size());
+        std::copy(key.data(), key.data() + key.size(), keydata.begin());
+    } else {
         // 1 byte for the Default CollectionID
-        keydata.resize(keyOffset + 1);
-        keydata[keyOffset] = DefaultCollectionLeb128Encoded;
-        keyOffset++;
+        keydata.resize(key.size() + 1);
+        keydata[0] = DefaultCollectionLeb128Encoded;
+        std::copy(key.data(), key.data() + key.size(), keydata.begin() + 1);
     }
-
-    keydata.resize(keyOffset + key.size());
-    std::copy(key.data(), key.data() + key.size(), keydata.begin() + keyOffset);
 }
 
-StoredDocKey::StoredDocKey(const std::string& key,
-                           CollectionID cid,
-                           bool pending) {
-    uint8_t keyOffset = 0;
-    if (pending) {
-        // 1 byte for Prepare prefix
-        keydata.resize(1);
-        keydata[0] = CollectionID::DurabilityPrepare;
-        keyOffset++;
-    }
-
+StoredDocKey::StoredDocKey(const std::string& key, CollectionID cid) {
     cb::mcbp::unsigned_leb128<CollectionIDType> leb128(cid);
-    keydata.resize(keyOffset + leb128.size() + key.size());
-    std::copy(
-            key.begin(),
-            key.end(),
-            std::copy(
-                    leb128.begin(), leb128.end(), keydata.begin() + keyOffset));
+    keydata.resize(key.size() + leb128.size());
+    std::copy(key.begin(),
+              key.end(),
+              std::copy(leb128.begin(), leb128.end(), keydata.begin()));
 }
 
 CollectionID StoredDocKey::getCollectionID() const {

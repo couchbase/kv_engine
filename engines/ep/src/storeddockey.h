@@ -32,27 +32,25 @@ class SerialisedDocKey;
  *
  * Internally an n byte key is stored in a n + sizeof(CollectionID) std::string.
  *  a) We zero terminate so that data() is safe for printing as a c-string.
- *  b) We store the CollectionID in byte 0:3. This is because StoredDocKey
- *    typically ends up being written to disk and the CollectionID forms part
- *    of the on-disk key. Accounting and for for the CollectionID means storage
- *    components don't have to create a new buffer into which they can layout
- *    CollectionID and key data.
+ *  b) The CollectionID is stored before the key string (using LEB128 encoding).
+ *    This is because StoredDocKey typically ends up being written to disk and
+ *    the CollectionID forms part of the on-disk key. Accounting and for for the
+ *    CollectionID means storage components don't have to create a new buffer
+ *    into which they can layout CollectionID and key data.
  */
 class StoredDocKey : public DocKeyInterface<StoredDocKey> {
 public:
     /**
      * Construct empty - required for some std containers
      */
-    StoredDocKey() : keydata() {
-    }
+    StoredDocKey() = default;
 
     /**
      * Create a StoredDocKey from a DocKey
      *
      * @param key DocKey that is to be copied-in
-     * @param pending Prefix for Pending SyncWrite?
      */
-    StoredDocKey(const DocKey& key, bool pending = false);
+    StoredDocKey(const DocKey& key);
 
     /**
      * Create a StoredDocKey from a std::string (test code uses this)
@@ -60,11 +58,8 @@ public:
      * @param key std::string to be copied-in
      * @param cid the CollectionID that the key applies to (and will be encoded
      *        into the stored data)
-     * @param pending Prefix for Pending SyncWrite?
      */
-    StoredDocKey(const std::string& key,
-                 CollectionID cid,
-                 bool pending = false);
+    StoredDocKey(const std::string& key, CollectionID cid);
 
     const uint8_t* data() const {
         return reinterpret_cast<const uint8_t*>(keydata.data());

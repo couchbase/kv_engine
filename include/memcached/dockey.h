@@ -74,7 +74,7 @@ public:
     }
 
     CollectionID(CollectionIDType value) : value(value) {
-        if (value > DurabilityPrepare && value <= Reserved7) {
+        if (value >= DurabilityPrepare && value <= Reserved7) {
             throw std::invalid_argument("CollectionID: invalid value:" +
                                         std::to_string(value));
         }

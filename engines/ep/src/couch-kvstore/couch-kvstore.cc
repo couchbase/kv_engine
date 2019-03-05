@@ -73,7 +73,7 @@ struct kvstats_ctx {
         : collectionsFlush(collectionsFlush) {
     }
     /// A map of key to bool. If true, the key exists in the VB datafile
-    std::unordered_map<StoredDocKey, bool> keyStats;
+    std::unordered_map<DiskDocKey, bool> keyStats;
     /// Collection flusher data for managing manifest changes and item counts
     Collections::VB::Flush& collectionsFlush;
 };
@@ -265,11 +265,10 @@ CouchRequest::CouchRequest(const Item& it,
                            uint64_t rev,
                            MutationRequestCallback& cb,
                            bool del)
-    : IORequest(it.getVBucketId(), cb, del, it.getKey(), it.isPending()),
+    : IORequest(it.getVBucketId(), cb, del, DiskDocKey{it}),
       value(it.getValue()),
       fileRevNum(rev) {
-    dbDoc.id = {const_cast<char*>(reinterpret_cast<const char*>(key.data())),
-                key.size()};
+    dbDoc.id = to_sized_buf(key);
 
     if (it.getNBytes()) {
         dbDoc.data.buf = const_cast<char *>(value->getData());
@@ -284,7 +283,7 @@ CouchRequest::CouchRequest(const Item& it,
     meta.setDataType(it.getDataType());
     if (it.getOperation() == queue_op::pending_sync_write) {
         meta.setDurabilityOp(it.getOperation());
-        // Note: durabilty timeout /isn't/ persisted as part of a pending
+        // Note: durability timeout /isn't/ persisted as part of a pending
         // SyncWrite. This is because if we ever read it back from disk
         // during warmup (i.e. the commit_sync_write was never persisted), we
         // don't know if the SyncWrite was actually already committed; as such
@@ -1968,38 +1967,49 @@ static void saveDocsCallback(const DocInfo* oldInfo,
                              void* context) {
     kvstats_ctx* cbCtx = static_cast<kvstats_ctx*>(context);
 
-    if (newInfo) {
-        // Replacing a document
-        if (oldInfo) {
-            // Old is not deleted
-            if (!oldInfo->deleted) {
-                auto itr = cbCtx->keyStats.find(makeDocKey(newInfo->id));
-                if (itr != cbCtx->keyStats.end()) {
-                    itr->second = true; // mark this key as replaced
-                }
+    if (!newInfo) {
+        // Should this even happen?
+        return;
+    }
+    auto newKey = makeDiskDocKey(newInfo->id);
 
+    // Update keyStats for overall (not per-collection) stats
+    if (oldInfo) {
+        // Replacing a document
+        if (!oldInfo->deleted) {
+            auto itr = cbCtx->keyStats.find(newKey);
+            if (itr != cbCtx->keyStats.end()) {
+                itr->second = true; // mark this key as replaced
+            }
+        }
+    }
+
+    // Now handle Collection statistics. Note that this only includes Committed
+    // mutations; prepared SyncWrites are ignored.
+    if (!newKey.isCommitted()) {
+        return;
+    }
+    auto docKey = newKey.getDocKey();
+
+    if (oldInfo) {
+        if (!oldInfo->deleted) {
+            if (newInfo->deleted) {
                 // New is deleted, so decrement count
-                if (newInfo->deleted) {
-                    cbCtx->collectionsFlush.decrementDiskCount(
-                            makeDocKey(newInfo->id));
-                }
-            } else if (!newInfo->deleted) {
-                // Adding an item
-                cbCtx->collectionsFlush.incrementDiskCount(
-                        makeDocKey(newInfo->id));
+                cbCtx->collectionsFlush.decrementDiskCount(docKey);
             }
         } else if (!newInfo->deleted) {
             // Adding an item
-            cbCtx->collectionsFlush.incrementDiskCount(makeDocKey(newInfo->id));
+            cbCtx->collectionsFlush.incrementDiskCount(docKey);
         }
-
-        // Set the highest seqno that we are persisting regardless of if it
-        // is a mutation or deletion
-        cbCtx->collectionsFlush.setPersistedHighSeqno(
-                makeDocKey(newInfo->id),
-                newInfo->db_seq,
-                newInfo->deleted);
+    } else if (!newInfo->deleted) {
+        // Adding an item
+        cbCtx->collectionsFlush.incrementDiskCount(docKey);
     }
+
+    // Set the highest seqno that we are persisting regardless of if it
+    // is a mutation or deletion
+    cbCtx->collectionsFlush.setPersistedHighSeqno(
+            docKey, newInfo->db_seq, newInfo->deleted);
 }
 
 couchstore_error_t CouchKVStore::saveDocs(
@@ -2036,7 +2046,7 @@ couchstore_error_t CouchKVStore::saveDocs(
             for (size_t idx = 0; idx < docs.size(); idx++) {
                 ids[idx] = docinfos[idx]->id;
                 maxDBSeqno = std::max(maxDBSeqno, docinfos[idx]->db_seq);
-                DocKey key = makeDocKey(ids[idx]);
+                auto key = makeDiskDocKey(ids[idx]);
                 kvctx.keyStats[key] = false;
             }
 

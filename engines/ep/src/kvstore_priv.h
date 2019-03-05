@@ -45,13 +45,8 @@ public:
      * @param cb callback to the engine
      * @param del Is deletion?
      * @param key The key of the item to persist
-     * @param pending Prefix for Pending SyncWrite?
      */
-    IORequest(Vbid vbid,
-              MutationRequestCallback& cb,
-              bool del,
-              const DocKey key,
-              bool pending = false);
+    IORequest(Vbid vbid, MutationRequestCallback& cb, bool del, DiskDocKey key);
 
     virtual ~IORequest() {
     }
@@ -77,7 +72,7 @@ public:
         return callback.delCb;
     }
 
-    const StoredDocKey& getKey(void) const {
+    const DiskDocKey& getKey() const {
         return key;
     }
 
@@ -86,6 +81,6 @@ protected:
     bool deleteItem;
     MutationRequestCallback callback;
     std::chrono::steady_clock::time_point start;
-    StoredDocKey key;
+    DiskDocKey key;
     size_t dataSize;
 };
