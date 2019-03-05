@@ -1793,7 +1793,8 @@ EventuallyPersistentEngine::get_collection_id(gsl::not_null<const void*> cookie,
                                               cb::const_char_buffer path) {
     auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->getCollectionID(path);
-    if (rv.result == cb::engine_errc::unknown_collection) {
+    if (rv.result == cb::engine_errc::unknown_collection ||
+        rv.result == cb::engine_errc::unknown_scope) {
         engine->setErrorContext(cookie,
                                 Collections::getUnknownCollectionErrorContext(
                                         rv.getManifestId()));
