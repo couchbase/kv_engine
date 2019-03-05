@@ -28,6 +28,8 @@
 #include "item.h"
 #include <vector>
 
+class DiskDocKey;
+
 namespace Collections {
 namespace KVStore {
 
@@ -150,7 +152,7 @@ struct CommitMetaData {
 };
 
 /// callback to inform KV-engine that KVStore dropped key@seqno
-using DroppedCb = std::function<void(const DocKey&, int64_t)>;
+using DroppedCb = std::function<void(const DiskDocKey&, int64_t)>;
 
 } // end namespace KVStore
 } // end namespace Collections

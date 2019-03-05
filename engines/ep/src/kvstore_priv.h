@@ -24,6 +24,7 @@
 #include "config.h"
 
 #include "callbacks.h"
+#include "diskdockey.h"
 #include "kvstore.h"
 #include <unordered_map>
 

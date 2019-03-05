@@ -170,12 +170,6 @@ static std::string couchkvstore_strerrno(Db *db, couchstore_error_t err) {
     }
 }
 
-static DocKey makeDocKey(const sized_buf buf) {
-    return DocKey(reinterpret_cast<const uint8_t*>(buf.buf),
-                  buf.size,
-                  DocKeyEncodesCollectionId::Yes);
-}
-
 static DiskDocKey makeDiskDocKey(sized_buf buf) {
     return DiskDocKey{buf.buf, buf.size};
 }
@@ -787,7 +781,7 @@ static int notify_expired_item(DocInfo& info,
                                sized_buf item,
                                compaction_ctx& ctx,
                                time_t currtime) {
-    cb::char_buffer data;
+    sized_buf data{nullptr, 0};
     cb::compression::Buffer inflated;
 
     if (mcbp::datatype::is_xattr(metadata.getDataType())) {
@@ -814,23 +808,14 @@ static int notify_expired_item(DocInfo& info,
             // Now remove snappy bit
             metadata.setDataType(metadata.getDataType() &
                                  ~PROTOCOL_BINARY_DATATYPE_SNAPPY);
-            data = inflated;
+            data = {inflated.data(), inflated.size()};
         }
     }
 
-    Item it(makeDocKey(info.id),
-            metadata.getFlags(),
-            metadata.getExptime(),
-            data.buf,
-            data.len,
-            metadata.getDataType(),
-            metadata.getCas(),
-            info.db_seq,
-            ctx.compactConfig.db_file_id,
-            info.rev_seq);
+    auto it = makeItemFromDocInfo(
+            ctx.compactConfig.db_file_id, info, metadata, data);
 
-    it.setDeleted(DeleteSource::TTL);
-    ctx.expiryCallback->callback(it, currtime);
+    ctx.expiryCallback->callback(*it, currtime);
 
     return COUCHSTORE_SUCCESS;
 }
@@ -858,11 +843,16 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
         uint32_t exptime = metadata->getExptime();
 
         if (ctx->droppedKeyCb) {
-            auto key = makeDocKey(info->id);
-            if (ctx->eraserContext->isLogicallyDeleted(key,
+            // We need to check both committed and prepared documents - if the
+            // collection has been logically deleted then we need to discard
+            // both types of keys.
+            // As such use the docKey (i.e. without any DurabilityPrepare
+            // namespace) when checking if logically deleted;
+            auto diskKey = makeDiskDocKey(info->id);
+            if (ctx->eraserContext->isLogicallyDeleted(diskKey.getDocKey(),
                                                        int64_t(info->db_seq))) {
                 // Inform vb that the key@seqno is dropped
-                ctx->droppedKeyCb(key, int64_t(info->db_seq));
+                ctx->droppedKeyCb(diskKey, int64_t(info->db_seq));
                 if (!info->deleted) {
                     ctx->stats.collectionsItemsPurged++;
                 } else {
@@ -871,7 +861,7 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
                 return COUCHSTORE_COMPACT_DROP_ITEM;
             } else if (info->deleted) {
                 ctx->eraserContext->processEndOfCollection(
-                        key, SystemEvent(metadata->getFlags()));
+                        diskKey.getDocKey(), SystemEvent(metadata->getFlags()));
             }
         }
 
@@ -913,6 +903,7 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
             time_t currtime = ep_real_time();
             if (exptime && exptime < currtime) {
                 int ret;
+                metadata->setDeleteSource(DeleteSource::TTL);
                 try {
                     ret = notify_expired_item(*info, *metadata, item,
                                              *ctx, currtime);
@@ -930,12 +921,12 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
 
     if (ctx->bloomFilterCallback) {
         bool deleted = info->deleted;
-        DocKey key = makeDocKey(info->id);
+        auto key = makeDiskDocKey(info->id);
 
         try {
             ctx->bloomFilterCallback->callback(
                     reinterpret_cast<Vbid&>(ctx->compactConfig.db_file_id),
-                    key,
+                    key.getDocKey(),
                     deleted);
         } catch (std::runtime_error& re) {
             EP_LOG_WARN(

@@ -22,7 +22,6 @@
 #include "callbacks.h"
 #include "collections/eraser_context.h"
 #include "collections/kvstore.h"
-#include "storeddockey.h"
 
 #include <memcached/engine_common.h>
 #include <platform/histogram.h>

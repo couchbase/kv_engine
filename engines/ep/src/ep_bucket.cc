@@ -755,13 +755,14 @@ std::unique_ptr<PersistenceCallback> EPBucket::flushOneDelOrSet(
     }
 }
 
-void EPBucket::dropKey(Vbid vbid, const DocKey& key, int64_t bySeqno) {
+void EPBucket::dropKey(Vbid vbid, const DiskDocKey& diskKey, int64_t bySeqno) {
     auto vb = getVBucket(vbid);
     if (!vb) {
         return;
     }
 
-    auto collectionId = key.getCollectionID();
+    auto docKey = diskKey.getDocKey();
+    auto collectionId = docKey.getCollectionID();
     if (collectionId.isSystem()) {
         throw std::logic_error("EPBucket::dropKey called for a system key");
     }
@@ -769,9 +770,13 @@ void EPBucket::dropKey(Vbid vbid, const DocKey& key, int64_t bySeqno) {
     { // collections read lock scope
         // @todo this lock could be removed - fetchValidValue requires it
         // in-case of expiry, however dropKey doesn't generate expired values
-        auto cHandle = vb->lockCollections(key);
+        auto cHandle = vb->lockCollections(docKey);
 
         // ... drop it from the VB (hashtable)
+        // @todo-durability: If prepared need to remove it from the Durability
+        // Monitor (in-flight prepared SyncWrite from a collection which no
+        // longer exists == abort the SyncWrite).
+        Expects(diskKey.isCommitted());
         vb->dropKey(bySeqno, cHandle);
     }
 }
