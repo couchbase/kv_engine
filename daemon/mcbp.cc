@@ -239,7 +239,7 @@ void mcbp_collect_timings(Cookie& cookie) {
     // of packets, but the header musts be a client request for the timings
     // to make sense (and not when we handled a ServerResponse message etc ;)
     const auto& header = cookie.getHeader();
-    if (header.getMagic() != uint8_t(cb::mcbp::Magic::ClientRequest)) {
+    if (!header.isRequest()) {
         return;
     }
 
