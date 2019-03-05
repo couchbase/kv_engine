@@ -30,9 +30,6 @@
 #include <platform/n_byte_integer.h>
 #include <string>
 
-/// Return a string representation of queue_op.
-std::string to_string(queue_op op);
-
 // Max Value for NRU bits
 const uint8_t MAX_NRU_VALUE = 3;
 // Initial value for NRU bits

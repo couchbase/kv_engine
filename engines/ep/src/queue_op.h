@@ -16,6 +16,9 @@
  */
 #pragma once
 
+#include <iosfwd>
+#include <string>
+
 /**
  * Forward declarations for types relating to Item.
  */
@@ -84,3 +87,9 @@ enum class queue_op : uint8_t {
     /// A system_event can also be deleted.
     system_event
 };
+
+/// Return a string representation of queue_op.
+std::string to_string(queue_op op);
+
+/// Print a queue_op to an ostream (for GoogleTest).
+std::ostream& operator<<(std::ostream& os, const queue_op& op);

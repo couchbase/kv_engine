@@ -130,3 +130,21 @@ TYPED_TEST(CheckpointDurabilityTest,
                                      HasOperation(queue_op::checkpoint_start),
                                      HasOperation(queue_op::mutation)));
 }
+
+// Check that an existing Committed non-SyncWrite is not de-duplicated when a
+// pending SyncWrite (with the same key) is added to the CheckpointManager.
+TYPED_TEST(CheckpointDurabilityTest,
+           AvoidDeDuplicationOfExistingCommitWithPrepare) {
+    auto mutation = makeCommittedItem(makeStoredDocKey("durable"), "mutation");
+    auto pending = makePendingItem(makeStoredDocKey("durable"), "pending");
+
+    std::vector<queued_item> items;
+    this->test_AvoidDeDuplication(mutation, pending, items);
+    EXPECT_THAT(
+            items,
+            testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
+                                 HasOperation(queue_op::mutation),
+                                 HasOperation(queue_op::checkpoint_end),
+                                 HasOperation(queue_op::checkpoint_start),
+                                 HasOperation(queue_op::pending_sync_write)));
+}

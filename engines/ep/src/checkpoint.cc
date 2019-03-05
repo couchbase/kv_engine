@@ -155,8 +155,9 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
         if (it != keyIndex.end()) {
             const auto currPos = it->second.position;
             if ((*currPos)->getCommitted() !=
-                CommittedState::CommittedViaMutation) {
-                // Cannot de-duplicate existing SyncWrite items (either Pending
+                        CommittedState::CommittedViaMutation ||
+                qi->getCommitted() != CommittedState::CommittedViaMutation) {
+                // Cannot de-duplicate SyncWrite items (either Pending
                 // or Committed SyncWrites).
                 return QueueDirtyStatus::FailureDuplicateItem;
             }

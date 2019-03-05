@@ -156,6 +156,10 @@ std::string to_string(queue_op op) {
 
 }
 
+std::ostream& operator<<(std::ostream& os, const queue_op& op) {
+    return os << to_string(op);
+}
+
 bool operator==(const Item& lhs, const Item& rhs) {
     return (lhs.metaData == rhs.metaData) &&
            (*lhs.value == *rhs.value) &&
