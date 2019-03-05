@@ -3763,29 +3763,26 @@ TEST_F(SingleThreadedEPBucketTest, Durability_PersistPendings) {
             vbucket_state_active,
             {{"topology", nlohmann::json::array({{"active", "replica"}})}});
 
-    auto item = makePendingItem(makeStoredDocKey("key"), "value");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+    auto key = makeStoredDocKey("key");
+    auto committed = makeCommittedItem(key, "valueA");
+    ASSERT_EQ(ENGINE_SUCCESS, store->set(*committed, cookie));
+    auto pending = makePendingItem(key, "valueB");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
 
     const auto& ckptMgr = *getEPBucket().getVBucket(vbid)->checkpointManager;
-    ASSERT_EQ(1, ckptMgr.getNumOpenChkItems());
-    ASSERT_EQ(1, ckptMgr.getNumItemsForPersistence());
+    ASSERT_EQ(2, ckptMgr.getNumItemsForPersistence());
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     ckptMgr);
-    ASSERT_EQ(1, ckptList.size());
-    ASSERT_EQ(1, ckptList.front()->getNumItems());
-    for (const auto& qi : *ckptList.front()) {
-        if (!qi->isCheckPointMetaItem()) {
-            EXPECT_EQ(CommittedState::Pending, qi->getCommitted());
-            EXPECT_EQ(queue_op::pending_sync_write, qi->getOperation());
-        }
-    }
+    // Committed and Pending will be split into two checkpoints:
+    ASSERT_EQ(2, ckptList.size());
+
     const auto& stats = engine->getEpStats();
-    ASSERT_EQ(1, stats.diskQueueSize);
+    ASSERT_EQ(2, stats.diskQueueSize);
 
     // Item must be flushed
     EXPECT_EQ(
-            std::make_pair(false /*more_to_flush*/, size_t(1) /*num_flushed*/),
+            std::make_pair(false /*more_to_flush*/, size_t(2) /*num_flushed*/),
             getEPBucket().flushVBucket(vbid));
 
     // Item must have been removed from the disk queue
@@ -3794,7 +3791,7 @@ TEST_F(SingleThreadedEPBucketTest, Durability_PersistPendings) {
 
     // @todo: The item count must not increase when flushing Pending SyncWrites
     const auto& vb = *getEPBucket().getVBucket(vbid);
-    EXPECT_EQ(1 /*must be 0*/, vb.getNumItems());
+    EXPECT_EQ(2 /*should be 1*/, vb.getNumItems());
 }
 
 TEST_F(SingleThreadedEPBucketTest, Durability_ActiveLocalNotifyPersistedSeqno) {

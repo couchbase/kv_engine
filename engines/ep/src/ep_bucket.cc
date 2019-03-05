@@ -286,6 +286,41 @@ void EPBucket::reset() {
     vbMap.getShard(EP_PRIMARY_SHARD)->getFlusher()->notifyFlushEvent();
 }
 
+/**
+ * @returns true if the item `candidate` can be de-duplicated (skipped) because
+ * `lastFlushed` already supercedes it.
+ */
+static bool canDeDuplicate(Item* lastFlushed, Item& candidate) {
+    if (!lastFlushed) {
+        // Nothing to de-duplicate against.
+        return false;
+    }
+    if (lastFlushed->getKey() != candidate.getKey()) {
+        // Keys differ - cannot de-dupe.
+        return false;
+    }
+
+    // Keys match - the candidate must have a lower seqno.
+    Expects(lastFlushed->getBySeqno() > candidate.getBySeqno());
+
+    if (lastFlushed->isPending() && candidate.isCommitted()) {
+        // Already flushed a newer pending, but still need to keep the older
+        // Committed in case the Pending is later aborted.
+        return false;
+    }
+
+    if ((lastFlushed->getCommitted() == CommittedState::CommittedViaMutation) &&
+        (candidate.getCommitted() == CommittedState::CommittedViaPrepare)) {
+        // Already flushed a newer mutation, but still need to keep the
+        // older CommittedViaPrepare until flushOneDelOrSet() as it is
+        // needed to know to delete the previous prepared item.
+        return false;
+    }
+
+    // Otherwise - valid to de-dupe.
+    return true;
+}
+
 std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     KVShard *shard = vbMap.getShardByVbId(vbid);
     if (diskDeleteAll && !deleteAllTaskCtx.delay) {
@@ -351,6 +386,17 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             //     FlushBatch has been committed (and only if the flag is set)
             bool pendingSyncWrite = false;
 
+            // Iterate through items, checking if we (a) can skip persisting,
+            // (b) can de-duplicate as the previous key was the same, or (c)
+            // actually need to persist.
+            // Note: This assumes items have been sorted by key and then by
+            // seqno (see optimizeWrites() above) such that duplicate keys are
+            // adjacent but with the highest seqno first.
+            // Note(2): The de-duplication here is an optimization to save
+            // creating and enqueuing multiple set() operations on the
+            // underlying KVStore - however the KVStore itself only stores a
+            // single value per key, and so even if we don't de-dupe here the
+            // KVStore will eventually - just potentialy after unnecessary work.
             for (const auto& item : items) {
                 if (!item->shouldPersist()) {
                     continue;
@@ -368,7 +414,8 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                     --stats.diskQueueSize;
                     vb->doStatsForFlushing(*item, item->size());
 
-                } else if (!prev || prev->getKey() != item->getKey()) {
+                } else if (!canDeDuplicate(prev, *item)) {
+                    // This is an item we must persist.
                     prev = item.get();
                     ++items_flushed;
                     auto cb = flushOneDelOrSet(item, vb.getVB());

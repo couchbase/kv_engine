@@ -411,6 +411,15 @@ public:
     }
 
     /**
+     * Returns true if the stored value is Committed (ViaMutation or
+     * ViaPrepare).
+     */
+    bool isCommitted() const {
+        return (op == queue_op::mutation) ||
+               (op == queue_op::commit_sync_write);
+    }
+
+    /**
      * @return the durability requirements for this Item. If the item is not
      * pending, returns requirements of Level::None.
      */
