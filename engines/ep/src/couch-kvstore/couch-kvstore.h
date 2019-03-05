@@ -64,25 +64,6 @@ public:
     virtual ~CouchRequest() {}
 
     /**
-     * Get the vbucket id of a document to be persisted
-     *
-     * @return vbucket id of a document
-     */
-    Vbid getVBucketId() {
-        return vbucketId;
-    }
-
-    /**
-     * Get the revision number of the vbucket database file
-     * where the document is persisted
-     *
-     * @return revision number of the corresponding vbucket database file
-     */
-    uint64_t getRevNum(void) {
-        return fileRevNum;
-    }
-
-    /**
      * Get the couchstore Doc instance of a document to be persisted
      *
      * @return pointer to the couchstore Doc instance of a document
@@ -113,15 +94,6 @@ public:
     size_t getNBytes() {
         return dbDocInfo.rev_meta.size + dbDocInfo.size;
     }
-
-    /**
-     * Return true if the document to be persisted is for DELETE
-     *
-     * @return true if the document to be persisted is for DELETE
-     */
-    bool isDelete() {
-        return deleteItem;
-    };
 
     size_t getKeySize() const {
         return dbDocInfo.id.size;

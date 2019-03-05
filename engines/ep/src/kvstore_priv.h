@@ -51,10 +51,12 @@ public:
     virtual ~IORequest() {
     }
 
+    /// @returns true if the document to be persisted is for DELETE
     bool isDelete() {
         return deleteItem;
     }
 
+    /// @returns vbucket id of document to be persisted.
     Vbid getVBucketId() {
         return vbucketId;
     }
@@ -82,5 +84,4 @@ protected:
     MutationRequestCallback callback;
     std::chrono::steady_clock::time_point start;
     DiskDocKey key;
-    size_t dataSize;
 };
