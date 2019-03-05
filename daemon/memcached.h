@@ -132,6 +132,18 @@ struct LIBEVENT_THREAD {
         PendingIoMap map;
     } pending_io;
 
+    /// A list of connections to signal if they're idle
+    class NotificationList {
+    public:
+        void push(Connection* c);
+        void remove(Connection* c);
+        void swap(std::vector<Connection*>& other);
+
+    protected:
+        std::mutex mutex;
+        std::vector<Connection*> connections;
+    } notification;
+
     /// index of this thread in the threads array
     size_t index = 0;
 

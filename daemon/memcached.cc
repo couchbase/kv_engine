@@ -907,6 +907,9 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
         thr->pending_io.map.erase(c);
     }
 
+    // Remove the connection from the notification list if it's there
+    thr->notification.remove(c);
+
     TRACE_LOCKGUARD_TIMED(thr->mutex,
                           "mutex",
                           "event_handler::threadLock",

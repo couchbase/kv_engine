@@ -223,6 +223,8 @@ void conn_close(Connection& connection) {
     if (thread == nullptr) {
         throw std::logic_error("conn_close: unable to obtain non-NULL thread from connection");
     }
+
+    thread->notification.remove(&connection);
     // remove from pending-io list
     {
         std::lock_guard<std::mutex> lock(thread->pending_io.mutex);

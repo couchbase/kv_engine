@@ -1467,25 +1467,10 @@ void Connection::propagateDisconnect() const {
 
 void Connection::signalIfIdle(bool logbusy, size_t workerthread) {
     if (!isEwouldblock() && stateMachine.isIdleState()) {
-        // Raise a 'fake' write event to ensure the connection has an
-        // event delivered (for example if its sendQ is full).
-        if (!registered_in_libevent) {
-            ev_flags = EV_READ | EV_WRITE | EV_PERSIST;
-            if (!registerEvent()) {
-                LOG_WARNING(
-                        "{}: Connection::signalIfIdle: Unable to "
-                        "registerEvent.  Setting state to conn_closing",
-                        getId());
-                setState(McbpStateMachine::State::closing);
-            }
-        } else if (!updateEvent(EV_READ | EV_WRITE | EV_PERSIST)) {
-            LOG_WARNING(
-                    "{}: Connection::signalIfIdle: Unable to "
-                    "updateEvent.  Setting state to conn_closing",
-                    getId());
-            setState(McbpStateMachine::State::closing);
-        }
-        event_active(&event, EV_WRITE, 0);
+        auto* thr = getThread();
+        LOG_WARNING("Add notificaiton of {}", uint64_t(this));
+        thr->notification.push(this);
+        notify_thread(*thr);
     } else if (logbusy) {
         unique_cJSON_ptr json(toJSON());
         auto details = to_string(json, false);
