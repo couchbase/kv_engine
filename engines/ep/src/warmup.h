@@ -19,11 +19,9 @@
 
 #include "config.h"
 
-#include "callbacks.h"
 #include "utility.h"
 
 #include <memcached/engine_common.h>
-#include <phosphor/phosphor.h>
 #include <platform/atomic_duration.h>
 
 #include <atomic>
@@ -31,6 +29,7 @@
 #include <deque>
 #include <iosfwd>
 #include <map>
+#include <mutex>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -38,13 +37,28 @@
 class Configuration;
 class EPStats;
 class EPBucket;
+class GetValue;
 class MutationLog;
 class VBucketMap;
+class Vbid;
 
 struct vbucket_state;
 
+template <typename...>
+class StatusCallback;
+
+/**
+ * Class representing the current state (phase) of the warmup process.
+ *
+ * A normal warmup will proceed through various states, the exact sequence
+ * dependinng on (amongst other things):
+ * - Full vs. Value eviction.
+ * - The presence of absence of an access.log file.
+ * - The available memory in the bucket compared to the data size.
+ */
 class WarmupState {
 public:
+    /// Set of possible states warmup can be in.
     enum class State {
         Initialize,
         CreateVBuckets,
@@ -58,10 +72,19 @@ public:
         Done
     };
 
-    WarmupState() : state(State::Initialize) {
-    }
+    // Assignment disallowed; use transition() to modify current state.
+    WarmupState& operator=(const WarmupState&) = delete;
+    WarmupState& operator=(WarmupState&&) = delete;
 
+    /**
+     * Transition to the specified state. If the transition `current` -> `to`
+     * is valid then changes the current state to `to`, otherwise throws
+     * std::runtime_error
+     * @param to The new state to move to.
+     * @param allowAnystate If true, force the transition to the given state.
+     */
     void transition(State to, bool allowAnystate);
+
     const char *toString(void) const;
 
     State getState(void) const {
@@ -69,76 +92,34 @@ public:
     }
 
 private:
-    std::atomic<State> state;
+    std::atomic<State> state{State::Initialize};
+
     const char* getStateDescription(State val) const;
+
+    /**
+     * @returns true if the `to` state is legal transition based on the state
+     *          warmup is currently in.
+     */
     bool legalTransition(State to) const;
+
     friend std::ostream& operator<< (std::ostream& out,
                                      const WarmupState &state);
-    DISALLOW_COPY_AND_ASSIGN(WarmupState);
 };
-
-//////////////////////////////////////////////////////////////////////////////
-//                                                                          //
-//    Helper class used to insert data into the epstore                     //
-//                                                                          //
-//////////////////////////////////////////////////////////////////////////////
 
 /**
- * Helper class used to insert items into the storage by using
- * the KVStore::dump method to load items from the database
+ * The Warmup class is responsible for "warming-up" an ep-engine bucket on
+ * startup to restore its state from disk.
  */
-class LoadStorageKVPairCallback : public StatusCallback<GetValue> {
-public:
-    LoadStorageKVPairCallback(EPBucket& ep,
-                              bool maybeEnableTraffic,
-                              WarmupState::State warmupState);
-
-    void callback(GetValue &val);
-
-private:
-    bool shouldEject() const;
-
-    void purge();
-
-    VBucketMap &vbuckets;
-    EPStats    &stats;
-    EPBucket& epstore;
-    time_t      startTime;
-    bool        hasPurged;
-    bool        maybeEnableTraffic;
-    WarmupState::State warmupState;
-};
-
-class LoadValueCallback : public StatusCallback<CacheLookup> {
-public:
-    LoadValueCallback(VBucketMap& vbMap, WarmupState::State warmupState)
-        : vbuckets(vbMap), warmupState(warmupState) {
-    }
-
-    void callback(CacheLookup &lookup);
-
-private:
-    VBucketMap &vbuckets;
-    WarmupState::State warmupState;
-};
-
-
 class Warmup {
 public:
     Warmup(EPBucket& st, Configuration& config);
 
-    void addToTaskSet(size_t taskId);
-    void removeFromTaskSet(size_t taskId);
+    ~Warmup();
 
-    ~Warmup() = default;
-
-    void step();
     void start(void);
     void stop(void);
 
-    void setEstimatedWarmupCount(size_t num);
-
-    size_t getEstimatedItemCount();
+    size_t getEstimatedItemCount() const;
 
     void addStats(const AddStatFn& add_stat, const void* c) const;
 
@@ -188,6 +169,20 @@ public:
 
     bool hasOOMFailure() { return warmupOOMFailure.load(); }
 
+    WarmupState::State getWarmupState() const {
+        return state.getState();
+    }
+
+private:
+    void addToTaskSet(size_t taskId);
+    void removeFromTaskSet(size_t taskId);
+
+    void step();
+
+    void setEstimatedWarmupCount(size_t num);
+
+    // Methods called by the different tasks to perform the given warmup step:
+
     void initialize();
     void createVBuckets(uint16_t shardId);
     void estimateDatabaseItemCount(uint16_t shardId);
@@ -199,16 +194,6 @@ public:
     void loadCollectionStatsForShard(uint16_t shardId);
     void done();
 
-    WarmupState::State getWarmupState() const {
-        return state.getState();
-    }
-
-private:
-    template <typename T>
-    void addStat(const char* nm,
-                 const T& val,
-                 const AddStatFn& add_stat,
-                 const void* c) const;
 
     /* Returns the number of KV stores that holds the states of all the vbuckets */
     uint16_t getNumKVStores();
@@ -250,7 +235,7 @@ private:
     cb::AtomicDuration warmup;
 
     std::vector<std::map<Vbid, vbucket_state>> shardVbStates;
-    std::atomic<size_t> threadtask_count;
+    std::atomic<size_t> threadtask_count{0};
     std::vector<std::atomic<bool>> shardKeyDumpStatus;
 
     /// vector of vectors of VBucket IDs (one vector per shard). Each vector
@@ -258,19 +243,33 @@ private:
     std::vector<std::vector<Vbid>> shardVbIds;
 
     cb::AtomicDuration estimateTime;
-    std::atomic<size_t> estimatedItemCount;
-    bool cleanShutdown;
-    bool corruptAccessLog;
-    std::atomic<bool> warmupComplete;
-    std::atomic<bool> warmupOOMFailure;
-    std::atomic<size_t> estimatedWarmupCount;
+    std::atomic<size_t> estimatedItemCount{std::numeric_limits<size_t>::max()};
+    bool cleanShutdown{true};
+    bool corruptAccessLog{false};
+    std::atomic<bool> warmupComplete{false};
+    std::atomic<bool> warmupOOMFailure{false};
+    std::atomic<size_t> estimatedWarmupCount{
+            std::numeric_limits<size_t>::max()};
 
     /// All of the cookies which need notifying when create-vbuckets is done
     std::deque<const void*> pendingSetVBStateCookies;
     /// flag to mark once warmup is passed createVbuckets
-    bool createVBucketsComplete;
+    bool createVBucketsComplete{false};
     /// A mutex which gives safe access to the cookies and state flag
     std::mutex pendingSetVBStateCookiesMutex;
 
     DISALLOW_COPY_AND_ASSIGN(Warmup);
+
+    // To avoid making a number of methods on Warmup public; grant friendship
+    // to the various Tasks which run the stages of warmup.
+    friend class WarmupInitialize;
+    friend class WarmupCreateVBuckets;
+    friend class WarmupEstimateDatabaseItemCount;
+    friend class WarmupKeyDump;
+    friend class WarmupCheckforAccessLog;
+    friend class WarmupLoadAccessLog;
+    friend class WarmupLoadingKVPairs;
+    friend class WarmupLoadingData;
+    friend class WarmupLoadingCollectionCounts;
+    friend class WarmupCompletion;
 };

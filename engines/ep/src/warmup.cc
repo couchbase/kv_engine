@@ -18,6 +18,7 @@
 #include "warmup.h"
 
 #include "bucket_logger.h"
+#include "callbacks.h"
 #include "checkpoint_manager.h"
 #include "collections/collection_persisted_stats.h"
 #include "common.h"
@@ -31,6 +32,7 @@
 #include "vb_visitors.h"
 #include "vbucket_bgfetch_item.h"
 
+#include <phosphor/phosphor.h>
 #include <platform/timeutils.h>
 #include <utilities/logtags.h>
 
@@ -70,6 +72,51 @@ void logWarmupStats(EPBucket& epstore) {
             megabytes,
             megabytes_per_seconds);
 }
+
+//////////////////////////////////////////////////////////////////////////////
+//                                                                          //
+//    Helper class used to insert data into the epstore                     //
+//                                                                          //
+//////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Helper class used to insert items into the storage by using
+ * the KVStore::dump method to load items from the database
+ */
+class LoadStorageKVPairCallback : public StatusCallback<GetValue> {
+public:
+    LoadStorageKVPairCallback(EPBucket& ep,
+                              bool maybeEnableTraffic,
+                              WarmupState::State warmupState);
+
+    void callback(GetValue& val);
+
+private:
+    bool shouldEject() const;
+
+    void purge();
+
+    VBucketMap& vbuckets;
+    EPStats& stats;
+    EPBucket& epstore;
+    time_t startTime;
+    bool hasPurged;
+    bool maybeEnableTraffic;
+    WarmupState::State warmupState;
+};
+
+class LoadValueCallback : public StatusCallback<CacheLookup> {
+public:
+    LoadValueCallback(VBucketMap& vbMap, WarmupState::State warmupState)
+        : vbuckets(vbMap), warmupState(warmupState) {
+    }
+
+    void callback(CacheLookup& lookup);
+
+private:
+    VBucketMap& vbuckets;
+    WarmupState::State warmupState;
+};
 
 // Warmup Tasks ///////////////////////////////////////////////////////////////
 
@@ -757,21 +804,14 @@ void LoadValueCallback::callback(CacheLookup &lookup)
 //////////////////////////////////////////////////////////////////////////////
 
 Warmup::Warmup(EPBucket& st, Configuration& config_)
-    : state(),
-      store(st),
+    : store(st),
       config(config_),
       shardVbStates(store.vbMap.getNumShards()),
-      threadtask_count(0),
       shardKeyDumpStatus(store.vbMap.getNumShards()),
-      shardVbIds(store.vbMap.getNumShards()),
-      estimatedItemCount(std::numeric_limits<size_t>::max()),
-      cleanShutdown(true),
-      corruptAccessLog(false),
-      warmupComplete(false),
-      warmupOOMFailure(false),
-      estimatedWarmupCount(std::numeric_limits<size_t>::max()),
-      createVBucketsComplete(false) {
+      shardVbIds(store.vbMap.getNumShards()) {
 }
+
+Warmup::~Warmup() = default;
 
 void Warmup::addToTaskSet(size_t taskId) {
     LockHolder lh(taskSetMutex);
@@ -788,8 +828,7 @@ void Warmup::setEstimatedWarmupCount(size_t to)
     estimatedWarmupCount.store(to);
 }
 
-size_t Warmup::getEstimatedItemCount()
-{
+size_t Warmup::getEstimatedItemCount() const {
     return estimatedItemCount.load();
 }
 
@@ -1420,10 +1459,10 @@ void Warmup::transition(WarmupState::State to, bool force) {
 }
 
 template <typename T>
-void Warmup::addStat(const char* nm,
-                     const T& val,
-                     const AddStatFn& add_stat,
-                     const void* c) const {
+void addStat(const char* nm,
+             const T& val,
+             const AddStatFn& add_stat,
+             const void* c) {
     std::string name = "ep_warmup";
     if (nm != NULL) {
         name.append("_");

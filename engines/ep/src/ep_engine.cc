@@ -52,6 +52,7 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/server_cookie_iface.h>
 #include <memcached/util.h>
+#include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
 #include <platform/compress.h>
