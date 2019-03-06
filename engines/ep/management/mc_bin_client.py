@@ -691,6 +691,15 @@ class MemcachedClient(object):
         self.vbucketId=tmpVbucketId
         return rv
 
+    def get_scope_id(self, path):
+        tmpVbucketId=self.vbucketId
+        self.vbucketId = 0
+        rv = self._doCmd(memcacheConstants.CMD_COLLECTIONS_GET_SCOPE_ID,
+                         path,
+                         '')
+        self.vbucketId=tmpVbucketId
+        return rv
+
     def enable_xerror(self):
         self.req_features.add(memcacheConstants.FEATURE_XERROR)
 
@@ -712,6 +721,8 @@ class MemcachedClient(object):
                 raise RuntimeError("Collections are not enabled")
 
         if type(collection) == str:
+            if not self.collection_map:
+                self.get_collections(update_map=True)
             # expect scope.collection for name API
             try:
                 collection = self.collection_map[collection]
@@ -732,7 +743,7 @@ class MemcachedClient(object):
                 output.append(0)
             else:
                 output[-1] = byte
-        return output.tostring() + key
+        return output.tostring().decode(errors='ignore') + key
 
     # Maintain a map of 'scope.collection' => 'collection-id'
     def _update_collection_map(self, manifest):
@@ -742,7 +753,7 @@ class MemcachedClient(object):
             try:
                 for collection in scope['collections']:
                     key = scope['name'] + "." + collection['name']
-                    self.collection_map[key] = int(collection['uid'])
+                    self.collection_map[key] = int(collection['uid'], 16)
             except KeyError:
                 # A scope with no collections is legal
                 pass
