@@ -236,7 +236,6 @@ private:
 
     std::vector<std::map<Vbid, vbucket_state>> shardVbStates;
     std::atomic<size_t> threadtask_count{0};
-    std::vector<std::atomic<bool>> shardKeyDumpStatus;
 
     /// vector of vectors of VBucket IDs (one vector per shard). Each vector
     /// contains all vBucket IDs which are present for the given shard.

@@ -807,7 +807,6 @@ Warmup::Warmup(EPBucket& st, Configuration& config_)
     : store(st),
       config(config_),
       shardVbStates(store.vbMap.getNumShards()),
-      shardKeyDumpStatus(store.vbMap.getNumShards()),
       shardVbIds(store.vbMap.getNumShards()) {
 }
 
@@ -1077,25 +1076,8 @@ void Warmup::keyDumpforShard(uint16_t shardId)
         }
     }
 
-    shardKeyDumpStatus[shardId] = true;
-
     if (++threadtask_count == store.vbMap.getNumShards()) {
-        bool success = false;
-        for (size_t i = 0; i < store.vbMap.getNumShards(); i++) {
-            if (shardKeyDumpStatus[i]) {
-                success = true;
-            } else {
-                success = false;
-                break;
-            }
-        }
-
-        if (success) {
-            transition(WarmupState::State::CheckForAccessLog);
-        } else {
-            EP_LOG_WARN("Failed to dump keys, falling back to full dump");
-            transition(WarmupState::State::LoadingKVPairs);
-        }
+        transition(WarmupState::State::CheckForAccessLog);
     }
 }
 
