@@ -439,7 +439,7 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
         }
 
         /* Put on checkpoint mgr */
-        notifyCtx = queueDirty(*newSv, queueItmCtx);
+        notifyCtx = queueDirty(hbl, *newSv, queueItmCtx);
 
         /* Update the high seqno in the sequential storage */
         auto& osv = *(newSv->toOrderedStoredValue());
@@ -513,7 +513,7 @@ std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
         seqList->appendToList(lh, listWriteLg, *osv);
 
         /* Put on checkpoint mgr */
-        notifyCtx = queueDirty(*v, queueItmCtx);
+        notifyCtx = queueDirty(hbl, *v, queueItmCtx);
 
         /* Update the high seqno in the sequential storage */
         seqList->updateHighSeqno(listWriteLg, *osv);
@@ -588,7 +588,7 @@ EphemeralVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
             newSv->setBySeqno(bySeqno);
         }
 
-        notifyCtx = queueDirty(*newSv, queueItmCtx);
+        notifyCtx = queueDirty(hbl, *newSv, queueItmCtx);
         if (!wasTemp && !oldValueDeleted) {
             notifyCtx.itemCountDifference = -1;
         }

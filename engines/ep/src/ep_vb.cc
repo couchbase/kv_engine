@@ -542,7 +542,7 @@ EPVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
 
     return std::make_tuple(result.storedValue,
                            result.status,
-                           queueDirty(*result.storedValue, queueItmCtx));
+                           queueDirty(hbl, *result.storedValue, queueItmCtx));
 }
 
 std::pair<StoredValue*, VBNotifyCtx> EPVBucket::addNewStoredValue(
@@ -557,7 +557,7 @@ std::pair<StoredValue*, VBNotifyCtx> EPVBucket::addNewStoredValue(
         updateRevSeqNoOfNewStoredValue(*v);
     }
 
-    return {v, queueDirty(*v, queueItmCtx)};
+    return {v, queueDirty(hbl, *v, queueItmCtx)};
 }
 
 std::tuple<StoredValue*, DeletionStatus, VBNotifyCtx>
@@ -578,9 +578,10 @@ EPVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
         if (queueItmCtx.genBySeqno == GenerateBySeqno::No) {
             result.deletedValue->setBySeqno(bySeqno);
         }
-        return std::make_tuple(result.deletedValue,
-                               result.status,
-                               queueDirty(*result.deletedValue, queueItmCtx));
+        return std::make_tuple(
+                result.deletedValue,
+                result.status,
+                queueDirty(hbl, *result.deletedValue, queueItmCtx));
 
     case DeletionStatus::IsPendingSyncWrite:
         return std::make_tuple(
@@ -599,7 +600,7 @@ VBNotifyCtx EPVBucket::commitStoredValue(const HashTable::HashBucketLock& hbl,
         v.setBySeqno(*commitSeqno);
     }
 
-    return queueDirty(v, queueItmCtx);
+    return queueDirty(hbl, v, queueItmCtx);
 }
 
 VBNotifyCtx EPVBucket::abortStoredValue(const HashTable::HashBucketLock& hbl,

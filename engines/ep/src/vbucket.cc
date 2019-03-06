@@ -917,20 +917,18 @@ size_t VBucket::getNumOfKeysInFilter() {
     }
 }
 
-VBNotifyCtx VBucket::queueDirty(
-        StoredValue& v,
-        const GenerateBySeqno generateBySeqno,
-        const GenerateCas generateCas,
-        const bool isBackfillItem,
-        boost::optional<DurabilityItemCtx> durabilityCtx,
-        PreLinkDocumentContext* preLinkDocumentContext) {
-    VBNotifyCtx notifyCtx;
+VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
+                                StoredValue& v,
+                                const VBQueueItemCtx& ctx) {
+    if (ctx.trackCasDrift == TrackCasDrift::Yes) {
+        setMaxCasAndTrackDrift(v.getCas());
+    }
 
     // If we are queuing a SyncWrite StoredValue; extract the durability
     // requirements to use to create the Item.
     boost::optional<cb::durability::Requirements> durabilityReqs;
-    if (durabilityCtx) {
-        durabilityReqs = durabilityCtx->requirements;
+    if (ctx.durability) {
+        durabilityReqs = ctx.durability->requirements;
     }
     queued_item qi(v.toItem(false, getId(), durabilityReqs));
 
@@ -947,25 +945,27 @@ VBNotifyCtx VBucket::queueDirty(
         setMightContainXattrs();
     }
 
-    if (isBackfillItem) {
-        queueBackfillItem(qi, generateBySeqno);
+    VBNotifyCtx notifyCtx;
+
+    if (ctx.isBackfillItem) {
+        queueBackfillItem(qi, ctx.genBySeqno);
         notifyCtx.notifyFlusher = true;
         /* During backfill on a TAP receiver we need to update the snapshot
          range in the checkpoint. Has to be done here because in case of TAP
          backfill, above, we use vb.queueBackfillItem() instead of
          vb.checkpointManager->queueDirty() */
-        if (generateBySeqno == GenerateBySeqno::Yes) {
+        if (ctx.genBySeqno == GenerateBySeqno::Yes) {
             checkpointManager->resetSnapshotRange();
         }
     } else {
         notifyCtx.notifyFlusher =
                 checkpointManager->queueDirty(*this,
                                               qi,
-                                              generateBySeqno,
-                                              generateCas,
-                                              preLinkDocumentContext);
+                                              ctx.genBySeqno,
+                                              ctx.genCas,
+                                              ctx.preLinkDocumentContext);
         notifyCtx.notifyReplication = true;
-        if (GenerateCas::Yes == generateCas) {
+        if (ctx.genCas == GenerateCas::Yes) {
             v.setCas(qi->getCas());
         }
     }
@@ -977,7 +977,8 @@ VBNotifyCtx VBucket::queueDirty(
     if (getState() == vbucket_state_t::vbucket_state_active &&
         qi->getCommitted() == CommittedState::Pending) {
         // Register this mutation with the durability monitor.
-        const auto cookie = durabilityCtx->cookie;
+        Expects(ctx.durability.is_initialized());
+        const auto cookie = ctx.durability->cookie;
         durabilityMonitor->addSyncWrite(cookie, qi);
     }
 
@@ -2781,12 +2782,7 @@ VBucket::processExpiredItem(
     if (v.isTempInitialItem() && eviction == FULL_EVICTION) {
         return std::make_tuple(MutationStatus::NeedBgFetch,
                                &v,
-                               queueDirty(v,
-                                          GenerateBySeqno::Yes,
-                                          GenerateCas::Yes,
-                                          /*isBackfillItem*/ false,
-                                          {},
-                                          /*preLinkDocumentContext*/ nullptr));
+                               queueDirty(hbl, v, {} /*VBQueueItemCtx*/));
     }
 
     /* If the datatype is XATTR, mark the item as deleted
@@ -2903,19 +2899,6 @@ void VBucket::doCollectionsStats(
         CollectionID collection,
         const VBNotifyCtx& notifyCtx) {
     writeHandle.setHighSeqno(collection, notifyCtx.bySeqno);
-}
-
-VBNotifyCtx VBucket::queueDirty(StoredValue& v,
-                                const VBQueueItemCtx& queueItmCtx) {
-    if (queueItmCtx.trackCasDrift == TrackCasDrift::Yes) {
-        setMaxCasAndTrackDrift(v.getCas());
-    }
-    return queueDirty(v,
-                      queueItmCtx.genBySeqno,
-                      queueItmCtx.genCas,
-                      queueItmCtx.isBackfillItem,
-                      queueItmCtx.durability,
-                      queueItmCtx.preLinkDocumentContext);
 }
 
 void VBucket::updateRevSeqNoOfNewStoredValue(StoredValue& v) {
