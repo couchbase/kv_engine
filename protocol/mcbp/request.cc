@@ -227,7 +227,7 @@ std::string Request::getPrintableKey() const {
 }
 
 void Request::parseFrameExtras(FrameInfoCallback callback,
-                               bool dont_validate_frame_id) const {
+                               bool no_validate) const {
     auto fe = getFramingExtras();
     if (fe.empty()) {
         return;
@@ -266,7 +266,7 @@ void Request::parseFrameExtras(FrameInfoCallback callback,
         cb::const_byte_buffer content{fe.data() + offset, size};
         offset += size;
 
-        if (dont_validate_frame_id) {
+        if (no_validate) {
             if (!callback(id, content)) {
                 return;
             }
