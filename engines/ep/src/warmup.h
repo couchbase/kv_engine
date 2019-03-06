@@ -85,9 +85,9 @@ public:
      */
     void transition(State to, bool allowAnystate);
 
-    const char *toString(void) const;
+    const char* toString() const;
 
-    State getState(void) const {
+    State getState() const {
         return state;
     }
 
@@ -116,8 +116,8 @@ public:
 
     ~Warmup();
 
-    void start(void);
-    void stop(void);
+    void start();
+    void stop();
 
     size_t getEstimatedItemCount() const;
 

@@ -89,7 +89,7 @@ public:
                               bool maybeEnableTraffic,
                               WarmupState::State warmupState);
 
-    void callback(GetValue& val);
+    void callback(GetValue& val) override;
 
 private:
     bool shouldEject() const;
@@ -111,7 +111,7 @@ public:
         : vbuckets(vbMap), warmupState(warmupState) {
     }
 
-    void callback(CacheLookup& lookup);
+    void callback(CacheLookup& lookup) override;
 
 private:
     VBucketMap& vbuckets;
@@ -128,16 +128,16 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return "Warmup - initialize";
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Typically takes single-digits ms.
         return std::chrono::milliseconds(50);
     }
 
-    bool run() {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarmupInitialize");
         _warmup->initialize();
         _warmup->removeFromTaskSet(uid);
@@ -159,16 +159,16 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return _description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // VB creation typically takes some 10s of milliseconds.
         return std::chrono::milliseconds(100);
     }
 
-    bool run() {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarmupCreateVBuckets");
         _warmup->createVBuckets(_shardId);
         _warmup->removeFromTaskSet(uid);
@@ -195,17 +195,17 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return _description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Typically takes a few 10s of milliseconds (need to open kstore files
         // and read statistics.
         return std::chrono::milliseconds(100);
     }
 
-    bool run() {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarpupEstimateDatabaseItemCount");
         _warmup->estimateDatabaseItemCount(_shardId);
         _warmup->removeFromTaskSet(uid);
@@ -228,11 +228,11 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return _description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Runtime is a function of the number of keys in the database; can be
         // many minutes in large datasets.
         // Given this large variation; set max duration to a "way out" value
@@ -240,7 +240,7 @@ public:
         return std::chrono::hours(1);
     }
 
-    bool run() {
+    bool run() override {
         TRACE_EVENT1("ep-engine/task", "WarmupKeyDump", "shard", _shardId);
         _warmup->keyDumpforShard(_shardId);
         _warmup->removeFromTaskSet(uid);
@@ -262,18 +262,18 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return "Warmup - check for access log";
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Checking for the access log is a disk task (so can take a variable
         // amount of time), however it should be relatively quick as we are
         // just checking files exist.
         return std::chrono::milliseconds(100);
     }
 
-    bool run() {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarmupCheckForAccessLog");
         _warmup->checkForAccessLog();
         _warmup->removeFromTaskSet(uid);
@@ -295,11 +295,11 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return _description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Runtime is a function of the number of keys in the access log files;
         // can be many minutes in large datasets.
         // Given this large variation; set max duration to a "way out" value
@@ -307,7 +307,7 @@ public:
         return std::chrono::hours(1);
     }
 
-    bool run() {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarmupLoadAccessLog");
         _warmup->loadingAccessLog(_shardId);
         _warmup->removeFromTaskSet(uid);
@@ -331,11 +331,11 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return _description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Runtime is a function of the number of documents which can
         // be held in RAM (and need to be laoded from disk),
         // can be many minutes in large datasets.
@@ -344,7 +344,7 @@ public:
         return std::chrono::hours(1);
     }
 
-    bool run() {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarmupLoadingKVPairs");
         _warmup->loadKVPairsforShard(_shardId);
         _warmup->removeFromTaskSet(uid);
@@ -368,11 +368,11 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return _description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Runtime is a function of the number of documents which can
         // be held in RAM (and need to be laoded from disk),
         // can be many minutes in large datasets.
@@ -381,7 +381,7 @@ public:
         return std::chrono::hours(1);
     }
 
-    bool run() {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarmupLoadingData");
         _warmup->loadDataforShard(_shardId);
         _warmup->removeFromTaskSet(uid);
@@ -406,18 +406,18 @@ public:
         warmup.addToTaskSet(uid);
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return "Warmup - loading collection counts: shard " +
                std::to_string(shardId);
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // This task has to open each VB's data-file and (certainly for
         // couchstore) read a small document per defined collection
         return std::chrono::seconds(10);
     }
 
-    bool run() {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarmupLoadingCollectionCounts");
         warmup.loadCollectionStatsForShard(shardId);
         warmup.removeFromTaskSet(uid);
@@ -437,16 +437,16 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return "Warmup - completion";
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // This task should be very quick - just the final warmup steps.
         return std::chrono::milliseconds(1);
     }
 
-    bool run() {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarmupCompletion");
         _warmup->done();
         _warmup->removeFromTaskSet(uid);
@@ -832,13 +832,11 @@ size_t Warmup::getEstimatedItemCount() const {
     return estimatedItemCount.load();
 }
 
-void Warmup::start(void)
-{
+void Warmup::start() {
     step();
 }
 
-void Warmup::stop(void)
-{
+void Warmup::stop() {
     {
         LockHolder lh(taskSetMutex);
         if(taskSet.empty()) {
@@ -895,7 +893,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
 
     // Iterate over all VBucket states defined for this shard, creating VBucket
     // objects if they do not already exist.
-    for (const auto itr : shardVbStates[shardId]) {
+    for (const auto& itr : shardVbStates[shardId]) {
         Vbid vbid = itr.first;
         vbucket_state vbs = itr.second;
 
