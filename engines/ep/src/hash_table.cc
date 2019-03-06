@@ -976,7 +976,7 @@ std::unique_ptr<Item> HashTable::getRandomKeyFromSlot(int slot) {
             v = v->getNext().get().get()) {
         if (!v->isTempItem() && !v->isDeleted() && v->isResident() &&
             v->getCommitted() != CommittedState::Pending) {
-            return v->toItem(false, Vbid(0));
+            return v->toItem(Vbid(0));
         }
     }
 

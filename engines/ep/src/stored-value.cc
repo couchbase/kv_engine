@@ -210,16 +210,40 @@ size_t StoredValue::getRequiredStorage(const DocKey& key) {
 }
 
 std::unique_ptr<Item> StoredValue::toItem(
-        bool lck,
-        Vbid vbucket,
+        Vbid vbid,
+        HideLockedCas hideLockedCas,
+        IncludeValue includeValue,
         boost::optional<cb::durability::Requirements> durabilityReqs) const {
-    return toItemImpl(lck, vbucket, false, durabilityReqs);
+    auto item = toItemBase(vbid, hideLockedCas, includeValue);
+
+    // Set the correct CommittedState and associated properties (durability
+    // requirements) on the new item.
+    switch (getCommitted()) {
+    case CommittedState::Pending:
+        if (!durabilityReqs) {
+            throw std::logic_error(
+                    "StoredValue::toItemImpl: attempted to create Item from "
+                    "Pending StoredValue without supplying durabilityReqs");
+        }
+        item->setPendingSyncWrite(*durabilityReqs);
+        break;
+    case CommittedState::CommittedViaPrepare:
+        item->setCommittedviaPrepareSyncWrite();
+        break;
+    case CommittedState::CommittedViaMutation:
+        // nothing do to.
+        break;
+    }
+
+    return item;
 }
 
-std::unique_ptr<Item> StoredValue::toItemKeyOnly(
-        Vbid vbucket,
-        boost::optional<cb::durability::Requirements> durabilityReqs) const {
-    return toItemImpl(false, vbucket, true, durabilityReqs);
+std::unique_ptr<Item> StoredValue::toItemAbort(Vbid vbid) const {
+    auto item = toItemBase(vbid, HideLockedCas::No, IncludeValue::No);
+    item->setAbortSyncWrite();
+    // Note: An abort has the same life-cycle as a deletion.
+    item->setDeleted();
+    return item;
 }
 
 void StoredValue::reallocate() {
@@ -288,49 +312,29 @@ bool StoredValue::deleteImpl(DeleteSource delSource) {
     return true;
 }
 
-std::unique_ptr<Item> StoredValue::toItemImpl(
-        bool lock,
-        Vbid vbucket,
-        bool keyOnly,
-        boost::optional<cb::durability::Requirements> durabilityReqs) const {
-    auto itm =
-            std::make_unique<Item>(getKey(),
-                                   getFlags(),
-                                   getExptime(),
-                                   keyOnly ? value_t{} : value,
-                                   datatype,
-                                   lock ? static_cast<uint64_t>(-1) : getCas(),
-                                   bySeqno,
-                                   vbucket,
-                                   getRevSeqno());
+std::unique_ptr<Item> StoredValue::toItemBase(Vbid vbid,
+                                              HideLockedCas hideLockedCas,
+                                              IncludeValue includeValue) const {
+    auto item = std::make_unique<Item>(
+            getKey(),
+            getFlags(),
+            getExptime(),
+            includeValue == IncludeValue::Yes ? value : value_t{},
+            datatype,
+            hideLockedCas == HideLockedCas::Yes ? static_cast<uint64_t>(-1)
+                                                : getCas(),
+            bySeqno,
+            vbid,
+            getRevSeqno());
 
-    itm->setNRUValue(getNru());
-    itm->setFreqCounterValue(getFreqCounterValue());
+    item->setNRUValue(getNru());
+    item->setFreqCounterValue(getFreqCounterValue());
 
     if (isDeleted()) {
-        itm->setDeleted(getDeletionSource());
+        item->setDeleted(getDeletionSource());
     }
 
-    // Set the correct CommittedState and associated properties (durability
-    // requirements) on the new item.
-    switch (getCommitted()) {
-    case CommittedState::Pending:
-        if (!durabilityReqs) {
-            throw std::logic_error(
-                    "StoredValue::toItemImpl: attempted to create Item from "
-                    "Pending StoredValue without supplying durabilityReqs");
-        }
-        itm->setPendingSyncWrite(*durabilityReqs);
-        break;
-    case CommittedState::CommittedViaPrepare:
-        itm->setCommittedviaPrepareSyncWrite();
-        break;
-    case CommittedState::CommittedViaMutation:
-        // nothing do to.
-        break;
-    }
-
-    return itm;
+    return item;
 }
 
 void StoredValue::setValueImpl(const Item& itm) {

@@ -512,7 +512,13 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbort) {
                              vbucket->lockCollections(nonPendingKey)));
 }
 
-TEST_P(VBucketDurabilityTest, Active_PendingRemovedAtAbort) {
+/*
+ * This test checks that at abort:
+ * 1) the Pending is removed from the HashTable
+ * 2) a queue_op::abort_sync_write item is enqueued into the CheckpointManager
+ * 3) the abort_sync_write is not added to the DurabilityMonitor
+ */
+TEST_P(VBucketDurabilityTest, AbortSyncWrite_Active) {
     ASSERT_EQ(1, storeSyncWrites({1} /*seqnos*/));
 
     auto key = makeStoredDocKey("key1");
@@ -531,6 +537,34 @@ TEST_P(VBucketDurabilityTest, Active_PendingRemovedAtAbort) {
                   storedItem.storedValue->getCommitted());
     }
 
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *ckptMgr);
+
+    // CheckpointManager state:
+    // 1 checkpoint
+    ASSERT_EQ(1, ckptList.size());
+    // empty-item
+    const auto* ckpt = ckptList.front().get();
+    auto it = ckpt->begin();
+    ASSERT_EQ(queue_op::empty, (*it)->getOperation());
+    // 1 metaitem (checkpoint-start)
+    it++;
+    ASSERT_EQ(1, ckpt->getNumMetaItems());
+    EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
+    // 1 non-metaitem is pending and contains the expected value
+    it++;
+    ASSERT_EQ(1, ckpt->getNumItems());
+    EXPECT_EQ(CommittedState::Pending, (*it)->getCommitted());
+    EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
+    EXPECT_EQ("value", (*it)->getValue()->to_s());
+
+    // The Pending is tracked by the DurabilityMonitor
+    EXPECT_EQ(1, monitor->public_getNumTracked());
+
+    // Note: ensure 1 Ckpt in CM, easier to inspect the CkptList after Commit
+    ckptMgr->clear(*vbucket, 0 /*seqno*/);
+
     // Note: abort-seqno must be provided only at Replica
     EXPECT_EQ(ENGINE_SUCCESS,
               vbucket->abort(key,
@@ -542,6 +576,29 @@ TEST_P(VBucketDurabilityTest, Active_PendingRemovedAtAbort) {
     EXPECT_EQ(0, ht->getNumItems());
     EXPECT_FALSE(ht->findForRead(key).storedValue);
     EXPECT_FALSE(ht->findForWrite(key).storedValue);
+
+    // CheckpointManager state:
+    // 1 checkpoint
+    ASSERT_EQ(1, ckptList.size());
+    // empty-item
+    ckpt = ckptList.front().get();
+    it = ckpt->begin();
+    ASSERT_EQ(queue_op::empty, (*it)->getOperation());
+    // 1 metaitem (checkpoint-start)
+    it++;
+    ASSERT_EQ(1, ckpt->getNumMetaItems());
+    EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
+    // 1 non-metaitem is a deleted durable-abort item with no value
+    it++;
+    ASSERT_EQ(1, ckpt->getNumItems());
+    EXPECT_EQ(queue_op::abort_sync_write, (*it)->getOperation());
+    EXPECT_TRUE((*it)->isDeleted());
+    EXPECT_FALSE((*it)->getValue());
+
+    // The Aborted item is not added for tracking.
+    // Note: The Pending has not been removed as we are testing at VBucket
+    //     level, so num-tracked must be still 1.
+    EXPECT_EQ(1, monitor->public_getNumTracked());
 }
 
 /*

@@ -131,6 +131,20 @@ class OrderedStoredValue;
  */
 class StoredValue {
 public:
+    /*
+     * Used at StoredValue->Item conversion, indicates whether the generated
+     * item exposes the CAS or not (i.e., the CAS is locked and the new item
+     * exposes a related special value).
+     */
+    enum class HideLockedCas : uint8_t { Yes, No };
+
+    /*
+     * Used at StoredValue->Item conversion, indicates whether the generated
+     * item includes the value or not (i.e., the new item carries only key and
+     * metadata).
+     */
+    enum class IncludeValue : uint8_t { Yes, No };
+
     /**
      * C++14 will call the sized delete version, but we
      * allocate the object by using the new operator with a custom
@@ -613,33 +627,43 @@ public:
     }
 
     /**
-     * Generate a new Item out of this object.
+     * Generate a new Item out of this StoredValue.
      *
-     * @param lck if true, the new item will return a locked CAS ID.
-     * @param vbucket the vbucket containing this item.
+     * @param vbid The vbucket containing the new item
+     * @param hideLockedCas Whether the new item will hide the CAS (i.e., CAS is
+     *     locked, the new item will expose CAS=-1)
+     * @param includeValue Whether we are keeping or discarding the value
      * @param durabilityReqs If the StoredValue is a pending SyncWrite this
      *        specifies the durability requirements for the item.
      *
      * @throws std::logic_error if the object is a pending SyncWrite and
      *         requirements is /not/ specified.
      */
-    std::unique_ptr<Item> toItem(bool lck,
-                                 Vbid vbucket,
-                                 boost::optional<cb::durability::Requirements>
-                                         durabilityReqs = {}) const;
-
-    /**
-     * Generate a new Item with only key and metadata out of this object.
-     * The item generated will not contain value
-     *
-     * @param vbucket the vbucket containing this item.
-     * @param durabilityReqs If the StoredValue is a pending SyncWrite this
-     *        specifies the durability requirements for the item.
-     */
-    std::unique_ptr<Item> toItemKeyOnly(
-            Vbid vbucket,
+    std::unique_ptr<Item> toItem(
+            Vbid vbid,
+            HideLockedCas hideLockedCas = HideLockedCas::No,
+            IncludeValue includeValue = IncludeValue::Yes,
             boost::optional<cb::durability::Requirements> durabilityReqs = {})
             const;
+
+    /**
+     * Generate a new durable-abort Item.
+     *
+     * Note that all the StoredValue->Item conversions are covered in
+     * StoredValue::toItem(), except for durable-abort that is covered here.
+     * The reason is that in general we have a 1-to-1 relationship between
+     * StoredValue::CommittedState and Item::queue_op. That general case is
+     * handled by StoredValue::toItem(), which maps from CommittedState to
+     * queue_op.
+     * That is not true for durable-abort (which is the only exception). There
+     * is no concept of "aborted StoredValue", as at abort we just remove the
+     * Prepare from the HashTable.
+     * I.e., there is no CommittedState::abort (or similar), so we need to
+     * handle durable-abort in a dedicated conversion function.
+     *
+     * @param vbid The vbucket containing the new item
+     */
+    std::unique_ptr<Item> toItemAbort(Vbid vbid) const;
 
     /**
      * Get an item_info from the StoredValue
@@ -819,12 +843,17 @@ protected:
      */
     bool deleteImpl(DeleteSource delSource);
 
-    /// Implementation of toItem / toItemKeyOnly
-    std::unique_ptr<Item> toItemImpl(
-            bool lock,
-            Vbid vbucket,
-            bool keyOnly,
-            boost::optional<cb::durability::Requirements> durabilityReqs) const;
+    /**
+     * Baseline StoredValue->Item conversion function. Used internally by public
+     * (and more specific) conversion functions.
+     *
+     * @param vbid The vbucket containing this item
+     * @param hideLockedCas Whether the new item hides or exposes the CAS
+     * @param includeValue Whether we are keeping or discarding the value
+     */
+    std::unique_ptr<Item> toItemBase(Vbid vbid,
+                                     HideLockedCas hideLockedCas,
+                                     IncludeValue includeValue) const;
 
     /* Update the value for this SV from the given item.
      * Implementation for StoredValue instances (dispatched to by setValue()).

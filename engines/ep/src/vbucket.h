@@ -1656,15 +1656,30 @@ protected:
      * Other actions can be performed depending on the context passed in input.
      *
      * @param hbl The lock to the HashTable-bucket containing the StoredValue
-     * @param v The dirty item.
+     * @param v The dirty StoredValue.
      * @param ctx The VBQueueItemCtx. Holds info needed to enqueue the item,
      *     look at the structure for details.
-     *
      * @return the notification context used for notifying the Flusher and
-     *     Replica Connections
+     *     Replica Connections.
      */
     VBNotifyCtx queueDirty(const HashTable::HashBucketLock& hbl,
                            StoredValue& v,
+                           const VBQueueItemCtx& ctx);
+
+    /**
+     * Enqueue an Abort item for persistence and replication.
+     * An Abort item is a logical delete of a Pending SyncWrite that could not
+     * be completed within the required Timeout requirement.
+     *
+     * @param hbl The lock to the HashTable-bucket containing the StoredValue
+     * @param v The StoredValue of the Pending being aborted.
+     * @param ctx The VBQueueItemCtx. Holds info needed to enqueue the item,
+     *     look at the structure for details.
+     * @return the notification context used for notifying the Flusher and
+     *     Replica Connections.
+     */
+    VBNotifyCtx queueAbort(const HashTable::HashBucketLock& hbl,
+                           const StoredValue& v,
                            const VBQueueItemCtx& ctx);
 
     /**
@@ -2039,6 +2054,17 @@ private:
      */
     cb::StoreIfStatus callPredicate(cb::StoreIfPredicate predicate,
                                     StoredValue* v);
+
+    /**
+     * Base function for queueing an item for persistence and replication.
+     *
+     * @param item The item to queue.
+     * @param ctx The VBQueueItemCtx. Holds info needed to queue the item,
+     *     look at the structure for details.
+     * @return the notification context used for notifying the Flusher and
+     *     Replica Connections.
+     */
+    VBNotifyCtx queueItem(queued_item& item, const VBQueueItemCtx& ctx);
 
     Vbid id;
     std::atomic<vbucket_state_t>    state;

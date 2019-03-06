@@ -47,6 +47,10 @@ enum class queue_op : uint8_t {
     /// visible to clients. See also - {pending_sync_write}.
     commit_sync_write,
 
+    /// Abort a pending_sync_write. This operations logically removes a pending.
+    /// It is both persisted to disk and replicated via DCP.
+    abort_sync_write,
+
     /// (meta item) Testing only op, used to mark the end of a test.
     /// TODO: Remove this, it shouldn't be necessary / included just to support
     /// testing.

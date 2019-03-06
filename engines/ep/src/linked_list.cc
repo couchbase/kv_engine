@@ -165,7 +165,7 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
         }
 
         try {
-            items.push_back(UniqueItemPtr(osv.toItem(false, vbid)));
+            items.push_back(UniqueItemPtr(osv.toItem(vbid)));
         } catch (const std::bad_alloc&) {
             /* [EPHE TODO]: Do we handle backfill in a better way ?
                             Perhaps do backfilling partially (that is

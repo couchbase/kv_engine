@@ -300,7 +300,7 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
             // requirements in OrderedStoredValue (and then add into the
             // item we make here); otherwise we cannot correctly form the
             // DCP_PREPARE messages for Pending items.
-            item = (*rangeItr).toItem(false, getVBucketId());
+            item = (*rangeItr).toItem(getVBucketId());
         } catch (const std::bad_alloc&) {
             stream->log(spdlog::level::level_enum::warn,
                         "Alloc error when trying to create an "

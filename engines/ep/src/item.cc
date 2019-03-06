@@ -135,6 +135,8 @@ std::string to_string(queue_op op) {
         return "pending_sync_write";
     case queue_op::commit_sync_write:
         return "commit_sync_write";
+    case queue_op::abort_sync_write:
+        return "abort_sync_write";
     case queue_op::flush:
         return "flush";
     case queue_op::empty:
@@ -287,6 +289,7 @@ void Item::setDeleted(DeleteSource cause) {
     case queue_op::mutation:
     case queue_op::pending_sync_write:
     case queue_op::commit_sync_write:
+    case queue_op::abort_sync_write:
         deleted = 1; // true
         deletionCause = static_cast<uint8_t>(cause);
         break;
@@ -326,6 +329,10 @@ void Item::setPendingSyncWrite(cb::durability::Requirements requirements) {
 
 void Item::setCommittedviaPrepareSyncWrite() {
     op = queue_op::commit_sync_write;
+}
+
+void Item::setAbortSyncWrite() {
+    op = queue_op::abort_sync_write;
 }
 
 item_info Item::toItemInfo(uint64_t vb_uuid, int64_t hlcEpoch) const {

@@ -302,6 +302,9 @@ public:
         case queue_op::system_event:
         case queue_op::set_vbucket_state:
             return true;
+        // @todo-durability: Temporarily skipping abort at flush, implementing
+        //     in a dedicated patch
+        case queue_op::abort_sync_write:
         case queue_op::flush:
         case queue_op::empty:
         case queue_op::checkpoint_start:
@@ -330,6 +333,7 @@ public:
         case queue_op::mutation:
         case queue_op::pending_sync_write:
         case queue_op::commit_sync_write:
+        case queue_op::abort_sync_write:
         case queue_op::system_event:
             return false;
         case queue_op::flush:
@@ -385,6 +389,9 @@ public:
     /// Sets the item as being a Commited via Pending SyncWrite.
     void setCommittedviaPrepareSyncWrite();
 
+    /// Sets the item as being a Aborted.
+    void setAbortSyncWrite();
+
     /// Is this Item Committed (via Mutation or Prepare), or Pending Sync Write?
     CommittedState getCommitted() const {
         switch (op) {
@@ -406,6 +413,11 @@ public:
     /// Returns if this is a Pending SyncWrite
     bool isPending() const {
         return op == queue_op::pending_sync_write;
+    }
+
+    /// Returns if this is a durable Abort
+    bool isAbort() const {
+        return op == queue_op::abort_sync_write;
     }
 
     /**
