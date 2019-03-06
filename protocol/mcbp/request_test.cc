@@ -58,19 +58,17 @@ TEST(Request_ParseFrameExtras, ExtendedIdAndSize) {
 
     auto* req = reinterpret_cast<Request*>(packet.data());
     bool found = false;
-    req->parseFrameExtras(
-            [&found](request::FrameInfoId id,
-                     cb::const_byte_buffer data) -> bool {
-                if (id != request::FrameInfoId(32)) {
-                    ADD_FAILURE() << "Expected ID to be 32";
-                }
-                if (data.size() != 37) {
-                    ADD_FAILURE() << "Expected payload to be 37 bytes";
-                }
-                found = true;
-                return true;
-            },
-            true);
+    req->parseFrameExtras([&found](request::FrameInfoId id,
+                                   cb::const_byte_buffer data) -> bool {
+        if (id != request::FrameInfoId(32)) {
+            ADD_FAILURE() << "Expected ID to be 32";
+        }
+        if (data.size() != 37) {
+            ADD_FAILURE() << "Expected payload to be 37 bytes";
+        }
+        found = true;
+        return true;
+    });
     EXPECT_TRUE(found);
 }
 
@@ -92,19 +90,17 @@ TEST(Request_ParseFrameExtras, ExtendedIdAndSize_Edge) {
 
     auto* req = reinterpret_cast<Request*>(packet.data());
     bool found = false;
-    req->parseFrameExtras(
-            [&found](request::FrameInfoId id,
-                     cb::const_byte_buffer data) -> bool {
-                if (id != request::FrameInfoId(15)) {
-                    ADD_FAILURE() << "Expected ID to be 15";
-                }
-                if (data.size() != 15) {
-                    ADD_FAILURE() << "Expected payload to be 15 bytes";
-                }
-                found = true;
-                return true;
-            },
-            true);
+    req->parseFrameExtras([&found](request::FrameInfoId id,
+                                   cb::const_byte_buffer data) -> bool {
+        if (id != request::FrameInfoId(15)) {
+            ADD_FAILURE() << "Expected ID to be 15";
+        }
+        if (data.size() != 15) {
+            ADD_FAILURE() << "Expected payload to be 15 bytes";
+        }
+        found = true;
+        return true;
+    });
     EXPECT_TRUE(found);
 }
 
@@ -132,30 +128,6 @@ TEST(Request_ParseFrameExtras, Reorder_LegalPacket) {
     EXPECT_TRUE(found);
 }
 
-TEST(Request_ParseFrameExtras, Reorder_InvalidLength) {
-    std::vector<uint8_t> fe;
-    fe.push_back(0x01); // ID 0, length 1
-    fe.push_back(0x00); // Add the 0 byte
-    std::vector<uint8_t> packet(27);
-    RequestBuilder builder({packet.data(), packet.size()});
-    builder.setMagic(Magic::AltClientRequest);
-    builder.setFramingExtras({fe.data(), fe.size()});
-
-    try {
-        auto* req = reinterpret_cast<Request*>(packet.data());
-        req->parseFrameExtras([](request::FrameInfoId id,
-                                 cb::const_byte_buffer data) -> bool {
-            ADD_FAILURE() << "Expected parser to fail. Called with "
-                          << to_string(id);
-            return true;
-        });
-        FAIL() << "Parser should detect invalid length";
-    } catch (const std::runtime_error& e) {
-        EXPECT_STREQ("parseFrameExtras: Invalid size for Reorder, size:1",
-                     e.what());
-    }
-}
-
 TEST(Request_ParseFrameExtras, Reorder_BufferOverflow) {
     std::vector<uint8_t> fe;
     fe.push_back(0x02); // ID 0, length 2
@@ -174,7 +146,7 @@ TEST(Request_ParseFrameExtras, Reorder_BufferOverflow) {
             return true;
         });
         FAIL() << "Parser should detect invalid length";
-    } catch (const std::runtime_error& e) {
+    } catch (const std::overflow_error& e) {
         EXPECT_STREQ("parseFrameExtras: outside frame extras", e.what());
     }
 }
@@ -221,31 +193,6 @@ TEST(Request_ParseFrameExtras, DurabilityRequirement_LegalPacket) {
         return true;
     });
     EXPECT_TRUE(found);
-}
-
-TEST(Request_ParseFrameExtras, DurabilityRequirement_InvalidLength) {
-    std::vector<uint8_t> fe(5);
-    fe[0] = 0x14; // ID 1, length 4
-    std::vector<uint8_t> packet(30);
-    RequestBuilder builder({packet.data(), packet.size()});
-    builder.setMagic(Magic::AltClientRequest);
-    builder.setFramingExtras({fe.data(), fe.size()});
-
-    try {
-        auto* req = reinterpret_cast<Request*>(packet.data());
-        req->parseFrameExtras([](request::FrameInfoId id,
-                                 cb::const_byte_buffer data) -> bool {
-            ADD_FAILURE() << "Expected parser to fail. Called with "
-                          << to_string(id);
-            return true;
-        });
-        FAIL() << "Parser should detect invalid length";
-    } catch (const std::runtime_error& e) {
-        EXPECT_STREQ(
-                "parseFrameExtras: Invalid size for DurabilityRequirement, "
-                "size:4",
-                e.what());
-    }
 }
 
 TEST(Request_ParseFrameExtras, MultipleEncoding) {

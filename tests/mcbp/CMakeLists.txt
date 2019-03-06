@@ -1,5 +1,6 @@
 include_directories(AFTER SYSTEM ${gtest_SOURCE_DIR}/include)
 add_executable(memcached_mcbp_test
+               mcbp_frame_extra.cc
                mcbp_gat_test.cc
                mcbp_test.cc
                mcbp_test.h

@@ -392,62 +392,64 @@ Status McbpValidator::verify_header(Cookie& cookie,
     auto status = Status::Success;
     auto opcode = request.getClientOpcode();
 
-    request.parseFrameExtras(
-            [&status, &cookie, &opcode](cb::mcbp::request::FrameInfoId id,
-                                        cb::const_byte_buffer data) -> bool {
-                switch (id) {
-                case cb::mcbp::request::FrameInfoId::Reorder:
-                    if (data.empty()) {
-                        status = Status::NotSupported;
-                        cookie.setErrorContext(
-                                "OoO is currently not supported");
-                    } else {
+    try {
+        request.parseFrameExtras([&status, &cookie, &opcode](
+                                         cb::mcbp::request::FrameInfoId id,
+                                         cb::const_byte_buffer data) -> bool {
+            switch (id) {
+            case cb::mcbp::request::FrameInfoId::Reorder:
+                if (data.empty()) {
+                    status = Status::NotSupported;
+                    cookie.setErrorContext("OoO is currently not supported");
+                } else {
+                    status = Status::Einval;
+                    cookie.setErrorContext("Reorder should not contain value");
+                }
+                return false;
+            case cb::mcbp::request::FrameInfoId::DurabilityRequirement:
+                try {
+                    cb::durability::Requirements req(data);
+                    if (!supportsDurability(opcode)) {
                         status = Status::Einval;
                         cookie.setErrorContext(
-                                "Reorder should not contain value");
-                    }
-                    return false;
-                case cb::mcbp::request::FrameInfoId::DurabilityRequirement:
-                    try {
-                        cb::durability::Requirements req(data);
-                        if (!supportsDurability(opcode)) {
-                            status = Status::Einval;
-                            cookie.setErrorContext(
-                                    R"(The requested command does not support durability requirements)");
-                            // terminate parsing
-                            return false;
-                        }
-                        return true;
-                    } catch (const std::exception& exception) {
-                        // According to the spec the size may be 1 byte
-                        // indicating the level and 2 optional bytes indicating
-                        // the timeout.
-                        if (data.size() == 1 || data.size() == 3) {
-                            status = Status::DurabilityInvalidLevel;
-                        } else {
-                            status = Status::Einval;
-                        }
-                        std::string msg(exception.what());
-                        // trim off the exception prefix
-                        const std::string prefix{"Requirements(): "};
-                        if (msg.find(prefix) == 0) {
-                            msg = msg.substr(prefix.size());
-                        }
-                        cookie.setErrorContext(msg);
+                                R"(The requested command does not support durability requirements)");
+                        // terminate parsing
                         return false;
                     }
-                case cb::mcbp::request::FrameInfoId::DcpStreamId:
-                    if (data.size() != sizeof(cb::mcbp::DcpStreamId)) {
+                    return true;
+                } catch (const std::exception& exception) {
+                    // According to the spec the size may be 1 byte
+                    // indicating the level and 2 optional bytes indicating
+                    // the timeout.
+                    if (data.size() == 1 || data.size() == 3) {
+                        status = Status::DurabilityInvalidLevel;
+                    } else {
                         status = Status::Einval;
-                        cookie.setErrorContext("DcpStreamId invalid size:" +
-                                               std::to_string(data.size()));
                     }
+                    std::string msg(exception.what());
+                    // trim off the exception prefix
+                    const std::string prefix{"Requirements(): "};
+                    if (msg.find(prefix) == 0) {
+                        msg = msg.substr(prefix.size());
+                    }
+                    cookie.setErrorContext(msg);
                     return false;
-                } // switch (id)
-                status = Status::UnknownFrameInfo;
+                }
+            case cb::mcbp::request::FrameInfoId::DcpStreamId:
+                if (data.size() != sizeof(cb::mcbp::DcpStreamId)) {
+                    status = Status::Einval;
+                    cookie.setErrorContext("DcpStreamId invalid size:" +
+                                           std::to_string(data.size()));
+                }
                 return false;
-            },
-            true /* don't validate */);
+            } // switch (id)
+            status = Status::UnknownFrameInfo;
+            return false;
+        });
+    } catch (const std::overflow_error& e) {
+        status = Status::Einval;
+        cookie.setErrorContext("Invalid encoding in FrameExtras");
+    }
 
     return status;
 }

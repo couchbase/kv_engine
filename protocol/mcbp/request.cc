@@ -226,8 +226,7 @@ std::string Request::getPrintableKey() const {
     return buffer;
 }
 
-void Request::parseFrameExtras(FrameInfoCallback callback,
-                               bool no_validate) const {
+void Request::parseFrameExtras(FrameInfoCallback callback) const {
     auto fe = getFramingExtras();
     if (fe.empty()) {
         return;
@@ -266,50 +265,9 @@ void Request::parseFrameExtras(FrameInfoCallback callback,
         cb::const_byte_buffer content{fe.data() + offset, size};
         offset += size;
 
-        if (no_validate) {
-            if (!callback(id, content)) {
-                return;
-            }
-            continue;
+        if (!callback(id, content)) {
+            return;
         }
-
-        switch (id) {
-        case FrameInfoId::Reorder:
-            if (!content.empty()) {
-                throw std::runtime_error(
-                        "parseFrameExtras: Invalid size for Reorder, size:" +
-                        std::to_string(content.size()));
-            }
-            if (!callback(FrameInfoId::Reorder, content)) {
-                return;
-            }
-            continue;
-        case FrameInfoId::DurabilityRequirement:
-            if (content.size() != 1 && content.size() != 3) {
-                throw std::runtime_error(
-                        "parseFrameExtras: Invalid size for "
-                        "DurabilityRequirement, size:" +
-                        std::to_string(content.size()));
-            }
-            if (!callback(FrameInfoId::DurabilityRequirement, content)) {
-                return;
-            }
-            continue;
-        case FrameInfoId::DcpStreamId:
-            if (content.size() != sizeof(DcpStreamId)) {
-                throw std::runtime_error(
-                        "parseFrameExtras: Invalid size for "
-                        "DcpStreamId, size:" +
-                        std::to_string(content.size()));
-            }
-            if (!callback(FrameInfoId::DcpStreamId, content)) {
-                return;
-            }
-            continue;
-        }
-        throw std::runtime_error(
-                "cb::mcbp::Request::parseFrameExtras: Unknown id: " +
-                std::to_string(int(id)));
     }
 }
 
