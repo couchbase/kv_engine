@@ -1620,7 +1620,7 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string>& filenames,
         size_t secondDot = filename.rfind(".");
         std::string nameKey = filename.substr(0, secondDot);
         size_t firstDot = nameKey.rfind(".");
-        size_t firstSlash = nameKey.rfind(DIRECTORY_SEPARATOR_CHARACTER);
+        size_t firstSlash = nameKey.rfind(cb::io::DirectorySeparator);
 
         std::string revNumStr = filename.substr(secondDot + 1);
         char *ptr = NULL;

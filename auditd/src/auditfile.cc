@@ -133,8 +133,8 @@ void AuditFile::close_and_rotate_log() {
     std::string fname;
     do {
         std::stringstream archive_file;
-        archive_file << log_directory << DIRECTORY_SEPARATOR_CHARACTER
-                     << hostname << "-" << ts;
+        archive_file << log_directory << cb::io::DirectorySeparator << hostname
+                     << "-" << ts;
         if (count != 0) {
             archive_file << "-" << count;
         }

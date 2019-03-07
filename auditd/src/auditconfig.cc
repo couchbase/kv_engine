@@ -166,14 +166,12 @@ void AuditConfig::set_descriptors_path(const std::string &directory) {
     descriptors_path = directory;
     sanitize_path(descriptors_path);
 
-    std::stringstream tmp;
-    tmp << descriptors_path << DIRECTORY_SEPARATOR_CHARACTER;
-    tmp << "audit_events.json";
-    FILE *fp = fopen(tmp.str().c_str(), "r");
-    if (fp == NULL) {
+    const auto tmp =
+            descriptors_path + cb::io::DirectorySeparator + "audit_events.json";
+    FILE* fp = fopen(tmp.c_str(), "r");
+    if (fp == nullptr) {
         std::stringstream ss;
-        ss << "Failed to open \"" << tmp.str().c_str() << "\": "
-           << strerror(errno);
+        ss << "Failed to open \"" << tmp.c_str() << "\": " << strerror(errno);
         throw ss.str();
     }
     fclose(fp);
@@ -236,7 +234,7 @@ bool AuditConfig::is_filtering_enabled() const {
 
 void AuditConfig::sanitize_path(std::string &path) {
     cb::io::sanitizePath(path);
-    if (path.length() > 1 && path.data()[path.length() - 1] == DIRECTORY_SEPARATOR_CHARACTER) {
+    if (path.length() > 1 && path.back() == cb::io::DirectorySeparator) {
         path.resize(path.length() - 1);
     }
 }

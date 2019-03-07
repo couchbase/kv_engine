@@ -3115,7 +3115,7 @@ static enum test_result test_access_scanner_settings(EngineIface* h) {
     std::string dbname = vals.find("ep_dbname")->second;
 
     const auto alog_path = std::string("alog_path=") + dbname +
-            DIRECTORY_SEPARATOR_CHARACTER + "access.log";
+                           cb::io::DirectorySeparator + "access.log";
     std::string newconfig =
             std::string(testHarness->get_current_testcase()->cfg) + alog_path;
 
@@ -3199,7 +3199,7 @@ static enum test_result test_access_scanner(EngineIface* h) {
     const auto dbname = vals.find("ep_dbname")->second;
 
     const auto alog_path = std::string("alog_path=") + dbname +
-            DIRECTORY_SEPARATOR_CHARACTER + "access.log";
+                           cb::io::DirectorySeparator + "access.log";
 
     /* We do not want the access scanner task to be running while we initiate it
        explicitly below. Hence set the alog_task_time to about 1 ~ 2 hours
@@ -6312,10 +6312,8 @@ static enum test_result test_multi_bucket_set_get(engine_test_t* test) {
 }
 
 static void force_vbstate_to_25x(std::string dbname, int vbucket) {
-    std::string filename = dbname +
-                           DIRECTORY_SEPARATOR_CHARACTER +
-                           std::to_string(vbucket) +
-                           ".couch.1";
+    std::string filename = dbname + cb::io::DirectorySeparator +
+                           std::to_string(vbucket) + ".couch.1";
     Db* handle;
     couchstore_error_t err = couchstore_open_db(filename.c_str(),
                                                 COUCHSTORE_OPEN_FLAG_CREATE,
@@ -7566,9 +7564,7 @@ static enum test_result test_mb20697(EngineIface* h) {
 /* Check if vbucket reject ops are incremented on persistence failure */
 static enum test_result test_mb20744_check_incr_reject_ops(EngineIface* h) {
     std::string dbname = get_dbname(testHarness->get_current_testcase()->cfg);
-    std::string filename = dbname +
-                           DIRECTORY_SEPARATOR_CHARACTER +
-                           "0.couch.1";
+    std::string filename = dbname + cb::io::DirectorySeparator + "0.couch.1";
 
     /* corrupt the couchstore file */
     FILE *fp = fopen(filename.c_str(), "wb");
