@@ -109,6 +109,56 @@ private:
 /**
  * The Warmup class is responsible for "warming-up" an ep-engine bucket on
  * startup to restore its state from disk.
+ *
+ * Warmup is a multi stage process, with the exact sequence of stages depending
+ * on:
+ * a) Eviction mode (full or value)
+ * b) Presence of access.log files
+ * c) Size of bucket quota vs size of data to load.
+ *
+ * The possible state transitions are:
+ *
+ *                [Initialise]
+ *                     |
+ *                     V
+ *              [CreateVBuckets]
+ *                     |
+ *                     V
+ *           [LoadingCollectionCounts]
+ *                     |
+ *                     V
+ *          [EstimateDatabaseItemCount]
+ *                     |
+ *                Eviction mode?
+ *               /           \
+ *            Value          Full
+ *              |             |
+ *              V             |
+ *          [KeyDump]         |
+ *              |             |
+ *              V             V
+ *            [CheckForAccessLog]
+ *                     |
+ *              Access Log Found?
+ *               /              \
+ *             Yes              No - Eviction mode?
+ *              |                   /            \
+ *              |                 Value          Full
+ *              |                  |              |
+ *              V                  |              V
+ *       [LoadingAccessLog]        |       [LoadingKVPairs]
+ *              |                  |              |
+ *     maybe Enable Traffic?       |              |
+ *     /                  \        |              |
+ *    Yes                 No       |              |
+ *     |                  |        |              |
+ *     |                  V        V              |
+ *     |                [LoadingData]             |
+ *     |                     |                    |
+ *     \---------------------+--------------------/
+ *                           |
+ *                           V
+ *                        [Done]
  */
 class Warmup {
 public:
@@ -181,19 +231,82 @@ private:
 
     void setEstimatedWarmupCount(size_t num);
 
-    // Methods called by the different tasks to perform the given warmup step:
+    /*
+     * Methods called by the different tasks to perform the given warmup stage.
+     *
+     * See `Warmup` class-level comment for flowchart of these stages.
+     */
 
+    /**
+     * Initialises warmup:
+     * - Determines if this was a clean shutdown (based on last persisted stats)
+     * - Scans the data directory to determine which vBuckets exist on-disk,
+     *   from that populating Warmup::shardVbIds vector of shards to vbucket
+     *   stats to warmup.
+     */
     void initialize();
-    void createVBuckets(uint16_t shardId);
-    void estimateDatabaseItemCount(uint16_t shardId);
-    void keyDumpforShard(uint16_t shardId);
-    void checkForAccessLog();
-    void loadingAccessLog(uint16_t shardId);
-    void loadKVPairsforShard(uint16_t shardId);
-    void loadDataforShard(uint16_t shardId);
-    void loadCollectionStatsForShard(uint16_t shardId);
-    void done();
 
+    /**
+     * Creates VBucket objects in memory for the given shard:
+     * - For each vbucket found on disk; create an in-memory VBucket object
+     *   from the on-disk state.
+     */
+    void createVBuckets(uint16_t shardId);
+
+    /**
+     * Loads the persisted per-collection document count for each vBucket in
+     * the given shard.
+     */
+    void loadCollectionStatsForShard(uint16_t shardId);
+
+    /**
+     * Loads the item count of each vBucket from disk for the given shardId:
+     * - Reads the item count from disk and sets VBucket::numTotalItems
+     * - Updates Warmup::estimatedItemCount with the estimated total items
+     *   needed for warmup.
+     */
+    void estimateDatabaseItemCount(uint16_t shardId);
+
+    /**
+     * [Value-eviction only]
+     * Loads all keys into memory for each vBucket in the given shard.
+     */
+    void keyDumpforShard(uint16_t shardId);
+
+    /**
+     * Checks for the existance of an access log file for each shard:
+     * - Checks if traffic should be enabled (i.e. enough data already
+     *   loaded) - if true transitions to State::Done
+     * - Checks for the existance of access logs for all shards.
+     */
+    void checkForAccessLog();
+
+    /**
+     * Loads the access log for the given shardId:
+     * - Reads a batch of keys from the access log
+     * - For each key read, attempt to fetch key+value from the underlying
+     *   KVStore.
+     * - If key exists (wasn't subsequently deleted), insert into the
+     *   HashTable.
+     */
+    void loadingAccessLog(uint16_t shardId);
+
+    /**
+     * [Full-eviction only]
+     * Loads both keys and values into memory for each vBucket in the given
+     * shard.
+     */
+    void loadKVPairsforShard(uint16_t shardId);
+
+    /**
+     * Loads values into memory for each vBucket in the given shard.
+     */
+    void loadDataforShard(uint16_t shardId);
+
+    /* Terminal state of warmup. Updates statistics and marks warmup as
+     * completed
+     */
+    void done();
 
     /* Returns the number of KV stores that holds the states of all the vbuckets */
     uint16_t getNumKVStores();
