@@ -19,6 +19,7 @@
 
 #include <fcntl.h>
 #include <gtest/gtest.h>
+#include <platform/dirutils.h>
 #include <platform/strerror.h>
 #include <sys/stat.h>
 #include <algorithm>
@@ -73,12 +74,11 @@ class MutationLogTest : public ::testing::Test {
 protected:
     void SetUp() override {
         // Generate a temporary log filename.
-        tmp_log_filename = "mlt_test.XXXXXX";
-        ASSERT_NE(nullptr, cb_mktemp(&tmp_log_filename[0]));
+        tmp_log_filename = cb::io::mktemp("mlt_test");
     }
 
     void TearDown() override {
-        remove(tmp_log_filename.c_str());
+        cb::io::rmrf(tmp_log_filename);
     }
 
     /**

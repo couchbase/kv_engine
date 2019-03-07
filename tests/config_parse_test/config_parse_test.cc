@@ -193,46 +193,42 @@ TEST_F(SettingsTest, AuditFile) {
     // Ensure that we detect non-string values for admin
     nonStringValuesShouldFail("audit_file");
 
-    char pattern[] = {"audit_file.XXXXXX"};
-
     // Ensure that we accept a string, but the file must exist
-    EXPECT_NE(nullptr, cb_mktemp(pattern));
+    const auto filename = cb::io::mktemp("config_parse_test");
 
     nlohmann::json json;
-    json["audit_file"] = pattern;
+    json["audit_file"] = filename;
     try {
         Settings settings(json);
-        EXPECT_EQ(pattern, settings.getAuditFile());
+        EXPECT_EQ(filename, settings.getAuditFile());
         EXPECT_TRUE(settings.has.audit);
     } catch (std::exception& exception) {
         FAIL() << exception.what();
     }
 
     // But we should fail if the file don't exist
-    cb::io::rmrf(pattern);
+    cb::io::rmrf(filename);
     expectFail<std::system_error>(json);
 }
 
 TEST_F(SettingsTest, RbacFile) {
     nonStringValuesShouldFail("rbac_file");
 
-    const std::string pattern = {"rbac_file.XXXXXX"};
-
     // Ensure that we accept a string, but the file must exist
-    const auto tmpfile = cb::io::mktemp(pattern);
+    const auto filename = cb::io::mktemp("config_parse_test");
 
     nlohmann::json json;
-    json["rbac_file"] = tmpfile;
+    json["rbac_file"] = filename;
     try {
         Settings settings(json);
-        EXPECT_EQ(tmpfile, settings.getRbacFile());
+        EXPECT_EQ(filename, settings.getRbacFile());
         EXPECT_TRUE(settings.has.rbac_file);
     } catch (std::exception& exception) {
         FAIL() << exception.what();
     }
 
     // But we should fail if the file don't exist
-    cb::io::rmrf(tmpfile);
+    cb::io::rmrf(filename);
     expectFail<std::system_error>(json);
 }
 
@@ -255,10 +251,8 @@ TEST_F(SettingsTest, Threads) {
 TEST_F(SettingsTest, Interfaces) {
     nonArrayValuesShouldFail("interfaces");
 
-    char key_pattern[] = {"key.XXXXXX"};
-    char cert_pattern[] = {"cert.XXXXXX"};
-    EXPECT_NE(nullptr, cb_mktemp(key_pattern));
-    EXPECT_NE(nullptr, cb_mktemp(cert_pattern));
+    const auto key_file = cb::io::mktemp("config_parse_test");
+    const auto cert_file = cb::io::mktemp("config_parse_test");
 
     nlohmann::json obj;
     obj["port"] = 0;
@@ -268,8 +262,8 @@ TEST_F(SettingsTest, Interfaces) {
     obj["host"] = "*";
 
     nlohmann::json ssl;
-    ssl["key"] = key_pattern;
-    ssl["cert"] = cert_pattern;
+    ssl["key"] = key_file;
+    ssl["cert"] = cert_file;
     obj["ssl"] = ssl;
 
     nlohmann::json array;
@@ -292,15 +286,16 @@ TEST_F(SettingsTest, Interfaces) {
     } catch (std::exception& exception) {
         FAIL() << exception.what();
     }
+
+    cb::io::rmrf(key_file);
+    cb::io::rmrf(cert_file);
 }
 
 TEST_F(SettingsTest, InterfacesMissingSSLFiles) {
     nonArrayValuesShouldFail("interfaces");
 
-    char key_pattern[] = {"key.XXXXXX"};
-    char cert_pattern[] = {"cert.XXXXXX"};
-    EXPECT_NE(nullptr, cb_mktemp(key_pattern));
-    EXPECT_NE(nullptr, cb_mktemp(cert_pattern));
+    const auto key_file = cb::io::mktemp("config_parse_test");
+    const auto cert_file = cb::io::mktemp("config_parse_test");
 
     nlohmann::json obj;
     obj["port"] = 0;
@@ -310,8 +305,8 @@ TEST_F(SettingsTest, InterfacesMissingSSLFiles) {
     obj["host"] = "*";
 
     nlohmann::json ssl;
-    ssl["key"] = key_pattern;
-    ssl["cert"] = cert_pattern;
+    ssl["key"] = key_file;
+    ssl["cert"] = cert_file;
     obj["ssl"] = ssl;
 
     nlohmann::json array;
@@ -327,19 +322,18 @@ TEST_F(SettingsTest, InterfacesMissingSSLFiles) {
     }
 
     // We should fail if one of the files is missing
-    cb::io::rmrf(key_pattern);
+    cb::io::rmrf(key_file);
     expectFail<std::system_error>(root);
-    fclose(fopen(key_pattern, "a"));
-    cb::io::rmrf(cert_pattern);
+    fclose(fopen(key_file.c_str(), "a"));
+    cb::io::rmrf(cert_file);
     expectFail<std::system_error>(root);
-    cb::io::rmrf(key_pattern);
+    cb::io::rmrf(key_file);
 }
 
 TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
     nonArrayValuesShouldFail("interfaces");
 
-    char pattern[] = {"ssl.XXXXXX"};
-    EXPECT_NE(nullptr, cb_mktemp(pattern));
+    const auto filename = cb::io::mktemp("config_parse_test");
 
     nlohmann::json obj;
     obj["port"] = 0;
@@ -349,7 +343,7 @@ TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
     obj["host"] = "*";
 
     nlohmann::json ssl;
-    ssl["cert"] = pattern;
+    ssl["cert"] = filename;
     obj["ssl"] = ssl;
 
     nlohmann::json array;
@@ -361,7 +355,7 @@ TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
     expectFail<nlohmann::json::exception>(root);
 
     ssl.clear();
-    ssl["key"] = pattern;
+    ssl["key"] = filename;
     obj["ssl"] = ssl;
     array.clear();
     array.push_back(obj);
@@ -369,7 +363,7 @@ TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
 
     expectFail<nlohmann::json::exception>(root);
 
-    cb::io::rmrf(pattern);
+    cb::io::rmrf(filename);
 }
 
 /// Test that "off" is correctly handled for ipv4 & ipv6 protocols.
@@ -794,10 +788,7 @@ TEST_F(SettingsTest, Breakpad) {
 
     nlohmann::json json;
 
-    char minidump_dir[] = {"minidump.XXXXXX"};
-    EXPECT_NE(nullptr, cb_mktemp(minidump_dir));
-    cb::io::rmrf(minidump_dir);
-    cb::io::mkdirp(minidump_dir);
+    const auto minidump_dir = cb::io::mkdtemp("config_parse_test");
 
     json["enabled"] = true;
     json["minidump_dir"] = minidump_dir;

@@ -359,7 +359,7 @@ public:
                          "COUCHBASE_CBSASL_SECRETS=%s",
                          envstr.c_str());
 
-        filename = generateTempFile("./cryptfile.XXXXXX");
+        filename = cb::io::mktemp("./cryptfile.");
     }
 
     void TearDown() override {
@@ -375,25 +375,6 @@ public:
 
 protected:
     std::string filename;
-
-    std::string generateTempFile(const char* pattern) {
-        char* file_pattern = strdup(pattern);
-        if (file_pattern == nullptr) {
-            throw std::bad_alloc();
-        }
-
-        if (cb_mktemp(file_pattern) == nullptr) {
-            throw std::runtime_error(
-                    std::string(
-                            "Failed to create temporary file with pattern: ") +
-                    std::string(pattern));
-        }
-
-        std::string ret(file_pattern);
-        free(file_pattern);
-
-        return ret;
-    }
 };
 
 TEST_F(EncryptedDatabaseTest, WriteReadFilePlain) {

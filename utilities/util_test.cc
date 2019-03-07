@@ -26,10 +26,9 @@
 #include <memcached/config_parser.h>
 #include "string_utilities.h"
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
-
-#define TMP_TEMPLATE "testapp_tmp_file.XXXXXXX"
+#include <gtest/gtest.h>
+#include <platform/dirutils.h>
 
 TEST(StringTest, safe_strtoul) {
     uint32_t val;
@@ -253,8 +252,6 @@ TEST(ConfigParserTest, A) {
     int ii;
     char buffer[1024];
     FILE *cfg;
-    char outfile[sizeof(TMP_TEMPLATE)+1];
-    char cfgfile[sizeof(TMP_TEMPLATE)+1];
     FILE *error;
 
     /* Set up the different items I can handle */
@@ -294,11 +291,9 @@ TEST(ConfigParserTest, A) {
     ++ii;
 
     ASSERT_EQ(7, ii);
-    strncpy(outfile, TMP_TEMPLATE, sizeof(TMP_TEMPLATE)+1);
-    strncpy(cfgfile, TMP_TEMPLATE, sizeof(TMP_TEMPLATE)+1);
+    auto outfile = cb::io::mktemp("util_test");
 
-    ASSERT_NE(cb_mktemp(outfile), nullptr);
-    error = fopen(outfile, "w");
+    error = fopen(outfile.c_str(), "w");
 
     ASSERT_NE(error, nullptr);
     ASSERT_EQ(0, parse_config("", items, error));
@@ -445,21 +440,21 @@ TEST(ConfigParserTest, A) {
         }
     }
 
-    ASSERT_NE(cb_mktemp(cfgfile), nullptr);
-    cfg = fopen(cfgfile, "w");
+    auto cfgfile = cb::io::mktemp("util_test");
+    cfg = fopen(cfgfile.c_str(), "w");
     ASSERT_NE(cfg, nullptr);
     fprintf(cfg, "# This is a config file\nbool=true\nsize_t=1023\nfloat=12.4\n");
     fclose(cfg);
-    sprintf(buffer, "config_file=%s", cfgfile);
+    sprintf(buffer, "config_file=%s", cfgfile.c_str());
     ASSERT_EQ(0, parse_config(buffer, items, error));
     EXPECT_TRUE(bool_val);
     EXPECT_EQ(1023u, size_val);
     EXPECT_EQ(12.4f, float_val);
     fclose(error);
 
-    remove(cfgfile);
+    cb::io::rmrf(cfgfile);
     /* Verify that I received the error messages ;-) */
-    error = fopen(outfile, "r");
+    error = fopen(outfile.c_str(), "r");
     ASSERT_TRUE(error);
 
     EXPECT_TRUE(fgets(buffer, sizeof(buffer), error));
@@ -471,5 +466,5 @@ TEST(ConfigParserTest, A) {
     EXPECT_EQ(nullptr, fgets(buffer, sizeof(buffer), error));
 
     EXPECT_EQ(0, fclose(error));
-    remove(outfile);
+    cb::io::rmrf(outfile);
 }
