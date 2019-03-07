@@ -1,7 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #pragma once
 
-#include <JSON_checker.h>
 #include <event.h>
 #include <memcached/engine_error.h>
 #include <memcached/server_callback_iface.h>

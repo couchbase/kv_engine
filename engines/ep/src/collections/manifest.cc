@@ -23,7 +23,6 @@
 
 #include <json_utilities.h>
 
-#include <JSON_checker.h>
 #include <memcached/engine_error.h>
 #include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>

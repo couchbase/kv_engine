@@ -26,7 +26,6 @@
 
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
-#include <JSON_checker.h>
 
 #include <array>
 #include <memcached/types.h>

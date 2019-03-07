@@ -21,7 +21,6 @@
 #include "dcp/response.h"
 #include "statwriter.h"
 
-#include <JSON_checker.h>
 #include <json_utilities.h>
 #include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
