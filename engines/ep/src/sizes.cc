@@ -78,11 +78,13 @@ int main(int, char **) {
     display("CheckpointManager", sizeof(CheckpointManager));
     display("Checkpoint\t", sizeof(Checkpoint));
     display("CheckpointConfig", sizeof(CheckpointConfig));
-    display("Histogram<whatever>", sizeof(Histogram<size_t>));
+    display("Histogram<whatever>", Histogram<size_t>().getMemFootPrint());
     display("HistogramBin<size_t>", sizeof(HistogramBin<size_t>));
     display("HistogramBin<int>", sizeof(HistogramBin<int>));
     display("HistogramBin<microseconds>",
             sizeof(MicrosecondHistogram::bin_type));
+    display("MicrosecondHistogram", MicrosecondHistogram().getMemFootPrint());
+    display("HdrMicroSecHistogram", HdrMicroSecHistogram().getMemFootPrint());
     display("PersistenceCallback", sizeof(PersistenceCallback));
     display("AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>",
             sizeof(AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>));
