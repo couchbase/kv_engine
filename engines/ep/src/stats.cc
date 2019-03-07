@@ -187,7 +187,7 @@ void EPStats::memDeallocated(size_t sz) {
 }
 
 void EPStats::maybeUpdateEstimatedTotalMemUsed(
-        Couchbase::RelaxedAtomic<int64_t>& coreMemory, int64_t value) {
+        cb::RelaxedAtomic<int64_t>& coreMemory, int64_t value) {
     // If this thread succeeds in swapping, this thread updates total
     if (std::abs(value) > memUsedMergeThreshold) {
         // Swap the core's value to 0 and update total with whatever we got

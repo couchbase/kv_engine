@@ -840,9 +840,9 @@ protected:
 
     /* deleted docs in each file, indexed by vBucket. RelaxedAtomic
        to allow stats access witout lock */
-    std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDeleteCount;
-    std::vector<Couchbase::RelaxedAtomic<uint64_t>> cachedFileSize;
-    std::vector<Couchbase::RelaxedAtomic<uint64_t>> cachedSpaceUsed;
+    std::vector<cb::RelaxedAtomic<size_t>> cachedDeleteCount;
+    std::vector<cb::RelaxedAtomic<uint64_t>> cachedFileSize;
+    std::vector<cb::RelaxedAtomic<uint64_t>> cachedSpaceUsed;
     /* pending file deletions */
     AtomicQueue<std::string> pendingFileDeletions;
 

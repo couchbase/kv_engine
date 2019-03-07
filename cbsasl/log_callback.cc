@@ -29,7 +29,7 @@ namespace cb {
 namespace sasl {
 namespace logging {
 
-extern Couchbase::RelaxedAtomic<LogCallback> callback;
+extern cb::RelaxedAtomic<LogCallback> callback;
 
 CBSASL_PUBLIC_API
 void set_log_callback(LogCallback logCallback) {

@@ -890,7 +890,7 @@ protected:
     // bySeqno is atomic primarily for TSAN, which would flag that we write/read
     // this in ephemeral backfills with different locks (which is true, but the
     // access is we believe actually safe)
-    Couchbase::RelaxedAtomic<int64_t> bySeqno; //!< By sequence id number
+    cb::RelaxedAtomic<int64_t> bySeqno; //!< By sequence id number
     /// For alive items: GETL lock expiration. For deleted items: delete time.
     rel_time_t         lock_expiry_or_delete_time;
     uint32_t           exptime;        //!< Expiration time of this item.

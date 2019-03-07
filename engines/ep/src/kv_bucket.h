@@ -78,7 +78,7 @@ private:
      * RelaxedAtomic as this is used by getDescription to generate the task
      * description, which can be called by threads other than the one executing.
      */
-    Couchbase::RelaxedAtomic<Vbid::id_type> currentvb;
+    cb::RelaxedAtomic<Vbid::id_type> currentvb;
 
     DISALLOW_COPY_AND_ASSIGN(VBCBAdaptor);
 };
@@ -769,7 +769,7 @@ protected:
      * bucket config and also via set_flush_param. Written/read by differing
      * threads.
      */
-    Couchbase::RelaxedAtomic<bool> xattrEnabled;
+    cb::RelaxedAtomic<bool> xattrEnabled;
 
     /* Contains info about throttling the replication */
     std::unique_ptr<ReplicationThrottle> replicationThrottle;

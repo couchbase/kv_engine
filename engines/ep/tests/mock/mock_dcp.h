@@ -175,7 +175,7 @@ public:
     uint64_t last_vbucket_uuid;
     uint64_t last_snap_start_seqno;
     uint64_t last_snap_end_seqno;
-    Couchbase::RelaxedAtomic<uint64_t> last_byseqno;
+    cb::RelaxedAtomic<uint64_t> last_byseqno;
     uint64_t last_revseqno;
     CollectionID last_collection_id;
     ScopeID last_scope_id;

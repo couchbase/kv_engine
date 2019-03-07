@@ -2832,7 +2832,7 @@ static enum test_result test_dcp_producer_keep_stream_open(EngineIface* h) {
     wait_for_stat_to_be(h, stat_stream_count.c_str(), 1, "dcp");
 
     /* Wait for the dcp test client to receive upto highest seqno we have */
-    Couchbase::RelaxedAtomic<uint64_t> exp_items(num_items);
+    cb::RelaxedAtomic<uint64_t> exp_items(num_items);
     wait_for_val_to_be("last_sent_seqno",
                        cdc.dcpConsumer->producers.last_byseqno,
                        exp_items);
@@ -2954,7 +2954,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
     wait_for_stat_to_be(h, stat_stream_count.c_str(), 1, "dcp");
 
     /* Wait for the dcp test client to receive upto highest seqno we have */
-    Couchbase::RelaxedAtomic<uint64_t> exp_items(3 * num_items);
+    cb::RelaxedAtomic<uint64_t> exp_items(3 * num_items);
     wait_for_val_to_be("last_sent_seqno",
                        cdc.dcpConsumer->producers.last_byseqno,
                        exp_items);
@@ -3039,7 +3039,7 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
     wait_for_stat_to_be(h, stat_stream_count.c_str(), 1, "dcp");
 
     /* Wait for the dcp test client to receive upto highest seqno we have */
-    Couchbase::RelaxedAtomic<uint64_t> exp_items(num_items);
+    cb::RelaxedAtomic<uint64_t> exp_items(num_items);
     wait_for_val_to_be("last_sent_seqno",
                        cdc.dcpConsumer->producers.last_byseqno,
                        exp_items);

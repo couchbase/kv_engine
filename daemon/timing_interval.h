@@ -35,8 +35,8 @@ static const size_t INTERVAL_SERIES_SIZE = 10;
  * by the IntervalSeries which contains it.
  */
 struct Interval {
-    Couchbase::RelaxedAtomic<uint64_t> count = {(0)};
-    Couchbase::RelaxedAtomic<uint64_t> duration_ns = {(0)};
+    cb::RelaxedAtomic<uint64_t> count = {(0)};
+    cb::RelaxedAtomic<uint64_t> duration_ns = {(0)};
     Interval& operator+=(const Interval& other);
 
     // Reset the counters to 0

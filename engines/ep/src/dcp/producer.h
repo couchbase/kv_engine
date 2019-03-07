@@ -371,12 +371,12 @@ protected:
          * True if a DCP NOOP request has been sent and we are waiting for a
          * response.
          */
-        Couchbase::RelaxedAtomic<bool> pendingRecv;
-        Couchbase::RelaxedAtomic<bool> enabled;
+        cb::RelaxedAtomic<bool> pendingRecv;
+        cb::RelaxedAtomic<bool> enabled;
     } noopCtx;
 
     /// Timestamp of when we last recieved a message from our peer.
-    Couchbase::RelaxedAtomic<rel_time_t> lastReceiveTime;
+    cb::RelaxedAtomic<rel_time_t> lastReceiveTime;
 
     std::unique_ptr<DcpResponse> getNextItem();
 
@@ -475,19 +475,19 @@ protected:
 
     bool notifyOnly;
 
-    Couchbase::RelaxedAtomic<bool> enableExtMetaData;
-    Couchbase::RelaxedAtomic<bool> forceValueCompression;
-    Couchbase::RelaxedAtomic<bool> supportsCursorDropping;
-    Couchbase::RelaxedAtomic<bool> sendStreamEndOnClientStreamClose;
-    Couchbase::RelaxedAtomic<bool> consumerSupportsHifiMfu;
-    Couchbase::RelaxedAtomic<bool> enableExpiryOpcode;
+    cb::RelaxedAtomic<bool> enableExtMetaData;
+    cb::RelaxedAtomic<bool> forceValueCompression;
+    cb::RelaxedAtomic<bool> supportsCursorDropping;
+    cb::RelaxedAtomic<bool> sendStreamEndOnClientStreamClose;
+    cb::RelaxedAtomic<bool> consumerSupportsHifiMfu;
+    cb::RelaxedAtomic<bool> enableExpiryOpcode;
 
     // SyncReplication: Producer needs to know the Consumer name to identify
     // the source of received SeqnoAck messages.
     std::string consumerName;
 
     /// Timestamp of when we last transmitted a message to our peer.
-    Couchbase::RelaxedAtomic<rel_time_t> lastSendTime;
+    cb::RelaxedAtomic<rel_time_t> lastSendTime;
     BufferLog log;
 
     // backfill manager object is owned by this class, but use an

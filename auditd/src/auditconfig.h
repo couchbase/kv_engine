@@ -132,12 +132,12 @@ protected:
     void set_disabled_userids(const nlohmann::json& array);
     void set_event_states(const nlohmann::json& array);
 
-    Couchbase::RelaxedAtomic<bool> auditd_enabled;
-    Couchbase::RelaxedAtomic<uint32_t> rotate_interval;
-    Couchbase::RelaxedAtomic<size_t> rotate_size;
-    Couchbase::RelaxedAtomic<bool> buffered;
-    Couchbase::RelaxedAtomic<bool> filtering_enabled;
-    Couchbase::RelaxedAtomic<uint32_t> version;
+    cb::RelaxedAtomic<bool> auditd_enabled;
+    cb::RelaxedAtomic<uint32_t> rotate_interval;
+    cb::RelaxedAtomic<size_t> rotate_size;
+    cb::RelaxedAtomic<bool> buffered;
+    cb::RelaxedAtomic<bool> filtering_enabled;
+    cb::RelaxedAtomic<uint32_t> version;
 
     mutable std::mutex log_path_mutex;
     std::string log_path;
@@ -160,7 +160,7 @@ protected:
     mutable std::mutex uuid_mutex;
     std::string uuid;
 
-    Couchbase::RelaxedAtomic<uint32_t> min_file_rotation_time;
-    Couchbase::RelaxedAtomic<uint32_t> max_file_rotation_time;
-    Couchbase::RelaxedAtomic<size_t> max_rotate_file_size;
+    cb::RelaxedAtomic<uint32_t> min_file_rotation_time;
+    cb::RelaxedAtomic<uint32_t> max_file_rotation_time;
+    cb::RelaxedAtomic<size_t> max_rotate_file_size;
 };

@@ -149,7 +149,7 @@ public:
      */
     std::unique_ptr<TopKeys> topkeys;
 
-    using ResponseCounter = Couchbase::RelaxedAtomic<uint64_t>;
+    using ResponseCounter = cb::RelaxedAtomic<uint64_t>;
 
     /**
      * Response counters that count the number of times a specific response

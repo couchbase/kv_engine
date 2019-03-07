@@ -1041,7 +1041,7 @@ protected:
 
     // The number of times we've been backing off and yielding
     // to allow other threads to run
-    Couchbase::RelaxedAtomic<uint64_t> yields;
+    cb::RelaxedAtomic<uint64_t> yields;
 
     /**
      * The event base this connection is bound to

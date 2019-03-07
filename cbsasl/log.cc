@@ -24,7 +24,7 @@ namespace cb {
 namespace sasl {
 namespace logging {
 
-Couchbase::RelaxedAtomic<LogCallback> callback;
+cb::RelaxedAtomic<LogCallback> callback;
 
 void log(Context* context, Level level, const std::string& message) {
     auto logger = callback.load();

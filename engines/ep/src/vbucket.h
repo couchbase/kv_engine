@@ -1800,7 +1800,7 @@ protected:
     std::mutex hpVBReqsMutex;
 
     /* size of list hpVBReqs (to avoid MB-9434) */
-    Couchbase::RelaxedAtomic<size_t> numHpVBReqs;
+    cb::RelaxedAtomic<size_t> numHpVBReqs;
 
     /**
      * VBucket sub-classes must implement a function that will schedule

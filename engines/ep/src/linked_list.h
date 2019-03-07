@@ -251,11 +251,11 @@ protected:
 
     /* Overall memory consumed by (stale) OrderedStoredValues owned by the
        list */
-    Couchbase::RelaxedAtomic<size_t> staleSize;
+    cb::RelaxedAtomic<size_t> staleSize;
 
     /* Metadata memory consumed by (stale) OrderedStoredValues owned by the
        list */
-    Couchbase::RelaxedAtomic<size_t> staleMetaDataSize;
+    cb::RelaxedAtomic<size_t> staleMetaDataSize;
 
 private:
     OrderedLL::iterator purgeListElem(OrderedLL::iterator it, bool isStale);

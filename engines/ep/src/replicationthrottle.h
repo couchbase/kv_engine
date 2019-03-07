@@ -62,8 +62,8 @@ private:
     bool persistenceQueueSmallEnough() const;
     bool hasSomeMemory() const;
 
-    Couchbase::RelaxedAtomic<ssize_t> queueCap;
-    Couchbase::RelaxedAtomic<size_t> capPercent;
+    cb::RelaxedAtomic<ssize_t> queueCap;
+    cb::RelaxedAtomic<size_t> capPercent;
     EPStats &stats;
 };
 

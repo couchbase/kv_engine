@@ -521,7 +521,7 @@ protected:
      */
     opaque_map opaqueMap_;
 
-    Couchbase::RelaxedAtomic<uint32_t> backoffs;
+    cb::RelaxedAtomic<uint32_t> backoffs;
     // The interval that the consumer tells the producer to send noops
     const std::chrono::seconds dcpNoopTxInterval;
 

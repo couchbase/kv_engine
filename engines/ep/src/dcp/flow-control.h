@@ -70,7 +70,7 @@ private:
     bool pendingControl;
 
     /* Flow control buffer size */
-    Couchbase::RelaxedAtomic<uint32_t> bufferSize;
+    cb::RelaxedAtomic<uint32_t> bufferSize;
 
     /* Lock while updating buffersize and pendingControl */
     std::mutex bufferSizeLock;

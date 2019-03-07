@@ -123,69 +123,70 @@ struct thread_stats {
         }
     }
 
-    Couchbase::RelaxedAtomic<uint64_t> cmd_get;
-    Couchbase::RelaxedAtomic<uint64_t> get_hits;
-    Couchbase::RelaxedAtomic<uint64_t> get_misses;
-    Couchbase::RelaxedAtomic<uint64_t> cmd_set;
-    Couchbase::RelaxedAtomic<uint64_t> delete_hits;
-    Couchbase::RelaxedAtomic<uint64_t> cas_hits;
-    Couchbase::RelaxedAtomic<uint64_t> cas_badval;
-    Couchbase::RelaxedAtomic<uint64_t> delete_misses;
-    Couchbase::RelaxedAtomic<uint64_t> incr_misses;
-    Couchbase::RelaxedAtomic<uint64_t> decr_misses;
-    Couchbase::RelaxedAtomic<uint64_t> incr_hits;
-    Couchbase::RelaxedAtomic<uint64_t> decr_hits;
-    Couchbase::RelaxedAtomic<uint64_t> cas_misses;
-    Couchbase::RelaxedAtomic<uint64_t> bytes_read;
-    Couchbase::RelaxedAtomic<uint64_t> bytes_written;
-    Couchbase::RelaxedAtomic<uint64_t> cmd_flush;
-    Couchbase::RelaxedAtomic<uint64_t> conn_yields; /* # of yields for connections (-R option)*/
-    Couchbase::RelaxedAtomic<uint64_t> auth_cmds;
-    Couchbase::RelaxedAtomic<uint64_t> auth_errors;
+    cb::RelaxedAtomic<uint64_t> cmd_get;
+    cb::RelaxedAtomic<uint64_t> get_hits;
+    cb::RelaxedAtomic<uint64_t> get_misses;
+    cb::RelaxedAtomic<uint64_t> cmd_set;
+    cb::RelaxedAtomic<uint64_t> delete_hits;
+    cb::RelaxedAtomic<uint64_t> cas_hits;
+    cb::RelaxedAtomic<uint64_t> cas_badval;
+    cb::RelaxedAtomic<uint64_t> delete_misses;
+    cb::RelaxedAtomic<uint64_t> incr_misses;
+    cb::RelaxedAtomic<uint64_t> decr_misses;
+    cb::RelaxedAtomic<uint64_t> incr_hits;
+    cb::RelaxedAtomic<uint64_t> decr_hits;
+    cb::RelaxedAtomic<uint64_t> cas_misses;
+    cb::RelaxedAtomic<uint64_t> bytes_read;
+    cb::RelaxedAtomic<uint64_t> bytes_written;
+    cb::RelaxedAtomic<uint64_t> cmd_flush;
+    cb::RelaxedAtomic<uint64_t>
+            conn_yields; /* # of yields for connections (-R option)*/
+    cb::RelaxedAtomic<uint64_t> auth_cmds;
+    cb::RelaxedAtomic<uint64_t> auth_errors;
     /* # of subdoc lookup commands (GET/EXISTS/MULTI_LOOKUP) */
-    Couchbase::RelaxedAtomic<uint64_t> cmd_subdoc_lookup;
+    cb::RelaxedAtomic<uint64_t> cmd_subdoc_lookup;
     /* # of subdoc mutation commands */
-    Couchbase::RelaxedAtomic<uint64_t> cmd_subdoc_mutation;
+    cb::RelaxedAtomic<uint64_t> cmd_subdoc_mutation;
 
     /** # of lock commands */
-    Couchbase::RelaxedAtomic<uint64_t> cmd_lock;
+    cb::RelaxedAtomic<uint64_t> cmd_lock;
 
     /** # of times an operation failed due to accessing a locked item */
-    Couchbase::RelaxedAtomic<uint64_t> lock_errors;
+    cb::RelaxedAtomic<uint64_t> lock_errors;
 
     /* # of bytes in the complete document which subdoc lookups searched
        within. Compare with 'bytes_subdoc_lookup_extracted' */
-    Couchbase::RelaxedAtomic<uint64_t> bytes_subdoc_lookup_total;
+    cb::RelaxedAtomic<uint64_t> bytes_subdoc_lookup_total;
     /* # of bytes extracted during a subdoc lookup operation and sent back to
       the client. */
-    Couchbase::RelaxedAtomic<uint64_t> bytes_subdoc_lookup_extracted;
+    cb::RelaxedAtomic<uint64_t> bytes_subdoc_lookup_extracted;
 
     /* # of bytes in the complete document which subdoc mutations updated.
        Compare with 'bytes_subdoc_mutation_inserted' */
-    Couchbase::RelaxedAtomic<uint64_t> bytes_subdoc_mutation_total;
+    cb::RelaxedAtomic<uint64_t> bytes_subdoc_mutation_total;
     /* # of bytes inserted during a subdoc mutation operation (which were
        received from the client). */
-    Couchbase::RelaxedAtomic<uint64_t> bytes_subdoc_mutation_inserted;
+    cb::RelaxedAtomic<uint64_t> bytes_subdoc_mutation_inserted;
 
     /* # of read buffers allocated. */
-    Couchbase::RelaxedAtomic<uint64_t> rbufs_allocated;
+    cb::RelaxedAtomic<uint64_t> rbufs_allocated;
     /* # of read buffers which could be loaned (and hence didn't need to be allocated). */
-    Couchbase::RelaxedAtomic<uint64_t> rbufs_loaned;
+    cb::RelaxedAtomic<uint64_t> rbufs_loaned;
     /* # of read buffers which already existed (with partial data) on the connection
        (and hence didn't need to be allocated). */
-    Couchbase::RelaxedAtomic<uint64_t> rbufs_existing;
+    cb::RelaxedAtomic<uint64_t> rbufs_existing;
     /* # of write buffers allocated. */
-    Couchbase::RelaxedAtomic<uint64_t> wbufs_allocated;
+    cb::RelaxedAtomic<uint64_t> wbufs_allocated;
     /* # of write buffers which could be loaned (and hence didn't need to be allocated). */
-    Couchbase::RelaxedAtomic<uint64_t> wbufs_loaned;
+    cb::RelaxedAtomic<uint64_t> wbufs_loaned;
     /* # of write buffers which already existed (with partial data) on the
         connection (and hence didn't need to be allocated). */
-    Couchbase::RelaxedAtomic<uint64_t> wbufs_existing;
+    cb::RelaxedAtomic<uint64_t> wbufs_existing;
 
     /* Highest value iovsize has got to */
-    Couchbase::RelaxedAtomic<int> iovused_high_watermark;
+    cb::RelaxedAtomic<int> iovused_high_watermark;
     /* High value Connection->msgused has got to */
-    Couchbase::RelaxedAtomic<int> msgused_high_watermark;
+    cb::RelaxedAtomic<int> msgused_high_watermark;
 };
 
 /**
@@ -193,7 +194,7 @@ struct thread_stats {
  */
 struct stats {
     /** Number of connections used by the server itself (listen ports etc). */
-    Couchbase::RelaxedAtomic<unsigned int> daemon_conns;
+    cb::RelaxedAtomic<unsigned int> daemon_conns;
 
     /** The current number of connections to the server */
     std::atomic<unsigned int> curr_conns;
@@ -214,13 +215,13 @@ struct stats {
     }
 
     /** The total number of connections to the server since start (or reset) */
-    Couchbase::RelaxedAtomic<unsigned int> total_conns;
+    cb::RelaxedAtomic<unsigned int> total_conns;
 
     /** The current number of allocated connection objects */
-    Couchbase::RelaxedAtomic<unsigned int> conn_structs;
+    cb::RelaxedAtomic<unsigned int> conn_structs;
 
     /** The number of times I reject a client */
-    Couchbase::RelaxedAtomic<uint64_t> rejected_conns;
+    cb::RelaxedAtomic<uint64_t> rejected_conns;
 
     std::vector<ListeningPort> listening_ports;
 };

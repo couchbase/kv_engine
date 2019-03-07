@@ -222,7 +222,7 @@ protected:
      * Indicates whether erroneous tombstones need to retained or not during
      * compaction
      */
-    Couchbase::RelaxedAtomic<bool> retainErroneousTombstones;
+    cb::RelaxedAtomic<bool> retainErroneousTombstones;
 
     std::unique_ptr<Warmup> warmupTask;
 };

@@ -60,14 +60,14 @@ private:
     static void arith_op(TimingHistogram& dst, const TimingHistogram& src);
 
     /* We collect timings for <=1 us */
-    Couchbase::RelaxedAtomic<uint32_t> ns;
+    cb::RelaxedAtomic<uint32_t> ns;
     /* We collect timings per 10usec */
-    std::array<Couchbase::RelaxedAtomic<uint32_t>, 100> usec;
+    std::array<cb::RelaxedAtomic<uint32_t>, 100> usec;
     /* we collect timings from 0-49 ms (entry 0 is never used!) */
-    std::array<Couchbase::RelaxedAtomic<uint32_t>, 50> msec;
-    std::array<Couchbase::RelaxedAtomic<uint32_t>, 10> halfsec;
+    std::array<cb::RelaxedAtomic<uint32_t>, 50> msec;
+    std::array<cb::RelaxedAtomic<uint32_t>, 10> halfsec;
     // wayout use the following buckets:
     // [5-9], [10-19], [20-39], [40-79], [80-inf].
-    std::array<Couchbase::RelaxedAtomic<uint32_t>, 5> wayout;
-    Couchbase::RelaxedAtomic<uint64_t> total;
+    std::array<cb::RelaxedAtomic<uint32_t>, 5> wayout;
+    cb::RelaxedAtomic<uint64_t> total;
 };

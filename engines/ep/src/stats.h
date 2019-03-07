@@ -43,7 +43,7 @@ public:
     // Thread-safe type for counting occurances of discrete,
     // non-negative entities (# events, sizes).  Relaxed memory
     // ordering (no ordeing or synchronization).
-    using Counter = Couchbase::RelaxedAtomic<size_t>;
+    using Counter = cb::RelaxedAtomic<size_t>;
 
     EPStats();
 
@@ -244,7 +244,7 @@ public:
     //! The total amount of memory used by this bucket (From memory tracking)
     // This is a signed variable as depending on how/when the thread-local
     // counters merge their info, this could be negative
-    cb::CachelinePadded<Couchbase::RelaxedAtomic<int64_t>> estimatedTotalMemory;
+    cb::CachelinePadded<cb::RelaxedAtomic<int64_t>> estimatedTotalMemory;
 
     //! Core-local statistics
     CoreStore<cb::CachelinePadded<CoreLocalStats>> coreLocal;
@@ -578,7 +578,7 @@ protected:
      *        also the value which may be added into estimatedTotalMemory.
      */
     void maybeUpdateEstimatedTotalMemUsed(
-            Couchbase::RelaxedAtomic<int64_t>& coreMemory, int64_t value);
+            cb::RelaxedAtomic<int64_t>& coreMemory, int64_t value);
 
     /**
      * Set memUsedMergeThreshold by calculating a percentage of max_size and
@@ -593,7 +593,7 @@ protected:
      * The threshold at which memAllocated/Deallocated will write their core
      * local value into the 'global' memory counter (estimatedTotalMemory)
      */
-    Couchbase::RelaxedAtomic<int64_t> memUsedMergeThreshold;
+    cb::RelaxedAtomic<int64_t> memUsedMergeThreshold;
 
     /// percentage used in calculating the memUsedMergeThreshold
     float memUsedMergeThresholdPercent;
@@ -615,7 +615,7 @@ public:
     // ordering (no ordering or synchronization).
     // This is a signed variable as depending on how/when the core-local
     // counters merge their info, this could be negative.
-    using Counter = Couchbase::RelaxedAtomic<int64_t>;
+    using Counter = cb::RelaxedAtomic<int64_t>;
 
     //! The total amount of memory used by this bucket (From memory tracking)
     Counter totalMemory;

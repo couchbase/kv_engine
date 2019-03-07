@@ -323,33 +323,33 @@ public:
     }
 
     // the number of docs committed
-    Couchbase::RelaxedAtomic<size_t> docsCommitted;
+    cb::RelaxedAtomic<size_t> docsCommitted;
     // the number of open() calls
-    Couchbase::RelaxedAtomic<size_t> numOpen;
+    cb::RelaxedAtomic<size_t> numOpen;
     // the number of close() calls
-    Couchbase::RelaxedAtomic<size_t> numClose;
+    cb::RelaxedAtomic<size_t> numClose;
     // the number of vbuckets loaded
-    Couchbase::RelaxedAtomic<size_t> numLoadedVb;
+    cb::RelaxedAtomic<size_t> numLoadedVb;
 
     //stats tracking failures
-    Couchbase::RelaxedAtomic<size_t> numCompactionFailure;
-    Couchbase::RelaxedAtomic<size_t> numGetFailure;
-    Couchbase::RelaxedAtomic<size_t> numSetFailure;
-    Couchbase::RelaxedAtomic<size_t> numDelFailure;
-    Couchbase::RelaxedAtomic<size_t> numOpenFailure;
-    Couchbase::RelaxedAtomic<size_t> numVbSetFailure;
+    cb::RelaxedAtomic<size_t> numCompactionFailure;
+    cb::RelaxedAtomic<size_t> numGetFailure;
+    cb::RelaxedAtomic<size_t> numSetFailure;
+    cb::RelaxedAtomic<size_t> numDelFailure;
+    cb::RelaxedAtomic<size_t> numOpenFailure;
+    cb::RelaxedAtomic<size_t> numVbSetFailure;
 
     /**
      * Number of documents read (full and meta-only) from disk for background
      * fetch operations.
      */
-    Couchbase::RelaxedAtomic<size_t> io_bg_fetch_docs_read;
+    cb::RelaxedAtomic<size_t> io_bg_fetch_docs_read;
     //! Number of write related io operations
-    Couchbase::RelaxedAtomic<size_t> io_num_write;
+    cb::RelaxedAtomic<size_t> io_num_write;
     //! Document bytes (key+meta+value) read for background fetch operations.
-    Couchbase::RelaxedAtomic<size_t> io_bgfetch_doc_bytes;
+    cb::RelaxedAtomic<size_t> io_bgfetch_doc_bytes;
     //! Number of bytes written (key + value + application rev metadata)
-    Couchbase::RelaxedAtomic<size_t> io_write_bytes;
+    cb::RelaxedAtomic<size_t> io_write_bytes;
 
     /* for flush and vb delete, no error handling in KVStore, such
      * failure should be tracked in MC-engine  */
@@ -376,7 +376,7 @@ public:
     MicrosecondHistogram snapshotHisto;
 
     // Count and histogram filesystem read()s per getMulti() request
-    Couchbase::RelaxedAtomic<size_t> getMultiFsReadCount;
+    cb::RelaxedAtomic<size_t> getMultiFsReadCount;
     Histogram<uint32_t> getMultiFsReadHisto;
 
     // Histogram of filesystem read()s per getMulti() request, divided by
@@ -882,8 +882,8 @@ protected:
     std::vector<std::unique_ptr<vbucket_state>> cachedVBStates;
     /* non-deleted docs in each file, indexed by vBucket.
        RelaxedAtomic to allow stats access without lock. */
-    std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDocCount;
-    Couchbase::RelaxedAtomic<uint16_t> cachedValidVBCount;
+    std::vector<cb::RelaxedAtomic<size_t>> cachedDocCount;
+    cb::RelaxedAtomic<uint16_t> cachedValidVBCount;
 
     PersistenceCallbacks pcbs;
 

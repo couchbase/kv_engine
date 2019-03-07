@@ -62,11 +62,11 @@ struct config {
  * Statistic information collected by the default engine
  */
 struct engine_stats {
-    Couchbase::RelaxedAtomic<uint64_t> evictions{0};
-    Couchbase::RelaxedAtomic<uint64_t> reclaimed{0};
-    Couchbase::RelaxedAtomic<uint64_t> curr_bytes{0};
-    Couchbase::RelaxedAtomic<uint64_t> curr_items{0};
-    Couchbase::RelaxedAtomic<uint64_t> total_items{0};
+    cb::RelaxedAtomic<uint64_t> evictions{0};
+    cb::RelaxedAtomic<uint64_t> reclaimed{0};
+    cb::RelaxedAtomic<uint64_t> curr_bytes{0};
+    cb::RelaxedAtomic<uint64_t> curr_items{0};
+    cb::RelaxedAtomic<uint64_t> total_items{0};
 };
 
 struct engine_scrubber {

@@ -805,7 +805,7 @@ protected:
     /**
      * The number of seconds a client may be idle before it is disconnected
      */
-    Couchbase::RelaxedAtomic<size_t> connection_idle_time;
+    cb::RelaxedAtomic<size_t> connection_idle_time;
 
     /**
      * The root directory of the installation
