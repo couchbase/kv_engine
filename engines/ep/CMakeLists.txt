@@ -444,7 +444,7 @@ if (NOT EP_BYPASS_TESTS)
                                PRIVATE
                                ${Couchstore_SOURCE_DIR}
                                ${Couchstore_SOURCE_DIR}/src)
-    TARGET_LINK_LIBRARIES(ep-engine_couch-fs-stats_test gtest gtest_main gmock platform)
+    TARGET_LINK_LIBRARIES(ep-engine_couch-fs-stats_test gtest gtest_main gmock platform mcd_util)
 
     ADD_EXECUTABLE(ep-engine_misc_test tests/module_tests/misc_test.cc)
     TARGET_LINK_LIBRARIES(ep-engine_misc_test mcbp platform)

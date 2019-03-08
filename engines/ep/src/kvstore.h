@@ -23,6 +23,7 @@
 
 #include <memcached/engine_common.h>
 #include <platform/histogram.h>
+#include <utilities/hdrhistogram.h>
 
 #include <relaxed_atomic.h>
 #include <atomic>
@@ -233,17 +234,17 @@ public:
 
 struct FileStats {
     // Read time length
-    MicrosecondHistogram readTimeHisto;
+    HdrMicroSecHistogram readTimeHisto;
     // Distance from last read
     Histogram<size_t> readSeekHisto = {ExponentialGenerator<size_t>(1, 2), 50};
     // Size of read
     Histogram<size_t> readSizeHisto = {ExponentialGenerator<size_t>(1, 2), 25};
     // Write time length
-    MicrosecondHistogram writeTimeHisto;
+    HdrMicroSecHistogram writeTimeHisto;
     // Write size
     Histogram<size_t> writeSizeHisto = {ExponentialGenerator<size_t>(1, 2), 25};
     // Time spent in sync
-    MicrosecondHistogram syncTimeHisto;
+    HdrMicroSecHistogram syncTimeHisto;
     // Read count per open() / close() pair
     Histogram<uint32_t> readCountHisto = {
             ExponentialGenerator<uint32_t>(2, 1.333), 50};
@@ -353,25 +354,25 @@ public:
      * failure should be tracked in MC-engine  */
 
     // How long it takes us to complete a read
-    MicrosecondHistogram readTimeHisto;
+    HdrMicroSecHistogram readTimeHisto;
     // How big are our reads?
     Histogram<size_t> readSizeHisto;
     // How long it takes us to complete a write
-    MicrosecondHistogram writeTimeHisto;
+    HdrMicroSecHistogram writeTimeHisto;
     // How big are our writes?
     Histogram<size_t> writeSizeHisto;
     // Time spent in delete() calls.
-    MicrosecondHistogram delTimeHisto;
+    HdrMicroSecHistogram delTimeHisto;
     // Time spent in commit
-    MicrosecondHistogram commitHisto;
+    HdrMicroSecHistogram commitHisto;
     // Time spent in compaction
-    MicrosecondHistogram compactHisto;
+    HdrMicroSecHistogram compactHisto;
     // Time spent in saving documents to disk
-    MicrosecondHistogram saveDocsHisto;
+    HdrMicroSecHistogram saveDocsHisto;
     // Batch size while saving documents
     Histogram<size_t> batchSize;
     //Time spent in vbucket snapshot
-    MicrosecondHistogram snapshotHisto;
+    HdrMicroSecHistogram snapshotHisto;
 
     // Count and histogram filesystem read()s per getMulti() request
     cb::RelaxedAtomic<size_t> getMultiFsReadCount;

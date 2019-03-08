@@ -306,7 +306,7 @@ void MutationLog::sync() {
         throw std::logic_error("MutationLog::sync: Not valid on a closed log");
     }
 
-    BlockTimer timer(&syncTimeHisto);
+    HdrMicroSecBlockTimer timer(&syncTimeHisto);
     try {
         doFsync(file);
     } catch (std::system_error& e) {
@@ -663,7 +663,7 @@ bool MutationLog::flush() {
                                    "Not valid on a closed log");
         }
         needWriteAccess();
-        BlockTimer timer(&flushTimeHisto);
+        HdrMicroSecBlockTimer timer(&flushTimeHisto);
 
         if (blockPos < blockSize) {
             size_t padding(blockSize - blockPos);

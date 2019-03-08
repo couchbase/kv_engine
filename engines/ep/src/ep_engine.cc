@@ -54,9 +54,11 @@
 #include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
 #include <platform/compress.h>
+#include <platform/histogram.h>
 #include <platform/platform_time.h>
 #include <platform/scope_timer.h>
 #include <tracing/trace_helpers.h>
+#include <utilities/hdrhistogram.h>
 #include <utilities/logtags.h>
 #include <xattr/utils.h>
 
@@ -1100,11 +1102,11 @@ static ENGINE_ERROR_CODE processUnknownCommand(EventuallyPersistentEngine* h,
         return h->getAllVBucketSequenceNumbers(cookie, request, response);
 
     case cb::mcbp::ClientOpcode::GetVbucket: {
-        BlockTimer timer(&stats.getVbucketCmdHisto);
+        HdrMicroSecBlockTimer timer(&stats.getVbucketCmdHisto);
         return getVBucket(h, cookie, request, response);
     }
     case cb::mcbp::ClientOpcode::DelVbucket: {
-        BlockTimer timer(&stats.delVbucketCmdHisto);
+        HdrMicroSecBlockTimer timer(&stats.delVbucketCmdHisto);
         const auto rv = delVBucket(h, cookie, request, response);
         if (rv != ENGINE_EWOULDBLOCK) {
             h->decrementSessionCtr();
@@ -1113,7 +1115,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(EventuallyPersistentEngine* h,
         return rv;
     }
     case cb::mcbp::ClientOpcode::SetVbucket: {
-        BlockTimer timer(&stats.setVbucketCmdHisto);
+        HdrMicroSecBlockTimer timer(&stats.setVbucketCmdHisto);
         const auto rv = setVBucket(h, cookie, request, response);
         h->decrementSessionCtr();
         return rv;
@@ -2234,8 +2236,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get(const void* cookie,
                                                   const DocKey& key,
                                                   Vbid vbucket,
                                                   get_options_t options) {
-    ScopeTimer2<MicrosecondStopwatch, TracerStopwatch> timer(
-            MicrosecondStopwatch(stats.getCmdHisto),
+    ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
+            HdrMicroSecStopwatch(stats.getCmdHisto),
             TracerStopwatch(cookie, cb::tracing::TraceCode::GET));
 
     GetValue gv(kvBucket->get(key, vbucket, cookie, options));
@@ -2298,8 +2300,8 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
         std::function<bool(const item_info&)> filter) {
     auto* handle = reinterpret_cast<EngineIface*>(this);
 
-    ScopeTimer2<MicrosecondStopwatch, TracerStopwatch> timer(
-            MicrosecondStopwatch(stats.getCmdHisto),
+    ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
+            HdrMicroSecStopwatch(stats.getCmdHisto),
             TracerStopwatch(cookie, cb::tracing::TraceCode::GETIF));
 
     // Fetch an item from the hashtable (without trying to schedule a bg-fetch
@@ -2415,8 +2417,8 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
         const cb::StoreIfPredicate& predicate) {
-    ScopeTimer2<MicrosecondStopwatch, TracerStopwatch> timer(
-            MicrosecondStopwatch(stats.storeCmdHisto),
+    ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
+            HdrMicroSecStopwatch(stats.storeCmdHisto),
             TracerStopwatch(cookie, cb::tracing::TraceCode::STORE));
 
     // Check if this is a in-progress durable store which has now completed -
@@ -4156,8 +4158,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         const char* stat_key,
         int nkey,
         const AddStatFn& add_stat) {
-    ScopeTimer2<MicrosecondStopwatch, TracerStopwatch> timer(
-            MicrosecondStopwatch(stats.getStatsCmdHisto),
+    ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
+            HdrMicroSecStopwatch(stats.getStatsCmdHisto),
             TracerStopwatch(cookie, cb::tracing::TraceCode::GETSTATS));
 
     const std::string statKey(stat_key, nkey);
@@ -5664,7 +5666,7 @@ void EventuallyPersistentEngine::notifyIOComplete(const void* cookie,
     if (cookie == NULL) {
         EP_LOG_WARN("Tried to signal a NULL cookie!");
     } else {
-        BlockTimer bt(&stats.notifyIOHisto);
+        HdrMicroSecBlockTimer bt(&stats.notifyIOHisto);
         NonBucketAllocationGuard guard;
         serverApi->cookie->notify_io_complete(cookie, status);
     }

@@ -17,6 +17,8 @@
 
 #include "ep_bucket.h"
 
+#include <utilities/hdrhistogram.h>
+
 #include "bgfetcher.h"
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
@@ -768,10 +770,10 @@ void EPBucket::flushOneDelOrSet(const queued_item& qi, VBucketPtr& vb) {
     if (!deleted) {
         // TODO: Need to separate disk_insert from disk_update because
         // bySeqno doesn't give us that information.
-        BlockTimer timer(bySeqno == -1 ?
-                         &stats.diskInsertHisto : &stats.diskUpdateHisto,
-                         bySeqno == -1 ? "disk_insert" : "disk_update",
-                         stats.timingLog);
+        BlockTimer timer(
+                bySeqno == -1 ? &stats.diskInsertHisto : &stats.diskUpdateHisto,
+                bySeqno == -1 ? "disk_insert" : "disk_update",
+                stats.timingLog);
         if (qi->isSystemEvent()) {
             rwUnderlying->setSystemEvent(*qi,
                                          PersistenceCallback(qi, qi->getCas()));
@@ -780,8 +782,8 @@ void EPBucket::flushOneDelOrSet(const queued_item& qi, VBucketPtr& vb) {
             rwUnderlying->set(*qi, PersistenceCallback(qi, qi->getCas()));
         }
     } else {
-        BlockTimer timer(&stats.diskDelHisto, "disk_delete",
-                         stats.timingLog);
+        HdrMicroSecBlockTimer timer(
+                &stats.diskDelHisto, "disk_delete", stats.timingLog);
         if (qi->isSystemEvent()) {
             rwUnderlying->delSystemEvent(*qi,
                                          PersistenceCallback(qi, qi->getCas()));

@@ -43,6 +43,7 @@
 #include "utility.h"
 #include <memcached/vbucket.h>
 #include <platform/histogram.h>
+#include <utilities/hdrhistogram.h>
 
 #include <array>
 #include <atomic>
@@ -438,9 +439,9 @@ public:
     //! Histogram of block padding sizes.
     Histogram<uint32_t> paddingHisto;
     //! Flush time histogram.
-    MicrosecondHistogram flushTimeHisto;
+    HdrMicroSecHistogram flushTimeHisto;
     //! Sync time histogram.
-    MicrosecondHistogram syncTimeHisto;
+    HdrMicroSecHistogram syncTimeHisto;
     //! Size of the log
     std::atomic<size_t> logSize;
 

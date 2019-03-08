@@ -83,6 +83,10 @@ int main(int, char **) {
     display("HistogramBin<microseconds>",
             sizeof(MicrosecondHistogram::bin_type));
     display("MicrosecondHistogram", MicrosecondHistogram().getMemFootPrint());
+    EPStats stats;
+    display("HdrHistogram frequency histo",
+            stats.activeOrPendingFrequencyValuesEvictedHisto.getMemFootPrint());
+    display("HdrMicroSecHistogram", HdrMicroSecHistogram().getMemFootPrint());
     display("IORequest", sizeof(IORequest));
     display("CouchRequest", sizeof(CouchRequest));
     display("PersistenceCallback", sizeof(PersistenceCallback));
@@ -96,10 +100,9 @@ int main(int, char **) {
 
     std::cout << std::endl << "Histogram Ranges" << std::endl << std::endl;
 
-    EPStats stats;
     HashTableDepthStatVisitor dv;
-    display("Default Histo", stats.diskInsertHisto);
-    display("Commit Histo", stats.diskCommitHisto);
-    display("Hash table depth histo", dv.depthHisto);
+    display("Default Histo", stats.diskInsertHisto.getMemFootPrint());
+    display("Commit Histo", stats.diskCommitHisto.getMemFootPrint());
+    display("Hash table depth histo", dv.depthHisto.getMemFootPrint());
     return 0;
 }

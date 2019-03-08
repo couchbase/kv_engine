@@ -19,6 +19,7 @@
 
 #include <boost/optional/optional_fwd.hpp>
 #include <nlohmann/json_fwd.hpp>
+#include <platform/histogram.h>
 #include <chrono>
 #include <memory>
 #include <utility>
@@ -73,6 +74,9 @@ public:
             Percentiles
         };
         IterMode type;
+        uint64_t lastVal = 0;
+        uint64_t lastCumulativeCount = 0;
+        bool isFirst = true;
     };
 
     /**
@@ -85,10 +89,13 @@ public:
      * @param sigificantFigures  the level of precision for the histogram.
      *        Note the underlying hdr_histogram requires the value to be
      *        between 1 and 5 (inclusive).
+     * @param iterMode sets the default iteration mode that should be used
+     *        when iterate though this histogram's data.
      */
     HdrHistogram(uint64_t lowestTrackableValue,
                  uint64_t highestTrackableValue,
-                 int significantFigures);
+                 int significantFigures,
+                 Iterator::IterMode iterMode = Iterator::IterMode::Recorded);
 
     HdrHistogram() : HdrHistogram(0, 1, 1){};
 
@@ -195,6 +202,21 @@ public:
     Iterator makePercentileIterator(uint32_t ticksPerHalfDist) const;
 
     /**
+     * Returns a recorded iterator fpr the histogram
+     * @return iterator that moves over the histogram by every value in its
+     * recordable range.
+     */
+    Iterator makeRecordedIterator() const;
+
+    /**
+     * Method to get the default iterator used to iterate over data for
+     * this histogram
+     * @return a HdrHistogram::Iterator that can be used to iterate over
+     * data in this histogram
+     */
+    Iterator getHistogramsIterator() const;
+
+    /**
      * Gets the next value and corresponding count from the histogram
      * Returns an optional pair, comprising of:
      * 1) value
@@ -217,9 +239,23 @@ public:
             Iterator& iter) const;
 
     /**
+     * Method used to get buckets from the histogram with the widths defined
+     * by the iteration method being used by the iterator. The starting and
+     * end values of the bucket is returned as a string in the format
+     * low,high e.g. 10,20. The count of this bucket is returned as uint64_t
+     * value.
+     * @param itr HdrHistogram::Iterator being used to iterate over the data
+     * @return the bucket data, first part of the pair containing a string of
+     * the low and high values of the bucket. The second part of the pair
+     * containing the count as a uint64_t for the bucket.
+     */
+    boost::optional<std::tuple<uint64_t, uint64_t, uint64_t>>
+    getNextBucketLowHighAndCount(Iterator& iter) const;
+
+    /**
      * prints the histogram counts by percentiles to stdout
      */
-    void printPercentiles();
+    void printPercentiles() const;
 
     /**
      * dumps the histogram to stdout using a logarithmic iterator
@@ -295,10 +331,28 @@ public:
         return histogram->significant_figures;
     }
 
+    /**
+     * Method to get hold of the mean of this histogram.
+     * @return returned the mean of values added to the histogram as a double.
+     */
+    double getMean() const;
+
 private:
     void resize(uint64_t lowestTrackableValue,
                 uint64_t highestTrackableValue,
                 int significantFigures);
+
+    /**
+     * Private method used to create an iterator for the specified mode
+     * @param mode the mode of the iterator to be created
+     * @return an iterator of the specified mode
+     */
+    Iterator makeIterator(Iterator::IterMode mode) const;
+
+    /**
+     * Variable used to store the default iteration mode of a given histogram.
+     */
+    Iterator::IterMode defaultIterationMode;
 
     /**
      * unique_ptr to a hdr_histogram structure
@@ -308,12 +362,17 @@ private:
 
 /** Histogram to store counts for microsecond intervals
  *  Can hold a range of 0us to 60000000us (60 seconds) with a
- *  precision of 2 significant figures
+ *  precision of 3 significant figures
  */
 class HdrMicroSecHistogram : public HdrHistogram {
 public:
-    HdrMicroSecHistogram() : HdrHistogram(0, 60000000, 2){};
-    bool add(std::chrono::microseconds v) {
-        return addValue(static_cast<uint64_t>(v.count()));
+    HdrMicroSecHistogram()
+        : HdrHistogram(0, 60000000, 3, Iterator::IterMode::Percentiles){};
+    bool add(std::chrono::microseconds v, size_t count = 1) {
+        return addValueAndCount(static_cast<uint64_t>(v.count()),
+                                static_cast<uint64_t>(count));
     }
 };
+
+using HdrMicroSecBlockTimer = GenericBlockTimer<HdrMicroSecHistogram, 0>;
+using HdrMicroSecStopwatch = MicrosecondStopwatch<HdrMicroSecHistogram>;

@@ -17,6 +17,7 @@
 
 #include "hdrhistogram.h"
 #include <boost/optional/optional.hpp>
+#include <folly/lang/Assume.h>
 #include <hdr_histogram.h>
 #include <nlohmann/json.hpp>
 #include <iostream>
@@ -29,7 +30,17 @@ void HdrHistogram::HdrDeleter::operator()(struct hdr_histogram* val) {
 
 HdrHistogram::HdrHistogram(uint64_t lowestTrackableValue,
                            uint64_t highestTrackableValue,
-                           int significantFigures) {
+                           int significantFigures,
+                           Iterator::IterMode iterMode) {
+    if (lowestTrackableValue >= highestTrackableValue ||
+        highestTrackableValue >=
+                static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+        throw std::logic_error(
+                "HdrHistogram must have logical low/high tackable values min:" +
+                std::to_string(lowestTrackableValue) +
+                " max:" + std::to_string(highestTrackableValue));
+    }
+
     struct hdr_histogram* hist = nullptr;
     // We add a bias of +1 to the lowest and highest trackable value
     // because we add +1 to all values we store in the histogram (as this
@@ -40,6 +51,7 @@ HdrHistogram::HdrHistogram(uint64_t lowestTrackableValue,
              &hist); // Pointer to initialise
 
     histogram.reset(hist);
+    defaultIterationMode = iterMode;
 }
 
 HdrHistogram& HdrHistogram::operator+=(const HdrHistogram& other) {
@@ -140,6 +152,34 @@ HdrHistogram::Iterator HdrHistogram::makePercentileIterator(
     return iter;
 }
 
+HdrHistogram::Iterator HdrHistogram::makeRecordedIterator() const {
+    HdrHistogram::Iterator iter{};
+    iter.type = Iterator::IterMode::Recorded;
+    hdr_iter_recorded_init(&iter, histogram.get());
+    return iter;
+}
+
+HdrHistogram::Iterator HdrHistogram::makeIterator(
+        Iterator::IterMode mode) const {
+    switch (mode) {
+    case Iterator::IterMode::Percentiles:
+        return makePercentileIterator(5);
+    case Iterator::IterMode::Log:
+        return makeLogIterator(
+                static_cast<int64_t>(getMaxValue() - getMinValue()) / 10, 10);
+    case Iterator::IterMode::Linear:
+        return makeLinearIterator(
+                static_cast<int64_t>(getMaxValue() - getMinValue()) / 20);
+    case Iterator::IterMode::Recorded:
+        return makeRecordedIterator();
+    }
+    folly::assume_unreachable();
+}
+
+HdrHistogram::Iterator HdrHistogram::getHistogramsIterator() const {
+    return makeIterator(defaultIterationMode);
+}
+
 boost::optional<std::pair<uint64_t, uint64_t>>
 HdrHistogram::getNextValueAndCount(Iterator& iter) const {
     boost::optional<std::pair<uint64_t, uint64_t>> valueAndCount;
@@ -153,7 +193,12 @@ HdrHistogram::getNextValueAndCount(Iterator& iter) const {
         case Iterator::IterMode::Linear:
             count = iter.specifics.linear.count_added_in_this_iteration_step;
             break;
-        default:
+        case Iterator::IterMode::Percentiles:
+            value = iter.highest_equivalent_value;
+            count = iter.cumulative_count - iter.lastCumulativeCount;
+            iter.lastCumulativeCount = iter.cumulative_count;
+            break;
+        case Iterator::IterMode::Recorded:
             count = iter.count;
             break;
         }
@@ -165,6 +210,19 @@ HdrHistogram::getNextValueAndCount(Iterator& iter) const {
     } else {
         return valueAndCount;
     }
+}
+
+boost::optional<std::tuple<uint64_t, uint64_t, uint64_t>>
+HdrHistogram::getNextBucketLowHighAndCount(Iterator& iter) const {
+    boost::optional<std::tuple<uint64_t, uint64_t, uint64_t>>
+            bucketHighLowCount;
+    auto valueAndCount = getNextValueAndCount(iter);
+    if (valueAndCount.is_initialized()) {
+        bucketHighLowCount = std::make_tuple(
+                iter.lastVal, valueAndCount->first, valueAndCount->second);
+        iter.lastVal = valueAndCount->first;
+    }
+    return bucketHighLowCount;
 }
 
 boost::optional<std::pair<uint64_t, double>>
@@ -182,8 +240,8 @@ HdrHistogram::getNextValueAndPercentile(Iterator& iter) const {
     return valueAndPer;
 }
 
-void HdrHistogram::printPercentiles() {
-    hdr_percentiles_print(histogram.get(), stdout, 100, 1.0, CLASSIC);
+void HdrHistogram::printPercentiles() const {
+    hdr_percentiles_print(histogram.get(), stdout, 5, 1.0, CLASSIC);
 }
 
 void HdrHistogram::dumpLinearValues(int64_t bucketWidth) {
@@ -245,9 +303,22 @@ size_t HdrHistogram::getMemFootPrint() const {
     return hdr_get_memory_size(histogram.get()) + sizeof(HdrHistogram);
 }
 
+double HdrHistogram::getMean() const {
+    return hdr_mean(histogram.get()) - 1;
+}
+
 void HdrHistogram::resize(uint64_t lowestTrackableValue,
                           uint64_t highestTrackableValue,
                           int significantFigures) {
+    if (lowestTrackableValue >= highestTrackableValue ||
+        highestTrackableValue >=
+                static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+        throw std::logic_error(
+                "HdrHistogram must have logical low/high tackable values min:" +
+                std::to_string(lowestTrackableValue) +
+                " max:" + std::to_string(highestTrackableValue));
+    }
+
     struct hdr_histogram* hist = nullptr;
     // We add a bias of +1 to the lowest and highest value that can be tracked
     // because we add +1 to all values we store in the histogram (as this

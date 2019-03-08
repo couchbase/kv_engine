@@ -266,7 +266,7 @@ public:
     std::atomic<hrtime_t> pendingOpsMaxDuration;
 
     //! Histogram of pending operation wait times.
-    MicrosecondHistogram pendingOpsHisto;
+    HdrMicroSecHistogram pendingOpsHisto;
 
     //! Number of pending vbucket compaction requests
     Counter pendingCompactions;
@@ -292,7 +292,7 @@ public:
     std::atomic<hrtime_t> bgMaxWait;
 
     //! Histogram of background wait times.
-    MicrosecondHistogram bgWaitHisto;
+    HdrMicroSecHistogram bgWaitHisto;
 
     /** The sum of the deltas (in usec) from the dispatcher started to load
      *  item until was done
@@ -304,7 +304,7 @@ public:
     std::atomic<hrtime_t> bgMaxLoad;
 
     //! Histogram of background wait loads.
-    MicrosecondHistogram bgLoadHisto;
+    HdrMicroSecHistogram bgLoadHisto;
 
     //! Max wall time of deleting a vbucket
     std::atomic<hrtime_t> vbucketDelMaxWalltime;
@@ -312,16 +312,16 @@ public:
     std::atomic<hrtime_t> vbucketDelTotWalltime;
 
     //! Histogram of setWithMeta latencies.
-    MicrosecondHistogram setWithMetaHisto;
+    HdrMicroSecHistogram setWithMetaHisto;
 
     //! Histogram of access scanner run times
-    MicrosecondHistogram accessScannerHisto;
+    HdrMicroSecHistogram accessScannerHisto;
     //! Historgram of checkpoint remover run times
-    MicrosecondHistogram checkpointRemoverHisto;
+    HdrMicroSecHistogram checkpointRemoverHisto;
     //! Histogram of item pager run times
-    MicrosecondHistogram itemPagerHisto;
+    HdrMicroSecHistogram itemPagerHisto;
     //! Histogram of expiry pager run times
-    MicrosecondHistogram expiryPagerHisto;
+    HdrMicroSecHistogram expiryPagerHisto;
 
     //! Percentage of memory in use before we throttle replication input
     std::atomic<double> replicationThrottleThreshold;
@@ -382,7 +382,7 @@ public:
     Counter compressorNumCompressed;
 
     //! Histogram of queue processing dirty age.
-    MicrosecondHistogram dirtyAgeHisto;
+    HdrMicroSecHistogram dirtyAgeHisto;
 
     //! Histogram of item allocation sizes.
     Histogram<size_t> itemAllocSizeHisto;
@@ -426,31 +426,31 @@ public:
     //
 
     //! Histogram of getvbucket timings
-    MicrosecondHistogram getVbucketCmdHisto;
+    HdrMicroSecHistogram getVbucketCmdHisto;
 
     //! Histogram of setvbucket timings
-    MicrosecondHistogram setVbucketCmdHisto;
+    HdrMicroSecHistogram setVbucketCmdHisto;
 
     //! Histogram of delvbucket timings
-    MicrosecondHistogram delVbucketCmdHisto;
+    HdrMicroSecHistogram delVbucketCmdHisto;
 
     //! Histogram of get commands.
-    MicrosecondHistogram getCmdHisto;
+    HdrMicroSecHistogram getCmdHisto;
 
     //! Histogram of store commands.
-    MicrosecondHistogram storeCmdHisto;
+    HdrMicroSecHistogram storeCmdHisto;
 
     //! Histogram of arithmetic commands.
-    MicrosecondHistogram arithCmdHisto;
+    HdrMicroSecHistogram arithCmdHisto;
 
     //! Time spent notifying completion of IO.
-    MicrosecondHistogram notifyIOHisto;
+    HdrMicroSecHistogram notifyIOHisto;
 
     //! Histogram of get_stats commands.
-    MicrosecondHistogram getStatsCmdHisto;
+    HdrMicroSecHistogram getStatsCmdHisto;
 
     //! Histogram of wait_for_checkpoint_persistence command
-    MicrosecondHistogram chkPersistenceHisto;
+    HdrMicroSecHistogram chkPersistenceHisto;
 
     //
     // DB timers.
@@ -463,26 +463,26 @@ public:
     MicrosecondHistogram diskUpdateHisto;
 
     //! Histogram of delete disk writes
-    MicrosecondHistogram diskDelHisto;
+    HdrMicroSecHistogram diskDelHisto;
 
     //! Histogram of execution time of disk vbucket deletions
-    MicrosecondHistogram diskVBDelHisto;
+    HdrMicroSecHistogram diskVBDelHisto;
 
     //! Histogram of disk commits
     MicrosecondHistogram diskCommitHisto;
 
     //! Historgram of batch reads
-    MicrosecondHistogram getMultiHisto;
+    HdrMicroSecHistogram getMultiHisto;
 
     // ! Histograms of various task wait times, one per Task.
-    std::vector<MicrosecondHistogram> schedulingHisto;
+    std::vector<HdrMicroSecHistogram> schedulingHisto;
 
     // ! Histograms of various task run times, one per Task.
-    std::vector<MicrosecondHistogram> taskRuntimeHisto;
+    std::vector<HdrMicroSecHistogram> taskRuntimeHisto;
 
     //! Checkpoint Cursor histograms
-    MicrosecondHistogram persistenceCursorGetItemsHisto;
-    MicrosecondHistogram dcpCursorsGetItemsHisto;
+    HdrMicroSecHistogram persistenceCursorGetItemsHisto;
+    HdrMicroSecHistogram dcpCursorsGetItemsHisto;
 
     //! Reset all stats to reasonable values.
     void reset() {

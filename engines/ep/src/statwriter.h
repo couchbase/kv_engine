@@ -27,6 +27,7 @@
 #include <atomic>
 #include <cstring>
 #include <sstream>
+#include <tuple>
 
 class EventuallyPersistentEngine;
 
@@ -71,19 +72,42 @@ inline void add_casted_stat(const char* k,
     add_stat(k, static_cast<uint16_t>(strlen(k)), v.data(), v.size(), cookie);
 }
 
-template <>
+template <typename T>
+inline void add_casted_histo_stat(const char* k,
+                                  const T& v,
+                                  const AddStatFn& add_stat,
+                                  const void* cookie) {
+    if (v.getValueCount() > 0) {
+        std::string meanKey(k);
+        meanKey += "_mean";
+        add_casted_stat(
+                meanKey.c_str(), std::round(v.getMean()), add_stat, cookie);
+
+        HdrHistogram::Iterator iter{v.getHistogramsIterator()};
+        while (auto result = v.getNextBucketLowHighAndCount(iter)) {
+            if (std::get<2>(*result) > 0) {
+                std::string newKey(k);
+                newKey += "_" + std::to_string(std::get<0>(*result)) + "," +
+                          std::to_string(std::get<1>(*result));
+                add_casted_stat(
+                        newKey.c_str(), std::get<2>(*result), add_stat, cookie);
+            }
+        }
+    }
+}
+
 inline void add_casted_stat(const char* k,
                             const HdrHistogram& v,
                             const AddStatFn& add_stat,
                             const void* cookie) {
-    HdrHistogram::Iterator iter{v.makeLinearIterator(1)};
-    while (auto result = v.getNextValueAndCount(iter)) {
-        if (result->second > 0) {
-            std::stringstream ss;
-            ss << k << "_" << result->first << "," << result->first;
-            add_casted_stat(ss.str().c_str(), result->second, add_stat, cookie);
-        }
-    }
+    add_casted_histo_stat<HdrHistogram>(k, v, add_stat, cookie);
+}
+
+inline void add_casted_stat(const char* k,
+                            const HdrMicroSecHistogram& v,
+                            const AddStatFn& add_stat,
+                            const void* cookie) {
+    add_casted_histo_stat<HdrMicroSecHistogram>(k, v, add_stat, cookie);
 }
 
 /// @cond DETAILS

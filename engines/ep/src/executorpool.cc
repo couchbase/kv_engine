@@ -868,7 +868,7 @@ void ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
         obj["num_runs"] =
                 engine->getEpStats()
                         .taskRuntimeHisto[static_cast<int>(task->getTaskId())]
-                        .total();
+                        .getValueCount();
         obj["type"] = TaskQueue::taskType2Str(
                 GlobalTask::getTaskType(task->getTaskId()));
 

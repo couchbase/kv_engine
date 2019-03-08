@@ -261,12 +261,17 @@ void add_individual_histo_stat(const char* key,
                                gsl::not_null<const void*> cookie) {
     /* Convert key to string */
     std::string key_str(key, klen);
+    /* Exclude mean value keys e.g. backfill_tasks_mean */
+    if (key_str.find("_mean") != std::string::npos) {
+        return;
+    }
+
     size_t pos1 = key_str.find(get_stat_context.requested_stat_name);
-    if (pos1 != std::string::npos)
-    {
+    if (pos1 != std::string::npos) {
         get_stat_context.actual_stat_value.append(val, vlen);
         /* Parse start and end from the key.
-           Key is in the format task_name_START,END (backfill_tasks_20,100) */
+           Key is in the format task_name_START,END (backfill_tasks_20,100)
+         */
         pos1 += get_stat_context.requested_stat_name.length();
         /* Find ',' to move to end of bin_start */
         size_t pos2 = key_str.find(',', pos1);
@@ -283,8 +288,8 @@ void add_individual_histo_stat(const char* key,
             throw std::invalid_argument("Malformed histogram stat: " + key_str);
         }
         auto end = std::stoull(std::string(key_str, pos1, pos2));
-        get_stat_context.histogram_stat_int_value->add_bin(start, end,
-                                                           std::stoull(val));
+        get_stat_context.histogram_stat_int_value->add_bin(
+                start, end, std::stoull(val));
     }
 }
 

@@ -23,6 +23,7 @@
 
 #include <cmath>
 #include <memory>
+#include <random>
 #include <thread>
 #include <utility>
 
@@ -36,6 +37,7 @@ TEST(HdrHistogramTest, addMin) {
     histogram.addValue(0);
     EXPECT_EQ(1, histogram.getValueCount());
     EXPECT_EQ(0, histogram.getValueAtPercentile(100.0));
+    EXPECT_EQ(0, histogram.getMinValue());
 }
 
 // Test can add maximum value (255)
@@ -44,6 +46,7 @@ TEST(HdrHistogramTest, addMax) {
     histogram.addValue(255);
     EXPECT_EQ(1, histogram.getValueCount());
     EXPECT_EQ(255, histogram.getValueAtPercentile(100.0));
+    EXPECT_EQ(255, histogram.getMaxValue());
 }
 
 // Test the bias of +1 used by the underlying hdr_histogram data structure
@@ -51,14 +54,20 @@ TEST(HdrHistogramTest, addMax) {
 TEST(HdrHistogramTest, biasTest) {
     HdrHistogram histogram{0, 255, 3};
 
+    double sum = 0;
     for (int ii = 0; ii < 256; ii++) {
         histogram.addValue(ii);
+        sum += ii;
     }
 
     EXPECT_EQ(0, histogram.getValueAtPercentile(0.1));
     EXPECT_EQ(2, histogram.getValueAtPercentile(1.0));
     EXPECT_EQ(127, histogram.getValueAtPercentile(50.0));
+    EXPECT_EQ(229, histogram.getValueAtPercentile(90.0));
+    EXPECT_EQ(242, histogram.getValueAtPercentile(95.0));
     EXPECT_EQ(255, histogram.getValueAtPercentile(100.0));
+
+    EXPECT_EQ(sum / 256, histogram.getMean());
 }
 
 // Test the linear iterator
@@ -158,6 +167,93 @@ TEST(HdrHistogramTest, addValueAndCountTest) {
         EXPECT_EQ(0, result->first);
         EXPECT_EQ(100, result->second);
     }
+}
+
+#define LOG_NORMAL_MEAN 0
+#define LOG_NORMAL_STD 2.0
+#define LOG_NORMAL_SCALE_UP_MULT 35000
+#define LOG_NORMAL_MIN 50000
+
+// static function to return a log normal value scaled by
+// LOG_NORMAL_SCALE_UP_MULT. It creates an array of 10000 static values that
+// using std::lognormal_distribution and returners them in an incrementing
+// linear fashion so that they can be used for the meanTest
+static uint64_t GetNextLogNormalValue() {
+    static bool initialised = false;
+    static std::vector<uint64_t> valuesToAdd(10000);
+    static unsigned int i = 0;
+
+    if (!initialised) {
+        // create a log normal distribution and random number generator
+        // so we can add random values in a log normal distribution which is a
+        // better representation of a production environment
+        std::random_device randomDevice;
+        std::mt19937 randomNumGen(randomDevice());
+        std::lognormal_distribution<long double> distribution(LOG_NORMAL_MEAN,
+                                                              LOG_NORMAL_STD);
+        // We have denormalize the log normal distribution with a min
+        // changing from 0 to 50000ns the max should remain at inf and set
+        // the mean to about 84000ns.
+        // Percentile values will vary as we use a random number generator to
+        // seed a X value when getting values from the distribution. However,
+        // the values below should give an idea of the distribution which
+        // modelled around an "ADD" op from stats.log p50:~84000ns |
+        // p90:~489000ns |p99:3424000ns |p99.9:20185000ns | p99.99:41418000ns
+        for (size_t i = 0; i < valuesToAdd.size(); i++) {
+            auto valToAdd = static_cast<uint64_t>(
+                    LOG_NORMAL_MIN + std::round(distribution(randomNumGen) *
+                                                LOG_NORMAL_SCALE_UP_MULT));
+            valuesToAdd[i] = valToAdd;
+        }
+        initialised = true;
+    }
+
+    if (i >= valuesToAdd.size()) {
+        i = 0;
+    }
+
+    return valuesToAdd[i++];
+}
+
+// Test the getMean method
+TEST(HdrHistogramTest, meanTest) {
+    HdrHistogram histogram{0, 60000000, 3};
+    uint64_t sum = 0;
+    double total_count = 0;
+
+    for (uint64_t i = 0; i < 1000000; i++) {
+        uint64_t count = GetNextLogNormalValue();
+        uint64_t value = GetNextLogNormalValue();
+
+        // only add random values inside the histograms range
+        // otherwise we sill skew the mean
+        if (value <= histogram.getMaxTrackableValue()) {
+            histogram.addValueAndCount(value, count);
+            // store values so we can calculate the real mean
+            sum += value * count;
+            total_count += count;
+        }
+    }
+
+    // calculate the mean
+    double_t avg = (sum / total_count);
+    int normaliseBy = 1;
+
+    // the mean will only be accurate to getSigFigAccuracy() in this case
+    // 3 sig fig. Which means we only want to compare the 3 sig fig, thus
+    // we need to normalise our mean to the one returned by the histogram.
+    // To do this we work out the power of ten of our mean and then remove two
+    // from this to leave us with two sig fig
+    int tens = static_cast<int>(log10(avg)) + 1 - histogram.getSigFigAccuracy();
+
+    // no point in normalising if the mean is 3 sig fig or less.
+    if (tens <= histogram.getSigFigAccuracy()) {
+        normaliseBy = static_cast<int>(std::pow(10, tens));
+    }
+
+    EXPECT_EQ(static_cast<unsigned int>(round(avg) / normaliseBy),
+              static_cast<unsigned int>(round(histogram.getMean()) /
+                                        normaliseBy));
 }
 
 void addValuesThread(HdrHistogram& histo,
