@@ -290,25 +290,58 @@ def no_label(s):
 def time_label(s):
     # -(2**64) -> '-inf'
     # 2**64 -> 'inf'
-    # 0 -> '0'
+    # 0 -> '0us'
     # 4 -> '4us'
+    # 9000 -> '9000us'
+    # 10000 -> '10ms'
     # 838384 -> '838ms'
-    # 8283852 -> '8s'
+    # 8283852 -> '8283ms'
+    # 10283852 -> '10s'
     if s > BIG_VALUE:
         return 'inf'
     elif s < SMALL_VALUE:
         return '-inf'
-    elif s == 0:
-        return '0'
-
     isNegative = s < 0
 
     s = abs(s)
+    if s == 0:
+        return "%4d%s" % (0, 'us')
 
     product = 1
-    sizes = (('us', 1), ('ms', 1000), ('s', 1000), ('m', 60))
+    '''
+    For unit labeling we define our thresh holds as 
+    Any value <= 10,000 will represented as a micro second (us)
+    Any value <= 10,000,000 will be represented as a milli second (ms)
+    Any value <= 600,000,000 will be represented as a second (s)
+    Anything > than 600,000,000 will be represented as minutes and seconds
+    e.g. 1m:05s
+    
+    We do this unusual thresholding so that we always have than two s.f. to
+    for values greater than 10us to distinguish between buckets.
+    For instance if we didn't do this bucket start/end values could look like
+    this: 
+     968us - 1ms   : ( 99.82%)    22
+    1ms - 1ms     : ( 99.84%)    22
+    1ms - 1ms     : ( 99.86%)    23
+    ....
+    9ms - 15ms    : ( 99.99%)     2
+    15ms - 23ms   : ( 99.99%)     1
+    23ms - 40ms   : ( 99.99%)     2
+     
+    Which isn't very useful. However, with this style of thresholding 
+    we end up with:
+    968us - 1050us : ( 99.8247%)    22
+    1050us - 1168us : ( 99.8440%)    22
+    1168us - 1323us : ( 99.8641%)    23
+    ....
+    9278us -   15ms : ( 99.9921%)     2
+      15ms -   23ms : ( 99.9930%)     1
+      23ms -   40ms : ( 99.9947%)     2
+
+    '''
+    sizes = (('us', 1), ('ms', 10000), ('s', 10000), ('m', 60))
     sizeMap = []
-    for l,sz in sizes:
+    for l, sz in sizes:
         product = sz * product
         sizeMap.insert(0, (l, product))
     lbl, factor = next(itertools.dropwhile(lambda x: x[1] > s, sizeMap))
@@ -319,7 +352,13 @@ def time_label(s):
         secs = (s % factor) / (factor / 60)
         result = '%d%s:%02ds' % (mins, lbl, secs)
     else:
-        result = "%d%s" % (s / factor, lbl)
+        if lbl == 'us': # case for micro seconds
+            result = "%4d%s" % (s, lbl)
+        else: # case milli seconds and seconds
+            # we need to remove the extra factor of ten we used to threshold,
+            # so we only divide by 1000 and not 10,000
+            factor /= 10
+            result = "%4d%s" % (s / factor, lbl)
 
     return ("-" if isNegative else "") + result
 
@@ -328,11 +367,11 @@ def sec_label(s):
 
 def size_label(s):
     if s == 0:
-        return "0"
-    sizes=['', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']
+        return "%4d%s" % (0, 'B ')
+    sizes=['B ', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']
     e = math.floor(math.log(abs(s), 1024))
     suffix = sizes[int(e)]
-    return "%d%s" % (s/(1024 ** math.floor(e)), suffix)
+    return "%4d%s" % (s/(1024 ** math.floor(e)), suffix)
 
 def histograms(mc, raw_stats):
     # Try to figure out the terminal width.  If we can't, 79 is good
@@ -357,11 +396,16 @@ def histograms(mc, raw_stats):
                       'ep_replica_eviction_values_snapshot' : no_label,
                       'paged_out_time': sec_label}
 
-    histodata = {}
+    all_ops_histo_data = defaultdict(dict)
     for k, v in list(raw_stats.items()):
         # Parse out a data point
         ka = k.split('_')
         k = '_'.join(ka[0:-1])
+
+        if str("mean") in ka:  # base case to get hold of mean
+            all_ops_histo_data[k]['avg'] = float(v)
+            continue
+
         kstart, kend = [int(x) for x in ka[-1].split(',')]
 
         # Create a label for the data point
@@ -375,22 +419,25 @@ def histograms(mc, raw_stats):
 
         label = "%s - %s" % (label_func(kstart), label_func(kend))
 
-        if not k in histodata:
-            histodata[k] = []
-        histodata[k].append({'start' : int(kstart),
-                             'end'   : int(kend),
-                             'label' : label,
-                             'lb_fun': label_func,
-                             'value' : int(v)})
+        if not 'data' in all_ops_histo_data[k]:
+            all_ops_histo_data[k]['data'] = []
+        all_ops_histo_data[k]['data'].append({'start' : int(kstart),
+                                     'end'   : int(kend),
+                                     'label' : label,
+                                     'lb_fun': label_func,
+                                     'value' : int(v)})
 
-    for name, data_points in sorted(histodata.items()):
+    for name, current_hist_data in sorted(all_ops_histo_data.items()):
+        if 'data' in current_hist_data.keys():
+            data_points = current_hist_data['data']
+        else:
+            continue
         max_label_len = max([len(stat['label']) for stat in data_points])
         widestval = len(str(max([stat['value'] for stat in data_points])))
         total = sum([stat['value'] for stat in data_points])
         if not total:
             # No non-zero datapoints; skip this histogram.
             continue
-        avg = sum([x['start'] * x['value'] for x in data_points]) / total
 
         print(" %s (%d total)" % (name, total))
 
@@ -409,9 +456,9 @@ def histograms(mc, raw_stats):
             non_zero_dp_seen = True
             total_seen += dp['value']
             pcnt = (total_seen * 100.0) / total
-            toprint  = "    %s : (%6.02f%%) %s" % \
+            toprint  = "    %s : (%8.04f%%) %s" % \
                        (dp['label'].ljust(max_label_len), pcnt,
-                       str(dp['value']).rjust(widestval))
+                        str(dp['value']).rjust(widestval))
             print(toprint, end=' ')
 
             # Render a horizontal bar to represent the size of this value.
@@ -428,8 +475,13 @@ def histograms(mc, raw_stats):
             else:
                 print(('#' * whole_blocks))
 
+        if not 'avg' in current_hist_data:
+            sum_start_buck_vals = sum([((x['end'] - x['start'])/2) * x['value'] \
+                                       for x in data_points])
+            current_hist_data['avg'] = sum_start_buck_vals / total
+
         print("    %s : (%s)" % ("Avg".ljust(max_label_len),
-                                dp['lb_fun'](avg).rjust(7)))
+                                 dp['lb_fun'](current_hist_data['avg']).rjust(7)))
 
 @cmd
 def stats_key(mc, key, vb):
