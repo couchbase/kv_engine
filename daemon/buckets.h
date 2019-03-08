@@ -147,7 +147,7 @@ public:
     /**
      *  Sub-document JSON parser (subjson) operation execution time histogram.
      */
-    HdrMicroSecHistogram subjson_operation_times;
+    Hdr1sfMicroSecHistogram subjson_operation_times;
 
     using ResponseCounter = cb::RelaxedAtomic<uint64_t>;
 

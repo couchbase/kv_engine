@@ -257,6 +257,16 @@ public:
         return {vbMap.getBucket(vbid), std::move(lock)};
     }
 
+    size_t getMemFootPrint(void) {
+        size_t mem = 0;
+        for (size_t i = 0; i < vbMap.shards.size(); i++) {
+            KVShard* shard = vbMap.shards[i].get();
+            mem += shard->getRWUnderlying()->getMemFootPrint();
+            mem += shard->getROUnderlying()->getMemFootPrint();
+        }
+        return mem;
+    }
+
     std::pair<uint64_t, bool> getLastPersistedCheckpointId(Vbid vb) override {
         // No persistence at the KVBucket class level.
         return {0, false};

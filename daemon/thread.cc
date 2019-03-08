@@ -92,7 +92,7 @@ void FrontEndThread::NotificationList::swap(std::vector<Connection*>& other) {
  * can use to signal that they've put a new connection on its queue.
  */
 static std::vector<FrontEndThread> threads;
-std::vector<HdrMicroSecHistogram> scheduler_info;
+std::vector<Hdr1sfMicroSecHistogram> scheduler_info;
 
 /*
  * Number of worker threads that have finished setting themselves up.

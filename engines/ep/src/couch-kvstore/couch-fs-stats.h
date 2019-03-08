@@ -21,7 +21,6 @@
 #include <memory>
 
 #include <libcouchstore/couch_db.h>
-#include <platform/histogram.h>
 
 struct FileStats;
 

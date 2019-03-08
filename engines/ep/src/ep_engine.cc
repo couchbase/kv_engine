@@ -54,7 +54,6 @@
 #include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
 #include <platform/compress.h>
-#include <platform/histogram.h>
 #include <platform/platform_time.h>
 #include <platform/scope_timer.h>
 #include <tracing/trace_helpers.h>
@@ -2166,7 +2165,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
     if (*itm == NULL) {
         return memoryCondition();
     } else {
-        stats.itemAllocSizeHisto.add(nbytes);
+        stats.itemAllocSizeHisto.addValue(nbytes);
         return ENGINE_SUCCESS;
     }
 }

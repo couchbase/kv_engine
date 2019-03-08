@@ -84,9 +84,38 @@ int main(int, char **) {
             sizeof(MicrosecondHistogram::bin_type));
     display("MicrosecondHistogram", MicrosecondHistogram().getMemFootPrint());
     EPStats stats;
+    const size_t size = GlobalTask::allTaskIds.size();
+    stats.schedulingHisto.resize(size);
+    stats.taskRuntimeHisto.resize(size);
+    display("EPStats", stats.getMemFootPrint());
+    display("FileStats", FileStats().getMemFootPrint());
+    display("KVStoreStats", KVStoreStats().getMemFootPrint());
+    display("Histogram<size_t>{ExponentialGenerator<size_t>(1, 2), 50}",
+            Histogram<size_t>{ExponentialGenerator<size_t>(1, 2), 50}
+                    .getMemFootPrint());
     display("HdrHistogram frequency histo",
             stats.activeOrPendingFrequencyValuesEvictedHisto.getMemFootPrint());
-    display("HdrMicroSecHistogram", HdrMicroSecHistogram().getMemFootPrint());
+    display("Hdr1sfMicroSecHistogram",
+            Hdr1sfMicroSecHistogram().getMemFootPrint());
+    display("Hdr2sfMicroSecHistogram",
+            Hdr2sfMicroSecHistogram().getMemFootPrint());
+
+    display("HdrUint8Histogram", HdrUint8Histogram().getMemFootPrint());
+    display("Hdr1sfInt32Histogram", Hdr1sfInt32Histogram().getMemFootPrint());
+
+    display("HdrHistogram(0, std::numeric_limits<int32_t>::max(), 2)",
+            HdrHistogram(0, std::numeric_limits<int32_t>::max() - 1, 2)
+                    .getMemFootPrint());
+    display("HdrHistogram(0, std::numeric_limits<int32_t>::max(), 1)",
+            HdrHistogram(0, std::numeric_limits<int32_t>::max() - 1, 1)
+                    .getMemFootPrint());
+    display("HdrHistogram(0, std::numeric_limits<int64_t>::max(), 2)",
+            HdrHistogram(0, std::numeric_limits<int64_t>::max() - 1, 2)
+                    .getMemFootPrint());
+    display("HdrHistogram(0, std::numeric_limits<int64_t>::max(), 1)",
+            HdrHistogram(0, std::numeric_limits<int64_t>::max() - 1, 1)
+                    .getMemFootPrint());
+
     display("IORequest", sizeof(IORequest));
     display("CouchRequest", sizeof(CouchRequest));
     display("PersistenceCallback", sizeof(PersistenceCallback));

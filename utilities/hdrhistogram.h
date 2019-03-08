@@ -362,17 +362,63 @@ private:
 
 /** Histogram to store counts for microsecond intervals
  *  Can hold a range of 0us to 60000000us (60 seconds) with a
- *  precision of 3 significant figures
+ *  precision of 1 significant figures
  */
-class HdrMicroSecHistogram : public HdrHistogram {
+class Hdr1sfMicroSecHistogram : public HdrHistogram {
 public:
-    HdrMicroSecHistogram()
-        : HdrHistogram(0, 60000000, 3, Iterator::IterMode::Percentiles){};
+    Hdr1sfMicroSecHistogram()
+        : HdrHistogram(0, 60000000, 1, Iterator::IterMode::Percentiles){};
     bool add(std::chrono::microseconds v, size_t count = 1) {
         return addValueAndCount(static_cast<uint64_t>(v.count()),
                                 static_cast<uint64_t>(count));
     }
 };
 
-using HdrMicroSecBlockTimer = GenericBlockTimer<HdrMicroSecHistogram, 0>;
-using HdrMicroSecStopwatch = MicrosecondStopwatch<HdrMicroSecHistogram>;
+/** Histogram to store counts for microsecond intervals
+ *  Can hold a range of 0us to 60000000us (60 seconds) with a
+ *  precision of 2 significant figures
+ */
+class Hdr2sfMicroSecHistogram : public HdrHistogram {
+public:
+    Hdr2sfMicroSecHistogram()
+        : HdrHistogram(0, 60000000, 2, Iterator::IterMode::Percentiles){};
+    bool add(std::chrono::microseconds v, size_t count = 1) {
+        return addValueAndCount(static_cast<uint64_t>(v.count()),
+                                static_cast<uint64_t>(count));
+    }
+};
+
+using HdrMicroSecBlockTimer = GenericBlockTimer<Hdr1sfMicroSecHistogram, 0>;
+using HdrMicroSecStopwatch = MicrosecondStopwatch<Hdr1sfMicroSecHistogram>;
+
+/**
+ * Histogram to store counts for values between 0 and 2^32 − 1
+ * with a precision of 1 significant figures
+ */
+class Hdr1sfInt32Histogram : public HdrHistogram {
+public:
+    Hdr1sfInt32Histogram()
+        : HdrHistogram(0,
+                       std::numeric_limits<int32_t>::max(),
+                       1,
+                       Iterator::IterMode::Percentiles){};
+    bool add(size_t v, size_t count = 1) {
+        return addValueAndCount(v, count);
+    }
+};
+
+/**
+ * Histogram to store values between 0 and 255
+ * with a precision of 3 significant figures
+ */
+class HdrUint8Histogram : public HdrHistogram {
+public:
+    HdrUint8Histogram()
+        : HdrHistogram(0,
+                       std::numeric_limits<uint8_t>::max(),
+                       3,
+                       Iterator::IterMode::Linear){};
+    bool add(size_t v, size_t count = 1) {
+        return addValueAndCount(v, count);
+    }
+};

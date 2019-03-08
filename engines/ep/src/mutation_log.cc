@@ -251,20 +251,17 @@ static bool writeFully(file_handle_t fd, const uint8_t *buf, size_t nbytes) {
     return true;
 }
 
-MutationLog::MutationLog(const std::string &path,
-                         const size_t bs)
-    : paddingHisto(GrowingWidthGenerator<uint32_t>(0, 8, 1.5), 32),
-    logPath(path),
-    blockSize(bs),
-    blockPos(HEADER_RESERVED),
-    file(INVALID_FILE_VALUE),
-    disabled(false),
-    entries(0),
-    entryBuffer(new uint8_t[MutationLogEntry::len(256)]()),
-    blockBuffer(new uint8_t[bs]()),
-    syncConfig(DEFAULT_SYNC_CONF),
-    readOnly(false)
-{
+MutationLog::MutationLog(const std::string& path, const size_t bs)
+    : logPath(path),
+      blockSize(bs),
+      blockPos(HEADER_RESERVED),
+      file(INVALID_FILE_VALUE),
+      disabled(false),
+      entries(0),
+      entryBuffer(new uint8_t[MutationLogEntry::len(256)]()),
+      blockBuffer(new uint8_t[bs]()),
+      syncConfig(DEFAULT_SYNC_CONF),
+      readOnly(false) {
     for (int ii = 0; ii < int(MutationLogType::NumberOfTypes); ++ii) {
         itemsLogged[ii].store(0);
     }
@@ -668,7 +665,6 @@ bool MutationLog::flush() {
         if (blockPos < blockSize) {
             size_t padding(blockSize - blockPos);
             memset(blockBuffer.get() + blockPos, 0x00, padding);
-            paddingHisto.add(padding);
         }
 
         entries = htons(entries);

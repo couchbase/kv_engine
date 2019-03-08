@@ -22,7 +22,6 @@
 #include "collections/kvstore.h"
 
 #include <memcached/engine_common.h>
-#include <platform/histogram.h>
 #include <utilities/hdrhistogram.h>
 
 #include <relaxed_atomic.h>
@@ -244,28 +243,37 @@ public:
 
 struct FileStats {
     // Read time length
-    HdrMicroSecHistogram readTimeHisto;
+    Hdr1sfMicroSecHistogram readTimeHisto;
     // Distance from last read
-    Histogram<size_t> readSeekHisto = {ExponentialGenerator<size_t>(1, 2), 50};
+    Hdr1sfInt32Histogram readSeekHisto;
     // Size of read
-    Histogram<size_t> readSizeHisto = {ExponentialGenerator<size_t>(1, 2), 25};
+    Hdr1sfInt32Histogram readSizeHisto;
     // Write time length
-    HdrMicroSecHistogram writeTimeHisto;
+    Hdr1sfMicroSecHistogram writeTimeHisto;
     // Write size
-    Histogram<size_t> writeSizeHisto = {ExponentialGenerator<size_t>(1, 2), 25};
+    Hdr1sfInt32Histogram writeSizeHisto;
     // Time spent in sync
-    HdrMicroSecHistogram syncTimeHisto;
+    Hdr1sfMicroSecHistogram syncTimeHisto;
     // Read count per open() / close() pair
-    Histogram<uint32_t> readCountHisto = {
-            ExponentialGenerator<uint32_t>(2, 1.333), 50};
+    Hdr1sfInt32Histogram readCountHisto;
     // Write count per open() / close() pair
-    Histogram<uint32_t> writeCountHisto = {
-            ExponentialGenerator<uint32_t>(2, 1.333), 50};
+    Hdr1sfInt32Histogram writeCountHisto;
 
     // total bytes read from disk.
     std::atomic<size_t> totalBytesRead{0};
     // Total bytes written to disk.
     std::atomic<size_t> totalBytesWritten{0};
+
+    size_t getMemFootPrint() const {
+        return readTimeHisto.getMemFootPrint() +
+               readSeekHisto.getMemFootPrint() +
+               readSizeHisto.getMemFootPrint() +
+               writeTimeHisto.getMemFootPrint() +
+               writeSizeHisto.getMemFootPrint() +
+               syncTimeHisto.getMemFootPrint() +
+               readCountHisto.getMemFootPrint() +
+               writeCountHisto.getMemFootPrint();
+    }
 
     void reset();
 };
@@ -279,26 +287,22 @@ public:
     /**
      * Default constructor
      */
-    KVStoreStats() :
-      docsCommitted(0),
-      numOpen(0),
-      numClose(0),
-      numLoadedVb(0),
-      numCompactionFailure(0),
-      numGetFailure(0),
-      numSetFailure(0),
-      numDelFailure(0),
-      numOpenFailure(0),
-      numVbSetFailure(0),
-      io_bg_fetch_docs_read(0),
-      io_num_write(0),
-      io_bgfetch_doc_bytes(0),
-      io_write_bytes(0),
-      readSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
-      writeSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
-      getMultiFsReadCount(0),
-      getMultiFsReadHisto(ExponentialGenerator<uint32_t>(6, 1.2), 50),
-      getMultiFsReadPerDocHisto(ExponentialGenerator<uint32_t>(6, 1.2),50) {
+    KVStoreStats()
+        : docsCommitted(0),
+          numOpen(0),
+          numClose(0),
+          numLoadedVb(0),
+          numCompactionFailure(0),
+          numGetFailure(0),
+          numSetFailure(0),
+          numDelFailure(0),
+          numOpenFailure(0),
+          numVbSetFailure(0),
+          io_bg_fetch_docs_read(0),
+          io_num_write(0),
+          io_bgfetch_doc_bytes(0),
+          io_write_bytes(0),
+          getMultiFsReadCount(0) {
     }
 
     KVStoreStats(const KVStoreStats &copyFrom) {}
@@ -364,40 +368,53 @@ public:
      * failure should be tracked in MC-engine  */
 
     // How long it takes us to complete a read
-    HdrMicroSecHistogram readTimeHisto;
+    Hdr1sfMicroSecHistogram readTimeHisto;
     // How big are our reads?
-    Histogram<size_t> readSizeHisto;
+    Hdr1sfInt32Histogram readSizeHisto;
     // How long it takes us to complete a write
-    HdrMicroSecHistogram writeTimeHisto;
+    Hdr1sfMicroSecHistogram writeTimeHisto;
     // How big are our writes?
-    Histogram<size_t> writeSizeHisto;
+    Hdr1sfInt32Histogram writeSizeHisto;
     // Time spent in delete() calls.
-    HdrMicroSecHistogram delTimeHisto;
+    Hdr1sfMicroSecHistogram delTimeHisto;
     // Time spent in commit
-    HdrMicroSecHistogram commitHisto;
+    Hdr1sfMicroSecHistogram commitHisto;
     // Time spent in compaction
-    HdrMicroSecHistogram compactHisto;
+    Hdr1sfMicroSecHistogram compactHisto;
     // Time spent in saving documents to disk
-    HdrMicroSecHistogram saveDocsHisto;
+    Hdr1sfMicroSecHistogram saveDocsHisto;
     // Batch size while saving documents
-    Histogram<size_t> batchSize;
+    Hdr1sfInt32Histogram batchSize;
     //Time spent in vbucket snapshot
-    HdrMicroSecHistogram snapshotHisto;
+    Hdr1sfMicroSecHistogram snapshotHisto;
 
     // Count and histogram filesystem read()s per getMulti() request
     cb::RelaxedAtomic<size_t> getMultiFsReadCount;
-    Histogram<uint32_t> getMultiFsReadHisto;
+    Hdr1sfInt32Histogram getMultiFsReadHisto;
 
     // Histogram of filesystem read()s per getMulti() request, divided by
     // the number of documents fetched; gives an average read() count
     // per fetched document.
-    Histogram<uint32_t> getMultiFsReadPerDocHisto;
+    Hdr1sfInt32Histogram getMultiFsReadPerDocHisto;
 
     // Stats from the underlying OS file operations
     FileStats fsStats;
 
     // Underlying stats for OS file operations during compaction
     FileStats fsStatsCompaction;
+
+    size_t getMemFootPrint() const {
+        return readTimeHisto.getMemFootPrint() +
+               readSizeHisto.getMemFootPrint() +
+               writeTimeHisto.getMemFootPrint() +
+               writeSizeHisto.getMemFootPrint() +
+               delTimeHisto.getMemFootPrint() + compactHisto.getMemFootPrint() +
+               snapshotHisto.getMemFootPrint() + commitHisto.getMemFootPrint() +
+               saveDocsHisto.getMemFootPrint() + batchSize.getMemFootPrint() +
+               getMultiFsReadHisto.getMemFootPrint() +
+               getMultiFsReadPerDocHisto.getMemFootPrint() +
+               fsStats.getMemFootPrint() + fsStatsCompaction.getMemFootPrint();
+    }
 };
 
 /**
@@ -556,6 +573,10 @@ public:
      */
     void resetStats() {
         st.reset();
+    }
+
+    size_t getMemFootPrint() {
+        return st.getMemFootPrint();
     }
 
     /**

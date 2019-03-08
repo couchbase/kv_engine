@@ -42,7 +42,6 @@
 
 #include "utility.h"
 #include <memcached/vbucket.h>
-#include <platform/histogram.h>
 #include <utilities/hdrhistogram.h>
 
 #include <array>
@@ -436,12 +435,10 @@ public:
 
     //! Items logged by type.
     std::atomic<size_t> itemsLogged[int(MutationLogType::NumberOfTypes)];
-    //! Histogram of block padding sizes.
-    Histogram<uint32_t> paddingHisto;
     //! Flush time histogram.
-    HdrMicroSecHistogram flushTimeHisto;
+    Hdr1sfMicroSecHistogram flushTimeHisto;
     //! Sync time histogram.
-    HdrMicroSecHistogram syncTimeHisto;
+    Hdr1sfMicroSecHistogram syncTimeHisto;
     //! Size of the log
     std::atomic<size_t> logSize;
 

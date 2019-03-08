@@ -35,7 +35,7 @@
  *         and the second being the histogram (only valid if the first
  *         parameter is ENGINE_SUCCESS)
  */
-static std::pair<ENGINE_ERROR_CODE, HdrMicroSecHistogram> get_timings(
+static std::pair<ENGINE_ERROR_CODE, Hdr1sfMicroSecHistogram> get_timings(
         Cookie& cookie, const Bucket& bucket, uint8_t opcode) {
     // Don't creata a new privilege context if the one we've got is for the
     // connected bucket:
@@ -44,7 +44,7 @@ static std::pair<ENGINE_ERROR_CODE, HdrMicroSecHistogram> get_timings(
         auto ret = mcbp::checkPrivilege(cookie,
                                         cb::rbac::Privilege::SimpleStats);
         if (ret != ENGINE_SUCCESS) {
-            return std::make_pair(ENGINE_EACCESS, HdrMicroSecHistogram{});
+            return {ENGINE_EACCESS, {}};
         }
     } else {
         // Check to see if we've got access to the bucket
@@ -62,17 +62,17 @@ static std::pair<ENGINE_ERROR_CODE, HdrMicroSecHistogram> get_timings(
         }
 
         if (!access) {
-            return std::make_pair(ENGINE_EACCESS, HdrMicroSecHistogram{});
+            return {ENGINE_EACCESS, {}};
         }
     }
 
     auto* histo = bucket.timings.get_timing_histogram(opcode);
     if (histo) {
-        return std::make_pair(ENGINE_SUCCESS, *histo);
+        return {ENGINE_SUCCESS, *histo};
     } else {
         // histogram for this opcode hasn't been created yet so just
         // return an histogram with no data in it
-        return std::make_pair(ENGINE_SUCCESS, HdrMicroSecHistogram{});
+        return {ENGINE_EACCESS, {}};
     }
 }
 
@@ -87,7 +87,7 @@ static std::pair<ENGINE_ERROR_CODE, HdrMicroSecHistogram> get_timings(
  * @param opcode The opcode we're interested in
  * @param bucketname The name of the bucket we want
  */
-static std::pair<ENGINE_ERROR_CODE, HdrMicroSecHistogram> maybe_get_timings(
+static std::pair<ENGINE_ERROR_CODE, Hdr1sfMicroSecHistogram> maybe_get_timings(
         Cookie& cookie,
         const Bucket& bucket,
         uint8_t opcode,
@@ -97,7 +97,7 @@ static std::pair<ENGINE_ERROR_CODE, HdrMicroSecHistogram> maybe_get_timings(
         bucket.state == Bucket::State::Ready && bucketname == bucket.name) {
         return get_timings(cookie, bucket, opcode);
     } else {
-        return std::make_pair(ENGINE_KEY_ENOENT, HdrMicroSecHistogram{});
+        return {ENGINE_KEY_ENOENT, {}};
     }
 }
 
@@ -107,7 +107,7 @@ static std::pair<ENGINE_ERROR_CODE, HdrMicroSecHistogram> maybe_get_timings(
  */
 static std::pair<ENGINE_ERROR_CODE, std::string> get_aggregated_timings(
         Cookie& cookie, uint8_t opcode) {
-    HdrMicroSecHistogram timings;
+    Hdr1sfMicroSecHistogram timings;
     bool found = false;
 
     for (auto& bucket : all_buckets) {
@@ -155,7 +155,7 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_cmd_timer(Cookie& cookie) {
     }
 
     // The user specified a bucket... let's locate the bucket
-    std::pair<ENGINE_ERROR_CODE, HdrMicroSecHistogram> ret;
+    std::pair<ENGINE_ERROR_CODE, Hdr1sfMicroSecHistogram> ret;
 
     for (auto& b : all_buckets) {
         ret = maybe_get_timings(cookie, b, opcode, bucket);

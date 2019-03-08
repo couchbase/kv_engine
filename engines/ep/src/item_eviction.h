@@ -110,21 +110,12 @@ public:
     static const uint64_t casBitsNotTime = 16;
 
 private:
-    //  The minimum value that can be added to the frequency histogram
-    static const uint64_t minFreqValue = 0;
 
     //  The minimum value that can be added to the age histogram
     static const uint64_t minAgeValue = 0;
 
-    // The maximum value that can be added to the frequency histogram
-    static const uint64_t maxFreqValue = std::numeric_limits<uint8_t>::max();
-
     // The maximum value that can be added to the age histogram
     static const uint64_t maxAgeValue = std::numeric_limits<uint64_t>::max() >> casBitsNotTime;
-
-    // The level of precision for the frequency histogram.  The value must be
-    // between 1 and 5 (inclusive).
-    static const int freqSignificantFigures = 3;
 
     // The level of precision for the age histogram.  The value must be
     // between 1 and 5 (inclusive).
@@ -136,7 +127,7 @@ private:
     static const int valueUnitsPerBucket = 1;
 
     // The execution frequency histogram
-    HdrHistogram freqHistogram{minFreqValue, maxFreqValue, freqSignificantFigures};
+    HdrUint8Histogram freqHistogram;
 
     // The age histogram.  Age is measured by taking the item's current cas
     // from the maxCas (which is the maximum cas value of the associated

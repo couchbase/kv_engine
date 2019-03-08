@@ -26,7 +26,6 @@
 #include "libcouchstore/couch_db.h"
 #include "monotonic.h"
 
-#include <platform/histogram.h>
 #include <platform/strerror.h>
 #include <relaxed_atomic.h>
 

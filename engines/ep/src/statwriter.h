@@ -104,10 +104,31 @@ inline void add_casted_stat(const char* k,
 }
 
 inline void add_casted_stat(const char* k,
-                            const HdrMicroSecHistogram& v,
+                            const Hdr1sfMicroSecHistogram& v,
                             const AddStatFn& add_stat,
                             const void* cookie) {
-    add_casted_histo_stat<HdrMicroSecHistogram>(k, v, add_stat, cookie);
+    add_casted_histo_stat<Hdr1sfMicroSecHistogram>(k, v, add_stat, cookie);
+}
+
+inline void add_casted_stat(const char* k,
+                            const Hdr2sfMicroSecHistogram& v,
+                            const AddStatFn& add_stat,
+                            const void* cookie) {
+    add_casted_histo_stat<Hdr2sfMicroSecHistogram>(k, v, add_stat, cookie);
+}
+
+inline void add_casted_stat(const char* k,
+                            const Hdr1sfInt32Histogram& v,
+                            const AddStatFn& add_stat,
+                            const void* cookie) {
+    add_casted_histo_stat<Hdr1sfInt32Histogram>(k, v, add_stat, cookie);
+}
+
+inline void add_casted_stat(const char* k,
+                            const HdrUint8Histogram& v,
+                            const AddStatFn& add_stat,
+                            const void* cookie) {
+    add_casted_histo_stat<HdrUint8Histogram>(k, v, add_stat, cookie);
 }
 
 /// @cond DETAILS

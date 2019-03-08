@@ -50,14 +50,14 @@ public:
      * @return a pointer to the underling HdrMicroSecHistogram for this opcode
      * if there isn't one allocated already a nullptr will be returned.
      */
-    HdrMicroSecHistogram* get_timing_histogram(uint8_t opcode) const;
+    Hdr1sfMicroSecHistogram* get_timing_histogram(uint8_t opcode) const;
 
 private:
     /**
      * Method to get histogram for timing, if the histogram hasn't been created
      * yet, for the given opcode then we will allocate one
      */
-    HdrMicroSecHistogram& get_or_create_timing_histogram(uint8_t opcode);
+    Hdr1sfMicroSecHistogram& get_or_create_timing_histogram(uint8_t opcode);
 
     // This lock is only held by sample() and some blocks within generate().
     // It guards the various IntervalSeries variables which internally
@@ -69,7 +69,8 @@ private:
     // create an array of unique_ptrs as we want to create HdrHistograms
     // in a lazy manner as their foot print is larger than our old
     // histogram class
-    std::array<std::unique_ptr<HdrMicroSecHistogram>, MAX_NUM_OPCODES> timings;
+    std::array<std::unique_ptr<Hdr1sfMicroSecHistogram>, MAX_NUM_OPCODES>
+            timings;
     std::mutex histogram_mutex;
     std::array<cb::sampling::Interval, MAX_NUM_OPCODES> interval_counters;
 };

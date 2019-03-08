@@ -23,7 +23,6 @@
 #include <folly/CachelinePadded.h>
 #include <memcached/types.h>
 #include <platform/corestore.h>
-#include <platform/histogram.h>
 #include <platform/non_negative_counter.h>
 #include <platform/platform_time.h>
 #include <relaxed_atomic.h>
@@ -268,7 +267,7 @@ public:
     std::atomic<hrtime_t> pendingOpsMaxDuration;
 
     //! Histogram of pending operation wait times.
-    HdrMicroSecHistogram pendingOpsHisto;
+    Hdr1sfMicroSecHistogram pendingOpsHisto;
 
     //! Number of pending vbucket compaction requests
     Counter pendingCompactions;
@@ -306,7 +305,7 @@ public:
     std::atomic<hrtime_t> bgMaxLoad;
 
     //! Histogram of background wait loads.
-    HdrMicroSecHistogram bgLoadHisto;
+    Hdr1sfMicroSecHistogram bgLoadHisto;
 
     //! Max wall time of deleting a vbucket
     std::atomic<hrtime_t> vbucketDelMaxWalltime;
@@ -314,16 +313,16 @@ public:
     std::atomic<hrtime_t> vbucketDelTotWalltime;
 
     //! Histogram of setWithMeta latencies.
-    HdrMicroSecHistogram setWithMetaHisto;
+    Hdr1sfMicroSecHistogram setWithMetaHisto;
 
     //! Histogram of access scanner run times
-    HdrMicroSecHistogram accessScannerHisto;
+    Hdr1sfMicroSecHistogram accessScannerHisto;
     //! Historgram of checkpoint remover run times
-    HdrMicroSecHistogram checkpointRemoverHisto;
+    Hdr1sfMicroSecHistogram checkpointRemoverHisto;
     //! Histogram of item pager run times
-    HdrMicroSecHistogram itemPagerHisto;
+    Hdr1sfMicroSecHistogram itemPagerHisto;
     //! Histogram of expiry pager run times
-    HdrMicroSecHistogram expiryPagerHisto;
+    Hdr1sfMicroSecHistogram expiryPagerHisto;
 
     //! Percentage of memory in use before we throttle replication input
     std::atomic<double> replicationThrottleThreshold;
@@ -392,75 +391,75 @@ public:
     Counter compressorNumCompressed;
 
     //! Histogram of queue processing dirty age.
-    HdrMicroSecHistogram dirtyAgeHisto;
+    Hdr1sfMicroSecHistogram dirtyAgeHisto;
 
     //! Histogram of item allocation sizes.
-    Histogram<size_t> itemAllocSizeHisto;
+    HdrHistogram itemAllocSizeHisto{
+            0,
+            20 * 1024 * 1024, // Max alloc size is 20MB
+            1,
+            HdrHistogram::Iterator::IterMode::Percentiles};
 
     /**
      * Histogram of background fetch batch sizes
+     * Multi batch size histogram is rarely used, so we don't want to used a lot
+     * of memory for it. Thus, we will only use a 1 sig fig level of accuracy.
+     * This will still allow us to see high batch sizes.
      */
-    Histogram<size_t> getMultiBatchSizeHisto;
+    Hdr1sfInt32Histogram getMultiBatchSizeHisto;
 
-    static const uint64_t minHdrValue = 0;
-    static const uint64_t maxHdrValue = std::numeric_limits<uint8_t>::max();
-    static const int significantFigures = 3; // Precision for the histogram.
     /**
      * Histogram of frequency counts for items evicted from active or pending
      * vbuckets.
      */
-    HdrHistogram activeOrPendingFrequencyValuesEvictedHisto{
-            minHdrValue, maxHdrValue, significantFigures};
+    HdrUint8Histogram activeOrPendingFrequencyValuesEvictedHisto;
 
     /**
      * Histogram of frequency counts for items evicted from replica vbuckets.
      */
-    HdrHistogram replicaFrequencyValuesEvictedHisto{
-            minHdrValue, maxHdrValue, significantFigures};
+    HdrUint8Histogram replicaFrequencyValuesEvictedHisto;
 
     /**
      * Histogram of eviction thresholds when evicting from active or pending
      * vbuckets.
      */
-    HdrHistogram activeOrPendingFrequencyValuesSnapshotHisto{
-            minHdrValue, maxHdrValue, significantFigures};
+    HdrUint8Histogram activeOrPendingFrequencyValuesSnapshotHisto;
 
     /**
      * Histogram of eviction thresholds when evicting from replica vbuckets.
      */
-    HdrHistogram replicaFrequencyValuesSnapshotHisto{
-            minHdrValue, maxHdrValue, significantFigures};
+    HdrUint8Histogram replicaFrequencyValuesSnapshotHisto;
 
     //
     // Command timers
     //
 
     //! Histogram of getvbucket timings
-    HdrMicroSecHistogram getVbucketCmdHisto;
+    Hdr1sfMicroSecHistogram getVbucketCmdHisto;
 
     //! Histogram of setvbucket timings
-    HdrMicroSecHistogram setVbucketCmdHisto;
+    Hdr1sfMicroSecHistogram setVbucketCmdHisto;
 
     //! Histogram of delvbucket timings
-    HdrMicroSecHistogram delVbucketCmdHisto;
+    Hdr1sfMicroSecHistogram delVbucketCmdHisto;
 
     //! Histogram of get commands.
-    HdrMicroSecHistogram getCmdHisto;
+    Hdr1sfMicroSecHistogram getCmdHisto;
 
     //! Histogram of store commands.
-    HdrMicroSecHistogram storeCmdHisto;
+    Hdr1sfMicroSecHistogram storeCmdHisto;
 
     //! Histogram of arithmetic commands.
-    HdrMicroSecHistogram arithCmdHisto;
+    Hdr1sfMicroSecHistogram arithCmdHisto;
 
     //! Time spent notifying completion of IO.
-    HdrMicroSecHistogram notifyIOHisto;
+    Hdr1sfMicroSecHistogram notifyIOHisto;
 
     //! Histogram of get_stats commands.
-    HdrMicroSecHistogram getStatsCmdHisto;
+    Hdr1sfMicroSecHistogram getStatsCmdHisto;
 
     //! Histogram of wait_for_checkpoint_persistence command
-    HdrMicroSecHistogram chkPersistenceHisto;
+    Hdr1sfMicroSecHistogram chkPersistenceHisto;
 
     //
     // DB timers.
@@ -473,26 +472,26 @@ public:
     MicrosecondHistogram diskUpdateHisto;
 
     //! Histogram of delete disk writes
-    HdrMicroSecHistogram diskDelHisto;
+    Hdr1sfMicroSecHistogram diskDelHisto;
 
     //! Histogram of execution time of disk vbucket deletions
-    HdrMicroSecHistogram diskVBDelHisto;
+    Hdr1sfMicroSecHistogram diskVBDelHisto;
 
     //! Histogram of disk commits
     MicrosecondHistogram diskCommitHisto;
 
     //! Historgram of batch reads
-    HdrMicroSecHistogram getMultiHisto;
+    Hdr1sfMicroSecHistogram getMultiHisto;
 
     // ! Histograms of various task wait times, one per Task.
-    std::vector<HdrMicroSecHistogram> schedulingHisto;
+    std::vector<Hdr1sfMicroSecHistogram> schedulingHisto;
 
     // ! Histograms of various task run times, one per Task.
-    std::vector<HdrMicroSecHistogram> taskRuntimeHisto;
+    std::vector<Hdr1sfMicroSecHistogram> taskRuntimeHisto;
 
     //! Checkpoint Cursor histograms
-    HdrMicroSecHistogram persistenceCursorGetItemsHisto;
-    HdrMicroSecHistogram dcpCursorsGetItemsHisto;
+    Hdr1sfMicroSecHistogram persistenceCursorGetItemsHisto;
+    Hdr1sfMicroSecHistogram dcpCursorsGetItemsHisto;
 
     //! Reset all stats to reasonable values.
     void reset() {
@@ -570,6 +569,51 @@ public:
         replicaFrequencyValuesEvictedHisto.reset();
         activeOrPendingFrequencyValuesSnapshotHisto.reset();
         replicaFrequencyValuesSnapshotHisto.reset();
+    }
+
+    size_t getMemFootPrint() const {
+        size_t taskHistogramSizes = 0;
+
+        if (!schedulingHisto.empty()) {
+            taskHistogramSizes += schedulingHisto.size() *
+                                  schedulingHisto[0].getMemFootPrint();
+        }
+        if (!taskRuntimeHisto.empty()) {
+            taskHistogramSizes += taskRuntimeHisto.size() *
+                                  taskRuntimeHisto[0].getMemFootPrint();
+        }
+
+        return pendingOpsHisto.getMemFootPrint() +
+               bgWaitHisto.getMemFootPrint() + bgLoadHisto.getMemFootPrint() +
+               setWithMetaHisto.getMemFootPrint() +
+               accessScannerHisto.getMemFootPrint() +
+               checkpointRemoverHisto.getMemFootPrint() +
+               itemPagerHisto.getMemFootPrint() +
+               expiryPagerHisto.getMemFootPrint() +
+               getVbucketCmdHisto.getMemFootPrint() +
+               setVbucketCmdHisto.getMemFootPrint() +
+               delVbucketCmdHisto.getMemFootPrint() +
+               getCmdHisto.getMemFootPrint() + storeCmdHisto.getMemFootPrint() +
+               arithCmdHisto.getMemFootPrint() +
+               notifyIOHisto.getMemFootPrint() +
+               getStatsCmdHisto.getMemFootPrint() +
+               chkPersistenceHisto.getMemFootPrint() +
+               diskInsertHisto.getMemFootPrint() +
+               diskUpdateHisto.getMemFootPrint() +
+               diskDelHisto.getMemFootPrint() +
+               diskVBDelHisto.getMemFootPrint() +
+               diskCommitHisto.getMemFootPrint() +
+               itemAllocSizeHisto.getMemFootPrint() +
+               getMultiBatchSizeHisto.getMemFootPrint() +
+               dirtyAgeHisto.getMemFootPrint() +
+               getMultiHisto.getMemFootPrint() +
+               persistenceCursorGetItemsHisto.getMemFootPrint() +
+               dcpCursorsGetItemsHisto.getMemFootPrint() +
+               activeOrPendingFrequencyValuesEvictedHisto.getMemFootPrint() +
+               replicaFrequencyValuesEvictedHisto.getMemFootPrint() +
+               activeOrPendingFrequencyValuesSnapshotHisto.getMemFootPrint() +
+               replicaFrequencyValuesSnapshotHisto.getMemFootPrint() +
+               taskHistogramSizes;
     }
 
     // Used by stats logging infrastructure.

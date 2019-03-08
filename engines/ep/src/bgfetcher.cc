@@ -107,7 +107,7 @@ size_t BgFetcher::doFetch(Vbid vbId, vb_bgfetch_queue_t& itemsToFetch) {
                 std::chrono::duration_cast<std::chrono::microseconds>(
                         std::chrono::steady_clock::now() - startTime),
                 fetchedItems.size());
-        stats.getMultiBatchSizeHisto.add(fetchedItems.size());
+        stats.getMultiBatchSizeHisto.addValue(fetchedItems.size());
     }
 
     return fetchedItems.size();

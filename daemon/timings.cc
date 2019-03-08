@@ -141,17 +141,18 @@ cb::sampling::Interval Timings::get_interval_lookup_latency() {
     return interval_latency_lookups.getAggregate();
 }
 
-HdrMicroSecHistogram& Timings::get_or_create_timing_histogram(uint8_t opcode) {
+Hdr1sfMicroSecHistogram& Timings::get_or_create_timing_histogram(
+        uint8_t opcode) {
     if (timings[opcode] == nullptr) {
         std::lock_guard<std::mutex> allocLock(histogram_mutex);
         if (timings[opcode] == nullptr) {
-            timings[opcode] = std::make_unique<HdrMicroSecHistogram>();
+            timings[opcode] = std::make_unique<Hdr1sfMicroSecHistogram>();
         }
     }
     return *timings[opcode];
 }
 
-HdrMicroSecHistogram* Timings::get_timing_histogram(uint8_t opcode) const {
+Hdr1sfMicroSecHistogram* Timings::get_timing_histogram(uint8_t opcode) const {
     return timings[opcode].get();
 }
 

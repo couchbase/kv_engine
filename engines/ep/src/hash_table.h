@@ -21,8 +21,8 @@
 #include "stored-value.h"
 #include "storeddockey.h"
 
-#include <platform/histogram.h>
 #include <platform/non_negative_counter.h>
+#include <utilities/hdrhistogram.h>
 
 #include <array>
 #include <functional>
@@ -1249,13 +1249,8 @@ public:
  */
 class HashTableDepthStatVisitor : public HashTableDepthVisitor {
 public:
-
-    HashTableDepthStatVisitor()
-        : depthHisto(GrowingWidthGenerator<unsigned int>(1, 1, 1.3), 10),
-          size(0),
-          memUsed(0),
-          min(-1),
-          max(0) {}
+    HashTableDepthStatVisitor() : size(0), memUsed(0), min(-1), max(0) {
+    }
 
     void visit(int bucket, int depth, size_t mem) {
         (void)bucket;
@@ -1268,7 +1263,7 @@ public:
         memUsed += mem;
     }
 
-    Histogram<unsigned int> depthHisto;
+    Hdr1sfInt32Histogram depthHisto;
     size_t                  size;
     size_t                  memUsed;
     int                     min;

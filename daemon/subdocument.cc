@@ -38,7 +38,6 @@
 #include <logger/logger.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
-#include <platform/histogram.h>
 #include <xattr/blob.h>
 #include <gsl/gsl>
 

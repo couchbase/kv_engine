@@ -165,11 +165,16 @@ HdrHistogram::Iterator HdrHistogram::makeIterator(
     case Iterator::IterMode::Percentiles:
         return makePercentileIterator(5);
     case Iterator::IterMode::Log:
-        return makeLogIterator(
-                static_cast<int64_t>(getMaxValue() - getMinValue()) / 10, 10);
-    case Iterator::IterMode::Linear:
-        return makeLinearIterator(
-                static_cast<int64_t>(getMaxValue() - getMinValue()) / 20);
+        return makeLogIterator(1, 2);
+    case Iterator::IterMode::Linear: {
+        uint64_t bucketWidth = static_cast<int64_t>(getMaxTrackableValue() -
+                                                    getMinTrackableValue()) /
+                               20;
+        if (bucketWidth < 0) {
+            bucketWidth = 1;
+        }
+        return makeLinearIterator(bucketWidth);
+    }
     case Iterator::IterMode::Recorded:
         return makeRecordedIterator();
     }
