@@ -153,7 +153,7 @@ void run_event_loop(Connection* c, short which) {
 
     auto* thread = c->getThread();
     if (thread != nullptr) {
-        scheduler_info[thread->index].add(duration_cast<microseconds>(ns));
+        scheduler_info[thread->index].add(ns);
     }
 
     if (c->shouldDelete()) {

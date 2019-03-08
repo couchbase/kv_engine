@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2019 Couchbase, Inc
+ *     Copyright 2018 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -16,8 +16,6 @@
  */
 
 #include "hdrhistogram.h"
-#include <boost/optional/optional.hpp>
-#include <hdr_histogram.h>
 #include <nlohmann/json.hpp>
 #include <iostream>
 #include <sstream>
@@ -38,54 +36,35 @@ HdrHistogram::HdrHistogram(uint64_t lowestTrackableValue,
              highestTrackableValue + 1, // Add one because all values
              significantFigures,
              &hist); // Pointer to initialise
-
     histogram.reset(hist);
 }
 
 HdrHistogram& HdrHistogram::operator+=(const HdrHistogram& other) {
-    if (other.histogram != nullptr && other.getValueCount() > 0) {
-        // work out if we need to resize the receiving histogram
-        uint64_t newMin = this->getMinTrackableValue();
-        uint64_t newMax = this->getMaxTrackableValue();
-        int32_t newSigfig = this->histogram->significant_figures;
-        bool resize = false;
-
-        if (other.getMinTrackableValue() < this->getMinTrackableValue()) {
-            newMin = other.getMinTrackableValue();
-            resize = true;
+    if (other.histogram != nullptr) {
+        Iterator itr = other.makeLinearIterator(1);
+        while (auto pair = other.getNextValueAndCount(itr)) {
+            if (!pair.is_initialized())
+                break;
+            this->addValueAndCount(pair->first, pair->second);
         }
-        if (other.getMaxTrackableValue() > this->getMaxTrackableValue()) {
-            newMax = other.getMaxTrackableValue();
-            resize = true;
-        }
-
-        if (other.histogram->significant_figures >
-            this->histogram->significant_figures) {
-            newSigfig = other.histogram->significant_figures;
-            resize = true;
-        }
-        if (resize) {
-            this->resize(newMin, newMax, newSigfig);
-        }
-        hdr_add(this->histogram.get(), other.histogram.get());
     }
     return *this;
 }
 
-bool HdrHistogram::addValue(uint64_t v) {
+void HdrHistogram::addValue(uint64_t v) {
     // A hdr_histogram cannot store 0, therefore we add a bias of +1.
     int64_t vBiased = v + 1;
-    return hdr_record_value(histogram.get(), vBiased);
+    hdr_record_value(histogram.get(), vBiased);
 }
 
-bool HdrHistogram::addValueAndCount(uint64_t v, uint64_t count) {
+void HdrHistogram::addValueAndCount(uint64_t v, uint64_t count) {
     // A hdr_histogram cannot store 0, therefore we add a bias of +1.
     int64_t vBiased = v + 1;
-    return hdr_record_values(histogram.get(), vBiased, count);
+    hdr_record_values(histogram.get(), vBiased, count);
 }
 
 uint64_t HdrHistogram::getValueCount() const {
-    return static_cast<uint64_t>(histogram->total_count);
+    return histogram->total_count;
 }
 
 uint64_t HdrHistogram::getMinValue() const {
@@ -118,7 +97,7 @@ uint64_t HdrHistogram::getValueAtPercentile(double percentage) const {
 
 HdrHistogram::Iterator HdrHistogram::makeLinearIterator(
         int64_t valueUnitsPerBucket) const {
-    HdrHistogram::Iterator iter{};
+    HdrHistogram::Iterator iter;
     iter.type = Iterator::IterMode::Linear;
     hdr_iter_linear_init(&iter, histogram.get(), valueUnitsPerBucket);
     return iter;
@@ -126,17 +105,9 @@ HdrHistogram::Iterator HdrHistogram::makeLinearIterator(
 
 HdrHistogram::Iterator HdrHistogram::makeLogIterator(int64_t firstBucketWidth,
                                                      double log_base) const {
-    HdrHistogram::Iterator iter{};
+    HdrHistogram::Iterator iter;
     iter.type = Iterator::IterMode::Log;
     hdr_iter_log_init(&iter, histogram.get(), firstBucketWidth, log_base);
-    return iter;
-}
-
-HdrHistogram::Iterator HdrHistogram::makePercentileIterator(
-        uint32_t ticksPerHalfDist) const {
-    HdrHistogram::Iterator iter{};
-    iter.type = Iterator::IterMode::Percentiles;
-    hdr_iter_percentile_init(&iter, histogram.get(), ticksPerHalfDist);
     return iter;
 }
 
@@ -144,7 +115,7 @@ boost::optional<std::pair<uint64_t, uint64_t>>
 HdrHistogram::getNextValueAndCount(Iterator& iter) const {
     boost::optional<std::pair<uint64_t, uint64_t>> valueAndCount;
     if (hdr_iter_next(&iter)) {
-        uint64_t value = static_cast<uint64_t>(iter.value);
+        uint64_t value = iter.value;
         uint64_t count = 0;
         switch (iter.type) {
         case Iterator::IterMode::Log:
@@ -165,21 +136,6 @@ HdrHistogram::getNextValueAndCount(Iterator& iter) const {
     } else {
         return valueAndCount;
     }
-}
-
-boost::optional<std::pair<uint64_t, double>>
-HdrHistogram::getNextValueAndPercentile(Iterator& iter) const {
-    boost::optional<std::pair<uint64_t, double>> valueAndPer;
-    if (iter.type == Iterator::IterMode::Percentiles) {
-        if (hdr_iter_next(&iter)) {
-            // We subtract one from the lowest value as we have added a one
-            // offset as the underlying hdr_histogram cannot store 0 and
-            // therefore the value must be greater than or equal to 1.
-            valueAndPer = std::make_pair(iter.highest_equivalent_value - 1,
-                                         iter.specifics.percentiles.percentile);
-        }
-    }
-    return valueAndPer;
 }
 
 void HdrHistogram::printPercentiles() {
@@ -208,55 +164,34 @@ std::stringstream HdrHistogram::dumpValues(Iterator& itr) {
     return dump;
 }
 
-nlohmann::json HdrHistogram::to_json(Iterator::IterMode itrType) {
+std::unique_ptr<nlohmann::json> HdrHistogram::to_json() {
     nlohmann::json rootObj;
+    /* This is a first cut at a bucket width and a
+     * better value will be need to be decided on after testing
+     * (this experimentation is part of MB-22005)
+     */
+    uint64_t bucketWidth = 100;
 
-    // Five is the number of iteration steps per half-distance to 100%.
-    Iterator itr = makePercentileIterator(5);
+    Iterator itr = makeLinearIterator(bucketWidth);
 
     if (itr.total_count > 0) {
         rootObj["total"] = itr.total_count;
-        // bucketsLow represents the starting value of the first bucket
-        // e.g. if the first bucket was from [0 - 10]ms then it would be 0
-        rootObj["bucketsLow"] = itr.value_iterated_from;
         nlohmann::json dataArr;
-
-        int64_t lastval = 0;
-        while (auto pair = getNextValueAndPercentile(itr)) {
+        int i = 0;
+        while (auto pair = getNextValueAndCount(itr)) {
             if (!pair.is_initialized())
                 break;
-
-            dataArr.push_back({pair->first,
-                               itr.cumulative_count - lastval,
-                               pair->second});
-            lastval = itr.cumulative_count;
+            uint64_t count = pair->second;
+            dataArr.push_back(
+                    {itr.value_iterated_from, itr.value_iterated_to, count});
+            i++;
         }
         rootObj["data"] = dataArr;
     }
 
-    return rootObj;
+    return std::make_unique<nlohmann::json>(rootObj);
 }
 
 std::string HdrHistogram::to_string() {
-    return to_json().dump();
-}
-
-size_t HdrHistogram::getMemFootPrint() const {
-    return hdr_get_memory_size(histogram.get()) + sizeof(HdrHistogram);
-}
-
-void HdrHistogram::resize(uint64_t lowestTrackableValue,
-                          uint64_t highestTrackableValue,
-                          int significantFigures) {
-    struct hdr_histogram* hist = nullptr;
-    // We add a bias of +1 to the lowest and highest value that can be tracked
-    // because we add +1 to all values we store in the histogram (as this
-    // allows us to record the value 0).
-    hdr_init(lowestTrackableValue + 1,
-             highestTrackableValue + 1, // Add one because all values
-             significantFigures,
-             &hist); // Pointer to initialise
-
-    hdr_add(hist, histogram.get());
-    histogram.reset(hist);
+    return to_json()->dump();
 }

@@ -1125,9 +1125,8 @@ static bool subdoc_operate(SubdocCmdContext& context) {
         return true;
     }
 
-    GenericBlockTimer<HdrMicroSecHistogram, 0> bt(
-            &all_buckets[context.connection.getBucketIndex()]
-                     .subjson_operation_times);
+    GenericBlockTimer<TimingHistogram, 0> bt(
+            &all_buckets[context.connection.getBucketIndex()].subjson_operation_times);
 
     context.overall_status = cb::mcbp::Status::Success;
 

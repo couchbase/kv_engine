@@ -17,16 +17,22 @@
 #include "timings.h"
 #include <memcached/protocol_binary.h>
 #include <platform/platform.h>
+#include "timing_histogram.h"
 
 Timings::Timings() {
     reset();
 }
 
+Timings& Timings::operator=(const Timings& other) {
+    timings = other.timings;
+    interval_latency_lookups = other.interval_latency_lookups;
+    interval_latency_mutations = other.interval_latency_mutations;
+    return *this;
+}
+
 void Timings::reset() {
     for (auto& t : timings) {
-        if (t) {
-            t->reset();
-        }
+        t.reset();
     }
 
     {
@@ -38,10 +44,8 @@ void Timings::reset() {
 
 void Timings::collect(cb::mcbp::ClientOpcode opcode,
                       std::chrono::nanoseconds nsec) {
-    using namespace std::chrono;
-    get_or_create_timing_histogram(
-            std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode))
-            .add(duration_cast<microseconds>(nsec));
+    timings[std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode)].add(
+            nsec);
     auto& interval = interval_counters
             [std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode)];
     interval.count++;
@@ -49,13 +53,8 @@ void Timings::collect(cb::mcbp::ClientOpcode opcode,
 }
 
 std::string Timings::generate(cb::mcbp::ClientOpcode opcode) {
-    auto* histoPtr =
-            timings[std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode)]
-                    .get();
-    if (histoPtr) {
-        return histoPtr->to_string();
-    }
-    return std::string("{}");
+    return timings[std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode)]
+            .to_string();
 }
 
 static const cb::mcbp::ClientOpcode timings_mutations[] = {
@@ -108,12 +107,8 @@ uint64_t Timings::get_aggregated_mutation_stats() {
 
     uint64_t ret = 0;
     for (auto cmd : timings_mutations) {
-        auto* histoPtr =
-                timings[std::underlying_type<cb::mcbp::ClientOpcode>::type(cmd)]
-                        .get();
-        if (histoPtr) {
-            ret += histoPtr->getValueCount();
-        }
+        ret += timings[std::underlying_type<cb::mcbp::ClientOpcode>::type(cmd)]
+                       .get_total();
     }
     return ret;
 }
@@ -122,12 +117,8 @@ uint64_t Timings::get_aggregated_retrival_stats() {
 
     uint64_t ret = 0;
     for (auto cmd : timings_retrievals) {
-        auto* histoPtr =
-                timings[std::underlying_type<cb::mcbp::ClientOpcode>::type(cmd)]
-                        .get();
-        if (histoPtr) {
-            ret += histoPtr->getValueCount();
-        }
+        ret += timings[std::underlying_type<cb::mcbp::ClientOpcode>::type(cmd)]
+                       .get_total();
     }
     return ret;
 }
@@ -140,17 +131,6 @@ cb::sampling::Interval Timings::get_interval_mutation_latency() {
 cb::sampling::Interval Timings::get_interval_lookup_latency() {
     std::lock_guard<std::mutex> lg(lock);
     return interval_latency_lookups.getAggregate();
-}
-
-HdrMicroSecHistogram& Timings::get_or_create_timing_histogram(uint8_t opcode) {
-    if (timings[opcode] == nullptr) {
-        timings[opcode] = std::make_unique<HdrMicroSecHistogram>();
-    }
-    return *timings[opcode];
-}
-
-HdrMicroSecHistogram* Timings::get_timing_histogram(uint8_t opcode) const {
-    return timings[opcode].get();
 }
 
 void Timings::sample(std::chrono::seconds sample_interval) {

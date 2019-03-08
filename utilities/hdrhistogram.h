@@ -17,9 +17,8 @@
 
 #pragma once
 
-#include <boost/optional/optional_fwd.hpp>
+#include <boost/optional/optional.hpp>
 #include <nlohmann/json_fwd.hpp>
-#include <chrono>
 #include <memory>
 #include <utility>
 
@@ -43,6 +42,8 @@ class HdrHistogram {
     struct HdrDeleter {
         void operator()(struct hdr_histogram* val);
     };
+
+    using UniquePtr = std::unique_ptr<struct hdr_histogram, HdrDeleter>;
 
 public:
     struct Iterator : public hdr_iter {
@@ -90,36 +91,6 @@ public:
                  uint64_t highestTrackableValue,
                  int significantFigures);
 
-    HdrHistogram() : HdrHistogram(0, 1, 1){};
-
-    /**
-     * Copy constructor to define how to do a deep copy of a HdrHistogram
-     * @param other other HdrHistogram to copy
-     */
-    HdrHistogram(const HdrHistogram& other)
-        : HdrHistogram(other.getMinTrackableValue(),
-                       other.getMaxTrackableValue(),
-                       other.getSigFigAccuracy()) {
-        // take advantage of the code already written in for the addition
-        // assigment operator
-        *this += other;
-    };
-
-    /**
-     * Assignment operator to perform a deep copy of one histogram to another
-     * @param other HdrHistogram to copy
-     * @return returns this HdrHistogram, which is now a copy of the other
-     * HdrHistogram
-     */
-    HdrHistogram& operator=(const HdrHistogram& other) {
-        // reset this object to make sure we are in a state to copy too
-        this->reset();
-        // take advantage of the code already written in for the addition
-        // assigment operator
-        *this += other;
-        return *this;
-    };
-
     /**
      * Addition assigment operator for aggregation of histograms
      * across buckets
@@ -131,19 +102,13 @@ public:
 
     /**
      * Adds a value to the histogram.
-     * @param v value to be added to the histogram and account for by 1 count
-     * @return true if it successfully added that value to the histogram
      */
-    bool addValue(uint64_t v);
+    void addValue(uint64_t v);
 
     /**
      * Adds a value and associated count to the histogram.
-     * @param v value to be added to the histogram
-     * @param count number of counts that should be added to the histogram
-     * for this value v.
-     * @return true if it successfully added that value to the histogram
      */
-    bool addValueAndCount(uint64_t v, uint64_t count);
+    void addValueAndCount(uint64_t v, uint64_t count);
 
     /**
      * Returns the number of values added to the histogram.
@@ -187,14 +152,6 @@ public:
     Iterator makeLogIterator(int64_t firstBucketWidth, double log_base) const;
 
     /**
-     * Returns a percentile iterator for the histogram
-     * @param ticksPerHalfDist The number iteration steps per
-     * half-distance to 100%.
-     * @return iterator that moves over the histogram as percentiles
-     */
-    Iterator makePercentileIterator(uint32_t ticksPerHalfDist) const;
-
-    /**
      * Gets the next value and corresponding count from the histogram
      * Returns an optional pair, comprising of:
      * 1) value
@@ -203,17 +160,6 @@ public:
      * histogram will return no result.
      */
     boost::optional<std::pair<uint64_t, uint64_t>> getNextValueAndCount(
-            Iterator& iter) const;
-
-    /**
-     * Gets the next value and corresponding percentile from the histogram
-     * Returns an optional pair, comprising of:
-     * 1) highest equivalent value
-     * 2) next percentile that the iterator moves to
-     * The pair is optional because iterating past the last value in the
-     * histogram will return no result.
-     */
-    boost::optional<std::pair<uint64_t, double>> getNextValueAndPercentile(
             Iterator& iter) const;
 
     /**
@@ -244,12 +190,9 @@ public:
 
     /**
      * Method to get the histogram as a json object
-     * itrType method which to iterate over the data
-     * @return a nlohmann::json containing the histograms data iterated
-     * over by itrType. Which by default is Percentiles
+     * @return a nlohmann::json containing the histograms data iterated linearly
      */
-    nlohmann::json to_json(
-            Iterator::IterMode itrType = Iterator::IterMode::Percentiles);
+    std::unique_ptr<nlohmann::json> to_json();
 
     /**
      * Dumps the histogram data to json in a string form
@@ -257,63 +200,9 @@ public:
      */
     std::string to_string();
 
-    /**
-     * Method to get the total amount of memory being used by this histogram
-     * @return number of bytes being used by this histogram
-     */
-    size_t getMemFootPrint() const;
-
-    /**
-     * Method to get the minimum trackable value of this histogram
-     * @return minimum trackable value
-     */
-    uint64_t getMinTrackableValue() const {
-        // We subtract one from the lowest value as we have added a one offset
-        // as the underlying hdr_histogram cannot store 0 and
-        // therefore the value must be greater than or equal to 1.
-        return static_cast<uint64_t>(histogram->lowest_trackable_value) - 1;
-    }
-
-    /**
-     * Method to get the maximum trackable value of this histogram
-     * @return maximum trackable value
-     */
-    uint64_t getMaxTrackableValue() const {
-        // We subtract one from the lowest value as we have added a one offset
-        // as the underlying hdr_histogram cannot store 0 and
-        // therefore the value must be greater than or equal to 1.
-        return static_cast<uint64_t>(histogram->highest_trackable_value) - 1;
-    }
-
-    /**
-     * Method to get the number of significant figures being used to value
-     * resolution and resolution.
-     * @return an int between 0 and 5 of the number of significant
-     * figures bing used
-     */
-    int getSigFigAccuracy() const {
-        return histogram->significant_figures;
-    }
-
 private:
-    void resize(uint64_t lowestTrackableValue,
-                uint64_t highestTrackableValue,
-                int significantFigures);
-
     /**
      * unique_ptr to a hdr_histogram structure
      */
-    std::unique_ptr<struct hdr_histogram, HdrDeleter> histogram;
-};
-
-/** Histogram to store counts for microsecond intervals
- *  Can hold a range of 0us to 60000000us (60 seconds) with a
- *  precision of 2 significant figures
- */
-class HdrMicroSecHistogram : public HdrHistogram {
-public:
-    HdrMicroSecHistogram() : HdrHistogram(0, 60000000, 2){};
-    bool add(std::chrono::microseconds v) {
-        return addValue(static_cast<uint64_t>(v.count()));
-    }
+    UniquePtr histogram;
 };

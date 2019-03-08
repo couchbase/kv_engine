@@ -27,7 +27,7 @@
 #include <string>
 #include <vector>
 
-class HdrMicroSecHistogram;
+class TimingHistogram;
 
 void set_ssl_cipher_list(const std::string& new_list);
 
@@ -40,4 +40,4 @@ void set_ssl_ctx_protocol_mask(SSL_CTX* ctx);
 bool is_default_bucket_enabled();
 void set_default_bucket_enabled(bool enabled);
 
-extern std::vector<HdrMicroSecHistogram> scheduler_info;
+extern std::vector<TimingHistogram> scheduler_info;
