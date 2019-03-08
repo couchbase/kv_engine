@@ -3895,13 +3895,8 @@ std::string STParameterizedBucketTestPrintName::operator()(
     return bucket + "_" + evictionPolicy;
 }
 
-static auto allConfigValues = ::testing::Values(
-        std::make_tuple(std::string("ephemeral"), std::string("auto_delete")),
-        std::make_tuple(std::string("ephemeral"), std::string("fail_new_data")),
-        std::make_tuple(std::string("persistent"), std::string{}));
-
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         STParameterizedBucketTest,
-                        allConfigValues,
+                        STParameterizedBucketTest::allConfigValues(),
                         STParameterizedBucketTestPrintName());

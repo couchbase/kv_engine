@@ -2408,14 +2408,9 @@ INSTANTIATE_TEST_CASE_P(CompressionStreamTest,
                                            ::testing::Bool()),
                         PrintToStringCombinedNameXattrOnOff());
 
-static auto allConfigValues = ::testing::Values(
-        std::make_tuple(std::string("ephemeral"), std::string("auto_delete")),
-        std::make_tuple(std::string("ephemeral"), std::string("fail_new_data")),
-        std::make_tuple(std::string("persistent"), std::string{}));
-
 INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
                         ConnectionTest,
-                        allConfigValues, );
+                        STParameterizedBucketTest::allConfigValues(), );
 
 /*
  * Test fixture for single-threaded Stream tests

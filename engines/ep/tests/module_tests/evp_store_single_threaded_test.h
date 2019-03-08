@@ -183,20 +183,37 @@ protected:
  *
  * Parameterised on a pair of:
  * - bucket_type (ephemeral of persistent)
- * - eviction type (for specifying ephemeral auto-delete & fail_new_data
- *   eviction modes). If empty then unused (persistent buckets).
+ * - eviction type.
+ *   - For ephemeral buckets: used for specifying ephemeral auto-delete /
+ *     fail_new_data
+ *   - For persistent buckets: used for specifying value_only or full_eviction
  */
 class STParameterizedBucketTest
     : virtual public SingleThreadedKVBucketTest,
       public ::testing::WithParamInterface<
               std::tuple<std::string, std::string>> {
 public:
-    bool persistent() const {
-        return std::get<0>(GetParam()) == "persistent";
+    static auto ephConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+                std::make_tuple("ephemeral"s, "auto_delete"s),
+                std::make_tuple("ephemeral"s, "fail_new_data"s));
     }
 
-    bool isFullEviction() const {
-        return persistent() && std::get<1>(GetParam()) == "full_eviction";
+    static auto allConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(std::make_tuple("ephemeral"s, "auto_delete"s),
+                                 std::make_tuple("ephemeral"s, "fail_new_data"),
+                                 std::make_tuple("persistent"s, ""s));
+    }
+
+    static auto persistentConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(std::make_tuple("persistent"s, ""s));
+    }
+
+    bool persistent() const {
+        return std::get<0>(GetParam()) == "persistent";
     }
 
 protected:

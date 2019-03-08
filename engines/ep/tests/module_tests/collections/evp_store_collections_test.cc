@@ -1481,12 +1481,8 @@ INSTANTIATE_TEST_CASE_P(CollectionsExpiryLimitTests,
                         ::testing::Bool(),
                         ::testing::PrintToStringParamName());
 
-static auto allConfigValues = ::testing::Values(
-        std::make_tuple(std::string("ephemeral"), std::string("auto_delete")),
-        std::make_tuple(std::string("ephemeral"), std::string("fail_new_data")),
-        std::make_tuple(std::string("persistent"), std::string{}));
-
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_CASE_P(CollectionsEphemeralOrPersistent,
                         CollectionsParameterizedTest,
-                        allConfigValues, );
+                        STParameterizedBucketTest::allConfigValues(),
+                        STParameterizedBucketTestPrintName());

@@ -1199,33 +1199,30 @@ TEST_P(MB_32669, expire_a_compressed_and_evicted_xattr_document) {
 // hence it is required currently.
 #if defined(HAVE_JEMALLOC)
 
-static auto ephConfigValues = ::testing::Values(
-        std::make_tuple(std::string("ephemeral"), std::string("auto_delete")),
-        std::make_tuple(std::string("ephemeral"),
-                        std::string("fail_new_data")));
-
-static auto allConfigValues = ::testing::Values(
-        std::make_tuple(std::string("ephemeral"), std::string("auto_delete")),
-        std::make_tuple(std::string("ephemeral"), std::string("fail_new_data")),
-        std::make_tuple(std::string("persistent"), std::string{}));
-
-static auto persistentConfigValues = ::testing::Values(
-        std::make_tuple(std::string("persistent"), std::string{}));
-
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         STItemPagerTest,
-                        allConfigValues, );
+                        STParameterizedBucketTest::allConfigValues(),
+                        STParameterizedBucketTestPrintName());
 
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         STExpiryPagerTest,
-                        allConfigValues, );
+                        STParameterizedBucketTest::allConfigValues(),
+                        STParameterizedBucketTestPrintName());
 
 INSTANTIATE_TEST_CASE_P(Persistent,
                         STPersistentExpiryPagerTest,
-                        persistentConfigValues, );
+                        STParameterizedBucketTest::persistentConfigValues(),
+                        STParameterizedBucketTestPrintName());
 
-INSTANTIATE_TEST_CASE_P(Persistent, MB_32669, persistentConfigValues, );
+INSTANTIATE_TEST_CASE_P(Persistent,
+                        MB_32669,
+                        STParameterizedBucketTest::persistentConfigValues(),
+                        STParameterizedBucketTestPrintName());
 
-INSTANTIATE_TEST_CASE_P(Ephemeral, STEphemeralItemPagerTest, ephConfigValues, );
+
+INSTANTIATE_TEST_CASE_P(Ephemeral,
+                        STEphemeralItemPagerTest,
+                        STParameterizedBucketTest::ephConfigValues(),
+                        STParameterizedBucketTestPrintName());
 
 #endif
