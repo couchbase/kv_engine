@@ -488,15 +488,8 @@ TEST_P(CollectionsEraserTest, erase_after_warmup) {
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
 }
 
-static auto allConfigValues = ::testing::Values(
-        std::make_tuple(std::string("ephemeral"), std::string("auto_delete")),
-        std::make_tuple(std::string("ephemeral"), std::string("fail_new_data")),
-        std::make_tuple(std::string("persistent"),
-                        std::string("full_eviction")),
-        std::make_tuple(std::string("persistent"), std::string("value_only")));
-
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_CASE_P(CollectionsEraserTests,
                         CollectionsEraserTest,
-                        allConfigValues,
+                        STParameterizedBucketTest::allConfigValues(),
                         STParameterizedBucketTestPrintName());

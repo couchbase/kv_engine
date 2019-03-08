@@ -37,6 +37,8 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
+using namespace std::string_literals;
+
 /**
  * Test fixture for bucket quota tests. Sets quota (max_size) to 200KB and
  * enables the MemoryTracker.
@@ -811,19 +813,25 @@ void STExpiryPagerTest::expiredItemsDeleted() {
 
     // Check our items.
     auto key_0 = makeStoredDocKey("key_0");
-    auto result = store->get(key_0, vbid, cookie, get_options_t());
-    EXPECT_EQ(ENGINE_SUCCESS, result.getStatus())
-        << "Key without TTL should still exist.";
+    auto getKeyFn = [this](const StoredDocKey& key) {
+        return store->get(key, vbid, cookie, QUEUE_BG_FETCH).getStatus();
+    };
+    EXPECT_EQ(ENGINE_SUCCESS, getKeyFn(key_0))
+            << "Key without TTL should still exist.";
 
     auto key_1 = makeStoredDocKey("key_1");
-    EXPECT_EQ(ENGINE_KEY_ENOENT,
-              store->get(key_1, vbid, cookie, get_options_t()).getStatus())
+
+    if (::testing::get<1>(GetParam()) == "full_eviction") {
+        // Need an extra get() to trigger EWOULDBLOCK / bgfetch.
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, getKeyFn(key_1));
+        runBGFetcherTask();
+    }
+    EXPECT_EQ(ENGINE_KEY_ENOENT, getKeyFn(key_1))
             << "Key with TTL:10 should be removed.";
 
     auto key_2 = makeStoredDocKey("key_2");
-    result = store->get(key_2, vbid, cookie, get_options_t());
-    EXPECT_EQ(ENGINE_SUCCESS, result.getStatus())
-         << "Key with TTL:20 should still exist.";
+    EXPECT_EQ(ENGINE_SUCCESS, getKeyFn(key_2))
+            << "Key with TTL:20 should still exist.";
 
     // Move time forward by +10s, so key_2 should also be expired.
     TimeTraveller philConners(10);
@@ -839,16 +847,18 @@ void STExpiryPagerTest::expiredItemsDeleted() {
     EXPECT_EQ(1, engine->getVBucket(vbid)->getNumItems());
 
     // Check our items.
-    result = store->get(key_0, vbid, cookie, get_options_t());
-    EXPECT_EQ(ENGINE_SUCCESS, result.getStatus())
-        << "Key without TTL should still exist.";
+    EXPECT_EQ(ENGINE_SUCCESS, getKeyFn(key_0))
+            << "Key without TTL should still exist.";
 
-    EXPECT_EQ(ENGINE_KEY_ENOENT,
-              store->get(key_1, vbid, cookie, get_options_t()).getStatus())
+    EXPECT_EQ(ENGINE_KEY_ENOENT, getKeyFn(key_1))
             << "Key with TTL:10 should be removed.";
 
-    EXPECT_EQ(ENGINE_KEY_ENOENT,
-              store->get(key_2, vbid, cookie, get_options_t()).getStatus())
+    if (::testing::get<1>(GetParam()) == "full_eviction") {
+        // Need an extra get() to trigger EWOULDBLOCK / bgfetch.
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, getKeyFn(key_2));
+        runBGFetcherTask();
+    }
+    EXPECT_EQ(ENGINE_KEY_ENOENT, getKeyFn(key_2))
             << "Key with TTL:20 should be removed.";
 }
 
@@ -869,9 +879,14 @@ TEST_P(STExpiryPagerTest, MB_25650) {
     uint32_t deleted;
     uint8_t datatype;
 
-    ENGINE_ERROR_CODE err = std::get<0>(GetParam()) == "persistent"
-                                    ? ENGINE_EWOULDBLOCK
-                                    : ENGINE_SUCCESS;
+    // Ephemeral doesn't bgfetch, persistent full-eviction already had to
+    // perform a bgfetch to check key_1 no longer exists in the above
+    // expiredItemsDeleted().
+    const ENGINE_ERROR_CODE err =
+            std::get<0>(GetParam()) == "persistent" &&
+                            std::get<1>(GetParam()) == "value_only"
+                    ? ENGINE_EWOULDBLOCK
+                    : ENGINE_SUCCESS;
 
     // Bring document meta back into memory and run expiry on it
     EXPECT_EQ(err,
@@ -930,10 +945,14 @@ TEST_P(STExpiryPagerTest, MB_25671) {
     uint32_t deleted = 0;
     uint8_t datatype = 0;
 
-    // ephemeral will succeed as there is nothing to fetch.
-    ENGINE_ERROR_CODE err = std::get<0>(GetParam()) == "persistent"
-                                    ? ENGINE_EWOULDBLOCK
-                                    : ENGINE_SUCCESS;
+    // Ephemeral doesn't bgfetch, persistent full-eviction already had to
+    // perform a bgfetch to check key_1 no longer exists in the above
+    // expiredItemsDeleted().
+    const ENGINE_ERROR_CODE err =
+            std::get<0>(GetParam()) == "persistent" &&
+                            std::get<1>(GetParam()) == "value_only"
+                    ? ENGINE_EWOULDBLOCK
+                    : ENGINE_SUCCESS;
 
     // Bring the deleted key back with a getMeta call
     EXPECT_EQ(err,
@@ -998,12 +1017,24 @@ TEST_P(STExpiryPagerTest, MB_25671) {
     EXPECT_EQ(metadata.revSeqno, item.item->getRevSeqno());
 }
 
-/// Subclass for expiry tests only applicable to persistent buckets.
-class STPersistentExpiryPagerTest : public STExpiryPagerTest {};
+/**
+ * Subclass for expiry tests only applicable to Value eviction persistent
+ * buckets.
+ */
+class STValueEvictionExpiryPagerTest : public STExpiryPagerTest {
+public:
+    static auto configValues() {
+        return ::testing::Values(std::make_tuple("persistent"s, "value_only"s));
+    }
+};
 
 // Test that when a xattr value is ejected, we can still expire it. Previous
-// to the fix we crash because the item has no value in memory
-TEST_P(STPersistentExpiryPagerTest, MB_25931) {
+// to the fix we crash because the item has no value in memory.
+//
+// (Not applicable to full-eviction as relies on in-memory expiry pager
+//  expiring a non-resident item; with full-eviction the item is completely
+//  evicted and hence ExpiryPager won't find it.)
+TEST_P(STValueEvictionExpiryPagerTest, MB_25931) {
     std::string value = createXattrValue("body");
     auto key = makeStoredDocKey("key_1");
     auto item = make_item(
@@ -1031,7 +1062,11 @@ TEST_P(STPersistentExpiryPagerTest, MB_25931) {
 }
 
 // Test that expiring a non-resident item works (and item counts are correct).
-TEST_P(STPersistentExpiryPagerTest, MB_25991_ExpiryNonResident) {
+//
+// (Not applicable to full-eviction as relies on in-memory expiry pager
+//  expiring a non-resident item; with full-eviction the item is completely
+//  evicted and hence ExpiryPager won't find it.)
+TEST_P(STValueEvictionExpiryPagerTest, MB_25991_ExpiryNonResident) {
     // Populate bucket with a TTL'd document, and then evict that document.
     auto key = makeStoredDocKey("key");
     auto expiry = ep_abs_time(ep_current_time() + 5);
@@ -1097,11 +1132,11 @@ TEST_P(STItemPagerTest, phaseWhenPolicyChange) {
     }
 }
 
-class MB_32669 : public STPersistentExpiryPagerTest {
+class MB_32669 : public STValueEvictionExpiryPagerTest {
 public:
     void SetUp() override {
         config_string += "compression_mode=active;";
-        STPersistentExpiryPagerTest::SetUp();
+        STValueEvictionExpiryPagerTest::SetUp();
         store->enableItemCompressor();
         initialNonIoTasks++;
     }
@@ -1209,16 +1244,15 @@ INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         STParameterizedBucketTest::allConfigValues(),
                         STParameterizedBucketTestPrintName());
 
-INSTANTIATE_TEST_CASE_P(Persistent,
-                        STPersistentExpiryPagerTest,
-                        STParameterizedBucketTest::persistentConfigValues(),
+INSTANTIATE_TEST_CASE_P(ValueOnly,
+                        STValueEvictionExpiryPagerTest,
+                        STValueEvictionExpiryPagerTest::configValues(),
                         STParameterizedBucketTestPrintName());
 
 INSTANTIATE_TEST_CASE_P(Persistent,
                         MB_32669,
-                        STParameterizedBucketTest::persistentConfigValues(),
+                        STValueEvictionExpiryPagerTest::configValues(),
                         STParameterizedBucketTestPrintName());
-
 
 INSTANTIATE_TEST_CASE_P(Ephemeral,
                         STEphemeralItemPagerTest,

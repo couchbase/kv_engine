@@ -2466,6 +2466,10 @@ TEST_P(STParameterizedBucketTest, enable_expiry_output) {
     store_item(
             vbid, {"KEY3", DocKeyEncodesCollectionId::No}, "value", expiryTime);
 
+    // Trigger a flush to disk (ensure full-eviction numItems stat is
+    // up-to-date).
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
     step(true);
     size_t expectedBytes = SnapshotMarker::baseMsgBytes +
                            MutationResponse::mutationBaseMsgBytes +
@@ -2479,6 +2483,10 @@ TEST_P(STParameterizedBucketTest, enable_expiry_output) {
     auto gv = store->get(
             {"KEY3", DocKeyEncodesCollectionId::No}, vbid, cookie, NONE);
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    // Trigger a flush to disk (ensure full-eviction numItems stat is
+    // up-to-date).
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     step(true);
 

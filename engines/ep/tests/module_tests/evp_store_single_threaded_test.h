@@ -202,14 +202,18 @@ public:
 
     static auto allConfigValues() {
         using namespace std::string_literals;
-        return ::testing::Values(std::make_tuple("ephemeral"s, "auto_delete"s),
-                                 std::make_tuple("ephemeral"s, "fail_new_data"),
-                                 std::make_tuple("persistent"s, ""s));
+        return ::testing::Values(
+                std::make_tuple("ephemeral"s, "auto_delete"s),
+                std::make_tuple("ephemeral"s, "fail_new_data"),
+                std::make_tuple("persistent"s, "value_only"s),
+                std::make_tuple("persistent"s, "full_eviction"s));
     }
 
     static auto persistentConfigValues() {
         using namespace std::string_literals;
-        return ::testing::Values(std::make_tuple("persistent"s, ""s));
+        return ::testing::Values(
+                std::make_tuple("persistent"s, "value_only"s),
+                std::make_tuple("persistent"s, "full_eviction"s));
     }
 
     bool persistent() const {

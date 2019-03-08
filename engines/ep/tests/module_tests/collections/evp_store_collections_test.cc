@@ -110,6 +110,9 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
     CollectionsManifest cm(CollectionEntry::meat);
     vb->updateFromManifest({cm});
 
+    // Trigger a flush to disk. Flushes the meat create event and 1 item
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
     // System event not counted
     // Note: for persistent buckets, that is because
     // 1) It doesn't go in the hash-table
@@ -120,9 +123,6 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
     if (!persistent()) {
         EXPECT_EQ(1, vb->getNumSystemItems());
     }
-
-    // Trigger a flush to disk. Flushes the meat create event and 1 item
-    flushVBucketToDiskIfPersistent(vbid, 2);
 
     // Now we can write to beef
     store_item(vbid, StoredDocKey{"meat:beef", CollectionEntry::meat}, "value");
