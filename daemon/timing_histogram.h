@@ -16,7 +16,6 @@
  */
 #pragma once
 
-#include <platform/platform.h>
 #include <relaxed_atomic.h>
 #include <array>
 #include <chrono>

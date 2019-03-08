@@ -15,18 +15,10 @@
  */
 #pragma once
 
-#include <platform/platform.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <cstddef>
 
 /* Compare a and b without revealing their content by short-circuiting */
 int cbsasl_secure_compare(const char* a,
                           size_t alen,
                           const char* b,
                           size_t blen);
-
-#ifdef __cplusplus
-}
-#endif

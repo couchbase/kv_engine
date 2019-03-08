@@ -69,7 +69,7 @@
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
-#include <platform/cb_malloc.h>
+#include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/interrupt.h>
 #include <platform/socket.h>

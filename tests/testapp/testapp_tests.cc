@@ -46,9 +46,9 @@
 #include <memcached/util.h>
 #include <platform/backtrace.h>
 #include <platform/cb_malloc.h>
+#include <platform/cbassert.h>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
-#include <platform/platform.h>
 #include <platform/socket.h>
 #include <platform/string_hex.h>
 #include <fstream>

@@ -15,6 +15,7 @@
 #include <memcached/server_core_iface.h>
 #include <memcached/server_document_iface.h>
 #include <platform/cb_malloc.h>
+#include <platform/cbassert.h>
 #include <platform/crc32c.h>
 
 /* Forward Declarations */

@@ -17,7 +17,7 @@
 #pragma once
 
 #include <memcached/engine_utilities_visibility.h>
-#include <platform/platform.h>
+#include <platform/dynamic.h>
 
 #include <iosfwd>
 #include <system_error>

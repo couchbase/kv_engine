@@ -24,7 +24,6 @@
 #include <limits.h>
 #include <math.h>
 #include <memcached/engine.h>
-#include <platform/platform.h>
 
 #include <stdint.h>
 #include <stdlib.h>

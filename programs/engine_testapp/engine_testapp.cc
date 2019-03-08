@@ -25,6 +25,7 @@
 #include <memcached/server_log_iface.h>
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
+#include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
 

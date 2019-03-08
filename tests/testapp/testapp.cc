@@ -10,6 +10,7 @@
 #include <mcbp/protocol/framebuilder.h>
 #include <platform/backtrace.h>
 #include <platform/cb_malloc.h>
+#include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>

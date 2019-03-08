@@ -23,7 +23,6 @@
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 #include <platform/base64.h>
-#include <platform/platform.h>
 #include <stdexcept>
 #include <string>
 

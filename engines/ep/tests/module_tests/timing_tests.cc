@@ -20,6 +20,7 @@
 #include <memcached/engine_testapp.h>
 #include <memcached/protocol_binary.h>
 #include <platform/cb_malloc.h>
+#include <platform/cbassert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

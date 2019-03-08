@@ -18,8 +18,6 @@
 #include <nlohmann/json.hpp>
 #include <openssl/conf.h>
 #include <phosphor/phosphor.h>
-#include <platform/cb_malloc.h>
-#include <platform/platform.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
 

@@ -18,7 +18,6 @@
 #include "timing_histogram.h"
 
 #include <nlohmann/json.hpp>
-#include <platform/platform.h>
 
 #include <atomic>
 #include <chrono>

@@ -24,7 +24,6 @@
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
-#include <platform/platform.h>
 
 /* Class which monitors the parent process and will terminate this
  * process if the parent ever dies.

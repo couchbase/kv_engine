@@ -51,6 +51,7 @@
 #include <memcached/engine_testapp.h>
 #include <memcached/types.h>
 #include <platform/cb_malloc.h>
+#include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/platform_time.h>
 #include <platform/strerror.h>

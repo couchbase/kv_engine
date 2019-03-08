@@ -16,8 +16,6 @@
  */
 #include "timings.h"
 #include <memcached/protocol_binary.h>
-#include <platform/platform.h>
-#include "timing_histogram.h"
 
 Timings::Timings() {
     reset();

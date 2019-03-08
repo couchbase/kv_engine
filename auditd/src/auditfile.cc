@@ -20,6 +20,7 @@
 #include <logger/logger.h>
 #include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
+#include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/platform_time.h>
 #include <platform/strerror.h>

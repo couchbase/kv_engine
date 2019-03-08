@@ -17,6 +17,7 @@
 
 #include "config.h"
 
+#include <platform/cbassert.h>
 #include <iostream>
 
 #include "common.h"

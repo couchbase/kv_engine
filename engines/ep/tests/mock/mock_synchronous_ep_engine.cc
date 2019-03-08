@@ -23,6 +23,7 @@
 #include "dcp/flow-control-manager.h"
 #include "replicationthrottle.h"
 
+#include <platform/cbassert.h>
 #include <string>
 
 SynchronousEPEngine::SynchronousEPEngine(std::string extra_config)

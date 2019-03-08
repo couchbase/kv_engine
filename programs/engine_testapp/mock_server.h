@@ -3,7 +3,6 @@
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <memcached/server_callback_iface.h>
-#include <platform/platform.h>
 
 #include <atomic>
 #include <bitset>

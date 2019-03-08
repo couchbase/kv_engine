@@ -17,8 +17,6 @@
 #pragma once
 
 // We use [nh]to[nh]ll in a lot of these headers
-#include <platform/platform.h>
-
 #include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/feature.h>
 #include <mcbp/protocol/header.h>

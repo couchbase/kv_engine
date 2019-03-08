@@ -6,7 +6,6 @@
 #include <logger/logger.h>
 #include <memcached/types.h>
 #include <platform/dirutils.h>
-#include <platform/platform.h>
 #include <cctype>
 #include <cstdio>
 

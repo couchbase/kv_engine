@@ -20,7 +20,6 @@
  */
 
 #include <platform/cb_malloc.h>
-#include <platform/platform.h>
 
 #include <memcached/util.h>
 #include <memcached/config_parser.h>

@@ -16,7 +16,6 @@
  */
 #pragma once
 
-#include <platform/platform.h>
 #include <platform/processclock.h>
 #include <platform/thread.h>
 

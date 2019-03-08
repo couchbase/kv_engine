@@ -17,7 +17,6 @@
 
 #include <mcbp/mcbp.h>
 #include <nlohmann/json.hpp>
-#include <platform/platform.h>
 
 namespace cb {
 namespace mcbp {

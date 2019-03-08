@@ -23,7 +23,6 @@
 
 #include <platform/backtrace.h>
 #include <platform/dirutils.h>
-#include <platform/platform.h>
 
 using namespace google_breakpad;
 

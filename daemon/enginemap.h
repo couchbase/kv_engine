@@ -18,7 +18,6 @@
 
 #include "buckets.h"
 #include <memcached/engine.h>
-#include <platform/platform.h>
 
 /**
  * Create a new instance of the given bucket type

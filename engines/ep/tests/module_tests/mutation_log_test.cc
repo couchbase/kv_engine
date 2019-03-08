@@ -19,6 +19,7 @@
 
 #include <fcntl.h>
 #include <gtest/gtest.h>
+#include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
 #include <sys/stat.h>

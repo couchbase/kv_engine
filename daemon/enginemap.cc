@@ -18,13 +18,13 @@
 #include "logger/logger.h"
 #include "utilities/engine_loader.h"
 
-#include <map>
-#include <string>
-#include <string.h>
-#include <sstream>
-#include <iostream>
-#include <platform/cb_malloc.h>
+#include <platform/cbassert.h>
 #include <platform/dirutils.h>
+#include <string.h>
+#include <iostream>
+#include <map>
+#include <sstream>
+#include <string>
 
 class Engine {
 public:

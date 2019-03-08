@@ -29,6 +29,7 @@
 #include <memcached/server_core_iface.h>
 #include <memcached/server_document_iface.h>
 #include <memcached/server_log_iface.h>
+#include <platform/cbassert.h>
 #include <platform/platform_time.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>

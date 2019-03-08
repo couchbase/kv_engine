@@ -39,6 +39,7 @@
 
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
+#include <platform/cbassert.h>
 #include <platform/platform_time.h>
 
 #include <algorithm>

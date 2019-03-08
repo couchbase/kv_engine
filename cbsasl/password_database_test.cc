@@ -26,7 +26,6 @@
 #include <platform/base64.h>
 #include <platform/checked_snprintf.h>
 #include <platform/dirutils.h>
-#include <platform/platform.h>
 #include <platform/random.h>
 #include <cstdio>
 #include <cstdlib>

@@ -16,7 +16,6 @@
  */
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
-#include <platform/platform.h>
 #include <cstdlib>
 #include <gsl/gsl>
 #include <iostream>

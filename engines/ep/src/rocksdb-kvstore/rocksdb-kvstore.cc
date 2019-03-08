@@ -26,6 +26,7 @@
 #include "kvstore_priv.h"
 
 #include <phosphor/phosphor.h>
+#include <platform/cbassert.h>
 #include <platform/sysinfo.h>
 #include <rocksdb/convenience.h>
 #include <rocksdb/filter_policy.h>

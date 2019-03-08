@@ -20,7 +20,6 @@
 #include "settings.h"
 #include <inttypes.h>
 #include <nlohmann/json.hpp>
-#include <platform/platform.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <algorithm>

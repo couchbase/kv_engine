@@ -18,6 +18,7 @@
 #include "dynamic_buffer.h"
 
 #include <platform/cb_malloc.h>
+#include <platform/cbassert.h>
 
 bool DynamicBuffer::grow(size_t needed) {
     size_t nsize = size;

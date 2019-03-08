@@ -36,7 +36,7 @@
 #include <mcbp/protocol/header.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
-#include <platform/cb_malloc.h>
+#include <platform/cbassert.h>
 #include <platform/checked_snprintf.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>

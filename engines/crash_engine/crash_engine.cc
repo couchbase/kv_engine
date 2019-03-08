@@ -30,7 +30,6 @@
 #include <memcached/visibility.h>
 #include <memcached/util.h>
 #include <memcached/config_parser.h>
-#include <platform/cb_malloc.h>
 
 extern "C" {
 MEMCACHED_PUBLIC_API

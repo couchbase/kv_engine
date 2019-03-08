@@ -20,7 +20,6 @@
 #include <platform/socket.h>
 
 #include <gtest/gtest.h>
-#include <platform/platform.h>
 
 class HostnameUtilsTest : public ::testing::Test {
 protected:

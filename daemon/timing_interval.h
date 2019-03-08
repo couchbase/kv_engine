@@ -18,7 +18,6 @@
 
 #include <chrono>
 #include <cstdint>
-#include <platform/platform.h>
 #include <platform/ring_buffer.h>
 
 #include "relaxed_atomic.h"

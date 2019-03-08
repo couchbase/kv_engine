@@ -25,7 +25,7 @@
 
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
-#include <platform/cb_malloc.h>
+#include <platform/cbassert.h>
 #include <algorithm>
 #include <chrono>
 #include <list>

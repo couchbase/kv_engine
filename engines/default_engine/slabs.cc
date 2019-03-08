@@ -9,14 +9,15 @@
  */
 #include "config.h"
 
-#include <fcntl.h>
 #include <errno.h>
-#include <platform/cb_malloc.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
+#include <fcntl.h>
 #include <inttypes.h>
+#include <platform/cb_malloc.h>
+#include <platform/cbassert.h>
 #include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifdef VALGRIND
 // switch to malloc if VALGRIND so we can get some useful insight.

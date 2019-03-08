@@ -22,7 +22,7 @@
 #include <mcbp/protocol/framebuilder.h>
 #include <memcached/util.h>
 #include <platform/cb_malloc.h>
-#include <platform/platform.h>
+#include <platform/cbassert.h>
 #include <stdlib.h>
 #include <string.h>
 

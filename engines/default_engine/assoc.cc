@@ -8,6 +8,7 @@
 #include "default_engine_internal.h"
 
 #include <logger/logger.h>
+#include <platform/cbassert.h>
 #include <platform/crc32c.h>
 #include <platform/platform_thread.h>
 #include <platform/strerror.h>

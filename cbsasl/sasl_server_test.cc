@@ -20,8 +20,6 @@
 #include <cbsasl/mechanism.h>
 #include <cbsasl/server.h>
 #include <gtest/gtest.h>
-#include <platform/cb_malloc.h>
-#include <platform/platform.h>
 #include <algorithm>
 #include <array>
 #include <cstdio>

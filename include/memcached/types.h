@@ -2,13 +2,22 @@
 
 #include <boost/optional/optional.hpp>
 #include <memcached/dockey.h>
-#include <stdint.h>
 #include <sys/types.h>
 #include <chrono>
+#include <cstdint>
 #include <iosfwd>
 
 #ifdef WIN32
-#include <platform/platform.h>
+// Need DWORD and ssize_t (used to be defined in platform/platform.h
+#ifndef WIN32_LEAN_AND_MEAN
+#define DO_UNDEF_WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <Windows.h>
+#ifdef DO_UNDEF_WIN32_LEAN_AND_MEAN
+#undef WIN32_LEAN_AND_MEAN
+#endif
+typedef long ssize_t;
 #else
 #include <sys/uio.h>
 #endif

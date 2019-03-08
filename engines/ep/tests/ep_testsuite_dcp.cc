@@ -26,9 +26,10 @@
 #include "mock/mock_dcp.h"
 #include "programs/engine_testapp/mock_server.h"
 
-#include <condition_variable>
 #include <platform/cb_malloc.h>
+#include <platform/cbassert.h>
 #include <platform/compress.h>
+#include <condition_variable>
 #include <thread>
 
 using namespace std::string_literals;

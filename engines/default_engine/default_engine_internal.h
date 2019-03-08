@@ -16,7 +16,6 @@
 #include <memcached/engine.h>
 #include <memcached/util.h>
 #include <memcached/visibility.h>
-#include <platform/platform.h>
 #include <relaxed_atomic.h>
 
 /** How long an object can reasonably be assumed to be locked before

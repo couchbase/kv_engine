@@ -26,7 +26,6 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/util.h>
 #include <platform/cb_malloc.h>
-#include <platform/platform.h>
 #include <programs/getpass.h>
 #include <programs/hostname_utils.h>
 #include <protocol/connection/client_connection.h>

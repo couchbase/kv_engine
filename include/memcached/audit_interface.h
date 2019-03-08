@@ -17,7 +17,6 @@
 #pragma once
 
 #include <memcached/engine.h>
-#include <platform/platform.h>
 #include <memory>
 
 namespace cb {

@@ -19,7 +19,6 @@
 #include <cbsasl/client.h>
 #include <cbsasl/server.h>
 #include <gtest/gtest.h>
-#include <platform/cb_malloc.h>
 #include <array>
 #include <cstdio>
 #include <cstdlib>

@@ -25,7 +25,6 @@
 #include <mcbp/protocol/opcode.h>
 #include <memcached/durability_spec.h>
 #include <memcached/vbucket.h>
-#include <platform/platform.h>
 #include <platform/sized_buffer.h>
 
 #ifndef WIN32

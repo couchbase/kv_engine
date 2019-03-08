@@ -29,7 +29,6 @@
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <platform/interrupt.h>
-#include <platform/platform.h>
 #include <platform/strerror.h>
 #include <programs/getpass.h>
 #include <programs/hostname_utils.h>

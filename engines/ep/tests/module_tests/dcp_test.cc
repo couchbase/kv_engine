@@ -44,6 +44,7 @@
 #include "thread_gate.h"
 
 #include <memcached/server_cookie_iface.h>
+#include <platform/cbassert.h>
 #include <platform/compress.h>
 #include <programs/engine_testapp/mock_server.h>
 
