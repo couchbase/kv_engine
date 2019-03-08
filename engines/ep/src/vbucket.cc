@@ -2436,6 +2436,10 @@ void VBucket::_addStats(bool details,
         addStat("num_items", numItems, add_stat, c);
         addStat("num_temp_items", tempItems, add_stat, c);
         addStat("num_non_resident", getNumNonResidentItems(), add_stat, c);
+        addStat("num_prepared_sync_writes",
+                ht.getNumPreparedSyncWrites(),
+                add_stat,
+                c);
         addStat("ht_memory", ht.memorySize(), add_stat, c);
         addStat("ht_item_memory", ht.getItemMemory(), add_stat, c);
         addStat("ht_item_memory_uncompressed",

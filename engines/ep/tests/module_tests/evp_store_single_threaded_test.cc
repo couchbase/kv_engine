@@ -3774,6 +3774,8 @@ TEST_F(SingleThreadedEPBucketTest, Durability_PersistPendings) {
     auto key = makeStoredDocKey("key");
     auto committed = makeCommittedItem(key, "valueA");
     ASSERT_EQ(ENGINE_SUCCESS, store->set(*committed, cookie));
+    const auto& vb = *getEPBucket().getVBucket(vbid);
+    ASSERT_EQ(1, vb.getNumItems());
     auto pending = makePendingItem(key, "valueB");
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
 
@@ -3797,9 +3799,8 @@ TEST_F(SingleThreadedEPBucketTest, Durability_PersistPendings) {
     EXPECT_EQ(0, ckptMgr.getNumItemsForPersistence());
     EXPECT_EQ(0, stats.diskQueueSize);
 
-    // @todo: The item count must not increase when flushing Pending SyncWrites
-    const auto& vb = *getEPBucket().getVBucket(vbid);
-    EXPECT_EQ(2 /*should be 1*/, vb.getNumItems());
+    // The item count must not increase when flushing Pending SyncWrites
+    EXPECT_EQ(1, vb.getNumItems());
 }
 
 TEST_F(SingleThreadedEPBucketTest, Durability_ActiveLocalNotifyPersistedSeqno) {

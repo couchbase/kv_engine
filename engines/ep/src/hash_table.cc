@@ -445,6 +445,7 @@ HashTable::Statistics::StoredValueProperties::StoredValueProperties(
     isDeleted = sv->isDeleted();
     isTempItem = sv->isTempItem();
     isSystemItem = sv->getKey().getCollectionID().isSystem();
+    isPreparedSyncWrite = sv->isPending();
 }
 
 HashTable::Statistics::StoredValueProperties HashTable::Statistics::prologue(
@@ -500,17 +501,25 @@ void HashTable::Statistics::epilogue(StoredValueProperties pre,
         numSystemItems.fetch_add(post.isSystemItem - pre.isSystemItem);
     }
 
+    // numPreparedItems counts valid, prepared (not yet committed) items.
+    const bool prePrepared = pre.isValid && pre.isPreparedSyncWrite;
+    const bool postPrepared = post.isValid && post.isPreparedSyncWrite;
+    if (prePrepared != postPrepared) {
+        numPreparedSyncWrites.fetch_add(postPrepared - prePrepared);
+    }
+
     // Don't include system items in the deleted count, numSystemItems will
     // count both types (a marked deleted system event still has purpose)
     if (pre.isDeleted != post.isDeleted && !post.isSystemItem) {
         numDeletedItems.fetch_add(post.isDeleted - pre.isDeleted);
     }
 
-    // Update datatypes. These are only tracked for non-temp, non-deleted items.
-    if (preNonTemp && !pre.isDeleted) {
+    // Update datatypes. These are only tracked for non-temp, non-deleted,
+    // committed items.
+    if (preNonTemp && !pre.isDeleted && !pre.isPreparedSyncWrite) {
         --datatypeCounts[pre.datatype];
     }
-    if (postNonTemp && !post.isDeleted) {
+    if (postNonTemp && !post.isDeleted && !post.isPreparedSyncWrite) {
         ++datatypeCounts[post.datatype];
     }
 }
@@ -1019,6 +1028,7 @@ std::ostream& operator<<(std::ostream& os, const HashTable& ht) {
        << " numNonResident:" << ht.getNumInMemoryNonResItems()
        << " numTemp:" << ht.getNumTempItems()
        << " numSystemItems:" << ht.getNumSystemItems()
+       << " numPreparedSW:" << ht.getNumPreparedSyncWrites()
        << " values: " << std::endl;
     for (const auto& chain : ht.values) {
         if (chain) {

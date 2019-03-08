@@ -243,8 +243,10 @@ public:
         struct StoredValueProperties {
             StoredValueProperties(const StoredValue* sv);
 
-            // Following members are set to the equivilent property of the
-            // // given StoredValue.
+            // Following members are set to the equivalent property of the
+            // given StoredValue.
+            // Default values are such that a default-constructed object is
+            // equivlent to a non-existent SV.
             int size = 0;
             int metaDataSize = 0;
             int uncompressedSize = 0;
@@ -254,6 +256,7 @@ public:
             bool isDeleted = false;
             bool isTempItem = false;
             bool isSystemItem = false;
+            bool isPreparedSyncWrite = false;
         };
 
         /**
@@ -317,6 +320,10 @@ public:
             return numSystemItems;
         }
 
+        size_t getNumPreparedSyncWrites() const {
+            return numPreparedSyncWrites;
+        }
+
         DatatypeCombo getDatatypeCounts() const {
             return datatypeCounts;
         }
@@ -354,9 +361,13 @@ public:
         /// Count of items where StoredValue resides in system namespace
         cb::NonNegativeCounter<size_t> numSystemItems;
 
+        /// Count of items where StoredValue is a prepared SyncWrite.
+        cb::NonNegativeCounter<size_t> numPreparedSyncWrites;
+
         /**
          * Number of documents of a given datatype. Includes alive
-         * (non-deleted), documents in the HashTable.
+         * (non-deleted), committed documents in the HashTable.
+         * (Prepared documents are not counted).
          * For value eviction includes resident & non-resident items (as the
          * datatype is part of the metadata), for full-eviction will only
          * include resident items.
@@ -483,6 +494,10 @@ public:
 
     size_t getNumSystemItems() const {
         return valueStats.getNumSystemItems();
+    }
+
+    size_t getNumPreparedSyncWrites() const {
+        return valueStats.getNumPreparedSyncWrites();
     }
 
     /**

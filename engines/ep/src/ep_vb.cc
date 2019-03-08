@@ -266,9 +266,16 @@ void EPVBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) {
 size_t EPVBucket::getNumItems() const {
     if (eviction == VALUE_ONLY) {
         return ht.getNumInMemoryItems() -
-               (ht.getNumDeletedItems() + ht.getNumSystemItems());
+               (ht.getNumDeletedItems() + ht.getNumSystemItems() +
+                ht.getNumPreparedSyncWrites());
     } else {
-        return onDiskTotalItems;
+        // onDiskTotalItems includes everything not deleted (including
+        // Prepared SyncWrites).
+        // We don't want to report prepared as part of getNumItems -
+        // fortunately prepared SyncWrites are always resident in the HashTable
+        // (they are not permitted to be evicted). Therefore subtract from
+        // on-disk total.
+        return onDiskTotalItems - ht.getNumPreparedSyncWrites();
     }
 }
 

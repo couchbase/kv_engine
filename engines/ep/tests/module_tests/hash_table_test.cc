@@ -360,6 +360,7 @@ protected:
         EXPECT_EQ(0, ht.getNumTempItems());
         EXPECT_EQ(0, ht.getNumDeletedItems());
         EXPECT_EQ(0, ht.getNumSystemItems());
+        EXPECT_EQ(0, ht.getNumPreparedSyncWrites());
         for (const auto& count : ht.getDatatypeCounts()) {
             EXPECT_EQ(0, count);
         }
@@ -380,6 +381,7 @@ protected:
         EXPECT_EQ(0, ht.getNumTempItems());
         EXPECT_EQ(0, ht.getNumDeletedItems());
         EXPECT_EQ(0, ht.getNumSystemItems());
+        EXPECT_EQ(0, ht.getNumPreparedSyncWrites());
         for (const auto& datatypeCount : ht.getDatatypeCounts()) {
             EXPECT_EQ(0, datatypeCount);
         }
@@ -685,6 +687,53 @@ TEST_P(HashTableStatsTest, UncompressedMemorySizeTest) {
 
     EXPECT_EQ(0, ht.getNumItems());
     EXPECT_EQ(0, ht.getUncompressedItemMemory());
+}
+
+TEST_P(HashTableStatsTest, SystemEventItem) {
+    HashTable ht(global_stats, makeFactory(true), 128, 1);
+    StoredDocKey key("key", CollectionID::System);
+    store(ht, key);
+    EXPECT_EQ(1, ht.getNumSystemItems());
+
+    EXPECT_TRUE(del(ht, key));
+}
+
+TEST_P(HashTableStatsTest, PreparedSyncWrite) {
+    // Setup
+    HashTable ht(global_stats, makeFactory(true), 128, 1);
+    auto prepared = makePendingItem(key, "prepared");
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*prepared));
+
+    // Test
+    EXPECT_EQ(1, ht.getNumPreparedSyncWrites());
+    EXPECT_EQ(1, ht.getNumItems());
+    for (const auto& count : ht.getDatatypeCounts()) {
+        EXPECT_EQ(0, count);
+    }
+
+    // Cleanup
+    EXPECT_TRUE(del(ht, key));
+}
+
+/// Store a prepared SyncWrite, commit it and check counts.
+TEST_P(HashTableStatsTest, CommittedSyncWrite) {
+    // Setup
+    HashTable ht(global_stats, makeFactory(true), 128, 1);
+    auto prepared = makePendingItem(key, "prepared");
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*prepared));
+    { // locking scope.
+        auto result = ht.findForWrite(key);
+        ASSERT_TRUE(result.storedValue);
+        ht.commit(result.lock, *result.storedValue);
+    }
+
+    // Test
+    EXPECT_EQ(0, ht.getNumPreparedSyncWrites());
+    EXPECT_EQ(1, ht.getNumItems());
+    EXPECT_EQ(1, ht.getDatatypeCounts()[prepared->getDataType()]);
+
+    // Cleanup
+    EXPECT_TRUE(del(ht, key));
 }
 
 INSTANTIATE_TEST_CASE_P(ValueAndFullEviction,
@@ -1045,13 +1094,4 @@ TEST_F(HashTableTest, ItemFreqDecayerVisitorTest) {
            uint16_t expectVal = ii * 0.5;
            EXPECT_EQ(expectVal, v->getFreqCounterValue());
        }
-}
-
-TEST_F(HashTableTest, SystemEventItem) {
-    HashTable ht(global_stats, makeFactory(true), 128, 1);
-    StoredDocKey key("key", CollectionID::System);
-    store(ht, key);
-    EXPECT_EQ(1, ht.getNumSystemItems());
-    EXPECT_TRUE(del(ht, key));
-    EXPECT_EQ(0, ht.getNumSystemItems());
 }

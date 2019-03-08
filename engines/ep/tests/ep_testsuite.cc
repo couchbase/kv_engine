@@ -6582,6 +6582,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "vb_0:num_ejects",
               "vb_0:num_items",
               "vb_0:num_non_resident",
+              "vb_0:num_prepared_sync_writes",
               "vb_0:num_temp_items",
               "vb_0:ops_create",
               "vb_0:ops_delete",

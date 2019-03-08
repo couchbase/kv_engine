@@ -80,7 +80,8 @@ EphemeralVBucket::EphemeralVBucket(
 
 size_t EphemeralVBucket::getNumItems() const {
     return ht.getNumInMemoryItems() -
-           (ht.getNumDeletedItems() + ht.getNumSystemItems());
+           (ht.getNumDeletedItems() + ht.getNumSystemItems() +
+            ht.getNumPreparedSyncWrites());
 }
 
 size_t EphemeralVBucket::getNumSystemItems() const {

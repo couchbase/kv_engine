@@ -745,7 +745,7 @@ public:
         return static_cast<DeleteSource>(deletionSource);
     }
 
-    /// Returns if the StoredItem is pending or committed.
+    /// Returns if the stored value is pending or committed.
     CommittedState getCommitted() const {
         return static_cast<CommittedState>(committed);
     }
@@ -753,6 +753,19 @@ public:
     /// Sets the Committed state of the SV to the specified value.
     void setCommitted(CommittedState value) {
         committed = static_cast<uint8_t>(value);
+    }
+
+    /// Returns if the stored value is a Pending SyncWrite
+    bool isPending() const {
+        return getCommitted() == CommittedState::Pending;
+    }
+
+    /**
+     * Returns true if the stored value is Committed (ViaMutation or
+     * ViaPrepare).
+     */
+    bool isCommitted() const {
+        return !isPending();
     }
 
 protected:
