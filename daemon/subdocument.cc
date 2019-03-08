@@ -88,14 +88,13 @@ static void subdoc_print_command(Connection& c,
                                  true,
                                  to_string(cb::mcbp::ClientOpcode(cmd)).c_str(),
                                  key,
-                                 keylen) != -1) &&
+                                 keylen)) &&
         (buf_to_printable_buffer(
-                 clean_path, sizeof(clean_path), path, pathlen) != -1)) {
+                clean_path, sizeof(clean_path), path, pathlen))) {
         // print key, path & value if there is a value.
-        if ((vallen > 0)
-                        && (buf_to_printable_buffer(clean_value,
-                                                    sizeof(clean_value), value,
-                                                    vallen) != -1)) {
+        if ((vallen > 0) &&
+            (buf_to_printable_buffer(
+                    clean_value, sizeof(clean_value), value, vallen))) {
             LOG_DEBUG("{} path:'{}' value:'{}'",
                       cb::UserDataView(clean_key),
                       cb::UserDataView(clean_path),

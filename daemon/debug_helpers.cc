@@ -23,9 +23,10 @@
 #include <cstdio>
 #include <stdexcept>
 
-ssize_t buf_to_printable_buffer(char *dest, size_t destsz,
-                                const char *src, size_t srcsz)
-{
+bool buf_to_printable_buffer(char* dest,
+                             size_t destsz,
+                             const char* src,
+                             size_t srcsz) {
     char *ptr = dest;
     // Constrain src if dest cannot hold it all.
     srcsz = std::min(srcsz, destsz - 1);
@@ -39,13 +40,16 @@ ssize_t buf_to_printable_buffer(char *dest, size_t destsz,
     }
 
     *ptr = '\0';
-    return (ssize_t)(ptr - dest);
+    return true;
 }
 
-ssize_t key_to_printable_buffer(char *dest, size_t destsz, uint32_t client,
-                                bool from_client, const char *prefix,
-                                const char *key, size_t nkey)
-{
+bool key_to_printable_buffer(char* dest,
+                             size_t destsz,
+                             uint32_t client,
+                             bool from_client,
+                             const char* prefix,
+                             const char* key,
+                             size_t nkey) {
     try {
         ssize_t nw = checked_snprintf(dest,
                                       destsz,
@@ -57,15 +61,17 @@ ssize_t key_to_printable_buffer(char *dest, size_t destsz, uint32_t client,
         destsz -= nw;
         return buf_to_printable_buffer(ptr, destsz, key, nkey);
     } catch (const std::overflow_error&) {
-        return -1;
+        return false;
     }
 }
 
-ssize_t bytes_to_output_string(char *dest, size_t destsz,
-                               uint32_t client, bool from_client,
-                               const char *prefix, const char *data,
-                               size_t size)
-{
+bool bytes_to_output_string(char* dest,
+                            size_t destsz,
+                            uint32_t client,
+                            bool from_client,
+                            const char* prefix,
+                            const char* data,
+                            size_t size) {
     try {
         ssize_t offset = checked_snprintf(dest,
                                           destsz,
@@ -88,10 +94,10 @@ ssize_t bytes_to_output_string(char *dest, size_t destsz,
                                        (unsigned char)data[ii]);
         }
 
-        offset += checked_snprintf(dest + offset, destsz - offset, "\n");
+        checked_snprintf(dest + offset, destsz - offset, "\n");
 
-        return offset;
+        return true;
     } catch (const std::overflow_error&) {
-        return -1;
+        return false;
     }
 }

@@ -357,7 +357,7 @@ cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
                             clean_key,
                             sizeof(clean_key),
                             reinterpret_cast<const char*>(info.key.data()),
-                            info.key.size()) != -1) {
+                            info.key.size())) {
                     LOG_WARNING(
                             "<{} ERROR: Failed to determine inflated body"
                             " size. Key: '{}' may have an "

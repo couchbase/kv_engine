@@ -21,10 +21,8 @@
 
 #pragma once
 
-#include "config.h"
-
-#include <platform/platform.h>
-#include <sys/types.h>
+#include <cstddef>
+#include <cstdint>
 
 /* Insert a char* into a buffer, but replace all non-printable characters with
  * a '.'
@@ -33,10 +31,12 @@
  * @param destsz size of destination buffer
  * @param src the string to add to the buffer
  * @param srcsz the number of bytes in src
- * @return number of bytes in dest if success, -1 otherwise
+ * @return true if success, false otherwise
  */
-ssize_t buf_to_printable_buffer(char *dest, size_t destsz,
-                                const char *src, size_t srcsz);
+bool buf_to_printable_buffer(char* dest,
+                             size_t destsz,
+                             const char* src,
+                             size_t srcsz);
 
 /**
  * Insert a key into a buffer, but replace all non-printable characters
@@ -49,11 +49,15 @@ ssize_t buf_to_printable_buffer(char *dest, size_t destsz,
  * @param from_client set to true if this data is from the client
  * @param key the key to add to the buffer
  * @param nkey the number of bytes in the key
- * @return number of bytes in dest if success, -1 otherwise
+ * @return true if success, false otherwise
  */
-ssize_t key_to_printable_buffer(char *dest, size_t destsz, uint32_t client,
-                                bool from_client, const char *prefix,
-                                const char *key, size_t nkey);
+bool key_to_printable_buffer(char* dest,
+                             size_t destsz,
+                             uint32_t client,
+                             bool from_client,
+                             const char* prefix,
+                             const char* key,
+                             size_t nkey);
 
 /**
  * Convert a byte array to a text string
@@ -65,10 +69,12 @@ ssize_t key_to_printable_buffer(char *dest, size_t destsz, uint32_t client,
  * @param from_client set to true if this data is from the client
  * @param data the data to add to the buffer
  * @param size the number of bytes in data to print
- * @return number of bytes in dest if success, -1 otherwise
+ * @return true if success, false otherwise
  */
-ssize_t bytes_to_output_string(char *dest, size_t destsz,
-                               uint32_t client, bool from_client,
-                               const char *prefix, const char *data,
-                               size_t size);
-
+bool bytes_to_output_string(char* dest,
+                            size_t destsz,
+                            uint32_t client,
+                            bool from_client,
+                            const char* prefix,
+                            const char* data,
+                            size_t size);
