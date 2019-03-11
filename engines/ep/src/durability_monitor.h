@@ -233,7 +233,7 @@ protected:
      * @return single-element list of the removed SyncWrite.
      */
     Container removeSyncWrite(const std::lock_guard<std::mutex>& lg,
-                              const Container::iterator& it);
+                              Container::iterator it);
 
     /**
      * Commit the given SyncWrite.

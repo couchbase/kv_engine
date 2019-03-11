@@ -670,15 +670,12 @@ DurabilityMonitor::NodeSeqnos DurabilityMonitor::getNodeAckSeqnos(
 }
 
 DurabilityMonitor::Container DurabilityMonitor::removeSyncWrite(
-        const std::lock_guard<std::mutex>& lg, const Container::iterator& it) {
+        const std::lock_guard<std::mutex>& lg, Container::iterator it) {
     if (it == state.trackedWrites.end()) {
         throw std::logic_error(
                 "DurabilityMonitor::commit: Position points to end");
     }
 
-    // Note that Position.seqno stays set to the original value. That way we
-    // keep the replica seqno-state even after the SyncWrite is removed.
-    auto removeSeqno = it->getBySeqno();
     Container::iterator prev;
     // Note: iterators in state.trackedWrites are never singular, Container::end
     //     is used as placeholder element for when an iterator cannot point to
@@ -689,29 +686,24 @@ DurabilityMonitor::Container DurabilityMonitor::removeSyncWrite(
         prev = std::prev(it);
     }
 
-    Container removed;
-    removed.splice(removed.end(), state.trackedWrites, it);
-
     // Removing the element at 'it' from trackedWrites invalidates any
     // iterator that points to that element. So, we have to reposition the
-    // invalidated iterators after the removal.
-    // Note: The following will pick up also 'it' itself if 'it' is a
-    //     ReplicationChain iterator. 'it' will stay invalidated otherwise.
+    // invalidated iterators before proceeding with the removal.
+    //
     // Note: O(N) with N=<number of iterators>, max(N)=12
     //     (max 2 chains, 3 replicas, 2 iterators per replica)
     for (const auto& entry : state.firstChain->positions) {
         const auto& nodePos = entry.second;
-        if (nodePos.memory.lastWriteSeqno == removeSeqno) {
-            const auto& pos = nodePos.memory;
-            const_cast<Position&>(pos).it = prev;
-            Ensures(pos.lastWriteSeqno == removeSeqno);
+        if (nodePos.memory.it == it) {
+            const_cast<Position&>(nodePos.memory).it = prev;
         }
-        if (nodePos.disk.lastWriteSeqno == removeSeqno) {
-            const auto& pos = nodePos.disk;
-            const_cast<Position&>(pos).it = prev;
-            Ensures(pos.lastWriteSeqno == removeSeqno);
+        if (nodePos.disk.it == it) {
+            const_cast<Position&>(nodePos.disk).it = prev;
         }
     }
+
+    Container removed;
+    removed.splice(removed.end(), state.trackedWrites, it);
 
     return removed;
 }

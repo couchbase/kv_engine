@@ -91,6 +91,20 @@ MutationStatus DurabilityMonitorTest::processSet(Item& item) {
             .first;
 }
 
+void DurabilityMonitorTest::assertNodeMemTracking(const std::string& node,
+                                                  uint64_t lastWriteSeqno,
+                                                  uint64_t lastAckSeqno) {
+    ASSERT_EQ(lastWriteSeqno, monitor->public_getNodeWriteSeqnos(node).memory);
+    ASSERT_EQ(lastAckSeqno, monitor->public_getNodeAckSeqnos(node).memory);
+}
+
+void DurabilityMonitorTest::assertNodeDiskTracking(const std::string& node,
+                                                   uint64_t lastWriteSeqno,
+                                                   uint64_t lastAckSeqno) {
+    ASSERT_EQ(lastWriteSeqno, monitor->public_getNodeWriteSeqnos(node).disk);
+    ASSERT_EQ(lastAckSeqno, monitor->public_getNodeAckSeqnos(node).disk);
+}
+
 TEST_F(DurabilityMonitorTest, AddSyncWrite) {
     EXPECT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
 }
@@ -503,4 +517,86 @@ TEST_F(DurabilityMonitorTest, MajorityAndPersistActive) {
     // Check that the disk-tracking for Active has been updated correctly
     EXPECT_EQ(5, monitor->public_getNodeWriteSeqnos(active).disk);
     EXPECT_EQ(diskAckSeqno, monitor->public_getNodeAckSeqnos(active).disk);
+}
+
+/*
+ * MB-33276: ReplicationChain iterators may stay invalid at Out-of-Order Commit.
+ * That may lead to SEGFAULT as soon as an invalid iterator is processed.
+ * Note that dereferencing/moving and invalid iterator is undefined behaviour,
+ * so the way we crash is not deterministic.
+ */
+TEST_F(DurabilityMonitorTest, DontInvalidateIteratorsAtOutOfOrderCommit) {
+    ASSERT_NO_THROW(
+            addSyncWrite(1, {cb::durability::Level::PersistToMajority, 0}));
+    ASSERT_NO_THROW(addSyncWrite(2, {cb::durability::Level::Majority, 0}));
+
+    /*
+     * End        s1(P)        s2(M)
+     * ^^
+     * A(m)/A(d)
+     * ^^
+     * R(m)/R(d)
+     */
+
+    ASSERT_EQ(2, monitor->public_getNumTracked());
+    assertNodeMemTracking(active, 2 /*lastWriteSeqno*/, 2 /*lastAckSeqno*/);
+    assertNodeDiskTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    assertNodeMemTracking(replica, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    assertNodeDiskTracking(replica, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+
+    // Replica acks memSeqno:2
+    ASSERT_EQ(ENGINE_SUCCESS,
+              monitor->seqnoAckReceived(
+                      replica, 2 /*memSeqno*/, 0 /*diskSeqno*/));
+
+    /*
+     * End        s1(P)        x
+     * ^          ^
+     * A(d)       A(m)
+     * ^          ^
+     * R(d)       R(m)
+     */
+
+    ASSERT_EQ(1, monitor->public_getNumTracked());
+    assertNodeMemTracking(active, 2 /*lastWriteSeqno*/, 2 /*lastAckSeqno*/);
+    assertNodeDiskTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    assertNodeMemTracking(replica, 2 /*lastWriteSeqno*/, 2 /*lastAckSeqno*/);
+    assertNodeDiskTracking(replica, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+
+    // Simulate the Flusher that notifies the local DurabilityMonitor after
+    // persistence
+    vb->setPersistenceSeqno(1);
+    monitor->notifyLocalPersistence();
+
+    ASSERT_EQ(1, monitor->public_getNumTracked());
+    assertNodeMemTracking(active, 2 /*lastWriteSeqno*/, 2 /*lastAckSeqno*/);
+    assertNodeDiskTracking(active, 1 /*lastWriteSeqno*/, 1 /*lastAckSeqno*/);
+    assertNodeMemTracking(replica, 2 /*lastWriteSeqno*/, 2 /*lastAckSeqno*/);
+    assertNodeDiskTracking(replica, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+
+    // Replica acks diskSeqno:1
+    ASSERT_EQ(ENGINE_SUCCESS,
+              monitor->seqnoAckReceived(
+                      replica, 2 /*memSeqno*/, 1 /*diskSeqno*/));
+
+    /*
+     * This is what happens before the fix (A(m) and R(m) stay invalid rather
+     * than being repositioned to End):
+     *
+     * End        x        x
+     * ^          ^
+     * A(d)       A(m)
+     * ^          ^
+     * R(d)       R(m)
+     */
+
+    ASSERT_EQ(0, monitor->public_getNumTracked());
+    assertNodeMemTracking(active, 2 /*lastWriteSeqno*/, 2 /*lastAckSeqno*/);
+    assertNodeDiskTracking(active, 1 /*lastWriteSeqno*/, 1 /*lastAckSeqno*/);
+    assertNodeMemTracking(replica, 2 /*lastWriteSeqno*/, 2 /*lastAckSeqno*/);
+    assertNodeDiskTracking(replica, 1 /*lastWriteSeqno*/, 1 /*lastAckSeqno*/);
+
+    // This crashes with SEGFAULT before the fix (caused by processing the
+    // invalid A(m) iterator)
+    addSyncWrite(10 /*seqno*/);
 }

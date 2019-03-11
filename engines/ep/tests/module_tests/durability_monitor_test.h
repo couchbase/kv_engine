@@ -89,6 +89,28 @@ protected:
      */
     MutationStatus processSet(Item& item);
 
+    /**
+     * Check the memory tracking for the given node
+     *
+     * @param node
+     * @param lastWriteSeqno The highest SyncWrite seqno pointed by tracking
+     * @param lastAckSeqno The last seqno acked by node
+     */
+    void assertNodeMemTracking(const std::string& node,
+                               uint64_t lastWriteSeqno,
+                               uint64_t lastAckSeqno);
+
+    /**
+     * Check the disk tracking for the given node
+     *
+     * @param node
+     * @param lastWriteSeqno The highest SyncWrite seqno pointed by tracking
+     * @param lastAckSeqno The last seqno acked by node
+     */
+    void assertNodeDiskTracking(const std::string& node,
+                                uint64_t lastWriteSeqno,
+                                uint64_t lastAckSeqno);
+
     // Owned by KVBucket
     VBucket* vb;
     // Owned by VBucket
