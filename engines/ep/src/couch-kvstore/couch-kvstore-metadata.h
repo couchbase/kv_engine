@@ -21,8 +21,8 @@
 #include <type_traits>
 
 #include "item.h"
+#include <folly/lang/Assume.h>
 #include <libcouchstore/couch_common.h>
-#include <memcached/3rd_party/folly/lang/Assume.h>
 #include <memcached/protocol_binary.h>
 
 // Bitwise masks for manipulating the flexCode variable inside MetaDataV1

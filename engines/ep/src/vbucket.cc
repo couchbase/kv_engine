@@ -38,7 +38,7 @@
 #include "vbucket.h"
 #include "vbucketdeletiontask.h"
 
-#include <memcached/3rd_party/folly/lang/Assume.h>
+#include <folly/lang/Assume.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/server_document_iface.h>
 #include <platform/compress.h>

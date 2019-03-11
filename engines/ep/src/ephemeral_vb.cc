@@ -28,7 +28,7 @@
 #include "stored_value_factories.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucketdeletiontask.h"
-#include <memcached/3rd_party/folly/lang/Assume.h>
+#include <folly/lang/Assume.h>
 
 EphemeralVBucket::EphemeralVBucket(
         Vbid i,
