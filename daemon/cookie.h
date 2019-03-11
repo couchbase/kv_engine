@@ -30,6 +30,7 @@
 // Forward decls
 class Connection;
 class CommandContext;
+struct CookieTraceContext;
 namespace cb {
 namespace mcbp {
 class Header;
@@ -481,9 +482,22 @@ public:
 
     void setOpenTracingContext(cb::const_byte_buffer context);
 
-    const std::string& getOpenTracingContext() const {
-        return openTracingContext;
+    /**
+     * Is OpenTracing enabled for this cookie or not. By querying the
+     * cookie we don't have to read the atomic on/off switch unless
+     * people try to set the OpenTracing context in the command.
+     */
+    bool isOpenTracingEnabled() const {
+        return !openTracingContext.empty();
     }
+
+    /**
+     * Extract the trace context.
+     * This method moves the tracer, OpenTracing context into
+     * a newly created TraceContext object which may be passed to the
+     * OpenTracing module and handled asynchronously
+     */
+    CookieTraceContext extractTraceContext();
 
 protected:
     bool enableTracing = false;

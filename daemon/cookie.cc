@@ -16,8 +16,10 @@
  */
 
 #include "cookie.h"
+
 #include "buckets.h"
 #include "connection.h"
+#include "cookie_trace_context.h"
 #include "mcbp.h"
 #include "mcbp_executors.h"
 #include "settings.h"
@@ -523,4 +525,20 @@ void Cookie::setOpenTracingContext(cb::const_byte_buffer context) {
     } catch (const std::bad_alloc&) {
         // Drop tracing if we run out of memory
     }
+}
+
+CookieTraceContext Cookie::extractTraceContext() {
+    if (openTracingContext.empty()) {
+        throw std::logic_error(
+                "Cookie::extractTraceContext should only be called if we have "
+                "a context");
+    }
+
+    auto& header = getHeader();
+    return CookieTraceContext{cb::mcbp::Magic(header.getMagic()),
+                              header.getOpcode(),
+                              header.getOpaque(),
+                              header.getKey(),
+                              std::move(openTracingContext),
+                              std::move(tracer)};
 }

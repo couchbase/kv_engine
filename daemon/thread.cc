@@ -9,6 +9,7 @@
 #include "front_end_thread.h"
 #include "log_macros.h"
 #include "memcached.h"
+#include "opentracing.h"
 #include "settings.h"
 #include "stats.h"
 #include "timing_histogram.h"

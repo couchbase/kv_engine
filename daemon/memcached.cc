@@ -2503,7 +2503,6 @@ extern "C" int memcached_main(int argc, char **argv) {
     event_base_free(main_base);
 
     if (OpenTracing::isEnabled()) {
-        LOG_INFO("Shutting down OpenTracing");
         OpenTracing::shutdown();
     }
 

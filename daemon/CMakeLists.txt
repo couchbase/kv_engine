@@ -26,6 +26,7 @@ ADD_LIBRARY(memcached_daemon STATIC
             cluster_config.h
             cmdline.cc
             cmdline.h
+            cookie_trace_context.h
             client_cert_config.cc
             client_cert_config.h
             config_parse.cc

@@ -18,6 +18,7 @@
 
 #include "buckets.h"
 #include "cookie.h"
+#include "cookie_trace_context.h"
 #include "memcached.h"
 #include "opentracing.h"
 #include "settings.h"
@@ -257,7 +258,6 @@ void mcbp_collect_timings(Cookie& cookie) {
     const auto endTime = std::chrono::steady_clock::now();
     const auto elapsed = endTime - cookie.getStart();
     cookie.getTracer().end(cb::tracing::TraceCode::REQUEST, endTime);
-    OpenTracing::pushTraceLog(cookie);
 
     // aggregated timing for all buckets
     all_buckets[0].timings.collect(opcode, elapsed);
@@ -274,4 +274,8 @@ void mcbp_collect_timings(Cookie& cookie) {
 
     // Log operations taking longer than the "slow" threshold for the opcode.
     cookie.maybeLogSlowCommand(elapsed);
+
+    if (cookie.isOpenTracingEnabled()) {
+        OpenTracing::pushTraceLog(std::move(cookie.extractTraceContext()));
+    }
 }

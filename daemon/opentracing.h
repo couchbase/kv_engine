@@ -22,7 +22,7 @@
 #include <opentracing/dynamic_load.h>
 #endif
 
-class Cookie;
+class CookieTraceContext;
 class OpenTracingConfig;
 
 /**
@@ -34,6 +34,8 @@ class OpenTracingConfig;
  */
 class OpenTracing {
 public:
+    virtual ~OpenTracing() = default;
+
     /**
      * Update the OpenTracing instance with the provided configuration.
      *
@@ -45,18 +47,12 @@ public:
      * Shut down the tracer and release all allocated resources.
      * Using the object after shutdown results in undefined behavior
      */
-    static void shutdown() {
-        instance.reset();
-    }
+    static void shutdown();
 
     /**
-     * Push the trace info for the cookie to OpenTracing
+     * Push the trace to the OpenTracing module
      */
-    static void pushTraceLog(const Cookie& cookie) {
-        if (isEnabled()) {
-            instance->push(cookie);
-        }
-    }
+    static void pushTraceLog(CookieTraceContext&& context);
 
     /**
      * Is OpenTracing configured (and enabled). If built without
@@ -85,7 +81,7 @@ public:
 
 protected:
     static std::unique_ptr<OpenTracing> instance;
-    void push(const Cookie& cookie);
+    virtual void push(CookieTraceContext& context) = 0;
 
 #ifdef ENABLE_OPENTRACING
     static std::atomic_bool enabled;
