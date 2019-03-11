@@ -5472,8 +5472,8 @@ public:
 
     void callback(const DiskDocKey& key) {
         auto outKey = key.getDocKey();
-        if (outKey.getCollectionID() == CollectionID::System) {
-            // Skip system collection keys
+        if (outKey.isPrivate() || key.isPrepared()) {
+            // Skip system-event and durability-prepared keys
             return;
         }
 

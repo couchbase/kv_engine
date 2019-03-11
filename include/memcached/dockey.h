@@ -92,6 +92,10 @@ public:
         return value == System;
     }
 
+    bool isDurabilityPrepare() const {
+        return value == DurabilityPrepare;
+    }
+
     /// Get network byte order of the value
     CollectionIDNetworkOrder to_network() const;
 
@@ -308,6 +312,12 @@ struct DocKey : DocKeyInterface<DocKey> {
     }
 
     CollectionID getCollectionID() const;
+
+    /// Certain key prefixes are internal and not to be seen
+    bool isPrivate() const {
+        auto id = getCollectionID();
+        return id.isSystem() || id.isDurabilityPrepare();
+    }
 
     DocKeyEncodesCollectionId getEncoding() const {
         return encoding;
