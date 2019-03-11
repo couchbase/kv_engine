@@ -4141,22 +4141,18 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h) {
             get_int_stat(h, "ep_total_enqueued"),
             "Should have additional item enqueued after store");
     int kv_size = get_int_stat(h, "ep_kv_size");
-    int mem_used = get_int_stat(h, "mem_used");
 
     // Evict the data.
     evict_key(h, "k1");
 
     int kv_size2 = get_int_stat(h, "ep_kv_size");
-    int mem_used2 = get_int_stat(h, "mem_used");
 
     checkgt(kv_size, kv_size2, "kv_size should have decreased after eviction");
-    checkgt(mem_used, mem_used2, "mem_used should have decreased after eviction");
 
     // Reload the data.
     check_key_value(h, "k1", "some value", 10);
 
     int kv_size3 = get_int_stat(h, "ep_kv_size");
-    int mem_used3 = get_int_stat(h, "mem_used");
 
     checkeq(1,
             get_int_stat(h, "ep_bg_fetched"),
@@ -4167,8 +4163,6 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h) {
 
     checkeq(kv_size, kv_size3,
             "kv_size should have returned to initial value after restoring evicted item");
-    checkle(mem_used, mem_used3,
-            "mem_used should have returned to initial value (or less) after restoring evicted item");
 
     itemsRemoved = get_int_stat(h, "ep_items_rm_from_checkpoints");
     // Delete the value and make sure things return correctly.
