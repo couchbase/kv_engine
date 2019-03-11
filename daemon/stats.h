@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "timing_histogram.h"
-
 #include "listening_port.h"
 
 #include <relaxed_atomic.h>

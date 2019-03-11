@@ -22,6 +22,7 @@
 #include <daemon/mcbp.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/request.h>
+#include <utilities/hdrhistogram.h>
 
 /**
  * Get the timing histogram for the specified bucket if we've got access
@@ -34,7 +35,7 @@
  *         and the second being the histogram (only valid if the first
  *         parameter is ENGINE_SUCCESS)
  */
-static std::pair<ENGINE_ERROR_CODE, TimingHistogram> get_timings(
+static std::pair<ENGINE_ERROR_CODE, HdrMicroSecHistogram> get_timings(
         Cookie& cookie, const Bucket& bucket, uint8_t opcode) {
     // Don't creata a new privilege context if the one we've got is for the
     // connected bucket:
@@ -43,7 +44,7 @@ static std::pair<ENGINE_ERROR_CODE, TimingHistogram> get_timings(
         auto ret = mcbp::checkPrivilege(cookie,
                                         cb::rbac::Privilege::SimpleStats);
         if (ret != ENGINE_SUCCESS) {
-            return std::make_pair(ENGINE_EACCESS, TimingHistogram{});
+            return std::make_pair(ENGINE_EACCESS, HdrMicroSecHistogram{});
         }
     } else {
         // Check to see if we've got access to the bucket
@@ -61,12 +62,18 @@ static std::pair<ENGINE_ERROR_CODE, TimingHistogram> get_timings(
         }
 
         if (!access) {
-            return std::make_pair(ENGINE_EACCESS, TimingHistogram{});
+            return std::make_pair(ENGINE_EACCESS, HdrMicroSecHistogram{});
         }
     }
 
-    return std::make_pair(ENGINE_SUCCESS,
-                          bucket.timings.get_timing_histogram(opcode));
+    auto* histo = bucket.timings.get_timing_histogram(opcode);
+    if (histo) {
+        return std::make_pair(ENGINE_SUCCESS, *histo);
+    } else {
+        // histogram for this opcode hasn't been created yet so just
+        // return an histogram with no data in it
+        return std::make_pair(ENGINE_SUCCESS, HdrMicroSecHistogram{});
+    }
 }
 
 /**
@@ -80,17 +87,18 @@ static std::pair<ENGINE_ERROR_CODE, TimingHistogram> get_timings(
  * @param opcode The opcode we're interested in
  * @param bucketname The name of the bucket we want
  */
-static std::pair<ENGINE_ERROR_CODE, TimingHistogram> maybe_get_timings(
-    Cookie& cookie, const Bucket& bucket, uint8_t opcode, const std::string& bucketname) {
-
-    std::pair<ENGINE_ERROR_CODE, TimingHistogram> ret = std::make_pair(ENGINE_KEY_ENOENT, TimingHistogram{});
+static std::pair<ENGINE_ERROR_CODE, HdrMicroSecHistogram> maybe_get_timings(
+        Cookie& cookie,
+        const Bucket& bucket,
+        uint8_t opcode,
+        const std::string& bucketname) {
     std::lock_guard<std::mutex> guard(bucket.mutex);
     if (bucket.type != Bucket::Type::NoBucket &&
         bucket.state == Bucket::State::Ready && bucketname == bucket.name) {
-        ret = get_timings(cookie, bucket, opcode);
+        return get_timings(cookie, bucket, opcode);
+    } else {
+        return std::make_pair(ENGINE_KEY_ENOENT, HdrMicroSecHistogram{});
     }
-
-    return ret;
 }
 
 /**
@@ -99,7 +107,7 @@ static std::pair<ENGINE_ERROR_CODE, TimingHistogram> maybe_get_timings(
  */
 static std::pair<ENGINE_ERROR_CODE, std::string> get_aggregated_timings(
         Cookie& cookie, uint8_t opcode) {
-    TimingHistogram timings;
+    HdrMicroSecHistogram timings;
     bool found = false;
 
     for (auto& bucket : all_buckets) {
@@ -147,7 +155,7 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_cmd_timer(Cookie& cookie) {
     }
 
     // The user specified a bucket... let's locate the bucket
-    std::pair<ENGINE_ERROR_CODE, TimingHistogram> ret;
+    std::pair<ENGINE_ERROR_CODE, HdrMicroSecHistogram> ret;
 
     for (auto& b : all_buckets) {
         ret = maybe_get_timings(cookie, b, opcode, bucket);

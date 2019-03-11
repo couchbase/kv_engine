@@ -23,8 +23,10 @@
 #include <platform/string_hex.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
+#include <utilities/json_utilities.h>
 #include <utilities/terminate_handler.h>
 
+#include <inttypes.h>
 #include <strings.h>
 #include <array>
 #include <cstdlib>
@@ -33,13 +35,6 @@
 #include <stdexcept>
 
 #define JSON_DUMP_INDENT_SIZE 4
-
-// A single bin of a histogram. Holds the raw count and cumulative total (to
-// allow percentile to be calculated).
-struct Bin {
-    uint32_t count = 0;
-    uint64_t cumulative_count = 0;
-};
 
 class Timings {
 public:
@@ -51,172 +46,132 @@ public:
         return total;
     }
 
-    void dumpHistogram(const std::string &opcode)
-    {
-        std::cout << "The following data is collected for \""
-                  << opcode << "\"" << std::endl;
+    void dumpHistogram(const std::string& opcode) {
+        if (data.is_null()) {
+            return;
+        }
+        std::cout << "The following data is collected for \"" << opcode << "\""
+                  << std::endl;
 
-        uint32_t ii;
+        auto dataArray = data.get<std::vector<std::vector<nlohmann::json>>>();
+        for (auto item : dataArray) {
+            auto count = item[1].get<uint64_t>();
+            if (count > maxCount) {
+                maxCount = count;
+            }
+        }
+        using namespace std::chrono;
 
-        dump("ns", 0, 999, ns);
-        for (ii = 0; ii < 100; ++ii) {
-            dump("us", ii * 10, ((ii + 1) * 10 - 1), us[ii]);
+        // loop though all the buckets in the json object and print them
+        // to std out
+        uint64_t lastBuckLow = bucketsLow;
+        for (auto bucket : dataArray) {
+            // Get the current bucket's highest value it would track counts for
+            auto buckHigh = bucket[0].get<uint64_t>();
+            // Get the counts for this bucket
+            auto count = bucket[1].get<uint64_t>();
+            // Get the percentile of counts that are <= buckHigh
+            auto percentile = bucket[2].get<double>();
+
+            if (lastBuckLow != buckHigh) {
+                // Cast the high bucket width to us, ms and seconds so we
+                // can check which units we should be using for this bucket
+                auto buckHighUs = microseconds(buckHigh);
+                auto buckHighMs = duration_cast<milliseconds>(buckHighUs);
+                auto buckHighS = duration_cast<seconds>(buckHighUs);
+
+                // If the bucket width values are in the order of tens of
+                // seconds or milli seconds then print them as seconds or milli
+                // seconds respectively. Otherwise print them as micro seconds
+
+                // We're using tens of unit thresh holds so that each bucket
+                // has 2 sig fig of differentiation in their width, so we dont
+                // have buckets that are [1 - 1]s    100     (90.000%)
+                if (buckHighS.count() > 10) {
+                    auto low =
+                            duration_cast<seconds>(microseconds(lastBuckLow));
+                    dump("s",
+                         low.count(),
+                         buckHighS.count(),
+                         count,
+                         percentile);
+                } else if (buckHighMs.count() > 10) {
+                    auto low = duration_cast<milliseconds>(
+                            microseconds(lastBuckLow));
+                    dump("ms",
+                         low.count(),
+                         buckHighMs.count(),
+                         count,
+                         percentile);
+                } else {
+                    dump("us", lastBuckLow, buckHigh, count, percentile);
+                }
+            }
+            // Set the low bucket value to this buckets high width value.
+            lastBuckLow = buckHigh;
         }
 
-        for (ii = 1; ii < 50; ++ii) {
-            dump("ms", ii, ii, ms[ii]);
-        }
-
-        dump("ms", 50, 499, halfsec[0]);
-        for (ii = 1; ii < 10; ++ii) {
-            dump("ms", ii * 500, ((ii + 1) * 500) - 1, halfsec[ii]);
-        }
-
-        if (oldwayout) {
-            dump("ms", (10 * 500), 0, wayout[0]);
-        } else {
-            dump("s ", 5, 9, wayout[0]);
-            dump("s ", 10, 19, wayout[1]);
-            dump("s ", 20, 39, wayout[2]);
-            dump("s ", 40, 79, wayout[3]);
-            dump("s ", 80, 0, wayout[4]);
-        }
         std::cout << "Total: " << total << " operations" << std::endl;
     }
 
 private:
-
-    // Helper function for initialize
-    static void update_max_and_total(uint32_t& max, uint64_t& total, Bin& bin) {
-        total += bin.count;
-        bin.cumulative_count = total;
-        if (bin.count > max) {
-            max = bin.count;
-        }
-    }
-
     void initialize(const nlohmann::json& root) {
         if (root.find("error") != root.end()) {
             // The server responded with an error.. send that to the user
             throw std::runtime_error(root["error"].get<std::string>());
         }
-
-        ns.count = root["ns"].get<uint32_t>();
-
-        auto arr = root["us"].get<std::vector<uint64_t>>();
-        size_t i = 0;
-        for (auto count : arr) {
-            if (i >= us.size()) {
-                throw std::runtime_error(
-                        "Internal error.. too many \"us\" samples");
-            }
-            us[i].count = gsl::narrow<uint32_t>(count);
-            ++i;
-        }
-
-        arr = root["ms"].get<std::vector<uint64_t>>();
-        i = 0;
-        for (auto count : arr) {
-            if (i >= ms.size()) {
-                throw std::runtime_error(
-                    "Internal error.. too many \"ms\" samples");
-            }
-            ms[i].count = gsl::narrow<uint32_t>(count);
-            ++i;
-        }
-
-        arr = root["500ms"].get<std::vector<uint64_t>>();
-        i = 0;
-        for (auto count : arr) {
-            if (i >= halfsec.size()) {
-                throw std::runtime_error(
-                        R"(Internal error.. too many "halfsec" samples")");
-            }
-            halfsec[i].count = gsl::narrow<uint32_t>(count);
-            ++i;
-        }
-
-        try {
-            wayout[0].count = root["5s-9s"].get<uint32_t>();
-            wayout[1].count = root["10s-19s"].get<uint32_t>();
-            wayout[2].count = root["20s-39s"].get<uint32_t>();
-            wayout[3].count = root["40s-79s"].get<uint32_t>();
-            wayout[4].count = root["80s-inf"].get<uint32_t>();
-        } catch (...) {
-            wayout[0].count = root["wayout"].get<uint32_t>();
-            oldwayout = true;
-        }
-
-        // Calculate total and cumulative counts, and find the highest value.
-        total = max = 0;
-
-        update_max_and_total(max, total, ns);
-        for (auto &val : us) {
-            update_max_and_total(max, total, val);
-        }
-        for (auto &val : ms) {
-            update_max_and_total(max, total, val);
-        }
-        for (auto &val : halfsec) {
-            update_max_and_total(max, total, val);
-        }
-        for (auto &val : wayout) {
-            update_max_and_total(max, total, val);
+        if (root.find("data") != root.end()) {
+            total = cb::jsonGet<uint64_t>(root, "total");
+            data = cb::jsonGet<nlohmann::json>(root, "data");
+            bucketsLow = cb::jsonGet<uint64_t>(root, "bucketsLow");
         }
     }
 
-    void dump(const char *timeunit, uint32_t low, uint32_t high,
-              const Bin& value)
-    {
-        if (value.count > 0) {
-            char buffer[1024];
-            int offset;
-            if (low > 0 && high == 0) {
-                offset = sprintf(buffer, "[%4u - inf.]%s", low, timeunit);
-            } else {
-                offset = sprintf(buffer, "[%4u - %4u]%s", low, high, timeunit);
-            }
-            offset += sprintf(buffer + offset, " (%6.2f%%) ",
-                              double(value.cumulative_count) * 100.0 / total);
+    void dump(const char* timeunit,
+              int64_t low,
+              int64_t high,
+              int64_t count,
+              double percentile) {
+        char buffer[1024];
+        int offset = sprintf(
+                buffer, "[%5" PRId64 " - %5" PRId64 "]%s", low, high, timeunit);
+        offset += sprintf(buffer + offset, " (%6.4lf%%)\t", percentile);
 
-            // Determine how wide the max value would be, and pad all counts
-            // to that width.
-            int max_width = snprintf(buffer, 0, "%u", max);
-            offset += sprintf(buffer + offset, " %*u", max_width, value.count);
+        // Determine how wide the max value would be, and pad all counts
+        // to that width.
+        int max_width = snprintf(buffer, 0, "%" PRIu64, maxCount);
+        offset += sprintf(buffer + offset, " %*" PRId64, max_width, count);
 
-            auto num = (int)(44.0 * (float)value.count / (float)max);
-            offset += sprintf(buffer + offset, " | ");
-            for (int ii = 0; ii < num; ++ii) {
-                offset += sprintf(buffer + offset, "#");
-            }
-
-            std::cout << buffer << std::endl;
+        double factionOfHashes = (count / static_cast<double>(maxCount));
+        int num = static_cast<int>(44.0 * factionOfHashes);
+        offset += sprintf(buffer + offset, " | ");
+        for (int ii = 0; ii < 44 && ii < num; ++ii) {
+            offset += sprintf(buffer + offset, "#");
         }
+
+        std::cout << buffer << std::endl;
     }
 
     /**
      * The highest value of all the samples (used to figure out the width
      * used for each sample in the printout)
      */
-    uint32_t max = 0;
-
-    /* We collect timings for <=1 us */
-    Bin ns;
-
-    /* We collect timings per 10usec */
-    std::array<Bin, 100> us;
-
-    /* we collect timings from 0-49 ms (entry 0 is never used!) */
-    std::array<Bin, 50> ms;
-
-    std::array<Bin, 10> halfsec;
-
-    // [5-9], [10-19], [20-39], [40-79], [80-inf].
-    std::array<Bin, 5> wayout;
-
-    bool oldwayout = false;
-
-    uint64_t total{};
+    uint64_t maxCount = 0;
+    /**
+     * Json object to store the data returned by memcached
+     */
+    nlohmann::json data;
+    /**
+     * The starting point of the lowest buckets width.
+     * E.g. if buckets were [10 - 20][20 - 30] it would be 10.
+     * Used to help reduce the amount the amount of json sent to
+     * mctimings
+     */
+    uint64_t bucketsLow = 0;
+    /**
+     * Total number of counts recorded in the histogram
+     */
+    uint64_t total = 0;
 };
 
 std::string opcode2string(cb::mcbp::ClientOpcode opcode) {
@@ -311,7 +266,7 @@ static void request_stat_timings(MemcachedConnection& connection,
         map = connection.statsMap(key);
     } catch (const ConnectionError& ex) {
         if (ex.isNotFound()) {
-            std::cerr <<"Cannot find statistic: " << key << std::endl;
+            std::cerr << "Cannot find statistic: " << key << std::endl;
         } else if (ex.isAccessDenied()) {
             std::cerr << "Not authorized to access timings data" << std::endl;
         } else {
@@ -336,8 +291,8 @@ static void request_stat_timings(MemcachedConnection& connection,
     // And the value for the item should be valid JSON
     nlohmann::json json = nlohmann::json::parse(iter->second);
     if (json.is_null()) {
-        std::cerr << "Failed to fetch statistics for \"" << key << "\". Not json"
-                  << std::endl;
+        std::cerr << "Failed to fetch statistics for \"" << key
+                  << "\". Not json" << std::endl;
         exit(EXIT_FAILURE);
     }
     try {
@@ -422,13 +377,13 @@ int main(int argc, char** argv) {
                     argc, argv, "46h:p:u:b:P:sSvj", long_options, nullptr)) !=
            EOF) {
         switch (cmd) {
-        case '6' :
+        case '6':
             family = AF_INET6;
             break;
-        case '4' :
+        case '4':
             family = AF_INET;
             break;
-        case 'h' :
+        case 'h':
             host.assign(optarg);
             break;
         case 'p':
@@ -437,10 +392,10 @@ int main(int argc, char** argv) {
         case 'S':
             password.assign("-");
             break;
-        case 'b' :
+        case 'b':
             bucket.assign(optarg);
             break;
-        case 'u' :
+        case 'u':
             user.assign(optarg);
             break;
         case 'P':
@@ -449,7 +404,7 @@ int main(int argc, char** argv) {
         case 's':
             secure = true;
             break;
-        case 'v' :
+        case 'v':
             verbose = true;
             break;
         case 'j':

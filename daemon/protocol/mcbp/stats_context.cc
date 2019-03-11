@@ -412,7 +412,7 @@ static ENGINE_ERROR_CODE stat_sched_executor(const std::string& arg,
         return ENGINE_SUCCESS;
     } else if (arg == "aggregate") {
         static const std::string key = {"aggregate"};
-        TimingHistogram histogram;
+        HdrMicroSecHistogram histogram{};
         for (const auto& h : scheduler_info) {
             histogram += h;
         }
@@ -579,7 +579,7 @@ static ENGINE_ERROR_CODE stat_subdoc_execute_executor(const std::string& arg,
         std::string json_str;
         if (index == 0) {
             // Aggregrated timings for all buckets.
-            TimingHistogram aggregated;
+            HdrMicroSecHistogram aggregated{};
             for (const auto& bucket : all_buckets) {
                 aggregated += bucket.subjson_operation_times;
             }
