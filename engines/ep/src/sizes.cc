@@ -84,7 +84,6 @@ int main(int, char **) {
     display("HistogramBin<microseconds>",
             sizeof(MicrosecondHistogram::bin_type));
     display("MicrosecondHistogram", MicrosecondHistogram().getMemFootPrint());
-    display("HdrMicroSecHistogram", HdrMicroSecHistogram().getMemFootPrint());
     display("PersistenceCallback", sizeof(PersistenceCallback));
     display("AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>",
             sizeof(AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>));
