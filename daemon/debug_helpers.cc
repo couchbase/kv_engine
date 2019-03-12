@@ -51,12 +51,12 @@ bool key_to_printable_buffer(char* dest,
                              const char* key,
                              size_t nkey) {
     try {
-        ssize_t nw = checked_snprintf(dest,
-                                      destsz,
-                                      "%c%u %s ",
-                                      from_client ? '>' : '<',
-                                      (int)client,
-                                      prefix);
+        auto nw = checked_snprintf(dest,
+                                   destsz,
+                                   "%c%u %s ",
+                                   from_client ? '>' : '<',
+                                   (int)client,
+                                   prefix);
         char* ptr = dest + nw;
         destsz -= nw;
         return buf_to_printable_buffer(ptr, destsz, key, nkey);
@@ -73,12 +73,12 @@ bool bytes_to_output_string(char* dest,
                             const char* data,
                             size_t size) {
     try {
-        ssize_t offset = checked_snprintf(dest,
-                                          destsz,
-                                          "%c%u %s",
-                                          from_client ? '>' : '<',
-                                          client,
-                                          prefix);
+        auto offset = checked_snprintf(dest,
+                                       destsz,
+                                       "%c%u %s",
+                                       from_client ? '>' : '<',
+                                       client,
+                                       prefix);
         for (size_t ii = 0; ii < size; ++ii) {
             if (ii % 4 == 0) {
                 offset += checked_snprintf(dest + offset,

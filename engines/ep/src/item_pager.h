@@ -20,6 +20,8 @@
 
 #include "globaltask.h"
 
+#include <memcached/types.h> // for ssize_t
+
 typedef std::pair<int64_t, int64_t> row_range_t;
 
 // Forward declaration.
