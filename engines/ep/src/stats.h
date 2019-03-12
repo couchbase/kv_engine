@@ -638,9 +638,6 @@ public:
     //! Total memory for stored values
     Counter totalStoredValSize;
 
-    //! Total size of StoredVal memory overhead
-    Counter storedValOverhead;
-
     //! Amount of memory used to track items and what-not.
     Counter memOverhead;
 

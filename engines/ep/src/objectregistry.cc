@@ -122,9 +122,6 @@ void ObjectRegistry::onCreateStoredValue(const StoredValue *sv)
        size_t size = getAllocSize(sv);
        if (size == 0) {
            size = sv->getObjectSize();
-       } else {
-           coreLocalStats->storedValOverhead.fetch_add(size -
-                                                       sv->getObjectSize());
        }
        coreLocalStats->numStoredVal++;
        coreLocalStats->totalStoredValSize.fetch_add(size);
@@ -140,9 +137,6 @@ void ObjectRegistry::onDeleteStoredValue(const StoredValue *sv)
        size_t size = getAllocSize(sv);
        if (size == 0) {
            size = sv->getObjectSize();
-       } else {
-           coreLocalStats->storedValOverhead.fetch_sub(size -
-                                                       sv->getObjectSize());
        }
        coreLocalStats->totalStoredValSize.fetch_sub(size);
        coreLocalStats->numStoredVal--;
