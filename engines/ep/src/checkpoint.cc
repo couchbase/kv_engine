@@ -122,19 +122,6 @@ Checkpoint::~Checkpoint() {
             sizeof(Checkpoint) + keyIndexMemUsage + queueMemOverhead);
 }
 
-size_t Checkpoint::getNumMetaItems() const {
-    return numMetaItems;
-}
-
-void Checkpoint::setState(checkpoint_state state) {
-    LockHolder lh(lock);
-    setState_UNLOCKED(state);
-}
-
-void Checkpoint::setState_UNLOCKED(checkpoint_state state) {
-    checkpointState = state;
-}
-
 QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                                         CheckpointManager* checkpointManager) {
     if (checkpointState != CHECKPOINT_OPEN) {

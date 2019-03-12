@@ -315,7 +315,9 @@ public:
      * Return the number of meta items (as defined by Item::isNonEmptyCheckpointMetaItem)
      * in this checkpoint.
      */
-    size_t getNumMetaItems() const;
+    size_t getNumMetaItems() const {
+        return numMetaItems;
+    }
 
     /**
      * Return the current state of this checkpoint.
@@ -333,13 +335,18 @@ public:
      * Set the current state of this checkpoint.
      * @param state the checkpoint's new state
      */
-    void setState(checkpoint_state state);
+    void setState(checkpoint_state state) {
+        LockHolder lh(lock);
+        setState_UNLOCKED(state);
+    }
 
     /**
      * Set the current state of this checkpoint.
      * @param state the checkpoint's new state
      */
-    void setState_UNLOCKED(checkpoint_state state);
+    void setState_UNLOCKED(checkpoint_state state) {
+        checkpointState = state;
+    }
 
     void incNumOfCursorsInCheckpoint() {
         ++numOfCursorsInCheckpoint;
