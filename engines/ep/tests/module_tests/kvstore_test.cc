@@ -44,6 +44,8 @@
 #include <unordered_map>
 #include <vector>
 
+using namespace std::string_literals;
+
 class KVStoreTestCacheCallback : public StatusCallback<CacheLookup> {
 public:
     KVStoreTestCacheCallback(int64_t s, int64_t e, Vbid vbid)
@@ -2417,6 +2419,69 @@ TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
     GetValue gv = kvstore->get(DiskDocKey{key}, vbid);
     checkGetValue(gv);
     EXPECT_EQ(kvstore->getVBucketState(vbid)->highSeqno, 10);
+}
+
+// Test the getRange() function
+TEST_P(KVStoreParamTest, GetRangeBasic) {
+    // Setup: store 5 keys, a, b, c, d, e (with matching values)
+    kvstore->begin(std::make_unique<TransactionContext>());
+    WriteCallback dummyCb;
+    for (char k = 'a'; k < 'f'; k++) {
+        auto item = makeCommittedItem(makeStoredDocKey({k}),
+                                      "value_"s + std::string{k});
+        kvstore->set(*item, dummyCb);
+    }
+    kvstore->commit(flush);
+
+    // Test: Ask for keys in the range [b,d]. Should return b & c.
+    std::vector<GetValue> results;
+    kvstore->getRange(
+            Vbid{0},
+            makeDiskDocKey("b"),
+            makeDiskDocKey("d"),
+            [&results](GetValue&& cb) { results.push_back(std::move(cb)); });
+    ASSERT_EQ(2, results.size());
+    EXPECT_EQ("b"s, results.at(0).item->getKey().c_str());
+    EXPECT_EQ("value_b"s, results.at(0).item->getValue()->to_s());
+    EXPECT_EQ("c"s, results.at(1).item->getKey().c_str());
+    EXPECT_EQ("value_c"s, results.at(1).item->getValue()->to_s());
+}
+
+// Test the getRange() function skips deleted items.
+TEST_P(KVStoreParamTest, GetRangeDeleted) {
+    // Setup: 1) store 8 keys, a, b, c, d, e, f, g (with matching values)
+    //        2) delete 3 of them (b, d, f)
+    kvstore->begin(std::make_unique<TransactionContext>());
+    WriteCallback dummyCb;
+    for (char k = 'a'; k < 'h'; k++) {
+        auto item = makeCommittedItem(makeStoredDocKey({k}),
+                                      "value_"s + std::string{k});
+        kvstore->set(*item, dummyCb);
+    }
+    kvstore->commit(flush);
+
+    kvstore->begin(std::make_unique<TransactionContext>());
+    DeleteCallback dummyDelCb;
+    for (char k = 'b'; k < 'g'; k += 2) {
+        auto item = makeCommittedItem(makeStoredDocKey({k}),
+                                      "value_"s + std::string{k});
+        item->setDeleted(DeleteSource::Explicit);
+        kvstore->del(*item, dummyDelCb);
+    }
+    kvstore->commit(flush);
+
+    // Test: Ask for keys in the range [b,f]. Should return c and e.
+    std::vector<GetValue> results;
+    kvstore->getRange(
+            Vbid{0},
+            makeDiskDocKey("b"),
+            makeDiskDocKey("f"),
+            [&results](GetValue&& cb) { results.push_back(std::move(cb)); });
+    ASSERT_EQ(2, results.size());
+    EXPECT_EQ("c"s, results.at(0).item->getKey().c_str());
+    EXPECT_EQ("value_c"s, results.at(0).item->getValue()->to_s());
+    EXPECT_EQ("e"s, results.at(1).item->getKey().c_str());
+    EXPECT_EQ("value_e"s, results.at(1).item->getValue()->to_s());
 }
 
 static std::string kvstoreTestParams[] = {

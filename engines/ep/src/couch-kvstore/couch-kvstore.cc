@@ -608,6 +608,88 @@ void CouchKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
     }
 }
 
+void CouchKVStore::getRange(Vbid vb,
+                            const DiskDocKey& startKey,
+                            const DiskDocKey& endKey,
+                            const KVStore::GetRangeCb& cb) {
+    DbHolder db(*this);
+    auto errCode = openDB(vb, db, COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (errCode != COUCHSTORE_SUCCESS) {
+        throw std::runtime_error("CouchKVStore::getRange: openDB error for " +
+                                 vb.to_string() +
+                                 " - couchstore returned error: " +
+                                 couchstore_strerror(errCode));
+    }
+
+    // Trampoine's state. Cannot use lambda capture as couchstore expects a
+    // C-style callback.
+    struct TrampolineState {
+        Vbid vb;
+        const DiskDocKey& endKey;
+        const KVStore::GetRangeCb& userFunc;
+    };
+    TrampolineState trampoline_state{vb, endKey, cb};
+
+    // Trampoline to fetch the document value, and map C++ std::function to
+    // C-style callback expected by couchstore.
+    auto callback_trampoline = [](Db* db, DocInfo* docinfo, void* ctx) -> int {
+        auto& state = *reinterpret_cast<TrampolineState*>(ctx);
+
+        // Filter out (skip) any deleted items (couchstore_docinfos_by_id()
+        // returns both alive and deleted items).
+        if (docinfo->deleted) {
+            return COUCHSTORE_SUCCESS;
+        }
+
+        // Note: Unfortunately couchstore compares the endKey *inclusively* -
+        // i.e. it will return a document which has the key endKey. We only
+        // want to perform an exclusive search [start, end).
+        // Therefore, skip the last document if it's the same as the specified
+        // end key.
+        if (makeDiskDocKey(docinfo->id) == state.endKey) {
+            return COUCHSTORE_SUCCESS;
+        }
+
+        // Create metadata from the rev_meta.
+        std::unique_ptr<MetaData> metadata;
+        try {
+            metadata = MetaDataFactory::createMetaData(docinfo->rev_meta);
+        } catch (std::logic_error&) {
+            return COUCHSTORE_ERROR_DB_NO_LONGER_VALID;
+        }
+
+        // Fetch document value.
+        Doc* doc = nullptr;
+        auto errCode = couchstore_open_doc_with_docinfo(
+                db, docinfo, &doc, DECOMPRESS_DOC_BODIES);
+        if (errCode != COUCHSTORE_SUCCESS) {
+            // Failed to fetch document - cancel couchstore_docinfos_by_id
+            // scan.
+            return errCode;
+        }
+
+        state.userFunc(GetValue{
+                makeItemFromDocInfo(state.vb, *docinfo, *metadata, doc->data)});
+        couchstore_free_document(doc);
+        return COUCHSTORE_SUCCESS;
+    };
+
+    const std::array<sized_buf, 2> range = {
+            {to_sized_buf(startKey), to_sized_buf(endKey)}};
+    errCode = couchstore_docinfos_by_id(db.getDb(),
+                                        range.data(),
+                                        range.size(),
+                                        RANGES,
+                                        callback_trampoline,
+                                        &trampoline_state);
+    if (errCode != COUCHSTORE_SUCCESS) {
+        throw std::runtime_error(
+                "CouchKVStore::getRange: docinfos_by_id failed for " +
+                vb.to_string() + " - couchstore returned error: " +
+                couchstore_strerror(errCode));
+    }
+}
+
 void CouchKVStore::del(const Item& itm, Callback<TransactionContext, int>& cb) {
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::del: Not valid on a read-only "

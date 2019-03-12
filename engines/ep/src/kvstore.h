@@ -602,11 +602,44 @@ public:
                                    Vbid vb,
                                    GetMetaOnly getMetaOnly,
                                    bool fetchDelete = false) = 0;
+
     /**
-     * Get multiple items if supported by the kv store
+     * Retrieve multiple documents from the underlying storage system at once.
+     *
+     * @param vb vbucket id of a document
+     * @param itms list of items whose documents are going to be retrieved
      */
     virtual void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
         throw std::runtime_error("Backend does not support getMulti()");
+    }
+
+    /**
+     * Callback for getRange().
+     * @param value The fetched value. Note r-value receiver can modify (e.g.
+     * move-from) it if desired.
+     */
+    using GetRangeCb = std::function<void(GetValue&& value)>;
+
+    /**
+     * Get a range of items from a single vBucket
+     * (if supported by the kv store).
+     *
+     * Searches the given vBucket for all items with keys in the half-open
+     * range [startKey,endKey). For each item found invokes the given callback.
+     *
+     * @param vb vBucket id to fetch from.
+     * @param startKey The key to start searching at. Search includes this key.
+     * @param endKey The key to end searching at. Search excludes this key.
+     * @param callback Callback invoked for each key found.
+     * @throws std::runtime_error if the range scan could not be successfully
+     *         completed. (Note: finding zero docments in the given range is
+     *         considered successful).
+     */
+    virtual void getRange(Vbid vb,
+                          const DiskDocKey& startKey,
+                          const DiskDocKey& endKey,
+                          const GetRangeCb& cb) {
+        throw std::runtime_error("Backend does not support getRange()");
     }
 
     /**

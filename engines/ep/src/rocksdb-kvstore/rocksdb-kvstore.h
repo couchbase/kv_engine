@@ -182,6 +182,11 @@ public:
 
     void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) override;
 
+    void getRange(Vbid vb,
+                  const DiskDocKey& startKey,
+                  const DiskDocKey& endKey,
+                  const GetRangeCb& cb) override;
+
     /**
      * Overrides del().
      */
@@ -431,7 +436,7 @@ private:
 
     GetValue makeGetValue(Vbid vb,
                           const DiskDocKey& key,
-                          const std::string& value,
+                          const rocksdb::Slice& value,
                           GetMetaOnly getMetaOnly = GetMetaOnly::No);
 
     void readVBState(const VBHandle& db);

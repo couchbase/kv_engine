@@ -237,13 +237,12 @@ public:
                            GetMetaOnly getMetaOnly,
                            bool fetchDelete = false) override;
 
-    /**
-     * Retrieve the multiple documents from the underlying storage system at once.
-     *
-     * @param vb vbucket id of a document
-     * @param itms list of items whose documents are going to be retrieved
-     */
     void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) override;
+
+    void getRange(Vbid vb,
+                  const DiskDocKey& startKey,
+                  const DiskDocKey& endKey,
+                  const KVStore::GetRangeCb& cb) override;
 
     /**
      * Get the number of vbuckets in a single database file
