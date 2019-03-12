@@ -19,7 +19,6 @@
 
 #include "bucket_logger.h"
 #include "item.h"
-#include "monotonic.h"
 #include "statwriter.h"
 #include "stored-value.h"
 #include "vbucket.h"
@@ -378,17 +377,25 @@ void DurabilityMonitor::addSyncWrite(const void* cookie, queued_item item) {
                 "DurabilityMonitor::addSyncWrite: FirstChain not registered");
     }
 
+    const auto seqno = item->getBySeqno();
+
     state.trackedWrites.push_back(SyncWrite(cookie, item, *state.firstChain));
+    state.lastTrackedSeqno = seqno;
 
     // By logic, before this call the item has been enqueued into the
     // CheckpointManager. So, the memory-tracking for the active has implicitly
     // advanced.
     const auto& thisNode = state.firstChain->active;
     advanceNodePosition(lg, thisNode, Tracking::Memory);
-    updateNodeAck(lg, thisNode, Tracking::Memory, item->getBySeqno());
+    updateNodeAck(lg, thisNode, Tracking::Memory, seqno);
 
-    Ensures(getNodeWriteSeqnos(lg, thisNode).memory == item->getBySeqno());
-    Ensures(getNodeAckSeqnos(lg, thisNode).memory == item->getBySeqno());
+    Ensures(getNodeWriteSeqnos(lg, thisNode).memory == seqno);
+    Ensures(getNodeAckSeqnos(lg, thisNode).memory == seqno);
+
+    // @todo: Missing step - check for satisfied SyncWrite, we may need to
+    //     commit immediately in the no-replica scenario. Consider to do that in
+    //     a dedicated function for minimizing contention on front-end threads,
+    //     as this function is supposed to execute under VBucket-level lock.
 }
 
 ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
@@ -523,6 +530,9 @@ void DurabilityMonitor::addStats(const AddStatFn& addStat,
 
         checked_snprintf(buf, sizeof(buf), "vb_%d:num_tracked", vbid);
         add_casted_stat(buf, getNumTracked(lg), addStat, cookie);
+
+        checked_snprintf(buf, sizeof(buf), "vb_%d:last_tracked_seqno", vbid);
+        add_casted_stat(buf, state.lastTrackedSeqno, addStat, cookie);
 
         checked_snprintf(
                 buf, sizeof(buf), "vb_%d:replication_chain_first:size", vbid);

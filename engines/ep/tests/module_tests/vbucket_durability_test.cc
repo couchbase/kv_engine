@@ -21,10 +21,12 @@
 #include "checkpoint_manager.h"
 #include "checkpoint_utils.h"
 #include "test_helpers.h"
+#include "thread_gate.h"
 
 #include "../mock/mock_durability_monitor.h"
 
 #include <gmock/gmock.h>
+#include <thread>
 
 using namespace std::string_literals;
 
@@ -540,4 +542,64 @@ TEST_P(VBucketDurabilityTest, Active_PendingRemovedAtAbort) {
     EXPECT_EQ(0, ht->getNumItems());
     EXPECT_FALSE(ht->findForRead(key).storedValue);
     EXPECT_FALSE(ht->findForWrite(key).storedValue);
+}
+
+/*
+ * Base multi-frontend-thread test for durable writes.
+ * The test spawns 2 threads doing set-durable on a number of writes.
+ * The aim of this test is to expose any VBucket/DurabilityMonitor
+ * synchronization issue, hopefully caught by TSan at commit validation.
+ *
+ * This test is initially introduced for MB-33298, where we could end up with
+ * queueing out-of-order seqnos into the DurabilityMonitor.
+ * Note that for MB-33298:
+ * - The kind of synchronization issue is not caught by TSan as it is
+ *     logic-synchronization problem (details in the MB)
+ * - The test is not deterministic for the specific case. The number of items is
+ *     chosen such that the test always fails before the fix on local OSX, but
+ *     there may be sporadic false negatives.
+ *     In the specific case the problem is that, while exposing the original
+ *     issue in a deterministic test is easy, after some trials it seems not
+ *     feasible to have a deterministic test that fails before the fix and
+ *     succeeds at fix. That is because the synchronization changes necessary
+ *     at fix invalidate the test.
+ */
+TEST_P(VBucketDurabilityTest, ParallelSet) {
+    const auto numThreads = 4;
+    ThreadGate tg(numThreads);
+    const auto threadLoad = 1000;
+
+    auto load = [this, &tg, threadLoad](const std::string& prefix) -> void {
+        tg.threadUp();
+        for (auto seqno = 1; seqno <= threadLoad; seqno++) {
+            auto item = Item(makeStoredDocKey(prefix + std::to_string(seqno)),
+                             0 /*flags*/,
+                             0 /*exp*/,
+                             "value",
+                             5 /*valueSize*/,
+                             PROTOCOL_BINARY_RAW_BYTES);
+            using namespace cb::durability;
+            item.setPendingSyncWrite(Requirements());
+            VBQueueItemCtx ctx;
+            ctx.durability = DurabilityItemCtx{item.getDurabilityReqs(),
+                                               nullptr /*cookie*/};
+
+            EXPECT_EQ(MutationStatus::WasClean,
+                      public_processSet(item, 0 /*cas*/, ctx));
+        }
+    };
+
+    // Note: The use of key-prefix is to ensure that (most of) the loaded keys
+    //     fall into different HastTable partitions.
+    //     That way, front-end threads do not synchronize on HashBucketLock at
+    //     VBucket::queueDirty, so the test stresses the internal queueDirty
+    //     synchronization.
+    std::vector<std::thread> threads;
+    for (auto i = 0; i < numThreads; i++) {
+        threads.push_back(
+                std::thread(load, "key" + std::to_string(i) + "_" /*prefix*/));
+    }
+    for (auto& t : threads) {
+        t.join();
+    }
 }

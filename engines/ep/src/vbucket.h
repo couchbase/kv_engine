@@ -2112,6 +2112,13 @@ private:
     /// aborted.
     std::unique_ptr<DurabilityMonitor> durabilityMonitor;
 
+    // Durable writes are enqueued also into the DurabilityMonitor.
+    // The seqno-order of items tracked by the DM must be the same as in the
+    // Backfill/CheckpointManager Queues (seqno is strictly monotonic).
+    // I.e., adding to Queue and adding into the DM must be an atomic operation,
+    // which is what this mutex is used for.
+    std::mutex dmQueueMutex;
+
     static cb::AtomicDuration chkFlushTimeout;
 
     static double mutationMemThreshold;

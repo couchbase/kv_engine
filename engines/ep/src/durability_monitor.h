@@ -17,6 +17,7 @@
 #pragma once
 
 #include "ep_types.h"
+#include "monotonic.h"
 
 #include "memcached/durability_spec.h"
 #include "memcached/engine_common.h"
@@ -282,6 +283,10 @@ protected:
         // @todo: Expand for supporting the SecondChain.
         std::unique_ptr<ReplicationChain> firstChain;
         Container trackedWrites;
+        // Always stores the seqno of the last SyncWrite added for tracking.
+        // Useful for sanity checks, necessary because the tracked container
+        // can by emptied by Commit/Abort.
+        Monotonic<int64_t, ThrowExceptionPolicy> lastTrackedSeqno;
     } state;
 
     const size_t maxReplicas = 3;
