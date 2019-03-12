@@ -102,7 +102,10 @@ private:
     EPBucket& epstore;
     time_t startTime;
     bool hasPurged;
-    bool maybeEnableTraffic;
+
+    /// If true, call EPBucket::maybeEnableTraffic() after each KV pair loaded.
+    const bool maybeEnableTraffic;
+
     WarmupState::State warmupState;
 };
 
@@ -217,6 +220,49 @@ private:
     uint16_t _shardId;
     Warmup* _warmup;
     const std::string _description;
+};
+
+/**
+ * Warmup task which loads any prepared SyncWrites which are not yet marked
+ * as Committed (or Aborted) from disk.
+ */
+class WarmupLoadPreparedSyncWrites : public GlobalTask {
+public:
+    WarmupLoadPreparedSyncWrites(EventuallyPersistentEngine* engine,
+                                 uint16_t shard,
+                                 Warmup& warmup)
+        : GlobalTask(engine, TaskId::WarmupLoadPreparedSyncWrites, 0, false),
+          shardId(shard),
+          warmup(warmup),
+          description("Warmup - loading prepared SyncWrites: shard " +
+                      std::to_string(shardId)){};
+
+    std::string getDescription() override {
+        return description;
+    }
+
+    std::chrono::microseconds maxExpectedDuration() override {
+        // Runtime is a function of how many prepared sync writes exist in the
+        // buckets for this shard - can be minutes in large datasets.
+        // Given this large variation; set max duration to a "way out" value
+        // which we don't expect to see.
+        return std::chrono::minutes(10);
+    }
+
+    bool run() override {
+        TRACE_EVENT1("ep-engine/task",
+                     "WarmupLoadPreparedSyncWrites",
+                     "shard",
+                     shardId);
+        warmup.loadPreparedSyncWrites(shardId);
+        warmup.removeFromTaskSet(uid);
+        return false;
+    }
+
+private:
+    uint16_t shardId;
+    Warmup& warmup;
+    const std::string description;
 };
 
 class WarmupKeyDump : public GlobalTask {
@@ -534,6 +580,8 @@ const char* WarmupState::getStateDescription(State st) const {
         return "creating vbuckets";
     case State::EstimateDatabaseItemCount:
         return "estimating database item count";
+    case State::LoadPreparedSyncWrites:
+        return "loading prepared SyncWrites";
     case State::KeyDump:
         return "loading keys";
     case State::CheckForAccessLog:
@@ -575,6 +623,8 @@ bool WarmupState::legalTransition(State to) const {
         return (to == State::EstimateDatabaseItemCount ||
                 to == State::LoadingCollectionCounts);
     case State::EstimateDatabaseItemCount:
+        return (to == State::LoadPreparedSyncWrites);
+    case State::LoadPreparedSyncWrites:
         return (to == State::KeyDump || to == State::CheckForAccessLog);
     case State::KeyDump:
         return (to == State::LoadingKVPairs || to == State::CheckForAccessLog);
@@ -618,6 +668,12 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
 
     // Don't attempt to load the system event documents.
     if (i->getKey().getCollectionID() == CollectionID::System) {
+        return;
+    }
+
+    // Prepared SyncWrites are ignored here  -
+    // they are handled in the earlier warmup State::LoadPreparedSyncWrites
+    if (i->isPending()) {
         return;
     }
 
@@ -781,9 +837,8 @@ void LoadValueCallback::callback(CacheLookup &lookup)
             return;
         }
 
-        // @todo-durability - Do we need to process prepared namespaced keys
-        // here or are they handled in an earlier warmup phase?
-        // Assuming they can be skipped for now.
+        // Prepared SyncWrites are ignored in the normal LoadValueCallback -
+        // they are handled in an earlier warmup phase.
         if (lookup.getKey().isPrepared()) {
             setStatus(ENGINE_KEY_EEXISTS);
             return;
@@ -1036,6 +1091,53 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId)
 
     estimatedItemCount.fetch_add(item_count);
     estimateTime.fetch_add(std::chrono::steady_clock::now() - st);
+
+    if (++threadtask_count == store.vbMap.getNumShards()) {
+        transition(WarmupState::State::LoadPreparedSyncWrites);
+    }
+}
+
+void Warmup::scheduleLoadPreparedSyncWrites() {
+    threadtask_count = 0;
+    for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
+        ExTask task = std::make_shared<WarmupLoadPreparedSyncWrites>(
+                &store.getEPEngine(), i, *this);
+        ExecutorPool::get()->schedule(task);
+    }
+}
+
+void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
+    // Perform a range lookup of just prepared namespace
+    // For each item found, load into HashTable
+    for (const auto vbid : shardVbIds[shardId]) {
+        // Need to form start and end keys which encompass _all_ possible
+        // keys under the DurabilityPrepare namespace.
+        //   Start: DurabilityPrepare=true, lowest possible collectionID,
+        //   zero length key.
+        //     0x02 0x00
+        auto startKey =
+                DiskDocKey{StoredDocKey{"", CollectionID::Default}, true};
+        //   End: DurabilityPrepare=false, CollectionID following
+        //   DurabilityPrepare, zero length key:
+        //     0x03 0x00
+        auto endCid = CollectionID{CollectionID::Reserved3,
+                                   CollectionID::SkipIDVerificationTag{}};
+        auto endKey = DiskDocKey{StoredDocKey{"", endCid}, false};
+
+        auto vb = store.getVBucket(vbid);
+        auto& epVb = dynamic_cast<EPVBucket&>(*vb);
+
+        store.getROUnderlyingByShard(shardId)->getRange(
+                vbid, startKey, endKey, [&epVb](GetValue&& gv) {
+                    EP_LOG_DEBUG("Warmup::loadPreparedSyncWrites: {}",
+                                 *gv.item);
+                    const auto res =
+                            epVb.insertFromWarmup(*gv.item,
+                                                  /*shouldEject*/ false,
+                                                  gv.isPartial());
+                    Expects(res == MutationStatus::NotFound);
+                });
+    }
 
     if (++threadtask_count == store.vbMap.getNumShards()) {
         if (store.getItemEvictionPolicy() == VALUE_ONLY) {
@@ -1403,6 +1505,9 @@ void Warmup::step() {
         return;
     case WarmupState::State::EstimateDatabaseItemCount:
         scheduleEstimateDatabaseItemCount();
+        return;
+    case WarmupState::State::LoadPreparedSyncWrites:
+        scheduleLoadPreparedSyncWrites();
         return;
     case WarmupState::State::KeyDump:
         scheduleKeyDump();

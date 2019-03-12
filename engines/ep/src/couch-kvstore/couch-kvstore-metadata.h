@@ -219,17 +219,16 @@ protected:
     public:
         // The Operation this represents - maps to queue_op types:
         enum class Operation : uint8_t {
-            // A pending sync write. Remaining bits in this byte define the
-            // durability_level.
+            // A pending sync write. 'level' field defines the durability_level.
             // Present in the DurabilityPrepare namespace.
             Pending = 0,
-            // A committed SyncWrite. Remaining bits are unused.
+            // A committed SyncWrite.
             // This exists so we can correctly backfill from disk a Committed
             // mutation and sent out as a DCP_COMMIT to sync_replication
             // enabled DCP clients.
             // Present in the 'normal' (committed) namespace.
             Commit = 1,
-            // An aborted SyncWrite. Remaining bits are unused.
+            // An aborted SyncWrite.
             // This exists so we can correctly backfill from disk an Aborted
             // mutation and sent out as a DCP_ABORT to sync_replication
             // enabled DCP clients.

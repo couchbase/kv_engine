@@ -508,3 +508,75 @@ TEST_F(WarmupTest, MB_32577) {
 
     shutdownAndPurgeTasks(engine.get());
 }
+
+// Test fixture for Durability-related Warmup tests.
+class DurabilityWarmupTest : public STParameterizedBucketTest {
+protected:
+    void SetUp() {
+        STParameterizedBucketTest::SetUp();
+        // Add an initial replication topology so we can accept SyncWrites.
+        setVBucketToActiveWithValidTopology();
+    }
+
+    void setVBucketToActiveWithValidTopology() {
+        setVBucketStateAndRunPersistTask(
+                vbid,
+                vbucket_state_active,
+                {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    }
+};
+
+// Test that a pending SyncWrite not yet committed is correctly warmed up
+// when the bucket restarts.
+TEST_P(DurabilityWarmupTest, PendingSyncWrite) {
+    // Store a pending SyncWrite (without committing) and then restart
+    auto item = makePendingItem(makeStoredDocKey("pendingSW"), "pending_value");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+    flush_vbucket_to_disk(vbid);
+
+    resetEngineAndWarmup();
+
+    // Check that the item is still pending with the correct CAS.
+    auto vb = engine->getVBucket(vbid);
+    auto handle = vb->lockCollections(item->getKey());
+    auto prepared = vb->fetchPreparedValue(handle);
+    EXPECT_TRUE(prepared.storedValue);
+    EXPECT_TRUE(prepared.storedValue->isPending());
+    EXPECT_EQ(item->getCas(), prepared.storedValue->getCas());
+}
+
+// Test that a committed mutation followed by a pending SyncWrite to the same
+// key is correctly warmed up when the bucket restarts.
+TEST_P(DurabilityWarmupTest, CommittedAndPendingSyncWrite) {
+    // Store committed mutation followed by a pending SyncWrite (without
+    // committing) and then restart.
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "A");
+    auto item = makePendingItem(key, "B");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+
+    flush_vbucket_to_disk(vbid, 2);
+
+    resetEngineAndWarmup();
+
+    // Should load two items into memory - both committed and the pending value.
+    // Check the original committed value is still readable.
+    auto vb = engine->getVBucket(vbid);
+    EXPECT_EQ(1, vb->getNumItems());
+    EXPECT_EQ(1, vb->ht.getNumPreparedSyncWrites());
+    auto gv = store->get(key, vbid, cookie, {});
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ("A", gv.item->getValue()->to_s());
+
+    // Check that the item is still pending, with correct CAS.
+    auto handle = vb->lockCollections(item->getKey());
+    auto prepared = vb->fetchPreparedValue(handle);
+    EXPECT_TRUE(prepared.storedValue);
+    EXPECT_TRUE(prepared.storedValue->isPending());
+    EXPECT_EQ(item->getCas(), prepared.storedValue->getCas());
+}
+
+INSTANTIATE_TEST_CASE_P(FullOrValue,
+                        DurabilityWarmupTest,
+                        STParameterizedBucketTest::persistentConfigValues(),
+                        STParameterizedBucketTestPrintName());

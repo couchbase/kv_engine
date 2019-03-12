@@ -70,6 +70,8 @@ public:
         Reserved7 = 7
     };
 
+    class SkipIDVerificationTag {};
+
     CollectionID() : value(Default) {
     }
 
@@ -78,6 +80,15 @@ public:
             throw std::invalid_argument("CollectionID: invalid value:" +
                                         std::to_string(value));
         }
+    }
+
+    /**
+     * Tagged constructor for specific use-cases where we want to construct
+     * a CollectionID in the reserved namespace. Skips the normal valid
+     * cid checks, allowing *any* CollectionID to be created.
+     */
+    CollectionID(CollectionIDType value, SkipIDVerificationTag t)
+        : value(value) {
     }
 
     operator uint32_t() const {

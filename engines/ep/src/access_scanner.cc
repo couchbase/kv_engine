@@ -74,7 +74,8 @@ public:
     }
 
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override {
-        if (log && v.isResident()) {
+        // Record resident, Committed HashTable items as 'accessed'.
+        if (log && v.isResident() && v.isCommitted()) {
             if (v.isExpired(startTime) || v.isDeleted()) {
                 EP_LOG_DEBUG("Skipping expired/deleted item: {}",
                              v.getBySeqno());

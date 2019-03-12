@@ -34,15 +34,6 @@ DiskDocKey::DiskDocKey(const DocKey& key, bool prepared) {
         keydata.resize(keyOffset + 1);
         keydata[keyOffset] = DefaultCollectionLeb128Encoded;
         keyOffset++;
-    } else {
-        // Validate specified collectionID.
-        const auto cid = key.getCollectionID();
-        if (cid > CollectionID::DurabilityPrepare &&
-            cid <= CollectionID::Reserved7) {
-            throw std::invalid_argument(
-                    "DiskDocKey: Cannot create with reserved CollectionID: " +
-                    cid.to_string());
-        }
     }
 
     keydata.resize(keyOffset + key.size());

@@ -1049,7 +1049,10 @@ HashTable::FindResult VBucket::fetchPreparedValue(
                                 WantsDeleted::Yes,
                                 TrackReference::No,
                                 HashTable::Perspective::Pending);
-    return {sv, std::move(hbl)};
+    if (sv && sv->isPending()) {
+        return {sv, std::move(hbl)};
+    }
+    return {nullptr, std::move(hbl)};
 }
 
 void VBucket::incExpirationStat(const ExpireBy source) {

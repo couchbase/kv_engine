@@ -768,8 +768,7 @@ MutationStatus HashTable::insertFromWarmup(
                 return MutationStatus::InvalidCas;
             }
         }
-        auto res = unlocked_updateStoredValue(hbl, *v, itm);
-        v = res.storedValue;
+        Expects(unlocked_restoreValue(hbl.getHTLock(), itm, *v));
     }
 
     v->markClean();
