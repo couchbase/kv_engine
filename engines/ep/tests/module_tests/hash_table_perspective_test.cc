@@ -375,3 +375,32 @@ TEST_F(HashTablePerspectiveTest, PendingSyncDeleteToPendingDeleteFails) {
                           .status);
     }
 }
+
+// Check that if a pending SyncWrite is added _before_ a Committed one (to the
+// same key), then findforWrite finds the pending one.
+// (While normally pending is added _after_ the existing Committed; during
+// warmup we load pending first.)
+TEST_F(HashTablePerspectiveTest, WarmupPendingAddedBeforeCommited) {
+    // Setup - Insert pending then committed.
+    auto pending = makePendingItem(key, "pending"s);
+    pending->setBySeqno(2);
+    ASSERT_EQ(MutationStatus::NotFound,
+              ht.insertFromWarmup(*pending, false, false, VALUE_ONLY));
+
+    auto committed = makeCommittedItem(key, "previous committed"s);
+    committed->setBySeqno(1);
+    ASSERT_EQ(MutationStatus::NotFound,
+              ht.insertFromWarmup(*committed, false, false, VALUE_ONLY));
+
+    // Test - check that findForRead finds the committed one, and findForWrite
+    // the pending one.
+    auto* readView = ht.findForRead(key).storedValue;
+    ASSERT_TRUE(readView);
+    EXPECT_TRUE(readView->isCommitted());
+    EXPECT_EQ(1, readView->getBySeqno());
+
+    auto* writeView = ht.findForWrite(key).storedValue;
+    ASSERT_TRUE(writeView);
+    EXPECT_TRUE(writeView->isPending());
+    EXPECT_EQ(2, writeView->getBySeqno());
+}
