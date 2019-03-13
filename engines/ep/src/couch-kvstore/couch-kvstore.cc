@@ -672,17 +672,8 @@ void CouchKVStore::getPersistedStats(std::map<std::string,
         return;
     }
 
-    if (!json.is_array()) {
-        logger.warn(
-                "CouchKVStore::getPersistedStats:"
-                " Parsed json is not an array!!!");
-        return;
-    }
-
-    for (const auto& elem : json) {
-        cb_assert(elem.size() == 1);
-        auto it = elem.begin();
-        stats[it.key()] = it.value();
+    for (auto it = json.begin(); it != json.end(); ++it) {
+        stats[it.key()] = it.value().get<std::string>();
     }
 }
 
