@@ -115,8 +115,6 @@ public:
      */
     bool removeCursor(const CheckpointCursor* cursor);
 
-    size_t getNumOfCursors();
-
     /**
      * Queue an item to be written to persistent layer.
      * @param vb the vbucket that a new item is pushed into.
@@ -140,18 +138,6 @@ public:
      * @param vb the vbucket that a new item is pushed into.
      */
     void queueSetVBState(VBucket& vb);
-
-    /**
-     * Return the next item to be sent to a given connection
-     *
-     * *** currently only in use by test code ***
-     *
-     * @param const pointer to the clients cursor, can be null
-     * @param isLastMutationItem flag indicating if the item to be returned is
-     * the last mutation one in the closed checkpoint.
-     * @return the next item to be sent to a given connection.
-     */
-    queued_item nextItem(CheckpointCursor* cursor, bool& isLastMutationItem);
 
     /**
      * Add all outstanding items for the given cursor name to the vector.
@@ -230,8 +216,6 @@ public:
      * Returns the number of non-meta items in the currently open checkpoint.
      */
     size_t getNumOpenChkItems() const;
-
-    size_t getNumCheckpoints() const;
 
     /* WARNING! This method can return inaccurate counts - see MB-28431. It
      * at *least* can suffer from overcounting by at least 1 (in scenarios as

@@ -21,6 +21,7 @@
 
 #include <memcached/protocol_binary.h>
 #include <programs/engine_testapp/mock_server.h>
+#include <tests/mock/mock_checkpoint_manager.h>
 #include <tests/mock/mock_dcp_consumer.h>
 #include <tests/mock/mock_dcp_producer.h>
 #include <tests/mock/mock_stream.h>
@@ -95,7 +96,9 @@ protected:
         producerStream = dynamic_cast<MockActiveStream*>(
                 producer->findStream(vbid).get());
 
-        ASSERT_EQ(2, sourceVb.checkpointManager->getNumOfCursors())
+        ASSERT_EQ(2, static_cast<MockCheckpointManager*>(
+                sourceVb.checkpointManager.get())
+                ->getNumOfCursors())
                 << "Should have both persistence and DCP producer cursor on "
                    "source "
                    "VB";

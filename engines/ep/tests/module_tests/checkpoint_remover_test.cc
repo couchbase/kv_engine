@@ -21,6 +21,7 @@
 
 #include <engines/ep/src/checkpoint_remover.h>
 
+#include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
@@ -67,7 +68,8 @@ TEST_F(CheckpointRemoverEPTest, GetActiveVBucketsSortedByChkMgrMem) {
 TEST_F(CheckpointRemoverEPTest, CheckpointManagerMemoryUsage) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
-    auto& checkpointManager = vb->checkpointManager;
+    auto* checkpointManager =
+            static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
 
     // We should have one checkpoint which is for the state change
     ASSERT_EQ(1, checkpointManager->getNumCheckpoints());
@@ -147,7 +149,8 @@ TEST_F(CheckpointRemoverEPTest, CheckpointManagerMemoryUsage) {
 TEST_F(CheckpointRemoverEPTest, CursorsEligibleToDrop) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
-    auto& checkpointManager = vb->checkpointManager;
+    auto* checkpointManager =
+            static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
 
     // We should have one checkpoint which is for the state change
     ASSERT_EQ(1, checkpointManager->getNumCheckpoints());
@@ -197,7 +200,8 @@ TEST_F(CheckpointRemoverEPTest, CursorsEligibleToDrop) {
 TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
-    auto& checkpointManager = vb->checkpointManager;
+    auto* checkpointManager =
+            static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
 
     // We should have one checkpoint which is for the state change
     ASSERT_EQ(1, checkpointManager->getNumCheckpoints());

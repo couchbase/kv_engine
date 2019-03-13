@@ -336,16 +336,6 @@ bool CheckpointManager::removeCursor_UNLOCKED(const CheckpointCursor* cursor) {
     return true;
 }
 
-size_t CheckpointManager::getNumOfCursors() {
-    LockHolder lh(queueLock);
-    return connCursors.size();
-}
-
-size_t CheckpointManager::getNumCheckpoints() const {
-    LockHolder lh(queueLock);
-    return checkpointList.size();
-}
-
 bool CheckpointManager::isCheckpointCreationForHighMemUsage_UNLOCKED(
         const LockHolder& lh, const VBucket& vbucket) {
     bool forceCreation = false;
@@ -846,39 +836,6 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     cursor.numVisits++;
 
     return result;
-}
-
-queued_item CheckpointManager::nextItem(CheckpointCursor* constCursor,
-                                        bool& isLastMutationItem) {
-    LockHolder lh(queueLock);
-    static StoredDocKey emptyKey("", CollectionID::System);
-    if (!constCursor) {
-        EP_LOG_WARN(
-                "CheckpointManager::nextItemForPersistence called with a null "
-                "cursor for {}",
-                vbucketId);
-        queued_item qi(new Item(emptyKey, Vbid(0xffff), queue_op::empty, 0, 0));
-        return qi;
-    }
-    if (getOpenCheckpointId_UNLOCKED(lh) == 0) {
-        EP_LOG_DEBUG(
-                "{} is still in backfill phase that doesn't allow "
-                " the cursor to fetch an item from it's current checkpoint",
-                vbucketId);
-        queued_item qi(new Item(emptyKey, Vbid(0xffff), queue_op::empty, 0, 0));
-        return qi;
-    }
-
-    // obtain the non-const cursor so we can advance it
-    CheckpointCursor& cursor = *constCursor;
-    if (incrCursor(cursor)) {
-        isLastMutationItem = isLastMutationItemInCheckpoint(cursor);
-        return *(cursor.currentPos);
-    } else {
-        isLastMutationItem = false;
-        queued_item qi(new Item(emptyKey, Vbid(0xffff), queue_op::empty, 0, 0));
-        return qi;
-    }
 }
 
 bool CheckpointManager::incrCursor(CheckpointCursor &cursor) {

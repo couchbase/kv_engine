@@ -16,6 +16,7 @@
  */
 #include "vbucket_test.h"
 
+#include "../mock/mock_checkpoint_manager.h"
 #include "bgfetcher.h"
 #include "checkpoint_manager.h"
 #include "ep_time.h"
@@ -40,12 +41,22 @@ void VBucketTest::SetUp() {
                                 /*lastSnapStart*/ 0,
                                 /*lastSnapEnd*/ 0,
                                 /*table*/ nullptr,
-                                std::make_shared<DummyCB>(),
+                                /*flusher callback*/ nullptr,
                                 /*newSeqnoCb*/ nullptr,
                                 NoopSyncWriteCompleteCb,
                                 config,
                                 eviction_policy,
                                 std::make_unique<Collections::VB::Manifest>()));
+
+    vbucket->checkpointManager = std::make_unique<MockCheckpointManager>(
+            global_stats,
+            Vbid(0),
+            checkpoint_config,
+            0,
+            0,
+            0,
+            /*flusher callback*/ nullptr);
+
     cookie = create_mock_cookie();
 }
 

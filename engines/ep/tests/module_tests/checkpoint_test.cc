@@ -28,6 +28,7 @@
 #include "tests/module_tests/test_helpers.h"
 #include "thread_gate.h"
 
+#include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 
@@ -70,7 +71,7 @@ CheckpointTest<V>::CheckpointTest()
 
 template <typename V>
 void CheckpointTest<V>::createManager(int64_t last_seqno) {
-    manager.reset(new CheckpointManager(global_stats,
+    manager.reset(new MockCheckpointManager(global_stats,
                                         this->vbucket->getId(),
                                         checkpoint_config,
                                         last_seqno,
@@ -100,7 +101,7 @@ bool CheckpointTest<V>::queueNewItem(const std::string& key) {
 
 struct thread_args {
     VBucket* vbucket;
-    CheckpointManager *checkpoint_manager;
+    MockCheckpointManager *checkpoint_manager;
     Cursor cursor;
     ThreadGate& gate;
 };
@@ -213,7 +214,7 @@ TYPED_TEST(CheckpointTest, basic_chk_test) {
                           item_eviction_policy_t::VALUE_ONLY,
                           std::make_unique<Collections::VB::Manifest>()));
 
-    this->manager.reset(new CheckpointManager(
+    this->manager.reset(new MockCheckpointManager(
             this->global_stats, Vbid(0), this->checkpoint_config, 1, 0, 0, cb));
 
     const size_t n_set_threads = RUNNING_ON_VALGRIND ? NUM_SET_THREADS_VG :
@@ -1045,7 +1046,8 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
     }
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
     auto vb = store->getVBuckets().getBucket(vbid);
-    auto* ckptMgr = vb->checkpointManager.get();
+    auto* ckptMgr =
+            static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
     ASSERT_TRUE(ckptMgr);
 
     const auto& ckptList =
@@ -1148,7 +1150,8 @@ TEST_F(SingleThreadedCheckpointTest,
                                      dcp_marker_flag_t::MARKER_FLAG_DISK}) {
             setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
             auto vb = store->getVBuckets().getBucket(vbid);
-            auto* ckptMgr = vb->checkpointManager.get();
+            auto* ckptMgr = static_cast<MockCheckpointManager*>(
+                    vb->checkpointManager.get());
             ASSERT_TRUE(ckptMgr);
 
             EPStats& stats = engine->getEpStats();
@@ -1319,7 +1322,7 @@ TYPED_TEST(CheckpointTest, takeAndResetCursors) {
                       dcpCursor2.cursor.lock().get()));
 
     // Second manager
-    auto manager2 = std::make_unique<CheckpointManager>(this->global_stats,
+    auto manager2 = std::make_unique<MockCheckpointManager>(this->global_stats,
                                                         this->vbucket->getId(),
                                                         this->checkpoint_config,
                                                         0,

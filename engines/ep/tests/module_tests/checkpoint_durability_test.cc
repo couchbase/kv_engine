@@ -23,6 +23,7 @@
 #include "test_helpers.h"
 
 #include <gmock/gmock-generated-matchers.h>
+#include <tests/mock/mock_checkpoint_manager.h>
 
 /**
  * Test fixture for Checkpoint tests related to durability.
@@ -47,30 +48,32 @@ void CheckpointDurabilityTest<V>::test_AvoidDeDuplication(
         queued_item second,
         std::vector<queued_item>& items) {
     // Check expected starting state.
-    ASSERT_EQ(1, this->manager->getNumCheckpoints());
+    auto* ckptMgr = static_cast<MockCheckpointManager*>(this->manager.get());
+
+    ASSERT_EQ(1, ckptMgr->getNumCheckpoints());
 
     // Setup: enqueue a first item.
-    ASSERT_TRUE(this->manager->queueDirty(*this->vbucket,
-                                          first,
-                                          GenerateBySeqno::Yes,
-                                          GenerateCas::Yes,
-                                          /*preLinkDocCtx*/ nullptr));
-    ASSERT_EQ(1, this->manager->getNumCheckpoints());
-    ASSERT_EQ(1, this->manager->getNumOpenChkItems());
+    ASSERT_TRUE(ckptMgr->queueDirty(*this->vbucket,
+                                    first,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::Yes,
+                                    /*preLinkDocCtx*/ nullptr));
+    ASSERT_EQ(1, ckptMgr->getNumCheckpoints());
+    ASSERT_EQ(1, ckptMgr->getNumOpenChkItems());
 
     // Test: enqueue second item
-    EXPECT_TRUE(this->manager->queueDirty(*this->vbucket,
-                                          second,
-                                          GenerateBySeqno::Yes,
-                                          GenerateCas::Yes,
-                                          /*preLinkDocCtx*/ nullptr));
+    EXPECT_TRUE(ckptMgr->queueDirty(*this->vbucket,
+                                    second,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::Yes,
+                                    /*preLinkDocCtx*/ nullptr));
 
     // Verify: Should not have de-duplicated; should have both first and second
     // and Committed in separate checkpoints.
-    EXPECT_EQ(2, this->manager->getNumCheckpoints())
+    EXPECT_EQ(2, ckptMgr->getNumCheckpoints())
             << "Should have created 2nd checkpoint to avoid de-duplication";
 
-    this->manager->getAllItemsForPersistence(items);
+    ckptMgr->getAllItemsForPersistence(items);
 }
 
 TYPED_TEST_CASE(CheckpointDurabilityTest, VBucketTypes);

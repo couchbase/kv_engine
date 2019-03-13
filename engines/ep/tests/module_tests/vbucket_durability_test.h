@@ -19,7 +19,7 @@
 
 #include "vbucket_test.h"
 
-class CheckpointManager;
+class MockCheckpointManager;
 class MockDurabilityMonitor;
 
 /*
@@ -67,7 +67,7 @@ protected:
 
     // All owned by VBucket
     HashTable* ht;
-    CheckpointManager* ckptMgr;
+    MockCheckpointManager* ckptMgr;
     MockDurabilityMonitor* monitor;
 
     const std::string active = "active";

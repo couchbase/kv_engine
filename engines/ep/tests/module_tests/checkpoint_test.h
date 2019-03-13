@@ -25,7 +25,7 @@
 
 #include <folly/portability/GTest.h>
 
-class CheckpointManager;
+class MockCheckpointManager;
 
 /**
  * Dummy callback to replace the flusher callback.
@@ -62,7 +62,7 @@ protected:
     Configuration config;
     std::shared_ptr<Callback<Vbid>> callback;
     std::unique_ptr<V> vbucket;
-    std::unique_ptr<CheckpointManager> manager;
+    std::unique_ptr<MockCheckpointManager> manager;
 };
 
 // Set of vBucket classes to test.

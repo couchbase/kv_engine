@@ -29,6 +29,7 @@
 #include "evp_store_test.h"
 #include "failover-table.h"
 #include "programs/engine_testapp/mock_server.h"
+#include "tests/mock/mock_checkpoint_manager.h"
 #include "tests/mock/mock_dcp.h"
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
@@ -1017,7 +1018,8 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     EXPECT_EQ(std::make_pair(false, size_t(1)),
               getEPBucket().flushVBucket(vbid));
 
-    auto& ckpt_mgr = *vb->checkpointManager;
+    auto& ckpt_mgr =
+            *(static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
     ckpt_mgr.createNewCheckpoint();
     EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());

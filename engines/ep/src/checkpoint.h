@@ -112,6 +112,7 @@ class VBucket;
 class CheckpointCursor {
     friend class CheckpointManager;
     friend class Checkpoint;
+    friend class MockCheckpointManager;
 public:
 
     CheckpointCursor(const std::string& n,

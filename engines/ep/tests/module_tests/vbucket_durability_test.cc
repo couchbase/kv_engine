@@ -23,6 +23,7 @@
 #include "test_helpers.h"
 #include "thread_gate.h"
 
+#include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_durability_monitor.h"
 
 #include <folly/portability/GMock.h>
@@ -33,7 +34,8 @@ using namespace std::string_literals;
 void VBucketDurabilityTest::SetUp() {
     VBucketTest::SetUp();
     ht = &vbucket->ht;
-    ckptMgr = vbucket->checkpointManager.get();
+    ckptMgr = static_cast<MockCheckpointManager*>(
+            vbucket->checkpointManager.get());
     vbucket->setState(
             vbucket_state_active,
             {{"topology", nlohmann::json::array({{active, replica}})}});

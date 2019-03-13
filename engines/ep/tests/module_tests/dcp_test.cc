@@ -23,6 +23,7 @@
  */
 
 #include "dcp_test.h"
+#include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp.h"
 #include "../mock/mock_dcp_conn_map.h"
 #include "../mock/mock_dcp_consumer.h"
@@ -2641,7 +2642,8 @@ TEST_F(SingleThreadedStreamTest, MB31410) {
 
     // Explicitly verify the order of mutations in the CheckpointManager.
     auto vb = store->getVBuckets().getBucket(vbid);
-    auto* ckptMgr = vb->checkpointManager.get();
+    auto* ckptMgr =
+            static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
     ASSERT_TRUE(ckptMgr);
     std::vector<queued_item> items;
     ckptMgr->getAllItemsForPersistence(items);

@@ -17,6 +17,7 @@
 
 #include "evp_store_single_threaded_test.h"
 
+#include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
@@ -355,7 +356,8 @@ TEST_P(STParameterizedBucketTest, SlowStreamBackfillPurgeSeqnoCheck) {
     }
     flushVBucketToDiskIfPersistent(vbid, initialKeys.size());
 
-    auto& ckpt_mgr = *vb->checkpointManager;
+    auto& ckpt_mgr =
+            *(static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
 
     // Create a Mock Dcp producer
     // Create the Mock Active Stream with a startSeqno of 1
@@ -443,7 +445,8 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_backfilling_but_task_finished) {
      setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
      auto vb = store->getVBuckets().getBucket(vbid);
      ASSERT_NE(nullptr, vb.get());
-     auto& ckpt_mgr = *vb->checkpointManager;
+     auto& ckpt_mgr = *(
+             static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
 
      // Create a Mock Dcp producer
      auto producer = std::make_shared<MockDcpProducer>(*engine,
@@ -503,7 +506,8 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
-    auto& ckpt_mgr = *vb->checkpointManager;
+    auto& ckpt_mgr = *(
+            static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
 
     // Create a Mock Dcp producer
     auto producer = std::make_shared<MockDcpProducer>(*engine,
@@ -641,7 +645,8 @@ TEST_F(SingleThreadedEPBucketTest,
     // Use last Stream as the one we're going to drop the cursor on (this is
     // also at the back of the queue).
     auto vb = store->getVBuckets().getBucket(Vbid(iterationLimit));
-    auto& ckptMgr = *vb->checkpointManager;
+    auto& ckptMgr = *(
+            static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
 
     // 1. Now trigger cursor dropping for this stream.
     EXPECT_TRUE(stream->handleSlowStream());
@@ -826,7 +831,10 @@ TEST_F(SingleThreadedEPBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
 
     // After Backfilltask scheduled create(); should have received a disk
     // snapshot; which in turn calls markDiskShapshot to re-register cursor.
-    EXPECT_EQ(2, vb->checkpointManager->getNumOfCursors())
+    auto* checkpointManager =
+            static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
+
+    EXPECT_EQ(2, checkpointManager->getNumOfCursors())
             << "Expected persistence + replication cursors after "
                "markDiskShapshot";
 
@@ -943,7 +951,8 @@ void MB22960callbackBeforeRegisterCursor(
     // moved forward during a backfill.
     if (registerCursorCount == 0) {
         bool new_ckpt_created;
-        CheckpointManager& ckpt_mgr = *vb->checkpointManager;
+        auto& ckpt_mgr =
+                *(static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
 
         //pendingBackfill has now been cleared
         EXPECT_FALSE(mock_stream.public_getPendingBackfill())
@@ -1021,7 +1030,8 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
-    auto& ckpt_mgr = *vb->checkpointManager;
+    auto& ckpt_mgr =
+            *(static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
     EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
@@ -1215,7 +1225,8 @@ TEST_F(SingleThreadedEPBucketTest, MB25056_do_not_set_pendingBackfill_to_true) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
     auto vb = store->getVBuckets().getBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
-    auto& ckpt_mgr = *vb->checkpointManager;
+    auto& ckpt_mgr =
+            *(static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
     EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
@@ -2688,7 +2699,9 @@ TEST_F(MB_29287, DISABLED_dataloss_end) {
     auto vb = store->getVBuckets().getBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
     // Have persistence cursor only (dcp now closed down)
-    EXPECT_EQ(1, vb->checkpointManager->getNumOfCursors());
+    auto* checkpointManager =
+            static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
+    EXPECT_EQ(1, checkpointManager->getNumOfCursors());
 }
 
 // takeover when more writes occur
@@ -2753,7 +2766,9 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
     auto vb = store->getVBuckets().getBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
     // Have persistence cursor only (dcp now closed down)
-    EXPECT_EQ(1, vb->checkpointManager->getNumOfCursors());
+    auto* checkpointManager =
+            static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
+    EXPECT_EQ(1, checkpointManager->getNumOfCursors());
 }
 
 class XattrCompressedTest

@@ -22,6 +22,7 @@
 #include "ephemeral_bucket.h"
 #include "test_helpers.h"
 
+#include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "dcp/dcpconnmap.h"
@@ -102,7 +103,8 @@ TEST_F(SingleThreadedEphemeralBackfillTest, RangeIteratorVBDeleteRaceTest) {
     store_item(vbid, makeStoredDocKey("key1"), "value");
     store_item(vbid, makeStoredDocKey("key2"), "value");
 
-    auto& ckpt_mgr = *vb->checkpointManager;
+    auto& ckpt_mgr =
+            *(static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
     ASSERT_EQ(1, ckpt_mgr.getNumCheckpoints());
 
     // make checkpoint to cause backfill later rather than straight to in-memory
