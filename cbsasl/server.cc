@@ -32,8 +32,6 @@ namespace cb {
 namespace sasl {
 namespace server {
 
-static cb_rand_t randgen;
-
 std::string listmech() {
     std::string ret;
 
@@ -92,12 +90,6 @@ void refresh() {
 
 CBSASL_PUBLIC_API
 void initialize() {
-    if (cb_rand_open(&randgen) != 0) {
-        throw std::runtime_error(
-                "cb::sasl::server::initialize: Failed to open random "
-                "generator");
-    }
-
     const auto ret = load_user_db();
     if (ret != Error::OK) {
         throw std::runtime_error(
@@ -108,11 +100,6 @@ void initialize() {
 
 CBSASL_PUBLIC_API
 void shutdown() {
-    if (cb_rand_close(randgen) != 0) {
-        throw std::runtime_error(
-                "cb::sasl::server::initialize: Failed to shut down random "
-                "generator");
-    }
 }
 
 CBSASL_PUBLIC_API
