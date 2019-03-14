@@ -299,12 +299,10 @@ public:
         case queue_op::mutation:
         case queue_op::commit_sync_write:
         case queue_op::pending_sync_write:
+        case queue_op::abort_sync_write:
         case queue_op::system_event:
         case queue_op::set_vbucket_state:
             return true;
-        // @todo-durability: Temporarily skipping abort at flush, implementing
-        //     in a dedicated patch
-        case queue_op::abort_sync_write:
         case queue_op::flush:
         case queue_op::empty:
         case queue_op::checkpoint_start:

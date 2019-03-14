@@ -309,8 +309,8 @@ static bool canDeDuplicate(Item* lastFlushed, Item& candidate) {
         return false;
     }
 
-    if ((lastFlushed->getCommitted() == CommittedState::CommittedViaMutation) &&
-        (candidate.getCommitted() == CommittedState::CommittedViaPrepare)) {
+    if ((lastFlushed->getOperation() == queue_op::mutation) &&
+        (candidate.getOperation() == queue_op::commit_sync_write)) {
         // Already flushed a newer mutation, but still need to keep the
         // older CommittedViaPrepare until flushOneDelOrSet() as it is
         // needed to know to delete the previous prepared item.

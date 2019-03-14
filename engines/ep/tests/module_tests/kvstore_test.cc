@@ -2478,6 +2478,33 @@ TEST_P(KVStoreParamTest, GetRangeDeleted) {
     EXPECT_EQ("value_e"s, results.at(1).item->getValue()->to_s());
 }
 
+TEST_P(KVStoreParamTest, Durability_PersistAbort) {
+    StoredDocKey key = makeStoredDocKey("key");
+    Item item(key,
+              0 /*flags*/,
+              0 /*expiry*/,
+              nullptr /*value*/,
+              0 /*value_size*/);
+    using namespace cb::durability;
+    item.setAbortSyncWrite();
+    item.setDeleted();
+
+    DeleteCallback dc;
+    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->del(item, dc);
+    kvstore->commit(flush);
+
+    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    // Note: Aborts are in the DurabilityPrepare namespace.
+    DiskDocKey prefixedKey(key, true /*pending*/);
+    gv = kvstore->get(prefixedKey, Vbid(0));
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_TRUE(gv.item->isAbort());
+    EXPECT_TRUE(gv.item->isDeleted());
+}
+
 static std::string kvstoreTestParams[] = {
 #ifdef EP_USE_ROCKSDB
         "rocksdb",

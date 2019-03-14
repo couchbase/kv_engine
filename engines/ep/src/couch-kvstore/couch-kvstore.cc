@@ -189,6 +189,9 @@ static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
             // must be ignored.
             item->setPendingSyncWrite({metadata.getDurabilityLevel(), 0});
             break;
+        case queue_op::abort_sync_write:
+            item->setAbortSyncWrite();
+            break;
         default:
             throw std::logic_error("makeItemFromDocInfo: Invalid queue_op:" +
                                    to_string(metadata.getDurabilityOp()));
@@ -250,8 +253,16 @@ CouchRequest::CouchRequest(const Item& it, MutationRequestCallback cb)
     meta.setFlags(it.getFlags());
     meta.setExptime(it.getExptime());
     meta.setDataType(it.getDataType());
-    if (it.getOperation() == queue_op::pending_sync_write) {
+
+    const auto isDurabilityOp =
+            (it.getOperation() == queue_op::pending_sync_write ||
+             it.getOperation() == queue_op::abort_sync_write);
+
+    if (isDurabilityOp) {
         meta.setDurabilityOp(it.getOperation());
+    }
+
+    if (it.isPending()) {
         // Note: durability timeout /isn't/ persisted as part of a pending
         // SyncWrite. This is because if we ever read it back from disk
         // during warmup (i.e. the commit_sync_write was never persisted), we
@@ -264,10 +275,8 @@ CouchRequest::CouchRequest(const Item& it, MutationRequestCallback cb)
     dbDocInfo.db_seq = it.getBySeqno();
 
     // Now allocate space to hold the meta and get it ready for storage
-    const auto metaVersion = (it.getOperation() == queue_op::pending_sync_write)
-                                     ? MetaData::Version::V3
-                                     : MetaData::Version::V1;
-    dbDocInfo.rev_meta.size = MetaData::getMetaDataSize(metaVersion);
+    dbDocInfo.rev_meta.size = MetaData::getMetaDataSize(
+            isDurabilityOp ? MetaData::Version::V3 : MetaData::Version::V1);
     dbDocInfo.rev_meta.buf = meta.prepareAndGetForPersistence();
 
     dbDocInfo.rev_seq = it.getRevSeqno();

@@ -253,6 +253,9 @@ protected:
             case queue_op::pending_sync_write:
                 operation = Operation::Pending;
                 break;
+            case queue_op::abort_sync_write:
+                operation = Operation::Abort;
+                break;
             default:
                 throw std::invalid_argument(
                         "MetaDataV3::setDurabilityOp: Unsupported op " +
@@ -264,6 +267,8 @@ protected:
             switch (operation) {
             case Operation::Pending:
                 return queue_op::pending_sync_write;
+            case Operation::Abort:
+                return queue_op::abort_sync_write;
             default:
                 throw std::invalid_argument(
                         "MetaDataV3::getDurabiltyOp: Unsupported op " +

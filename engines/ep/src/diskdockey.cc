@@ -41,7 +41,8 @@ DiskDocKey::DiskDocKey(const DocKey& key, bool prepared) {
 }
 
 DiskDocKey::DiskDocKey(const Item& item)
-    : DiskDocKey(item.getKey(), item.isPending()) {
+    : DiskDocKey(item.getKey(),
+                 item.isPending() || item.isAbort() /*Prepare namespace?*/) {
 }
 
 DiskDocKey::DiskDocKey(const char* ptr, size_t len) : keydata(ptr, len) {

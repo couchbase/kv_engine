@@ -150,6 +150,8 @@ private:
             return Operation::Mutation;
         case queue_op::pending_sync_write:
             return Operation::PreparedSyncWrite;
+        case queue_op::abort_sync_write:
+            return Operation::Abort;
         case queue_op::system_event:
             return Operation::Mutation;
         default:
@@ -1041,6 +1043,9 @@ std::unique_ptr<Item> RocksDBKVStore::makeItem(Vbid vb,
         // refer to an already-committed SyncWrite and hence timeout
         // must be ignored.
         item->setPendingSyncWrite({meta.getDurabilityLevel(), 0});
+        break;
+    case rockskv::MetaData::Operation::Abort:
+        item->setAbortSyncWrite();
         break;
     default:
         throw std::logic_error("RocksDBKVStore::makeItem: Invalid operation:" +
