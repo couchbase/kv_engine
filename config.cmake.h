@@ -39,10 +39,6 @@ typedef HANDLE pid_t;
 #define EX_OSERR EXIT_FAILURE
 #define EX_USAGE EXIT_FAILURE
 
-#else // !WIN32
-
-#define HAVE_SIGIGNORE 1
-
 #endif // WIN32
 
 /* Common section */

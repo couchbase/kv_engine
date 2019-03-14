@@ -1268,20 +1268,6 @@ static void release_signal_handlers() {
 }
 #else
 
-#ifndef HAVE_SIGIGNORE
-static int sigignore(int sig) {
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = SIG_IGN;
-
-    if (sigemptyset(&sa.sa_mask) == -1 || sigaction(sig, &sa, 0) == -1) {
-        return -1;
-    }
-    return 0;
-}
-#endif /* !HAVE_SIGIGNORE */
-
-
 static void sigterm_handler(evutil_socket_t, short, void *) {
     shutdown_server();
 }
