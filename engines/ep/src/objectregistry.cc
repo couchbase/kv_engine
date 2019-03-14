@@ -60,7 +60,8 @@ public:
 static bool verifyEngine(EventuallyPersistentEngine *engine)
 {
    if (engine == NULL) {
-       if (getenv("ALLOW_NO_STATS_UPDATE") != NULL) {
+       static const char* allowNoStatsUpdate = getenv("ALLOW_NO_STATS_UPDATE");
+       if (allowNoStatsUpdate) {
            return false;
        } else {
            throw std::logic_error("verifyEngine: engine should be non-NULL");
