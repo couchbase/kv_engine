@@ -81,14 +81,6 @@ INCLUDE_DIRECTORIES(AFTER SYSTEM
                     ${gmock_SOURCE_DIR}/include)
 
 CHECK_INCLUDE_FILES("arpa/inet.h" HAVE_ARPA_INET_H)
-CHECK_INCLUDE_FILES("unistd.h" HAVE_UNISTD_H)
-CHECK_INCLUDE_FILES("netdb.h" HAVE_NETDB_H)
-CHECK_INCLUDE_FILES("poll.h" HAVE_POLL_H)
-CHECK_INCLUDE_FILES("unistd.h" HAVE_UNISTD_H)
-CHECK_INCLUDE_FILES("sys/socket.h" HAVE_SYS_SOCKET_H)
-CHECK_INCLUDE_FILES("sys/time.h" HAVE_SYS_TIME_H)
-CHECK_INCLUDE_FILES("netinet/in.h" HAVE_NETINET_IN_H)
-CHECK_INCLUDE_FILES("netinet/tcp.h" HAVE_NETINET_TCP_H)
 
 # For debugging without compiler optimizations uncomment line below..
 #SET (CMAKE_BUILD_TYPE DEBUG)
