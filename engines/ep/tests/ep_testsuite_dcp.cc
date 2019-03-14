@@ -390,7 +390,7 @@ void TestDcpConsumer::run(bool openConn) {
     do {
         if (!disable_ack && (bytes_read > ack_limit)) {
             if (delay_buffer_acking) {
-                sleep(2);
+                std::this_thread::sleep_for(std::chrono::seconds(2));
                 delay_buffer_acking = false;
             }
             dcp->buffer_acknowledgement(cookie, ++opaque, Vbid(0), bytes_read);

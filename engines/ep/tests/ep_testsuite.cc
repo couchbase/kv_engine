@@ -649,7 +649,7 @@ static enum test_result test_expiry_pager_settings(EngineIface* h) {
             get_int_stat(h, "ep_exp_pager_stime"),
             "Expiry pager sleep time not updated");
     cb_assert(!get_bool_stat(h, "ep_exp_pager_enabled"));
-    sleep(1);
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     checkeq(0,
             get_int_stat(h, "ep_num_expiry_pager_runs"),
             "Expiry pager run count is not zero");
@@ -5188,7 +5188,7 @@ static enum test_result test_item_pager(EngineIface* h) {
     // For now just spend some time waiting for it to bump the values
     int max = 0;
     while (get_int_stat(h, "ep_num_non_resident") == 0) {
-        sleep(1);
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         if (++max == 30) {
             std::cerr << "Giving up waiting for item_pager to eject data.. "
                       << std::endl;

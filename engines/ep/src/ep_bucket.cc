@@ -358,7 +358,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 EP_LOG_WARN(
                         "Failed to start a transaction!!! "
                         "Retry in 1 sec ...");
-                sleep(1);
+                std::this_thread::sleep_for(std::chrono::seconds(1));
             }
             rwUnderlying->optimizeWrites(items);
 
@@ -585,7 +585,7 @@ void EPBucket::commit(KVStore& kvstore,
         ++stats.commitFailed;
         EP_LOG_WARN(
                 "KVBucket::commit: kvstore.commit failed!!! Retry in 1 sec...");
-        sleep(1);
+        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
     pcbs.clear();

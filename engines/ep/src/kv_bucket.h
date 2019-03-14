@@ -27,6 +27,7 @@
 #include "vbucket.h"
 #include "vbucketmap.h"
 
+#include <cstdlib>
 #include <deque>
 
 class ReplicationThrottle;
@@ -780,7 +781,7 @@ protected:
      * Allows us to override the random function.  This is used for testing
      * purposes where we want a constant number as opposed to a random one.
      */
-    std::function<long()> getRandom = random;
+    std::function<long()> getRandom = std::rand;
 
     friend class KVBucketTest;
 
