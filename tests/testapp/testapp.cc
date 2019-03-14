@@ -146,8 +146,7 @@ std::string to_string(ClientSnappySupport snappy) {
                            std::to_string(int(snappy)));
 }
 
-void TestappTest::CreateTestBucket()
-{
+void TestappTest::CreateTestBucket() {
     auto& conn = connectionMap.getConnection(false);
 
     // Reconnect to the server so we know we're on a "fresh" connection
@@ -169,15 +168,12 @@ void TestappTest::DeleteTestBucket() {
     try {
         conn.deleteBucket(bucketName);
     } catch (const ConnectionError& error) {
-        EXPECT_FALSE(error.isNotFound()) << "Delete bucket ["
-        << bucketName
-        << "] failed with: "
-                                         << error.what();
+        EXPECT_FALSE(error.isNotFound()) << "Delete bucket [" << bucketName
+                                         << "] failed with: " << error.what();
     }
 }
 
-TestBucketImpl& TestappTest::GetTestBucket()
-{
+TestBucketImpl& TestappTest::GetTestBucket() {
     return mcd_env->getTestBucket();
 }
 
@@ -325,8 +321,9 @@ void TestappTest::SetUp() {
     ASSERT_NE(INVALID_SOCKET, sock);
 
     // Set ewouldblock_engine test harness to default mode.
-    ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode::First,
-                                 /*unused*/0);
+    ewouldblock_engine_configure(ENGINE_EWOULDBLOCK,
+                                 EWBEngineMode::First,
+                                 /*unused*/ 0);
 
     enabled_hello_features.clear();
 
@@ -360,8 +357,9 @@ void McdTestappTest::SetUp() {
     set_json_feature(hasJSONSupport() == ClientJSONSupport::Yes);
 
     // Set ewouldblock_engine test harness to default mode.
-    ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode::First,
-                                 /*unused*/0);
+    ewouldblock_engine_configure(ENGINE_EWOULDBLOCK,
+                                 EWBEngineMode::First,
+                                 /*unused*/ 0);
 
     setCompressionMode("off");
 }
@@ -503,7 +501,7 @@ nlohmann::json TestappTest::generate_config() {
 }
 
 void write_config_to_file(const std::string& config, const std::string& fname) {
-    FILE *fp = fopen(fname.c_str(), "w");
+    FILE* fp = fopen(fname.c_str(), "w");
 
     if (fp == nullptr) {
         throw std::system_error(errno,
@@ -518,7 +516,7 @@ void write_config_to_file(const std::string& config, const std::string& fname) {
 void TestappTest::verify_server_running() {
     if (embedded_memcached_server) {
         // we don't monitor this thread...
-        return ;
+        return;
     }
 
     if (reinterpret_cast<pid_t>(-1) == server_pid) {
@@ -628,8 +626,8 @@ void TestappTest::parse_portnumber_file(in_port_t& port_out,
 
 extern "C" int memcached_main(int argc, char** argv);
 
-extern "C" void memcached_server_thread_main(void *arg) {
-    char *argv[4];
+extern "C" void memcached_server_thread_main(void* arg) {
+    char* argv[4];
     int argc = 0;
     argv[argc++] = const_cast<char*>("./memcached");
     argv[argc++] = const_cast<char*>("-C");
@@ -643,7 +641,7 @@ extern "C" void memcached_server_thread_main(void *arg) {
 }
 
 void TestappTest::spawn_embedded_server() {
-    char *filename= mcd_port_filename_env + strlen("MEMCACHED_PORT_FILENAME=");
+    char* filename = mcd_port_filename_env + strlen("MEMCACHED_PORT_FILENAME=");
     snprintf(mcd_port_filename_env,
              sizeof(mcd_port_filename_env),
              "MEMCACHED_PORT_FILENAME=memcached_ports.%u.%lu",
@@ -653,15 +651,15 @@ void TestappTest::spawn_embedded_server() {
     portnumber_file.assign(filename);
     putenv(mcd_port_filename_env);
 
-    ASSERT_EQ(0, cb_create_thread(&memcached_server_thread,
-                                  memcached_server_thread_main,
-                                  const_cast<char*>(config_file.c_str()),
-                                  0));
+    ASSERT_EQ(0,
+              cb_create_thread(&memcached_server_thread,
+                               memcached_server_thread_main,
+                               const_cast<char*>(config_file.c_str()),
+                               0));
 }
 
-
 void TestappTest::start_external_server() {
-    char *filename= mcd_port_filename_env + strlen("MEMCACHED_PORT_FILENAME=");
+    char* filename = mcd_port_filename_env + strlen("MEMCACHED_PORT_FILENAME=");
     snprintf(mcd_parent_monitor_env,
              sizeof(mcd_parent_monitor_env),
              "MEMCACHED_PARENT_MONITOR=%u",
@@ -690,11 +688,16 @@ void TestappTest::start_external_server() {
 
     putenv(mcd_port_filename_env);
 
-    if (!CreateProcess("memcached.exe", commandline,
-                       NULL, NULL, /*bInheritHandles*/FALSE,
+    if (!CreateProcess("memcached.exe",
+                       commandline,
+                       NULL,
+                       NULL,
+                       /*bInheritHandles*/ FALSE,
                        0,
-                       NULL, NULL, &sinfo, &pinfo)) {
-
+                       NULL,
+                       NULL,
+                       &sinfo,
+                       &pinfo)) {
         std::cerr << "Failed to start process: " << cb_strerror() << std::endl;
         exit(EXIT_FAILURE);
     }
@@ -706,7 +709,7 @@ void TestappTest::start_external_server() {
 
     if (server_pid == 0) {
         /* Child */
-        const char *argv[20];
+        const char* argv[20];
         int arg = 0;
         putenv(mcd_port_filename_env);
 
@@ -714,10 +717,10 @@ void TestappTest::start_external_server() {
             argv[arg++] = "valgrind";
             argv[arg++] = "--log-file=valgrind.%p.log";
             argv[arg++] = "--leak-check=full";
-    #if defined(__APPLE__)
+#if defined(__APPLE__)
             /* Needed to ensure debugging symbols are up-to-date. */
             argv[arg++] = "--dsymutil=yes";
-    #endif
+#endif
         }
 
         if (getenv("RUN_UNDER_PERF") != nullptr) {
@@ -732,13 +735,12 @@ void TestappTest::start_external_server() {
         argv[arg++] = config_file.c_str();
 
         argv[arg++] = nullptr;
-        cb_assert(execvp(argv[0], const_cast<char **>(argv)) != -1);
+        cb_assert(execvp(argv[0], const_cast<char**>(argv)) != -1);
     }
 #endif // !WIN32
 }
 
-SOCKET create_connect_plain_socket(in_port_t port)
-{
+SOCKET create_connect_plain_socket(in_port_t port) {
     auto sock = cb::net::new_socket("", port, AF_INET);
     if (sock == INVALID_SOCKET) {
         ADD_FAILURE() << "Failed to connect socket to 127.0.0.1:" << port;
@@ -980,24 +982,22 @@ void TestappTest::waitForShutdown(bool killed) {
         break;
     }
     ASSERT_NE(reinterpret_cast<pid_t>(-1), ret)
-        << "waitpid failed: " << strerror(errno);
+            << "waitpid failed: " << strerror(errno);
     bool correctShutdown = killed ? WIFSIGNALED(status) : WIFEXITED(status);
     EXPECT_TRUE(correctShutdown)
-        << "waitpid status     : " << status << std::endl
-        << "WIFEXITED(status)  : " << WIFEXITED(status) << std::endl
-        << "WEXITSTATUS(status): " << WEXITSTATUS(status) << std::endl
-        << "WIFSIGNALED(status): " << WIFSIGNALED(status) << std::endl
-        << "WTERMSIG(status)   : " << WTERMSIG(status) << " ("
-        << strsignal(WTERMSIG(status)) << ")" << std::endl
-        << "WCOREDUMP(status)  : " << WCOREDUMP(status) << std::endl;
+            << "waitpid status     : " << status << std::endl
+            << "WIFEXITED(status)  : " << WIFEXITED(status) << std::endl
+            << "WEXITSTATUS(status): " << WEXITSTATUS(status) << std::endl
+            << "WIFSIGNALED(status): " << WIFSIGNALED(status) << std::endl
+            << "WTERMSIG(status)   : " << WTERMSIG(status) << " ("
+            << strsignal(WTERMSIG(status)) << ")" << std::endl
+            << "WCOREDUMP(status)  : " << WCOREDUMP(status) << std::endl;
     EXPECT_EQ(0, WEXITSTATUS(status));
 #endif
     server_pid = reinterpret_cast<pid_t>(-1);
 }
 
-
 void TestappTest::stop_memcached_server() {
-
     connectionMap.invalidate();
     if (sock != INVALID_SOCKET) {
         cb::net::closesocket(sock);
@@ -1026,13 +1026,11 @@ void TestappTest::stop_memcached_server() {
     }
 }
 
-
-ssize_t socket_send(SOCKET s, const char *buf, size_t len)
-{
+ssize_t socket_send(SOCKET s, const char* buf, size_t len) {
     return cb::net::send(s, buf, len, 0);
 }
 
-static ssize_t phase_send(const void *buf, size_t len) {
+static ssize_t phase_send(const void* buf, size_t len) {
     if (current_phase == phase_ssl) {
         return phase_send_ssl(buf, len);
     } else {
@@ -1040,12 +1038,11 @@ static ssize_t phase_send(const void *buf, size_t len) {
     }
 }
 
-ssize_t socket_recv(SOCKET s, char *buf, size_t len)
-{
+ssize_t socket_recv(SOCKET s, char* buf, size_t len) {
     return cb::net::recv(s, buf, len, 0);
 }
 
-ssize_t phase_recv(void *buf, size_t len) {
+ssize_t phase_recv(void* buf, size_t len) {
     if (current_phase == phase_ssl) {
         return phase_recv_ssl(buf, len);
     } else {
@@ -1063,8 +1060,7 @@ static const std::string phase_get_errno() {
     return cb_strerror();
 }
 
-void safe_send(const void* buf, size_t len, bool hickup)
-{
+void safe_send(const void* buf, size_t len, bool hickup) {
     size_t offset = 0;
     const char* ptr = reinterpret_cast<const char*>(buf);
     do {
@@ -1111,13 +1107,12 @@ void safe_send(const void* buf, size_t len, bool hickup)
     } while (offset < len);
 }
 
-bool safe_recv(void *buf, size_t len) {
+bool safe_recv(void* buf, size_t len) {
     size_t offset = 0;
     if (len == 0) {
         return true;
     }
     do {
-
         ssize_t nr = phase_recv(((char*)buf) + offset, len - offset);
 
         if (nr == -1) {
@@ -1196,11 +1191,15 @@ bool safe_recv_packetT(T& info) {
  * safe_recv_packetT()
  */
 struct StaticBufInfo {
-    StaticBufInfo(void *buf_, size_t len_)
+    StaticBufInfo(void* buf_, size_t len_)
         : buf(reinterpret_cast<char*>(buf_)), len(len_) {
     }
-    size_t size(size_t) const { return len; }
-    char *data() { return buf; }
+    size_t size(size_t) const {
+        return len;
+    }
+    char* data() {
+        return buf;
+    }
 
     void resize(size_t n) {
         if (n > len) {
@@ -1216,11 +1215,11 @@ struct StaticBufInfo {
         return buf + len;
     }
 
-    char *buf;
+    char* buf;
     const size_t len;
 };
 
-bool safe_recv_packet(void *buf, size_t size) {
+bool safe_recv_packet(void* buf, size_t size) {
     StaticBufInfo info(buf, size);
     return safe_recv_packetT(info);
 }
@@ -1405,7 +1404,7 @@ ConnectionMap TestappTest::connectionMap;
 uint64_t TestappTest::token;
 cb_thread_t TestappTest::memcached_server_thread;
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
     // We need to set MEMCACHED_UNIT_TESTS to enable the use of
     // the ewouldblock engine..
     static char envvar[80];

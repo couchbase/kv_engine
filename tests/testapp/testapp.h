@@ -146,10 +146,10 @@ protected:
     // per test tear-down function.
     void TearDown() override;
 
-    //per test compression mode configuration function
+    // per test compression mode configuration function
     void setCompressionMode(const std::string& compression_mode);
 
-    //per test min compression ratio configuration
+    // per test min compression ratio configuration
     void setMinCompressionRatio(const float min_compression_ratio);
 
     /**
@@ -305,19 +305,22 @@ protected:
     static const std::string bucketName;
 };
 
-#define TESTAPP__DOSKIP(cond, reason) \
-    if ((cond)) { \
-        std::cerr \
-        << __FILE__ << ":" << __LINE__ << ": Skipping - '" \
-        << #cond << "' (" << reason << ")" << std::endl; \
-        return; \
+#define TESTAPP__DOSKIP(cond, reason)                                         \
+    if ((cond)) {                                                             \
+        std::cerr << __FILE__ << ":" << __LINE__ << ": Skipping - '" << #cond \
+                  << "' (" << reason << ")" << std::endl;                     \
+        return;                                                               \
     }
 
-#define TESTAPP_SKIP_IF_UNSUPPORTED(op) \
-    do { TESTAPP__DOSKIP(!GetTestBucket().supportsOp(op), #op); } while (0)
+#define TESTAPP_SKIP_IF_UNSUPPORTED(op)                        \
+    do {                                                       \
+        TESTAPP__DOSKIP(!GetTestBucket().supportsOp(op), #op); \
+    } while (0)
 
-#define TESTAPP_SKIP_IF_SUPPORTED(op) \
-    do { TESTAPP__DOSKIP(GetTestBucket().supportsOp(op), #op); } while (0)
+#define TESTAPP_SKIP_IF_SUPPORTED(op)                         \
+    do {                                                      \
+        TESTAPP__DOSKIP(GetTestBucket().supportsOp(op), #op); \
+    } while (0)
 
 /**
  * Test fixture for testapp tests which are parameterised on Transport
@@ -440,11 +443,11 @@ inline void safe_send(std::vector<uint8_t>& data) {
 }
 
 /* Receive the specified len into buf from memcached */
-bool safe_recv(void *buf, size_t len);
+bool safe_recv(void* buf, size_t len);
 
 /* Attempts to receive size bytes into buf. Returns true if successful.
  */
-bool safe_recv_packet(void *buf, size_t size);
+bool safe_recv_packet(void* buf, size_t size);
 bool safe_recv_packet(std::vector<uint8_t>& buf);
 bool safe_recv_packet(std::vector<char>& buf);
 
@@ -454,7 +457,7 @@ void set_allow_closed_read(bool enabled);
 /* The opposite of safe_recv. Simply tries to read from the socket (will use
  * SSL if the socket is SSL configured.
  */
-ssize_t phase_recv(void *buf, size_t len);
+ssize_t phase_recv(void* buf, size_t len);
 
 /* Whether the current socket is SSL */
 bool sock_is_ssl();
@@ -477,11 +480,10 @@ stats_response_t request_stats();
 
 /* Extracts a single statistic from the set of stats, returning as a uint64_t
  */
-uint64_t extract_single_stat(const stats_response_t& stats,
-                                      const char* name);
+uint64_t extract_single_stat(const stats_response_t& stats, const char* name);
 
-ssize_t socket_recv(SOCKET s, char *buf, size_t len);
-ssize_t socket_send(SOCKET s, const char *buf, size_t len);
+ssize_t socket_recv(SOCKET s, char* buf, size_t len);
+ssize_t socket_send(SOCKET s, const char* buf, size_t len);
 void adjust_memcached_clock(
         int64_t clock_shift,
         cb::mcbp::request::AdjustTimePayload::TimeType timeType);
