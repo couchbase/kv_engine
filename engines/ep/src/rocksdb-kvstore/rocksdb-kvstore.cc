@@ -569,6 +569,14 @@ void RocksDBKVStore::commitCallback(
     }
 }
 
+size_t RocksDBKVStore::getItemCount(Vbid vbid) {
+    const auto vbh = getVBHandle(vbid);
+    std::string val;
+    // TODO: Maintain an accurate item count, not just an estimate.
+    rdb->GetProperty(vbh->defaultCFH.get(), "rocksdb.estimate-num-keys", &val);
+    return std::stoi(val);
+}
+
 void RocksDBKVStore::rollback() {
     if (in_transaction) {
         in_transaction = false;

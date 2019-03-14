@@ -255,10 +255,7 @@ public:
         return vbinfo;
     }
 
-    size_t getItemCount(Vbid vbid) override {
-        // TODO vmx 2016-10-29: implement
-        return 0;
-    }
+    size_t getItemCount(Vbid vbid) override;
 
     RollbackResult rollback(Vbid vbid,
                             uint64_t rollbackSeqno,
