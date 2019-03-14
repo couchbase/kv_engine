@@ -339,7 +339,7 @@ public:
         std::string blob;
         blob.resize(EVP_CIPHER_key_length(EVP_aes_256_cbc()));
 
-        Couchbase::RandomGenerator randomGenerator(true);
+        cb::RandomGenerator randomGenerator;
         ASSERT_TRUE(randomGenerator.getBytes(const_cast<char*>(blob.data()),
                                              blob.size()));
         meta["key"] = Couchbase::Base64::encode(blob);

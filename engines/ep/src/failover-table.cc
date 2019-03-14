@@ -25,7 +25,7 @@
 #include "statwriter.h"
 
 FailoverTable::FailoverTable(size_t capacity)
-    : max_entries(capacity), erroneousEntriesErased(0), provider(true) {
+    : max_entries(capacity), erroneousEntriesErased(0) {
     createEntry(0);
     cacheTableJSON();
 }
@@ -33,7 +33,7 @@ FailoverTable::FailoverTable(size_t capacity)
 FailoverTable::FailoverTable(const std::string& json,
                              size_t capacity,
                              int64_t highSeqno)
-    : max_entries(capacity), erroneousEntriesErased(0), provider(true) {
+    : max_entries(capacity), erroneousEntriesErased(0) {
     if (!loadFromJSON(json)) {
         throw std::invalid_argument("FailoverTable(): unable to load from "
                 "JSON file '" + json + "'");

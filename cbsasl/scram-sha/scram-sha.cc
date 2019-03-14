@@ -292,7 +292,7 @@ ServerBackend::ServerBackend(server::ServerContext& ctx,
                              cb::crypto::Algorithm algo)
     : MechanismBackend(ctx), ScramShaBackend(mechanism, algo) {
     /* Generate a challenge */
-    Couchbase::RandomGenerator randomGenerator(true);
+    cb::RandomGenerator randomGenerator;
 
     std::array<char, 8> nonce;
     if (!randomGenerator.getBytes(nonce.data(), nonce.size())) {
@@ -498,7 +498,7 @@ ClientBackend::ClientBackend(client::GetUsernameCallback& user_cb,
                              cb::crypto::Algorithm algo)
     : MechanismBackend(user_cb, password_cb, ctx),
       ScramShaBackend(mechanism, algo) {
-    Couchbase::RandomGenerator randomGenerator(true);
+    cb::RandomGenerator randomGenerator;
 
     std::array<char, 8> nonce;
     if (!randomGenerator.getBytes(nonce.data(), nonce.size())) {

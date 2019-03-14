@@ -198,7 +198,7 @@ class FailoverTable {
     table_t table;
     size_t max_entries;
     size_t erroneousEntriesErased;
-    Couchbase::RandomGenerator provider;
+    cb::RandomGenerator provider;
     std::string cachedTableJSON;
     std::atomic<uint64_t> latest_uuid;
 

@@ -58,7 +58,7 @@ protected:
  * Generate a salt and store it base64 encoded into the salt
  */
 static void generateSalt(std::vector<uint8_t>& bytes, std::string& salt) {
-    Couchbase::RandomGenerator randomGenerator(true);
+    cb::RandomGenerator randomGenerator;
 
     if (!randomGenerator.getBytes(bytes.data(), bytes.size())) {
         throw std::runtime_error("Failed to get random bytes");
