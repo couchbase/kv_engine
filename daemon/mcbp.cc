@@ -276,6 +276,6 @@ void mcbp_collect_timings(Cookie& cookie) {
     cookie.maybeLogSlowCommand(elapsed);
 
     if (cookie.isOpenTracingEnabled()) {
-        OpenTracing::pushTraceLog(std::move(cookie.extractTraceContext()));
+        OpenTracing::pushTraceLog(cookie.extractTraceContext());
     }
 }

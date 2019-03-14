@@ -22,7 +22,7 @@
 #include <opentracing/dynamic_load.h>
 #endif
 
-class CookieTraceContext;
+struct CookieTraceContext;
 class OpenTracingConfig;
 
 /**
