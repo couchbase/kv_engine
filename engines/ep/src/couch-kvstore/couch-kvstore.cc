@@ -15,44 +15,23 @@
  *   limitations under the License.
  */
 
+#include "bucket_logger.h"
 #include "collections/collection_persisted_stats.h"
 #include "collections/kvstore_generated.h"
-
-#include <fcntl.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-
-#include <mcbp/protocol/unsigned_leb128.h>
-#include <nlohmann/json.hpp>
-#include <phosphor/phosphor.h>
-#include <platform/cb_malloc.h>
-#include <platform/cbassert.h>
-#include <platform/dirutils.h>
-#include <algorithm>
-#include <cctype>
-#include <cstdlib>
-#include <gsl/gsl>
-#include <list>
-#include <map>
-#include <string>
-#include <utility>
-#include <vector>
-
-#include "bucket_logger.h"
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "diskdockey.h"
-#include "ep_types.h"
+#include "ep_time.h"
 #include "kvstore_config.h"
-#include "statwriter.h"
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 
 #include <JSON_checker.h>
-#include <kvstore.h>
+#include <nlohmann/json.hpp>
+#include <phosphor/phosphor.h>
 #include <platform/compress.h>
+#include <platform/dirutils.h>
+#include <gsl/gsl>
 
 extern "C" {
     static int recordDbDumpC(Db *db, DocInfo *docinfo, void *ctx)
