@@ -5,15 +5,6 @@
 #cmakedefine HAVE_LIBNUMA 1
 #cmakedefine HAVE_PKCS5_PBKDF2_HMAC 1
 #cmakedefine HAVE_PKCS5_PBKDF2_HMAC_SHA1 1
-#cmakedefine HAVE_SSL_OP_NO_TLSv1_1 1
-
-#ifndef HAVE_SSL_OP_NO_TLSv1_1
-/*
- * Some of our platforms use an old version of OpenSSL without
- * support for anything newer than TLSv1
- */
-#define SSL_OP_NO_TLSv1_1 0L
-#endif
 
 #define COUCHBASE_MAX_NUM_BUCKETS 100
 #define COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES (1024 * 1024)
