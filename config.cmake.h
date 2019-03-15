@@ -37,15 +37,3 @@
 #define assert \
     #error "assert() is forbidden. Use cb_assert() from <platform/cbassert.h instead."
 
-/*
- * Using the ntoh-methods on Linux thread sanitizer builder cause
- * compile warnings due to the macros is using the "register"
- * keyword. Just undefine the macros since we don't need the extra
- * performance optimization during the thread sanitizer run.
- */
-#if defined(THREAD_SANITIZER) && defined(linux)
-#undef ntohs
-#undef ntohl
-#undef htons
-#undef htonl
-#endif
