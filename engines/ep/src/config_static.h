@@ -27,13 +27,7 @@
 
 #define _FILE_OFFSET_BITS 64
 
-#if HAVE_ARPA_INET_H
-#include <arpa/inet.h>
-#endif
-
 #ifdef WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
 
 #pragma warning(disable: 4291)
 #pragma warning(disable: 4244)
@@ -42,10 +36,3 @@
 
 typedef unsigned int useconds_t;
 #endif // WIN32
-
-#if defined(linux) || defined(__linux__) || defined(__linux)
-#undef ntohs
-#undef ntohl
-#undef htons
-#undef htonl
-#endif

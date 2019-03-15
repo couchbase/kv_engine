@@ -18,8 +18,16 @@
 #include <memcached/durability_spec.h>
 
 #include <string>
+#ifdef WIN32
+#include <winsock2.h>
+#else
+#include <arpa/inet.h>
+#endif
 
-std::string cb::durability::to_string(Requirements r) {
+namespace cb {
+namespace durability {
+
+std::string to_string(Requirements r) {
     std::string desc = "{";
     switch (r.getLevel()) {
     case Level::None:
@@ -38,3 +46,23 @@ std::string cb::durability::to_string(Requirements r) {
     desc += "timeout=" + std::to_string(r.getTimeout()) + "}";
     return desc;
 }
+
+Requirements::Requirements(cb::const_byte_buffer buffer) {
+    if (buffer.size() != 1 && buffer.size() != 3) {
+        throw std::invalid_argument(
+                "Requirements(): Invalid sized buffer provided: " +
+                std::to_string(buffer.size()));
+    }
+    level = Level(buffer.front());
+    if (buffer.size() == 3) {
+        timeout = ntohs(*reinterpret_cast<const uint16_t*>(buffer.data() + 1));
+    }
+    if (!isValid()) {
+        throw std::runtime_error(
+                "Requirements(): Content represents an invalid requirement "
+                "specification");
+    }
+}
+
+} // namespace durability
+} // namespace cb

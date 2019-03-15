@@ -24,10 +24,6 @@
 #include <stdexcept>
 #include <string>
 
-#ifndef WIN32
-#include <arpa/inet.h>
-#endif
-
 namespace cb {
 namespace durability {
 
@@ -81,22 +77,7 @@ public:
      * @throws std::runtime_error if the provided durability specification isn't
      *                            valid.
      */
-    explicit Requirements(cb::const_byte_buffer buffer) {
-        if (buffer.size() != 1 && buffer.size() != 3) {
-            throw std::invalid_argument(
-                    "Requirements(): Invalid sized buffer provided: " +
-                    std::to_string(buffer.size()));
-        }
-        level = Level(buffer.front());
-        if (buffer.size() == 3) {
-            timeout = ntohs(
-                    *reinterpret_cast<const uint16_t*>(buffer.data() + 1));
-        }
-        if (!isValid()) {
-            throw std::runtime_error(
-                    R"(Requirements(): Content represents an invalid requirement specification)");
-        }
-    }
+    explicit Requirements(cb::const_byte_buffer buffer);
 
     Level getLevel() const {
         return level;

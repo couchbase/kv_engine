@@ -137,6 +137,12 @@ std::ostream& operator <<(std::ostream &out, const VBucketFilter &filter)
     return out;
 }
 
+#if defined(linux) || defined(__linux__) || defined(__linux)
+// One of the CV build fails due to htonl is defined as a macro:
+// error: statement expression not allowed at file scope
+#undef htonl
+#endif
+
 const vbucket_state_t VBucket::ACTIVE =
                      static_cast<vbucket_state_t>(htonl(vbucket_state_active));
 const vbucket_state_t VBucket::REPLICA =

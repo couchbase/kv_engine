@@ -28,9 +28,9 @@
 namespace internal {
 
 #ifdef _MSC_VER
+#include <windows.h>
 
 #include <bcrypt.h>
-#include <windows.h>
 
 struct HeapAllocDeleter {
     void operator()(PBYTE bytes) {

@@ -20,7 +20,9 @@
 #include <xattr/blob.h>
 #include <gsl/gsl>
 
-#ifndef WIN32
+#ifdef WIN32
+#include <winsock2.h>
+#else
 #include <arpa/inet.h>
 #endif
 #include <algorithm>

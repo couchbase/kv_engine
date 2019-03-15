@@ -2,8 +2,6 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.2)
 PROJECT(EventuallyPersistentEngine LANGUAGES CXX)
 
 INCLUDE(CheckFunctionExists)
-INCLUDE(CheckIncludeFileCXX)
-INCLUDE(CheckIncludeFiles)
 INCLUDE(CheckLibraryExists)
 INCLUDE(CheckSymbolExists)
 INCLUDE(CheckTypeSize)
@@ -79,8 +77,6 @@ ENDIF (EP_USE_MAGMA)
 INCLUDE_DIRECTORIES(AFTER SYSTEM
                     ${gtest_SOURCE_DIR}/include
                     ${gmock_SOURCE_DIR}/include)
-
-CHECK_INCLUDE_FILES("arpa/inet.h" HAVE_ARPA_INET_H)
 
 # For debugging without compiler optimizations uncomment line below..
 #SET (CMAKE_BUILD_TYPE DEBUG)

@@ -20,6 +20,7 @@
 #include <iostream>
 
 #ifdef WIN32
+#include <Windows.h>
 #define isatty(a) true
 #else
 #include <termios.h>

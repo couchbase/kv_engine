@@ -19,6 +19,7 @@
 #include "config.h"
 
 #include <atomic>
+#include <cstddef>
 
 class EventuallyPersistentEngine;
 class Blob;

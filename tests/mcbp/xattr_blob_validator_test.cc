@@ -19,7 +19,9 @@
 #include <gtest/gtest.h>
 #include <xattr/utils.h>
 #include <gsl/gsl>
-#ifndef WIN32
+#ifdef WIN32
+#include <winsock2.h>
+#else
 #include <arpa/inet.h>
 #endif
 
