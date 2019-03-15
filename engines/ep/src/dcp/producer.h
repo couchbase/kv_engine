@@ -27,6 +27,8 @@
 
 #include <folly/CachelinePadded.h>
 
+#include <folly/AtomicHashMap.h>
+
 class BackfillManager;
 class CheckpointCursor;
 class DcpResponse;
@@ -431,8 +433,7 @@ protected:
      * StreamContainer and for safe destruction to occur.
      */
     using StreamMapValue = std::shared_ptr<StreamContainer<ContainerElement>>;
-
-    using StreamsMap = AtomicUnorderedMap<Vbid, StreamMapValue>;
+    using StreamsMap = folly::AtomicHashMap<uint16_t, StreamMapValue>;
 
     /**
      * Attempt to update the map of vb to stream(s) with the new stream
@@ -468,6 +469,35 @@ protected:
     std::pair<std::shared_ptr<Stream>, bool> closeStreamInner(
             Vbid vbucket, cb::mcbp::DcpStreamId sid, bool eraseFromMapIfFound);
 
+    /**
+     * Applies the given function object to every mapped value and returns from
+     * f some other value only if f returns a value that evaluates to true
+     * (bool operator)
+     *
+     * The function should take a value_type reference as a parameter and return
+     * some-type by value. some-type must be a type which supports operator bool
+     * e.g. std::shared_ptr. As each map element is evaluated, the iteration
+     * will stop when f returns a value which 'if (value)' evaluates to true,
+     * the value is then returned.
+     * If every element is visited and nothing evaluated to true, then a default
+     * initialised some-type is returned.
+     *
+     * @param key Key value to lookup
+     * @param f Function object to be applied
+     * @returns The value found by f or a default initialised value
+     */
+    template <class UnaryFunction>
+    auto find_if2(UnaryFunction f) {
+        using UnaryFunctionRval = decltype(f(*streams.find({})));
+        for (auto& kv : streams) {
+            auto rv = f(kv);
+            if (rv) {
+                return rv;
+            }
+        }
+        return UnaryFunctionRval{};
+    }
+
     // stash response for retry if E2BIG was hit
     std::unique_ptr<DcpResponse> rejectResp;
 
@@ -501,7 +531,26 @@ protected:
 
     DcpReadyQueue ready;
 
-    // Map of vbid -> streams. Map itself is atomic (thread-safe).
+    /**
+     * Folly's AtomicHashMap offers great performance if you know the maximum
+     * size of the map up front and don't care about freeing memory when you
+     * call erase on an element.
+     */
+    const static int streamsMapSize = 512;
+
+    /**
+     * folly::AtomicHashMap of uint16_t (Vbid underlying type) to
+     * StreamContainer.
+     *
+     * We will create elements in the map as and when we need them. One caveat
+     * of Folly's AtomicHashMap is that you don't free memory when you call
+     * erase. Given that we don't gain anything from call erase, other than a
+     * boat load of locking issues, we will never call erase on streams.
+     * Instead, we will simply rely on the locks provided by the
+     * StreamContainer/ContainerElement and will just empty the StreamContainer
+     * in place of calling erase. We'll clear up any memory allocated when we
+     * destruct the DcpProducer.
+     */
     StreamsMap streams;
     std::atomic<size_t> itemsSent;
     std::atomic<size_t> totalBytesSent;

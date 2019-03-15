@@ -252,6 +252,10 @@ public:
             container.erase_after(this->before, writeLock);
         }
 
+        void clear() {
+            container.clear(writeLock);
+        }
+
         bool empty() const {
             return container.c.empty();
         }
@@ -287,6 +291,12 @@ private:
                      std::unique_lock<cb::RWLock>&) {
         c.erase_after(before);
         size--;
+        resumePosition = c.begin();
+    }
+
+    void clear(std::unique_lock<cb::RWLock>&) {
+        c.clear();
+        size = 0;
         resumePosition = c.begin();
     }
 

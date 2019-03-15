@@ -58,9 +58,11 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
             snap_end_seqno);
     stream->setActive();
 
-    if (!streams.insert(std::make_pair(
-                vb.getId(),
-                std::make_shared<StreamContainer<ContainerElement>>(stream)))) {
+    auto baseStream = dynamic_pointer_cast<Stream>(stream);
+    updateStreamsMap(vb.getId(), stream->getStreamId(), baseStream);
+
+    auto found = streams.find(vb.getId().get());
+    if (found == streams.end()) {
         throw std::logic_error(
                 "MockDcpProducer::mockActiveStreamRequest "
                 "failed to insert requested stream");
@@ -84,9 +86,9 @@ ENGINE_ERROR_CODE MockDcpProducer::stepWithBorderGuard(
 }
 
 std::shared_ptr<Stream> MockDcpProducer::findStream(Vbid vbid) {
-    auto rv = streams.find(vbid);
-    if (rv.second) {
-        auto handle = rv.first->rlock();
+    auto rv = streams.find(vbid.get());
+    if (rv != streams.end()) {
+        auto handle = rv->second->rlock();
         if (handle.size() != 1) {
             throw std::logic_error(
                     "MockDcpProducer::findStream against producer with many "
@@ -107,16 +109,16 @@ MockDcpProducer::getCheckpointSnapshotTask() const {
 
 std::pair<std::shared_ptr<Stream>, bool> MockDcpProducer::findStream(
         Vbid vbid, cb::mcbp::DcpStreamId sid) {
-    auto rv = streams.find(vbid);
-    if (rv.second) {
-        auto handle = rv.first->rlock();
+    auto rv = streams.find(vbid.get());
+    if (rv != streams.end()) {
+        auto handle = rv->second->rlock();
         // Try and locate a matching stream
         for (; !handle.end(); handle.next()) {
             if (handle.get()->compareStreamId(sid)) {
                 return {handle.get(), true};
             }
         }
-        return {nullptr, true};
+        return {nullptr, handle.size() > 0};
     }
     return {nullptr, false};
 }

@@ -432,12 +432,14 @@ private:
      */
     Collections::VB::Filter filter;
 
+protected:
     /**
      * A stream-ID which is defined if the producer is using enabled to allow
      * many streams-per-vbucket
      */
     const cb::mcbp::DcpStreamId sid;
 
+private:
     /**
      * A prefix to use in all stream log messages
      */

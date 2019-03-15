@@ -165,6 +165,10 @@ public:
     bool public_supportSyncReplication() const {
         return supportSyncReplication();
     }
+
+    cb::mcbp::DcpStreamId getStreamId() const {
+        return sid;
+    }
 };
 
 /**
