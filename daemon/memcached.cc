@@ -97,7 +97,6 @@
 #include <Winbase.h> // For SetDllDirectory
 #else
 #include <netinet/tcp.h> // For TCP_NODELAY etc
-#include <sysexits.h>
 #endif
 #include <signal.h>
 #include <stdarg.h>
@@ -1215,7 +1214,7 @@ static bool server_sockets() {
 static void create_listen_sockets() {
     if (!server_sockets()) {
         FATAL_ERROR(
-                EX_OSERR,
+                EXIT_FAILURE,
                 "Failed to create required listening socket(s). Terminating.");
     }
 
@@ -1228,7 +1227,7 @@ static void create_listen_sockets() {
         FILE* portnumber_file = nullptr;
         portnumber_file = fopen(temp_portnumber_filename.c_str(), "a");
         if (portnumber_file == nullptr) {
-            FATAL_ERROR(EX_OSERR,
+            FATAL_ERROR(EXIT_FAILURE,
                         R"(Failed to open "{}": {})",
                         temp_portnumber_filename,
                         strerror(errno));
@@ -1245,7 +1244,7 @@ static void create_listen_sockets() {
         fclose(portnumber_file);
         LOG_INFO("Port numbers available in {}", portnumber_filename);
         if (rename(temp_portnumber_filename.c_str(), portnumber_filename) == -1) {
-            FATAL_ERROR(EX_OSERR,
+            FATAL_ERROR(EXIT_FAILURE,
                         R"(Failed to rename "{}" to "{}": {})",
                         temp_portnumber_filename.c_str(),
                         portnumber_filename,
@@ -2380,7 +2379,7 @@ extern "C" int memcached_main(int argc, char **argv) {
      * need that information
      */
     if (sigignore(SIGPIPE) == -1) {
-        FATAL_ERROR(EX_OSERR, "Failed to ignore SIGPIPE; sigaction");
+        FATAL_ERROR(EXIT_FAILURE, "Failed to ignore SIGPIPE; sigaction");
     }
 #endif
 
