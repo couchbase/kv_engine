@@ -39,7 +39,6 @@ typedef HANDLE pid_t;
 #endif // WIN32
 
 /* Common section */
-#include <inttypes.h>
 
 #define MEMCACHED_VERSION "${MEMCACHED_VERSION}"
 #define PRODUCT_VERSION "${PRODUCT_VERSION}"

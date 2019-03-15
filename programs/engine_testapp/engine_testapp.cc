@@ -5,6 +5,7 @@
 
 #include <getopt.h>
 #include <chrono>
+#include <cinttypes>
 #include <cstdlib>
 #include <functional>
 #include <map>
