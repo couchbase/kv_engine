@@ -28,8 +28,6 @@
 
 #include <windows.h>
 
-typedef HANDLE pid_t;
-
 #endif // WIN32
 
 /* Common section */

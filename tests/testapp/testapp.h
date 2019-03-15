@@ -38,6 +38,10 @@
 #include <string>
 #include <tuple>
 
+#ifdef WIN32
+using pid_t = HANDLE;
+#endif
+
 enum class TransportProtocols {
     McbpPlain,
     McbpSsl,
