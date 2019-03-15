@@ -33,6 +33,7 @@
 #include "vbucket_bgfetch_item.h"
 
 #include <phosphor/phosphor.h>
+#include <platform/dirutils.h>
 #include <platform/timeutils.h>
 #include <utilities/logtags.h>
 
@@ -1105,8 +1106,7 @@ void Warmup::checkForAccessLog()
         std::string curr = store.accessLog[i].getLogFile();
         std::string old = store.accessLog[i].getLogFile();
         old.append(".old");
-        if (access(curr.c_str(), F_OK) == 0 ||
-            access(old.c_str(), F_OK) == 0) {
+        if (cb::io::isFile(curr) || cb::io::isFile(old)) {
             accesslogs++;
         }
     }

@@ -1671,7 +1671,7 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string>& filenames,
             }
             std::stringstream old_file;
             old_file << dbname << "/" << vbId << ".couch." << old_rev_num;
-            if (access(old_file.str().c_str(), F_OK) == 0) {
+            if (cb::io::isFile(old_file.str())) {
                 if (!isReadOnly()) {
                     if (remove(old_file.str().c_str()) == 0) {
                         logger.debug(
@@ -2912,7 +2912,7 @@ void CouchKVStore::removeCompactFile(const std::string &filename) {
                 "a read-only object.");
     }
 
-    if (access(filename.c_str(), F_OK) == 0) {
+    if (cb::io::isFile(filename)) {
         if (remove(filename.c_str()) == 0) {
             logger.warn(
                     "CouchKVStore::removeCompactFile: Removed compact "

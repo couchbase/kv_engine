@@ -28,12 +28,6 @@
 
 #include <windows.h>
 
-#include <io.h>
-
-#ifndef F_OK
-#define F_OK 0
-#endif
-
 typedef HANDLE pid_t;
 
 #endif // WIN32

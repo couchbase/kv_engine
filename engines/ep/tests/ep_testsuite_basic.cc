@@ -26,6 +26,7 @@
 
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
+#include <platform/dirutils.h>
 
 #include <array>
 #include <memcached/types.h>
@@ -225,8 +226,7 @@ static enum test_result test_whitespace_db(EngineIface* h) {
         return FAIL;
     }
 
-    checkne(-1, access(dbname.c_str(), F_OK),
-            "I expected the whitespace db to exist");
+    check(cb::io::isDirectory(dbname), "I expected the whitespace db to exist");
     return SUCCESS;
 }
 

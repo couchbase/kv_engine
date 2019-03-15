@@ -214,12 +214,12 @@ bool KVStore::snapshotStats(const std::map<std::string,
     if (rv) {
         std::string old_fname = dbname + "/stats.json.old";
         std::string stats_fname = dbname + "/stats.json";
-        if (access(old_fname.c_str(), F_OK) == 0 && remove(old_fname.c_str()) != 0) {
+        if (cb::io::isFile(old_fname) && remove(old_fname.c_str()) != 0) {
             EP_LOG_WARN(
                     "Failed to remove '{}': {}", old_fname, strerror(errno));
             remove(next_fname.c_str());
             rv = false;
-        } else if (access(stats_fname.c_str(), F_OK) == 0 &&
+        } else if (cb::io::isFile(stats_fname) &&
                    rename(stats_fname.c_str(), old_fname.c_str()) != 0) {
             EP_LOG_WARN("Failed to rename '{}' to '{}': {}",
                         stats_fname,

@@ -131,7 +131,7 @@ enum test_result rmdb(const char* path) {
     } catch (std::system_error& e) {
         throw e;
     }
-    if (access(path, F_OK) != -1) {
+    if (cb::io::isDirectory(path) || cb::io::isFile(path)) {
         std::cerr << "Failed to remove: " << path << " " << std::endl;
         return FAIL;
     }

@@ -142,7 +142,7 @@ spdlog::filename_t custom_rotating_file_sink<Mutex>::calc_filename() {
     unsigned long try_id = _next_file_id;
     do {
         sprintf(fname, "%s.%06lu.txt", _base_filename.c_str(), try_id++);
-    } while (access(fname, F_OK) == 0);
+    } while (cb::io::isFile(fname));
 
     _next_file_id = try_id;
 #if defined(_WIN32) && defined(SPDLOG_WCHAR_FILENAMES)

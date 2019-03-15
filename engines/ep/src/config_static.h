@@ -35,10 +35,6 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
-#include <io.h>
-#define F_OK 0
-#define W_OK 2
-#define R_OK 4
 #pragma warning(disable: 4291)
 #pragma warning(disable: 4244)
 #pragma warning(disable: 4267)

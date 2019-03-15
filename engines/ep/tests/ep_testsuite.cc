@@ -3306,9 +3306,10 @@ static enum test_result test_access_scanner(EngineIface* h) {
     wait_for_stat_to_be(h, "ep_num_access_scanner_runs", num_shards);
 
     /* This time since resident ratio is < 95% access log should be generated */
-    checkeq(0, access(name.c_str(), F_OK),
-            (std::string("access log file (") + name +
-             ") should exist (got errno:" + std::to_string(errno)).c_str());
+    check(cb::io::isFile(name),
+          (std::string("access log file (") + name +
+           ") should exist (got errno:" + std::to_string(errno))
+                  .c_str());
 
     /* Increase resident ratio by deleting items */
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(0)), "Expected success");
@@ -3328,9 +3329,8 @@ static enum test_result test_access_scanner(EngineIface* h) {
                         access_scanner_skips + num_shards);
 
     /* Access log files should be removed because resident ratio > 95% */
-    checkeq(-1, access(prev.c_str(), F_OK),
-            ".old access log file should not exist");
-    checkeq(-1, access(name.c_str(), F_OK), "access log file should not exist");
+    check(!cb::io::isFile(prev), ".old access log file should not exist");
+    check(!cb::io::isFile(name), "access log file should not exist");
 
     return SUCCESS;
 }

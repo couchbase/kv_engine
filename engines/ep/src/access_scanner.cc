@@ -27,6 +27,7 @@
 #include "vb_count_visitor.h"
 
 #include <phosphor/phosphor.h>
+#include <platform/dirutils.h>
 #include <platform/platform_time.h>
 
 #include <iostream>
@@ -139,7 +140,7 @@ public:
                 return;
             }
 
-            if (access(prev.c_str(), F_OK) == 0 && remove(prev.c_str()) == -1){
+            if (cb::io::isFile(prev) && remove(prev.c_str()) == -1) {
                 EP_LOG_WARN(
                         "Failed to remove access log file "
                         "'{}': {}",
@@ -150,8 +151,8 @@ public:
                 return;
             }
             EP_LOG_INFO("Removed old access log file: '{}'", prev);
-            if (access(name.c_str(), F_OK) == 0 && rename(name.c_str(),
-                                                          prev.c_str()) == -1){
+            if (cb::io::isFile(name) &&
+                rename(name.c_str(), prev.c_str()) == -1) {
                 EP_LOG_WARN(
                         "Failed to rename access log file "
                         "from '{}' to '{}': {}",
@@ -359,7 +360,7 @@ std::chrono::microseconds AccessScanner::maxExpectedDuration() {
 }
 
 void AccessScanner::deleteAlogFile(const std::string& fileName) {
-    if (access(fileName.c_str(), F_OK) == 0 && remove(fileName.c_str()) == -1) {
+    if (cb::io::isFile(fileName) && remove(fileName.c_str()) == -1) {
         EP_LOG_WARN("Failed to remove '{}': {}", fileName, strerror(errno));
     }
 }

@@ -17,11 +17,12 @@
 
 #include "config.h"
 
-#include <algorithm>
 #include <fcntl.h>
+#include <platform/dirutils.h>
 #include <platform/strerror.h>
-#include <string>
 #include <sys/stat.h>
+#include <algorithm>
+#include <string>
 #include <system_error>
 #include <utility>
 
@@ -513,7 +514,7 @@ bool MutationLog::setFlushConfig(const std::string &s) {
 }
 
 bool MutationLog::exists() const {
-    return access(logPath.c_str(), F_OK) == 0;
+    return cb::io::isFile(logPath);
 }
 
 void MutationLog::open(bool _readOnly) {
