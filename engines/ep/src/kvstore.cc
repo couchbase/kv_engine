@@ -543,10 +543,10 @@ void KVStore::delSystemEvent(const Item& item, DeleteCallback cb) {
 }
 
 IORequest::IORequest(Vbid vbId, MutationRequestCallback cb, DiskDocKey itmKey)
-    : vbucketId(vbId),
-      callback(cb),
+    : callback(cb),
       key(std::move(itmKey)),
-      start(std::chrono::steady_clock::now()) {
+      start(std::chrono::steady_clock::now()),
+      vbucketId(vbId) {
 }
 
 IORequest::~IORequest() = default;

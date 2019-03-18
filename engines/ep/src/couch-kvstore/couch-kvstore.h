@@ -54,7 +54,7 @@ public:
      */
     CouchRequest(const Item& it, MutationRequestCallback cb);
 
-    virtual ~CouchRequest() {}
+    ~CouchRequest();
 
     /**
      * Get the couchstore Doc instance of a document to be persisted

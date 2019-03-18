@@ -1365,8 +1365,6 @@ public:
         : CouchRequest(it, std::move(cb)) {
     }
 
-    ~MockCouchRequest() {}
-
     // Update what will be written as 'metadata'
     void writeMetaData(MetaData& meta, size_t size) {
         std::memcpy(dbDocInfo.rev_meta.buf, &meta, size);

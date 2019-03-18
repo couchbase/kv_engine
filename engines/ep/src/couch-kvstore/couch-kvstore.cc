@@ -304,6 +304,8 @@ CouchRequest::CouchRequest(const Item& it, MutationRequestCallback cb)
     dbDocInfo.content_meta = getContentMeta(it);
 }
 
+CouchRequest::~CouchRequest() = default;
+
 namespace Collections {
 static constexpr const char* manifestName = "_local/collections/manifest";
 static constexpr const char* openCollectionsName = "_local/collections/open";

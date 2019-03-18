@@ -49,7 +49,7 @@ public:
      */
     IORequest(Vbid vbid, MutationRequestCallback, DiskDocKey key);
 
-    virtual ~IORequest();
+    ~IORequest();
 
     /// @returns true if the document to be persisted is for DELETE
     bool isDelete() {
@@ -79,8 +79,8 @@ public:
     }
 
 protected:
-    Vbid vbucketId;
     MutationRequestCallback callback;
     DiskDocKey key;
     std::chrono::steady_clock::time_point start;
+    Vbid vbucketId;
 };
