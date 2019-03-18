@@ -23,7 +23,7 @@
 #include "stats.h"
 #include "tests/module_tests/collections/test_manifest.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 #include <limits>
 

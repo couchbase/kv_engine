@@ -31,7 +31,7 @@
 #include "thread_gate.h"
 #include "tracing/trace_helpers.h"
 
-#include <gmock/gmock.h>
+#include <folly/portability/GMock.h>
 #include <memcached/server_cookie_iface.h>
 #include <programs/engine_testapp/mock_server.h>
 

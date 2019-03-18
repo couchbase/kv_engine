@@ -22,4 +22,3 @@
 #undef assert
 #define assert \
     #error "assert() is forbidden. Use cb_assert() from <platform/cbassert.h instead."
-

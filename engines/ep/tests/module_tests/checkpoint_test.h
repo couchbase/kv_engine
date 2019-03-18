@@ -25,7 +25,7 @@
 #include "evp_store_single_threaded_test.h"
 #include "stats.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 class CheckpointManager;
 

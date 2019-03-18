@@ -17,7 +17,6 @@
 
 #include "config.h"
 
-#include <gtest/gtest.h>
 #include <platform/cb_malloc.h>
 
 #include "../mock/mock_basic_ll.h"
@@ -27,6 +26,8 @@
 #include "stats.h"
 #include "stored_value_factories.h"
 #include "tests/module_tests/test_helpers.h"
+
+#include <folly/portability/GTest.h>
 
 #include <limits>
 #include <vector>

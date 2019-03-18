@@ -16,12 +16,11 @@
 #pragma once
 
 #include <memcached/mcd_util-visibility.h>
-
 #include <cstdint>
 #include <cstdio>
 
-// Windows don't have ssize_t
-typedef long mc_ssize_t;
+// Need ssize_t
+#include <folly/portability/SysTypes.h>
 
 /**
  * The supported datatypes the config file parser can handle
@@ -40,7 +39,7 @@ enum config_datatype {
  */
 union config_value {
    size_t *dt_size;
-   mc_ssize_t *dt_ssize;
+   ssize_t* dt_ssize;
    float *dt_float;
    bool *dt_bool;
    // Allocated via cb_malloc. Should be freed with cb_free().

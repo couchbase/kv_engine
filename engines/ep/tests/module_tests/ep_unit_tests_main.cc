@@ -25,8 +25,8 @@
 #include "configuration.h"
 #include "ep_time.h"
 #include "hash_table.h"
+#include <folly/portability/GMock.h>
 #include <getopt.h>
-#include <gmock/gmock.h>
 #include <logger/logger.h>
 #include <memcached/server_log_iface.h>
 

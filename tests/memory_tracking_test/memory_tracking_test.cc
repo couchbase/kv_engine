@@ -19,7 +19,7 @@
 
 #include "daemon/alloc_hooks.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <platform/platform_thread.h>

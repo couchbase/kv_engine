@@ -16,15 +16,14 @@
  */
 #pragma once
 
-#include <memory>
-
-#ifdef WIN32
 // The OpenSSL headers end up including winsock.h causing conflicting
 // types in programs depending on the order the include file is being
 // used. To work around those files being included we'll include winsock2.h
-// here.
-#include <winsock2.h>
-#endif
+// here via folly's Windows.h here.
+#include <folly/portability/Windows.h>
+
+#include <memory>
+
 #include <openssl/ssl.h>
 #include <openssl/bio.h>
 #include <openssl/err.h>
@@ -40,4 +39,3 @@ struct X509deletor {
 using unique_x509_ptr = std::unique_ptr<X509, X509deletor>;
 }
 }
-

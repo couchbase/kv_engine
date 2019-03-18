@@ -21,7 +21,7 @@
 
 #include <array>
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 TEST(StreamContainerIterationTest, basic) {
     // Note: cannot construct empty

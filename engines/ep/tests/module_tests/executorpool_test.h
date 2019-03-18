@@ -21,13 +21,13 @@
 
 #pragma once
 
+#include "thread_gate.h"
 #include <executorpool.h>
 #include <executorthread.h>
 #include <fakes/fake_executorpool.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <taskable.h>
 #include <thread>
-#include "thread_gate.h"
 
 class MockTaskable : public Taskable {
 public:

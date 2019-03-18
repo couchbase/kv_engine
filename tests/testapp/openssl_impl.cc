@@ -18,13 +18,12 @@
 #include "config.h"
 
 #include "ssl_impl.h"
-#include "utilities.h"
 #include "testapp.h"
+#include "utilities.h"
 
+#include <folly/portability/GTest.h>
 #include <platform/platform_thread.h>
 #include <platform/socket.h>
-
-#include <gtest/gtest.h>
 
 static SSL_CTX *ssl_ctx = nullptr;
 static SSL *ssl = nullptr;

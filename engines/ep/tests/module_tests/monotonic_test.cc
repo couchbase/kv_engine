@@ -17,7 +17,7 @@
 
 #include "monotonic.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 template <typename T>
 class MonotonicTest : public ::testing::Test {

@@ -18,7 +18,7 @@
 #include "item.h"
 #include "systemevent.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 TEST(SystemEventTest, make) {
     auto value = SystemEventFactory::make(

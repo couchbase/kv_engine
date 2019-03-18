@@ -17,7 +17,7 @@
 
 #include "generator_event.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
 
 /// @todo Add extra unit tests to verify that we check for the JSON types

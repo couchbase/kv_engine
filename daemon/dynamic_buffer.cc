@@ -16,7 +16,6 @@
  */
 #include "config.h"
 #include "dynamic_buffer.h"
-
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
 

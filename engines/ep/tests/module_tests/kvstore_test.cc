@@ -40,8 +40,8 @@
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GMock.h>
+#include <folly/portability/GTest.h>
 #include <kvstore.h>
 #include <thread>
 #include <unordered_map>

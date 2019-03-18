@@ -425,7 +425,9 @@ if (NOT EP_BYPASS_TESTS)
                           dirutils engine_utilities ep-engine_collections gtest
                           gmock hdr_histogram_static JSON_checker
                           memcached_logger mcbp mcd_util mcd_tracing platform
-                          phosphor xattr cbcompress ${MALLOC_LIBRARIES})
+                          phosphor xattr cbcompress ${MALLOC_LIBRARIES}
+                          ${LIBEVENT_LIBRARIES})
+
     add_sanitizers(ep-engine_ep_unit_tests)
 
     ADD_EXECUTABLE(ep-engine_atomic_ptr_test
@@ -486,7 +488,7 @@ if (NOT EP_BYPASS_TESTS)
             gmock
             hdr_histogram_static
             JSON_checker
-	    mcbp
+	        mcbp
             mcd_util
             mcd_tracing
             memcached_logger
@@ -494,12 +496,14 @@ if (NOT EP_BYPASS_TESTS)
             platform
             xattr
             ${MALLOC_LIBRARIES}
-            ${EP_STORAGE_LIBS})
+            ${EP_STORAGE_LIBS}
+            ${LIBEVENT_LIBRARIES})
     TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
                                ${benchmark_SOURCE_DIR}/include
                                tests
                                benchmarks
                                ${Couchstore_SOURCE_DIR})
+
     add_sanitizers(ep_engine_benchmarks)
 
     ADD_TEST(NAME ep-engine_atomic_ptr_test COMMAND ep-engine_atomic_ptr_test)
@@ -602,7 +606,8 @@ if (NOT EP_BYPASS_TESTS)
             engine_utilities
             mcbp
             mcd_util
-            platform)
+            platform
+            ${LIBEVENT_LIBRARIES})
     ADD_DEPENDENCIES(ep_perfsuite engine_testapp)
 
     #ADD_CUSTOM_COMMAND(OUTPUT

@@ -29,7 +29,7 @@
 
 #include <libcouchstore/couch_db.h>
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 StoredDocKey makeStoredDocKey(const std::string& string, CollectionID ns) {
     return StoredDocKey(string, ns);

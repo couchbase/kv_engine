@@ -22,7 +22,7 @@
 #include "testapp_binprot.h"
 #include "testapp_environment.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 #include <nlohmann/json.hpp>
@@ -37,10 +37,6 @@
 #include <memory>
 #include <string>
 #include <tuple>
-
-#ifdef WIN32
-using pid_t = HANDLE;
-#endif
 
 enum class TransportProtocols {
     McbpPlain,
@@ -305,6 +301,12 @@ protected:
         // continue step.
         return 2;
     }
+
+#ifdef WIN32
+    static HANDLE TestappTest::pidTToHandle(pid_t pid);
+    static pid_t TestappTest::handleToPidT(HANDLE handle);
+#endif
+
     std::string name;
     static const std::string bucketName;
 };
@@ -331,9 +333,9 @@ protected:
  * (IPv4/Ipv6,Plain/SSL) and Hello::JSON on/off.
  */
 class McdTestappTest
-        : public TestappTest,
-          public ::testing::WithParamInterface<
-                  ::testing::tuple<TransportProtocols, ClientJSONSupport>> {
+    : public TestappTest,
+      public ::testing::WithParamInterface<
+              ::testing::tuple<TransportProtocols, ClientJSONSupport>> {
 public:
     /// Custom Test name function.
     static std::string PrintToStringCombinedName(

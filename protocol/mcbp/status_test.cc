@@ -17,7 +17,7 @@
 
 #include "config.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <mcbp/mcbp.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>

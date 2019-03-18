@@ -23,7 +23,7 @@
 #include "stored_value_factories.h"
 
 #include <benchmark/benchmark.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 // Benchmarks inserting items into a HashTable
 class HashTableBench : public benchmark::Fixture {

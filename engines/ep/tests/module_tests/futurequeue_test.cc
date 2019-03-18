@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 #include "futurequeue.h"
 #include "tests/module_tests/executorpool_test.h"

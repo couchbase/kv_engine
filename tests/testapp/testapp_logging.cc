@@ -19,7 +19,7 @@
 
 #include "logger/logger_test_fixture.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 class LoggingTest : public TestappTest,
                     public ::testing::WithParamInterface<int> {

@@ -19,7 +19,7 @@
 #include "common.h"
 #include "lock_timer.h"
 #include "locks.h"
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <iostream>
 #include <thread>
 

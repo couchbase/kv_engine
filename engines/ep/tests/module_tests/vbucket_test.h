@@ -26,7 +26,7 @@
 #include "stats.h"
 #include "vbucket.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 class BgFetcher;
 class VBucket;

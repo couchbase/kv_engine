@@ -13,11 +13,11 @@
 #define DO_UNDEF_WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-#include <Windows.h>
+#include <folly/portability/Windows.h>
 #ifdef DO_UNDEF_WIN32_LEAN_AND_MEAN
 #undef WIN32_LEAN_AND_MEAN
 #endif
-typedef long ssize_t;
+typedef SSIZE_T ssize_t;
 #else
 #include <sys/uio.h>
 #endif

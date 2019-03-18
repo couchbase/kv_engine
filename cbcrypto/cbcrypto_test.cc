@@ -20,7 +20,7 @@
  *   http://tools.ietf.org/html/draft-cheng-hmac-test-cases-00
  */
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
 #include <platform/base64.h>
 #include <stdexcept>

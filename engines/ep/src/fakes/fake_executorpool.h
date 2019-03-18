@@ -32,7 +32,7 @@
 #include "executorthread.h"
 #include "taskqueue.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 class SingleThreadedExecutorPool : public ExecutorPool {
 public:

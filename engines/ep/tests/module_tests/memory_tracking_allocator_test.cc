@@ -19,7 +19,7 @@
 
 #include <utilities/memory_tracking_allocator.h>
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 #include <deque>
 #include <list>

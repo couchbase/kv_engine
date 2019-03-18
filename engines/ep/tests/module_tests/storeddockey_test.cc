@@ -16,7 +16,7 @@
 
 #include "storeddockey.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <map>
 

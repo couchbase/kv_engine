@@ -23,6 +23,7 @@
 #include <memcached/util.h>
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
+
 #include <stdlib.h>
 #include <string.h>
 

@@ -20,8 +20,8 @@
 #include <daemon/task.h>
 #include <daemon/tracing.h>
 #include <daemon/tracing_types.h>
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GMock.h>
+#include <folly/portability/GTest.h>
 #include <phosphor/phosphor.h>
 #include <platform/backtrace.h>
 #include <atomic>

@@ -25,7 +25,7 @@
 
 #include "../mock/mock_executor_pool.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <memcached/durability_spec.h>
 #include <memcached/vbucket.h>
 

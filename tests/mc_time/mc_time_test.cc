@@ -21,7 +21,7 @@
 #include <daemon/executorpool.h>
 #include <daemon/mc_time.h>
 #include <daemon/memcached.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <gsl/gsl>
 #include <memory>
 

@@ -16,7 +16,7 @@
  */
 
 #include <daemon/datatype.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 /*
  * An empty set would only have RAW enabled (which is basically no datatype)

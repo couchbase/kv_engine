@@ -38,7 +38,7 @@ public:
 
     void SetUp() override {
         TestappTest::SetUpTestCase();
-        ASSERT_NE(reinterpret_cast<pid_t>(-1), server_pid)
+        ASSERT_NE(pid_t(-1), server_pid)
                 << "Terminate test execution" << std::endl
                 << (exit(1), "");
 

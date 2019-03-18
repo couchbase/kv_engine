@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 #include <string>

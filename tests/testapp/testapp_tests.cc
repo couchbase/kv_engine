@@ -28,7 +28,7 @@
 #include <snappy-c.h>
 #include <valgrind/valgrind.h>
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <algorithm>
 #include <atomic>
 #include <string>

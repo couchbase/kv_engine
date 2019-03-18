@@ -25,6 +25,7 @@
 #include <platform/dirutils.h>
 #include <spdlog/details/file_helper.h>
 #include <spdlog/details/fmt_helper.h>
+
 #include <memory>
 
 static unsigned long find_first_logfile_id(const std::string& basename) {

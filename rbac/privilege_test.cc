@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <memcached/rbac.h>
 #include <nlohmann/json.hpp>
 

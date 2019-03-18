@@ -19,8 +19,8 @@
 
 #include "configuration_impl.h"
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GMock.h>
+#include <folly/portability/GTest.h>
 #include <memory>
 
 /* Like EXPECT_THROW except you can check the exception's `what()` */

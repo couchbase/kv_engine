@@ -20,7 +20,7 @@
 #include "tests/mcbp/mock_connection.h"
 #include "tracing/trace_helpers.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <tracing/tracer.h>
 #include <unistd.h>
 #include <algorithm>

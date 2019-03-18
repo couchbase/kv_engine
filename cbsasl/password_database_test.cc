@@ -20,7 +20,7 @@
 #include <cbcrypto/cbcrypto.h>
 #include <cbsasl/pwdb.h>
 #include <cbsasl/server.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
 #include <openssl/evp.h>
 #include <platform/base64.h>

@@ -28,7 +28,7 @@
 #include <daemon/connection.h>
 #include <daemon/mcbp_validators.h>
 #include <daemon/stats.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <memcached/protocol_binary.h>
 
 namespace mcbp {

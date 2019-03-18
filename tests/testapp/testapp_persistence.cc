@@ -74,7 +74,7 @@ protected:
             // There's no direct equivalent of SIGKILL for Windows;
             // TerminateProcess() behaves like SIGTERM - it allows pending IO
             // to complete; however it's the best we have...
-            TerminateProcess(server_pid, 0);
+            TerminateProcess(pidTToHandle(server_pid), 0);
 #else
             kill(server_pid, SIGKILL);
 #endif

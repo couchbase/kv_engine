@@ -17,7 +17,7 @@
 
 #include "config.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <sys/stat.h>
 
 #include <cerrno>

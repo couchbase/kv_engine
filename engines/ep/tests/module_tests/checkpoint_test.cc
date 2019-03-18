@@ -33,8 +33,8 @@
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GMock.h>
+#include <folly/portability/GTest.h>
 #include <valgrind/valgrind.h>
 
 #include <thread>

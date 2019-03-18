@@ -19,7 +19,7 @@
 
 #include "probabilistic_counter.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <limits>
 
 /**

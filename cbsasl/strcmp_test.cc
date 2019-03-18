@@ -16,7 +16,7 @@
  */
 #include "util.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 static void expect_equal(const char* input) {
     EXPECT_EQ(0,

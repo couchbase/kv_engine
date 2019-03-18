@@ -20,7 +20,7 @@
 #include "atomic.h"
 #include "tagged_ptr.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 /*
  * Unit tests for the TaggedPtr class.

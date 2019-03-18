@@ -20,7 +20,7 @@
 #include "collections/flush.h"
 #include "collections/vbucket_manifest.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 #include <memory>
 #include <string>

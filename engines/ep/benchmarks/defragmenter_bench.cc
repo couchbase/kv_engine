@@ -23,7 +23,7 @@
 
 #include <benchmark/benchmark.h>
 #include <engines/ep/src/defragmenter.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <valgrind/valgrind.h>
 
 class DefragmentBench : public benchmark::Fixture {

@@ -17,8 +17,8 @@
 
 #include "config.h"
 
-#include <fcntl.h>
-#include <gtest/gtest.h>
+#include <folly/portability/Fcntl.h>
+#include <folly/portability/GTest.h>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
@@ -36,28 +36,6 @@ extern "C" {
 
 #include "mutation_log.h"
 #include "tests/module_tests/test_helpers.h"
-
-// Windows doesn't have a truncate() function, implement one.
-#if defined(WIN32)
-int truncate(const char *path, off_t length) {
-    LARGE_INTEGER distance;
-    distance.u.HighPart = 0;
-    distance.u.LowPart = length;
-
-    HANDLE fh = CreateFile(path, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-    if (fh == INVALID_HANDLE_VALUE) {
-        fprintf(stderr, "truncate: CreateFile failed with error: %s\n",
-                cb_strerror().c_str());
-        abort();
-    }
-
-    cb_assert(SetFilePointerEx(fh, distance, NULL, FILE_BEGIN) != 0);
-    cb_assert(SetEndOfFile(fh) != 0);
-
-    CloseHandle(fh);
-    return 0;
-}
-#endif
 
 // Bitfield of available file permissions.
 namespace FilePerms {

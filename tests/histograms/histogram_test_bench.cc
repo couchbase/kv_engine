@@ -23,7 +23,7 @@
 
 #include <benchmark/benchmark.h>
 #include <daemon/timing_histogram.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
 #include <utilities/hdrhistogram.h>
 #include <random>

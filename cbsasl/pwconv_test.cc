@@ -19,7 +19,7 @@
  * This file contains tests to validate that cbasl_pwconv is able to
  * convert an "isasl-style" password file to a cbsasl style
  */
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <memory>
 
 #include "password_database.h"

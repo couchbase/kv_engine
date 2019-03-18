@@ -6,7 +6,8 @@
 
 #include <JSON_checker.h>
 #include <cbsasl/client.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
+#include <folly/portability/SysTypes.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <platform/backtrace.h>
 #include <platform/cb_malloc.h>
@@ -30,19 +31,6 @@
 #include <csignal>
 #include <thread>
 
-/**
- * We need to grab pids to set up a few env vars correctly e.g.
- * MEMCACHED_PARENT_MONITOR, include the appropriate header.
- *
- * @TODO when we pull folly in we can replace all this with folly's Unistd.h
- */
-#ifdef WIN32
-#include <process.h>
-#define getpid() _getpid()
-#else
-#include <unistd.h>
-#endif
-
 McdEnvironment* mcd_env = nullptr;
 
 /* test phases (bitmasks) */
@@ -52,7 +40,7 @@ McdEnvironment* mcd_env = nullptr;
 #define phase_max 4
 static int current_phase = 0;
 
-pid_t server_pid = pid_t(-1);
+pid_t server_pid = -1;
 in_port_t port = -1;
 in_port_t ssl_port = -1;
 SOCKET sock = INVALID_SOCKET;
@@ -201,7 +189,7 @@ void TestappTest::TearDownTestCase() {
         cb::net::closesocket(sock);
     }
 
-    if (server_pid != reinterpret_cast<pid_t>(-1)) {
+    if (server_pid != -1) {
         DeleteTestBucket();
     }
     stop_memcached_server();
@@ -513,20 +501,31 @@ void write_config_to_file(const std::string& config, const std::string& fname) {
     }
 }
 
+#ifdef WIN32
+HANDLE TestappTest::pidTToHandle(pid_t pid) {
+    return reinterpret_cast<HANDLE>(static_cast<size_t>(pid));
+}
+
+pid_t TestappTest::handleToPidT(HANDLE handle) {
+    return static_cast<pid_t>(reinterpret_cast<size_t>(handle));
+}
+#endif
+
 void TestappTest::verify_server_running() {
     if (embedded_memcached_server) {
         // we don't monitor this thread...
         return;
     }
 
-    if (reinterpret_cast<pid_t>(-1) == server_pid) {
+    if (-1 == server_pid) {
         std::cerr << "Server not running (server_pid == -1)" << std::endl;
         exit(EXIT_FAILURE);
     }
 
 #ifdef WIN32
     DWORD status;
-    if (!GetExitCodeProcess(server_pid, &status)) {
+
+    if (!GetExitCodeProcess(pidTToHandle(server_pid), &status)) {
         std::cerr << "GetExitCodeProcess: failed: " << cb_strerror()
                   << std::endl;
         exit(EXIT_FAILURE);
@@ -702,7 +701,7 @@ void TestappTest::start_external_server() {
         exit(EXIT_FAILURE);
     }
 
-    server_pid = pinfo.hProcess;
+    server_pid = handleToPidT(pinfo.hProcess);
 #else
     server_pid = fork();
     ASSERT_NE(reinterpret_cast<pid_t>(-1), server_pid);
@@ -966,9 +965,10 @@ void set_mutation_seqno_feature(bool enable) {
 
 void TestappTest::waitForShutdown(bool killed) {
 #ifdef WIN32
-    ASSERT_EQ(WAIT_OBJECT_0, WaitForSingleObject(server_pid, 60000));
+    ASSERT_EQ(WAIT_OBJECT_0,
+              WaitForSingleObject(pidTToHandle(server_pid), 60000));
     DWORD exit_code = NULL;
-    GetExitCodeProcess(server_pid, &exit_code);
+    GetExitCodeProcess(pidTToHandle(server_pid), &exit_code);
     EXPECT_EQ(0, exit_code);
 #else
     int status;
@@ -994,7 +994,7 @@ void TestappTest::waitForShutdown(bool killed) {
             << "WCOREDUMP(status)  : " << WCOREDUMP(status) << std::endl;
     EXPECT_EQ(0, WEXITSTATUS(status));
 #endif
-    server_pid = reinterpret_cast<pid_t>(-1);
+    server_pid = pid_t(-1);
 }
 
 void TestappTest::stop_memcached_server() {
@@ -1009,9 +1009,9 @@ void TestappTest::stop_memcached_server() {
         cb_join_thread(memcached_server_thread);
     }
 
-    if (server_pid != reinterpret_cast<pid_t>(-1)) {
+    if (server_pid != pid_t(-1)) {
 #ifdef WIN32
-        TerminateProcess(server_pid, 0);
+        TerminateProcess(pidTToHandle(server_pid), 0);
         waitForShutdown();
 #else
         if (kill(server_pid, SIGTERM) == 0) {

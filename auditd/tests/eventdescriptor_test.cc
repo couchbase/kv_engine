@@ -17,7 +17,7 @@
 
 #include "eventdescriptor.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 

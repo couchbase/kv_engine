@@ -18,7 +18,7 @@
 #include "config.h"
 #include "failover-table.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 #include <engines/ep/src/bucket_logger.h>
 #include <limits>

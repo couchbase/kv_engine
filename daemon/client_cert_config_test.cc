@@ -18,9 +18,10 @@
 #include "config.h"
 #include "client_cert_config.h"
 
+#include <folly/portability/GTest.h>
 #include <memcached/openssl.h>
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
 #include <openssl/conf.h>
 #include <openssl/engine.h>

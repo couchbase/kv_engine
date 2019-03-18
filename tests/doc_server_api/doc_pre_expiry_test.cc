@@ -16,7 +16,7 @@
  */
 
 #include <daemon/doc_pre_expiry.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 #include <xattr/blob.h>

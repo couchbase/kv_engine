@@ -26,7 +26,7 @@
 #include "vbucket_state.h"
 
 #include <benchmark/benchmark.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
 
 enum Storage {

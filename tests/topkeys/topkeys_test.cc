@@ -17,7 +17,7 @@
 
 #include "daemon/settings.h"
 #include "daemon/topkeys.h"
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <memory>
 
 class TopKeysTest : public ::testing::Test {

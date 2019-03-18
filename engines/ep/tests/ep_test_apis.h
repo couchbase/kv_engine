@@ -23,6 +23,7 @@
 #include <memcached/protocol_binary.h>
 #include <relaxed_atomic.h>
 
+#include <iostream>
 #include <map>
 #include <string>
 

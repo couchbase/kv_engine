@@ -19,10 +19,10 @@
 // Utility functions used to build up packets in the memcached binary protocol
 #include <protocol/connection/client_connection.h>
 
+#include <folly/portability/GTest.h>
+#include <sys/types.h>
 #include <algorithm>
 #include <cstdlib>
-#include <sys/types.h>
-#include <gtest/gtest.h>
 
 #include <memcached/protocol_binary.h>
 

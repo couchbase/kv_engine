@@ -18,7 +18,7 @@
 
 #include "auth_provider.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
 #include <platform/base64.h>
 

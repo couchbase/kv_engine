@@ -16,7 +16,7 @@
  */
 #include "config.h"
 #include "daemon/ssl_utils.h"
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <openssl/ssl.h>
 
 TEST(ssl_decode_protocol, EmptyString) {

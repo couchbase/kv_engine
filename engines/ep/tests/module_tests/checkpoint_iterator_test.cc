@@ -20,7 +20,7 @@
 
 #include "checkpoint_iterator.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <iterator>
 #include <list>
 

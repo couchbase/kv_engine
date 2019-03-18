@@ -17,7 +17,7 @@
 #include <platform/dirutils.h>
 
 #include "auditfile.h"
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
 #include <platform/platform_time.h>
 #include <time.h>

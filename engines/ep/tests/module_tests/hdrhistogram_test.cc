@@ -20,7 +20,10 @@
 #include "hdrhistogram.h"
 #include "thread_gate.h"
 
-#include <gtest/gtest.h>
+#include <boost/optional.hpp>
+#include <folly/portability/GTest.h>
+#include <hdr_histogram.h>
+
 #include <cmath>
 #include <memory>
 #include <thread>

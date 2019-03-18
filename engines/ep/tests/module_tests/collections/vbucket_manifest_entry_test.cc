@@ -18,7 +18,7 @@
 #include "collections/vbucket_manifest_entry.h"
 #include "test_manifest.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 using namespace std::chrono_literals;
 

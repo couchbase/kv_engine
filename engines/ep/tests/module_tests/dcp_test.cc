@@ -43,6 +43,7 @@
 #include "test_helpers.h"
 #include "thread_gate.h"
 
+#include <folly/portability/GTest.h>
 #include <memcached/server_cookie_iface.h>
 #include <platform/cbassert.h>
 #include <platform/compress.h>

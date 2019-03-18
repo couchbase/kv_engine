@@ -22,7 +22,7 @@
 #include "item.h"
 #include "test_helpers.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <memcached/protocol_binary.h>
 #include <memory>
 

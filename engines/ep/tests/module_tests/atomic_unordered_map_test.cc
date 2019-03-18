@@ -21,7 +21,7 @@
 
 #include <thread>
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 /* Test class which inherits from RCValue */
 struct DummyValue : public RCValue {

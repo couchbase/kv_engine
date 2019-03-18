@@ -16,8 +16,8 @@
  */
 #include "config.h"
 
-#include <gtest/gtest.h>
 #include <cbsasl/scram-sha/stringutils.h>
+#include <folly/portability/GTest.h>
 
 TEST(Authname, SingleComma) {
     EXPECT_EQ(",", decodeUsername("=2C"));

@@ -26,8 +26,8 @@
 #include "tests/module_tests/test_helpers.h"
 #include "threadtests.h"
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GMock.h>
+#include <folly/portability/GTest.h>
 #include <platform/cb_malloc.h>
 
 #include <signal.h>

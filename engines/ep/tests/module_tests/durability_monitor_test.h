@@ -24,7 +24,7 @@
 
 #include <programs/engine_testapp/mock_server.h>
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 /*
  * DurabilityMonitor test fixture

@@ -29,6 +29,7 @@
 #include <platform/sized_buffer.h>
 
 #include <functional>
+#include <iostream>
 #include <list>
 #include <mutex>
 #include <set>

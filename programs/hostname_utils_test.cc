@@ -19,7 +19,7 @@
 
 #include <platform/socket.h>
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 class HostnameUtilsTest : public ::testing::Test {
 protected:

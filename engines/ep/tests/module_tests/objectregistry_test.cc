@@ -16,6 +16,11 @@
  */
 
 #include "config.h"
+
+// We need folly's Windows.h and not spdlog's so include folly's portability
+// header before anything that includes spdlog (bucket_logger etc.)
+#include <folly/portability/GTest.h>
+
 #include "bucket_logger.h"
 #include "bucket_logger_test.h"
 #include "item.h"
@@ -24,7 +29,6 @@
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 
-#include <gtest/gtest.h>
 #include <logger/logger_test_fixture.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <spdlog/async.h>

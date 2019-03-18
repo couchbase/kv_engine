@@ -17,7 +17,7 @@
 
 #include "string_utils.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 TEST(cb_stobTest, ValidWorks) {
     EXPECT_TRUE(cb_stob("true"));

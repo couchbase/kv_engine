@@ -23,7 +23,7 @@
 #include "mock_stream.h"
 #include "vbucket.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 extern cb::mcbp::ClientOpcode last_op;
 

@@ -17,7 +17,7 @@
 
 #include "config.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <mcbp/mcbp.h>
 #include <platform/dirutils.h>
 #include <platform/sized_buffer.h>

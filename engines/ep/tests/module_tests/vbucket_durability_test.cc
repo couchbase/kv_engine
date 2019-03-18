@@ -25,7 +25,7 @@
 
 #include "../mock/mock_durability_monitor.h"
 
-#include <gmock/gmock.h>
+#include <folly/portability/GMock.h>
 #include <thread>
 
 using namespace std::string_literals;

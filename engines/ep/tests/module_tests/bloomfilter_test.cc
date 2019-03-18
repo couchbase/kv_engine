@@ -16,7 +16,7 @@
 
 #include <unordered_set>
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 #include "bloomfilter.h"
 #include "murmurhash3.h"

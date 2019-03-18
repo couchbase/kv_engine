@@ -20,14 +20,14 @@
  */
 
 #include <platform/cb_malloc.h>
+#include <platform/dirutils.h>
 
 #include <memcached/util.h>
 #include <memcached/config_parser.h>
 #include "string_utilities.h"
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-#include <platform/dirutils.h>
+#include <folly/portability/GMock.h>
+#include <folly/portability/GTest.h>
 
 TEST(StringTest, safe_strtoul) {
     uint32_t val;

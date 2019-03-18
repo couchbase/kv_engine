@@ -23,7 +23,7 @@
 
 #include <benchmark/benchmark.h>
 #include <engines/ep/src/item_compressor.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 class ItemCompressorBench : public benchmark::Fixture {
 public:

@@ -17,7 +17,7 @@
 #pragma once
 
 #include "stats.h"
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 class AbstractStoredValueFactory;
 struct DocKey;

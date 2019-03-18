@@ -112,7 +112,8 @@ INCLUDE_DIRECTORIES(BEFORE
 
 INCLUDE_DIRECTORIES(AFTER SYSTEM
                     ${gtest_SOURCE_DIR}/include
-                    ${gmock_SOURCE_DIR}/include)
+                    ${gmock_SOURCE_DIR}/include
+                    ${FOLLY_INCLUDE_DIR})
 
 INCLUDE_DIRECTORIES(AFTER
                     ${gsl_lite_SOURCE_DIR}/include

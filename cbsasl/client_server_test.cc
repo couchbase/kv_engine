@@ -18,7 +18,8 @@
 #include <cbcrypto/cbcrypto.h>
 #include <cbsasl/client.h>
 #include <cbsasl/server.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
+
 #include <array>
 #include <cstdio>
 #include <cstdlib>

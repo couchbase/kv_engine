@@ -16,7 +16,7 @@
  */
 #include "config.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <xattr/utils.h>
 #include <gsl/gsl>
 #ifdef WIN32

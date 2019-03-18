@@ -19,7 +19,8 @@
 #include <cbsasl/client.h>
 #include <cbsasl/mechanism.h>
 #include <cbsasl/server.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
+
 #include <algorithm>
 #include <array>
 #include <cstdio>

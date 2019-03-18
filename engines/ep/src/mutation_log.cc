@@ -103,7 +103,8 @@ static int64_t SeekFile(file_handle_t fd, const std::string &fname,
         li.LowPart = SetFilePointer(fd, li.LowPart, &li.HighPart, FILE_BEGIN);
     }
 
-    if (li.LowPart == INVALID_SET_FILE_POINTER && GetLastError() != NO_ERROR) {
+    if (li.LowPart == INVALID_SET_FILE_POINTER &&
+        GetLastError() != ERROR_SUCCESS) {
         EP_LOG_WARN(
                 "FATAL: SetFilePointer failed {}: {}", fname, cb_strerror());
         li.QuadPart = -1;

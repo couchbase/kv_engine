@@ -28,7 +28,7 @@
 #include "stored_value_factories.h"
 #include "tests/module_tests/test_helpers.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 /**
  * Test fixture for StoredValue tests. Type-parameterized to test both

@@ -26,7 +26,7 @@
 #include "auditconfig.h"
 #include "mock_auditconfig.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 class AuditConfigTest : public ::testing::Test {
 protected:

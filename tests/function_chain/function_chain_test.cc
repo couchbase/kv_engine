@@ -16,7 +16,7 @@
  */
 
 #include <daemon/function_chain.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 static int doubleInput(int input) {
     return input * 2;

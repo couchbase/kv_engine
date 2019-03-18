@@ -25,7 +25,7 @@
 #include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/test_helpers.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 class MockVBManifest : public Collections::VB::Manifest {
 public:

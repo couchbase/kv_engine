@@ -5,8 +5,7 @@
 
 #include <thread>
 
-#include <gtest/gtest.h>
-
+#include <folly/portability/GTest.h>
 
 // Test that creating the singleton MemoryTracker is thread-safe (MB-18940)
 TEST(MemoryTracker, SingletonIsThreadSafe_MB18940) {

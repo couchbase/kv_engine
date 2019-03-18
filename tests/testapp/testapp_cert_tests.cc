@@ -29,7 +29,7 @@
 #include <time.h>
 #include <string>
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
 
 #include "memcached/openssl.h"

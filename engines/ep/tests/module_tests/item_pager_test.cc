@@ -31,7 +31,7 @@
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>

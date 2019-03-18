@@ -23,7 +23,7 @@
 #include "dcp/consumer.h"
 #include "vbucket.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 void handleProducerResponseIfStepBlocked(MockDcpConsumer& consumer,
                                          MockDcpMessageProducers& producers) {

@@ -16,8 +16,8 @@
  */
 
 #include <daemon/settings.h>
+#include <folly/portability/GTest.h>
 #include <getopt.h>
-#include <gtest/gtest.h>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>

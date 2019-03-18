@@ -16,13 +16,19 @@
  */
 #pragma once
 
+// Spdlog includes it's own portability code (details/os.h) to allow it to run
+// on multiple platforms, notably it includes <io.h>. This leads to ambiguous
+// symbol declarations when we come to include folly's GTest.h as it includes
+// it's own portability header Unistd.h. Include folly's portability code before
+// anything else to fix this.
+#include <folly/portability/GTest.h>
+
 #include "logger.h"
 #include "logger_config.h"
 
 #include <platform/dirutils.h>
 
 #include <boost/optional.hpp>
-#include <gtest/gtest.h>
 
 class SpdloggerTest : virtual public ::testing::Test {
 protected:
