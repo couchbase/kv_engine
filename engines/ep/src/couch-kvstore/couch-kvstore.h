@@ -50,10 +50,9 @@ public:
      * Constructor
      *
      * @param it Item instance to be persisted
-     * @param rev vbucket database revision number
      * @param cb persistence callback
      */
-    CouchRequest(const Item& it, uint64_t rev, MutationRequestCallback cb);
+    CouchRequest(const Item& it, MutationRequestCallback cb);
 
     virtual ~CouchRequest() {}
 
@@ -99,7 +98,6 @@ protected:
     value_t value;
 
     MetaData meta;
-    uint64_t fileRevNum;
     Doc dbDoc;
     DocInfo dbDocInfo;
 };

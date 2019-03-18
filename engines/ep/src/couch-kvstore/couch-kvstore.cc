@@ -255,12 +255,9 @@ couchstore_content_meta_flags CouchRequest::getContentMeta(const Item& it) {
     return rval;
 }
 
-CouchRequest::CouchRequest(const Item& it,
-                           uint64_t rev,
-                           MutationRequestCallback cb)
+CouchRequest::CouchRequest(const Item& it, MutationRequestCallback cb)
     : IORequest(it.getVBucketId(), std::move(cb), DiskDocKey{it}),
-      value(it.getValue()),
-      fileRevNum(rev) {
+      value(it.getValue()) {
     dbDoc.id = to_sized_buf(key);
 
     if (it.getNBytes()) {
@@ -465,11 +462,8 @@ void CouchKVStore::set(const Item& itm, SetCallback cb) {
                         "true to perform a set operation.");
     }
 
-    uint64_t fileRev = (*dbFileRevMap)[itm.getVBucketId().get()];
-
     // each req will be de-allocated after commit
-    pendingReqsQ.push_back(
-            std::make_unique<CouchRequest>(itm, fileRev, std::move(cb)));
+    pendingReqsQ.push_back(std::make_unique<CouchRequest>(itm, std::move(cb)));
 }
 
 GetValue CouchKVStore::get(const DiskDocKey& key, Vbid vb, bool fetchDelete) {
@@ -695,9 +689,7 @@ void CouchKVStore::del(const Item& itm, DeleteCallback cb) {
                         "true to perform a delete operation.");
     }
 
-    uint64_t fileRev = (*dbFileRevMap)[itm.getVBucketId().get()];
-    pendingReqsQ.push_back(
-            std::make_unique<CouchRequest>(itm, fileRev, std::move(cb)));
+    pendingReqsQ.push_back(std::make_unique<CouchRequest>(itm, std::move(cb)));
 }
 
 void CouchKVStore::delVBucket(Vbid vbucket, uint64_t fileRev) {

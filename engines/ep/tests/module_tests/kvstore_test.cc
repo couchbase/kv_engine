@@ -1361,8 +1361,8 @@ public:
         static const size_t sizeofV2 = 19;
     };
 
-    MockCouchRequest(const Item& it, uint64_t rev, MutationRequestCallback cb)
-        : CouchRequest(it, rev, std::move(cb)) {
+    MockCouchRequest(const Item& it, MutationRequestCallback cb)
+        : CouchRequest(it, std::move(cb)) {
     }
 
     ~MockCouchRequest() {}
@@ -1391,11 +1391,9 @@ public:
                             "true to perform a set operation.");
         }
 
-        uint64_t fileRev = (*dbFileRevMap)[itm.getVBucketId().get()];
-
         // each req will be de-allocated after commit
-        pendingReqsQ.push_back(std::make_unique<MockCouchRequest>(
-                itm, fileRev, std::move(cb)));
+        pendingReqsQ.push_back(
+                std::make_unique<MockCouchRequest>(itm, std::move(cb)));
         return static_cast<MockCouchRequest*>(pendingReqsQ.back().get());
     }
 
