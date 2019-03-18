@@ -99,7 +99,7 @@
 
 #include "atomic.h"
 
-#include <platform/cacheline_padded.h>
+#include <folly/CachelinePadded.h>
 #include <platform/rwlock.h>
 
 #include <algorithm>
@@ -381,5 +381,5 @@ private:
     // cache line) we should pad it to prevent the shuffling of members in the
     // DcpProducer class moving this mutex and causing false sharing that
     // affects performance.
-    mutable cb::CachelinePadded<cb::RWLock> rwlock;
+    mutable folly::CachelinePadded<cb::RWLock> rwlock;
 };

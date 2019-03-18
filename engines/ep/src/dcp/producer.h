@@ -24,7 +24,8 @@
 #include "dcp/stream_container.h"
 #include "ep_engine.h"
 #include "monotonic.h"
-#include "platform/cacheline_padded.h"
+
+#include <folly/CachelinePadded.h>
 
 class BackfillManager;
 class CheckpointCursor;
@@ -516,7 +517,7 @@ protected:
 
     // MB-30488: padding to keep mutex from sharing cachelines with
     // unrelated data
-    cb::CachelinePadded<CheckpointCreator> checkpointCreator;
+    folly::CachelinePadded<CheckpointCreator> checkpointCreator;
 
     static const std::chrono::seconds defaultDcpNoopTxInterval;
 

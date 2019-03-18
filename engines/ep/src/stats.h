@@ -20,8 +20,8 @@
 #include "hdrhistogram.h"
 #include "objectregistry.h"
 
+#include <folly/CachelinePadded.h>
 #include <memcached/types.h>
-#include <platform/cacheline_padded.h>
 #include <platform/corestore.h>
 #include <platform/histogram.h>
 #include <platform/non_negative_counter.h>
@@ -242,10 +242,10 @@ public:
     //! The total amount of memory used by this bucket (From memory tracking)
     // This is a signed variable as depending on how/when the thread-local
     // counters merge their info, this could be negative
-    cb::CachelinePadded<cb::RelaxedAtomic<int64_t>> estimatedTotalMemory;
+    folly::CachelinePadded<cb::RelaxedAtomic<int64_t>> estimatedTotalMemory;
 
     //! Core-local statistics
-    CoreStore<cb::CachelinePadded<CoreLocalStats>> coreLocal;
+    CoreStore<folly::CachelinePadded<CoreLocalStats>> coreLocal;
 
     //! True if the memory usage tracker is enabled.
     std::atomic<bool> memoryTrackerEnabled;
