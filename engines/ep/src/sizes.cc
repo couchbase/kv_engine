@@ -22,9 +22,11 @@
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "common.h"
+#include "couch-kvstore/couch-kvstore.h"
 #include "dcp/response.h"
 #include "dcp/stream.h"
 #include "item.h"
+#include "kvstore_priv.h"
 #include "persistence_callback.h"
 #include "probabilistic_counter.h"
 #include "stored-value.h"
@@ -81,6 +83,8 @@ int main(int, char **) {
     display("HistogramBin<microseconds>",
             sizeof(MicrosecondHistogram::bin_type));
     display("MicrosecondHistogram", MicrosecondHistogram().getMemFootPrint());
+    display("IORequest", sizeof(IORequest));
+    display("CouchRequest", sizeof(CouchRequest));
     display("PersistenceCallback", sizeof(PersistenceCallback));
     display("AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>",
             sizeof(AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>));
