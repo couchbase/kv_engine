@@ -139,7 +139,10 @@ void OpenTracingThread::pushOne(
 
         for (const auto& d : entry.tracer.getDurations()) {
             // Convert the start time to our system clock
-            const auto start = system_now - (steady_now - d.start);
+            const auto start =
+                    system_now - std::chrono::duration_cast<
+                                         std::chrono::system_clock::duration>(
+                                         steady_now - d.start);
 
             std::string text;
             if (d.code == cb::tracing::TraceCode::REQUEST) {
