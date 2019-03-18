@@ -1841,3 +1841,51 @@ TYPED_TEST(CheckpointTest, expelCursorPointingToChkptStart) {
 
     EXPECT_EQ(0 , this->manager->expelUnreferencedCheckpointItems());
 }
+
+// Test that if we want to evict items from seqno X, but have a meta-data item
+// also with seqno X, and a cursor is pointing to this meta data item, we do not
+// evict.
+TYPED_TEST(CheckpointTest, dontExpelIfCursorAtMetadataItemWithSameSeqno) {
+    const int itemCount{2};
+
+    for (auto ii = 0; ii < itemCount; ++ii) {
+        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
+    }
+
+    // Move the persistence cursor to the end to get it of the way.
+    bool isLastMutationItem{true};
+    for (auto ii = 0; ii < 3; ++ii) {
+        auto item = this->manager->nextItem(
+                this->manager->getPersistenceCursor(), isLastMutationItem);
+    }
+
+    // Add a cursor pointing to the dummy
+    std::string dcpCursor1(DCP_CURSOR_PREFIX + std::to_string(1));
+    CursorRegResult regResult =
+            this->manager->registerCursorBySeqno(dcpCursor1.c_str(), 1000);
+
+    // Move the cursor forward one step so that it now points to the checkpoint
+    // start.
+    auto item = this->manager->nextItem(regResult.cursor.lock().get(),
+                                        isLastMutationItem);
+
+    // Add a cursor to point to the 1st mutation we added.  Note that when
+    // registering the cursor we walk backwards from the checkpoint end until we
+    // reach the item with the seqno we are requesting.  Hence we register the
+    // cursor at the mutation and not the metadata item (checkpoint start) which
+    // has the same seqno.
+    std::string dcpCursor2(DCP_CURSOR_PREFIX + std::to_string(2));
+    CursorRegResult regResult2 =
+            this->manager->registerCursorBySeqno(dcpCursor2.c_str(), 1001);
+
+    /*
+     * Checkpoint now looks as follows:
+     * 1000 - dummy item
+     * 1001 - checkpoint start  <<<<<<< dcpCursor1
+     * 1001 - 1st item  <<<<<<< dcpCursor2
+     * 1002 - 2nd item  <<<<<<< persistenceCursor
+     */
+
+    // We should not expel any items due to dcpCursor1
+    EXPECT_EQ(0, this->manager->expelUnreferencedCheckpointItems());
+}

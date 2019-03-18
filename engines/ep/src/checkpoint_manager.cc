@@ -506,8 +506,15 @@ size_t CheckpointManager::expelUnreferencedCheckpointItems() {
                     // We already have a cursor so need to see if this one
                     // is lower. Get the new cursor's seqno.
                     auto seqno = (*cursor.second->currentPos)->getBySeqno();
-                    // Does it have a seqno lower than our current lowest?
-                    if ((seqno < (*current.lock()->currentPos)->getBySeqno())) {
+                    // Does it have a seqno lower than our current lowest or
+                    // is it pointing to a meta-data item that is immediately
+                    // before the cursor we were going to expel from and so
+                    // has the same seqno?
+                    auto currentLowestSeqno = (*current.lock()->currentPos)->getBySeqno();
+                    if (seqno < currentLowestSeqno ||
+                        (seqno == currentLowestSeqno &&
+                         (*cursor.second->currentPos)
+                                 ->isCheckPointMetaItem())) {
                         // Yes, so make it the new lowest.
                         current.setCursor(cursor.second);
                     }
