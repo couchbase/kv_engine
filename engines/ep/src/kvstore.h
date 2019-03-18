@@ -497,9 +497,12 @@ struct KVFileHandleDeleter {
  */
 class KVStore {
 public:
-    /// Ordered container of persistence callbacks currently registered.
-    using PersistenceCallbacks =
-            std::deque<std::unique_ptr<PersistenceCallback>>;
+    /// Callback invoked when a set operation is committed to disk.
+    using SetCallback =
+            std::function<void(TransactionContext&, mutation_result)>;
+
+    /// Callback invoked when a delete operation is committed to disk.
+    using DeleteCallback = std::function<void(TransactionContext&, int)>;
 
     KVStore(KVStoreConfig& config, bool read_only = false);
 
@@ -584,11 +587,10 @@ public:
      * Set an item into the kv store.
      *
      * @param item The item to store
-     * @param cb Pointer to a callback object which will be invoked when the
-     *           set() has been persisted to disk.
+     * @param cb Callback object which will be invoked when the set() has been
+     *        persisted to disk.
      */
-    virtual void set(const Item& item,
-                     Callback<TransactionContext, mutation_result>& cb) = 0;
+    virtual void set(const Item& item, SetCallback cb) = 0;
 
     /**
      * Get an item from the kv store.
@@ -653,11 +655,10 @@ public:
      * Delete an item from the kv store.
      *
      * @param item The item to delete
-     * @param cb Pointer to a callback object which will be invoked when the
-     *           del() has been persisted to disk.
+     * @param cb A callback object which will be invoked when the del() has
+     *        been persisted to disk.
      */
-    virtual void del(const Item& itm,
-                     Callback<TransactionContext, int>& cb) = 0;
+    virtual void del(const Item& itm, DeleteCallback cb) = 0;
 
     /**
      * Delete a given vbucket database instance from underlying storage
@@ -774,10 +775,6 @@ public:
      */
     void optimizeWrites(std::vector<queued_item>& items);
 
-    PersistenceCallbacks& getPersistenceCbList() {
-        return pcbs;
-    }
-
     /**
      * This method is called after persisting a batch of data to perform any
      * pending tasks on the underlying KVStore instance.
@@ -888,8 +885,8 @@ public:
      * @param item The Item representing the event
      * @param cb a callback object which is called once persisted
      */
-    void setSystemEvent(const Item& item,
-                        Callback<TransactionContext, mutation_result>& cb);
+    void setSystemEvent(const Item& item, SetCallback cb);
+
     /**
      * delete a system event in the KVStore.
      * Collection system events will be used to maintain extra meta-data before
@@ -897,8 +894,7 @@ public:
      * @param item The Item representing the event
      * @param cb a callback object which is called once persisted
      */
-    void delSystemEvent(const Item& item,
-                        Callback<TransactionContext, int>& cb);
+    void delSystemEvent(const Item& item, DeleteCallback cb);
 
     /**
      * Return data that EPBucket requires for the creation of a
@@ -932,8 +928,6 @@ protected:
        RelaxedAtomic to allow stats access without lock. */
     std::vector<cb::RelaxedAtomic<size_t>> cachedDocCount;
     cb::RelaxedAtomic<uint16_t> cachedValidVBCount;
-
-    PersistenceCallbacks pcbs;
 
     /// Metadata that the underlying implementation must persist
     Collections::KVStore::CommitMetaData collectionsMeta;

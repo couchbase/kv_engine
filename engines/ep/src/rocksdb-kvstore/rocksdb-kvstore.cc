@@ -173,11 +173,8 @@ public:
      * @param callback Persistence Callback
      * @param del Flag indicating if it is an item deletion or not
      */
-    RocksRequest(const Item& item, MutationRequestCallback& callback)
-        : IORequest(item.getVBucketId(),
-                    callback,
-                    item.isDeleted(),
-                    DiskDocKey{item}),
+    RocksRequest(const Item& item, MutationRequestCallback callback)
+        : IORequest(item.getVBucketId(), std::move(callback), DiskDocKey{item}),
           docBody(item.getValue()) {
         docMeta = rockskv::MetaData(
                 item.isDeleted(),
@@ -616,7 +613,7 @@ void RocksDBKVStore::commitCallback(
                 // not exist.
                 rv = 0;
             }
-            request->getDelCallback()->callback(*transactionCtx, rv);
+            request->getDelCallback()(*transactionCtx, rv);
         } else {
             if (status.code()) {
                 ++st.numSetFailure;
@@ -630,7 +627,7 @@ void RocksDBKVStore::commitCallback(
             // to RocksDB which is costly. For now just assume that the item
             // did not exist.
             mutation_result mr = std::make_pair(1, true);
-            request->getSetCallback()->callback(*transactionCtx, mr);
+            request->getSetCallback()(*transactionCtx, mr);
         }
     }
 }
@@ -658,16 +655,13 @@ std::vector<vbucket_state*> RocksDBKVStore::listPersistedVbuckets() {
     return result;
 }
 
-void RocksDBKVStore::set(const Item& item,
-                         Callback<TransactionContext, mutation_result>& cb) {
+void RocksDBKVStore::set(const Item& item, SetCallback cb) {
     if (!in_transaction) {
         throw std::logic_error(
                 "RocksDBKVStore::set: in_transaction must be true to perform a "
                 "set operation.");
     }
-    MutationRequestCallback callback;
-    callback.setCb = &cb;
-    pendingReqs.push_back(std::make_unique<RocksRequest>(item, callback));
+    pendingReqs.push_back(std::make_unique<RocksRequest>(item, std::move(cb)));
 }
 
 GetValue RocksDBKVStore::get(const DiskDocKey& key, Vbid vb, bool fetchDelete) {
@@ -750,8 +744,7 @@ void RocksDBKVStore::reset(Vbid vbucketId) {
     // TODO RDB:  Implement.
 }
 
-void RocksDBKVStore::del(const Item& item,
-                         Callback<TransactionContext, int>& cb) {
+void RocksDBKVStore::del(const Item& item, DeleteCallback cb) {
     if (!item.isDeleted()) {
         throw std::invalid_argument(
                 "RocksDBKVStore::del item to delete is not marked as deleted.");
@@ -763,9 +756,7 @@ void RocksDBKVStore::del(const Item& item,
     }
     // TODO: Deleted items remain as tombstones, but are not yet expired,
     // they will accumuate forever.
-    MutationRequestCallback callback;
-    callback.delCb = &cb;
-    pendingReqs.push_back(std::make_unique<RocksRequest>(item, callback));
+    pendingReqs.push_back(std::make_unique<RocksRequest>(item, std::move(cb)));
 }
 
 void RocksDBKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {

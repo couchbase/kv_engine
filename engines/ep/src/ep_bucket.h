@@ -190,8 +190,7 @@ protected:
 
     void flushOneDeleteAll();
 
-    std::unique_ptr<PersistenceCallback> flushOneDelOrSet(const queued_item& qi,
-                                                          VBucketPtr& vb);
+    void flushOneDelOrSet(const queued_item& qi, VBucketPtr& vb);
 
     /**
      * Compaction of a database file

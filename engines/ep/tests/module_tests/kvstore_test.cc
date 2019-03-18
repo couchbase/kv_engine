@@ -96,21 +96,14 @@ private:
     ENGINE_ERROR_CODE expectedErrorCode;
 };
 
-class WriteCallback : public Callback<TransactionContext, mutation_result> {
-public:
-    WriteCallback() {
-    }
-
-    void callback(TransactionContext&, mutation_result& result) {
+struct WriteCallback {
+    void operator()(TransactionContext, mutation_result) {
     }
 };
 
-class DeleteCallback : public Callback<TransactionContext, int> {
+struct DeleteCallback {
 public:
-    DeleteCallback() {
-    }
-
-    void callback(TransactionContext&, int&) {
+    void operator()(TransactionContext&, int) {
     }
 };
 
@@ -612,7 +605,7 @@ protected:
 
     void populate_items(size_t count) {
         generate_items(count);
-        CustomCallback<TransactionContext, mutation_result> set_callback;
+        WriteCallback set_callback;
         kvstore->begin(std::make_unique<TransactionContext>());
         for(const auto& item: items) {
             kvstore->set(item, set_callback);
@@ -649,7 +642,7 @@ protected:
  */
 TEST_F(CouchKVStoreErrorInjectionTest, openDB_retry_open_db_ex) {
     generate_items(1);
-    CustomCallback<TransactionContext, mutation_result> set_callback;
+    WriteCallback set_callback;
 
     kvstore->begin(std::make_unique<TransactionContext>());
     kvstore->set(items.front(), set_callback);
@@ -675,7 +668,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, openDB_retry_open_db_ex) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, openDB_open_db_ex) {
     generate_items(1);
-    CustomCallback<TransactionContext, mutation_result> set_callback;
+    WriteCallback set_callback;
 
     kvstore->begin(std::make_unique<TransactionContext>());
     kvstore->set(items.front(), set_callback);
@@ -701,7 +694,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, openDB_open_db_ex) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, commit_save_documents) {
     generate_items(1);
-    CustomCallback<TransactionContext, mutation_result> set_callback;
+    WriteCallback set_callback;
 
     kvstore->begin(std::make_unique<TransactionContext>());
     kvstore->set(items.front(), set_callback);
@@ -728,7 +721,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_save_documents) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, commit_save_local_document) {
     generate_items(1);
-    CustomCallback<TransactionContext, mutation_result> set_callback;
+    WriteCallback set_callback;
 
     kvstore->begin(std::make_unique<TransactionContext>());
     kvstore->set(items.front(), set_callback);
@@ -756,7 +749,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_save_local_document) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, commit_commit) {
     generate_items(1);
-    CustomCallback<TransactionContext, mutation_result> set_callback;
+    WriteCallback set_callback;
 
     kvstore->begin(std::make_unique<TransactionContext>());
     kvstore->set(items.front(), set_callback);
@@ -1028,7 +1021,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, recordDbDump_open_doc_with_docinfo) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count1) {
     generate_items(6);
-    CustomCallback<TransactionContext, mutation_result> set_callback;
+    WriteCallback set_callback;
 
     for(const auto item: items) {
         kvstore->begin(std::make_unique<TransactionContext>());
@@ -1060,7 +1053,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count1) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, rollback_rewind_header) {
     generate_items(6);
-    CustomCallback<TransactionContext, mutation_result> set_callback;
+    WriteCallback set_callback;
 
     for(const auto item: items) {
         kvstore->begin(std::make_unique<TransactionContext>());
@@ -1094,7 +1087,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_rewind_header) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count2) {
     generate_items(6);
-    CustomCallback<TransactionContext, mutation_result> set_callback;
+    WriteCallback set_callback;
 
     for(const auto item: items) {
         kvstore->begin(std::make_unique<TransactionContext>());
@@ -1126,7 +1119,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count2) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
     generate_items(6);
-    CustomCallback<TransactionContext, mutation_result> set_callback;
+    WriteCallback set_callback;
 
     for(const auto item: items) {
         kvstore->begin(std::make_unique<TransactionContext>());
@@ -1210,7 +1203,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, closeDB_close_file) {
 TEST_F(CouchKVStoreErrorInjectionTest, savedocs_doc_infos_by_id) {
     // Insert some items into the B-Tree
     generate_items(6);
-    CustomCallback<TransactionContext, mutation_result> set_callback;
+    WriteCallback set_callback;
 
     for (const auto item : items) {
         kvstore->begin(std::make_unique<TransactionContext>());
@@ -1220,7 +1213,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, savedocs_doc_infos_by_id) {
 
     {
         generate_items(1);
-        CustomCallback<TransactionContext, mutation_result> set_callback;
+        WriteCallback set_callback;
 
         kvstore->begin(std::make_unique<TransactionContext>());
         kvstore->set(items.front(), set_callback);
@@ -1368,11 +1361,8 @@ public:
         static const size_t sizeofV2 = 19;
     };
 
-    MockCouchRequest(const Item& it,
-                     uint64_t rev,
-                     MutationRequestCallback& cb,
-                     bool del)
-        : CouchRequest(it, rev, cb, del) {
+    MockCouchRequest(const Item& it, uint64_t rev, MutationRequestCallback cb)
+        : CouchRequest(it, rev, std::move(cb)) {
     }
 
     ~MockCouchRequest() {}
@@ -1390,9 +1380,8 @@ public:
     }
 
     // Mocks original code but returns the IORequest for fuzzing
-    MockCouchRequest* setAndReturnRequest(
-            const Item& itm,
-            Callback<TransactionContext, mutation_result>& cb) {
+    MockCouchRequest* setAndReturnRequest(const Item& itm,
+                                          KVStore::SetCallback cb) {
         if (isReadOnly()) {
             throw std::logic_error("MockCouchKVStore::set: Not valid on a read-only "
                             "object.");
@@ -1402,14 +1391,11 @@ public:
                             "true to perform a set operation.");
         }
 
-        bool deleteItem = false;
-        MutationRequestCallback requestcb;
         uint64_t fileRev = (*dbFileRevMap)[itm.getVBucketId().get()];
 
         // each req will be de-allocated after commit
-        requestcb.setCb = &cb;
         pendingReqsQ.push_back(std::make_unique<MockCouchRequest>(
-                itm, fileRev, requestcb, deleteItem));
+                itm, fileRev, std::move(cb)));
         return static_cast<MockCouchRequest*>(pendingReqsQ.back().get());
     }
 
@@ -2137,11 +2123,19 @@ TEST_F(CouchKVStoreMetaData, assignment) {
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, copy2->getDataType());
 }
 
-class PersistenceCallbacks
-        : public Callback<TransactionContext, mutation_result>,
-          public Callback<TransactionContext, int> {
+class PersistenceCallbacks {
 public:
     virtual ~PersistenceCallbacks() {
+    }
+
+    // Actual operator() methods which will be called by the storage layer.
+    // GMock cannot mock these directly, so instead provide named 'callback'
+    // methods which these functions call.
+    void operator()(TransactionContext& txCtx, mutation_result result) {
+        callback(txCtx, result);
+    }
+    void operator()(TransactionContext& txCtx, int value) {
+        callback(txCtx, value);
     }
 
     // SET callback.
@@ -2150,7 +2144,7 @@ public:
 
     // DEL callback.
     // @param value number of items that the underlying storage has deleted
-    virtual void callback(TransactionContext& txCtx, int& value) = 0;
+    virtual void callback(TransactionContext& txCtx, int& result) = 0;
 };
 
 class MockPersistenceCallbacks : public PersistenceCallbacks {
@@ -2211,7 +2205,7 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
 
     auto key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", 5);
-    kvstore->set(item, mpc);
+    kvstore->set(item, std::ref(mpc));
 
     // Expect that the SET callback will be called once after `commit`
     EXPECT_CALL(mpc, callback(_, result)).Times(1);
@@ -2233,7 +2227,7 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForDel) {
     // "Uninteresting mock function call".)
     NiceMock<MockPersistenceCallbacks> mpc;
     kvstore->begin(std::make_unique<TransactionContext>());
-    kvstore->set(item, mpc);
+    kvstore->set(item, std::ref(mpc));
     kvstore->commit(flush);
     kvstore->begin(std::make_unique<TransactionContext>());
 
@@ -2242,7 +2236,7 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForDel) {
     EXPECT_CALL(mpc, callback(_, delCount)).Times(0);
 
     item.setDeleted();
-    kvstore->del(item, mpc);
+    kvstore->del(item, std::ref(mpc));
 
     // Expect that the DEL callback will be called once after `commit`
     EXPECT_CALL(mpc, callback(_, delCount)).Times(1);

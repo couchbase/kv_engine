@@ -482,8 +482,7 @@ uint64_t KVStore::getLastPersistedSeqno(Vbid vbid) {
     return 0;
 }
 
-void KVStore::setSystemEvent(
-        const Item& item, Callback<TransactionContext, mutation_result>& cb) {
+void KVStore::setSystemEvent(const Item& item, SetCallback cb) {
     switch (SystemEvent(item.getFlags())) {
     case SystemEvent::Collection: {
         auto createEvent = Collections::VB::Manifest::getCreateEventData(
@@ -506,11 +505,10 @@ void KVStore::setSystemEvent(
                                     std::to_string(item.getFlags()));
     }
     collectionsMeta.needsCommit = true;
-    set(item, cb);
+    set(item, std::move(cb));
 }
 
-void KVStore::delSystemEvent(const Item& item,
-                             Callback<TransactionContext, int>& cb) {
+void KVStore::delSystemEvent(const Item& item, DeleteCallback cb) {
     switch (SystemEvent(item.getFlags())) {
     case SystemEvent::Collection: {
         auto dropEvent = Collections::VB::Manifest::getDropEventData(
@@ -544,16 +542,11 @@ void KVStore::delSystemEvent(const Item& item,
     del(item, cb);
 }
 
-IORequest::IORequest(Vbid vbId,
-                     MutationRequestCallback& cb,
-                     bool del,
-                     DiskDocKey itmKey)
-    : vbucketId(vbId), deleteItem(del), key(std::move(itmKey)) {
-    if (del) {
-        callback.delCb = cb.delCb;
-    } else {
-        callback.setCb = cb.setCb;
-    }
-
-    start = std::chrono::steady_clock::now();
+IORequest::IORequest(Vbid vbId, MutationRequestCallback cb, DiskDocKey itmKey)
+    : vbucketId(vbId),
+      callback(cb),
+      key(std::move(itmKey)),
+      start(std::chrono::steady_clock::now()) {
 }
+
+IORequest::~IORequest() = default;

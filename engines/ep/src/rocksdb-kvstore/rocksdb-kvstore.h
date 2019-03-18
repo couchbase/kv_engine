@@ -164,8 +164,7 @@ public:
     /**
      * Overrides set().
      */
-    void set(const Item& item,
-             Callback<TransactionContext, mutation_result>& cb) override;
+    void set(const Item& item, KVStore::SetCallback cb) override;
 
     /**
      * Overrides get().
@@ -190,7 +189,7 @@ public:
     /**
      * Overrides del().
      */
-    void del(const Item& itm, Callback<TransactionContext, int>& cb) override;
+    void del(const Item& itm, DeleteCallback cb) override;
 
     // This is a blocking call. The function waits until other threads have
     // finished processing on a VBucket DB (e.g., 'commit') before deleting

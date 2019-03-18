@@ -24,6 +24,7 @@
 #include "callbacks.h"
 #include "diskdockey.h"
 #include "kvstore.h"
+#include <boost/variant.hpp>
 #include <unordered_map>
 
 class KVStoreConfig;
@@ -32,27 +33,27 @@ static const int MUTATION_FAILED = -1;
 static const int DOC_NOT_FOUND = 0;
 static const int MUTATION_SUCCESS = 1;
 
-typedef union {
-    Callback<TransactionContext, mutation_result>* setCb;
-    Callback<TransactionContext, int>* delCb;
-} MutationRequestCallback;
+/**
+ * Callback for the mutation being performed.
+ */
+using MutationRequestCallback =
+        boost::variant<KVStore::SetCallback, KVStore::DeleteCallback>;
 
 class IORequest {
 public:
     /**
      * @param vbid
-     * @param cb callback to the engine
-     * @param del Is deletion?
+     * @param cb callback to the engine. Also specifies if this is a set
+     *        or delete based on the callback type.
      * @param key The key of the item to persist
      */
-    IORequest(Vbid vbid, MutationRequestCallback& cb, bool del, DiskDocKey key);
+    IORequest(Vbid vbid, MutationRequestCallback, DiskDocKey key);
 
-    virtual ~IORequest() {
-    }
+    virtual ~IORequest();
 
     /// @returns true if the document to be persisted is for DELETE
     bool isDelete() {
-        return deleteItem;
+        return boost::get<KVStore::DeleteCallback>(&callback);
     }
 
     /// @returns vbucket id of document to be persisted.
@@ -65,12 +66,12 @@ public:
                 std::chrono::steady_clock::now() - start);
     }
 
-    Callback<TransactionContext, mutation_result>* getSetCallback(void) {
-        return callback.setCb;
+    const KVStore::SetCallback& getSetCallback() {
+        return boost::get<KVStore::SetCallback>(callback);
     }
 
-    Callback<TransactionContext, int>* getDelCallback(void) {
-        return callback.delCb;
+    const KVStore::DeleteCallback& getDelCallback() {
+        return boost::get<KVStore::DeleteCallback>(callback);
     }
 
     const DiskDocKey& getKey() const {
@@ -79,8 +80,7 @@ public:
 
 protected:
     Vbid vbucketId;
-    bool deleteItem;
     MutationRequestCallback callback;
-    std::chrono::steady_clock::time_point start;
     DiskDocKey key;
+    std::chrono::steady_clock::time_point start;
 };

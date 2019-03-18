@@ -257,9 +257,8 @@ couchstore_content_meta_flags CouchRequest::getContentMeta(const Item& it) {
 
 CouchRequest::CouchRequest(const Item& it,
                            uint64_t rev,
-                           MutationRequestCallback& cb,
-                           bool del)
-    : IORequest(it.getVBucketId(), cb, del, DiskDocKey{it}),
+                           MutationRequestCallback cb)
+    : IORequest(it.getVBucketId(), std::move(cb), DiskDocKey{it}),
       value(it.getValue()),
       fileRevNum(rev) {
     dbDoc.id = to_sized_buf(key);
@@ -298,7 +297,7 @@ CouchRequest::CouchRequest(const Item& it,
     dbDocInfo.rev_seq = it.getRevSeqno();
     dbDocInfo.size = dbDoc.data.size;
 
-    if (del) {
+    if (it.isDeleted()) {
         dbDocInfo.deleted =  1;
         meta.setDeleteSource(it.deletionSource());
     } else {
@@ -456,8 +455,7 @@ void CouchKVStore::reset(Vbid vbucketId) {
     }
 }
 
-void CouchKVStore::set(const Item& itm,
-                       Callback<TransactionContext, mutation_result>& cb) {
+void CouchKVStore::set(const Item& itm, SetCallback cb) {
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::set: Not valid on a read-only "
                         "object.");
@@ -467,14 +465,11 @@ void CouchKVStore::set(const Item& itm,
                         "true to perform a set operation.");
     }
 
-    bool deleteItem = false;
-    MutationRequestCallback requestcb;
     uint64_t fileRev = (*dbFileRevMap)[itm.getVBucketId().get()];
 
     // each req will be de-allocated after commit
-    requestcb.setCb = &cb;
-    pendingReqsQ.push_back(std::make_unique<CouchRequest>(
-            itm, fileRev, requestcb, deleteItem));
+    pendingReqsQ.push_back(
+            std::make_unique<CouchRequest>(itm, fileRev, std::move(cb)));
 }
 
 GetValue CouchKVStore::get(const DiskDocKey& key, Vbid vb, bool fetchDelete) {
@@ -690,7 +685,7 @@ void CouchKVStore::getRange(Vbid vb,
     }
 }
 
-void CouchKVStore::del(const Item& itm, Callback<TransactionContext, int>& cb) {
+void CouchKVStore::del(const Item& itm, DeleteCallback cb) {
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::del: Not valid on a read-only "
                         "object.");
@@ -701,10 +696,8 @@ void CouchKVStore::del(const Item& itm, Callback<TransactionContext, int>& cb) {
     }
 
     uint64_t fileRev = (*dbFileRevMap)[itm.getVBucketId().get()];
-    MutationRequestCallback requestcb;
-    requestcb.delCb = &cb;
     pendingReqsQ.push_back(
-            std::make_unique<CouchRequest>(itm, fileRev, requestcb, true));
+            std::make_unique<CouchRequest>(itm, fileRev, std::move(cb)));
 }
 
 void CouchKVStore::delVBucket(Vbid vbucket, uint64_t fileRev) {
@@ -2222,19 +2215,17 @@ void CouchKVStore::commitCallback(
         std::vector<std::unique_ptr<CouchRequest>>& committedReqs,
         kvstats_ctx& kvctx,
         couchstore_error_t errCode) {
-    size_t commitSize = committedReqs.size();
-
-    for (size_t index = 0; index < commitSize; index++) {
-        size_t dataSize = committedReqs[index]->getNBytes();
-        size_t keySize = committedReqs[index]->getKeySize();
+    for (auto& committed : committedReqs) {
+        size_t dataSize = committed->getNBytes();
+        size_t keySize = committed->getKeySize();
         /* update ep stats */
         ++st.io_num_write;
         st.io_write_bytes += (keySize + dataSize);
 
-        if (committedReqs[index]->isDelete()) {
+        if (committed->isDelete()) {
             int rv = getMutationStatus(errCode);
             if (rv != -1) {
-                const auto& key = committedReqs[index]->getKey();
+                const auto& key = committed->getKey();
                 if (kvctx.keyStats[key]) {
                     rv = 1; // Deletion is for an existing item on DB file.
                 } else {
@@ -2244,23 +2235,21 @@ void CouchKVStore::commitCallback(
             if (errCode) {
                 ++st.numDelFailure;
             } else {
-                st.delTimeHisto.add(committedReqs[index]->getDelta());
+                st.delTimeHisto.add(committed->getDelta());
             }
-            committedReqs[index]->getDelCallback()->callback(*transactionCtx,
-                                                             rv);
+            committed->getDelCallback()(*transactionCtx, rv);
         } else {
             int rv = getMutationStatus(errCode);
-            const auto& key = committedReqs[index]->getKey();
+            const auto& key = committed->getKey();
             bool insertion = !kvctx.keyStats[key];
             if (errCode) {
                 ++st.numSetFailure;
             } else {
-                st.writeTimeHisto.add(committedReqs[index]->getDelta());
+                st.writeTimeHisto.add(committed->getDelta());
                 st.writeSizeHisto.add(dataSize + keySize);
             }
             mutation_result p(rv, insertion);
-            committedReqs[index]->getSetCallback()->callback(*transactionCtx,
-                                                             p);
+            committed->getSetCallback()(*transactionCtx, p);
         }
     }
 }

@@ -20,6 +20,7 @@
 #include "../objectregistry.h"
 #include "collections/collection_persisted_stats.h"
 #include "kvstore.h"
+#include "kvstore_priv.h"
 #include "vbucket_bgfetch_item.h"
 
 #include <platform/dirutils.h>
@@ -71,8 +72,7 @@ public:
     /**
      * Adds a request to a queue for batch processing at commit()
      */
-    void set(const Item& item,
-             Callback<TransactionContext, mutation_result>& cb) override;
+    void set(const Item& item, SetCallback cb) override;
 
     GetValue get(const DiskDocKey& key,
                  Vbid vb,
@@ -86,7 +86,7 @@ public:
 
     void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) override;
 
-    void del(const Item& itm, Callback<TransactionContext, int>& cb) override;
+    void del(const Item& itm, KVStore::DeleteCallback cb) override;
 
     void delVBucket(Vbid vbucket, uint64_t fileRev) override;
 

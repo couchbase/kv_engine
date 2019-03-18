@@ -52,12 +52,8 @@ public:
      * @param it Item instance to be persisted
      * @param rev vbucket database revision number
      * @param cb persistence callback
-     * @param del flag indicating if it is an item deletion or not
      */
-    CouchRequest(const Item& it,
-                 uint64_t rev,
-                 MutationRequestCallback& cb,
-                 bool del);
+    CouchRequest(const Item& it, uint64_t rev, MutationRequestCallback cb);
 
     virtual ~CouchRequest() {}
 
@@ -68,8 +64,8 @@ public:
      *         or nullptr if the its a deleted item and doesn't have
      *         a value.
      */
-    void *getDbDoc(void) {
-        if (deleteItem && value.get() == nullptr) {
+    void* getDbDoc() {
+        if (isDelete() && value.get() == nullptr) {
             return nullptr;
         }
         return &dbDoc;
@@ -203,8 +199,7 @@ public:
      */
     StorageProperties getStorageProperties(void) override;
 
-    void set(const Item& itm,
-             Callback<TransactionContext, mutation_result>& cb) override;
+    void set(const Item& itm, SetCallback cb) override;
 
     /**
      * Retrieve the document with a given key from the underlying storage
@@ -253,7 +248,7 @@ public:
         return 1;
     }
 
-    void del(const Item& itm, Callback<TransactionContext, int>& cb) override;
+    void del(const Item& itm, DeleteCallback) override;
 
     /**
      * Delete a given vbucket database instance from underlying storage

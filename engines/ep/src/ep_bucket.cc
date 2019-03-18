@@ -370,7 +370,6 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             range.start = std::max(range.start, vbstate.lastSnapStart);
 
             bool mustCheckpointVBState = false;
-            auto& pcbs = rwUnderlying->getPersistenceCbList();
 
             Collections::VB::Flush collectionFlush(vb->getManifest());
 
@@ -418,10 +417,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                     // This is an item we must persist.
                     prev = item.get();
                     ++items_flushed;
-                    auto cb = flushOneDelOrSet(item, vb.getVB());
-                    if (cb) {
-                        pcbs.emplace_back(std::move(cb));
-                    }
+                    flushOneDelOrSet(item, vb.getVB());
 
                     // At least one pending SyncWrite in the FlushBatch?
                     if (item->isPending()) {
@@ -577,7 +573,6 @@ void EPBucket::setFlusherBatchSplitTrigger(size_t limit) {
 
 void EPBucket::commit(KVStore& kvstore,
                       Collections::VB::Flush& collectionsFlush) {
-    auto& pcbs = kvstore.getPersistenceCbList();
     BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
     auto commit_start = std::chrono::steady_clock::now();
 
@@ -587,9 +582,6 @@ void EPBucket::commit(KVStore& kvstore,
                 "KVBucket::commit: kvstore.commit failed!!! Retry in 1 sec...");
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-
-    pcbs.clear();
-    pcbs.shrink_to_fit();
 
     ++stats.flusherCommits;
     auto commit_end = std::chrono::steady_clock::now();
@@ -756,11 +748,10 @@ void EPBucket::flushOneDeleteAll() {
     setDeleteAllComplete();
 }
 
-std::unique_ptr<PersistenceCallback> EPBucket::flushOneDelOrSet(
-        const queued_item& qi, VBucketPtr& vb) {
+void EPBucket::flushOneDelOrSet(const queued_item& qi, VBucketPtr& vb) {
     if (!vb) {
         --stats.diskQueueSize;
-        return NULL;
+        return;
     }
 
     int64_t bySeqno = qi->getBySeqno();
@@ -781,24 +772,22 @@ std::unique_ptr<PersistenceCallback> EPBucket::flushOneDelOrSet(
                          &stats.diskInsertHisto : &stats.diskUpdateHisto,
                          bySeqno == -1 ? "disk_insert" : "disk_update",
                          stats.timingLog);
-        auto cb = std::make_unique<PersistenceCallback>(qi, qi->getCas());
         if (qi->isSystemEvent()) {
-            rwUnderlying->setSystemEvent(*qi, *cb);
+            rwUnderlying->setSystemEvent(*qi,
+                                         PersistenceCallback(qi, qi->getCas()));
 
         } else {
-            rwUnderlying->set(*qi, *cb);
+            rwUnderlying->set(*qi, PersistenceCallback(qi, qi->getCas()));
         }
-        return cb;
     } else {
         BlockTimer timer(&stats.diskDelHisto, "disk_delete",
                          stats.timingLog);
-        auto cb = std::make_unique<PersistenceCallback>(qi, 0);
         if (qi->isSystemEvent()) {
-            rwUnderlying->delSystemEvent(*qi, *cb);
+            rwUnderlying->delSystemEvent(*qi,
+                                         PersistenceCallback(qi, qi->getCas()));
         } else {
-            rwUnderlying->del(*qi, *cb);
+            rwUnderlying->del(*qi, PersistenceCallback(qi, qi->getCas()));
         }
-        return cb;
     }
 }
 

@@ -3651,9 +3651,8 @@ TEST_F(SingleThreadedEPBucketTest, testRetainErroneousTombstones) {
     ASSERT_TRUE(itm->isDeleted());
     itm->setExpTime(0);
 
-    class DummyCallback : public Callback<TransactionContext, int> {
-    public:
-        void callback(TransactionContext&, int&) {
+    struct DummyCallback {
+        void operator()(TransactionContext&, int) {
         }
     } dc;
     kvstore->begin(std::make_unique<TransactionContext>());

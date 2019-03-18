@@ -28,8 +28,8 @@ PersistenceCallback::PersistenceCallback(const queued_item& qi, uint64_t c)
 PersistenceCallback::~PersistenceCallback() = default;
 
 // This callback is invoked for set only.
-void PersistenceCallback::callback(TransactionContext& txCtx,
-                                   mutation_result& value) {
+void PersistenceCallback::operator()(TransactionContext& txCtx,
+                                     mutation_result value) {
     auto& epCtx = dynamic_cast<EPTransactionContext&>(txCtx);
     auto& vbucket = epCtx.vbucket;
 
@@ -106,7 +106,7 @@ void PersistenceCallback::callback(TransactionContext& txCtx,
 //
 // The boolean indicates whether the underlying storage
 // successfully deleted the item.
-void PersistenceCallback::callback(TransactionContext& txCtx, int& value) {
+void PersistenceCallback::operator()(TransactionContext& txCtx, int value) {
     auto& epCtx = dynamic_cast<EPTransactionContext&>(txCtx);
     auto& vbucket = epCtx.vbucket;
 

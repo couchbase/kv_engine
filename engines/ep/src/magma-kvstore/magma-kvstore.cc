@@ -18,7 +18,6 @@
 #include "magma-kvstore.h"
 #include "bucket_logger.h"
 #include "ep_time.h"
-#include "kvstore_priv.h"
 #include "magma-kvstore_config.h"
 #include "vbucket.h"
 
@@ -90,11 +89,8 @@ public:
      * @param callback Persistence Callback
      * @param del Flag indicating if it is an item deletion or not
      */
-    MagmaRequest(const Item& item, MutationRequestCallback& callback)
-        : IORequest(item.getVBucketId(),
-                    callback,
-                    item.isDeleted(),
-                    DiskDocKey{item}),
+    MagmaRequest(const Item& item, MutationRequestCallback callback)
+        : IORequest(item.getVBucketId(), std::move(callback), DiskDocKey{item}),
           docBody(item.getValue()),
           updatedExistingItem(false) {
         docMeta = magmakv::MetaData(
@@ -299,7 +295,7 @@ void MagmaKVStore::commitCallback(
         // which is costly. For now just assume that the item
         // did not exist. Later maybe use hyperlog for a better answer?
         mutation_result mr = std::make_pair(1, req->wasCreate());
-        req->getSetCallback()->callback(*transactionCtx, mr);
+        req->getSetCallback()(*transactionCtx, mr);
     }
 }
 
@@ -327,16 +323,13 @@ std::vector<vbucket_state*> MagmaKVStore::listPersistedVbuckets() {
     return result;
 }
 
-void MagmaKVStore::set(const Item& item,
-                       Callback<TransactionContext, mutation_result>& cb) {
+void MagmaKVStore::set(const Item& item, SetCallback cb) {
     if (!in_transaction) {
         throw std::logic_error(
                 "MagmaKVStore::set: in_transaction must be true to perform a "
                 "set operation.");
     }
-    MutationRequestCallback callback;
-    callback.setCb = &cb;
-    pendingReqs.push_back(std::make_unique<MagmaRequest>(item, callback));
+    pendingReqs.push_back(std::make_unique<MagmaRequest>(item, std::move(cb)));
 }
 
 GetValue MagmaKVStore::get(const DiskDocKey& key, Vbid vb, bool fetchDelete) {
@@ -394,8 +387,7 @@ void MagmaKVStore::reset(Vbid vbucketId) {
     // TODO storage-team 2018-10-9 need to implement
 }
 
-void MagmaKVStore::del(const Item& item,
-                       Callback<TransactionContext, int>& cb) {
+void MagmaKVStore::del(const Item& item, KVStore::DeleteCallback cb) {
     if (!in_transaction) {
         throw std::logic_error(
                 "MagmaKVStore::del: in_transaction must be true to perform a "
@@ -403,9 +395,7 @@ void MagmaKVStore::del(const Item& item,
     }
     // TODO: Deleted items remain as tombstones, but are not yet expired,
     // they will accumuate forever.
-    MutationRequestCallback callback;
-    callback.delCb = &cb;
-    pendingReqs.push_back(std::make_unique<MagmaRequest>(item, callback));
+    pendingReqs.push_back(std::make_unique<MagmaRequest>(item, std::move(cb)));
 }
 
 void MagmaKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {

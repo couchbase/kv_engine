@@ -35,21 +35,13 @@ public:
     }
 };
 
-class WriteCallback : public Callback<TransactionContext, mutation_result> {
-public:
-    WriteCallback() {
-    }
-
-    void callback(TransactionContext&, mutation_result& result) {
+struct WriteCallback {
+    void operator()(TransactionContext&, mutation_result result) {
     }
 };
 
-class DeleteCallback : public Callback<TransactionContext, int> {
-public:
-    DeleteCallback() {
-    }
-
-    void callback(TransactionContext&, int&) {
+struct DeleteCallback {
+    void operator()(TransactionContext&, int) {
     }
 };
 

@@ -37,11 +37,9 @@ enum Storage {
 #endif
 };
 
-class MockWriteCallback : public Callback<TransactionContext, mutation_result> {
+class MockWriteCallback {
 public:
-    MockWriteCallback() {
-    }
-    void callback(TransactionContext&, mutation_result& result) {
+    void operator()(TransactionContext&, mutation_result result) {
     }
 };
 
