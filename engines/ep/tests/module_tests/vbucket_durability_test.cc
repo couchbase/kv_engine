@@ -41,7 +41,7 @@ void VBucketDurabilityTest::SetUp() {
     //     class protected members, it doesn't change the base class layout
     monitor = reinterpret_cast<MockDurabilityMonitor*>(
             vbucket->durabilityMonitor.get());
-    ASSERT_GT(monitor->public_getReplicationChainSize(), 0);
+    ASSERT_GT(monitor->public_getFirstChainSize(), 0);
 }
 
 size_t VBucketDurabilityTest::storeSyncWrites(

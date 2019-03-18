@@ -105,6 +105,44 @@ void DurabilityMonitorTest::assertNodeDiskTracking(const std::string& node,
     ASSERT_EQ(lastAckSeqno, monitor->public_getNodeAckSeqnos(node).disk);
 }
 
+bool DurabilityMonitorTest::testDurabilityPossible(
+        const nlohmann::json::array_t& topology,
+        queued_item& item,
+        uint8_t expectedFirstChainSize,
+        uint8_t expectedFirstChainMajority) {
+    auto expectAddSyncWriteImpossible = [this, &item]() -> void {
+        try {
+            monitor->addSyncWrite(nullptr /*cookie*/, item);
+        } catch (const std::logic_error& e) {
+            EXPECT_TRUE(std::string(e.what()).find("Impossible") !=
+                        std::string::npos);
+            return;
+        }
+        FAIL();
+    };
+
+    setVBucketStateAndRunPersistTask(
+            vbid, vbucket_state_active, {{"topology", topology}});
+    EXPECT_EQ(expectedFirstChainSize, monitor->public_getFirstChainSize());
+    EXPECT_EQ(expectedFirstChainMajority,
+              monitor->public_getFirstChainMajority());
+
+    if (expectedFirstChainSize < expectedFirstChainMajority) {
+        expectAddSyncWriteImpossible();
+        EXPECT_EQ(0, monitor->public_getNumTracked());
+        return false;
+    }
+
+    EXPECT_NO_THROW(monitor->addSyncWrite(nullptr /*cookie*/, item));
+    // @todo: There is an open issue (MB-33395) that requires that we wipe
+    //     out the tracked container before resetting the replication chain
+    //     (note some tests call this function multiple times).
+    //     We can remove this step as soon as MB-33395 is fixed.
+    // Note: This is also an implicit check on the number of tracked items.
+    EXPECT_EQ(1 /*numRemoved*/, monitor->public_wipeTracked());
+    return true;
+}
+
 TEST_F(DurabilityMonitorTest, AddSyncWrite) {
     EXPECT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
 }
@@ -292,7 +330,7 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceived_PersistToMajority) {
 TEST_F(DurabilityMonitorTest, SetTopology_NotAnArray) {
     try {
         monitor->setReplicationTopology(nlohmann::json::object());
-    } catch (const std::logic_error& e) {
+    } catch (const std::invalid_argument& e) {
         EXPECT_TRUE(std::string(e.what()).find("Topology is not an array") !=
                     std::string::npos);
         return;
@@ -303,9 +341,33 @@ TEST_F(DurabilityMonitorTest, SetTopology_NotAnArray) {
 TEST_F(DurabilityMonitorTest, SetTopology_Empty) {
     try {
         monitor->setReplicationTopology(nlohmann::json::array());
-    } catch (const std::logic_error& e) {
+    } catch (const std::invalid_argument& e) {
         EXPECT_TRUE(std::string(e.what()).find("Topology is empty") !=
                     std::string::npos);
+        return;
+    }
+    FAIL();
+}
+
+TEST_F(DurabilityMonitorTest, SetTopology_FirstChainEmpty) {
+    try {
+        monitor->setReplicationTopology(nlohmann::json::array({{}}));
+    } catch (const std::invalid_argument& e) {
+        EXPECT_TRUE(std::string(e.what()).find("FirstChain cannot be empty") !=
+                    std::string::npos);
+        return;
+    }
+    FAIL();
+}
+
+TEST_F(DurabilityMonitorTest, SetTopology_FirstChainUndefinedActive) {
+    try {
+        monitor->setReplicationTopology(nlohmann::json::array({{nullptr}}));
+    } catch (const std::invalid_argument& e) {
+        EXPECT_TRUE(
+                std::string(e.what()).find(
+                        "first node in chain (active) cannot be undefined") !=
+                std::string::npos);
         return;
     }
     FAIL();
@@ -315,7 +377,7 @@ TEST_F(DurabilityMonitorTest, SetTopology_TooManyNodesInChain) {
     try {
         monitor->setReplicationTopology(nlohmann::json::array(
                 {{"active", "replica1", "replica2", "replica3", "replica4"}}));
-    } catch (const std::logic_error& e) {
+    } catch (const std::invalid_argument& e) {
         EXPECT_TRUE(std::string(e.what()).find("Too many nodes in chain") !=
                     std::string::npos);
         return;
@@ -327,7 +389,7 @@ TEST_F(DurabilityMonitorTest, SetTopology_NodeDuplicateIncChain) {
     try {
         monitor->setReplicationTopology(
                 nlohmann::json::array({{"node1", "node1"}}));
-    } catch (const std::logic_error& e) {
+    } catch (const std::invalid_argument& e) {
         EXPECT_TRUE(std::string(e.what()).find("Duplicate node") !=
                     std::string::npos);
         return;
@@ -344,7 +406,7 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {
 
     ASSERT_NO_THROW(monitor->setReplicationTopology(
             nlohmann::json::array({{active, replica1, replica2, replica3}})));
-    ASSERT_EQ(4, monitor->public_getReplicationChainSize());
+    ASSERT_EQ(4, monitor->public_getFirstChainSize());
 
     addSyncWrite(1 /*seqno*/);
 
@@ -387,7 +449,7 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {
 TEST_F(DurabilityMonitorTest, NeverExpireIfTimeoutNotSet) {
     ASSERT_NO_THROW(monitor->setReplicationTopology(
             nlohmann::json::array({{active, replica}})));
-    ASSERT_EQ(2, monitor->public_getReplicationChainSize());
+    ASSERT_EQ(2, monitor->public_getFirstChainSize());
 
     // Note: Timeout=0 (i.e., no timeout) in default Durability Requirements
     ASSERT_EQ(1, addSyncWrites({1} /*seqno*/));
@@ -404,7 +466,7 @@ TEST_F(DurabilityMonitorTest, NeverExpireIfTimeoutNotSet) {
 TEST_F(DurabilityMonitorTest, ProcessTimeout) {
     ASSERT_NO_THROW(monitor->setReplicationTopology(
             nlohmann::json::array({{active, replica}})));
-    ASSERT_EQ(2, monitor->public_getReplicationChainSize());
+    ASSERT_EQ(2, monitor->public_getFirstChainSize());
 
     auto checkMemoryTrack = [this](const std::string& node,
                                    int64_t expected) -> void {
@@ -599,4 +661,132 @@ TEST_F(DurabilityMonitorTest, DontInvalidateIteratorsAtOutOfOrderCommit) {
     // This crashes with SEGFAULT before the fix (caused by processing the
     // invalid A(m) iterator)
     addSyncWrite(10 /*seqno*/);
+}
+
+/*
+ * The following tests check that the DurabilityMonitor enforces the
+ * durability-impossible semantic. I.e., DM enforces durability-impossible when
+ * the caller tries to enqueue a SyncWrite but the topology state prevents
+ * Requirements from being satisfied.
+ *
+ * Note: Not covered in the following as already covered in dedicated tests:
+ * - FirstChain cannot be empty
+ * - Active node in chain cannot be undefined
+ *
+ * @todo: Extend durability-impossible tests to SecondChain when supported
+ */
+
+TEST_F(DurabilityMonitorTest, DurabilityImpossible_NoReplica) {
+    auto item = makePendingItem(makeStoredDocKey("key"), "value");
+    item->setBySeqno(1);
+    EXPECT_TRUE(testDurabilityPossible({{"active"}},
+                                       item,
+                                       1 /*expectedFirstChainSize*/,
+                                       1 /*expectedFirstChainMajority*/));
+}
+
+TEST_F(DurabilityMonitorTest, DurabilityImpossible_1Replica) {
+    auto item = makePendingItem(makeStoredDocKey("key"), "value");
+
+    item->setBySeqno(1);
+    {
+        SCOPED_TRACE("");
+        EXPECT_TRUE(testDurabilityPossible({{"active", "replica"}},
+                                           item,
+                                           2 /*expectedFirstChainSize*/,
+                                           2 /*expectedFirstChainMajority*/));
+    }
+
+    item->setBySeqno(2);
+    {
+        SCOPED_TRACE("");
+        EXPECT_FALSE(testDurabilityPossible({{"active", nullptr}},
+                                            item,
+                                            1 /*expectedFirstChainSize*/,
+                                            2 /*expectedFirstChainMajority*/));
+    }
+}
+
+TEST_F(DurabilityMonitorTest, DurabilityImpossible_2Replicas) {
+    auto item = makePendingItem(makeStoredDocKey("key"), "value");
+
+    item->setBySeqno(1);
+    {
+        SCOPED_TRACE("");
+        EXPECT_TRUE(testDurabilityPossible({{"active", "replica1", "replica2"}},
+                                           item,
+                                           3 /*expectedFirstChainSize*/,
+                                           2 /*expectedFirstChainMajority*/));
+    }
+
+    item->setBySeqno(2);
+    {
+        SCOPED_TRACE("");
+        EXPECT_TRUE(testDurabilityPossible({{"active", "replica1", nullptr}},
+                                           item,
+                                           2 /*expectedFirstChainSize*/,
+                                           2 /*expectedFirstChainMajority*/));
+    }
+
+    item->setBySeqno(3);
+    {
+        SCOPED_TRACE("");
+        EXPECT_FALSE(testDurabilityPossible({{"active", nullptr, nullptr}},
+                                            item,
+                                            1 /*expectedFirstChainSize*/,
+                                            2 /*expectedFirstChainMajority*/));
+    }
+}
+
+TEST_F(DurabilityMonitorTest, DurabilityImpossible_3Replicas) {
+    // Note: In this test, playing with Undefined nodes in different and
+    // non-consecutive positions.
+    // Not sure if ns_server can set something like that (e.g. {A, u, R2, u}),
+    // but better that we cover the most general case.
+    auto item = makePendingItem(makeStoredDocKey("key"), "value");
+
+    item->setBySeqno(1);
+    {
+        SCOPED_TRACE("");
+        EXPECT_TRUE(testDurabilityPossible(
+                {{"active", "replica1", "replica2", "replica3"}},
+                item,
+                4 /*expectedFirstChainSize*/,
+                3 /*expectedFirstChainMajority*/));
+    }
+
+    item->setBySeqno(2);
+    {
+        SCOPED_TRACE("");
+        EXPECT_TRUE(testDurabilityPossible(
+                {{"active", "replica1", nullptr, "replica3"}},
+                item,
+                3 /*expectedFirstChainSize*/,
+                3 /*expectedFirstChainMajority*/));
+    }
+
+    item->setBySeqno(3);
+    {
+        SCOPED_TRACE("");
+        EXPECT_FALSE(testDurabilityPossible(
+                {{"active", nullptr, nullptr, "replica3"}},
+                item,
+                2 /*expectedFirstChainSize*/,
+                3 /*expectedFirstChainMajority*/));
+    }
+
+    // No need to increase bySeqno here, as at the previous call s:3 must be
+    // rejected (durability is impossible when chainSize<chainMajority).
+    // Also, if for some reason the durability-impossible logic is broken
+    // (i.e., s:3 is successfully queued at the previous step rather than being
+    // rejected) then the following step fails as well, as trying to
+    // re-queueing s:3 will break seqno-invariant.
+    {
+        SCOPED_TRACE("");
+        EXPECT_FALSE(
+                testDurabilityPossible({{"active", nullptr, nullptr, nullptr}},
+                                       item,
+                                       1 /*expectedFirstChainSize*/,
+                                       3 /*expectedFirstChainMajority*/));
+    }
 }

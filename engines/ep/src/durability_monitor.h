@@ -73,6 +73,12 @@ public:
     const nlohmann::json& getReplicationTopology() const;
 
     /**
+     * @return true if the replication topology allows Majority being reached,
+     *     false otherwise
+     */
+    bool isDurabilityPossible() const;
+
+    /**
      * Start tracking a new SyncWrite.
      * Expected to be called by VBucket::add/update/delete after a new SyncWrite
      * has been inserted into the HashTable and enqueued into the
@@ -146,7 +152,20 @@ protected:
      * @param lg the object lock
      * @return the size of the replication chain
      */
-    size_t getReplicationChainSize(const std::lock_guard<std::mutex>& lg) const;
+    uint8_t getFirstChainSize(const std::lock_guard<std::mutex>& lg) const;
+
+    /**
+     * @param lg the object lock
+     * @return FirstChain's Majority
+     */
+    uint8_t getFirstChainMajority(const std::lock_guard<std::mutex>& lg) const;
+
+    /**
+     * @param lg the object lock
+     * @return true if the replication topology allows Majority being reached,
+     *     false otherwise
+     */
+    bool isDurabilityPossible(const std::lock_guard<std::mutex>& lg) const;
 
     /**
      * Returns the next position for a node iterator.
@@ -271,6 +290,15 @@ protected:
      * @return the set of seqnos tracked by this DurabilityMonitor
      */
     std::unordered_set<int64_t> getTrackedSeqnos() const;
+
+    /**
+     * Test only (for now; shortly this will be probably needed at rollback).
+     * Removes all SyncWrites from the tracked container. Replication chain
+     * iterators stay valid.
+     *
+     * @returns the number of SyncWrites removed from tracking
+     */
+    size_t wipeTracked();
 
     // The VBucket owning this DurabilityMonitor instance
     VBucket& vb;

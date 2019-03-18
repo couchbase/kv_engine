@@ -32,9 +32,14 @@ public:
         return DurabilityMonitor::getNumTracked(lg);
     }
 
-    size_t public_getReplicationChainSize() const {
+    uint8_t public_getFirstChainSize() const {
         std::lock_guard<std::mutex> lg(state.m);
-        return DurabilityMonitor::getReplicationChainSize(lg);
+        return DurabilityMonitor::getFirstChainSize(lg);
+    }
+
+    uint8_t public_getFirstChainMajority() const {
+        std::lock_guard<std::mutex> lg(state.m);
+        return DurabilityMonitor::getFirstChainMajority(lg);
     }
 
     NodeSeqnos public_getNodeWriteSeqnos(const std::string& replica) const {
@@ -49,6 +54,10 @@ public:
 
     std::unordered_set<int64_t> public_getTrackedSeqnos() const {
         return DurabilityMonitor::getTrackedSeqnos();
+    }
+
+    size_t public_wipeTracked() {
+        return DurabilityMonitor::wipeTracked();
     }
 };
 

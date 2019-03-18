@@ -42,7 +42,7 @@ public:
         //     class protected members, it doesn't change the base class layout
         monitor = reinterpret_cast<MockDurabilityMonitor*>(
                 vb->durabilityMonitor.get());
-        ASSERT_GT(monitor->public_getReplicationChainSize(), 0);
+        ASSERT_GT(monitor->public_getFirstChainSize(), 0);
     }
 
     void TearDown() {
@@ -110,6 +110,24 @@ protected:
     void assertNodeDiskTracking(const std::string& node,
                                 uint64_t lastWriteSeqno,
                                 uint64_t lastAckSeqno);
+
+    /**
+     * Check durability possible/impossible at DM::addSyncWrite under the
+     * test conditions defined by input args.
+     *
+     * @param topology The replication topology
+     * @param item The item being added to tracking
+     * @param expectedFirstChainSize The expected number of defined nodes in
+     *     first-chain
+     * @param expectedFirstChainMajority The expected Majority for first-chain.
+     *     Note that the computation of Majority accounts for both defined and
+     *     undefined nodes in chain.
+     * @return true if durability is possible, false otherwise
+     */
+    bool testDurabilityPossible(const nlohmann::json::array_t& topology,
+                                queued_item& item,
+                                uint8_t expectedFirstChainSize,
+                                uint8_t expectedFirstChainMajority);
 
     // Owned by KVBucket
     VBucket* vb;

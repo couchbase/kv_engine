@@ -98,22 +98,29 @@ struct DurabilityMonitor::ReplicationChain {
                          .emplace(node,
                                   NodePosition{Position(it), Position(it)})
                          .second) {
-                throw std::logic_error(
+                throw std::invalid_argument(
                         "ReplicationChain::ReplicationChain: Duplicate node: " +
                         node);
             }
         }
     }
 
-    size_t getSize() const {
+    size_t size() const {
         return positions.size();
+    }
+
+    bool isDurabilityPossible() const {
+        Expects(size());
+        Expects(majority);
+        return size() >= majority;
     }
 
     // Index of node Positions. The key is the node id.
     // A Position embeds the seqno-state of the tracked node.
     std::unordered_map<std::string, NodePosition> positions;
 
-    // Majority in the arithmetic definition: num-nodes / 2 + 1
+    // Majority in the arithmetic definition:
+    //     chain-size / 2 + 1
     const uint8_t majority;
 
     const std::string active;
@@ -129,7 +136,7 @@ public:
               const ReplicationChain& chain)
         : cookie(cookie),
           item(item),
-          majority(chain.getSize() / 2 + 1),
+          majority(chain.majority),
           expiryTime(
                   item->getDurabilityReqs().getTimeout()
                           ? std::chrono::steady_clock::now() +
@@ -139,6 +146,9 @@ public:
                           : boost::optional<
                                     std::chrono::steady_clock::time_point>{}),
           active(chain.active) {
+        // We are making a SyncWrite for tracking, we must have already ensured
+        // that the Durability Requirements can be met at this point.
+        Expects(chain.size() >= majority);
         for (const auto& entry : chain.positions) {
             acks[entry.first] = Ack();
         }
@@ -333,13 +343,13 @@ void DurabilityMonitor::setReplicationTopology(const nlohmann::json& topology) {
 
     if (firstChain.size() == 0) {
         throw std::invalid_argument(
-                "DurabilityMonitor::setReplicationTopology: Empty chain not "
-                "allowed");
+                "DurabilityMonitor::setReplicationTopology: FirstChain cannot "
+                "be empty");
     }
 
     // Max Active + MaxReplica
     if (firstChain.size() > 1 + maxReplicas) {
-        throw std::logic_error(
+        throw std::invalid_argument(
                 "DurabilityMonitor::setReplicationTopology: Too many nodes "
                 "in chain: " +
                 std::to_string(firstChain.size()));
@@ -362,6 +372,11 @@ const nlohmann::json& DurabilityMonitor::getReplicationTopology() const {
     return state.replicationTopology;
 }
 
+bool DurabilityMonitor::isDurabilityPossible() const {
+    std::lock_guard<std::mutex> lg(state.m);
+    return isDurabilityPossible(lg);
+}
+
 void DurabilityMonitor::addSyncWrite(const void* cookie, queued_item item) {
     auto durReq = item->getDurabilityReqs();
 
@@ -375,6 +390,14 @@ void DurabilityMonitor::addSyncWrite(const void* cookie, queued_item item) {
     if (!state.firstChain) {
         throw std::logic_error(
                 "DurabilityMonitor::addSyncWrite: FirstChain not registered");
+    }
+
+    // The caller must have already checked this and returned a proper error
+    // before executing down here. Here we enforce it again for defending from
+    // unexpected races between VBucket::setState (which sets the replication
+    // topology).
+    if (!isDurabilityPossible(lg)) {
+        throw std::logic_error("DurabilityMonitor::addSyncWrite: Impossible");
     }
 
     const auto seqno = item->getBySeqno();
@@ -536,7 +559,7 @@ void DurabilityMonitor::addStats(const AddStatFn& addStat,
 
         checked_snprintf(
                 buf, sizeof(buf), "vb_%d:replication_chain_first:size", vbid);
-        add_casted_stat(buf, getReplicationChainSize(lg), addStat, cookie);
+        add_casted_stat(buf, getFirstChainSize(lg), addStat, cookie);
 
         if (state.firstChain) {
             for (const auto& entry : state.firstChain->positions) {
@@ -599,9 +622,24 @@ size_t DurabilityMonitor::getNumTracked(
     return state.trackedWrites.size();
 }
 
-size_t DurabilityMonitor::getReplicationChainSize(
+uint8_t DurabilityMonitor::getFirstChainSize(
         const std::lock_guard<std::mutex>& lg) const {
     return state.firstChain ? state.firstChain->positions.size() : 0;
+}
+
+uint8_t DurabilityMonitor::getFirstChainMajority(
+        const std::lock_guard<std::mutex>& lg) const {
+    return state.firstChain ? state.firstChain->majority : 0;
+}
+
+bool DurabilityMonitor::isDurabilityPossible(
+        const std::lock_guard<std::mutex>& lg) const {
+    // @todo: Requirements must be possible for all chains, add check for
+    //     SecondChain when it is implemented
+    if (!(state.firstChain && state.firstChain->isDurabilityPossible())) {
+        return false;
+    }
+    return true;
 }
 
 DurabilityMonitor::Container::iterator DurabilityMonitor::getNodeNext(
@@ -782,6 +820,21 @@ std::unordered_set<int64_t> DurabilityMonitor::getTrackedSeqnos() const {
         ret.insert(w.getBySeqno());
     }
     return ret;
+}
+
+size_t DurabilityMonitor::wipeTracked() {
+    // Note: Cannot just do Container::clear as it would invalidate every
+    //     existing Replication Chain iterator
+    std::lock_guard<std::mutex> lg(state.m);
+    size_t removed{0};
+    Container::iterator it = state.trackedWrites.begin();
+    while (it != state.trackedWrites.end()) {
+        // Note: 'it' will be invalidated, so it will need to be reset
+        const auto next = std::next(it);
+        removed += removeSyncWrite(lg, it).size();
+        it = next;
+    }
+    return removed;
 }
 
 std::ostream& operator<<(std::ostream& os, const DurabilityMonitor& dm) {
