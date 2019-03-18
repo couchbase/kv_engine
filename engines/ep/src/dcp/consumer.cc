@@ -1815,7 +1815,7 @@ void DcpConsumer::setDisconnect() {
 void DcpConsumer::registerStream(std::shared_ptr<PassiveStream> stream) {
     auto vbid = stream->getVBucket();
     streams.insert({vbid, stream});
-    engine_.getDcpConnMap().addVBConnByVBId(shared_from_this(), vbid);
+    engine_.getDcpConnMap().addVBConnByVBId(*this, vbid);
 }
 
 void DcpConsumer::removeStream(Vbid vbid) {

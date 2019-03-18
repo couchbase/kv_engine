@@ -67,10 +67,10 @@ public:
     /**
      * Adds the given connection to the set of connections associated
      * with the given vbucket.
-     * @param conn Connection to add to the set. Refcount is retained.
+     * @param conn Connection to add to the set.
      * @param vbid vBucket to add to.
      */
-    void addVBConnByVBId(std::shared_ptr<ConnHandler> conn, Vbid vbid);
+    void addVBConnByVBId(ConnHandler& conn, Vbid vbid);
 
     void removeVBConnByVBId_UNLOCKED(const void* connCookie, Vbid vbid);
 
@@ -122,7 +122,7 @@ protected:
     CookieToConnectionMap map_;
 
     std::vector<std::mutex> vbConnLocks;
-    std::vector<std::list<std::weak_ptr<ConnHandler>>> vbConns;
+    std::vector<std::list<std::reference_wrapper<ConnHandler>>> vbConns;
 
     /* Handle to the engine who owns us */
     EventuallyPersistentEngine &engine;
