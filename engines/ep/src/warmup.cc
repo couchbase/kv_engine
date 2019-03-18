@@ -1633,7 +1633,7 @@ uint16_t Warmup::getNumKVStores()
     if (config.getBackend().compare("couchdb") == 0) {
         return 1;
     } else if (config.getBackend().compare("rocksdb") == 0) {
-        return config.getMaxNumShards();
+        return store.vbMap.getNumShards();
     }
     return 0;
 }

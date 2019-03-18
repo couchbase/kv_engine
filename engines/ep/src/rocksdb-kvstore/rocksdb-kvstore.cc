@@ -45,10 +45,37 @@ namespace rockskv {
 // from RocksDB.
 class MetaData {
 public:
+    // The Operation this represents - maps to queue_op types:
+    enum class Operation {
+        // A standard mutation (or deletion). Present in the 'normal'
+        // (committed) namespace.
+        Mutation,
+
+        // A prepared SyncWrite. `durability_level` field indicates the level
+        // Present in the DurabilityPrepare namespace.
+        PreparedSyncWrite,
+
+        // A committed SyncWrite.
+        // This exists so we can correctly backfill from disk a Committed
+        // mutation and sent out as a DCP_COMMIT to sync_replication
+        // enabled DCP clients.
+        // Present in the 'normal' (committed) namespace.
+        CommittedSyncWrite,
+
+        // An aborted SyncWrite.
+        // This exists so we can correctly backfill from disk an Aborted
+        // mutation and sent out as a DCP_ABORT to sync_replication
+        // enabled DCP clients.
+        // Present in the DurabilityPrepare namespace.
+        Abort = 2,
+    };
+
     MetaData()
         : deleted(0),
           deleteSource(static_cast<uint8_t>(DeleteSource::Explicit)),
           version(0),
+          operation(static_cast<uint8_t>(Operation::Mutation)),
+          durabilityLevel(0),
           datatype(0),
           flags(0),
           valueSize(0),
@@ -65,10 +92,14 @@ public:
              time_t exptime,
              uint64_t cas,
              uint64_t revSeqno,
-             int64_t bySeqno)
+             int64_t bySeqno,
+             queue_op operation,
+             cb::durability::Level durabilityLevel)
         : deleted(deleted),
           deleteSource(deleteSource),
           version(version),
+          operation(static_cast<uint8_t>(toOperation(operation))),
+          durabilityLevel(static_cast<uint8_t>(durabilityLevel)),
           datatype(datatype),
           flags(flags),
           valueSize(valueSize),
@@ -77,15 +108,32 @@ public:
           revSeqno(revSeqno),
           bySeqno(bySeqno){};
 
+    Operation getOperation() const {
+        return static_cast<Operation>(operation);
+    }
+
+    cb::durability::Level getDurabilityLevel() const {
+        return static_cast<cb::durability::Level>(durabilityLevel);
+    }
+
 // The `#pragma pack(1)` directive and the order of members are to keep
 // the size of MetaData as small as possible and uniform across different
 // platforms.
 #pragma pack(1)
     uint8_t deleted : 1;
-    uint8_t deleteSource : 1;
     // Note: to utilise deleteSource properly, casting to the type DeleteSource
     // is strongly recommended. It is stored as a uint8_t for better packing.
+    uint8_t deleteSource : 1;
+
+    // Metadata Version. Pre-any GA release == version 0.
     uint8_t version : 6;
+
+    // Byte with packed fields - operation (Pending=0, Commit=1, Abort=2)
+    //                         - durability_level (cb::durability::Level)
+    uint8_t operation : 2;
+    uint8_t durabilityLevel : 2;
+    // 4 bits unused
+
     uint8_t datatype;
     uint32_t flags;
     uint32_t valueSize;
@@ -94,6 +142,22 @@ public:
     uint64_t revSeqno;
     int64_t bySeqno;
 #pragma pack()
+
+private:
+    static Operation toOperation(queue_op op) {
+        switch (op) {
+        case queue_op::mutation:
+            return Operation::Mutation;
+        case queue_op::pending_sync_write:
+            return Operation::PreparedSyncWrite;
+        case queue_op::system_event:
+            return Operation::Mutation;
+        default:
+            throw std::invalid_argument(
+                    "rockskv::MetaData::toOperation: Unsupported op " +
+                    to_string(op));
+        }
+    }
 };
 } // namespace rockskv
 
@@ -126,7 +190,9 @@ public:
                 item.isDeleted() ? ep_real_time() : item.getExptime(),
                 item.getCas(),
                 item.getRevSeqno(),
-                item.getBySeqno());
+                item.getBySeqno(),
+                item.getOperation(),
+                item.getDurabilityReqs().getLevel());
     }
 
     const rockskv::MetaData& getDocMeta() {
@@ -973,6 +1039,21 @@ std::unique_ptr<Item> RocksDBKVStore::makeItem(Vbid vb,
 
     if (meta.deleted) {
         item->setDeleted(static_cast<DeleteSource>(meta.deleteSource));
+    }
+
+    switch (meta.getOperation()) {
+    case rockskv::MetaData::Operation::Mutation:
+        // Item already defaults to Mutation - nothing else to do.
+        break;
+    case rockskv::MetaData::Operation::PreparedSyncWrite:
+        // From disk we return a zero (infinite) timeout; as this could
+        // refer to an already-committed SyncWrite and hence timeout
+        // must be ignored.
+        item->setPendingSyncWrite({meta.getDurabilityLevel(), 0});
+        break;
+    default:
+        throw std::logic_error("RocksDBKVStore::makeItem: Invalid operation:" +
+                               std::to_string(int(meta.getOperation())));
     }
 
     return item;

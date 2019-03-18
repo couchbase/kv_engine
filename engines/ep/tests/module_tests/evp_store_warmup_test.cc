@@ -576,7 +576,8 @@ TEST_P(DurabilityWarmupTest, CommittedAndPendingSyncWrite) {
     EXPECT_EQ(item->getCas(), prepared.storedValue->getCas());
 }
 
-INSTANTIATE_TEST_CASE_P(FullOrValue,
-                        DurabilityWarmupTest,
-                        STParameterizedBucketTest::persistentConfigValues(),
-                        STParameterizedBucketTestPrintName());
+INSTANTIATE_TEST_CASE_P(
+        FullOrValue,
+        DurabilityWarmupTest,
+        STParameterizedBucketTest::persistentAllBackendsConfigValues(),
+        STParameterizedBucketTestPrintName());

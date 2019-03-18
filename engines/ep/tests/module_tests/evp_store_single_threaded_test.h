@@ -216,8 +216,20 @@ public:
                 std::make_tuple("persistent"s, "full_eviction"s));
     }
 
+    static auto persistentAllBackendsConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+                std::make_tuple("persistent"s, "value_only"s),
+                std::make_tuple("persistent"s, "full_eviction"s)
+#ifdef EP_USE_ROCKSDB
+                ,std::make_tuple("persistentRocksdb"s, "value_only"s),
+                std::make_tuple("persistentRocksdb"s, "full_eviction"s)
+#endif
+        );
+    }
+
     bool persistent() const {
-        return std::get<0>(GetParam()) == "persistent";
+        return std::get<0>(GetParam()).find("persistent") != std::string::npos;
     }
 
 protected:
@@ -225,7 +237,12 @@ protected:
         if (!config_string.empty()) {
             config_string += ";";
         }
-        config_string += "bucket_type=" + std::get<0>(GetParam());
+        auto bucketType = std::get<0>(GetParam());
+        if (bucketType == "persistentRocksdb") {
+            config_string += "bucket_type=persistent;backend=rocksdb";
+        } else {
+            config_string += "bucket_type=" + bucketType;
+        }
         auto evictionPolicy = std::get<1>(GetParam());
 
         if (!evictionPolicy.empty()) {
