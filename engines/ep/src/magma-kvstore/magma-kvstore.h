@@ -225,6 +225,14 @@ public:
     }
 
 private:
+    /**
+     * Container for pending Magma requests.
+     *
+     * Using deque as as the expansion behaviour is less aggressive compared to
+     * std::vector (MagmaRequest objects are ~176 bytes in size).
+     */
+    using PendingRequestQueue = std::deque<MagmaRequest>;
+
     // This is used for synchonization in `openDB` to avoid that we open two
     // instances on the same DB (e.g., this would be possible
     // when we `Flush` and `Warmup` run in parallel).
@@ -273,11 +281,9 @@ private:
 
     int saveDocs(Vbid vbid,
                  Collections::VB::Flush& collectionsFlush,
-                 const std::vector<std::unique_ptr<MagmaRequest>>& commitBatch);
+                 const PendingRequestQueue& commitBatch);
 
-    void commitCallback(
-            int status,
-            const std::vector<std::unique_ptr<MagmaRequest>>& commitBatch);
+    void commitCallback(int status, const PendingRequestQueue& commitBatch);
 
     int64_t readHighSeqnoFromDisk(const KVMagma& db);
 
@@ -285,7 +291,8 @@ private:
 
     // Used for queueing mutation requests (in `set` and `del`) and flushing
     // them to disk (in `commit`).
-    std::vector<std::unique_ptr<MagmaRequest>> pendingReqs;
+    // unique_ptr for pimpl.
+    std::unique_ptr<PendingRequestQueue> pendingReqs;
 
     // Magma does *not* need additional synchronisation around
     // db->Write, but we need to prevent delVBucket racing with

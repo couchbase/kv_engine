@@ -145,7 +145,7 @@ public:
         // open magma
     }
 
-    int SetOrDel(MagmaRequest* req) {
+    int SetOrDel(const MagmaRequest* req) {
         if (req->isDelete()) {
             ; // TODO should we have a merge delta ops for old value?
         }
@@ -163,6 +163,7 @@ public:
 MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     : KVStore(configuration),
       vbDB(configuration.getMaxVBuckets()),
+      pendingReqs(std::make_unique<PendingRequestQueue>()),
       in_transaction(false),
       magmaPath(configuration.getDBName() + "/magma."),
       scanCounter(0),
@@ -240,21 +241,21 @@ bool MagmaKVStore::commit(Collections::VB::Flush& collectionsFlush) {
         return true;
     }
 
-    if (pendingReqs.size() == 0) {
+    if (pendingReqs->size() == 0) {
         in_transaction = false;
         return true;
     }
 
     // Swap `pendingReqs` with the temporary `commitBatch` so that we can
     // shorten the scope of the lock.
-    std::vector<std::unique_ptr<MagmaRequest>> commitBatch;
+    PendingRequestQueue commitBatch;
     {
         std::lock_guard<std::mutex> lock(writeLock);
-        std::swap(pendingReqs, commitBatch);
+        std::swap(*pendingReqs, commitBatch);
     }
 
     bool success = true;
-    auto vbid = commitBatch[0]->getVBucketId();
+    auto vbid = commitBatch[0].getVBucketId();
 
     // Flush all documents to disk
     auto status = saveDocs(vbid, collectionsFlush, commitBatch);
@@ -279,23 +280,22 @@ bool MagmaKVStore::commit(Collections::VB::Flush& collectionsFlush) {
     return success;
 }
 
-void MagmaKVStore::commitCallback(
-        int status,
-        const std::vector<std::unique_ptr<MagmaRequest>>& commitBatch) {
+void MagmaKVStore::commitCallback(int status,
+                                  const PendingRequestQueue& commitBatch) {
     for (const auto& req : commitBatch) {
         if (!status) {
             ++st.numSetFailure;
         } else {
-            st.writeTimeHisto.add(req->getDelta() / 1000);
-            st.writeSizeHisto.add(req->getKeyLen() + req->getBodySize());
+            st.writeTimeHisto.add(req.getDelta() / 1000);
+            st.writeSizeHisto.add(req.getKeyLen() + req.getBodySize());
         }
         // TODO: Should set `mr.second` to true or false depending on if
         // this is an insertion (true) or an update of an existing item
         // (false). However, to achieve this we would need to perform a lookup
         // which is costly. For now just assume that the item
         // did not exist. Later maybe use hyperlog for a better answer?
-        mutation_result mr = std::make_pair(1, req->wasCreate());
-        req->getSetCallback()(*transactionCtx, mr);
+        mutation_result mr = std::make_pair(1, req.wasCreate());
+        req.getSetCallback()(*transactionCtx, mr);
     }
 }
 
@@ -329,7 +329,7 @@ void MagmaKVStore::set(const Item& item, SetCallback cb) {
                 "MagmaKVStore::set: in_transaction must be true to perform a "
                 "set operation.");
     }
-    pendingReqs.push_back(std::make_unique<MagmaRequest>(item, std::move(cb)));
+    pendingReqs->emplace_back(item, std::move(cb));
 }
 
 GetValue MagmaKVStore::get(const DiskDocKey& key, Vbid vb, bool fetchDelete) {
@@ -395,7 +395,7 @@ void MagmaKVStore::del(const Item& item, KVStore::DeleteCallback cb) {
     }
     // TODO: Deleted items remain as tombstones, but are not yet expired,
     // they will accumuate forever.
-    pendingReqs.push_back(std::make_unique<MagmaRequest>(item, std::move(cb)));
+    pendingReqs->emplace_back(item, std::move(cb));
 }
 
 void MagmaKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
@@ -510,10 +510,9 @@ void MagmaKVStore::readVBState(const KVMagma& db) {
                                             false);
 }
 
-int MagmaKVStore::saveDocs(
-        Vbid vbid,
-        Collections::VB::Flush& collectionsFlush,
-        const std::vector<std::unique_ptr<MagmaRequest>>& commitBatch) {
+int MagmaKVStore::saveDocs(Vbid vbid,
+                           Collections::VB::Flush& collectionsFlush,
+                           const PendingRequestQueue& commitBatch) {
     auto reqsSize = commitBatch.size();
     if (reqsSize == 0) {
         st.docsCommitted = 0;
@@ -534,7 +533,7 @@ int MagmaKVStore::saveDocs(
         KVMagma db(vbid, magmaPath);
 
         for (const auto& request : commitBatch) {
-            status = db.SetOrDel(request.get());
+            status = db.SetOrDel(&request);
             if (status < 0) {
                 logger.warn(
                         "MagmaKVStore::saveDocs: magma::DB::Insert error:{}, "
@@ -542,8 +541,8 @@ int MagmaKVStore::saveDocs(
                         status,
                         vbid);
             }
-            if (request->getBySeqno() > lastSeqno) {
-                lastSeqno = request->getBySeqno();
+            if (request.getBySeqno() > lastSeqno) {
+                lastSeqno = request.getBySeqno();
             }
         }
     }
