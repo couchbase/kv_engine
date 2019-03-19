@@ -398,10 +398,10 @@ public:
     }
 
     /// Set the frequency counter value to the input value
-    void setFreqCounterValue(uint16_t newValue);
+    void setFreqCounterValue(uint8_t newValue);
 
     /// Gets the frequency counter value
-    uint16_t getFreqCounterValue() const;
+    uint8_t getFreqCounterValue() const;
 
     static uint64_t nextCas(void) {
         return ProcessClock::now().time_since_epoch().count() + (++casCounter);

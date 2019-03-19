@@ -160,23 +160,11 @@ public:
 
     uint8_t incrNRUValue();
 
-    // Sets the top 16-bits of the chain_next_or_replacement pointer to the
-    // u16int input value.
-    void setChainTag(uint16_t v) {
-        chain_next_or_replacement.get().setTag(v);
-    }
-
-    // Gets the top 16-bits of the chain_next_or_replacement pointer and
-    // convert to a uint16 value.
-    uint16_t getChainTag() const {
-        return chain_next_or_replacement.get().getTag();
-    }
-
     // Set the frequency counter value to the input value
-    void setFreqCounterValue(uint16_t newValue);
+    void setFreqCounterValue(uint8_t newValue);
 
     // Gets the frequency counter value
-    uint16_t getFreqCounterValue() const;
+    uint8_t getFreqCounterValue() const;
 
     void referenced();
 
@@ -800,7 +788,27 @@ protected:
 
     friend class StoredValueFactory;
 
-    value_t            value;          // 8 bytes
+    // layout for the value TaggedPtr, access with getValueTag/setValueTag
+    union value_ptr_tag {
+        value_ptr_tag() : raw{0} {
+        }
+        value_ptr_tag(uint16_t raw) : raw(raw) {
+        }
+        uint16_t raw;
+
+        struct value_ptr_tag_fields {
+            uint8_t frequencyCounter;
+            uint8_t reserved;
+        } fields;
+    };
+
+    /// @return the tag part of the value TaggedPtr
+    value_ptr_tag getValueTag() const;
+
+    /// set the tag part of the value TaggedPtr
+    void setValueTag(value_ptr_tag tag);
+
+    value_t value; // 8 bytes (2 byte tag + 6 byte address)
 
     // Serves two purposes -
     // 1. Used to implement HashTable chaining (for elements hashing to the same

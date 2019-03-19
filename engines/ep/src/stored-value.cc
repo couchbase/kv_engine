@@ -140,14 +140,24 @@ uint8_t StoredValue::getNRUValue() const {
     return getNru();
 }
 
-void StoredValue::setFreqCounterValue(uint16_t newValue) {
+StoredValue::value_ptr_tag StoredValue::getValueTag() const {
+    return value.get().getTag();
+}
+
+void StoredValue::setValueTag(value_ptr_tag tag) {
     auto taggedPtr = value.get();
-    taggedPtr.setTag(newValue);
+    taggedPtr.setTag(tag.raw);
     value.reset(taggedPtr);
 }
 
-uint16_t StoredValue::getFreqCounterValue() const {
-    return value.get().getTag();
+void StoredValue::setFreqCounterValue(uint8_t newValue) {
+    auto tag = getValueTag();
+    tag.fields.frequencyCounter = newValue;
+    setValueTag(tag);
+}
+
+uint8_t StoredValue::getFreqCounterValue() const {
+    return getValueTag().fields.frequencyCounter;
 }
 
 void StoredValue::restoreValue(const Item& itm) {
