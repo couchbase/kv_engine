@@ -1812,7 +1812,7 @@ private:
 
     static double mutationMemThreshold;
 
-    friend class VBucketTest;
+    friend class VBucketTestBase;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };

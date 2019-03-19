@@ -24,8 +24,6 @@
 #include "item_pager.h"
 #include "stats.h"
 
-#include <gtest/gtest.h>
-
 class BgFetcher;
 class VBucket;
 class VBucketBGFetchItem;
@@ -41,17 +39,18 @@ public:
 };
 
 /**
- * Test fixture for VBucket tests.
- *
- * Templated on the Item Eviction policy to use.
+ * Base class for VBucket tests, for example DefragmenterTest
  */
-class VBucketTest
-        : public ::testing::Test,
-          public ::testing::WithParamInterface<item_eviction_policy_t> {
-protected:
-    void SetUp();
+class VBucketTestBase {
+public:
+    /**
+     * Construct test objects with the given eviction policy
+     */
+    VBucketTestBase(item_eviction_policy_t policy);
+    ~VBucketTestBase();
 
-    void TearDown();
+protected:
+
 
     std::vector<StoredDocKey> generateKeys(int num, int start = 0);
 
@@ -101,10 +100,3 @@ protected:
     const void* cookie = {};
 };
 
-class EPVBucketTest : public VBucketTest {
-protected:
-    size_t public_queueBGFetchItem(
-            const DocKey& key,
-            std::unique_ptr<VBucketBGFetchItem> fetchItem,
-            BgFetcher* bgFetcher);
-};

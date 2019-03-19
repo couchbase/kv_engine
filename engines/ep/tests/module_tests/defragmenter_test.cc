@@ -63,6 +63,16 @@ static bool wait_for_mapped_below(size_t mapped_threshold,
     return true;
 }
 
+DefragmenterTest::DefragmenterTest() : VBucketTestBase(getEvictionPolicy()) {
+}
+
+DefragmenterTest::~DefragmenterTest() {
+}
+
+item_eviction_policy_t DefragmenterTest::getEvictionPolicy() const {
+    return GetParam();
+}
+
 void DefragmenterTest::setDocs(size_t docSize, size_t num_docs) {
     std::string data(docSize, 'x');
     for (unsigned int i = 0; i < num_docs; i++ ) {
@@ -81,7 +91,7 @@ void DefragmenterTest::setDocs(size_t docSize, size_t num_docs) {
     }
 }
 
-void DefragmenterTest::fragment(size_t num_docs, size_t &num_remaining) {
+void DefragmenterTest::fragment(size_t num_docs, size_t& num_remaining) {
     num_remaining = num_docs;
     const size_t LOG_PAGE_SIZE = 12; // 4K page
     {
