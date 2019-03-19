@@ -315,6 +315,7 @@ ADD_EXECUTABLE(ep-engine_couch-fs-stats_test
         src/couch-kvstore/couch-fs-stats.cc
         src/generated_configuration.h
         tests/module_tests/couch-fs-stats_test.cc
+        ${Couchstore_SOURCE_DIR}/src/crc32.cc
         $<TARGET_OBJECTS:couchstore_wrapped_fileops_test_framework>)
 TARGET_INCLUDE_DIRECTORIES(ep-engine_couch-fs-stats_test
         PRIVATE

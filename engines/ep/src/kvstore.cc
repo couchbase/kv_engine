@@ -43,6 +43,15 @@ KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
     setPeriodicSyncBytes(config.getFsyncAfterEveryNBytesWritten());
     config.addValueChangedListener("fsync_after_every_n_bytes_written",
                                    new ConfigChangeListener(*this));
+    setCouchstoreTracingEnabled(config.isCouchstoreTracing());
+    config.addValueChangedListener("couchstore_tracing",
+                                   new ConfigChangeListener(*this));
+    setCouchstoreWriteValidationEnabled(config.isCouchstoreWriteValidation());
+    config.addValueChangedListener("couchstore_write_validation",
+                                   new ConfigChangeListener(*this));
+    setCouchstoreMprotectEnabled(config.isCouchstoreMprotect());
+    config.addValueChangedListener("couchstore_mprotect",
+                                   new ConfigChangeListener(*this));
 }
 
 KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,

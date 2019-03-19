@@ -595,6 +595,12 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
                     std::stoull(valz));
         } else if (strcmp(keyz, "xattr_enabled") == 0) {
             getConfiguration().setXattrEnabled(cb_stob(valz));
+        } else if (strcmp(keyz, "couchstore_tracing") == 0) {
+            getConfiguration().setCouchstoreTracing(cb_stob(valz));
+        } else if (strcmp(keyz, "couchstore_write_validation") == 0) {
+            getConfiguration().setCouchstoreWriteValidation(cb_stob(valz));
+        } else if (strcmp(keyz, "couchstore_mprotect") == 0) {
+            getConfiguration().setCouchstoreMprotect(cb_stob(valz));
         } else {
             msg = "Unknown config param";
             rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

@@ -596,6 +596,29 @@ public:
         periodicSyncBytes = bytes;
     }
 
+    void setCouchstoreTracingEnabled(bool value) {
+        couchstoreTracingEnabled = value;
+    }
+
+    bool getCouchstoreTracingEnabled() const {
+        return couchstoreTracingEnabled;
+    }
+    void setCouchstoreWriteValidationEnabled(bool value) {
+        couchstoreWriteValidationEnabled = value;
+    }
+
+    bool getCouchstoreWriteValidationEnabled() const {
+        return couchstoreWriteValidationEnabled;
+    }
+
+    void setCouchstoreMprotectEnabled(bool value) {
+        couchstoreMprotectEnabled = value;
+    }
+
+    bool getCouchstoreMprotectEnabled() const {
+        return couchstoreMprotectEnabled;
+    }
+
 private:
     /// A listener class to update KVStore related configs at runtime.
     class ConfigChangeListener : public ValueChangedListener {
@@ -606,6 +629,17 @@ private:
         void sizeValueChanged(const std::string& key, size_t value) override {
             if (key == "fsync_after_every_n_bytes_written") {
                 config.setPeriodicSyncBytes(value);
+            }
+        }
+        void booleanValueChanged(const std::string& key, bool value) override {
+            if (key == "couchstore_tracing") {
+                config.setCouchstoreTracingEnabled(value);
+            }
+            if (key == "couchstore_write_validation") {
+                config.setCouchstoreWriteValidationEnabled(value);
+            }
+            if (key == "couchstore_mprotect") {
+                config.setCouchstoreMprotectEnabled(value);
             }
         }
 
@@ -627,6 +661,13 @@ private:
      * N bytes written.
      */
     uint64_t periodicSyncBytes;
+
+    /* enable tracing for couchstore */
+    bool couchstoreTracingEnabled;
+    /* enable write verification for couchstore */
+    bool couchstoreWriteValidationEnabled;
+    /* enbale mprotect of couchstore internal io buffer */
+    bool couchstoreMprotectEnabled;
 };
 
 class IORequest {

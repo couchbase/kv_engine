@@ -835,6 +835,21 @@
             "default": "false",
             "type": "bool"
         },
+        "couchstore_tracing": {
+            "default": "false",
+            "descr": "Enable couchstore tracing",
+            "type" : "bool"
+        },
+        "couchstore_write_validation": {
+            "default": "false",
+            "descr": "Validate couchstore writes ",
+            "type" : "bool"
+        },
+        "couchstore_mprotect": {
+            "default": "false",
+            "descr": "Enable couchstore to mprotect the iobuffer",
+            "type" : "bool"
+        },
         "waitforwarmup": {
             "default": "false",
             "type": "bool"
