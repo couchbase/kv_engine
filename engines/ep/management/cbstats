@@ -50,11 +50,19 @@ def stats_formatter(stats, prefix=" "):
     """
     if stats:
         if output_json:
-            for stat, val in stats.items():
-                stats[stat] = _maybeInt(val)
-                if isinstance(stats[stat], str):
-                    stats[stat] = _maybeFloat(val)
-            print (json.dumps(natsorted(stats), indent=4))
+
+            # Recreate the dictionary sorted so we can keep the natural ordering
+            # that natsort gives us and still print this out as a json
+            # dictionary
+            dict = {}
+            for stat, val in natsorted(stats.items()):
+                dict[stat] = val
+
+            for stat, val in dict.items():
+                dict[stat] = _maybeInt(val)
+                if isinstance(dict[stat], str):
+                    dict[stat] = _maybeFloat(val)
+            print (json.dumps(dict, indent=4))
         else:
             longest = max((len(x) + 2) for x in stats.keys())
             for stat, val in natsorted(stats.items()):
