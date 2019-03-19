@@ -52,25 +52,25 @@ public:
     ~IORequest();
 
     /// @returns true if the document to be persisted is for DELETE
-    bool isDelete() {
+    bool isDelete() const {
         return boost::get<KVStore::DeleteCallback>(&callback);
     }
 
     /// @returns vbucket id of document to be persisted.
-    Vbid getVBucketId() {
+    Vbid getVBucketId() const {
         return vbucketId;
     }
 
-    std::chrono::microseconds getDelta() {
+    std::chrono::microseconds getDelta() const {
         return std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::steady_clock::now() - start);
     }
 
-    const KVStore::SetCallback& getSetCallback() {
+    const KVStore::SetCallback& getSetCallback() const {
         return boost::get<KVStore::SetCallback>(callback);
     }
 
-    const KVStore::DeleteCallback& getDelCallback() {
+    const KVStore::DeleteCallback& getDelCallback() const {
         return boost::get<KVStore::DeleteCallback>(callback);
     }
 

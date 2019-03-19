@@ -192,18 +192,18 @@ public:
                 item.getDurabilityReqs().getLevel());
     }
 
-    const rockskv::MetaData& getDocMeta() {
+    const rockskv::MetaData& getDocMeta() const {
         return docMeta;
     }
 
     // Get a rocksdb::Slice wrapping the Document MetaData
-    rocksdb::Slice getDocMetaSlice() {
-        return rocksdb::Slice(reinterpret_cast<char*>(&docMeta),
+    rocksdb::Slice getDocMetaSlice() const {
+        return rocksdb::Slice(reinterpret_cast<const char*>(&docMeta),
                               sizeof(docMeta));
     }
 
     // Get a rocksdb::Slice wrapping the Document Body
-    rocksdb::Slice getDocBodySlice() {
+    rocksdb::Slice getDocBodySlice() const {
         const char* data = docBody ? docBody->getData() : nullptr;
         size_t size = docBody ? docBody->valueSize() : 0;
         return rocksdb::Slice(data, size);
@@ -271,6 +271,7 @@ public:
 RocksDBKVStore::RocksDBKVStore(RocksDBKVStoreConfig& configuration)
     : KVStore(configuration),
       vbHandles(configuration.getMaxVBuckets()),
+      pendingReqs(std::make_unique<PendingRequestQueue>()),
       in_transaction(false),
       scanCounter(0),
       logger(configuration.getLogger()) {
@@ -530,21 +531,21 @@ bool RocksDBKVStore::commit(Collections::VB::Flush& collectionsFlush) {
         return true;
     }
 
-    if (pendingReqs.size() == 0) {
+    if (pendingReqs->size() == 0) {
         in_transaction = false;
         return true;
     }
 
     // Swap `pendingReqs` with the temporary `commitBatch` so that we can
     // shorten the scope of the lock.
-    std::vector<std::unique_ptr<RocksRequest>> commitBatch;
+    PendingRequestQueue commitBatch;
     {
         std::lock_guard<std::mutex> lock(writeMutex);
-        std::swap(pendingReqs, commitBatch);
+        std::swap(*pendingReqs, commitBatch);
     }
 
     bool success = true;
-    auto vbid = commitBatch[0]->getVBucketId();
+    auto vbid = commitBatch[0].getVBucketId();
 
     // Flush all documents to disk
     auto status = saveDocs(vbid, collectionsFlush, commitBatch);
@@ -587,23 +588,22 @@ static int getMutationStatus(rocksdb::Status status) {
     }
 }
 
-void RocksDBKVStore::commitCallback(
-        rocksdb::Status status,
-        const std::vector<std::unique_ptr<RocksRequest>>& commitBatch) {
+void RocksDBKVStore::commitCallback(rocksdb::Status status,
+                                    const PendingRequestQueue& commitBatch) {
     for (const auto& request : commitBatch) {
-        auto dataSize = request->getDocMetaSlice().size() +
-                        request->getDocBodySlice().size();
-        const auto& key = request->getKey();
+        auto dataSize = request.getDocMetaSlice().size() +
+                        request.getDocBodySlice().size();
+        const auto& key = request.getKey();
         /* update ep stats */
         ++st.io_num_write;
         st.io_write_bytes += (key.size() + dataSize);
 
         auto rv = getMutationStatus(status);
-        if (request->isDelete()) {
+        if (request.isDelete()) {
             if (status.code()) {
                 ++st.numDelFailure;
             } else {
-                st.delTimeHisto.add(request->getDelta() / 1000);
+                st.delTimeHisto.add(request.getDelta() / 1000);
             }
             if (rv != -1) {
                 // TODO: Should set `rv` to 1 or 0 depending on if this is a
@@ -613,12 +613,12 @@ void RocksDBKVStore::commitCallback(
                 // not exist.
                 rv = 0;
             }
-            request->getDelCallback()(*transactionCtx, rv);
+            request.getDelCallback()(*transactionCtx, rv);
         } else {
             if (status.code()) {
                 ++st.numSetFailure;
             } else {
-                st.writeTimeHisto.add(request->getDelta() / 1000);
+                st.writeTimeHisto.add(request.getDelta() / 1000);
                 st.writeSizeHisto.add(dataSize + key.size());
             }
             // TODO: Should set `mr.second` to true or false depending on if
@@ -627,7 +627,7 @@ void RocksDBKVStore::commitCallback(
             // to RocksDB which is costly. For now just assume that the item
             // did not exist.
             mutation_result mr = std::make_pair(1, true);
-            request->getSetCallback()(*transactionCtx, mr);
+            request.getSetCallback()(*transactionCtx, mr);
         }
     }
 }
@@ -661,7 +661,7 @@ void RocksDBKVStore::set(const Item& item, SetCallback cb) {
                 "RocksDBKVStore::set: in_transaction must be true to perform a "
                 "set operation.");
     }
-    pendingReqs.push_back(std::make_unique<RocksRequest>(item, std::move(cb)));
+    pendingReqs->emplace_back(item, std::move(cb));
 }
 
 GetValue RocksDBKVStore::get(const DiskDocKey& key, Vbid vb, bool fetchDelete) {
@@ -756,7 +756,7 @@ void RocksDBKVStore::del(const Item& item, DeleteCallback cb) {
     }
     // TODO: Deleted items remain as tombstones, but are not yet expired,
     // they will accumuate forever.
-    pendingReqs.push_back(std::make_unique<RocksRequest>(item, std::move(cb)));
+    pendingReqs->emplace_back(item, std::move(cb));
 }
 
 void RocksDBKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
@@ -1312,7 +1312,7 @@ rocksdb::Status RocksDBKVStore::writeAndTimeBatch(rocksdb::WriteBatch batch) {
 rocksdb::Status RocksDBKVStore::saveDocs(
         Vbid vbid,
         Collections::VB::Flush& collectionsFlush,
-        const std::vector<std::unique_ptr<RocksRequest>>& commitBatch) {
+        const PendingRequestQueue& commitBatch) {
     auto reqsSize = commitBatch.size();
     if (reqsSize == 0) {
         st.docsCommitted = 0;
@@ -1332,10 +1332,10 @@ rocksdb::Status RocksDBKVStore::saveDocs(
     const auto vbh = getVBHandle(vbid);
 
     for (const auto& request : commitBatch) {
-        int64_t bySeqno = request->getDocMeta().bySeqno;
+        int64_t bySeqno = request.getDocMeta().bySeqno;
         maxDBSeqno = std::max(maxDBSeqno, bySeqno);
 
-        status = addRequestToWriteBatch(*vbh, batch, request.get());
+        status = addRequestToWriteBatch(*vbh, batch, request);
         if (!status.ok()) {
             logger.warn(
                     "RocksDBKVStore::saveDocs: addRequestToWriteBatch "
@@ -1399,17 +1399,17 @@ rocksdb::Status RocksDBKVStore::saveDocs(
 rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
         const VBHandle& vbh,
         rocksdb::WriteBatch& batch,
-        RocksRequest* request) {
-    Vbid vbid = request->getVBucketId();
+        const RocksRequest& request) {
+    Vbid vbid = request.getVBucketId();
 
-    rocksdb::Slice keySlice = getKeySlice(request->getKey());
+    rocksdb::Slice keySlice = getKeySlice(request.getKey());
     rocksdb::SliceParts keySliceParts(&keySlice, 1);
 
-    rocksdb::Slice docSlices[] = {request->getDocMetaSlice(),
-                                  request->getDocBodySlice()};
+    rocksdb::Slice docSlices[] = {request.getDocMetaSlice(),
+                                  request.getDocBodySlice()};
     rocksdb::SliceParts valueSliceParts(docSlices, 2);
 
-    rocksdb::Slice bySeqnoSlice = getSeqnoSlice(&request->getDocMeta().bySeqno);
+    rocksdb::Slice bySeqnoSlice = getSeqnoSlice(&request.getDocMeta().bySeqno);
     // We use the `saveDocsHisto` to track the time spent on
     // `rocksdb::WriteBatch::Put()`.
     auto begin = std::chrono::steady_clock::now();

@@ -340,6 +340,14 @@ protected:
     rocksdb::Status writeAndTimeBatch(rocksdb::WriteBatch batch);
 
 private:
+    /**
+     * Container for pending RocksDB requests.
+     *
+     * Using deque as as the expansion behaviour is less aggressive compared to
+     * std::vector (RocksRequest objects are ~160 bytes in size).
+     */
+    using PendingRequestQueue = std::deque<RocksRequest>;
+
     // Unique RocksDB instance, per-Shard.
     std::unique_ptr<rocksdb::DB> rdb;
 
@@ -443,18 +451,16 @@ private:
                                        const vbucket_state& vbState,
                                        rocksdb::WriteBatch& batch);
 
-    rocksdb::Status saveDocs(
-            Vbid vbid,
-            Collections::VB::Flush& collectionsFlush,
-            const std::vector<std::unique_ptr<RocksRequest>>& commitBatch);
+    rocksdb::Status saveDocs(Vbid vbid,
+                             Collections::VB::Flush& collectionsFlush,
+                             const PendingRequestQueue& commitBatch);
 
     rocksdb::Status addRequestToWriteBatch(const VBHandle& db,
                                            rocksdb::WriteBatch& batch,
-                                           RocksRequest* request);
+                                           const RocksRequest& request);
 
-    void commitCallback(
-            rocksdb::Status status,
-            const std::vector<std::unique_ptr<RocksRequest>>& commitBatch);
+    void commitCallback(rocksdb::Status status,
+                        const PendingRequestQueue& commitBatch);
 
     int64_t readHighSeqnoFromDisk(const VBHandle& db);
 
@@ -488,7 +494,8 @@ private:
 
     // Used for queueing mutation requests (in `set` and `del`) and flushing
     // them to disk (in `commit`).
-    std::vector<std::unique_ptr<RocksRequest>> pendingReqs;
+    // unique_ptr for pimpl.
+    std::unique_ptr<PendingRequestQueue> pendingReqs;
 
     rocksdb::WriteOptions writeOptions;
 
