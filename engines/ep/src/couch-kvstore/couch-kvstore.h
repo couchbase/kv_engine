@@ -63,7 +63,7 @@ public:
      *         or nullptr if the its a deleted item and doesn't have
      *         a value.
      */
-    void* getDbDoc() {
+    Doc* getDbDoc() {
         if (isDelete() && value.get() == nullptr) {
             return nullptr;
         }
@@ -525,6 +525,16 @@ protected:
         LocalDoc* localDoc;
     };
 
+    /**
+     * Container for pending couchstore requests.
+     *
+     * Using deque as (a) it doesn't move (and hence invalidate) any existing
+     * elements, which is relied on as CouchRequest has pointers to it's own
+     * data, and (b) as the expansion behviour is less aggressive compared to
+     * std::vector (CouchRequest objects are ~256 bytes in size).
+     */
+    using PendingRequestQueue = std::deque<CouchRequest>;
+
     /*
      * Returns the DbInfo for the given vbucket database.
      */
@@ -580,10 +590,9 @@ protected:
                                 kvstats_ctx& kvctx,
                                 Collections::VB::Flush& collectionsFlush);
 
-    void commitCallback(
-            std::vector<std::unique_ptr<CouchRequest>>& committedReqs,
-            kvstats_ctx& kvctx,
-            couchstore_error_t errCode);
+    void commitCallback(PendingRequestQueue& committedReqs,
+                        kvstats_ctx& kvctx,
+                        couchstore_error_t errCode);
     couchstore_error_t saveVBState(Db *db, const vbucket_state &vbState);
 
     /**
@@ -771,7 +780,7 @@ protected:
     cb::RWLock openDbMutex;
 
     uint16_t numDbFiles;
-    std::vector<std::unique_ptr<CouchRequest>> pendingReqsQ;
+    PendingRequestQueue pendingReqsQ;
     bool intransaction;
     std::unique_ptr<TransactionContext> transactionCtx;
 

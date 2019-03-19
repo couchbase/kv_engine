@@ -465,7 +465,7 @@ void CouchKVStore::set(const Item& itm, SetCallback cb) {
     }
 
     // each req will be de-allocated after commit
-    pendingReqsQ.push_back(std::make_unique<CouchRequest>(itm, std::move(cb)));
+    pendingReqsQ.emplace_back(itm, std::move(cb));
 }
 
 GetValue CouchKVStore::get(const DiskDocKey& key, Vbid vb, bool fetchDelete) {
@@ -691,7 +691,7 @@ void CouchKVStore::del(const Item& itm, DeleteCallback cb) {
                         "true to perform a delete operation.");
     }
 
-    pendingReqsQ.push_back(std::make_unique<CouchRequest>(itm, std::move(cb)));
+    pendingReqsQ.emplace_back(itm, std::move(cb));
 }
 
 void CouchKVStore::delVBucket(Vbid vbucket, uint64_t fileRev) {
@@ -1964,7 +1964,7 @@ bool CouchKVStore::commit2couchstore(Collections::VB::Flush& collectionsFlush) {
     }
 
     // Use the vbucket of the first item
-    auto vbucket2flush = pendingReqsQ[0]->getVBucketId();
+    auto vbucket2flush = pendingReqsQ[0].getVBucketId();
 
     TRACE_EVENT2("CouchKVStore",
                  "commit2couchstore",
@@ -1978,15 +1978,15 @@ bool CouchKVStore::commit2couchstore(Collections::VB::Flush& collectionsFlush) {
 
     for (size_t i = 0; i < pendingCommitCnt; ++i) {
         auto& req = pendingReqsQ[i];
-        docs[i] = (Doc*)req->getDbDoc();
-        docinfos[i] = req->getDbDocInfo();
-        if (vbucket2flush != req->getVBucketId()) {
+        docs[i] = req.getDbDoc();
+        docinfos[i] = req.getDbDocInfo();
+        if (vbucket2flush != req.getVBucketId()) {
             throw std::logic_error(
                     "CouchKVStore::commit2couchstore: "
                     "mismatch between vbucket2flush (which is " +
                     vbucket2flush.to_string() + ") and pendingReqsQ[" +
                     std::to_string(i) + "] (which is " +
-                    req->getVBucketId().to_string() + ")");
+                    req.getVBucketId().to_string() + ")");
         }
     }
 
@@ -2205,21 +2205,20 @@ couchstore_error_t CouchKVStore::saveDocs(
     return errCode;
 }
 
-void CouchKVStore::commitCallback(
-        std::vector<std::unique_ptr<CouchRequest>>& committedReqs,
-        kvstats_ctx& kvctx,
-        couchstore_error_t errCode) {
+void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
+                                  kvstats_ctx& kvctx,
+                                  couchstore_error_t errCode) {
     for (auto& committed : committedReqs) {
-        size_t dataSize = committed->getNBytes();
-        size_t keySize = committed->getKeySize();
+        size_t dataSize = committed.getNBytes();
+        size_t keySize = committed.getKeySize();
         /* update ep stats */
         ++st.io_num_write;
         st.io_write_bytes += (keySize + dataSize);
 
-        if (committed->isDelete()) {
+        if (committed.isDelete()) {
             int rv = getMutationStatus(errCode);
             if (rv != -1) {
-                const auto& key = committed->getKey();
+                const auto& key = committed.getKey();
                 if (kvctx.keyStats[key]) {
                     rv = 1; // Deletion is for an existing item on DB file.
                 } else {
@@ -2229,21 +2228,21 @@ void CouchKVStore::commitCallback(
             if (errCode) {
                 ++st.numDelFailure;
             } else {
-                st.delTimeHisto.add(committed->getDelta());
+                st.delTimeHisto.add(committed.getDelta());
             }
-            committed->getDelCallback()(*transactionCtx, rv);
+            committed.getDelCallback()(*transactionCtx, rv);
         } else {
             int rv = getMutationStatus(errCode);
-            const auto& key = committed->getKey();
+            const auto& key = committed.getKey();
             bool insertion = !kvctx.keyStats[key];
             if (errCode) {
                 ++st.numSetFailure;
             } else {
-                st.writeTimeHisto.add(committed->getDelta());
+                st.writeTimeHisto.add(committed.getDelta());
                 st.writeSizeHisto.add(dataSize + keySize);
             }
             mutation_result p(rv, insertion);
-            committed->getSetCallback()(*transactionCtx, p);
+            committed.getSetCallback()(*transactionCtx, p);
         }
     }
 }

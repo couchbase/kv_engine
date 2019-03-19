@@ -1377,7 +1377,12 @@ public:
     MockCouchKVStore(KVStoreConfig& config) : CouchKVStore(config) {
     }
 
-    // Mocks original code but returns the IORequest for fuzzing
+    /**
+     * Mocks original code but returns the IORequest for fuzzing.
+     *
+     * NOTE: Returned pointer is only valid until the next request is added to
+     * the pendingReqsQ.
+     */
     MockCouchRequest* setAndReturnRequest(const Item& itm,
                                           KVStore::SetCallback cb) {
         if (isReadOnly()) {
@@ -1390,9 +1395,8 @@ public:
         }
 
         // each req will be de-allocated after commit
-        pendingReqsQ.push_back(
-                std::make_unique<MockCouchRequest>(itm, std::move(cb)));
-        return static_cast<MockCouchRequest*>(pendingReqsQ.back().get());
+        pendingReqsQ.emplace_back(itm, std::move(cb));
+        return static_cast<MockCouchRequest*>(&pendingReqsQ.back());
     }
 
     bool compactDBInternal(compaction_ctx* hook_ctx,
@@ -1513,7 +1517,7 @@ TEST_F(CouchstoreTest, noMeta) {
     Item item(key, 0, 0, "value", 5);
     WriteCallback wc;
     kvstore->begin(std::make_unique<TransactionContext>());
-    auto request = kvstore->setAndReturnRequest(item, wc);
+    auto* request = kvstore->setAndReturnRequest(item, wc);
 
     // Now directly mess with the metadata of the value which will be written
     MockCouchRequest::MetaData meta;
@@ -1530,7 +1534,7 @@ TEST_F(CouchstoreTest, shortMeta) {
     Item item(key, 0, 0, "value", 5);
     WriteCallback wc;
     kvstore->begin(std::make_unique<TransactionContext>());
-    auto request = kvstore->setAndReturnRequest(item, wc);
+    auto* request = kvstore->setAndReturnRequest(item, wc);
 
     // Now directly mess with the metadata of the value which will be written
     MockCouchRequest::MetaData meta;
@@ -1604,7 +1608,7 @@ TEST_F(CouchstoreTest, fuzzV0) {
     Item item(key, 0, 0, "value", 5);
     WriteCallback wc;
     kvstore->begin(std::make_unique<TransactionContext>());
-    auto request = kvstore->setAndReturnRequest(item, wc);
+    auto* request = kvstore->setAndReturnRequest(item, wc);
 
     // Now directly mess with the metadata of the value which will be written
     MockCouchRequest::MetaData meta;
@@ -1630,7 +1634,7 @@ TEST_F(CouchstoreTest, fuzzV1) {
     Item item(key, 0, 0, "value", 5);
     WriteCallback wc;
     kvstore->begin(std::make_unique<TransactionContext>());
-    auto request = kvstore->setAndReturnRequest(item, wc);
+    auto* request = kvstore->setAndReturnRequest(item, wc);
 
     // Now directly mess with the metadata of the value which will be written
     MockCouchRequest::MetaData meta;
@@ -1674,7 +1678,7 @@ TEST_F(CouchstoreTest, testV0WriteReadWriteRead) {
 
     WriteCallback wc;
     kvstore->begin(std::make_unique<TransactionContext>());
-    auto request = kvstore->setAndReturnRequest(item, wc);
+    auto* request = kvstore->setAndReturnRequest(item, wc);
 
     // Force the meta to be V0
     request->writeMetaData(meta, MockCouchRequest::MetaData::sizeofV0);
@@ -1735,7 +1739,7 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
 
     WriteCallback wc;
     kvstore->begin(std::make_unique<TransactionContext>());
-    auto request = kvstore->setAndReturnRequest(item, wc);
+    auto* request = kvstore->setAndReturnRequest(item, wc);
 
     // Force the meta to be V2 (19 bytes)
     request->writeMetaData(meta, MockCouchRequest::MetaData::sizeofV2);
@@ -1810,7 +1814,7 @@ TEST_F(CouchstoreTest, testV0CompactionUpgrade) {
 
     WriteCallback wc;
     kvstore->begin(std::make_unique<TransactionContext>());
-    auto request = kvstore->setAndReturnRequest(item, wc);
+    auto* request = kvstore->setAndReturnRequest(item, wc);
 
     // Force the meta to be V0
     request->writeMetaData(meta, MockCouchRequest::MetaData::sizeofV0);
