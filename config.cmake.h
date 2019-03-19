@@ -6,6 +6,8 @@
 #cmakedefine HAVE_PKCS5_PBKDF2_HMAC 1
 #cmakedefine HAVE_PKCS5_PBKDF2_HMAC_SHA1 1
 
+#define _FILE_OFFSET_BITS 64
+
 #define COUCHBASE_MAX_NUM_BUCKETS 100
 #define COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES (1024 * 1024)
 
@@ -22,3 +24,17 @@
 #undef assert
 #define assert \
     #error "assert() is forbidden. Use cb_assert() from <platform/cbassert.h instead."
+
+#ifdef WIN32
+// 'declaration' : no matching operator delete found; memory will not be
+// freed if initialization throws an exception
+#pragma warning(disable : 4291)
+// 'conversion' conversion from 'type1' to 'type2', possible loss of data
+#pragma warning(disable : 4244)
+// 'var' : conversion from 'size_t' to 'type', possible loss of data
+#pragma warning(disable : 4267)
+// Turn of deprecated warnings
+#pragma warning(disable : 4996)
+
+typedef unsigned int useconds_t;
+#endif // WIN32
