@@ -355,12 +355,13 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    src/couch-kvstore/couch-fs-stats.cc
                    src/generated_configuration.h
                    tests/module_tests/couch-fs-stats_test.cc
+                   ${Couchstore_SOURCE_DIR}/src/crc32.cc
                    $<TARGET_OBJECTS:couchstore_wrapped_fileops_test_framework>)
     TARGET_INCLUDE_DIRECTORIES(ep-engine_couch-fs-stats_test
                                PRIVATE
                                ${Couchstore_SOURCE_DIR}
                                ${Couchstore_SOURCE_DIR}/src)
-    TARGET_LINK_LIBRARIES(ep-engine_couch-fs-stats_test gtest gtest_main gmock platform)
+    TARGET_LINK_LIBRARIES(ep-engine_couch-fs-stats_test gtest gtest_main gmock platform phosphor)
 
     ADD_EXECUTABLE(ep-engine_misc_test tests/module_tests/misc_test.cc)
     TARGET_LINK_LIBRARIES(ep-engine_misc_test platform)

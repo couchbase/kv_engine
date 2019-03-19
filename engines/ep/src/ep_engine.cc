@@ -641,6 +641,12 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setMaxTtl(std::stoull(valz));
         } else if (strcmp(keyz, "mem_used_merge_threshold_percent") == 0) {
             getConfiguration().setMemUsedMergeThresholdPercent(std::stof(valz));
+        } else if (strcmp(keyz, "couchstore_tracing") == 0) {
+            getConfiguration().setCouchstoreTracing(cb_stob(valz));
+        } else if (strcmp(keyz, "couchstore_write_validation") == 0) {
+            getConfiguration().setCouchstoreWriteValidation(cb_stob(valz));
+        } else if (strcmp(keyz, "couchstore_mprotect") == 0) {
+            getConfiguration().setCouchstoreMprotect(cb_stob(valz));
         } else {
             msg = "Unknown config param";
             rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
