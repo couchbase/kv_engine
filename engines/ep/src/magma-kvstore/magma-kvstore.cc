@@ -38,27 +38,77 @@ public:
           revSeqno(0),
           flags(0),
           valueSize(0),
+          vbid(0),
           deleted(0),
-          version(0),
+          deleteSource(static_cast<uint8_t>(DeleteSource::Explicit)),
+          metaDataVersion(0),
           datatype(0){};
-    MetaData(bool deleted,
-             uint8_t version,
-             uint8_t datatype,
-             uint32_t flags,
-             uint32_t valueSize,
-             time_t exptime,
-             uint64_t cas,
-             uint64_t revSeqno,
-             int64_t bySeqno)
-        : bySeqno(bySeqno),
-          cas(cas),
-          exptime(exptime),
-          revSeqno(revSeqno),
-          flags(flags),
+
+    MetaData(const Item& it)
+        : bySeqno(it.getBySeqno()),
+          cas(it.getCas()),
+          exptime(it.getExptime()),
+          revSeqno(it.getRevSeqno()),
+          flags(it.getFlags()),
+          valueSize(it.getNBytes()),
+          vbid(it.getVBucketId().get()),
+          datatype(it.getDataType()) {
+        if (it.isDeleted()) {
+            deleted = 1;
+            deleteSource = static_cast<uint8_t>(it.deletionSource());
+        } else {
+            deleted = 0;
+        }
+
+        if (it.getOperation() == queue_op::pending_sync_write) {
+            queue_op = static_cast<uint8_t>(it.getOperation());
+            // Note: durabilty timeout /isn't/ persisted as part of a pending
+            // SyncWrite. This is because if we ever read it back from disk
+            // during warmup (i.e. the commit_sync_write was never persisted),
+            // we don't know if the SyncWrite was actually already committed; as
+            // such to ensure consistency the pending SyncWrite *must*
+            // eventually commit (or sit in pending forever).
+            durabilityLevel =
+                    static_cast<uint8_t>(it.getDurabilityReqs().getLevel());
+        }
+        metaDataVersion = 0;
+    };
+
+    // Magma requires meta data for local documents. Rather than support 2
+    // different meta data versions, we simplify by using just 1.
+    MetaData(bool isDeleted, uint32_t valueSize, int64_t seqno, Vbid vbid)
+        : bySeqno(seqno),
           valueSize(valueSize),
-          deleted(deleted),
-          version(version),
-          datatype(datatype){};
+          vbid(vbid.get()),
+          deleted(isDeleted ? 1 : 0) {
+        if (isDeleted) {
+            deleteSource = static_cast<uint8_t>(DeleteSource::Explicit);
+        }
+        cas = 0;
+        exptime = 0;
+        revSeqno = 0;
+        flags = 0;
+        metaDataVersion = 0;
+        datatype = 0;
+        durabilityLevel = 0;
+        queue_op = 0;
+    };
+
+    std::string to_string() const {
+        std::stringstream ss;
+        ss << "bySeqno:" << bySeqno << " cas:" << cas << " exptime:" << exptime
+           << " revSeqno:" << revSeqno << " flags:" << flags << " valueSize "
+           << valueSize << " "
+           << " vbid:" << vbid
+           << " deleted:" << (deleted == 0 ? "false" : "true")
+           << " deleteSource:"
+           << (deleted == 0 ? " " : deleteSource == 0 ? "Explicit" : "TTL")
+           << " version:" << metaDataVersion
+           << " datatype:" << uint8_t(datatype)
+           << " queue_op:" << uint8_t(queue_op)
+           << " durability:" << uint8_t(durabilityLevel);
+        return ss.str();
+    }
 
 // The `#pragma pack(1)` directive and the order of members are to keep
 // the size of MetaData as small as possible and uniform across different
@@ -66,13 +116,17 @@ public:
 #pragma pack(1)
     int64_t bySeqno;
     uint64_t cas;
-    time_t exptime;
+    uint32_t exptime;
     uint64_t revSeqno;
     uint32_t flags;
     uint32_t valueSize;
+    uint16_t vbid;
     uint8_t deleted : 1;
-    uint8_t version : 7;
+    uint8_t deleteSource : 1;
+    uint8_t metaDataVersion : 6;
     uint8_t datatype;
+    uint8_t queue_op;
+    uint8_t durabilityLevel;
 #pragma pack()
 };
 } // namespace magmakv
@@ -91,22 +145,16 @@ public:
      */
     MagmaRequest(const Item& item, MutationRequestCallback callback)
         : IORequest(item.getVBucketId(), std::move(callback), DiskDocKey{item}),
-          docBody(item.getValue()),
-          updatedExistingItem(false) {
-        docMeta = magmakv::MetaData(
-                item.isDeleted(),
-                0,
-                item.getDataType(),
-                item.getFlags(),
-                item.getNBytes(),
-                item.isDeleted() ? ep_real_time() : item.getExptime(),
-                item.getCas(),
-                item.getRevSeqno(),
-                item.getBySeqno());
+          docMeta(magmakv::MetaData(item)),
+          docBody(item.getValue()) {
     }
 
     magmakv::MetaData& getDocMeta() {
         return docMeta;
+    }
+
+    Vbid getVbID() const {
+        return Vbid(docMeta.vbid);
     }
 
     int64_t getBySeqno() const {
@@ -125,18 +173,40 @@ public:
         return docBody ? docBody->getData() : nullptr;
     }
 
-    bool wasCreate() const {
-        return !updatedExistingItem;
+    size_t getMetaSize() const {
+        return sizeof(magmakv::MetaData);
     }
 
-    void markAsUpdated() {
-        updatedExistingItem = true;
+    void markOldItemExists() {
+        itemOldExists = true;
+    }
+
+    bool oldItemExists() {
+        return itemOldExists;
+    }
+
+    void markOldItemIsDelete() {
+        itemOldIsDelete = true;
+    }
+
+    bool oldItemIsDelete() {
+        return itemOldIsDelete;
+    }
+
+    void markRequestFailed() {
+        reqFailed = true;
+    }
+
+    bool requestFailed() {
+        return reqFailed;
     }
 
 private:
     magmakv::MetaData docMeta;
     value_t docBody;
-    bool updatedExistingItem;
+    bool itemOldExists{false};
+    bool itemOldIsDelete{false};
+    bool reqFailed{false};
 };
 
 class KVMagma {
@@ -294,7 +364,7 @@ void MagmaKVStore::commitCallback(int status,
         // (false). However, to achieve this we would need to perform a lookup
         // which is costly. For now just assume that the item
         // did not exist. Later maybe use hyperlog for a better answer?
-        mutation_result mr = std::make_pair(1, req.wasCreate());
+        mutation_result mr = std::make_pair(1, true);
         req.getSetCallback()(*transactionCtx, mr);
     }
 }
