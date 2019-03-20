@@ -20,8 +20,6 @@
  *
  */
 
-#include "config.h"
-
 #include "subdoc_encoder.h"
 
 #include <gsl/gsl>

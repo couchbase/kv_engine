@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include <dcp/dcp-types.h>
 #include <mcbp/protocol/opcode.h>
 #include <memcached/dcp.h>

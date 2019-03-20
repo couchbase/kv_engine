@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_visitor.h"

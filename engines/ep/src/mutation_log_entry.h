@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "storeddockey.h"
 #include "utility.h"
 

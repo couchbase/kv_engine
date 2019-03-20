@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "bloomfilter.h"
 #include "checkpoint_config.h"
 #include "collections/vbucket_manifest.h"

@@ -18,9 +18,6 @@
 /* The "crash" bucket is a bucket which simply crashes when it is initialized.
  * It is intended to be used to test crash catching using Google Breakpad.
  */
-
-#include "config.h"
-
 #include <stdlib.h>
 #include <gsl/gsl>
 #include <stdexcept>

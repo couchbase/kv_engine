@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include "atomic.h"
 #include "bgfetcher.h"
 #include "bucket_logger.h"

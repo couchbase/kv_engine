@@ -22,8 +22,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include <spdlog/sinks/base_sink.h>
 
 namespace spdlog {

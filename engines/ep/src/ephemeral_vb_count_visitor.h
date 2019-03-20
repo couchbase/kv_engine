@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "ephemeral_vb.h"
 #include "vb_count_visitor.h"
 

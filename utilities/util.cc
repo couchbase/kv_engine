@@ -1,5 +1,3 @@
-#include "config.h"
-
 #include <cctype>
 #include <cerrno>
 #include <cstdarg>

@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "hdrhistogram.h"
 
 #include <memcached/engine_common.h>

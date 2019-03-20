@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include "atomic_unordered_map.h"
 
 #include "connhandler.h"

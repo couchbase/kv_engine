@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include <relaxed_atomic.h>
 
 #include "stats.h"

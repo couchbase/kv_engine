@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "task.h"
 
 #include <phosphor/phosphor.h>

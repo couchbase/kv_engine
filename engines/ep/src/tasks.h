@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "globaltask.h"
 #include "kvstore.h"
 #include "storeddockey.h"

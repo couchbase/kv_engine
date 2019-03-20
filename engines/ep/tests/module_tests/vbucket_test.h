@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include "callbacks.h"
 #include "checkpoint_config.h"
 #include "configuration.h"

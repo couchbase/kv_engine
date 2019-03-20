@@ -14,9 +14,6 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#include "config.h"
-
 #include "tests/mcbp/mock_connection.h"
 #include "tracing/trace_helpers.h"
 

@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include "magic.h"
 
 #include <nlohmann/json_fwd.hpp>

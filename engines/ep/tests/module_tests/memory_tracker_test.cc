@@ -1,5 +1,3 @@
-#include "config.h"
-
 #include "memory_tracker.h"
 #include "mock_hooks_api.h"
 

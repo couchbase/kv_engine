@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include <getopt.h>
 #include <nlohmann/json.hpp>
 #include <programs/getpass.h>

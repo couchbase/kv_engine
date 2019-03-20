@@ -21,7 +21,6 @@
  */
 #pragma once
 
-#include "config.h"
 #include "linked_list.h"
 
 #include <mutex>

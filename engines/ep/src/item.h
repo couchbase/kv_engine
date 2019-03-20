@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "atomic.h"
 #include "blob.h"
 #include "dcp/dcp-types.h"

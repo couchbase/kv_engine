@@ -18,8 +18,6 @@
 // Usage: (to run just a single test case)
 // make engine_tests EP_TEST_NUM=3
 
-#include "config.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

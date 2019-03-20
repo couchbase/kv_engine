@@ -3,8 +3,6 @@
  * Hash table
  *
  */
-#include "config.h"
-
 #include "default_engine_internal.h"
 
 #include <logger/logger.h>

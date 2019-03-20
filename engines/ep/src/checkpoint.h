@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "checkpoint_iterator.h"
 #include "checkpoint_types.h"
 #include "ep_types.h"

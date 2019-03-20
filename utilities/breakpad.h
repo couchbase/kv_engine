@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include <memcached/mcd_util-visibility.h>
 
 #include "breakpad_settings.h"

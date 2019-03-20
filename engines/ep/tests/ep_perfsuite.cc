@@ -28,9 +28,6 @@
  * Note this is designed as a relatively quick micro-benchmark suite; tests
  * are tuned to complete in <2 seconds to maintain the quick turnaround.
 **/
-
-#include "config.h"
-
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
 #include "mock/mock_dcp.h"

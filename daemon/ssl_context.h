@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include "client_cert_config.h"
 
 #include <memcached/openssl.h>

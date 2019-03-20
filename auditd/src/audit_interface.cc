@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
 #include <memcached/isotime.h>

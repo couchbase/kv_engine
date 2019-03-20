@@ -19,8 +19,6 @@
 /*
  * Connection management and event loop handling.
  */
-#include "config.h"
-
 #include "memcached.h"
 
 #include <functional>

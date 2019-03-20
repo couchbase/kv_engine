@@ -21,8 +21,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "../mock/mock_executor_pool.h"
 
 #include <folly/portability/GTest.h>

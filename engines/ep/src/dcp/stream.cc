@@ -14,9 +14,6 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#include "config.h"
-
 #include "dcp/response.h"
 #include "dcp/stream.h"
 #include "statwriter.h"

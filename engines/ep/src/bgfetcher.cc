@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
 #include "bgfetcher.h"
 #include "bucket_logger.h"
 #include "ep_engine.h"

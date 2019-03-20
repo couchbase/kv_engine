@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
 #include "common.h"
 #include "lock_timer.h"
 #include "locks.h"

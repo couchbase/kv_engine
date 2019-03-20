@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "atomic.h"
 #include "hlc.h"
 #include "vb_visitors.h"

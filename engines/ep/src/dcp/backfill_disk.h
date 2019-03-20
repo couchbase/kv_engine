@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "callbacks.h"
 #include "dcp/backfill.h"
 

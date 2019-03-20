@@ -31,8 +31,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include <logger/visibility.h>
 #include <spdlog/fmt/ostr.h>
 #include <spdlog/logger.h>

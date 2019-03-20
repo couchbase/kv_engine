@@ -14,8 +14,6 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#include "config.h"
 #include "basic_engine_testsuite.h"
 #include <memcached/durability_spec.h>
 #include <platform/cb_malloc.h>

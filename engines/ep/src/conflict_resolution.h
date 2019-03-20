@@ -16,7 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
 #include "item.h"
 
 class ItemMetaData;

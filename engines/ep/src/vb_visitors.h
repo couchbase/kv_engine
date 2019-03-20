@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "hash_table.h"
 #include "vb_filter.h"
 #include "vbucket_fwd.h"

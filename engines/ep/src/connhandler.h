@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "utility.h"
 
 #include <memcached/dcp.h>

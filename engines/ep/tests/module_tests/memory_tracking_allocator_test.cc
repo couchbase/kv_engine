@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include <utilities/memory_tracking_allocator.h>
 
 #include <folly/portability/GTest.h>

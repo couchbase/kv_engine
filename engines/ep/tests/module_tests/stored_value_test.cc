@@ -19,8 +19,6 @@
  * Unit tests for the StoredValue class.
  */
 
-#include "config.h"
-
 #include "../../daemon/alloc_hooks.h"
 #include "hash_table.h"
 #include "item_eviction.h"

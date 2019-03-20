@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "globaltask.h"
 #include "objectregistry.h"
 #include "task_type.h"

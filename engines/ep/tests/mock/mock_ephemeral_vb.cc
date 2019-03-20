@@ -1,5 +1,3 @@
-#include "config.h"
-
 #include "mock_ephemeral_vb.h"
 
 #include "ephemeral_tombstone_purger.h"

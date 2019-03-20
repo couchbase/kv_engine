@@ -17,7 +17,6 @@
 
 #pragma once
 
-#include "config.h"
 #include "bucket_logger.h"
 #include <chrono>
 

@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
 #include "configuration.h"
 #include "bucket_logger.h"
 #include "configuration_impl.h"

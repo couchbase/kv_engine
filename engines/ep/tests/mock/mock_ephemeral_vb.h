@@ -22,7 +22,6 @@
 #pragma once
 
 #include "../mock/mock_basic_ll.h"
-#include "config.h"
 #include "ephemeral_vb.h"
 
 #include <mutex>

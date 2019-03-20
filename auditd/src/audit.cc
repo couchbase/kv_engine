@@ -14,8 +14,6 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "config.h"
-
 #include "audit.h"
 #include "auditd_audit_events.h"
 #include "configureevent.h"

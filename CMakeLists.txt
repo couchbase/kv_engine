@@ -105,6 +105,11 @@ if (WIN32)
    # we add it as a global flag. Ideally it should have been set in tlm,
    # but that cause forestdb to fail.
    add_definitions(-DWIN32_LEAN_AND_MEAN)
+
+   # 'conversion' conversion from 'type1' to 'type2', possible loss of data
+   add_definitions(/wd4244)
+   # 'var' : conversion from 'size_t' to 'type', possible loss of data
+   add_definitions(/wd4267)
 endif()
 
 INCLUDE_DIRECTORIES(BEFORE

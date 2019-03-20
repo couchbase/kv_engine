@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include "ep_time.h"
 #include "item.h"
 #include "item_eviction.h"

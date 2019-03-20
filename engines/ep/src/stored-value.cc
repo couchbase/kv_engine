@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include "stored-value.h"
 
 #include "ep_time.h"

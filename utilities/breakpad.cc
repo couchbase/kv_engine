@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
 #include "breakpad.h"
 #include "terminate_handler.h"
 

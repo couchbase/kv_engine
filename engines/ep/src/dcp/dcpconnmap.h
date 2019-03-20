@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "connmap.h"
 
 #include <memcached/engine.h>

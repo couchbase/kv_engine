@@ -7,8 +7,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include <stdbool.h>
 #include <atomic>
 #include <mutex>

@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
 #include "dcpconnmap.h"
 #include "bucket_logger.h"
 #include "configuration.h"

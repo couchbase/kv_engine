@@ -18,9 +18,6 @@
 /**
  * Tests specific to Ephemeral VBuckets.
  */
-
-#include "config.h"
-
 #include "../mock/mock_ephemeral_vb.h"
 #include "ep_time.h"
 #include "failover-table.h"

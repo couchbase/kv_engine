@@ -21,7 +21,6 @@
 
 #pragma once
 
-#include "config.h"
 #include "diskdockey.h"
 #include "item.h"
 #include "storeddockey.h"

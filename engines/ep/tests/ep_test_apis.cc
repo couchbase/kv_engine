@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
 

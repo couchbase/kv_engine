@@ -28,7 +28,6 @@
 #include <mutex>
 #include <vector>
 
-#include "config.h"
 #include "collections/collections_types.h"
 #include "collections/eraser_context.h"
 #include "item.h"

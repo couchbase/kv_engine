@@ -1,6 +1,5 @@
 /* Crc - 32 BIT ANSI X3.66 CRC checksum files */
 
-#include "config.h"
 #include "crc32.h"
 
 /**********************************************************************\

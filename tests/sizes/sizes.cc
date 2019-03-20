@@ -1,5 +1,3 @@
-#include "config.h"
-
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>

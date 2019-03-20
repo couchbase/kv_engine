@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 class ActiveStream;
 class ScanContext;
 

@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include <list>
 #include <set>
 #include <string>

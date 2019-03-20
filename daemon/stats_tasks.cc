@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
 #include "stats_tasks.h"
 #include "connection.h"
 #include "cookie.h"

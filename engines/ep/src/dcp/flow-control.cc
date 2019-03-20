@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include "connhandler_impl.h"
 #include "dcp/flow-control-manager.h"
 #include "dcp/flow-control.h"

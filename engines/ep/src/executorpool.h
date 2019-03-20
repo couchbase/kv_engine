@@ -65,8 +65,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include "syncobject.h"
 #include "task_type.h"
 #include "taskable.h"

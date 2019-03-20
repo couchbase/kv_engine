@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "hash_table.h"
 #include "item.h"
 #include "progress_tracker.h"

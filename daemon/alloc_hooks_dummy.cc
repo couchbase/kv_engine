@@ -20,8 +20,6 @@
  * where we don't have a supported memory alloctor for memory tracking
  */
 
-#include "config.h"
-
 #include <logger/logger.h>
 #include "alloc_hooks_dummy.h"
 

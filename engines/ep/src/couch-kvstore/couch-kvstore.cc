@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
 #include "collections/collection_persisted_stats.h"
 #include "collections/kvstore_generated.h"
 

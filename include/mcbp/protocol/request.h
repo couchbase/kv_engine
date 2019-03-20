@@ -16,7 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
 #include "datatype.h"
 
 #include <boost/optional.hpp>

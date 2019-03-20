@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include "ioctl.h"
 
 #include "alloc_hooks.h"

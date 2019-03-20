@@ -14,8 +14,6 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "config.h"
-
 #include <platform/dirutils.h>
 
 #include <nlohmann/json.hpp>
@@ -130,8 +128,6 @@ int main(int argc, char **argv) {
                << "*********************************/" << std::endl
                << "#pragma once" << std::endl
                << std::endl
-               << "#include \"config.h\"" << std::endl
-               << std::endl
                << "#ifdef __cplusplus" << std::endl
                << "extern \"C\" {" << std::endl
                << "#endif" << std::endl
@@ -176,7 +172,6 @@ int main(int argc, char **argv) {
                << "/********************************" << std::endl
                << "** Generated file, do not edit **" << std::endl
                << "*********************************/" << std::endl
-               << "#include \"config.h\"" << std::endl
                << "#include \"" << hfile << "\"" << std::endl
                << std::endl
                << "const char *" << function << "(void)" << std::endl

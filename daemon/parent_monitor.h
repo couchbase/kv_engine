@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include <platform/platform_thread.h>
 
 #include <atomic>

@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
 #include "mcbp_topkeys.h"
 
 #include <memcached/protocol_binary.h>

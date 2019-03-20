@@ -16,7 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
 #include "utility.h"
 #include <platform/rwlock.h>
 #include <mutex>

@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include <platform/sized_buffer.h>
 #include <cstdint>
 #include <stdexcept>

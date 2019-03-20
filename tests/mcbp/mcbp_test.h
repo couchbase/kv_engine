@@ -20,9 +20,6 @@
 /*
  * Memcached binary protocol validator tests.
  */
-
-#include "config.h"
-
 #include "mock_connection.h"
 
 #include <daemon/connection.h>

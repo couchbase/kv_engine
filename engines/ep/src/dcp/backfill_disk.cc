@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include "dcp/active_stream_impl.h"
 #include "dcp/backfill_disk.h"
 #include "ep_engine.h"

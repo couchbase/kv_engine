@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "blob.h"
 #include "item_pager.h"
 #include "storeddockey.h"

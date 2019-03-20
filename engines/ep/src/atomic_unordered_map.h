@@ -97,8 +97,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "atomic.h"
 
 #include <platform/cacheline_padded.h>

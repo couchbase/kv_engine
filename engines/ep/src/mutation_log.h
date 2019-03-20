@@ -38,8 +38,6 @@
  *
  */
 
-#include "config.h"
-
 #include "mutation_log_entry.h"
 
 #include "utility.h"

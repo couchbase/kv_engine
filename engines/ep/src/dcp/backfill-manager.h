@@ -43,7 +43,6 @@
  */
 #pragma once
 
-#include "config.h"
 #include "dcp/backfill.h"
 
 #include <list>

@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "hdrhistogram.h"
 #include "objectregistry.h"
 

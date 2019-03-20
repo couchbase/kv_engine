@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include <memcached/engine.h>
 
 #include <iostream>

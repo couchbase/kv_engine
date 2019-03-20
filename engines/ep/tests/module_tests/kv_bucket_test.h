@@ -25,8 +25,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "callbacks.h"
 #include "item.h"
 

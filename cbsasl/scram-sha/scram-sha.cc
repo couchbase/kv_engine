@@ -14,7 +14,6 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "config.h"
 #include "cbsasl/scram-sha/scram-sha.h"
 #include "cbsasl/pwfile.h"
 #include "cbsasl/scram-sha/stringutils.h"

@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "utilities/string_utilities.h"
 
 #include <memcached/engine_error.h>

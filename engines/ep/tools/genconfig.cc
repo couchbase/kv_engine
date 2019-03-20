@@ -208,8 +208,6 @@ static void initialize() {
                << "// ###########################################" << std::endl
                << "#pragma once" << std::endl
                << std::endl
-               << "#include \"config.h\"" << std::endl
-               << std::endl
                << "#include <string>" << std::endl;
 
     implementation << "/*" << std::endl
@@ -248,7 +246,6 @@ static void initialize() {
                    << "// ###########################################"
                    << std::endl
                    << std::endl
-                   << "#include \"config.h\"" << std::endl
                    << "#include \"configuration.h\"" << std::endl
                    << "#include \"configuration_impl.h\"" << std::endl
                    << "#include <platform/sysinfo.h>" << std::endl

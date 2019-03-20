@@ -21,8 +21,6 @@
 
 #pragma once
 
-#include "config.h"
-
 class Cookie;
 
 /* Subdocument executor functions. */

@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include "access_scanner.h"
 #include "bucket_logger.h"
 #include "ep_time.h"

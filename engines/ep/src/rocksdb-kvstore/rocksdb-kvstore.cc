@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include "rocksdb-kvstore.h"
 #include "rocksdb-kvstore_config.h"
 

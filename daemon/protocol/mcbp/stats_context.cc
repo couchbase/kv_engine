@@ -14,8 +14,6 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "config.h"
-
 #include "engine_errc_2_mcbp.h"
 #include "engine_wrapper.h"
 #include "logger/logger.h"

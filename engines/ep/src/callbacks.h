@@ -17,7 +17,6 @@
 
 #pragma once
 
-#include "config.h"
 #include "diskdockey.h"
 
 #include <memcached/dockey.h>

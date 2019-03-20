@@ -14,8 +14,6 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "config.h"
-
 #include <memcached/protocol_binary.h>
 #include <xattr/blob.h>
 #include <xattr/key_validator.h>

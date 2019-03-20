@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include <nlohmann/json.hpp>
 #include <platform/base64.h>
 #include <platform/dirutils.h>

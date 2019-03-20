@@ -19,8 +19,6 @@
  * Benchmark tests to compare TimingHistogram against HdrHistogram
  * */
 
-#include "config.h"
-
 #include <benchmark/benchmark.h>
 #include <daemon/timing_histogram.h>
 #include <folly/portability/GTest.h>

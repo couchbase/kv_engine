@@ -22,7 +22,6 @@
  *     protocol - mc_time_convert_to_real_time()
  *
  */
-#include "config.h"
 #include "mc_time.h"
 
 #include "buckets.h"

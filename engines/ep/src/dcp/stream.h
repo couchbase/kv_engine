@@ -17,7 +17,6 @@
 
 #pragma once
 
-#include "config.h"
 #include "cursor.h"
 #include "dcp/dcp-types.h"
 

@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include "atomicqueue.h"
 #include "configuration.h"
 #include "couch-kvstore/couch-fs-stats.h"

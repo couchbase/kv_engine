@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include "datatype.h"
 
 #include <mcbp/protocol/header.h>

@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "kvstore.h"
 #include "permitted_vb_states.h"
 #include "task_type.h"

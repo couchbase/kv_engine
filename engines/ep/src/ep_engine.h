@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "configuration.h"
 #include "connhandler.h"
 #include "item.h"

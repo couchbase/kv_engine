@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include <string>
 
 std::string getpass(const std::string& prompt = std::string{"Password: "});

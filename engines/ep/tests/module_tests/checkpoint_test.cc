@@ -18,8 +18,6 @@
 #include "checkpoint_test.h"
 #include "checkpoint_test_impl.h"
 
-#include "config.h"
-
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_utils.h"

@@ -21,7 +21,6 @@
  */
 #pragma once
 
-#include "config.h"
 #include <memcached/visibility.h>
 #include <memcached/engine.h>
 

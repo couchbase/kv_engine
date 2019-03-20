@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include <platform/checked_snprintf.h>
 #include <string>
 #include <utility>

@@ -19,9 +19,6 @@
  * mctrace - Utility program to easily perform trace dumps on a running
  * memcached process
  */
-
-#include "config.h"
-
 #include <getopt.h>
 #include <memcached/openssl.h>
 #include <memcached/protocol_binary.h>

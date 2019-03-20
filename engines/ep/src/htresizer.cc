@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include "ep_engine.h"
 #include "htresizer.h"
 #include "kv_bucket_iface.h"

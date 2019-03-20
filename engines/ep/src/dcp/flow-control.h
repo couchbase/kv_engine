@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include "atomic.h"
 #include "memcached/engine.h"
 

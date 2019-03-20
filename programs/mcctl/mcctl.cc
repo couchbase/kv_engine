@@ -18,9 +18,6 @@
 /* mcctl - Utility program to perform IOCTL-style operations on a memcached
  *         process.
  */
-
-#include "config.h"
-
 #include <getopt.h>
 #include <memcached/openssl.h>
 #include <memcached/protocol_binary.h>

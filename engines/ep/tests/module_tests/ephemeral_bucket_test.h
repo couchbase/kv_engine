@@ -19,9 +19,6 @@
 /**
  * Unit tests for the EphemeralBucket class.
  */
-
-#include "config.h"
-
 #include "stats_test.h"
 
 /**

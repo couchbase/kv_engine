@@ -14,8 +14,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "ep_types.h"
 #include "executorpool.h"
 #include "kv_bucket_iface.h"

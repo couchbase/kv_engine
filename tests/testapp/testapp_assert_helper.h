@@ -16,7 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
 #include "testapp.h"
 #include <iosfwd>
 #include <type_traits>

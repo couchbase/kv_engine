@@ -14,9 +14,6 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#include "config.h"
-
 #include <daemon/executor.h>
 #include <daemon/executorpool.h>
 #include <daemon/mc_time.h>

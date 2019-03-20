@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include <platform/socket.h>
 
 #include <string>

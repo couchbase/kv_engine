@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "callbacks.h"
 #include "collections/eraser_context.h"
 #include "collections/kvstore.h"

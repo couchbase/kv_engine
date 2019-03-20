@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include <fcntl.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>

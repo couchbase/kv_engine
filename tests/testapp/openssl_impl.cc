@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include "ssl_impl.h"
 #include "testapp.h"
 #include "utilities.h"

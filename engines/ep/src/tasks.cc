@@ -14,8 +14,6 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "config.h"
-
 #include "bgfetcher.h"
 #include "ep_bucket.h"
 #include "ep_engine.h"

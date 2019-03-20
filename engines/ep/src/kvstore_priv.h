@@ -21,8 +21,6 @@
  * Types and functions private to KVStore implementations.
  */
 
-#include "config.h"
-
 #include "callbacks.h"
 #include "diskdockey.h"
 #include "kvstore.h"

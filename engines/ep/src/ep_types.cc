@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include "ep_types.h"
 
 #include <boost/optional.hpp>

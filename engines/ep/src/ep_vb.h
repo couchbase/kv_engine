@@ -16,7 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
 #include "dcp/backfill_disk.h"
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"

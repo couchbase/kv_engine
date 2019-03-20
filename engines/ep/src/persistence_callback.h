@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include "callbacks.h"
 #include "kvstore.h"
 #include "vbucket.h"

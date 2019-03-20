@@ -15,8 +15,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include "futurequeue.h"
 #include "syncobject.h"
 #include "task_type.h"

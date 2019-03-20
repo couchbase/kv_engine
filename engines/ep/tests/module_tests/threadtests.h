@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include "locks.h"
 #include "syncobject.h"
 #include "utility.h"

@@ -14,7 +14,6 @@
  *      Brad Fitzpatrick <brad@danga.com>
  */
 
-#include "config.h"
 #include "memcached.h"
 #include "alloc_hooks.h"
 #include "buckets.h"

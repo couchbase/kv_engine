@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include <memcached/types.h>
 
 class EventuallyPersistentEngine;

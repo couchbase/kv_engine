@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
 #include "topkeys.h"
 #include "settings.h"
 #include <inttypes.h>

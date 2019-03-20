@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "client_cert_config.h"
 #include "logger/logger_config.h"
 #include "network_interface.h"

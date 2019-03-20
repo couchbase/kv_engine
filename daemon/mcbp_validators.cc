@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include "buckets.h"
 #include "connection.h"
 #include "cookie.h"

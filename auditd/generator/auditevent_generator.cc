@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include "auditevent_generator.h"
 #include "generator_event.h"
 #include "generator_module.h"

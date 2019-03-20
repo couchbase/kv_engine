@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include "collections/collections_types.h"
 #include "dcp/dcp-types.h"
 #include "ep_types.h"

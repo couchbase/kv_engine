@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include <ctype.h>
 #include <errno.h>
 #include <evutil.h>

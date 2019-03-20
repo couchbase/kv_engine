@@ -63,8 +63,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include "ephemeral_vb.h"
 #include "kv_bucket_iface.h"
 #include "progress_tracker.h"

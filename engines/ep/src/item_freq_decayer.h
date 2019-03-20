@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "globaltask.h"
 #include "kv_bucket_iface.h"
 

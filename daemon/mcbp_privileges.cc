@@ -16,7 +16,6 @@
  */
 #include "mcbp_privileges.h"
 
-#include "config.h"
 #include "connection.h"
 #include <logger/logger.h>
 #include <memcached/protocol_binary.h>

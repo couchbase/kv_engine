@@ -14,9 +14,6 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#include "config.h"
-
 #include "subdocument_context.h"
 
 #include "debug_helpers.h"

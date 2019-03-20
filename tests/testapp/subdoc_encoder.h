@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include <memcached/protocol_binary.h>
 
 #include <string>

@@ -16,7 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
 #include "cluster_config.h"
 #include "mcbp_validators.h"
 #include "timings.h"

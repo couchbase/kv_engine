@@ -17,7 +17,6 @@
 
 #pragma once
 
-#include "config.h"
 #include "seqlist.h"
 #include "stats.h"
 #include "vbucket.h"

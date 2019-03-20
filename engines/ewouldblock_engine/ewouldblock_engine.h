@@ -23,8 +23,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include <memcached/protocol_binary.h>
 
 // The mode the engine is currently operating in. Determines when it will

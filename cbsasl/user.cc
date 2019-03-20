@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
 #include "user.h"
 
 #include <nlohmann/json.hpp>

@@ -16,7 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
 #include "locks.h"
 #include "utility.h"
 #include <atomic>

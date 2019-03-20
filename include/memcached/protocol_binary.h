@@ -34,7 +34,6 @@
  */
 #pragma once
 
-#include "config.h"
 #include "dockey.h"
 
 #include <memcached/vbucket.h>

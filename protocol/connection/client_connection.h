@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include <boost/optional/optional_fwd.hpp>
 #include <engines/ewouldblock_engine/ewouldblock_engine.h>
 #include <memcached/engine_error.h>

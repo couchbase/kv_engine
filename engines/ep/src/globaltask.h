@@ -18,7 +18,6 @@
 #pragma once
 
 #include "atomic.h"
-#include "config.h"
 #include "task_type.h"
 
 #include <platform/processclock.h>

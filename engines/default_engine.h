@@ -1,8 +1,6 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #pragma once
 
-#include "config.h"
-
 #include <memcached/engine.h>
 #include <memcached/visibility.h>
 

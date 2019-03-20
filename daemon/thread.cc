@@ -2,7 +2,6 @@
 /*
  * Thread management for memcached.
  */
-#include "config.h"
 #include "connection.h"
 #include "connections.h"
 #include "cookie.h"

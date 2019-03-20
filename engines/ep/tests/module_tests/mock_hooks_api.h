@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include <memcached/server_allocator_iface.h>
 
 ServerAllocatorIface* getHooksApi();

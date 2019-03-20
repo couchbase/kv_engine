@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
-
 #include "globaltask.h"
 
 #include <memcached/types.h> // for ssize_t

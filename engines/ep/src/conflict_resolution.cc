@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
 #include "conflict_resolution.h"
 #include "stored-value.h"
 

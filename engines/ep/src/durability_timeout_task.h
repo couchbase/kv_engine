@@ -16,7 +16,6 @@
  */
 #pragma once
 
-#include "config.h"
 #include "globaltask.h"
 #include "vb_visitors.h"
 

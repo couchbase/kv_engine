@@ -18,9 +18,6 @@
 /*
  * Testsuite for XDCR-related functionality in ep-engine.
  */
-
-#include "config.h"
-
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
 #include "hlc.h"

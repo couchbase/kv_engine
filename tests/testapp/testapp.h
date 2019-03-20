@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "testapp_binprot.h"
 #include "testapp_environment.h"
 

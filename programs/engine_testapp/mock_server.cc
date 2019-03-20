@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include "daemon/alloc_hooks.h"
 #include "daemon/doc_pre_expiry.h"
 #include "daemon/protocol/mcbp/engine_errc_2_mcbp.h"

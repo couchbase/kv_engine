@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 // We need folly's Windows.h and not spdlog's so include folly's portability
 // header before anything that includes spdlog (bucket_logger etc.)
 #include <folly/portability/GTest.h>

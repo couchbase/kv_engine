@@ -14,7 +14,6 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "config.h"
 #include "listening_port.h"
 
 ListeningPort::ListeningPort(in_port_t port, std::string host, bool tcp_nodelay)

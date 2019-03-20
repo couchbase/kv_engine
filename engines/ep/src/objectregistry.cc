@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include "objectregistry.h"
 
 #include "ep_engine.h"

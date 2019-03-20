@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include "config.h"
-
 #include "callbacks.h"
 #include "diskdockey.h"
 #include "item.h"

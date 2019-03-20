@@ -17,7 +17,6 @@
 
 #pragma once
 
-#include "config.h"
 #include "probabilistic_counter.h"
 #include "stored-value.h"
 #include "storeddockey.h"

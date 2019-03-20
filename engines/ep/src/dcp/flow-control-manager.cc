@@ -17,7 +17,6 @@
 
 #include "flow-control-manager.h"
 
-#include "config.h"
 #include "bucket_logger.h"
 #include "dcp/consumer.h"
 #include "ep_engine.h"

@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
 #include "common.h"
 #include "couch-kvstore/couch-fs-stats.h"
 #include "kvstore.h"
