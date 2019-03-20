@@ -13,6 +13,7 @@ IF (HAVE_NUMA_H AND WITH_NUMA)
 ENDIF ()
 IF (HAVE_LIBNUMA)
     SET(NUMA_LIBRARIES numa)
+    add_definitions(-DHAVE_LIBNUMA=1)
 ENDIF ()
 
 ADD_LIBRARY(memcached_daemon STATIC

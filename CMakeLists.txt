@@ -80,8 +80,17 @@ IF ("${MEMCACHED_VERSION}" STREQUAL "")
     string(TIMESTAMP _timestamp UTC)
     set(MEMCACHED_VERSION "unknown:${_timestamp}")
 ENDIF ("${MEMCACHED_VERSION}" STREQUAL "")
+add_definitions(-DMEMCACHED_VERSION="${MEMCACHED_VERSION}")
+add_definitions(-DPRODUCT_VERSION="${PRODUCT_VERSION}")
+add_definitions(-DDESTINATION_ROOT="${CMAKE_INSTALL_PREFIX}")
+add_definitions(-DSOURCE_ROOT="${Memcached_SOURCE_DIR}")
+add_definitions(-DOBJECT_ROOT="${Memcached_BINARY_DIR}")
+add_definitions(-D_FILE_OFFSET_BITS=64)
 
 CHECK_SYMBOL_EXISTS(memalign malloc.h HAVE_MEMALIGN)
+if (HAVE_MEMALIGN)
+  add_definitions(-DHAVE_MEMALIGN=1)
+endif()
 
 if(HAVE_MALLOC_USABLE_SIZE)
   ADD_DEFINITIONS(-DHAVE_MALLOC_USABLE_SIZE)
@@ -220,9 +229,6 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
 
     ENABLE_CODE_COVERAGE_REPORT()
 endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
-
-CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.cmake.h
-               ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
 # Customize some CTest properties
 CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/CTestCustom.cmake.in
