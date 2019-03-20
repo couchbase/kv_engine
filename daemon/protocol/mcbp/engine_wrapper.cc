@@ -23,6 +23,7 @@
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/request.h>
+#include <memcached/limits.h>
 #include <tracing/trace_helpers.h>
 
 ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie,
@@ -271,12 +272,12 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
                                " for a 0 sized body");
     }
 
-    if (priv_nbytes > COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
-        throw cb::engine_error(cb::engine_errc::too_big,
-                               "bucket_allocate_ex: privileged bytes " +
-                               std::to_string(priv_nbytes) +
-                               " exeeds max limit of " + std::to_string(
-                                   COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES));
+    if (priv_nbytes > cb::limits::PrivilegedBytes) {
+        throw cb::engine_error(
+                cb::engine_errc::too_big,
+                "bucket_allocate_ex: privileged bytes " +
+                        std::to_string(priv_nbytes) + " exeeds max limit of " +
+                        std::to_string(cb::limits::PrivilegedBytes));
     }
 
     auto& c = cookie.getConnection();

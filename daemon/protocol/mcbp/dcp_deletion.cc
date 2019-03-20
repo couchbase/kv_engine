@@ -20,6 +20,7 @@
 #include "utilities.h"
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/request.h>
+#include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
 
 static ENGINE_ERROR_CODE dcp_deletion_v1_executor(Cookie& cookie) {
@@ -51,7 +52,7 @@ static ENGINE_ERROR_CODE dcp_deletion_v1_executor(Cookie& cookie) {
     if (mcbp::datatype::is_xattr(datatype)) {
         priv_bytes = gsl::narrow<uint32_t>(value.size());
     }
-    if (priv_bytes <= COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
+    if (priv_bytes <= cb::limits::PrivilegedBytes) {
         return dcpDeletion(cookie,
                            opaque,
                            key,
@@ -99,7 +100,7 @@ static ENGINE_ERROR_CODE dcp_deletion_v2_executor(Cookie& cookie) {
         priv_bytes = gsl::narrow<uint32_t>(value.size());
     }
 
-    if (priv_bytes <= COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
+    if (priv_bytes <= cb::limits::PrivilegedBytes) {
         return dcpDeletionV2(cookie,
                              opaque,
                              key,

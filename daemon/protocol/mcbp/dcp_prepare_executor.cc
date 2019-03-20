@@ -17,6 +17,7 @@
 #include "../../mcbp.h"
 #include "engine_wrapper.h"
 #include "utilities.h"
+#include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
@@ -40,7 +41,7 @@ void dcp_prepare_executor(Cookie& cookie) {
             cb::xattr::Blob blob({const_cast<char*>(payload), value.len},
                                  mcbp::datatype::is_snappy(datatype));
             priv_bytes = uint32_t(blob.get_system_size());
-            if (priv_bytes > COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
+            if (priv_bytes > cb::limits::PrivilegedBytes) {
                 ret = ENGINE_E2BIG;
             }
         }

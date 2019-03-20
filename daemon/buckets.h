@@ -22,6 +22,7 @@
 #include "timings.h"
 
 #include <memcached/engine.h>
+#include <memcached/limits.h>
 #include <memcached/server_callback_iface.h>
 #include <memcached/types.h>
 #include <nlohmann/json_fwd.hpp>
@@ -197,7 +198,7 @@ std::string to_string(Bucket::Type type);
  * bucket named "default", and there is a username named "default"
  * with an empty password.).
  */
-extern std::array<Bucket, COUCHBASE_MAX_NUM_BUCKETS + 1> all_buckets;
+extern std::array<Bucket, cb::limits::TotalBuckets + 1> all_buckets;
 
 /**
  * Call a function on each ready bucket.

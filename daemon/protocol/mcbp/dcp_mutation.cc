@@ -20,6 +20,7 @@
 #include "utilities.h"
 #include "../../mcbp.h"
 
+#include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
 #include <platform/compress.h>
 #include <xattr/blob.h>
@@ -46,7 +47,7 @@ static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
         cb::xattr::Blob blob({const_cast<char*>(payload), value.len},
                              mcbp::datatype::is_snappy(datatype));
         priv_bytes = uint32_t(blob.get_system_size());
-        if (priv_bytes > COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
+        if (priv_bytes > cb::limits::PrivilegedBytes) {
             return ENGINE_E2BIG;
         }
     }

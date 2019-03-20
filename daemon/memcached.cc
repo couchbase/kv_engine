@@ -112,7 +112,7 @@
  * All of the buckets in couchbase is stored in this array.
  */
 static std::mutex buckets_lock;
-std::array<Bucket, COUCHBASE_MAX_NUM_BUCKETS + 1> all_buckets;
+std::array<Bucket, cb::limits::TotalBuckets + 1> all_buckets;
 
 void bucketsForEach(std::function<bool(Bucket&, void*)> fn, void *arg) {
     std::lock_guard<std::mutex> all_bucket_lock(buckets_lock);

@@ -16,6 +16,7 @@
  */
 #include "testapp_client_test.h"
 
+#include <memcached/limits.h>
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <utilities/json_utilities.h>
@@ -111,9 +112,9 @@ TEST_P(BucketTest, TestInvalidCharacters) {
 
 TEST_P(BucketTest, TestMultipleBuckets) {
     auto& connection = getAdminConnection();
-    int ii;
+    std::size_t ii;
     try {
-        for (ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
+        for (ii = 1; ii < cb::limits::TotalBuckets; ++ii) {
             std::string name = "bucket-" + std::to_string(ii);
             connection.createBucket(name, "", BucketType::Memcached);
         }
@@ -607,7 +608,7 @@ TEST_P(BucketTest, TestBucketIsolationBuckets)
 {
     auto& connection = getAdminConnection();
 
-    for (int ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
+    for (std::size_t ii = 1; ii < cb::limits::TotalBuckets; ++ii) {
         std::stringstream ss;
         ss << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
         connection.createBucket(ss.str(), "", BucketType::Memcached);
@@ -620,7 +621,7 @@ TEST_P(BucketTest, TestBucketIsolationBuckets)
     doc.info.id = "TestBucketIsolationBuckets";
     doc.value = memcached_cfg.dump();
 
-    for (int ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
+    for (std::size_t ii = 1; ii < cb::limits::TotalBuckets; ++ii) {
         std::stringstream ss;
         ss << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
         const auto name = ss.str();
@@ -630,7 +631,7 @@ TEST_P(BucketTest, TestBucketIsolationBuckets)
 
     connection = getAdminConnection();
     // Delete all buckets
-    for (int ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
+    for (std::size_t ii = 1; ii < cb::limits::TotalBuckets; ++ii) {
         std::stringstream ss;
         ss << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
         connection.deleteBucket(ss.str());

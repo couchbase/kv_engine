@@ -18,6 +18,7 @@
 #include "../../mcbp.h"
 #include "engine_wrapper.h"
 #include "utilities.h"
+#include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
 
 void dcp_expiration_executor(Cookie& cookie) {
@@ -39,7 +40,7 @@ void dcp_expiration_executor(Cookie& cookie) {
             priv_bytes = gsl::narrow<uint32_t>(value.size());
         }
 
-        if (priv_bytes > COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
+        if (priv_bytes > cb::limits::PrivilegedBytes) {
             ret = ENGINE_E2BIG;
         } else {
             ret = dcpExpiration(cookie,
