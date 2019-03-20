@@ -457,7 +457,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
             status = Status::UnknownFrameInfo;
             return false;
         });
-    } catch (const std::overflow_error& e) {
+    } catch (const std::overflow_error&) {
         status = Status::Einval;
         cookie.setErrorContext("Invalid encoding in FrameExtras");
     }
