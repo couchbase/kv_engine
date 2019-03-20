@@ -18,6 +18,7 @@
 #undef WIN32_LEAN_AND_MEAN
 #endif
 typedef SSIZE_T ssize_t;
+typedef unsigned int useconds_t;
 #else
 #include <sys/uio.h>
 #endif

@@ -36,5 +36,4 @@
 // Turn of deprecated warnings
 #pragma warning(disable : 4996)
 
-typedef unsigned int useconds_t;
 #endif // WIN32
