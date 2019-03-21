@@ -12,8 +12,6 @@ include(HeaderObjectLibrary)
 
 check_unit_test_enabled(kv_engine COUCHBASE_KV_BUILD_UNIT_TESTS)
 
-# I've got a compile failure on windows.. lets ignore windows for now
-if (NOT WIN32)
 cmake_dependent_option(KV_USE_OPENTRACING
                        "Enable support for OpenTracing" ON
                        "OPENTRACING_INCLUDE_DIR;OPENTRACING_LIBRARIES" OFF)
@@ -22,9 +20,6 @@ if (KV_USE_OPENTRACING)
     message(STATUS "Adding support for OpenTracing")
     message(STATUS "OpenTracing support is currently a proof of concept and should not be used in production")
 endif()
-
-endif (NOT WIN32)
-
 
 # The test program expects to find the output files in
 # the root directory (that's how we built them earlier)
