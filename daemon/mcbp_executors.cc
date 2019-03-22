@@ -237,7 +237,7 @@ static void quit_executor(Cookie& cookie) {
     LOG_DEBUG("{}: quit_executor - closing connection {}",
               connection.getId(),
               connection.getDescription());
-    connection.setWriteAndGo(StateMachine::State::closing);
+    connection.setState(StateMachine::State::closing);
 }
 
 static void quitq_executor(Cookie& cookie) {

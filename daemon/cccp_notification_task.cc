@@ -98,7 +98,6 @@ public:
         // Inject our packet into the stream!
         connection.copyToOutputStream(builder.getFrame()->getFrame());
         connection.setState(StateMachine::State::send_data);
-        connection.setWriteAndGo(StateMachine::State::new_cmd);
         return true;
     }
 };
