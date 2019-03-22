@@ -529,9 +529,9 @@ TEST_P(VBucketTest, GetItemsToPersist_Limit) {
     this->vbucket->rejectQueue.push(makeQueuedItem("2"));
 
     // Add 2 items to backfill queue
-    this->vbucket->backfill.items.push(makeQueuedItem("3"));
+    this->vbucket->backfill.wlock()->items.push(makeQueuedItem("3"));
     public_incrementBackfillQueueSize();
-    this->vbucket->backfill.items.push(makeQueuedItem("4"));
+    this->vbucket->backfill.wlock()->items.push(makeQueuedItem("4"));
     public_incrementBackfillQueueSize();
 
     // Add 2 items to checkpoint manager (in addition to initial

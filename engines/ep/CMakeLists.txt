@@ -304,7 +304,8 @@ SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep JSON_checker ${EP_STORAGE_LIBS}
                       engine_utilities ep-engine_collections dirutils cbcompress
                       hdr_histogram_static mcbp mcd_util platform phosphor
-                      xattr mcd_tracing ${LIBEVENT_LIBRARIES})
+                      xattr mcd_tracing ${LIBEVENT_LIBRARIES}
+                      ${FOLLY_LIBRARIES})
 add_sanitizers(ep)
 
 ADD_LIBRARY(mock_dcp OBJECT tests/mock/mock_dcp.cc)
@@ -423,7 +424,8 @@ if (NOT EP_BYPASS_TESTS)
                           gmock hdr_histogram_static JSON_checker
                           memcached_logger mcbp mcd_util mcd_tracing platform
                           phosphor xattr cbcompress ${MALLOC_LIBRARIES}
-                          ${LIBEVENT_LIBRARIES})
+                          ${LIBEVENT_LIBRARIES}
+                          ${FOLLY_LIBRARIES})
 
     add_sanitizers(ep-engine_ep_unit_tests)
 
@@ -494,7 +496,8 @@ if (NOT EP_BYPASS_TESTS)
             xattr
             ${MALLOC_LIBRARIES}
             ${EP_STORAGE_LIBS}
-            ${LIBEVENT_LIBRARIES})
+            ${LIBEVENT_LIBRARIES}
+            ${FOLLY_LIBRARIES})
     TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
                                ${benchmark_SOURCE_DIR}/include
                                tests
@@ -517,7 +520,7 @@ if (NOT EP_BYPASS_TESTS)
     TARGET_LINK_LIBRARIES(ep-engine_sizes JSON_checker hdr_histogram_static
                           engine_utilities ep-engine_collections ${EP_STORAGE_LIBS}
                           dirutils cbcompress platform mcbp mcd_util
-                          mcd_tracing phosphor xattr ${LIBEVENT_LIBRARIES})
+                          mcd_tracing phosphor xattr ${LIBEVENT_LIBRARIES} ${FOLLY_LIBRARIES})
     add_sanitizers(ep-engine_sizes)
 
     ADD_LIBRARY(ep_testsuite MODULE
