@@ -29,7 +29,6 @@
 #include "vbucket_fwd.h"
 #include "vbucket_state.h"
 
-#include <folly/Synchronized.h>
 #include <memcached/engine.h>
 #include <nlohmann/json.hpp>
 #include <platform/atomic_duration.h>
@@ -450,7 +449,8 @@ public:
     }
 
     size_t getBackfillSize() {
-        return backfill.rlock()->items.size();
+        LockHolder lh(backfill.mutex);
+        return backfill.items.size();
     }
 
     /**
@@ -496,11 +496,11 @@ public:
     ItemsToFlush getItemsToPersist(size_t approxLimit);
 
     bool isBackfillPhase() {
-        return backfill.rlock()->isBackfillPhase.load();
+        return backfill.isBackfillPhase.load();
     }
 
     void setBackfillPhase(bool backfillPhase) {
-        backfill.wlock()->isBackfillPhase.store(backfillPhase);
+        backfill.isBackfillPhase.store(backfillPhase);
     }
 
     bool isReceivingInitialDiskSnapshot() {
@@ -838,11 +838,11 @@ public:
 
     // Struct for managing 'backfill' items - Items which have been added by
     // an incoming DCP stream and need to be persisted to disk.
-    struct Backfill {
+    struct {
+        std::mutex mutex;
         std::queue<queued_item> items;
         std::atomic<bool> isBackfillPhase;
-    };
-    folly::Synchronized<Backfill> backfill;
+    } backfill;
 
     /**
      * Searches for a 'valid' StoredValue in the VBucket.
