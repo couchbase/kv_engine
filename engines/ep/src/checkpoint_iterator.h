@@ -17,7 +17,20 @@
 
 #pragma once
 
+// @todo - when the generateDebugAndAbort method is removed prior to the
+//  Mad-Hatter release, then can also remove the following headers:
+// folly/portability/Windows.h
+// bucket_logger.h
+// <sstream>
+
+// To avoid ambiguous function declarations when we come to include sstream
+// include folly's portability code for Windows before anything else.
+#include <folly/portability/Windows.h>
+
+#include "bucket_logger.h"
+
 #include <iterator>
+#include <sstream>
 #include <string>
 
 /**
@@ -104,18 +117,32 @@ public:
 
     auto& operator*() {
         if (isAtEnd()) {
-            throw std::out_of_range(
-                    "CheckpointIterator *() "
-                    "index is pointing to 'end'");
+            // @todo - revert to throw prior to Mad-Hatter release
+            // MB-33423: The exception has been seen to throw. After
+            // detailed investigation, cause is still unknown.  Therefore
+            // temporarily disabling and replacing with detailed logging
+            // and std::abort so can debug if the issue occurs again during
+            // testing.
+            //     throw std::out_of_range(
+            //             "CheckpointIterator *() "
+            //             "index is pointing to 'end'");
+            generateDebugAndAbort();
         }
         return getElement();
     }
 
     const auto& operator*() const {
         if (isAtEnd()) {
-            throw std::out_of_range(
-                    "CheckpointIterator *() const "
-                    "index is pointing to 'end'");
+            // @todo - revert to throw prior to Mad-Hatter release
+            // MB-33423: The exception has been seen to throw. After
+            // detailed investigation, cause is still unknown.  Therefore
+            // temporarily disabling and replacing with detailed logging
+            // and std::abort so can debug if the issue occurs again during
+            // testing.
+            //     throw std::out_of_range(
+            //             "CheckpointIterator *() const "
+            //             "index is pointing to 'end'");
+            generateDebugAndAbort();
         }
         return getElement();
     }
@@ -127,6 +154,12 @@ public:
     }
 
 private:
+    // @todo - remove prior to Mad-Hatter release
+    // Generates a debug log message at the warning level and then
+    // aborts.  The message contains the contents of the checkpoint
+    // that the iterator is operating on.
+    void generateDebugAndAbort() const;
+
     /// Is the iterator currently pointing to the "end" element.
     bool isAtEnd() const {
         return (iter == container.get().end());
@@ -162,3 +195,22 @@ private:
     /// The Container's standard iterator
     typename C::iterator iter;
 };
+
+template <typename C>
+void CheckpointIterator<C>::generateDebugAndAbort() const {
+    std::stringstream ss;
+    ss << "MB-33423: CheckpointIterator *().  iter is pointing "
+          "to 'end'.  container.get().size():"
+       << container.get().size() << "\n[\n";
+    for (auto& item : container.get()) {
+        if (item.get() != nullptr) {
+            ss << "(" << *item << ")\n";
+        } else {
+            ss << "(null)\n";
+        }
+    }
+    ss << "]";
+    EP_LOG_WARN(ss.str().c_str());
+    // Raise a SIGABORT
+    std::abort();
+}

@@ -16,11 +16,13 @@
  */
 #include "atomic.h"
 
+#include <folly/portability/GTest.h>
+
 #include "checkpoint_iterator.h"
 
-#include <folly/portability/GTest.h>
 #include <iterator>
 #include <list>
+#include <ostream>
 
 /*
  * Unit tests for the CheckpointIterator
@@ -31,13 +33,19 @@ public:
     MyInt(int v) : value(v) {
     }
 
-    int getValue() {
+    int getValue() const {
         return value;
     }
 
 private:
     int value;
 };
+
+std::ostream& operator<<(std::ostream& os, const MyInt& i) {
+    os << "MyInt[" << &i << "] with"
+       << " value:" << i.getValue();
+    return os;
+}
 
 typedef SingleThreadedRCPtr<MyInt> testItem;
 typedef std::list<testItem> ListContainer;
