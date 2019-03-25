@@ -35,7 +35,7 @@
 using cb::mcbp::Status;
 
 bool is_document_key_valid(Cookie& cookie) {
-    const auto& req = cookie.getRequest(Cookie::PacketContent::Header);
+    const auto& req = cookie.getRequest();
     const auto& key = req.getKey();
     if (!cookie.getConnection().isCollectionsSupported()) {
         return true;
@@ -484,7 +484,7 @@ static Status dcp_add_stream_validator(Cookie& cookie) {
         return status;
     }
 
-    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    auto& req = cookie.getRequest();
     auto extras = req.getExtdata();
     const auto* payload =
             reinterpret_cast<const DcpAddStreamPayload*>(extras.data());
@@ -1015,7 +1015,7 @@ static Status hello_validator(Cookie& cookie) {
         return status;
     }
 
-    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    auto& req = cookie.getRequest();
     auto value = req.getValue();
     if ((value.size() % 2) != 0) {
         cookie.setErrorContext("Request value must be of even length");
@@ -1229,7 +1229,7 @@ static Status stat_validator(Cookie& cookie) {
         return ret;
     }
 
-    const auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto& req = cookie.getRequest();
     auto value = req.getValue();
     if (!value.empty()) {
         // The value must be JSON
@@ -1289,7 +1289,7 @@ static Status set_ctrl_token_validator(Cookie& cookie) {
         return status;
     }
 
-    auto extras = cookie.getRequest(Cookie::PacketContent::Full).getExtdata();
+    auto extras = cookie.getRequest().getExtdata();
     auto* payload = reinterpret_cast<const SetCtrlTokenPayload*>(extras.data());
     if (payload->getCas() == 0) {
         cookie.setErrorContext("New CAS must be set");

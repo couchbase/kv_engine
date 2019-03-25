@@ -30,7 +30,7 @@ void dcp_control_executor(Cookie& cookie) {
         ret = mcbp::haveDcpPrivilege(cookie);
 
         if (ret == ENGINE_SUCCESS) {
-            const auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+            const auto& req = cookie.getRequest();
             const auto key = req.getKey();
             const auto val = req.getValue();
 

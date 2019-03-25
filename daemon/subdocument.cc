@@ -117,7 +117,7 @@ static void create_single_path_context(SubdocCmdContext& context,
                                        Cookie& cookie,
                                        const SubdocCmdTraits traits,
                                        doc_flag doc_flags) {
-    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto& request = cookie.getRequest();
     const auto extras = request.getExtdata();
     cb::mcbp::request::SubdocPayloadParser parser(extras);
     const auto pathlen = parser.getPathlen();
@@ -196,7 +196,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
                                       const SubdocCmdTraits traits,
                                       doc_flag doc_flags) {
     // Decode each of lookup specs from the value into our command context.
-    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto& request = cookie.getRequest();
     const auto valbuf = request.getValue();
     cb::const_char_buffer value{reinterpret_cast<const char*>(valbuf.data()),
                                 valbuf.size()};
@@ -328,7 +328,7 @@ static SubdocCmdContext* subdoc_create_context(Cookie& cookie,
  */
 static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
     // 0. Parse the request and log it if debug enabled.
-    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto& request = cookie.getRequest();
     const auto vbucket = request.getVBucket();
     const auto cas = request.getCas();
     const auto key = request.getKey();
@@ -1286,16 +1286,14 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                                 docKey,
                                 new_cas,
                                 vbucket,
-                                cookie.getRequest(Cookie::PacketContent::Full)
-                                        .getDurabilityRequirements(),
+                                cookie.getRequest().getDurabilityRequirements(),
                                 mdt);
         } else {
             ret = bucket_store(cookie,
                                context.out_doc.get(),
                                new_cas,
                                new_op,
-                               cookie.getRequest(Cookie::PacketContent::Full)
-                                       .getDurabilityRequirements(),
+                               cookie.getRequest().getDurabilityRequirements(),
                                context.do_delete_doc
                                        ? DocumentState::Deleted
                                        : context.in_document_state);

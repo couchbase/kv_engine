@@ -166,9 +166,7 @@ static void process_bin_noop_response(Cookie& cookie) {
 static void add_set_replace_executor(Cookie& cookie,
                                      ENGINE_STORE_OPERATION store_op) {
     cookie.obtainContext<MutationCommandContext>(
-                  cookie,
-                  cookie.getRequest(Cookie::PacketContent::Full),
-                  store_op)
+                  cookie, cookie.getRequest(), store_op)
             .drive();
 }
 
@@ -185,7 +183,7 @@ static void replace_executor(Cookie& cookie) {
 }
 
 static void append_prepend_executor(Cookie& cookie) {
-    const auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto& req = cookie.getRequest();
     cookie.obtainContext<AppendPrependCommandContext>(cookie, req).drive();
 }
 
@@ -212,7 +210,7 @@ static void ssl_certs_refresh_executor(Cookie& cookie) {
 
 static void verbosity_executor(Cookie& cookie) {
     using cb::mcbp::request::VerbosityPayload;
-    auto extras = cookie.getRequest(Cookie::PacketContent::Full).getExtdata();
+    auto extras = cookie.getRequest().getExtdata();
     auto* payload = reinterpret_cast<const VerbosityPayload*>(extras.data());
     int level = payload->getLevel();
     if (level < 0 || level > MAX_VERBOSITY_LEVEL) {
@@ -315,19 +313,18 @@ static void flush_executor(Cookie& cookie) {
 }
 
 static void delete_executor(Cookie& cookie) {
-    cookie.obtainContext<RemoveCommandContext>(
-                  cookie, cookie.getRequest(Cookie::PacketContent::Full))
+    cookie.obtainContext<RemoveCommandContext>(cookie, cookie.getRequest())
             .drive();
 }
 
 static void arithmetic_executor(Cookie& cookie) {
-    const auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto& req = cookie.getRequest();
     cookie.obtainContext<ArithmeticCommandContext>(cookie, req).drive();
 }
 
 static void set_ctrl_token_executor(Cookie& cookie) {
     using cb::mcbp::request::SetCtrlTokenPayload;
-    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    auto& req = cookie.getRequest();
     auto extras = req.getExtdata();
     auto* payload = reinterpret_cast<const SetCtrlTokenPayload*>(extras.data());
     auto newval = payload->getCas();
@@ -363,7 +360,7 @@ static void ioctl_get_executor(Cookie& cookie) {
 
     std::string value;
     if (ret == ENGINE_SUCCESS) {
-        auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+        auto& req = cookie.getRequest();
         auto key_data = req.getKey();
         const std::string key(reinterpret_cast<const char*>(key_data.data()),
                               key_data.size());
@@ -403,7 +400,7 @@ static void ioctl_set_executor(Cookie& cookie) {
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+        auto& req = cookie.getRequest();
         auto key_data = req.getKey();
         auto val_data = req.getValue();
         const std::string key(reinterpret_cast<const char*>(key_data.data()),
@@ -435,7 +432,7 @@ static void ioctl_set_executor(Cookie& cookie) {
 }
 
 static void config_validate_executor(Cookie& cookie) {
-    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto& request = cookie.getRequest();
     const auto value = request.getValue();
 
     // the config validator needs a null-terminated string...
@@ -499,7 +496,7 @@ static void audit_config_reload_executor(Cookie& cookie) {
 }
 
 static void audit_put_executor(Cookie& cookie) {
-    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto& request = cookie.getRequest();
     // The packet validator ensured that this is 4 bytes long
     const auto extras = request.getExtdata();
     const uint32_t id = *reinterpret_cast<const uint32_t*>(extras.data());
@@ -516,7 +513,7 @@ static void create_remove_bucket_executor(Cookie& cookie) {
 }
 
 static void get_errmap_executor(Cookie& cookie) {
-    auto value = cookie.getRequest(Cookie::PacketContent::Full).getValue();
+    auto value = cookie.getRequest().getValue();
     auto* req = reinterpret_cast<const cb::mcbp::request::GetErrmapPayload*>(
             value.data());
     auto const& errormap = Settings::instance().getErrorMap(req->getVersion());
@@ -543,7 +540,7 @@ static void shutdown_executor(Cookie& cookie) {
 }
 
 static void update_user_permissions_executor(Cookie& cookie) {
-    auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+    auto& request = cookie.getRequest();
     auto value = request.getValue();
     auto status = cb::mcbp::Status::Success;
 
@@ -615,7 +612,7 @@ static void process_bin_dcp_response(Cookie& cookie) {
         return;
     }
 
-    auto packet = cookie.getPacket(Cookie::PacketContent::Full);
+    auto packet = cookie.getPacket();
     const auto* header =
             reinterpret_cast<const protocol_binary_response_header*>(
                     packet.data());
@@ -992,30 +989,4 @@ void execute_response_packet(Cookie& cookie,
 
     throw std::logic_error(
             "execute_response_packet: provided packet is not a response");
-}
-
-void try_read_mcbp_command(Cookie& cookie) {
-    auto& c = cookie.getConnection();
-    const auto& header = c.getPacket();
-
-    if (Settings::instance().getVerbose() > 1) {
-        try {
-            LOG_TRACE(">{} Read command {}",
-                      c.getId(),
-                      header.toJSON(false).dump());
-        } catch (const std::exception&) {
-            // Failed to decode the header.. do a raw dump instead
-            LOG_TRACE(">{} Read command {}",
-                      c.getId(),
-                      cb::to_hex({reinterpret_cast<const uint8_t*>(&header),
-                                  sizeof(header)}));
-        }
-    }
-
-    cookie.initialize(Cookie::PacketContent::Full,
-                      cb::const_byte_buffer{
-                              reinterpret_cast<const uint8_t*>(&header),
-                              header.getBodylen() + sizeof(cb::mcbp::Request)},
-                      c.isTracingEnabled());
-    c.setState(StateMachine::State::validate);
 }

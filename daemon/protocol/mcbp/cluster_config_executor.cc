@@ -95,7 +95,7 @@ void get_cluster_config_executor(Cookie& cookie) {
 
 void set_cluster_config_executor(Cookie& cookie) {
     // First validate that the provided configuration is a valid payload
-    const auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto& req = cookie.getRequest();
     auto& connection = cookie.getConnection();
 
     int revision;

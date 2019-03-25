@@ -40,7 +40,7 @@ void dcp_stream_req_executor(Cookie& cookie) {
     }
 
     if (ret == ENGINE_SUCCESS) {
-        const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+        const auto& request = cookie.getRequest();
         auto extras = request.getExtdata();
         using cb::mcbp::request::DcpStreamReqPayload;
         const auto* payload =

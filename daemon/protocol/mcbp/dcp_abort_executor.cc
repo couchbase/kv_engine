@@ -23,7 +23,7 @@ void dcp_abort_executor(Cookie& cookie) {
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        const auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+        const auto& req = cookie.getRequest();
         auto extdata = req.getExtdata();
         using cb::mcbp::request::DcpAbortPayload;
         const auto& extras =

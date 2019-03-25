@@ -29,7 +29,7 @@
 #include <gsl/gsl>
 
 uint32_t GatCommandContext::getExptime(Cookie& cookie) {
-    auto extras = cookie.getRequest(Cookie::PacketContent::Full).getExtdata();
+    auto extras = cookie.getRequest().getExtdata();
     if (extras.size() != sizeof(uint32_t)) {
         throw std::invalid_argument("GatCommandContext: Invalid extdata size");
     }
@@ -46,13 +46,12 @@ GatCommandContext::GatCommandContext(Cookie& cookie)
 }
 
 ENGINE_ERROR_CODE GatCommandContext::getAndTouchItem() {
-    auto ret =
-            bucket_get_and_touch(cookie,
-                                 cookie.getRequestKey(),
-                                 vbucket,
-                                 exptime,
-                                 cookie.getRequest(Cookie::PacketContent::Full)
-                                         .getDurabilityRequirements());
+    auto ret = bucket_get_and_touch(
+            cookie,
+            cookie.getRequestKey(),
+            vbucket,
+            exptime,
+            cookie.getRequest().getDurabilityRequirements());
     if (ret.first == cb::engine_errc::success) {
         it = std::move(ret.second);
         if (!bucket_get_item_info(connection, it.get(), &info)) {

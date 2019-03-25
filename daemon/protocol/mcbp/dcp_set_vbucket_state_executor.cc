@@ -28,7 +28,7 @@ void dcp_set_vbucket_state_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
         using cb::mcbp::request::DcpSetVBucketState;
-        auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+        auto& request = cookie.getRequest();
         auto extras = request.getExtdata();
         const auto* payload =
                 reinterpret_cast<const DcpSetVBucketState*>(extras.data());

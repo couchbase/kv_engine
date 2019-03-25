@@ -236,8 +236,7 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
                    cb::rbac::PrivilegeAccess::Stale &&
            retries < max_retries) {
         ++retries;
-        const auto opcode = cookie.getRequest(Cookie::PacketContent::Header)
-                                    .getClientOpcode();
+        const auto opcode = cookie.getRequest().getClientOpcode();
         const std::string command(to_string(opcode));
 
         // The privilege context we had could have been a dummy entry
@@ -296,8 +295,7 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
     }
 
     if (ret == cb::rbac::PrivilegeAccess::Fail) {
-        const auto opcode = cookie.getRequest(Cookie::PacketContent::Header)
-                                    .getClientOpcode();
+        const auto opcode = cookie.getRequest().getClientOpcode();
         const std::string command(to_string(opcode));
         const std::string privilege_string = cb::rbac::to_string(privilege);
         const std::string context = privilegeContext.to_string();
@@ -1015,8 +1013,7 @@ void Connection::runEventLoop() {
         runStateMachinery();
     } catch (const std::exception& e) {
         bool logged = false;
-        if (getState() == StateMachine::State::execute ||
-            getState() == StateMachine::State::validate) {
+        if (getState() == StateMachine::State::execute) {
             try {
                 // Converting the cookie to json -> string could probably
                 // cause too much memory allcation. We don't want that to

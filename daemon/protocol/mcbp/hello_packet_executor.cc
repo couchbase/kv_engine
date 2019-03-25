@@ -138,7 +138,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
 
 void process_hello_packet_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    auto& req = cookie.getRequest();
     std::string log_buffer;
     log_buffer.reserve(512);
     log_buffer.append("HELO ");

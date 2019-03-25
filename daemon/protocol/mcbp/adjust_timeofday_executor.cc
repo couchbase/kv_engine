@@ -30,7 +30,7 @@
  * unless the environment variable MEMCACHED_UNIT_TESTS is set.
  */
 void adjust_timeofday_executor(Cookie& cookie) {
-    auto extras = cookie.getRequest(Cookie::PacketContent::Full).getExtdata();
+    auto extras = cookie.getRequest().getExtdata();
     using cb::mcbp::request::AdjustTimePayload;
     auto* payload = reinterpret_cast<const AdjustTimePayload*>(extras.data());
 

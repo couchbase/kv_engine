@@ -23,7 +23,7 @@
 
 void collections_set_manifest_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    auto& req = cookie.getRequest();
     auto val = req.getValue();
     cb::const_char_buffer jsonBuffer{reinterpret_cast<const char*>(val.data()),
                                      val.size()};

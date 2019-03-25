@@ -48,7 +48,7 @@ public:
 
     explicit SaslAuthCommandContext(Cookie& cookie)
         : SteppableCommandContext(cookie),
-          request(cookie.getRequest(Cookie::PacketContent::Full)),
+          request(cookie.getRequest()),
           state(State::Initial) {
     }
 

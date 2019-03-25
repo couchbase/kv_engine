@@ -31,7 +31,7 @@ GetMetaCommandContext::GetMetaCommandContext(Cookie& cookie)
       state(State::GetItemMeta),
       info(),
       fetchDatatype(false) {
-    auto extras = cookie.getRequest(Cookie::PacketContent::Full).getExtdata();
+    auto extras = cookie.getRequest().getExtdata();
     // Read the version if extlen is 1
     if (extras.size() == 1 && *extras.data() == uint8_t(GetMetaVersion::V2)) {
         fetchDatatype = true;

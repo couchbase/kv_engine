@@ -166,7 +166,7 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
         return header_status;
     }
 
-    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto& request = cookie.getRequest();
     auto extras = request.getExtdata();
     cb::mcbp::request::SubdocPayloadParser parser(extras);
     if (!parser.isValid()) {
@@ -477,7 +477,7 @@ static cb::mcbp::Status subdoc_multi_validator(
         return header_status;
     }
 
-    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto& request = cookie.getRequest();
     auto extras = request.getExtdata();
     cb::mcbp::request::SubdocMultiPayloadParser parser(extras);
     if (!parser.isValid()) {

@@ -33,7 +33,7 @@ ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie,
                                          const AddResponseFn& response) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->unknown_command(
-            &cookie, cookie.getRequest(Cookie::PacketContent::Full), response);
+            &cookie, cookie.getRequest(), response);
     if (ret == ENGINE_DISCONNECT) {
         const auto request = cookie.getRequest();
         LOG_WARNING("{}: {} {} return ENGINE_DISCONNECT",

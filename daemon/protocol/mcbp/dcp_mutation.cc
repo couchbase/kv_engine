@@ -28,7 +28,7 @@
 #include <stdexcept>
 
 static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
-    const auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto& req = cookie.getRequest();
     const auto extdata = req.getExtdata();
     const auto& extras =
             *reinterpret_cast<const cb::mcbp::request::DcpMutationPayload*>(

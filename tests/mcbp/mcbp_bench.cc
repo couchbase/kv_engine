@@ -56,13 +56,11 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, GetBench)(benchmark::State& state) {
 
     void* packet = static_cast<void*>(&request);
     const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);
-    const size_t size = sizeof(req) + req.getBodylen();
-    cb::const_byte_buffer buffer{static_cast<uint8_t*>(packet), size};
     Cookie cookie(connection);
 
     while (state.KeepRunning()) {
         cookie.reset();
-        cookie.setPacket(Cookie::PacketContent::Full, buffer);
+        cookie.setPacket(req);
         validator.validate(cb::mcbp::ClientOpcode::Get, cookie);
     }
 }
@@ -74,13 +72,11 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, SetBench)(benchmark::State& state) {
 
     void* packet = static_cast<void*>(&request);
     const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);
-    const size_t size = sizeof(req) + req.getBodylen();
-    cb::const_byte_buffer buffer{static_cast<uint8_t*>(packet), size};
     Cookie cookie(connection);
 
     while (state.KeepRunning()) {
         cookie.reset();
-        cookie.setPacket(Cookie::PacketContent::Full, buffer);
+        cookie.setPacket(req);
         validator.validate(cb::mcbp::ClientOpcode::Set, cookie);
     }
 }
@@ -92,13 +88,11 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, AddBench)(benchmark::State& state) {
 
     void* packet = static_cast<void*>(&request);
     const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);
-    const size_t size = sizeof(req) + req.getBodylen();
-    cb::const_byte_buffer buffer{static_cast<uint8_t*>(packet), size};
     Cookie cookie(connection);
 
     while (state.KeepRunning()) {
         cookie.reset();
-        cookie.setPacket(Cookie::PacketContent::Full, buffer);
+        cookie.setPacket(req);
         validator.validate(cb::mcbp::ClientOpcode::Add, cookie);
     }
 }

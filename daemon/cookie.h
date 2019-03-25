@@ -55,14 +55,6 @@ public:
     explicit Cookie(Connection& conn);
 
     /**
-     * The cookie is created for every command we want to execute, but in
-     * some cases we don't want to (or can't) get the entire packet content
-     * in memory (for instance if a client tries to send us a 2GB packet we
-     * want to just keep the header and disconnect the client instead).
-     */
-    enum class PacketContent { Header, Full };
-
-    /**
      * Initialize this cookie.
      *
      * At some point we'll refactor this into being the constructor
@@ -72,13 +64,10 @@ public:
      * in the future we'll have multiple commands per connection and
      * this method should be the constructor).
      *
-     * @param content Which part of the content to set
-     * @param buffer the actual payload to set
+     * @param packet the entire packet
      * @param tracing_enabled if tracing is enabled for this request
      */
-    void initialize(PacketContent content,
-                    cb::const_byte_buffer buffer,
-                    bool tacing_enabled);
+    void initialize(const cb::mcbp::Header& packet, bool tracing_enabled);
 
     /**
      * Reset the Cookie object to allow it to be reused in the same
@@ -212,8 +201,7 @@ public:
      * The initial prototype of unordered execution will however
      * do the copy to simplify the state machinery logic.
      *
-     * @param content The part of the package to set
-     * @param buffer The bytes to set
+     * @param header the header and the full packet to use
      * @param copy Set to true if the cookie should create a copy
      *             of the data (to be returned from the getPackage)
      *
@@ -223,19 +211,15 @@ public:
      * @throw std::bad_alloc if copy is set to true and we fail to
      *                       allocate a backing store.
      */
-    void setPacket(PacketContent content,
-                   cb::const_byte_buffer buffer,
-                   bool copy = false);
+    void setPacket(const cb::mcbp::Header& header, bool copy = false);
 
     /**
      * Get the packet for this command / response packet
      *
-     * @param content do you want the entire packet or not
      * @return the byte buffer containing the packet
      * @throws std::logic_error if the packet isn't available
      */
-    cb::const_byte_buffer getPacket(
-            PacketContent content = PacketContent::Full) const;
+    cb::const_byte_buffer getPacket() const;
 
     void clearPacket();
 
@@ -244,7 +228,7 @@ public:
      * current packet.
      */
     void preserveRequest() {
-        setPacket(PacketContent::Full, getPacket(), true);
+        setPacket(getHeader(), true);
     }
 
     /**
@@ -257,17 +241,11 @@ public:
     /**
      * Get the packet as a request packet
      *
-     * @param content if we want just the header or the entire request
-     *                available. In some cases we want to inspect the packet
-     *                header before requiring the entire packet to be read
-     *                off disk (ex: someone ship a 2GB packet and we don't want
-     *                to read all of that into an in-memory buffer)
      * @return the packet if it is a request
      * @throws std::invalid_argument if the packet is of an invalid type
      * @throws std::logic_error if the packet is a response
      */
-    const cb::mcbp::Request& getRequest(
-            PacketContent content = PacketContent::Header) const;
+    const cb::mcbp::Request& getRequest() const;
 
     /**
      * Get the key from the request
@@ -536,13 +514,13 @@ protected:
     /**
      * The input packet used in this command context
      */
-    cb::const_byte_buffer packet;
+    const cb::mcbp::Header* packet = nullptr;
 
     /**
      * The backing store of the received packet if the cookie owns
      * the data (created by copying the input data)
      */
-    std::unique_ptr<uint8_t[]> received_packet;
+    std::unique_ptr<uint8_t[]> frame_copy;
 
     /**
      * The dynamic buffer is used to format output packets to be sent on

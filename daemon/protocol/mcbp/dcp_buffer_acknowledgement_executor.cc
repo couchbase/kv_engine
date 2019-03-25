@@ -29,7 +29,7 @@ void dcp_buffer_acknowledgement_executor(Cookie& cookie) {
         ret = mcbp::haveDcpPrivilege(cookie);
 
         if (ret == ENGINE_SUCCESS) {
-            auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+            auto& req = cookie.getRequest();
             auto extras = req.getExtdata();
             using Payload = cb::mcbp::request::DcpBufferAckPayload;
             const auto* payload =

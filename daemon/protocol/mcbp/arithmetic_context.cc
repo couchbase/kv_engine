@@ -112,8 +112,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::storeNewItem() {
                             newitem.get(),
                             ncas,
                             OPERATION_ADD,
-                            cookie.getRequest(Cookie::PacketContent::Full)
-                                    .getDurabilityRequirements());
+                            cookie.getRequest().getDurabilityRequirements());
 
     if (ret == ENGINE_SUCCESS) {
         cookie.setCas(ncas);
@@ -217,8 +216,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::storeItem() {
                             newitem.get(),
                             ncas,
                             OPERATION_CAS,
-                            cookie.getRequest(Cookie::PacketContent::Full)
-                                    .getDurabilityRequirements());
+                            cookie.getRequest().getDurabilityRequirements());
 
     if (ret == ENGINE_SUCCESS) {
         cookie.setCas(ncas);

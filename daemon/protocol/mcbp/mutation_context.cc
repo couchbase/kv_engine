@@ -281,7 +281,7 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
 }
 
 ENGINE_ERROR_CODE MutationCommandContext::storeItem() {
-    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto& request = cookie.getRequest();
     auto ret = bucket_store_if(cookie,
                                newitem.get(),
                                input_cas,

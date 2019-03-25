@@ -43,8 +43,7 @@ public:
     explicit GetLockedCommandContext(Cookie& cookie)
         : SteppableCommandContext(cookie),
           vbucket(cookie.getRequest().getVBucket()),
-          lock_timeout(
-                  get_exptime(cookie.getRequest(Cookie::PacketContent::Full))),
+          lock_timeout(get_exptime(cookie.getRequest())),
           state(State::GetAndLockItem) {
     }
 

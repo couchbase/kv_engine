@@ -26,7 +26,7 @@ void dcp_add_stream_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+        auto& req = cookie.getRequest();
 
         using cb::mcbp::request::DcpAddStreamPayload;
         auto extras = req.getExtdata();

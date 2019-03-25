@@ -24,7 +24,7 @@
 
 void collections_get_collection_id_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    auto& req = cookie.getRequest();
     auto key = req.getKey();
     cb::const_char_buffer path{reinterpret_cast<const char*>(key.data()),
                                key.size()};

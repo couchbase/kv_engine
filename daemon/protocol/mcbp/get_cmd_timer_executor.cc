@@ -126,7 +126,7 @@ static std::pair<ENGINE_ERROR_CODE, std::string> get_aggregated_timings(
 }
 
 std::pair<ENGINE_ERROR_CODE, std::string> get_cmd_timer(Cookie& cookie) {
-    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto& request = cookie.getRequest();
     const auto key = request.getKey();
     const std::string bucket(reinterpret_cast<const char*>(key.data()),
                              key.size());

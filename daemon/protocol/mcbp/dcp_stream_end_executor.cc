@@ -26,7 +26,7 @@ void dcp_stream_end_executor(Cookie& cookie) {
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+        auto& request = cookie.getRequest();
         auto extras = request.getExtdata();
         using cb::mcbp::request::DcpStreamEndPayload;
         const auto* payload =

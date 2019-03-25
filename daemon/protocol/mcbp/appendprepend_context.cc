@@ -233,8 +233,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
                             newitem.get(),
                             ncas,
                             OPERATION_CAS,
-                            cookie.getRequest(Cookie::PacketContent::Full)
-                                    .getDurabilityRequirements());
+                            cookie.getRequest().getDurabilityRequirements());
 
     if (ret == ENGINE_SUCCESS) {
         update_topkeys(cookie);

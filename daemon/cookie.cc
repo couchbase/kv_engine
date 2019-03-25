@@ -41,7 +41,7 @@
 nlohmann::json Cookie::toJSON() const {
     nlohmann::json ret;
 
-    if (packet.empty()) {
+    if (packet == nullptr) {
         ret["packet"] = nlohmann::json();
     } else {
         const auto& header = getHeader();
@@ -129,101 +129,56 @@ bool Cookie::execute() {
     return !isEwouldblock();
 }
 
-void Cookie::setPacket(PacketContent content,
-                       cb::const_byte_buffer buffer,
-                       bool copy) {
-    if (buffer.size() < sizeof(cb::mcbp::Request)) {
-        // we don't have the header, so we can't even look at the body
-        // length
-        throw std::invalid_argument(
-                "Cookie::setPacket(): packet must contain header");
+void Cookie::setPacket(const cb::mcbp::Header& header, bool copy) {
+    if (copy) {
+        auto frame = header.getFrame();
+        frame_copy = std::make_unique<uint8_t[]>(frame.size());
+        std::copy(frame.begin(), frame.end(), frame_copy.get());
+        packet = reinterpret_cast<const cb::mcbp::Header*>(frame_copy.get());
+    } else {
+        packet = &header;
     }
-
-    switch (content) {
-    case PacketContent::Header:
-        if (buffer.size() != sizeof(cb::mcbp::Request)) {
-            throw std::invalid_argument(
-                    "Cookie::setPacket(): Incorrect packet size");
-        }
-
-        if (copy) {
-            throw std::logic_error(
-                    "Cookie::setPacket(): copy should only be set for full "
-                    "content");
-        }
-        packet = buffer;
-        return;
-    case PacketContent::Full:
-        const auto* req =
-                reinterpret_cast<const cb::mcbp::Request*>(buffer.data());
-        const size_t packetsize = sizeof(cb::mcbp::Request) + req->getBodylen();
-
-        if (buffer.size() != packetsize) {
-            throw std::logic_error("Cookie::setPacket(): Body not available");
-        }
-
-        if (copy) {
-            received_packet.reset(new uint8_t[buffer.size()]);
-            std::copy(buffer.begin(), buffer.end(), received_packet.get());
-            packet = {received_packet.get(), buffer.size()};
-            return;
-        }
-
-        packet = buffer;
-        return;
-    }
-    throw std::logic_error("Cookie::setPacket(): Invalid content provided");
 }
 
-cb::const_byte_buffer Cookie::getPacket(PacketContent content) const {
-    if (packet.empty()) {
+cb::const_byte_buffer Cookie::getPacket() const {
+    if (packet == nullptr) {
         throw std::logic_error("Cookie::getPacket(): packet not available");
     }
 
-    switch (content) {
-    case PacketContent::Header:
-        return cb::const_byte_buffer{packet.data(), sizeof(cb::mcbp::Request)};
-    case PacketContent::Full:
-        const auto* req =
-                reinterpret_cast<const cb::mcbp::Request*>(packet.data());
-        const size_t packetsize = sizeof(cb::mcbp::Request) + req->getBodylen();
-
-        if (packet.size() != packetsize) {
-            throw std::logic_error("Cookie::getPacket(): Body not available");
-        }
-
-        return packet;
-    }
-
-    throw std::invalid_argument(
-            "Cookie::getPacket(): Invalid content requested");
+    return packet->getFrame();
 }
 
 void Cookie::clearPacket() {
-    if (received_packet) {
-        received_packet.reset();
+    if (frame_copy) {
+        frame_copy.reset();
     } else {
         // We don't have a copy of the packet, so we need to consume it
         // from libevent
         auto* ev = connection.bev.get();
-        if (evbuffer_drain(bufferevent_get_input(ev), packet.size()) == -1) {
-            // @todo fixme
-            std::abort();
+        if (evbuffer_drain(bufferevent_get_input(ev),
+                           sizeof(*packet) + packet->getBodylen()) == -1) {
+            throw std::runtime_error(
+                    "Cookie::clearPacket: Failed to drain input packet");
         }
     }
 
-    packet = {};
+    packet = nullptr;
 }
 
 const cb::mcbp::Header& Cookie::getHeader() const {
-    const auto packet = getPacket(PacketContent::Header);
-    return *reinterpret_cast<const cb::mcbp::Header*>(packet.data());
+    if (packet == nullptr) {
+        throw std::logic_error("Cookie::getHeader(): packet not available");
+    }
+
+    return *packet;
 }
 
-const cb::mcbp::Request& Cookie::getRequest(PacketContent content) const {
-    cb::const_byte_buffer packet = getPacket(content);
-    const auto* ret = reinterpret_cast<const cb::mcbp::Header*>(packet.data());
-    return ret->getRequest();
+const cb::mcbp::Request& Cookie::getRequest() const {
+    if (packet == nullptr) {
+        throw std::logic_error("Cookie::getRequest(): packet not available");
+    }
+
+    return packet->getRequest();
 }
 
 ENGINE_ERROR_CODE Cookie::swapAiostat(ENGINE_ERROR_CODE value) {
@@ -470,15 +425,27 @@ void Cookie::maybeLogSlowCommand(
 Cookie::Cookie(Connection& conn) : connection(conn) {
 }
 
-void Cookie::initialize(PacketContent content,
-                        cb::const_byte_buffer buffer,
-                        bool tracing_enabled) {
+void Cookie::initialize(const cb::mcbp::Header& header, bool tracing_enabled) {
     reset();
     setTracingEnabled(tracing_enabled ||
                       Settings::instance().alwaysCollectTraceInfo());
-    setPacket(content, buffer);
+    setPacket(header);
     start = std::chrono::steady_clock::now();
     tracer.begin(cb::tracing::Code::Request, start);
+
+    if (Settings::instance().getVerbose() > 1) {
+        try {
+            LOG_TRACE(">{} Read command {}",
+                      connection.getId(),
+                      header.toJSON(false).dump());
+        } catch (const std::exception&) {
+            // Failed to decode the header.. do a raw dump instead
+            LOG_TRACE(">{} Read command {}",
+                      connection.getId(),
+                      cb::to_hex({reinterpret_cast<const uint8_t*>(packet),
+                                  sizeof(*packet)}));
+        }
+    }
 }
 
 void Cookie::reset() {
