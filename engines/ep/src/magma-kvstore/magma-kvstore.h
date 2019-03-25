@@ -311,5 +311,7 @@ private:
 
     std::atomic<size_t> scanCounter; // atomic counter for generating scan id
 
-    BucketLogger& logger;
+    // Magma uses a unique logger with a prefix of magma so that all logging
+    // calls from the wrapper thru magma will be prefixed with magma.
+    std::shared_ptr<BucketLogger> logger;
 };

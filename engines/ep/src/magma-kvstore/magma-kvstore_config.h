@@ -31,8 +31,23 @@ public:
     size_t getBucketQuota() {
         return bucketQuota;
     }
-    int getMagmaMaxCommitPoints() const {
+    size_t getMagmaDeleteMemtableWritecache() const {
+        return magmaDeleteMemtableWritecache;
+    }
+    float getMagmaDeleteFragRatio() const {
+        return magmaDeleteFragRatio;
+    }
+    size_t getMagmaMaxCommitPoints() const {
         return magmaMaxCommitPoints;
+    }
+    size_t getMagmaCommitPointInterval() const {
+        return magmaCommitPointInterval;
+    }
+    size_t getMagmaValueSeparationSize() const {
+        return magmaValueSeparationSize;
+    }
+    size_t getMagmaMinWriteCache() const {
+        return magmaMinWriteCache;
     }
     size_t getMagmaMaxWriteCache() const {
         return magmaMaxWriteCache;
@@ -40,41 +55,105 @@ public:
     float getMagmaMemQuotaRatio() const {
         return magmaMemQuotaRatio;
     }
-    size_t getMagmaMinValueSize() const {
-        return magmaMinValueSize;
-    }
-    int getMagmaNumFlushers() const {
-        return magmaNumFlushers;
-    }
-    int getMagmaNumCompactors() const {
-        return magmaNumCompactors;
-    }
     size_t getMagmaWalBufferSize() const {
         return magmaWalBufferSize;
+    }
+    size_t getMagmaWalNumBuffers() const {
+        return magmaWalNumBuffers;
+    }
+    size_t getMagmaNumFlushers() const {
+        return magmaNumFlushers;
+    }
+    size_t getMagmaNumCompactors() const {
+        return magmaNumCompactors;
+    }
+    bool getMagmaCommitPointEveryBatch() const {
+        return magmaCommitPointEveryBatch;
+    }
+    bool getMagmaEnableUpsert() const {
+        return magmaEnableUpsert;
+    }
+    float getMagmaExpiryFragThreshold() const {
+        return magmaExpiryFragThreshold;
+    }
+    float getMagmaTombstoneFragThreshold() const {
+        return magmaTombstoneFragThreshold;
     }
 
 private:
     // Bucket RAM Quota
     size_t bucketQuota;
 
+    // Magma uses a lazy update model to maintain the sequence index. It
+    // maintains a list of deleted seq #s that were deleted from the key Index.
+    size_t magmaDeleteMemtableWritecache;
+
+    // Magma compaction runs frequently and applies all methods of compaction
+    // (removal of duplicates, expiry, tombstone removal) but it does not always
+    // visit every sstable. In order to run compaction over less visited
+    // sstables, magma uses a variety of methods to determine which range of
+    // sstables need visited.
+    //
+    // This is the minimum fragmentation ratio for when magma will trigger
+    // compaction based on the number of duplicate keys removed.
+    float magmaDeleteFragRatio;
+
+    // Magma keeps track of expiry histograms per sstable to determine
+    // when an expiry compaction should be run. The fragmentation threshold
+    // applies across all the kvstore but only specific sstables will be
+    // visited.
+    float magmaExpiryFragThreshold;
+
+    // Magma keeps track of tombstone count to determine when a tombstone
+    // compaction should be run. The fragmentation threshold applies across
+    // all the kvstore but only specific sstables will be visited.
+    float magmaTombstoneFragThreshold;
+
     // Max commit points that can be rolled back to
     int magmaMaxCommitPoints;
 
-    // Magma maximum write cache max size
+    // Time interval (in minutes) between commit points
+    size_t magmaCommitPointInterval;
+
+    // Magma minimum value for key value separation.
+    // Values < magmaValueSeparationSize, value remains in key index.
+    size_t magmaValueSeparationSize;
+
+    // Magma uses a common skiplist to buffer all items at the shard level
+    // called the write cache. The write cache contains items from all the
+    // kvstores that are part of the shard and when it is flushed, each
+    // kvstore will receive a few items each.
+    //
+    // A too large write cache size can lead to high space amplification.
+    // A too small write cache size can lead to space amplfication issues.
+    size_t magmaMinWriteCache;
     size_t magmaMaxWriteCache;
 
     // Magma Memory Quota as a ratio of Bucket Quota
     float magmaMemQuotaRatio;
 
-    // Magma minimum value for key value separation
-    size_t magmaMinValueSize;
+    // Magma uses a write ahead log to quickly persist items during bg
+    // flushing. This buffer contains the items along with control records
+    // like begin/end transaction. It can be flushed many times for a batch
+    // of items.
+    size_t magmaWalBufferSize;
+
+    // When batches of items are large, magma WAL can take advantage of double
+    // buffering to speed up persistence.
+    size_t magmaWalNumBuffers;
 
     // Number of background threads to flush filled memtables to disk
-    int magmaNumFlushers;
+    size_t magmaNumFlushers;
 
     // Number of background compactor threads
-    int magmaNumCompactors;
+    size_t magmaNumCompactors;
 
-    // Magma WAL Buffer Size after which flush will be forced
-    size_t magmaWalBufferSize;
+    // Used in testing to make sure each batch is flushed to disk to simulate
+    // how couchstore flushes each batch to disk.
+    bool magmaCommitPointEveryBatch;
+
+    // When true, the kv_engine will utilize Magma's upsert capabiltiy
+    // but accurate document counts for the data store or collections can
+    // not be maintained.
+    bool magmaEnableUpsert;
 };

@@ -1012,28 +1012,64 @@
                 }
             }
         },
-        "magma_max_commit_points": {
-            "default": "3",
+        "magma_delete_memtable_writecache": {
+            "default": "8192",
             "dynamic": false,
-            "descr": "Maximum commit points to retain for rollback.",
+            "descr": "Magma uses a lazy update model to maintain the sequence index. It maintains a list of deleted seq #s that were deleted from the key Index.",
+            "type": "size_t"
+        },
+        "magma_delete_frag_ratio": {
+            "default": "0.5",
+            "dynamic": false,
+            "descr": "Magma compaction always removes duplicate keys but not all sstables are visited during compaction.. This is the minimum fragmentation ratio threshold for when a compaction will be triggerred.",
+            "type": "float"
+        },
+        "magma_max_commit_points": {
+            "default": "5",
+            "dynamic": false,
+            "descr": "Maximum # of commit points retained for rollback.",
+            "type": "size_t"
+        },
+        "magma_commit_point_interval": {
+            "default": "2",
+            "dynamic": false,
+            "descr": "frequency of commit point interval; in minutes.",
+            "type": "size_t"
+        },
+        "magma_value_separation_size": {
+            "default": "32",
+            "dynamic": false,
+            "descr": "Values smaller than this will not be separated from their keys.",
+            "type": "size_t"
+        },
+        "magma_min_write_cache": {
+            "default": "8388608",
+            "dynamic": false,
+            "descr": "Magma uses a common skiplist to buffer all items at the shard level called the write cache. The write cache contains items from all the kvstores that are part of the shard and when it is flushed, each kvstore will receive a few items each. A too small write cache can lead to very small sstables and high write amplification. A lower value can be used if the number of kvstores per shard is smaller.",
             "type": "size_t"
         },
         "magma_max_write_cache": {
-            "default": "67108864",
+            "default": "134217728",
             "dynamic": false,
-            "descr": "Max memory used for write buffering.",
+            "descr": "Magma uses a common skiplist to buffer all items at the shard level called the write cache. The write cache contains items from all the kvstores that are part of the shard and when it is flushed, each kvstore will receive a few items each. A too large write cache can lead to high space amplification.",
             "type": "size_t"
         },
         "magma_mem_quota_ratio": {
             "default": "0.1",
-            "descr": "Magma total (i.e., all Shards) memory ratio of the Bucket Quota).",
+            "descr": "Magma total memory ratio of the Bucket Quota across all shards.",
             "dynamic": true,
             "type": "float"
         },
-        "magma_min_value_size": {
-            "default": "32",
+        "magma_wal_buffer_size": {
+            "default": "2097152",
             "dynamic": false,
-            "descr": "Values smaller than this will not be separated from their keys",
+            "descr": "The WAL buffer is used to stage items to the write ahead log along with control information like begin & end transaction. The WAL can support multiple buffers allowing for improved write performance when transaction batches are > magma_wal_buffer_size. This value should be increased if the size of item batches are > 2MB, whether its because the item sizes are > 2MB or the number of items in a batch > 2MB.",
+            "type": "size_t"
+        },
+        "magma_wal_num_buffers": {
+            "default": "2",
+            "dynamic": false,
+            "descr": "When batches of items are large in size, magma WAL can take advantage of double buffering to speed up persistence by flushing intermediate batches to disk. Atomicity is maintained through the use of begin/end transaction control records.",
             "type": "size_t"
         },
         "magma_num_flushers": {
@@ -1045,14 +1081,32 @@
         "magma_num_compactors": {
             "default": "4",
             "dynamic": false,
-            "descr": "Number of background compactor threads.",
+            "descr": "Number of background compactor threads used by magma.",
             "type": "size_t"
         },
-        "magma_wal_buffer_size": {
-            "default": "2097152",
+        "magma_commit_point_every_batch": {
+            "default": "false",
             "dynamic": false,
-            "descr": "Max memory used for the write ahead log.",
-            "type": "size_t"
+            "descr": "Couchstore generates a potential commit point at the end of every batch of items. During normal operation, Magma commit points are take at every magma_commit_point_interval. Many of the tests require more frequent commit points so this configuration parameter makes sure every batch generates a commit point. Should be used for testing only!",
+            "type": "bool"
+        },
+        "magma_enable_upsert": {
+            "default": "false",
+            "dynamic": false,
+            "descr": "When true, the kv_engine will utilize Magma's upsert capabiltiy but accurate document counts for the data store or collections can not be maintained.",
+            "type": "bool"
+        },
+        "magma_expiry_frag_threshold": {
+            "default": "0.25",
+            "dynamic": false,
+            "descr": "All compactions perform expiry but not all sstables are visited by compaction. Magma maintains an expiry histogram across the kvstore to help determine which range of sstables need to have compaction run on them because there are a significant number of expired items. The frag threshold is the number of expired keys vs keys in the data store.",
+            "type": "float"
+        },
+        "magma_tombstone_frag_threshold": {
+            "default": "0.25",
+            "dynamic": false,
+            "descr": "All compactions perform tombstone removal but not all sstables are visited by compaction. Magma tracks tombstone counts and will perform compaction on the range of sstables which have a significant number of tombstones. The frag threshold is the number of tombstones vs keys in the data store.",
+            "type": "float"
         },
         "retain_erroneous_tombstones": {
             "default": "true",

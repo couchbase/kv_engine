@@ -30,6 +30,11 @@ namespace magmakv {
 // MetaData is used to serialize and de-serialize metadata respectively when
 // writing a Document mutation request to Magma and when reading a Document
 // from Magma.
+
+// The `#pragma pack(1)` directive and the order of members are to keep
+// the size of MetaData as small as possible and uniform across different
+// platforms.
+#pragma pack(1)
 class MetaData {
 public:
     MetaData()
@@ -111,10 +116,6 @@ public:
         return ss.str();
     }
 
-// The `#pragma pack(1)` directive and the order of members are to keep
-// the size of MetaData as small as possible and uniform across different
-// platforms.
-#pragma pack(1)
     int64_t bySeqno;
     uint64_t cas;
     uint32_t exptime;
@@ -128,8 +129,10 @@ public:
     uint8_t datatype;
     uint8_t queue_op;
     uint8_t durabilityLevel;
-#pragma pack()
 };
+#pragma pack()
+static_assert(sizeof(MetaData) == 42,
+              "magmakv::MetaData is not the expected size.");
 } // namespace magmakv
 
 /**
@@ -237,42 +240,36 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
       pendingReqs(std::make_unique<PendingRequestQueue>()),
       in_transaction(false),
       magmaPath(configuration.getDBName() + "/magma."),
-      scanCounter(0),
-      logger(configuration.getLogger()) {
-    {
-        // TODO: storage-team 2018-10-10 Must support dynamic
-        // reconfiguration of memtables Quota when bucket RAM
-        // is modified.
-        const auto memtablesQuota = configuration.getBucketQuota() /
-                                    configuration.getMaxShards() *
-                                    configuration.getMagmaMemQuotaRatio();
-        const int commitPoints = configuration.getMagmaMaxCommitPoints();
-        const size_t writeCache = configuration.getMagmaMaxWriteCache();
-        const size_t minValueSize = configuration.getMagmaMinValueSize();
-        const int numFlushers = configuration.getMagmaNumFlushers();
-        const int numCompactors = configuration.getMagmaNumCompactors();
-        const size_t walBufferSize = configuration.getMagmaWalBufferSize();
+      scanCounter(0) {
+    const size_t memtablesQuota = configuration.getBucketQuota() /
+                                  configuration.getMaxShards() *
+                                  configuration.getMagmaMemQuotaRatio();
 
-        (void)memtablesQuota;
-        (void)commitPoints;
-        (void)writeCache;
-        (void)minValueSize;
-        (void)numFlushers;
-        (void)numCompactors;
-        (void)walBufferSize;
-    }
-    cachedVBStates.resize(configuration.getMaxVBuckets());
+    // The writeCacheSize is based on the bucketQuota but also must be
+    // between minWriteCacheSize(8MB) and maxWriteCacheSize(128MB).
+    // Too small of a writeCache, high write amplification.
+    // Too large of a writeCache, high space amplification.
+    size_t writeCacheSize =
+            std::min(memtablesQuota, configuration.getMagmaMaxWriteCache());
+    writeCacheSize =
+            std::max(writeCacheSize, configuration.getMagmaMinWriteCache());
 
-    createDataDir(configuration.getDBName());
+    // Create a logger that is prefixed with magma so that all code from
+    // wrapper through magma will have the magma prefix
+    std::string loggerName =
+            "magma_" + std::to_string(configuration.getShardId());
+    logger = BucketLogger::createBucketLogger(loggerName, loggerName);
 
-    // Read persisted VBs state
-    auto vbids = discoverVBuckets();
-    for (auto vbid : vbids) {
-        KVMagma db(vbid, magmaPath);
-        // TODO: may need to read stashed magma state files for caching.
-        // Update stats
-        ++st.numLoadedVb;
-    }
+    logger->info(
+            "Magma Constructor "
+            "Path:{} "
+            "BucketQuota:{}MB #Shards:{} MemQuotaRatio:{} writeCacheSize:"
+            "{}MB",
+            magmaPath,
+            configuration.getBucketQuota() / 1024 / 1024,
+            configuration.getMaxShards(),
+            configuration.getMagmaMemQuotaRatio(),
+            writeCacheSize);
 }
 
 MagmaKVStore::~MagmaKVStore() {
@@ -331,7 +328,7 @@ bool MagmaKVStore::commit(Collections::VB::Flush& collectionsFlush) {
     // Flush all documents to disk
     auto status = saveDocs(vbid, collectionsFlush, commitBatch);
     if (status) {
-        logger.warn(
+        logger->warn(
                 "MagmaKVStore::commit: saveDocs error:{}, "
                 "vb:{}",
                 status,
@@ -417,7 +414,7 @@ GetValue MagmaKVStore::getWithHeader(void* dbHandle,
     KVMagma db(vb, magmaPath);
     int status = db.Get(key, &value, &valueLen);
     if (status < 0) {
-        logger.warn(
+        logger->warn(
                 "MagmaKVStore::getWithHeader: magma::DB::Lookup error:{}, "
                 "vb:{}",
                 status,
@@ -435,7 +432,7 @@ void MagmaKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
         int valueLen = 0;
         int status = db.Get(key, &value, &valueLen);
         if (status < 0) {
-            logger.warn(
+            logger->warn(
                     "MagmaKVStore::getMulti: magma::DB::Lookup error:{}, "
                     "vb:{}",
                     status,
@@ -607,7 +604,7 @@ int MagmaKVStore::saveDocs(Vbid vbid,
         for (const auto& request : commitBatch) {
             status = db.SetOrDel(&request);
             if (status < 0) {
-                logger.warn(
+                logger->warn(
                         "MagmaKVStore::saveDocs: magma::DB::Insert error:{}, "
                         "vb:{}",
                         status,
@@ -622,7 +619,7 @@ int MagmaKVStore::saveDocs(Vbid vbid,
     st.commitHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - begin));
     if (status) {
-        logger.warn(
+        logger->warn(
                 "MagmaKVStore::saveDocs: magma::DB::Write error:{}, "
                 "vb:%d",
                 status,
