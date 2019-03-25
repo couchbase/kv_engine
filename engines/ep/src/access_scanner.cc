@@ -375,11 +375,12 @@ void AccessScanner::createAndScheduleTask(const size_t shard) {
         auto pv = std::make_unique<ItemAccessVisitor>(
                 store, conf, stats, shard, available, *this, maxStoredItems);
 
+        const double sleepAfterPauseSecs = 0.0;
         auto task = std::make_shared<VBCBAdaptor>(&store,
                                                   TaskId::AccessScannerVisitor,
                                                   std::move(pv),
                                                   "Item Access Scanner",
-                                                  sleepTime,
+                                                  sleepAfterPauseSecs,
                                                   /*shutdown*/ true);
 
         // p99.9 is typically ~200ms
