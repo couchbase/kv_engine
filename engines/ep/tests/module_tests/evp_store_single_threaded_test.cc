@@ -3764,7 +3764,7 @@ TEST_F(SingleThreadedEPBucketTest, testValidTombstonePurgeOnRetainErroneousTombs
     EXPECT_EQ(2, store->getVBucket(vbid)->getPurgeSeqno());
 }
 
-TEST_F(SingleThreadedEPBucketTest, Durability_PersistPendings) {
+TEST_F(SingleThreadedEPBucketTest, Durability_PersistPrepare) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
@@ -3773,7 +3773,7 @@ TEST_F(SingleThreadedEPBucketTest, Durability_PersistPendings) {
     auto key = makeStoredDocKey("key");
     auto committed = makeCommittedItem(key, "valueA");
     ASSERT_EQ(ENGINE_SUCCESS, store->set(*committed, cookie));
-    const auto& vb = *getEPBucket().getVBucket(vbid);
+    auto& vb = *getEPBucket().getVBucket(vbid);
     ASSERT_EQ(1, vb.getNumItems());
     auto pending = makePendingItem(key, "valueB");
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
@@ -3800,6 +3800,14 @@ TEST_F(SingleThreadedEPBucketTest, Durability_PersistPendings) {
 
     // The item count must not increase when flushing Pending SyncWrites
     EXPECT_EQ(1, vb.getNumItems());
+
+    // Check the Prepare on disk
+    auto* store = vb.getShard()->getROUnderlying();
+    DiskDocKey prefixedKey(key, true /*prepare*/);
+    auto gv = store->get(prefixedKey, Vbid(0));
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_TRUE(gv.item->isPending());
+    EXPECT_FALSE(gv.item->isDeleted());
 }
 
 TEST_F(SingleThreadedEPBucketTest, Durability_PersistAbort) {

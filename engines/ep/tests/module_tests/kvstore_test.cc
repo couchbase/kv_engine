@@ -1758,31 +1758,6 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
     gc.callback(gv);
 }
 
-TEST_F(CouchstoreTest, Durability_PersistPrepare) {
-    StoredDocKey key = makeStoredDocKey("key");
-    Item item(key,
-              0 /*flags*/,
-              0 /*expiry*/,
-              "value",
-              5 /*value_size*/,
-              PROTOCOL_BINARY_RAW_BYTES,
-              0 /*cas*/);
-    using namespace cb::durability;
-    item.setPendingSyncWrite(Requirements());
-
-    WriteCallback wc;
-    kvstore->begin(std::make_unique<TransactionContext>());
-    kvstore->set(item, wc);
-    kvstore->commit(flush);
-
-    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
-
-    DiskDocKey prefixedKey(key, true /*pending*/);
-    gv = kvstore->get(prefixedKey, Vbid(0));
-    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
-}
-
 static int testCompactionUpgradeHook(DocInfo** info, const sized_buf* item) {
     // Examine the metadata of the doc, we expect that the first compaction
     // upgraded us to V1
@@ -2476,6 +2451,33 @@ TEST_P(KVStoreParamTest, GetRangeDeleted) {
     EXPECT_EQ("value_c"s, results.at(0).item->getValue()->to_s());
     EXPECT_EQ("e"s, results.at(1).item->getKey().c_str());
     EXPECT_EQ("value_e"s, results.at(1).item->getValue()->to_s());
+}
+
+TEST_P(KVStoreParamTest, Durability_PersistPrepare) {
+    StoredDocKey key = makeStoredDocKey("key");
+    Item item(key,
+              0 /*flags*/,
+              0 /*expiry*/,
+              "value",
+              5 /*value_size*/,
+              PROTOCOL_BINARY_RAW_BYTES,
+              0 /*cas*/);
+    using namespace cb::durability;
+    item.setPendingSyncWrite(Requirements());
+
+    WriteCallback wc;
+    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->set(item, wc);
+    kvstore->commit(flush);
+
+    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    DiskDocKey prefixedKey(key, true /*prepare*/);
+    gv = kvstore->get(prefixedKey, Vbid(0));
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_TRUE(gv.item->isPending());
+    EXPECT_FALSE(gv.item->isDeleted());
 }
 
 TEST_P(KVStoreParamTest, Durability_PersistAbort) {
