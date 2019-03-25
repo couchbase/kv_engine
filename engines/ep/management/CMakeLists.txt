@@ -20,18 +20,13 @@ INSTALL(FILES
         DESTINATION lib/python)
 
 if (NOT EP_BYPASS_TESTS)
-    IF (WIN32)
-        SET (ext .bat)
-    ELSE ()
-        SET (ext)
-    ENDIF ()
     # runs cbstats & cbepctl - will fail on basic syntax errors
     ADD_TEST(NAME cbstats_test
-             COMMAND "${KV_BINARY_DIR}/cbstats${ext}" --help)
+             COMMAND ${KV_BINARY_DIR}/cbstats --help)
     ADD_TEST(NAME cbepctl_test
-             COMMAND "${KV_BINARY_DIR}/cbepctl${ext}" --help)
+             COMMAND ${KV_BINARY_DIR}/cbepctl --help)
     ADD_TEST(NAME kv_trace_dump_test
-             COMMAND "${KV_BINARY_DIR}/kv_trace_dump${ext}" --help)
+             COMMAND ${KV_BINARY_DIR}/kv_trace_dump --help)
 endif (NOT EP_BYPASS_TESTS)
 
 INSTALL(PROGRAMS
