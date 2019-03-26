@@ -473,11 +473,16 @@ public:
      * This method is suitable where the visitor needs to perform a large and/or
      * variable amount of work for each vBucket, and hence it should be
      * performed asynchronously in a background task.
+     *
+     * After visting each vbucket, PausableVBucketVisitor::pauseVisitor() will
+     * be called to check if execution of the background task should be paused.
+     * If true, then will yield back to the Executor to allow any waiting
+     * higher-priority tasks to run.
+     *
      * @param visitor Object to visit each bucket with.
      * @param label Name to associate with the created task.
      * @param id TaskId to use for the background task. This also dictates which
      *           TaskQueue (Reader, Writer, AuxIO, NonIO) to use.
-     * @param sleeptime Duration (in s) the task should sleep for when paused.
      * @param maxExpectedDuration Maximum duration this task is expected to run
      *                            for. If the duration is exceeded will log a
      *                            warning.
@@ -486,7 +491,6 @@ public:
             std::unique_ptr<PausableVBucketVisitor> visitor,
             const char* lbl,
             TaskId id,
-            double sleepTime,
             std::chrono::microseconds maxExpectedDuration) = 0;
 
     /**

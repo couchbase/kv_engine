@@ -2054,13 +2054,11 @@ void KVBucket::visit(VBucketVisitor &visitor)
 size_t KVBucket::visitAsync(std::unique_ptr<PausableVBucketVisitor> visitor,
                             const char* lbl,
                             TaskId id,
-                            double sleepTime,
                             std::chrono::microseconds maxExpectedDuration) {
     auto task = std::make_shared<VBCBAdaptor>(this,
                                               id,
                                               std::move(visitor),
                                               lbl,
-                                              sleepTime,
                                               /*shutdown*/ false);
     task->setMaxExpectedDuration(maxExpectedDuration);
     return ExecutorPool::get()->schedule(task);
@@ -2096,13 +2094,11 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
                          TaskId id,
                          std::unique_ptr<PausableVBucketVisitor> v,
                          const char* l,
-                         double sleep,
                          bool shutdown)
     : GlobalTask(&s->getEPEngine(), id, 0 /*initialSleepTime*/, shutdown),
       store(s),
       visitor(std::move(v)),
       label(l),
-      sleepTime(sleep),
       maxDuration(std::chrono::microseconds::max()),
       currentvb(0) {
 }
@@ -2121,7 +2117,7 @@ bool VBCBAdaptor::run() {
         VBucketPtr vb = store->getVBucket(vbid);
         if (vb) {
             if (visitor->pauseVisitor()) {
-                snooze(sleepTime);
+                snooze(0);
                 return true;
             }
             visitor->visitBucket(vb);

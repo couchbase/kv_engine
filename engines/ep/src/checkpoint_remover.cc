@@ -131,7 +131,6 @@ bool ClosedUnrefCheckpointRemoverTask::run(void) {
         kvBucket->visitAsync(std::move(pv),
                              "Checkpoint Remover",
                              TaskId::ClosedUnrefCheckpointRemoverVisitorTask,
-                             /*sleepTime*/ 0,
                              maxExpectedDurationForVisitorTask);
     }
     snooze(sleepTime);

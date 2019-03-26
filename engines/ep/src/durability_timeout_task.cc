@@ -41,7 +41,6 @@ bool DurabilityTimeoutTask::run() {
     kvBucket.visitAsync(std::make_unique<DurabilityTimeoutVisitor>(),
                         "DurabilityTimeoutVisitor",
                         TaskId::DurabilityTimeoutVisitor,
-                        0 /*adaptorSleepTime*/,
                         maxExpectedDurationForVisitorTask);
 
     // Note: Default unit for std::duration is seconds, so the following gives

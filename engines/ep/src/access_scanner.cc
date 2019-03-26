@@ -375,17 +375,12 @@ void AccessScanner::createAndScheduleTask(const size_t shard) {
         auto pv = std::make_unique<ItemAccessVisitor>(
                 store, conf, stats, shard, available, *this, maxStoredItems);
 
-        const double sleepAfterPauseSecs = 0.0;
-        auto task = std::make_shared<VBCBAdaptor>(&store,
-                                                  TaskId::AccessScannerVisitor,
-                                                  std::move(pv),
-                                                  "Item Access Scanner",
-                                                  sleepAfterPauseSecs,
-                                                  /*shutdown*/ true);
-
         // p99.9 is typically ~200ms
-        task->setMaxExpectedDuration(std::chrono::milliseconds(500));
-        ExecutorPool::get()->schedule(task);
+        const auto maxExpectedDuration = 500ms;
+        store.visitAsync(std::move(pv),
+                         "Item Access Scanner",
+                         TaskId::AccessScannerVisitor,
+                         maxExpectedDuration);
     } catch (const std::exception& e) {
         EP_LOG_WARN(
                 "Error creating Item Access Scanner task: '{}'. Please verify "

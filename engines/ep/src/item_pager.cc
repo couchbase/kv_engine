@@ -176,7 +176,6 @@ bool ItemPager::run(void) {
         kvBucket->visitAsync(std::move(pv),
                              "Item pager",
                              TaskId::ItemPagerVisitor,
-                             /*sleepTime*/ 0,
                              maxExpectedDurationForVisitorTask);
     }
 
@@ -272,7 +271,6 @@ bool ExpiredItemPager::run(void) {
         kvBucket->visitAsync(std::move(pv),
                              "Expired item remover",
                              TaskId::ExpiredItemPagerVisitor,
-                             10,
                              maxExpectedDurationForVisitorTask);
     }
     snooze(sleepTime);

@@ -49,27 +49,34 @@ public:
                 TaskId id,
                 std::unique_ptr<PausableVBucketVisitor> v,
                 const char* l,
-                double sleep,
                 bool shutdown);
 
-    std::string getDescription();
+    std::string getDescription() override;
 
     /// Set the maximum expected duration for this task.
     void setMaxExpectedDuration(std::chrono::microseconds duration) {
         maxDuration = duration;
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         return maxDuration;
     }
 
-    bool run(void);
+    /**
+     * Execute the VBCBAdapter task using our visitor.
+     *
+     * Calls the visitVBucket() method of the visitor object for each vBucket.
+     * Before each visitVBucket() call, calls pauseVisitor() to check if
+     * visiting should be paused. If true, will sleep for 0s, yielding execution
+     * back to the executor - to allow any higher priority tasks to run.
+     * When run() is called again, will resume from the vBucket it paused at.
+     */
+    bool run() override;
 
 private:
     KVBucket* store;
     std::unique_ptr<PausableVBucketVisitor> visitor;
     const char                 *label;
-    double                      sleepTime;
     std::chrono::microseconds maxDuration;
 
     /**
@@ -329,7 +336,6 @@ public:
     size_t visitAsync(std::unique_ptr<PausableVBucketVisitor> visitor,
                       const char* lbl,
                       TaskId id,
-                      double sleepTime,
                       std::chrono::microseconds maxExpectedDuration) override;
 
     Position pauseResumeVisit(PauseResumeVBVisitor& visitor,

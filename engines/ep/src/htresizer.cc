@@ -59,7 +59,6 @@ bool HashtableResizerTask::run(void) {
     store.visitAsync(std::move(pv),
                      "Hashtable resizer",
                      TaskId::HashtableResizerVisitorTask,
-                     /*sleepTime*/ 0,
                      maxExpectedDurationForVisitorTask);
 
     snooze(engine->getConfiguration().getHtResizeInterval());
