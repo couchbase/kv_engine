@@ -576,6 +576,44 @@ TEST_P(DurabilityWarmupTest, CommittedAndPendingSyncWrite) {
     EXPECT_EQ(item->getCas(), prepared.storedValue->getCas());
 }
 
+// Negative test - check that a prepared SyncWrite which has been Aborted
+// does _not_ restore the old, prepared SyncWrite after warmup.
+TEST_P(DurabilityWarmupTest, AbortedSyncWritePrepareIsNotLoaded) {
+    // Commit an initial value 'A', then prepare and then abort a SyncWrite of
+    // "B".
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "A");
+    auto item = makePendingItem(key, "B");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+    flush_vbucket_to_disk(vbid, 2);
+
+    { // scoping vb - is invalid once resetEngineAndWarmup() is called.
+        auto vb = engine->getVBucket(vbid);
+        vb->abort(key, item->getBySeqno(), {}, vb->lockCollections(key));
+
+        flush_vbucket_to_disk(vbid, 1);
+    }
+    resetEngineAndWarmup();
+
+    // Should load one item into memory - committed value.
+    auto vb = engine->getVBucket(vbid);
+    // @TODO: RocksDB currently only has an estimated item count in
+    // full-eviction, so it fails this check. Skip if RocksDB && full_eviction.
+    if ((std::get<0>(GetParam()).find("Rocksdb") == std::string::npos) ||
+        std::get<0>(GetParam()) == "value_only") {
+        EXPECT_EQ(1, vb->getNumItems());
+    }
+    EXPECT_EQ(0, vb->ht.getNumPreparedSyncWrites());
+    auto gv = store->get(key, vbid, cookie, {});
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ("A", gv.item->getValue()->to_s());
+
+    // Check there's no pending item
+    auto handle = vb->lockCollections(item->getKey());
+    auto prepared = vb->fetchPreparedValue(handle);
+    EXPECT_FALSE(prepared.storedValue);
+}
+
 INSTANTIATE_TEST_CASE_P(
         FullOrValue,
         DurabilityWarmupTest,
