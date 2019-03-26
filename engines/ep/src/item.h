@@ -534,9 +534,11 @@ using UniqueItemPtr = std::unique_ptr<Item>;
 // size.
 // Note the assert is written as we see std::string (member of the StoredDocKey)
 // differing. This totals 96 or 104 (string being 24 or 32).
+#ifndef CB_MEMORY_INEFFICIENT_TAGGED_PTR
 static_assert(sizeof(Item) == sizeof(std::string) + 72,
               "sizeof Item may have an effect on run-time memory consumption, "
               "please avoid increasing it");
+#endif
 
 /**
  * Order QueuedItem objects by their keys and by sequence numbers.
