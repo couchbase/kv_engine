@@ -103,7 +103,8 @@ protected:
         // the given age.
         DefragmentVisitor visitor(age_threshold,
                                   DefragmenterTask::getMaxValueSize(
-                                          get_mock_server_api()->alloc_hooks));
+                                          get_mock_server_api()->alloc_hooks),
+                                  age_threshold);
         // Need to run 10 passes; so we allow the deframenter to defrag at
         // least once (given the age_threshold may be up to 10).
         const size_t passes = 10;

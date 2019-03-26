@@ -2923,6 +2923,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_defragmenter_num_moved", epstats.defragNumMoved,
                     add_stat, cookie);
+    add_casted_stat("ep_defragmenter_sv_num_moved",
+                    epstats.defragStoredValueNumMoved,
+                    add_stat,
+                    cookie);
 
     add_casted_stat("ep_item_compressor_num_visited",
                     epstats.compressorNumVisited,

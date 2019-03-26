@@ -1054,3 +1054,39 @@ TEST_F(HashTableTest, ItemFreqDecayerVisitorTest) {
            EXPECT_EQ(expectVal, v->getFreqCounterValue());
        }
 }
+
+// Test the reallocateStoredValue method.
+// Check it can reallocate and also ignores bogus input
+TEST_F(HashTableTest, reallocateStoredValue) {
+    // 3 hash-tables, 2 will be filled, the other left empty
+    HashTable ht1(global_stats, makeFactory(true), 1, 1);
+    HashTable ht2(global_stats, makeFactory(true), 2, 2);
+    HashTable ht3(global_stats, makeFactory(true), 2, 2);
+
+    // Fill 1 and 2
+    auto keys = generateKeys(10);
+    storeMany(ht1, keys);
+    storeMany(ht2, keys);
+
+    // Test we can reallocate every key
+    for (int index = 0; index < 10; index++) {
+        StoredValue* v = ht1.find(makeStoredDocKey(std::to_string(index)),
+                                  TrackReference::No,
+                                  WantsDeleted::No);
+        ASSERT_NE(nullptr, v);
+        EXPECT_TRUE(ht1.reallocateStoredValue(std::forward<StoredValue>(*v)));
+        EXPECT_EQ(10, ht1.getNumItems());
+        EXPECT_NE(v,
+                  ht1.find(makeStoredDocKey(std::to_string(index)),
+                           TrackReference::No,
+                           WantsDeleted::No));
+    }
+    // Next request ht2 reallocate an sv stored in ht1, should return false
+    StoredValue* v2 = ht1.find(makeStoredDocKey(std::to_string(3)),
+                               TrackReference::No,
+                               WantsDeleted::No);
+    EXPECT_FALSE(ht2.reallocateStoredValue(std::forward<StoredValue>(*v2)));
+
+    // Check the empty hash-table returns false as well
+    EXPECT_FALSE(ht3.reallocateStoredValue(std::forward<StoredValue>(*v2)));
+}

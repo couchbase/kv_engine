@@ -268,8 +268,8 @@ protected:
         if (key.size() > std::numeric_limits<uint8_t>::max()) {
             throw std::length_error(
                     "SerialisedDocKey(const DocKey key) " +
-                    std::to_string(length) +
-                    "exceeds std::numeric_limits<uint8_t>::max()");
+                    std::to_string(key.size()) +
+                    " exceeds std::numeric_limits<uint8_t>::max()");
         }
         length = gsl::narrow_cast<uint8_t>(key.size());
         // Copy the data into bytes, which should be allocated into a larger

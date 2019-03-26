@@ -31,7 +31,9 @@
  */
 class DefragmentVisitor : public VBucketAwareHTVisitor {
 public:
-    DefragmentVisitor(uint8_t age_threshold_, size_t max_size_class);
+    DefragmentVisitor(uint8_t age_threshold_,
+                      size_t max_size_class,
+                      boost::optional<uint8_t> sv_age_threshold);
 
     ~DefragmentVisitor();
 
@@ -51,9 +53,15 @@ public:
     // Returns the number of documents that have been visited.
     size_t getVisitedCount() const;
 
+    // Returns the number of StoredValues that have been defragmented.
+    size_t getStoredValueDefragCount() const;
+
     void setCurrentVBucket(VBucket& vb) override;
 
 private:
+    /// Request to reallocate the StoredValue
+    void defragmentStoredValue(StoredValue& v) const;
+
     /* Configuration parameters */
 
     // Size of the largest size class from the allocator.
@@ -72,7 +80,12 @@ private:
     size_t defrag_count;
     // How many documents have been visited.
     size_t visited_count;
+    // How many stored-values have been defrag'd
+    mutable size_t sv_defrag_count{0};
 
     // The current vbucket that is being processed
     VBucket* currentVb;
+
+    // If defined, the age at which StoredValue's are de-fragmented
+    boost::optional<uint8_t> sv_age_threshold;
 };
