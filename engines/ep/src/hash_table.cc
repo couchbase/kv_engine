@@ -381,7 +381,7 @@ HashTable::UpdateResult HashTable::unlocked_updateStoredValue(
         // Logically /can/ update a non-Pending StoredValue with a Pending Item;
         // however internally this is implemented as a separate (new)
         // StoredValue object for the Pending item.
-        if (itm.getCommitted() == CommittedState::Pending) {
+        if (itm.isPending()) {
             auto* sv = HashTable::unlocked_addNewStoredValue(hbl, itm);
             return {MutationStatus::WasClean, sv};
         }

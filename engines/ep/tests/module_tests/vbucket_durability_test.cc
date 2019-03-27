@@ -123,7 +123,6 @@ void VBucketDurabilityTest::testSyncWrites(
     EXPECT_EQ(numStored, ckptList.front()->getNumItems());
     for (const auto& qi : *ckptList.front()) {
         if (!qi->isCheckPointMetaItem()) {
-            EXPECT_EQ(CommittedState::Pending, qi->getCommitted());
             EXPECT_EQ(queue_op::pending_sync_write, qi->getOperation());
         }
     }
@@ -151,7 +150,6 @@ void VBucketDurabilityTest::testSyncWrites(
     EXPECT_EQ(numStored, ckptList.front()->getNumItems());
     for (const auto& qi : *ckptList.front()) {
         if (!qi->isCheckPointMetaItem()) {
-            EXPECT_EQ(CommittedState::CommittedViaPrepare, qi->getCommitted());
             EXPECT_EQ(queue_op::commit_sync_write, qi->getOperation());
         }
     }
@@ -349,7 +347,6 @@ TEST_P(VBucketDurabilityTest, MultipleReplicas) {
         ASSERT_EQ(1, ckptList.front()->getNumItems());
         for (const auto& qi : *ckptList.front()) {
             if (!qi->isCheckPointMetaItem()) {
-                EXPECT_EQ(CommittedState::Pending, qi->getCommitted());
                 EXPECT_EQ(queue_op::pending_sync_write, qi->getOperation());
             }
         }
@@ -364,8 +361,6 @@ TEST_P(VBucketDurabilityTest, MultipleReplicas) {
         EXPECT_EQ(1, ckptList.front()->getNumItems());
         for (const auto& qi : *ckptList.front()) {
             if (!qi->isCheckPointMetaItem()) {
-                EXPECT_EQ(CommittedState::CommittedViaPrepare,
-                          qi->getCommitted());
                 EXPECT_EQ(queue_op::commit_sync_write, qi->getOperation());
             }
         }
@@ -425,7 +420,6 @@ TEST_P(VBucketDurabilityTest, PendingSkippedAtEjectionAndCommit) {
         // 1 non-metaitem is pending and contains the expected value
         it++;
         ASSERT_EQ(1, ckpt.getNumItems());
-        EXPECT_EQ(CommittedState::Pending, (*it)->getCommitted());
         EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
         EXPECT_EQ("value", (*it)->getValue()->to_s());
 
@@ -481,7 +475,6 @@ TEST_P(VBucketDurabilityTest, PendingSkippedAtEjectionAndCommit) {
     // 1 non-metaitem is committed and contains the expected value
     it++;
     ASSERT_EQ(1, ckpt.getNumItems());
-    EXPECT_EQ(CommittedState::CommittedViaPrepare, (*it)->getCommitted());
     EXPECT_EQ(queue_op::commit_sync_write, (*it)->getOperation());
     EXPECT_EQ("value", (*it)->getValue()->to_s());
 }
@@ -556,7 +549,6 @@ TEST_P(VBucketDurabilityTest, AbortSyncWrite_Active) {
     // 1 non-metaitem is pending and contains the expected value
     it++;
     ASSERT_EQ(1, ckpt->getNumItems());
-    EXPECT_EQ(CommittedState::Pending, (*it)->getCommitted());
     EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
     EXPECT_EQ("value", (*it)->getValue()->to_s());
 

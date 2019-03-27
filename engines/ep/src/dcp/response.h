@@ -468,27 +468,29 @@ public:
 
     /// Returns the Event type which should be used for the given item.
     static Event eventFromItem(const Item& item) {
-        switch (item.getCommitted()) {
-        case CommittedState::CommittedViaPrepare:
+        switch (item.getOperation()) {
+        case queue_op::commit_sync_write:
             // Even though Item is CommittedViaPrepare we still use the same
             // Events as CommittedViaMutation.
             // This method is only used for Mutation-like Events -
             // An actual Commit event is handled by the CommitSyncWrite
             // subclass.
             // FALLTHROUGH
-        case CommittedState::CommittedViaMutation:
+        case queue_op::mutation:
+        case queue_op::system_event:
             if (item.isDeleted()) {
                 return (item.deletionSource() == DeleteSource::TTL)
                                ? Event::Expiration
                                : Event::Deletion;
             }
             return Event::Mutation;
-
-        case CommittedState::Pending:
+        case queue_op::pending_sync_write:
             return Event::Prepare;
+        default:
+            throw std::logic_error(
+                    "MutationResponse::eventFromItem: Invalid operation " +
+                    ::to_string(item.getOperation()));
         }
-        throw std::logic_error(
-                "MutationResponse::eventFromItem: Invalid committedState");
     }
 
     static const uint32_t mutationBaseMsgBytes = 55;

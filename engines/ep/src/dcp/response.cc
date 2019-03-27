@@ -76,17 +76,18 @@ uint32_t MutationResponse::getDeleteLength() const {
 }
 
 uint32_t MutationResponse::getHeaderSize() const {
-    switch (item_->getCommitted()) {
-    case CommittedState::CommittedViaMutation:
-    case CommittedState::CommittedViaPrepare:
+    switch (item_->getOperation()) {
+    case queue_op::mutation:
+    case queue_op::system_event:
+    case queue_op::commit_sync_write:
         return item_->isDeleted() ? getDeleteLength() : mutationBaseMsgBytes;
-
-    case CommittedState::Pending:
+    case queue_op::pending_sync_write:
         return prepareBaseMsgBytes;
+    default:
+        throw std::logic_error(
+                "MutationResponse::getHeaderSize: Invalid operation " +
+                ::to_string(item_->getOperation()));
     }
-    throw std::logic_error(
-            "MutationResponse: Unhandled CommittedState in switch (" +
-            std::to_string(int(item_->getCommitted())) + ")");
 }
 
 uint32_t MutationResponse::getMessageSize() const {

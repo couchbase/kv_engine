@@ -1176,7 +1176,7 @@ ENGINE_ERROR_CODE VBucket::set(
 
     PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
     VBQueueItemCtx queueItmCtx;
-    if (itm.getCommitted() == CommittedState::Pending) {
+    if (itm.isPending()) {
         queueItmCtx.durability =
                 DurabilityItemCtx{itm.getDurabilityReqs(), cookie};
     }
@@ -1195,9 +1195,8 @@ ENGINE_ERROR_CODE VBucket::set(
 
     // For pending SyncWrites we initially return EWOULDBLOCK; will notify
     // client when request is committed / aborted later.
-    ENGINE_ERROR_CODE ret = (itm.getCommitted() == CommittedState::Pending)
-                                    ? ENGINE_EWOULDBLOCK
-                                    : ENGINE_SUCCESS;
+    ENGINE_ERROR_CODE ret =
+            itm.isPending() ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
     switch (status) {
     case MutationStatus::NoMem:
         ret = ENGINE_ENOMEM;
@@ -1276,7 +1275,7 @@ ENGINE_ERROR_CODE VBucket::replace(
             PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
             VBQueueItemCtx queueItmCtx;
             queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
-            if (itm.getCommitted() == CommittedState::Pending) {
+            if (itm.isPending()) {
                 queueItmCtx.durability =
                         DurabilityItemCtx{itm.getDurabilityReqs(), cookie};
             }
@@ -1292,9 +1291,8 @@ ENGINE_ERROR_CODE VBucket::replace(
 
         // For pending SyncWrites we initially return EWOULDBLOCK; will notify
         // client when request is committed / aborted later.
-        ENGINE_ERROR_CODE ret = (itm.getCommitted() == CommittedState::Pending)
-                                        ? ENGINE_EWOULDBLOCK
-                                        : ENGINE_SUCCESS;
+        ENGINE_ERROR_CODE ret =
+                itm.isPending() ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
         switch (mtype) {
         case MutationStatus::NoMem:
             ret = ENGINE_ENOMEM;
@@ -1867,7 +1865,7 @@ void VBucket::deleteExpiredItem(const Item& it,
                                 time_t startTime,
                                 ExpireBy source) {
     // Pending items should not be subject to expiry
-    if (it.getCommitted() == CommittedState::Pending) {
+    if (it.isPending()) {
         std::stringstream ss;
         ss << it;
         throw std::invalid_argument(
@@ -1969,7 +1967,7 @@ ENGINE_ERROR_CODE VBucket::add(
     PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
     VBQueueItemCtx queueItmCtx;
     queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
-    if (itm.getCommitted() == CommittedState::Pending) {
+    if (itm.isPending()) {
         queueItmCtx.durability =
                 DurabilityItemCtx{itm.getDurabilityReqs(), cookie};
     }
@@ -2000,8 +1998,7 @@ ENGINE_ERROR_CODE VBucket::add(
 
     // For pending SyncWrites we initially return EWOULDBLOCK; will notify
     // client when request is committed / aborted later.
-    return (itm.getCommitted() == CommittedState::Pending) ? ENGINE_EWOULDBLOCK
-                                                           : ENGINE_SUCCESS;
+    return itm.isPending() ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
 }
 
 std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(

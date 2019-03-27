@@ -447,6 +447,11 @@ public:
                                 CheckpointManager* checkpointManager);
 
     /**
+     * @return true if the item can be de-duplicated, false otherwise
+     */
+    bool canDedup(const queued_item& existing, const queued_item& in) const;
+
+    /**
      * Returns the seqno of a non-expelled (and non-dummy) item that has the
      * lowest seqno.
      */

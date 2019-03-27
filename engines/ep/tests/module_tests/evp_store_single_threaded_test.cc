@@ -3922,7 +3922,6 @@ TEST_F(SingleThreadedEPBucketTest, Durability_ActiveLocalNotifyPersistedSeqno) {
         EXPECT_EQ(3, ckpt.getNumItems());
         for (const auto& qi : ckpt) {
             if (!qi->isCheckPointMetaItem()) {
-                EXPECT_EQ(CommittedState::Pending, qi->getCommitted());
                 EXPECT_EQ(queue_op::pending_sync_write, qi->getOperation());
             }
         }
@@ -3969,7 +3968,6 @@ TEST_F(SingleThreadedEPBucketTest, Durability_ActiveLocalNotifyPersistedSeqno) {
     EXPECT_EQ(3, ckpt.getNumItems());
     for (const auto& qi : ckpt) {
         if (!qi->isCheckPointMetaItem()) {
-            EXPECT_EQ(CommittedState::CommittedViaPrepare, qi->getCommitted());
             EXPECT_EQ(queue_op::commit_sync_write, qi->getOperation());
         }
     }

@@ -2424,8 +2424,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
     // Check if this is a in-progress durable store which has now completed -
     // (see 'case EWOULDBLOCK' at the end of this function where we record
     // the fact we must block the client until the SycnWrite is durable).
-    if (item.getCommitted() == CommittedState::Pending &&
-        getEngineSpecific(cookie) != nullptr) {
+    if (item.isPending() && getEngineSpecific(cookie) != nullptr) {
         // Non-null means this is the second call to this function after
         // the SyncWrite has completed.
         // Clear the engineSpecific, and return SUCCESS.
@@ -2488,7 +2487,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         }
         break;
     case ENGINE_EWOULDBLOCK:
-        if (item.getCommitted() == CommittedState::Pending) {
+        if (item.isPending()) {
             // Record the fact that we are blocking to wait for SyncWrite
             // completion; so the next call to this function should return
             // the result of the SyncWrite (see call to getEngineSpecific at

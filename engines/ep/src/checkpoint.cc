@@ -141,11 +141,7 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
         if (it != keyIndex.end() &&
             (it->second.mutation_id > highestExpelledSeqno)) {
             const auto currPos = it->second.position;
-            if ((*currPos)->getCommitted() !=
-                        CommittedState::CommittedViaMutation ||
-                qi->getCommitted() != CommittedState::CommittedViaMutation) {
-                // Cannot de-duplicate SyncWrite items (either Pending
-                // or Committed SyncWrites).
+            if (!(canDedup(*currPos, qi))) {
                 return QueueDirtyStatus::FailureDuplicateItem;
             }
 
@@ -272,6 +268,16 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
     }
 
     return rv;
+}
+
+bool Checkpoint::canDedup(const queued_item& existing,
+                          const queued_item& in) const {
+    auto isDurabilityOp = [](const queued_item& qi_) -> bool {
+        const auto op = qi_->getOperation();
+        return op == queue_op::pending_sync_write ||
+               op == queue_op::commit_sync_write;
+    };
+    return !(isDurabilityOp(existing) || isDurabilityOp(in));
 }
 
 void Checkpoint::addItemToCheckpoint(const queued_item& qi) {
