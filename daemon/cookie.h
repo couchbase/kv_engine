@@ -215,17 +215,6 @@ public:
     }
 
     /**
-     * All of the (current) packet validators expects a void* and I don't
-     * want to refactor all of them at this time.. Create a convenience
-     * methods for now
-     *
-     * @return the current packet as a void pointer..
-     */
-    void* getPacketAsVoidPtr() const {
-        return const_cast<void*>(static_cast<const void*>(getPacket().data()));
-    }
-
-    /**
      * Preserve the input packet by allocating memory and copy the
      * current packet.
      */

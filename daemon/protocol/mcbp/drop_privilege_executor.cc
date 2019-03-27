@@ -21,14 +21,11 @@
 
 void drop_privilege_executor(Cookie& cookie) {
     cookie.logCommand();
-    auto* request = reinterpret_cast<cb::mcbp::DropPrivilegeRequest*>(
-            cookie.getPacketAsVoidPtr());
+    const auto& request = cookie.getRequest();
 
     cb::engine_errc status;
     try {
-        const auto key = request->getKey();
-        std::string priv{reinterpret_cast<const char*>(key.data()), key.size()};
-        auto privilege = cb::rbac::to_privilege(priv);
+        auto privilege = cb::rbac::to_privilege(request.getPrintableKey());
         status = cookie.getConnection().dropPrivilege(privilege);
     } catch (const std::invalid_argument&) {
         // Invalid name of privilege
