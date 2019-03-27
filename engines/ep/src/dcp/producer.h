@@ -472,7 +472,7 @@ protected:
     // stash response for retry if E2BIG was hit
     std::unique_ptr<DcpResponse> rejectResp;
 
-    bool notifyOnly;
+    const bool notifyOnly;
 
     cb::RelaxedAtomic<bool> enableExtMetaData;
     cb::RelaxedAtomic<bool> forceValueCompression;
@@ -523,10 +523,10 @@ protected:
 
     // Indicates whether the active streams belonging to the DcpProducer should
     // send the value in the response.
-    IncludeValue includeValue;
+    const IncludeValue includeValue;
     // Indicates whether the active streams belonging to the DcpProducer should
     // send the xattrs, (if any exist), in the response.
-    IncludeXattrs includeXattrs;
+    const IncludeXattrs includeXattrs;
 
     /**
      * Indicates whether the active streams belonging to the DcpProducer should
