@@ -29,6 +29,12 @@
 const uint8_t flexCodeMask = 0x7F;
 const uint8_t deleteSourceMask = 0x80;
 
+// These classes are written to disk in couchstore, so we want to (a) have
+// a stable binary layout and (b) minimise the space they take.
+// Therefore turn on packing of structures. The resulting sizes are verified
+// with static_assert()s below to ensure they are always fixed at the expected
+// size.
+#pragma pack(1)
 class MetaData {
 protected:
     /*
@@ -103,7 +109,6 @@ protected:
         /*
          * V0 knows about CAS, expiry time and flags.
          */
-#pragma pack(1)
         uint64_t cas;
 
         /**
@@ -113,7 +118,6 @@ protected:
          */
         uint32_t exptime;
         uint32_t flags;
-#pragma pack()
     };
 
     static_assert(sizeof(MetaDataV0) == 16,
@@ -285,7 +289,6 @@ protected:
         }
 
     private:
-#pragma pack(1)
         // Assigning a whole byte to this (see MetaDataV3 class comment)
         // although only currently need 2 bits.
         Operation operation;
@@ -294,7 +297,6 @@ protected:
         // Assigning a whole bytes for this field although only current need 2
         // bits.
         cb::durability::Level level;
-#pragma pack()
     };
 
     static_assert(sizeof(MetaDataV3) == 2,
@@ -481,16 +483,15 @@ public:
 protected:
     class AllMetaData {
     public:
-#pragma pack(1)
         MetaDataV0 v0;
         MetaDataV1 v1;
         // V2 is essentially a dead version, we no longer write it. Therefore
         // V3 (and upwards) do not include it, and instead just extend V1.
         MetaDataV3 v3;
-#pragma pack()
     } allMeta;
     Version initVersion;
 };
+#pragma pack()
 
 /*
  * Create the appropriate MetaData container.

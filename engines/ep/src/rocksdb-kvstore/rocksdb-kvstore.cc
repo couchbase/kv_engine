@@ -40,9 +40,17 @@
 #include "vbucket.h"
 
 namespace rockskv {
-// MetaData is used to serialize and de-serialize metadata respectively when
-// writing a Document mutation request to RocksDB and when reading a Document
-// from RocksDB.
+
+// The `#pragma pack(1)` directive are to keep the size of MetaData as small as
+// possible and uniform across different platforms, as MetaData is written
+// directly to disk.
+#pragma pack(1)
+
+/**
+ * MetaData is used to serialize and de-serialize metadata respectively when
+ * writing a Document mutation request to RocksDB and when reading a Document
+ * from RocksDB.
+ */
 class MetaData {
 public:
     // The Operation this represents - maps to queue_op types:
@@ -116,10 +124,6 @@ public:
         return static_cast<cb::durability::Level>(durabilityLevel);
     }
 
-// The `#pragma pack(1)` directive and the order of members are to keep
-// the size of MetaData as small as possible and uniform across different
-// platforms.
-#pragma pack(1)
     uint8_t deleted : 1;
     // Note: to utilise deleteSource properly, casting to the type DeleteSource
     // is strongly recommended. It is stored as a uint8_t for better packing.
@@ -139,9 +143,8 @@ public:
     uint32_t valueSize;
     time_t exptime;
     uint64_t cas;
-    uint64_t revSeqno;
-    int64_t bySeqno;
-#pragma pack()
+    cb::uint48_t revSeqno;
+    cb::uint48_t bySeqno;
 
 private:
     static Operation toOperation(queue_op op) {
@@ -161,6 +164,11 @@ private:
         }
     }
 };
+#pragma pack()
+
+static_assert(sizeof(MetaData) == 39,
+              "rocksdb::MetaData is not the expected size.");
+
 } // namespace rockskv
 
 /**
@@ -1414,7 +1422,11 @@ rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
                                   request.getDocBodySlice()};
     rocksdb::SliceParts valueSliceParts(docSlices, 2);
 
-    rocksdb::Slice bySeqnoSlice = getSeqnoSlice(&request.getDocMeta().bySeqno);
+    // bySeqno index uses a int64_t (partly because we use negative values
+    // for magic keys (e.g. vbState). Request.bySeqno is uint48_t, so need
+    // to copy into a temporary of correct size.
+    const int64_t bySeqno = request.getDocMeta().bySeqno;
+    rocksdb::Slice bySeqnoSlice = getSeqnoSlice(&bySeqno);
     // We use the `saveDocsHisto` to track the time spent on
     // `rocksdb::WriteBatch::Put()`.
     auto begin = std::chrono::steady_clock::now();
