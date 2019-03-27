@@ -34,6 +34,11 @@ using ThreadState = Couchbase::ThreadState;
 
 #ifdef ENABLE_OPENTRACING
 std::atomic_bool OpenTracing::enabled;
+
+// Create a shorter version so that we don't have to wrap lines all the
+// time
+using ParentSpan =
+        opentracing::expected<std::unique_ptr<opentracing::SpanContext>>;
 #endif
 
 std::unique_ptr<OpenTracing> OpenTracing::instance;
@@ -71,7 +76,15 @@ protected:
         condition_variable.notify_all();
     }
 
-protected:
+#ifdef ENABLE_OPENTRACING
+    /// Try to decode the context as if it was encoded as a text map
+    /// (key1=value1&key2=value2)
+    ParentSpan decodeAsTextMap(const std::string& context);
+
+    /// Try to decode teh context as if it was encoded as a binary blob
+    ParentSpan decodeAsBinary(const std::string& context);
+#endif
+
     bool running = true;
 
     /// The mutex variable used to protect access to _all_ the internal
@@ -124,14 +137,96 @@ void OpenTracingThread::run() {
     }
 }
 
+#ifdef ENABLE_OPENTRACING
+// This code is copied from the example at:
+// https://github.com/opentracing/opentracing-cpp/blob/master/README.md)
+//
+// Some clients don't implement the binary encoding scheme (at least
+// jaeger don't have an implementation) so we need to work around that
+// by having the client use the space inefficient text-map implementation.
+struct CustomCarrierReader : opentracing::TextMapReader {
+    explicit CustomCarrierReader(
+            const std::unordered_map<std::string, std::string>& data_)
+        : data{data_} {
+    }
+
+    using F = std::function<opentracing::expected<void>(
+            opentracing::string_view, opentracing::string_view)>;
+
+    opentracing::expected<void> ForeachKey(F f) const override {
+        // Iterate through all key-value pairs, the tracer will use the
+        // relevant keys to extract a span context.
+        for (auto& key_value : data) {
+            auto was_successful = f(key_value.first, key_value.second);
+            if (!was_successful) {
+                // If the callback returns and unexpected value, bail out
+                // of the loop.
+                return was_successful;
+            }
+        }
+
+        // Indicate successful iteration.
+        return {};
+    }
+
+    // Optional, define TextMapReader::LookupKey to allow for faster extraction.
+    opentracing::expected<opentracing::string_view> LookupKey(
+            opentracing::string_view key) const override {
+        auto iter = data.find(key);
+        if (iter != data.end()) {
+            return opentracing::make_unexpected(
+                    opentracing::key_not_found_error);
+        }
+        return opentracing::string_view{iter->second};
+    }
+
+    const std::unordered_map<std::string, std::string>& data;
+};
+
+ParentSpan OpenTracingThread::decodeAsTextMap(const std::string& context) {
+    std::unordered_map<std::string, std::string> data;
+    std::istringstream istr(context);
+    std::string token;
+    while (std::getline(istr, token, '&')) {
+        size_t pos = token.find('=');
+        data[token.substr(0, pos)] = token.substr(pos + 1);
+    }
+
+    CustomCarrierReader carrier{data};
+    return tracer->Extract(carrier);
+}
+
+ParentSpan OpenTracingThread::decodeAsBinary(const std::string& context) {
+    std::istringstream istr(context);
+    return tracer->Extract(istr);
+}
+
+#endif
+
 void OpenTracingThread::pushOne(
         std::chrono::system_clock::time_point system_now,
         std::chrono::steady_clock::time_point steady_now,
         const CookieTraceContext& entry) {
 #ifdef ENABLE_OPENTRACING
     try {
-        std::istringstream istr(entry.context);
-        auto parent = tracer->Extract(istr);
+        ParentSpan parent;
+
+        if (entry.context.find('=') == std::string::npos) {
+            // this is most likely a binary encoded blob
+            parent = decodeAsBinary(entry.context);
+            if (!parent) {
+                // fall back to text:
+                parent = decodeAsTextMap(entry.context);
+            }
+        } else {
+            // this is most likely a text-map
+            parent = decodeAsTextMap(entry.context);
+            if (!parent) {
+                // fall back to binary blob
+                parent = decodeAsBinary(entry.context);
+            }
+        }
+
         if (!parent) {
             LOG_WARNING("Failed to parse OpenTracing context");
             return;
@@ -164,6 +259,7 @@ void OpenTracingThread::pushOne(
                         span->SetTag("key", entry.rawKey);
                     }
                     span->SetTag("opaque", entry.opaque);
+                    span->SetTag("span.kind", "server");
                 }
 
                 span->Finish(
