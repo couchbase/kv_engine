@@ -62,6 +62,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       waitForSnapshot(0),
       engine(e),
       producerPtr(p),
+      takeoverSendMaxTime(e->getConfiguration().getDcpTakeoverMaxTime()),
       lastSentSnapEndSeqno(0),
       chkptItemsExtractionInProgress(false),
       includeValue(includeVal),
@@ -120,7 +121,6 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
     bufferedBackfill.items = 0;
 
     takeoverStart = 0;
-    takeoverSendMaxTime = engine->getConfiguration().getDcpTakeoverMaxTime();
 
     if (start_seqno_ >= end_seqno_) {
         /* streamMutex lock needs to be acquired because endStream

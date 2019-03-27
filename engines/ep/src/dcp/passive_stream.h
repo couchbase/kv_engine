@@ -214,8 +214,8 @@ protected:
 
     const std::string createStreamReqValue() const;
 
-    EventuallyPersistentEngine* engine;
-    std::weak_ptr<DcpConsumer> consumerPtr;
+    EventuallyPersistentEngine* const engine;
+    const std::weak_ptr<DcpConsumer> consumerPtr;
 
     std::atomic<uint64_t> last_seqno;
 

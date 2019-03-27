@@ -319,8 +319,8 @@ private:
 
     std::atomic<int> waitForSnapshot;
 
-    EventuallyPersistentEngine* engine;
-    std::weak_ptr<DcpProducer> producerPtr;
+    EventuallyPersistentEngine* const engine;
+    const std::weak_ptr<DcpProducer> producerPtr;
 
     struct {
         std::atomic<size_t> bytes;
@@ -328,7 +328,7 @@ private:
     } bufferedBackfill;
 
     std::atomic<rel_time_t> takeoverStart;
-    size_t takeoverSendMaxTime;
+    const size_t takeoverSendMaxTime;
 
     //! Last snapshot end seqno sent to the DCP client
     std::atomic<uint64_t> lastSentSnapEndSeqno;
@@ -339,25 +339,25 @@ private:
     std::atomic<bool> chkptItemsExtractionInProgress;
 
     // Whether the responses sent using this stream should contain the value
-    IncludeValue includeValue;
+    const IncludeValue includeValue;
     // Whether the responses sent using the stream should contain the xattrs
     // (if any exist)
-    IncludeXattrs includeXattributes;
+    const IncludeXattrs includeXattributes;
 
     // Will the stream send dcp deletions with delete-times?
-    IncludeDeleteTime includeDeleteTime;
+    const IncludeDeleteTime includeDeleteTime;
 
     // Will the stream encode the CollectionID in the key?
-    DocKeyEncodesCollectionId includeCollectionID;
+    const DocKeyEncodesCollectionId includeCollectionID;
 
     // Will the stream be able to output expiry opcodes?
-    EnableExpiryOutput enableExpiryOutput;
+    const EnableExpiryOutput enableExpiryOutput;
 
     /// Is Snappy compression supported on this connection?
-    SnappyEnabled snappyEnabled;
+    const SnappyEnabled snappyEnabled;
 
     /// Should items be forcefully compressed on this stream?
-    ForceValueCompression forceValueCompression;
+    const ForceValueCompression forceValueCompression;
 
     /// Does this stream support synchronous replication?
     const SyncReplication syncReplication;
@@ -371,7 +371,7 @@ private:
      * A stream-ID which is defined if the producer is using enabled to allow
      * many streams-per-vbucket
      */
-    cb::mcbp::DcpStreamId sid;
+    const cb::mcbp::DcpStreamId sid;
 
     /**
      * A prefix to use in all stream log messages

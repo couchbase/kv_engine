@@ -156,9 +156,9 @@ protected:
     uint64_t getReadyQueueMemory(void);
 
     std::string name_;
-    uint32_t flags_;
-    uint32_t opaque_;
-    Vbid vb_;
+    const uint32_t flags_;
+    const uint32_t opaque_;
+    const Vbid vb_;
     uint64_t start_seqno_;
     uint64_t end_seqno_;
     uint64_t vb_uuid_;

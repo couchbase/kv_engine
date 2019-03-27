@@ -60,5 +60,5 @@ private:
      */
     void notifyStreamReady();
 
-    std::weak_ptr<DcpProducer> producerPtr;
+    const std::weak_ptr<DcpProducer> producerPtr;
 };
