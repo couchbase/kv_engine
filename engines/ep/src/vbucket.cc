@@ -714,7 +714,8 @@ ENGINE_ERROR_CODE VBucket::abort(
         return ENGINE_EINVAL;
     }
 
-    auto notify = abortStoredValue(htRes.lock, *htRes.storedValue, abortSeqno);
+    auto notify = abortStoredValue(
+            htRes.lock, *htRes.storedValue, prepareSeqno, abortSeqno);
 
     notifyNewSeqno(notify);
     doCollectionsStats(cHandle, notify);
@@ -1021,12 +1022,15 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
 
 VBNotifyCtx VBucket::queueAbort(const HashTable::HashBucketLock& hbl,
                                 const StoredValue& v,
+                                int64_t prepareSeqno,
                                 const VBQueueItemCtx& ctx) {
     if (ctx.trackCasDrift == TrackCasDrift::Yes) {
         setMaxCasAndTrackDrift(v.getCas());
     }
 
     queued_item item(v.toItemAbort(getId()));
+    item->setPrepareSeqno(prepareSeqno);
+
     Expects(item->isAbort());
     Expects(item->isDeleted());
 

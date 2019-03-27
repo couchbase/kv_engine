@@ -35,6 +35,7 @@ public:
         Expiration,
         Prepare,
         Commit,
+        Abort,
         SetVbucket,
         StreamReq,
         StreamEnd,
@@ -60,8 +61,9 @@ public:
 
     /**
      * Not all DcpResponse sub-classes have a seqno. MutationResponse (events
-     * Mutation, Deletion and Expiration) and SystemEventMessage (SystemEvent)
-     * have a seqno and would return an OptionalSeqno with a seqno.
+     * Mutation, Deletion and Expiration), SystemEventMessage (SystemEvent) and
+     * Durability Commit/Abort have a seqno and would return an OptionalSeqno
+     * with a seqno.
      *
      * @return OptionalSeqno with no value - certain sub-classes may have a
      *         seqno.
@@ -80,6 +82,7 @@ public:
         case Event::Expiration:
         case Event::Prepare:
         case Event::Commit:
+        case Event::Abort:
             return false;
 
         case Event::SetVbucket:
@@ -486,6 +489,8 @@ public:
             return Event::Mutation;
         case queue_op::pending_sync_write:
             return Event::Prepare;
+        case queue_op::abort_sync_write:
+            return Event::Abort;
         default:
             throw std::logic_error(
                     "MutationResponse::eventFromItem: Invalid operation " +
@@ -498,6 +503,7 @@ public:
     static const uint32_t deletionV2BaseMsgBytes = 45;
     static const uint32_t expirationBaseMsgBytes = 44;
     static const uint32_t prepareBaseMsgBytes = 57;
+    static const uint32_t abortBaseMsgBytes = 40;
 
 protected:
     /// Return the size of the header for this message.
@@ -652,6 +658,49 @@ private:
     Vbid vbucket;
     StoredDocKey key;
     cb::mcbp::request::DcpCommitPayload payload;
+};
+
+/**
+ * Represents the Abort of a prepared SyncWrite.
+ */
+class AbortSyncWrite : public DcpResponse {
+public:
+    AbortSyncWrite(uint32_t opaque,
+                   Vbid vbucket,
+                   const DocKey& key,
+                   uint64_t preparedSeqno,
+                   uint64_t abortSeqno);
+
+    Vbid getVbucket() const {
+        return vbucket;
+    }
+
+    const StoredDocKey& getKey() const {
+        return key;
+    }
+
+    uint64_t getPreparedSeqno() const {
+        return payload.getPreparedSeqno();
+    }
+
+    uint64_t getAbortSeqno() const {
+        return payload.getAbortSeqno();
+    }
+
+    OptionalSeqno getBySeqno() const override {
+        return OptionalSeqno{payload.getAbortSeqno()};
+    }
+
+    static constexpr uint32_t abortBaseMsgBytes =
+            sizeof(protocol_binary_request_header) +
+            sizeof(cb::mcbp::request::DcpAbortPayload);
+
+    uint32_t getMessageSize() const override;
+
+private:
+    Vbid vbucket;
+    StoredDocKey key;
+    cb::mcbp::request::DcpAbortPayload payload;
 };
 
 /**

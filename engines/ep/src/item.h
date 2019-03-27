@@ -178,6 +178,14 @@ public:
         bySeqno.store(to);
     }
 
+    int64_t getPrepareSeqno() const {
+        return prepareSeqno;
+    }
+
+    void setPrepareSeqno(int64_t seqno) {
+        prepareSeqno = seqno;
+    }
+
     uint32_t getNBytes() const {
         return value ? static_cast<uint32_t>(value->valueSize()) : 0;
     }
@@ -323,7 +331,8 @@ public:
         if (supportsSyncReplication) {
             return nonMetaItem;
         }
-        return nonMetaItem && op != queue_op::pending_sync_write;
+        return nonMetaItem && op != queue_op::pending_sync_write &&
+               op != queue_op::abort_sync_write;
     }
 
     bool isCheckPointMetaItem() const {
@@ -491,6 +500,14 @@ private:
     // checkpoints when updating a the open checkpointID - see
     // CheckpointManager::setOpenCheckpointId_UNLOCKED
     std::atomic<int64_t> bySeqno;
+
+    // @todo: Try to avoid this, as it increases mem_usage of 8 bytes per Item.
+    // This is added for Durability items Commit and Abort, which both carry
+    // 2 seqnos:
+    // 1) the seqno of this (Commit/Abort) Item (encoded in bySeqno)
+    // 2) the seqno of the Committed/Aborted Prepare
+    cb::uint48_t prepareSeqno;
+
     uint32_t queuedTime;
     Vbid vbucketId;
     queue_op op;
@@ -533,9 +550,9 @@ using UniqueItemPtr = std::unique_ptr<Item>;
 // If you've reduced Item size, thanks! Please update the assert with the new
 // size.
 // Note the assert is written as we see std::string (member of the StoredDocKey)
-// differing. This totals 96 or 104 (string being 24 or 32).
+// differing. This totals 104 or 112 (string being 24 or 32).
 #ifndef CB_MEMORY_INEFFICIENT_TAGGED_PTR
-static_assert(sizeof(Item) == sizeof(std::string) + 72,
+static_assert(sizeof(Item) == sizeof(std::string) + 80,
               "sizeof Item may have an effect on run-time memory consumption, "
               "please avoid increasing it");
 #endif

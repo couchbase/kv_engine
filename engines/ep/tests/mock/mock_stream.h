@@ -156,6 +156,15 @@ public:
                                int64_t seqno);
 
     bool isDead() { return ActiveStream::getState() == StreamState::Dead; };
+
+    std::unique_ptr<DcpResponse> public_popFromReadyQ() {
+        std::lock_guard<std::mutex> lg(streamMutex);
+        return popFromReadyQ();
+    }
+
+    bool public_supportSyncReplication() const {
+        return supportSyncReplication();
+    }
 };
 
 /**

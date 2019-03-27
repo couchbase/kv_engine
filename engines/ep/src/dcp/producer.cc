@@ -745,7 +745,15 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                     mutationResponse->getItem()->getDurabilityReqs());
             break;
         }
-
+        case DcpResponse::Event::Abort: {
+            AbortSyncWrite& abort = dynamic_cast<AbortSyncWrite&>(*resp);
+            ret = producers->abort(abort.getOpaque(),
+                                   abort.getVbucket(),
+                                   abort.getKey(),
+                                   abort.getPreparedSeqno(),
+                                   abort.getAbortSeqno());
+            break;
+        }
         case DcpResponse::Event::SnapshotMarker:
         {
             SnapshotMarker* s = static_cast<SnapshotMarker*>(resp.get());
@@ -1451,6 +1459,7 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
                         case DcpResponse::Event::Expiration:
                         case DcpResponse::Event::Prepare:
                         case DcpResponse::Event::Commit:
+                        case DcpResponse::Event::Abort:
                         case DcpResponse::Event::StreamEnd:
                         case DcpResponse::Event::SetVbucket:
                         case DcpResponse::Event::SystemEvent:

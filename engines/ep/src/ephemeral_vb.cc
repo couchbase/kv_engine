@@ -634,6 +634,7 @@ VBNotifyCtx EphemeralVBucket::commitStoredValue(
 VBNotifyCtx EphemeralVBucket::abortStoredValue(
         const HashTable::HashBucketLock& hbl,
         StoredValue& v,
+        int64_t prepareSeqno,
         boost::optional<int64_t> abortSeqno) {
     // @todo-durability: Implement this.
     throw std::logic_error(

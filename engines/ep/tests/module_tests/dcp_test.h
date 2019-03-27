@@ -18,6 +18,7 @@
 
 #include "dcp/dcp-types.h"
 #include "evp_engine_test.h"
+#include "evp_store_single_threaded_test.h"
 #include "vbucket_fwd.h"
 #include <memcached/engine_error.h>
 #include <gsl/gsl>
@@ -115,4 +116,31 @@ protected:
     // callbackCount needs to be static as its used inside of the static
     // function fakeDcpAddFailoverLog.
     static int callbackCount;
+};
+
+/*
+ * Test fixture for single-threaded Stream tests
+ */
+class SingleThreadedStreamTest : public SingleThreadedEPBucketTest {
+public:
+    void SetUp() override;
+
+protected:
+    void setupProducer(
+            const std::vector<std::pair<std::string, std::string>>& controls);
+
+    void destroyProducer();
+
+    MutationStatus public_processSet(VBucket& vb,
+                                     Item& item,
+                                     const VBQueueItemCtx& ctx = {});
+
+    /*
+     * Queues a Prepare and verifies that the corresponding DCP_PREPARE
+     * message has been queued into the ActiveStream::readyQ.
+     */
+    void testActiveSendsDcpPrepare();
+
+    std::shared_ptr<MockDcpProducer> producer;
+    std::shared_ptr<MockActiveStream> stream;
 };

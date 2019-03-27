@@ -45,6 +45,8 @@ const char* DcpResponse::to_string() const {
         return "prepare";
     case Event::Commit:
         return "commit";
+    case Event::Abort:
+        return "abort";
     case Event::SetVbucket:
         return "set vbucket";
     case Event::StreamReq:
@@ -81,6 +83,8 @@ uint32_t MutationResponse::getHeaderSize() const {
     case queue_op::system_event:
     case queue_op::commit_sync_write:
         return item_->isDeleted() ? getDeleteLength() : mutationBaseMsgBytes;
+    case queue_op::abort_sync_write:
+        return abortBaseMsgBytes;
     case queue_op::pending_sync_write:
         return prepareBaseMsgBytes;
     default:
@@ -134,4 +138,19 @@ CommitSyncWrite::CommitSyncWrite(uint32_t opaque,
 
 uint32_t CommitSyncWrite::getMessageSize() const {
     return commitBaseMsgBytes + key.size();
+}
+
+AbortSyncWrite::AbortSyncWrite(uint32_t opaque,
+                               Vbid vbucket,
+                               const DocKey& key,
+                               uint64_t preparedSeqno,
+                               uint64_t abortSeqno)
+    : DcpResponse(Event::Abort, opaque, cb::mcbp::DcpStreamId{}),
+      vbucket(vbucket),
+      key(key),
+      payload(preparedSeqno, abortSeqno) {
+}
+
+uint32_t AbortSyncWrite::getMessageSize() const {
+    return abortBaseMsgBytes + key.size();
 }

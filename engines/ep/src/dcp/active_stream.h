@@ -240,6 +240,10 @@ protected:
      */
     void nextCheckpointItemTask(const LockHolder& streamMutex);
 
+    bool supportSyncReplication() const {
+        return syncReplication == SyncReplication::Yes;
+    }
+
     /* Indicates that a backfill has been scheduled and has not yet completed.
      * Is protected (as opposed to private) for testing purposes.
      */

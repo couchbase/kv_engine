@@ -2363,10 +2363,15 @@ ENGINE_ERROR_CODE Connection::seqno_acknowledged(uint32_t opaque,
 
 ENGINE_ERROR_CODE Connection::commit(uint32_t opaque,
                                      Vbid vbucket,
-                                     const DocKey& key,
+                                     const DocKey& key_,
                                      uint64_t commit_seqno) {
     cb::mcbp::request::DcpCommitPayload extras(0, commit_seqno);
-    // @todo-durability - include the prepared_seqno instead of key.
+    // @todo-durability: Don't send the key
+    auto key = key_;
+    if (!isCollectionsSupported()) {
+        // The client doesn't support collections, don't send an encoded key
+        key = key.makeDocKeyWithoutCollectionID();
+    }
     const size_t totalBytes =
             sizeof(cb::mcbp::Request) + sizeof(extras) + key.size();
     std::vector<uint8_t> buffer(totalBytes);
@@ -2382,18 +2387,26 @@ ENGINE_ERROR_CODE Connection::commit(uint32_t opaque,
 
 ENGINE_ERROR_CODE Connection::abort(uint32_t opaque,
                                     Vbid vbucket,
+                                    const DocKey& key_,
                                     uint64_t prepared_seqno,
                                     uint64_t abort_seqno) {
-    cb::mcbp::request::DcpAbortPayload extras;
-    extras.setPreparedSeqno(prepared_seqno);
-    extras.setAbortSeqno(abort_seqno);
-    uint8_t buffer[sizeof(cb::mcbp::Request) + sizeof(extras)];
-    cb::mcbp::RequestBuilder builder({buffer, sizeof(buffer)});
+    cb::mcbp::request::DcpAbortPayload extras(prepared_seqno, abort_seqno);
+    // @todo-durability: Don't send the key
+    auto key = key_;
+    if (!isCollectionsSupported()) {
+        // The client doesn't support collections, don't send an encoded key
+        key = key.makeDocKeyWithoutCollectionID();
+    }
+    const size_t totalBytes =
+            sizeof(cb::mcbp::Request) + sizeof(extras) + key.size();
+    std::vector<uint8_t> buffer(totalBytes);
+    cb::mcbp::RequestBuilder builder({buffer.data(), buffer.size()});
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpAbort);
     builder.setOpaque(opaque);
     builder.setVBucket(vbucket);
     builder.setExtras(extras.getBuffer());
+    builder.setKey(cb::const_char_buffer(key));
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 

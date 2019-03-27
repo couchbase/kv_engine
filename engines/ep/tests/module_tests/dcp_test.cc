@@ -29,7 +29,9 @@
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_synchronous_ep_engine.h"
+#include "checkpoint.h"
 #include "checkpoint_manager.h"
+#include "checkpoint_utils.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/dcp-types.h"
 #include "dcp/dcpconnmap.h"
@@ -38,7 +40,6 @@
 #include "dcp_utils.h"
 #include "ep_time.h"
 #include "evp_engine_test.h"
-#include "evp_store_single_threaded_test.h"
 #include "memory_tracker.h"
 #include "objectregistry.h"
 #include "test_helpers.h"
@@ -2418,17 +2419,61 @@ INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
                         ConnectionTest,
                         STParameterizedBucketTest::allConfigValues(), );
 
-/*
- * Test fixture for single-threaded Stream tests
- */
-class SingleThreadedStreamTest : public SingleThreadedEPBucketTest {
-public:
-    void SetUp() override {
-        // Bucket Quota 100MB, Replication Threshold 10%
-        config_string += "max_size=104857600;replication_throttle_threshold=4";
-        SingleThreadedEPBucketTest::SetUp();
+void SingleThreadedStreamTest::SetUp() {
+    // Bucket Quota 100MB, Replication Threshold 4%
+    config_string += "max_size=104857600;replication_throttle_threshold=4";
+    SingleThreadedEPBucketTest::SetUp();
+}
+
+void SingleThreadedStreamTest::setupProducer(
+        const std::vector<std::pair<std::string, std::string>>& controls) {
+    uint32_t flags = 0;
+
+    producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", flags, false /*startTask*/);
+
+    for (const auto& c : controls) {
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  producer->control(0 /*opaque*/, c.first, c.second));
     }
-};
+
+    auto vb = engine->getVBucket(vbid);
+
+    stream = std::make_shared<MockActiveStream>(engine.get(),
+                                                producer,
+                                                flags,
+                                                0 /*opaque*/,
+                                                *vb,
+                                                0 /*st_seqno*/,
+                                                ~0 /*en_seqno*/,
+                                                0x0 /*vb_uuid*/,
+                                                0 /*snap_start_seqno*/,
+                                                ~0 /*snap_end_seqno*/);
+
+    stream->public_registerCursor(
+            *vb->checkpointManager, "test_active_stream", 0 /*seqno*/);
+    stream->setActive();
+}
+
+void SingleThreadedStreamTest::destroyProducer() {
+    stream.reset();
+    producer.reset();
+}
+
+MutationStatus SingleThreadedStreamTest::public_processSet(
+        VBucket& vb, Item& item, const VBQueueItemCtx& ctx) {
+    auto htRes = vb.ht.findForWrite(item.getKey());
+    return vb
+            .processSet(htRes.lock,
+                        htRes.storedValue,
+                        item,
+                        0 /*cas*/,
+                        true /*allowExisting*/,
+                        false /*hasMetadata*/,
+                        ctx,
+                        {/*no predicate*/})
+            .first;
+}
 
 /*
  * MB-31410: In this test I simulate a DcpConsumer that receives messages
@@ -2825,4 +2870,178 @@ TEST_F(SingleThreadedStreamTest, Durability_ReplicaDiskAckAtPersistedSeqno) {
 
     // Cleanup
     EXPECT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
+}
+
+void SingleThreadedStreamTest::testActiveSendsDcpPrepare() {
+    auto vb = engine->getVBucket(vbid);
+    auto& ckptMgr = *vb->checkpointManager;
+    // Get rid of set_vb_state and any other queue_op we are not interested in
+    ckptMgr.clear(*vb, 0 /*seqno*/);
+
+    const auto key = makeStoredDocKey("key");
+    const auto& value = "value";
+    auto item = makePendingItem(
+            key,
+            value,
+            cb::durability::Requirements(cb::durability::Level::Majority,
+                                         1 /*timeout*/));
+    VBQueueItemCtx ctx;
+    ctx.durability =
+            DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
+
+    EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
+
+    // We don't account Prepares in VB stats
+    EXPECT_EQ(0, vb->getNumItems());
+    // We do in HT stats
+    EXPECT_EQ(1, vb->ht.getNumItems());
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    ckptMgr);
+    // 1 checkpoint
+    ASSERT_EQ(1, ckptList.size());
+    const auto* ckpt = ckptList.front().get();
+    ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
+    // empty-item
+    auto it = ckpt->begin();
+    ASSERT_EQ(queue_op::empty, (*it)->getOperation());
+    // 1 metaitem (checkpoint-start)
+    it++;
+    ASSERT_EQ(1, ckpt->getNumMetaItems());
+    EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
+    // 1 non-metaitem is pending and contains the expected value
+    it++;
+    ASSERT_EQ(1, ckpt->getNumItems());
+    EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
+    EXPECT_EQ(key, (*it)->getKey());
+    EXPECT_EQ(value, (*it)->getValue()->to_s());
+
+    // We must have ckpt-start + Prepare
+    auto outItems = stream->public_getOutstandingItems(*vb);
+    ASSERT_EQ(2, outItems.size());
+    ASSERT_EQ(queue_op::checkpoint_start, outItems.at(0)->getOperation());
+    ASSERT_EQ(queue_op::pending_sync_write, outItems.at(1)->getOperation());
+    // Stream::readyQ still empty
+    ASSERT_EQ(0, stream->public_readyQSize());
+    // Push items into the Stream::readyQ
+    stream->public_processItems(outItems);
+    // Stream::readyQ must contain SnapshotMarker + DCP_PREPARE
+    ASSERT_EQ(2, stream->public_readyQSize());
+    auto resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+    const uint64_t prepareSeqno = 1;
+    EXPECT_EQ(prepareSeqno, *resp->getBySeqno());
+    auto& prepare = static_cast<MutationResponse&>(*resp);
+    EXPECT_EQ(key, prepare.getItem()->getKey());
+    EXPECT_EQ(value, prepare.getItem()->getValue()->to_s());
+    ASSERT_EQ(0, stream->public_readyQSize());
+    resp = stream->public_popFromReadyQ();
+    ASSERT_FALSE(resp);
+}
+
+TEST_F(SingleThreadedStreamTest, Durability_ActiveSendsDcpPrepare) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    setupProducer({{"enable_synchronous_replication", "true"}});
+    ASSERT_TRUE(stream->public_supportSyncReplication());
+
+    testActiveSendsDcpPrepare();
+
+    destroyProducer();
+}
+
+/*
+ * This test checks that the ActiveStream::readyQ contains the right DCP
+ * messages during the journey of an Aborted sync-write.
+ */
+TEST_F(SingleThreadedStreamTest, Durability_ActiveSendsDcpAbort) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    setupProducer({{"enable_synchronous_replication", "true"}});
+    ASSERT_TRUE(stream->public_supportSyncReplication());
+
+    // First, we need to enqueue a Prepare.
+    testActiveSendsDcpPrepare();
+    auto vb = engine->getVBucket(vbid);
+    const auto key = makeStoredDocKey("key");
+    const uint64_t prepareSeqno = 1;
+    {
+        const auto sv = vb->ht.findForWrite(key);
+        ASSERT_TRUE(sv.storedValue);
+        ASSERT_EQ(CommittedState::Pending, sv.storedValue->getCommitted());
+        ASSERT_EQ(prepareSeqno, sv.storedValue->getBySeqno());
+    }
+
+    // Now we proceed with testing the Abort of that Prepare
+    auto& ckptMgr = *vb->checkpointManager;
+
+    // Simulate timeout, indirectly calls VBucket::abort
+    vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
+                                 std::chrono::milliseconds(1000));
+
+    // We don't account Abort in VB stats
+    EXPECT_EQ(0, vb->getNumItems());
+    // We must have removed the Prepare from the HashTable and we don't have
+    // any "abort" StoredValue
+    EXPECT_EQ(0, vb->ht.getNumItems());
+    // Note: We don't de-duplicate Prepare and Abort, so we have closed the open
+    //     ckpt (the one containing the Prepare), created a new open ckpt and
+    //     queued the Abort in the latter. So we must have 2 checkpoints now.
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    ckptMgr);
+    ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(checkpoint_state::CHECKPOINT_CLOSED,
+              ckptList.front()->getState());
+    const auto* ckpt = ckptList.back().get();
+    ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
+    // empty-item
+    auto it = ckpt->begin();
+    ASSERT_EQ(queue_op::empty, (*it)->getOperation());
+    // 1 metaitem (checkpoint-start)
+    it++;
+    ASSERT_EQ(1, ckpt->getNumMetaItems());
+    EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
+    // 1 non-metaitem is Abort and doesn't carry any value
+    it++;
+    ASSERT_EQ(1, ckpt->getNumItems());
+    EXPECT_EQ(queue_op::abort_sync_write, (*it)->getOperation());
+    EXPECT_FALSE((*it)->getValue());
+
+    // We must have ckpt-start + Abort
+    auto outItems = stream->public_getOutstandingItems(*vb);
+    ASSERT_EQ(2, outItems.size());
+    ASSERT_EQ(queue_op::checkpoint_start, outItems.at(0)->getOperation());
+    ASSERT_EQ(queue_op::abort_sync_write, outItems.at(1)->getOperation());
+    // Stream::readyQ still empty
+    ASSERT_EQ(0, stream->public_readyQSize());
+    // Push items into the Stream::readyQ
+    stream->public_processItems(outItems);
+    // Stream::readyQ must contain SnapshotMarker + DCP_ABORT
+    ASSERT_EQ(2, stream->public_readyQSize());
+    auto resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Abort, resp->getEvent());
+    const auto& abort = static_cast<AbortSyncWrite&>(*resp);
+    EXPECT_EQ(key, abort.getKey());
+    EXPECT_EQ(prepareSeqno, abort.getPreparedSeqno());
+    EXPECT_EQ(2, abort.getAbortSeqno());
+    ASSERT_EQ(0, stream->public_readyQSize());
+    resp = stream->public_popFromReadyQ();
+    ASSERT_FALSE(resp);
+
+    destroyProducer();
 }

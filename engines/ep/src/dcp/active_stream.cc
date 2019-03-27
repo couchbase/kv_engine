@@ -906,6 +906,15 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                                                  item->getKey());
     }
 
+    if (item->getOperation() == queue_op::abort_sync_write) {
+        return std::make_unique<AbortSyncWrite>(
+                opaque_,
+                item->getVBucketId(),
+                item->getKey(),
+                item->getPrepareSeqno(),
+                item->getBySeqno() /*abortSeqno*/);
+    }
+
     if (item->getOperation() != queue_op::system_event) {
         if (shouldModifyItem(item,
                              includeValue,

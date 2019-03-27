@@ -614,6 +614,7 @@ VBNotifyCtx EPVBucket::commitStoredValue(const HashTable::HashBucketLock& hbl,
 
 VBNotifyCtx EPVBucket::abortStoredValue(const HashTable::HashBucketLock& hbl,
                                         StoredValue& v,
+                                        int64_t prepareSeqno,
                                         boost::optional<int64_t> abortSeqno) {
     // Note: We have to enqueue the item into the CM /before/ removing it from
     //     the HT as the removal is synchronous and deallocates the StoredValue
@@ -622,7 +623,7 @@ VBNotifyCtx EPVBucket::abortStoredValue(const HashTable::HashBucketLock& hbl,
         queueItmCtx.genBySeqno = GenerateBySeqno::No;
         v.setBySeqno(*abortSeqno);
     }
-    auto notify = queueAbort(hbl, v, queueItmCtx);
+    auto notify = queueAbort(hbl, v, prepareSeqno, queueItmCtx);
 
     ht.abort(hbl, v);
 

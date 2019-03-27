@@ -1380,17 +1380,24 @@ static_assert(sizeof(DcpCommitPayload) == 16, "Unexpected struct size");
 
 class DcpAbortPayload {
 public:
+    DcpAbortPayload(uint64_t prepared, uint64_t aborted)
+        : prepared_seqno(htonll(prepared)), abort_seqno(htonll(aborted)) {
+    }
+
     uint64_t getPreparedSeqno() const {
         return ntohll(prepared_seqno);
     }
-    void setPreparedSeqno(uint64_t prepared_seqno) {
-        DcpAbortPayload::prepared_seqno = htonll(prepared_seqno);
+
+    void setPreparedSeqno(uint64_t seqno) {
+        prepared_seqno = htonll(seqno);
     }
+
     uint64_t getAbortSeqno() const {
         return ntohll(abort_seqno);
     }
-    void setAbortSeqno(uint64_t abort_seqno) {
-        DcpAbortPayload::abort_seqno = htonll(abort_seqno);
+
+    void setAbortSeqno(uint64_t seqno) {
+        abort_seqno = htonll(seqno);
     }
 
     cb::const_byte_buffer getBuffer() const {

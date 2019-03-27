@@ -246,6 +246,7 @@ private:
 
     VBNotifyCtx abortStoredValue(const HashTable::HashBucketLock& hbl,
                                  StoredValue& v,
+                                 int64_t prepareSeqno,
                                  boost::optional<int64_t> abortSeqno) override;
 
     void bgFetch(const DocKey& key,

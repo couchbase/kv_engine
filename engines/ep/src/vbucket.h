@@ -1691,6 +1691,7 @@ protected:
      */
     VBNotifyCtx queueAbort(const HashTable::HashBucketLock& hbl,
                            const StoredValue& v,
+                           int64_t prepareSeqno,
                            const VBQueueItemCtx& ctx);
 
     /**
@@ -1944,6 +1945,7 @@ private:
      *
      * @param hbl Reference to the hash table bucket lock
      * @param v StoredValue to be aborted. Must refer to a pending StoredValue
+     * @param prepareSeqno The seqno of the Prepare sync-write being aborted
      * @param abortSeqno Optional seqno to use for the aborted item. If omitted
      *     then CheckpointManager will generate one.
      * @return Information on who should be notified of the commit.
@@ -1951,6 +1953,7 @@ private:
     virtual VBNotifyCtx abortStoredValue(
             const HashTable::HashBucketLock& hbl,
             StoredValue& v,
+            int64_t prepareSeqno,
             boost::optional<int64_t> abortSeqno) = 0;
 
     /**
@@ -2161,6 +2164,7 @@ private:
     friend class VBucketTest;
     friend class VBucketDurabilityTest;
     friend class DurabilityMonitorTest;
+    friend class SingleThreadedStreamTest;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };
