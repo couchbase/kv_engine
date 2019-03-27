@@ -43,13 +43,6 @@ enum backfill_source_t {
 
 class Stream {
 public:
-
-    enum class Type {
-        Active,
-        Notifier,
-        Passive
-    };
-
     enum class Snapshot {
            None,
            Disk,
@@ -64,8 +57,7 @@ public:
            uint64_t end_seqno,
            uint64_t vb_uuid,
            uint64_t snap_start_seqno,
-           uint64_t snap_end_seqno,
-           Type type);
+           uint64_t snap_end_seqno);
 
     virtual ~Stream();
 
@@ -107,7 +99,8 @@ public:
         // Stream defaults to do nothing
     }
 
-    Type getType() { return type_; }
+    /// @returns the name of this stream type - "Active", "Passive", "Notifier"
+    virtual std::string getStreamTypeName() const = 0;
 
     /// @returns true if the stream type is Active
     bool isTypeActive() const;
@@ -172,7 +165,6 @@ protected:
     uint64_t snap_start_seqno_;
     uint64_t snap_end_seqno_;
     std::atomic<StreamState> state_;
-    Type type_;
 
     std::atomic<bool> itemsReady;
     std::mutex streamMutex;
@@ -203,4 +195,3 @@ private:
 };
 
 const char* to_string(Stream::Snapshot type);
-const std::string to_string(Stream::Type type);

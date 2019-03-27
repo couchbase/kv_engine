@@ -37,19 +37,6 @@ const char* to_string(Stream::Snapshot type) {
             "Snapshot type:" + std::to_string(int(type)));
 }
 
-const std::string to_string(Stream::Type type) {
-    switch (type) {
-    case Stream::Type::Active:
-        return "Active";
-    case Stream::Type::Notifier:
-        return "Notifier";
-    case Stream::Type::Passive:
-        return "Passive";
-    }
-    throw std::logic_error("to_string(Stream::Type): called with invalid "
-            "type:" + std::to_string(int(type)));
-}
-
 const uint64_t Stream::dcpMaxSeqno = std::numeric_limits<uint64_t>::max();
 
 Stream::Stream(const std::string& name,
@@ -60,8 +47,7 @@ Stream::Stream(const std::string& name,
                uint64_t end_seqno,
                uint64_t vb_uuid,
                uint64_t snap_start_seqno,
-               uint64_t snap_end_seqno,
-               Type type)
+               uint64_t snap_end_seqno)
     : name_(name),
       flags_(flags),
       opaque_(opaque),
@@ -72,7 +58,6 @@ Stream::Stream(const std::string& name,
       snap_start_seqno_(snap_start_seqno),
       snap_end_seqno_(snap_end_seqno),
       state_(StreamState::Pending),
-      type_(type),
       itemsReady(false),
       readyQ_non_meta_items(0),
       readyQueueMemory(0) {
@@ -103,10 +88,6 @@ const std::string Stream::to_string(Stream::StreamState st) {
     }
     throw std::invalid_argument(
         "Stream::to_string(StreamState): " + std::to_string(int(st)));
-}
-
-bool Stream::isTypeActive() const {
-    return type_ == Type::Active;
 }
 
 bool Stream::isActive() const {

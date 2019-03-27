@@ -42,6 +42,8 @@ public:
 
     void notifySeqnoAvailable(uint64_t seqno) override;
 
+    std::string getStreamTypeName() const override;
+
     void addStats(const AddStatFn& add_stat, const void* c) override;
 
 private:

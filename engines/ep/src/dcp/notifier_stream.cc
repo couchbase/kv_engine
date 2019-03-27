@@ -46,8 +46,7 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
              en_seqno,
              vb_uuid,
              snap_start_seqno,
-             snap_end_seqno,
-             Type::Notifier),
+             snap_end_seqno),
       producerPtr(p) {
     LockHolder lh(streamMutex);
     VBucketPtr vbucket = e->getVBucket(vb_);
@@ -143,6 +142,10 @@ void NotifierStream::transitionState(StreamState newState) {
                 to_string(state_.load()) + ")");
     }
     state_ = newState;
+}
+
+std::string NotifierStream::getStreamTypeName() const {
+    return "Notifier";
 }
 
 void NotifierStream::addStats(const AddStatFn& add_stat, const void* c) {

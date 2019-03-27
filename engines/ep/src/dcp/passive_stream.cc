@@ -55,8 +55,7 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
              en_seqno,
              vb_uuid,
              snap_start_seqno,
-             snap_end_seqno,
-             Type::Passive),
+             snap_end_seqno),
       engine(e),
       consumerPtr(c),
       last_seqno(vb_high_seqno),
@@ -152,6 +151,10 @@ uint32_t PassiveStream::setDead(end_stream_status_t status) {
             getEndStreamStatusStr(status).c_str());
     }
     return unackedBytes;
+}
+
+std::string PassiveStream::getStreamTypeName() const {
+    return "Passive";
 }
 
 void PassiveStream::acceptStream(cb::mcbp::Status status, uint32_t add_opaque) {

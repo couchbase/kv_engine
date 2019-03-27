@@ -1027,8 +1027,8 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
                     auto handle = s.second->rlock();
                     for (; !handle.end(); handle.next()) {
                         const auto& stream = handle.get();
-                        if (stream->isTypeActive() &&
-                            opaque == stream->getOpaque()) {
+                        auto* as = dynamic_cast<ActiveStream*>(stream.get());
+                        if (as && opaque == stream->getOpaque()) {
                             return stream; // return matching shared_ptr<Stream>
                         }
                     }
@@ -1268,8 +1268,8 @@ void DcpProducer::addTakeoverStats(const AddStatFn& add_stat,
         // Only perform takeover stats on singleton streams
         if (handle.size() == 1) {
             auto stream = handle.get();
-            if (stream->isTypeActive()) {
-                ActiveStream* as = static_cast<ActiveStream*>(stream.get());
+            ActiveStream* as = nullptr;
+            if ((as = dynamic_cast<ActiveStream*>(stream.get()))) {
                 as->addTakeoverStats(add_stat, c, vb);
                 return;
             }
@@ -1278,7 +1278,7 @@ void DcpProducer::addTakeoverStats(const AddStatFn& add_stat,
                     "DcpProducer::addTakeoverStats Stream type is {} and not "
                     "the expected Active",
                     vb.getId(),
-                    to_string(stream->getType()));
+                    stream->getStreamTypeName());
         } else {
             throw std::logic_error(
                     "DcpProducer::addTakeoverStats unexpected size streams:(" +
@@ -1579,8 +1579,8 @@ size_t DcpProducer::getItemsRemaining() {
     size_t remainingSize = 0;
     streams.for_each([&remainingSize](const StreamsMap::value_type& vt) {
         for (auto itr = vt.second->rlock(); !itr.end(); itr.next()) {
-            if (itr.get()->isTypeActive()) {
-                ActiveStream* as = static_cast<ActiveStream*>(itr.get().get());
+            auto* as = dynamic_cast<ActiveStream*>(itr.get().get());
+            if (as) {
                 remainingSize += as->getItemsRemaining();
             }
         }

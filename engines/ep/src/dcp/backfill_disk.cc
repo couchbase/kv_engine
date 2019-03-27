@@ -41,12 +41,6 @@ CacheCallback::CacheCallback(EventuallyPersistentEngine& e,
     if (s == nullptr) {
         throw std::invalid_argument("CacheCallback(): stream is NULL");
     }
-    if (!s->isTypeActive()) {
-        throw std::invalid_argument(
-                "CacheCallback(): stream->getType() "
-                "(which is " +
-                to_string(s->getType()) + ") is not Active");
-    }
 }
 
 // Do a get and restrict the collections lock scope to just these checks.
@@ -109,12 +103,6 @@ void CacheCallback::callback(CacheLookup& lookup) {
 DiskCallback::DiskCallback(std::shared_ptr<ActiveStream> s) : streamPtr(s) {
     if (s == nullptr) {
         throw std::invalid_argument("DiskCallback(): stream is NULL");
-    }
-    if (!s->isTypeActive()) {
-        throw std::invalid_argument(
-                "DiskCallback(): stream->getType() "
-                "(which is " +
-                to_string(s->getType()) + ") is not Active");
     }
 }
 

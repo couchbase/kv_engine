@@ -55,6 +55,8 @@ public:
 
     uint32_t setDead(end_stream_status_t status) override;
 
+    std::string getStreamTypeName() const override;
+
     /**
      * Place a StreamRequest message into the readyQueue, requesting a DCP
      * stream for the given UUID.

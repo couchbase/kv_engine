@@ -48,8 +48,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
              en_seqno,
              vb_uuid,
              snap_start_seqno,
-             snap_end_seqno,
-             Type::Active),
+             snap_end_seqno),
       isBackfillTaskRunning(false),
       pendingBackfill(false),
       lastReadSeqno(st_seqno),
@@ -1432,6 +1431,10 @@ bool ActiveStream::handleSlowStream() {
     }
     }
     return false;
+}
+
+std::string ActiveStream::getStreamTypeName() const {
+    return "Active";
 }
 
 std::string ActiveStream::getEndStreamStatusStr(end_stream_status_t status) {

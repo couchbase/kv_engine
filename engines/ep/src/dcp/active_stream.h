@@ -133,6 +133,8 @@ public:
         return cursor;
     }
 
+    std::string getStreamTypeName() const override;
+
     bool compareStreamId(cb::mcbp::DcpStreamId id) const override {
         return id == sid;
     }
