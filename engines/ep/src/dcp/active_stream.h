@@ -24,6 +24,54 @@
 class CheckpointManager;
 class VBucket;
 
+/**
+ * This class represents an "active" Stream of DCP messages for a given vBucket.
+ *
+ * "Active" refers to the fact this Stream is generating DCP messages to be sent
+ * out to a DCP client which is listening for them.
+ *
+ * An ActiveStream is essentially a mini state-machine, which starts in
+ * StreamState::Pending and then progresses through a sequence of states
+ * based on the arguments passed to the stream and the state of the associated
+ * VBucket.
+ *
+ * The expected possible state transitions are described below.
+ * Note that error paths, where any state can transition directly to Dead are
+ * omitted for brevity (and to avoid cluttering the diagram).
+ *
+ *               [Pending]
+ *                   |
+ *                   V
+ *             [Backfilling]  <---------------------------\
+ *                   |                                    |
+ *               Disk only?                               |
+ *              /          \                              |
+ *            Yes          No                             |
+ *             |            |               Pending backfill (cursor dropped)?
+ *             |            V                             |
+ *             |      Takeover stream?                    |
+ *     /-------/      /              \                    |
+ *     |             Yes             No                   |
+ *     |             |               |                    |
+ *     |             V               V                    |
+ *     |       [TakeoverSend]    [InMemory] >-------------/
+ *     |             |               |
+ *     |             V               |
+ *     |       [TakeoverWait]        |
+ *     |         (pending)           |
+ *     |             |               |
+ *     |             V               |
+ *     |       [TakeoverSend]        |
+ *     |             |               |
+ *     |             V               |
+ *     |       [TakeoverWait]        |
+ *     |         (active)            |
+ *     |             |               |
+ *     \-------------+---------------/
+ *                   |
+ *                   V
+ *                [Dead]
+ */
 class ActiveStream : public Stream,
                      public std::enable_shared_from_this<ActiveStream> {
 public:
@@ -317,6 +365,12 @@ private:
     //! Whether or not this is the first snapshot marker sent
     bool firstMarkerSent;
 
+    /**
+     * Indicates if the stream is currently waiting for a snapshot to be
+     * acknowledged by the peer. Incremented when forming SnapshotMarkers in
+     * TakeoverSend phase, and decremented when SnapshotMarkerAck is received
+     * from the peer.
+     */
     std::atomic<int> waitForSnapshot;
 
     EventuallyPersistentEngine* const engine;
@@ -327,7 +381,14 @@ private:
         std::atomic<size_t> items;
     } bufferedBackfill;
 
+    /// Records the time at which the TakeoverSend phase begins.
     std::atomic<rel_time_t> takeoverStart;
+
+    /**
+     * Maximum amount of time the TakeoverSend phase is permitted to take before
+     * TakeoverSend is considered "backed up" and new frontend mutations will
+     * paused.
+     */
     const size_t takeoverSendMaxTime;
 
     //! Last snapshot end seqno sent to the DCP client
