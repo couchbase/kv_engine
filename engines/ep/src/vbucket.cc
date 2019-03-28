@@ -266,6 +266,10 @@ int64_t VBucket::getHighSeqno() const {
     return checkpointManager->getHighSeqno();
 }
 
+int64_t VBucket::getHighPreparedSeqno() const {
+    return durabilityMonitor->getHighPreparedSeqno();
+}
+
 size_t VBucket::getChkMgrMemUsage() const {
     return checkpointManager->getMemoryUsage();
 }
@@ -2528,6 +2532,8 @@ void VBucket::_addStats(bool details,
                 durabilityMonitor->getReplicationTopology().dump(),
                 add_stat,
                 c);
+        addStat("high_prepared_seqno", getHighPreparedSeqno(), add_stat, c);
+
         hlc.addStats(statPrefix, add_stat, c);
     }
 }

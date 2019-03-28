@@ -194,7 +194,20 @@ public:
 
     virtual ~VBucket();
 
+    /**
+     * Get the vBucket's high seqno. This is the sequence number of the highest
+     * in-memory mutation the vBucket has performed.
+     *
+     * See also: getPersistenceSeqno(), getHighPreparedSeqno().
+     */
     int64_t getHighSeqno() const;
+
+    /**
+     * Get the vBucket's high_prepared_seqno. This is the sequence number of
+     * the highest prepared SyncWrite which has locally met its durability
+     * requirements.
+     */
+    int64_t getHighPreparedSeqno() const;
 
     size_t getChkMgrMemUsage() const;
 

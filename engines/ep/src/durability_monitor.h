@@ -72,6 +72,9 @@ public:
      */
     const nlohmann::json& getReplicationTopology() const;
 
+    /// @returns the high_prepared_seqno.
+    int64_t getHighPreparedSeqno() const;
+
     /**
      * @return true if the replication topology allows Majority being reached,
      *     false otherwise

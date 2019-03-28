@@ -4023,6 +4023,12 @@ void EventuallyPersistentEngine::addSeqnoVbStats(const void* cookie,
                          "vb_%d:last_persisted_snap_end",
                          vb->getId().get());
         add_casted_stat(buffer, range.end, add_stat, cookie);
+
+        checked_snprintf(buffer,
+                         sizeof(buffer),
+                         "vb_%d:high_prepared_seqno",
+                         vb->getId().get());
+        add_casted_stat(buffer, vb->getHighPreparedSeqno(), add_stat, cookie);
     } catch (std::exception& error) {
         EP_LOG_WARN("addSeqnoVbStats: error building stats: {}", error.what());
     }

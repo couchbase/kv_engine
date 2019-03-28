@@ -1926,8 +1926,6 @@ static enum test_result test_stats_seqno(EngineIface* h) {
     checkeq(vb_uuid, uint64_t(std::stoull(seqno_stats.at("vb_1:uuid"))),
             "Invalid uuid");
 
-    checkeq(size_t(7), seqno_stats.size(), "Expected seven stats");
-
     // Check invalid vbucket
     checkeq(ENGINE_NOT_MY_VBUCKET,
             get_stats(h, "vbucket-seqno 2"_ccb, add_stats),
@@ -6569,6 +6567,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "vb_0:drift_behind_threshold",
               "vb_0:drift_behind_threshold_exceeded",
               "vb_0:high_seqno",
+              "vb_0:high_prepared_seqno",
               "vb_0:ht_cache_size",
               "vb_0:ht_item_memory",
               "vb_0:ht_item_memory_uncompressed",
@@ -6605,6 +6604,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "vb_0:max_deleted_revid"}},
             {"vbucket-seqno",
              {"vb_0:abs_high_seqno",
+              "vb_0:high_prepared_seqno",
               "vb_0:high_seqno",
               "vb_0:last_persisted_seqno",
               "vb_0:last_persisted_snap_end",
@@ -6613,6 +6613,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "vb_0:uuid"}},
             {"vbucket-seqno 0",
              {"vb_0:abs_high_seqno",
+              "vb_0:high_prepared_seqno",
               "vb_0:high_seqno",
               "vb_0:last_persisted_seqno",
               "vb_0:last_persisted_snap_end",

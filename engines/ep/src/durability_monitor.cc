@@ -372,6 +372,11 @@ const nlohmann::json& DurabilityMonitor::getReplicationTopology() const {
     return state.replicationTopology;
 }
 
+int64_t DurabilityMonitor::getHighPreparedSeqno() const {
+    // @todo-durability: return a correct value for this.
+    return 0;
+}
+
 bool DurabilityMonitor::isDurabilityPossible() const {
     std::lock_guard<std::mutex> lg(state.m);
     return isDurabilityPossible(lg);

@@ -87,14 +87,16 @@ TEST_F(StatTest, vbucket_seqno_stats_test) {
     const std::string vbucket = "vb_" + std::to_string(vbid.get());
     auto vals = get_stat("vbucket-seqno");
 
-    EXPECT_THAT(vals, UnorderedElementsAre(
-            Key(vbucket + ":uuid"),
-            Pair(vbucket + ":high_seqno", "0"),
-            Pair(vbucket + ":abs_high_seqno", "0"),
-            Pair(vbucket + ":last_persisted_seqno", "0"),
-            Pair(vbucket + ":purge_seqno", "0"),
-            Pair(vbucket + ":last_persisted_snap_start", "0"),
-            Pair(vbucket + ":last_persisted_snap_end", "0")));
+    EXPECT_THAT(vals,
+                UnorderedElementsAre(
+                        Key(vbucket + ":uuid"),
+                        Pair(vbucket + ":high_seqno", "0"),
+                        Pair(vbucket + ":abs_high_seqno", "0"),
+                        Pair(vbucket + ":last_persisted_seqno", "0"),
+                        Pair(vbucket + ":purge_seqno", "0"),
+                        Pair(vbucket + ":last_persisted_snap_start", "0"),
+                        Pair(vbucket + ":last_persisted_snap_end", "0"),
+                        Pair(vbucket + ":high_prepared_seqno", "0")));
 }
 
 // Test that if we request takeover stats for stream that does not exist we
