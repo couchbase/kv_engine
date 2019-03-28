@@ -40,19 +40,8 @@ bool DefragmenterTask::run(void) {
         // then resume from where we last were, otherwise create a new visitor
         // starting from the beginning.
         if (!prAdapter) {
-            boost::optional<uint8_t> storedValueAge;
-
-            // Only defragment persistent buckets because the HashTable defrag
-            // method doesn't yet know how to maintain the ephemeral seqno
-            // linked-list
-            if (engine->getConfiguration().getBucketType() == "persistent") {
-                storedValueAge = getStoredValueAgeThreshold();
-            }
-
             auto visitor = std::make_unique<DefragmentVisitor>(
-                    getAgeThreshold(),
-                    getMaxValueSize(alloc_hooks),
-                    storedValueAge);
+                    getMaxValueSize(alloc_hooks));
 
             prAdapter =
                     std::make_unique<PauseResumeVBAdapter>(std::move(visitor));
@@ -83,6 +72,13 @@ bool DefragmenterTask::run(void) {
         const auto start = ProcessClock::now();
         const auto deadline = start + getChunkDuration();
         visitor.setDeadline(deadline);
+        visitor.setBlobAgeThreshold(getAgeThreshold());
+        // Only defragment StoredValues of persistent buckets because the
+        // HashTable defrag method doesn't yet know how to maintain the
+        // ephemeral seqno linked-list
+        if (engine->getConfiguration().getBucketType() == "persistent") {
+            visitor.setStoredValueAgeThreshold(getStoredValueAgeThreshold());
+        }
         visitor.clearStats();
 
         // Do it - set off the visitor.

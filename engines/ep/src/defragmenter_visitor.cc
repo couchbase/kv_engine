@@ -19,15 +19,11 @@
 
 // DegragmentVisitor implementation ///////////////////////////////////////////
 
-DefragmentVisitor::DefragmentVisitor(uint8_t age_threshold_,
-                                     size_t max_size_class,
-                                     boost::optional<uint8_t> sv_age_threshold)
+DefragmentVisitor::DefragmentVisitor(size_t max_size_class)
     : max_size_class(max_size_class),
-      age_threshold(age_threshold_),
       defrag_count(0),
       visited_count(0),
-      currentVb(nullptr),
-      sv_age_threshold(sv_age_threshold) {
+      currentVb(nullptr) {
 }
 
 DefragmentVisitor::~DefragmentVisitor() {
@@ -35,6 +31,14 @@ DefragmentVisitor::~DefragmentVisitor() {
 
 void DefragmentVisitor::setDeadline(ProcessClock::time_point deadline) {
     progressTracker.setDeadline(deadline);
+}
+
+void DefragmentVisitor::setBlobAgeThreshold(uint8_t age) {
+    age_threshold = age;
+}
+
+void DefragmentVisitor::setStoredValueAgeThreshold(uint8_t age) {
+    sv_age_threshold = age;
 }
 
 bool DefragmentVisitor::visit(const HashTable::HashBucketLock& lh,

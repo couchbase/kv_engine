@@ -252,21 +252,15 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
     // 3. Enable defragmenter and trigger defragmentation
     AllocHooks::enable_thread_cache(false);
 
-    // Setup the StoredValue de-frag age only if in StoredValue mode
-    boost::optional<uint8_t> storedValueAge;
-    if (isModeStoredValue()) {
-        storedValueAge = 0; // Use zero so all SV's get moved.
-    }
-
     auto defragVisitor = std::make_unique<DefragmentVisitor>(
-            0,
             DefragmenterTask::getMaxValueSize(
-                    get_mock_server_api()->alloc_hooks),
-            storedValueAge);
+                    get_mock_server_api()->alloc_hooks));
 
     if (isModeStoredValue()) {
         // Force visiting of every item by setting a large deadline
         defragVisitor->setDeadline(ProcessClock::now() + std::chrono::hours(5));
+        // And set the age, which enables SV defragging
+        defragVisitor->setStoredValueAgeThreshold(0);
     }
 
     PauseResumeVBAdapter prAdapter(std::move(defragVisitor));
@@ -363,10 +357,8 @@ TEST_P(DefragmenterTest, DISABLED_RefCountMemUsage) {
         AllocHooks::enable_thread_cache(false);
 
         PauseResumeVBAdapter prAdapter(std::make_unique<DefragmentVisitor>(
-                0,
                 DefragmenterTask::getMaxValueSize(
-                        get_mock_server_api()->alloc_hooks),
-                boost::optional<uint8_t>{/*no sv defragging*/}));
+                        get_mock_server_api()->alloc_hooks)));
         prAdapter.visit(*vbucket);
 
         AllocHooks::enable_thread_cache(true);

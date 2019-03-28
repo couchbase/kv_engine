@@ -31,14 +31,23 @@
  */
 class DefragmentVisitor : public VBucketAwareHTVisitor {
 public:
-    DefragmentVisitor(uint8_t age_threshold_,
-                      size_t max_size_class,
-                      boost::optional<uint8_t> sv_age_threshold);
+    DefragmentVisitor(size_t max_size_class);
 
     ~DefragmentVisitor();
 
     // Set the deadline at which point the visitor will pause visiting.
     void setDeadline(ProcessClock::time_point deadline_);
+
+    /**
+     * Set the age at which Blobs are defragged 0 - 255
+     */
+    void setBlobAgeThreshold(uint8_t age);
+
+    /**
+     * Set the age at which StoredValues are defragged - by default SV
+     * defragging is off until an age is set (0-255)
+     */
+    void setStoredValueAgeThreshold(uint8_t age);
 
     // Implementation of HashTableVisitor interface:
     virtual bool visit(const HashTable::HashBucketLock& lh,
@@ -68,7 +77,7 @@ private:
     const size_t max_size_class;
 
     // How old a blob must be to consider it for defragmentation.
-    const uint8_t age_threshold;
+    uint8_t age_threshold{0};
 
     /* Runtime state */
 

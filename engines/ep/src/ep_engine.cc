@@ -592,6 +592,10 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
                     std::stoull(valz));
         } else if (strcmp(keyz, "defragmenter_age_threshold") == 0) {
             getConfiguration().setDefragmenterAgeThreshold(std::stoull(valz));
+        } else if (strcmp(keyz, "defragmenter_stored_value_age_threshold") ==
+                   0) {
+            getConfiguration().setDefragmenterStoredValueAgeThreshold(
+                    std::stoull(valz));
         } else if (strcmp(keyz, "defragmenter_chunk_duration") == 0) {
             getConfiguration().setDefragmenterChunkDuration(std::stoull(valz));
         } else if (strcmp(keyz, "defragmenter_run") == 0) {
