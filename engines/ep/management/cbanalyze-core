@@ -165,44 +165,7 @@ EOF
    done >> ${report}
 }
 
-#######################################################################
-# Function to get information about the binaries used from a Solaris
-# system
-#######################################################################
-analyze_sunos() {
-executable=`pldd ${corefile} | head -1 | tr -d '[\t]' | cut -f 2 -d: | cut -f 1 -d \ `
-   dump_file ${executable}
-   dump_file ${corefile}
-   cat >> ${report} <<EOF
---------------------------------------------------------------------------------
-Core file callstacks:
-EOF
-   pstack ${corefile} >> ${report} 2>&1
-   cat >> ${report} <<EOF
---------------------------------------------------------------------------------
-Module information:
-EOF
-   mlines=`pldd ${corefile} | grep -v "^core "`
-   for module in $mlines
-   do
-      dump_file ${module}
-   done >> ${report}
-
-   cat >> ${report} <<EOF
---------------------------------------------------------------------------------
-Potential memory leaks:
-EOF
-   echo ::findleaks -v -d | mdb ${corefile} >> ${report} 2>&1
-}
-
-case `uname -s` in
-  SunOS)
-    analyze_sunos
-    ;;
-  *)
-    analyze_gdb
-    ;;
-esac
+analyze_gdb
 
 cat <<EOF
 

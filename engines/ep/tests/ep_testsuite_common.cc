@@ -202,15 +202,6 @@ std::string get_dbname(const char* test_cfg) {
 }
 
 enum test_result prepare(engine_test_t *test) {
-#ifdef __sun
-        // Some of the tests doesn't work on Solaris.. Don't know why yet..
-        if (strstr(test->name, "concurrent set") != NULL ||
-            strstr(test->name, "retain rowid over a soft delete") != NULL)
-        {
-            return SKIPPED;
-        }
-#endif
-
     std::string dbname = get_dbname(test->cfg);
     /* Remove if the same DB directory already exists */
     try {
