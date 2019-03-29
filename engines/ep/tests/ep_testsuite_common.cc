@@ -235,6 +235,30 @@ enum test_result prepare_ep_bucket_skip_broken_under_rocks(engine_test_t* test) 
     return prepare_ep_bucket(test);
 }
 
+enum test_result prepare_ep_bucket_skip_broken_under_magma(
+        engine_test_t* test) {
+    if (std::string(test->cfg).find("backend=magma") != std::string::npos) {
+        return SKIPPED_UNDER_MAGMA;
+    }
+
+    // Perform whatever prep the ep bucket function wants.
+    return prepare_ep_bucket(test);
+}
+
+enum test_result prepare_ep_bucket_skip_broken_under_rocks_and_magma(
+        engine_test_t* test) {
+    std::string cfg{test->cfg};
+    if (cfg.find("backend=rocksdb") != std::string::npos) {
+        return SKIPPED_UNDER_ROCKSDB;
+    }
+    if (cfg.find("backend=magma") != std::string::npos) {
+        return SKIPPED_UNDER_MAGMA;
+    }
+
+    // Perform whatever prep the ep bucket function wants.
+    return prepare_ep_bucket(test);
+}
+
 enum test_result prepare_ep_bucket_skip_broken_under_rocks_full_eviction(
         engine_test_t* test) {
     std::string cfg{test->cfg};
@@ -254,6 +278,29 @@ enum test_result prepare_skip_broken_under_rocks(engine_test_t* test) {
     std::string cfg{test->cfg};
     if (cfg.find("backend=rocksdb") != std::string::npos) {
         return SKIPPED_UNDER_ROCKSDB;
+    }
+
+    // Perform whatever prep the "base class" function wants.
+    return prepare(test);
+}
+
+enum test_result prepare_skip_broken_under_magma(engine_test_t* test) {
+    if (std::string(test->cfg).find("backend=magma") != std::string::npos) {
+        return SKIPPED_UNDER_MAGMA;
+    }
+
+    // Perform whatever prep the "base class" function wants.
+    return prepare(test);
+}
+
+enum test_result prepare_skip_broken_under_rocks_and_magma(
+        engine_test_t* test) {
+    std::string cfg{test->cfg};
+    if (cfg.find("backend=rocksdb") != std::string::npos) {
+        return SKIPPED_UNDER_ROCKSDB;
+    }
+    if (cfg.find("backend=magma") != std::string::npos) {
+        return SKIPPED_UNDER_MAGMA;
     }
 
     // Perform whatever prep the "base class" function wants.

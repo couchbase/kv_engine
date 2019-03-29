@@ -197,9 +197,8 @@ enum test_result prepare_ep_bucket(engine_test_t* test);
 
 /**
  * Prepare a test which is currently expected to fail when using
- * RocksDBKVStore and so should be skipped.
- * As RocksDBKVStore progresses these tests should be rechecked, as
- * all applicable tests should eventually pass.
+ * Rocks, Magma or both and skip the test.
+ * As Rocks and Magma mature, these tests should be revisited.
  *
  * NB: some tests may currently be marked with this but will never pass
  * e.g., compaction tests as RocksDB's compaction model is different.
@@ -207,6 +206,8 @@ enum test_result prepare_ep_bucket(engine_test_t* test);
  * equivalent test constructed exclusively for RocksDB.
  */
 enum test_result prepare_skip_broken_under_rocks(engine_test_t* test);
+enum test_result prepare_skip_broken_under_magma(engine_test_t* test);
+enum test_result prepare_skip_broken_under_rocks_and_magma(engine_test_t* test);
 
 /**
  * Prepare a test which is only applicable to a persistent bucket, but
@@ -216,6 +217,9 @@ enum test_result prepare_skip_broken_under_rocks(engine_test_t* test);
  * all applicable tests should eventually pass.
  */
 enum test_result prepare_ep_bucket_skip_broken_under_rocks(engine_test_t* test);
+enum test_result prepare_ep_bucket_skip_broken_under_magma(engine_test_t* test);
+enum test_result prepare_ep_bucket_skip_broken_under_rocks_and_magma(
+        engine_test_t* test);
 
 /**
  * Prepare a test which is only applicable to a persistent bucket, but is

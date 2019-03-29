@@ -19,7 +19,8 @@ enum test_result {
     PENDING = 19,
     TIMEOUT = 23,
     SUCCESS_AFTER_RETRY = 24,
-    SKIPPED_UNDER_ROCKSDB = 25
+    SKIPPED_UNDER_ROCKSDB = 25,
+    SKIPPED_UNDER_MAGMA = 26
 };
 
 /**

@@ -1033,6 +1033,10 @@ static int report_test(const char* name,
         msg="SKIPPED_UNDER_ROCKSDB";
         color = 32;
         break;
+    case SKIPPED_UNDER_MAGMA:
+        msg = "SKIPPED_UNDER_MAGMA";
+        color = 32;
+        break;
     default:
         color = 31;
         msg = "UNKNOWN";
