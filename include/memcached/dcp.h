@@ -323,13 +323,11 @@ struct dcp_message_producers {
      *
      * @param opaque identifying stream
      * @param vbucket the vbucket the seqno ack is for
-     * @param in_memory_seqno
-     * @param on_disk_seqno
+     * @param prepared_seqno The seqno the replica has prepared up to.
      */
     virtual ENGINE_ERROR_CODE seqno_acknowledged(uint32_t opaque,
                                                  Vbid vbucket,
-                                                 uint64_t in_memory_seqno,
-                                                 uint64_t on_disk_seqno) = 0;
+                                                 uint64_t prepared_seqno) = 0;
 
     /**
      * Send a commit message:
@@ -717,21 +715,19 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * wire.
      *
      * It serves to inform KV-Engine active nodes that the replica has
-     * successfully received and prepared to memory/disk all DCP_PREPARE
-     * messages up to the specified seqno.
+     * successfully received and prepared all DCP_PREPARE messages up to the
+     * specified seqno.
      *
      * @param cookie connection to send it over
      * @param opaque identifying stream
      * @param vbucket The vbucket which is being acknowledged.
-     * @param in_memory_seqno
-     * @param on_disk_seqno
+     * @param prepared_seqno The seqno the replica has prepared up to.
      */
     virtual ENGINE_ERROR_CODE seqno_acknowledged(
             gsl::not_null<const void*> cookie,
             uint32_t opaque,
             Vbid vbucket,
-            uint64_t in_memory_seqno,
-            uint64_t on_disk_seqno) = 0;
+            uint64_t prepared_seqno) = 0;
 
     /**
      * Called by the core when it receives a DCP COMMIT message over the

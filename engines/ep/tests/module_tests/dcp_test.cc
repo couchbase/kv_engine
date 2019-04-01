@@ -2712,10 +2712,13 @@ TEST_F(SingleThreadedStreamTest, Durability_MemorySeqnoAckAtSyncWriteReceived) {
         ASSERT_EQ(1, readyQ.size());
         ASSERT_EQ(DcpResponse::Event::SeqnoAcknowledgement,
                   readyQ.front()->getEvent());
+        // @todo-durability: Disabled until DurabilityMonitor updated to have
+        // a single prepared seqno (currently we only prepare when on-disk).
+#if 0
         const auto* seqnoAck =
                 static_cast<const SeqnoAcknowledgement*>(readyQ.front().get());
-        EXPECT_EQ(ntohll(syncWriteSeqno), seqnoAck->getInMemorySeqno());
-        EXPECT_EQ(0, seqnoAck->getOnDiskSeqno());
+        EXPECT_EQ(ntohll(syncWriteSeqno), seqnoAck->getPreparedSeqno());
+#endif
     };
 
     ASSERT_EQ(ENGINE_SUCCESS,
@@ -2796,8 +2799,7 @@ TEST_F(SingleThreadedStreamTest, Durability_ReplicaDiskAckAtPersistedSeqno) {
               readyQ.front()->getEvent());
     const auto* seqnoAck =
             static_cast<const SeqnoAcknowledgement*>(readyQ.front().get());
-    EXPECT_EQ(ntohll(2), seqnoAck->getInMemorySeqno());
-    EXPECT_EQ(ntohll(0), seqnoAck->getOnDiskSeqno());
+    EXPECT_EQ(ntohll(0), seqnoAck->getPreparedSeqno());
     ASSERT_TRUE(passiveStream->public_popFromReadyQ());
 
     ASSERT_EQ(ENGINE_SUCCESS,
@@ -2815,8 +2817,7 @@ TEST_F(SingleThreadedStreamTest, Durability_ReplicaDiskAckAtPersistedSeqno) {
     ASSERT_EQ(DcpResponse::Event::SeqnoAcknowledgement,
               readyQ.front()->getEvent());
     seqnoAck = static_cast<const SeqnoAcknowledgement*>(readyQ.front().get());
-    EXPECT_EQ(ntohll(3), seqnoAck->getInMemorySeqno());
-    EXPECT_EQ(ntohll(3), seqnoAck->getOnDiskSeqno());
+    EXPECT_EQ(ntohll(3), seqnoAck->getPreparedSeqno());
 
     // Cleanup
     EXPECT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));

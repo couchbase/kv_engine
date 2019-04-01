@@ -427,15 +427,7 @@ void DurabilityMonitor::addSyncWrite(const void* cookie, queued_item item) {
 }
 
 ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
-        const std::string& replica, int64_t memorySeqno, int64_t diskSeqno) {
-    if (memorySeqno < diskSeqno) {
-        throw std::invalid_argument(
-                "DurabilityMonitor::seqnoAckReceived: memorySeqno < diskSeqno "
-                "(" +
-                std::to_string(memorySeqno) + " < " +
-                std::to_string(diskSeqno) + ")");
-    }
-
+        const std::string& replica, int64_t preparedSeqno) {
     // Note:
     // TSan spotted that in the execution path to DM::addSyncWrites we acquire
     // HashBucketLock first and then a lock to DM::state.m, while here we
@@ -472,8 +464,10 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
                     "DurabilityMonitor::seqnoAckReceived: FirstChain not set");
         }
 
-        processSeqnoAck(lg, replica, Tracking::Memory, memorySeqno, toCommit);
-        processSeqnoAck(lg, replica, Tracking::Disk, diskSeqno, toCommit);
+        // @todo-durability: Now there's just a single prepared_seqno, update
+        // seqnoAck processing to only have a single cursor per replica.
+        processSeqnoAck(lg, replica, Tracking::Memory, preparedSeqno, toCommit);
+        processSeqnoAck(lg, replica, Tracking::Disk, preparedSeqno, toCommit);
     }
 
     // Commit the verified SyncWrites

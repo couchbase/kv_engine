@@ -3120,10 +3120,8 @@ bool VBucket::isLogicallyNonExistent(
 }
 
 ENGINE_ERROR_CODE VBucket::seqnoAcknowledged(const std::string& replicaId,
-                                             uint64_t inMemorySeqno,
-                                             uint64_t onDiskSeqno) {
-    return durabilityMonitor->seqnoAckReceived(
-            replicaId, inMemorySeqno, onDiskSeqno);
+                                             uint64_t preparedSeqno) {
+    return durabilityMonitor->seqnoAckReceived(replicaId, preparedSeqno);
 }
 
 void VBucket::notifyPersistenceToDurabilityMonitor(

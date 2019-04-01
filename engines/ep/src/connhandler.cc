@@ -277,8 +277,7 @@ ENGINE_ERROR_CODE ConnHandler::commit(uint32_t opaque,
 
 ENGINE_ERROR_CODE ConnHandler::seqno_acknowledged(uint32_t opaque,
                                                   Vbid vbucket,
-                                                  uint64_t in_memory_seqno,
-                                                  uint64_t on_disk_seqno) {
+                                                  uint64_t prepared_seqno) {
     logger->warn(
             "Disconnecting - This connection doesn't support the dcp "
             "seqno_acknowledged API");

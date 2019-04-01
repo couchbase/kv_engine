@@ -98,16 +98,12 @@ public:
      * Expected to be called by memcached at receiving a DCP_SEQNO_ACK packet.
      *
      * @param replica The replica that sent the ACK
-     * @param memorySeqno The ack'ed memory-seqno
-     * @param diskSeqno The ack'ed disk-seqno
+     * @param diskSeqno The ack'ed prepared seqno.
      * @return ENGINE_SUCCESS if the operation succeeds, an error code otherwise
      * @throw std::logic_error if the received seqno is unexpected
-     *
-     * @todo: Expand for  supporting a full {memorySeqno, diskSeqno} ACK.
      */
     ENGINE_ERROR_CODE seqnoAckReceived(const std::string& replica,
-                                       int64_t memorySeqno,
-                                       int64_t diskSeqno);
+                                       int64_t preparedSeqno);
 
     /**
      * Enforce timeout for the expired SyncWrites in the tracked list.

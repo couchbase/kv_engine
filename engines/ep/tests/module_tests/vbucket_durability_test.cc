@@ -133,8 +133,7 @@ void VBucketDurabilityTest::testSyncWrites(
 
     // The active sends DCP_PREPARE messages to the replica, here I simulate
     // the replica DCP_SEQNO_ACK response
-    vbucket->seqnoAcknowledged(
-            replica, writes.back().seqno /*memorySeqno*/, 0 /*diskSeqno*/);
+    vbucket->seqnoAcknowledged(replica, writes.back().seqno);
 
     for (auto write : writes) {
         auto key = makeStoredDocKey("key" + std::to_string(write.seqno));
@@ -376,13 +375,13 @@ TEST_P(VBucketDurabilityTest, MultipleReplicas) {
     checkPending();
 
     // replica2 acks, Durability Requirements not satisfied yet
-    vbucket->seqnoAcknowledged(replica2, 1 /*memSeqno*/, 0 /*diskSeqno*/);
+    vbucket->seqnoAcknowledged(replica2, 1 /*preparedSeqno*/);
     checkPending();
 
     // replica3 acks, Durability Requirements satisfied
     // Note: ensure 1 Ckpt in CM, easier to inspect the CkptList after Commit
     ckptMgr->clear(*vbucket, 0 /*lastBySeqno*/);
-    vbucket->seqnoAcknowledged(replica3, 1 /*memSeqno*/, 0 /*diskSeqno*/);
+    vbucket->seqnoAcknowledged(replica3, 1 /*preparedSeqno*/);
     checkCommitted();
 }
 
@@ -454,7 +453,7 @@ TEST_P(VBucketDurabilityTest, PendingSkippedAtEjectionAndCommit) {
     ckptMgr->clear(*vbucket, 0 /*seqno*/);
 
     // Replica acks, Durability Requirements satisfied, Commit
-    vbucket->seqnoAcknowledged(replica, 1 /*memSeqno*/, 0 /*diskSeqno*/);
+    vbucket->seqnoAcknowledged(replica, 1 /*preparedSeqno*/);
 
     // HashTable state:
     // visible at read

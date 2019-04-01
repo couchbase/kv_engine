@@ -922,8 +922,7 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
             auto* ack = static_cast<SeqnoAcknowledgement*>(resp.get());
             ret = producers->seqno_acknowledged(ack->getOpaque(),
                                                 ack->getVbucket(),
-                                                ack->getInMemorySeqno(),
-                                                ack->getOnDiskSeqno());
+                                                ack->getPreparedSeqno());
             break;
         }
         default:

@@ -382,8 +382,7 @@ public:
     ENGINE_ERROR_CODE seqno_acknowledged(gsl::not_null<const void*> cookie,
                                          uint32_t opaque,
                                          Vbid vbucket,
-                                         uint64_t in_memory_seqno,
-                                         uint64_t on_disk_seqno) override;
+                                         uint64_t prepared_seqno) override;
     ENGINE_ERROR_CODE commit(gsl::not_null<const void*> cookie,
                              uint32_t opaque,
                              Vbid vbucket,

@@ -151,14 +151,13 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedSmallerThanLastAcked) {
     addSyncWrites({1, 2} /*seqnos*/);
 
     // This call removes seqno:1
-    ASSERT_NO_THROW(monitor->seqnoAckReceived(
-            replica, 1 /*memSeqno*/, 0 /*diskSeqno*/));
+    ASSERT_NO_THROW(monitor->seqnoAckReceived(replica, 1 /*preparedSeqno*/));
     ASSERT_EQ(1, monitor->public_getNumTracked());
     ASSERT_EQ(1, monitor->public_getNodeWriteSeqnos(replica).memory);
     ASSERT_EQ(1, monitor->public_getNodeAckSeqnos(replica).memory);
 
     try {
-        monitor->seqnoAckReceived(replica, 0 /*memSeqno*/, 0 /*diskSeqno*/);
+        monitor->seqnoAckReceived(replica, 0 /*preparedSeqno*/);
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find("Monotonic") !=
                     std::string::npos);
@@ -176,8 +175,7 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedEqualPending) {
     ASSERT_EQ(0, monitor->public_getNodeAckSeqnos(replica).memory);
 
     for (int64_t seqno = seqnoStart; seqno <= seqnoEnd; seqno++) {
-        EXPECT_NO_THROW(monitor->seqnoAckReceived(
-                replica, seqno /*memSeqno*/, 0 /*diskSeqno*/));
+        EXPECT_NO_THROW(monitor->seqnoAckReceived(replica, seqno));
         // Check that the tracking advances by 1 at each cycle
         EXPECT_EQ(seqno, monitor->public_getNodeWriteSeqnos(replica).memory);
         EXPECT_EQ(seqno, monitor->public_getNodeAckSeqnos(replica).memory);
@@ -197,8 +195,7 @@ TEST_F(DurabilityMonitorTest,
     int64_t memoryAckSeqno = 2;
     // Receive a seqno-ack in the middle of tracked seqnos
     EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(
-                      replica, memoryAckSeqno, 0 /*diskSeqno*/));
+              monitor->seqnoAckReceived(replica, memoryAckSeqno));
     // Check that the tracking has advanced to the ack'ed seqno
     EXPECT_EQ(memoryAckSeqno,
               monitor->public_getNodeWriteSeqnos(replica).memory);
@@ -218,8 +215,7 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedGreaterThanPending_SparseSeqnos) {
     int64_t memoryAckSeqno = 4;
     // Receive a seqno-ack in the middle of tracked seqnos
     EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(
-                      replica, memoryAckSeqno, 0 /*diskSeqno*/));
+              monitor->seqnoAckReceived(replica, memoryAckSeqno));
     // Check that the tracking has advanced to the last tracked seqno before
     // the ack'ed seqno
     EXPECT_EQ(3, monitor->public_getNodeWriteSeqnos(replica).memory);
@@ -240,8 +236,7 @@ TEST_F(DurabilityMonitorTest,
     int64_t memoryAckSeqno = 4;
     // Receive a seqno-ack greater than the last tracked seqno
     EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(
-                      replica, memoryAckSeqno, 0 /*diskSeqno*/));
+              monitor->seqnoAckReceived(replica, memoryAckSeqno));
     // Check that the tracking has advanced to the last tracked seqno
     EXPECT_EQ(3, monitor->public_getNodeWriteSeqnos(replica).memory);
     // Check that the ack-seqno has been updated correctly
@@ -261,8 +256,7 @@ TEST_F(DurabilityMonitorTest,
     int64_t memoryAckSeqno = 10;
     // Receive a seqno-ack greater than the last tracked seqno
     EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(
-                      replica, memoryAckSeqno, 0 /*diskSeqno*/));
+              monitor->seqnoAckReceived(replica, memoryAckSeqno));
     // Check that the tracking has advanced to the last tracked seqno
     EXPECT_EQ(5, monitor->public_getNodeWriteSeqnos(replica).memory);
     // Check that the ack-seqno has been updated correctly
@@ -272,19 +266,6 @@ TEST_F(DurabilityMonitorTest,
     // Check that seqno-tracking is not lost after commit+remove
     EXPECT_EQ(5, monitor->public_getNodeWriteSeqnos(replica).memory);
     EXPECT_EQ(memoryAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
-}
-
-TEST_F(DurabilityMonitorTest,
-       SeqnoAckReceived_MemorySeqnoSmallerThanDiskSeqno) {
-    addSyncWrites({1} /*seqnos*/);
-    try {
-        monitor->seqnoAckReceived(replica, 0 /*memSeqno*/, 1 /*diskSeqno*/);
-    } catch (const std::logic_error& e) {
-        EXPECT_TRUE(std::string(e.what()).find("memorySeqno < diskSeqno") !=
-                    std::string::npos);
-        return;
-    }
-    FAIL();
 }
 
 // @todo: Refactor test suite and expand test cases
@@ -299,8 +280,7 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceived_PersistToMajority) {
     int64_t memAckSeqno = 10, diskAckSeqno = 10;
 
     // Receive a seqno-ack greater than the last tracked seqno
-    EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(replica, memAckSeqno, diskAckSeqno));
+    EXPECT_EQ(ENGINE_SUCCESS, monitor->seqnoAckReceived(replica, memAckSeqno));
 
     // Check that we have not committed as the active has not ack'ed the
     // persisted seqno
@@ -425,8 +405,7 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {
 
     // replica2 acks
     EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(
-                      replica2, 1 /*memSeqno*/, 0 /*diskSeqno*/));
+              monitor->seqnoAckReceived(replica2, 1 /*preparedSeqno*/));
     EXPECT_EQ(1, monitor->public_getNodeWriteSeqnos(replica2).memory);
     EXPECT_EQ(1, monitor->public_getNodeAckSeqnos(replica2).memory);
     // Nothing committed yet
@@ -434,8 +413,7 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {
 
     // replica3 acks
     EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(
-                      replica3, 1 /*memSeqno*/, 0 /*diskSeqno*/));
+              monitor->seqnoAckReceived(replica3, 1 /*preparedSeqno*/));
     EXPECT_EQ(1, monitor->public_getNodeWriteSeqnos(replica3).memory);
     EXPECT_EQ(1, monitor->public_getNodeAckSeqnos(replica3).memory);
     // Requirements verified, committed
@@ -550,19 +528,21 @@ TEST_F(DurabilityMonitorTest, MajorityAndPersistActive) {
 
     int64_t memAckSeqno = 10, diskAckSeqno = 10;
 
-    // Replica acks that (1) everything enqueued but (2) nothing persisted
-    EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(replica, memAckSeqno, 0 /*diskSeqno*/));
+    // Replica acks that everything prepared (as only required to be in-memory
+    // on replicas).
+    EXPECT_EQ(ENGINE_SUCCESS, monitor->seqnoAckReceived(replica, memAckSeqno));
 
     // The active has not ack'ed the persisted seqno, so nothing committed yet
     EXPECT_EQ(3, monitor->public_getNumTracked());
 
     // Check that the tracking for Replica has been updated correctly
-    EXPECT_EQ(5, monitor->public_getNodeWriteSeqnos(replica).memory);
-    EXPECT_EQ(diskAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
+#if 0
+    // @todo-durability: Once DurabilityMonitor is updated to track only single
+    // preparedSeqno, restore this and update to check that the replica's
+    // preparedSeqno is 5 (highest seqno written).
     EXPECT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).disk);
     EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(replica).disk);
-
+#endif
     // Check that the disk-tracking for Active has not moved yet
     EXPECT_EQ(0, monitor->public_getNodeWriteSeqnos(active).disk);
     EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(active).disk);
@@ -606,10 +586,9 @@ TEST_F(DurabilityMonitorTest, DontInvalidateIteratorsAtOutOfOrderCommit) {
     assertNodeMemTracking(replica, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     assertNodeDiskTracking(replica, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
 
-    // Replica acks memSeqno:2
+    // Replica acks preparedSeqno:2
     ASSERT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(
-                      replica, 2 /*memSeqno*/, 0 /*diskSeqno*/));
+              monitor->seqnoAckReceived(replica, 2 /*preparedSeqno*/));
 
     /*
      * End        s1(P)        x
@@ -623,40 +602,15 @@ TEST_F(DurabilityMonitorTest, DontInvalidateIteratorsAtOutOfOrderCommit) {
     assertNodeMemTracking(active, 2 /*lastWriteSeqno*/, 2 /*lastAckSeqno*/);
     assertNodeDiskTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     assertNodeMemTracking(replica, 2 /*lastWriteSeqno*/, 2 /*lastAckSeqno*/);
-    assertNodeDiskTracking(replica, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
 
     // Simulate the Flusher that notifies the local DurabilityMonitor after
     // persistence
     vb->setPersistenceSeqno(1);
     monitor->notifyLocalPersistence();
 
-    ASSERT_EQ(1, monitor->public_getNumTracked());
     assertNodeMemTracking(active, 2 /*lastWriteSeqno*/, 2 /*lastAckSeqno*/);
     assertNodeDiskTracking(active, 1 /*lastWriteSeqno*/, 1 /*lastAckSeqno*/);
     assertNodeMemTracking(replica, 2 /*lastWriteSeqno*/, 2 /*lastAckSeqno*/);
-    assertNodeDiskTracking(replica, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-
-    // Replica acks diskSeqno:1
-    ASSERT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(
-                      replica, 2 /*memSeqno*/, 1 /*diskSeqno*/));
-
-    /*
-     * This is what happens before the fix (A(m) and R(m) stay invalid rather
-     * than being repositioned to End):
-     *
-     * End        x        x
-     * ^          ^
-     * A(d)       A(m)
-     * ^          ^
-     * R(d)       R(m)
-     */
-
-    ASSERT_EQ(0, monitor->public_getNumTracked());
-    assertNodeMemTracking(active, 2 /*lastWriteSeqno*/, 2 /*lastAckSeqno*/);
-    assertNodeDiskTracking(active, 1 /*lastWriteSeqno*/, 1 /*lastAckSeqno*/);
-    assertNodeMemTracking(replica, 2 /*lastWriteSeqno*/, 2 /*lastAckSeqno*/);
-    assertNodeDiskTracking(replica, 1 /*lastWriteSeqno*/, 1 /*lastAckSeqno*/);
 
     // This crashes with SEGFAULT before the fix (caused by processing the
     // invalid A(m) iterator)

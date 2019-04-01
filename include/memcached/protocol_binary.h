@@ -1331,21 +1331,12 @@ static_assert(sizeof(DcpPreparePayload) == 33, "Unexpected struct size");
 
 class DcpSeqnoAcknowledgedPayload {
 public:
-    DcpSeqnoAcknowledgedPayload(uint64_t in_memory, uint64_t on_disk)
-        : in_memory_seqno(in_memory), on_disk_seqno(on_disk) {
+    explicit DcpSeqnoAcknowledgedPayload(uint64_t prepared)
+        : prepared_seqno(prepared) {
     }
 
-    uint64_t getInMemorySeqno() const {
-        return ntohll(in_memory_seqno);
-    }
-    void setInMemorySeqno(uint64_t in_memory_seqno) {
-        DcpSeqnoAcknowledgedPayload::in_memory_seqno = htonll(in_memory_seqno);
-    }
-    uint64_t getOnDiskSeqno() const {
-        return ntohll(on_disk_seqno);
-    }
-    void setOnDiskSeqno(uint64_t on_disk_seqno) {
-        DcpSeqnoAcknowledgedPayload::on_disk_seqno = htonll(on_disk_seqno);
+    uint64_t getPreparedSeqno() const {
+        return ntohll(prepared_seqno);
     }
 
     cb::const_byte_buffer getBuffer() const {
@@ -1353,10 +1344,9 @@ public:
     }
 
 protected:
-    uint64_t in_memory_seqno = 0;
-    uint64_t on_disk_seqno = 0;
+    uint64_t prepared_seqno = 0;
 };
-static_assert(sizeof(DcpSeqnoAcknowledgedPayload) == 16,
+static_assert(sizeof(DcpSeqnoAcknowledgedPayload) == 8,
               "Unexpected struct size");
 
 class DcpCommitPayload {

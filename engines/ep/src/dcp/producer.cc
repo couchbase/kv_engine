@@ -989,8 +989,7 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
 
 ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
                                                   Vbid vbucket,
-                                                  uint64_t in_memory_seqno,
-                                                  uint64_t on_disk_seqno) {
+                                                  uint64_t prepared_seqno) {
     VBucketPtr vb = engine_.getVBucket(vbucket);
     if (!vb) {
         logger->warn(
@@ -1000,13 +999,11 @@ ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    logger->debug(
-            "({}) seqno_acknowledged: in_memory_seqno:{}, on_disk_seqno:{}",
-            vbucket,
-            in_memory_seqno,
-            on_disk_seqno);
+    logger->debug("({}) seqno_acknowledged: prepared_seqno:{}",
+                  vbucket,
+                  prepared_seqno);
 
-    return vb->seqnoAcknowledged(consumerName, in_memory_seqno, on_disk_seqno);
+    return vb->seqnoAcknowledged(consumerName, prepared_seqno);
 }
 
 bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {

@@ -3932,9 +3932,8 @@ TEST_F(SingleThreadedEPBucketTest, Durability_ActiveLocalNotifyPersistedSeqno) {
     checkPending();
 
     // Replica acks disk-seqno
-    EXPECT_EQ(
-            ENGINE_SUCCESS,
-            vb->seqnoAcknowledged("replica", 3 /*memSeqno*/, 3 /*diskSeqno*/));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb->seqnoAcknowledged("replica", 3 /*preparedSeqno*/));
     // Active has not persisted, so Durability Requirements not satisfied yet
     checkPending();
 

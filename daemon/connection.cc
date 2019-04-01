@@ -2349,10 +2349,8 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
 
 ENGINE_ERROR_CODE Connection::seqno_acknowledged(uint32_t opaque,
                                                  Vbid vbucket,
-                                                 uint64_t in_memory_seqno,
-                                                 uint64_t on_disk_seqno) {
-    cb::mcbp::request::DcpSeqnoAcknowledgedPayload extras(in_memory_seqno,
-                                                          on_disk_seqno);
+                                                 uint64_t prepared_seqno) {
+    cb::mcbp::request::DcpSeqnoAcknowledgedPayload extras(prepared_seqno);
     uint8_t buffer[sizeof(cb::mcbp::Request) + sizeof(extras)];
     cb::mcbp::RequestBuilder builder({buffer, sizeof(buffer)});
     builder.setMagic(cb::mcbp::Magic::ClientRequest);

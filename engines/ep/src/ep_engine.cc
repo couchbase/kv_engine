@@ -1622,13 +1622,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::seqno_acknowledged(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
         Vbid vbucket,
-        uint64_t in_memory_seqno,
-        uint64_t on_disk_seqno) {
+        uint64_t prepared_seqno) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        return conn->seqno_acknowledged(
-                opaque, vbucket, in_memory_seqno, on_disk_seqno);
+        return conn->seqno_acknowledged(opaque, vbucket, prepared_seqno);
     }
     return ENGINE_ENOTSUP;
 }

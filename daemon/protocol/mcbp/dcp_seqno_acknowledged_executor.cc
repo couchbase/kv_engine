@@ -33,8 +33,7 @@ void dcp_seqno_acknowledged_executor(Cookie& cookie) {
         ret = dcpSeqnoAcknowledged(cookie,
                                    req.getOpaque(),
                                    req.getVBucket(),
-                                   extras.getInMemorySeqno(),
-                                   extras.getOnDiskSeqno());
+                                   extras.getPreparedSeqno());
     }
 
     ret = connection.remapErrorCode(ret);

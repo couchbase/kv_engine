@@ -580,18 +580,15 @@ protected:
 /**
  * Represents a sequence number acknowledgement message sent from replication
  * consumer to producer to notify the producer what seqno the consumer has
- * processed up to.
+ * prepared up to.
  */
 class SeqnoAcknowledgement : public DcpResponse {
 public:
-    SeqnoAcknowledgement(uint32_t opaque,
-                         Vbid vbucket,
-                         uint64_t inMemorySeqno,
-                         uint64_t onDiskSeqno)
+    SeqnoAcknowledgement(uint32_t opaque, Vbid vbucket, uint64_t preparedSeqno)
         : DcpResponse(
                   Event::SeqnoAcknowledgement, opaque, cb::mcbp::DcpStreamId{}),
           vbucket(vbucket),
-          payload(inMemorySeqno, onDiskSeqno) {
+          payload(preparedSeqno) {
     }
 
     uint32_t getMessageSize() const override {
@@ -603,12 +600,8 @@ public:
         return vbucket;
     }
 
-    uint64_t getInMemorySeqno() const {
-        return payload.getInMemorySeqno();
-    }
-
-    uint64_t getOnDiskSeqno() const {
-        return payload.getOnDiskSeqno();
+    uint64_t getPreparedSeqno() const {
+        return payload.getPreparedSeqno();
     }
 
 private:

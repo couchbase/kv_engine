@@ -229,8 +229,7 @@ public:
     /// Receive a seqno_acknowledged message.
     virtual ENGINE_ERROR_CODE seqno_acknowledged(uint32_t opaque,
                                                  Vbid vbucket,
-                                                 uint64_t in_memory_seqno,
-                                                 uint64_t on_disk_seqno);
+                                                 uint64_t prepared_seqno);
 
     const char* logHeader();
 

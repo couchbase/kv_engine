@@ -639,10 +639,6 @@ ENGINE_ERROR_CODE PassiveStream::processPrepare(
 
 void PassiveStream::seqnoAck() {
     // Durability
-    // To ensure consistency at failure scenario the SeqnoAck payload must
-    // always be:
-    // memSeqno = high-seqno
-    // diskSeqno = last-persisted-seqno for VBucket
     //
     // This function is called for sending a SeqnoAck to the Active after:
     // 1) a Prepare has been received over this PassiveStream
@@ -650,11 +646,15 @@ void PassiveStream::seqnoAck() {
     {
         VBucketPtr vb = engine->getVBucket(vb_);
         LockHolder lh(streamMutex);
+        /* @todo-durability: TEMP: Only sending getPersistenceSeqno() here
+         * to allow migration to single high_prepared_seqno before
+         * DurabilityMonitor fully updated to support it.
+         * We should send the high_prepared_seqno here instead of
+         * PersistenceSeqno, or otherwise get the (Passive)DurabilityMonitor
+         * to send the SeqnoAck
+         */
         pushToReadyQ(std::make_unique<SeqnoAcknowledgement>(
-                opaque_,
-                vb_,
-                vb->getHighSeqno() /*memSeqno*/,
-                vb->getPersistenceSeqno()) /*diskSeqno*/);
+                opaque_, vb_, vb->getPersistenceSeqno()));
     }
     notifyStreamReady();
 }

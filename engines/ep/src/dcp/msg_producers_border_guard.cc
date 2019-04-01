@@ -204,13 +204,9 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::prepare(
                            durability);
 }
 ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::seqno_acknowledged(
-        uint32_t opaque,
-        Vbid vbucket,
-        uint64_t in_memory_seqno,
-        uint64_t on_disk_seqno) {
+        uint32_t opaque, Vbid vbucket, uint64_t prepared_seqno) {
     NonBucketAllocationGuard guard;
-    return guarded.seqno_acknowledged(
-            opaque, vbucket, in_memory_seqno, on_disk_seqno);
+    return guarded.seqno_acknowledged(opaque, vbucket, prepared_seqno);
 }
 ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::commit(uint32_t opaque,
                                                      Vbid vbucket,
