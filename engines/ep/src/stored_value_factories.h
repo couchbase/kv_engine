@@ -83,7 +83,11 @@ public:
 
     StoredValue::UniquePtr copyStoredValue(const StoredValue& other,
                                            StoredValue::UniquePtr next) override {
-        throw std::logic_error("Copy of StoredValue is not supported");
+        // Allocate a buffer to store the copy of StoredValue and any
+        // trailing bytes required for the key.
+        return StoredValue::UniquePtr(
+                new (::operator new(other.getObjectSize()))
+                        StoredValue(other, std::move(next), *stats));
     }
 
 private:

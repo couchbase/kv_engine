@@ -160,23 +160,11 @@ public:
 
     uint8_t incrNRUValue();
 
-    // Sets the top 16-bits of the chain_next_or_replacement pointer to the
-    // u16int input value.
-    void setChainTag(uint16_t v) {
-        chain_next_or_replacement.get().setTag(v);
-    }
-
-    // Gets the top 16-bits of the chain_next_or_replacement pointer and
-    // convert to a uint16 value.
-    uint16_t getChainTag() const {
-        return chain_next_or_replacement.get().getTag();
-    }
-
     // Set the frequency counter value to the input value
-    void setFreqCounterValue(uint16_t newValue);
+    void setFreqCounterValue(uint8_t newValue);
 
     // Gets the frequency counter value
-    uint16_t getFreqCounterValue() const;
+    uint8_t getFreqCounterValue() const;
 
     void referenced();
 
@@ -535,17 +523,27 @@ public:
         setResident(false);
     }
 
-    /// Discard the value from this document.
+    /**
+     * Discard the value
+     * Side effects are that the frequency counter is cleared but the
+     * StoredValue age is not changed (it can still be a candidate for defrag).
+     */
     void resetValue() {
+        auto age = getAge();
         value.reset();
+        setAge(age);
     }
 
-    /// Replace the existing value with new data.
-    void replaceValue(TaggedPtr<Blob> data) {
-        // Maintain the frequency count for the storedValue.
-        auto freqCount = getFreqCounterValue();
-        value.reset(data);
-        setFreqCounterValue(freqCount);
+    /**
+     * Replace the value with the given pointer, ownership of the pointer is
+     * given to the StoredValue.
+     * @param data The Blob to take-over
+     */
+    void replaceValue(std::unique_ptr<Blob> data) {
+        // Maintain the tag
+        auto tag = getValueTag();
+        value.reset(data.release());
+        setValueTag(tag);
     }
 
     /**
@@ -630,6 +628,23 @@ public:
         }
         return chain_next_or_replacement;
     }
+
+    /**
+     * The age is get/set via the fragmenter
+     * @return the age of the StoredValue since it was allocated
+     */
+    uint8_t getAge() const;
+
+    /**
+     * The age is get/set via the fragmenter
+     * @param age a value to change the age field to.
+     */
+    void setAge(uint8_t age);
+
+    /**
+     * Increment the StoredValue's age field, this is a no-op if the age is 255.
+     */
+    void incrementAge();
 
     /*
      * Values of the bySeqno attribute used by temporarily created StoredValue
@@ -800,7 +815,27 @@ protected:
 
     friend class StoredValueFactory;
 
-    value_t            value;          // 8 bytes
+    // layout for the value TaggedPtr, access with getValueTag/setValueTag
+    union value_ptr_tag {
+        value_ptr_tag() : raw{0} {
+        }
+        value_ptr_tag(uint16_t raw) : raw(raw) {
+        }
+        uint16_t raw;
+
+        struct value_ptr_tag_fields {
+            uint8_t frequencyCounter;
+            uint8_t age;
+        } fields;
+    };
+
+    /// @return the tag part of the value TaggedPtr
+    value_ptr_tag getValueTag() const;
+
+    /// set the tag part of the value TaggedPtr
+    void setValueTag(value_ptr_tag tag);
+
+    value_t value; // 8 bytes (2 byte tag + 6 byte address)
 
     // Serves two purposes -
     // 1. Used to implement HashTable chaining (for elements hashing to the same
@@ -810,7 +845,12 @@ protected:
     // so we release the ptr in the destructor. The replacement is needed to
     // determine if it would also appear in a given rangeRead - we should return
     // only the newer version if so.
-    UniquePtr chain_next_or_replacement; // 8 bytes
+    // Note: Using the tag portion of this pointer for metadata is difficult
+    // as this UniquePtr is exposed outside of this class and modified e.g.
+    // code that calls getNext then reset()/swap() will lose the tag bits.
+    // @todo: Re-factoring of the UniquePtr management is needed to safely use
+    // the tag.
+    UniquePtr chain_next_or_replacement; // 8 bytes (2-byte tag, 6 byte address)
     uint64_t           cas;            //!< CAS identifier.
     // bySeqno is atomic primarily for TSAN, which would flag that we write/read
     // this in ephemeral backfills with different locks (which is true, but the

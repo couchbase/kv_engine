@@ -300,6 +300,8 @@ For introductory information on stats within Couchbase, start with the
 |                                    | run (in seconds).                      |
 | ep_defragmenter_num_moved          | Number of items moved by the           |
 |                                    | defragmentater task.                   |
+| ep_defragmenter_sv_num_moved       | Number of StoredValues moved by the    |
+|                                    | defragmentater task.                   |
 | ep_defragmenter_num_visited        | Number of items visited (considered    |
 |                                    | for defragmentation) by the            |
 |                                    | defragmenter task.                     |

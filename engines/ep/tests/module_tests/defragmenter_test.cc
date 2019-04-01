@@ -63,15 +63,34 @@ static bool wait_for_mapped_below(size_t mapped_threshold,
     return true;
 }
 
+// Initialise the base class and the keyPattern, the keyPattern determines the
+// key length, which should be large for StoredValue tests
+DefragmenterTest::DefragmenterTest()
+    : VBucketTestBase(getEvictionPolicy()),
+      keyPattern(isModeStoredValue() ? keyPattern2 : keyPattern1) {
+}
+
+DefragmenterTest::~DefragmenterTest() {
+}
+
+item_eviction_policy_t DefragmenterTest::getEvictionPolicy() const {
+    return std::get<0>(GetParam());
+}
+
+bool DefragmenterTest::isModeStoredValue() const {
+    return std::get<1>(GetParam());
+}
+
 void DefragmenterTest::setDocs(size_t docSize, size_t num_docs) {
     std::string data(docSize, 'x');
     for (unsigned int i = 0; i < num_docs; i++ ) {
         // Deliberately using C-style int-to-string conversion (instead of
         // stringstream) to minimize heap pollution.
-        char key[16];
-        snprintf(key, sizeof(key), "%d", i);
+        // 0 pad the key so they should all be the same length (and hit same
+        // jemalloc bin)
+        snprintf(keyScratch, sizeof(keyScratch), keyPattern, i);
         // Use DocKey to minimize heap pollution
-        Item item(DocKey(key, DocNamespace::DefaultCollection),
+        Item item(DocKey(keyScratch, DocNamespace::DefaultCollection),
                   0,
                   0,
                   data.data(),
@@ -81,7 +100,7 @@ void DefragmenterTest::setDocs(size_t docSize, size_t num_docs) {
     }
 }
 
-void DefragmenterTest::fragment(size_t num_docs, size_t &num_remaining) {
+void DefragmenterTest::fragment(size_t num_docs, size_t& num_remaining) {
     num_remaining = num_docs;
     const size_t LOG_PAGE_SIZE = 12; // 4K page
     {
@@ -91,16 +110,17 @@ void DefragmenterTest::fragment(size_t num_docs, size_t &num_remaining) {
         // Build a map of pages to keys
         for (unsigned int i = 0; i < num_docs; i++ ) {
             /// Use stack and DocKey to minimuze heap pollution
-            char key[16];
-            snprintf(key, sizeof(key), "%d", i);
-            auto* item = vbucket->ht.find(
-                    DocKey(key, DocNamespace::DefaultCollection),
+            snprintf(keyScratch, sizeof(keyScratch), keyPattern, i);
+            auto* sv = vbucket->ht.find(
+                    DocKey(keyScratch, DocNamespace::DefaultCollection),
                     TrackReference::Yes,
                     WantsDeleted::No);
-            ASSERT_NE(nullptr, item);
+            ASSERT_NE(nullptr, sv);
 
-            const uintptr_t page =
-                    uintptr_t(item->getValue()->getData()) >> LOG_PAGE_SIZE;
+            uintptr_t address = isModeStoredValue()
+                                        ? uintptr_t(sv)
+                                        : uintptr_t(sv->getValue()->getData());
+            const uintptr_t page = address >> LOG_PAGE_SIZE;
             page_to_keys[page].emplace_back(i);
         }
 
@@ -112,10 +132,9 @@ void DefragmenterTest::fragment(size_t num_docs, size_t &num_remaining) {
             while (kv->second.size() > 1) {
                 auto doc_id = kv->second.back();
                 // Use DocKey to minimize heap pollution
-                char key[16];
-                snprintf(key, sizeof(key), "%d", doc_id);
+                snprintf(keyScratch, sizeof(keyScratch), keyPattern, doc_id);
                 ASSERT_TRUE(vbucket->deleteKey(
-                        DocKey(key, DocNamespace::DefaultCollection)));
+                        DocKey(keyScratch, DocNamespace::DefaultCollection)));
                 kv->second.pop_back();
                 num_remaining--;
             }
@@ -165,10 +184,12 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
     size_t mem_used_0 = mem_used.load();
     size_t mapped_0 = get_mapped_bytes();
 
-    // 1. Create a number of documents. Size doesn't matter too much, main
-    // thing is we create enough to span multiple pages (so we can later leave
-    // 'holes' when they are deleted).
-    const size_t size = 512;
+    // 1. Create a number of documents.
+    // When testing value de-fragment - Size doesn't matter too much, main thing
+    // is we create enough to span multiple pages (so we can later leave 'holes'
+    // when they are deleted). When testing StoredValue de-fragment use a zero
+    // size so value's are ignored.
+    const size_t size = isModeStoredValue() ? 0 : 512;
     const size_t num_docs = 5000;
     setDocs(size, num_docs);
 
@@ -231,10 +252,18 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
     // 3. Enable defragmenter and trigger defragmentation
     AllocHooks::enable_thread_cache(false);
 
-    PauseResumeVBAdapter prAdapter(std::make_unique<DefragmentVisitor>(
-            0,
+    auto defragVisitor = std::make_unique<DefragmentVisitor>(
             DefragmenterTask::getMaxValueSize(
-                    get_mock_server_api()->alloc_hooks)));
+                    get_mock_server_api()->alloc_hooks));
+
+    if (isModeStoredValue()) {
+        // Force visiting of every item by setting a large deadline
+        defragVisitor->setDeadline(ProcessClock::now() + std::chrono::hours(5));
+        // And set the age, which enables SV defragging
+        defragVisitor->setStoredValueAgeThreshold(0);
+    }
+
+    PauseResumeVBAdapter prAdapter(std::move(defragVisitor));
     prAdapter.visit(*vbucket);
 
     AllocHooks::enable_thread_cache(true);
@@ -252,6 +281,10 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
         << "estimate (" <<  expected_mapped << ") after the defragmentater "
         << "visited " << visitor.getVisitedCount() << " items "
         << "and moved " << visitor.getDefragCount() << " items!";
+
+    if (isModeStoredValue()) {
+        EXPECT_EQ(num_remaining, visitor.getStoredValueDefragCount());
+    }
 }
 
 // Check that the defragmenter doesn't increase the memory used. The specific
@@ -265,6 +298,10 @@ TEST_P(DefragmenterTest, RefCountMemUsage) {
 #else
 TEST_P(DefragmenterTest, DISABLED_RefCountMemUsage) {
 #endif
+    // Currently not adapted for StoredValue defragging
+    if (isModeStoredValue()) {
+        return;
+    }
 
     /*
      * Similarly to the MappedMemory test, this test appears to cause issues
@@ -320,7 +357,6 @@ TEST_P(DefragmenterTest, DISABLED_RefCountMemUsage) {
         AllocHooks::enable_thread_cache(false);
 
         PauseResumeVBAdapter prAdapter(std::make_unique<DefragmentVisitor>(
-                0,
                 DefragmenterTask::getMaxValueSize(
                         get_mock_server_api()->alloc_hooks)));
         prAdapter.visit(*vbucket);
@@ -353,11 +389,18 @@ TEST_P(DefragmenterTest, DISABLED_MaxDefragValueSize) {
 INSTANTIATE_TEST_CASE_P(
         FullAndValueEviction,
         DefragmenterTest,
-        ::testing::Values(VALUE_ONLY, FULL_EVICTION),
-        [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
-            if (info.param == VALUE_ONLY) {
-                return "VALUE_ONLY";
+        ::testing::Combine(::testing::Values(VALUE_ONLY, FULL_EVICTION),
+                           ::testing::Bool()),
+        [](const ::testing::TestParamInfo<
+                std::tuple<item_eviction_policy_t, bool>>& info) {
+            std::string name;
+            if (std::get<0>(info.param) == VALUE_ONLY) {
+                name += "VALUE_ONLY";
             } else {
-                return "FULL_EVICTION";
+                name += "FULL_EVICTION";
             }
+            if (std::get<1>(info.param)) {
+                name += "_DefragStoredValue";
+            }
+            return name;
         });

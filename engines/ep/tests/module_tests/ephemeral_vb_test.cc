@@ -28,9 +28,14 @@
 #include "thread_gate.h"
 #include "vbucket_test.h"
 
+#include <gtest/gtest.h>
 #include <thread>
 
-class EphemeralVBucketTest : public VBucketTest {
+class EphemeralVBucketTest : public VBucketTestBase, public ::testing::Test {
+public:
+    EphemeralVBucketTest() : VBucketTestBase(VALUE_ONLY) {
+    }
+
 protected:
     void SetUp() {
         /* to test ephemeral vbucket specific stuff */

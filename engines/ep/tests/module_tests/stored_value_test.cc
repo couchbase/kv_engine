@@ -51,6 +51,13 @@ public:
         // Create an initial stored value for testing - key length (3) and
         // value length (5).
         sv = factory(item, {});
+
+        // For better testing below we will move the age away from 0, there was
+        // a bug where it was reset to zero and the tests didn't spot that
+        EXPECT_EQ(0, sv->getAge())
+                << "Age not the default value of " << ageInitialValue;
+        sv->setAge(ageInitialValue);
+        EXPECT_EQ(ageInitialValue, sv->getAge());
     }
 
     /// Returns the number of bytes in the Fixed part of StoredValue
@@ -64,6 +71,7 @@ public:
     }
 
 protected:
+    const uint8_t ageInitialValue = 101;
     EPStats stats;
     Factory factory;
     HashTable ht;
@@ -145,10 +153,12 @@ TYPED_TEST(ValueTest, StoredValueUncompressibleReallocateGivesSameSize) {
                       std::string(182, 'v').c_str()),
             {});
 
+    sv->setAge(this->ageInitialValue);
     auto blob = sv->getValue();
     int beforeValueSize = blob->valueSize();
     sv->setUncompressible();
     sv->reallocate();
+    EXPECT_EQ(this->ageInitialValue, sv->getAge());
     blob = sv->getValue();
     EXPECT_EQ(beforeValueSize, blob->valueSize());
 }
@@ -265,6 +275,7 @@ TYPED_TEST(ValueTest, freqCounter) {
     EXPECT_EQ(4, this->sv->getFreqCounterValue());
     this->sv->setFreqCounterValue(1);
     EXPECT_EQ(1, this->sv->getFreqCounterValue());
+    EXPECT_EQ(this->ageInitialValue, this->sv->getAge());
 }
 
 TYPED_TEST(ValueTest, initialFreqCounterForTemp) {
@@ -277,6 +288,7 @@ TYPED_TEST(ValueTest, initialFreqCounterForTemp) {
 
     ASSERT_TRUE(storedVal->isTempItem());
     EXPECT_EQ(0, storedVal->getFreqCounterValue());
+    EXPECT_EQ(this->ageInitialValue, this->sv->getAge());
 }
 
 TYPED_TEST(ValueTest, replaceValue) {
@@ -290,8 +302,9 @@ TYPED_TEST(ValueTest, replaceValue) {
                       std::string("value").c_str()),
             {});
 
-    this->sv->replaceValue(sv->getValue().get());
+    this->sv->replaceValue(std::unique_ptr<Blob>(sv->getValue().get().get()));
     EXPECT_EQ(100, this->sv->getFreqCounterValue());
+    EXPECT_EQ(this->ageInitialValue, this->sv->getAge());
 }
 
 TYPED_TEST(ValueTest, restoreValue) {
@@ -305,6 +318,7 @@ TYPED_TEST(ValueTest, restoreValue) {
 
     this->sv->restoreValue(itm);
     EXPECT_EQ(4, this->sv->getFreqCounterValue());
+    EXPECT_EQ(this->ageInitialValue, this->sv->getAge());
 }
 
 TYPED_TEST(ValueTest, restoreMeta) {
@@ -318,6 +332,22 @@ TYPED_TEST(ValueTest, restoreMeta) {
 
     this->sv->restoreMeta(itm);
     EXPECT_EQ(4, this->sv->getFreqCounterValue());
+    EXPECT_EQ(this->ageInitialValue, this->sv->getAge());
+}
+
+/**
+ * Test the get / set of the age field
+ */
+TYPED_TEST(ValueTest, age) {
+    const auto freq = this->sv->getFreqCounterValue();
+    EXPECT_EQ(this->ageInitialValue, this->sv->getAge());
+    this->sv->setAge(55);
+    EXPECT_EQ(55, this->sv->getAge());
+    // We also test the freq-counter which shares the tag with age
+    EXPECT_EQ(freq, this->sv->getFreqCounterValue());
+    this->sv->incrementAge();
+    EXPECT_EQ(56, this->sv->getAge());
+    EXPECT_EQ(freq, this->sv->getFreqCounterValue());
 }
 
 /// Check that StoredValue / OrderedStoredValue don't unexpectedly change in

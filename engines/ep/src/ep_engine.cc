@@ -592,6 +592,10 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
                     std::stoull(valz));
         } else if (strcmp(keyz, "defragmenter_age_threshold") == 0) {
             getConfiguration().setDefragmenterAgeThreshold(std::stoull(valz));
+        } else if (strcmp(keyz, "defragmenter_stored_value_age_threshold") ==
+                   0) {
+            getConfiguration().setDefragmenterStoredValueAgeThreshold(
+                    std::stoull(valz));
         } else if (strcmp(keyz, "defragmenter_chunk_duration") == 0) {
             getConfiguration().setDefragmenterChunkDuration(std::stoull(valz));
         } else if (strcmp(keyz, "defragmenter_run") == 0) {
@@ -2923,6 +2927,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_defragmenter_num_moved", epstats.defragNumMoved,
                     add_stat, cookie);
+    add_casted_stat("ep_defragmenter_sv_num_moved",
+                    epstats.defragStoredValueNumMoved,
+                    add_stat,
+                    cookie);
 
     add_casted_stat("ep_item_compressor_num_visited",
                     epstats.compressorNumVisited,

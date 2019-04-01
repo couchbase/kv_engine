@@ -19,10 +19,8 @@
 
 // DegragmentVisitor implementation ///////////////////////////////////////////
 
-DefragmentVisitor::DefragmentVisitor(uint8_t age_threshold_,
-                                     size_t max_size_class)
+DefragmentVisitor::DefragmentVisitor(size_t max_size_class)
     : max_size_class(max_size_class),
-      age_threshold(age_threshold_),
       defrag_count(0),
       visited_count(0),
       currentVb(nullptr) {
@@ -33,6 +31,14 @@ DefragmentVisitor::~DefragmentVisitor() {
 
 void DefragmentVisitor::setDeadline(ProcessClock::time_point deadline) {
     progressTracker.setDeadline(deadline);
+}
+
+void DefragmentVisitor::setBlobAgeThreshold(uint8_t age) {
+    age_threshold = age;
+}
+
+void DefragmentVisitor::setStoredValueAgeThreshold(uint8_t age) {
+    sv_age_threshold = age;
 }
 
 bool DefragmentVisitor::visit(const HashTable::HashBucketLock& lh,
@@ -57,6 +63,15 @@ bool DefragmentVisitor::visit(const HashTable::HashBucketLock& lh,
             v.getValue()->incrementAge();
         }
     }
+
+    if (sv_age_threshold) {
+        if (v.getAge() >= sv_age_threshold.get()) {
+            defragmentStoredValue(v);
+        } else {
+            v.incrementAge();
+        }
+    }
+
     visited_count++;
 
     // See if we have done enough work for this chunk. If so
@@ -67,6 +82,7 @@ bool DefragmentVisitor::visit(const HashTable::HashBucketLock& lh,
 void DefragmentVisitor::clearStats() {
     defrag_count = 0;
     visited_count = 0;
+    sv_defrag_count = 0;
 }
 
 size_t DefragmentVisitor::getDefragCount() const {
@@ -77,6 +93,16 @@ size_t DefragmentVisitor::getVisitedCount() const {
     return visited_count;
 }
 
+size_t DefragmentVisitor::getStoredValueDefragCount() const {
+    return sv_defrag_count;
+}
+
 void DefragmentVisitor::setCurrentVBucket(VBucket& vb) {
     currentVb = &vb;
+}
+
+void DefragmentVisitor::defragmentStoredValue(StoredValue& v) const {
+    if (currentVb->ht.reallocateStoredValue(std::forward<StoredValue>(v))) {
+        sv_defrag_count++;
+    }
 }

@@ -53,6 +53,7 @@ StoredValue::StoredValue(const Item& itm,
     setNru(itm.getNRUValue());
     setResident(!isTempItem());
     setStale(false);
+    setAge(0);
     // dirty initialised below
 
     // Placement-new the key which lives in memory directly after this
@@ -93,6 +94,7 @@ StoredValue::StoredValue(const StoredValue& other, UniquePtr n, EPStats& stats)
     setNru(other.getNru());
     setResident(other.isResident());
     setStale(false);
+    setAge(0);
     // Placement-new the key which lives in memory directly after this
     // object.
     StoredDocKey sKey(other.getKey());
@@ -140,14 +142,24 @@ uint8_t StoredValue::getNRUValue() const {
     return getNru();
 }
 
-void StoredValue::setFreqCounterValue(uint16_t newValue) {
+StoredValue::value_ptr_tag StoredValue::getValueTag() const {
+    return value.get().getTag();
+}
+
+void StoredValue::setValueTag(value_ptr_tag tag) {
     auto taggedPtr = value.get();
-    taggedPtr.setTag(newValue);
+    taggedPtr.setTag(tag.raw);
     value.reset(taggedPtr);
 }
 
-uint16_t StoredValue::getFreqCounterValue() const {
-    return value.get().getTag();
+void StoredValue::setFreqCounterValue(uint8_t newValue) {
+    auto tag = getValueTag();
+    tag.fields.frequencyCounter = newValue;
+    setValueTag(tag);
+}
+
+uint8_t StoredValue::getFreqCounterValue() const {
+    return getValueTag().fields.frequencyCounter;
 }
 
 void StoredValue::restoreValue(const Item& itm) {
@@ -161,7 +173,15 @@ void StoredValue::restoreValue(const Item& itm) {
     }
     datatype = itm.getDataType();
     setDeletedPriv(itm.isDeleted());
-    value = itm.getValue(); // Implicitly also copies the frequency counter
+
+    // Use the Item frequency counter but keep our age
+    auto freq = itm.getFreqCounterValue();
+    auto age = getAge();
+
+    value = itm.getValue();
+
+    setFreqCounterValue(freq);
+    setAge(age);
     setResident(true);
 }
 
@@ -257,8 +277,7 @@ std::unique_ptr<Item> StoredValue::toItemKeyOnly(uint16_t vbucket) const {
 void StoredValue::reallocate() {
     // Allocate a new Blob for this stored value; copy the existing Blob to
     // the new one and free the old.
-    value_t new_val(Blob::Copy(*value));
-    replaceValue(new_val.get());
+    replaceValue(std::unique_ptr<Blob>{Blob::Copy(*value)});
 }
 
 void StoredValue::Deleter::operator()(StoredValue* val) {
@@ -356,10 +375,10 @@ bool StoredValue::compressValue() {
                 // is greater than the original length
                 return true;
             }
-            Blob* data = nullptr;
-            data = Blob::New(deflated.data(), deflated.size());
+            std::unique_ptr<Blob> data(
+                    Blob::New(deflated.data(), deflated.size()));
             datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
-            replaceValue(TaggedPtr<Blob>(data));
+            replaceValue(std::move(data));
         } else {
             return false;
         }
@@ -369,9 +388,9 @@ bool StoredValue::compressValue() {
 }
 
 void StoredValue::storeCompressedBuffer(cb::const_char_buffer deflated) {
-    Blob* data = Blob::New(deflated.data(), deflated.size());
+    std::unique_ptr<Blob> data(Blob::New(deflated.data(), deflated.size()));
     datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
-    replaceValue(TaggedPtr<Blob>(data));
+    replaceValue(std::move(data));
 }
 
 /**
@@ -399,6 +418,24 @@ boost::optional<item_info> StoredValue::getItemInfo(uint64_t vbuuid) const {
         info.value[0].iov_len = getValue()->valueSize();
     }
     return info;
+}
+
+uint8_t StoredValue::getAge() const {
+    return getValueTag().fields.age;
+}
+
+void StoredValue::setAge(uint8_t age) {
+    auto tag = getValueTag();
+    tag.fields.age = age;
+    setValueTag(tag);
+}
+
+void StoredValue::incrementAge() {
+    auto age = getAge();
+    if (age < std::numeric_limits<uint8_t>::max()) {
+        age++;
+        setAge(age);
+    }
 }
 
 std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
@@ -440,10 +477,11 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     } else {
         os << " exp:" << sv.getExptime();
     }
+    os << " age:" << uint32_t(sv.getAge());
 
     os << " vallen:" << sv.valuelen();
     if (sv.getValue().get()) {
-        os << " val:\"";
+        os << " val age:" << uint32_t(sv.getValue()->getAge()) << " :\"";
         const char* data = sv.getValue()->getData();
         // print up to first 40 bytes of value.
         const size_t limit = std::min(size_t(40), sv.getValue()->valueSize());
