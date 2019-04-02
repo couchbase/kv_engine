@@ -27,7 +27,6 @@
 #include "monotonic.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_fwd.h"
-#include "vbucket_state.h"
 
 #include <folly/Synchronized.h>
 #include <memcached/engine.h>
@@ -49,6 +48,7 @@ class EventuallyPersistentEngine;
 class DCPBackfill;
 class RollbackResult;
 class VBucketBGFetchItem;
+struct vbucket_state;
 
 template <typename... RV>
 class Callback;

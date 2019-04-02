@@ -20,6 +20,7 @@
 #include "ep_time.h"
 #include "magma-kvstore_config.h"
 #include "vbucket.h"
+#include "vbucket_state.h"
 
 #include <string.h>
 #include <algorithm>

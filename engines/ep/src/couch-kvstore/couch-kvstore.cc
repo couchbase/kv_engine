@@ -15,16 +15,17 @@
  *   limitations under the License.
  */
 
+#include "couch-kvstore/couch-kvstore.h"
 #include "bucket_logger.h"
 #include "collections/collection_persisted_stats.h"
 #include "collections/kvstore_generated.h"
 #include "common.h"
-#include "couch-kvstore/couch-kvstore.h"
 #include "diskdockey.h"
 #include "ep_time.h"
 #include "kvstore_config.h"
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
+#include "vbucket_state.h"
 
 #include <JSON_checker.h>
 #include <nlohmann/json.hpp>
@@ -1285,7 +1286,7 @@ bool CouchKVStore::snapshotVBucket(Vbid vbucketId,
 
     EP_LOG_DEBUG("CouchKVStore::snapshotVBucket: Snapshotted {} state:{}",
                  vbucketId,
-                 vbstate.toJSON());
+                 nlohmann::json(vbstate).dump());
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - start));
@@ -2239,19 +2240,10 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db* db, Vbid vbId) {
     sized_buf id;
     LocalDoc *ldoc = NULL;
     couchstore_error_t errCode = COUCHSTORE_SUCCESS;
-    vbucket_state_t state = vbucket_state_dead;
-    uint64_t checkpointId = 0;
-    uint64_t maxDeletedSeqno = 0;
+    // High sequence number and purge sequence number are stored automatically
+    // by couchstore.
     int64_t highSeqno = 0;
-    std::string failovers;
     uint64_t purgeSeqno = 0;
-    uint64_t lastSnapStart = 0;
-    uint64_t lastSnapEnd = 0;
-    uint64_t maxCas = 0;
-    int64_t hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
-    bool mightContainXattrs = false;
-    bool supportsNamespaces = false;
-
     DbInfo info;
     errCode = couchstore_db_info(db, &info);
     if (errCode == COUCHSTORE_SUCCESS) {
@@ -2265,6 +2257,8 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db* db, Vbid vbId) {
                 vbId);
         return couchErr2EngineErr(errCode);
     }
+
+    vbucket_state vbState;
 
     id.buf = (char *)"_local/vbstate";
     id.size = sizeof("_local/vbstate") - 1;
@@ -2301,172 +2295,62 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db* db, Vbid vbId) {
             return ENGINE_EINVAL;
         }
 
-        auto vb_state = json.value("state", "");
-        auto checkpoint_id = json.value("checkpoint_id", "");
-        auto max_deleted_seqno = json.value("max_deleted_seqno", "");
-        auto snapStart = json.find("snap_start");
-        auto snapEnd = json.find("snap_end");
-        auto maxCasValue = json.find("max_cas");
-        auto hlcCasEpoch = json.find("hlc_epoch");
-        mightContainXattrs = json.value("might_contain_xattrs", false);
-        supportsNamespaces = json.value("namespaces_supported", false);
+        // Merge in the high_seqno & purge_seqno read previously from db info.
+        json["high_seqno"] = std::to_string(highSeqno);
+        json["purge_seqno"] = std::to_string(purgeSeqno);
 
-        auto failover_json = json.find("failover_table");
-        if (vb_state.empty() || checkpoint_id.empty() ||
-            max_deleted_seqno.empty()) {
+        try {
+            vbState = json;
+        } catch (const nlohmann::json::exception& e) {
+            couchstore_free_local_document(ldoc);
             logger.warn(
-                    "CouchKVStore::readVBState: State"
-                    " JSON doc for {} is in the wrong format:{}, "
-                    "vb state:{}, checkpoint id:{} and max deleted seqno:{}",
+                    "CouchKVStore::readVBState: Failed to "
+                    "convert the vbstat json doc for {} to vbState, json:{}, "
+                    "with "
+                    "reason:{}",
                     vbId,
-                    statjson,
-                    vb_state,
-                    checkpoint_id,
-                    max_deleted_seqno);
-        } else {
-            state = VBucket::fromString(vb_state.c_str());
-            if (!parseUint64(max_deleted_seqno, &maxDeletedSeqno)) {
-                logger.warn(
-                        "CouchKVStore::readVBState: Failed to call "
-                        "parseUint64 on max_deleted_seqno, which has a "
-                        "value of: {} for {}",
-                        max_deleted_seqno,
-                        vbId);
-                return ENGINE_EINVAL;
-            }
-            if (!parseUint64(checkpoint_id, &checkpointId)) {
-                logger.warn(
-                        "CouchKVStore::readVBState: Failed to call "
-                        "parseUint64 on checkpoint_id, which has a value "
-                        "of: {} for {}",
-                        checkpoint_id,
-                        vbId);
-                return ENGINE_EINVAL;
-            }
+                    json.dump(),
+                    e.what());
+            return ENGINE_EINVAL;
+        }
 
-            if (snapStart == json.end()) {
-                lastSnapStart = gsl::narrow<uint64_t>(highSeqno);
-            } else {
-                if (!parseUint64(snapStart->get<std::string>(),
-                                 &lastSnapStart)) {
-                    logger.warn(
-                            "CouchKVStore::readVBState: Failed to call "
-                            "parseUint64 on snapStart, which has a value "
-                            "of: {} for {}",
-                            (snapStart->get<std::string>()),
-                            vbId);
-                    return ENGINE_EINVAL;
-                }
-            }
-
-            if (snapEnd == json.end()) {
-                lastSnapEnd = gsl::narrow<uint64_t>(highSeqno);
-            } else {
-                if (!parseUint64(snapEnd->get<std::string>(), &lastSnapEnd)) {
-                    logger.warn(
-                            "CouchKVStore::readVBState: Failed to call "
-                            "parseUint64 on snapEnd, which has a value of: "
-                            "{} for {}",
-                            (snapEnd->get<std::string>()),
-                            vbId);
-                    return ENGINE_EINVAL;
-                }
-            }
-
-            if (maxCasValue != json.end()) {
-                if (!parseUint64(maxCasValue->get<std::string>(), &maxCas)) {
-                    logger.warn(
-                            "CouchKVStore::readVBState: Failed to call "
-                            "parseUint64 on maxCasValue, which has a value "
-                            "of: {} for {}",
-                            (maxCasValue->get<std::string>()),
-                            vbId);
-                    return ENGINE_EINVAL;
-                }
-
-                // MB-17517: If the maxCas on disk was invalid then don't use it -
-                // instead rebuild from the items we load from disk (i.e. as per
-                // an upgrade from an earlier version).
-                if (maxCas == static_cast<uint64_t>(-1)) {
-                    logger.warn(
-                            "CouchKVStore::readVBState: Invalid max_cas "
-                            "({:#x}) read from '{}' for {}. Resetting "
-                            "max_cas to zero.",
-                            maxCas,
-                            id.buf,
-                            vbId);
-                    maxCas = 0;
-                }
-            }
-
-            if (hlcCasEpoch != json.end()) {
-                if (!parseInt64(hlcCasEpoch->get<std::string>(),
-                                &hlcCasEpochSeqno)) {
-                    logger.warn(
-                            "CouchKVStore::readVBState: Failed to call "
-                            "parseInt64 on hlcCasEpoch, which has a value "
-                            "of: {} for {}",
-                            (hlcCasEpoch->get<std::string>()),
-                            vbId);
-                    return ENGINE_EINVAL;
-                }
-            }
-
-            if (failover_json != json.end()) {
-                failovers = failover_json->dump();
-            }
+        // MB-17517: If the maxCas on disk was invalid then don't use it -
+        // instead rebuild from the items we load from disk (i.e. as per
+        // an upgrade from an earlier version).
+        if (vbState.maxCas == static_cast<uint64_t>(-1)) {
+            logger.warn(
+                    "CouchKVStore::readVBState: Invalid max_cas "
+                    "({:#x}) read from '{}' for {}. Resetting "
+                    "max_cas to zero.",
+                    vbState.maxCas,
+                    id.buf,
+                    vbId);
+            vbState.maxCas = 0;
         }
         couchstore_free_local_document(ldoc);
     }
 
     // Cannot use make_unique here as it doesn't support brace-initialization
     // until C++20.
-    cachedVBStates[vbId.get()].reset(new vbucket_state{state,
-                                                       checkpointId,
-                                                       maxDeletedSeqno,
-                                                       highSeqno,
-                                                       purgeSeqno,
-                                                       lastSnapStart,
-                                                       lastSnapEnd,
-                                                       maxCas,
-                                                       hlcCasEpochSeqno,
-                                                       mightContainXattrs,
-                                                       failovers,
-                                                       supportsNamespaces});
+    cachedVBStates[vbId.get()].reset(new vbucket_state(vbState));
 
     return couchErr2EngineErr(errCode);
 }
 
 couchstore_error_t CouchKVStore::saveVBState(Db *db,
                                              const vbucket_state &vbState) {
-    std::stringstream jsonState;
-
-    jsonState << "{\"state\": \"" << VBucket::toString(vbState.state) << "\""
-              << ",\"checkpoint_id\": \"" << vbState.checkpointId << "\""
-              << ",\"max_deleted_seqno\": \"" << vbState.maxDeletedSeqno << "\"";
-    if (!vbState.failovers.empty()) {
-        jsonState << ",\"failover_table\": " << vbState.failovers;
-    }
-    jsonState << ",\"snap_start\": \"" << vbState.lastSnapStart << "\""
-              << ",\"snap_end\": \"" << vbState.lastSnapEnd << "\""
-              << ",\"max_cas\": \"" << vbState.maxCas << "\""
-              << ",\"hlc_epoch\": \"" << vbState.hlcCasEpochSeqno << "\"";
-
-    if (vbState.mightContainXattrs) {
-        jsonState << ",\"might_contain_xattrs\": true";
-    } else {
-        jsonState << ",\"might_contain_xattrs\": false";
-    }
-
-    // This KV writes namespaces
-    jsonState << ",\"namespaces_supported\": true";
-
-    jsonState << "}";
-
     LocalDoc lDoc;
     lDoc.id.buf = (char *)"_local/vbstate";
     lDoc.id.size = sizeof("_local/vbstate") - 1;
-    std::string state = jsonState.str();
+    nlohmann::json j = vbState;
+
+    // Strip out the high_seqno and purge_seqno - they are automatically
+    // tracked by couchstore so unnecessary (and potentially confusing) to
+    // store in vbstate document.
+    j.erase("high_seqno");
+    j.erase("purge_seqno");
+
+    std::string state = j.dump();
     lDoc.json.buf = (char *)state.c_str();
     lDoc.json.size = state.size();
     lDoc.deleted = 0;

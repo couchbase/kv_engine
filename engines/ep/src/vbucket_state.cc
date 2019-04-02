@@ -16,25 +16,7 @@
  */
 
 #include "vbucket_state.h"
-#include "ep_types.h"
 #include "vbucket.h"
-
-std::string vbucket_state::toJSON() const {
-    std::stringstream jsonState;
-    jsonState << "{\"state\": \"" << VBucket::toString(state) << "\""
-              << ",\"checkpoint_id\": \"" << checkpointId << "\""
-              << ",\"max_deleted_seqno\": \"" << maxDeletedSeqno << "\""
-              << ",\"failover_table\": " << failovers << ",\"snap_start\": \""
-              << lastSnapStart << "\""
-              << ",\"snap_end\": \"" << lastSnapEnd << "\""
-              << ",\"max_cas\": \"" << maxCas << "\""
-              << ",\"might_contain_xattrs\": "
-              << (mightContainXattrs ? "true" : "false")
-              << ",\"namespaces_supported\": "
-              << (supportsNamespaces ? "true" : "false") << "}";
-
-    return jsonState.str();
-}
 
 bool vbucket_state::needsToBePersisted(const vbucket_state& vbstate) {
     /**
@@ -60,4 +42,53 @@ void vbucket_state::reset() {
     mightContainXattrs = false;
     failovers.clear();
     supportsNamespaces = true;
+}
+
+void to_json(nlohmann::json& json, const vbucket_state& vbs) {
+    // First add all required fields.
+    // Note that integers are stored as strings to avoid any undesired
+    // rounding (JSON in general only guarantees ~2^53 precision on integers).
+    // While the current JSON library (nlohmann::json) _does_ support full
+    // 64bit precision for integers, let's not rely on that for
+    // all future uses.
+    json = nlohmann::json{
+            {"state", VBucket::toString(vbs.state)},
+            {"checkpoint_id", std::to_string(vbs.checkpointId)},
+            {"max_deleted_seqno", std::to_string(vbs.maxDeletedSeqno)},
+            {"high_seqno", std::to_string(vbs.highSeqno)},
+            {"purge_seqno", std::to_string(vbs.purgeSeqno)},
+            {"snap_start", std::to_string(vbs.lastSnapStart)},
+            {"snap_end", std::to_string(vbs.lastSnapEnd)},
+            {"max_cas", std::to_string(vbs.maxCas)},
+            {"hlc_epoch", std::to_string(vbs.hlcCasEpochSeqno)},
+            {"might_contain_xattrs", vbs.mightContainXattrs},
+            {"namespaces_supported", vbs.supportsNamespaces}};
+
+    // Insert optional fields.
+    if (!vbs.failovers.empty()) {
+        json["failover_table"] = nlohmann::json::parse(vbs.failovers);
+    }
+}
+
+void from_json(const nlohmann::json& j, vbucket_state& vbs) {
+    // Parse required fields. Note that integers are stored as strings to avoid
+    // any undesired rounding - see comment in to_json().
+    vbs.state = VBucket::fromString(j.at("state").get<std::string>().c_str());
+    vbs.checkpointId = std::stoull(j.at("checkpoint_id").get<std::string>());
+    vbs.maxDeletedSeqno =
+            std::stoull(j.at("max_deleted_seqno").get<std::string>());
+    vbs.highSeqno = std::stoll(j.at("high_seqno").get<std::string>());
+    vbs.purgeSeqno = std::stoull(j.at("purge_seqno").get<std::string>());
+    vbs.lastSnapStart = std::stoull(j.at("snap_start").get<std::string>());
+    vbs.lastSnapEnd = std::stoull(j.at("snap_end").get<std::string>());
+    vbs.maxCas = std::stoull(j.at("max_cas").get<std::string>());
+    vbs.hlcCasEpochSeqno = std::stoll(j.at("hlc_epoch").get<std::string>());
+    vbs.mightContainXattrs = j.at("might_contain_xattrs").get<bool>();
+    vbs.supportsNamespaces = j.at("namespaces_supported").get<bool>();
+
+    // Now parse optional fields.
+    auto failoverIt = j.find("failover_table");
+    if (failoverIt != j.end()) {
+        vbs.failovers = failoverIt->dump();
+    }
 }

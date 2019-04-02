@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "vbucket.h"
 #include "atomic.h"
 #include "bgfetcher.h"
 #include "bucket_logger.h"
@@ -35,7 +36,7 @@
 #include "statwriter.h"
 #include "stored_value_factories.h"
 #include "vb_filter.h"
-#include "vbucket.h"
+#include "vbucket_state.h"
 #include "vbucketdeletiontask.h"
 
 #include <folly/lang/Assume.h>

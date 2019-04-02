@@ -20,24 +20,23 @@
 
 #include "bucket_logger.h"
 #include "ep_time.h"
-
 #include "kvstore_priv.h"
+#include "vbucket.h"
+#include "vbucket_state.h"
 
 #include <phosphor/phosphor.h>
 #include <platform/cbassert.h>
 #include <platform/sysinfo.h>
 #include <rocksdb/convenience.h>
 #include <rocksdb/filter_policy.h>
-
 #include <nlohmann/json.hpp>
+
 #include <stdio.h>
 #include <string.h>
 #include <algorithm>
 #include <gsl/gsl>
 #include <limits>
 #include <thread>
-
-#include "vbucket.h"
 
 namespace rockskv {
 
@@ -838,7 +837,7 @@ bool RocksDBKVStore::snapshotVBucket(Vbid vbucketId,
 
     EP_LOG_DEBUG("RocksDBKVStore::snapshotVBucket: Snapshotted {} state:{}",
                  vbucketId,
-                 vbstate.toJSON());
+                 nlohmann::json(vbstate).dump());
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - start));
@@ -1072,28 +1071,14 @@ GetValue RocksDBKVStore::makeGetValue(Vbid vb,
 }
 
 void RocksDBKVStore::readVBState(const VBHandle& vbh) {
-    // Largely copied from CouchKVStore
-    // TODO RDB: refactor out sections common to CouchKVStore
-    vbucket_state_t state = vbucket_state_dead;
-    uint64_t checkpointId = 0;
-    uint64_t maxDeletedSeqno = 0;
-    int64_t highSeqno = readHighSeqnoFromDisk(vbh);
-    std::string failovers;
-    uint64_t purgeSeqno = 0;
-    uint64_t lastSnapStart = 0;
-    uint64_t lastSnapEnd = 0;
-    uint64_t maxCas = 0;
-    int64_t hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
-    bool mightContainXattrs = false;
-    bool supportsNamespaces = false;
-
     auto key = getVbstateKey();
-    std::string vbstate;
+    std::string jsonStr;
+    vbucket_state vbState;
     auto vbid = vbh.vbid;
     auto status = rdb->Get(rocksdb::ReadOptions(),
                            vbh.seqnoCFH.get(),
                            getSeqnoSlice(&key),
-                           &vbstate);
+                           &jsonStr);
     if (!status.ok()) {
         if (status.IsNotFound()) {
             logger.info(
@@ -1110,117 +1095,54 @@ void RocksDBKVStore::readVBState(const VBHandle& vbh) {
     } else {
         nlohmann::json json;
         try {
-            json = nlohmann::json::parse(vbstate);
+            json = nlohmann::json::parse(jsonStr);
         } catch (const nlohmann::json::exception& e) {
             logger.warn(
                     "RocksKVStore::readVBState: Failed to parse the vbstat "
                     "json doc for {}, json:{} with reason:{}",
                     vbid,
-                    vbstate,
+                    jsonStr,
                     e.what());
             return;
         }
 
-        auto vb_state = json.value("state", "");
-        auto checkpoint_id = json.value("checkpoint_id", "");
-        auto max_deleted_seqno = json.value("max_deleted_seqno", "");
-        auto snapStart = json.find("snap_start");
-        auto snapEnd = json.find("snap_end");
-        auto maxCasValue = json.find("max_cas");
-        auto hlcCasEpoch = json.find("hlc_epoch");
-        mightContainXattrs = json.value("might_contain_xattrs", false);
-        supportsNamespaces = json.value("namespaces_supported", false);
+        // Merge in the high_seqno (which is implicitly stored as the highest
+        // seqno item).
+        json["high_seqno"] = std::to_string(readHighSeqnoFromDisk(vbh));
 
-        auto failover_json = json.find("failover_table");
-        if (vb_state.empty() || checkpoint_id.empty() ||
-            max_deleted_seqno.empty()) {
-            std::stringstream error;
+        try {
+            vbState = json;
+        } catch (const nlohmann::json::exception& e) {
             logger.warn(
-                    "RocksDBKVStore::readVBState: State"
-                    " JSON doc for {} is in the wrong format:{}, "
-                    "vb state:{}, checkpoint id:{} and max deleted seqno:{}",
+                    "RocksKVStore::readVBState: Failed to "
+                    "convert the vbstat json doc for {} to vbState, json:{}, "
+                    "with "
+                    "reason:{}",
                     vbid,
-                    vbstate,
-                    vb_state,
-                    checkpoint_id,
-                    max_deleted_seqno);
-        } else {
-            state = VBucket::fromString(vb_state.c_str());
-            maxDeletedSeqno = std::stoull(max_deleted_seqno);
-            checkpointId = std::stoull(checkpoint_id);
-
-            if (snapStart == json.end()) {
-                lastSnapStart = gsl::narrow<uint64_t>(highSeqno);
-            } else {
-                lastSnapStart = std::stoull(snapStart->get<std::string>());
-            }
-
-            if (snapEnd == json.end()) {
-                lastSnapEnd = gsl::narrow<uint64_t>(highSeqno);
-            } else {
-                lastSnapEnd = std::stoull(snapEnd->get<std::string>());
-            }
-
-            if (maxCasValue != json.end()) {
-                maxCas = std::stoull(maxCasValue->get<std::string>());
-            }
-
-            if (hlcCasEpoch != json.end()) {
-                hlcCasEpochSeqno = std::stoull(hlcCasEpoch->get<std::string>());
-            }
-
-            if (failover_json != json.end()) {
-                failovers = failover_json->dump();
-            }
+                    jsonStr,
+                    e.what());
+            return;
         }
     }
 
     // Cannot use make_unique here as it doesn't support brace-initialization
     // until C++20.
-    cachedVBStates[vbh.vbid.get()].reset(new vbucket_state{state,
-                                                           checkpointId,
-                                                           maxDeletedSeqno,
-                                                           highSeqno,
-                                                           purgeSeqno,
-                                                           lastSnapStart,
-                                                           lastSnapEnd,
-                                                           maxCas,
-                                                           hlcCasEpochSeqno,
-                                                           mightContainXattrs,
-                                                           failovers,
-                                                           supportsNamespaces});
+    cachedVBStates[vbid.get()].reset(new vbucket_state(vbState));
 }
 
 rocksdb::Status RocksDBKVStore::saveVBStateToBatch(const VBHandle& vbh,
                                                    const vbucket_state& vbState,
                                                    rocksdb::WriteBatch& batch) {
-    std::stringstream jsonState;
-
-    jsonState << "{\"state\": \"" << VBucket::toString(vbState.state) << "\""
-              << ",\"checkpoint_id\": \"" << vbState.checkpointId << "\""
-              << ",\"max_deleted_seqno\": \"" << vbState.maxDeletedSeqno
-              << "\"";
-    if (!vbState.failovers.empty()) {
-        jsonState << ",\"failover_table\": " << vbState.failovers;
-    }
-    jsonState << ",\"snap_start\": \"" << vbState.lastSnapStart << "\""
-              << ",\"snap_end\": \"" << vbState.lastSnapEnd << "\""
-              << ",\"max_cas\": \"" << vbState.maxCas << "\""
-              << ",\"hlc_epoch\": \"" << vbState.hlcCasEpochSeqno << "\"";
-
-    if (vbState.mightContainXattrs) {
-        jsonState << ",\"might_contain_xattrs\": true";
-    } else {
-        jsonState << ",\"might_contain_xattrs\": false";
-    }
-
-    // This KV writes namespaces
-    jsonState << ",\"namespaces_supported\": true";
-    jsonState << "}";
-
     auto key = getVbstateKey();
     rocksdb::Slice keySlice = getSeqnoSlice(&key);
-    return batch.Put(vbh.seqnoCFH.get(), keySlice, jsonState.str());
+    nlohmann::json json = vbState;
+
+    // Strip out the high_seqno it is automatically tracked by RocksDB (as the
+    // highest seqno item written) so unnecessary (and potentially confusing)
+    // to store in vbstate document.
+    json.erase("high_seqno");
+
+    return batch.Put(vbh.seqnoCFH.get(), keySlice, json.dump());
 }
 
 rocksdb::ColumnFamilyOptions RocksDBKVStore::getBaselineDefaultCFOptions() {

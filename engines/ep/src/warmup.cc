@@ -31,6 +31,7 @@
 #include "statwriter.h"
 #include "vb_visitors.h"
 #include "vbucket_bgfetch_item.h"
+#include "vbucket_state.h"
 
 #include <phosphor/phosphor.h>
 #include <platform/dirutils.h>

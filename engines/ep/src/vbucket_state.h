@@ -19,6 +19,7 @@
 #include "ep_types.h"
 
 #include <memcached/vbucket.h>
+#include <nlohmann/json.hpp>
 #include <platform/n_byte_integer.h>
 #include <cstdint>
 #include <string>
@@ -43,7 +44,6 @@
  * upgrade).
  */
 struct vbucket_state {
-    std::string toJSON() const;
 
     bool needsToBePersisted(const vbucket_state& vbstate);
 
@@ -93,3 +93,9 @@ struct vbucket_state {
      */
     bool supportsNamespaces = true;
 };
+
+/// Method to allow nlohmann::json to convert vbucket_state to JSON.
+void to_json(nlohmann::json& json, const vbucket_state& vbs);
+
+/// Method to allow nlohmann::json to convert from JSON to vbucket_state.
+void from_json(const nlohmann::json& j, vbucket_state& vbs);

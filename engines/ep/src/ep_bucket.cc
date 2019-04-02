@@ -33,6 +33,7 @@
 #include "statwriter.h"
 #include "tasks.h"
 #include "vb_visitors.h"
+#include "vbucket_state.h"
 #include "warmup.h"
 
 #include "dcp/dcpconnmap.h"

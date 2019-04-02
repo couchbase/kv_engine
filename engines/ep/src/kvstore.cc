@@ -35,6 +35,7 @@
 #include "persistence_callback.h"
 #include "statwriter.h"
 #include "vbucket.h"
+#include "vbucket_state.h"
 
 #include <platform/dirutils.h>
 #include <sys/types.h>
