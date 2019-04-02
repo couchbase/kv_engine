@@ -324,3 +324,162 @@ TEST_F(DurabilityPassiveStreamTest, DiskSeqnoAckAtPersistedSeqno) {
     seqnoAck = static_cast<const SeqnoAcknowledgement*>(readyQ.front().get());
     EXPECT_EQ(ntohll(3), seqnoAck->getPreparedSeqno());
 }
+
+void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
+    auto vb = engine->getVBucket(vbid);
+    auto& ckptMgr = *vb->checkpointManager;
+    // Get rid of set_vb_state and any other queue_op we are not interested in
+    ckptMgr.clear(*vb, 0 /*seqno*/);
+
+    // The consumer receives snapshot-marker [1, 2]
+    uint32_t opaque = 0;
+    SnapshotMarker marker(opaque,
+                          vbid,
+                          1 /*snapStart*/,
+                          2 /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_MEMORY,
+                          {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // The consumer receives s:1 durable
+    const std::string value("value");
+    const uint64_t prepareSeqno = 1;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      prepareSeqno,
+                      vbid,
+                      value,
+                      opaque,
+                      cb::durability::Requirements())));
+
+    EXPECT_EQ(0, vb->getNumItems());
+    EXPECT_EQ(1, vb->ht.getNumItems());
+    const auto key = makeStoredDocKey("key_" + std::to_string(prepareSeqno));
+    {
+        const auto sv = vb->ht.findForWrite(key);
+        ASSERT_TRUE(sv.storedValue);
+        EXPECT_EQ(CommittedState::Pending, sv.storedValue->getCommitted());
+        EXPECT_EQ(prepareSeqno, sv.storedValue->getBySeqno());
+    }
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    ckptMgr);
+    // 1 checkpoint
+    ASSERT_EQ(1, ckptList.size());
+    const auto* ckpt = ckptList.front().get();
+    ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
+    // empty-item
+    auto it = ckpt->begin();
+    ASSERT_EQ(queue_op::empty, (*it)->getOperation());
+    // 1 metaitem (checkpoint-start)
+    it++;
+    ASSERT_EQ(1, ckpt->getNumMetaItems());
+    EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
+    // 1 non-metaitem is pending and contains the expected value
+    it++;
+    ASSERT_EQ(1, ckpt->getNumItems());
+    EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
+    EXPECT_EQ(key, (*it)->getKey());
+    EXPECT_TRUE((*it)->getValue());
+    EXPECT_EQ(value, (*it)->getValue()->to_s());
+    EXPECT_EQ(1, (*it)->getBySeqno());
+}
+
+TEST_F(DurabilityPassiveStreamTest, ReceiveDcpPrepare) {
+    testReceiveDcpPrepare();
+}
+
+/*
+ * This test checks that a DCP Consumer receives and processes correctly a
+ * DCP_ABORT message.
+ */
+TEST_F(DurabilityPassiveStreamTest, ReceiveDcpAbort) {
+    // First, simulate the Consumer receiving a Prepare
+    testReceiveDcpPrepare();
+    auto vb = engine->getVBucket(vbid);
+    const uint64_t prepareSeqno = 1;
+    const auto key = makeStoredDocKey("key_" + std::to_string(prepareSeqno));
+    {
+        const auto sv = vb->ht.findForWrite(key);
+        ASSERT_TRUE(sv.storedValue);
+        ASSERT_EQ(CommittedState::Pending, sv.storedValue->getCommitted());
+        ASSERT_EQ(prepareSeqno, sv.storedValue->getBySeqno());
+    }
+
+    // Now simulate the Consumer receiving Abort for that Prepare
+    uint32_t opaque = 0;
+    auto abortReceived = [this, opaque, &key, prepareSeqno](
+                                 uint64_t abortSeqno) -> ENGINE_ERROR_CODE {
+        return stream->messageReceived(std::make_unique<AbortSyncWrite>(
+                opaque, vbid, key, prepareSeqno, abortSeqno));
+    };
+
+    // Check a negative first: at Replica we don't expect multiple Durable
+    // items within the same checkpoint. That is to avoid Durable items de-dup
+    // at Producer.
+    uint64_t abortSeqno = prepareSeqno + 1;
+    auto thrown{false};
+    try {
+        abortReceived(abortSeqno);
+    } catch (const std::logic_error& e) {
+        EXPECT_TRUE(std::string(e.what()).find("duplicate item") !=
+                    std::string::npos);
+        thrown = true;
+    }
+    if (!thrown) {
+        FAIL();
+    }
+
+    // So, we need to simulate a Producer sending another SnapshotMarker with
+    // the MARKER_FLAG_CHK set before the Consumer receives the Abort. That
+    // will force the Consumer closing the open checkpoint (which Contains the
+    // Prepare) and cretaing a new open one for queueing the Abort.
+    SnapshotMarker marker(
+            opaque,
+            vbid,
+            3 /*snapStart*/,
+            4 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // 2 checkpoints
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *vb->checkpointManager);
+    ASSERT_EQ(2, ckptList.size());
+    auto* ckpt = ckptList.front().get();
+    ASSERT_EQ(checkpoint_state::CHECKPOINT_CLOSED, ckpt->getState());
+    ckpt = ckptList.back().get();
+    ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
+    ASSERT_EQ(0, ckpt->getNumItems());
+
+    // The consumer receives an Abort for the previous Prepare.
+    // Note: The call to abortReceived() above throws /after/
+    //     PassiveStream::last_seqno has been incremented, so we need to
+    //     abortSeqno to bypass ENGINE_ERANGE checks.
+    abortSeqno++;
+    ASSERT_EQ(ENGINE_SUCCESS, abortReceived(abortSeqno));
+
+    EXPECT_EQ(0, vb->getNumItems());
+    EXPECT_EQ(0, vb->ht.getNumItems());
+    {
+        const auto sv = vb->ht.findForWrite(key);
+        ASSERT_FALSE(sv.storedValue);
+    }
+
+    // empty-item
+    auto it = ckpt->begin();
+    ASSERT_EQ(queue_op::empty, (*it)->getOperation());
+    // 1 metaitem (checkpoint-start)
+    it++;
+    ASSERT_EQ(1, ckpt->getNumMetaItems());
+    EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
+    // 1 non-metaitem is Abort and carries no value
+    it++;
+    ASSERT_EQ(1, ckpt->getNumItems());
+    EXPECT_EQ(queue_op::abort_sync_write, (*it)->getOperation());
+    EXPECT_EQ(key, (*it)->getKey());
+    EXPECT_FALSE((*it)->getValue());
+    EXPECT_EQ(abortSeqno, (*it)->getBySeqno());
+}

@@ -275,6 +275,17 @@ ENGINE_ERROR_CODE ConnHandler::commit(uint32_t opaque,
     return ENGINE_DISCONNECT;
 }
 
+ENGINE_ERROR_CODE ConnHandler::abort(uint32_t opaque,
+                                     Vbid vbucket,
+                                     const DocKey& key,
+                                     uint64_t prepareSeqno,
+                                     uint64_t abortSeqno) {
+    logger->warn(
+            "Disconnecting - This connection doesn't support the dcp abort "
+            "API");
+    return ENGINE_DISCONNECT;
+}
+
 ENGINE_ERROR_CODE ConnHandler::seqno_acknowledged(uint32_t opaque,
                                                   Vbid vbucket,
                                                   uint64_t prepared_seqno) {

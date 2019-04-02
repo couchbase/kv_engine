@@ -752,6 +752,8 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      */
     virtual ENGINE_ERROR_CODE abort(gsl::not_null<const void*> cookie,
                                     uint32_t opaque,
+                                    Vbid vbucket,
+                                    const DocKey& key,
                                     uint64_t prepared_seqno,
                                     uint64_t abort_seqno) = 0;
 };

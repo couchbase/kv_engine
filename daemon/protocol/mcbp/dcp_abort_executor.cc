@@ -31,6 +31,8 @@ void dcp_abort_executor(Cookie& cookie) {
                 *reinterpret_cast<const DcpAbortPayload*>(extdata.data());
         ret = dcpAbort(cookie,
                        req.getOpaque(),
+                       req.getVBucket(),
+                       cookie.getConnection().makeDocKey(req.getKey()),
                        extras.getPreparedSeqno(),
                        extras.getAbortSeqno());
     }

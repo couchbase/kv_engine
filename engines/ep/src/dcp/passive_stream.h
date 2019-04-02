@@ -139,6 +139,9 @@ protected:
     /// Process an incoming commit of a SyncWrite.
     ENGINE_ERROR_CODE processCommit(const CommitSyncWrite& commit);
 
+    /// Process an incoming abort of a SyncWrite.
+    ENGINE_ERROR_CODE processAbort(const AbortSyncWrite& abort);
+
     /**
      * Handle DCP system events against this stream.
      *

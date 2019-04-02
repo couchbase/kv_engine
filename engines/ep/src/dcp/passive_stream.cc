@@ -294,6 +294,9 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
                 ret = processCommit(
                         static_cast<CommitSyncWrite&>(*dcpResponse));
                 break;
+            case DcpResponse::Event::Abort:
+                ret = processAbort(dynamic_cast<AbortSyncWrite&>(*dcpResponse));
+                break;
             case DcpResponse::Event::SnapshotMarker:
                 processMarker(static_cast<SnapshotMarker*>(dcpResponse.get()));
                 break;
@@ -670,6 +673,19 @@ ENGINE_ERROR_CODE PassiveStream::processCommit(const CommitSyncWrite& commit) {
                       commit.getPreparedSeqno(),
                       commit.getCommitSeqno(),
                       vb->lockCollections(commit.getKey()));
+}
+
+ENGINE_ERROR_CODE PassiveStream::processAbort(const AbortSyncWrite& abort) {
+    VBucketPtr vb = engine->getVBucket(vb_);
+
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    return vb->abort(abort.getKey(),
+                     abort.getPreparedSeqno(),
+                     abort.getAbortSeqno(),
+                     vb->lockCollections(abort.getKey()));
 }
 
 ENGINE_ERROR_CODE PassiveStream::processSystemEvent(

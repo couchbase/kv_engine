@@ -1651,9 +1651,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::commit(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::abort(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
-        uint64_t prepared_seqno,
-        uint64_t abort_seqno) {
-    return ENGINE_ENOTSUP;
+        Vbid vbucket,
+        const DocKey& key,
+        uint64_t preparedSeqno,
+        uint64_t abortSeqno) {
+    auto engine = acquireEngine(this);
+    ConnHandler* conn = engine->getConnHandler(cookie);
+    if (conn) {
+        return conn->abort(opaque, vbucket, key, preparedSeqno, abortSeqno);
+    }
+    return ENGINE_DISCONNECT;
 }
 
 static void EvpHandleDisconnect(const void* cookie,

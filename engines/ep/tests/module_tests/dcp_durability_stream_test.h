@@ -41,4 +41,11 @@ class DurabilityPassiveStreamTest : public SingleThreadedPassiveStreamTest {
 public:
     void SetUp() override;
     void TearDown() override;
+
+protected:
+    /*
+     * Simulates a Replica receiving a DCP_PREPARE and checks that it is
+     * queued correctly for persistence.
+     */
+    void testReceiveDcpPrepare();
 };
