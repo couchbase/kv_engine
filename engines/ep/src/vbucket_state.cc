@@ -19,35 +19,6 @@
 #include "ep_types.h"
 #include "vbucket.h"
 
-vbucket_state::vbucket_state() : hlcCasEpochSeqno(HlcCasSeqnoUninitialised) {
-}
-
-vbucket_state::vbucket_state(vbucket_state_t _state,
-                             uint64_t _chkid,
-                             uint64_t _maxDelSeqNum,
-                             int64_t _highSeqno,
-                             uint64_t _purgeSeqno,
-                             uint64_t _lastSnapStart,
-                             uint64_t _lastSnapEnd,
-                             uint64_t _maxCas,
-                             int64_t _hlcCasEpochSeqno,
-                             bool _mightContainXattrs,
-                             std::string _failovers,
-                             bool _supportsNamespaces)
-    : state(_state),
-      checkpointId(_chkid),
-      maxDeletedSeqno(_maxDelSeqNum),
-      highSeqno(_highSeqno),
-      purgeSeqno(_purgeSeqno),
-      lastSnapStart(_lastSnapStart),
-      lastSnapEnd(_lastSnapEnd),
-      maxCas(_maxCas),
-      hlcCasEpochSeqno(_hlcCasEpochSeqno),
-      mightContainXattrs(_mightContainXattrs),
-      failovers(std::move(_failovers)),
-      supportsNamespaces(_supportsNamespaces) {
-}
-
 std::string vbucket_state::toJSON() const {
     std::stringstream jsonState;
     jsonState << "{\"state\": \"" << VBucket::toString(state) << "\""

@@ -16,6 +16,8 @@
  */
 #pragma once
 
+#include "ep_types.h"
+
 #include <memcached/vbucket.h>
 #include <platform/n_byte_integer.h>
 #include <cstdint>
@@ -28,37 +30,22 @@
  * This is persisted to disk during flush.
  */
 struct vbucket_state {
-    vbucket_state();
-
-    vbucket_state(vbucket_state_t _state,
-                  uint64_t _chkid,
-                  uint64_t _maxDelSeqNum,
-                  int64_t _highSeqno,
-                  uint64_t _purgeSeqno,
-                  uint64_t _lastSnapStart,
-                  uint64_t _lastSnapEnd,
-                  uint64_t _maxCas,
-                  int64_t _hlcCasEpochSeqno,
-                  bool _mightContainXattrs,
-                  std::string _failovers,
-                  bool _supportsNamespaces);
-
     std::string toJSON() const;
 
     bool needsToBePersisted(const vbucket_state& vbstate);
 
     void reset();
 
-    vbucket_state_t state;
-    uint64_t checkpointId;
-    cb::uint48_t maxDeletedSeqno;
-    int64_t highSeqno;
-    uint64_t purgeSeqno;
-    uint64_t lastSnapStart;
-    uint64_t lastSnapEnd;
-    uint64_t maxCas;
-    int64_t hlcCasEpochSeqno;
-    bool mightContainXattrs;
-    std::string failovers;
-    bool supportsNamespaces;
+    vbucket_state_t state = vbucket_state_dead;
+    uint64_t checkpointId = 0;
+    cb::uint48_t maxDeletedSeqno = 0;
+    int64_t highSeqno = 0;
+    uint64_t purgeSeqno = 0;
+    uint64_t lastSnapStart = 0;
+    uint64_t lastSnapEnd = 0;
+    uint64_t maxCas = 0;
+    int64_t hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
+    bool mightContainXattrs = false;
+    std::string failovers = "";
+    bool supportsNamespaces = true;
 };

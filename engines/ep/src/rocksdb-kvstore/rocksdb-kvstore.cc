@@ -1175,19 +1175,20 @@ void RocksDBKVStore::readVBState(const VBHandle& vbh) {
         }
     }
 
-    cachedVBStates[vbh.vbid.get()] =
-            std::make_unique<vbucket_state>(state,
-                                            checkpointId,
-                                            maxDeletedSeqno,
-                                            highSeqno,
-                                            purgeSeqno,
-                                            lastSnapStart,
-                                            lastSnapEnd,
-                                            maxCas,
-                                            hlcCasEpochSeqno,
-                                            mightContainXattrs,
-                                            failovers,
-                                            supportsNamespaces);
+    // Cannot use make_unique here as it doesn't support brace-initialization
+    // until C++20.
+    cachedVBStates[vbh.vbid.get()].reset(new vbucket_state{state,
+                                                           checkpointId,
+                                                           maxDeletedSeqno,
+                                                           highSeqno,
+                                                           purgeSeqno,
+                                                           lastSnapStart,
+                                                           lastSnapEnd,
+                                                           maxCas,
+                                                           hlcCasEpochSeqno,
+                                                           mightContainXattrs,
+                                                           failovers,
+                                                           supportsNamespaces});
 }
 
 rocksdb::Status RocksDBKVStore::saveVBStateToBatch(const VBHandle& vbh,

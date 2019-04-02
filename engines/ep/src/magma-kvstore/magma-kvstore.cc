@@ -565,19 +565,20 @@ void MagmaKVStore::readVBState(const KVMagma& db) {
     auto key = getVbstateKey();
     std::string vbstate;
     auto vbid = db.vbid;
-    cachedVBStates[vbid.get()] =
-            std::make_unique<vbucket_state>(state,
-                                            checkpointId,
-                                            maxDeletedSeqno,
-                                            highSeqno,
-                                            purgeSeqno,
-                                            lastSnapStart,
-                                            lastSnapEnd,
-                                            maxCas,
-                                            hlcCasEpochSeqno,
-                                            mightContainXattrs,
-                                            failovers,
-                                            false);
+    // Cannot use make_unique here as it doesn't support brace-initialization
+    // until C++20.
+    cachedVBStates[vbid.get()].reset(new vbucket_state{state,
+                                                       checkpointId,
+                                                       maxDeletedSeqno,
+                                                       highSeqno,
+                                                       purgeSeqno,
+                                                       lastSnapStart,
+                                                       lastSnapEnd,
+                                                       maxCas,
+                                                       hlcCasEpochSeqno,
+                                                       mightContainXattrs,
+                                                       failovers,
+                                                       false});
 }
 
 int MagmaKVStore::saveDocs(Vbid vbid,

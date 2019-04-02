@@ -173,21 +173,10 @@ protected:
 
 // Initializes a KVStore
 static void initialize_kv_store(KVStore* kvstore, Vbid vbid = Vbid(0)) {
-    std::string failoverLog("");
     // simulate the setVbState by incrementing the rev
     kvstore->incrementRevision(vbid);
-    vbucket_state state(vbucket_state_active,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        false,
-                        failoverLog,
-                        true /*supportsNamespaces*/);
+    vbucket_state state;
+    state.state = vbucket_state_active;
     // simulate the setVbState by incrementing the rev
     kvstore->incrementRevision(vbid);
     kvstore->snapshotVBucket(
@@ -358,19 +347,9 @@ TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
     ASSERT_NE(nullptr, kvstore.rw);
 
     // Activate vBucket.
-    std::string failoverLog("[]");
-    vbucket_state state(vbucket_state_active,
-                        /*ckid*/ 0,
-                        /*maxDelSeqNum*/ 0,
-                        /*highSeqno*/ 0,
-                        /*purgeSeqno*/ 0,
-                        /*lastSnapStart*/ 0,
-                        /*lastSnapEnd*/ 0,
-                        /*maxCas*/ -1,
-                        /*hlcEpoch*/ 0,
-                        /*xattrs_present*/ false,
-                        failoverLog,
-                        true /*supportsNamespaces*/);
+    vbucket_state state;
+    state.state = vbucket_state_active;
+    state.maxCas = -1;
     EXPECT_TRUE(kvstore.rw->snapshotVBucket(
             Vbid(0), state, VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT));
     EXPECT_EQ(~0ull, kvstore.rw->listPersistedVbuckets()[0]->maxCas);
@@ -1430,18 +1409,8 @@ public:
         // simulate a setVBState - increment the rev and then persist the
         // state
         kvstore->incrementRevision(vbid);
-        vbucket_state state(vbucket_state_active,
-                            0,
-                            0,
-                            0,
-                            0,
-                            0,
-                            0,
-                            0,
-                            0,
-                            false,
-                            failoverLog,
-                            true /*supportsNamespaces*/);
+        vbucket_state state;
+        state.state = vbucket_state_active;
         // simulate a setVBState - increment the dbFile revision
         kvstore->incrementRevision(vbid);
         kvstore->snapshotVBucket(

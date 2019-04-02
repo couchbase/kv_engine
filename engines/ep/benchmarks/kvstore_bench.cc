@@ -140,18 +140,8 @@ protected:
 private:
     std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config) {
         auto kvstore = KVStoreFactory::create(config);
-        vbucket_state state(vbucket_state_active,
-                            0 /*chkid*/,
-                            0 /*maxDelSeqNum*/,
-                            0 /*highSeqno*/,
-                            0 /*purgeSeqno*/,
-                            0 /*lastSnapStart*/,
-                            0 /*lastSnapEnd*/,
-                            0 /*maxCas*/,
-                            0 /*hlcCasEpochSeqno*/,
-                            false /*mightContainXattrs*/,
-                            "" /*failovers*/,
-                            true /*supportsNamespaces*/);
+        vbucket_state state;
+        state.state = vbucket_state_active;
         kvstore.rw->snapshotVBucket(
                 vbid, state, VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT);
         return std::move(kvstore.rw);
