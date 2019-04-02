@@ -85,11 +85,7 @@ protected:
     const int backlog = 1024;
 
     struct EventDeleter {
-        void operator()(struct event* ev) {
-            if (ev != nullptr) {
-                event_free(ev);
-            }
-        }
+        void operator()(struct event* e);
     };
 
     /// Are we currently registered in libevent or not

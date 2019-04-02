@@ -178,3 +178,7 @@ nlohmann::json ServerSocket::toJson() const {
 
     return ret;
 }
+
+void ServerSocket::EventDeleter::operator()(struct event* e) {
+    event_free(e);
+}
