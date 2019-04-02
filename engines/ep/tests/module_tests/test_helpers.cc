@@ -182,6 +182,16 @@ void rewriteCouchstoreVBState(Vbid vbucket,
     vbstateJson["state"] = "active";
     vbstateJson["checkpoint_id"] = "1";
     vbstateJson["max_deleted_seqno"] = "0";
+    vbstateJson["snap_start"] = "0";
+    vbstateJson["snap_end"] = "0";
+    vbstateJson["max_cas"] = "12345";
+
+    // hlc_epoch added in v5.0.0, but the value could be
+    // HlcCasSeqnoUninitialised if the couchstore file was previously upgraded
+    // from an older version.
+    vbstateJson["hlc_epoch"] = std::to_string(HlcCasSeqnoUninitialised);
+    vbstateJson["might_contain_xattrs"] = false;
+
     if (namespacesSupported) {
         vbstateJson["namespaces_supported"] = true;
     }

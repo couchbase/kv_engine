@@ -48,6 +48,7 @@
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <memcached/types.h>
+#include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
@@ -6302,7 +6303,11 @@ static enum test_result test_multi_bucket_set_get(engine_test_t* test) {
     return SUCCESS;
 }
 
-static void force_vbstate_to_25x(std::string dbname, int vbucket) {
+/**
+ * Rewrite the persisted vbucket_state to the oldest version we support upgrade
+ * to (v5.0 at time of writing).
+ */
+static void force_vbstate_to_v5(std::string dbname, int vbucket) {
     std::string filename = dbname + cb::io::DirectorySeparator +
                            std::to_string(vbucket) + ".couch.1";
     Db* handle;
@@ -6312,18 +6317,26 @@ static void force_vbstate_to_25x(std::string dbname, int vbucket) {
 
     checkeq(COUCHSTORE_SUCCESS, err, "Failed to open new database");
 
-    // Create 2.5 _local/vbstate
+    // Create 5.0.0 _local/vbstate
     // Note: unconditionally adding namespaces_supported to keep this test
     // working.
-    std::string vbstate2_5_x = R"({"state": "active",
-                                   "checkpoint_id": "1",
-                                   "max_deleted_seqno": "0",
-                                   "namespaces_supported":true})";
+    const nlohmann::json vbstate5 = {
+            {"state", "active"},
+            {"checkpoint_id", "1"},
+            {"max_deleted_seqno", "0"},
+            {"snap_start", "0"},
+            {"snap_end", "1"},
+            {"max_cas", "123"},
+            {"hlc_epoch", std::to_string(HlcCasSeqnoUninitialised)},
+            {"might_contain_xattrs", false},
+            {"namespaces_supported", true}};
+    const auto vbStateStr = vbstate5.dump();
+
     LocalDoc vbstate;
     vbstate.id.buf = (char *)"_local/vbstate";
     vbstate.id.size = sizeof("_local/vbstate") - 1;
-    vbstate.json.buf = (char *)vbstate2_5_x.c_str();
-    vbstate.json.size = vbstate2_5_x.size();
+    vbstate.json.buf = (char*)vbStateStr.c_str();
+    vbstate.json.size = vbStateStr.size();
     vbstate.deleted = 0;
 
     err = couchstore_save_local_document(handle, &vbstate);
@@ -6349,8 +6362,8 @@ static enum test_result test_mb19635_upgrade_from_25x(EngineIface* h) {
 
     std::string dbname = get_dbname(testHarness->get_current_testcase()->cfg);
 
-    force_vbstate_to_25x(dbname, 0);
-    force_vbstate_to_25x(dbname, 1);
+    force_vbstate_to_v5(dbname, 0);
+    force_vbstate_to_v5(dbname, 1);
 
     // Now shutdown engine force and restart to warmup from the 2.5.x data.
     testHarness->reload_engine(&h,
