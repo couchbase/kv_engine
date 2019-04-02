@@ -140,6 +140,10 @@ public:
                            cb::const_char_buffer message) override {
         wrapped->set_error_context(cookie, message);
     }
+    void set_error_json_extras(gsl::not_null<void*> cookie,
+                               const nlohmann::json& json) override {
+        wrapped->set_error_json_extras(cookie, json);
+    }
 
 protected:
     ServerCookieIface* wrapped;

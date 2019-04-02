@@ -1795,9 +1795,10 @@ EventuallyPersistentEngine::get_collection_id(gsl::not_null<const void*> cookie,
     auto rv = engine->getKVBucket()->getCollectionID(path);
     if (rv.result == cb::engine_errc::unknown_collection ||
         rv.result == cb::engine_errc::unknown_scope) {
-        engine->setErrorContext(cookie,
-                                Collections::getUnknownCollectionErrorContext(
-                                        rv.getManifestId()));
+        engine->setErrorJsonExtras(
+                cookie,
+                Collections::getUnknownCollectionErrorContext(
+                        rv.getManifestId()));
     }
     return rv;
 }
@@ -1807,9 +1808,10 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
     auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->getScopeID(path);
     if (rv.result == cb::engine_errc::unknown_scope) {
-        engine->setErrorContext(cookie,
-                                Collections::getUnknownCollectionErrorContext(
-                                        rv.getManifestId()));
+        engine->setErrorJsonExtras(
+                cookie,
+                Collections::getUnknownCollectionErrorContext(
+                        rv.getManifestId()));
     }
     return rv;
 }
@@ -1923,6 +1925,12 @@ void EventuallyPersistentEngine::setErrorContext(
         const void* cookie, cb::const_char_buffer message) {
     NonBucketAllocationGuard guard;
     serverApi->cookie->set_error_context(const_cast<void*>(cookie), message);
+}
+
+void EventuallyPersistentEngine::setErrorJsonExtras(
+        const void* cookie, const nlohmann::json& json) {
+    NonBucketAllocationGuard guard;
+    serverApi->cookie->set_error_json_extras(const_cast<void*>(cookie), json);
 }
 
 template <typename T>

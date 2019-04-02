@@ -21,6 +21,7 @@
 
 #include <memcached/dockey.h>
 #include <memcached/types.h>
+#include <nlohmann/json_fwd.hpp>
 #include <platform/sized_buffer.h>
 #include <gsl/gsl>
 
@@ -279,11 +280,11 @@ struct DropScopeEventDcpData {
 
 /**
  * All unknown_collection errors should be accompanied by a error context
- * value which incldues the manifest ID which was what the collection lookup
+ * value which includes the manifest ID which was what the collection lookup
  * failed against.
- * @return std::string for use in setErrorContext
+ * @return json for use in setErrorJsonExtras
  */
-std::string getUnknownCollectionErrorContext(uint64_t manifestUid);
+nlohmann::json getUnknownCollectionErrorContext(uint64_t manifestUid);
 
 /**
  * For creation of collection SystemEvents - The SystemEventFactory

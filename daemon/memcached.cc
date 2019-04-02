@@ -1643,6 +1643,12 @@ struct ServerCookieApi : public ServerCookieIface {
         auto* cookie = reinterpret_cast<Cookie*>(void_cookie.get());
         cookie->setErrorContext(to_string(message));
     }
+
+    void set_error_json_extras(gsl::not_null<void*> void_cookie,
+                               const nlohmann::json& json) override {
+        auto* cookie = reinterpret_cast<Cookie*>(void_cookie.get());
+        cookie->setErrorJsonExtras(json);
+    }
 };
 
 class ServerApi : public SERVER_HANDLE_V1 {

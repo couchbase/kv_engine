@@ -359,6 +359,10 @@ struct MockServerCookieApi : public ServerCookieIface {
                            cb::const_char_buffer message) override {
     }
 
+    void set_error_json_extras(gsl::not_null<void*> cookie,
+                               const nlohmann::json& json) override {
+    }
+
     void notify_io_complete(gsl::not_null<const void*> cookie,
                             ENGINE_ERROR_CODE status) override {
         auto* c = cookie_to_mock_object(cookie.get());

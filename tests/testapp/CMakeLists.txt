@@ -30,9 +30,10 @@ set(memcached_testapp_SOURCES
     testapp_bucket.cc
     testapp_cert_tests.cc
     testapp_client_test.cc
-    testapp_cmd_timers.cc
     testapp_client_test.h
     testapp_cluster_config.cc
+    testapp_cmd_timers.cc
+    testapp_collections.cc
     testapp_dcp.cc
     testapp_durability.cc
     testapp_environment.cc

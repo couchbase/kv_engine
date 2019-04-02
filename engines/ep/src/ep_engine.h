@@ -552,6 +552,8 @@ public:
 
     void setErrorContext(const void* cookie, cb::const_char_buffer message);
 
+    void setErrorJsonExtras(const void* cookie, const nlohmann::json& json);
+
     void registerEngineCallback(ENGINE_EVENT_TYPE type,
                                 EVENT_CALLBACK cb, const void *cb_data);
 

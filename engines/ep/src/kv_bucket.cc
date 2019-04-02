@@ -620,7 +620,7 @@ ENGINE_ERROR_CODE KVBucket::set(Item& itm,
     { // collections read-lock scope
         auto cHandle = vb->lockCollections(itm.getKey());
         if (!cHandle.valid()) {
-            engine.setErrorContext(
+            engine.setErrorJsonExtras(
                     cookie,
                     Collections::getUnknownCollectionErrorContext(
                             cHandle.getManifestUid()));
@@ -669,7 +669,7 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
     { // collections read-lock scope
         auto cHandle = vb->lockCollections(itm.getKey());
         if (!cHandle.valid()) {
-            engine.setErrorContext(
+            engine.setErrorJsonExtras(
                     cookie,
                     Collections::getUnknownCollectionErrorContext(
                             cHandle.getManifestUid()));
@@ -707,7 +707,7 @@ ENGINE_ERROR_CODE KVBucket::replace(Item& itm,
     { // collections read-lock scope
         auto cHandle = vb->lockCollections(itm.getKey());
         if (!cHandle.valid()) {
-            engine.setErrorContext(
+            engine.setErrorJsonExtras(
                     cookie,
                     Collections::getUnknownCollectionErrorContext(
                             cHandle.getManifestUid()));
@@ -1366,7 +1366,7 @@ GetValue KVBucket::getInternal(const DocKey& key,
     { // hold collections read handle for duration of get
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
-            engine.setErrorContext(
+            engine.setErrorJsonExtras(
                     cookie,
                     Collections::getUnknownCollectionErrorContext(
                             cHandle.getManifestUid()));
@@ -1432,7 +1432,7 @@ ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
     { // collections read scope
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
-            engine.setErrorContext(
+            engine.setErrorJsonExtras(
                     cookie,
                     Collections::getUnknownCollectionErrorContext(
                             cHandle.getManifestUid()));
@@ -1489,7 +1489,7 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
 
         auto cHandle = vb->lockCollections(itm.getKey());
         if (!cHandle.valid()) {
-            engine.setErrorContext(
+            engine.setErrorJsonExtras(
                     cookie,
                     Collections::getUnknownCollectionErrorContext(
                             cHandle.getManifestUid()));
@@ -1541,7 +1541,7 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
     { // collections read scope
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
-            engine.setErrorContext(
+            engine.setErrorJsonExtras(
                     cookie,
                     Collections::getUnknownCollectionErrorContext(
                             cHandle.getManifestUid()));
@@ -1571,7 +1571,7 @@ GetValue KVBucket::getLocked(const DocKey& key,
     { // collections read scope
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
-            engine.setErrorContext(
+            engine.setErrorJsonExtras(
                     cookie,
                     Collections::getUnknownCollectionErrorContext(
                             cHandle.getManifestUid()));
@@ -1595,9 +1595,9 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
 
     auto cHandle = vb->lockCollections(key);
     if (!cHandle.valid()) {
-        engine.setErrorContext(cookie,
-                               Collections::getUnknownCollectionErrorContext(
-                                       cHandle.getManifestUid()));
+        engine.setErrorJsonExtras(cookie,
+                                  Collections::getUnknownCollectionErrorContext(
+                                          cHandle.getManifestUid()));
         return ENGINE_UNKNOWN_COLLECTION;
     }
 
@@ -1645,7 +1645,7 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
     { // collections read scope
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
-            engine.setErrorContext(
+            engine.setErrorJsonExtras(
                     cookie,
                     Collections::getUnknownCollectionErrorContext(
                             cHandle.getManifestUid()));
@@ -1718,7 +1718,7 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(
     { // collections read scope
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
-            engine.setErrorContext(
+            engine.setErrorJsonExtras(
                     cookie,
                     Collections::getUnknownCollectionErrorContext(
                             cHandle.getManifestUid()));
@@ -1778,7 +1778,7 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
     { // hold collections read lock for duration of delete
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
-            engine.setErrorContext(
+            engine.setErrorJsonExtras(
                     cookie,
                     Collections::getUnknownCollectionErrorContext(
                             cHandle.getManifestUid()));

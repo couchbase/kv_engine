@@ -74,9 +74,20 @@ const std::string& Cookie::getEventId() const {
     return event_id;
 }
 
+void Cookie::setErrorJsonExtras(const nlohmann::json& json) {
+    if (json.find("error") != json.end()) {
+        throw std::invalid_argument(
+                "Cookie::setErrorJsonExtras: cannot use \"error\" as a key, "
+                "json:" +
+                json.dump());
+    }
+
+    error_extra_json = json;
+}
+
 const std::string& Cookie::getErrorJson() {
     json_message.clear();
-    if (error_context.empty() && event_id.empty()) {
+    if (error_context.empty() && event_id.empty() && error_extra_json.empty()) {
         return json_message;
     }
 
@@ -87,8 +98,16 @@ const std::string& Cookie::getErrorJson() {
     if (!event_id.empty()) {
         error["ref"] = event_id;
     }
+
     nlohmann::json root;
-    root["error"] = error;
+
+    if (!error.empty()) {
+        root["error"] = error;
+    }
+
+    if (!error_extra_json.empty()) {
+        root.update(error_extra_json);
+    }
     json_message = root.dump();
     return json_message;
 }

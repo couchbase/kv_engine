@@ -23,6 +23,7 @@
 #include "types.h"
 
 #include <mcbp/protocol/opcode.h>
+#include <nlohmann/json_fwd.hpp>
 #include <gsl/gsl>
 #include <string>
 
@@ -225,9 +226,35 @@ struct ServerCookieIface {
      * contain security sensitive information. If sensitive information needs to
      * be preserved, log it with a UUID and send the UUID.
      *
+     * Note this has no affect for the following response codes.
+     *   cb::mcbp::Status::Success
+     *   cb::mcbp::Status::SubdocSuccessDeleted
+     *   cb::mcbp::Status::SubdocMultiPathFailure
+     *   cb::mcbp::Status::Rollback
+     *   cb::mcbp::Status::NotMyVbucket
+     *
      * @param cookie the client cookie (to look up client connection)
      * @param message the message string to be set as the error context
      */
     virtual void set_error_context(gsl::not_null<void*> cookie,
                                    cb::const_char_buffer message) = 0;
+
+    /**
+     * Set a JSON object to be included in an error response (along side
+     * anything set by set_error_context).
+     *
+     * The json object cannot include "error" as a top-level key
+     *
+     * Note this has no affect for the following response codes.
+     *   cb::mcbp::Status::Success
+     *   cb::mcbp::Status::SubdocSuccessDeleted
+     *   cb::mcbp::Status::SubdocMultiPathFailure
+     *   cb::mcbp::Status::Rollback
+     *   cb::mcbp::Status::NotMyVbucket
+     *
+     * @param cookie the client cookie (to look up client connection)
+     * @param json extra json object to include in a error response.
+     */
+    virtual void set_error_json_extras(gsl::not_null<void*> cookie,
+                                       const nlohmann::json& json) = 0;
 };

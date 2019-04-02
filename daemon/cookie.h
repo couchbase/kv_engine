@@ -23,7 +23,7 @@
 #include <mcbp/protocol/status.h>
 #include <memcached/dockey.h>
 #include <memcached/engine_error.h>
-#include <nlohmann/json_fwd.hpp>
+#include <nlohmann/json.hpp>
 #include <platform/sized_buffer.h>
 #include <chrono>
 
@@ -104,10 +104,34 @@ public:
     /**
      * Add a more descriptive error context to response sent back for
      * this command.
+     * Note this has no affect for the following response codes.
+     *   cb::mcbp::Status::Success
+     *   cb::mcbp::Status::SubdocSuccessDeleted
+     *   cb::mcbp::Status::SubdocMultiPathFailure
+     *   cb::mcbp::Status::Rollback
+     *   cb::mcbp::Status::NotMyVbucket
+     *
+     * @param message a string which will become the value of the "context" key
+     *        in the JSON response object
      */
     void setErrorContext(std::string message) {
         error_context = std::move(message);
     }
+
+    /**
+     * Add additional arbitrary JSON to the response, this is in addition to
+     * any message set via setErrorContext and any id set via setEventId
+     *
+     * Note this has no affect for the following response codes.
+     *   cb::mcbp::Status::Success
+     *   cb::mcbp::Status::SubdocSuccessDeleted
+     *   cb::mcbp::Status::SubdocMultiPathFailure
+     *   cb::mcbp::Status::Rollback
+     *   cb::mcbp::Status::NotMyVbucket
+     *
+     * @param json an object which is appended to the JSON response object.
+     */
+    void setErrorJsonExtras(const nlohmann::json& json);
 
     /**
      * Get the context to send back for this command.
@@ -503,6 +527,8 @@ protected:
 
     mutable std::string event_id;
     std::string error_context;
+    nlohmann::json error_extra_json;
+
     /**
      * A member variable to keep the data around until it's been safely
      * transferred to the client.

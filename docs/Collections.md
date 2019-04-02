@@ -110,17 +110,18 @@ The same error can be see on "opcode 0xbb Get Collection ID" when an unknown
 
 The response packet for the unknown collection error includes the UID of the
 manifest the server used in determining the collection doesn't exist. The format
-of the returned value is a JSON document with the following format. The context
-field's value is the UID of the manifest in the same format as the JSON manifest
-(a hex number in a string with no leading 0x).
+of the returned value is a JSON document with the following format. The
+manifest_uid field's value is the UID of the manifest in the same format as the
+JSON manifest (a hex number in a string with no leading 0x).
+
 
 ```
 {
-  "error": {
-    "context": "1f"
-  }
+  "manifest_uid":"1f"
 }
 ```
+
+Note that other fields within this JSON response value are allowed.
 
 ## 0xb9 - Set Collections Manifest
 

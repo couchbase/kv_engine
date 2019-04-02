@@ -117,6 +117,10 @@ public:
                            cb::const_char_buffer message) override {
         throw std::runtime_error("Not implemented");
     }
+    void set_error_json_extras(gsl::not_null<void*> cookie,
+                               const nlohmann::json& json) override {
+        throw std::runtime_error("set_error_json_extras not implemented");
+    }
 };
 
 class AuditDaemonTest
