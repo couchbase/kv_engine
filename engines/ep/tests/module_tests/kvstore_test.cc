@@ -2615,12 +2615,14 @@ protected:
 };
 
 // Simple sanity test to verify magma
-#if !defined(UNDEFINED_SANITIZER)
-// MB-33933: Currently broken under UBSan:
-//     magma/util/buffer.cc:194:11: runtime error: null pointer passed as
-//     argument 2, which is declared to never be null
 TEST_F(MagmaKVStoreTest, Sanity) {
-}
-#endif // UNDEFINED_SANITIZER
+    vbucket_state vbstate;
+    vbstate.reset();
+    vbstate.highSeqno = 1234;
+    kvstore->snapshotVBucket(
+            Vbid(0), vbstate, VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT);
 
+    auto vbs = kvstore->getVBucketState(Vbid(0));
+    ASSERT_EQ(vbstate.highSeqno, vbs->highSeqno);
+}
 #endif // EP_USE_MAGMA

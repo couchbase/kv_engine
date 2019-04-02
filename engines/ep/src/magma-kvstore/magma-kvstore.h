@@ -21,30 +21,40 @@
 #include "collections/collection_persisted_stats.h"
 #include "kvstore.h"
 #include "kvstore_priv.h"
+#include "libmagma/magma.h"
 #include "vbucket_bgfetch_item.h"
 
 #include <platform/dirutils.h>
+#include <platform/non_negative_counter.h>
 
 #include <map>
 #include <string>
 #include <vector>
 
 namespace magma {
-class Magma;
-}
+class Slice;
+class Status;
+} // namespace magma
 
 class MagmaRequest;
 class MagmaKVStoreConfig;
 class KVMagma;
 struct kvstats_ctx;
+struct vbucket_state;
 
 /**
  * Magma info is used to mimic info that is stored internally in couchstore.
  * This info is stored with vbucket_state every time vbucket_state is stored.
  */
-struct MagmaInfo {
-    uint64_t docCount = 0;
-    uint64_t persistedDeletes = 0;
+class MagmaInfo {
+public:
+    MagmaInfo() = default;
+    void reset() {
+        docCount = 0;
+        persistedDeletes = 0;
+    }
+    cb::NonNegativeCounter<uint64_t> docCount{0};
+    cb::NonNegativeCounter<uint64_t> persistedDeletes{0};
 };
 
 /**
@@ -109,6 +119,7 @@ public:
      * Take a snapshot of the stats in the main DB.
      */
     bool snapshotStats(const std::map<std::string, std::string>& m);
+
     /**
      * Take a snapshot of the vbucket states in the main DB.
      */
@@ -138,10 +149,6 @@ public:
     Vbid getDBFileId(const cb::mcbp::Request&) override {
         // Not needed if there is no explicit compaction
         return Vbid(0);
-    }
-
-    vbucket_state* getVBucketState(Vbid vbucketId) override {
-        return cachedVBStates[vbucketId.get()].get();
     }
 
     size_t getNumPersistedDeletes(Vbid vbid) override {
@@ -237,6 +244,71 @@ public:
         return {};
     }
 
+    /**
+     * Encode a document being stored in the local db by prefixing the
+     * MetaData to the value.
+     *
+     * Magma requires all documents stored in local DB to also include
+     * metadata because it uses the callback functions like getExpiryTime,
+     * isDeleted() and getSeqNum() as part of compaction.
+     */
+    std::string encodeLocalDoc(Vbid vbid,
+                               const std::string& value,
+                               bool isDelete);
+
+    /**
+     * Decode a document being stored in the local db by extracting the
+     * MetaData from the value
+     */
+    std::pair<std::string, bool> decodeLocalDoc(const magma::Slice& valSlice);
+
+    /**
+     * Read from local DB
+     */
+    std::pair<magma::Status, std::string> readLocalDoc(
+            Vbid vbid, const magma::Slice& keySlice);
+
+    /**
+     * Add a local document to the commitBatch
+     */
+    magma::Status setLocalDoc(magma::Magma::CommitBatch& commitBatch,
+                              const magma::Slice& keySlice,
+                              std::string& valBuf,
+                              bool deleted);
+
+    /**
+     * Encode the cached vbucket_state and magmaInfo into a nlohmann json struct
+     */
+    nlohmann::json encodeVBState(vbucket_state& vbstate,
+                                 MagmaInfo& magmaInfo) const;
+
+    /**
+     * Read the encoded vstate + magmaInfo from the local db into the cache.
+     */
+    magma::Status readVBStateFromDisk(Vbid vbid);
+
+    /**
+     * Write the encoded vbstate + magmaInfo to the local db.
+     * with the new vbstate as well as write to disk.
+     */
+    magma::Status writeVBStateToDisk(Vbid vbid,
+                                     magma::Magma::CommitBatch& commitBatch);
+
+    /**
+     * Get vbstate from cache. If cache not populated, read it from disk
+     * and populate cache. If not on disk, return nullptr;
+     *
+     * vbstate and magmaInfo always go together, we should never have a
+     * case where only 1 of them is initialized. So, if vbstate is
+     * uninitilized, assume magmaInfo is as well.
+     */
+    vbucket_state* getVBucketState(Vbid vbucketId) override;
+
+    /**
+     * Get the MagmaInfo from the cache
+     */
+    MagmaInfo& getMagmaInfo(Vbid vbid);
+
 private:
     /**
      * Mamga instance for a shard
@@ -295,17 +367,6 @@ private:
                           const std::string& value,
                           GetMetaOnly getMetaOnly = GetMetaOnly::No);
 
-    /**
-     * Read the vbucket_state and magmaInfo from localDB and populate the local
-     * cache
-     */
-    void readVBState(Vbid vbid);
-
-    /**
-     * Inialize the vbstate and magmaInfo when none exists.
-     */
-    vbucket_state* initVBState(Vbid vbid);
-
     int saveDocs(Vbid vbid,
                  Collections::VB::Flush& collectionsFlush,
                  const PendingRequestQueue& commitBatch);
@@ -313,8 +374,6 @@ private:
     void commitCallback(int status, const PendingRequestQueue& commitBatch);
 
     int64_t readHighSeqnoFromDisk(const KVMagma& db);
-
-    std::string getVbstateKey();
 
     // Used for queueing mutation requests (in `set` and `del`) and flushing
     // them to disk (in `commit`).
