@@ -1,9 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """ Simple CLI for basic SyncWrite operations."""
 
-from __future__ import print_function
-from collections import defaultdict
 import mc_bin_client
 import sys
 
