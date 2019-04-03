@@ -53,7 +53,8 @@ public:
                            uint64_t purgeSeqno,
                            uint64_t maxCas,
                            int64_t hlcEpochSeqno,
-                           bool mightContainXattrs) override {
+                           bool mightContainXattrs,
+                           const nlohmann::json& replicationTopology) override {
         auto vptr = EphemeralBucket::makeVBucket(id,
                                                  state,
                                                  shard,
@@ -67,7 +68,8 @@ public:
                                                  purgeSeqno,
                                                  maxCas,
                                                  hlcEpochSeqno,
-                                                 mightContainXattrs);
+                                                 mightContainXattrs,
+                                                 replicationTopology);
 
         vptr->checkpointManager = std::make_unique<MockCheckpointManager>(
                 stats,

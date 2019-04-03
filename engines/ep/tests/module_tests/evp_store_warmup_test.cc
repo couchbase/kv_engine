@@ -22,8 +22,10 @@
 #include "dcp/response.h"
 #include "ep_time.h"
 #include "evp_store_single_threaded_test.h"
+#include "kvstore.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "test_helpers.h"
+#include "vbucket_state.h"
 #include "warmup.h"
 
 class WarmupTest : public SingleThreadedKVBucketTest {};
@@ -518,11 +520,11 @@ protected:
         setVBucketToActiveWithValidTopology();
     }
 
-    void setVBucketToActiveWithValidTopology() {
+    void setVBucketToActiveWithValidTopology(
+            nlohmann::json topology = nlohmann::json::array({{"active",
+                                                              "replica"}})) {
         setVBucketStateAndRunPersistTask(
-                vbid,
-                vbucket_state_active,
-                {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+                vbid, vbucket_state_active, {{"topology", topology}});
     }
 };
 
@@ -639,6 +641,43 @@ TEST_P(DurabilityWarmupTest, AbortedSyncWritePrepareIsNotLoaded) {
     auto handle = vb->lockCollections(item->getKey());
     auto prepared = vb->fetchPreparedValue(handle);
     EXPECT_FALSE(prepared.storedValue);
+}
+
+// Test that not having a replication topology stored on disk (i.e. pre v6.5
+// file) is correctly handled during warmup.
+TEST_P(DurabilityWarmupTest, ReplicationTopologyMissing) {
+    // Store an item, then make the VB appear old ready for warmup
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value");
+    flush_vbucket_to_disk(vbid);
+
+    // Remove the replicationTopology and re-persist.
+    auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
+    auto vbstate = *kvstore->getVBucketState(vbid);
+    vbstate.replicationTopology.clear();
+    kvstore->snapshotVBucket(
+            vbid, vbstate, VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT);
+
+    resetEngineAndWarmup();
+
+    // Check topology is empty.
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(nlohmann::json().dump(), vb->getReplicationTopology().dump());
+}
+
+// Test that replication topology is correctly loaded from disk during warmup.
+TEST_P(DurabilityWarmupTest, ReplicationTopologyLoaded) {
+    // Change the replication topology to a specific value (different from
+    // normal test SetUp method).
+    const auto topology = nlohmann::json::array(
+            {{"other_active", "other_replica", "other_replica2"}});
+    setVBucketToActiveWithValidTopology(topology);
+
+    resetEngineAndWarmup();
+
+    // Check topology has been correctly loaded from disk.
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(topology.dump(), vb->getReplicationTopology().dump());
 }
 
 INSTANTIATE_TEST_CASE_P(

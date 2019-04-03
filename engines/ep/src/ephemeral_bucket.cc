@@ -189,7 +189,8 @@ VBucketPtr EphemeralBucket::makeVBucket(
         uint64_t purgeSeqno,
         uint64_t maxCas,
         int64_t hlcEpochSeqno,
-        bool mightContainXattrs) {
+        bool mightContainXattrs,
+        const nlohmann::json& replicationTopology) {
     (void)hlcEpochSeqno; // Ephemeral overrides this to be 0
     // Not using make_shared or allocate_shared
     // 1. make_shared doesn't accept a Deleter
@@ -212,7 +213,8 @@ VBucketPtr EphemeralBucket::makeVBucket(
                                            initState,
                                            purgeSeqno,
                                            maxCas,
-                                           mightContainXattrs),
+                                           mightContainXattrs,
+                                           replicationTopology),
                       VBucket::DeferredDeleter(engine));
 }
 

@@ -770,7 +770,8 @@ public:
             uint64_t purgeSeqno = 0,
             uint64_t maxCas = 0,
             int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
-            bool mightContainXattrs = false) = 0;
+            bool mightContainXattrs = false,
+            const nlohmann::json& replicationTopology = {}) = 0;
 
     /**
      * Notify all the clients of a new seqno being added in the vbucket

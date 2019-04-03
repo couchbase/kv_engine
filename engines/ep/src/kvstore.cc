@@ -137,6 +137,7 @@ bool KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
         if (vbState->needsToBePersisted(newState)) {
             vbState->state = newState.state;
             vbState->failovers = newState.failovers;
+            vbState->replicationTopology = newState.replicationTopology;
         } else {
             state_change_detected = false;
         }

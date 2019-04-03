@@ -190,7 +190,8 @@ public:
             uint64_t purgeSeqno = 0,
             uint64_t maxCas = 0,
             int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
-            bool mightContainXattrs = false);
+            bool mightContainXattrs = false,
+            const nlohmann::json& replTopology = {});
 
     virtual ~VBucket();
 
@@ -1470,6 +1471,15 @@ public:
      * otherwise string describing the (first) validation failure.
      */
     static std::string validateSetStateMeta(const nlohmann::json& meta);
+
+    /**
+     * Helper function to validate the specified vBucket replication topology.
+     * @param topology A JSON array of replicaton chains
+     * @returns An empty string if the information is valid,
+     * otherwise string describing the (first) validation failure.
+     */
+    static std::string validateReplicationTopology(
+            const nlohmann::json& topology);
 
     /**
      * Inform the vBucket that sequence number(s) have been acknowledged by

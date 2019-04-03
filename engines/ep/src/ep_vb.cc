@@ -50,7 +50,8 @@ EPVBucket::EPVBucket(Vbid i,
                      uint64_t purgeSeqno,
                      uint64_t maxCas,
                      int64_t hlcEpochSeqno,
-                     bool mightContainXattrs)
+                     bool mightContainXattrs,
+                     const nlohmann::json& replicationTopology)
     : VBucket(i,
               newState,
               st,
@@ -70,7 +71,8 @@ EPVBucket::EPVBucket(Vbid i,
               purgeSeqno,
               maxCas,
               hlcEpochSeqno,
-              mightContainXattrs),
+              mightContainXattrs,
+              replicationTopology),
       shard(kvshard) {
 }
 

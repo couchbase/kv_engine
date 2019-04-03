@@ -80,7 +80,8 @@ public:
                            uint64_t purgeSeqno,
                            uint64_t maxCas,
                            int64_t hlcEpochSeqno,
-                           bool mightContainXattrs) override;
+                           bool mightContainXattrs,
+                           const nlohmann::json& replicationTopology) override;
 
     /// Do nothing - no flusher to notify
     void notifyFlusher(const Vbid vbid) override {

@@ -19,15 +19,15 @@
 #include "vbucket.h"
 
 bool vbucket_state::needsToBePersisted(const vbucket_state& vbstate) {
-    /**
-     * The vbucket state information is to be persisted
-     * only if a change is detected in the state or the
-     * failovers fields.
+    /*
+     * The vbucket state information is to be persisted only if a change is
+     * detected in:
+     * - the state
+     * - the failover table, or
+     * - the replication topology.
      */
-    if (state != vbstate.state || failovers.compare(vbstate.failovers) != 0) {
-        return true;
-    }
-    return false;
+    return (state != vbstate.state || failovers != vbstate.failovers ||
+            replicationTopology != vbstate.replicationTopology);
 }
 
 void vbucket_state::reset() {
@@ -42,6 +42,7 @@ void vbucket_state::reset() {
     mightContainXattrs = false;
     failovers.clear();
     supportsNamespaces = true;
+    replicationTopology.clear();
 }
 
 void to_json(nlohmann::json& json, const vbucket_state& vbs) {
@@ -68,6 +69,9 @@ void to_json(nlohmann::json& json, const vbucket_state& vbs) {
     if (!vbs.failovers.empty()) {
         json["failover_table"] = nlohmann::json::parse(vbs.failovers);
     }
+    if (!vbs.replicationTopology.empty()) {
+        json["replication_topology"] = vbs.replicationTopology;
+    }
 }
 
 void from_json(const nlohmann::json& j, vbucket_state& vbs) {
@@ -90,5 +94,10 @@ void from_json(const nlohmann::json& j, vbucket_state& vbs) {
     auto failoverIt = j.find("failover_table");
     if (failoverIt != j.end()) {
         vbs.failovers = failoverIt->dump();
+    }
+
+    auto topologyIt = j.find("replication_topology");
+    if (topologyIt != j.end()) {
+        vbs.replicationTopology = *topologyIt;
     }
 }

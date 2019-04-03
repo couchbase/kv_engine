@@ -92,6 +92,17 @@ struct vbucket_state {
      * First GA'd in v6.5
      */
     bool supportsNamespaces = true;
+
+    /**
+     * The replication topology for the vBucket. Can be empty if not yet set,
+     * otherwise encoded as a JSON array of chains, each chain is a array of
+     * node names - e.g.
+     *
+     *     [ ["active", "replica_1"], ["active", "replica_1", "replica_2"]]
+     *
+     * First GA'd in 6.5
+     */
+    nlohmann::json replicationTopology;
 };
 
 /// Method to allow nlohmann::json to convert vbucket_state to JSON.

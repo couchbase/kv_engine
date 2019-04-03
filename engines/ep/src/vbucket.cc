@@ -170,7 +170,8 @@ VBucket::VBucket(Vbid i,
                  uint64_t purgeSeqno,
                  uint64_t maxCas,
                  int64_t hlcEpochSeqno,
-                 bool mightContainXattrs)
+                 bool mightContainXattrs,
+                 const nlohmann::json& replTopology)
     : ht(st, std::move(valFact), config.getHtSize(), config.getHtLocks()),
       checkpointManager(std::make_unique<CheckpointManager>(st,
                                                             i,
@@ -230,10 +231,25 @@ VBucket::VBucket(Vbid i,
     pendingOpsStart = std::chrono::steady_clock::time_point();
     stats.coreLocal.get()->memOverhead.fetch_add(
             sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
+
+    if (!replTopology.is_null()) {
+        if (state != vbucket_state_active) {
+            throw std::invalid_argument(
+                    "VBucket: replication toplogy only valid for state:active");
+        }
+        auto error = validateReplicationTopology(replTopology);
+        if (!error.empty()) {
+            throw std::invalid_argument(
+                    "VBucket: invalid replication topology: " + error);
+        }
+        replicationTopology = replTopology;
+        durabilityMonitor->setReplicationTopology(*replicationTopology.rlock());
+    }
+
     EP_LOG_INFO(
             "VBucket: created {} with state:{} "
             "initialState:{} lastSeqno:{} lastSnapshot:{{{},{}}} "
-            "persisted_snapshot:{{{},{}}} max_cas:{} uuid:{}",
+            "persisted_snapshot:{{{},{}}} max_cas:{} uuid:{} topology:{}",
             id,
             VBucket::toString(state),
             VBucket::toString(initialState),
@@ -243,7 +259,8 @@ VBucket::VBucket(Vbid i,
             persisted_snapshot_start,
             persisted_snapshot_end,
             getMaxCas(),
-            failovers ? std::to_string(failovers->getLatestUUID()) : "<>");
+            failovers ? std::to_string(failovers->getLatestUUID()) : "<>",
+            replicationTopology.rlock()->dump());
 }
 
 VBucket::~VBucket() {
@@ -416,58 +433,62 @@ void VBucket::setState(vbucket_state_t to, const nlohmann::json& meta) {
     setState_UNLOCKED(to, meta, wlh);
 }
 
+std::string VBucket::validateReplicationTopology(
+        const nlohmann::json& topology) {
+    // Topology must be an array with 1..2 chain elements; and
+    // each chain is an array of 1..4 nodes.
+    //   [[<active>, <replica>, ...], [<active>, <replica>, ...]]
+    //
+    // - The first node (active) must always be a string representing
+    //   the node name.
+    // - The subsequent nodes (replicas) can either be strings
+    //   indicating a defined replica, or Null indicating an undefined
+    //   replica.
+    if (!topology.is_array()) {
+        return "'topology' must be an array, found:"s + topology.dump();
+    }
+    if ((topology.size() < 1) || (topology.size() > 2)) {
+        return "'topology' must contain 1..2 elements, found:"s +
+               topology.dump();
+    }
+    for (const auto& chain : topology.items()) {
+        const auto& chainId = chain.key();
+        const auto& nodes = chain.value();
+        if (!nodes.is_array()) {
+            return "'topology' chain["s + chainId +
+                   "] must be an array, found:" + nodes.dump();
+        }
+        if ((nodes.size() < 1) || (nodes.size() > 4)) {
+            return "'topology' chain["s + chainId +
+                   "] must contain 1..4 nodes, found:" + nodes.dump();
+        }
+        for (const auto& node : nodes.items()) {
+            switch (node.value().type()) {
+            case nlohmann::json::value_t::string:
+                break;
+            case nlohmann::json::value_t::null:
+                // Null not permitted for active (first) node.
+                if (node.key() == "0") {
+                    return "'topology' chain[" + chainId + "] node[" +
+                           node.key() + "] (active) cannot be null";
+                }
+                break;
+            default:
+                return "'topology' chain[" + chainId + "] node[" + node.key() +
+                       "] must be a string, found:" + node.value().dump();
+            }
+        }
+    }
+    return {};
+}
+
 std::string VBucket::validateSetStateMeta(const nlohmann::json& meta) {
     if (!meta.is_object()) {
         return "'meta' must be an object if specified, found:"s + meta.dump();
     }
     for (const auto& el : meta.items()) {
         if (el.key() == "topology") {
-            const auto& topology = el.value();
-            // Topology must be an array with 1..2 chain elements; and
-            // each chain is an array of 1..4 nodes.
-            //   [[<active>, <replica>, ...], [<active>, <replica>, ...]]
-            //
-            // - The first node (active) must always be a string representing
-            //   the node name.
-            // - The subsequent nodes (replicas) can either be strings
-            //   indicating a defined replica, or Null indicating an undefined
-            //   replica.
-            if (!topology.is_array()) {
-                return "'topology' must be an array, found:"s + topology.dump();
-            }
-            if ((topology.size() < 1) || (topology.size() > 2)) {
-                return "'topology' must contain 1..2 elements, found:"s +
-                       topology.dump();
-            }
-            for (const auto& chain : topology.items()) {
-                const auto& chainId = chain.key();
-                const auto& nodes = chain.value();
-                if (!nodes.is_array()) {
-                    return "'topology' chain["s + chainId +
-                           "] must be an array, found:" + nodes.dump();
-                }
-                if ((nodes.size() < 1) || (nodes.size() > 4)) {
-                    return "'topology' chain["s + chainId +
-                           "] must contain 1..4 nodes, found:" + nodes.dump();
-                }
-                for (const auto& node : nodes.items()) {
-                    switch (node.value().type()) {
-                    case nlohmann::json::value_t::string:
-                        break;
-                    case nlohmann::json::value_t::null:
-                        // Null not permitted for active (first) node.
-                        if (node.key() == "0") {
-                            return "'topology' chain[" + chainId + "] node[" +
-                                   node.key() + "] (active) cannot be null";
-                        }
-                        break;
-                    default:
-                        return "'topology' chain[" + chainId + "] node[" +
-                               node.key() + "] must be a string, found:" +
-                               node.value().dump();
-                    }
-                }
-            }
+            return validateReplicationTopology(el.value());
         } else {
             return "'topology' contains unsupported key:"s + el.key() +
                    " with value:" + el.value().dump();
@@ -536,6 +557,11 @@ void VBucket::setState_UNLOCKED(
 vbucket_state VBucket::getVBucketState() const {
      auto persisted_range = getPersistedSnapshot();
 
+     nlohmann::json topology;
+     if (getState() == vbucket_state_active) {
+         topology = getReplicationTopology();
+     }
+
      return vbucket_state{getState(),
                           getPersistenceCheckpointId(),
                           0,
@@ -547,7 +573,8 @@ vbucket_state VBucket::getVBucketState() const {
                           hlc.getEpochSeqno(),
                           mightContainXattrs(),
                           failovers->toJSON(),
-                          true /*supportsNamespaces*/};
+                          true /*supportsNamespaces*/,
+                          topology};
 }
 
 nlohmann::json VBucket::getReplicationTopology() const {

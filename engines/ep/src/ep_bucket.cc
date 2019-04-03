@@ -1026,7 +1026,8 @@ VBucketPtr EPBucket::makeVBucket(
         uint64_t purgeSeqno,
         uint64_t maxCas,
         int64_t hlcEpochSeqno,
-        bool mightContainXattrs) {
+        bool mightContainXattrs,
+        const nlohmann::json& replicationTopology) {
     auto flusherCb = std::make_shared<NotifyFlusherCB>(shard);
     // Not using make_shared or allocate_shared
     // 1. make_shared doesn't accept a Deleter
@@ -1051,7 +1052,8 @@ VBucketPtr EPBucket::makeVBucket(
                                     purgeSeqno,
                                     maxCas,
                                     hlcEpochSeqno,
-                                    mightContainXattrs),
+                                    mightContainXattrs,
+                                    replicationTopology),
                       VBucket::DeferredDeleter(engine));
 }
 
