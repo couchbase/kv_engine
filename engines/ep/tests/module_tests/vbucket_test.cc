@@ -43,7 +43,7 @@ void VBucketTest::SetUp() {
                                 /*table*/ nullptr,
                                 /*flusher callback*/ nullptr,
                                 /*newSeqnoCb*/ nullptr,
-                                NoopSyncWriteCompleteCb,
+                                TracedSyncWriteCompleteCb,
                                 config,
                                 eviction_policy,
                                 std::make_unique<Collections::VB::Manifest>()));

@@ -446,8 +446,18 @@ TEST_P(VBucketDurabilityTest, PendingSkippedAtEjectionAndCommit) {
     // Note: ensure 1 Ckpt in CM, easier to inspect the CkptList after Commit
     ckptMgr->clear(*vbucket, 0 /*seqno*/);
 
+    // Client never notified yet
+    ASSERT_EQ(0, swCompleteTrace.count);
+    ASSERT_EQ(nullptr, swCompleteTrace.cookie);
+    ASSERT_EQ(ENGINE_EINVAL, swCompleteTrace.status);
+
     // Replica acks, Durability Requirements satisfied, Commit
     vbucket->seqnoAcknowledged(replica, 1 /*preparedSeqno*/);
+
+    // Commit notified
+    ASSERT_EQ(1, swCompleteTrace.count);
+    ASSERT_EQ(cookie, swCompleteTrace.cookie);
+    ASSERT_EQ(ENGINE_SUCCESS, swCompleteTrace.status);
 
     // HashTable state:
     // visible at read
@@ -558,12 +568,23 @@ TEST_P(VBucketDurabilityTest, AbortSyncWrite_Active) {
     // Note: ensure 1 Ckpt in CM, easier to inspect the CkptList after Commit
     ckptMgr->clear(*vbucket, 0 /*seqno*/);
 
+    // Client never notified yet
+    ASSERT_EQ(0, swCompleteTrace.count);
+    ASSERT_EQ(nullptr, swCompleteTrace.cookie);
+    ASSERT_EQ(ENGINE_EINVAL, swCompleteTrace.status);
+
     // Note: abort-seqno must be provided only at Replica
     EXPECT_EQ(ENGINE_SUCCESS,
               vbucket->abort(key,
                              1 /*prepareSeqno*/,
                              {} /*abortSeqno*/,
-                             vbucket->lockCollections(key)));
+                             vbucket->lockCollections(key),
+                             cookie));
+
+    // Abort notified
+    ASSERT_EQ(1, swCompleteTrace.count);
+    ASSERT_EQ(cookie, swCompleteTrace.cookie);
+    ASSERT_EQ(ENGINE_SYNC_WRITE_AMBIGUOUS, swCompleteTrace.status);
 
     // StoredValue has gone
     EXPECT_EQ(0, ht->getNumItems());

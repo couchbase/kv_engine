@@ -645,7 +645,8 @@ ENGINE_ERROR_CODE VBucket::commit(
         const DocKey& key,
         uint64_t pendingSeqno,
         boost::optional<int64_t> commitSeqno,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+        const Collections::VB::Manifest::CachingReadHandle& cHandle,
+        const void* cookie) {
     auto htRes = ht.findForWrite(key);
     if (!htRes.storedValue) {
         // If we are committing we /should/ always find the pending item.
@@ -683,6 +684,11 @@ ENGINE_ERROR_CODE VBucket::commit(
     notifyNewSeqno(notify);
     doCollectionsStats(cHandle, notify);
 
+    // Cookie representing the client connection, provided only at Active
+    if (cookie) {
+        notifyClientOfSyncWriteComplete(cookie, ENGINE_SUCCESS);
+    }
+
     return ENGINE_SUCCESS;
 }
 
@@ -690,7 +696,8 @@ ENGINE_ERROR_CODE VBucket::abort(
         const DocKey& key,
         int64_t prepareSeqno,
         boost::optional<int64_t> abortSeqno,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+        const Collections::VB::Manifest::CachingReadHandle& cHandle,
+        const void* cookie) {
     auto htRes = ht.findForWrite(key);
     if (!htRes.storedValue) {
         // If we are aborting we /should/ always find the pending item.
@@ -721,13 +728,23 @@ ENGINE_ERROR_CODE VBucket::abort(
     notifyNewSeqno(notify);
     doCollectionsStats(cHandle, notify);
 
+    // Cookie representing the client connection, provided only at Active
+    if (cookie) {
+        notifyClientOfSyncWriteComplete(cookie, ENGINE_SYNC_WRITE_AMBIGUOUS);
+    }
+
     return ENGINE_SUCCESS;
 }
 
-void VBucket::notifyClientOfCommit(const void* cookie) {
-    EP_LOG_DEBUG("VBucket::notifyClientOfCommit ({}) cookie:{}", id, cookie);
-
-    syncWriteCompleteCb(cookie, ENGINE_SUCCESS);
+void VBucket::notifyClientOfSyncWriteComplete(const void* cookie,
+                                              ENGINE_ERROR_CODE result) {
+    EP_LOG_DEBUG(
+            "VBucket::notifyClientOfSyncWriteComplete ({}) cookie:{} result:{}",
+            id,
+            cookie,
+            result);
+    Expects(cookie);
+    syncWriteCompleteCb(cookie, result);
 }
 
 bool VBucket::addPendingOp(const void* cookie) {

@@ -756,32 +756,32 @@ DurabilityMonitor::Container DurabilityMonitor::removeSyncWrite(
 }
 
 void DurabilityMonitor::commit(const SyncWrite& sw) {
-    // The next call:
-    // 1) converts the SyncWrite in the HashTable from Prepare to Committed
-    // 2) enqueues a Commit SyncWrite item into the CheckpointManager
     const auto& key = sw.getKey();
-    auto result = vb.commit(key, sw.getBySeqno(), {}, vb.lockCollections(key));
+    auto result = vb.commit(key,
+                            sw.getBySeqno() /*prepareSeqno*/,
+                            {} /*commitSeqno*/,
+                            vb.lockCollections(key),
+                            sw.getCookie());
     if (result != ENGINE_SUCCESS) {
         throw std::logic_error(
                 "DurabilityMonitor::commit: VBucket::commit failed with "
                 "status:" +
                 std::to_string(result));
     }
-
-    // 3) send a response with Success back to the client
-    vb.notifyClientOfCommit(sw.getCookie());
 }
 
 void DurabilityMonitor::abort(const SyncWrite& sw) {
     const auto& key = sw.getKey();
-    auto result = vb.abort(
-            key, sw.getBySeqno(), {} /*abortSeqno*/, vb.lockCollections(key));
+    auto result = vb.abort(key,
+                           sw.getBySeqno() /*prepareSeqno*/,
+                           {} /*abortSeqno*/,
+                           vb.lockCollections(key),
+                           sw.getCookie());
     if (result != ENGINE_SUCCESS) {
         throw std::logic_error(
                 "DurabilityMonitor::abort: VBucket::abort failed with status:" +
                 std::to_string(result));
     }
-    // @todo: VBucket::notifyClientOfAbort()
 }
 
 void DurabilityMonitor::processSeqnoAck(const std::lock_guard<std::mutex>& lg,

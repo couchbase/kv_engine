@@ -99,9 +99,24 @@ protected:
 
     void public_incrementBackfillQueueSize();
 
+    struct {
+        uint8_t count{0};
+        const void* cookie{nullptr};
+        ENGINE_ERROR_CODE status{ENGINE_EINVAL}; // just a placeholder
+    } swCompleteTrace;
+
+    // Mock SyncWriteCompleteCallback that helps in testing client-notify for
+    // Commit/Abort
+    const SyncWriteCompleteCallback TracedSyncWriteCompleteCb =
+            [this](const void* cookie, ENGINE_ERROR_CODE status) {
+                swCompleteTrace.count++;
+                swCompleteTrace.cookie = cookie;
+                swCompleteTrace.status = status;
+            };
+
     std::unique_ptr<VBucket> vbucket;
     EPStats global_stats;
     CheckpointConfig checkpoint_config;
     Configuration config;
-    const void* cookie = {};
+    const void* cookie;
 };
