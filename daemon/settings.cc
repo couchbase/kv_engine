@@ -718,33 +718,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
     }
 
-    if (other.has.interfaces) {
-        if (other.interfaces.size() != interfaces.size()) {
-            throw std::invalid_argument(
-                "interfaces can't be changed dynamically");
-        }
-
-        // validate that we haven't changed stuff in the entries
-        auto total = interfaces.size();
-        for (std::vector<NetworkInterface>::size_type ii = 0; ii < total;
-             ++ii) {
-            const auto& i1 = interfaces[ii];
-            const auto& i2 = other.interfaces[ii];
-
-            if (i1.port == 0 || i2.port == 0) {
-                // we can't look at dynamic ports...
-                continue;
-            }
-
-            // the following fields can't change
-            if ((i1.host != i2.host) || (i1.port != i2.port) ||
-                (i1.ipv4 != i2.ipv4) || (i1.ipv6 != i2.ipv6)) {
-                throw std::invalid_argument(
-                    "interfaces can't be changed dynamically");
-            }
-        }
-    }
-
     if (other.has.stdin_listener) {
         if (other.stdin_listener.load() != stdin_listener.load()) {
             throw std::invalid_argument(
@@ -934,41 +907,24 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     }
 
     if (other.has.interfaces) {
-        // validate that we haven't changed stuff in the entries
-        auto total = interfaces.size();
-        bool changed = false;
-        for (std::vector<NetworkInterface>::size_type ii = 0; ii < total;
-             ++ii) {
-            auto& i1 = interfaces[ii];
-            const auto& i2 = other.interfaces[ii];
+        auto next = other.getInterfaces();
+        bool change = false;
 
-            if (i1.port == 0 || i2.port == 0) {
-                // we can't look at dynamic ports...
-                continue;
+        if (next.size() == interfaces.size()) {
+            const auto total = next.size();
+            for (std::size_t ii = 0; ii < total; ++ii) {
+                if (interfaces[ii] != next[ii]) {
+                    change = true;
+                    break;
+                }
             }
-
-            if (i2.ssl.cert != i1.ssl.cert) {
-                LOG_INFO("Change SSL Certificiate for {}:{} from {} to {}",
-                         i1.host,
-                         i1.port,
-                         i1.ssl.cert,
-                         i2.ssl.cert);
-                i1.ssl.cert.assign(i2.ssl.cert);
-                changed = true;
-            }
-
-            if (i2.ssl.key != i1.ssl.key) {
-                LOG_INFO("Change SSL Key for {}:{} from {} to {}",
-                         i1.host,
-                         i1.port,
-                         i1.ssl.key,
-                         i2.ssl.key);
-                i1.ssl.key.assign(i2.ssl.key);
-                changed = true;
-            }
+        } else {
+            change = true;
         }
 
-        if (changed) {
+        if (change) {
+            std::lock_guard<std::mutex> guard(interfaces_mutex);
+            interfaces = std::move(next);
             notify_changed("interfaces");
         }
     }

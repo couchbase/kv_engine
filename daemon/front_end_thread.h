@@ -38,6 +38,8 @@ class Cookie;
 class Connection;
 struct thread_stats;
 
+using SharedListeningPort = std::shared_ptr<ListeningPort>;
+
 struct FrontEndThread {
     /**
      * Pending IO requests for this thread. Maps each pending Connection to
@@ -82,12 +84,12 @@ struct FrontEndThread {
     class ConnectionQueue {
     public:
         ~ConnectionQueue();
-        void push(SOCKET socket, in_port_t port);
-        void swap(std::vector<std::pair<SOCKET, in_port_t>>& other);
+        void push(SOCKET socket, SharedListeningPort interface);
+        void swap(std::vector<std::pair<SOCKET, SharedListeningPort>>& other);
 
     protected:
         std::mutex mutex;
-        std::vector<std::pair<SOCKET, in_port_t>> connections;
+        std::vector<std::pair<SOCKET, SharedListeningPort>> connections;
     } new_conn_queue;
 
     /// Mutex to lock protect access to this object.
@@ -138,3 +140,4 @@ struct FrontEndThread {
 
 void notify_thread(FrontEndThread& thread);
 void notify_dispatcher();
+void drain_notification_channel(evutil_socket_t fd);

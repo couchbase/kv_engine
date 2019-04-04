@@ -185,16 +185,10 @@ protected:
     static void spawn_embedded_server();
 
     /**
-     * Parse the portnumber file created from the memcached server
-     *
-     * @param port_out where to store the TCP port number the server is
-     *                 listening on (deprecated, use connectionMap instead)
-     * @param ssl_port_out where to store the TCP port number the server is
-     *                     listening for SSL connections (deprecated, use
-     *                     connectionMap instead)
+     * Parse the portnumber file created from the memcached server, and
+     * set port and ssl_port to the ports to the IPv4 ports in the file
      */
-    static void parse_portnumber_file(in_port_t& port_out,
-                                      in_port_t& ssl_port_out);
+    static void parse_portnumber_file();
 
     static void verify_server_running();
 

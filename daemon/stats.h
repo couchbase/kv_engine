@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "listening_port.h"
-
 #include <relaxed_atomic.h>
 
 #include <cstdint>
@@ -222,8 +220,6 @@ struct stats {
 
     /** The number of times I reject a client */
     cb::RelaxedAtomic<uint64_t> rejected_conns;
-
-    std::vector<ListeningPort> listening_ports;
 };
 
 class Connection;

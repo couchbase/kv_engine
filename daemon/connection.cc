@@ -21,6 +21,7 @@
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
 #include "front_end_thread.h"
+#include "listening_port.h"
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "memcached.h"
@@ -1286,9 +1287,8 @@ Connection::Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc)
     msglist.reserve(MSG_LIST_INITIAL);
     iov.resize(IOV_LIST_INITIAL);
 
-    auto ssl = ifc.getSslSettings();
-    if (ssl) {
-        if (!enableSSL(ssl->cert, ssl->key)) {
+    if (ifc.isSslPort()) {
+        if (!enableSSL(ifc.sslCert, ifc.sslKey)) {
             throw std::runtime_error(std::to_string(getId()) +
                                      " Failed to enable SSL");
         }

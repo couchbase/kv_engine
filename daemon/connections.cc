@@ -161,24 +161,11 @@ void run_event_loop(Connection* c, short which) {
     }
 }
 
-Connection* conn_new(const SOCKET sfd,
-                     in_port_t parent_port,
+Connection* conn_new(SOCKET sfd,
+                     const ListeningPort& interface,
                      struct event_base* base,
                      FrontEndThread* thread) {
-    Connection* c;
-    {
-        std::lock_guard<std::mutex> guard(stats_mutex);
-        auto* interface = get_listening_port_instance(parent_port);
-        if (interface == nullptr) {
-            LOG_WARNING("{}: failed to locate server port {}. Disconnecting",
-                        (unsigned int)sfd,
-                        parent_port);
-            return nullptr;
-        }
-
-        c = allocate_connection(sfd, base, *interface);
-    }
-
+    auto* c = allocate_connection(sfd, base, interface);
     if (c == nullptr) {
         return nullptr;
     }
@@ -203,16 +190,6 @@ Connection* conn_new(const SOCKET sfd,
     }
 
     return c;
-}
-
-ListeningPort *get_listening_port_instance(const in_port_t port) {
-    for (auto &instance : stats.listening_ports) {
-        if (instance.port == port) {
-            return &instance;
-        }
-    }
-
-    return nullptr;
 }
 
 void conn_loan_buffers(Connection* c) {

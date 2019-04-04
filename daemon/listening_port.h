@@ -18,8 +18,6 @@
 #pragma once
 
 #include <platform/socket.h>
-#include <atomic>
-#include <memory>
 #include <string>
 #include <utility>
 
@@ -27,12 +25,26 @@
  * A class representing the properties used by Listening port.
  *
  * This class differs from the "interface" class that it represents
- * an actual port memcached have open. It contains some dynamic and
- * some fixed properties
+ * an actual port memcached have open. This class is used through
+ * shared pointers and we create a new copy every time it change
  */
 class ListeningPort {
 public:
-    ListeningPort(std::string tag, std::string host, in_port_t port);
+    ListeningPort(std::string tag,
+                  std::string host,
+                  in_port_t port,
+                  sa_family_t family,
+                  std::string key,
+                  std::string cert)
+        : tag(std::move(tag)),
+          host(std::move(host)),
+          port(port),
+          family(family),
+          sslKey(std::move(key)),
+          sslCert(std::move(cert)) {
+    }
+
+    ListeningPort(const ListeningPort& other) = default;
 
     /// The tag provided by the user to identify the port. It is possible
     /// to use ephemeral ports in the system, and if we want to change
@@ -43,7 +55,7 @@ public:
     /// multiple interfaces).
     const std::string tag;
 
-    /** The hostname this port is bound to ("*" means all interfaces) */
+    /// The hostname this port is bound to ("*" means all interfaces)
     const std::string host;
 
     /**
@@ -53,32 +65,18 @@ public:
      */
     const in_port_t port;
 
-    /** Is IPv6 enabled for this port */
-    bool ipv6;
-    /** Is IPv4 enabled for this port */
-    bool ipv4;
+    /// Is this AF_INET or AF_INET6
+    const sa_family_t family;
 
-    /// SSL related properties for the port
-    struct Ssl {
-        Ssl(std::string key, std::string cert)
-            : key(std::move(key)), cert(std::move(cert)) {
-        }
-        /// The name of the file containing the SSL key
-        std::string key;
-        /// The name of the file containing the certificate
-        std::string cert;
-    };
+    // SSL related properties for the port. Both key and certificate must
+    // be set
 
-    /// Get the SSL settings for the port, or empty if SSL isn't configured
-    std::shared_ptr<Ssl> getSslSettings() const;
+    /// The name of the file containing the SSL key
+    const std::string sslKey;
+    /// The name of the file containing the certificate
+    const std::string sslCert;
 
-    /// Set the SSL settings for the port. Both key and cert must be
-    /// set to a non-empty value otherwise SSL will be disabled.
-    void setSslSettings(const std::string& key, const std::string& cert);
-
-protected:
-    /// The shared pointer used to configure SSL to allow for dynamic
-    /// reconfiguration of SSL parameters (as part of node-to-node encryption
-    /// we may want to lock down all ports to be over SSL)
-    std::shared_ptr<Ssl> ssl;
+    bool isSslPort() const {
+        return !sslKey.empty() && !sslCert.empty();
+    }
 };

@@ -19,6 +19,7 @@
 #include "client_connection.h"
 
 #include <nlohmann/json_fwd.hpp>
+#include <functional>
 
 class ConnectionMap {
 public:
@@ -60,6 +61,15 @@ public:
      * Do we have a connection matching the requested attributes
      */
     bool contains(bool ssl, sa_family_t family);
+
+    /**
+     * Iterate over all of the connections
+     */
+    void iterate(std::function<void(MemcachedConnection&)> fn) {
+        for (auto& connection : connections) {
+            fn(*connection);
+        }
+    }
 
 private:
     std::vector<std::unique_ptr<MemcachedConnection>> connections;

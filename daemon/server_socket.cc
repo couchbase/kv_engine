@@ -18,6 +18,7 @@
 #include "server_socket.h"
 
 #include "connections.h"
+#include "listening_port.h"
 #include "memcached.h"
 #include "network_interface.h"
 #include "settings.h"
@@ -36,12 +37,9 @@
 
 ServerSocket::ServerSocket(SOCKET fd,
                            event_base* b,
-                           in_port_t port,
-                           sa_family_t fam,
-                           const NetworkInterface& interf)
+                           std::shared_ptr<ListeningPort> interf)
     : sfd(fd),
-      listen_port(port),
-      family(fam),
+      interface(interf),
       sockname(cb::net::getsockname(fd)),
       ev(event_new(b,
                    sfd,
@@ -56,12 +54,29 @@ ServerSocket::ServerSocket(SOCKET fd,
 }
 
 ServerSocket::~ServerSocket() {
+    std::string tagstr;
+    if (!interface->tag.empty()) {
+        tagstr = " \"" + interface->tag + "\"";
+    }
+    LOG_INFO("Shutting down IPv{} interface{}: {}",
+             interface->family == AF_INET ? "4" : "6",
+             tagstr,
+             sockname);
     disable();
+    safe_close(sfd);
 }
 
 void ServerSocket::enable() {
     if (!registered_in_libevent) {
-        LOG_INFO("{} Listen on {}", sfd, sockname);
+        std::string tagstr;
+        if (!interface->tag.empty()) {
+            tagstr = " \"" + interface->tag + "\"";
+        }
+        LOG_INFO("{} Listen on IPv{}{}: {}",
+                 sfd,
+                 interface->family == AF_INET ? "4" : "6",
+                 tagstr,
+                 sockname);
         if (cb::net::listen(sfd, backlog) == SOCKET_ERROR) {
             LOG_WARNING("{}: Failed to listen on {}: {}",
                         sfd,
@@ -148,37 +163,51 @@ void ServerSocket::acceptNewClient() {
         return;
     }
 
-    dispatch_conn_new(client, listen_port);
+    dispatch_conn_new(client, interface);
 }
 
 nlohmann::json ServerSocket::toJson() const {
     nlohmann::json ret;
 
-    {
-        std::lock_guard<std::mutex> guard(stats_mutex);
-        const auto* instance = get_listening_port_instance(listen_port);
-        if (!instance) {
-            throw std::runtime_error(
-                    R"(ServerSocket::toJson: Failed to look up instance for port: )" +
-                    std::to_string(listen_port));
-        }
-
-        ret["ssl"] = instance->getSslSettings().get() != nullptr;
-    }
+    ret["ssl"] = interface->isSslPort();
     ret["protocol"] = "memcached";
 
-    if (family == AF_INET) {
+    if (interface->family == AF_INET) {
         ret["family"] = "AF_INET";
     } else {
         ret["family"] = "AF_INET6";
     }
 
     ret["name"] = sockname;
-    ret["port"] = listen_port;
+    ret["port"] = interface->port;
 
     return ret;
 }
 
 void ServerSocket::EventDeleter::operator()(struct event* e) {
     event_free(e);
+}
+
+void ServerSocket::updateSSL(const std::string& key, const std::string& cert) {
+    std::stringstream ss;
+    ss << sfd << ": Update interface properties for IPv";
+    if (interface->family == AF_INET) {
+        ss << "4";
+    } else {
+        ss << "6";
+    }
+    ss << ": " << sockname << " ";
+    if (!key.empty()) {
+        ss << "SSL: key: " << key << " cert: " << cert;
+    }
+    if (!interface->tag.empty()) {
+        ss << " (" << interface->tag << ")";
+    }
+    LOG_INFO(ss.str());
+    interface = std::make_shared<ListeningPort>(interface->tag,
+                                                interface->host,
+                                                interface->port,
+                                                interface->family,
+                                                key,
+                                                cert);
 }

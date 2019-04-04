@@ -138,8 +138,11 @@ public:
      * @param ifc the interface to add
      */
     void addInterface(const NetworkInterface& ifc) {
-        interfaces.push_back(ifc);
-        has.interfaces = true;
+        {
+            std::lock_guard<std::mutex> guard(interfaces_mutex);
+            interfaces.push_back(ifc);
+            has.interfaces = true;
+        }
         notify_changed("interfaces");
     }
 
@@ -149,8 +152,9 @@ public:
      *
      * @return the vector of interfaces
      */
-    const std::vector<NetworkInterface>& getInterfaces() const {
-        return interfaces;
+    std::vector<NetworkInterface> getInterfaces() const {
+        std::lock_guard<std::mutex> guard(interfaces_mutex);
+        return std::vector<NetworkInterface>{interfaces};
     }
 
     /**
@@ -803,6 +807,7 @@ protected:
      * Array of interface settings we are listening on
      */
     std::vector<NetworkInterface> interfaces;
+    mutable std::mutex interfaces_mutex;
 
     /**
      * Configuration of the logger

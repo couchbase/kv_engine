@@ -64,21 +64,15 @@ void conn_return_buffers(Connection* c);
  * Cerate a new client connection
  *
  * @param sfd the socket descriptor
- * @param parent_port the port number the client connected to
+ * @param interface the interface description for the connection
  * @param base the event base to bind the client to
  * @param thread the libevent thread object to bind the client to
  * @return a connection object on success, nullptr otherwise
  */
-Connection* conn_new(const SOCKET sfd,
-                     in_port_t parent_port,
+Connection* conn_new(SOCKET sfd,
+                     const ListeningPort& interface,
                      struct event_base* base,
                      FrontEndThread* thread);
-
-/**
- * Return the TCP or domain socket listening_port structure that
- * has a given port number
- */
-ListeningPort *get_listening_port_instance(const in_port_t port);
 
 /**
  * Signal all of the idle clients in the system.

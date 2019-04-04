@@ -30,6 +30,7 @@
 #include "front_end_thread.h"
 #include "ioctl.h"
 #include "libevent_locking.h"
+#include "listening_port.h"
 #include "log_macros.h"
 #include "logger/logger.h"
 #include "mc_time.h"
@@ -41,6 +42,7 @@
 #include "mcbpdestroybuckettask.h"
 #include "memcached/audit_interface.h"
 #include "memcached_openssl.h"
+#include "network_interface.h"
 #include "opentracing.h"
 #include "parent_monitor.h"
 #include "protocol/mcbp/engine_wrapper.h"
@@ -158,11 +160,21 @@ static void stats_init();
 /* defaults */
 static void settings_init();
 
+static bool server_socket(const std::string& tag,
+                          const std::string& host,
+                          in_port_t port,
+                          const std::string& sslkey,
+                          const std::string& sslcert,
+                          NetworkInterface::Protocol iv4,
+                          NetworkInterface::Protocol iv6);
+
 /** exported globals **/
 struct stats stats;
 
 /** file scope variables **/
 std::vector<std::unique_ptr<ServerSocket>> listen_conn;
+std::atomic_bool check_listen_conn;
+
 static struct event_base *main_base;
 
 static engine_event_handler_array_t engine_event_handlers;
@@ -507,12 +519,8 @@ static void opcode_attributes_override_changed_listener(const std::string&,
 }
 
 static void interfaces_changed_listener(const std::string&, Settings &s) {
-    for (const auto& ifc : s.getInterfaces()) {
-        auto* port = get_listening_port_instance(ifc.port);
-        if (port != nullptr) {
-            port->setSslSettings(ifc.ssl.key, ifc.ssl.cert);
-        }
-    }
+    check_listen_conn = true;
+    notify_dispatcher();
 }
 
 #ifdef HAVE_LIBNUMA
@@ -779,6 +787,50 @@ bool is_bucket_dying(Connection& c) {
     return false;
 }
 
+static void create_portnumber_file(bool terminate) {
+    const char* filename = getenv("MEMCACHED_PORT_FILENAME");
+    if (filename != nullptr) {
+        nlohmann::json json;
+        json["ports"] = nlohmann::json::array();
+
+        for (const auto& connection : listen_conn) {
+            json["ports"].push_back(connection->toJson());
+        }
+
+        std::string tempname;
+        tempname.assign(filename);
+        tempname.append(".lck");
+
+        FILE* file = nullptr;
+        file = fopen(tempname.c_str(), "a");
+        if (file == nullptr) {
+            LOG_CRITICAL(R"(Failed to open "{}": {})", tempname, cb_strerror());
+            if (terminate) {
+                exit(EXIT_FAILURE);
+            }
+            return;
+        }
+
+        fprintf(file, "%s\n", json.dump().c_str());
+        fclose(file);
+        if (cb::io::isFile(filename)) {
+            cb::io::rmrf(filename);
+        }
+
+        LOG_INFO("Port numbers available in {}", filename);
+        if (rename(tempname.c_str(), filename) == -1) {
+            LOG_CRITICAL(R"(Failed to rename "{}" to "{}": {})",
+                         tempname.c_str(),
+                         filename,
+                         cb_strerror());
+            if (terminate) {
+                exit(EXIT_FAILURE);
+            }
+            cb::io::rmrf(tempname);
+        }
+    }
+}
+
 void event_handler(evutil_socket_t fd, short which, void *arg) {
     auto* c = reinterpret_cast<Connection*>(arg);
     if (c == nullptr) {
@@ -876,23 +928,120 @@ void listen_event_handler(evutil_socket_t, short, void *arg) {
 }
 
 static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
-    char buffer[80];
-    ssize_t nr = cb::net::recv(fd, buffer, sizeof(buffer), 0);
+    // Start by draining the notification pipe fist
+    drain_notification_channel(fd);
+    if (check_listen_conn) {
+        check_listen_conn = false;
 
-    if (nr != -1 && is_listen_disabled()) {
-        bool enable = false;
-        {
-            std::lock_guard<std::mutex> guard(listen_state.mutex);
-            listen_state.count -= nr;
-            if (listen_state.count <= 0) {
-                enable = true;
-                listen_state.disabled = false;
+        bool changes = false;
+        auto interfaces = settings.getInterfaces();
+
+        // Step one, enable all new ports
+        bool success = true;
+        for (const auto& interface : interfaces) {
+            const bool useTag = interface.port == 0;
+            bool ipv4 = interface.ipv4 != NetworkInterface::Protocol::Off;
+            bool ipv6 = interface.ipv6 != NetworkInterface::Protocol::Off;
+
+            for (const auto& connection : listen_conn) {
+                const auto& descr = connection->getInterfaceDescription();
+
+                if ((useTag && (descr.tag == interface.tag)) ||
+                    (!useTag && (descr.port == interface.port))) {
+                    if (descr.family == AF_INET) {
+                        ipv4 = false;
+                    } else {
+                        ipv6 = false;
+                    }
+
+                    if (!ipv4 && !ipv6) {
+                        // no need to search anymore as we've got both
+                        break;
+                    }
+                }
+            }
+
+            if (ipv4) {
+                // create an IPv4 interface
+                changes = true;
+                success &= server_socket(interface.tag,
+                                         interface.host,
+                                         interface.port,
+                                         interface.ssl.key,
+                                         interface.ssl.cert,
+                                         interface.ipv4,
+                                         NetworkInterface::Protocol::Off);
+            }
+
+            if (ipv6) {
+                // create an IPv6 interface
+                changes = true;
+                success &= server_socket(interface.tag,
+                                         interface.host,
+                                         interface.port,
+                                         interface.ssl.key,
+                                         interface.ssl.cert,
+                                         NetworkInterface::Protocol::Off,
+                                         interface.ipv6);
             }
         }
-        if (enable) {
-            for (auto& connection : listen_conn) {
-                connection->enable();
+
+        // Step two, shut down ports if we didn't fail opening new ports
+        if (success) {
+            for (auto iter = listen_conn.begin(); iter != listen_conn.end();
+                 /* empty */) {
+                auto& connection = *iter;
+                const auto& descr = connection->getInterfaceDescription();
+                // should this entry be here:
+                bool drop = true;
+                for (const auto& interface : interfaces) {
+                    if (descr.tag.empty()) {
+                        if (interface.port != descr.port) {
+                            // port mismatch... look at the next
+                            continue;
+                        }
+                    } else if (descr.tag != interface.tag) {
+                        // Tag mismatch... look at the next
+                        continue;
+                    }
+
+                    if ((descr.family == AF_INET &&
+                         interface.ipv4 != NetworkInterface::Protocol::Off) ||
+                        (descr.family == AF_INET6 &&
+                         interface.ipv6 != NetworkInterface::Protocol::Off)) {
+                        drop = false;
+                    }
+
+                    if (!drop) {
+                        if (descr.sslKey != interface.ssl.key ||
+                            descr.sslCert != interface.ssl.cert) {
+                            // change the associated description
+                            connection->updateSSL(interface.ssl.key,
+                                                  interface.ssl.cert);
+                        }
+                    }
+
+                    break;
+                }
+                if (drop) {
+                    // erase returns the element following this one (or end())
+                    changes = true;
+                    iter = listen_conn.erase(iter);
+                } else {
+                    // look at the next element
+                    ++iter;
+                }
             }
+        }
+
+        if (changes) {
+            create_portnumber_file(false);
+        }
+    }
+
+    if (is_listen_disabled()) {
+        for (auto& connection : listen_conn) {
+            connection->enable();
         }
     }
 }
@@ -1000,52 +1149,13 @@ static SOCKET new_server_socket(struct addrinfo* ai) {
     return sfd;
 }
 
-/**
- * Add a port to the list of interfaces we're listening to.
- *
- * We're supporting binding to the port number "0" to have the operating
- * system pick an available port we may use (and we'll report it back to
- * the user through the portnumber file.). If we have knowledge of the port,
- * update the port descriptor (ip4/ip6), if not go ahead and create a new entry
- *
- * @param interf the interface description used to create the port
- * @param port the port number in use
- * @param family the address family for the port
- */
-static void add_listening_port(const NetworkInterface *interf, in_port_t port, sa_family_t family) {
-    std::lock_guard<std::mutex> guard(stats_mutex);
-    auto *descr = get_listening_port_instance(port);
-
-    if (descr == nullptr) {
-        ListeningPort newport(interf->tag, interf->host, port);
-
-        newport.setSslSettings(interf->ssl.key, interf->ssl.cert);
-
-        if (family == AF_INET) {
-            newport.ipv4 = true;
-            newport.ipv6 = false;
-        } else if (family == AF_INET6) {
-            newport.ipv4 = false;
-            newport.ipv6 = true;
-        }
-
-        stats.listening_ports.push_back(newport);
-    } else {
-        if (family == AF_INET) {
-            descr->ipv4 = true;
-        } else if (family == AF_INET6) {
-            descr->ipv6 = true;
-        }
-    }
-}
-
-/**
- * Create a socket and bind it to a specific port number
- * @param interface the interface to bind to
- * @param true if we was able to set up at least one address on the interface
- *        false if we failed to set any addresses on the interface
- */
-static bool server_socket(const NetworkInterface& interf) {
+static bool server_socket(const std::string& tag,
+                          const std::string& host,
+                          in_port_t port,
+                          const std::string& sslkey,
+                          const std::string& sslcert,
+                          NetworkInterface::Protocol iv4,
+                          NetworkInterface::Protocol iv6) {
     SOCKET sfd;
     addrinfo hints = {};
 
@@ -1058,27 +1168,26 @@ static bool server_socket(const NetworkInterface& interf) {
     hints.ai_protocol = IPPROTO_TCP;
     hints.ai_socktype = SOCK_STREAM;
 
-    if (interf.ipv4 != NetworkInterface::Protocol::Off &&
-        interf.ipv6 != NetworkInterface::Protocol::Off) {
+    if (iv4 != NetworkInterface::Protocol::Off &&
+        iv6 != NetworkInterface::Protocol::Off) {
         hints.ai_family = AF_UNSPEC;
-    } else if (interf.ipv4 != NetworkInterface::Protocol::Off) {
+    } else if (iv4 != NetworkInterface::Protocol::Off) {
         hints.ai_family = AF_INET;
-    } else if (interf.ipv6 != NetworkInterface::Protocol::Off) {
+    } else if (iv6 != NetworkInterface::Protocol::Off) {
         hints.ai_family = AF_INET6;
     } else {
         throw std::invalid_argument(
                 "server_socket: can't create a socket without IPv4 or IPv6");
     }
 
-    std::string port_buf = std::to_string(interf.port);
-
-    const char* host = nullptr;
-    if (!interf.host.empty() && interf.host != "*") {
-        host = interf.host.c_str();
+    const char* host_buf = nullptr;
+    if (!host.empty() && host != "*") {
+        host_buf = host.c_str();
     }
 
     struct addrinfo *ai;
-    int error = getaddrinfo(host, port_buf.c_str(), &hints, &ai);
+    int error =
+            getaddrinfo(host_buf, std::to_string(port).c_str(), &hints, &ai);
     if (error != 0) {
 #ifdef WIN32
         LOG_WARNING("getaddrinfo(): {}", cb_strerror(error));
@@ -1119,7 +1228,7 @@ static bool server_socket(const NetworkInterface& interf) {
             continue;
         }
 
-        in_port_t listenport = interf.port;
+        in_port_t listenport = port;
         if (listenport == 0) {
             // The interface description requested an ephemeral port to
             // be allocated. Pick up the real port number
@@ -1147,6 +1256,8 @@ static bool server_socket(const NetworkInterface& interf) {
                 safe_close(sfd);
                 continue;
             }
+        } else {
+            listenport = port;
         }
 
         // We've configured this port.
@@ -1158,9 +1269,14 @@ static bool server_socket(const NetworkInterface& interf) {
             ipv6 = true;
         }
 
-        add_listening_port(&interf, listenport, next->ai_addr->sa_family);
-        listen_conn.emplace_back(std::make_unique<ServerSocket>(
-                sfd, main_base, listenport, next->ai_addr->sa_family, interf));
+        auto inter = std::make_shared<ListeningPort>(tag,
+                                                     host,
+                                                     listenport,
+                                                     next->ai_addr->sa_family,
+                                                     sslkey,
+                                                     sslcert);
+        listen_conn.emplace_back(
+                std::make_unique<ServerSocket>(sfd, main_base, inter));
         stats.daemon_conns++;
         stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
     }
@@ -1173,8 +1289,8 @@ static bool server_socket(const NetworkInterface& interf) {
     // Check if the specified (missing) protocol was requested; if so log a
     // message, and if required return true.
     auto checkIfProtocolRequired =
-            [interf](const NetworkInterface::Protocol& protoMode,
-                     const char* protoName) -> bool {
+            [host, port](const NetworkInterface::Protocol& protoMode,
+                         const char* protoName) -> bool {
         if (protoMode != NetworkInterface::Protocol::Off) {
             // Failed to create a socket for this protocol; and it's not
             // disabled
@@ -1186,16 +1302,16 @@ static bool server_socket(const NetworkInterface& interf) {
                          R"(Failed to create {} {} socket for "{}:{}")",
                          to_string(protoMode),
                          protoName,
-                         interf.host.empty() ? "*" : interf.host,
-                         interf.port);
+                         host.empty() ? "*" : host,
+                         port);
         }
         return protoMode == NetworkInterface::Protocol::Required;
     };
     if (!ipv4) {
-        required_proto_missing |= checkIfProtocolRequired(interf.ipv4, "IPv4");
+        required_proto_missing |= checkIfProtocolRequired(iv4, "IPv4");
     }
     if (!ipv6) {
-        required_proto_missing |= checkIfProtocolRequired(interf.ipv6, "IPv6");
+        required_proto_missing |= checkIfProtocolRequired(iv6, "IPv6");
     }
 
     // Return success as long as we managed to create a listening port
@@ -1203,11 +1319,26 @@ static bool server_socket(const NetworkInterface& interf) {
     return !required_proto_missing;
 }
 
+/**
+ * Create a socket and bind it to a specific port number
+ * @param interface the interface to bind to
+ * @param true if we was able to set up at least one address on the interface
+ *        false if we failed to set any addresses on the interface
+ */
+static bool server_socket(const NetworkInterface& interf) {
+    return server_socket(interf.tag,
+                         interf.host,
+                         interf.port,
+                         interf.ssl.key,
+                         interf.ssl.cert,
+                         interf.ipv4,
+                         interf.ipv6);
+}
+
 static bool server_sockets() {
     bool success = true;
 
     LOG_INFO("Enable port(s)");
-
     for (auto& interface : settings.getInterfaces()) {
         if (!server_socket(interface)) {
             success = false;
@@ -1224,39 +1355,7 @@ static void create_listen_sockets() {
                 "Failed to create required listening socket(s). Terminating.");
     }
 
-    const char* portnumber_filename = getenv("MEMCACHED_PORT_FILENAME");
-    if (portnumber_filename != nullptr) {
-        std::string temp_portnumber_filename;
-        temp_portnumber_filename.assign(portnumber_filename);
-        temp_portnumber_filename.append(".lck");
-
-        FILE* portnumber_file = nullptr;
-        portnumber_file = fopen(temp_portnumber_filename.c_str(), "a");
-        if (portnumber_file == nullptr) {
-            FATAL_ERROR(EXIT_FAILURE,
-                        R"(Failed to open "{}": {})",
-                        temp_portnumber_filename,
-                        strerror(errno));
-        }
-
-        nlohmann::json json;
-        json["ports"] = nlohmann::json::array();
-
-        for (const auto& connection : listen_conn) {
-            json["ports"].push_back(connection->toJson());
-        }
-
-        fprintf(portnumber_file, "%s\n", json.dump().c_str());
-        fclose(portnumber_file);
-        LOG_INFO("Port numbers available in {}", portnumber_filename);
-        if (rename(temp_portnumber_filename.c_str(), portnumber_filename) == -1) {
-            FATAL_ERROR(EXIT_FAILURE,
-                        R"(Failed to rename "{}" to "{}": {})",
-                        temp_portnumber_filename.c_str(),
-                        portnumber_filename,
-                        strerror(errno));
-        }
-    }
+    create_portnumber_file(true);
 }
 
 static void sigint_handler() {

@@ -21,6 +21,7 @@
 #include <nlohmann/json_fwd.hpp>
 #include <memory>
 
+class ListeningPort;
 class NetworkInterface;
 
 /**
@@ -36,16 +37,11 @@ public:
      *
      * @param sfd The socket to operate on
      * @param b The event base to use (the caller owns the event base)
-     * @param port The port we're listening to
-     * @param fam The address family for the port (IPv4/6)
-     * @param interf The interface object containing properties to use (backlog,
-     *               ssl, management etc)
+     * @param interf The interface object containing properties to use
      */
     ServerSocket(SOCKET sfd,
                  event_base* b,
-                 in_port_t port,
-                 sa_family_t fam,
-                 const NetworkInterface& interf);
+                 std::shared_ptr<ListeningPort> interf);
 
     ~ServerSocket();
 
@@ -62,6 +58,13 @@ public:
 
     void acceptNewClient();
 
+    const ListeningPort& getInterfaceDescription() const {
+        return *interface;
+    }
+
+    /// Update the interface description to use the provided SSL info
+    void updateSSL(const std::string& key, const std::string& cert);
+
     /**
      * Get the details for this connection to put in the portnumber
      * file so that the test framework may pick up the port numbers
@@ -72,11 +75,7 @@ protected:
     /// The socket object to accept clients from
     const SOCKET sfd;
 
-    /// The port number we're listening on
-    in_port_t listen_port;
-
-    /// The address family of this server socket (IPv4 / IPv6)
-    const sa_family_t family;
+    std::shared_ptr<ListeningPort> interface;
 
     /// The sockets name (used for debug)
     const std::string sockname;

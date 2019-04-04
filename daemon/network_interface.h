@@ -37,6 +37,16 @@ public:
     NetworkInterface() = default;
     explicit NetworkInterface(const nlohmann::json& json);
 
+    bool operator==(const NetworkInterface& o) const {
+        return host == o.host && ssl.key == o.ssl.key &&
+               ssl.cert == o.ssl.cert && port == o.port && ipv6 == o.ipv6 &&
+               ipv4 == o.ipv4 && tag == o.tag;
+    }
+
+    bool operator!=(const NetworkInterface& o) const {
+        return !(*this == o);
+    }
+
     std::string tag;
     std::string host;
     struct {

@@ -274,11 +274,12 @@ TEST_F(SettingsTest, Interfaces) {
 
     try {
         Settings settings(root);
-        EXPECT_EQ(1, settings.getInterfaces().size());
         EXPECT_TRUE(settings.has.interfaces);
 
-        const auto& ifc0 = settings.getInterfaces()[0];
+        const auto interfaces = settings.getInterfaces();
+        const auto& ifc0 = interfaces[0];
 
+        EXPECT_EQ(1, interfaces.size());
         EXPECT_EQ(0, ifc0.port);
         EXPECT_EQ(NetworkInterface::Protocol::Optional, ifc0.ipv4);
         EXPECT_EQ(NetworkInterface::Protocol::Optional, ifc0.ipv6);
@@ -393,11 +394,10 @@ TEST_F(SettingsTest, InterfacesProtocolOff) {
 
     try {
         Settings settings(root);
-        ASSERT_EQ(1, settings.getInterfaces().size());
+        const auto interfaces = settings.getInterfaces();
+        ASSERT_EQ(1, interfaces.size());
+        const auto& ifc0 = interfaces[0];
         ASSERT_TRUE(settings.has.interfaces);
-
-        const auto& ifc0 = settings.getInterfaces()[0];
-
         EXPECT_EQ(NetworkInterface::Protocol::Off, ifc0.ipv4);
         EXPECT_EQ(NetworkInterface::Protocol::Off, ifc0.ipv6);
     } catch (std::exception& exception) {
@@ -411,10 +411,9 @@ TEST_F(SettingsTest, InterfacesProtocolOptional) {
 
     try {
         Settings settings(root);
-        ASSERT_EQ(1, settings.getInterfaces().size());
-        ASSERT_TRUE(settings.has.interfaces);
-
-        const auto& ifc0 = settings.getInterfaces()[0];
+        const auto interfaces = settings.getInterfaces();
+        ASSERT_EQ(1, interfaces.size());
+        const auto& ifc0 = interfaces[0];
 
         EXPECT_EQ(NetworkInterface::Protocol::Optional, ifc0.ipv4);
         EXPECT_EQ(NetworkInterface::Protocol::Optional, ifc0.ipv6);
@@ -429,10 +428,9 @@ TEST_F(SettingsTest, InterfacesProtocolRequired) {
 
     try {
         Settings settings(root);
-        ASSERT_EQ(1, settings.getInterfaces().size());
-        ASSERT_TRUE(settings.has.interfaces);
-
-        const auto& ifc0 = settings.getInterfaces()[0];
+        const auto interfaces = settings.getInterfaces();
+        ASSERT_EQ(1, interfaces.size());
+        const auto& ifc0 = interfaces[0];
 
         EXPECT_EQ(NetworkInterface::Protocol::Required, ifc0.ipv4);
         EXPECT_EQ(NetworkInterface::Protocol::Required, ifc0.ipv6);
@@ -1117,75 +1115,6 @@ TEST(SettingsUpdateTest, InterfaceSomeValuesMayChange) {
     EXPECT_NO_THROW(settings.updateSettings(updated));
     EXPECT_EQ(ifc.ssl.key, settings.getInterfaces()[0].ssl.key);
     EXPECT_EQ(ifc.ssl.cert, settings.getInterfaces()[0].ssl.cert);
-}
-
-TEST(SettingsUpdateTest, InterfaceSomeValuesMayNotChange) {
-    Settings settings;
-    // setting it to the same value should work
-
-    NetworkInterface ifc;
-
-    settings.addInterface(ifc);
-
-    {
-        Settings updated;
-        NetworkInterface myifc;
-        myifc.host.assign("localhost");
-        updated.addInterface(myifc);
-
-        EXPECT_THROW(settings.updateSettings(updated, false),
-                     std::invalid_argument);
-    }
-
-    {
-        Settings updated;
-        NetworkInterface myifc;
-        myifc.port = 11200;
-        updated.addInterface(myifc);
-
-        EXPECT_THROW(settings.updateSettings(updated, false),
-                     std::invalid_argument);
-    }
-
-    {
-        Settings updated;
-        NetworkInterface myifc;
-        myifc.ipv4 = NetworkInterface::Protocol::Off;
-        updated.addInterface(myifc);
-
-        EXPECT_THROW(settings.updateSettings(updated, false),
-                     std::invalid_argument);
-    }
-
-    {
-        Settings updated;
-        NetworkInterface myifc;
-        myifc.ipv6 = NetworkInterface::Protocol::Off;
-        updated.addInterface(myifc);
-
-        EXPECT_THROW(settings.updateSettings(updated, false),
-                     std::invalid_argument);
-    }
-}
-
-TEST(SettingsUpdateTest, InterfaceDifferentArraySizeShouldFail) {
-    Settings updated;
-    Settings settings;
-    // setting it to the same value should work
-
-    NetworkInterface ifc;
-    settings.addInterface(ifc);
-    updated.addInterface(ifc);
-
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    updated.addInterface(ifc);
-    EXPECT_THROW(settings.updateSettings(updated, false),
-                 std::invalid_argument);
-    settings.addInterface(ifc);
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    settings.addInterface(ifc);
-    EXPECT_THROW(settings.updateSettings(updated, false),
-                 std::invalid_argument);
 }
 
 TEST(SettingsUpdateTest, UpdatingLoggerSettingsShouldFail) {

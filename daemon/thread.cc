@@ -46,13 +46,14 @@ FrontEndThread::ConnectionQueue::~ConnectionQueue() {
     }
 }
 
-void FrontEndThread::ConnectionQueue::push(SOCKET sock, in_port_t port) {
+void FrontEndThread::ConnectionQueue::push(SOCKET sock,
+                                           SharedListeningPort interface) {
     std::lock_guard<std::mutex> guard(mutex);
-    connections.emplace_back(sock, port);
+    connections.emplace_back(sock, interface);
 }
 
 void FrontEndThread::ConnectionQueue::swap(
-        std::vector<std::pair<SOCKET, in_port_t>>& other) {
+        std::vector<std::pair<SOCKET, SharedListeningPort>>& other) {
     std::lock_guard<std::mutex> guard(mutex);
     connections.swap(other);
 }
@@ -173,6 +174,7 @@ static void setup_dispatcher(struct event_base *main_base,
         (event_add(&dispatcher_thread.notify_event, nullptr) == -1)) {
         FATAL_ERROR(EXIT_FAILURE, "Can't monitor libevent notify pipe");
     }
+    dispatcher_thread.running = true;
 }
 
 /*
@@ -221,8 +223,7 @@ static void worker_libevent(void *arg) {
 #endif
 }
 
-static void drain_notification_channel(evutil_socket_t fd)
-{
+void drain_notification_channel(evutil_socket_t fd) {
     /* Every time we want to notify a thread, we send 1 byte to its
      * notification pipe. When the thread wakes up, it tries to drain
      * it's notification channel before executing any other events.
@@ -247,11 +248,11 @@ static void drain_notification_channel(evutil_socket_t fd)
 }
 
 static void dispatch_new_connections(FrontEndThread& me) {
-    std::vector<std::pair<SOCKET, in_port_t>> connections;
+    std::vector<std::pair<SOCKET, SharedListeningPort>> connections;
     me.new_conn_queue.swap(connections);
 
     for (const auto& entry : connections) {
-        if (conn_new(entry.first, entry.second, me.base, &me) == nullptr) {
+        if (conn_new(entry.first, *entry.second, me.base, &me) == nullptr) {
             LOG_WARNING("Failed to dispatch event for socket {}",
                         long(entry.first));
             safe_close(entry.first);
@@ -395,13 +396,13 @@ static size_t last_thread = 0;
  * Dispatches a new connection to another thread. This is only ever called
  * from the main thread, or because of an incoming connection.
  */
-void dispatch_conn_new(SOCKET sfd, in_port_t parent_port) {
+void dispatch_conn_new(SOCKET sfd, SharedListeningPort& interface) {
     size_t tid = (last_thread + 1) % settings.getNumWorkerThreads();
     auto& thread = threads[tid];
     last_thread = tid;
 
     try {
-        thread.new_conn_queue.push(sfd, parent_port);
+        thread.new_conn_queue.push(sfd, interface);
     } catch (const std::bad_alloc& e) {
         LOG_WARNING("dispatch_conn_new: Failed to dispatch new connection: {}",
                     e.what());
@@ -420,7 +421,9 @@ int is_listen_thread() {
 }
 
 void notify_dispatcher() {
-    notify_thread(dispatcher_thread);
+    if (dispatcher_thread.running) {
+        notify_thread(dispatcher_thread);
+    }
 }
 
 /******************************* GLOBAL STATS ******************************/

@@ -557,8 +557,7 @@ void TestappTest::verify_server_running() {
 #endif
 }
 
-void TestappTest::parse_portnumber_file(in_port_t& port_out,
-                                        in_port_t& ssl_port_out) {
+void TestappTest::parse_portnumber_file() {
     FILE* fp;
     // I've seen that running under valgrind startup of the processes
     // might be slow, and getting even worse if the machine is under
@@ -587,8 +586,8 @@ void TestappTest::parse_portnumber_file(in_port_t& port_out,
                            << portnumber_file << "' to be created.";
     fclose(fp);
 
-    port_out = (in_port_t)-1;
-    ssl_port_out = (in_port_t)-1;
+    port = (in_port_t)-1;
+    ssl_port = (in_port_t)-1;
 
     // We'll throw here if anything goes wrong
     const nlohmann::json portnumbers =
@@ -611,15 +610,12 @@ void TestappTest::parse_portnumber_file(in_port_t& port_out,
         }
 
         auto ssl = cb::jsonGet<bool>(obj, "ssl");
-        auto port = cb::jsonGet<size_t>(obj, "port");
 
-        in_port_t* outPort;
         if (ssl) {
-            outPort = &ssl_port_out;
+            ssl_port = static_cast<in_port_t>(cb::jsonGet<size_t>(obj, "port"));
         } else {
-            outPort = &port_out;
+            port = static_cast<in_port_t>(cb::jsonGet<size_t>(obj, "port"));
         }
-        *outPort = static_cast<in_port_t>(port);
     }
     EXPECT_EQ(0, remove(portnumber_file.c_str()));
 }
@@ -889,7 +885,7 @@ void TestappTest::start_memcached_server() {
     } else {
         start_external_server();
     }
-    parse_portnumber_file(port, ssl_port);
+    parse_portnumber_file();
 }
 
 void store_object_w_datatype(const std::string& key,
