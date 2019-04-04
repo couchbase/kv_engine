@@ -1097,12 +1097,17 @@ static bool server_socket(const NetworkInterface& interf) {
     // We need at least _one_ entry per requested configuration (IPv4/6) in
     // order to call it a success.
     for (struct addrinfo* next = ai; next; next = next->ai_next) {
+        if (next->ai_addr->sa_family != AF_INET &&
+            next->ai_addr->sa_family != AF_INET6) {
+            // Ignore unsupported address families
+            continue;
+        }
+
         if ((sfd = new_server_socket(next)) == INVALID_SOCKET) {
             // getaddrinfo can return "junk" addresses,
             continue;
         }
 
-        in_port_t listenport = 0;
         if (bind(sfd, next->ai_addr, (socklen_t)next->ai_addrlen) == SOCKET_ERROR) {
             const auto bind_error = cb::net::get_socket_error();
             auto name = cb::net::to_string(
@@ -1114,29 +1119,43 @@ static bool server_socket(const NetworkInterface& interf) {
             continue;
         }
 
-        // We've configured this port.
-        if (next->ai_addr->sa_family == AF_INET) {
-            // We have at least one entry
-            ipv4 = true;
-        } else if (next->ai_addr->sa_family == AF_INET6) {
-            // We have at least one entry
-            ipv6 = true;
-        }
-
-        if (next->ai_addr->sa_family == AF_INET ||
-             next->ai_addr->sa_family == AF_INET6) {
+        in_port_t listenport = interf.port;
+        if (listenport == 0) {
+            // The interface description requested an ephemeral port to
+            // be allocated. Pick up the real port number
             union {
                 struct sockaddr_in in;
                 struct sockaddr_in6 in6;
             } my_sockaddr{};
             socklen_t len = sizeof(my_sockaddr);
-            if (getsockname(sfd, (struct sockaddr*)&my_sockaddr, &len)==0) {
+            if (getsockname(sfd, (struct sockaddr*)&my_sockaddr, &len) == 0) {
                 if (next->ai_addr->sa_family == AF_INET) {
                     listenport = ntohs(my_sockaddr.in.sin_port);
                 } else {
                     listenport = ntohs(my_sockaddr.in6.sin6_port);
                 }
+            } else {
+                const auto error = cb::net::get_socket_error();
+                auto name = cb::net::to_string(
+                        reinterpret_cast<sockaddr_storage*>(next->ai_addr),
+                        static_cast<socklen_t>(next->ai_addrlen));
+                LOG_WARNING(
+                        "Failed to look up the assigned port for the ephemeral "
+                        "port: {}",
+                        name,
+                        cb_strerror(error));
+                safe_close(sfd);
+                continue;
             }
+        }
+
+        // We've configured this port.
+        if (next->ai_addr->sa_family == AF_INET) {
+            // We have at least one entry
+            ipv4 = true;
+        } else {
+            // We have at least one entry
+            ipv6 = true;
         }
 
         add_listening_port(&interf, listenport, next->ai_addr->sa_family);
