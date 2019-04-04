@@ -74,7 +74,7 @@ public:
         // mutation and sent out as a DCP_ABORT to sync_replication
         // enabled DCP clients.
         // Present in the DurabilityPrepare namespace.
-        Abort = 2,
+        Abort,
     };
 
     MetaData()
@@ -152,6 +152,8 @@ private:
             return Operation::Mutation;
         case queue_op::pending_sync_write:
             return Operation::PreparedSyncWrite;
+        case queue_op::commit_sync_write:
+            return Operation::CommittedSyncWrite;
         case queue_op::abort_sync_write:
             return Operation::Abort;
         case queue_op::system_event:
@@ -1044,22 +1046,22 @@ std::unique_ptr<Item> RocksDBKVStore::makeItem(Vbid vb,
     switch (meta.getOperation()) {
     case rockskv::MetaData::Operation::Mutation:
         // Item already defaults to Mutation - nothing else to do.
-        break;
+        return item;
     case rockskv::MetaData::Operation::PreparedSyncWrite:
         // From disk we return a zero (infinite) timeout; as this could
         // refer to an already-committed SyncWrite and hence timeout
         // must be ignored.
         item->setPendingSyncWrite({meta.getDurabilityLevel(), 0});
-        break;
+        return item;
+    case rockskv::MetaData::Operation::CommittedSyncWrite:
+        item->setCommittedviaPrepareSyncWrite();
+        return item;
     case rockskv::MetaData::Operation::Abort:
         item->setAbortSyncWrite();
-        break;
-    default:
-        throw std::logic_error("RocksDBKVStore::makeItem: Invalid operation:" +
-                               std::to_string(int(meta.getOperation())));
+        return item;
     }
 
-    return item;
+    folly::assume_unreachable();
 }
 
 GetValue RocksDBKVStore::makeGetValue(Vbid vb,

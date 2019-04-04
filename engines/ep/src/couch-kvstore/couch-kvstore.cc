@@ -190,6 +190,9 @@ static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
             // must be ignored.
             item->setPendingSyncWrite({metadata.getDurabilityLevel(), 0});
             break;
+        case queue_op::commit_sync_write:
+            item->setCommittedviaPrepareSyncWrite();
+            break;
         case queue_op::abort_sync_write:
             item->setAbortSyncWrite();
             break;
@@ -257,6 +260,7 @@ CouchRequest::CouchRequest(const Item& it, MutationRequestCallback cb)
 
     const auto isDurabilityOp =
             (it.getOperation() == queue_op::pending_sync_write ||
+             it.getOperation() == queue_op::commit_sync_write ||
              it.getOperation() == queue_op::abort_sync_write);
 
     if (isDurabilityOp) {

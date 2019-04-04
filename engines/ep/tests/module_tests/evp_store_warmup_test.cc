@@ -545,6 +545,33 @@ TEST_P(DurabilityWarmupTest, PendingSyncWrite) {
     EXPECT_EQ(item->getCas(), prepared.storedValue->getCas());
 }
 
+// Test that a pending SyncWrite which was committed is correctly warmed up
+// when the bucket restarts (as a Committed item).
+TEST_P(DurabilityWarmupTest, CommittedSyncWrite) {
+    // Store a pending SyncWrite (without committing) and then restart
+    auto key = makeStoredDocKey("key");
+    auto item = makePendingItem(key, "value");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+    flush_vbucket_to_disk(vbid);
+
+    { // scoping vb - is invalid once resetEngineAndWarmup() is called.
+        auto vb = engine->getVBucket(vbid);
+        vb->commit(key, item->getBySeqno(), {}, vb->lockCollections(key));
+
+        flush_vbucket_to_disk(vbid, 1);
+    }
+    resetEngineAndWarmup();
+
+    // Check that the item is CommittedviaPrepare.
+    auto vb = engine->getVBucket(vbid);
+    auto handle = vb->lockCollections(item->getKey());
+    auto res = vb->fetchValidValue(
+            WantsDeleted::No, TrackReference::No, QueueExpired::No, handle);
+    EXPECT_TRUE(res.storedValue);
+    EXPECT_EQ(CommittedState::CommittedViaPrepare,
+              res.storedValue->getCommitted());
+}
+
 // Test that a committed mutation followed by a pending SyncWrite to the same
 // key is correctly warmed up when the bucket restarts.
 TEST_P(DurabilityWarmupTest, CommittedAndPendingSyncWrite) {

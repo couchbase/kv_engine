@@ -257,6 +257,9 @@ protected:
             case queue_op::pending_sync_write:
                 operation = Operation::Pending;
                 break;
+            case queue_op::commit_sync_write:
+                operation = Operation::Commit;
+                break;
             case queue_op::abort_sync_write:
                 operation = Operation::Abort;
                 break;
@@ -271,6 +274,8 @@ protected:
             switch (operation) {
             case Operation::Pending:
                 return queue_op::pending_sync_write;
+            case Operation::Commit:
+                return queue_op::commit_sync_write;
             case Operation::Abort:
                 return queue_op::abort_sync_write;
             default:
