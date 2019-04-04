@@ -18,6 +18,7 @@
 #pragma once
 
 #include "kvstore_config.h"
+#include "libmagma/magma.h"
 
 class Configuration;
 
@@ -79,6 +80,8 @@ public:
     float getMagmaTombstoneFragThreshold() const {
         return magmaTombstoneFragThreshold;
     }
+
+    magma::Magma::Config magmaCfg;
 
 private:
     // Bucket RAM Quota

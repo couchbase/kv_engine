@@ -27,6 +27,9 @@
 #include "rocksdb-kvstore/rocksdb-kvstore_config.h"
 #endif
 #include "collections/collection_persisted_stats.h"
+#ifdef EP_USE_MAGMA
+#include "magma-kvstore/magma-kvstore_config.h"
+#endif
 #include "src/internal.h"
 #include "test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
@@ -2585,5 +2588,33 @@ TEST_F(RocksDBKVStoreTest, StatisticsOptionWrongValueTest) {
     kvstore.reset();
     // Re-open with the new configuration
     kvstore = setup_kv_store(*kvstoreConfig);
+}
+#endif
+
+#ifdef EP_USE_MAGMA
+// Test fixture for tests which run only on Magma.
+class MagmaKVStoreTest : public KVStoreTest {
+protected:
+    void SetUp() override {
+        KVStoreTest::SetUp();
+        Configuration config;
+        config.setDbname(data_dir);
+        config.setBackend("magma");
+        kvstoreConfig =
+                std::make_unique<MagmaKVStoreConfig>(config, 0 /*shardId*/);
+        kvstore = setup_kv_store(*kvstoreConfig);
+    }
+
+    void TearDown() override {
+        kvstore.reset();
+        KVStoreTest::TearDown();
+    }
+
+    std::unique_ptr<KVStoreConfig> kvstoreConfig;
+    std::unique_ptr<KVStore> kvstore;
+};
+
+// Simple sanity test to verify magma
+TEST_F(MagmaKVStoreTest, Sanity) {
 }
 #endif

@@ -26,6 +26,9 @@
 #include <algorithm>
 #include <limits>
 
+using namespace magma;
+using namespace std::chrono_literals;
+
 namespace magmakv {
 // MetaData is used to serialize and de-serialize metadata respectively when
 // writing a Document mutation request to Magma and when reading a Document
@@ -135,6 +138,33 @@ static_assert(sizeof(MetaData) == 42,
               "magmakv::MetaData is not the expected size.");
 } // namespace magmakv
 
+// Keys to localdb docs
+static const Slice vbstateKey = {"_vbstate", strlen("_vbstate")};
+
+/**
+ * Simple routine used as part of logger to convert a key into hex and ascii
+ */
+static void hexdump(const char* buf,
+                    const int len,
+                    std::string& hex,
+                    std::string& ascii) {
+    char tmp[10];
+
+    hex.resize(0);
+    ascii.resize(0);
+
+    for (int i = 0; i < len; i++) {
+        if (isprint(buf[i])) {
+            ascii.append(&buf[i], 1);
+        } else {
+            ascii.append(" ", 1);
+        }
+
+        snprintf(tmp, sizeof(tmp), "%02x", static_cast<uint8_t>(buf[i]));
+        hex.append(tmp, 2);
+    }
+}
+
 /**
  * Class representing a document to be persisted in Magma.
  */
@@ -145,19 +175,24 @@ public:
      *
      * @param item Item instance to be persisted
      * @param callback Persistence Callback
-     * @param del Flag indicating if it is an item deletion or not
+     * @param logger Used for trace logging
      */
-    MagmaRequest(const Item& item, MutationRequestCallback callback)
+    MagmaRequest(const Item& item,
+                 MutationRequestCallback callback,
+                 std::shared_ptr<BucketLogger> logger)
         : IORequest(item.getVBucketId(), std::move(callback), DiskDocKey{item}),
           docMeta(magmakv::MetaData(item)),
           docBody(item.getValue()) {
+        if (logger->should_log(spdlog::level::trace)) {
+            logger->trace("Request:{}", to_string());
+        }
     }
 
     magmakv::MetaData& getDocMeta() {
         return docMeta;
     }
 
-    Vbid getVbID() const {
+    Vbid getVbID() {
         return Vbid(docMeta.vbid);
     }
 
@@ -166,18 +201,22 @@ public:
     }
 
     size_t getKeyLen() const {
-        return getKey().size();
+        return key.size();
+    }
+
+    char* getKey() const {
+        return reinterpret_cast<char*>(const_cast<uint8_t*>(key.data()));
     }
 
     size_t getBodySize() const {
         return docBody ? docBody->valueSize() : 0;
     }
 
-    const void* getBodyData() const {
-        return docBody ? docBody->getData() : nullptr;
+    char* getBodyData() const {
+        return docBody ? const_cast<char*>(docBody->getData()) : nullptr;
     }
 
-    size_t getMetaSize() const {
+    size_t getMetaSize() {
         return sizeof(magmakv::MetaData);
     }
 
@@ -205,6 +244,18 @@ public:
         return reqFailed;
     }
 
+    std::string to_string() {
+        std::string hex, ascii;
+        hexdump(getKey(), getKeyLen(), hex, ascii);
+        std::stringstream ss;
+        ss << "Key:" << ascii << " " << hex
+           << " docMeta:" << docMeta.to_string()
+           << " itemOldExists:" << (itemOldExists ? "true" : "false")
+           << " itemOldIsDelete:" << (itemOldIsDelete ? "true" : "false")
+           << " reqFailed:" << (reqFailed ? "true" : "false");
+        return ss.str();
+    }
+
 private:
     magmakv::MetaData docMeta;
     value_t docBody;
@@ -212,6 +263,31 @@ private:
     bool itemOldIsDelete{false};
     bool reqFailed{false};
 };
+
+/**
+ * Magma stores an item in 3 slices... key, metadata, value
+ * See libmagma/slice.h for more info on slices.
+ *
+ * Helper functions to pull metadata stuff out of the metadata slice.
+ * The are used down in magma and are passed in as part of the configuration.
+ */
+static const uint64_t getSeqNum(const Slice& metaSlice) {
+    magmakv::MetaData* docMeta = reinterpret_cast<magmakv::MetaData*>(
+            const_cast<char*>(metaSlice.Data()));
+    return docMeta->bySeqno;
+}
+
+static const uint32_t getExpiryTime(const Slice& metaSlice) {
+    magmakv::MetaData* docMeta = reinterpret_cast<magmakv::MetaData*>(
+            const_cast<char*>(metaSlice.Data()));
+    return docMeta->exptime;
+}
+
+static const bool isDeleted(const Slice& metaSlice) {
+    magmakv::MetaData* docMeta = reinterpret_cast<magmakv::MetaData*>(
+            const_cast<char*>(metaSlice.Data()));
+    return docMeta->deleted > 0 ? true : false;
+}
 
 class KVMagma {
 public:
@@ -239,7 +315,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
       vbDB(configuration.getMaxVBuckets()),
       pendingReqs(std::make_unique<PendingRequestQueue>()),
       in_transaction(false),
-      magmaPath(configuration.getDBName() + "/magma."),
+      magmaPath(configuration.getDBName() + "/magma." +
+                std::to_string(configuration.getShardId())),
       scanCounter(0) {
     const size_t memtablesQuota = configuration.getBucketQuota() /
                                   configuration.getMaxShards() *
@@ -254,25 +331,135 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     writeCacheSize =
             std::max(writeCacheSize, configuration.getMagmaMinWriteCache());
 
+    configuration.magmaCfg.Path = magmaPath;
+    configuration.magmaCfg.MaxKVStores = configuration.getMaxVBuckets();
+    configuration.magmaCfg.MaxKVStoreLSDBufferSize =
+            configuration.getMagmaDeleteMemtableWritecache();
+    configuration.magmaCfg.LSDFragmentationRatio =
+            configuration.getMagmaDeleteFragRatio();
+    configuration.magmaCfg.MaxCommitPoints =
+            configuration.getMagmaMaxCommitPoints();
+    auto commitPointInterval = configuration.getMagmaCommitPointInterval();
+    configuration.magmaCfg.CommitPointInterval =
+            commitPointInterval * std::chrono::milliseconds{1min};
+    configuration.magmaCfg.MinValueSize =
+            configuration.getMagmaValueSeparationSize();
+    configuration.magmaCfg.MaxWriteCacheSize = writeCacheSize;
+    configuration.magmaCfg.WALBufferSize =
+            configuration.getMagmaWalBufferSize();
+    configuration.magmaCfg.NumFlushers = configuration.getMagmaNumFlushers();
+    configuration.magmaCfg.NumCompactors =
+            configuration.getMagmaNumCompactors();
+    configuration.magmaCfg.WALSyncTime = 0ms;
+    configuration.magmaCfg.ExpiryFragThreshold =
+            configuration.getMagmaExpiryFragThreshold();
+    configuration.magmaCfg.TombstoneFragThreshold =
+            configuration.getMagmaTombstoneFragThreshold();
+    configuration.magmaCfg.GetSeqNum = getSeqNum;
+    configuration.magmaCfg.GetExpiryTime = getExpiryTime;
+    configuration.magmaCfg.IsTombstone = isDeleted;
+
+    cachedVBStates.resize(configuration.getMaxVBuckets());
+    cachedMagmaInfo.resize(configuration.getMaxVBuckets());
+
+    commitPointEveryBatch = configuration.getMagmaCommitPointEveryBatch();
+    useUpsertForSet = configuration.getMagmaEnableUpsert();
+    if (useUpsertForSet) {
+        configuration.magmaCfg.EnableUpdateStatusForSet = false;
+    } else {
+        configuration.magmaCfg.EnableUpdateStatusForSet = true;
+    }
+
+    // Set up thread and memory tracking.
+    configuration.magmaCfg.SetupThreadContext = []() {
+        ObjectRegistry::onSwitchThread(ObjectRegistry::getCurrentEngine(),
+                                       false);
+    };
+
+    // This allows magma writeCache to include its memory in the memory
+    // tracking.
+    configuration.magmaCfg.WriteCacheAllocationCallback = [](size_t size,
+                                                             bool alloc) {
+        if (alloc) {
+            ObjectRegistry::memoryAllocated(size);
+        } else {
+            ObjectRegistry::memoryDeallocated(size);
+        }
+    };
+
+    // Create the data directory.
+    createDataDir(configuration.magmaCfg.Path);
+
     // Create a logger that is prefixed with magma so that all code from
-    // wrapper through magma will have the magma prefix
+    // wrapper down through magma use this logger.
     std::string loggerName =
             "magma_" + std::to_string(configuration.getShardId());
     logger = BucketLogger::createBucketLogger(loggerName, loggerName);
+    configuration.magmaCfg.LogContext = logger;
 
     logger->info(
-            "Magma Constructor "
-            "Path:{} "
-            "BucketQuota:{}MB #Shards:{} MemQuotaRatio:{} writeCacheSize:"
-            "{}MB",
-            magmaPath,
+            "MagmaKVStore Constructor"
+            " Path:{}"
+            " BucketQuota:{}MB"
+            " #Shards:{}"
+            " MemQuotaRatio:{}"
+            " MaxWriteCacheSize:{}MB"
+            " MaxKVStores:{}"
+            " MaxKVStoreLSDBufferSize:{}"
+            " LSDFragmentationRatio:{} "
+            " MaxCommitPoints:{}"
+            " CommitPointInterval:{}min"
+            " BatchCommitPoint:{}"
+            " MinValueSize:{}"
+            " UseUpsert:{}"
+            " WALBufferSize:{}KB"
+            " WalSyncTime:{}ms"
+            " NumFlushers:{}"
+            " NumCompactors:{}"
+            " ExpiryFragThreshold:{}"
+            " TombstoneFragThreshold:{}",
+            configuration.magmaCfg.Path,
             configuration.getBucketQuota() / 1024 / 1024,
             configuration.getMaxShards(),
             configuration.getMagmaMemQuotaRatio(),
-            writeCacheSize);
+            configuration.magmaCfg.MaxWriteCacheSize / 1024 / 1024,
+            configuration.magmaCfg.MaxKVStores,
+            configuration.magmaCfg.MaxKVStoreLSDBufferSize,
+            configuration.magmaCfg.LSDFragmentationRatio,
+            configuration.magmaCfg.MaxCommitPoints,
+            configuration.getMagmaCommitPointInterval(),
+            commitPointEveryBatch,
+            configuration.magmaCfg.MinValueSize,
+            useUpsertForSet,
+            configuration.magmaCfg.WALBufferSize / 1024,
+            int(configuration.magmaCfg.WALSyncTime /
+                std::chrono::milliseconds{1ms}),
+            configuration.magmaCfg.NumFlushers,
+            configuration.magmaCfg.NumCompactors,
+            configuration.magmaCfg.ExpiryFragThreshold,
+            configuration.magmaCfg.TombstoneFragThreshold);
+
+    // Open the magma instance for this shard and populate the
+    // vbstate and magmaInfo.
+    magma = std::make_unique<Magma>(configuration.magmaCfg);
+    auto status = magma->Open();
+    if (!status) {
+        std::string err = "Magma open failed. Error:" + status.String();
+        logger->critical(err);
+        throw std::logic_error(err);
+    }
+    auto kvstoreList = magma->GetKVStoreList();
+    for (auto& kvid : kvstoreList) {
+        Vbid vbid(kvid);
+        readVBState(vbid);
+    }
 }
 
 MagmaKVStore::~MagmaKVStore() {
+    if (!in_transaction) {
+        magma->Sync();
+    }
+    logger->debug("MagmaKVStore Destructor");
 }
 
 std::string MagmaKVStore::getVBDBSubdir(Vbid vbid) {
@@ -397,7 +584,7 @@ void MagmaKVStore::set(const Item& item, SetCallback cb) {
                 "MagmaKVStore::set: in_transaction must be true to perform a "
                 "set operation.");
     }
-    pendingReqs->emplace_back(item, std::move(cb));
+    pendingReqs->emplace_back(item, std::move(cb), logger);
 }
 
 GetValue MagmaKVStore::get(const DiskDocKey& key, Vbid vb, bool fetchDelete) {
@@ -463,7 +650,7 @@ void MagmaKVStore::del(const Item& item, KVStore::DeleteCallback cb) {
     }
     // TODO: Deleted items remain as tombstones, but are not yet expired,
     // they will accumuate forever.
-    pendingReqs->emplace_back(item, std::move(cb));
+    pendingReqs->emplace_back(item, std::move(cb), logger);
 }
 
 void MagmaKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
@@ -545,38 +732,23 @@ GetValue MagmaKVStore::makeGetValue(Vbid vb,
             makeItem(vb, key, value, getMetaOnly), ENGINE_SUCCESS, -1, 0);
 }
 
-void MagmaKVStore::readVBState(const KVMagma& db) {
-    // Largely copied from CouchKVStore
-    // TODO refactor out sections common to CouchKVStore
-    vbucket_state_t state = vbucket_state_dead;
-    uint64_t checkpointId = 0;
-    uint64_t maxDeletedSeqno = 0;
-    int64_t highSeqno = readHighSeqnoFromDisk(db);
-    std::string failovers;
-    uint64_t purgeSeqno = 0;
-    uint64_t lastSnapStart = 0;
-    uint64_t lastSnapEnd = 0;
-    uint64_t maxCas = 0;
-    int64_t hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
-    bool mightContainXattrs = false;
+vbucket_state* MagmaKVStore::initVBState(const Vbid vbid) {
+    auto vbs = std::make_unique<vbucket_state>();
+    vbs->state = vbucket_state_dead;
+    vbs->hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
+    vbs->supportsNamespaces = true;
+    cachedVBStates[vbid.get()] = std::move(vbs);
 
-    auto key = getVbstateKey();
-    std::string vbstate;
-    auto vbid = db.vbid;
-    // Cannot use make_unique here as it doesn't support brace-initialization
-    // until C++20.
-    cachedVBStates[vbid.get()].reset(new vbucket_state{state,
-                                                       checkpointId,
-                                                       maxDeletedSeqno,
-                                                       highSeqno,
-                                                       purgeSeqno,
-                                                       lastSnapStart,
-                                                       lastSnapEnd,
-                                                       maxCas,
-                                                       hlcCasEpochSeqno,
-                                                       mightContainXattrs,
-                                                       failovers,
-                                                       false});
+    auto magmaInfo = std::make_unique<MagmaInfo>();
+    cachedMagmaInfo[vbid.get()] = std::move(magmaInfo);
+
+    logger->debug("initVBState:{}", vbid);
+
+    return cachedVBStates[vbid.get()].get();
+}
+
+void MagmaKVStore::readVBState(const Vbid vbid) {
+    initVBState(vbid);
 }
 
 int MagmaKVStore::saveDocs(Vbid vbid,

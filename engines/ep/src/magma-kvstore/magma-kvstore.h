@@ -29,10 +29,23 @@
 #include <string>
 #include <vector>
 
+namespace magma {
+class Magma;
+}
+
 class MagmaRequest;
 class MagmaKVStoreConfig;
 class KVMagma;
-struct KVStatsCtx;
+struct kvstats_ctx;
+
+/**
+ * Magma info is used to mimic info that is stored internally in couchstore.
+ * This info is stored with vbucket_state every time vbucket_state is stored.
+ */
+struct MagmaInfo {
+    uint64_t docCount = 0;
+    uint64_t persistedDeletes = 0;
+};
 
 /**
  * A persistence store based on magma.
@@ -226,6 +239,11 @@ public:
 
 private:
     /**
+     * Mamga instance for a shard
+     */
+    std::unique_ptr<magma::Magma> magma;
+
+    /**
      * Container for pending Magma requests.
      *
      * Using deque as as the expansion behaviour is less aggressive compared to
@@ -277,7 +295,16 @@ private:
                           const std::string& value,
                           GetMetaOnly getMetaOnly = GetMetaOnly::No);
 
-    void readVBState(const KVMagma& db);
+    /**
+     * Read the vbucket_state and magmaInfo from localDB and populate the local
+     * cache
+     */
+    void readVBState(Vbid vbid);
+
+    /**
+     * Inialize the vbstate and magmaInfo when none exists.
+     */
+    vbucket_state* initVBState(Vbid vbid);
 
     int saveDocs(Vbid vbid,
                  Collections::VB::Flush& collectionsFlush,
@@ -307,6 +334,8 @@ private:
     //      - commit()
     bool in_transaction;
     std::unique_ptr<TransactionContext> transactionCtx;
+
+    // Path to magma files. Include shardID.
     const std::string magmaPath;
 
     std::atomic<size_t> scanCounter; // atomic counter for generating scan id
@@ -314,4 +343,17 @@ private:
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;
+
+    // Magma does not keep track of docCount, # of persistedDeletes or
+    // revFile internal so we need a mechanism to do that. We use magmaInfo
+    // as the structure to store that and we save magmaInfo with the vbstate.
+    std::vector<std::unique_ptr<MagmaInfo>> cachedMagmaInfo;
+
+    // We need to mimic couchstores ability to turn every batch of items
+    // into a rollback point. This is used for testing only!
+    bool commitPointEveryBatch{false};
+
+    // Using upsert for Set means we can't keep accurate document totals.
+    // This is used for testing only!
+    bool useUpsertForSet{false};
 };
