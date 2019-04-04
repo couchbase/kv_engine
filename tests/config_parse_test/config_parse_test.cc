@@ -255,6 +255,7 @@ TEST_F(SettingsTest, Interfaces) {
     const auto cert_file = cb::io::mktemp("config_parse_test");
 
     nlohmann::json obj;
+    obj["tag"] = "ssl";
     obj["port"] = 0;
     obj["ipv4"] = true;
     obj["ipv6"] = true;
@@ -298,6 +299,7 @@ TEST_F(SettingsTest, InterfacesMissingSSLFiles) {
     const auto cert_file = cb::io::mktemp("config_parse_test");
 
     nlohmann::json obj;
+    obj["tag"] = "ssl";
     obj["port"] = 0;
     obj["ipv4"] = true;
     obj["ipv6"] = true;
@@ -336,6 +338,7 @@ TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
     const auto filename = cb::io::mktemp("config_parse_test");
 
     nlohmann::json obj;
+    obj["tag"] = "ssl";
     obj["port"] = 0;
     obj["ipv4"] = true;
     obj["ipv6"] = true;
@@ -363,6 +366,27 @@ TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
 
     expectFail<nlohmann::json::exception>(root);
 
+    cb::io::rmrf(filename);
+}
+
+TEST_F(SettingsTest, InterfacesEphemeralMissingTag) {
+    nonArrayValuesShouldFail("interfaces");
+
+    const auto filename = cb::io::mktemp("config_parse_test");
+
+    nlohmann::json obj;
+    obj["port"] = 0;
+    obj["ipv4"] = true;
+    obj["ipv6"] = true;
+    obj["host"] = "*";
+
+    nlohmann::json array;
+    array.push_back(obj);
+
+    nlohmann::json root;
+    root["interfaces"] = array;
+
+    expectFail<std::invalid_argument>(root);
     cb::io::rmrf(filename);
 }
 

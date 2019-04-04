@@ -1029,7 +1029,8 @@ static void add_listening_port(const NetworkInterface *interf, in_port_t port, s
     auto *descr = get_listening_port_instance(port);
 
     if (descr == nullptr) {
-        ListeningPort newport(port, interf->host, interf->tcp_nodelay);
+        ListeningPort newport(
+                interf->tag, interf->host, port, interf->tcp_nodelay);
 
         newport.setSslSettings(interf->ssl.key, interf->ssl.cert);
 

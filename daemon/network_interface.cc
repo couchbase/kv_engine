@@ -34,6 +34,11 @@ static void handle_interface_host(NetworkInterface& ifc,
     ifc.host = cb::jsonGet<std::string>(it);
 }
 
+static void handle_interface_tag(NetworkInterface& ifc,
+                                 nlohmann::json::const_iterator it) {
+    ifc.tag = cb::jsonGet<std::string>(it);
+}
+
 /**
  * Set the given NetworkInterface::Protocol based on the value of `obj`,
  * or throw std::invalid_argument if obj is not a valid setting.
@@ -128,6 +133,7 @@ NetworkInterface::NetworkInterface(const nlohmann::json& json) {
     };
 
     std::vector<interface_config_tokens> handlers = {
+            {"tag", handle_interface_tag},
             {"port", handle_interface_port},
             {"host", handle_interface_host},
             {"ipv4", handle_interface_ipv4},

@@ -103,6 +103,10 @@ The *interfaces* attribute is used to specify an array of interfaces
 memcached should listen at. Each entry in the interfaces array is an
 object describing a single interface with the following properties:
 
+    tag           A string value specifying a name for the interface
+                  to allow the server to find the interface if an
+                  ephemeral port is being used (port = 0)
+
     host          A string value specifying the hostname to bind to.
                   If the attribute is missing (or set to "*")
                   IN_ADDR_ANY is used.
@@ -391,6 +395,7 @@ A Sample memcached.json:
         "interfaces" :
         [
             {
+                "tag" : "ssl",
                 "host" : "*",
                 "port" : 11209,
                 "IPv4" : true,

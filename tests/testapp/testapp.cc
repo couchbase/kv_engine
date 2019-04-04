@@ -447,40 +447,45 @@ nlohmann::json TestappTest::generate_config(uint16_t ssl_port) {
     const std::string pem_path = cwd + CERTIFICATE_PATH("testapp.pem");
     const std::string cert_path = cwd + CERTIFICATE_PATH("testapp.cert");
 
-    nlohmann::json ret;
-    ret["logger"]["unit_test"] = true;
+    nlohmann::json ret = {
+            {"max_connections", Testapp::MAX_CONNECTIONS},
+            {"system_connections", Testapp::MAX_CONNECTIONS / 4},
+            {"stdin_listener", false},
+            {"datatype_json", true},
+            {"datatype_snappy", true},
+            {"xattr_enabled", true},
+            {"dedupe_nmvb_maps", false},
+            {"active_external_users_push_interval", "30 m"},
+            {"error_maps_dir", get_errmaps_dir()},
+            {"audit_file", mcd_env->getAuditFilename()},
+            {"rbac_file", mcd_env->getRbacFilename()},
+            {"ssl_cipher_list", "HIGH"},
+            {"ssl_minimum_protocol", "tlsv1"},
+            {"opcode_attributes_override",
+             {{"version", 1}, {"EWB_CTL", {{"slow", 50}}}}},
+            {"logger", {{"unit_test", true}}},
+
+    };
+
     if (memcached_verbose == 0) {
         ret["logger"]["console"] = false;
     } else {
         ret["verbosity"] = memcached_verbose - 1;
     }
 
-    ret["max_connections"] = Testapp::MAX_CONNECTIONS;
-    ret["system_connections"] = Testapp::MAX_CONNECTIONS / 4;
+    ret["interfaces"][0] = {{"tag", "plain"},
+                            {"port", 0},
+                            {"ipv4", "required"},
+                            {"ipv6", "required"},
+                            {"host", "*"}};
 
-    ret["stdin_listener"] = false;
-    ret["interfaces"][0]["port"] = 0;
-    ret["interfaces"][0]["ipv4"] = "required";
-    ret["interfaces"][0]["ipv6"] = "required";
-    ret["interfaces"][0]["host"] = "*";
-    ret["interfaces"][1]["port"] = ssl_port;
-    ret["interfaces"][1]["ipv4"] = "required";
-    ret["interfaces"][1]["ipv6"] = "required";
-    ret["interfaces"][1]["host"] = "*";
-    ret["interfaces"][1]["ssl"]["key"] = pem_path;
-    ret["interfaces"][1]["ssl"]["cert"] = cert_path;
-    ret["datatype_json"] = true;
-    ret["datatype_snappy"] = true;
-    ret["xattr_enabled"] = true;
-    ret["dedupe_nmvb_maps"] = false;
-    ret["active_external_users_push_interval"] = "30 m";
-    ret["error_maps_dir"] = get_errmaps_dir();
-    ret["audit_file"] = mcd_env->getAuditFilename();
-    ret["rbac_file"] = mcd_env->getRbacFilename();
-    ret["ssl_cipher_list"] = "HIGH";
-    ret["ssl_minimum_protocol"] = "tlsv1";
-    ret["opcode_attributes_override"]["version"] = 1;
-    ret["opcode_attributes_override"]["EWB_CTL"]["slow"] = 50;
+    ret["interfaces"][1] = {{"tag", "ssl"},
+                            {"port", ssl_port},
+                            {"ipv4", "required"},
+                            {"ipv6", "required"},
+                            {"host", "*"},
+                            {"ssl", {{"key", pem_path}, {"cert", cert_path}}}};
+
     return ret;
 }
 

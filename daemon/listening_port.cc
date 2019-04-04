@@ -16,9 +16,13 @@
  */
 #include "listening_port.h"
 
-ListeningPort::ListeningPort(in_port_t port, std::string host, bool tcp_nodelay)
-    : port(port),
+ListeningPort::ListeningPort(std::string tag,
+                             std::string host,
+                             in_port_t port,
+                             bool tcp_nodelay)
+    : tag(std::move(tag)),
       host(std::move(host)),
+      port(port),
       ipv6(false),
       ipv4(false),
       tcp_nodelay(tcp_nodelay) {

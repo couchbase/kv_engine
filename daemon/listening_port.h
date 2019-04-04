@@ -32,7 +32,22 @@
  */
 class ListeningPort {
 public:
-    ListeningPort(in_port_t port, std::string host, bool tcp_nodelay);
+    ListeningPort(std::string tag,
+                  std::string host,
+                  in_port_t port,
+                  bool tcp_nodelay);
+
+    /// The tag provided by the user to identify the port. It is possible
+    /// to use ephemeral ports in the system, and if we want to change
+    /// such ports at runtime the system needs a way to find the correct
+    /// entry to change (the value of the tag _should_ be unique within the
+    /// interface descriptions, but the server does not try to validate that
+    /// it is unique (the behaviour is undefined if the same tag is used for
+    /// multiple interfaces).
+    const std::string tag;
+
+    /** The hostname this port is bound to ("*" means all interfaces) */
+    const std::string host;
 
     /**
      * The actual port number being used by this connection. Please note
@@ -40,9 +55,6 @@ public:
      * hostnames.
      */
     const in_port_t port;
-
-    /** The hostname this port is bound to ("*" means all interfaces) */
-    const std::string host;
 
     /** Is IPv6 enabled for this port */
     bool ipv6;
