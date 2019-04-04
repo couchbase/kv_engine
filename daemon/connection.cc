@@ -1280,7 +1280,7 @@ Connection::Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc)
       stateMachine(*this),
       max_reqs_per_event(settings.getRequestsPerEventNotification(
               EventPriority::Default)) {
-    setTcpNoDelay(ifc.tcp_nodelay);
+    setTcpNoDelay(true);
     updateDescription();
     cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
     msglist.reserve(MSG_LIST_INITIAL);

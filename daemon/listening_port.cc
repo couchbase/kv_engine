@@ -16,16 +16,12 @@
  */
 #include "listening_port.h"
 
-ListeningPort::ListeningPort(std::string tag,
-                             std::string host,
-                             in_port_t port,
-                             bool tcp_nodelay)
+ListeningPort::ListeningPort(std::string tag, std::string host, in_port_t port)
     : tag(std::move(tag)),
       host(std::move(host)),
       port(port),
       ipv6(false),
-      ipv4(false),
-      tcp_nodelay(tcp_nodelay) {
+      ipv4(false) {
 }
 
 std::shared_ptr<ListeningPort::Ssl> ListeningPort::getSslSettings() const {

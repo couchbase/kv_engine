@@ -947,15 +947,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                 continue;
             }
 
-            if (i2.tcp_nodelay != i1.tcp_nodelay) {
-                LOG_INFO("{} TCP NODELAY for {}:{}",
-                         i2.tcp_nodelay ? "Enable" : "Disable",
-                         i1.host,
-                         i1.port);
-                i1.tcp_nodelay = i2.tcp_nodelay;
-                changed = true;
-            }
-
             if (i2.ssl.cert != i1.ssl.cert) {
                 LOG_INFO("Change SSL Certificiate for {}:{} from {} to {}",
                          i1.host,

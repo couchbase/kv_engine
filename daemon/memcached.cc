@@ -510,7 +510,6 @@ static void interfaces_changed_listener(const std::string&, Settings &s) {
     for (const auto& ifc : s.getInterfaces()) {
         auto* port = get_listening_port_instance(ifc.port);
         if (port != nullptr) {
-            port->tcp_nodelay = ifc.tcp_nodelay;
             port->setSslSettings(ifc.ssl.key, ifc.ssl.cert);
         }
     }
@@ -937,7 +936,7 @@ static void maximize_sndbuf(const SOCKET sfd) {
     LOG_DEBUG("<{} send buffer was {}, now {}", sfd, old_size, last_good);
 }
 
-static SOCKET new_server_socket(struct addrinfo *ai, bool tcp_nodelay) {
+static SOCKET new_server_socket(struct addrinfo* ai) {
     SOCKET sfd;
 
     sfd = cb::net::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
@@ -998,17 +997,6 @@ static SOCKET new_server_socket(struct addrinfo *ai, bool tcp_nodelay) {
                     cb_strerror(cb::net::get_socket_error()));
     }
 
-    if (tcp_nodelay) {
-        if (cb::net::setsockopt(sfd,
-                                IPPROTO_TCP,
-                                TCP_NODELAY,
-                                reinterpret_cast<const void*>(&flags),
-                                sizeof(flags)) != 0) {
-            LOG_WARNING("setsockopt(TCP_NODELAY): {}",
-                        cb_strerror(cb::net::get_socket_error()));
-        }
-    }
-
     return sfd;
 }
 
@@ -1029,8 +1017,7 @@ static void add_listening_port(const NetworkInterface *interf, in_port_t port, s
     auto *descr = get_listening_port_instance(port);
 
     if (descr == nullptr) {
-        ListeningPort newport(
-                interf->tag, interf->host, port, interf->tcp_nodelay);
+        ListeningPort newport(interf->tag, interf->host, port);
 
         newport.setSslSettings(interf->ssl.key, interf->ssl.cert);
 
@@ -1110,8 +1097,7 @@ static bool server_socket(const NetworkInterface& interf) {
     // We need at least _one_ entry per requested configuration (IPv4/6) in
     // order to call it a success.
     for (struct addrinfo* next = ai; next; next = next->ai_next) {
-        if ((sfd = new_server_socket(next, interf.tcp_nodelay)) ==
-            INVALID_SOCKET) {
+        if ((sfd = new_server_socket(next)) == INVALID_SOCKET) {
             // getaddrinfo can return "junk" addresses,
             continue;
         }

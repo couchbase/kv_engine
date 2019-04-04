@@ -46,7 +46,6 @@ public:
     in_port_t port = 11211;
     Protocol ipv6 = Protocol::Optional;
     Protocol ipv4 = Protocol::Optional;
-    bool tcp_nodelay = true;
 };
 
 std::string to_string(const NetworkInterface::Protocol& proto);

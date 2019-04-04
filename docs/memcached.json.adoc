@@ -137,12 +137,6 @@ object describing a single interface with the following properties:
                   true  -> "optional"
                   false -> "off"
 
-    maxconn       An integral number specifying the maximum number of
-                  concurrent clients that may be connected.
-
-    tcp_nodelay   A boolean value if TCP_NODELAY should be set or not.
-                  By default tcp_nodelay is enabled.
-
     ssl           An object specifying SSL related properties.
                   See below.
 
@@ -400,8 +394,6 @@ A Sample memcached.json:
                 "port" : 11209,
                 "IPv4" : true,
                 "IPv6" : true,
-                "maxconn" : 10000,
-                "tcp_nodelay" : true,
                 "ssl" :
                 {
                     "key" : "/etc/memcached/pkey",

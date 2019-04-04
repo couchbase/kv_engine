@@ -32,10 +32,7 @@
  */
 class ListeningPort {
 public:
-    ListeningPort(std::string tag,
-                  std::string host,
-                  in_port_t port,
-                  bool tcp_nodelay);
+    ListeningPort(std::string tag, std::string host, in_port_t port);
 
     /// The tag provided by the user to identify the port. It is possible
     /// to use ephemeral ports in the system, and if we want to change
@@ -60,8 +57,6 @@ public:
     bool ipv6;
     /** Is IPv4 enabled for this port */
     bool ipv4;
-    /** Should TCP_NODELAY be enabled or not */
-    bool tcp_nodelay;
 
     /// SSL related properties for the port
     struct Ssl {

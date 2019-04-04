@@ -1108,19 +1108,16 @@ TEST(SettingsUpdateTest, InterfaceSomeValuesMayChange) {
 
     settings.addInterface(ifc);
 
-    ifc.tcp_nodelay = false;
     ifc.ssl.key.assign("/opt/couchbase/security/key.pem");
     ifc.ssl.cert.assign("/opt/couchbase/security/cert.pem");
 
     updated.addInterface(ifc);
 
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    EXPECT_NE(ifc.tcp_nodelay, settings.getInterfaces()[0].tcp_nodelay);
     EXPECT_NE(ifc.ssl.key, settings.getInterfaces()[0].ssl.key);
     EXPECT_NE(ifc.ssl.cert, settings.getInterfaces()[0].ssl.cert);
 
     EXPECT_NO_THROW(settings.updateSettings(updated));
-    EXPECT_EQ(ifc.tcp_nodelay, settings.getInterfaces()[0].tcp_nodelay);
     EXPECT_EQ(ifc.ssl.key, settings.getInterfaces()[0].ssl.key);
     EXPECT_EQ(ifc.ssl.cert, settings.getInterfaces()[0].ssl.cert);
 }
