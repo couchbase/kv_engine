@@ -132,8 +132,6 @@ rbac_file.close()
 # 'verbosity' isn't functionally needed, but helpful to debug test issues.
 config = {"interfaces": [{"tag":"plain",
                           "port": 0,
-                          "maxconn":  1000,
-                          "backlog":  1024,
                           "host": "*"}],
           "breakpad": { "enabled": True,
                         "minidump_dir" : minidump_dir

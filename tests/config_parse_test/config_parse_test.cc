@@ -259,7 +259,6 @@ TEST_F(SettingsTest, Interfaces) {
     obj["port"] = 0;
     obj["ipv4"] = true;
     obj["ipv6"] = true;
-    obj["maxconn"] = 10;
     obj["host"] = "*";
 
     nlohmann::json ssl;
@@ -303,7 +302,6 @@ TEST_F(SettingsTest, InterfacesMissingSSLFiles) {
     obj["port"] = 0;
     obj["ipv4"] = true;
     obj["ipv6"] = true;
-    obj["maxconn"] = 10;
     obj["host"] = "*";
 
     nlohmann::json ssl;
@@ -342,7 +340,6 @@ TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
     obj["port"] = 0;
     obj["ipv4"] = true;
     obj["ipv6"] = true;
-    obj["maxconn"] = 10;
     obj["host"] = "*";
 
     nlohmann::json ssl;
