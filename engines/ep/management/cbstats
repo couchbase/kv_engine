@@ -304,8 +304,8 @@ def time_label(s):
     isNegative = s < 0
 
     s = abs(s)
-    if s == 0:
-        return "%4d%s" % (0, 'us')
+    if s <= 1:
+        return "%4d%s" % (s, 'us')
 
     product = 1
     '''
