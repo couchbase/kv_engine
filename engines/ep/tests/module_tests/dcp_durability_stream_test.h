@@ -34,6 +34,19 @@ protected:
     void testSendDcpPrepare();
 
     void setUpSendSetInsteadOfCommitTest();
+
+    enum class Resolution { Commit, Abort };
+
+    /*
+     * Queues a Commit/Abort and verifies that the corresponding DCP meesage
+     * has been queued into the ActiveStream::readyQ.
+     *
+     * @param res The type of resolution, Commit/Abort
+     */
+    void testSendCompleteSyncWrite(Resolution res);
+
+    const std::string active = "active";
+    const std::string replica = "replica";
 };
 
 /*

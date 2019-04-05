@@ -82,9 +82,10 @@ uint32_t MutationResponse::getHeaderSize() const {
     case queue_op::mutation:
     case queue_op::system_event:
     case queue_op::commit_sync_write:
+        // A commit_sync_write which is being sent as a vanilla DCP_MUTATION,
+        // either because the DCP client doesn't support SyncWrites, or because
+        // it does but it never received the corresponding prepare.
         return item_->isDeleted() ? getDeleteLength() : mutationBaseMsgBytes;
-    case queue_op::abort_sync_write:
-        return abortBaseMsgBytes;
     case queue_op::pending_sync_write:
         return prepareBaseMsgBytes;
     default:
