@@ -495,7 +495,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
 
     bool add_vb_conn_map = true;
     {
-        ReaderLockHolder rlh(vb->getStateLock());
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         if (vb->getState() == vbucket_state_dead) {
             logger->warn(
                     "({}) Stream request failed because "

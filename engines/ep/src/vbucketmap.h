@@ -141,7 +141,7 @@ public:
     vbucket_state_t setState(VBucketPtr vb,
                              vbucket_state_t newState,
                              const nlohmann::json& meta,
-                             WriterLockHolder* vbStateLock);
+                             folly::SharedMutex::WriteHolder* vbStateLock);
 
 private:
 

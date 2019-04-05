@@ -314,7 +314,7 @@ public:
             TransferVB transfer,
             bool notify_dcp,
             std::unique_lock<std::mutex>& vbset,
-            WriterLockHolder* vbStateLock = nullptr);
+            folly::SharedMutex::WriteHolder* vbStateLock = nullptr);
 
     /**
      * Returns the 'vbsetMutex'

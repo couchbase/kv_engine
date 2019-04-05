@@ -548,7 +548,7 @@ void KVBucket::deleteExpiredItem(Item& it,
 
         // Obtain reader access to the VB state change lock so that
         // the VB can't switch state whilst we're processing
-        ReaderLockHolder rlh(vb->getStateLock());
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         if (vb->getState() == vbucket_state_active) {
             vb->deleteExpiredItem(it, startTime, source);
         }
@@ -598,7 +598,7 @@ ENGINE_ERROR_CODE KVBucket::set(Item& itm,
 
     // Obtain read-lock on VB state to ensure VB state changes are interlocked
     // with this set
-    ReaderLockHolder rlh(vb->getStateLock());
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
@@ -644,7 +644,7 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
 
     // Obtain read-lock on VB state to ensure VB state changes are interlocked
     // with this add
-    ReaderLockHolder rlh(vb->getStateLock());
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead ||
         vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
@@ -693,7 +693,7 @@ ENGINE_ERROR_CODE KVBucket::replace(Item& itm,
 
     // Obtain read-lock on VB state to ensure VB state changes are interlocked
     // with this replace
-    ReaderLockHolder rlh(vb->getStateLock());
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead ||
         vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
@@ -730,7 +730,7 @@ ENGINE_ERROR_CODE KVBucket::addBackfillItem(Item& itm,
 
     // Obtain read-lock on VB state to ensure VB state changes are interlocked
     // with this addBackfillItem
-    ReaderLockHolder rlh(vb->getStateLock());
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead ||
         vb->getState() == vbucket_state_active) {
         ++stats.numNotMyVBuckets;
@@ -784,7 +784,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
         TransferVB transfer,
         bool notify_dcp,
         std::unique_lock<std::mutex>& vbset,
-        WriterLockHolder* vbStateLock) {
+        folly::SharedMutex::WriteHolder* vbStateLock) {
     VBucketPtr vb = vbMap.getBucket(vbid);
     // Return success immediately if the new state is the same as the old,
     // and no extra metadata was included.
@@ -1344,7 +1344,7 @@ GetValue KVBucket::getInternal(const DocKey& key,
 
     const bool honorStates = (options & HONOR_STATES);
 
-    ReaderLockHolder rlh(vb->getStateLock());
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (honorStates) {
         vbucket_state_t vbState = vb->getState();
         if (vbState == vbucket_state_dead) {
@@ -1422,7 +1422,7 @@ ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    ReaderLockHolder rlh(vb->getStateLock());
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead ||
         vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
@@ -1461,7 +1461,7 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    ReaderLockHolder rlh(vb->getStateLock());
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (!permittedVBStates.test(vb->getState())) {
         if (vb->getState() == vbucket_state_pending) {
             if (vb->addPendingOp(cookie)) {
@@ -1525,7 +1525,7 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
     }
 
-    ReaderLockHolder rlh(vb->getStateLock());
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
@@ -1752,7 +1752,7 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    ReaderLockHolder rlh(vb->getStateLock());
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (!permittedVBStates.test(vb->getState())) {
         if (vb->getState() == vbucket_state_pending) {
             if (vb->addPendingOp(cookie)) {
@@ -2218,7 +2218,7 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
         return TaskStatus::Abort;
     }
 
-    ReaderLockHolder rlh(vb->getStateLock());
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if ((vb->getState() == vbucket_state_replica) ||
         (vb->getState() == vbucket_state_pending)) {
         uint64_t prevHighSeqno =

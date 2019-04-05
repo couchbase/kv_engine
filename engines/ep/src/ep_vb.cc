@@ -89,7 +89,7 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
     Item* fetchedValue = fetched_item.value->item.get();
     { // locking scope
         auto docKey = key.getDocKey();
-        ReaderLockHolder rlh(getStateLock());
+        folly::SharedMutex::ReadHolder rlh(getStateLock());
         auto cHandle = lockCollections(docKey);
         auto res = fetchValidValue(
                 WantsDeleted::Yes,

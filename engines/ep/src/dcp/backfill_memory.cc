@@ -48,7 +48,7 @@ backfill_status_t DCPBackfillMemory::run() {
     }
 
     /* Get vb state lock */
-    ReaderLockHolder rlh(evb->getStateLock());
+    folly::SharedMutex::ReadHolder rlh(evb->getStateLock());
     if (evb->getState() == vbucket_state_dead) {
         /* We don't have to close the stream here. Task doing vbucket state
            change should handle stream closure */
@@ -128,7 +128,7 @@ DCPBackfillMemoryBuffered::~DCPBackfillMemoryBuffered() {
 }
 
 backfill_status_t DCPBackfillMemoryBuffered::run() {
-    ReaderLockHolder rlh(evb->getStateLock());
+    folly::SharedMutex::ReadHolder rlh(evb->getStateLock());
     if (evb->getState() == vbucket_state_dead) {
         /* We don't have to close the stream here. Task doing vbucket state
            change should handle stream closure */

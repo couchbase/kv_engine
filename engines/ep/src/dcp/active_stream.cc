@@ -87,7 +87,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
         end_seqno_ = dcpMaxSeqno;
     }
 
-    ReaderLockHolder rlh(vbucket.getStateLock());
+    folly::SharedMutex::ReadHolder rlh(vbucket.getStateLock());
     if (vbucket.getState() == vbucket_state_replica) {
         snapshot_info_t info = vbucket.checkpointManager->getSnapshotInfo();
         if (info.range.end > en_seqno) {
@@ -395,7 +395,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
            any potential lock inversion problems */
         std::unique_lock<std::mutex> epVbSetLh(
                 engine->getKVBucket()->getVbSetMutexLock());
-        WriterLockHolder vbStateLh(vbucket->getStateLock());
+        folly::SharedMutex::WriteHolder vbStateLh(vbucket->getStateLock());
         std::unique_lock<std::mutex> lh(streamMutex);
         if (isTakeoverWait()) {
             if (takeoverState == vbucket_state_pending) {

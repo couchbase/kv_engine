@@ -4487,7 +4487,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    ReaderLockHolder rlh(vb->getStateLock());
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead) {
         return ENGINE_NOT_MY_VBUCKET;
     }
@@ -5638,7 +5638,7 @@ EventuallyPersistentEngine::getAllKeys(const void* cookie,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    ReaderLockHolder rlh(vb->getStateLock());
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() != vbucket_state_active) {
         return ENGINE_NOT_MY_VBUCKET;
     }

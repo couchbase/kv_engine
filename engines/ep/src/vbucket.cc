@@ -386,7 +386,7 @@ VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
 }
 
 void VBucket::setState(vbucket_state_t to, const nlohmann::json& meta) {
-    WriterLockHolder wlh(stateLock);
+    folly::SharedMutex::WriteHolder wlh(getStateLock());
     setState_UNLOCKED(to, meta, wlh);
 }
 
@@ -450,9 +450,10 @@ std::string VBucket::validateSetStateMeta(const nlohmann::json& meta) {
     return {};
 }
 
-void VBucket::setState_UNLOCKED(vbucket_state_t to,
-                                const nlohmann::json& meta,
-                                WriterLockHolder& vbStateLock) {
+void VBucket::setState_UNLOCKED(
+        vbucket_state_t to,
+        const nlohmann::json& meta,
+        const folly::SharedMutex::WriteHolder& vbStateLock) {
     vbucket_state_t oldstate = state;
 
     // Validate (optional) meta content.
@@ -519,7 +520,7 @@ const nlohmann::json& VBucket::getReplicationTopology() const {
 
 void VBucket::processDurabilityTimeout(
         const std::chrono::steady_clock::time_point asOf) {
-    ReaderLockHolder lh(stateLock);
+    folly::SharedMutex::ReadHolder lh(stateLock);
     // @todo-durability: Add support for DurabilityMonitor at Replica
     if (getState() != vbucket_state_active) {
         return;
@@ -3131,7 +3132,7 @@ void VBucket::notifyPersistenceToDurabilityMonitor(
     // @todo-durability: Always delegate the DurabilityMonitor for
     //     SeqnoAck (even for Replica). Requires that we implement
     //     the DurabilityMonitor for Replica.
-    ReaderLockHolder wlh(stateLock);
+    folly::SharedMutex::ReadHolder wlh(stateLock);
     if (getState() == vbucket_state_active) {
         durabilityMonitor->notifyLocalPersistence();
     } else if (getState() == vbucket_state_replica) {

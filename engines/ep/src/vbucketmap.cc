@@ -179,10 +179,11 @@ void VBucketMap::VBucketConfigChangeListener::sizeValueChanged(const std::string
     }
 }
 
-vbucket_state_t VBucketMap::setState(VBucketPtr vb,
-                                     vbucket_state_t newState,
-                                     const nlohmann::json& meta,
-                                     WriterLockHolder* vbStateLock) {
+vbucket_state_t VBucketMap::setState(
+        VBucketPtr vb,
+        vbucket_state_t newState,
+        const nlohmann::json& meta,
+        folly::SharedMutex::WriteHolder* vbStateLock) {
     if (!vb) {
         throw std::invalid_argument(
                 "VBucketMap::setState was passed an "

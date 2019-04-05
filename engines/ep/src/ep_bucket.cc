@@ -455,7 +455,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
 
 
             {
-                ReaderLockHolder rlh(vb->getStateLock());
+                folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
                 if (vb->getState() == vbucket_state_active) {
                     if (maxSeqno) {
                         range.start = maxSeqno;

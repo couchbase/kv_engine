@@ -399,9 +399,11 @@ public:
      */
     void setState_UNLOCKED(vbucket_state_t to,
                            const nlohmann::json& meta,
-                           WriterLockHolder& vbStateLock);
+                           const folly::SharedMutex::WriteHolder& vbStateLock);
 
-    cb::RWLock& getStateLock() {return stateLock;}
+    auto& getStateLock() {
+        return stateLock;
+    }
 
     vbucket_state_t getInitialState(void) { return initialState; }
 
@@ -2082,7 +2084,7 @@ private:
 
     Vbid id;
     std::atomic<vbucket_state_t>    state;
-    cb::RWLock                      stateLock;
+    folly::SharedMutex stateLock;
 
     vbucket_state_t                 initialState;
     std::mutex                           pendingOpLock;
