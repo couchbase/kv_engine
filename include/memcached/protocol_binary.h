@@ -1853,12 +1853,12 @@ typedef union {
     struct {
         protocol_binary_request_header header;
         struct {
-            vbucket_state_t state;
+            RequestedVBState state;
             CollectionIDType cid;
         } body;
     } message;
     uint8_t bytes[sizeof(protocol_binary_request_header) +
-                  sizeof(vbucket_state_t) + sizeof(CollectionIDType)];
+                  sizeof(RequestedVBState) + sizeof(CollectionIDType)];
 } protocol_binary_request_get_all_vb_seqnos;
 
 /**

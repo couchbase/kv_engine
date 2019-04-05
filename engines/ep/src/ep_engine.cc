@@ -5878,8 +5878,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
         const void* cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
-    static_assert(sizeof(vbucket_state_t) == 4,
-                  "Unexpected size for vbucket_state_t");
+    static_assert(sizeof(RequestedVBState) == 4,
+                  "Unexpected size for RequestedVBState");
     auto extras = request.getExtdata();
 
     // By default allow any alive states. If reqState has been set then
@@ -5896,19 +5896,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
 
         // If the received vbucket_state isn't 0 (i.e. all alive states) then
         // set the specifically requested states.
-        auto desired = static_cast<vbucket_state_t>(rawState);
-        if (desired != vbucket_state_alive) {
-            reqState = PermittedVBStates(desired);
+        auto desired = static_cast<RequestedVBState>(rawState);
+        if (desired != RequestedVBState::Alive) {
+            reqState = PermittedVBStates(static_cast<vbucket_state_t>(desired));
         }
 
         if (extras.size() ==
-            (sizeof(vbucket_state_t) + sizeof(CollectionIDType))) {
+            (sizeof(RequestedVBState) + sizeof(CollectionIDType))) {
             reqCollection = static_cast<CollectionIDType>(
                     ntohl(*reinterpret_cast<const uint32_t*>(
-                            extras.substr(sizeof(vbucket_state_t),
+                            extras.substr(sizeof(RequestedVBState),
                                           sizeof(CollectionIDType))
                                     .data())));
-        } else if (extras.size() != sizeof(vbucket_state_t)) {
+        } else if (extras.size() != sizeof(RequestedVBState)) {
             return ENGINE_EINVAL;
         }
     }

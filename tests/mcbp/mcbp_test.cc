@@ -3102,7 +3102,7 @@ TEST_P(GetAllVbSeqnoValidatorTest, CorrectMessageWithState) {
     request.message.header.request.setExtlen(4);
     request.message.header.request.setBodylen(4);
     request.message.body.state =
-        static_cast<vbucket_state_t>(htonl(vbucket_state_active));
+            static_cast<RequestedVBState>(htonl(int(RequestedVBState::Active)));
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
@@ -3111,7 +3111,7 @@ TEST_P(GetAllVbSeqnoValidatorTest, CorrectMessageWithCollectionID) {
     EXPECT_EQ(4, sizeof(CollectionIDType));
     request.message.header.request.setExtlen(8);
     request.message.header.request.setBodylen(8);
-    request.message.body.state = static_cast<vbucket_state_t>(htonl(1));
+    request.message.body.state = static_cast<RequestedVBState>(htonl(1));
     request.message.body.cid = static_cast<CollectionIDType>(htonl(8));
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
@@ -3161,10 +3161,10 @@ TEST_P(GetAllVbSeqnoValidatorTest, InvalidVbucketState) {
     request.message.header.request.setBodylen(4);
 
     for (int ii = 0; ii < 100; ++ii) {
-        request.message.body.state = static_cast<vbucket_state_t>(htonl(ii));
+        request.message.body.state = static_cast<RequestedVBState>(htonl(ii));
         // Must be a valid vbucket state or 0 (indicating any alive state)
-        if (is_valid_vbucket_state_t(static_cast<vbucket_state_t>(ii)) ||
-            static_cast<vbucket_state_t>(ii) == vbucket_state_alive) {
+        if (static_cast<RequestedVBState>(ii) >= RequestedVBState::Alive &&
+            static_cast<RequestedVBState>(ii) <= RequestedVBState::Dead) {
             EXPECT_EQ(cb::mcbp::Status::Success, validate());
         } else {
             EXPECT_EQ(cb::mcbp::Status::Einval, validate());
@@ -3945,7 +3945,7 @@ TEST_P(CommandSpecificErrorContextTest, GetAllVbSeqnos) {
     header.setBodylen(4);
     auto* req =
             reinterpret_cast<protocol_binary_request_get_all_vb_seqnos*>(blob);
-    req->message.body.state = static_cast<vbucket_state_t>(5);
+    req->message.body.state = static_cast<RequestedVBState>(5);
     EXPECT_EQ("Request vbucket state invalid",
               validate_error_context(cb::mcbp::ClientOpcode::GetAllVbSeqnos));
 }

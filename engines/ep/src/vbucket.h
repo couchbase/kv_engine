@@ -534,35 +534,9 @@ public:
 
     virtual bool hasPendingBGFetchItems() = 0;
 
-    static const char* toString(vbucket_state_t s) {
-        switch(s) {
-        case vbucket_state_alive:
-            return "alive";
-        case vbucket_state_active:
-            return "active";
-        case vbucket_state_replica:
-            return "replica";
-        case vbucket_state_pending:
-            return "pending";
-        case vbucket_state_dead:
-            return "dead";
-        }
-        return "unknown";
-    }
+    static const char* toString(vbucket_state_t s);
 
-    static vbucket_state_t fromString(const char* state) {
-        if (strcmp(state, "alive") == 0) {
-            return vbucket_state_alive;
-        } else if (strcmp(state, "active") == 0) {
-            return vbucket_state_active;
-        } else if (strcmp(state, "replica") == 0) {
-            return vbucket_state_replica;
-        } else if (strcmp(state, "pending") == 0) {
-            return vbucket_state_pending;
-        } else {
-            return vbucket_state_dead;
-        }
-    }
+    static vbucket_state_t fromString(const char* state);
 
     /**
      * Checks and decides whether to add high priority request on the vbucket.

@@ -6828,60 +6828,61 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
 
     /* Create request to get vb seqno of all alive vbuckets by supplying a 0
      * state */
-    get_all_vb_seqnos(h, vbucket_state_alive, cookie);
+    get_all_vb_seqnos(h, RequestedVBState::Alive, cookie);
 
     /* Check if the response received is correct */
     verify_all_vb_seqnos(h, 0, num_vbuckets);
 
     /* Create request to get vb seqno of active vbuckets */
-    get_all_vb_seqnos(h, vbucket_state_active, cookie);
+    get_all_vb_seqnos(h, RequestedVBState::Active, cookie);
 
     /* Check if the response received is correct */
     verify_all_vb_seqnos(h, 1, num_vbuckets - 1);
 
     /* Create request to get vb seqno of replica vbuckets */
-    get_all_vb_seqnos(h, vbucket_state_replica, cookie);
+    get_all_vb_seqnos(h, RequestedVBState::Replica, cookie);
 
     /* Check if the response received is correct */
     verify_all_vb_seqnos(h, 0, 0);
 
     /* Create request to get vb seqno of replica vbuckets */
-    get_all_vb_seqnos(h, vbucket_state_pending, cookie);
+    get_all_vb_seqnos(h, RequestedVBState::Pending, cookie);
 
     /* Check if the response received is correct */
     verify_all_vb_seqnos(h, num_vbuckets, num_vbuckets);
 
     /* Check the correctness of each collection high seqno (we should return
      * values for the default collection from replica and pending vBuckets) */
-    get_all_vb_seqnos(h, vbucket_state_alive, cookie, CollectionID::Default);
+    get_all_vb_seqnos(
+            h, RequestedVBState::Alive, cookie, CollectionID::Default);
     verify_all_vb_seqnos(h, 0, num_vbuckets, CollectionID(0));
 
     /*
      * Check our collections on the active vBucket
      */
-    get_all_vb_seqnos(h, vbucket_state_active, cookie, 8);
+    get_all_vb_seqnos(h, RequestedVBState::Active, cookie, 8);
     verify_all_vb_seqnos(h, 1, num_vbuckets - 1, CollectionID(8));
 
-    get_all_vb_seqnos(h, vbucket_state_active, cookie, 9);
+    get_all_vb_seqnos(h, RequestedVBState::Active, cookie, 9);
     verify_all_vb_seqnos(h, 1, num_vbuckets - 1, CollectionID(9));
 
     /*
      * We won't return anything from the replica (vbid 0) because it doesn't
      * know about any collections (didn't step dcp).
      */
-    get_all_vb_seqnos(h, vbucket_state_replica, cookie, 8);
+    get_all_vb_seqnos(h, RequestedVBState::Replica, cookie, 8);
     verify_all_vb_seqnos(h, 0, -1, CollectionID(8));
 
-    get_all_vb_seqnos(h, vbucket_state_replica, cookie, 9);
+    get_all_vb_seqnos(h, RequestedVBState::Replica, cookie, 9);
     verify_all_vb_seqnos(h, 0, -1, CollectionID(9));
 
     /*
      * We won't have created the collections on the pending VB.
      */
-    get_all_vb_seqnos(h, vbucket_state_pending, cookie, 8);
+    get_all_vb_seqnos(h, RequestedVBState::Pending, cookie, 8);
     verify_all_vb_seqnos(h, 0, -1, CollectionID(8));
 
-    get_all_vb_seqnos(h, vbucket_state_pending, cookie, 9);
+    get_all_vb_seqnos(h, RequestedVBState::Pending, cookie, 9);
     verify_all_vb_seqnos(h, 0, -1, CollectionID(9));
 
     /*
@@ -6898,28 +6899,28 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
     get_all_vb_seqnos(h, {}, cookie);
     verify_all_vb_seqnos(h, 0, num_vbuckets, CollectionID(0));
 
-    get_all_vb_seqnos(h, vbucket_state_alive, cookie);
+    get_all_vb_seqnos(h, RequestedVBState::Alive, cookie);
     verify_all_vb_seqnos(h, 0, num_vbuckets, CollectionID(0));
 
-    get_all_vb_seqnos(h, vbucket_state_active, cookie);
+    get_all_vb_seqnos(h, RequestedVBState::Active, cookie);
     verify_all_vb_seqnos(h, 1, num_vbuckets - 1, CollectionID(0));
 
-    get_all_vb_seqnos(h, vbucket_state_replica, cookie);
+    get_all_vb_seqnos(h, RequestedVBState::Replica, cookie);
     verify_all_vb_seqnos(h, 0, 0, CollectionID(0));
 
-    get_all_vb_seqnos(h, vbucket_state_pending, cookie);
+    get_all_vb_seqnos(h, RequestedVBState::Pending, cookie);
     verify_all_vb_seqnos(h, num_vbuckets, num_vbuckets, CollectionID(0));
 
-    get_all_vb_seqnos(h, vbucket_state_alive, cookie, 8);
+    get_all_vb_seqnos(h, RequestedVBState::Alive, cookie, 8);
     verify_all_vb_seqnos(h, 0, num_vbuckets, CollectionID(0));
 
-    get_all_vb_seqnos(h, vbucket_state_active, cookie, 8);
+    get_all_vb_seqnos(h, RequestedVBState::Active, cookie, 8);
     verify_all_vb_seqnos(h, 1, num_vbuckets - 1, CollectionID(0));
 
-    get_all_vb_seqnos(h, vbucket_state_replica, cookie, 8);
+    get_all_vb_seqnos(h, RequestedVBState::Replica, cookie, 8);
     verify_all_vb_seqnos(h, 0, 0, CollectionID(0));
 
-    get_all_vb_seqnos(h, vbucket_state_pending, cookie, 8);
+    get_all_vb_seqnos(h, RequestedVBState::Pending, cookie, 8);
     verify_all_vb_seqnos(h, num_vbuckets, num_vbuckets, CollectionID(0));
 
     testHarness->destroy_cookie(cookie);

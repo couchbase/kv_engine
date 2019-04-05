@@ -385,6 +385,32 @@ VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
     return result;
 }
 
+const char* VBucket::toString(vbucket_state_t s) {
+    switch (s) {
+    case vbucket_state_active:
+        return "active";
+    case vbucket_state_replica:
+        return "replica";
+    case vbucket_state_pending:
+        return "pending";
+    case vbucket_state_dead:
+        return "dead";
+    }
+    return "unknown";
+}
+
+vbucket_state_t VBucket::fromString(const char* state) {
+    if (strcmp(state, "active") == 0) {
+        return vbucket_state_active;
+    } else if (strcmp(state, "replica") == 0) {
+        return vbucket_state_replica;
+    } else if (strcmp(state, "pending") == 0) {
+        return vbucket_state_pending;
+    } else {
+        return vbucket_state_dead;
+    }
+}
+
 void VBucket::setState(vbucket_state_t to, const nlohmann::json& meta) {
     folly::SharedMutex::WriteHolder wlh(getStateLock());
     setState_UNLOCKED(to, meta, wlh);
