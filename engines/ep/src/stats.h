@@ -292,7 +292,7 @@ public:
     std::atomic<hrtime_t> bgMaxWait;
 
     //! Histogram of background wait times.
-    HdrMicroSecHistogram bgWaitHisto;
+    MicrosecondHistogram bgWaitHisto;
 
     /** The sum of the deltas (in usec) from the dispatcher started to load
      *  item until was done
