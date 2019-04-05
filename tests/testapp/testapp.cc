@@ -489,10 +489,6 @@ nlohmann::json TestappTest::generate_config(uint16_t ssl_port) {
     return ret;
 }
 
-nlohmann::json TestappTest::generate_config() {
-    return generate_config(ssl_port);
-}
-
 void write_config_to_file(const std::string& config, const std::string& fname) {
     FILE* fp = fopen(fname.c_str(), "w");
 
