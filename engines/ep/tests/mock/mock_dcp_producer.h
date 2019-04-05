@@ -136,6 +136,10 @@ public:
         return log.getBytesOutstanding();
     }
 
+    void ackBytesOutstanding(size_t bytes) {
+        return log.acknowledge(bytes);
+    }
+
     DcpReadyQueue& getReadyQueue() {
         return ready;
     }

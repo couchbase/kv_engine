@@ -81,10 +81,7 @@ uint32_t MutationResponse::getHeaderSize() const {
     switch (item_->getOperation()) {
     case queue_op::mutation:
     case queue_op::system_event:
-    case queue_op::commit_sync_write:
         return item_->isDeleted() ? getDeleteLength() : mutationBaseMsgBytes;
-    case queue_op::abort_sync_write:
-        return abortBaseMsgBytes;
     case queue_op::pending_sync_write:
         return prepareBaseMsgBytes;
     default:
