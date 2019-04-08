@@ -5954,8 +5954,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
                 // exception.
                 auto handle = vb->lockCollections();
                 if (handle.exists(reqCollection.get())) {
-                    highSeqno = htonll(
-                            vb->lockCollections().getHighSeqno(*reqCollection));
+                    highSeqno = htonll(handle.getHighSeqno(*reqCollection));
                 } else {
                     // If the collection doesn't exist in this
                     // vBucket, return nothing for this vBucket by

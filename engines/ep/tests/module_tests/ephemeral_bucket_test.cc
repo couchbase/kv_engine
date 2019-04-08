@@ -65,15 +65,27 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
     auto vb = store->getVBucket(vbid);
     auto key = makeStoredDocKey("doc");
 
-    // Get a collections ReadHandle for pageOut and a CachingReadHandle,
-    // because it's required by fetchValidValue to deal with expiry. It
-    // doesn't matter in what order we get them, but we must get them before
-    // the HashBucketLock to prevent lock order inversion warnings in ThreadSan.
-    auto readHandle = vb->lockCollections();
-    auto cHandle = vb->lockCollections(key);
-    auto res = vb->fetchValidValue(
-            WantsDeleted::No, TrackReference::Yes, QueueExpired::No, cHandle);
-    ASSERT_TRUE(vb->pageOut(readHandle, res.lock, res.storedValue));
+    // Test visitor which pages out our key
+    struct Visitor : public HashTableVisitor {
+        Visitor(VBucket& vb, StoredDocKey key)
+            : vb(vb), key(key), readHandle(vb.lockCollections()) {
+        }
+        bool visit(const HashTable::HashBucketLock& lh,
+                   StoredValue& v) override {
+            if (v.getKey() == key) {
+                StoredValue* vPtr = &v;
+                EXPECT_TRUE(vb.pageOut(readHandle, lh, vPtr));
+            }
+            return true;
+        }
+        VBucket& vb;
+        StoredDocKey key;
+        Collections::VB::Manifest::ReadHandle readHandle;
+    };
+
+    // Invoke the visitor so the item gets paged out.
+    Visitor visitor(*vb, key);
+    vb->ht.visit(visitor);
 
     stats = get_stat("vbucket-details 0");
     EXPECT_EQ("1", stats.at("vb_0:auto_delete_count"));
