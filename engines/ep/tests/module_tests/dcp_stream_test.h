@@ -19,6 +19,9 @@
 
 #include "dcp_test.h"
 
+class MockDcpConsumer;
+class MockPassiveStream;
+
 /**
  * Test fixture for DCP stream tests.
  * The std::string template param specifies the type of bucket to test -
@@ -30,4 +33,38 @@ protected:
     void SetUp() override;
 
     void TearDown() override;
+};
+
+/*
+ * Test fixture for single-threaded ActiveStream tests
+ */
+class SingleThreadedActiveStreamTest : public SingleThreadedEPBucketTest {
+public:
+    void SetUp() override;
+    void TearDown() override;
+
+protected:
+    void setupProducer(const std::vector<std::pair<std::string, std::string>>&
+                               controls = {});
+
+    MutationStatus public_processSet(VBucket& vb,
+                                     Item& item,
+                                     const VBQueueItemCtx& ctx = {});
+
+    std::shared_ptr<MockDcpProducer> producer;
+    std::shared_ptr<MockActiveStream> stream;
+};
+
+/*
+ * Test fixture for single-threaded PassiveStream tests
+ */
+class SingleThreadedPassiveStreamTest : public SingleThreadedEPBucketTest {
+public:
+    void SetUp() override;
+    void TearDown() override;
+
+protected:
+    std::shared_ptr<MockDcpConsumer> consumer;
+    // Owned by the engine
+    MockPassiveStream* stream;
 };

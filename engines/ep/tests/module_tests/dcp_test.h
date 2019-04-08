@@ -117,30 +117,3 @@ protected:
     // function fakeDcpAddFailoverLog.
     static int callbackCount;
 };
-
-/*
- * Test fixture for single-threaded Stream tests
- */
-class SingleThreadedStreamTest : public SingleThreadedEPBucketTest {
-public:
-    void SetUp() override;
-
-protected:
-    void setupProducer(
-            const std::vector<std::pair<std::string, std::string>>& controls);
-
-    void destroyProducer();
-
-    MutationStatus public_processSet(VBucket& vb,
-                                     Item& item,
-                                     const VBQueueItemCtx& ctx = {});
-
-    /*
-     * Queues a Prepare and verifies that the corresponding DCP_PREPARE
-     * message has been queued into the ActiveStream::readyQ.
-     */
-    void testActiveSendsDcpPrepare();
-
-    std::shared_ptr<MockDcpProducer> producer;
-    std::shared_ptr<MockActiveStream> stream;
-};

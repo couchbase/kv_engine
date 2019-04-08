@@ -2164,7 +2164,7 @@ private:
     friend class VBucketTest;
     friend class VBucketDurabilityTest;
     friend class DurabilityMonitorTest;
-    friend class SingleThreadedStreamTest;
+    friend class SingleThreadedActiveStreamTest;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };

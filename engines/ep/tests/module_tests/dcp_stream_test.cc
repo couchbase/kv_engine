@@ -16,19 +16,26 @@
  */
 
 #include "dcp_stream_test.h"
-#include "../mock/mock_dcp.h"
-#include "../mock/mock_dcp_producer.h"
-#include "../mock/mock_stream.h"
+
 #include "checkpoint_manager.h"
 #include "dcp/backfill_disk.h"
 #include "dcp/backfill_memory.h"
 #include "dcp/dcpconnmap.h"
+#include "dcp_utils.h"
 #include "ep_engine.h"
 #include "ephemeral_vb.h"
 #include "executorpool.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
 #include "test_helpers.h"
+#include "thread_gate.h"
+
+#include "../mock/mock_dcp.h"
+#include "../mock/mock_dcp_consumer.h"
+#include "../mock/mock_dcp_producer.h"
+#include "../mock/mock_stream.h"
+#include "../mock/mock_synchronous_ep_engine.h"
+
 #include <programs/engine_testapp/mock_server.h>
 #include <xattr/utils.h>
 #include <thread>
@@ -1340,3 +1347,300 @@ INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
                         [](const ::testing::TestParamInfo<std::string>& info) {
                             return info.param;
                         });
+
+void SingleThreadedActiveStreamTest::SetUp() {
+    SingleThreadedEPBucketTest::SetUp();
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    setupProducer();
+}
+
+void SingleThreadedActiveStreamTest::TearDown() {
+    stream.reset();
+    producer.reset();
+    SingleThreadedEPBucketTest::TearDown();
+}
+
+void SingleThreadedActiveStreamTest::setupProducer(
+        const std::vector<std::pair<std::string, std::string>>& controls) {
+    uint32_t flags = 0;
+
+    producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", flags, false /*startTask*/);
+
+    for (const auto& c : controls) {
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  producer->control(0 /*opaque*/, c.first, c.second));
+    }
+
+    auto vb = engine->getVBucket(vbid);
+
+    stream = std::make_shared<MockActiveStream>(engine.get(),
+                                                producer,
+                                                flags,
+                                                0 /*opaque*/,
+                                                *vb,
+                                                0 /*st_seqno*/,
+                                                ~0 /*en_seqno*/,
+                                                0x0 /*vb_uuid*/,
+                                                0 /*snap_start_seqno*/,
+                                                ~0 /*snap_end_seqno*/);
+
+    stream->public_registerCursor(
+            *vb->checkpointManager, "test_active_stream", 0 /*seqno*/);
+    stream->setActive();
+}
+
+MutationStatus SingleThreadedActiveStreamTest::public_processSet(
+        VBucket& vb, Item& item, const VBQueueItemCtx& ctx) {
+    auto htRes = vb.ht.findForWrite(item.getKey());
+    return vb
+            .processSet(htRes.lock,
+                        htRes.storedValue,
+                        item,
+                        0 /*cas*/,
+                        true /*allowExisting*/,
+                        false /*hasMetadata*/,
+                        ctx,
+                        {/*no predicate*/})
+            .first;
+}
+
+void SingleThreadedPassiveStreamTest::SetUp() {
+    // Bucket Quota 100MB, Replication Threshold 4%
+    config_string += "max_size=104857600;replication_throttle_threshold=4";
+    SingleThreadedEPBucketTest::SetUp();
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(0 /*opaque*/, vbid, 0 /*flags*/));
+
+    stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    ASSERT_TRUE(stream->isActive());
+
+    const auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(1, readyQ.size());
+    ASSERT_EQ(DcpResponse::Event::StreamReq, readyQ.front()->getEvent());
+    ASSERT_TRUE(stream->public_popFromReadyQ());
+    ASSERT_FALSE(stream->public_popFromReadyQ());
+}
+
+void SingleThreadedPassiveStreamTest::TearDown() {
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(0 /*opaque*/, vbid));
+    consumer.reset();
+    SingleThreadedEPBucketTest::TearDown();
+}
+
+/*
+ * MB-31410: In this test I simulate a DcpConsumer that receives messages
+ * while previous messages have been buffered. This simulates the system
+ * when Replication Throttling triggers.
+ * The purpose is to check that the Consumer can /never/ process new incoming
+ * messages /before/ the DcpConsumerTask processes buffered messages.
+ * Note that, while I implement this test by using out-of-order mutations, the
+ * test covers a generic scenario where we try to process any kind of
+ * out-of-order messages (e.g., mutations and snapshot-markers).
+ */
+TEST_F(SingleThreadedPassiveStreamTest, MB31410) {
+    const std::string value(1024 * 1024, 'x');
+    const uint64_t snapStart = 1;
+    const uint64_t snapEnd = 100;
+
+    // The consumer receives the snapshot-marker
+    uint32_t opaque = 0;
+    SnapshotMarker snapshotMarker(opaque,
+                                  vbid,
+                                  snapStart,
+                                  snapEnd,
+                                  dcp_marker_flag_t::MARKER_FLAG_MEMORY,
+                                  {});
+    stream->processMarker(&snapshotMarker);
+
+    // The consumer receives mutations.
+    // Here I want to create the scenario where we have hit the replication
+    // threshold.
+    size_t seqno = snapStart;
+    for (; seqno <= snapEnd; seqno++) {
+        auto ret = stream->messageReceived(
+                makeMutationConsumerMessage(seqno, vbid, value, opaque));
+
+        // We get ENGINE_TMPFAIL when we hit the replication threshold.
+        // When it happens, we buffer the mutation for deferred processing
+        // in the DcpConsumerTask.
+        if (ret == ENGINE_TMPFAIL) {
+            auto& epStats = engine->getEpStats();
+
+            ASSERT_GT(epStats.getEstimatedTotalMemoryUsed(),
+                      epStats.getMaxDataSize() *
+                              epStats.replicationThrottleThreshold);
+            ASSERT_EQ(1, stream->getNumBufferItems());
+            auto& bufferedMessages = stream->getBufferMessages();
+            auto* dcpResponse = bufferedMessages.at(0).get();
+            ASSERT_EQ(seqno,
+                      *dynamic_cast<MutationResponse&>(*dcpResponse)
+                               .getBySeqno());
+
+            // Simulate that we have recovered from OOM.
+            // We need this for processing other items in the next steps.
+            epStats.setMaxDataSize(epStats.getMaxDataSize() * 2);
+            ASSERT_LT(epStats.getEstimatedTotalMemoryUsed(),
+                      epStats.getMaxDataSize() *
+                              epStats.replicationThrottleThreshold);
+
+            break;
+        } else {
+            ASSERT_EQ(ENGINE_SUCCESS, ret);
+        }
+    }
+
+    // At this point 'seqno' has been buffered. So in the following:
+    //     - I start frontEndThread where I try to process 'seqno + 1'
+    //     - I simulate the DcpConsumerTask in this_thread by calling
+    //         PassiveStream::processBufferedMessages
+    ThreadGate tg(2);
+
+    // Used to simulate the scenario where frontEndThread executes while the
+    // DcpConsumerTask is draining the message buffer.
+    struct {
+        std::mutex m;
+        std::condition_variable cv;
+        bool frontEndDone = false;
+    } sync;
+
+    auto nextFrontEndSeqno = seqno + 1;
+    auto frontEndTask =
+            [this, nextFrontEndSeqno, &value, opaque, &tg, &sync]() {
+                tg.threadUp();
+                // If the following check fails it is enough to assert that the
+                // test has failed. But, I use EXPECT rather than ASSERT
+                // because, in the case of failure, I want to trigger also the
+                // ASSERT_NO_THROW below.
+                EXPECT_EQ(ENGINE_TMPFAIL,
+                          stream->messageReceived(makeMutationConsumerMessage(
+                                  nextFrontEndSeqno, vbid, value, opaque)));
+                // I cannot check the status of the buffer here because we have
+                // released buffer.bufMutex and the DcpConsumerTask has started
+                // draining. That would give TSan errors on CV. I do the check
+                // in the DcpConsumerTask (below).
+
+                // Unblock DcpConsumerTask
+                {
+                    std::lock_guard<std::mutex> lg(sync.m);
+                    sync.frontEndDone = true;
+                }
+                sync.cv.notify_one();
+            };
+    // I need to run start frontEndThread before this_thread calls
+    // PassiveStream::processBufferedMessages. That's because this_thread
+    // would block forever in tg.threadUp() otherwise.
+    std::thread frontEndThread(frontEndTask);
+
+    // When this_thread goes to sleep in the hook function, frontEndThread
+    // executes and tries to process the new incoming message.
+    // If frontEndThread succeeds, then it means that we have processed new
+    // messages /before/ the buffered ones.
+    // In the specific case (where we are processing out-of-order mutations
+    // and the new incoming message in frontEndThread is 'seqno + 1') it means
+    // that we are trying to break the seqno-invariant.
+    // When this_thread resumes its execution, it will process the mutations
+    // previously buffered. So, if frontEndThread has got ENGINE_SUCCESS above,
+    // then this_thread will throw an exception (Monotonic<x> invariant failed).
+    std::set<int64_t> processedBufferSeqnos;
+    bool isFirstRun = true;
+    std::function<void()> hook =
+            [this, &tg, &isFirstRun, seqno, nextFrontEndSeqno, &sync]() {
+                // If the test succeeds (i.e., the frontEndTask above sees
+                // ENGINE_TMPFAIL) we will have 2 buffered messages, so we will
+                // execute here twice. Calling tg.threadUp again would lead to
+                // deadlock.
+                if (!tg.isComplete()) {
+                    tg.threadUp();
+                }
+
+                // Let the frontEndThread complete its execution.
+                //
+                // Note: There are many logic checks in this test that aim to
+                //     both:
+                //     1) ensuring that the test is valid
+                //     2) ensuring that our logic works properly
+                //     The problem is: if the test fails, then we are sure that
+                //     our logic is broken; but, if the test doesn't fail we can
+                //     assert that our logic is safe only if the test is valid.
+                //     We may have a false negative otherwise.
+                //     This test is valid only if frontEndThread has completed
+                //     its execution at this point. Even if the logic checks
+                //     seems enough to ensure that, the test is complex and I
+                //     may have forgot something. Also, we are back-porting
+                //     this patch to versions where logic conditions differ.
+                //     So, here I enforce a strong sync-condition so that we are
+                //     always sure that frontEndThread has completed before
+                //     we proceed.
+                {
+                    std::unique_lock<std::mutex> ul(sync.m);
+                    sync.cv.wait(ul, [&sync] { return sync.frontEndDone; });
+                }
+
+                // Check the status of the buffer before draining. Here the
+                // state must be the one left by the frontEndThread. Note that
+                // we have released buffer.bufMutex here. But, accessing the
+                // buffer is safe as:
+                // - test is designed so that we must have buffered 2 items
+                // - no further front-end message will be processed/buffered
+                //     at this point
+                // - only this thread can remove messages from the buffer
+                if (isFirstRun) {
+                    auto numBufferedItems = stream->getNumBufferItems();
+                    // Again, avoid that we fail with ASSERT_EQ or
+                    // std::out_of_range so that this_thread proceeds and
+                    // throws.
+                    EXPECT_EQ(2, numBufferedItems);
+                    if (numBufferedItems == 2) {
+                        auto& bufferedMessages = stream->getBufferMessages();
+                        auto* dcpResponse = bufferedMessages.at(0).get();
+                        EXPECT_EQ(seqno,
+                                  *dynamic_cast<MutationResponse&>(*dcpResponse)
+                                           .getBySeqno());
+                        dcpResponse = bufferedMessages.at(1).get();
+                        EXPECT_EQ(nextFrontEndSeqno,
+                                  *dynamic_cast<MutationResponse&>(*dcpResponse)
+                                           .getBySeqno());
+                    }
+
+                    isFirstRun = false;
+                }
+            };
+    stream->setProcessBufferedMessages_postFront_Hook(hook);
+
+    // If the seqno-invariant is broken, the next call throws:
+    //     C++ exception with description "Monotonic<x> invariant failed:
+    //     new value (<seqno>) breaks invariant on current value
+    //     (<nextFrontEndSeqno>)" thrown in the test body.
+    uint32_t bytesProcessed{0};
+    ASSERT_NO_THROW(EXPECT_EQ(all_processed,
+                              stream->processBufferedMessages(
+                                      bytesProcessed, 100 /*batchSize*/)));
+    EXPECT_GT(bytesProcessed, 0);
+
+    frontEndThread.join();
+
+    // Explicitly verify the order of mutations in the CheckpointManager.
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto* ckptMgr =
+            static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
+    ASSERT_TRUE(ckptMgr);
+    std::vector<queued_item> items;
+    ckptMgr->getAllItemsForPersistence(items);
+    // Note: I expect only items (no metaitems) because we have  only 1
+    // checkpoint and the cursor was at checkpoint-start before moving
+    EXPECT_EQ(1, ckptMgr->getNumCheckpoints());
+    EXPECT_EQ(nextFrontEndSeqno, items.size());
+    uint64_t prevSeqno = 0;
+    for (auto& item : items) {
+        ASSERT_EQ(queue_op::mutation, item->getOperation());
+        EXPECT_GT(item->getBySeqno(), prevSeqno);
+        prevSeqno = item->getBySeqno();
+    }
+}
