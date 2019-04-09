@@ -824,7 +824,11 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
             collectionsManager->update(*vb);
         }
 
-        if (to == vbucket_state_active && transfer == TransferVB::No) {
+        if (to == vbucket_state_active && oldstate != vbucket_state_active &&
+            transfer == TransferVB::No) {
+            // Changed state to active and this isn't a transfer (i.e.
+            // takeover), which means this is a new fork in the vBucket history
+            // - create a new failover table entry.
             const snapshot_range_t range = vb->getPersistedSnapshot();
             auto highSeqno = range.end == vb->getPersistenceSeqno()
                                      ? range.end

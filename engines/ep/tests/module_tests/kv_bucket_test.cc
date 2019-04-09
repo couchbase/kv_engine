@@ -1288,6 +1288,38 @@ TEST_P(KVBucketParamTest, MB31495_GetRandomKey) {
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
 }
 
+// MB-33702: Test that SetVBucket state creates a new failover table entry when
+// transitioning from non-active to active.
+TEST_P(KVBucketParamTest, FailoverEntryAddedNonActiveToActive) {
+    // Setup - set vBucket to a non-active state.
+    store->setVBucketState(vbid, vbucket_state_replica);
+    auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(1, vb->failovers->getNumEntries());
+
+    // Test
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(vbid, vbucket_state_active));
+    EXPECT_EQ(2, vb->failovers->getNumEntries());
+}
+
+// MB-33702: Test that SetVBucket state doesn't create a new failover table
+// entry when set to active when already active - this can happen if the
+// replication topology is changed (but state stays as active).
+TEST_P(KVBucketParamTest, FailoverEntryNotAddedActiveToActive) {
+    // Setup - Should start in active state.
+    auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(vbucket_state_active, vb->getState());
+    ASSERT_EQ(1, vb->failovers->getNumEntries());
+
+    // Test - with a topology specified, we shouldn't get a new failover entry.
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(
+                      vbid,
+                      vbucket_state_active,
+                      {{"topology", nlohmann::json::array({{"a", "b"}})}}));
+    EXPECT_EQ(1, vb->failovers->getNumEntries());
+}
+
 class StoreIfTest : public KVBucketTest {
 public:
     void SetUp() override {
