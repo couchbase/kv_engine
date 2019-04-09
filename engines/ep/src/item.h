@@ -109,7 +109,7 @@ public:
          Vbid vbid = Vbid(0),
          uint64_t sno = 1,
          uint8_t nru = INITIAL_NRU_VALUE,
-         uint16_t freqCount = initialFreqCount);
+         uint8_t freqCount = initialFreqCount);
 
     Item(const DocKey& k,
          const Vbid vb,
@@ -135,7 +135,7 @@ public:
             Vbid vbid = Vbid(0),
             uint64_t sno = 1,
             uint8_t nru = INITIAL_NRU_VALUE,
-            uint16_t freqCount = initialFreqCount) {
+            uint8_t freqCount = initialFreqCount) {
         auto ret = new Item(k,
                             fl,
                             exp,
@@ -368,12 +368,12 @@ public:
     }
 
     /// Set the frequency counter value to the input value
-    void setFreqCounterValue(uint16_t newValue) {
+    void setFreqCounterValue(uint8_t newValue) {
         value.unsafeGetPointer().setTag(newValue);
     }
 
     /// Gets the frequency counter value
-    uint16_t getFreqCounterValue() const {
+    uint8_t getFreqCounterValue() const {
         return value.get().getTag();
     }
 
