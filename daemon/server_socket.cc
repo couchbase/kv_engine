@@ -170,7 +170,6 @@ nlohmann::json ServerSocket::toJson() const {
     nlohmann::json ret;
 
     ret["ssl"] = interface->isSslPort();
-    ret["protocol"] = "memcached";
 
     if (interface->family == AF_INET) {
         ret["family"] = "AF_INET";

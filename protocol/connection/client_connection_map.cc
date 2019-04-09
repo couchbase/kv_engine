@@ -53,8 +53,7 @@ void ConnectionMap::initialize(const nlohmann::json& ports) {
     }
 
     sa_family_t family;
-    for (const auto obj : *array) {
-        // auto fam = port.find("family");
+    for (const auto& obj : *array) {
         auto fam = cb::jsonGet<std::string>(obj, "family");
         if (fam == "AF_INET") {
             family = AF_INET;
@@ -63,20 +62,12 @@ void ConnectionMap::initialize(const nlohmann::json& ports) {
         }
 
         auto ssl = cb::jsonGet<bool>(obj, "ssl");
-        auto port = cb::jsonGet<size_t>(obj, "port");
-        auto protocol = cb::jsonGet<std::string>(obj, "protocol");
-
-        MemcachedConnection* connection;
-        if (protocol != "memcached") {
-            throw std::logic_error(
-                    "ConnectionMap::initialize: Invalid value passed for "
-                    "protocol: " +
-                    std::string(protocol));
+        auto port = static_cast<in_port_t>(cb::jsonGet<size_t>(obj, "port"));
+        if (port == in_port_t(-1)) {
+            throw std::runtime_error("port cannot be -1");
         }
-
-        auto portVal = static_cast<in_port_t>(port);
-        connection = new MemcachedConnection("", portVal, family, ssl);
-        connections.push_back(std::unique_ptr<MemcachedConnection>{connection});
+        connections.push_back(
+                std::make_unique<MemcachedConnection>("", port, family, ssl));
     }
 }
 

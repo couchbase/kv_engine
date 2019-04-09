@@ -558,7 +558,6 @@ void TestappTest::verify_server_running() {
 }
 
 void TestappTest::parse_portnumber_file() {
-    FILE* fp;
     // I've seen that running under valgrind startup of the processes
     // might be slow, and getting even worse if the machine is under
     // load. Instead of having a "false timeout" just because the
@@ -566,57 +565,54 @@ void TestappTest::parse_portnumber_file() {
     // if we hit it we have a real problem and not just a loaded
     // server (rebuilding all of the source one more time is just
     // putting more load on the servers).
-    using std::chrono::minutes;
-    using std::chrono::seconds;
-    const auto timeout = seconds(minutes(5)).count();
-    const time_t deadline = time(NULL) + timeout;
-    // Wait up to timeout seconds for the port file to be created.
+    using std::chrono::steady_clock;
+    const auto timeout = steady_clock::now() + std::chrono::minutes(5);
+
     do {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        fp = fopen(portnumber_file.c_str(), "r");
-        if (fp != nullptr) {
+        if (cb::io::isFile(portnumber_file)) {
             break;
         }
 
         verify_server_running();
-    } while (time(NULL) < deadline);
+    } while (steady_clock::now() < timeout);
 
-    ASSERT_NE(nullptr, fp) << "Timed out after " << timeout
-                           << "s waiting for memcached port file '"
-                           << portnumber_file << "' to be created.";
-    fclose(fp);
+    ASSERT_TRUE(cb::io::isFile(portnumber_file))
+            << "Timed out after 5 minutes waiting for memcached port file '"
+            << portnumber_file << "' to be created.";
 
+    // We'll throw here if anything goes wrong
+    const auto json = nlohmann::json::parse(cb::io::loadFile(portnumber_file));
+
+    connectionMap.initialize(json);
+
+    // The tests which don't use the MemcachedConnection class needs the
+    // global variables port and ssl_port to be set
     port = (in_port_t)-1;
     ssl_port = (in_port_t)-1;
 
-    // We'll throw here if anything goes wrong
-    const nlohmann::json portnumbers =
-            nlohmann::json::parse(cb::io::loadFile(portnumber_file));
-
-    connectionMap.initialize(portnumbers);
-
-    auto array = portnumbers["ports"];
-    for (auto obj : array) {
-        auto proto = obj.find("protocol");
-        if (proto == obj.end() || proto->get<std::string>() != "memcached") {
-            // the new test use the connectionmap
-            continue;
+    connectionMap.iterate([](MemcachedConnection& connection) {
+        if (connection.getFamily() == AF_INET) {
+            if (connection.isSsl()) {
+                ssl_port = connection.getPort();
+            } else {
+                port = connection.getPort();
+            }
         }
+    });
 
-        auto fam = obj.find("family");
-        if (fam == obj.end() || fam->get<std::string>() != "AF_INET") {
-            // For now we don't test IPv6
-            continue;
-        }
-
-        auto ssl = cb::jsonGet<bool>(obj, "ssl");
-
-        if (ssl) {
-            ssl_port = static_cast<in_port_t>(cb::jsonGet<size_t>(obj, "port"));
-        } else {
-            port = static_cast<in_port_t>(cb::jsonGet<size_t>(obj, "port"));
-        }
+    if (port == in_port_t(-1)) {
+        throw std::runtime_error(
+                "parse_portnumber_file: Failed to locate an plain IPv4 "
+                "connection");
     }
+
+    if (ssl_port == in_port_t(-1)) {
+        throw std::runtime_error(
+                "parse_portnumber_file: Failed to locate a SSL IPv4 "
+                "connection");
+    }
+
     EXPECT_EQ(0, remove(portnumber_file.c_str()));
 }
 
@@ -737,6 +733,10 @@ void TestappTest::start_external_server() {
 }
 
 SOCKET create_connect_plain_socket(in_port_t port) {
+    if (port == in_port_t(-1)) {
+        throw std::runtime_error(
+                "create_connect_plain_socket: Can't connect to port == -1");
+    }
     auto sock = cb::net::new_socket("", port, AF_INET);
     if (sock == INVALID_SOCKET) {
         ADD_FAILURE() << "Failed to connect socket to 127.0.0.1:" << port;
@@ -749,6 +749,10 @@ SOCKET connect_to_server_plain(in_port_t port) {
 }
 
 static SOCKET connect_to_server_ssl(in_port_t ssl_port) {
+    if (ssl_port == in_port_t(-1)) {
+        throw std::runtime_error(
+                "connect_to_server_ssl: Can't connect to port == -1");
+    }
     SOCKET sock = create_connect_ssl_socket(ssl_port);
     if (sock == INVALID_SOCKET) {
         ADD_FAILURE() << "Failed to connect SSL socket to port" << ssl_port;

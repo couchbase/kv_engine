@@ -31,6 +31,10 @@ static BIO *ssl_bio_w = nullptr;
 
 SOCKET create_connect_ssl_socket(in_port_t port) {
     SOCKET sfd;
+    if (ssl_port == in_port_t(-1)) {
+        throw std::runtime_error(
+                "create_connect_ssl_socket: Can't connect to ssl_port == -1");
+    }
 
     std::tie(sfd, ssl_ctx, bio) = cb::net::new_ssl_socket("", port, AF_INET);
 
