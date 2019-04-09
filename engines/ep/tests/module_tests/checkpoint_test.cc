@@ -1815,17 +1815,14 @@ TYPED_TEST(CheckpointTest, expelCursorPointingToLastItem) {
      * 1002 - 2nd item  <<<<<<< persistenceCursor
      */
 
-    EXPECT_EQ(itemCount + 1 , this->manager->expelUnreferencedCheckpointItems());
-    EXPECT_EQ(itemCount + 1, this->global_stats.itemsExpelledFromCheckpoints);
-
-    /*
-     * After expelling checkpoint now looks as follows:
-     * 1000 - New Dummy Item <<<<<<< persistenceCursor
-     * 1001 - 2nd item (key2)
-     */
-
-    // The full checkpoint still contains the 3 items added.
-    EXPECT_EQ(itemCount, this->manager->getNumOpenChkItems());
+    // Don't expel anything because the cursor points to item that has the
+    // highest seqno for the checkpoint so we move the expel point back
+    // one, but now it has a previous entry with the same seqno so again
+    // move back one.  The expel point now points to a metadata item so
+    // move back again.  We have now reached the dummy item and so we
+    // don't expel anything.
+    EXPECT_EQ(0, this->manager->expelUnreferencedCheckpointItems());
+    EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
 
@@ -1894,6 +1891,77 @@ TYPED_TEST(CheckpointTest, dontExpelIfCursorAtMetadataItemWithSameSeqno) {
      */
 
     // We should not expel any items due to dcpCursor1
+    EXPECT_EQ(0, this->manager->expelUnreferencedCheckpointItems());
+    EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
+}
+
+// Test that if we have a item after a mutation with the same seqno
+// then we will move the expel point backwards to the mutation
+// (and possibly further).
+TYPED_TEST(CheckpointTest, doNotExpelIfHaveSameSeqnoAfterMutation) {
+    this->checkpoint_config = CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
+                                               /*maxItemsInCheckpoint*/ 1,
+                                               /*maxCheckpoints*/ 2,
+                                               /*itemBased*/ true,
+                                               /*keepClosed*/ false,
+                                               /*persistenceEnabled*/ true);
+    this->createManager();
+
+    // Add a meta data operation
+    this->manager->queueSetVBState(*this->vbucket);
+
+    const int itemCount{2};
+    for (auto ii = 0; ii < itemCount; ++ii) {
+        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
+    }
+
+    /*
+     * First checkpoint (closed) is as follows:
+     * 1000 - dummy item   <<<<<<< persistenceCursor
+     * 1001 - checkpoint start
+     * 1001 - set VB state
+     * 1001 - mutation
+     * 1001 - checkpoint end
+     *
+     * Second checkpoint (open) is as follows:
+     * 1001 - dummy item
+     * 1002 - checkpoint start
+     * 1002 - mutation
+     */
+
+    // Move the persistence cursor to the second mutation.
+    bool isLastMutationItem{false};
+    for (auto ii = 0; ii < 6; ++ii) {
+        auto item = this->manager->nextItem(
+                this->manager->getPersistenceCursor(), isLastMutationItem);
+    }
+
+    std::string dcpCursor1(DCP_CURSOR_PREFIX + std::to_string(1));
+    CursorRegResult regResult =
+            this->manager->registerCursorBySeqno(dcpCursor1.c_str(), 1000);
+
+    // Move the dcp cursor to the checkpoint end.
+    for (auto ii = 0; ii < 4; ++ii) {
+        auto item = this->manager->nextItem(regResult.cursor.lock().get(),
+                                            isLastMutationItem);
+    }
+
+    /*
+     * First checkpoint (closed) is as follows:
+     * 1000 - dummy item
+     * 1001 - checkpoint start
+     * 1001 - set VB state
+     * 1001 - mutation
+     * 1001 - checkpoint end  <<<<<<< dcpCursor1
+     *
+     * Second checkpoint (open) is as follows:
+     * 1001 - dummy item
+     * 1002 - checkpoint start
+     * 1002 - mutation   <<<<<<< persistenceCursor
+     */
+
+    // We should not expel any items due to dcpCursor1 as we end up
+    // moving the expel point back to the dummy item.
     EXPECT_EQ(0, this->manager->expelUnreferencedCheckpointItems());
     EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
 }

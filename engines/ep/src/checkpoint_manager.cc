@@ -453,14 +453,14 @@ size_t CheckpointManager::expelUnreferencedCheckpointItems() {
     {
         LockHolder lh(queueLock);
 
-        auto containsCursors = [](std::unique_ptr<Checkpoint>& c) {
+        const auto containsCursors = [](std::unique_ptr<Checkpoint>& c) {
             if (c->getNumCursorsInCheckpoint() > 0) {
                 return true;
             }
             return false;
         };
         // Find the oldest checkpoint with cursors in it.
-        auto it = std::find_if(
+        const auto it = std::find_if(
                 checkpointList.begin(), checkpointList.end(), containsCursors);
         Checkpoint* currentCheckpoint =
                 (it == checkpointList.end()) ? nullptr : (*it).get();
@@ -475,11 +475,11 @@ size_t CheckpointManager::expelUnreferencedCheckpointItems() {
             return 0;
         }
 
-        auto findLowestCursor =
+        const auto findLowestCursor =
                 [currentCheckpoint](Cursor& current,
                                     const cursor_index::value_type& cursor) {
                     // Get the cursor's current checkpoint.
-                    auto checkpoint =
+                    const auto checkpoint =
                             (*(cursor.second->currentCheckpoint)).get();
                     // Is the cursor in the checkpoint we are interested in?
                     if (currentCheckpoint != checkpoint) {
@@ -487,7 +487,8 @@ size_t CheckpointManager::expelUnreferencedCheckpointItems() {
                     }
                     // We are in the same checkpoint, have we found any
                     // previous cursors?
-                    if (current.lock() == nullptr) {
+                    auto currentCursor = current.lock();
+                    if (currentCursor == nullptr) {
                         // No, so this has got to be the lowest we currently
                         // know about.
                         current.setCursor(cursor.second);
@@ -495,16 +496,12 @@ size_t CheckpointManager::expelUnreferencedCheckpointItems() {
                     }
                     // We already have a cursor so need to see if this one
                     // is lower. Get the new cursor's seqno.
-                    auto seqno = (*cursor.second->currentPos)->getBySeqno();
-                    // Does it have a seqno lower than our current lowest or
-                    // is it pointing to a meta-data item that is immediately
-                    // before the cursor we were going to expel from and so
-                    // has the same seqno?
-                    auto currentLowestSeqno = (*current.lock()->currentPos)->getBySeqno();
-                    if (seqno < currentLowestSeqno ||
-                        (seqno == currentLowestSeqno &&
-                         (*cursor.second->currentPos)
-                                 ->isCheckPointMetaItem())) {
+                    const auto seqno =
+                            (*cursor.second->currentPos)->getBySeqno();
+                    // Does it have a seqno lower than our current lowest?
+                    const auto currentLowestSeqno =
+                            (*currentCursor->currentPos)->getBySeqno();
+                    if (seqno < currentLowestSeqno) {
                         // Yes, so make it the new lowest.
                         current.setCursor(cursor.second);
                     }
@@ -521,38 +518,40 @@ size_t CheckpointManager::expelUnreferencedCheckpointItems() {
 
         // Create a cursor that marks where we will expel upto and
         // including.
-        auto expelUpToAndIncluding =
-                CheckpointCursor("expelUpToAndIncluding",
-                                 lowestCursor.lock().get()->currentCheckpoint,
-                                 lowestCursor.lock().get()->currentPos);
-
-        if ((*(expelUpToAndIncluding.currentPos))->getBySeqno() ==
-            int64_t(currentCheckpoint->getHighSeqno())) {
-            --expelUpToAndIncluding.currentPos;
-            /*
-             * expelUpToAndIncluding is pointing to the last
-             * mutation item in the checkpoint so move
-             * expelUpToAndIncluding back one.  This ensures that
-             * after expelling there will be at least one mutation
-             * item in the checkpoint (plus the dummy).
-             */
+        auto lowestCheckpointCursor = lowestCursor.lock();
+        if (lowestCheckpointCursor == nullptr) {
+            // Failed to get a shared_ptr to the lowest checkpoint cursor
+            // so just return 0
+            return 0;
         }
 
+        auto expelUpToAndIncluding = CheckpointCursor(
+                "expelUpToAndIncluding",
+                lowestCheckpointCursor.get()->currentCheckpoint,
+                lowestCheckpointCursor.get()->currentPos);
+
+        auto& iterator = (expelUpToAndIncluding.currentPos);
+
         /*
-         * As we don't increase the seqno for meta-items we don't want the
-         * last item expelled to be a meta-item, otherwise on registering
-         * a cursor we have a situation where for the same seqno the meta-item
-         * is not in memory but the mutation item is.  Therefore move
-         * expelUpToAndIncluding back until we reach a mutation item, (or the
-         * dummy item).
+         * Walk backwards over the checkpoint if not yet reached the dummy item,
+         * and pointing to an item that either:
+         * 1. has a seqno equal to the checkpoint's high seqno, or
+         * 2. has a previous entry with the same seqno, or
+         * 3. is pointing to a metadata item.
          */
-        while ((*expelUpToAndIncluding.currentPos)->isCheckPointMetaItem()) {
-            if (!(*expelUpToAndIncluding.currentPos)
-                         ->isNonEmptyCheckpointMetaItem()) {
-                // Reached the dummy item so just return
-                return 0;
-            }
-            --expelUpToAndIncluding.currentPos;
+        while ((iterator != currentCheckpoint->begin()) &&
+               (((*iterator)->getBySeqno() ==
+                 int64_t(currentCheckpoint->getHighSeqno())) ||
+                ((*std::prev(iterator))->getBySeqno() ==
+                 (*iterator)->getBySeqno()) ||
+                ((*iterator)->isCheckPointMetaItem()))) {
+            --iterator;
+        }
+
+        // If pointing to the dummy item then cannot expel anything and so just
+        // return.
+        if (iterator == currentCheckpoint->begin()) {
+            return 0;
         }
 
         /*
