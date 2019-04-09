@@ -510,14 +510,24 @@ void VBucket::setState_UNLOCKED(
     state = to;
 
     if (to == vbucket_state_active) {
-        if (!meta.is_null()) {
+        // Note that 'meta' has been already validated at this point:
+        //     - FirstChain: meta.at("topology").at(0)
+        //     - SecondChain: meta.at("topology").at(1)
+        nlohmann::json topology =
+                meta.is_null() ? nlohmann::json{} : meta.at("topology");
+
+        // Update the topology in the vBucket (under write lock).
+        auto lockedTopology = replicationTopology.wlock();
+        *lockedTopology = topology;
+
+        if (!topology.is_null()) {
             // Register the new topology with the durability monitor.
-            // Note that 'meta' has been already validated at this point:
-            //     - FirstChain: meta.at("topology").at(0)
-            //     - SecondChain: meta.at("topology").at(1)
-            durabilityMonitor->setReplicationTopology(meta.at("topology"));
+            durabilityMonitor->setReplicationTopology(*lockedTopology);
         }
     } else if (to == vbucket_state_replica) {
+        // Clear replication topology - not applicable for a replica.
+        *replicationTopology.wlock() = {};
+
         // @todo-durability: Add support for DurabilityMonitor at Replica
         durabilityMonitor = std::make_unique<DurabilityMonitor>(*this);
     }
@@ -540,8 +550,8 @@ vbucket_state VBucket::getVBucketState() const {
                           true /*supportsNamespaces*/};
 }
 
-const nlohmann::json& VBucket::getReplicationTopology() const {
-    return durabilityMonitor->getReplicationTopology();
+nlohmann::json VBucket::getReplicationTopology() const {
+    return *replicationTopology.rlock();
 }
 
 void VBucket::processDurabilityTimeout(
@@ -2574,10 +2584,7 @@ void VBucket::_addStats(bool details,
         addStat("hp_vb_req_size", getHighPriorityChkSize(), add_stat, c);
         addStat("might_contain_xattrs", mightContainXattrs(), add_stat, c);
         addStat("max_deleted_revid", ht.getMaxDeletedRevSeqno(), add_stat, c);
-        addStat("topology",
-                durabilityMonitor->getReplicationTopology().dump(),
-                add_stat,
-                c);
+        addStat("topology", getReplicationTopology().dump(), add_stat, c);
         addStat("high_prepared_seqno", getHighPreparedSeqno(), add_stat, c);
 
         hlc.addStats(statPrefix, add_stat, c);

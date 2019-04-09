@@ -306,7 +306,6 @@ protected:
     // Any state change must happen under lock(state.m).
     struct {
         mutable std::mutex m;
-        nlohmann::json replicationTopology;
         // @todo: Expand for supporting the SecondChain.
         std::unique_ptr<ReplicationChain> firstChain;
         Container trackedWrites;

@@ -313,9 +313,13 @@ TEST(VBucketDurabilityTest, validateSetStateMetaTopologyNegative) {
 }
 
 TEST_P(VBucketDurabilityTest, SetVBucketState_ClearTopologyAtReplica) {
-    ASSERT_FALSE(vbucket->getReplicationTopology().is_null());
+    ASSERT_NE(nlohmann::json{}.dump(),
+              vbucket->getReplicationTopology().dump());
+
     vbucket->setState(vbucket_state_replica);
-    ASSERT_TRUE(vbucket->getReplicationTopology().is_null());
+
+    EXPECT_EQ(nlohmann::json{}.dump(),
+              vbucket->getReplicationTopology().dump());
 }
 
 TEST_P(VBucketDurabilityTest, MultipleReplicas) {

@@ -412,7 +412,7 @@ public:
     /**
      * @return the replication topology set for this VBucket
      */
-    const nlohmann::json& getReplicationTopology() const;
+    nlohmann::json getReplicationTopology() const;
 
     /**
      * Enforce timeout for the expired SyncWrites in this VBucket.
@@ -2071,6 +2071,15 @@ private:
     folly::SharedMutex stateLock;
 
     vbucket_state_t                 initialState;
+
+    /**
+     * The replication topology, set as part of SET_VBUCKET_STATE.
+     * It is encoded as nlohmann::json array of (max 2) replication chains.
+     * Each replication chain is itself a nlohmann::json array of nodes
+     * representing the chain.
+     */
+    folly::Synchronized<nlohmann::json> replicationTopology;
+
     std::mutex                           pendingOpLock;
     std::vector<const void*>        pendingOps;
     std::chrono::steady_clock::time_point pendingOpsStart;

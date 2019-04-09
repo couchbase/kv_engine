@@ -357,19 +357,12 @@ void DurabilityMonitor::setReplicationTopology(const nlohmann::json& topology) {
 
     std::lock_guard<std::mutex> lg(state.m);
 
-    state.replicationTopology = topology;
-
     // Note: Topology changes (i.e., reset of replication-chain) are implicitly
     //     supported. With the current model the new replication-chain will
     //     kick-in at the first new SyncWrite added to tracking.
     // @todo: Check if the above is legal
     state.firstChain = std::make_unique<ReplicationChain>(
             firstChain, state.trackedWrites.begin());
-}
-
-const nlohmann::json& DurabilityMonitor::getReplicationTopology() const {
-    std::lock_guard<std::mutex> lg(state.m);
-    return state.replicationTopology;
 }
 
 int64_t DurabilityMonitor::getHighPreparedSeqno() const {
@@ -839,8 +832,7 @@ size_t DurabilityMonitor::wipeTracked() {
 std::ostream& operator<<(std::ostream& os, const DurabilityMonitor& dm) {
     std::lock_guard<std::mutex> lg(dm.state.m);
     os << "DurabilityMonitor[" << &dm
-       << "] with topology:" << dm.state.replicationTopology
-       << " #trackedWrites:" << dm.state.trackedWrites.size() << "\n";
+       << "] #trackedWrites:" << dm.state.trackedWrites.size() << "\n";
     for (const auto& w : dm.state.trackedWrites) {
         os << "    " << w << "\n";
     }
