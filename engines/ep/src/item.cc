@@ -66,7 +66,7 @@ Item::Item(const DocKey& k,
            Vbid vbid,
            uint64_t sno,
            uint8_t nru,
-           uint16_t freqCount)
+           uint8_t freqCount)
     : metaData(theCas, sno, fl, exp),
       value(TaggedPtr<Blob>(nullptr, initialFreqCount)),
       key(k),
