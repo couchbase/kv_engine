@@ -30,6 +30,9 @@
 struct EngineIface;
 class EventuallyPersistentEngine;
 
+class Item;
+using queued_item = SingleThreadedRCPtr<Item>;
+
 class EventuallyPersistentEngineTest : virtual public ::testing::Test {
 public:
     EventuallyPersistentEngineTest() : bucketType("persistent") {
@@ -47,12 +50,20 @@ protected:
                     const std::string& key,
                     const std::string& value);
 
-    /// Stored a pending SyncWrite into the given vbucket.
-    void store_pending_item(Vbid vbid,
-                            const std::string& key,
-                            const std::string& value,
-                            cb::durability::Requirements reqs = {
-                                    cb::durability::Level::Majority, 0});
+    /**
+     * Store a pending SyncWrite into the given vbucket.
+     * @returns the item stored
+     */
+    queued_item store_pending_item(Vbid vbid,
+                                   const std::string& key,
+                                   const std::string& value,
+                                   cb::durability::Requirements reqs = {
+                                           cb::durability::Level::Majority, 0});
+
+    /// Stored a committed SyncWrite into the given vbucket.
+    void store_committed_item(Vbid vbid,
+                              const std::string& key,
+                              const std::string& value);
 
     std::string config_string;
 

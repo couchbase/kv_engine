@@ -558,10 +558,13 @@ static_assert(sizeof(Item) == sizeof(std::string) + 80,
 #endif
 
 /**
- * Order QueuedItem objects by their keys and by sequence numbers.
+ * Order queued_item objects to prepare for de-duplication.
+ *
+ * Returns true if `i1` should be ordered before `i2` with respect to
+ * de-duplication.
+ * Elements are ordered by key, then namespace (committed / pending), then
+ * finally seqno (highest seqno first).
  */
-class CompareQueuedItemsBySeqnoAndKey {
-public:
-    CompareQueuedItemsBySeqnoAndKey() {}
+struct OrderItemsForDeDuplication {
     bool operator()(const queued_item& i1, const queued_item& i2);
 };

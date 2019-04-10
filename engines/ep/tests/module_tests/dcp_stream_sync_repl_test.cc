@@ -229,6 +229,17 @@ TEST_P(DcpStreamSyncReplTest, MutationAndPendingWithSyncReplica) {
     destroy_dcp_stream();
 }
 
+/// Check a DcpResponse is equal to the expected prepared Item.
+void verifyDcpPrepare(Item& expected, DcpResponse& actual) {
+    EXPECT_EQ(DcpResponse::Event::Prepare, actual.getEvent());
+    auto& dcpPrepare = dynamic_cast<MutationResponse&>(actual);
+    EXPECT_EQ(makeStoredDocKey("1"), dcpPrepare.getItem()->getKey());
+    EXPECT_EQ(expected.getValue(), dcpPrepare.getItem()->getValue());
+    EXPECT_EQ(expected.getCas(), dcpPrepare.getItem()->getCas());
+    EXPECT_EQ(expected.getDurabilityReqs().getLevel(),
+              dcpPrepare.getItem()->getDurabilityReqs().getLevel());
+}
+
 /// Test that backfill of a prepared item is handled correctly.
 TEST_P(DcpStreamSyncReplTest, BackfillPrepare) {
     if (GetParam() == "ephemeral") {
@@ -242,7 +253,8 @@ TEST_P(DcpStreamSyncReplTest, BackfillPrepare) {
 
     // Store a pending item then remove the checkpoint to force backfill.
     using cb::durability::Level;
-    store_pending_item(vbid, "1", "X", {Level::MajorityAndPersistOnMaster, 0});
+    auto prepared = store_pending_item(
+            vbid, "1", "X", {Level::MajorityAndPersistOnMaster, 0});
     removeCheckpoint(1);
 
     // Create sync repl DCP stream
@@ -270,12 +282,128 @@ TEST_P(DcpStreamSyncReplTest, BackfillPrepare) {
     EXPECT_EQ(1, snapMarker.getEndSeqno());
 
     item = stream->public_nextQueuedItem();
-    EXPECT_EQ(DcpResponse::Event::Prepare, item->getEvent());
-    auto prepare = dynamic_cast<MutationResponse&>(*item);
-    EXPECT_EQ(makeStoredDocKey("1"), prepare.getItem()->getKey());
-    EXPECT_EQ("X", prepare.getItem()->getValue()->to_s());
-    EXPECT_EQ(Level::MajorityAndPersistOnMaster,
-              prepare.getItem()->getDurabilityReqs().getLevel());
+    verifyDcpPrepare(*prepared, *item);
+}
+
+/// Test that backfill of a prepared+committed item is handled correctly.
+TEST_P(DcpStreamSyncReplTest, BackfillPrepareCommit) {
+    if (GetParam() == "ephemeral") {
+        // @todo-durability: This test currently fails under ephmeral as
+        // in-memory backfill doesn't fill in the durability requirements:
+        //     std::logic_error: StoredValue::toItemImpl: attempted to create
+        //     Item from Pending StoredValue without supplying durabilityReqs
+        std::cerr << "NOTE: Skipped under Ephemeral\n";
+        return;
+    }
+
+    // Store a pending item, commit it and then remove the checkpoint to force
+    // backfill.
+    using cb::durability::Level;
+    auto prepared = store_pending_item(
+            vbid, "1", "X", {Level::MajorityAndPersistOnMaster, 0});
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb0->commit(prepared->getKey(),
+                          prepared->getBySeqno(),
+                          {},
+                          vb0->lockCollections(prepared->getKey())));
+    removeCheckpoint(2);
+
+    // Create sync repl DCP stream
+    setup_dcp_stream(0,
+                     IncludeValue::Yes,
+                     IncludeXattrs::Yes,
+                     {{"enable_synchronous_replication", "true"}});
+
+    MockDcpMessageProducers producers(engine);
+
+    ExecutorPool::get()->setNumAuxIO(1);
+    stream->transitionStateToBackfilling();
+
+    // Wait for the backfill task to have pushed all items to the Stream::readyQ
+    // Note: we expect 1 SnapshotMarker + numItems in the readyQ
+    std::chrono::microseconds uSleepTime(128);
+    while (stream->public_readyQSize() < 1 + 2) {
+        uSleepTime = decayingSleep(uSleepTime);
+    }
+
+    auto item = stream->public_nextQueuedItem();
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, item->getEvent());
+    auto& dcpSnapMarker = dynamic_cast<SnapshotMarker&>(*item);
+    EXPECT_EQ(0, dcpSnapMarker.getStartSeqno());
+    EXPECT_EQ(2, dcpSnapMarker.getEndSeqno());
+
+    item = stream->public_nextQueuedItem();
+    verifyDcpPrepare(*prepared, *item);
+
+    item = stream->public_nextQueuedItem();
+    EXPECT_EQ(DcpResponse::Event::Commit, item->getEvent());
+    auto& dcpCommit = dynamic_cast<CommitSyncWrite&>(*item);
+    EXPECT_EQ(makeStoredDocKey("1"), dcpCommit.getKey());
+#if 0
+    // @todo-durability: Once we move away from identifying commit by key,
+    // the prepared seqno should be used (and should match).
+    EXPECT_EQ(prepared->getBySeqno(), dcpCommit.getPreparedSeqno());
+#endif
+    EXPECT_EQ(prepared->getBySeqno() + 1, dcpCommit.getBySeqno());
+}
+
+/// Test that backfill of a prepared+aborted item is handled correctly.
+TEST_P(DcpStreamSyncReplTest, BackfillPrepareAbort) {
+    if (GetParam() == "ephemeral") {
+        // @todo-durability: This test currently fails under ephmeral as
+        // in-memory backfill doesn't fill in the durability requirements:
+        //     std::logic_error: StoredValue::toItemImpl: attempted to create
+        //     Item from Pending StoredValue without supplying durabilityReqs
+        std::cerr << "NOTE: Skipped under Ephemeral\n";
+        return;
+    }
+
+    // Store a pending item, commit it and then remove the checkpoint to force
+    // backfill.
+    using cb::durability::Level;
+    auto prepared = store_pending_item(
+            vbid, "1", "X", {Level::MajorityAndPersistOnMaster, 0});
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb0->abort(prepared->getKey(),
+                         prepared->getBySeqno(),
+                         {},
+                         vb0->lockCollections(prepared->getKey())));
+    removeCheckpoint(2);
+
+    // Create sync repl DCP stream
+    setup_dcp_stream(0,
+                     IncludeValue::Yes,
+                     IncludeXattrs::Yes,
+                     {{"enable_synchronous_replication", "true"}});
+
+    MockDcpMessageProducers producers(engine);
+
+    ExecutorPool::get()->setNumAuxIO(1);
+    stream->transitionStateToBackfilling();
+
+    // Wait for the backfill task to have pushed all items to the Stream::readyQ
+    // Note: we expect 1 SnapshotMarker + numItems in the readyQ
+    std::chrono::microseconds uSleepTime(128);
+    while (stream->public_readyQSize() < 1 + 1) {
+        uSleepTime = decayingSleep(uSleepTime);
+    }
+
+    auto item = stream->public_nextQueuedItem();
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, item->getEvent());
+    auto& dcpSnapMarker = dynamic_cast<SnapshotMarker&>(*item);
+    EXPECT_EQ(0, dcpSnapMarker.getStartSeqno());
+    EXPECT_EQ(2, dcpSnapMarker.getEndSeqno());
+
+    item = stream->public_nextQueuedItem();
+    EXPECT_EQ(DcpResponse::Event::Abort, item->getEvent());
+    auto& dcpCommit = dynamic_cast<AbortSyncWrite&>(*item);
+    EXPECT_EQ(makeStoredDocKey("1"), dcpCommit.getKey());
+#if 0
+    // @todo-durability: Once we move away from identifying abort by key,
+    // the prepared seqno should be used (and should match).
+    EXPECT_EQ(prepared->getBySeqno(), dcpCommit.getPreparedSeqno());
+#endif
+    EXPECT_EQ(prepared->getBySeqno() + 1, dcpCommit.getBySeqno());
 }
 
 // Test cases which run in both Full and Value eviction

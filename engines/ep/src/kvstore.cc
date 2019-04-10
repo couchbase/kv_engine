@@ -472,7 +472,7 @@ void KVStore::optimizeWrites(std::vector<queued_item>& items) {
         return;
     }
 
-    CompareQueuedItemsBySeqnoAndKey cq;
+    OrderItemsForDeDuplication cq;
     std::sort(items.begin(), items.end(), cq);
 }
 

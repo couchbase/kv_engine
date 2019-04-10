@@ -302,24 +302,14 @@ static bool canDeDuplicate(Item* lastFlushed, Item& candidate) {
         // Keys differ - cannot de-dupe.
         return false;
     }
+    if (lastFlushed->isCommitted() != candidate.isCommitted()) {
+        // Committed / pending namespace differs - cannot de-dupe.
+        return false;
+    }
 
-    // Keys match - the candidate must have a lower seqno.
+    // items match - the candidate must have a lower seqno.
     Expects(lastFlushed->getBySeqno() > candidate.getBySeqno());
-
-    if (lastFlushed->isPending() && candidate.isCommitted()) {
-        // Already flushed a newer pending, but still need to keep the older
-        // Committed in case the Pending is later aborted.
-        return false;
-    }
-
-    if ((lastFlushed->getOperation() == queue_op::mutation) &&
-        (candidate.getOperation() == queue_op::commit_sync_write)) {
-        // Already flushed a newer mutation, but still need to keep the
-        // older CommittedViaPrepare until flushOneDelOrSet() as it is
-        // needed to know to delete the previous prepared item.
-        return false;
-    }
-
+  
     // Otherwise - valid to de-dupe.
     return true;
 }

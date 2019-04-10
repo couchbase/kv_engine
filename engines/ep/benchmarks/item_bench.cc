@@ -33,7 +33,7 @@ static void BM_CompareQueuedItemsBySeqnoAndKey(benchmark::State& state) {
         items.emplace_back(new Item(
                 DocKey(key, DocKeyEncodesCollectionId::No), {}, {}, "data", 4));
     }
-    CompareQueuedItemsBySeqnoAndKey cq;
+    OrderItemsForDeDuplication cq;
     while (state.KeepRunning()) {
         // shuffle (while timing paused)
         state.PauseTiming();

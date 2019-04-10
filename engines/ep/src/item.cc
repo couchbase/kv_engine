@@ -440,8 +440,8 @@ item_info to_item_info(const ItemMetaData& itemMeta,
     return info;
 }
 
-bool CompareQueuedItemsBySeqnoAndKey::operator()(const queued_item& i1,
-                                                 const queued_item& i2) {
+bool OrderItemsForDeDuplication::operator()(const queued_item& i1,
+                                            const queued_item& i2) {
     // First compare keys - if they differ then that's sufficient to
     // distinguish them.
     const auto comp = i1->getKey().compare(i2->getKey());
@@ -452,6 +452,15 @@ bool CompareQueuedItemsBySeqnoAndKey::operator()(const queued_item& i1,
         return false;
     }
 
-    // Keys equal - need to check seqno.
+    // Same key - compare namespaces (committed items don't de-duplicate
+    // prepared ones and vice-versa).
+    if (i1->isCommitted() < i2->isCommitted()) {
+        return true;
+    }
+    if (i1->isCommitted() > i2->isCommitted()) {
+        return false;
+    }
+
+    // Keys and namespace equal - need to check seqno.
     return i1->getBySeqno() > i2->getBySeqno();
 }
