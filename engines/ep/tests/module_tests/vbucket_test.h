@@ -42,18 +42,17 @@ public:
 };
 
 /**
- * Test fixture for VBucket tests.
- *
- * Templated on the Item Eviction policy to use.
+ * Base class for VBucket tests, for example DefragmenterTest
  */
-class VBucketTest
-    : virtual public ::testing::Test,
-      public ::testing::WithParamInterface<item_eviction_policy_t> {
+class VBucketTestBase {
+public:
+    /**
+     * Construct test objects with the given eviction policy
+     */
+    VBucketTestBase(item_eviction_policy_t policy);
+    ~VBucketTestBase();
+
 protected:
-    void SetUp();
-
-    void TearDown();
-
     std::vector<StoredDocKey> generateKeys(int num, int start = 0);
 
     // Create a queued item with the given key
@@ -119,4 +118,11 @@ protected:
     CheckpointConfig checkpoint_config;
     Configuration config;
     const void* cookie;
+};
+
+class VBucketTest : public ::testing::TestWithParam<item_eviction_policy_t>,
+                    public VBucketTestBase {
+public:
+    VBucketTest() : VBucketTestBase(GetParam()) {
+    }
 };

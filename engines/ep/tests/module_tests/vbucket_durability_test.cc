@@ -32,7 +32,6 @@
 using namespace std::string_literals;
 
 void VBucketDurabilityTest::SetUp() {
-    VBucketTest::SetUp();
     ht = &vbucket->ht;
     ckptMgr = static_cast<MockCheckpointManager*>(
             vbucket->checkpointManager.get());

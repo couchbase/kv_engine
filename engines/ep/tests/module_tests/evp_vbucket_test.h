@@ -24,8 +24,14 @@ class DiskDocKey;
 /**
  * Fixture class for VBucket tests that require an EPEngine instance
  */
-class EPVBucketTest : public VBucketTest, public SingleThreadedKVBucketTest {
-protected:
+class EPVBucketTest
+    : public ::testing::WithParamInterface<item_eviction_policy_t>,
+      public VBucketTestBase,
+      public SingleThreadedKVBucketTest {
+public:
+    EPVBucketTest() : VBucketTestBase(GetParam()) {
+    }
+
     void SetUp() override;
     void TearDown() override;
     size_t public_queueBGFetchItem(

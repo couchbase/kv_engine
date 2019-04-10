@@ -30,8 +30,7 @@
 
 #include <platform/cb_malloc.h>
 
-void VBucketTest::SetUp() {
-    const auto eviction_policy = GetParam();
+VBucketTestBase::VBucketTestBase(item_eviction_policy_t eviction_policy) {
     vbucket.reset(new EPVBucket(Vbid(0),
                                 vbucket_state_active,
                                 global_stats,
@@ -60,12 +59,12 @@ void VBucketTest::SetUp() {
     cookie = create_mock_cookie();
 }
 
-void VBucketTest::TearDown() {
+VBucketTestBase::~VBucketTestBase() {
     vbucket.reset();
     destroy_mock_cookie(cookie);
 }
 
-std::vector<StoredDocKey> VBucketTest::generateKeys(int num, int start) {
+std::vector<StoredDocKey> VBucketTestBase::generateKeys(int num, int start) {
     std::vector<StoredDocKey> rv;
 
     for (int i = start; i < num + start; i++) {
@@ -75,7 +74,7 @@ std::vector<StoredDocKey> VBucketTest::generateKeys(int num, int start) {
     return rv;
 }
 
-queued_item VBucketTest::makeQueuedItem(const char *key) {
+queued_item VBucketTestBase::makeQueuedItem(const char* key) {
     std::string val("x");
     uint32_t flags = 0;
     time_t expiry = 0;
@@ -86,35 +85,37 @@ queued_item VBucketTest::makeQueuedItem(const char *key) {
                                 val.size()));
 }
 
-AddStatus VBucketTest::addOne(const StoredDocKey& k, int expiry) {
+AddStatus VBucketTestBase::addOne(const StoredDocKey& k, int expiry) {
     Item i(k, 0, expiry, k.data(), k.size());
     return public_processAdd(i);
 }
 
-TempAddStatus VBucketTest::addOneTemp(const StoredDocKey& k) {
+TempAddStatus VBucketTestBase::addOneTemp(const StoredDocKey& k) {
     auto hbl_sv = lockAndFind(k);
     return vbucket->addTempStoredValue(hbl_sv.first, k);
 }
 
-void VBucketTest::addMany(std::vector<StoredDocKey>& keys, AddStatus expect) {
+void VBucketTestBase::addMany(std::vector<StoredDocKey>& keys,
+                              AddStatus expect) {
     for (const auto& k : keys) {
         EXPECT_EQ(expect, addOne(k));
     }
 }
 
-MutationStatus VBucketTest::setOne(const StoredDocKey& k, int expiry) {
+MutationStatus VBucketTestBase::setOne(const StoredDocKey& k, int expiry) {
     Item i(k, 0, expiry, k.data(), k.size());
     return public_processSet(i, i.getCas());
 }
 
-void VBucketTest::setMany(std::vector<StoredDocKey>& keys,
-                          MutationStatus expect) {
+void VBucketTestBase::setMany(std::vector<StoredDocKey>& keys,
+                              MutationStatus expect) {
     for (const auto& k : keys) {
         EXPECT_EQ(expect, setOne(k));
     }
 }
 
-void VBucketTest::softDeleteOne(const StoredDocKey& k, MutationStatus expect) {
+void VBucketTestBase::softDeleteOne(const StoredDocKey& k,
+                                    MutationStatus expect) {
     auto* v(vbucket->ht.findForWrite(k, WantsDeleted::No).storedValue);
     EXPECT_NE(nullptr, v);
 
@@ -122,24 +123,25 @@ void VBucketTest::softDeleteOne(const StoredDocKey& k, MutationStatus expect) {
             << "Failed to soft delete key " << k.c_str();
 }
 
-void VBucketTest::softDeleteMany(std::vector<StoredDocKey>& keys,
-                                 MutationStatus expect) {
+void VBucketTestBase::softDeleteMany(std::vector<StoredDocKey>& keys,
+                                     MutationStatus expect) {
     for (const auto& k : keys) {
         softDeleteOne(k, expect);
     }
 }
 
-StoredValue* VBucketTest::findValue(StoredDocKey& key) {
+StoredValue* VBucketTestBase::findValue(StoredDocKey& key) {
     return vbucket->ht.findForWrite(key).storedValue;
 }
 
-void VBucketTest::verifyValue(StoredDocKey& key,
-                              const char* value,
-                              TrackReference trackReference,
-                              WantsDeleted wantDeleted) {
+void VBucketTestBase::verifyValue(StoredDocKey& key,
+                                  const char* value,
+                                  TrackReference trackReference,
+                                  WantsDeleted wantDeleted) {
     auto v = vbucket->ht.findForRead(key, trackReference, wantDeleted);
     EXPECT_NE(nullptr, v.storedValue);
     value_t val = v.storedValue->getValue();
+
     if (!value) {
         EXPECT_EQ(nullptr, val.get().get());
     } else {
@@ -147,15 +149,15 @@ void VBucketTest::verifyValue(StoredDocKey& key,
     }
 }
 
-std::pair<HashTable::HashBucketLock, StoredValue*> VBucketTest::lockAndFind(
+std::pair<HashTable::HashBucketLock, StoredValue*> VBucketTestBase::lockAndFind(
         const StoredDocKey& key) {
     auto htRes = vbucket->ht.findForWrite(key);
     return {std::move(htRes.lock), htRes.storedValue};
 }
 
-MutationStatus VBucketTest::public_processSet(Item& itm,
-                                              const uint64_t cas,
-                                              const VBQueueItemCtx& ctx) {
+MutationStatus VBucketTestBase::public_processSet(Item& itm,
+                                                  const uint64_t cas,
+                                                  const VBQueueItemCtx& ctx) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(itm.getKey());
     auto hbl_sv = lockAndFind(itm.getKey());
@@ -171,7 +173,7 @@ MutationStatus VBucketTest::public_processSet(Item& itm,
             .first;
 }
 
-AddStatus VBucketTest::public_processAdd(Item& itm) {
+AddStatus VBucketTestBase::public_processAdd(Item& itm) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(itm.getKey());
     auto hbl_sv = lockAndFind(itm.getKey());
@@ -185,9 +187,9 @@ AddStatus VBucketTest::public_processAdd(Item& itm) {
             .first;
 }
 
-MutationStatus VBucketTest::public_processSoftDelete(const DocKey& key,
-                                                     StoredValue* v,
-                                                     uint64_t cas) {
+MutationStatus VBucketTestBase::public_processSoftDelete(const DocKey& key,
+                                                         StoredValue* v,
+                                                         uint64_t cas) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(key);
     auto hbl = vbucket->ht.getLockedBucket(key);
@@ -213,7 +215,7 @@ MutationStatus VBucketTest::public_processSoftDelete(const DocKey& key,
     return status;
 }
 
-bool VBucketTest::public_deleteStoredValue(const DocKey& key) {
+bool VBucketTestBase::public_deleteStoredValue(const DocKey& key) {
     auto hbl_sv = lockAndFind(key);
     if (!hbl_sv.second) {
         return false;
@@ -221,8 +223,8 @@ bool VBucketTest::public_deleteStoredValue(const DocKey& key) {
     return vbucket->deleteStoredValue(hbl_sv.first, *hbl_sv.second);
 }
 
-GetValue VBucketTest::public_getAndUpdateTtl(const DocKey& key,
-                                             time_t exptime) {
+GetValue VBucketTestBase::public_getAndUpdateTtl(const DocKey& key,
+                                                 time_t exptime) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(key);
     auto hbl = lockAndFind(key);
@@ -233,7 +235,7 @@ GetValue VBucketTest::public_getAndUpdateTtl(const DocKey& key,
     return gv;
 }
 
-void VBucketTest::public_incrementBackfillQueueSize() {
+void VBucketTestBase::public_incrementBackfillQueueSize() {
     vbucket->stats.vbBackfillQueueSize++;
 }
 

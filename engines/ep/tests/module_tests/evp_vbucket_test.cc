@@ -23,12 +23,10 @@
 #include "tests/module_tests/test_helpers.h"
 
 void EPVBucketTest::SetUp() {
-    VBucketTest::SetUp();
     SingleThreadedKVBucketTest::SetUp();
 }
 
 void EPVBucketTest::TearDown() {
-    VBucketTest::TearDown();
     SingleThreadedKVBucketTest::TearDown();
 }
 

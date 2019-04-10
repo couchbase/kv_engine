@@ -24,8 +24,15 @@
 
 #include <programs/engine_testapp/mock_server.h>
 
-class DefragmenterTest : public VBucketTest {
+#include <folly/portability/GTest.h>
+
+class DefragmenterTest
+    : public VBucketTestBase,
+      public ::testing::TestWithParam<item_eviction_policy_t> {
 public:
+    DefragmenterTest();
+    ~DefragmenterTest();
+
     static void SetUpTestCase() {
 
         // Setup the MemoryTracker.
@@ -41,12 +48,10 @@ protected:
         // Setup object registry. As we do not create a full ep-engine, we
         // use the "initial_tracking" for all memory tracking".
         ObjectRegistry::setStats(&mem_used);
-        VBucketTest::SetUp();
     }
 
     void TearDown() override {
         ObjectRegistry::setStats(nullptr);
-        VBucketTest::TearDown();
     }
 
     /**
@@ -67,6 +72,9 @@ protected:
      *                     the fragmentation
      */
     void fragment(size_t num_docs, size_t &num_remaining);
+
+    /// @return the policy in use for the test
+    item_eviction_policy_t getEvictionPolicy() const;
 
     // Track of memory used (from ObjectRegistry).
     std::atomic<size_t> mem_used{0};

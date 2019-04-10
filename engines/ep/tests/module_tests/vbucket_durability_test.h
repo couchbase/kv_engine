@@ -25,13 +25,14 @@ class MockDurabilityMonitor;
 /*
  * VBucket unit tests related to durability.
  */
-class VBucketDurabilityTest : public VBucketTest {
+class VBucketDurabilityTest
+    : public ::testing::TestWithParam<item_eviction_policy_t>,
+      public VBucketTestBase {
 public:
-    void SetUp() override;
-
-    void TearDown() override {
-        VBucketTest::TearDown();
+    VBucketDurabilityTest() : VBucketTestBase(GetParam()) {
     }
+
+    void SetUp();
 
 protected:
     /// Specification of a SyncWrite to store, as used by storeSyncWrites.

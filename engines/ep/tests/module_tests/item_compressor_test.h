@@ -24,8 +24,15 @@
 
 #include <programs/engine_testapp/mock_server.h>
 
-class ItemCompressorTest : public VBucketTest {
+#include <folly/portability/GTest.h>
+
+class ItemCompressorTest
+    : public ::testing::TestWithParam<item_eviction_policy_t>,
+      public VBucketTestBase {
 public:
+    ItemCompressorTest() : VBucketTestBase(GetParam()) {
+    }
+
     static void SetUpTestCase() {
         // Setup the MemoryTracker.
         MemoryTracker::getInstance(*get_mock_server_api()->alloc_hooks);
@@ -40,12 +47,10 @@ protected:
         // Setup object registry. As we do not create a full ep-engine, we
         // use the "initial_tracking" for all memory tracking".
         ObjectRegistry::setStats(&mem_used);
-        VBucketTest::SetUp();
     }
 
     void TearDown() override {
         ObjectRegistry::setStats(nullptr);
-        VBucketTest::TearDown();
     }
 
     std::atomic<size_t> mem_used{0};
