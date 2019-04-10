@@ -115,6 +115,7 @@ EPStats::EPStats()
       rollbackCount(0),
       defragNumVisited(0),
       defragNumMoved(0),
+      defragStoredValueNumMoved(0),
       compressorNumVisited(0),
       compressorNumCompressed(0),
       dirtyAgeHisto(),

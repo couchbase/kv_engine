@@ -119,6 +119,10 @@ private:
     // must be to be considered for defragmentation.
     size_t getAgeThreshold() const;
 
+    // Minimum age (measured in defragmenter task passes) that a StoredValue
+    // must be to be considered for defragmentation.
+    size_t getStoredValueAgeThreshold() const;
+
     // Upper limit on how long each defragmention chunk can run for, before
     // being paused.
     std::chrono::milliseconds getChunkDuration() const;
@@ -128,6 +132,9 @@ private:
 
     /// Returns the underlying DefragmentVisitor instance.
     DefragmentVisitor& getDefragVisitor();
+
+    /// Update the EPStats from the visitor
+    void updateStats(DefragmentVisitor& visitor);
 
     /// Reference to EP stats, used to check on mem_used.
     EPStats &stats;

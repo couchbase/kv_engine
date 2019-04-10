@@ -26,9 +26,9 @@
 
 #include <folly/portability/GTest.h>
 
-class DefragmenterTest
-    : public VBucketTestBase,
-      public ::testing::TestWithParam<item_eviction_policy_t> {
+class DefragmenterTest : public VBucketTestBase,
+                         public ::testing::TestWithParam<
+                                 std::tuple<item_eviction_policy_t, bool> > {
 public:
     DefragmenterTest();
     ~DefragmenterTest();
@@ -64,17 +64,31 @@ protected:
     void setDocs(size_t docSize, size_t num_docs);
 
     /**
-     * Remove all but one document in each page. This is to create a situation
-     * where the defragmenter runs for every document.
+     * Remove all but one document or StoredValue in each page. This is to
+     * create a situation where the defragmenter runs for every document.
      *
      * @param num_docs The number of docs that have been set
-     * @param[out] num_remaining The resulting number documents that are left after
-     *                     the fragmentation
+     * @param[out] num_remaining The resulting number documents that are left
+     * after the fragmentation
      */
     void fragment(size_t num_docs, size_t &num_remaining);
 
+    /// @return test param tuple element 1, true defrag stored value
+    bool isModeStoredValue() const;
+
     /// @return the policy in use for the test
     item_eviction_policy_t getEvictionPolicy() const;
+
+    /**
+     * The value vs StoredValue variant of the defragger test uses different
+     * length keys.
+     * In SV mode we want lots of StoredValue memory allocated, so we pick the
+     * largest key length we're allowed, which is 256 internally
+     */
+    const char* keyPattern1 = "%d";
+    const char* keyPattern2 = "%0250d";
+    const char* keyPattern{nullptr};
+    char keyScratch[257];
 
     // Track of memory used (from ObjectRegistry).
     std::atomic<size_t> mem_used{0};
