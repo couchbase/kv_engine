@@ -20,12 +20,7 @@
 #include "utilities.h"
 
 void initialize_openssl() {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    CRYPTO_malloc_init();
-    SSL_library_init();
-#else
     OPENSSL_init_ssl(0, NULL);
-#endif
     SSL_load_error_strings();
     ERR_load_BIO_strings();
     OpenSSL_add_all_algorithms();
@@ -33,21 +28,9 @@ void initialize_openssl() {
 
 void shutdown_openssl() {
     // Global OpenSSL cleanup:
-    CRYPTO_set_locking_callback(NULL);
-    CRYPTO_set_id_callback(NULL);
     ENGINE_cleanup();
     CONF_modules_unload(1);
     ERR_free_strings();
     EVP_cleanup();
     CRYPTO_cleanup_all_ex_data();
-
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    // per-thread cleanup:
-    ERR_remove_state(0);
-
-    // Newer versions of openssl (1.0.2a) have a the function
-    // SSL_COMP_free_compression_methods() to perform this;
-    // however we arn't that new...
-    sk_SSL_COMP_free(SSL_COMP_get_compression_methods());
-#endif
 }

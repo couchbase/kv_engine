@@ -216,11 +216,6 @@ static void worker_libevent(void *arg) {
 
     event_base_loop(me.base, 0);
     me.running = false;
-
-    // Event loop exited; cleanup before thread exits.
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    ERR_remove_state(0);
-#endif
 }
 
 void drain_notification_channel(evutil_socket_t fd) {
