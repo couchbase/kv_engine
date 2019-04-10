@@ -604,6 +604,9 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setDefragmenterAgeThreshold(std::stoull(val));
         } else if (key == "defragmenter_chunk_duration") {
             getConfiguration().setDefragmenterChunkDuration(std::stoull(val));
+        } else if (key == "defragmenter_stored_value_age_threshold") {
+            getConfiguration().setDefragmenterStoredValueAgeThreshold(
+                    std::stoull(val));
         } else if (key == "defragmenter_run") {
             runDefragmenterTask();
         } else if (key == "compaction_write_queue_cap") {
@@ -2877,6 +2880,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
                     add_stat, cookie);
     add_casted_stat("ep_defragmenter_num_moved", epstats.defragNumMoved,
                     add_stat, cookie);
+    add_casted_stat("ep_defragmenter_sv_num_moved",
+                    epstats.defragStoredValueNumMoved,
+                    add_stat,
+                    cookie);
 
     add_casted_stat("ep_item_compressor_num_visited",
                     epstats.compressorNumVisited,

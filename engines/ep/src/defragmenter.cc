@@ -42,9 +42,11 @@ bool DefragmenterTask::run(void) {
         // then resume from where we last were, otherwise create a new visitor
         // starting from the beginning.
         if (!prAdapter) {
-            prAdapter = std::make_unique<PauseResumeVBAdapter>(
-                    std::make_unique<DefragmentVisitor>(
-                            getAgeThreshold(), getMaxValueSize(alloc_hooks)));
+            auto visitor = std::make_unique<DefragmentVisitor>(
+                    getMaxValueSize(alloc_hooks));
+
+            prAdapter =
+                    std::make_unique<PauseResumeVBAdapter>(std::move(visitor));
             epstore_position = engine->getKVBucket()->startPosition();
         }
 
@@ -71,6 +73,13 @@ bool DefragmenterTask::run(void) {
         const auto start = std::chrono::steady_clock::now();
         const auto deadline = start + getChunkDuration();
         visitor.setDeadline(deadline);
+        visitor.setBlobAgeThreshold(getAgeThreshold());
+        // Only defragment StoredValues of persistent buckets because the
+        // HashTable defrag method doesn't yet know how to maintain the
+        // ephemeral seqno linked-list
+        if (engine->getConfiguration().getBucketType() == "persistent") {
+            visitor.setStoredValueAgeThreshold(getStoredValueAgeThreshold());
+        }
         visitor.clearStats();
 
         // Do it - set off the visitor.
@@ -81,9 +90,7 @@ bool DefragmenterTask::run(void) {
         // Defrag complete. Restore thread caching.
         alloc_hooks->enable_thread_cache(old_tcache);
 
-        // Update stats
-        stats.defragNumMoved.fetch_add(visitor.getDefragCount());
-        stats.defragNumVisited.fetch_add(visitor.getVisitedCount());
+        updateStats(visitor);
 
         // Release any free memory we now have in the allocator back to the OS.
         // TODO: Benchmark this - is it necessary? How much of a slowdown does it
@@ -151,6 +158,17 @@ double DefragmenterTask::getSleepTime() const {
 
 size_t DefragmenterTask::getAgeThreshold() const {
     return engine->getConfiguration().getDefragmenterAgeThreshold();
+}
+
+size_t DefragmenterTask::getStoredValueAgeThreshold() const {
+    return engine->getConfiguration().getDefragmenterStoredValueAgeThreshold();
+}
+
+void DefragmenterTask::updateStats(DefragmentVisitor& visitor) {
+    stats.defragNumMoved.fetch_add(visitor.getDefragCount());
+    stats.defragStoredValueNumMoved.fetch_add(
+            visitor.getStoredValueDefragCount());
+    stats.defragNumVisited.fetch_add(visitor.getVisitedCount());
 }
 
 size_t DefragmenterTask::getMaxValueSize(ServerAllocatorIface* alloc_hooks) {

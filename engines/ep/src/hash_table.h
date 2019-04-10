@@ -998,6 +998,19 @@ public:
                                     item_eviction_policy_t evictionPolicy);
 
     /**
+     * 'Defragment' the StoredValue, this really means reallocate the object
+     * which has the effect of repacking the underlying allocators memory pool.
+     *
+     * As the object is reallocated the input StoredValue is 'consumed', i.e.
+     * it will be copied into a new allocate and the original freed, the
+     * input is deleted on successful reallocation.
+     *
+     * @param v The rvalue reference to the StoredValue to be reallocated.
+     * @return true if v was found and reallocated
+     */
+    bool reallocateStoredValue(StoredValue&& v);
+
+    /**
      * Dump a representation of the HashTable to stderr.
      */
     void dump() const;

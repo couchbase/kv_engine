@@ -368,15 +368,23 @@ public:
 
     Counter rollbackCount;
 
-    /** The number of items that have been visited (considered for
+    /**
+     * The number of items that have been visited (considered for
      * defragmentation) by the defragmenter task.
      */
     Counter defragNumVisited;
 
-    /** The number of items that have been moved (defragmented) by the
+    /**
+     * The number of items that have been moved (defragmented) by the
      * defragmenter task.
      */
     Counter defragNumMoved;
+
+    /**
+     * The number of StoredValues that have been moved (defragmented) by the
+     * defragmenter task.
+     */
+    Counter defragStoredValueNumMoved;
 
     Counter compressorNumVisited;
     Counter compressorNumCompressed;

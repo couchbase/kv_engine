@@ -780,6 +780,21 @@ MutationStatus HashTable::insertFromWarmup(
     return MutationStatus::NotFound;
 }
 
+bool HashTable::reallocateStoredValue(StoredValue&& sv) {
+    // Search the chain and reallocate
+    for (StoredValue::UniquePtr* curr =
+                 &values[getBucketForHash(sv.getKey().hash())];
+         curr->get().get();
+         curr = &curr->get()->getNext()) {
+        if (&sv == curr->get().get()) {
+            auto newSv = valFact->copyStoredValue(sv, std::move(sv.getNext()));
+            curr->swap(newSv);
+            return true;
+        }
+    }
+    return false;
+}
+
 void HashTable::dump() const {
     std::cerr << *this << std::endl;
 }
