@@ -1309,10 +1309,10 @@ static enum test_result test_get_replica_pending_state(EngineIface* h) {
     const void* cookie = testHarness->create_cookie();
     testHarness->set_ewouldblock_handling(cookie, false);
     auto pkt = prepare_get_replica(h, vbucket_state_pending);
-    checkeq(ENGINE_EWOULDBLOCK,
+    checkeq(ENGINE_NOT_MY_VBUCKET,
             h->unknown_command(cookie, *pkt, add_response),
-            "Should have returned error for pending state");
-    checkeq(1, get_int_stat(h, "vb_pending_ops_get"), "Expected 1 get");
+            "Should have returned NOT_MY_VBUCKET for pending state");
+    checkeq(1, get_int_stat(h, "ep_num_not_my_vbuckets"), "Expected 1 get");
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }

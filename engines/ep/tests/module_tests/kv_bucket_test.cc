@@ -1197,8 +1197,9 @@ TEST_P(KVBucketParamTest, numberOfVBucketsInState) {
 
 /**
  * Test to verify if the vbucket opsGet stat is incremented when
- * the vbucket is in pending state in the case of a get and
- * getReplica
+ * the vbucket is in pending state in the case of a get.
+ * Test in the case of a getReplica it does not increase the opsGet
+ * stat but instead increases the the not my vbucket stat.
  */
 TEST_P(KVBucketParamTest, testGetPendingOpsStat) {
    auto key = makeStoredDocKey("key");
@@ -1217,8 +1218,9 @@ TEST_P(KVBucketParamTest, testGetPendingOpsStat) {
 
    auto doGetReplica = [&]() { return store->getReplica(key, vbid, cookie, options); };
    result = doGetReplica();
-   ASSERT_EQ(ENGINE_EWOULDBLOCK, result.getStatus());
-   EXPECT_EQ(2, store->getVBucket(vbid)->opsGet);
+   ASSERT_EQ(ENGINE_NOT_MY_VBUCKET, result.getStatus());
+   EXPECT_EQ(1, store->getVBucket(vbid)->opsGet);
+   EXPECT_EQ(1, engine->getEpStats().numNotMyVBuckets);
 }
 
 /***

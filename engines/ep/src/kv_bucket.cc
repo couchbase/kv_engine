@@ -1358,6 +1358,16 @@ GetValue KVBucket::getInternal(const DocKey& key,
             ++stats.numNotMyVBuckets;
             return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
         } else if (vbState == vbucket_state_pending) {
+            /*
+             * If the vbucket is in a pending state and
+             * we are performing a getReplica then instead
+             * of adding the operation to the pendingOps
+             * list return ENGINE_NOT_MY_VBUCKET.
+             */
+            if (allowedState == vbucket_state_replica) {
+                ++stats.numNotMyVBuckets;
+                return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
+            }
             if (vb->addPendingOp(cookie)) {
                 if (options & TRACK_STATISTICS) {
                     vb->opsGet++;
