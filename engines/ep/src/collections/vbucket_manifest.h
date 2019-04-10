@@ -34,6 +34,7 @@
 #include <list>
 #include <mutex>
 #include <set>
+#include <shared_mutex>
 #include <unordered_map>
 
 class VBucket;
@@ -259,7 +260,7 @@ public:
     protected:
         friend std::ostream& operator<<(std::ostream& os,
                                         const Manifest::ReadHandle& readHandle);
-        std::unique_lock<mutex_type> readLock;
+        std::shared_lock<mutex_type> readLock;
         const Manifest* manifest;
     };
 
@@ -502,8 +503,6 @@ public:
      */
     class WriteHandle {
     public:
-        using mutex_type = folly::SharedMutex;
-
         WriteHandle(Manifest& m, mutex_type& lock)
             : writeLock(lock), manifest(m) {
         }
