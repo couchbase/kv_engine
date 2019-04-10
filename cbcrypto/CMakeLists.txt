@@ -1,11 +1,3 @@
-if (HAVE_PKCS5_PBKDF2_HMAC_SHA1)
-   add_definitions(-DHAVE_PKCS5_PBKDF2_HMAC_SHA1=1)
-endif()
-
-if (HAVE_PKCS5_PBKDF2_HMAC)
-   add_definitions(-DHAVE_PKCS5_PBKDF2_HMAC=1)
-endif()
-
 ADD_LIBRARY(cbcrypto SHARED
             cbcrypto.cc
             ${PROJECT_SOURCE_DIR}/include/cbcrypto/cbcrypto.h)

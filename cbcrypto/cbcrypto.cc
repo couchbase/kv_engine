@@ -720,7 +720,6 @@ static std::string PBKDF2_HMAC_SHA1(const std::string& pass,
                                     unsigned int iterationCount) {
     std::string ret;
     ret.resize(cb::crypto::SHA1_DIGEST_SIZE);
-#if defined(HAVE_PKCS5_PBKDF2_HMAC)
     auto err = PKCS5_PBKDF2_HMAC(
             pass.data(),
             int(pass.size()),
@@ -737,23 +736,6 @@ static std::string PBKDF2_HMAC_SHA1(const std::string& pass,
                 "failed: " +
                 std::to_string(err));
     }
-#elif defined(HAVE_PKCS5_PBKDF2_HMAC_SHA1)
-    auto err = PKCS5_PBKDF2_HMAC_SHA1(
-            pass.data(),
-            int(pass.size()),
-            reinterpret_cast<const uint8_t*>(salt.data()),
-            int(salt.size()),
-            iterationCount,
-            cb::crypto::SHA1_DIGEST_SIZE,
-            reinterpret_cast<uint8_t*>(const_cast<char*>(ret.data())));
-    if (err != 1) {
-        throw std::runtime_error(
-                "cb::crypto::PBKDF2_HMAC(SHA1): PKCS5_PBKDF2_HMAC_SHA1 failed" +
-                std::to_string(err));
-    }
-#else
-    throw std::runtime_error("cb::crypto::PBKDF2_HMAC(SHA1): Not supported");
-#endif
 
     return ret;
 }
@@ -763,7 +745,6 @@ static std::string PBKDF2_HMAC_SHA256(const std::string& pass,
                                       unsigned int iterationCount) {
     std::string ret;
     ret.resize(cb::crypto::SHA256_DIGEST_SIZE);
-#if defined(HAVE_PKCS5_PBKDF2_HMAC)
     auto err = PKCS5_PBKDF2_HMAC(
             pass.data(),
             int(pass.size()),
@@ -778,9 +759,7 @@ static std::string PBKDF2_HMAC_SHA256(const std::string& pass,
                 "cb::crypto::PBKDF2_HMAC(SHA256): PKCS5_PBKDF2_HMAC failed" +
                 std::to_string(err));
     }
-#else
-    throw std::runtime_error("cb::crypto::PBKDF2_HMAC(SHA256): Not supported");
-#endif
+
     return ret;
 }
 
@@ -789,7 +768,6 @@ static std::string PBKDF2_HMAC_SHA512(const std::string& pass,
                                       unsigned int iterationCount) {
     std::string ret;
     ret.resize(cb::crypto::SHA512_DIGEST_SIZE);
-#if defined(HAVE_PKCS5_PBKDF2_HMAC)
     auto err = PKCS5_PBKDF2_HMAC(
             pass.data(),
             int(pass.size()),
@@ -804,9 +782,7 @@ static std::string PBKDF2_HMAC_SHA512(const std::string& pass,
                 "cb::crypto::PBKDF2_HMAC(SHA512): PKCS5_PBKDF2_HMAC failed" +
                 std::to_string(err));
     }
-#else
-    throw std::runtime_error("cb::crypto::PBKDF2_HMAC(SHA512): Not supported");
-#endif
+
     return ret;
 }
 
@@ -1053,19 +1029,7 @@ static inline void verifyLegalAlgorithm(const cb::crypto::Algorithm al) {
 bool cb::crypto::isSupported(const Algorithm algorithm) {
     verifyLegalAlgorithm(algorithm);
 
-#if defined(__APPLE__) || defined(_MSC_VER) || defined(HAVE_PKCS5_PBKDF2_HMAC)
     return true;
-#elif defined(HAVE_PKCS5_PBKDF2_HMAC_SHA1)
-    switch (algorithm) {
-    case Algorithm::MD5:
-    case Algorithm::SHA1:
-        return true;
-    default:
-        return false;
-    }
-#else
-    return algorithm == Algorithm::MD5;
-#endif
 }
 
 std::string cb::crypto::digest(const Algorithm algorithm,
