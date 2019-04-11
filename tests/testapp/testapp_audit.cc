@@ -29,6 +29,7 @@
 #include <platform/dirutils.h>
 
 #include <cctype>
+#include <fstream>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -37,6 +38,20 @@ class AuditTest : public TestappClientTest {
 public:
     void SetUp() override {
         TestappClientTest::SetUp();
+
+        // Create a copy of the audit events file so that we can modify
+        // the events
+        auto& json = mcd_env->getAuditConfig();
+        descriptor_file = cb::io::mktemp("audit_events.json");
+        org_descriptor_file = json["descriptors_path"].get<std::string>();
+
+        auto content =
+                cb::io::loadFile(org_descriptor_file + "/audit_events.json");
+        std::ofstream copy(descriptor_file, std::ios::binary);
+        copy.write(content.data(), content.size());
+        copy.close();
+        json["descriptors_path"] = descriptor_file;
+
         reconfigure_client_cert_auth("disable", "", "", "");
         auto& logdir = mcd_env->getAuditLogDir();
         EXPECT_NO_THROW(cb::io::rmrf(logdir));
@@ -46,16 +61,24 @@ public:
 
     void TearDown() override {
         reconfigure_client_cert_auth("disable", "", "", "");
+        auto& json = mcd_env->getAuditConfig();
+        json["descriptors_path"] = org_descriptor_file;
         setEnabled(false);
         auto& logdir = mcd_env->getAuditLogDir();
         EXPECT_NO_THROW(cb::io::rmrf(mcd_env->getAuditLogDir()));
         cb::io::mkdirp(logdir);
+        cb::io::rmrf(descriptor_file);
         TestappClientTest::TearDown();
     }
 
     void setEnabled(bool mode) {
         auto& json = mcd_env->getAuditConfig();
         json["auditd_enabled"] = mode;
+        json["filtering_enabled"] = true;
+        json["disabled_userids"][0] = {
+                {"domain", to_string(cb::rbac::Domain::Local)},
+                {"user", "MB33603"}};
+
         try {
             mcd_env->rewriteAuditConfig();
         } catch (std::exception& e) {
@@ -83,6 +106,10 @@ public:
      * @param callback the callback containing the audit event
      */
     void iterate(const std::function<bool(const nlohmann::json&)>& callback);
+
+protected:
+    std::string descriptor_file;
+    std::string org_descriptor_file;
 };
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
@@ -357,4 +384,87 @@ TEST_P(AuditTest, AuditPut) {
     auto& conn = getAdminConnection();
     auto rsp = conn.execute(BinprotAuditPutCommand{0, R"({})"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataString();
+}
+
+/// Filtering failed to work for memcached generated events as the domain
+/// for these events was hardcoded to "memcached"
+TEST_P(AuditTest, MB33603_ValidDomainName) {
+    auto& conn = getConnection();
+    try {
+        conn.authenticate("bubba", "invalid", "PLAIN");
+        FAIL() << "Authentication should fail";
+    } catch (const ConnectionError& error) {
+        ASSERT_TRUE(error.isAuthError());
+    }
+
+    std::string domain;
+    iterate([&domain](const nlohmann::json& entry) {
+        if (entry["id"].get<int>() != MEMCACHED_AUDIT_AUTHENTICATION_FAILED) {
+            return false;
+        }
+
+        if (entry["real_userid"]["user"] != "bubba") {
+            return false;
+        }
+
+        domain = entry["real_userid"]["domain"];
+        return true;
+    });
+
+    EXPECT_EQ(to_string(cb::rbac::Domain::Local), domain);
+}
+
+TEST_P(AuditTest, MB33603_Filtering) {
+    auto json = nlohmann::json::parse(cb::io::loadFile(descriptor_file));
+
+    for (auto& module : json["modules"]) {
+        for (auto& entry : module["events"]) {
+            if (entry["id"].get<int>() ==
+                MEMCACHED_AUDIT_AUTHENTICATION_FAILED) {
+                entry["filtering_permitted"] = true;
+            }
+        }
+    }
+
+    auto content = json.dump(2);
+    std::ofstream copy(descriptor_file, std::ios::binary);
+    copy.write(content.data(), content.size());
+    copy.close();
+    setEnabled(true);
+
+    auto& conn = getConnection();
+    try {
+        conn.authenticate("MB33603", "invalid", "PLAIN");
+        FAIL() << "Authentication should fail";
+    } catch (const ConnectionError& error) {
+        ASSERT_TRUE(error.isAuthError());
+    }
+
+    // Perform a second invalid login (with a different username)
+    // so that we know when we can stop looking at the audit trail and
+    // verify that we haven't generated an entry for the user.
+
+    try {
+        conn.authenticate("MB33603_1", "invalid", "PLAIN");
+        FAIL() << "Authentication should fail";
+    } catch (const ConnectionError& error) {
+        ASSERT_TRUE(error.isAuthError());
+    }
+
+    bool found = false;
+    iterate([&found](const nlohmann::json& entry) {
+        if (entry["id"].get<int>() != MEMCACHED_AUDIT_AUTHENTICATION_FAILED) {
+            return false;
+        }
+
+        if (entry["real_userid"]["user"] == "MB33603") {
+            found = true;
+            return true;
+        }
+
+        return entry["real_userid"]["user"] == "MB33603_1";
+    });
+
+    EXPECT_FALSE(found)
+            << "Filtering out memcached generated events don't work";
 }

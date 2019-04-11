@@ -24,6 +24,7 @@
 
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
+#include <platform/strerror.h>
 #include <utilities/json_utilities.h>
 
 #include "audit.h"
@@ -166,12 +167,17 @@ void AuditConfig::set_descriptors_path(const std::string &directory) {
     descriptors_path = directory;
     sanitize_path(descriptors_path);
 
-    const auto tmp =
-            descriptors_path + cb::io::DirectorySeparator + "audit_events.json";
-    FILE* fp = fopen(tmp.c_str(), "r");
+    std::string fname;
+    if (cb::io::isDirectory(descriptors_path)) {
+        fname = descriptors_path + cb::io::DirectorySeparator +
+                "audit_events.json";
+    } else {
+        fname = descriptors_path;
+    }
+    FILE* fp = fopen(fname.c_str(), "r");
     if (fp == nullptr) {
         std::stringstream ss;
-        ss << "Failed to open \"" << tmp.c_str() << "\": " << strerror(errno);
+        ss << "Failed to open \"" << fname.c_str() << "\": " << cb_strerror();
         throw ss.str();
     }
     fclose(fp);

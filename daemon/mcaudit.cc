@@ -91,16 +91,13 @@ void setEnabled(uint32_t id, bool enable) {
  * @return the json object containing the basic information
  */
 static nlohmann::json create_memcached_audit_object(const Connection& c) {
-    nlohmann::json domain;
-    domain["domain"] = "memcached";
-    domain["user"] = c.getUsername();
-
     nlohmann::json root;
 
     root["timestamp"] = ISOTime::generatetimestamp();
     root["peername"] = c.getPeername();
     root["sockname"] = c.getSockname();
-    root["real_userid"] = domain;
+    root["real_userid"]["domain"] = to_string(c.getDomain());
+    root["real_userid"]["user"] = c.getUsername();
 
     return root;
 }
