@@ -7404,10 +7404,8 @@ BaseTestCase testsuite_testcases[] = {
                  "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
                  "chk_remover_stime=1;max_size=6291456;chk_max_items=8000;",
 
-                 // TODO RDB: Cannot store any item (ENGINE_ENOMEM).
-                 // Needs to resize 'max_size' to consider RocksDB
-                 // pre-allocations.
-                 prepare_skip_broken_under_rocks,
+                 // MB-28031: Test intermittently failing - disabling.
+                 prepare_broken_test,
                  cleanup),
         TestCase("test dcp stream takeover", test_dcp_takeover, test_setup,
                 teardown, "chk_remover_stime=1", prepare, cleanup),

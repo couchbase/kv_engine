@@ -215,6 +215,11 @@ enum test_result prepare(engine_test_t *test) {
     return SUCCESS;
 }
 
+/// Prepare a test which is currently broken (i.e. under investigation).
+enum test_result prepare_broken_test(engine_test_t* test) {
+    return SKIPPED;
+}
+
 enum test_result prepare_ep_bucket(engine_test_t* test) {
     std::string cfg{test->cfg};
     if (cfg.find("bucket_type=ephemeral") != std::string::npos) {

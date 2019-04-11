@@ -189,6 +189,9 @@ bool teardown_v2(engine_test_t* test);
 // Default testcase prepare function.
 enum test_result prepare(engine_test_t *test);
 
+/// Prepare a test which is currently broken (i.e. under investigation).
+enum test_result prepare_broken_test(engine_test_t* test);
+
 /**
  * Prepare a test which is only applicable for persistent buckets (EPBucket) -
  * for other types it should be skipped.
