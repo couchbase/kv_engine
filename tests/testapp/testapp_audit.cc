@@ -75,6 +75,14 @@ public:
     bool searchAuditLogForID(int id,
                              const std::string& username = "",
                              const std::string& bucketname = "");
+
+    /**
+     * Iterate over all of the entries found in the log file(s) over and
+     * over until the callback method returns false.
+     *
+     * @param callback the callback containing the audit event
+     */
+    void iterate(const std::function<bool(const nlohmann::json&)>& callback);
 };
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
@@ -118,65 +126,82 @@ std::vector<nlohmann::json> AuditTest::readAuditData() {
     return rval;
 }
 
-bool AuditTest::searchAuditLogForID(int id,
-                                    const std::string& username,
-                                    const std::string& bucketname) {
+void AuditTest::iterate(
+        const std::function<bool(const nlohmann::json&)>& callback) {
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(5);
 
     do {
         const auto auditEntries = readAuditData();
         for (auto& entry : auditEntries) {
-            if (entry["id"].get<int>() == id) {
-                // This the type we're searching for..
-                std::string user;
-                std::string bucket;
-
-                auto iter = entry.find("bucket");
-                if (iter != entry.end()) {
-                    bucket.assign(iter->get<std::string>());
+            if (callback(entry)) {
+                // We're done
+                return;
                 }
-
-                iter = entry.find("real_userid");
-                if (iter != entry.end()) {
-                    auto u = iter->find("user");
-                    if (u != iter->end()) {
-                        user.assign(u->get<std::string>());
-                    }
-                }
-
-                if (!username.empty()) {
-                    if (user.empty()) {
-                        // The entry did not contain a username!
-                        return false;
-                    }
-
-                    if (user != username) {
-                        // We found another user (needed to test authentication
-                        // success ;)
-                        continue;
-                    }
-                }
-
-                if (!bucketname.empty()) {
-                    if (bucket.empty()) {
-                        // This entry did not contain a bucket entry
-                        return false;
-                    }
-
-                    if (bucket != bucketname) {
-                        continue;
-                    }
-                }
-
-                return true;
-            }
         }
-
         // Avoid busy-loop by backing off
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     } while (std::chrono::steady_clock::now() < timeout);
 
-    return false;
+    FAIL() << "Timed out waiting for audit event";
+}
+
+bool AuditTest::searchAuditLogForID(int id,
+                                    const std::string& username,
+                                    const std::string& bucketname) {
+    bool ret = false;
+    iterate([&ret, id, username, bucketname](const nlohmann::json& entry) {
+        if (entry["id"].get<int>() != id) {
+            return false;
+        }
+
+        // This the type we're searching for..
+        std::string user;
+        std::string bucket;
+
+        auto iter = entry.find("bucket");
+        if (iter != entry.end()) {
+            bucket.assign(iter->get<std::string>());
+        }
+
+        iter = entry.find("real_userid");
+        if (iter != entry.end()) {
+            auto u = iter->find("user");
+            if (u != iter->end()) {
+                user.assign(u->get<std::string>());
+            }
+        }
+
+        if (!username.empty()) {
+            if (user.empty()) {
+                // The entry did not contain a username!
+                ret = false;
+                return true;
+            }
+
+            if (user != username) {
+                // We found another user (needed to test authentication
+                // success ;)
+                return false;
+            }
+        }
+
+        if (!bucketname.empty()) {
+            if (bucket.empty()) {
+                // This entry did not contain a bucket entry
+                ret = false;
+                return true;
+            }
+
+            if (bucket != bucketname) {
+                return false;
+            }
+        }
+
+        ret = true;
+        return true;
+    });
+
+    return ret;
 }
 
 /**
