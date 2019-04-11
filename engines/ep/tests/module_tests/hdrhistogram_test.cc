@@ -22,6 +22,7 @@
 #include <hdr_histogram.h>
 
 #include <cmath>
+#include <iomanip>
 #include <memory>
 #include <random>
 #include <thread>
@@ -173,14 +174,13 @@ TEST(HdrHistogramTest, addValueAndCountTest) {
 #define LOG_NORMAL_STD 2.0
 #define LOG_NORMAL_SCALE_UP_MULT 35000
 #define LOG_NORMAL_MIN 50000
-
+static std::vector<uint64_t> valuesToAdd(10000);
+static bool initialised = false;
 // static function to return a log normal value scaled by
 // LOG_NORMAL_SCALE_UP_MULT. It creates an array of 10000 static values that
 // using std::lognormal_distribution and returners them in an incrementing
 // linear fashion so that they can be used for the meanTest
 static uint64_t GetNextLogNormalValue() {
-    static bool initialised = false;
-    static std::vector<uint64_t> valuesToAdd(10000);
     static unsigned int i = 0;
 
     if (!initialised) {
@@ -219,7 +219,7 @@ static uint64_t GetNextLogNormalValue() {
 TEST(HdrHistogramTest, meanTest) {
     HdrHistogram histogram{0, 60000000, 3};
     uint64_t sum = 0;
-    double total_count = 0;
+    uint64_t total_count = 0;
 
     for (uint64_t i = 0; i < 1000000; i++) {
         uint64_t count = GetNextLogNormalValue();
@@ -236,24 +236,13 @@ TEST(HdrHistogramTest, meanTest) {
     }
 
     // calculate the mean
-    double_t avg = (sum / total_count);
-    int normaliseBy = 1;
+    double_t avg = (sum / static_cast<double_t>(total_count));
 
-    // the mean will only be accurate to getSigFigAccuracy() in this case
-    // 3 sig fig. Which means we only want to compare the 3 sig fig, thus
-    // we need to normalise our mean to the one returned by the histogram.
-    // To do this we work out the power of ten of our mean and then remove two
-    // from this to leave us with two sig fig
-    int tens = static_cast<int>(log10(avg)) + 1 - histogram.getSigFigAccuracy();
+    uint64_t meanDiff = std::abs(avg - histogram.getMean());
+    double_t errorPer = (meanDiff / avg) * 100.0;
 
-    // no point in normalising if the mean is 3 sig fig or less.
-    if (tens <= histogram.getSigFigAccuracy()) {
-        normaliseBy = static_cast<int>(std::pow(10, tens));
-    }
-
-    EXPECT_EQ(static_cast<unsigned int>(round(avg) / normaliseBy),
-              static_cast<unsigned int>(round(histogram.getMean()) /
-                                        normaliseBy));
+    // check that the error percentage is less than 0.05%
+    EXPECT_GT(0.05, std::abs(errorPer));
 }
 
 void addValuesThread(HdrHistogram& histo,
