@@ -6959,6 +6959,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_item_freq_decayer_percent",
               "ep_item_num",
               "ep_item_num_based_new_chk",
+              "ep_items_expelled_from_checkpoints",
               "ep_items_rm_from_checkpoints",
               "ep_keep_closed_chks",
               "ep_kv_size",

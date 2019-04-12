@@ -160,6 +160,11 @@ For introductory information on stats within Couchbase, start with the
 | ep_expiry_pager_task_time             | Time of the next expiry pager task      |
 |                                       | (GMT), NOT_SCHEDULED if expiry pager    |
 |                                       | has been disabled                       |
+| ep_items_expelled_from_checkpoints    | Number of items expelled from           |
+|                                       | checkpoints. Expelled refers to items   |
+|                                       | that have been ejected from memory      |
+|                                       | but are still considered to be part of  |
+|                                       | the checkpoint.                         |
 | ep_items_rm_from_checkpoints          | Number of items removed from closed     |
 |                                       | unreferenced checkpoints                |
 | ep_num_value_ejects                   | Number of times item values got         |
@@ -1250,6 +1255,7 @@ Reset Stats:
 | ep_io_num_write                                |
 | ep_io_bg_fetch_doc_bytes                       |
 | ep_io_write_bytes                              |
+| ep_items_expelled_from_checkpoints             |
 | ep_items_rm_from_checkpoints                   |
 | ep_num_eject_failures                          |
 | ep_num_pager_runs                              |

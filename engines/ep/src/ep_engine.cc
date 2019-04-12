@@ -2702,6 +2702,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
                     epstats.freqDecayerRuns,
                     add_stat,
                     cookie);
+    add_casted_stat("ep_items_expelled_from_checkpoints",
+                    epstats.itemsExpelledFromCheckpoints,
+                    add_stat, cookie);
     add_casted_stat("ep_items_rm_from_checkpoints",
                     epstats.itemsRemovedFromCheckpoints,
                     add_stat, cookie);

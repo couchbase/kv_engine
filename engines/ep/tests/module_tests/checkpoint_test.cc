@@ -1699,6 +1699,7 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsTest) {
      */
 
     EXPECT_EQ(itemCount + 1, this->manager->expelUnreferencedCheckpointItems());
+    EXPECT_EQ(itemCount + 1, this->global_stats.itemsExpelledFromCheckpoints);
 
     /*
      * After expelling checkpoint now looks as follows:
@@ -1760,6 +1761,7 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
     }
 
     ASSERT_EQ(itemCount + 1, this->manager->expelUnreferencedCheckpointItems());
+    EXPECT_EQ(itemCount + 1, this->global_stats.itemsExpelledFromCheckpoints);
 
     /*
      * After expelling checkpoint now looks as follows:
@@ -1812,6 +1814,7 @@ TYPED_TEST(CheckpointTest, expelCursorPointingToLastItem) {
      */
 
     EXPECT_EQ(itemCount + 1 , this->manager->expelUnreferencedCheckpointItems());
+    EXPECT_EQ(itemCount + 1, this->global_stats.itemsExpelledFromCheckpoints);
 
     /*
      * After expelling checkpoint now looks as follows:
@@ -1841,6 +1844,7 @@ TYPED_TEST(CheckpointTest, expelCursorPointingToChkptStart) {
      */
 
     EXPECT_EQ(0 , this->manager->expelUnreferencedCheckpointItems());
+    EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
 // Test that if we want to evict items from seqno X, but have a meta-data item
@@ -1889,4 +1893,5 @@ TYPED_TEST(CheckpointTest, dontExpelIfCursorAtMetadataItemWithSameSeqno) {
 
     // We should not expel any items due to dcpCursor1
     EXPECT_EQ(0, this->manager->expelUnreferencedCheckpointItems());
+    EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
 }

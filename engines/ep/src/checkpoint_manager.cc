@@ -565,6 +565,8 @@ size_t CheckpointManager::expelUnreferencedCheckpointItems() {
         expelledItems = currentCheckpoint->expelItems(expelUpToAndIncluding);
     }
 
+    stats.itemsExpelledFromCheckpoints.fetch_add(expelledItems.size());
+
     /*
      * We are now outside of the queueLock when the method exits,
      * expelledItems will go out of scope and so the reference count
