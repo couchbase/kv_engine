@@ -40,6 +40,11 @@
 #include <mcbp/protocol/framebuilder.h>
 #include <memcached/server_cookie_iface.h>
 
+/**
+ * Test fixture for rollback tests. Parameterized on:
+ * - eviction policy (full / value)
+ * - vBucket state at rollback (pending or replica).
+ */
 class RollbackTest : public SingleThreadedEPBucketTest,
                      public ::testing::WithParamInterface<
                              std::tuple<std::string, std::string>> {

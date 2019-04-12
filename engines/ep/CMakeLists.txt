@@ -366,6 +366,7 @@ if (NOT EP_BYPASS_TESTS)
                    tests/module_tests/ephemeral_bucket_test.cc
                    tests/module_tests/ephemeral_vb_test.cc
                    tests/module_tests/evp_engine_test.cc
+                   tests/module_tests/evp_store_durability_test.cc
                    tests/module_tests/evp_store_rollback_test.cc
                    tests/module_tests/evp_store_test.cc
                    tests/module_tests/evp_store_single_threaded_test.cc

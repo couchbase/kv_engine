@@ -21,6 +21,7 @@
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "dcp/response.h"
 #include "ep_time.h"
+#include "evp_store_durability_test.h"
 #include "evp_store_single_threaded_test.h"
 #include "kvstore.h"
 #include "programs/engine_testapp/mock_server.h"
@@ -512,21 +513,7 @@ TEST_F(WarmupTest, MB_32577) {
 }
 
 // Test fixture for Durability-related Warmup tests.
-class DurabilityWarmupTest : public STParameterizedBucketTest {
-protected:
-    void SetUp() {
-        STParameterizedBucketTest::SetUp();
-        // Add an initial replication topology so we can accept SyncWrites.
-        setVBucketToActiveWithValidTopology();
-    }
-
-    void setVBucketToActiveWithValidTopology(
-            nlohmann::json topology = nlohmann::json::array({{"active",
-                                                              "replica"}})) {
-        setVBucketStateAndRunPersistTask(
-                vbid, vbucket_state_active, {{"topology", topology}});
-    }
-};
+class DurabilityWarmupTest : public DurabilityKVBucketTest {};
 
 // Test that a pending SyncWrite not yet committed is correctly warmed up
 // when the bucket restarts.
