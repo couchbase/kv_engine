@@ -157,6 +157,117 @@ TEST_P(DurabilityEPBucketTest, PersistAbort) {
     EXPECT_TRUE(gv.item->isDeleted());
 }
 
+/// Test that if a single key is prepared, aborted & re-prepared it is the
+/// second Prepare which is kept on disk.
+TEST_P(DurabilityEPBucketTest, PersistPrepareAbortPrepare) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto& vb = *getEPBucket().getVBucket(vbid);
+
+    // First prepare and abort.
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "value");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb.abort(key,
+                       pending->getBySeqno(),
+                       {} /*abortSeqno*/,
+                       vb.lockCollections(key)));
+
+    // Second prepare.
+    auto pending2 = makePendingItem(key, "value2");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending2, cookie));
+
+    // We do not deduplicate Prepare and Abort (achieved by inserting them into
+    // different checkpoints)
+    const auto& ckptMgr = *getEPBucket().getVBucket(vbid)->checkpointManager;
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    ckptMgr);
+    ASSERT_EQ(3, ckptList.size());
+    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    ASSERT_EQ(1,
+              (*(--ckptList.back()->end()))->getOperation() ==
+                      queue_op::pending_sync_write);
+    EXPECT_EQ(3, ckptMgr.getNumItemsForPersistence());
+
+    // Note: Prepare and Abort are in the same key-space, so they will be
+    //     deduplicated at Flush
+    EXPECT_EQ(
+            std::make_pair(false /*more_to_flush*/, size_t(1) /*num_flushed*/),
+            getEPBucket().flushVBucket(vbid));
+
+    // At persist-dedup, the 2nd Prepare survives
+    auto* store = vb.getShard()->getROUnderlying();
+    DiskDocKey prefixedKey(key, true /*pending*/);
+    auto gv = store->get(prefixedKey, Vbid(0));
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_TRUE(gv.item->isPending());
+    EXPECT_FALSE(gv.item->isDeleted());
+    EXPECT_EQ(pending2->getBySeqno(), gv.item->getBySeqno());
+}
+
+/// Test that if a single key is prepared, aborted re-prepared & re-aborted it
+/// is the second Abort which is kept on disk.
+TEST_P(DurabilityEPBucketTest, PersistPrepareAbortx2) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto& vb = *getEPBucket().getVBucket(vbid);
+
+    // First prepare and abort.
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "value");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb.abort(key,
+                       pending->getBySeqno(),
+                       {} /*abortSeqno*/,
+                       vb.lockCollections(key)));
+
+    // Second prepare and abort.
+    auto pending2 = makePendingItem(key, "value2");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending2, cookie));
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb.abort(key,
+                       pending2->getBySeqno(),
+                       {} /*abortSeqno*/,
+                       vb.lockCollections(key)));
+
+    // We do not deduplicate Prepare and Abort (achieved by inserting them into
+    // different checkpoints)
+    const auto& ckptMgr = *getEPBucket().getVBucket(vbid)->checkpointManager;
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    ckptMgr);
+    ASSERT_EQ(4, ckptList.size());
+    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    ASSERT_EQ(1,
+              (*(--ckptList.back()->end()))->getOperation() ==
+                      queue_op::abort_sync_write);
+    EXPECT_EQ(4, ckptMgr.getNumItemsForPersistence());
+
+    // Note: Prepare and Abort are in the same key-space and hence are
+    //       deduplicated at Flush.
+    EXPECT_EQ(
+            std::make_pair(false /*more_to_flush*/, size_t(1) /*num_flushed*/),
+            getEPBucket().flushVBucket(vbid));
+
+    // At persist-dedup, the 2nd Abort survives
+    auto* store = vb.getShard()->getROUnderlying();
+    DiskDocKey prefixedKey(key, true /*pending*/);
+    auto gv = store->get(prefixedKey, Vbid(0));
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_TRUE(gv.item->isAbort());
+    EXPECT_TRUE(gv.item->isDeleted());
+    EXPECT_EQ(pending2->getBySeqno() + 1, gv.item->getBySeqno());
+}
+
 TEST_P(DurabilityEPBucketTest, ActiveLocalNotifyPersistedSeqno) {
     setVBucketStateAndRunPersistTask(
             vbid,
