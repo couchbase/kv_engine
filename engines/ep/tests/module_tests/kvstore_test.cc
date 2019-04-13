@@ -2192,6 +2192,7 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
     WriteCallback wc;
     std::string value = "value";
     std::vector<Vbid> vbids = {Vbid(0), Vbid(1)};
+    uint64_t seqno = 1000;
 
     // For this test we need to initialize both VBucket 0 and VBucket 1.
     // In the case of RocksDB we need to release the DB already opened in 'kvstore'
@@ -2210,7 +2211,7 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
                   value.size(),
                   PROTOCOL_BINARY_RAW_BYTES,
                   0 /*cas*/,
-                  -1 /*bySeqno*/,
+                  seqno++ /*bySeqno*/,
                   vbid);
         kvstore->set(item, wc);
         kvstore->commit(flush);
@@ -2234,6 +2235,7 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
 // Expect ThreadSanitizer to pick this.
 TEST_P(KVStoreParamTest, DelVBucketConcurrentOperationsTest) {
     WriteCallback wc;
+    uint64_t seqno = 1000;
     Item item(makeStoredDocKey("key"),
               0 /*flags*/,
               0 /*exptime*/,
@@ -2241,7 +2243,7 @@ TEST_P(KVStoreParamTest, DelVBucketConcurrentOperationsTest) {
               5 /*nb*/,
               PROTOCOL_BINARY_RAW_BYTES,
               0 /*cas*/,
-              -1 /*bySeqno*/,
+              seqno++ /*bySeqno*/,
               Vbid(0));
     auto set = [&] {
         for (int i = 0; i < 10; i++) {
