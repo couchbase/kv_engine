@@ -24,7 +24,7 @@
 #include "collections/collection_persisted_stats.h"
 #include "conflict_resolution.h"
 #include "dcp/dcpconnmap.h"
-#include "durability_monitor.h"
+#include "durability/durability_monitor.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "ep_types.h"

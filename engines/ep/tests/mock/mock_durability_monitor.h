@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include "durability_monitor.h"
+#include "durability/durability_monitor.h"
 #include "stored-value.h"
 
 /*
