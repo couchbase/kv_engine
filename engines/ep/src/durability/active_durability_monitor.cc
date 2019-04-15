@@ -328,23 +328,7 @@ void ActiveDurabilityMonitor::setReplicationTopology(
                 "empty");
     }
 
-    // @todo: Add support for SecondChain
-    std::vector<std::string> firstChain;
-    for (auto& node : topology.at(0).items()) {
-        // First node (active) must be present, remaining (replica) nodes
-        // are allowed to be Null indicating they are undefined.
-        if (node.value().is_string()) {
-            firstChain.push_back(node.value());
-        } else {
-            if (node.key() == "0") {
-                throw std::invalid_argument(
-                        "ActiveDurabilityMonitor::setReplicationTopology: "
-                        "first node "
-                        "in chain (active) cannot be undefined");
-            }
-            firstChain.emplace_back(UndefinedNode);
-        }
-    }
+    const auto& firstChain = topology.at(0);
 
     if (firstChain.size() == 0) {
         throw std::invalid_argument(
@@ -359,17 +343,17 @@ void ActiveDurabilityMonitor::setReplicationTopology(
                 "ActiveDurabilityMonitor::setReplicationTopology: Too many "
                 "nodes "
                 "in chain: " +
-                std::to_string(firstChain.size()));
+                firstChain.dump());
     }
 
-    std::lock_guard<std::mutex> lg(state.m);
+    if (!firstChain.at(0).is_string()) {
+        throw std::invalid_argument(
+                "ActiveDurabilityMonitor::setReplicationTopology: "
+                "first node "
+                "in chain (active) cannot be undefined");
+    }
 
-    // Note: Topology changes (i.e., reset of replication-chain) are implicitly
-    //     supported. With the current model the new replication-chain will
-    //     kick-in at the first new SyncWrite added to tracking.
-    // @todo: Check if the above is legal
-    state.firstChain = std::make_unique<ReplicationChain>(
-            firstChain, state.trackedWrites.begin());
+    state.wlock()->setReplicationTopology(topology);
 }
 
 int64_t ActiveDurabilityMonitor::getHighPreparedSeqno() const {
@@ -378,8 +362,13 @@ int64_t ActiveDurabilityMonitor::getHighPreparedSeqno() const {
 }
 
 bool ActiveDurabilityMonitor::isDurabilityPossible() const {
-    std::lock_guard<std::mutex> lg(state.m);
-    return isDurabilityPossible(lg);
+    const auto s = state.rlock();
+    // @todo: Requirements must be possible for all chains, add check for
+    //     SecondChain when it is implemented
+    if (!(s->firstChain && s->firstChain->isDurabilityPossible())) {
+        return false;
+    }
+    return true;
 }
 
 void ActiveDurabilityMonitor::addSyncWrite(const void* cookie,
@@ -391,37 +380,27 @@ void ActiveDurabilityMonitor::addSyncWrite(const void* cookie,
                 "ActiveDurabilityMonitor::addSyncWrite: Level::None");
     }
 
-    std::lock_guard<std::mutex> lg(state.m);
-
-    if (!state.firstChain) {
-        throw std::logic_error(
-                "ActiveDurabilityMonitor::addSyncWrite: FirstChain not "
-                "registered");
-    }
-
     // The caller must have already checked this and returned a proper error
     // before executing down here. Here we enforce it again for defending from
     // unexpected races between VBucket::setState (which sets the replication
     // topology).
-    if (!isDurabilityPossible(lg)) {
+    if (!isDurabilityPossible()) {
         throw std::logic_error(
                 "ActiveDurabilityMonitor::addSyncWrite: Impossible");
     }
 
-    const auto seqno = item->getBySeqno();
-
-    state.trackedWrites.push_back(SyncWrite(cookie, item, *state.firstChain));
-    state.lastTrackedSeqno = seqno;
+    auto s = state.wlock();
+    s->addSyncWrite(cookie, item);
 
     // By logic, before this call the item has been enqueued into the
     // CheckpointManager. So, the memory-tracking for the active has implicitly
     // advanced.
-    const auto& thisNode = state.firstChain->active;
-    advanceNodePosition(lg, thisNode, Tracking::Memory);
-    updateNodeAck(lg, thisNode, Tracking::Memory, seqno);
+    const auto& thisNode = s->getActive();
+    s->advanceNodePosition(thisNode, Tracking::Memory);
+    s->updateNodeAck(thisNode, Tracking::Memory, item->getBySeqno());
 
-    Ensures(getNodeWriteSeqnos(lg, thisNode).memory == seqno);
-    Ensures(getNodeAckSeqnos(lg, thisNode).memory == seqno);
+    Ensures(s->getNodeWriteSeqnos(thisNode).memory == item->getBySeqno());
+    Ensures(s->getNodeAckSeqnos(thisNode).memory == item->getBySeqno());
 
     // @todo: Missing step - check for satisfied SyncWrite, we may need to
     //     commit immediately in the no-replica scenario. Consider to do that in
@@ -433,12 +412,12 @@ ENGINE_ERROR_CODE ActiveDurabilityMonitor::seqnoAckReceived(
         const std::string& replica, int64_t preparedSeqno) {
     // Note:
     // TSan spotted that in the execution path to DM::addSyncWrites we acquire
-    // HashBucketLock first and then a lock to DM::state.m, while here we
-    // acquire first the lock to state.m and then HashBucketLock.
+    // HashBucketLock first and then a lock to DM::state, while here we
+    // acquire first the lock to DM::state and then HashBucketLock.
     // This could cause a deadlock by lock inversion (note that the 2 execution
     // paths are expected to execute in 2 different threads).
     // Given that the HashBucketLock here is acquired in the sub-call to
-    // VBucket::commit, then to fix I need to release the lock to state.m
+    // VBucket::commit, then to fix I need to release the lock to DM::state
     // before executing DM::commit.
     //
     // By logic the correct order of processing for every verified SyncWrite
@@ -448,7 +427,7 @@ ENGINE_ERROR_CODE ActiveDurabilityMonitor::seqnoAckReceived(
     // 3) remove the committed SyncWrite from tracking
     //
     // But, we are in the situation where steps 1 and 3 must execute under lock
-    // to state.m, while step 2 must not.
+    // to m, while step 2 must not.
     //
     // For now as quick fix I solve by inverting the order of steps 2 and 3:
     // 1) check if DurabilityRequirements are satisfied
@@ -460,18 +439,11 @@ ENGINE_ERROR_CODE ActiveDurabilityMonitor::seqnoAckReceived(
     // is a @todo.
     Container toCommit;
     {
-        std::lock_guard<std::mutex> lg(state.m);
-
-        if (!state.firstChain) {
-            throw std::logic_error(
-                    "ActiveDurabilityMonitor::seqnoAckReceived: FirstChain not "
-                    "set");
-        }
-
+        auto s = state.wlock();
         // @todo-durability: Now there's just a single prepared_seqno, update
         // seqnoAck processing to only have a single cursor per replica.
-        processSeqnoAck(lg, replica, Tracking::Memory, preparedSeqno, toCommit);
-        processSeqnoAck(lg, replica, Tracking::Disk, preparedSeqno, toCommit);
+        s->processSeqnoAck(replica, Tracking::Memory, preparedSeqno, toCommit);
+        s->processSeqnoAck(replica, Tracking::Disk, preparedSeqno, toCommit);
     }
 
     // Commit the verified SyncWrites
@@ -492,24 +464,7 @@ void ActiveDurabilityMonitor::processTimeout(
     }
 
     Container toAbort;
-
-    {
-        std::lock_guard<std::mutex> lg(state.m);
-        Container::iterator it = state.trackedWrites.begin();
-        while (it != state.trackedWrites.end()) {
-            if (it->isExpired(asOf)) {
-                // Note: 'it' will be invalidated, so it will need to be reset
-                const auto next = std::next(it);
-
-                auto removed = removeSyncWrite(lg, it);
-                toAbort.splice(toAbort.end(), removed);
-
-                it = next;
-            } else {
-                ++it;
-            }
-        }
-    }
+    state.wlock()->removeExpired(asOf, toAbort);
 
     for (const auto& entry : toAbort) {
         abort(entry);
@@ -517,26 +472,18 @@ void ActiveDurabilityMonitor::processTimeout(
 }
 
 void ActiveDurabilityMonitor::notifyLocalPersistence() {
-    // We must release the lock to state.m before calling back to VBucket (in
+    // We must release the lock to m before calling back to VBucket (in
     // commit()) to avoid a lock inversion with HashBucketLock (same issue as
     // at seqnoAckReceived(), details in there).
     Container toCommit;
     {
-        std::lock_guard<std::mutex> lg(state.m);
-        if (!state.firstChain) {
-            throw std::logic_error(
-                    "ActiveDurabilityMonitor::notifyLocalPeristence: "
-                    "FirstChain not "
-                    "registered");
-        }
-
+        auto s = state.wlock();
         // Note: For the Active, everything up-to last-persisted-seqno is in
         //     consistent state.
-        processSeqnoAck(lg,
-                        state.firstChain->active,
-                        Tracking::Disk,
-                        vb.getPersistenceSeqno(),
-                        toCommit);
+        s->processSeqnoAck(s->getActive(),
+                           Tracking::Disk,
+                           vb.getPersistenceSeqno(),
+                           toCommit);
     }
 
     for (const auto& sw : toCommit) {
@@ -546,7 +493,6 @@ void ActiveDurabilityMonitor::notifyLocalPersistence() {
 
 void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
                                        const void* cookie) const {
-    std::lock_guard<std::mutex> lg(state.m);
     char buf[256];
 
     try {
@@ -555,18 +501,23 @@ void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
         checked_snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
         add_casted_stat(buf, VBucket::toString(vb.getState()), addStat, cookie);
 
+        const auto s = state.rlock();
+
         checked_snprintf(buf, sizeof(buf), "vb_%d:num_tracked", vbid);
-        add_casted_stat(buf, getNumTracked(lg), addStat, cookie);
+        add_casted_stat(buf, s->trackedWrites.size(), addStat, cookie);
 
         checked_snprintf(buf, sizeof(buf), "vb_%d:last_tracked_seqno", vbid);
-        add_casted_stat(buf, state.lastTrackedSeqno, addStat, cookie);
+        add_casted_stat(buf, s->lastTrackedSeqno, addStat, cookie);
 
         checked_snprintf(
                 buf, sizeof(buf), "vb_%d:replication_chain_first:size", vbid);
-        add_casted_stat(buf, getFirstChainSize(lg), addStat, cookie);
+        add_casted_stat(buf,
+                        (s->firstChain ? s->firstChain->positions.size() : 0),
+                        addStat,
+                        cookie);
 
-        if (state.firstChain) {
-            for (const auto& entry : state.firstChain->positions) {
+        if (s->firstChain) {
+            for (const auto& entry : s->firstChain->positions) {
                 const auto* replica = entry.first.c_str();
                 const auto& pos = entry.second;
 
@@ -606,7 +557,8 @@ void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
 
     } catch (const std::exception& e) {
         EP_LOG_WARN(
-                "ActiveDurabilityMonitor::addStats: error building stats: {}",
+                "ActiveDurabilityMonitor::State:::addStats: error building "
+                "stats: {}",
                 e.what());
     }
 }
@@ -622,60 +574,45 @@ std::string ActiveDurabilityMonitor::to_string(Tracking tracking) {
     return value + ":invalid";
 }
 
-size_t ActiveDurabilityMonitor::getNumTracked(
-        const std::lock_guard<std::mutex>& lg) const {
-    return state.trackedWrites.size();
+size_t ActiveDurabilityMonitor::getNumTracked() const {
+    return state.rlock()->trackedWrites.size();
 }
 
-uint8_t ActiveDurabilityMonitor::getFirstChainSize(
-        const std::lock_guard<std::mutex>& lg) const {
-    return state.firstChain ? state.firstChain->positions.size() : 0;
+uint8_t ActiveDurabilityMonitor::getFirstChainSize() const {
+    const auto s = state.rlock();
+    return s->firstChain ? s->firstChain->positions.size() : 0;
 }
 
-uint8_t ActiveDurabilityMonitor::getFirstChainMajority(
-        const std::lock_guard<std::mutex>& lg) const {
-    return state.firstChain ? state.firstChain->majority : 0;
-}
-
-bool ActiveDurabilityMonitor::isDurabilityPossible(
-        const std::lock_guard<std::mutex>& lg) const {
-    // @todo: Requirements must be possible for all chains, add check for
-    //     SecondChain when it is implemented
-    if (!(state.firstChain && state.firstChain->isDurabilityPossible())) {
-        return false;
-    }
-    return true;
+uint8_t ActiveDurabilityMonitor::getFirstChainMajority() const {
+    const auto s = state.rlock();
+    return s->firstChain ? s->firstChain->majority : 0;
 }
 
 ActiveDurabilityMonitor::Container::iterator
-ActiveDurabilityMonitor::getNodeNext(const std::lock_guard<std::mutex>& lg,
-                                     const std::string& node,
-                                     Tracking tracking) {
-    const auto& pos = state.firstChain->positions.at(node);
+ActiveDurabilityMonitor::State::getNodeNext(const std::string& node,
+                                            Tracking tracking) {
+    const auto& pos = firstChain->positions.at(node);
     const auto& it =
             (tracking == Tracking::Memory ? pos.memory.it : pos.disk.it);
     // Note: Container::end could be the new position when the pointed SyncWrite
     //     is removed from Container and the iterator repositioned.
     //     In that case next=Container::begin
-    return (it == state.trackedWrites.end()) ? state.trackedWrites.begin()
-                                             : std::next(it);
+    return (it == trackedWrites.end()) ? trackedWrites.begin() : std::next(it);
 }
 
-void ActiveDurabilityMonitor::advanceNodePosition(
-        const std::lock_guard<std::mutex>& lg,
-        const std::string& node,
-        Tracking tracking) {
-    const auto& pos_ = state.firstChain->positions.at(node);
+void ActiveDurabilityMonitor::State::advanceNodePosition(
+        const std::string& node, Tracking tracking) {
+    const auto& pos_ = firstChain->positions.at(node);
     auto& pos = const_cast<Position&>(tracking == Tracking::Memory ? pos_.memory
                                                                    : pos_.disk);
 
-    if (pos.it == state.trackedWrites.end()) {
-        pos.it = state.trackedWrites.begin();
+    if (pos.it == trackedWrites.end()) {
+        pos.it = trackedWrites.begin();
     } else {
         pos.it++;
     }
 
-    Expects(pos.it != state.trackedWrites.end());
+    Expects(pos.it != trackedWrites.end());
 
     // Note that Position::lastWriteSeqno is always set to the current
     // pointed SyncWrite to keep the replica seqno-state for when the pointed
@@ -686,12 +623,10 @@ void ActiveDurabilityMonitor::advanceNodePosition(
     pos.it->ack(node, tracking);
 }
 
-void ActiveDurabilityMonitor::updateNodeAck(
-        const std::lock_guard<std::mutex>& lg,
-        const std::string& node,
-        Tracking tracking,
-        int64_t seqno) {
-    const auto& pos_ = state.firstChain->positions.at(node);
+void ActiveDurabilityMonitor::State::updateNodeAck(const std::string& node,
+                                                   Tracking tracking,
+                                                   int64_t seqno) {
+    const auto& pos_ = firstChain->positions.at(node);
     auto& pos = const_cast<Position&>(tracking == Tracking::Memory ? pos_.memory
                                                                    : pos_.disk);
 
@@ -712,30 +647,46 @@ void ActiveDurabilityMonitor::updateNodeAck(
 }
 
 ActiveDurabilityMonitor::NodeSeqnos ActiveDurabilityMonitor::getNodeWriteSeqnos(
-        const std::lock_guard<std::mutex>& lg, const std::string& node) const {
-    const auto& pos = state.firstChain->positions.at(node);
-    return {pos.memory.lastWriteSeqno, pos.disk.lastWriteSeqno};
+        const std::string& node) const {
+    return state.rlock()->getNodeWriteSeqnos(node);
 }
 
 ActiveDurabilityMonitor::NodeSeqnos ActiveDurabilityMonitor::getNodeAckSeqnos(
-        const std::lock_guard<std::mutex>& lg, const std::string& node) const {
-    const auto& pos = state.firstChain->positions.at(node);
+        const std::string& node) const {
+    return state.rlock()->getNodeAckSeqnos(node);
+}
+
+const std::string& ActiveDurabilityMonitor::State::getActive() const {
+    return firstChain->active;
+}
+
+ActiveDurabilityMonitor::NodeSeqnos
+ActiveDurabilityMonitor::State::getNodeWriteSeqnos(
+        const std::string& node) const {
+    const auto& pos = firstChain->positions.at(node);
+    return {pos.memory.lastWriteSeqno, pos.disk.lastWriteSeqno};
+}
+
+ActiveDurabilityMonitor::NodeSeqnos
+ActiveDurabilityMonitor::State::getNodeAckSeqnos(
+        const std::string& node) const {
+    const auto& pos = firstChain->positions.at(node);
     return {pos.memory.lastAckSeqno, pos.disk.lastAckSeqno};
 }
 
-ActiveDurabilityMonitor::Container ActiveDurabilityMonitor::removeSyncWrite(
-        const std::lock_guard<std::mutex>& lg, Container::iterator it) {
-    if (it == state.trackedWrites.end()) {
+ActiveDurabilityMonitor::Container
+ActiveDurabilityMonitor::State::removeSyncWrite(Container::iterator it) {
+    if (it == trackedWrites.end()) {
         throw std::logic_error(
                 "ActiveDurabilityMonitor::commit: Position points to end");
     }
 
     Container::iterator prev;
-    // Note: iterators in state.trackedWrites are never singular, Container::end
+    // Note: iterators in trackedWrites are never singular, Container::end
     //     is used as placeholder element for when an iterator cannot point to
     //     any valid element in Container
-    if (it == state.trackedWrites.begin()) {
-        prev = state.trackedWrites.end();
+    if (it == trackedWrites.begin()) {
+        prev = trackedWrites.end();
     } else {
         prev = std::prev(it);
     }
@@ -746,7 +697,7 @@ ActiveDurabilityMonitor::Container ActiveDurabilityMonitor::removeSyncWrite(
     //
     // Note: O(N) with N=<number of iterators>, max(N)=12
     //     (max 2 chains, 3 replicas, 2 iterators per replica)
-    for (const auto& entry : state.firstChain->positions) {
+    for (const auto& entry : firstChain->positions) {
         const auto& nodePos = entry.second;
         if (nodePos.memory.it == it) {
             const_cast<Position&>(nodePos.memory).it = prev;
@@ -757,7 +708,7 @@ ActiveDurabilityMonitor::Container ActiveDurabilityMonitor::removeSyncWrite(
     }
 
     Container removed;
-    removed.splice(removed.end(), state.trackedWrites, it);
+    removed.splice(removed.end(), trackedWrites, it);
 
     return removed;
 }
@@ -792,66 +743,114 @@ void ActiveDurabilityMonitor::abort(const SyncWrite& sw) {
     }
 }
 
-void ActiveDurabilityMonitor::processSeqnoAck(
-        const std::lock_guard<std::mutex>& lg,
-        const std::string& node,
-        Tracking tracking,
-        int64_t ackSeqno,
-        Container& toCommit) {
+void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
+                                                     Tracking tracking,
+                                                     int64_t ackSeqno,
+                                                     Container& toCommit) {
+    if (!firstChain) {
+        throw std::logic_error(
+                "ActiveDurabilityMonitor::processSeqnoAck: FirstChain not "
+                "set");
+    }
+
     // Note: process up to the ack'ed seqno
     ActiveDurabilityMonitor::Container::iterator next;
-    while ((next = getNodeNext(lg, node, tracking)) !=
-                   state.trackedWrites.end() &&
+    while ((next = getNodeNext(node, tracking)) != trackedWrites.end() &&
            next->getBySeqno() <= ackSeqno) {
         // Update replica tracking
-        advanceNodePosition(lg, node, tracking);
+        advanceNodePosition(node, tracking);
 
-        const auto& nodePos = state.firstChain->positions.at(node);
+        const auto& nodePos = firstChain->positions.at(node);
         const auto& pos =
                 (tracking == Tracking::Memory ? nodePos.memory : nodePos.disk);
 
         // Check if Durability Requirements satisfied now, and add for commit
         if (pos.it->isSatisfied()) {
-            auto removed = removeSyncWrite(lg, pos.it);
+            auto removed = removeSyncWrite(pos.it);
             toCommit.splice(toCommit.end(), removed);
         }
     }
 
     // We keep track of the actual ack'ed seqno
-    updateNodeAck(lg, node, tracking, ackSeqno);
+    updateNodeAck(node, tracking, ackSeqno);
 }
 
 std::unordered_set<int64_t> ActiveDurabilityMonitor::getTrackedSeqnos() const {
-    std::lock_guard<std::mutex> lg(state.m);
+    const auto s = state.rlock();
     std::unordered_set<int64_t> ret;
-    for (const auto& w : state.trackedWrites) {
+    for (const auto& w : s->trackedWrites) {
         ret.insert(w.getBySeqno());
     }
     return ret;
 }
 
 size_t ActiveDurabilityMonitor::wipeTracked() {
+    auto s = state.wlock();
     // Note: Cannot just do Container::clear as it would invalidate every
     //     existing Replication Chain iterator
-    std::lock_guard<std::mutex> lg(state.m);
     size_t removed{0};
-    Container::iterator it = state.trackedWrites.begin();
-    while (it != state.trackedWrites.end()) {
+    Container::iterator it = s->trackedWrites.begin();
+    while (it != s->trackedWrites.end()) {
         // Note: 'it' will be invalidated, so it will need to be reset
         const auto next = std::next(it);
-        removed += removeSyncWrite(lg, it).size();
+        removed += s->removeSyncWrite(it).size();
         it = next;
     }
     return removed;
 }
 
 std::ostream& operator<<(std::ostream& os, const ActiveDurabilityMonitor& dm) {
-    std::lock_guard<std::mutex> lg(dm.state.m);
+    const auto s = dm.state.rlock();
     os << "ActiveDurabilityMonitor[" << &dm
-       << "] #trackedWrites:" << dm.state.trackedWrites.size() << "\n";
-    for (const auto& w : dm.state.trackedWrites) {
+       << "] #trackedWrites:" << s->trackedWrites.size() << "\n";
+    for (const auto& w : s->trackedWrites) {
         os << "    " << w << "\n";
     }
     os << "]";
     return os;
+}
+
+void ActiveDurabilityMonitor::State::setReplicationTopology(
+        const nlohmann::json& topology) {
+    // @todo: Add support for SecondChain
+    std::vector<std::string> fChain;
+    for (auto& node : topology.at(0).items()) {
+        // First node (active) must be present, remaining (replica) nodes
+        // are allowed to be Null indicating they are undefined.
+        if (node.value().is_string()) {
+            fChain.push_back(node.value());
+        } else {
+            fChain.emplace_back(UndefinedNode);
+        }
+    }
+    // Note: Topology changes (i.e., reset of replication-chain) are implicitly
+    //     supported. With the current model the new replication-chain will
+    //     kick-in at the first new SyncWrite added to tracking.
+    // @todo: Check if the above is legal
+    firstChain =
+            std::make_unique<ReplicationChain>(fChain, trackedWrites.begin());
+}
+
+void ActiveDurabilityMonitor::State::addSyncWrite(const void* cookie,
+                                                  const queued_item& item) {
+    trackedWrites.emplace_back(cookie, item, *firstChain);
+    lastTrackedSeqno = item->getBySeqno();
+}
+
+void ActiveDurabilityMonitor::State::removeExpired(
+        std::chrono::steady_clock::time_point asOf, Container& expired) {
+    Container::iterator it = trackedWrites.begin();
+    while (it != trackedWrites.end()) {
+        if (it->isExpired(asOf)) {
+            // Note: 'it' will be invalidated, so it will need to be reset
+            const auto next = std::next(it);
+
+            auto removed = removeSyncWrite(it);
+            expired.splice(expired.end(), removed);
+
+            it = next;
+        } else {
+            ++it;
+        }
+    }
 }

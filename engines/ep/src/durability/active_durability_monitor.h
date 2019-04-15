@@ -23,10 +23,10 @@
 #include "memcached/engine_common.h"
 #include "memcached/engine_error.h"
 
+#include <folly/Synchronized.h>
 #include <nlohmann/json.hpp>
 
 #include <list>
-#include <mutex>
 #include <unordered_set>
 
 class StoredDocKey;
@@ -141,118 +141,42 @@ protected:
 
     static std::string to_string(Tracking tracking);
 
-    /**
-     * @param lg the object lock
-     * @return the number of pending SyncWrite(s) currently tracked
-     */
-    size_t getNumTracked(const std::lock_guard<std::mutex>& lg) const;
+    size_t getNumTracked() const;
 
     /**
-     * @param lg the object lock
-     * @return the size of the replication chain
+     * @return the size of FirstChain
      */
-    uint8_t getFirstChainSize(const std::lock_guard<std::mutex>& lg) const;
+    uint8_t getFirstChainSize() const;
 
     /**
-     * @param lg the object lock
-     * @return FirstChain's Majority
+     * @return the FirstChain Majority
      */
-    uint8_t getFirstChainMajority(const std::lock_guard<std::mutex>& lg) const;
+    uint8_t getFirstChainMajority() const;
 
     /**
-     * @param lg the object lock
-     * @return true if the replication topology allows Majority being reached,
-     *     false otherwise
-     */
-    bool isDurabilityPossible(const std::lock_guard<std::mutex>& lg) const;
-
-    /**
-     * Returns the next position for a node iterator.
+     * Returns the seqnos of the SyncWrites currently pointed by the
+     * internal memory/disk tracking for Node. E.g., if we have a tracked
+     * SyncWrite list like {s:1, s:2} and we receive a SeqnoAck{mem:2,
+     * disk:1}, then the internal memory/disk tracking will be {mem:2,
+     * disk:1}, which is what this function returns. Note that this may
+     * differ from Replica AckSeqno. Using the same example, if we receive a
+     * SeqnoAck{mem:100, disk:100} then the internal tracking will still
+     * point to {mem:2, disk:1}, which is what this function will return
+     * again.
      *
-     * @param lg the object lock
-     * @param node
-     * @param tracking Memory or Disk?
-     * @return the iterator to the next position for the given node
-     */
-    Container::iterator getNodeNext(const std::lock_guard<std::mutex>& lg,
-                                    const std::string& node,
-                                    Tracking tracking);
-
-    /**
-     * Advance a node tracking to the next Position in the tracked Container.
-     * Note that a Position tracks a node in terms of both:
-     * - iterator to a SyncWrite in the tracked Container
-     * - seqno of the last SyncWrite ack'ed by the node
-     * This function advances both iterator and seqno.
-     *
-     * @param lg the object lock
-     * @param node
-     * @param tracking Memory or Disk?
-     */
-    void advanceNodePosition(const std::lock_guard<std::mutex>& lg,
-                             const std::string& node,
-                             Tracking tracking);
-
-    /**
-     * We track both the memory/disk seqnos ack'ed by nodes.
-     * Note that this may be different from the current SyncWrite tracked for
-     * the node.
-     * E.g., if we have one tracked SyncWrite{seqno:1, Level:Majority}, then
-     * the DurabilityMonitor may receive a SeqnoAck{mem:1000, disk:0}.
-     * At that point the memory-tracking for that node will be:
-     *
-     *     {writeSeqno:1, ackSeqno:1000}
-     *
-     * This function updates the tracking with the last seqno ack'ed by node.
-     *
-     * @param lg the object lock
-     * @param node
-     * @param tracking Memory or Disk?
-     * @param seqno New ack seqno
-     */
-    void updateNodeAck(const std::lock_guard<std::mutex>& lg,
-                       const std::string& node,
-                       Tracking tracking,
-                       int64_t seqno);
-
-    /**
-     * Returns the seqnos of the SyncWrites currently pointed by the internal
-     * memory/disk tracking for Node.
-     * E.g., if we have a tracked SyncWrite list like {s:1, s:2} and we receive
-     * a SeqnoAck{mem:2, disk:1}, then the internal memory/disk tracking
-     * will be {mem:2, disk:1}, which is what this function returns.
-     * Note that this may differ from Replica AckSeqno. Using the same example,
-     * if we receive a SeqnoAck{mem:100, disk:100} then the internal tracking
-     * will still point to {mem:2, disk:1}, which is what this function will
-     * return again.
-     *
-     * @param lg the object lock
      * @param node
      * @return the {memory, disk} seqnos of the tracked writes for node
      */
-    NodeSeqnos getNodeWriteSeqnos(const std::lock_guard<std::mutex>& lg,
-                                  const std::string& node) const;
+    NodeSeqnos getNodeWriteSeqnos(const std::string& node) const;
 
     /**
      * Returns the last {memSeqno, diskSeqno} ack'ed by Node.
      * Note that this may differ from Node WriteSeqno.
      *
-     * @param lg the object lock
      * @param node
      * @return the last {memory, disk} seqnos ack'ed by Node
      */
-    NodeSeqnos getNodeAckSeqnos(const std::lock_guard<std::mutex>& lg,
-                                const std::string& node) const;
-
-    /**
-     * Remove the given SyncWrte from tracking.
-     *
-     * @param lg The object lock
-     * @param it The iterator to the SyncWrite to be removed
-     * @return single-element list of the removed SyncWrite.
-     */
-    Container removeSyncWrite(const std::lock_guard<std::mutex>& lg,
-                              Container::iterator it);
+    NodeSeqnos getNodeAckSeqnos(const std::string& node) const;
 
     /**
      * Commit the given SyncWrite.
@@ -267,21 +191,6 @@ protected:
      * @param sw The SyncWrite to abort
      */
     void abort(const SyncWrite& sw);
-
-    /**
-     * Updates a node memory/disk tracking as driven by the new ack-seqno.
-     *
-     * @param lg The object lock
-     * @param node The node that ack'ed the given seqno
-     * @param tracking Memory or Disk?
-     * @param ackSeqno
-     * @param [out] toCommit
-     */
-    void processSeqnoAck(const std::lock_guard<std::mutex>& lg,
-                         const std::string& node,
-                         Tracking tracking,
-                         int64_t ackSeqno,
-                         Container& toCommit);
 
     /**
      * Test only.
@@ -302,18 +211,110 @@ protected:
     // The VBucket owning this DurabilityMonitor instance
     VBucket& vb;
 
-    // Represents the internal state of a DurabilityMonitor instance.
-    // Any state change must happen under lock(state.m).
-    struct {
-        mutable std::mutex m;
+    /*
+     * This class embeds the state of an ADM. It has been designed for being
+     * wrapped by a folly::Synchronized<T>, which manages the read/write
+     * concurrent access to the T instance.
+     */
+    struct State {
+        void setReplicationTopology(const nlohmann::json& topology);
+
+        void addSyncWrite(const void* cookie, const queued_item& item);
+
+        /**
+         * Returns the next position for a node iterator.
+         *
+         * @param node
+         * @param tracking Memory or Disk?
+         * @return the iterator to the next position for the given node
+         */
+        Container::iterator getNodeNext(const std::string& node,
+                                        Tracking tracking);
+
+        /**
+         * Advance a node tracking to the next Position in the tracked
+         * Container. Note that a Position tracks a node in terms of both:
+         * - iterator to a SyncWrite in the tracked Container
+         * - seqno of the last SyncWrite ack'ed by the node
+         * This function advances both iterator and seqno.
+         *
+         * @param node
+         * @param tracking Memory or Disk?
+         */
+        void advanceNodePosition(const std::string& node, Tracking tracking);
+
+        /**
+         * We track both the memory/disk seqnos ack'ed by nodes.
+         * Note that this may be different from the current SyncWrite tracked
+         * for the node. E.g., if we have one tracked SyncWrite{seqno:1,
+         * Level:Majority}, then the DurabilityMonitor may receive a
+         * SeqnoAck{mem:1000, disk:0}. At that point the memory-tracking for
+         * that node will be:
+         *
+         *     {writeSeqno:1, ackSeqno:1000}
+         *
+         * This function updates the tracking with the last seqno ack'ed by
+         * node.
+         *
+         * @param node
+         * @param tracking Memory or Disk?
+         * @param seqno New ack seqno
+         */
+        void updateNodeAck(const std::string& node,
+                           Tracking tracking,
+                           int64_t seqno);
+
+        /**
+         * Updates a node memory/disk tracking as driven by the new ack-seqno.
+         *
+         * @param node The node that ack'ed the given seqno
+         * @param tracking Memory or Disk?
+         * @param ackSeqno
+         * @param [out] toCommit
+         */
+        void processSeqnoAck(const std::string& node,
+                             Tracking tracking,
+                             int64_t ackSeqno,
+                             Container& toCommit);
+
+        /**
+         * Removes all the expired Prepares from tracking.
+         *
+         * @param asOf The time to be compared with tracked-SWs' expiry-time
+         * @param [out] the list of the expired Prepares
+         */
+        void removeExpired(std::chrono::steady_clock::time_point asOf,
+                           Container& expired);
+
+        void addStats(const AddStatFn& addStat,
+                      const void* cookie,
+                      uint16_t vbid) const;
+
+        const std::string& getActive() const;
+
+        NodeSeqnos getNodeWriteSeqnos(const std::string& node) const;
+
+        NodeSeqnos getNodeAckSeqnos(const std::string& node) const;
+
+        /**
+         * Remove the given SyncWrte from tracking.
+         *
+         * @param it The iterator to the SyncWrite to be removed
+         * @return single-element list of the removed SyncWrite.
+         */
+        Container removeSyncWrite(Container::iterator it);
+
+        /// The container of pending Prepares.
+        Container trackedWrites;
         // @todo: Expand for supporting the SecondChain.
         std::unique_ptr<ReplicationChain> firstChain;
-        Container trackedWrites;
         // Always stores the seqno of the last SyncWrite added for tracking.
         // Useful for sanity checks, necessary because the tracked container
         // can by emptied by Commit/Abort.
         Monotonic<int64_t, ThrowExceptionPolicy> lastTrackedSeqno;
-    } state;
+    };
+
+    folly::Synchronized<State> state;
 
     const size_t maxReplicas = 3;
 

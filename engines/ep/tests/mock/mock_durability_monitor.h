@@ -28,28 +28,23 @@ public:
     }
 
     size_t public_getNumTracked() const {
-        std::lock_guard<std::mutex> lg(state.m);
-        return ActiveDurabilityMonitor::getNumTracked(lg);
+        return ActiveDurabilityMonitor::getNumTracked();
     }
 
     uint8_t public_getFirstChainSize() const {
-        std::lock_guard<std::mutex> lg(state.m);
-        return ActiveDurabilityMonitor::getFirstChainSize(lg);
+        return ActiveDurabilityMonitor::getFirstChainSize();
     }
 
     uint8_t public_getFirstChainMajority() const {
-        std::lock_guard<std::mutex> lg(state.m);
-        return ActiveDurabilityMonitor::getFirstChainMajority(lg);
+        return ActiveDurabilityMonitor::getFirstChainMajority();
     }
 
     NodeSeqnos public_getNodeWriteSeqnos(const std::string& replica) const {
-        std::lock_guard<std::mutex> lg(state.m);
-        return ActiveDurabilityMonitor::getNodeWriteSeqnos(lg, replica);
+        return ActiveDurabilityMonitor::getNodeWriteSeqnos(replica);
     }
 
     NodeSeqnos public_getNodeAckSeqnos(const std::string& replica) const {
-        std::lock_guard<std::mutex> lg(state.m);
-        return ActiveDurabilityMonitor::getNodeAckSeqnos(lg, replica);
+        return ActiveDurabilityMonitor::getNodeAckSeqnos(replica);
     }
 
     std::unordered_set<int64_t> public_getTrackedSeqnos() const {
