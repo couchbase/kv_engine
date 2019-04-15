@@ -25,6 +25,7 @@
 #include "conflict_resolution.h"
 #include "dcp/dcpconnmap.h"
 #include "durability/active_durability_monitor.h"
+#include "durability/passive_durability_monitor.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "ep_types.h"
@@ -219,7 +220,8 @@ VBucket::VBucket(Vbid i,
       newSeqnoCb(std::move(newSeqnoCb)),
       syncWriteCompleteCb(syncWriteCb),
       manifest(std::move(manifest)),
-      mayContainXattrs(mightContainXattrs) {
+      mayContainXattrs(mightContainXattrs),
+      durabilityMonitor(makeDurabilityMonitor()) {
     if (config.getConflictResolutionType().compare("lww") == 0) {
         conflictResolver.reset(new LastWriteWinsResolution());
     } else {
@@ -231,10 +233,7 @@ VBucket::VBucket(Vbid i,
     stats.coreLocal.get()->memOverhead.fetch_add(
             sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
 
-    if (state == vbucket_state_active) {
-        durabilityMonitor = std::make_unique<ActiveDurabilityMonitor>(*this);
-    }
-
+    // Set topology for SyncReplication
     setReplicationTopology(replTopology);
 
     EP_LOG_INFO(
@@ -527,10 +526,7 @@ void VBucket::setState_UNLOCKED(
 
     // @todo-durability: Don't destroy an existing DM (ie, don't lose the
     // Durability state), covert it when necessary (eg, replica to active).
-    if (to == vbucket_state_active) {
-        durabilityMonitor = std::make_unique<ActiveDurabilityMonitor>(*this);
-    }
-
+    durabilityMonitor = makeDurabilityMonitor();
     setReplicationTopology(meta.is_null() ? nlohmann::json{}
                                           : meta.at("topology"));
 }
@@ -584,6 +580,15 @@ void VBucket::setReplicationTopology(const nlohmann::json& topology) {
 ActiveDurabilityMonitor& VBucket::getActiveDM() const {
     Expects(state == vbucket_state_active);
     return dynamic_cast<ActiveDurabilityMonitor&>(*durabilityMonitor);
+}
+
+std::unique_ptr<DurabilityMonitor> VBucket::makeDurabilityMonitor() {
+    if (state == vbucket_state_active) {
+        return std::make_unique<ActiveDurabilityMonitor>(*this);
+    } else if (state == vbucket_state_replica) {
+        return std::make_unique<PassiveDurabilityMonitor>(*this);
+    }
+    return {};
 }
 
 void VBucket::processDurabilityTimeout(

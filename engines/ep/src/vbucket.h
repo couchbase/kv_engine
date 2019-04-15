@@ -1846,6 +1846,12 @@ protected:
      */
     ActiveDurabilityMonitor& getActiveDM() const;
 
+    /**
+     * @return a new instance of DurabilityMonitor, Active or Passive depending
+     *     on the current VBucket::state
+     */
+    std::unique_ptr<DurabilityMonitor> makeDurabilityMonitor();
+
 private:
     void fireAllOps(EventuallyPersistentEngine& engine, ENGINE_ERROR_CODE code);
 
