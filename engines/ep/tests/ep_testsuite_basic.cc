@@ -1618,9 +1618,10 @@ static enum test_result test_get_delete_missing_file(EngineIface* h) {
     const char *key = "key";
     wait_for_persisted_value(h, key, "value2delete");
 
-    // whack the db file and directory where the key is stored
+    // Make the couchstore files in the db directory totally inaccessible.
     std::string dbname = vals["ep_dbname"];
-    rmdb(dbname.c_str());
+    CouchstoreFileAccessGuard makeCouchstoreFileInaccessible(
+            dbname, CouchstoreFileAccessGuard::Mode::DenyAll);
 
     auto ret = get(h, NULL, key, Vbid(0));
 

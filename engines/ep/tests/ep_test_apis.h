@@ -21,6 +21,7 @@
 #include <memcached/protocol_binary.h>
 #include <relaxed_atomic.h>
 
+#include <folly/portability/SysStat.h>
 #include <iostream>
 #include <map>
 #include <string>
@@ -158,6 +159,27 @@ public:
     uint64_t revSeqno;
     uint32_t flags;
     time_t exptime;
+};
+
+/**
+ * RAII-style class which marks the couchstore file in the given directory
+ * inaccessible upon creation, restoring permissions back to the original value
+ * when destroyed.
+ */
+class CouchstoreFileAccessGuard {
+public:
+    enum class Mode {
+        ReadOnly,
+        DenyAll,
+    };
+
+    CouchstoreFileAccessGuard(std::string dbName, Mode mode = Mode::ReadOnly);
+
+    ~CouchstoreFileAccessGuard();
+
+private:
+    std::string filename;
+    struct stat originalStat;
 };
 
 void decayingSleep(useconds_t *sleepTime);

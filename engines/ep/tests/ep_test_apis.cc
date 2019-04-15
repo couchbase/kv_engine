@@ -18,10 +18,13 @@
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
 
+#include <folly/portability/SysStat.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <memcached/util.h>
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
+#include <platform/dirutils.h>
+#include <platform/strerror.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -35,6 +38,50 @@
 #include <thread>
 
 #include "mock/mock_dcp.h"
+
+using namespace std::string_literals;
+
+CouchstoreFileAccessGuard::CouchstoreFileAccessGuard(
+        std::string dbName, CouchstoreFileAccessGuard::Mode mode) {
+    /* Make the couchstore files in the db directory unwritable.
+     *
+     * Note we can't just make the directory itself unwritable as other
+     * files (e.g. stats.json) need to be written and we are just testing
+     * document write failures here.
+     */
+    const auto dbFiles = cb::io::findFilesContaining(dbName, ".couch.");
+    checkeq(size_t{1},
+            dbFiles.size(),
+            ("Expected to find exactly 1 data file in db directory '"s +
+             dbName + "', found:" + std::to_string(dbFiles.size()))
+                    .c_str());
+
+    filename = dbFiles.front();
+    // Save existing permissions
+    checkeq(0,
+            lstat(filename.c_str(), &originalStat),
+            ("Failed to read existing permissions for file '"s + filename +
+             "': " + cb_strerror())
+                    .c_str());
+
+    const auto perms =
+            (mode == Mode::ReadOnly) ? (S_IRUSR | S_IRGRP | S_IROTH) : 0;
+
+    checkeq(0,
+            chmod(filename.c_str(), perms),
+            ("Failed to make file '"s + dbFiles.at(0) +
+             "' read-only: " + cb_strerror())
+                    .c_str());
+}
+
+CouchstoreFileAccessGuard::~CouchstoreFileAccessGuard() {
+    // Restore permissions to before we changed them.
+    checkeq(0,
+            chmod(filename.c_str(), originalStat.st_mode),
+            ("Failed to make restore permissions to file '"s + filename +
+             "': " + cb_strerror())
+                    .c_str());
+}
 
 void RequestDeleter::operator()(cb::mcbp::Request* request) {
     delete[] reinterpret_cast<uint8_t*>(request);
