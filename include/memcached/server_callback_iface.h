@@ -25,8 +25,7 @@
  */
 typedef enum {
     ON_DISCONNECT = 0, /**< A connection was terminated. */
-    ON_LOG_LEVEL = 1, /**< Changed log level */
-    ON_DELETE_BUCKET = 2, /**< Deletion of the bucket is initiated */
+    ON_LOG_LEVEL = 1 /**< Changed log level */
 } ENGINE_EVENT_TYPE;
 
 #define MAX_ENGINE_EVENT_TYPE 3

@@ -233,6 +233,8 @@ public:
 
     ~EWB_Engine() override;
 
+    void initiate_shutdown() override;
+
     // Convert from a handle back to the read object.
     static EWB_Engine* to_engine(EngineIface* handle) {
         return reinterpret_cast<EWB_Engine*> (handle);
@@ -2004,6 +2006,12 @@ cb::EngineErrorGetCollectionIDResult EWB_Engine::get_collection_id(
 cb::EngineErrorGetScopeIDResult EWB_Engine::get_scope_id(
         gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
     return real_engine->get_scope_id(cookie, path);
+}
+
+void EWB_Engine::initiate_shutdown() {
+    if (real_engine) {
+        real_engine->initiate_shutdown();
+    }
 }
 
 void BlockMonitorThread::run() {

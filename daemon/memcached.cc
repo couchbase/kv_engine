@@ -324,15 +324,6 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
         }
         break;
 
-    case ON_DELETE_BUCKET: {
-        /** cookie is the bucket entry */
-        auto* bucket = reinterpret_cast<const Bucket*>(void_cookie);
-        for (auto& handler : bucket->engine_event_handlers[type]) {
-            handler.cb(void_cookie, ON_DELETE_BUCKET, data, handler.cb_data);
-        }
-        break;
-    }
-
     default:
         throw std::invalid_argument("perform_callbacks: type "
                 "(which is " + std::to_string(type) +
@@ -351,7 +342,6 @@ static void register_callback(EngineIface* eh,
      * as the cookie.
      */
     case ON_DISCONNECT:
-    case ON_DELETE_BUCKET:
         if (eh == nullptr) {
             throw std::invalid_argument("register_callback: 'eh' must be non-NULL");
         }
@@ -2004,13 +1994,13 @@ void DestroyBucketThread::destroy() {
         return;
     }
 
-    LOG_INFO(
-            "{} Delete bucket [{}]. Notifying all registered "
-            "ON_DELETE_BUCKET callbacks",
-            connection_id,
-            name);
+    LOG_INFO("{} Delete bucket [{}]. Notifying engine", connection_id, name);
 
-    perform_callbacks(ON_DELETE_BUCKET, nullptr, &all_buckets[idx]);
+    all_buckets[idx].getEngine()->initiate_shutdown();
+
+    LOG_INFO("{} Delete bucket [{}]. Engine ready for shutdown",
+             connection_id,
+             name);
 
     /* If this thread is connected to the requested bucket... release it */
     if (connection != nullptr && idx == size_t(connection->getBucketIndex())) {

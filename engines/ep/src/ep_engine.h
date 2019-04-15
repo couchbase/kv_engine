@@ -563,7 +563,7 @@ public:
     void notifyIOComplete(T cookies, ENGINE_ERROR_CODE status);
 
     void handleDisconnect(const void *cookie);
-    void handleDeleteBucket(const void *cookie);
+    void initiate_shutdown() override;
 
     cb::mcbp::Status stopFlusher(const char** msg, size_t* msg_size);
 

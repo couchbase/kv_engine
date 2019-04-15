@@ -197,6 +197,13 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      */
     virtual void destroy(bool force) = 0;
 
+    /**
+     * Initiate the bucket shutdown logic (disconnect clients etc)
+     */
+    virtual void initiate_shutdown() {
+        // empty
+    }
+
     /*
      * Item operations.
      */

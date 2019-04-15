@@ -81,7 +81,7 @@ TEST_F(EPBucketTest, test_mb20751_deadlock_on_disconnect_delete) {
         }};
 
     // 2. Trigger a bucket deletion.
-    engine->handleDeleteBucket(cookie);
+    engine->initiate_shutdown();
 
     frontend_thread_handling_disconnect.join();
 }

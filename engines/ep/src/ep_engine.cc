@@ -1683,23 +1683,6 @@ static void EvpHandleDisconnect(const void* cookie,
     acquireEngine(static_cast<EngineIface*>(c))->handleDisconnect(cookie);
 }
 
-static void EvpHandleDeleteBucket(const void* cookie,
-                                  ENGINE_EVENT_TYPE type,
-                                  const void* event_data,
-                                  const void* cb_data) {
-    if (type != ON_DELETE_BUCKET) {
-        throw std::invalid_argument("EvpHandleDeleteBucket: type "
-                                        "(which is" + std::to_string(type) +
-                                    ") is not ON_DELETE_BUCKET");
-    }
-    if (event_data != nullptr) {
-        throw std::invalid_argument("EvpHandleDeleteBucket: event_data "
-                                        "is not NULL");
-    }
-    void* c = const_cast<void*>(cb_data);
-    acquireEngine(static_cast<EngineIface*>(c))->handleDeleteBucket(cookie);
-}
-
 /**
  * The only public interface to the eventually persistent engine.
  * Allocate a new instance and initialize it
@@ -2535,8 +2518,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::storeInner(
 void EventuallyPersistentEngine::initializeEngineCallbacks() {
     // Register the ON_DISCONNECT callback
     registerEngineCallback(ON_DISCONNECT, EvpHandleDisconnect, this);
-    // Register the ON_DELETE_BUCKET callback
-    registerEngineCallback(ON_DELETE_BUCKET, EvpHandleDeleteBucket, this);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::memoryCondition() {
@@ -5831,7 +5812,8 @@ void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
     }
 }
 
-void EventuallyPersistentEngine::handleDeleteBucket(const void *cookie) {
+void EventuallyPersistentEngine::initiate_shutdown() {
+    auto eng = acquireEngine(this);
     EP_LOG_INFO(
             "Shutting down all DCP connections in "
             "preparation for bucket deletion.");
