@@ -300,19 +300,27 @@ RocksDBKVStore::RocksDBKVStore(RocksDBKVStoreConfig& configuration)
                 status.getState());
     }
 
-    // Set number of background threads - note these are per-environment, so
-    // are shared across all DB instances (vBuckets) and all Buckets.
-    auto lowPri = configuration.getLowPriBackgroundThreads();
-    if (lowPri == 0) {
-        lowPri = cb::get_available_cpu_count();
-    }
-    rocksdb::Env::Default()->SetBackgroundThreads(lowPri, rocksdb::Env::LOW);
+    {
+        // This environment is all shared so we shouldn't track any allocations
+        // of it against any particular bucket.
+        NonBucketAllocationGuard guard;
 
-    auto highPri = configuration.getHighPriBackgroundThreads();
-    if (highPri == 0) {
-        highPri = cb::get_available_cpu_count();
+        // Set number of background threads - note these are per-environment, so
+        // are shared across all DB instances (vBuckets) and all Buckets.
+        auto lowPri = configuration.getLowPriBackgroundThreads();
+        if (lowPri == 0) {
+            lowPri = cb::get_available_cpu_count();
+        }
+        rocksdb::Env::Default()->SetBackgroundThreads(lowPri,
+                                                      rocksdb::Env::LOW);
+
+        auto highPri = configuration.getHighPriBackgroundThreads();
+        if (highPri == 0) {
+            highPri = cb::get_available_cpu_count();
+        }
+        rocksdb::Env::Default()->SetBackgroundThreads(highPri,
+                                                      rocksdb::Env::HIGH);
     }
-    rocksdb::Env::Default()->SetBackgroundThreads(highPri, rocksdb::Env::HIGH);
 
     dbOptions.create_if_missing = true;
 
