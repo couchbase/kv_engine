@@ -27,6 +27,10 @@ public:
     MockActiveDurabilityMonitor(VBucket& vb) : ActiveDurabilityMonitor(vb) {
     }
 
+    void public_setReplicationTopology(const nlohmann::json& topology) {
+        ActiveDurabilityMonitor::setReplicationTopology(topology);
+    }
+
     size_t public_getNumTracked() const {
         return ActiveDurabilityMonitor::getNumTracked();
     }

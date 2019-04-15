@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2018 Couchbase, Inc.
+ *     Copyright 2019 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -506,6 +506,10 @@ void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
         checked_snprintf(buf, sizeof(buf), "vb_%d:num_tracked", vbid);
         add_casted_stat(buf, s->trackedWrites.size(), addStat, cookie);
 
+        checked_snprintf(buf, sizeof(buf), "vb_%d:high_prepared_seqno", vbid);
+        // @todo: return proper high_prepared_seqno
+        add_casted_stat(buf, 0 /*high_prepared_seqno*/, addStat, cookie);
+
         checked_snprintf(buf, sizeof(buf), "vb_%d:last_tracked_seqno", vbid);
         add_casted_stat(buf, s->lastTrackedSeqno, addStat, cookie);
 
@@ -561,17 +565,6 @@ void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
                 "stats: {}",
                 e.what());
     }
-}
-
-std::string ActiveDurabilityMonitor::to_string(Tracking tracking) {
-    auto value = std::to_string(static_cast<uint8_t>(tracking));
-    switch (tracking) {
-    case Tracking::Memory:
-        return value + ":memory";
-    case Tracking::Disk:
-        return value + ":disk";
-    };
-    return value + ":invalid";
 }
 
 size_t ActiveDurabilityMonitor::getNumTracked() const {
@@ -799,15 +792,14 @@ size_t ActiveDurabilityMonitor::wipeTracked() {
     return removed;
 }
 
-std::ostream& operator<<(std::ostream& os, const ActiveDurabilityMonitor& dm) {
-    const auto s = dm.state.rlock();
-    os << "ActiveDurabilityMonitor[" << &dm
+void ActiveDurabilityMonitor::toOStream(std::ostream& os) const {
+    const auto s = state.rlock();
+    os << "ActiveDurabilityMonitor[" << this
        << "] #trackedWrites:" << s->trackedWrites.size() << "\n";
     for (const auto& w : s->trackedWrites) {
         os << "    " << w << "\n";
     }
     os << "]";
-    return os;
 }
 
 void ActiveDurabilityMonitor::State::setReplicationTopology(

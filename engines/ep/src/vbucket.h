@@ -37,11 +37,12 @@
 #include <atomic>
 #include <queue>
 
+class ActiveDurabilityMonitor;
 class EPStats;
 class CheckpointManager;
 class ConflictResolution;
 class Configuration;
-class ActiveDurabilityMonitor;
+class DurabilityMonitor;
 class ItemMetaData;
 class PreLinkDocumentContext;
 class EventuallyPersistentEngine;
@@ -1833,6 +1834,18 @@ protected:
      */
     void updateRevSeqNoOfNewStoredValue(StoredValue& v);
 
+    /**
+     * Set the replication topology
+     *
+     * @param the new topology
+     */
+    void setReplicationTopology(const nlohmann::json& topology);
+
+    /**
+     * @return a reference (if valid, i.e. vbstate=active) to the Active DM
+     */
+    ActiveDurabilityMonitor& getActiveDM() const;
+
 private:
     void fireAllOps(EventuallyPersistentEngine& engine, ENGINE_ERROR_CODE code);
 
@@ -2153,7 +2166,7 @@ private:
 
     /// Tracks SyncWrites and determines when they should be committed /
     /// aborted.
-    std::unique_ptr<ActiveDurabilityMonitor> durabilityMonitor;
+    std::unique_ptr<DurabilityMonitor> durabilityMonitor;
 
     // Durable writes are enqueued also into the DurabilityMonitor.
     // The seqno-order of items tracked by the DM must be the same as in the

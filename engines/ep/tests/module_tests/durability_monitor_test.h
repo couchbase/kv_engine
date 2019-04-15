@@ -33,16 +33,18 @@ class DurabilityMonitorTest : public SingleThreadedKVBucketTest {
 public:
     void SetUp() {
         SingleThreadedKVBucketTest::SetUp();
-        setVBucketStateAndRunPersistTask(
-                vbid,
-                vbucket_state_active,
-                {{"topology", nlohmann::json::array({{active, replica}})}});
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+        // Replace the VBucket::durabilityMonitor with a mock one
         vb = store->getVBuckets().getBucket(vbid).get();
-        // Note: MockDurabilityMonitor is used only for accessing the base
-        //     class protected members, it doesn't change the base class layout
-        monitor = reinterpret_cast<MockActiveDurabilityMonitor*>(
+        vb->durabilityMonitor =
+                std::make_unique<MockActiveDurabilityMonitor>(*vb);
+        monitor = dynamic_cast<MockActiveDurabilityMonitor*>(
                 vb->durabilityMonitor.get());
-        ASSERT_GT(monitor->public_getFirstChainSize(), 0);
+        ASSERT_TRUE(monitor);
+        monitor->public_setReplicationTopology(
+                nlohmann::json::array({{active, replica}}));
+        ASSERT_EQ(2, monitor->public_getFirstChainSize());
     }
 
     void TearDown() {

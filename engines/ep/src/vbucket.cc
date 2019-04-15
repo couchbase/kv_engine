@@ -219,8 +219,7 @@ VBucket::VBucket(Vbid i,
       newSeqnoCb(std::move(newSeqnoCb)),
       syncWriteCompleteCb(syncWriteCb),
       manifest(std::move(manifest)),
-      mayContainXattrs(mightContainXattrs),
-      durabilityMonitor(std::make_unique<ActiveDurabilityMonitor>(*this)) {
+      mayContainXattrs(mightContainXattrs) {
     if (config.getConflictResolutionType().compare("lww") == 0) {
         conflictResolver.reset(new LastWriteWinsResolution());
     } else {
@@ -232,19 +231,11 @@ VBucket::VBucket(Vbid i,
     stats.coreLocal.get()->memOverhead.fetch_add(
             sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
 
-    if (!replTopology.is_null()) {
-        if (state != vbucket_state_active) {
-            throw std::invalid_argument(
-                    "VBucket: replication toplogy only valid for state:active");
-        }
-        auto error = validateReplicationTopology(replTopology);
-        if (!error.empty()) {
-            throw std::invalid_argument(
-                    "VBucket: invalid replication topology: " + error);
-        }
-        replicationTopology = replTopology;
-        durabilityMonitor->setReplicationTopology(*replicationTopology.rlock());
+    if (state == vbucket_state_active) {
+        durabilityMonitor = std::make_unique<ActiveDurabilityMonitor>(*this);
     }
+
+    setReplicationTopology(replTopology);
 
     EP_LOG_INFO(
             "VBucket: created {} with state:{} "
@@ -285,6 +276,10 @@ int64_t VBucket::getHighSeqno() const {
 }
 
 int64_t VBucket::getHighPreparedSeqno() const {
+    if (!durabilityMonitor) {
+        // Note: I prefer -1 to 0 as the latter is a valid DM value.
+        return -1;
+    }
     return durabilityMonitor->getHighPreparedSeqno();
 }
 
@@ -530,28 +525,14 @@ void VBucket::setState_UNLOCKED(
 
     state = to;
 
+    // @todo-durability: Don't destroy an existing DM (ie, don't lose the
+    // Durability state), covert it when necessary (eg, replica to active).
     if (to == vbucket_state_active) {
-        // Note that 'meta' has been already validated at this point:
-        //     - FirstChain: meta.at("topology").at(0)
-        //     - SecondChain: meta.at("topology").at(1)
-        nlohmann::json topology =
-                meta.is_null() ? nlohmann::json{} : meta.at("topology");
-
-        // Update the topology in the vBucket (under write lock).
-        auto lockedTopology = replicationTopology.wlock();
-        *lockedTopology = topology;
-
-        if (!topology.is_null()) {
-            // Register the new topology with the durability monitor.
-            durabilityMonitor->setReplicationTopology(*lockedTopology);
-        }
-    } else if (to == vbucket_state_replica) {
-        // Clear replication topology - not applicable for a replica.
-        *replicationTopology.wlock() = {};
-
-        // @todo-durability: Add support for DurabilityMonitor at Replica
         durabilityMonitor = std::make_unique<ActiveDurabilityMonitor>(*this);
     }
+
+    setReplicationTopology(meta.is_null() ? nlohmann::json{}
+                                          : meta.at("topology"));
 }
 
 vbucket_state VBucket::getVBucketState() const {
@@ -581,6 +562,30 @@ nlohmann::json VBucket::getReplicationTopology() const {
     return *replicationTopology.rlock();
 }
 
+void VBucket::setReplicationTopology(const nlohmann::json& topology) {
+    if (!topology.is_null()) {
+        if (state != vbucket_state_active) {
+            throw std::invalid_argument(
+                    "VBucket: replication toplogy only valid for state:active");
+        }
+        auto error = validateReplicationTopology(topology);
+        if (!error.empty()) {
+            throw std::invalid_argument(
+                    "VBucket: invalid replication topology: " + error);
+        }
+        replicationTopology = topology;
+        // Register the new topology with the durability monitor.
+        getActiveDM().setReplicationTopology(*replicationTopology.rlock());
+    } else {
+        *replicationTopology.wlock() = {};
+    }
+}
+
+ActiveDurabilityMonitor& VBucket::getActiveDM() const {
+    Expects(state == vbucket_state_active);
+    return dynamic_cast<ActiveDurabilityMonitor&>(*durabilityMonitor);
+}
+
 void VBucket::processDurabilityTimeout(
         const std::chrono::steady_clock::time_point asOf) {
     folly::SharedMutex::ReadHolder lh(stateLock);
@@ -588,7 +593,7 @@ void VBucket::processDurabilityTimeout(
     if (getState() != vbucket_state_active) {
         return;
     }
-    durabilityMonitor->processTimeout(asOf);
+    getActiveDM().processTimeout(asOf);
 }
 
 void VBucket::doStatsForQueueing(const Item& qi, size_t itemBytes)
@@ -1048,7 +1053,7 @@ VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
         // Register this mutation with the durability monitor.
         Expects(ctx.durability.is_initialized());
         const auto cookie = ctx.durability->cookie;
-        durabilityMonitor->addSyncWrite(cookie, item);
+        getActiveDM().addSyncWrite(cookie, item);
     }
 
     return notifyCtx;
@@ -3201,7 +3206,7 @@ bool VBucket::isLogicallyNonExistent(
 
 ENGINE_ERROR_CODE VBucket::seqnoAcknowledged(const std::string& replicaId,
                                              uint64_t preparedSeqno) {
-    return durabilityMonitor->seqnoAckReceived(replicaId, preparedSeqno);
+    return getActiveDM().seqnoAckReceived(replicaId, preparedSeqno);
 }
 
 void VBucket::notifyPersistenceToDurabilityMonitor(
@@ -3211,7 +3216,7 @@ void VBucket::notifyPersistenceToDurabilityMonitor(
     //     the DurabilityMonitor for Replica.
     folly::SharedMutex::ReadHolder wlh(stateLock);
     if (getState() == vbucket_state_active) {
-        durabilityMonitor->notifyLocalPersistence();
+        getActiveDM().notifyLocalPersistence();
     } else if (getState() == vbucket_state_replica) {
         engine.getDcpConnMap().seqnoAckVBPassiveStream(getId());
     }

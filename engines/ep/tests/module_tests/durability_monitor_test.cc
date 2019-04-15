@@ -121,8 +121,8 @@ bool DurabilityMonitorTest::testDurabilityPossible(
         FAIL();
     };
 
-    setVBucketStateAndRunPersistTask(
-            vbid, vbucket_state_active, {{"topology", topology}});
+    monitor->public_setReplicationTopology(topology);
+
     EXPECT_EQ(expectedFirstChainSize, monitor->public_getFirstChainSize());
     EXPECT_EQ(expectedFirstChainMajority,
               monitor->public_getFirstChainMajority());

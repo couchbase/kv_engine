@@ -35,14 +35,16 @@ void VBucketDurabilityTest::SetUp() {
     ht = &vbucket->ht;
     ckptMgr = static_cast<MockCheckpointManager*>(
             vbucket->checkpointManager.get());
-    vbucket->setState(
-            vbucket_state_active,
-            {{"topology", nlohmann::json::array({{active, replica}})}});
-    // Note: MockDurabilityMonitor is used only for accessing the base
-    //     class protected members, it doesn't change the base class layout
-    monitor = reinterpret_cast<MockActiveDurabilityMonitor*>(
+    vbucket->setState(vbucket_state_active);
+
+    // Replace the VBucket::durabilityMonitor with a mock one
+    vbucket->durabilityMonitor =
+            std::make_unique<MockActiveDurabilityMonitor>(*vbucket);
+    monitor = dynamic_cast<MockActiveDurabilityMonitor*>(
             vbucket->durabilityMonitor.get());
-    ASSERT_GT(monitor->public_getFirstChainSize(), 0);
+    ASSERT_TRUE(monitor);
+    vbucket->setReplicationTopology(nlohmann::json::array({{active, replica}}));
+    ASSERT_EQ(2, monitor->public_getFirstChainSize());
 }
 
 size_t VBucketDurabilityTest::storeSyncWrites(
@@ -328,10 +330,9 @@ TEST_P(VBucketDurabilityTest, MultipleReplicas) {
     const std::string replica2 = "replica2";
     const std::string replica3 = "replica3";
 
-    vbucket->setState(vbucket_state_active,
-                      {{"topology",
-                        nlohmann::json::array(
-                                {{active, replica1, replica2, replica3}})}});
+    monitor->setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2, replica3}}));
+    ASSERT_EQ(4, monitor->public_getFirstChainSize());
 
     ASSERT_EQ(1, storeSyncWrites({1} /*seqnos*/));
 

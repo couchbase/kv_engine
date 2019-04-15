@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2018 Couchbase, Inc.
+ *     Copyright 2019 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
  *   limitations under the License.
  */
 #pragma once
+
+#include "durability_monitor.h"
 
 #include "ep_types.h"
 #include "monotonic.h"
@@ -45,13 +47,8 @@ class VBucket;
  *
  * @todo: Update deferred, internals changing frequently these days :)
  */
-class ActiveDurabilityMonitor {
+class ActiveDurabilityMonitor : public DurabilityMonitor {
 public:
-    struct NodeSeqnos {
-        int64_t memory;
-        int64_t disk;
-    };
-
     // Note: constructor and destructor implementation in the .cc file to allow
     // the forward declaration of ReplicationChain in the header
     ActiveDurabilityMonitor(VBucket& vb);
@@ -73,7 +70,7 @@ public:
     const nlohmann::json& getReplicationTopology() const;
 
     /// @returns the high_prepared_seqno.
-    int64_t getHighPreparedSeqno() const;
+    int64_t getHighPreparedSeqno() const override;
 
     /**
      * @return true if the replication topology allows Majority being reached,
@@ -127,7 +124,7 @@ public:
      * @param addStat the callback to memcached
      * @param cookie
      */
-    void addStats(const AddStatFn& addStat, const void* cookie) const;
+    void addStats(const AddStatFn& addStat, const void* cookie) const override;
 
 protected:
     class SyncWrite;
@@ -137,11 +134,9 @@ protected:
 
     using Container = std::list<SyncWrite>;
 
-    enum class Tracking : uint8_t { Memory, Disk };
+    size_t getNumTracked() const override;
 
-    static std::string to_string(Tracking tracking);
-
-    size_t getNumTracked() const;
+    void toOStream(std::ostream& os) const override;
 
     /**
      * @return the size of FirstChain
@@ -207,9 +202,6 @@ protected:
      * @returns the number of SyncWrites removed from tracking
      */
     size_t wipeTracked();
-
-    // The VBucket owning this DurabilityMonitor instance
-    VBucket& vb;
 
     /*
      * This class embeds the state of an ADM. It has been designed for being
@@ -313,6 +305,9 @@ protected:
         // can by emptied by Commit/Abort.
         Monotonic<int64_t, ThrowExceptionPolicy> lastTrackedSeqno;
     };
+
+    // The VBucket owning this DurabilityMonitor instance
+    VBucket& vb;
 
     folly::Synchronized<State> state;
 
