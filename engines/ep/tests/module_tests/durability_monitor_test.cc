@@ -596,6 +596,53 @@ TEST_F(DurabilityMonitorTest, MajorityAndPersistActive) {
                  ackSeqno /*expectedLastAckSeqno*/);
 }
 
+TEST_F(DurabilityMonitorTest, PersistToMajority_PersistAtActive) {
+    ASSERT_NO_THROW(monitor->setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2}})));
+    ASSERT_EQ(3, monitor->public_getFirstChainSize());
+
+    const int64_t seqno = 1;
+    ASSERT_EQ(1,
+              addSyncWrites({seqno},
+                            {cb::durability::Level::PersistToMajority,
+                             0 /*timeout*/}));
+    ASSERT_EQ(1, monitor->public_getNumTracked());
+    {
+        SCOPED_TRACE("");
+        assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        assertNodeTracking(replica2, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+
+    {
+        SCOPED_TRACE("");
+        // replica1 acks; write not satisfied yet
+        testSeqnoAckReceived(replica1,
+                             seqno /*ackSeqno*/,
+                             1 /*expectedNumTracked*/,
+                             seqno /*expectedLastWriteSeqno*/,
+                             seqno /*expectedLastAckSeqno*/);
+    }
+
+    {
+        SCOPED_TRACE("");
+        // replica2 acks; Majority has ack'ed, but Majority doesn't include the
+        // Active, so write not satisfied yet
+        testSeqnoAckReceived(replica2,
+                             seqno /*ackSeqno*/,
+                             1 /*expectedNumTracked*/,
+                             seqno /*expectedLastWriteSeqno*/,
+                             seqno /*expectedLastAckSeqno*/);
+    }
+
+    // Simulate the Flusher that notifies the local DurabilityMonitor after
+    // persistence. Now, write satisfied, committed and removed from tracking.
+    testLocalAck(seqno /*ackSeqno*/,
+                 0 /*expectedNumTracked*/,
+                 seqno /*expectedLastWriteSeqno*/,
+                 seqno /*expectedLastAckSeqno*/);
+}
+
 /*
  * The following tests check that the DurabilityMonitor enforces the
  * durability-impossible semantic. I.e., DM enforces durability-impossible when

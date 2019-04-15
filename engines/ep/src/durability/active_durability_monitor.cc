@@ -189,9 +189,9 @@ public:
 
         switch (getDurabilityReqs().getLevel()) {
         case cb::durability::Level::Majority:
-        case cb::durability::Level::PersistToMajority:
             ret = ackCount >= majority;
             break;
+        case cb::durability::Level::PersistToMajority:
         case cb::durability::Level::MajorityAndPersistOnMaster:
             ret = ackCount >= majority && acks.at(active);
             break;
