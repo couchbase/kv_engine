@@ -41,7 +41,7 @@ class EPStats;
 class CheckpointManager;
 class ConflictResolution;
 class Configuration;
-class DurabilityMonitor;
+class ActiveDurabilityMonitor;
 class ItemMetaData;
 class PreLinkDocumentContext;
 class EventuallyPersistentEngine;
@@ -2153,7 +2153,7 @@ private:
 
     /// Tracks SyncWrites and determines when they should be committed /
     /// aborted.
-    std::unique_ptr<DurabilityMonitor> durabilityMonitor;
+    std::unique_ptr<ActiveDurabilityMonitor> durabilityMonitor;
 
     // Durable writes are enqueued also into the DurabilityMonitor.
     // The seqno-order of items tracked by the DM must be the same as in the

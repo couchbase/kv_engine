@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 
-#include "durability_monitor.h"
+#include "active_durability_monitor.h"
 
 #include "bucket_logger.h"
 #include "item.h"
@@ -49,7 +49,7 @@ static const std::string UndefinedNode{};
  * - lastAckSeqno: Stores always the last seqno acknowledged by the tracked
  *         replica. Used for validation at seqno-ack received and stats.
  */
-struct DurabilityMonitor::Position {
+struct ActiveDurabilityMonitor::Position {
     Position(const Container::iterator& it) : it(it) {
     }
     Container::iterator it;
@@ -57,7 +57,7 @@ struct DurabilityMonitor::Position {
     WeaklyMonotonic<int64_t, ThrowExceptionPolicy> lastAckSeqno{0};
 };
 
-struct DurabilityMonitor::NodePosition {
+struct ActiveDurabilityMonitor::NodePosition {
     Position memory;
     Position disk;
 };
@@ -66,7 +66,7 @@ struct DurabilityMonitor::NodePosition {
  * Represents a VBucket Replication Chain in the ns_server meaning,
  * i.e. a list of active/replica nodes where the VBucket resides.
  */
-struct DurabilityMonitor::ReplicationChain {
+struct ActiveDurabilityMonitor::ReplicationChain {
     /**
      * @param nodes The list of active/replica nodes in the ns_server format:
      *     {active, replica1, replica2, replica3}
@@ -129,7 +129,7 @@ struct DurabilityMonitor::ReplicationChain {
 /*
  * Represents a tracked SyncWrite.
  */
-class DurabilityMonitor::SyncWrite {
+class ActiveDurabilityMonitor::SyncWrite {
 public:
     SyncWrite(const void* cookie,
               queued_item item,
@@ -273,7 +273,7 @@ private:
 };
 
 std::ostream& operator<<(std::ostream& os,
-                         const DurabilityMonitor::SyncWrite& sw) {
+                         const ActiveDurabilityMonitor::SyncWrite& sw) {
     os << "SW @" << &sw << " "
        << "cookie:" << sw.cookie << " qi:[key:'" << sw.item->getKey()
        << "' seqno:" << sw.item->getBySeqno()
@@ -300,28 +300,32 @@ std::ostream& operator<<(std::ostream& os,
     return os;
 }
 
-DurabilityMonitor::DurabilityMonitor(VBucket& vb) : vb(vb) {
+ActiveDurabilityMonitor::ActiveDurabilityMonitor(VBucket& vb) : vb(vb) {
 }
 
-DurabilityMonitor::~DurabilityMonitor() = default;
+ActiveDurabilityMonitor::~ActiveDurabilityMonitor() = default;
 
-void DurabilityMonitor::setReplicationTopology(const nlohmann::json& topology) {
+void ActiveDurabilityMonitor::setReplicationTopology(
+        const nlohmann::json& topology) {
     // @todo: Add support for DurabilityMonitor at Replica
     if (vb.getState() == vbucket_state_t::vbucket_state_replica) {
         throw std::invalid_argument(
-                "DurabilityMonitor::setReplicationTopology: Not supported at "
+                "ActiveDurabilityMonitor::setReplicationTopology: Not "
+                "supported at "
                 "Replica");
     }
 
     if (!topology.is_array()) {
         throw std::invalid_argument(
-                "DurabilityMonitor::setReplicationTopology: Topology is not an "
+                "ActiveDurabilityMonitor::setReplicationTopology: Topology is "
+                "not an "
                 "array");
     }
 
     if (topology.size() == 0) {
         throw std::invalid_argument(
-                "DurabilityMonitor::setReplicationTopology: Topology is empty");
+                "ActiveDurabilityMonitor::setReplicationTopology: Topology is "
+                "empty");
     }
 
     // @todo: Add support for SecondChain
@@ -334,7 +338,8 @@ void DurabilityMonitor::setReplicationTopology(const nlohmann::json& topology) {
         } else {
             if (node.key() == "0") {
                 throw std::invalid_argument(
-                        "DurabilityMonitor::setReplicationTopology: first node "
+                        "ActiveDurabilityMonitor::setReplicationTopology: "
+                        "first node "
                         "in chain (active) cannot be undefined");
             }
             firstChain.emplace_back(UndefinedNode);
@@ -343,14 +348,16 @@ void DurabilityMonitor::setReplicationTopology(const nlohmann::json& topology) {
 
     if (firstChain.size() == 0) {
         throw std::invalid_argument(
-                "DurabilityMonitor::setReplicationTopology: FirstChain cannot "
+                "ActiveDurabilityMonitor::setReplicationTopology: FirstChain "
+                "cannot "
                 "be empty");
     }
 
     // Max Active + MaxReplica
     if (firstChain.size() > 1 + maxReplicas) {
         throw std::invalid_argument(
-                "DurabilityMonitor::setReplicationTopology: Too many nodes "
+                "ActiveDurabilityMonitor::setReplicationTopology: Too many "
+                "nodes "
                 "in chain: " +
                 std::to_string(firstChain.size()));
     }
@@ -365,29 +372,31 @@ void DurabilityMonitor::setReplicationTopology(const nlohmann::json& topology) {
             firstChain, state.trackedWrites.begin());
 }
 
-int64_t DurabilityMonitor::getHighPreparedSeqno() const {
+int64_t ActiveDurabilityMonitor::getHighPreparedSeqno() const {
     // @todo-durability: return a correct value for this.
     return 0;
 }
 
-bool DurabilityMonitor::isDurabilityPossible() const {
+bool ActiveDurabilityMonitor::isDurabilityPossible() const {
     std::lock_guard<std::mutex> lg(state.m);
     return isDurabilityPossible(lg);
 }
 
-void DurabilityMonitor::addSyncWrite(const void* cookie, queued_item item) {
+void ActiveDurabilityMonitor::addSyncWrite(const void* cookie,
+                                           queued_item item) {
     auto durReq = item->getDurabilityReqs();
 
     if (durReq.getLevel() == cb::durability::Level::None) {
         throw std::invalid_argument(
-                "DurabilityMonitor::addSyncWrite: Level::None");
+                "ActiveDurabilityMonitor::addSyncWrite: Level::None");
     }
 
     std::lock_guard<std::mutex> lg(state.m);
 
     if (!state.firstChain) {
         throw std::logic_error(
-                "DurabilityMonitor::addSyncWrite: FirstChain not registered");
+                "ActiveDurabilityMonitor::addSyncWrite: FirstChain not "
+                "registered");
     }
 
     // The caller must have already checked this and returned a proper error
@@ -395,7 +404,8 @@ void DurabilityMonitor::addSyncWrite(const void* cookie, queued_item item) {
     // unexpected races between VBucket::setState (which sets the replication
     // topology).
     if (!isDurabilityPossible(lg)) {
-        throw std::logic_error("DurabilityMonitor::addSyncWrite: Impossible");
+        throw std::logic_error(
+                "ActiveDurabilityMonitor::addSyncWrite: Impossible");
     }
 
     const auto seqno = item->getBySeqno();
@@ -419,7 +429,7 @@ void DurabilityMonitor::addSyncWrite(const void* cookie, queued_item item) {
     //     as this function is supposed to execute under VBucket-level lock.
 }
 
-ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
+ENGINE_ERROR_CODE ActiveDurabilityMonitor::seqnoAckReceived(
         const std::string& replica, int64_t preparedSeqno) {
     // Note:
     // TSan spotted that in the execution path to DM::addSyncWrites we acquire
@@ -454,7 +464,8 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
 
         if (!state.firstChain) {
             throw std::logic_error(
-                    "DurabilityMonitor::seqnoAckReceived: FirstChain not set");
+                    "ActiveDurabilityMonitor::seqnoAckReceived: FirstChain not "
+                    "set");
         }
 
         // @todo-durability: Now there's just a single prepared_seqno, update
@@ -471,13 +482,13 @@ ENGINE_ERROR_CODE DurabilityMonitor::seqnoAckReceived(
     return ENGINE_SUCCESS;
 }
 
-void DurabilityMonitor::processTimeout(
+void ActiveDurabilityMonitor::processTimeout(
         std::chrono::steady_clock::time_point asOf) {
     // @todo: Add support for DurabilityMonitor at Replica
     if (vb.getState() != vbucket_state_active) {
-        throw std::logic_error(
-                "DurabilityMonitor::processTimeout: " + vb.getId().to_string() +
-                " state is: " + VBucket::toString(vb.getState()));
+        throw std::logic_error("ActiveDurabilityMonitor::processTimeout: " +
+                               vb.getId().to_string() + " state is: " +
+                               VBucket::toString(vb.getState()));
     }
 
     Container toAbort;
@@ -505,7 +516,7 @@ void DurabilityMonitor::processTimeout(
     }
 }
 
-void DurabilityMonitor::notifyLocalPersistence() {
+void ActiveDurabilityMonitor::notifyLocalPersistence() {
     // We must release the lock to state.m before calling back to VBucket (in
     // commit()) to avoid a lock inversion with HashBucketLock (same issue as
     // at seqnoAckReceived(), details in there).
@@ -514,7 +525,8 @@ void DurabilityMonitor::notifyLocalPersistence() {
         std::lock_guard<std::mutex> lg(state.m);
         if (!state.firstChain) {
             throw std::logic_error(
-                    "DurabilityMonitor::notifyLocalPeristence: FirstChain not "
+                    "ActiveDurabilityMonitor::notifyLocalPeristence: "
+                    "FirstChain not "
                     "registered");
         }
 
@@ -532,8 +544,8 @@ void DurabilityMonitor::notifyLocalPersistence() {
     }
 }
 
-void DurabilityMonitor::addStats(const AddStatFn& addStat,
-                                 const void* cookie) const {
+void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
+                                       const void* cookie) const {
     std::lock_guard<std::mutex> lg(state.m);
     char buf[256];
 
@@ -593,12 +605,13 @@ void DurabilityMonitor::addStats(const AddStatFn& addStat,
         }
 
     } catch (const std::exception& e) {
-        EP_LOG_WARN("DurabilityMonitor::addStats: error building stats: {}",
-                    e.what());
+        EP_LOG_WARN(
+                "ActiveDurabilityMonitor::addStats: error building stats: {}",
+                e.what());
     }
 }
 
-std::string DurabilityMonitor::to_string(Tracking tracking) {
+std::string ActiveDurabilityMonitor::to_string(Tracking tracking) {
     auto value = std::to_string(static_cast<uint8_t>(tracking));
     switch (tracking) {
     case Tracking::Memory:
@@ -609,22 +622,22 @@ std::string DurabilityMonitor::to_string(Tracking tracking) {
     return value + ":invalid";
 }
 
-size_t DurabilityMonitor::getNumTracked(
+size_t ActiveDurabilityMonitor::getNumTracked(
         const std::lock_guard<std::mutex>& lg) const {
     return state.trackedWrites.size();
 }
 
-uint8_t DurabilityMonitor::getFirstChainSize(
+uint8_t ActiveDurabilityMonitor::getFirstChainSize(
         const std::lock_guard<std::mutex>& lg) const {
     return state.firstChain ? state.firstChain->positions.size() : 0;
 }
 
-uint8_t DurabilityMonitor::getFirstChainMajority(
+uint8_t ActiveDurabilityMonitor::getFirstChainMajority(
         const std::lock_guard<std::mutex>& lg) const {
     return state.firstChain ? state.firstChain->majority : 0;
 }
 
-bool DurabilityMonitor::isDurabilityPossible(
+bool ActiveDurabilityMonitor::isDurabilityPossible(
         const std::lock_guard<std::mutex>& lg) const {
     // @todo: Requirements must be possible for all chains, add check for
     //     SecondChain when it is implemented
@@ -634,10 +647,10 @@ bool DurabilityMonitor::isDurabilityPossible(
     return true;
 }
 
-DurabilityMonitor::Container::iterator DurabilityMonitor::getNodeNext(
-        const std::lock_guard<std::mutex>& lg,
-        const std::string& node,
-        Tracking tracking) {
+ActiveDurabilityMonitor::Container::iterator
+ActiveDurabilityMonitor::getNodeNext(const std::lock_guard<std::mutex>& lg,
+                                     const std::string& node,
+                                     Tracking tracking) {
     const auto& pos = state.firstChain->positions.at(node);
     const auto& it =
             (tracking == Tracking::Memory ? pos.memory.it : pos.disk.it);
@@ -648,7 +661,7 @@ DurabilityMonitor::Container::iterator DurabilityMonitor::getNodeNext(
                                              : std::next(it);
 }
 
-void DurabilityMonitor::advanceNodePosition(
+void ActiveDurabilityMonitor::advanceNodePosition(
         const std::lock_guard<std::mutex>& lg,
         const std::string& node,
         Tracking tracking) {
@@ -673,10 +686,11 @@ void DurabilityMonitor::advanceNodePosition(
     pos.it->ack(node, tracking);
 }
 
-void DurabilityMonitor::updateNodeAck(const std::lock_guard<std::mutex>& lg,
-                                      const std::string& node,
-                                      Tracking tracking,
-                                      int64_t seqno) {
+void ActiveDurabilityMonitor::updateNodeAck(
+        const std::lock_guard<std::mutex>& lg,
+        const std::string& node,
+        Tracking tracking,
+        int64_t seqno) {
     const auto& pos_ = state.firstChain->positions.at(node);
     auto& pos = const_cast<Position&>(tracking == Tracking::Memory ? pos_.memory
                                                                    : pos_.disk);
@@ -697,23 +711,23 @@ void DurabilityMonitor::updateNodeAck(const std::lock_guard<std::mutex>& lg,
     pos.lastAckSeqno = seqno;
 }
 
-DurabilityMonitor::NodeSeqnos DurabilityMonitor::getNodeWriteSeqnos(
+ActiveDurabilityMonitor::NodeSeqnos ActiveDurabilityMonitor::getNodeWriteSeqnos(
         const std::lock_guard<std::mutex>& lg, const std::string& node) const {
     const auto& pos = state.firstChain->positions.at(node);
     return {pos.memory.lastWriteSeqno, pos.disk.lastWriteSeqno};
 }
 
-DurabilityMonitor::NodeSeqnos DurabilityMonitor::getNodeAckSeqnos(
+ActiveDurabilityMonitor::NodeSeqnos ActiveDurabilityMonitor::getNodeAckSeqnos(
         const std::lock_guard<std::mutex>& lg, const std::string& node) const {
     const auto& pos = state.firstChain->positions.at(node);
     return {pos.memory.lastAckSeqno, pos.disk.lastAckSeqno};
 }
 
-DurabilityMonitor::Container DurabilityMonitor::removeSyncWrite(
+ActiveDurabilityMonitor::Container ActiveDurabilityMonitor::removeSyncWrite(
         const std::lock_guard<std::mutex>& lg, Container::iterator it) {
     if (it == state.trackedWrites.end()) {
         throw std::logic_error(
-                "DurabilityMonitor::commit: Position points to end");
+                "ActiveDurabilityMonitor::commit: Position points to end");
     }
 
     Container::iterator prev;
@@ -748,7 +762,7 @@ DurabilityMonitor::Container DurabilityMonitor::removeSyncWrite(
     return removed;
 }
 
-void DurabilityMonitor::commit(const SyncWrite& sw) {
+void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
     const auto& key = sw.getKey();
     auto result = vb.commit(key,
                             sw.getBySeqno() /*prepareSeqno*/,
@@ -757,13 +771,13 @@ void DurabilityMonitor::commit(const SyncWrite& sw) {
                             sw.getCookie());
     if (result != ENGINE_SUCCESS) {
         throw std::logic_error(
-                "DurabilityMonitor::commit: VBucket::commit failed with "
+                "ActiveDurabilityMonitor::commit: VBucket::commit failed with "
                 "status:" +
                 std::to_string(result));
     }
 }
 
-void DurabilityMonitor::abort(const SyncWrite& sw) {
+void ActiveDurabilityMonitor::abort(const SyncWrite& sw) {
     const auto& key = sw.getKey();
     auto result = vb.abort(key,
                            sw.getBySeqno() /*prepareSeqno*/,
@@ -772,18 +786,20 @@ void DurabilityMonitor::abort(const SyncWrite& sw) {
                            sw.getCookie());
     if (result != ENGINE_SUCCESS) {
         throw std::logic_error(
-                "DurabilityMonitor::abort: VBucket::abort failed with status:" +
+                "ActiveDurabilityMonitor::abort: VBucket::abort failed with "
+                "status:" +
                 std::to_string(result));
     }
 }
 
-void DurabilityMonitor::processSeqnoAck(const std::lock_guard<std::mutex>& lg,
-                                        const std::string& node,
-                                        Tracking tracking,
-                                        int64_t ackSeqno,
-                                        Container& toCommit) {
+void ActiveDurabilityMonitor::processSeqnoAck(
+        const std::lock_guard<std::mutex>& lg,
+        const std::string& node,
+        Tracking tracking,
+        int64_t ackSeqno,
+        Container& toCommit) {
     // Note: process up to the ack'ed seqno
-    DurabilityMonitor::Container::iterator next;
+    ActiveDurabilityMonitor::Container::iterator next;
     while ((next = getNodeNext(lg, node, tracking)) !=
                    state.trackedWrites.end() &&
            next->getBySeqno() <= ackSeqno) {
@@ -805,7 +821,7 @@ void DurabilityMonitor::processSeqnoAck(const std::lock_guard<std::mutex>& lg,
     updateNodeAck(lg, node, tracking, ackSeqno);
 }
 
-std::unordered_set<int64_t> DurabilityMonitor::getTrackedSeqnos() const {
+std::unordered_set<int64_t> ActiveDurabilityMonitor::getTrackedSeqnos() const {
     std::lock_guard<std::mutex> lg(state.m);
     std::unordered_set<int64_t> ret;
     for (const auto& w : state.trackedWrites) {
@@ -814,7 +830,7 @@ std::unordered_set<int64_t> DurabilityMonitor::getTrackedSeqnos() const {
     return ret;
 }
 
-size_t DurabilityMonitor::wipeTracked() {
+size_t ActiveDurabilityMonitor::wipeTracked() {
     // Note: Cannot just do Container::clear as it would invalidate every
     //     existing Replication Chain iterator
     std::lock_guard<std::mutex> lg(state.m);
@@ -829,9 +845,9 @@ size_t DurabilityMonitor::wipeTracked() {
     return removed;
 }
 
-std::ostream& operator<<(std::ostream& os, const DurabilityMonitor& dm) {
+std::ostream& operator<<(std::ostream& os, const ActiveDurabilityMonitor& dm) {
     std::lock_guard<std::mutex> lg(dm.state.m);
-    os << "DurabilityMonitor[" << &dm
+    os << "ActiveDurabilityMonitor[" << &dm
        << "] #trackedWrites:" << dm.state.trackedWrites.size() << "\n";
     for (const auto& w : dm.state.trackedWrites) {
         os << "    " << w << "\n";

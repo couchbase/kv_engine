@@ -226,7 +226,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/defragmenter.cc
             src/defragmenter_visitor.cc
             src/diskdockey.cc
-            src/durability/durability_monitor.cc
+            src/durability/active_durability_monitor.cc
             src/durability_timeout_task.cc
             src/ep_bucket.cc
             src/ep_vb.cc

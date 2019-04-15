@@ -40,7 +40,7 @@ public:
         vb = store->getVBuckets().getBucket(vbid).get();
         // Note: MockDurabilityMonitor is used only for accessing the base
         //     class protected members, it doesn't change the base class layout
-        monitor = reinterpret_cast<MockDurabilityMonitor*>(
+        monitor = reinterpret_cast<MockActiveDurabilityMonitor*>(
                 vb->durabilityMonitor.get());
         ASSERT_GT(monitor->public_getFirstChainSize(), 0);
     }
@@ -132,7 +132,7 @@ protected:
     // Owned by KVBucket
     VBucket* vb;
     // Owned by VBucket
-    MockDurabilityMonitor* monitor;
+    MockActiveDurabilityMonitor* monitor;
 
     const std::string active = "active";
     const std::string replica = "replica";

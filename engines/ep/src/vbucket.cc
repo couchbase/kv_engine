@@ -24,7 +24,7 @@
 #include "collections/collection_persisted_stats.h"
 #include "conflict_resolution.h"
 #include "dcp/dcpconnmap.h"
-#include "durability/durability_monitor.h"
+#include "durability/active_durability_monitor.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "ep_types.h"
@@ -220,7 +220,7 @@ VBucket::VBucket(Vbid i,
       syncWriteCompleteCb(syncWriteCb),
       manifest(std::move(manifest)),
       mayContainXattrs(mightContainXattrs),
-      durabilityMonitor(std::make_unique<DurabilityMonitor>(*this)) {
+      durabilityMonitor(std::make_unique<ActiveDurabilityMonitor>(*this)) {
     if (config.getConflictResolutionType().compare("lww") == 0) {
         conflictResolver.reset(new LastWriteWinsResolution());
     } else {
@@ -550,7 +550,7 @@ void VBucket::setState_UNLOCKED(
         *replicationTopology.wlock() = {};
 
         // @todo-durability: Add support for DurabilityMonitor at Replica
-        durabilityMonitor = std::make_unique<DurabilityMonitor>(*this);
+        durabilityMonitor = std::make_unique<ActiveDurabilityMonitor>(*this);
     }
 }
 

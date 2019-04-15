@@ -45,7 +45,7 @@ class VBucket;
  *
  * @todo: Update deferred, internals changing frequently these days :)
  */
-class DurabilityMonitor {
+class ActiveDurabilityMonitor {
 public:
     struct NodeSeqnos {
         int64_t memory;
@@ -54,8 +54,8 @@ public:
 
     // Note: constructor and destructor implementation in the .cc file to allow
     // the forward declaration of ReplicationChain in the header
-    DurabilityMonitor(VBucket& vb);
-    ~DurabilityMonitor();
+    ActiveDurabilityMonitor(VBucket& vb);
+    ~ActiveDurabilityMonitor();
 
     /**
      * Sets the Replication Topology.
@@ -318,9 +318,9 @@ protected:
     const size_t maxReplicas = 3;
 
     friend std::ostream& operator<<(std::ostream& os,
-                                    const DurabilityMonitor& dm);
+                                    const ActiveDurabilityMonitor& dm);
     friend std::ostream& operator<<(std::ostream&,
-                                    const DurabilityMonitor::SyncWrite&);
+                                    const ActiveDurabilityMonitor::SyncWrite&);
 };
 
-std::ostream& operator<<(std::ostream& os, const DurabilityMonitor& dm);
+std::ostream& operator<<(std::ostream& os, const ActiveDurabilityMonitor& dm);

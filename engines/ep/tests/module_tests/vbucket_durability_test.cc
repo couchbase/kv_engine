@@ -40,7 +40,7 @@ void VBucketDurabilityTest::SetUp() {
             {{"topology", nlohmann::json::array({{active, replica}})}});
     // Note: MockDurabilityMonitor is used only for accessing the base
     //     class protected members, it doesn't change the base class layout
-    monitor = reinterpret_cast<MockDurabilityMonitor*>(
+    monitor = reinterpret_cast<MockActiveDurabilityMonitor*>(
             vbucket->durabilityMonitor.get());
     ASSERT_GT(monitor->public_getFirstChainSize(), 0);
 }
