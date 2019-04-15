@@ -20,11 +20,9 @@
 #include "bucket_logger.h"
 #include "item.h"
 #include "statwriter.h"
-#include "stored-value.h"
 #include "vbucket.h"
 
 #include <gsl.h>
-#include <unordered_map>
 
 // An empty string is used to indicate an undefined node in a replication
 // topology.
@@ -53,13 +51,11 @@ struct ActiveDurabilityMonitor::Position {
     Position(const Container::iterator& it) : it(it) {
     }
     Container::iterator it;
+    // @todo: Consider using (strictly) Monotonic here. Weakly monotonic was
+    // necessary when we tracked both memory and disk seqnos.
+    // Now a Replica is not supposed to ack the same seqno twice.
     WeaklyMonotonic<int64_t, ThrowExceptionPolicy> lastWriteSeqno{0};
     WeaklyMonotonic<int64_t, ThrowExceptionPolicy> lastAckSeqno{0};
-};
-
-struct ActiveDurabilityMonitor::NodePosition {
-    Position memory;
-    Position disk;
 };
 
 /*
@@ -94,10 +90,7 @@ struct ActiveDurabilityMonitor::ReplicationChain {
                 continue;
             }
             // This check ensures that there is no duplicate in the given chain
-            if (!positions
-                         .emplace(node,
-                                  NodePosition{Position(it), Position(it)})
-                         .second) {
+            if (!positions.emplace(node, Position(it)).second) {
                 throw std::invalid_argument(
                         "ReplicationChain::ReplicationChain: Duplicate node: " +
                         node);
@@ -117,7 +110,7 @@ struct ActiveDurabilityMonitor::ReplicationChain {
 
     // Index of node Positions. The key is the node id.
     // A Position embeds the seqno-state of the tracked node.
-    std::unordered_map<std::string, NodePosition> positions;
+    std::unordered_map<std::string, Position> positions;
 
     // Majority in the arithmetic definition:
     //     chain-size / 2 + 1
@@ -150,7 +143,7 @@ public:
         // that the Durability Requirements can be met at this point.
         Expects(chain.size() >= majority);
         for (const auto& entry : chain.positions) {
-            acks[entry.first] = Ack();
+            acks[entry.first] = false;
         }
     }
 
@@ -174,24 +167,17 @@ public:
      * Notify this SyncWrite that it has been ack'ed by node.
      *
      * @param node
-     * @param tracking Memory or Disk ack?
      */
-    void ack(const std::string& node, Tracking tracking) {
+    void ack(const std::string& node) {
         if (acks.find(node) == acks.end()) {
             throw std::logic_error("SyncWrite::ack: Node not valid: " + node);
         }
-
-        auto& flag = (tracking == Tracking::Memory ? acks.at(node).memory
-                                                   : acks.at(node).disk);
-        if (flag) {
+        if (acks.at(node)) {
             throw std::logic_error("SyncWrite::ack: ACK duplicate for node: " +
-                                   node + ", tracking:" + to_string(tracking));
+                                   node);
         }
-        flag = true;
-
-        auto& count = (tracking == Tracking::Memory ? ackCount.memory
-                                                    : ackCount.disk);
-        count++;
+        acks[node] = true;
+        ackCount++;
     }
 
     /**
@@ -203,16 +189,14 @@ public:
 
         switch (getDurabilityReqs().getLevel()) {
         case cb::durability::Level::Majority:
-            ret = ackCount.memory >= majority;
+        case cb::durability::Level::PersistToMajority:
+            ret = ackCount >= majority;
             break;
         case cb::durability::Level::MajorityAndPersistOnMaster:
-            ret = ackCount.memory >= majority && acks.at(active).disk;
+            ret = ackCount >= majority && acks.at(active);
             break;
         case cb::durability::Level::None:
             throw std::logic_error("SyncWrite::isVerified: Level::None");
-        case cb::durability::Level::PersistToMajority:
-            ret = ackCount.disk >= majority;
-            break;
         }
 
         return ret;
@@ -243,20 +227,13 @@ private:
     // CheckpointManager can be safely removed.
     const queued_item item;
 
-    struct Ack {
-        bool memory{false};
-        bool disk{false};
-    };
-
-    // Keeps track of node acks. Entry: <node, ack>
-    std::unordered_map<std::string, Ack> acks;
+    // Keeps track of node acks. An entry is <node, flag>.
+    // At ack, the node flag is set.
+    std::unordered_map<std::string, bool> acks;
 
     // This optimization eliminates the need of scanning the ACK map for
     // verifying Durability Requirements
-    struct {
-        Monotonic<uint8_t> memory{0};
-        Monotonic<uint8_t> disk{0};
-    } ackCount;
+    Monotonic<uint8_t> ackCount;
 
     // Majority in the arithmetic definition: num-nodes / 2 + 1
     const uint8_t majority;
@@ -279,24 +256,17 @@ std::ostream& operator<<(std::ostream& os,
        << "' seqno:" << sw.item->getBySeqno()
        << " reqs:" << to_string(sw.item->getDurabilityReqs())
        << "] maj:" << std::to_string(sw.majority)
-       << " #ack:[mem:" << std::to_string(sw.ackCount.memory)
-       << " disk:" << std::to_string(sw.ackCount.disk) << "] acks:[";
-    for (const auto& node : sw.acks) {
-        std::string ackNames;
-        if (node.second.memory) {
-            ackNames += "mem";
-        }
-        if (node.second.disk) {
-            if (node.second.memory) {
-                ackNames += ",";
+       << " #ack:" << std::to_string(sw.ackCount) << " acks:[";
+    std::string acks;
+    for (const auto& ack : sw.acks) {
+        if (ack.second) {
+            if (!acks.empty()) {
+                acks += ",";
             }
-            ackNames += "disk";
-        }
-        if (!ackNames.empty()) {
-            os << node.first << ":" << ackNames << " ";
+            acks += ack.first;
         }
     }
-    os << "]";
+    os << acks << "]";
     return os;
 }
 
@@ -389,18 +359,7 @@ void ActiveDurabilityMonitor::addSyncWrite(const void* cookie,
                 "ActiveDurabilityMonitor::addSyncWrite: Impossible");
     }
 
-    auto s = state.wlock();
-    s->addSyncWrite(cookie, item);
-
-    // By logic, before this call the item has been enqueued into the
-    // CheckpointManager. So, the memory-tracking for the active has implicitly
-    // advanced.
-    const auto& thisNode = s->getActive();
-    s->advanceNodePosition(thisNode, Tracking::Memory);
-    s->updateNodeAck(thisNode, Tracking::Memory, item->getBySeqno());
-
-    Ensures(s->getNodeWriteSeqnos(thisNode).memory == item->getBySeqno());
-    Ensures(s->getNodeAckSeqnos(thisNode).memory == item->getBySeqno());
+    state.wlock()->addSyncWrite(cookie, item);
 
     // @todo: Missing step - check for satisfied SyncWrite, we may need to
     //     commit immediately in the no-replica scenario. Consider to do that in
@@ -438,13 +397,7 @@ ENGINE_ERROR_CODE ActiveDurabilityMonitor::seqnoAckReceived(
     // just throws if an error occurs in the current implementation), so this
     // is a @todo.
     Container toCommit;
-    {
-        auto s = state.wlock();
-        // @todo-durability: Now there's just a single prepared_seqno, update
-        // seqnoAck processing to only have a single cursor per replica.
-        s->processSeqnoAck(replica, Tracking::Memory, preparedSeqno, toCommit);
-        s->processSeqnoAck(replica, Tracking::Disk, preparedSeqno, toCommit);
-    }
+    state.wlock()->processSeqnoAck(replica, preparedSeqno, toCommit);
 
     // Commit the verified SyncWrites
     for (const auto& sw : toCommit) {
@@ -477,11 +430,16 @@ void ActiveDurabilityMonitor::notifyLocalPersistence() {
     // at seqnoAckReceived(), details in there).
     Container toCommit;
     {
+        /*
+         * @todo: Temporarily (until we have not a fully working logic for
+         * high_prepared_seqno) all Prepares are ack'ed only when persisted
+         * (even for Level=Majority). That is a (temporary and semantically
+         * correct) pessimization.
+         */
         auto s = state.wlock();
         // Note: For the Active, everything up-to last-persisted-seqno is in
         //     consistent state.
         s->processSeqnoAck(s->getActive(),
-                           Tracking::Disk,
                            vb.getPersistenceSeqno(),
                            toCommit);
     }
@@ -522,43 +480,25 @@ void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
 
         if (s->firstChain) {
             for (const auto& entry : s->firstChain->positions) {
-                const auto* replica = entry.first.c_str();
+                const auto* node = entry.first.c_str();
                 const auto& pos = entry.second;
 
-                checked_snprintf(buf,
-                                 sizeof(buf),
-                                 "vb_%d:replication_chain_first:%s:memory:last_"
-                                 "write_seqno",
-                                 vbid,
-                                 replica);
-                add_casted_stat(
-                        buf, pos.memory.lastWriteSeqno, addStat, cookie);
-                checked_snprintf(buf,
-                                 sizeof(buf),
-                                 "vb_%d:replication_chain_first:%s:memory:last_"
-                                 "ack_seqno",
-                                 vbid,
-                                 replica);
-                add_casted_stat(buf, pos.memory.lastAckSeqno, addStat, cookie);
-
-                checked_snprintf(buf,
-                                 sizeof(buf),
-                                 "vb_%d:replication_chain_first:%s:disk:last_"
-                                 "write_seqno",
-                                 vbid,
-                                 replica);
-                add_casted_stat(
-                        buf, pos.memory.lastWriteSeqno, addStat, cookie);
                 checked_snprintf(
                         buf,
                         sizeof(buf),
-                        "vb_%d:replication_chain_first:%s:disk:last_ack_seqno",
+                        "vb_%d:replication_chain_first:%s:last_write_seqno",
                         vbid,
-                        replica);
-                add_casted_stat(buf, pos.disk.lastAckSeqno, addStat, cookie);
+                        node);
+                add_casted_stat(buf, pos.lastWriteSeqno, addStat, cookie);
+                checked_snprintf(
+                        buf,
+                        sizeof(buf),
+                        "vb_%d:replication_chain_first:%s:last_ack_seqno",
+                        vbid,
+                        node);
+                add_casted_stat(buf, pos.lastAckSeqno, addStat, cookie);
             }
         }
-
     } catch (const std::exception& e) {
         EP_LOG_WARN(
                 "ActiveDurabilityMonitor::State:::addStats: error building "
@@ -582,11 +522,8 @@ uint8_t ActiveDurabilityMonitor::getFirstChainMajority() const {
 }
 
 ActiveDurabilityMonitor::Container::iterator
-ActiveDurabilityMonitor::State::getNodeNext(const std::string& node,
-                                            Tracking tracking) {
-    const auto& pos = firstChain->positions.at(node);
-    const auto& it =
-            (tracking == Tracking::Memory ? pos.memory.it : pos.disk.it);
+ActiveDurabilityMonitor::State::getNodeNext(const std::string& node) {
+    const auto& it = firstChain->positions.at(node).it;
     // Note: Container::end could be the new position when the pointed SyncWrite
     //     is removed from Container and the iterator repositioned.
     //     In that case next=Container::begin
@@ -594,10 +531,8 @@ ActiveDurabilityMonitor::State::getNodeNext(const std::string& node,
 }
 
 void ActiveDurabilityMonitor::State::advanceNodePosition(
-        const std::string& node, Tracking tracking) {
-    const auto& pos_ = firstChain->positions.at(node);
-    auto& pos = const_cast<Position&>(tracking == Tracking::Memory ? pos_.memory
-                                                                   : pos_.disk);
+        const std::string& node) {
+    auto& pos = const_cast<Position&>(firstChain->positions.at(node));
 
     if (pos.it == trackedWrites.end()) {
         pos.it = trackedWrites.begin();
@@ -613,58 +548,37 @@ void ActiveDurabilityMonitor::State::advanceNodePosition(
     pos.lastWriteSeqno = pos.it->getBySeqno();
 
     // Update the SyncWrite ack-counters, necessary for DurReqs verification
-    pos.it->ack(node, tracking);
+    pos.it->ack(node);
 }
 
 void ActiveDurabilityMonitor::State::updateNodeAck(const std::string& node,
-                                                   Tracking tracking,
                                                    int64_t seqno) {
-    const auto& pos_ = firstChain->positions.at(node);
-    auto& pos = const_cast<Position&>(tracking == Tracking::Memory ? pos_.memory
-                                                                   : pos_.disk);
-
-    // Note: using WeaklyMonotonic, as receiving the same seqno multiple times
-    // for the same node is ok. That just means that the node has not advanced
-    // any of memory/disk seqnos.
-    // E.g., imagine the following DCP_SEQNO_ACK sequence:
-    //
-    // {mem:1, disk:0} -> {mem:2, disk:0}
-    //
-    // That is legal, and it means that the node has enqueued seqnos {1, 2}
-    // but not persisted anything yet.
-    //
-    // @todo: By doing this I don't catch the case where the replica has ack'ed
-    //     both the same mem/disk seqnos twice (which shouldn't happen).
-    //     It would be good to catch that, useful for replica logic-check.
+    auto& pos = const_cast<Position&>(firstChain->positions.at(node));
     pos.lastAckSeqno = seqno;
 }
 
-ActiveDurabilityMonitor::NodeSeqnos ActiveDurabilityMonitor::getNodeWriteSeqnos(
+int64_t ActiveDurabilityMonitor::getNodeWriteSeqno(
         const std::string& node) const {
-    return state.rlock()->getNodeWriteSeqnos(node);
+    return state.rlock()->getNodeWriteSeqno(node);
 }
 
-ActiveDurabilityMonitor::NodeSeqnos ActiveDurabilityMonitor::getNodeAckSeqnos(
+int64_t ActiveDurabilityMonitor::getNodeAckSeqno(
         const std::string& node) const {
-    return state.rlock()->getNodeAckSeqnos(node);
+    return state.rlock()->getNodeAckSeqno(node);
 }
 
 const std::string& ActiveDurabilityMonitor::State::getActive() const {
     return firstChain->active;
 }
 
-ActiveDurabilityMonitor::NodeSeqnos
-ActiveDurabilityMonitor::State::getNodeWriteSeqnos(
+int64_t ActiveDurabilityMonitor::State::getNodeWriteSeqno(
         const std::string& node) const {
-    const auto& pos = firstChain->positions.at(node);
-    return {pos.memory.lastWriteSeqno, pos.disk.lastWriteSeqno};
+    return firstChain->positions.at(node).lastWriteSeqno;
 }
 
-ActiveDurabilityMonitor::NodeSeqnos
-ActiveDurabilityMonitor::State::getNodeAckSeqnos(
+int64_t ActiveDurabilityMonitor::State::getNodeAckSeqno(
         const std::string& node) const {
-    const auto& pos = firstChain->positions.at(node);
-    return {pos.memory.lastAckSeqno, pos.disk.lastAckSeqno};
+    return firstChain->positions.at(node).lastAckSeqno;
 }
 
 ActiveDurabilityMonitor::Container
@@ -688,15 +602,12 @@ ActiveDurabilityMonitor::State::removeSyncWrite(Container::iterator it) {
     // iterator that points to that element. So, we have to reposition the
     // invalidated iterators before proceeding with the removal.
     //
-    // Note: O(N) with N=<number of iterators>, max(N)=12
-    //     (max 2 chains, 3 replicas, 2 iterators per replica)
+    // Note: O(N) with N=<number of iterators>, max(N)=6
+    //     (max 2 chains, 3 replicas, 1 iterator per replica)
     for (const auto& entry : firstChain->positions) {
         const auto& nodePos = entry.second;
-        if (nodePos.memory.it == it) {
-            const_cast<Position&>(nodePos.memory).it = prev;
-        }
-        if (nodePos.disk.it == it) {
-            const_cast<Position&>(nodePos.disk).it = prev;
+        if (nodePos.it == it) {
+            const_cast<Position&>(nodePos).it = prev;
         }
     }
 
@@ -737,8 +648,7 @@ void ActiveDurabilityMonitor::abort(const SyncWrite& sw) {
 }
 
 void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
-                                                     Tracking tracking,
-                                                     int64_t ackSeqno,
+                                                     int64_t seqno,
                                                      Container& toCommit) {
     if (!firstChain) {
         throw std::logic_error(
@@ -748,14 +658,12 @@ void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
 
     // Note: process up to the ack'ed seqno
     ActiveDurabilityMonitor::Container::iterator next;
-    while ((next = getNodeNext(node, tracking)) != trackedWrites.end() &&
-           next->getBySeqno() <= ackSeqno) {
+    while ((next = getNodeNext(node)) != trackedWrites.end() &&
+           next->getBySeqno() <= seqno) {
         // Update replica tracking
-        advanceNodePosition(node, tracking);
+        advanceNodePosition(node);
 
-        const auto& nodePos = firstChain->positions.at(node);
-        const auto& pos =
-                (tracking == Tracking::Memory ? nodePos.memory : nodePos.disk);
+        const auto& pos = firstChain->positions.at(node);
 
         // Check if Durability Requirements satisfied now, and add for commit
         if (pos.it->isSatisfied()) {
@@ -765,7 +673,7 @@ void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
     }
 
     // We keep track of the actual ack'ed seqno
-    updateNodeAck(node, tracking, ackSeqno);
+    updateNodeAck(node, seqno);
 }
 
 std::unordered_set<int64_t> ActiveDurabilityMonitor::getTrackedSeqnos() const {

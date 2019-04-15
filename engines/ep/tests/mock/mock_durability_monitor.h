@@ -43,12 +43,12 @@ public:
         return ActiveDurabilityMonitor::getFirstChainMajority();
     }
 
-    NodeSeqnos public_getNodeWriteSeqnos(const std::string& replica) const {
-        return ActiveDurabilityMonitor::getNodeWriteSeqnos(replica);
+    int64_t public_getNodeWriteSeqno(const std::string& node) const {
+        return ActiveDurabilityMonitor::getNodeWriteSeqno(node);
     }
 
-    NodeSeqnos public_getNodeAckSeqnos(const std::string& replica) const {
-        return ActiveDurabilityMonitor::getNodeAckSeqnos(replica);
+    int64_t public_getNodeAckSeqno(const std::string& node) const {
+        return ActiveDurabilityMonitor::getNodeAckSeqno(node);
     }
 
     std::unordered_set<int64_t> public_getTrackedSeqnos() const {

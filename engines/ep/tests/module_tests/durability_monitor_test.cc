@@ -91,18 +91,40 @@ MutationStatus DurabilityMonitorTest::processSet(Item& item) {
             .first;
 }
 
-void DurabilityMonitorTest::assertNodeMemTracking(const std::string& node,
-                                                  uint64_t lastWriteSeqno,
-                                                  uint64_t lastAckSeqno) {
-    ASSERT_EQ(lastWriteSeqno, monitor->public_getNodeWriteSeqnos(node).memory);
-    ASSERT_EQ(lastAckSeqno, monitor->public_getNodeAckSeqnos(node).memory);
+void DurabilityMonitorTest::assertNodeTracking(const std::string& node,
+                                               uint64_t lastWriteSeqno,
+                                               uint64_t lastAckSeqno) const {
+    ASSERT_EQ(lastWriteSeqno, monitor->public_getNodeWriteSeqno(node));
+    ASSERT_EQ(lastAckSeqno, monitor->public_getNodeAckSeqno(node));
 }
 
-void DurabilityMonitorTest::assertNodeDiskTracking(const std::string& node,
-                                                   uint64_t lastWriteSeqno,
-                                                   uint64_t lastAckSeqno) {
-    ASSERT_EQ(lastWriteSeqno, monitor->public_getNodeWriteSeqnos(node).disk);
-    ASSERT_EQ(lastAckSeqno, monitor->public_getNodeAckSeqnos(node).disk);
+void DurabilityMonitorTest::testLocalAck(int64_t ackSeqno,
+                                         size_t expectedNumTracked,
+                                         int64_t expectedLastWriteSeqno,
+                                         int64_t expectedLastAckSeqno) {
+    vb->setPersistenceSeqno(ackSeqno);
+    monitor->notifyLocalPersistence();
+    EXPECT_EQ(expectedNumTracked, monitor->public_getNumTracked());
+    {
+        SCOPED_TRACE("");
+        assertNodeTracking(
+                active, expectedLastWriteSeqno, expectedLastAckSeqno);
+    }
+}
+
+void DurabilityMonitorTest::testSeqnoAckReceived(
+        const std::string& replica,
+        int64_t ackSeqno,
+        size_t expectedNumTracked,
+        int64_t expectedLastWriteSeqno,
+        int64_t expectedLastAckSeqno) const {
+    EXPECT_NO_THROW(monitor->seqnoAckReceived(replica, ackSeqno));
+    EXPECT_EQ(expectedNumTracked, monitor->public_getNumTracked());
+    {
+        SCOPED_TRACE("");
+        assertNodeTracking(
+                replica, expectedLastWriteSeqno, expectedLastAckSeqno);
+    }
 }
 
 bool DurabilityMonitorTest::testDurabilityPossible(
@@ -122,7 +144,6 @@ bool DurabilityMonitorTest::testDurabilityPossible(
     };
 
     monitor->public_setReplicationTopology(topology);
-
     EXPECT_EQ(expectedFirstChainSize, monitor->public_getFirstChainSize());
     EXPECT_EQ(expectedFirstChainMajority,
               monitor->public_getFirstChainMajority());
@@ -150,14 +171,21 @@ TEST_F(DurabilityMonitorTest, AddSyncWrite) {
 TEST_F(DurabilityMonitorTest, SeqnoAckReceivedSmallerThanLastAcked) {
     addSyncWrites({1, 2} /*seqnos*/);
 
-    // This call removes seqno:1
-    ASSERT_NO_THROW(monitor->seqnoAckReceived(replica, 1 /*preparedSeqno*/));
-    ASSERT_EQ(1, monitor->public_getNumTracked());
-    ASSERT_EQ(1, monitor->public_getNodeWriteSeqnos(replica).memory);
-    ASSERT_EQ(1, monitor->public_getNodeAckSeqnos(replica).memory);
+    const int64_t ackSeqno = 1;
+    SCOPED_TRACE("");
+    testLocalAck(ackSeqno,
+                 2 /*expectedNumTracked*/,
+                 1 /*expectedLastWriteSeqno*/,
+                 ackSeqno /*expectedLastAckSeqno*/);
+    // This call removes s:1
+    testSeqnoAckReceived(replica1,
+                         ackSeqno,
+                         1 /*expectedNumTracked*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         ackSeqno /*expectedLastAckSeqno*/);
 
     try {
-        monitor->seqnoAckReceived(replica, 0 /*preparedSeqno*/);
+        monitor->seqnoAckReceived(replica1, 0 /*preparedSeqno*/);
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find("Monotonic") !=
                     std::string::npos);
@@ -169,103 +197,114 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedSmallerThanLastAcked) {
 TEST_F(DurabilityMonitorTest, SeqnoAckReceivedEqualPending) {
     int64_t seqnoStart = 1;
     int64_t seqnoEnd = 3;
+
     auto numItems = addSyncWrites(seqnoStart, seqnoEnd);
     ASSERT_EQ(3, numItems);
-    ASSERT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).memory);
-    ASSERT_EQ(0, monitor->public_getNodeAckSeqnos(replica).memory);
+    {
+        SCOPED_TRACE("");
+        assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
 
-    for (int64_t seqno = seqnoStart; seqno <= seqnoEnd; seqno++) {
-        EXPECT_NO_THROW(monitor->seqnoAckReceived(replica, seqno));
-        // Check that the tracking advances by 1 at each cycle
-        EXPECT_EQ(seqno, monitor->public_getNodeWriteSeqnos(replica).memory);
-        EXPECT_EQ(seqno, monitor->public_getNodeAckSeqnos(replica).memory);
-        // Check that we committed and removed 1 SyncWrite
-        EXPECT_EQ(--numItems, monitor->public_getNumTracked());
-        // Check that seqno-tracking is not lost after commit+remove
-        EXPECT_EQ(seqno, monitor->public_getNodeWriteSeqnos(replica).memory);
-        EXPECT_EQ(seqno, monitor->public_getNodeAckSeqnos(replica).memory);
+    for (int64_t ackSeqno = seqnoStart; ackSeqno <= seqnoEnd; ackSeqno++) {
+        SCOPED_TRACE("");
+        testLocalAck(ackSeqno,
+                     numItems /*expectedNumTracked*/,
+                     ackSeqno /*expectedLastWriteSeqno*/,
+                     ackSeqno /*expectedLastAckSeqno*/);
+        testSeqnoAckReceived(replica1,
+                             ackSeqno,
+                             --numItems /*expectedNumTracked*/,
+                             ackSeqno /*expectedLastWriteSeqno*/,
+                             ackSeqno /*expectedLastAckSeqno*/);
     }
 }
 
 TEST_F(DurabilityMonitorTest,
        SeqnoAckReceivedGreaterThanPending_ContinuousSeqnos) {
     ASSERT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
-    ASSERT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).memory);
+    {
+        SCOPED_TRACE("");
+        assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
 
-    int64_t memoryAckSeqno = 2;
-    // Receive a seqno-ack in the middle of tracked seqnos
-    EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(replica, memoryAckSeqno));
-    // Check that the tracking has advanced to the ack'ed seqno
-    EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getNodeWriteSeqnos(replica).memory);
-    EXPECT_EQ(memoryAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
-    // Check that we committed and removed 2 SyncWrites
-    EXPECT_EQ(1, monitor->public_getNumTracked());
-    // Check that seqno-tracking is not lost after commit+remove
-    EXPECT_EQ(memoryAckSeqno,
-              monitor->public_getNodeWriteSeqnos(replica).memory);
-    EXPECT_EQ(memoryAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
+    const int64_t ackSeqno = 2;
+    SCOPED_TRACE("");
+    testLocalAck(ackSeqno,
+                 3 /*expectedNumTracked*/,
+                 ackSeqno /*expectedLastWriteSeqno*/,
+                 ackSeqno /*expectedLastAckSeqno*/);
+    testSeqnoAckReceived(replica1,
+                         ackSeqno,
+                         1 /*expectedNumTracked*/,
+                         ackSeqno /*expectedLastWriteSeqno*/,
+                         ackSeqno /*expectedLastAckSeqno*/);
 }
 
 TEST_F(DurabilityMonitorTest, SeqnoAckReceivedGreaterThanPending_SparseSeqnos) {
     ASSERT_EQ(3, addSyncWrites({1, 3, 5} /*seqnos*/));
-    ASSERT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).memory);
+    {
+        SCOPED_TRACE("");
+        assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
 
-    int64_t memoryAckSeqno = 4;
-    // Receive a seqno-ack in the middle of tracked seqnos
-    EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(replica, memoryAckSeqno));
-    // Check that the tracking has advanced to the last tracked seqno before
-    // the ack'ed seqno
-    EXPECT_EQ(3, monitor->public_getNodeWriteSeqnos(replica).memory);
-    // Check that the ack-seqno has been updated correctly
-    EXPECT_EQ(memoryAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
-    // Check that we committed and removed 2 SyncWrites
-    EXPECT_EQ(1, monitor->public_getNumTracked());
-    // Check that seqno-tracking is not lost after commit+remove
-    EXPECT_EQ(3, monitor->public_getNodeWriteSeqnos(replica).memory);
-    EXPECT_EQ(memoryAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
+    const int64_t ackSeqno = 4;
+    SCOPED_TRACE("");
+    testLocalAck(ackSeqno,
+                 3 /*expectedNumTracked*/,
+                 3 /*expectedLastWriteSeqno*/,
+                 ackSeqno /*expectedLastAckSeqno*/);
+    testSeqnoAckReceived(replica1,
+                         ackSeqno,
+                         1 /*expectedNumTracked*/,
+                         3 /*expectedLastWriteSeqno*/,
+                         ackSeqno /*expectedLastAckSeqno*/);
 }
 
 TEST_F(DurabilityMonitorTest,
        SeqnoAckReceivedGreaterThanLastTracked_ContinuousSeqnos) {
     ASSERT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
-    ASSERT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).memory);
+    {
+        SCOPED_TRACE("");
+        assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
 
-    int64_t memoryAckSeqno = 4;
-    // Receive a seqno-ack greater than the last tracked seqno
-    EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(replica, memoryAckSeqno));
-    // Check that the tracking has advanced to the last tracked seqno
-    EXPECT_EQ(3, monitor->public_getNodeWriteSeqnos(replica).memory);
-    // Check that the ack-seqno has been updated correctly
-    EXPECT_EQ(memoryAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
-    // Check that we committed and removed all SyncWrites
-    EXPECT_EQ(0, monitor->public_getNumTracked());
-    // Check that seqno-tracking is not lost after commit+remove
-    EXPECT_EQ(3, monitor->public_getNodeWriteSeqnos(replica).memory);
-    EXPECT_EQ(memoryAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
+    const int64_t ackSeqno = 4;
+    SCOPED_TRACE("");
+    testLocalAck(ackSeqno,
+                 3 /*expectedNumTracked*/,
+                 3 /*expectedLastWriteSeqno*/,
+                 ackSeqno /*expectedLastAckSeqno*/);
+    testSeqnoAckReceived(replica1,
+                         ackSeqno,
+                         0 /*expectedNumTracked*/,
+                         3 /*expectedLastWriteSeqno*/,
+                         ackSeqno /*expectedLastAckSeqno*/);
 }
 
 TEST_F(DurabilityMonitorTest,
        SeqnoAckReceivedGreaterThanLastTracked_SparseSeqnos) {
     ASSERT_EQ(3, addSyncWrites({1, 3, 5} /*seqnos*/));
-    ASSERT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).memory);
+    {
+        SCOPED_TRACE("");
+        assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
 
-    int64_t memoryAckSeqno = 10;
-    // Receive a seqno-ack greater than the last tracked seqno
-    EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(replica, memoryAckSeqno));
-    // Check that the tracking has advanced to the last tracked seqno
-    EXPECT_EQ(5, monitor->public_getNodeWriteSeqnos(replica).memory);
-    // Check that the ack-seqno has been updated correctly
-    EXPECT_EQ(memoryAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
-    // Check that we committed and removed all SyncWrites
-    EXPECT_EQ(0, monitor->public_getNumTracked());
-    // Check that seqno-tracking is not lost after commit+remove
-    EXPECT_EQ(5, monitor->public_getNodeWriteSeqnos(replica).memory);
-    EXPECT_EQ(memoryAckSeqno, monitor->public_getNodeAckSeqnos(replica).memory);
+    const int64_t ackSeqno = 10;
+    SCOPED_TRACE("");
+    testLocalAck(ackSeqno,
+                 3 /*expectedNumTracked*/,
+                 5 /*expectedLastWriteSeqno*/,
+                 ackSeqno /*expectedLastAckSeqno*/);
+    testSeqnoAckReceived(replica1,
+                         ackSeqno,
+                         0 /*expectedNumTracked*/,
+                         5 /*expectedLastWriteSeqno*/,
+                         ackSeqno /*expectedLastAckSeqno*/);
 }
 
 // @todo: Refactor test suite and expand test cases
@@ -274,37 +313,38 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceived_PersistToMajority) {
               addSyncWrites({1, 3, 5} /*seqnos*/,
                             {cb::durability::Level::PersistToMajority,
                              0 /*timeout*/}));
-    ASSERT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).disk);
-    EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(replica).disk);
+    {
+        SCOPED_TRACE("");
+        assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
 
-    int64_t memAckSeqno = 10, diskAckSeqno = 10;
+    const int64_t ackSeqno = 10;
 
     // Receive a seqno-ack greater than the last tracked seqno
-    EXPECT_EQ(ENGINE_SUCCESS, monitor->seqnoAckReceived(replica, memAckSeqno));
+    EXPECT_EQ(ENGINE_SUCCESS, monitor->seqnoAckReceived(replica1, ackSeqno));
 
     // Check that we have not committed as the active has not ack'ed the
     // persisted seqno
     EXPECT_EQ(3, monitor->public_getNumTracked());
 
     // Check that the tracking for Replica has been updated correctly
-    EXPECT_EQ(5, monitor->public_getNodeWriteSeqnos(replica).disk);
-    EXPECT_EQ(diskAckSeqno, monitor->public_getNodeAckSeqnos(replica).disk);
+    assertNodeTracking(
+            replica1, 5 /*lastWriteSeqno*/, ackSeqno /*lastAckSeqno*/);
 
     // Check that the tracking for Active has not moved yet
-    EXPECT_EQ(0, monitor->public_getNodeWriteSeqnos(active).disk);
-    EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(active).disk);
+    assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
 
     // Simulate the Flusher that notifies the local DurabilityMonitor after
     // persistence
-    vb->setPersistenceSeqno(diskAckSeqno);
+    vb->setPersistenceSeqno(ackSeqno);
     monitor->notifyLocalPersistence();
 
     // Check that we committed and removed all SyncWrites
     EXPECT_EQ(0, monitor->public_getNumTracked());
 
     // Check that the tracking for Active has been updated correctly
-    EXPECT_EQ(5, monitor->public_getNodeWriteSeqnos(active).disk);
-    EXPECT_EQ(diskAckSeqno, monitor->public_getNodeAckSeqnos(active).disk);
+    assertNodeTracking(active, 5 /*lastWriteSeqno*/, ackSeqno /*lastAckSeqno*/);
 }
 
 TEST_F(DurabilityMonitorTest, SetTopology_NotAnArray) {
@@ -379,54 +419,51 @@ TEST_F(DurabilityMonitorTest, SetTopology_NodeDuplicateIncChain) {
 
 // @todo: Extend to disk-seqno
 TEST_F(DurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {
-    const std::string active = "active";
-    const std::string replica1 = "replica1";
-    const std::string replica2 = "replica2";
-    const std::string replica3 = "replica3";
-
     ASSERT_NO_THROW(monitor->setReplicationTopology(
             nlohmann::json::array({{active, replica1, replica2, replica3}})));
     ASSERT_EQ(4, monitor->public_getFirstChainSize());
 
-    addSyncWrite(1 /*seqno*/);
+    const int64_t seqno = 1;
+    addSyncWrite(seqno);
 
-    // Active has implicitly ack'ed (SyncWrite added for tracking /after/ being
-    // enqueued into the CheckpointManager)
-    EXPECT_EQ(1, monitor->public_getNodeWriteSeqnos(active).memory);
-    EXPECT_EQ(1, monitor->public_getNodeAckSeqnos(active).memory);
-
-    // Nothing ack'ed yet for replica
-    for (const auto& replica : {replica1, replica2, replica3}) {
-        EXPECT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).memory);
-        EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(replica).memory);
+    // Nothing ack'ed yet
+    for (const auto& node : {active, replica1, replica2, replica3}) {
+        SCOPED_TRACE("");
+        assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
     // Nothing committed
     EXPECT_EQ(1, monitor->public_getNumTracked());
 
-    // replica2 acks
-    EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(replica2, 1 /*preparedSeqno*/));
-    EXPECT_EQ(1, monitor->public_getNodeWriteSeqnos(replica2).memory);
-    EXPECT_EQ(1, monitor->public_getNodeAckSeqnos(replica2).memory);
-    // Nothing committed yet
-    EXPECT_EQ(1, monitor->public_getNumTracked());
+    {
+        SCOPED_TRACE("");
+        // active acks; nothing committed yet
+        testLocalAck(seqno /*ackSeqno*/,
+                     1 /*expectedNumTracked*/,
+                     seqno /*expectedLastWriteSeqno*/,
+                     seqno /*expectedLastAckSeqno*/);
 
-    // replica3 acks
-    EXPECT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(replica3, 1 /*preparedSeqno*/));
-    EXPECT_EQ(1, monitor->public_getNodeWriteSeqnos(replica3).memory);
-    EXPECT_EQ(1, monitor->public_getNodeAckSeqnos(replica3).memory);
-    // Requirements verified, committed
-    EXPECT_EQ(0, monitor->public_getNumTracked());
+        // replica2 acks; nothing committed yet
+        testSeqnoAckReceived(replica2,
+                             seqno /*ackSeqno*/,
+                             1 /*expectedNumTracked*/,
+                             seqno /*expectedLastWriteSeqno*/,
+                             seqno /*expectedLastAckSeqno*/);
 
-    // replica1 has not ack'ed yet
-    EXPECT_EQ(0, monitor->public_getNodeWriteSeqnos(replica1).memory);
-    EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(replica1).memory);
+        // replica3 acks; requirements verified, committed
+        testSeqnoAckReceived(replica3,
+                             seqno /*ackSeqno*/,
+                             0 /*expectedNumTracked*/,
+                             seqno /*expectedLastWriteSeqno*/,
+                             seqno /*expectedLastAckSeqno*/);
+
+        // replica1 has not ack'ed yet
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
 }
 
 TEST_F(DurabilityMonitorTest, NeverExpireIfTimeoutNotSet) {
     ASSERT_NO_THROW(monitor->setReplicationTopology(
-            nlohmann::json::array({{active, replica}})));
+            nlohmann::json::array({{active, replica1}})));
     ASSERT_EQ(2, monitor->public_getFirstChainSize());
 
     // Note: Timeout=0 (i.e., no timeout) in default Durability Requirements
@@ -443,13 +480,13 @@ TEST_F(DurabilityMonitorTest, NeverExpireIfTimeoutNotSet) {
 
 TEST_F(DurabilityMonitorTest, ProcessTimeout) {
     ASSERT_NO_THROW(monitor->setReplicationTopology(
-            nlohmann::json::array({{active, replica}})));
+            nlohmann::json::array({{active, replica1}})));
     ASSERT_EQ(2, monitor->public_getFirstChainSize());
 
-    auto checkMemoryTrack = [this](const std::string& node,
-                                   int64_t expected) -> void {
-        EXPECT_EQ(expected, monitor->public_getNodeWriteSeqnos(node).memory);
-        EXPECT_EQ(expected, monitor->public_getNodeAckSeqnos(node).memory);
+    auto assertNoAck = [this]() -> void {
+        SCOPED_TRACE("");
+        assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     };
 
     /*
@@ -459,16 +496,19 @@ TEST_F(DurabilityMonitorTest, ProcessTimeout) {
     const auto level = cb::durability::Level::Majority;
 
     ASSERT_EQ(1, addSyncWrites({1} /*seqno*/, {level, 1 /*timeout*/}));
-    EXPECT_EQ(1, monitor->public_getNumTracked());
-    checkMemoryTrack(active, 1);
-    checkMemoryTrack(replica, 0);
+    {
+        SCOPED_TRACE("");
+        assertNoAck();
+    }
 
     monitor->processTimeout(std::chrono::steady_clock::now() +
                             std::chrono::milliseconds(1000));
 
     EXPECT_EQ(0, monitor->public_getNumTracked());
-    checkMemoryTrack(active, 1);
-    checkMemoryTrack(replica, 0);
+    {
+        SCOPED_TRACE("");
+        assertNoAck();
+    }
 
     /*
      * Multiple SyncWrites, ordered by timeout
@@ -478,15 +518,19 @@ TEST_F(DurabilityMonitorTest, ProcessTimeout) {
     ASSERT_EQ(1, addSyncWrites({102} /*seqno*/, {level, 10}));
     ASSERT_EQ(1, addSyncWrites({103} /*seqno*/, {level, 20}));
     EXPECT_EQ(3, monitor->public_getNumTracked());
-    checkMemoryTrack(active, 103);
-    checkMemoryTrack(replica, 0);
+    {
+        SCOPED_TRACE("");
+        assertNoAck();
+    }
 
     monitor->processTimeout(std::chrono::steady_clock::now() +
                             std::chrono::milliseconds(10000));
 
     EXPECT_EQ(0, monitor->public_getNumTracked());
-    checkMemoryTrack(active, 103);
-    checkMemoryTrack(replica, 0);
+    {
+        SCOPED_TRACE("");
+        assertNoAck();
+    }
 
     /*
      * Multiple SyncWrites, not ordered by timeout
@@ -496,8 +540,10 @@ TEST_F(DurabilityMonitorTest, ProcessTimeout) {
     ASSERT_EQ(1, addSyncWrites({202} /*seqno*/, {level, 1}));
     ASSERT_EQ(1, addSyncWrites({203} /*seqno*/, {level, 50000}));
     EXPECT_EQ(3, monitor->public_getNumTracked());
-    checkMemoryTrack(active, 203);
-    checkMemoryTrack(replica, 0);
+    {
+        SCOPED_TRACE("");
+        assertNoAck();
+    }
 
     monitor->processTimeout(std::chrono::steady_clock::now() +
                             std::chrono::milliseconds(10000));
@@ -507,15 +553,19 @@ TEST_F(DurabilityMonitorTest, ProcessTimeout) {
     EXPECT_TRUE(tracked.find(201) == tracked.end());
     EXPECT_TRUE(tracked.find(202) == tracked.end());
     EXPECT_TRUE(tracked.find(203) != tracked.end());
-    checkMemoryTrack(active, 203);
-    checkMemoryTrack(replica, 0);
+    {
+        SCOPED_TRACE("");
+        assertNoAck();
+    }
 
     monitor->processTimeout(std::chrono::steady_clock::now() +
                             std::chrono::milliseconds(100000));
 
     EXPECT_EQ(0, monitor->public_getNumTracked());
-    checkMemoryTrack(active, 203);
-    checkMemoryTrack(replica, 0);
+    {
+        SCOPED_TRACE("");
+        assertNoAck();
+    }
 }
 
 TEST_F(DurabilityMonitorTest, MajorityAndPersistActive) {
@@ -523,98 +573,27 @@ TEST_F(DurabilityMonitorTest, MajorityAndPersistActive) {
               addSyncWrites({1, 3, 5} /*seqnos*/,
                             {cb::durability::Level::MajorityAndPersistOnMaster,
                              0 /*timeout*/}));
-    ASSERT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).disk);
-    EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(replica).disk);
+    {
+        SCOPED_TRACE("");
+        assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
 
-    int64_t memAckSeqno = 10, diskAckSeqno = 10;
+    int64_t ackSeqno = 10;
 
-    // Replica acks that everything prepared (as only required to be in-memory
-    // on replicas).
-    EXPECT_EQ(ENGINE_SUCCESS, monitor->seqnoAckReceived(replica, memAckSeqno));
-
-    // The active has not ack'ed the persisted seqno, so nothing committed yet
-    EXPECT_EQ(3, monitor->public_getNumTracked());
-
-    // Check that the tracking for Replica has been updated correctly
-#if 0
-    // @todo-durability: Once DurabilityMonitor is updated to track only single
-    // preparedSeqno, restore this and update to check that the replica's
-    // preparedSeqno is 5 (highest seqno written).
-    EXPECT_EQ(0, monitor->public_getNodeWriteSeqnos(replica).disk);
-    EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(replica).disk);
-#endif
-    // Check that the disk-tracking for Active has not moved yet
-    EXPECT_EQ(0, monitor->public_getNodeWriteSeqnos(active).disk);
-    EXPECT_EQ(0, monitor->public_getNodeAckSeqnos(active).disk);
-
+    SCOPED_TRACE("");
+    // Replica acks all; nothing ack'ed on active though, so nothing committed
+    testSeqnoAckReceived(replica1,
+                         ackSeqno,
+                         3 /*expectedNumTracked*/,
+                         5 /*expectedLastWriteSeqno*/,
+                         ackSeqno /*expectedLastAckSeqno*/);
     // Simulate the Flusher that notifies the local DurabilityMonitor after
-    // persistence
-    vb->setPersistenceSeqno(diskAckSeqno);
-    monitor->notifyLocalPersistence();
-
-    // All committed even if the Replica has not ack'ed the disk-seqno yet,
-    // as Level::MajorityAndPersistOnMaste
-    EXPECT_EQ(0, monitor->public_getNumTracked());
-
-    // Check that the disk-tracking for Active has been updated correctly
-    EXPECT_EQ(5, monitor->public_getNodeWriteSeqnos(active).disk);
-    EXPECT_EQ(diskAckSeqno, monitor->public_getNodeAckSeqnos(active).disk);
-}
-
-/*
- * MB-33276: ReplicationChain iterators may stay invalid at Out-of-Order Commit.
- * That may lead to SEGFAULT as soon as an invalid iterator is processed.
- * Note that dereferencing/moving and invalid iterator is undefined behaviour,
- * so the way we crash is not deterministic.
- */
-TEST_F(DurabilityMonitorTest, DontInvalidateIteratorsAtOutOfOrderCommit) {
-    ASSERT_NO_THROW(
-            addSyncWrite(1, {cb::durability::Level::PersistToMajority, 0}));
-    ASSERT_NO_THROW(addSyncWrite(2, {cb::durability::Level::Majority, 0}));
-
-    /*
-     * End        s1(P)        s2(M)
-     * ^^
-     * A(m)/A(d)
-     * ^^
-     * R(m)/R(d)
-     */
-
-    ASSERT_EQ(2, monitor->public_getNumTracked());
-    assertNodeMemTracking(active, 2 /*lastWriteSeqno*/, 2 /*lastAckSeqno*/);
-    assertNodeDiskTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-    assertNodeMemTracking(replica, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-    assertNodeDiskTracking(replica, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-
-    // Replica acks preparedSeqno:2
-    ASSERT_EQ(ENGINE_SUCCESS,
-              monitor->seqnoAckReceived(replica, 2 /*preparedSeqno*/));
-
-    /*
-     * End        s1(P)        x
-     * ^          ^
-     * A(d)       A(m)
-     * ^          ^
-     * R(d)       R(m)
-     */
-
-    ASSERT_EQ(1, monitor->public_getNumTracked());
-    assertNodeMemTracking(active, 2 /*lastWriteSeqno*/, 2 /*lastAckSeqno*/);
-    assertNodeDiskTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-    assertNodeMemTracking(replica, 2 /*lastWriteSeqno*/, 2 /*lastAckSeqno*/);
-
-    // Simulate the Flusher that notifies the local DurabilityMonitor after
-    // persistence
-    vb->setPersistenceSeqno(1);
-    monitor->notifyLocalPersistence();
-
-    assertNodeMemTracking(active, 2 /*lastWriteSeqno*/, 2 /*lastAckSeqno*/);
-    assertNodeDiskTracking(active, 1 /*lastWriteSeqno*/, 1 /*lastAckSeqno*/);
-    assertNodeMemTracking(replica, 2 /*lastWriteSeqno*/, 2 /*lastAckSeqno*/);
-
-    // This crashes with SEGFAULT before the fix (caused by processing the
-    // invalid A(m) iterator)
-    addSyncWrite(10 /*seqno*/);
+    // persistence. Then: all satisfied, all committed.
+    testLocalAck(ackSeqno /*ackSeqno*/,
+                 0 /*expectedNumTracked*/,
+                 5 /*expectedLastWriteSeqno*/,
+                 ackSeqno /*expectedLastAckSeqno*/);
 }
 
 /*
@@ -633,10 +612,13 @@ TEST_F(DurabilityMonitorTest, DontInvalidateIteratorsAtOutOfOrderCommit) {
 TEST_F(DurabilityMonitorTest, DurabilityImpossible_NoReplica) {
     auto item = makePendingItem(makeStoredDocKey("key"), "value");
     item->setBySeqno(1);
-    EXPECT_TRUE(testDurabilityPossible({{"active"}},
-                                       item,
-                                       1 /*expectedFirstChainSize*/,
-                                       1 /*expectedFirstChainMajority*/));
+    {
+        SCOPED_TRACE("");
+        EXPECT_TRUE(testDurabilityPossible({{"active"}},
+                                           item,
+                                           1 /*expectedFirstChainSize*/,
+                                           1 /*expectedFirstChainMajority*/));
+    }
 }
 
 TEST_F(DurabilityMonitorTest, DurabilityImpossible_1Replica) {

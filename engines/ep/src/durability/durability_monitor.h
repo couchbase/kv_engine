@@ -26,11 +26,6 @@ class VBucket;
  */
 class DurabilityMonitor {
 public:
-    struct NodeSeqnos {
-        int64_t memory;
-        int64_t disk;
-    };
-
     virtual ~DurabilityMonitor() = default;
 
     /**
@@ -46,16 +41,12 @@ public:
     virtual int64_t getHighPreparedSeqno() const = 0;
 
 protected:
-    enum class Tracking : uint8_t { Memory, Disk };
-
     /**
      * @return the number of pending SyncWrite(s) currently tracked
      */
     virtual size_t getNumTracked() const = 0;
 
     virtual void toOStream(std::ostream& os) const = 0;
-
-    static std::string to_string(Tracking tracking);
 
     friend std::ostream& operator<<(std::ostream& os,
                                     const DurabilityMonitor& dm);

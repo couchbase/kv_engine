@@ -56,6 +56,13 @@ protected:
     size_t storeSyncWrites(const std::vector<SyncWriteSpec>& writes);
 
     /**
+     * Simulate the local (active) seqno acknowledgement.
+     *
+     * @param seqno The ack'ed seqno
+     */
+    void simulateLocalAck(uint64_t seqno);
+
+    /**
      * Tests the baseline progress of a set of SyncWrites in Vbucket:
      * 1) mutations added to VBucket
      * 2) mutations in state "pending" in both HashTable and CheckpointManager

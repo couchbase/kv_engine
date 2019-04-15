@@ -103,6 +103,11 @@ size_t VBucketDurabilityTest::storeSyncWrites(
     return numStored;
 }
 
+void VBucketDurabilityTest::simulateLocalAck(uint64_t seqno) {
+    vbucket->setPersistenceSeqno(seqno);
+    monitor->notifyLocalPersistence();
+}
+
 void VBucketDurabilityTest::testSyncWrites(
         const std::vector<SyncWriteSpec>& writes) {
     auto numStored = storeSyncWrites(writes);
@@ -113,7 +118,7 @@ void VBucketDurabilityTest::testSyncWrites(
 
         EXPECT_EQ(nullptr, ht->findForRead(key).storedValue);
         const auto sv = ht->findForWrite(key).storedValue;
-        EXPECT_NE(nullptr, sv);
+        ASSERT_NE(nullptr, sv);
         EXPECT_EQ(CommittedState::Pending, sv->getCommitted());
     }
 
@@ -131,9 +136,9 @@ void VBucketDurabilityTest::testSyncWrites(
     // Simulate flush + checkpoint-removal
     ckptMgr->clear(*vbucket, 0 /*lastBySeqno*/);
 
-    // The active sends DCP_PREPARE messages to the replica, here I simulate
-    // the replica DCP_SEQNO_ACK response
+    // Simulate replica and active seqno-ack
     vbucket->seqnoAcknowledged(replica, writes.back().seqno);
+    simulateLocalAck(writes.back().seqno);
 
     for (auto write : writes) {
         auto key = makeStoredDocKey("key" + std::to_string(write.seqno));
@@ -141,7 +146,7 @@ void VBucketDurabilityTest::testSyncWrites(
         const auto sv =
                 ht->findForRead(key, TrackReference::Yes, WantsDeleted::Yes)
                         .storedValue;
-        EXPECT_NE(nullptr, sv);
+        ASSERT_NE(nullptr, sv);
         EXPECT_NE(nullptr, ht->findForWrite(key).storedValue);
         EXPECT_EQ(CommittedState::CommittedViaPrepare, sv->getCommitted());
         EXPECT_EQ(write.deletion, sv->isDeleted());
@@ -334,7 +339,8 @@ TEST_P(VBucketDurabilityTest, MultipleReplicas) {
             nlohmann::json::array({{active, replica1, replica2, replica3}}));
     ASSERT_EQ(4, monitor->public_getFirstChainSize());
 
-    ASSERT_EQ(1, storeSyncWrites({1} /*seqnos*/));
+    const int64_t preparedSeqno = 1;
+    ASSERT_EQ(1, storeSyncWrites({preparedSeqno}));
 
     auto key = makeStoredDocKey("key1");
 
@@ -345,7 +351,7 @@ TEST_P(VBucketDurabilityTest, MultipleReplicas) {
     auto checkPending = [this, &key, &ckptList]() -> void {
         EXPECT_EQ(nullptr, ht->findForRead(key).storedValue);
         const auto sv = ht->findForWrite(key).storedValue;
-        EXPECT_NE(nullptr, sv);
+        ASSERT_NE(nullptr, sv);
         EXPECT_EQ(CommittedState::Pending, sv->getCommitted());
         EXPECT_EQ(1, ckptList.size());
         ASSERT_EQ(1, ckptList.front()->getNumItems());
@@ -358,7 +364,7 @@ TEST_P(VBucketDurabilityTest, MultipleReplicas) {
 
     auto checkCommitted = [this, &key, &ckptList]() -> void {
         const auto sv = ht->findForRead(key).storedValue;
-        EXPECT_NE(nullptr, sv);
+        ASSERT_NE(nullptr, sv);
         EXPECT_NE(nullptr, ht->findForWrite(key).storedValue);
         EXPECT_EQ(CommittedState::CommittedViaPrepare, sv->getCommitted());
         EXPECT_EQ(1, ckptList.size());
@@ -370,22 +376,26 @@ TEST_P(VBucketDurabilityTest, MultipleReplicas) {
         }
     };
 
+    // Simulate active seqno-ack
+    simulateLocalAck(preparedSeqno);
+
     // No replica has ack'ed yet
     checkPending();
 
     // replica2 acks, Durability Requirements not satisfied yet
-    vbucket->seqnoAcknowledged(replica2, 1 /*preparedSeqno*/);
+    vbucket->seqnoAcknowledged(replica2, preparedSeqno);
     checkPending();
 
     // replica3 acks, Durability Requirements satisfied
     // Note: ensure 1 Ckpt in CM, easier to inspect the CkptList after Commit
     ckptMgr->clear(*vbucket, 0 /*lastBySeqno*/);
-    vbucket->seqnoAcknowledged(replica3, 1 /*preparedSeqno*/);
+    vbucket->seqnoAcknowledged(replica3, preparedSeqno);
     checkCommitted();
 }
 
 TEST_P(VBucketDurabilityTest, PendingSkippedAtEjectionAndCommit) {
-    ASSERT_EQ(1, storeSyncWrites({1} /*seqnos*/));
+    const int64_t preparedSeqno = 1;
+    ASSERT_EQ(1, storeSyncWrites({preparedSeqno}));
 
     auto key = makeStoredDocKey("key1");
     const auto& ckptList =
@@ -455,8 +465,9 @@ TEST_P(VBucketDurabilityTest, PendingSkippedAtEjectionAndCommit) {
     ASSERT_EQ(nullptr, swCompleteTrace.cookie);
     ASSERT_EQ(ENGINE_EINVAL, swCompleteTrace.status);
 
-    // Replica acks, Durability Requirements satisfied, Commit
-    vbucket->seqnoAcknowledged(replica, 1 /*preparedSeqno*/);
+    // Simulate replica and active seqno-ack
+    vbucket->seqnoAcknowledged(replica, preparedSeqno);
+    simulateLocalAck(preparedSeqno);
 
     // Commit notified
     ASSERT_EQ(1, swCompleteTrace.count);

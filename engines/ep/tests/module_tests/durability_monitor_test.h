@@ -43,7 +43,7 @@ public:
                 vb->durabilityMonitor.get());
         ASSERT_TRUE(monitor);
         monitor->public_setReplicationTopology(
-                nlohmann::json::array({{active, replica}}));
+                nlohmann::json::array({{active, replica1}}));
         ASSERT_EQ(2, monitor->public_getFirstChainSize());
     }
 
@@ -92,26 +92,43 @@ protected:
     MutationStatus processSet(Item& item);
 
     /**
-     * Check the memory tracking for the given node
+     * Check the tracking for the given node
      *
      * @param node
      * @param lastWriteSeqno The highest SyncWrite seqno pointed by tracking
      * @param lastAckSeqno The last seqno acked by node
      */
-    void assertNodeMemTracking(const std::string& node,
-                               uint64_t lastWriteSeqno,
-                               uint64_t lastAckSeqno);
+    void assertNodeTracking(const std::string& node,
+                            uint64_t lastWriteSeqno,
+                            uint64_t lastAckSeqno) const;
 
     /**
-     * Check the disk tracking for the given node
+     * Processes the (local) ack-seqno and checks expected stats.
      *
-     * @param node
-     * @param lastWriteSeqno The highest SyncWrite seqno pointed by tracking
-     * @param lastAckSeqno The last seqno acked by node
+     * @param ackSeqno The seqno-ack to be processed
+     * @param expectedNumTracked
+     * @param expectedLastWriteSeqno
+     * @param expectedLastAckSeqno
      */
-    void assertNodeDiskTracking(const std::string& node,
-                                uint64_t lastWriteSeqno,
-                                uint64_t lastAckSeqno);
+    void testLocalAck(int64_t ackSeqno,
+                      size_t expectedNumTracked,
+                      int64_t expectedLastWriteSeqno,
+                      int64_t expectedLastAckSeqno);
+
+    /**
+     * Processes the ack-seqno for replica and checks expected stats.
+     *
+     * @param replica The replica that "receives" the ack
+     * @param ackSeqno The seqno-ack to be processed
+     * @param expectedNumTracked
+     * @param expectedLastWriteSeqno
+     * @param expectedLastAckSeqno
+     */
+    void testSeqnoAckReceived(const std::string& replica,
+                              int64_t ackSeqno,
+                              size_t expectedNumTracked,
+                              int64_t expectedLastWriteSeqno,
+                              int64_t expectedLastAckSeqno) const;
 
     /**
      * Check durability possible/impossible at DM::addSyncWrite under the
@@ -137,5 +154,7 @@ protected:
     MockActiveDurabilityMonitor* monitor;
 
     const std::string active = "active";
-    const std::string replica = "replica";
+    const std::string replica1 = "replica1";
+    const std::string replica2 = "replica2";
+    const std::string replica3 = "replica3";
 };

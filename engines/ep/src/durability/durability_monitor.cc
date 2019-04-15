@@ -17,17 +17,6 @@
 
 #include "durability_monitor.h"
 
-std::string DurabilityMonitor::to_string(Tracking tracking) {
-    auto value = std::to_string(static_cast<uint8_t>(tracking));
-    switch (tracking) {
-    case Tracking::Memory:
-        return value + ":memory";
-    case Tracking::Disk:
-        return value + ":disk";
-    };
-    return value + ":invalid";
-}
-
 std::ostream& operator<<(std::ostream& os, const DurabilityMonitor& dm) {
     dm.toOStream(os);
     return os;

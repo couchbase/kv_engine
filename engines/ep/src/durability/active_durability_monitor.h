@@ -17,12 +17,8 @@
 #pragma once
 
 #include "durability_monitor.h"
-
-#include "ep_types.h"
 #include "monotonic.h"
 
-#include "memcached/durability_spec.h"
-#include "memcached/engine_common.h"
 #include "memcached/engine_error.h"
 
 #include <folly/Synchronized.h>
@@ -31,21 +27,13 @@
 #include <list>
 #include <unordered_set>
 
-class StoredDocKey;
-class StoredValue;
-class VBucket;
-
 /*
- * The DurabilityMonitor (DM) drives the finalization (commit/abort) of a
- * SyncWrite request.
+ * The DurabilityMonitor for Active VBuckets.
  *
- * To do that, the DM tracks the pending SyncWrites and the replica
- * acknowledgements to verify if the Durability Requirement is satisfied for
- * the tracked mutations.
- *
- * DM internals (describing by example).
- *
- * @todo: Update deferred, internals changing frequently these days :)
+ * The ActiveDurabilityMonitor (ADM) drives the completion (commit/abort) of
+ * SyncWrites requests. To do that, the ADM tracks the pending SyncWrites queued
+ * at Active and the ACKs sent by Replicas to verify if the Durability
+ * Requirements are satisfied for the tracked mutations.
  */
 class ActiveDurabilityMonitor : public DurabilityMonitor {
 public:
@@ -63,11 +51,6 @@ public:
      * @throw std::invalid_argument
      */
     void setReplicationTopology(const nlohmann::json& topology);
-
-    /**
-     * @return the replication topology
-     */
-    const nlohmann::json& getReplicationTopology() const;
 
     /// @returns the high_prepared_seqno.
     int64_t getHighPreparedSeqno() const override;
@@ -130,7 +113,6 @@ protected:
     class SyncWrite;
     struct ReplicationChain;
     struct Position;
-    struct NodePosition;
 
     using Container = std::list<SyncWrite>;
 
@@ -149,29 +131,28 @@ protected:
     uint8_t getFirstChainMajority() const;
 
     /**
-     * Returns the seqnos of the SyncWrites currently pointed by the
-     * internal memory/disk tracking for Node. E.g., if we have a tracked
-     * SyncWrite list like {s:1, s:2} and we receive a SeqnoAck{mem:2,
-     * disk:1}, then the internal memory/disk tracking will be {mem:2,
-     * disk:1}, which is what this function returns. Note that this may
-     * differ from Replica AckSeqno. Using the same example, if we receive a
-     * SeqnoAck{mem:100, disk:100} then the internal tracking will still
-     * point to {mem:2, disk:1}, which is what this function will return
-     * again.
+     * Returns the seqno of the SyncWrites currently pointed by the
+     * internal tracking for Node. E.g., if we have a tracked SyncWrite list
+     * {s:1, s:2} and we receive a SeqnoAck{2}, then the internal tracking will
+     * be at s:2, which is what this function returns.
+     * Note that this may differ from Replica AckSeqno. Using the same example,
+     * if we receive SeqnoAck{3} then the internal tracking will still point to
+     * s:2, which is what this function will return again.
      *
      * @param node
-     * @return the {memory, disk} seqnos of the tracked writes for node
+     * @return the seqno of the SyncWrite currently pointed by the internal
+     *     tracking for Node.
      */
-    NodeSeqnos getNodeWriteSeqnos(const std::string& node) const;
+    int64_t getNodeWriteSeqno(const std::string& node) const;
 
     /**
-     * Returns the last {memSeqno, diskSeqno} ack'ed by Node.
-     * Note that this may differ from Node WriteSeqno.
+     * Returns the last seqno ack'ed by Node.
+     * Note that this may differ from Node write-seqno.
      *
      * @param node
-     * @return the last {memory, disk} seqnos ack'ed by Node
+     * @return the last seqno ack'ed by Node
      */
-    NodeSeqnos getNodeAckSeqnos(const std::string& node) const;
+    int64_t getNodeAckSeqno(const std::string& node) const;
 
     /**
      * Commit the given SyncWrite.
@@ -207,6 +188,10 @@ protected:
      * This class embeds the state of an ADM. It has been designed for being
      * wrapped by a folly::Synchronized<T>, which manages the read/write
      * concurrent access to the T instance.
+     * Note: all members are public as accessed directly only by ADM, this is
+     * a protected struct. Avoiding direct access by ADM would require
+     * re-implementing most of the ADM functions into ADM::State and exposing
+     * them on the ADM::State public interface.
      */
     struct State {
         void setReplicationTopology(const nlohmann::json& topology);
@@ -217,11 +202,9 @@ protected:
          * Returns the next position for a node iterator.
          *
          * @param node
-         * @param tracking Memory or Disk?
          * @return the iterator to the next position for the given node
          */
-        Container::iterator getNodeNext(const std::string& node,
-                                        Tracking tracking);
+        Container::iterator getNodeNext(const std::string& node);
 
         /**
          * Advance a node tracking to the next Position in the tracked
@@ -231,41 +214,26 @@ protected:
          * This function advances both iterator and seqno.
          *
          * @param node
-         * @param tracking Memory or Disk?
          */
-        void advanceNodePosition(const std::string& node, Tracking tracking);
+        void advanceNodePosition(const std::string& node);
 
         /**
-         * We track both the memory/disk seqnos ack'ed by nodes.
-         * Note that this may be different from the current SyncWrite tracked
-         * for the node. E.g., if we have one tracked SyncWrite{seqno:1,
-         * Level:Majority}, then the DurabilityMonitor may receive a
-         * SeqnoAck{mem:1000, disk:0}. At that point the memory-tracking for
-         * that node will be:
-         *
-         *     {writeSeqno:1, ackSeqno:1000}
-         *
          * This function updates the tracking with the last seqno ack'ed by
          * node.
          *
          * @param node
-         * @param tracking Memory or Disk?
          * @param seqno New ack seqno
          */
-        void updateNodeAck(const std::string& node,
-                           Tracking tracking,
-                           int64_t seqno);
+        void updateNodeAck(const std::string& node, int64_t seqno);
 
         /**
          * Updates a node memory/disk tracking as driven by the new ack-seqno.
          *
          * @param node The node that ack'ed the given seqno
-         * @param tracking Memory or Disk?
          * @param ackSeqno
          * @param [out] toCommit
          */
         void processSeqnoAck(const std::string& node,
-                             Tracking tracking,
                              int64_t ackSeqno,
                              Container& toCommit);
 
@@ -278,15 +246,11 @@ protected:
         void removeExpired(std::chrono::steady_clock::time_point asOf,
                            Container& expired);
 
-        void addStats(const AddStatFn& addStat,
-                      const void* cookie,
-                      uint16_t vbid) const;
-
         const std::string& getActive() const;
 
-        NodeSeqnos getNodeWriteSeqnos(const std::string& node) const;
+        int64_t getNodeWriteSeqno(const std::string& node) const;
 
-        NodeSeqnos getNodeAckSeqnos(const std::string& node) const;
+        int64_t getNodeAckSeqno(const std::string& node) const;
 
         /**
          * Remove the given SyncWrte from tracking.
