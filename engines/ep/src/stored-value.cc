@@ -504,7 +504,8 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
        << ' ';
 
     // seqno, revid, expiry / purge time
-    os << "seq:" << sv.getBySeqno() << " rev:" << sv.getRevSeqno();
+    os << std::dec << "seq:" << uint64_t(sv.getBySeqno())
+       << " rev:" << sv.getRevSeqno();
     os << " cas:" << sv.getCas();
     os << " key:\"" << sv.getKey() << "\"";
     if (sv.isOrdered() && sv.isDeleted()) {
@@ -513,6 +514,8 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
         os << " exp:" << sv.getExptime();
     }
     os << " age:" << uint32_t(sv.getAge());
+    os << " nru:" << uint32_t(sv.getNru());
+    os << " fc:" << uint32_t(sv.getFreqCounterValue());
 
     os << " vallen:" << sv.valuelen();
     if (sv.getValue().get()) {
