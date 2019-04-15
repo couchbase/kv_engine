@@ -54,13 +54,19 @@ class EventListener : public rocksdb::EventListener {
 public:
     EventListener(EventuallyPersistentEngine* epe) : engine(epe) {
     }
+
     void OnFlushBegin(rocksdb::DB*, const rocksdb::FlushJobInfo&) override {
         ObjectRegistry::onSwitchThread(engine, false);
     }
-    // Called at the beginning of a Compaction job
-    rocksdb::CompactionEventListener* GetCompactionEventListener() override {
+
+    void OnCompactionBegin(rocksdb::DB*,
+                           const rocksdb::CompactionJobInfo&) override {
         ObjectRegistry::onSwitchThread(engine, false);
-        return nullptr;
+    }
+
+    void OnCompactionCompleted(rocksdb::DB*,
+                               const rocksdb::CompactionJobInfo&) override {
+        ObjectRegistry::onSwitchThread(nullptr, false);
     }
 
 private:
