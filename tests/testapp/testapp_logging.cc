@@ -36,7 +36,7 @@ protected:
 
         // Fail this test if the connection does not return a successful
         // response
-        EXPECT_TRUE(rsp.isSuccess());
+        ASSERT_TRUE(rsp.isSuccess());
     }
 };
 
@@ -46,17 +46,22 @@ TEST_P(LoggingTest, ChangeVerbosity) {
     spdlog::level::level_enum level;
     switch (GetParam()) {
     case 0:
-        level = spdlog::level::trace;
+        level = spdlog::level::info;
         break;
     case 1:
         level = spdlog::level::debug;
         break;
-    default: /* We default to 2 if a greater number is specified */
-        level = spdlog::level::info;
+    default:
+        level = spdlog::level::trace;
         break;
     }
 
-    EXPECT_TRUE(cb::logger::checkLogLevels(level));
+    // The configure function will check the response and fail the test if not
+    // ENGINE_SUCCESS.
+    ewouldblock_engine_configure(ENGINE_ERROR_CODE::ENGINE_SUCCESS,
+                                 EWBEngineMode::CheckLogLevels,
+                                 level,
+                                 "key");
 }
 
 // Test with verbosity values 0, 1, 2

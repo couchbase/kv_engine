@@ -81,5 +81,10 @@ enum class EWBEngineMode : uint32_t {
     // Set the CAS for an item.
     // Requires the CAS of the item. Bear in mind that we're limited to
     // 32 bits.
-    SetItemCas = 10
+    SetItemCas = 10,
+
+    // Make a single call to cb::logger::check_levels and return the result.
+    // This allows us to verify that all of the registered logger instances are
+    // set to the correct level.
+    CheckLogLevels = 11,
 };

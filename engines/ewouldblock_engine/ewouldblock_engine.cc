@@ -618,6 +618,9 @@ public:
 
                 case EWBEngineMode::SetItemCas:
                     return setItemCas(cookie, key, value, response);
+
+                case EWBEngineMode::CheckLogLevels:
+                    return checkLogLevels(cookie, value, response);
             }
 
             if (new_mode == nullptr) {
@@ -1011,6 +1014,10 @@ protected:
                                  const std::string& key,
                                  uint32_t cas,
                                  const AddResponseFn& response);
+
+    ENGINE_ERROR_CODE checkLogLevels(const void* cookie,
+                                     uint32_t value,
+                                     const AddResponseFn& response);
 
 private:
     // Shared state between the main thread of execution and the background
@@ -1983,6 +1990,25 @@ ENGINE_ERROR_CODE EWB_Engine::setItemCas(const void* cookie,
              0,
              PROTOCOL_BINARY_RAW_BYTES,
              cb::mcbp::Status::Success,
+             0,
+             cookie);
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE EWB_Engine::checkLogLevels(const void* cookie,
+                                             uint32_t value,
+                                             const AddResponseFn& response) {
+    auto level = spdlog::level::level_enum(value);
+    auto rsp = cb::logger::checkLogLevels(level);
+
+    response(nullptr,
+             0,
+             nullptr,
+             0,
+             nullptr,
+             0,
+             PROTOCOL_BINARY_RAW_BYTES,
+             rsp ? cb::mcbp::Status::Success : cb::mcbp::Status::Einval,
              0,
              cookie);
     return ENGINE_SUCCESS;

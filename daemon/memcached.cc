@@ -264,7 +264,7 @@ void associate_initial_bucket(Connection& connection) {
     }
 }
 
-static void populate_log_level(void*) {
+static void populate_log_level() {
     const auto val = settings.getLogLevel();
 
     // Log the verbosity value set by the user and not the log level as they
@@ -278,8 +278,6 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
                        const void *data,
                        const void *void_cookie)
 {
-    cb_thread_t tid;
-
     switch (type) {
         /*
          * The following events operates on a connection which is passed in
@@ -316,11 +314,12 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
         }
 
         if (service_online) {
-            if (cb_create_thread(&tid, populate_log_level, nullptr, 1) == -1) {
-                LOG_WARNING(
-                        "Failed to create thread to notify engines about "
-                        "changing log level");
-            }
+            // MB-33637: Make the verbosity change in the calling thread.
+            // This should be a relatively quick operation as we only block if
+            // we are registering or unregistering new loggers. It also prevents
+            // a race condition on shutdown where we could attempt to log
+            // something but the logger has already been destroyed.
+            populate_log_level();
         }
         break;
 
