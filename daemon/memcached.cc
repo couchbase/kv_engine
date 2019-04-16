@@ -302,26 +302,6 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
         }
         break;
     }
-    case ON_LOG_LEVEL:
-        if (void_cookie != nullptr) {
-            throw std::invalid_argument("perform_callbacks: cookie "
-                "(which is " +
-                std::to_string(reinterpret_cast<uintptr_t>(void_cookie)) +
-                ") should be NULL for ON_LOG_LEVEL");
-        }
-        for (auto& handler : engine_event_handlers[type]) {
-            handler.cb(void_cookie, ON_LOG_LEVEL, data, handler.cb_data);
-        }
-
-        if (service_online) {
-            // MB-33637: Make the verbosity change in the calling thread.
-            // This should be a relatively quick operation as we only block if
-            // we are registering or unregistering new loggers. It also prevents
-            // a race condition on shutdown where we could attempt to log
-            // something but the logger has already been destroyed.
-            populate_log_level();
-        }
-        break;
 
     default:
         throw std::invalid_argument("perform_callbacks: type "
@@ -355,13 +335,6 @@ static void register_callback(EngineIface* eh,
                     ") is not a engine associated with a bucket");
         }
         all_buckets[idx].engine_event_handlers[type].push_back({cb, cb_data});
-        break;
-
-    case ON_LOG_LEVEL:
-        if (eh != nullptr) {
-            throw std::invalid_argument("register_callback: 'eh' must be NULL");
-        }
-        engine_event_handlers[type].push_back({cb, cb_data});
         break;
 
     default:
@@ -486,7 +459,12 @@ static void verbosity_changed_listener(const std::string&, Settings &s) {
         logger->set_level(settings.getLogLevel());
     }
 
-    perform_callbacks(ON_LOG_LEVEL, nullptr, nullptr);
+    // MB-33637: Make the verbosity change in the calling thread.
+    // This should be a relatively quick operation as we only block if
+    // we are registering or unregistering new loggers. It also prevents
+    // a race condition on shutdown where we could attempt to log
+    // something but the logger has already been destroyed.
+    populate_log_level();
 }
 
 static void scramsha_fallback_salt_changed_listener(const std::string&,
@@ -2434,8 +2412,8 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     initialize_audit();
 
-    /* inform interested parties of initial verbosity level */
-    perform_callbacks(ON_LOG_LEVEL, nullptr, nullptr);
+    // inform interested parties of initial verbosity level
+    populate_log_level();
 
     recalculate_max_connections();
 
