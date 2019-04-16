@@ -182,7 +182,7 @@ protected:
 
     void takeoverTest(EnableExpiryOutput enableExpiryOutput);
 
-    std::unique_ptr<SynchronousEPEngine> replicaEngine;
+    SynchronousEPEngineUniquePtr replicaEngine;
     std::shared_ptr<MockDcpConsumer> consumer;
     // Non-owning ptr to consumer stream (owned by consumer).
     PassiveStream* consumerStream;

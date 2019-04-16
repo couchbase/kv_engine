@@ -33,14 +33,8 @@ void EngineFixture::SetUp(const benchmark::State& state) {
                 ExecutorPool::get());
         std::string config = "dbname=benchmarks-test;ht_locks=47;" + varConfig;
 
-        engine.reset(new SynchronousEPEngine(config));
+        engine = SynchronousEPEngine::build(config);
 
-        ObjectRegistry::onSwitchThread(engine.get());
-
-        engine->setKVBucket(
-                engine->public_makeBucket(engine->getConfiguration()));
-
-        engine->public_initializeEngineCallbacks();
         initialize_time_functions(get_mock_server_api()->core);
         cookie = create_mock_cookie();
     } else {

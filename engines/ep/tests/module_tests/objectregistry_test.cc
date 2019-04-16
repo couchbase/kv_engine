@@ -21,6 +21,7 @@
 
 #include "bucket_logger.h"
 #include "bucket_logger_test.h"
+#include "fakes/fake_executorpool.h"
 #include "item.h"
 #include "memory_tracker.h"
 #include "objectregistry.h"
@@ -34,39 +35,43 @@
 class ObjectRegistryTest : virtual public ::testing::Test {
 protected:
     void SetUp() override {
-        ObjectRegistry::onSwitchThread(&engine);
-    }
-    void TearDown() override {
-        ObjectRegistry::onSwitchThread(nullptr);
+        SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
+        engine = SynchronousEPEngine::build({});
     }
 
-    SynchronousEPEngine engine;
+    void TearDown() override {
+        destroy_mock_event_callbacks();
+        engine.reset();
+        ExecutorPool::shutdown();
+    }
+
+    SynchronousEPEngineUniquePtr engine;
 };
 
 // Check that constructing & destructing an Item is correctly tracked in
 // EpStats::numItem via ObjectRegistry::on{Create,Delete}Item.
 TEST_F(ObjectRegistryTest, NumItem) {
-    ASSERT_EQ(0, engine.getEpStats().getNumItem());
+    ASSERT_EQ(0, engine->getEpStats().getNumItem());
 
     {
         auto item = make_item(Vbid(0), makeStoredDocKey("key"), "value");
-        EXPECT_EQ(1, engine.getEpStats().getNumItem());
+        EXPECT_EQ(1, engine->getEpStats().getNumItem());
     }
-    EXPECT_EQ(0, engine.getEpStats().getNumItem());
+    EXPECT_EQ(0, engine->getEpStats().getNumItem());
 }
 
 // Check that constructing & destructing an Item is correctly tracked in
 // EpStats::memOverhead via ObjectRegistry::on{Create,Delete}Item.
 TEST_F(ObjectRegistryTest, MemOverhead) {
-    ASSERT_EQ(0, engine.getEpStats().getMemOverhead());
+    auto baseline = engine->getEpStats().getMemOverhead();
 
     {
         auto item = make_item(Vbid(0), makeStoredDocKey("key"), "value");
         // Currently just checking the overhead is non-zero; could expand
         // to calculate expected size based on the Item's size.
-        EXPECT_NE(0, engine.getEpStats().getMemOverhead());
+        EXPECT_NE(baseline, engine->getEpStats().getMemOverhead());
     }
-    EXPECT_EQ(0, engine.getEpStats().getMemOverhead());
+    EXPECT_EQ(baseline, engine->getEpStats().getMemOverhead());
 }
 
 /**
@@ -100,15 +105,16 @@ protected:
 
         // Enable memory tracking hooks
         MemoryTracker::getInstance(*get_mock_server_api()->alloc_hooks);
-        engine.getEpStats().memoryTrackerEnabled.store(true);
+        engine->getEpStats().memoryTrackerEnabled.store(true);
     }
 
     void TearDown() override {
         MemoryTracker::destroyInstance();
 
         // Parent classes TearDown methods are sufficient here.
-        ObjectRegistryTest::TearDown();
         BucketLoggerTest::TearDown();
+        // called last so that the engine is destroyed last
+        ObjectRegistryTest::TearDown();
     }
 };
 
@@ -119,13 +125,13 @@ TEST_F(ObjectRegistrySpdlogTest, SpdlogMemoryTrackedCorrectly) {
             ::testing::UnitTest::GetInstance()->current_test_info()->name();
 
     // const char* - uses the single argument overload of warn().
-    auto baselineMemory = engine.getEpStats().getPreciseTotalMemoryUsed();
+    auto baselineMemory = engine->getEpStats().getPreciseTotalMemoryUsed();
     {
         auto logger = BucketLogger::createBucketLogger(testName);
         logger->log(spdlog::level::warn, "const char* message");
         logger->flush();
     }
-    EXPECT_EQ(baselineMemory, engine.getEpStats().getPreciseTotalMemoryUsed());
+    EXPECT_EQ(baselineMemory, engine->getEpStats().getPreciseTotalMemoryUsed());
 
     // multiple arguments using format string, with a short (< sizeof(sync_msg)
     // log string.
@@ -146,14 +152,14 @@ TEST_F(ObjectRegistrySpdlogTest, SpdlogMemoryTrackedCorrectly) {
                      std::string(asyncMsgCapacity, 's'));
         logger->flush();
     }
-    EXPECT_EQ(baselineMemory, engine.getEpStats().getPreciseTotalMemoryUsed());
+    EXPECT_EQ(baselineMemory, engine->getEpStats().getPreciseTotalMemoryUsed());
 
     // As previous, but looping with multiple warn() calls - check that we
     // correctly account even when multiple messages are created & destroyed.
     {
         auto logger = BucketLogger::createBucketLogger(testName);
         auto afterLoggerMemory =
-                engine.getEpStats().getPreciseTotalMemoryUsed();
+                engine->getEpStats().getPreciseTotalMemoryUsed();
 
         for (int i = 0; i < 100; i++) {
             logger->warn("short+variable loop ({}) {} ",
@@ -161,10 +167,10 @@ TEST_F(ObjectRegistrySpdlogTest, SpdlogMemoryTrackedCorrectly) {
                          std::string(asyncMsgCapacity, 's'));
             logger->flush();
             EXPECT_EQ(afterLoggerMemory,
-                      engine.getEpStats().getPreciseTotalMemoryUsed());
+                      engine->getEpStats().getPreciseTotalMemoryUsed());
         }
     }
-    EXPECT_EQ(baselineMemory, engine.getEpStats().getPreciseTotalMemoryUsed());
+    EXPECT_EQ(baselineMemory, engine->getEpStats().getPreciseTotalMemoryUsed());
 
     // Multiple arguments with a very long string (greater than
     // asyncMsgCapacity)
@@ -178,14 +184,14 @@ TEST_F(ObjectRegistrySpdlogTest, SpdlogMemoryTrackedCorrectly) {
                      std::string(asyncMsgCapacity * 2, 'x'));
         logger->flush();
     }
-    EXPECT_EQ(baselineMemory, engine.getEpStats().getPreciseTotalMemoryUsed());
+    EXPECT_EQ(baselineMemory, engine->getEpStats().getPreciseTotalMemoryUsed());
 
     // Multiple log messages; each with a log string - check that we correctly
     // account even when multiple messages are created & destroyed.
     {
         auto logger = BucketLogger::createBucketLogger(testName);
         auto afterLoggerMemory =
-                engine.getEpStats().getPreciseTotalMemoryUsed();
+                engine->getEpStats().getPreciseTotalMemoryUsed();
 
         for (int i = 0; i < 100; i++) {
             logger->warn("long+variable loop ({}) {}",
@@ -193,8 +199,8 @@ TEST_F(ObjectRegistrySpdlogTest, SpdlogMemoryTrackedCorrectly) {
                          std::string(asyncMsgCapacity * 2, 'x'));
             logger->flush();
             EXPECT_EQ(afterLoggerMemory,
-                      engine.getEpStats().getPreciseTotalMemoryUsed());
+                      engine->getEpStats().getPreciseTotalMemoryUsed());
         }
     }
-    EXPECT_EQ(baselineMemory, engine.getEpStats().getPreciseTotalMemoryUsed());
+    EXPECT_EQ(baselineMemory, engine->getEpStats().getPreciseTotalMemoryUsed());
 }

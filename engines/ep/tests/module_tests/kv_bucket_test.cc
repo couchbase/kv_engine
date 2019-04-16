@@ -30,6 +30,7 @@
 #include "dcp/flow-control-manager.h"
 #include "ep_engine.h"
 #include "ep_time.h"
+#include "fakes/fake_executorpool.h"
 #include "flusher.h"
 #include "globaltask.h"
 #include "lambda_task.h"
@@ -105,7 +106,6 @@ void KVBucketTest::destroy() {
     destroy_mock_cookie(cookie);
     destroy_mock_event_callbacks();
     engine->getDcpConnMap().manageConnections();
-    ObjectRegistry::onSwitchThread(nullptr);
     engine.reset();
 }
 

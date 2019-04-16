@@ -20,10 +20,10 @@
 #include <benchmark/benchmark.h>
 
 #include "item.h"
+#include "tests/mock/mock_synchronous_ep_engine.h"
 
 class BenchmarkMemoryTracker;
 class SingleThreadedExecutorPool;
-class SynchronousEPEngine;
 
 /**
  * A fixture for benchmarking EpEngine and related classes.
@@ -36,7 +36,7 @@ protected:
 
     Item make_item(Vbid vbid, const std::string& key, const std::string& value);
 
-    std::unique_ptr<SynchronousEPEngine> engine;
+    SynchronousEPEngineUniquePtr engine;
     const void* cookie = nullptr;
     const Vbid vbid = Vbid(0);
 

@@ -27,6 +27,7 @@
 
 #include "callbacks.h"
 #include "item.h"
+#include <tests/mock/mock_synchronous_ep_engine.h>
 
 #include <folly/portability/GTest.h>
 #include <memcached/protocol_binary.h>
@@ -34,7 +35,6 @@
 #include <memory>
 
 class KVBucket;
-class SynchronousEPEngine;
 
 namespace Collections {
 class Manager;
@@ -239,7 +239,7 @@ public:
     const Vbid vbid = Vbid(0);
 
     // The mock engine (needed to construct the store).
-    std::unique_ptr<SynchronousEPEngine> engine;
+    SynchronousEPEngineUniquePtr engine;
 
     // The store under test. Wrapped in a mock to expose some normally
     // protected members. Uses a raw pointer as this is owned by the engine.

@@ -24,6 +24,15 @@
 #include <ep_bucket.h>
 #include <ep_engine.h>
 
+class SynchronousEPEngine;
+
+struct SynchronousEPEngineDeleter {
+    void operator()(SynchronousEPEngine*);
+};
+
+using SynchronousEPEngineUniquePtr =
+        std::unique_ptr<SynchronousEPEngine, SynchronousEPEngineDeleter>;
+
 /* A class which subclasses the real EPEngine. Its main purpose is to allow
  * us to construct and setup an EPStore without starting all the various
  * background tasks which are normally started by EPEngine as part of creating
@@ -43,8 +52,7 @@ public:
 
     /// Constructs a SynchronousEPEngine instance, along with the necessary
     /// sub-components.
-    static std::unique_ptr<SynchronousEPEngine> build(
-            const std::string& config);
+    static SynchronousEPEngineUniquePtr build(const std::string& config);
 
     /* Allow us to call normally protected methods */
 
