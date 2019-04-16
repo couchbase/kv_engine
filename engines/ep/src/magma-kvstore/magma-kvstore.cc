@@ -18,6 +18,7 @@
 #include "magma-kvstore.h"
 #include "bucket_logger.h"
 #include "ep_time.h"
+#include "item.h"
 #include "magma-kvstore_config.h"
 #include "vbucket.h"
 #include "vbucket_state.h"

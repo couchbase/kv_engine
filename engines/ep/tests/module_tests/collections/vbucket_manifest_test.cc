@@ -21,6 +21,7 @@
 #include "configuration.h"
 #include "ep_vb.h"
 #include "failover-table.h"
+#include "item.h"
 #include "stats.h"
 #include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/test_helpers.h"

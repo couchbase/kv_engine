@@ -22,7 +22,7 @@
 #pragma once
 
 #include "diskdockey.h"
-#include "item.h"
+#include "ep_types.h"
 #include "storeddockey.h"
 
 #include <memcached/protocol_binary.h>

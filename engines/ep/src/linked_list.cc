@@ -17,6 +17,7 @@
 
 #include "linked_list.h"
 #include "bucket_logger.h"
+#include "item.h"
 #include "stats.h"
 
 #include <memcached/vbucket.h>

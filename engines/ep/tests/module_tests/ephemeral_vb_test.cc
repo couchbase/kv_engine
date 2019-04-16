@@ -21,6 +21,7 @@
 #include "../mock/mock_ephemeral_vb.h"
 #include "ep_time.h"
 #include "failover-table.h"
+#include "item.h"
 #include "test_helpers.h"
 #include "thread_gate.h"
 #include "vbucket_test.h"

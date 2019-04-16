@@ -17,12 +17,12 @@
 
 #pragma once
 
-#include <benchmark/benchmark.h>
-
-#include "item.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
+#include <benchmark/benchmark.h>
+#include <memcached/vbucket.h>
 
 class BenchmarkMemoryTracker;
+class Item;
 class SingleThreadedExecutorPool;
 
 /**

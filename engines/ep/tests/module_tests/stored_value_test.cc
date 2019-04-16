@@ -21,6 +21,7 @@
 
 #include "../../daemon/alloc_hooks.h"
 #include "hash_table.h"
+#include "item.h"
 #include "item_eviction.h"
 #include "stats.h"
 #include "stored_value_factories.h"

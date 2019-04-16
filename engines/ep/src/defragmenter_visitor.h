@@ -18,7 +18,6 @@
 #pragma once
 
 #include "hash_table.h"
-#include "item.h"
 #include "progress_tracker.h"
 #include "vb_visitors.h"
 #include "vbucket.h"

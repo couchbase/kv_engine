@@ -19,7 +19,6 @@
 
 #include "configuration.h"
 #include "connhandler.h"
-#include "item.h"
 #include "permitted_vb_states.h"
 #include "stats.h"
 #include "storeddockey.h"
@@ -44,6 +43,7 @@ class CheckpointConfig;
 struct CompactionConfig;
 class DcpConnMap;
 class DcpFlowControlManager;
+class ItemMetaData;
 class KVBucket;
 class StoredValue;
 class VBucketCountVisitor;

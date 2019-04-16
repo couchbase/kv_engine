@@ -19,6 +19,7 @@
 #include "configuration.h"
 #include "ep_vb.h"
 #include "failover-table.h"
+#include "item.h"
 #include "kvstore.h"
 #include "kvstore_config.h"
 #include "stats.h"

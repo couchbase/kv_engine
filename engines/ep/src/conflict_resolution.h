@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include "item.h"
+#include <mcbp/protocol/datatype.h>
 
 class ItemMetaData;
 class StoredValue;

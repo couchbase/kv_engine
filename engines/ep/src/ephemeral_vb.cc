@@ -24,6 +24,7 @@
 #include "ephemeral_tombstone_purger.h"
 #include "executorpool.h"
 #include "failover-table.h"
+#include "item.h"
 #include "linked_list.h"
 #include "stored_value_factories.h"
 #include "vbucket_bgfetch_item.h"
@@ -677,6 +678,11 @@ GetValue EphemeralVBucket::getInternalNonResident(
         const StoredValue& v) {
     /* We reach here only if the v is deleted and does not have any value */
     return GetValue();
+}
+
+size_t EphemeralVBucket::estimateNewMemoryUsage(EPStats& st, const Item& item) {
+    return st.getEstimatedTotalMemoryUsed() +
+           OrderedStoredValue::getRequiredStorage(item.getKey());
 }
 
 void EphemeralVBucket::setupDeferredDeletion(const void* cookie) {

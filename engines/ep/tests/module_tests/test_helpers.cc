@@ -17,19 +17,18 @@
 
 #include "test_helpers.h"
 
+#include "checkpoint_manager.h"
+#include "item.h"
+#include "vbucket.h"
+
+#include <folly/portability/GTest.h>
+#include <libcouchstore/couch_db.h>
 #include <platform/compress.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>
 #include <memory>
 #include <thread>
-
-#include "checkpoint_manager.h"
-#include "vbucket.h"
-
-#include <libcouchstore/couch_db.h>
-
-#include <folly/portability/GTest.h>
 
 StoredDocKey makeStoredDocKey(const std::string& string, CollectionID ns) {
     return StoredDocKey(string, ns);

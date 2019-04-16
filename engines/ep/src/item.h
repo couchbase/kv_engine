@@ -541,9 +541,6 @@ private:
 bool operator==(const Item& lhs, const Item& rhs);
 std::ostream& operator<<(std::ostream& os, const Item& item);
 
-typedef SingleThreadedRCPtr<Item> queued_item;
-using UniqueItemPtr = std::unique_ptr<Item>;
-
 // If you're reading this because this assert has failed because you've
 // increased Item, ask yourself do you really need to? Can you use padding or
 // bit-fields to reduce the size?

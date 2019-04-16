@@ -18,6 +18,7 @@
 #include "defragmenter_visitor.h"
 #include "ep_vb.h"
 #include "failover-table.h"
+#include "item.h"
 #include "tests/module_tests/defragmenter_test.h"
 #include "tests/module_tests/test_helpers.h"
 

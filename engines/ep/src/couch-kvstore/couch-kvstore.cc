@@ -22,6 +22,7 @@
 #include "common.h"
 #include "diskdockey.h"
 #include "ep_time.h"
+#include "item.h"
 #include "kvstore_config.h"
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"

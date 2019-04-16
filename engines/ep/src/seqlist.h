@@ -30,7 +30,6 @@
 
 #include "collections/collections_types.h"
 #include "collections/eraser_context.h"
-#include "item.h"
 #include "memcached/engine_error.h"
 #include "stored-value.h"
 

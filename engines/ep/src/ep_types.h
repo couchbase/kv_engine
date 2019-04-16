@@ -31,6 +31,7 @@ template <class T, class Pointer, class Deleter>
 class SingleThreadedRCPtr;
 
 using queued_item = SingleThreadedRCPtr<Item, Item*, std::default_delete<Item>>;
+using UniqueItemPtr = std::unique_ptr<Item>;
 
 // Enumerations representing binary states - more explicit than using a generic
 // bool.

@@ -19,7 +19,6 @@
 
 #include "callbacks.h"
 #include "diskdockey.h"
-#include "item.h"
 #include "trace_helpers.h"
 
 #include <list>

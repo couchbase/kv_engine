@@ -20,7 +20,6 @@
 #include "configuration.h"
 #include "couch-kvstore/couch-fs-stats.h"
 #include "couch-kvstore/couch-kvstore-metadata.h"
-#include "item.h"
 #include "kvstore.h"
 #include "kvstore_priv.h"
 #include "libcouchstore/couch_db.h"

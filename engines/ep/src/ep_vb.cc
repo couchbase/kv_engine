@@ -24,6 +24,7 @@
 #include "ep_time.h"
 #include "executorpool.h"
 #include "failover-table.h"
+#include "item.h"
 #include "kvshard.h"
 #include "stored_value_factories.h"
 #include "tasks.h"

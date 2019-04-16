@@ -20,7 +20,6 @@
 #include <set>
 #include <string>
 
-#include "item.h"
 #include "stats.h"
 #include "vbucket.h"
 

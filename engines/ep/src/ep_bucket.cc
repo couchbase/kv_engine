@@ -28,6 +28,7 @@
 #include "ep_vb.h"
 #include "failover-table.h"
 #include "flusher.h"
+#include "item.h"
 #include "persistence_callback.h"
 #include "replicationthrottle.h"
 #include "statwriter.h"

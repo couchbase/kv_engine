@@ -22,6 +22,7 @@
 #include "evp_engine_test.h"
 
 #include "ep_engine.h"
+#include "item.h"
 #include "kv_bucket.h"
 #include "taskqueue.h"
 

@@ -25,6 +25,7 @@
 
 #include "benchmark_memory_tracker.h"
 #include "ep_time.h"
+#include "item.h"
 
 void EngineFixture::SetUp(const benchmark::State& state) {
     if (state.thread_index == 0) {

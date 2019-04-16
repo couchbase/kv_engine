@@ -17,13 +17,15 @@
 
 #pragma once
 
-#include <memory>
-#include <type_traits>
+#include "queue_op.h"
 
-#include "item.h"
 #include <folly/lang/Assume.h>
 #include <libcouchstore/couch_common.h>
 #include <memcached/protocol_binary.h>
+#include <memcached/types.h>
+
+#include <memory>
+#include <type_traits>
 
 // Bitwise masks for manipulating the flexCode variable inside MetaDataV1
 const uint8_t flexCodeMask = 0x7F;

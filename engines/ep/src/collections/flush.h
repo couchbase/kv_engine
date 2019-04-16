@@ -18,7 +18,6 @@
 #pragma once
 
 #include "collections/collections_types.h"
-#include "item.h"
 
 #include <unordered_set>
 #include <vector>

@@ -314,10 +314,7 @@ private:
                                     QueueBgFetch queueBgFetch,
                                     const StoredValue& v) override;
 
-    size_t estimateNewMemoryUsage(EPStats& st, const Item& item) override {
-        return st.getEstimatedTotalMemoryUsed() +
-               OrderedStoredValue::getRequiredStorage(item.getKey());
-    }
+    size_t estimateNewMemoryUsage(EPStats& st, const Item& item) override;
 
     /**
      * (i) Updates an already non-temp element in the sequence list (OR)

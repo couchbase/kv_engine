@@ -21,6 +21,7 @@
 
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
+#include "item.h"
 #ifdef EP_USE_MAGMA
 #include "magma-kvstore/magma-kvstore.h"
 #include "magma-kvstore/magma-kvstore_config.h"

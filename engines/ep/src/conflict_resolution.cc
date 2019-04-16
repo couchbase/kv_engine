@@ -16,6 +16,7 @@
  */
 
 #include "conflict_resolution.h"
+#include "item.h"
 #include "stored-value.h"
 
 /**

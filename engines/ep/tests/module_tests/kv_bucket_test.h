@@ -26,14 +26,14 @@
 #pragma once
 
 #include "callbacks.h"
-#include "item.h"
-#include <tests/mock/mock_synchronous_ep_engine.h>
 
 #include <folly/portability/GTest.h>
 #include <memcached/protocol_binary.h>
+#include <tests/mock/mock_synchronous_ep_engine.h>
 
 #include <memory>
 
+class ItemMetaData;
 class KVBucket;
 
 namespace Collections {

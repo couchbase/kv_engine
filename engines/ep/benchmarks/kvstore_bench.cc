@@ -17,6 +17,7 @@
 
 #include "callbacks.h"
 #include "collections/vbucket_manifest.h"
+#include "item.h"
 #include "kvstore.h"
 #include "kvstore_config.h"
 #ifdef EP_USE_ROCKSDB

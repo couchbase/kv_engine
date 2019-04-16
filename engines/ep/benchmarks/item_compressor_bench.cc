@@ -17,6 +17,7 @@
 
 #include "ep_vb.h"
 #include "failover-table.h"
+#include "item.h"
 #include "item_compressor_visitor.h"
 #include "tests/module_tests/item_compressor_test.h"
 #include "tests/module_tests/test_helpers.h"
