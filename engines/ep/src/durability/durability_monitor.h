@@ -16,10 +16,8 @@
  */
 #pragma once
 
-#include "ep_types.h"
 #include "memcached/engine_common.h"
-
-class VBucket;
+#include <list>
 
 /*
  * Base (abstract) class for DurabilityMonitor.
@@ -41,6 +39,12 @@ public:
     virtual int64_t getHighPreparedSeqno() const = 0;
 
 protected:
+    class SyncWrite;
+    struct ReplicationChain;
+    struct Position;
+
+    using Container = std::list<SyncWrite>;
+
     /**
      * @return the number of pending SyncWrite(s) currently tracked
      */
@@ -50,4 +54,6 @@ protected:
 
     friend std::ostream& operator<<(std::ostream& os,
                                     const DurabilityMonitor& dm);
+
+    friend std::ostream& operator<<(std::ostream&, const SyncWrite&);
 };

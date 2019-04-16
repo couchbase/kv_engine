@@ -17,7 +17,8 @@
 #pragma once
 
 #include "durability_monitor.h"
-#include "ep_types.h"
+
+class VBucket;
 
 /*
  * The DurabilityMonitor for Replica VBuckets.

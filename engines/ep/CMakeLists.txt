@@ -1,4 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.2)
 PROJECT(EventuallyPersistentEngine LANGUAGES CXX)
 
 INCLUDE(CheckFunctionExists)
@@ -228,6 +227,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/diskdockey.cc
             src/durability/active_durability_monitor.cc
             src/durability/durability_monitor.cc
+            src/durability/durability_monitor_impl.cc
             src/durability/passive_durability_monitor.cc
             src/durability_timeout_task.cc
             src/ep_bucket.cc

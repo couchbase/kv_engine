@@ -17,15 +17,16 @@
 #pragma once
 
 #include "durability_monitor.h"
-#include "monotonic.h"
+#include "durability_monitor_impl.h"
 
 #include "memcached/engine_error.h"
 
 #include <folly/Synchronized.h>
 #include <nlohmann/json.hpp>
 
-#include <list>
 #include <unordered_set>
+
+class VBucket;
 
 /*
  * The DurabilityMonitor for Active VBuckets.
@@ -110,12 +111,6 @@ public:
     void addStats(const AddStatFn& addStat, const void* cookie) const override;
 
 protected:
-    class SyncWrite;
-    struct ReplicationChain;
-    struct Position;
-
-    using Container = std::list<SyncWrite>;
-
     size_t getNumTracked() const override;
 
     void toOStream(std::ostream& os) const override;
@@ -276,11 +271,4 @@ protected:
     folly::Synchronized<State> state;
 
     const size_t maxReplicas = 3;
-
-    friend std::ostream& operator<<(std::ostream& os,
-                                    const ActiveDurabilityMonitor& dm);
-    friend std::ostream& operator<<(std::ostream&,
-                                    const ActiveDurabilityMonitor::SyncWrite&);
 };
-
-std::ostream& operator<<(std::ostream& os, const ActiveDurabilityMonitor& dm);
