@@ -897,10 +897,9 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
         //     For now necessary at least for tests.
         // Durability: Re-set vb-state for applying the ReplicationChain
         //     encoded in 'meta'. This is for supporting the case where
-        //     ns_server issues a single set-vb-state call for creating an
-        //     Active VBucket.
+        //     ns_server issues a single set-vb-state call for creating a VB.
         // Note: Must be done /after/ the new VBucket has been added to vbMap.
-        if (to == vbucket_state_active) {
+        if (to == vbucket_state_active || to == vbucket_state_replica) {
             vbMap.setState(newvb, to, meta, vbStateLock);
         }
 

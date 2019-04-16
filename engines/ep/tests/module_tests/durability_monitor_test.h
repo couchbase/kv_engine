@@ -19,41 +19,21 @@
 #include "evp_store_single_threaded_test.h"
 #include "test_helpers.h"
 
-#include "../mock/mock_durability_monitor.h"
-#include "../mock/mock_synchronous_ep_engine.h"
-
 #include <programs/engine_testapp/mock_server.h>
 
 #include <folly/portability/GTest.h>
 
-/*
- * DurabilityMonitor test fixture
- */
+class MockActiveDurabilityMonitor;
+class PassiveDurabilityMonitor;
+
 class DurabilityMonitorTest : public SingleThreadedKVBucketTest {
 public:
-    void SetUp() {
-        SingleThreadedKVBucketTest::SetUp();
-        setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-
-        // Replace the VBucket::durabilityMonitor with a mock one
-        vb = store->getVBuckets().getBucket(vbid).get();
-        vb->durabilityMonitor =
-                std::make_unique<MockActiveDurabilityMonitor>(*vb);
-        monitor = dynamic_cast<MockActiveDurabilityMonitor*>(
-                vb->durabilityMonitor.get());
-        ASSERT_TRUE(monitor);
-        monitor->public_setReplicationTopology(
-                nlohmann::json::array({{active, replica1}}));
-        ASSERT_EQ(2, monitor->public_getFirstChainSize());
-    }
-
-    void TearDown() {
-        SingleThreadedKVBucketTest::TearDown();
-    }
+    void SetUp() override;
+    void TearDown() override;
 
 protected:
     /**
-     * Adds a SyncWrite for tracking.
+     * Add a SyncWrite for tracking.
      *
      * @param seqno
      * @param req The Durability Requirements
@@ -61,6 +41,27 @@ protected:
      */
     void addSyncWrite(int64_t seqno, cb::durability::Requirements req = {});
 
+    /**
+     * Stores the given item via VBucket::processSet.
+     * Useful for setting an exact provided bySeqno.
+     *
+     * @param item the item to be stored
+     */
+    MutationStatus processSet(Item& item);
+
+    // Owned by KVBucket
+    VBucket* vb;
+};
+
+/*
+ * ActiveDurabilityMonitor test fixture
+ */
+class ActiveDurabilityMonitorTest : public DurabilityMonitorTest {
+public:
+    void SetUp() override;
+    void TearDown() override;
+
+protected:
     /**
      * Adds a number of SyncWrites with seqno in [start, end].
      *
@@ -82,14 +83,6 @@ protected:
      */
     size_t addSyncWrites(const std::vector<int64_t>& seqnos,
                          cb::durability::Requirements req = {});
-
-    /**
-     * Stores the given item via VBucket::processSet.
-     * Useful for setting an exact provided bySeqno.
-     *
-     * @param item the item to be stored
-     */
-    MutationStatus processSet(Item& item);
 
     /**
      * Check the tracking for the given node
@@ -148,8 +141,6 @@ protected:
                                 uint8_t expectedFirstChainSize,
                                 uint8_t expectedFirstChainMajority);
 
-    // Owned by KVBucket
-    VBucket* vb;
     // Owned by VBucket
     MockActiveDurabilityMonitor* monitor;
 
@@ -157,4 +148,17 @@ protected:
     const std::string replica1 = "replica1";
     const std::string replica2 = "replica2";
     const std::string replica3 = "replica3";
+};
+
+/*
+ * PassiveDurabilityMonitor test fixture
+ */
+class PassiveDurabilityMonitorTest : public DurabilityMonitorTest {
+public:
+    void SetUp() override;
+    void TearDown() override;
+
+protected:
+    // Owned by VBucket
+    PassiveDurabilityMonitor* monitor;
 };

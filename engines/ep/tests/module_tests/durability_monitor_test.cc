@@ -20,11 +20,41 @@
 #include "checkpoint_manager.h"
 #include "test_helpers.h"
 
+#include "durability/passive_durability_monitor.h"
+
+#include "../mock/mock_durability_monitor.h"
 #include "../mock/mock_synchronous_ep_engine.h"
+
+void DurabilityMonitorTest::SetUp() {
+    SingleThreadedKVBucketTest::SetUp();
+}
+
+void DurabilityMonitorTest::TearDown() {
+    SingleThreadedKVBucketTest::TearDown();
+}
+
+void ActiveDurabilityMonitorTest::SetUp() {
+    DurabilityMonitorTest::SetUp();
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    vb = store->getVBuckets().getBucket(vbid).get();
+    ASSERT_TRUE(vb);
+
+    // Replace the VBucket::durabilityMonitor with a mock one
+    vb->durabilityMonitor = std::make_unique<MockActiveDurabilityMonitor>(*vb);
+    monitor = dynamic_cast<MockActiveDurabilityMonitor*>(
+            vb->durabilityMonitor.get());
+    ASSERT_TRUE(monitor);
+    monitor->public_setReplicationTopology(
+            nlohmann::json::array({{active, replica1}}));
+    ASSERT_EQ(2, monitor->public_getFirstChainSize());
+}
+
+void ActiveDurabilityMonitorTest::TearDown() {
+    DurabilityMonitorTest::TearDown();
+}
 
 void DurabilityMonitorTest::addSyncWrite(int64_t seqno,
                                          cb::durability::Requirements req) {
-    auto numTracked = monitor->public_getNumTracked();
     auto item = Item(makeStoredDocKey("key" + std::to_string(seqno)),
                      0 /*flags*/,
                      0 /*exp*/,
@@ -39,12 +69,12 @@ void DurabilityMonitorTest::addSyncWrite(int64_t seqno,
     vb->checkpointManager->createSnapshot(seqno, seqno);
     // Note: need to go through VBucket::processSet to set the given bySeqno
     ASSERT_EQ(MutationStatus::WasClean, processSet(item));
-    ASSERT_EQ(numTracked + 1, monitor->public_getNumTracked());
 }
 
-size_t DurabilityMonitorTest::addSyncWrites(int64_t seqnoStart,
-                                            int64_t seqnoEnd,
-                                            cb::durability::Requirements req) {
+size_t ActiveDurabilityMonitorTest::addSyncWrites(
+        int64_t seqnoStart,
+        int64_t seqnoEnd,
+        cb::durability::Requirements req) {
     size_t expectedNumTracked = monitor->public_getNumTracked();
     size_t added = 0;
     for (auto seqno = seqnoStart; seqno <= seqnoEnd; seqno++) {
@@ -56,11 +86,12 @@ size_t DurabilityMonitorTest::addSyncWrites(int64_t seqnoStart,
     return added;
 }
 
-size_t DurabilityMonitorTest::addSyncWrites(const std::vector<int64_t>& seqnos,
-                                            cb::durability::Requirements req) {
+size_t ActiveDurabilityMonitorTest::addSyncWrites(
+        const std::vector<int64_t>& seqnos, cb::durability::Requirements req) {
     if (seqnos.empty()) {
         throw std::logic_error(
-                "DurabilityMonitorTest::addSyncWrites: seqnos list is empty");
+                "ActiveDurabilityMonitorTest::addSyncWrites: seqnos list is "
+                "empty");
     }
     size_t expectedNumTracked = monitor->public_getNumTracked();
     size_t added = 0;
@@ -91,17 +122,18 @@ MutationStatus DurabilityMonitorTest::processSet(Item& item) {
             .first;
 }
 
-void DurabilityMonitorTest::assertNodeTracking(const std::string& node,
-                                               uint64_t lastWriteSeqno,
-                                               uint64_t lastAckSeqno) const {
+void ActiveDurabilityMonitorTest::assertNodeTracking(
+        const std::string& node,
+        uint64_t lastWriteSeqno,
+        uint64_t lastAckSeqno) const {
     ASSERT_EQ(lastWriteSeqno, monitor->public_getNodeWriteSeqno(node));
     ASSERT_EQ(lastAckSeqno, monitor->public_getNodeAckSeqno(node));
 }
 
-void DurabilityMonitorTest::testLocalAck(int64_t ackSeqno,
-                                         size_t expectedNumTracked,
-                                         int64_t expectedLastWriteSeqno,
-                                         int64_t expectedLastAckSeqno) {
+void ActiveDurabilityMonitorTest::testLocalAck(int64_t ackSeqno,
+                                               size_t expectedNumTracked,
+                                               int64_t expectedLastWriteSeqno,
+                                               int64_t expectedLastAckSeqno) {
     vb->setPersistenceSeqno(ackSeqno);
     monitor->notifyLocalPersistence();
     EXPECT_EQ(expectedNumTracked, monitor->public_getNumTracked());
@@ -112,7 +144,7 @@ void DurabilityMonitorTest::testLocalAck(int64_t ackSeqno,
     }
 }
 
-void DurabilityMonitorTest::testSeqnoAckReceived(
+void ActiveDurabilityMonitorTest::testSeqnoAckReceived(
         const std::string& replica,
         int64_t ackSeqno,
         size_t expectedNumTracked,
@@ -127,7 +159,7 @@ void DurabilityMonitorTest::testSeqnoAckReceived(
     }
 }
 
-bool DurabilityMonitorTest::testDurabilityPossible(
+bool ActiveDurabilityMonitorTest::testDurabilityPossible(
         const nlohmann::json::array_t& topology,
         queued_item& item,
         uint8_t expectedFirstChainSize,
@@ -164,11 +196,11 @@ bool DurabilityMonitorTest::testDurabilityPossible(
     return true;
 }
 
-TEST_F(DurabilityMonitorTest, AddSyncWrite) {
+TEST_F(ActiveDurabilityMonitorTest, AddSyncWrite) {
     EXPECT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
 }
 
-TEST_F(DurabilityMonitorTest, SeqnoAckReceivedSmallerThanLastAcked) {
+TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceivedSmallerThanLastAcked) {
     addSyncWrites({1, 2} /*seqnos*/);
 
     const int64_t ackSeqno = 1;
@@ -194,7 +226,7 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedSmallerThanLastAcked) {
     FAIL();
 }
 
-TEST_F(DurabilityMonitorTest, SeqnoAckReceivedEqualPending) {
+TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceivedEqualPending) {
     int64_t seqnoStart = 1;
     int64_t seqnoEnd = 3;
 
@@ -220,7 +252,7 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedEqualPending) {
     }
 }
 
-TEST_F(DurabilityMonitorTest,
+TEST_F(ActiveDurabilityMonitorTest,
        SeqnoAckReceivedGreaterThanPending_ContinuousSeqnos) {
     ASSERT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
     {
@@ -242,7 +274,8 @@ TEST_F(DurabilityMonitorTest,
                          ackSeqno /*expectedLastAckSeqno*/);
 }
 
-TEST_F(DurabilityMonitorTest, SeqnoAckReceivedGreaterThanPending_SparseSeqnos) {
+TEST_F(ActiveDurabilityMonitorTest,
+       SeqnoAckReceivedGreaterThanPending_SparseSeqnos) {
     ASSERT_EQ(3, addSyncWrites({1, 3, 5} /*seqnos*/));
     {
         SCOPED_TRACE("");
@@ -263,7 +296,7 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceivedGreaterThanPending_SparseSeqnos) {
                          ackSeqno /*expectedLastAckSeqno*/);
 }
 
-TEST_F(DurabilityMonitorTest,
+TEST_F(ActiveDurabilityMonitorTest,
        SeqnoAckReceivedGreaterThanLastTracked_ContinuousSeqnos) {
     ASSERT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
     {
@@ -285,7 +318,7 @@ TEST_F(DurabilityMonitorTest,
                          ackSeqno /*expectedLastAckSeqno*/);
 }
 
-TEST_F(DurabilityMonitorTest,
+TEST_F(ActiveDurabilityMonitorTest,
        SeqnoAckReceivedGreaterThanLastTracked_SparseSeqnos) {
     ASSERT_EQ(3, addSyncWrites({1, 3, 5} /*seqnos*/));
     {
@@ -308,7 +341,7 @@ TEST_F(DurabilityMonitorTest,
 }
 
 // @todo: Refactor test suite and expand test cases
-TEST_F(DurabilityMonitorTest, SeqnoAckReceived_PersistToMajority) {
+TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceived_PersistToMajority) {
     ASSERT_EQ(3,
               addSyncWrites({1, 3, 5} /*seqnos*/,
                             {cb::durability::Level::PersistToMajority,
@@ -347,7 +380,7 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceived_PersistToMajority) {
     assertNodeTracking(active, 5 /*lastWriteSeqno*/, ackSeqno /*lastAckSeqno*/);
 }
 
-TEST_F(DurabilityMonitorTest, SetTopology_NotAnArray) {
+TEST_F(ActiveDurabilityMonitorTest, SetTopology_NotAnArray) {
     try {
         monitor->setReplicationTopology(nlohmann::json::object());
     } catch (const std::invalid_argument& e) {
@@ -358,7 +391,7 @@ TEST_F(DurabilityMonitorTest, SetTopology_NotAnArray) {
     FAIL();
 }
 
-TEST_F(DurabilityMonitorTest, SetTopology_Empty) {
+TEST_F(ActiveDurabilityMonitorTest, SetTopology_Empty) {
     try {
         monitor->setReplicationTopology(nlohmann::json::array());
     } catch (const std::invalid_argument& e) {
@@ -369,7 +402,7 @@ TEST_F(DurabilityMonitorTest, SetTopology_Empty) {
     FAIL();
 }
 
-TEST_F(DurabilityMonitorTest, SetTopology_FirstChainEmpty) {
+TEST_F(ActiveDurabilityMonitorTest, SetTopology_FirstChainEmpty) {
     try {
         monitor->setReplicationTopology(nlohmann::json::array({{}}));
     } catch (const std::invalid_argument& e) {
@@ -380,7 +413,7 @@ TEST_F(DurabilityMonitorTest, SetTopology_FirstChainEmpty) {
     FAIL();
 }
 
-TEST_F(DurabilityMonitorTest, SetTopology_FirstChainUndefinedActive) {
+TEST_F(ActiveDurabilityMonitorTest, SetTopology_FirstChainUndefinedActive) {
     try {
         monitor->setReplicationTopology(nlohmann::json::array({{nullptr}}));
     } catch (const std::invalid_argument& e) {
@@ -393,7 +426,7 @@ TEST_F(DurabilityMonitorTest, SetTopology_FirstChainUndefinedActive) {
     FAIL();
 }
 
-TEST_F(DurabilityMonitorTest, SetTopology_TooManyNodesInChain) {
+TEST_F(ActiveDurabilityMonitorTest, SetTopology_TooManyNodesInChain) {
     try {
         monitor->setReplicationTopology(nlohmann::json::array(
                 {{"active", "replica1", "replica2", "replica3", "replica4"}}));
@@ -405,7 +438,7 @@ TEST_F(DurabilityMonitorTest, SetTopology_TooManyNodesInChain) {
     FAIL();
 }
 
-TEST_F(DurabilityMonitorTest, SetTopology_NodeDuplicateIncChain) {
+TEST_F(ActiveDurabilityMonitorTest, SetTopology_NodeDuplicateIncChain) {
     try {
         monitor->setReplicationTopology(
                 nlohmann::json::array({{"node1", "node1"}}));
@@ -418,13 +451,14 @@ TEST_F(DurabilityMonitorTest, SetTopology_NodeDuplicateIncChain) {
 }
 
 // @todo: Extend to disk-seqno
-TEST_F(DurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {
+TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {
     ASSERT_NO_THROW(monitor->setReplicationTopology(
             nlohmann::json::array({{active, replica1, replica2, replica3}})));
     ASSERT_EQ(4, monitor->public_getFirstChainSize());
 
     const int64_t seqno = 1;
     addSyncWrite(seqno);
+    ASSERT_EQ(1, monitor->public_getNumTracked());
 
     // Nothing ack'ed yet
     for (const auto& node : {active, replica1, replica2, replica3}) {
@@ -461,7 +495,7 @@ TEST_F(DurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {
     }
 }
 
-TEST_F(DurabilityMonitorTest, NeverExpireIfTimeoutNotSet) {
+TEST_F(ActiveDurabilityMonitorTest, NeverExpireIfTimeoutNotSet) {
     ASSERT_NO_THROW(monitor->setReplicationTopology(
             nlohmann::json::array({{active, replica1}})));
     ASSERT_EQ(2, monitor->public_getFirstChainSize());
@@ -478,7 +512,7 @@ TEST_F(DurabilityMonitorTest, NeverExpireIfTimeoutNotSet) {
     EXPECT_EQ(1, monitor->public_getNumTracked());
 }
 
-TEST_F(DurabilityMonitorTest, ProcessTimeout) {
+TEST_F(ActiveDurabilityMonitorTest, ProcessTimeout) {
     ASSERT_NO_THROW(monitor->setReplicationTopology(
             nlohmann::json::array({{active, replica1}})));
     ASSERT_EQ(2, monitor->public_getFirstChainSize());
@@ -568,7 +602,7 @@ TEST_F(DurabilityMonitorTest, ProcessTimeout) {
     }
 }
 
-TEST_F(DurabilityMonitorTest, MajorityAndPersistActive) {
+TEST_F(ActiveDurabilityMonitorTest, MajorityAndPersistActive) {
     ASSERT_EQ(3,
               addSyncWrites({1, 3, 5} /*seqnos*/,
                             {cb::durability::Level::MajorityAndPersistOnMaster,
@@ -596,7 +630,7 @@ TEST_F(DurabilityMonitorTest, MajorityAndPersistActive) {
                  ackSeqno /*expectedLastAckSeqno*/);
 }
 
-TEST_F(DurabilityMonitorTest, PersistToMajority_PersistAtActive) {
+TEST_F(ActiveDurabilityMonitorTest, PersistToMajority_PersistAtActive) {
     ASSERT_NO_THROW(monitor->setReplicationTopology(
             nlohmann::json::array({{active, replica1, replica2}})));
     ASSERT_EQ(3, monitor->public_getFirstChainSize());
@@ -656,7 +690,7 @@ TEST_F(DurabilityMonitorTest, PersistToMajority_PersistAtActive) {
  * @todo: Extend durability-impossible tests to SecondChain when supported
  */
 
-TEST_F(DurabilityMonitorTest, DurabilityImpossible_NoReplica) {
+TEST_F(ActiveDurabilityMonitorTest, DurabilityImpossible_NoReplica) {
     auto item = makePendingItem(makeStoredDocKey("key"), "value");
     item->setBySeqno(1);
     {
@@ -668,7 +702,7 @@ TEST_F(DurabilityMonitorTest, DurabilityImpossible_NoReplica) {
     }
 }
 
-TEST_F(DurabilityMonitorTest, DurabilityImpossible_1Replica) {
+TEST_F(ActiveDurabilityMonitorTest, DurabilityImpossible_1Replica) {
     auto item = makePendingItem(makeStoredDocKey("key"), "value");
 
     item->setBySeqno(1);
@@ -690,7 +724,7 @@ TEST_F(DurabilityMonitorTest, DurabilityImpossible_1Replica) {
     }
 }
 
-TEST_F(DurabilityMonitorTest, DurabilityImpossible_2Replicas) {
+TEST_F(ActiveDurabilityMonitorTest, DurabilityImpossible_2Replicas) {
     auto item = makePendingItem(makeStoredDocKey("key"), "value");
 
     item->setBySeqno(1);
@@ -721,7 +755,7 @@ TEST_F(DurabilityMonitorTest, DurabilityImpossible_2Replicas) {
     }
 }
 
-TEST_F(DurabilityMonitorTest, DurabilityImpossible_3Replicas) {
+TEST_F(ActiveDurabilityMonitorTest, DurabilityImpossible_3Replicas) {
     // Note: In this test, playing with Undefined nodes in different and
     // non-consecutive positions.
     // Not sure if ns_server can set something like that (e.g. {A, u, R2, u}),
@@ -772,4 +806,25 @@ TEST_F(DurabilityMonitorTest, DurabilityImpossible_3Replicas) {
                                        1 /*expectedFirstChainSize*/,
                                        3 /*expectedFirstChainMajority*/));
     }
+}
+
+void PassiveDurabilityMonitorTest::SetUp() {
+    DurabilityMonitorTest::SetUp();
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    vb = store->getVBuckets().getBucket(vbid).get();
+    ASSERT_TRUE(vb);
+    monitor = dynamic_cast<PassiveDurabilityMonitor*>(
+            vb->durabilityMonitor.get());
+    ASSERT_TRUE(monitor);
+}
+
+void PassiveDurabilityMonitorTest::TearDown() {
+    DurabilityMonitorTest::TearDown();
+}
+
+TEST_F(PassiveDurabilityMonitorTest, AddSyncWrite) {
+    ASSERT_EQ(0, monitor->getNumTracked());
+    auto item = makePendingItem(makeStoredDocKey("key"), "value");
+    EXPECT_NO_THROW(monitor->addSyncWrite(item));
+    EXPECT_EQ(1, monitor->getNumTracked());
 }

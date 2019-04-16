@@ -20,23 +20,27 @@
 
 DurabilityMonitor::SyncWrite::SyncWrite(const void* cookie,
                                         queued_item item,
-                                        const ReplicationChain& chain)
+                                        const ReplicationChain* chain)
     : cookie(cookie),
       item(item),
-      majority(chain.majority),
       expiryTime(
               item->getDurabilityReqs().getTimeout()
                       ? std::chrono::steady_clock::now() +
                                 std::chrono::milliseconds(
                                         item->getDurabilityReqs().getTimeout())
                       : boost::optional<
-                                std::chrono::steady_clock::time_point>{}),
-      active(chain.active) {
-    // We are making a SyncWrite for tracking, we must have already ensured
-    // that the Durability Requirements can be met at this point.
-    Expects(chain.size() >= majority);
-    for (const auto& entry : chain.positions) {
-        acks[entry.first] = false;
+                                std::chrono::steady_clock::time_point>{}) {
+    if (chain) {
+        majority = chain->majority;
+        active = chain->active;
+
+        // We are making a SyncWrite for tracking, we must have already ensured
+        // that the Durability Requirements can be met at this point.
+        Expects(chain->size() >= majority);
+
+        for (const auto& entry : chain->positions) {
+            acks[entry.first] = false;
+        }
     }
 }
 

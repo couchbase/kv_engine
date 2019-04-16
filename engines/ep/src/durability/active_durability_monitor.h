@@ -191,7 +191,7 @@ protected:
     struct State {
         void setReplicationTopology(const nlohmann::json& topology);
 
-        void addSyncWrite(const void* cookie, const queued_item& item);
+        void addSyncWrite(const void* cookie, queued_item item);
 
         /**
          * Returns the next position for a node iterator.

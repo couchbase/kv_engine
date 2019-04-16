@@ -113,7 +113,7 @@ void ActiveDurabilityMonitor::addSyncWrite(const void* cookie,
                 "ActiveDurabilityMonitor::addSyncWrite: Impossible");
     }
 
-    state.wlock()->addSyncWrite(cookie, item);
+    state.wlock()->addSyncWrite(cookie, std::move(item));
 
     // @todo: Missing step - check for satisfied SyncWrite, we may need to
     //     commit immediately in the no-replica scenario. Consider to do that in
@@ -486,9 +486,10 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
 }
 
 void ActiveDurabilityMonitor::State::addSyncWrite(const void* cookie,
-                                                  const queued_item& item) {
-    trackedWrites.emplace_back(cookie, item, *firstChain);
-    lastTrackedSeqno = item->getBySeqno();
+                                                  queued_item item) {
+    const auto seqno = item->getBySeqno();
+    trackedWrites.emplace_back(cookie, std::move(item), firstChain.get());
+    lastTrackedSeqno = seqno;
 }
 
 void ActiveDurabilityMonitor::State::removeExpired(

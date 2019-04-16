@@ -2185,10 +2185,12 @@ private:
 
     static double mutationMemThreshold;
 
+    friend class ActiveDurabilityMonitorTest;
+    friend class DurabilityMonitorTest;
+    friend class PassiveDurabilityMonitorTest;
+    friend class SingleThreadedActiveStreamTest;
     friend class VBucketTestBase;
     friend class VBucketDurabilityTest;
-    friend class DurabilityMonitorTest;
-    friend class SingleThreadedActiveStreamTest;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };

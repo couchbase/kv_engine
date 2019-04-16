@@ -34,13 +34,21 @@
 static const std::string UndefinedNode{};
 
 /**
- * Represents a tracked SyncWrite.
+ * Represents a tracked SyncWrite. It is mainly a wrapper around a pending
+ * Prepare item.
  */
 class DurabilityMonitor::SyncWrite {
 public:
+    /**
+     * @param (optional) cookie The cookie representing the client connection.
+     *     Necessary at Active for notifying the client at SyncWrite completion.
+     * @param item The pending Prepare being wrapped
+     * @param (optional) chain The repl-chain that the write is tracked against.
+     *     Necessary at Active for verifying the SW Durability Requirements.
+     */
     SyncWrite(const void* cookie,
               queued_item item,
-              const ReplicationChain& chain);
+              const ReplicationChain* chain);
 
     const StoredDocKey& getKey() const;
 
@@ -89,18 +97,18 @@ private:
 
     // This optimization eliminates the need of scanning the ACK map for
     // verifying Durability Requirements
-    Monotonic<uint8_t> ackCount;
+    Monotonic<uint8_t> ackCount{0};
 
     // Majority in the arithmetic definition: num-nodes / 2 + 1
-    const uint8_t majority;
+    uint8_t majority{0};
+
+    // Name of the active node in replication-chain. Used at Durability
+    // Requirements verification.
+    std::string active{UndefinedNode};
 
     // Used for enforcing the Durability Requirements Timeout. It is set
     // when this SyncWrite is added for tracking into the DurabilityMonitor.
     const boost::optional<std::chrono::steady_clock::time_point> expiryTime;
-
-    // Name of the active node in replication-chain. Used at Durability
-    // Requirements verification.
-    const std::string active;
 
     friend std::ostream& operator<<(std::ostream&, const SyncWrite&);
 };

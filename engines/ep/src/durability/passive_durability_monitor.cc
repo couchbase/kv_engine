@@ -16,6 +16,7 @@
  */
 
 #include "passive_durability_monitor.h"
+#include "durability_monitor_impl.h"
 
 #include "bucket_logger.h"
 #include "item.h"
@@ -56,9 +57,25 @@ int64_t PassiveDurabilityMonitor::getHighPreparedSeqno() const {
     return 0;
 }
 
+void PassiveDurabilityMonitor::addSyncWrite(queued_item item) {
+    auto durReq = item->getDurabilityReqs();
+
+    if (durReq.getLevel() == cb::durability::Level::None) {
+        throw std::invalid_argument(
+                "PassiveDurabilityMonitor::addSyncWrite: Level::None");
+    }
+
+    state.wlock()->trackedWrites.emplace_back(
+            nullptr /*cookie*/, std::move(item), nullptr /*firstChain*/);
+
+    /*
+     * @todo: Missing step - we may be able to increase the high_prepared_seqno
+     * and ack back back to the Active.
+     */
+}
+
 size_t PassiveDurabilityMonitor::getNumTracked() const {
-    // @todo-durability: return a correct value for this.
-    return 0;
+    return state.rlock()->trackedWrites.size();
 }
 
 void PassiveDurabilityMonitor::toOStream(std::ostream& os) const {

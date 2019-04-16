@@ -17,6 +17,9 @@
 #pragma once
 
 #include "durability_monitor.h"
+#include "item.h"
+
+#include <folly/Synchronized.h>
 
 class VBucket;
 
@@ -38,11 +41,34 @@ public:
 
     int64_t getHighPreparedSeqno() const override;
 
-protected:
+    /**
+     * Add a pending Prepare for tracking into the PDM.
+     *
+     * @param item the queued_item
+     */
+    void addSyncWrite(queued_item item);
+
     size_t getNumTracked() const override;
 
+protected:
     void toOStream(std::ostream& os) const override;
+
+    /*
+     * This class embeds the state of a PDM. It has been designed for being
+     * wrapped by a folly::Synchronized<T>, which manages the read/write
+     * concurrent access to the T instance.
+     * Note: all members are public as accessed directly only by PDM, this is
+     * a protected struct. Avoiding direct access by PDM would require
+     * re-implementing most of the PDM functions into PDM::State and exposing
+     * them on the PDM::State public interface.
+     */
+    struct State {
+        /// The container of pending Prepares.
+        Container trackedWrites;
+    };
 
     // The VBucket owning this DurabilityMonitor instance
     VBucket& vb;
+
+    folly::Synchronized<State> state;
 };
