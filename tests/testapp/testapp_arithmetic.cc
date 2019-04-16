@@ -221,6 +221,82 @@ TEST_P(ArithmeticTest, TestIllegalDatatype) {
     }
 }
 
+/*
+ * Unit test to test the fix for MB-33813
+ * This test checks that we do not return NOT_STORED back to the client
+ * if bucket_store returns it to ArithmeticCommandContext::storeNewItem().
+ * Instead ArithmeticCommandContext::storeNewItem() should reset the
+ * ArithmeticCommandContext state machine and try again.
+ *
+ * To check that ENGINE_NOT_STORED/NOT_STORED is not returned we use
+ * eWouldBlockEngine to return ENGINE_NOT_STORED on the 3rd engine request using
+ * the binary sequence 0b100.
+ *
+ * This works as the process we expect to see by the ArithmeticCommandContext
+ * state machine is as follows:
+ *  start: GetItem
+ *      calls bucket_get() should return ENGINE_SUCCESS
+ *  -> CreateNewItem
+ *      calls bucket_allocate_ex should return ENGINE_SUCCESS
+ *  -> StoreNewItem
+ *      calls bucket_store return ENGINE_NOT_STORED
+ *      ENGINE_NOT_STORED returned so reset and try again.
+ *  -> Reset
+ *  -> GetItem
+ *  .... Do the work to increment the value again
+ *  -> Done
+ */
+TEST_P(ArithmeticTest, MB33813) {
+    auto& connection = getConnection();
+    std::string key(name + "_inc");
+
+    // Make the 3rd request send to the engine return ENGINE_NOT_STORED
+    // In this case this will be the store that happens as a result of
+    // a call to ArithmeticCommandContext::storeNewItem()
+    // We also set all the higher bits after the 6th. So that if the sequence
+    // of engine accesses change this test will fail.
+    connection.configureEwouldBlockEngine(
+            EWBEngineMode::Sequence,
+            ENGINE_NOT_STORED,
+            /* 0b11111111111111111111111111000100 */ 0xffffffc4);
+
+    EXPECT_EQ(1, connection.increment(key, 0, 1));
+
+    connection.disableEwouldBlockEngine();
+
+    Document doc = connection.get(key, 0);
+    EXPECT_EQ("1", doc.value);
+
+    EXPECT_EQ(2, connection.increment(key, 1));
+
+    doc = connection.get(key, 0);
+    EXPECT_EQ("2", doc.value);
+
+    // Sanity check do the same thing but with a decrement
+    key = name + "_dec";
+    // Make the 3rd request send to the engine return ENGINE_NOT_STORED
+    // In this case this will be the store that happens as a result of
+    // a call to ArithmeticCommandContext::storeNewItem()
+    // We also set all the higher bits after the 6th. So that if the sequence
+    // of engine accesses change this test will fail.
+    connection.configureEwouldBlockEngine(
+            EWBEngineMode::Sequence,
+            ENGINE_NOT_STORED,
+            /* 0b11111111111111111111111111000100 */ 0xffffffc4);
+
+    EXPECT_EQ(2, connection.decrement(key, 0, 2));
+
+    connection.disableEwouldBlockEngine();
+
+    doc = connection.get(key, 0);
+    EXPECT_EQ("2", doc.value);
+
+    EXPECT_EQ(1, connection.decrement(key, 1));
+
+    doc = connection.get(key, 0);
+    EXPECT_EQ("1", doc.value);
+}
+
 static void test_stored_doc(MemcachedConnection& conn,
                             const std::string& key,
                             const std::string& content,
