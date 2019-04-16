@@ -16,8 +16,10 @@
  */
 
 #include "mock_dcp_producer.h"
+
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/msg_producers_border_guard.h"
+#include "dcp/response.h"
 #include "mock_dcp.h"
 #include "mock_dcp_backfill_mgr.h"
 #include "mock_stream.h"

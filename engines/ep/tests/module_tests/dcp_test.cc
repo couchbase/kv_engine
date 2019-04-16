@@ -36,6 +36,7 @@
 #include "dcp/dcp-types.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
+#include "dcp/response.h"
 #include "dcp/stream.h"
 #include "dcp_utils.h"
 #include "ep_time.h"

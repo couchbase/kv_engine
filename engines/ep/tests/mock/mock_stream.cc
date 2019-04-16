@@ -17,6 +17,7 @@
 
 #include "mock_stream.h"
 #include "checkpoint_manager.h"
+#include "dcp/response.h"
 #include "vbucket.h"
 
 MockActiveStream::MockActiveStream(EventuallyPersistentEngine* e,
@@ -53,4 +54,39 @@ void MockActiveStream::public_registerCursor(CheckpointManager& manager,
                                              int64_t seqno) {
     auto registerResult = manager.registerCursorBySeqno(name, seqno);
     cursor = registerResult.cursor;
+}
+
+std::unique_ptr<DcpResponse> MockActiveStream::public_popFromReadyQ() {
+    std::lock_guard<std::mutex> lg(streamMutex);
+    return popFromReadyQ();
+}
+
+std::unique_ptr<DcpResponse> MockActiveStream::public_nextQueuedItem() {
+    LockHolder lh(streamMutex);
+    return nextQueuedItem();
+}
+
+std::unique_ptr<DcpResponse> MockActiveStream::public_makeResponseFromItem(
+        queued_item& item) {
+    return makeResponseFromItem(item);
+}
+
+void MockActiveStream::consumeBackfillItems(int numItems) {
+    std::lock_guard<std::mutex> lh(streamMutex);
+    for (int items = 0; items < numItems;) {
+        auto resp = backfillPhase(lh);
+        if (resp) {
+            ++items;
+        }
+    }
+}
+
+ENGINE_ERROR_CODE MockPassiveStream::messageReceived(
+        std::unique_ptr<DcpResponse> dcpResponse) {
+    responseMessageSize = dcpResponse->getMessageSize();
+    return PassiveStream::messageReceived(std::move(dcpResponse));
+}
+
+std::unique_ptr<DcpResponse> MockPassiveStream::public_popFromReadyQ() {
+    return popFromReadyQ();
 }

@@ -17,6 +17,7 @@
 
 #include "../mock/gmock_dcp_msg_producers.h"
 #include "checkpoint_manager.h"
+#include "dcp/response.h"
 #include "dcp_stream_test.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"

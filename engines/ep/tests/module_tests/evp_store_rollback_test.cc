@@ -23,6 +23,7 @@
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
+#include "dcp/response.h"
 #include "dcp/stream.h"
 #include "dcp_utils.h"
 #include "evp_store_single_threaded_test.h"

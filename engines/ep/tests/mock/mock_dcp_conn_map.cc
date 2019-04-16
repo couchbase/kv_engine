@@ -16,6 +16,8 @@
  */
 
 #include "mock_dcp_conn_map.h"
+
+#include "dcp/response.h"
 #include "mock_dcp_consumer.h"
 
 std::shared_ptr<DcpConsumer> MockDcpConnMap::makeConsumer(

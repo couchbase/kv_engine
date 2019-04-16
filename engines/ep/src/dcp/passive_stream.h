@@ -16,18 +16,25 @@
  */
 #pragma once
 
-#include "dcp/response.h"
 #include "dcp/stream.h"
 #include "locks.h"
 #include "spdlog/common.h"
 #include "vbucket_fwd.h"
 
+#include <engines/ep/src/collections/collections_types.h>
 #include <memcached/engine_error.h>
 
+class AbortSyncWrite;
 class BucketLogger;
 class ChangeSeparatorCollectionEvent;
+class CommitSyncWrite;
+class CreateCollectionEvent;
 class CreateOrDeleteCollectionEvent;
+class CreateScopeEvent;
+class DropCollectionEvent;
+class DropScopeEvent;
 class EventuallyPersistentEngine;
+class MutationConsumerMessage;
 class SystemEventMessage;
 
 class PassiveStream : public Stream {
@@ -242,22 +249,12 @@ protected:
             return messages.empty();
         }
 
-        void push(std::unique_ptr<DcpResponse> message) {
-            std::lock_guard<std::mutex> lg(bufMutex);
-            bytes += message->getMessageSize();
-            messages.push_back(std::move(message));
-        }
+        void push(std::unique_ptr<DcpResponse> message);
 
         /*
          * Caller must of locked bufMutex and pass as lh (not asserted)
          */
-        void pop_front(std::unique_lock<std::mutex>& lh, size_t bytesPopped) {
-            if (messages.empty()) {
-                return;
-            }
-            messages.pop_front();
-            bytes -= bytesPopped;
-        }
+        void pop_front(std::unique_lock<std::mutex>& lh, size_t bytesPopped);
 
         /*
          * Return a reference to the item at the front.
@@ -271,10 +268,7 @@ protected:
          * Caller must of locked bufMutex and pass as lh (not asserted)
          */
         void push_front(std::unique_ptr<DcpResponse> message,
-                        std::unique_lock<std::mutex>& lh) {
-            bytes += message->getMessageSize();
-            messages.push_front(std::move(message));
-        }
+                        std::unique_lock<std::mutex>& lh);
 
         size_t bytes;
         /* Lock ordering w.r.t to streamMutex:

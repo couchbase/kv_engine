@@ -17,16 +17,15 @@
 
 #include "checkpoint_remover_test.h"
 
-#include "checkpoint_utils.h"
-
-#include <engines/ep/src/checkpoint_remover.h>
-
 #include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_manager.h"
+#include "checkpoint_remover.h"
+#include "checkpoint_utils.h"
+#include "dcp/response.h"
 #include "test_helpers.h"
 
 size_t CheckpointRemoverTest::getMaxCheckpointItems(VBucket& vb) {

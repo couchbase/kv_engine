@@ -18,6 +18,7 @@
 #include "dcp_durability_stream_test.h"
 
 #include "checkpoint_utils.h"
+#include "dcp/response.h"
 #include "dcp_utils.h"
 #include "test_helpers.h"
 

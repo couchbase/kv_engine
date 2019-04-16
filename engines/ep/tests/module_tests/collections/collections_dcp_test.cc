@@ -17,6 +17,7 @@
 
 #include "tests/module_tests/collections/collections_dcp_test.h"
 #include "checkpoint_manager.h"
+#include "dcp/response.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/mock/mock_dcp.h"
 #include "tests/mock/mock_dcp_consumer.h"

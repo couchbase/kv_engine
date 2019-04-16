@@ -21,6 +21,7 @@
 #include "bgfetcher.h"
 #include "collections/manager.h"
 #include "dcp/dcpconnmap.h"
+#include "dcp/response.h"
 #include "failover-table.h"
 #include "kvstore.h"
 #include "programs/engine_testapp/mock_server.h"

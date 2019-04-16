@@ -68,10 +68,7 @@ public:
         return readyQ.size();
     }
 
-    std::unique_ptr<DcpResponse> public_nextQueuedItem() {
-        LockHolder lh(streamMutex);
-        return nextQueuedItem();
-    }
+    std::unique_ptr<DcpResponse> public_nextQueuedItem();
 
     void public_setBackfillTaskRunning(bool b) {
         isBackfillTaskRunning = b;
@@ -117,23 +114,12 @@ public:
         return backfillRemaining;
     }
 
-    std::unique_ptr<DcpResponse> public_makeResponseFromItem(
-            queued_item& item) {
-        return makeResponseFromItem(item);
-    }
+    std::unique_ptr<DcpResponse> public_makeResponseFromItem(queued_item& item);
 
     /**
      * Consumes numItems from the stream readyQ
      */
-    void consumeBackfillItems(int numItems) {
-        std::lock_guard<std::mutex> lh(streamMutex);
-        for (int items = 0; items < numItems;) {
-            auto resp = backfillPhase(lh);
-            if (resp) {
-                ++items;
-            }
-        }
-    }
+    void consumeBackfillItems(int numItems);
 
     bool public_handleSlowStream() {
         return handleSlowStream();
@@ -157,10 +143,7 @@ public:
 
     bool isDead() { return ActiveStream::getState() == StreamState::Dead; };
 
-    std::unique_ptr<DcpResponse> public_popFromReadyQ() {
-        std::lock_guard<std::mutex> lg(streamMutex);
-        return popFromReadyQ();
-    }
+    std::unique_ptr<DcpResponse> public_popFromReadyQ();
 
     bool public_supportSyncReplication() const {
         return supportSyncReplication();
@@ -280,10 +263,7 @@ public:
     }
 
     ENGINE_ERROR_CODE messageReceived(
-            std::unique_ptr<DcpResponse> dcpResponse) override {
-        responseMessageSize = dcpResponse->getMessageSize();
-        return PassiveStream::messageReceived(std::move(dcpResponse));
-    }
+            std::unique_ptr<DcpResponse> dcpResponse) override;
 
     void processMarker(SnapshotMarker* marker) override {
         PassiveStream::processMarker(marker);
@@ -308,9 +288,7 @@ public:
         processBufferedMessages_postFront_Hook = hook;
     }
 
-    std::unique_ptr<DcpResponse> public_popFromReadyQ() {
-        return popFromReadyQ();
-    }
+    std::unique_ptr<DcpResponse> public_popFromReadyQ();
 
     const std::queue<std::unique_ptr<DcpResponse>>& public_readyQ() const {
         return readyQ;

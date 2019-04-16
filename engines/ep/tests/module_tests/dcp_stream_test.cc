@@ -21,6 +21,7 @@
 #include "dcp/backfill_disk.h"
 #include "dcp/backfill_memory.h"
 #include "dcp/dcpconnmap.h"
+#include "dcp/response.h"
 #include "dcp_utils.h"
 #include "ep_engine.h"
 #include "ephemeral_vb.h"

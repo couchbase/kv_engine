@@ -19,13 +19,15 @@
 
 #include "checkpoint_manager.h"
 #include "dcp/backfill-manager.h"
+#include "dcp/dcpconnmap.h"
+#include "dcp/response.h"
 #include "ephemeral_bucket.h"
 #include "test_helpers.h"
 
 #include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_synchronous_ep_engine.h"
-#include "dcp/dcpconnmap.h"
+
 /*
  * Test statistics related to an individual VBucket's sequence list.
  */

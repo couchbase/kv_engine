@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "dcp/response.h"
 #include "tests/mock/mock_dcp.h"
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/mock/mock_dcp_producer.h"

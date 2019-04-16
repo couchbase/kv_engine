@@ -21,6 +21,7 @@
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_utils.h"
+#include "dcp/response.h"
 #include "dcp_utils.h"
 #include "ep_types.h"
 #include "ep_vb.h"
