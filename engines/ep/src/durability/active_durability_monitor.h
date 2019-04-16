@@ -44,6 +44,19 @@ public:
     ActiveDurabilityMonitor(VBucket& vb);
 
     /**
+     * Construct an ActiveDM for the given vBucket, with the specified
+     * outstanding prepares as the initial state of the tracked SyncWrites. Used
+     * by warmup to restore the state as it was before restart.
+     * @param vb VBucket which owns this Durability Monitor.
+     * @param outstandingPrepares In-flight prepares which the DM should take
+     *        responsibility for.
+     *        These must be ordered by ascending seqno, otherwise
+     *        std::invalid_argument will be thrown.
+     */
+    ActiveDurabilityMonitor(VBucket& vb,
+                            std::vector<queued_item>&& outstandingPrepares);
+
+    /**
      * Construct an ActiveDM by converting the given PassiveDM.
      * All the (in-flight) tracked Prepares in the old PassiveDM are retained.
      *

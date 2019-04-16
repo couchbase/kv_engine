@@ -3305,6 +3305,10 @@ void VBucket::notifyPersistenceToDurabilityMonitor() {
     durabilityMonitor->notifyLocalPersistence();
 }
 
+const DurabilityMonitor& VBucket::getDurabilityMonitor() const {
+    return *durabilityMonitor;
+}
+
 void VBucket::DeferredDeleter::operator()(VBucket* vb) const {
     // If the vbucket is marked as deleting then we must schedule task to
     // perform the resource destruction (memory/disk).

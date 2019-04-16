@@ -20,6 +20,8 @@
 #include "bgfetcher.h"
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
+#include "durability/active_durability_monitor.h"
+#include "durability/passive_durability_monitor.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "executorpool.h"
@@ -728,6 +730,41 @@ MutationStatus EPVBucket::insertFromWarmup(Item& itm,
     }
 
     return ht.insertFromWarmup(itm, eject, keyMetaDataOnly, eviction);
+}
+
+void EPVBucket::restoreOutstandingPreparesFromWarmup(
+        std::vector<queued_item>&& outstandingPrepares) {
+    // About to change the durabilityMonitor object, which is guarded by
+    // stateLock.
+    folly::SharedMutex::WriteHolder wlh(getStateLock());
+
+    // First insert all prepares into the HashTable:
+    for (const auto& prepare : outstandingPrepares) {
+        auto res = insertFromWarmup(*prepare,
+                                    /*shouldEject*/ false,
+                                    /*metadataOnly*/ false);
+        Expects(res == MutationStatus::NotFound);
+    }
+
+    // Second restore them into the appropriate DurabilityMonitor.
+    switch (getState()) {
+    case vbucket_state_active: {
+        durabilityMonitor = std::make_unique<ActiveDurabilityMonitor>(
+                *this, std::move(outstandingPrepares));
+        auto topology = getReplicationTopology();
+        if (!topology.is_null()) {
+            dynamic_cast<ActiveDurabilityMonitor*>(durabilityMonitor.get())
+                    ->setReplicationTopology(topology);
+        }
+        return;
+    }
+    case vbucket_state_replica:
+    case vbucket_state_pending:
+    case vbucket_state_dead:
+        durabilityMonitor = std::make_unique<PassiveDurabilityMonitor>(
+                *this, std::move(outstandingPrepares));
+        return;
+    }
 }
 
 size_t EPVBucket::estimateNewMemoryUsage(EPStats& st, const Item& item) {

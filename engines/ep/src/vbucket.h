@@ -1511,6 +1511,11 @@ public:
      */
     void notifyPersistenceToDurabilityMonitor();
 
+    /**
+     * @return a const reference to the current Durability Monitor.
+     */
+    const DurabilityMonitor& getDurabilityMonitor() const;
+
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 
@@ -1826,6 +1831,12 @@ protected:
 
     /* size of list hpVBReqs (to avoid MB-9434) */
     cb::RelaxedAtomic<size_t> numHpVBReqs;
+
+    /// Tracks SyncWrites and determines when they should be committed /
+    /// aborted.
+    /// Guarded by the stateLock - read for access (dereferencing pointer),
+    /// write for modifying what the pointer points to.
+    std::unique_ptr<DurabilityMonitor> durabilityMonitor;
 
     /**
      * VBucket sub-classes must implement a function that will schedule
@@ -2206,10 +2217,6 @@ private:
      * flag.
      */
     std::atomic<bool> mayContainXattrs;
-
-    /// Tracks SyncWrites and determines when they should be committed /
-    /// aborted.
-    std::unique_ptr<DurabilityMonitor> durabilityMonitor;
 
     // Durable writes are enqueued also into the DurabilityMonitor.
     // The seqno-order of items tracked by the DM must be the same as in the

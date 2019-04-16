@@ -34,6 +34,22 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(VBucket& vb)
     s->highPreparedSeqno = Position(s->trackedWrites.end());
 }
 
+PassiveDurabilityMonitor::PassiveDurabilityMonitor(
+        VBucket& vb, std::vector<queued_item>&& outstandingPrepares)
+    : PassiveDurabilityMonitor(vb) {
+    auto s = state.wlock();
+    for (auto& prepare : outstandingPrepares) {
+        // Any outstanding prepares "grandfathered" into the DM should have
+        // already specified a non-default timeout.
+        Expects(!prepare->getDurabilityReqs().getTimeout().isDefault());
+        s->trackedWrites.emplace_back(nullptr,
+                                      std::move(prepare),
+                                      std::chrono::milliseconds{},
+                                      nullptr,
+                                      nullptr);
+    }
+}
+
 PassiveDurabilityMonitor::~PassiveDurabilityMonitor() = default;
 
 void PassiveDurabilityMonitor::addStats(const AddStatFn& addStat,

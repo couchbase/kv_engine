@@ -175,6 +175,17 @@ public:
                                     bool eject,
                                     bool keyMetaDataOnly);
 
+    /**
+     * Restores the state of outstanding Prepared SyncWrites during warmup.
+     * Populates the HashTable and the DurabilityMonitor with the given
+     * set of queued_items.
+     *
+     * @param outstandingPrepares Sequence of prepared_sync_writes, sorted by
+     *        seqno in ascending order.
+     */
+    void restoreOutstandingPreparesFromWarmup(
+            std::vector<queued_item>&& outstandingPrepares);
+
     size_t getNumPersistedDeletes() const override;
 
     /**

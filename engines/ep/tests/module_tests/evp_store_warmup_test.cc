@@ -20,6 +20,7 @@
 #include "../mock/mock_ep_bucket.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "dcp/response.h"
+#include "durability/durability_monitor.h"
 #include "ep_time.h"
 #include "evp_store_durability_test.h"
 #include "evp_store_single_threaded_test.h"
@@ -517,14 +518,21 @@ class DurabilityWarmupTest : public DurabilityKVBucketTest {
 protected:
     // Test that a pending SyncWrite/Delete not yet committed is correctly
     // warmed up when the bucket restarts.
-    void testPendingSyncWrite(DocumentState docState);
+    void testPendingSyncWrite(vbucket_state_t vbState, DocumentState docState);
 
     // Test that a pending SyncWrite/Delete which was committed is correctly
     // warmed up when the bucket restarts (as a Committed item).
-    void testCommittedSyncWrite(DocumentState docState);
+    void testCommittedSyncWrite(vbucket_state_t vbState,
+                                DocumentState docState);
+
+    // Test that a committed mutation followed by a pending SyncWrite to the
+    // same key is correctly warmed up when the bucket restarts.
+    void testCommittedAndPendingSyncWrite(vbucket_state_t vbState,
+                                          DocumentState docState);
 };
 
-void DurabilityWarmupTest::testPendingSyncWrite(DocumentState docState) {
+void DurabilityWarmupTest::testPendingSyncWrite(vbucket_state_t vbState,
+                                                DocumentState docState) {
     // Store a pending SyncWrite/Delete (without committing) and then restart
     auto item = makePendingItem(makeStoredDocKey("pendingSW"), "pending_value");
     if (docState == DocumentState::Deleted) {
@@ -533,6 +541,9 @@ void DurabilityWarmupTest::testPendingSyncWrite(DocumentState docState) {
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
     flush_vbucket_to_disk(vbid);
 
+    if (vbState != vbucket_state_active) {
+        setVBucketStateAndRunPersistTask(vbid, vbState);
+    }
     resetEngineAndWarmup();
 
     // Check that the item is still pending with the correct CAS.
@@ -543,17 +554,28 @@ void DurabilityWarmupTest::testPendingSyncWrite(DocumentState docState) {
     EXPECT_TRUE(prepared.storedValue->isPending());
     EXPECT_EQ(item->isDeleted(), prepared.storedValue->isDeleted());
     EXPECT_EQ(item->getCas(), prepared.storedValue->getCas());
+
+    // DurabilityMonitor be tracking the prepare.
+    EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
 }
 
-TEST_P(DurabilityWarmupTest, PendingSyncWrite) {
-    testPendingSyncWrite(DocumentState::Alive);
+TEST_P(DurabilityWarmupTest, ActivePendingSyncWrite) {
+    testPendingSyncWrite(vbucket_state_active, DocumentState::Alive);
 }
 
-TEST_P(DurabilityWarmupTest, PendingSyncDelete) {
-    testPendingSyncWrite(DocumentState::Deleted);
+TEST_P(DurabilityWarmupTest, ActivePendingSyncDelete) {
+    testPendingSyncWrite(vbucket_state_active, DocumentState::Deleted);
 }
 
-void DurabilityWarmupTest::testCommittedSyncWrite(DocumentState docState) {
+TEST_P(DurabilityWarmupTest, ReplicaPendingSyncWrite) {
+    testPendingSyncWrite(vbucket_state_replica, DocumentState::Alive);
+}
+
+TEST_P(DurabilityWarmupTest, ReplicaPendingSyncDelete) {
+    testPendingSyncWrite(vbucket_state_replica, DocumentState::Deleted);
+}
+void DurabilityWarmupTest::testCommittedSyncWrite(vbucket_state_t vbState,
+                                                  DocumentState docState) {
     // Store a pending SyncWrite (without committing) and then restart
     auto key = makeStoredDocKey("key");
     auto item = makePendingItem(key, "value");
@@ -568,6 +590,10 @@ void DurabilityWarmupTest::testCommittedSyncWrite(DocumentState docState) {
         vb->commit(key, {}, vb->lockCollections(key));
 
         flush_vbucket_to_disk(vbid, 1);
+    }
+
+    if (vbState != vbucket_state_active) {
+        setVBucketStateAndRunPersistTask(vbid, vbState);
     }
     resetEngineAndWarmup();
 
@@ -585,28 +611,44 @@ void DurabilityWarmupTest::testCommittedSyncWrite(DocumentState docState) {
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
     EXPECT_EQ(CommittedState::CommittedViaPrepare, gv.item->getCommitted());
     EXPECT_EQ(item->isDeleted(), gv.item->isDeleted());
+
+    // DurabilityMonitor should be empty as no outstanding prepares.
+    EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
 }
 
-TEST_P(DurabilityWarmupTest, CommittedSyncWrite) {
-    testCommittedSyncWrite(DocumentState::Alive);
+TEST_P(DurabilityWarmupTest, ActiveCommittedSyncWrite) {
+    testCommittedSyncWrite(vbucket_state_active, DocumentState::Alive);
 }
 
-TEST_P(DurabilityWarmupTest, CommittedSyncDelete) {
-    testCommittedSyncWrite(DocumentState::Deleted);
+TEST_P(DurabilityWarmupTest, ActiveCommittedSyncDelete) {
+    testCommittedSyncWrite(vbucket_state_active, DocumentState::Deleted);
 }
 
-// Test that a committed mutation followed by a pending SyncWrite to the same
-// key is correctly warmed up when the bucket restarts.
-TEST_P(DurabilityWarmupTest, CommittedAndPendingSyncWrite) {
+TEST_P(DurabilityWarmupTest, ReplicaCommittedSyncWrite) {
+    testCommittedSyncWrite(vbucket_state_replica, DocumentState::Alive);
+}
+
+TEST_P(DurabilityWarmupTest, ReplicaCommittedSyncDelete) {
+    testCommittedSyncWrite(vbucket_state_replica, DocumentState::Deleted);
+}
+
+void DurabilityWarmupTest::testCommittedAndPendingSyncWrite(
+        vbucket_state_t vbState, DocumentState docState) {
     // Store committed mutation followed by a pending SyncWrite (without
     // committing) and then restart.
     auto key = makeStoredDocKey("key");
     store_item(vbid, key, "A");
     auto item = makePendingItem(key, "B");
+    if (docState == DocumentState::Deleted) {
+        item->setDeleted(DeleteSource::Explicit);
+    }
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
 
     flush_vbucket_to_disk(vbid, 2);
 
+    if (vbState != vbucket_state_active) {
+        setVBucketStateAndRunPersistTask(vbid, vbState);
+    }
     resetEngineAndWarmup();
 
     // Should load two items into memory - both committed and the pending value.
@@ -624,6 +666,29 @@ TEST_P(DurabilityWarmupTest, CommittedAndPendingSyncWrite) {
     EXPECT_TRUE(prepared.storedValue);
     EXPECT_TRUE(prepared.storedValue->isPending());
     EXPECT_EQ(item->getCas(), prepared.storedValue->getCas());
+
+    // DurabilityMonitor be tracking the prepare.
+    EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
+}
+
+TEST_P(DurabilityWarmupTest, ActiveCommittedAndPendingSyncWrite) {
+    testCommittedAndPendingSyncWrite(vbucket_state_active,
+                                     DocumentState::Alive);
+}
+
+TEST_P(DurabilityWarmupTest, ActiveCommittedAndPendingSyncDelete) {
+    testCommittedAndPendingSyncWrite(vbucket_state_active,
+                                     DocumentState::Deleted);
+}
+
+TEST_P(DurabilityWarmupTest, ReplicaCommittedAndPendingSyncWrite) {
+    testCommittedAndPendingSyncWrite(vbucket_state_replica,
+                                     DocumentState::Alive);
+}
+
+TEST_P(DurabilityWarmupTest, ReplicaCommittedAndPendingSyncDelete) {
+    testCommittedAndPendingSyncWrite(vbucket_state_replica,
+                                     DocumentState::Deleted);
 }
 
 // Negative test - check that a prepared SyncWrite which has been Aborted
@@ -662,6 +727,9 @@ TEST_P(DurabilityWarmupTest, AbortedSyncWritePrepareIsNotLoaded) {
     auto handle = vb->lockCollections(item->getKey());
     auto prepared = vb->fetchPreparedValue(handle);
     EXPECT_FALSE(prepared.storedValue);
+
+    // DurabilityMonitor should be empty.
+    EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
 }
 
 // Test that not having a replication topology stored on disk (i.e. pre v6.5

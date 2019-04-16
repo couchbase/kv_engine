@@ -993,7 +993,7 @@ public:
      * @param evictionPolicy What eviction policy should be used if eject is
      * true?
      */
-    MutationStatus insertFromWarmup(Item& itm,
+    MutationStatus insertFromWarmup(const Item& itm,
                                     bool eject,
                                     bool keyMetaDataOnly,
                                     EvictionPolicy evictionPolicy);

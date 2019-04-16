@@ -37,6 +37,20 @@ class VBucket;
 class PassiveDurabilityMonitor : public DurabilityMonitor {
 public:
     PassiveDurabilityMonitor(VBucket& vb);
+
+    /**
+     * Construct a PassiveDM for the given vBucket, with the specified
+     * outstanding prepares as the initial state of the tracked SyncWrites. Used
+     * by warmup to restore the state as it was before restart.
+     * @param vb VBucket which owns this Durability Monitor.
+     * @param outstandingPrepares In-flight prepares which the DM should take
+     *        responsibility for.
+     *        These must be ordered by ascending seqno, otherwise
+     *        std::invalid_argument will be thrown.
+     */
+    PassiveDurabilityMonitor(VBucket& vb,
+                             std::vector<queued_item>&& outstandingPrepares);
+
     ~PassiveDurabilityMonitor();
 
     void addStats(const AddStatFn& addStat, const void* cookie) const override;

@@ -1118,13 +1118,12 @@ void Warmup::scheduleLoadPreparedSyncWrites() {
 
 void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
     // Perform an in-order scan of the seqno index.
-    // a) For each Prepared item found, add to the Durability Monitor and
-    //    HashTable.
-    // b) For each Committed (via Mutation or Prepare) item, if a prepared
-    //    item exists in the HashTable (i.e. was added at step (a)) then mark
-    //    it as Committed in the DurabilityMonitor.
+    // a) For each Prepared item found, add to a map of outstanding Prepares.
+    // b) For each Committed (via Mutation or Prepare) item, if there's an
+    //    outstanding Prepare then that prepare has already been Committed,
+    //    hence remove it from the map.
     //
-    // At the end of the scan, all in-flight Prepared items (which did not
+    // At the end of the scan, all outstanding Prepared items (which did not
     // have a Commit persisted to disk) will be registered with the Durability
     // Monitor.
 
@@ -1135,33 +1134,31 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
 
         void callback(GetValue& val) override {
             if (val.item->isPending()) {
-                // Pending item which was not aborted (deleted). Load into
-                // VBucket.
-                queued_item qi(val.item.release());
-                const auto res = vb.insertFromWarmup(*qi,
-                                                     /*shouldEject*/ false,
-                                                     /*keyMetaDataOnly*/ false);
-                Expects(res == MutationStatus::NotFound);
+                // Pending item which was not aborted (deleted). Add to
+                // outstanding Prepare map.
+                outstandingPrepares.emplace(val.item->getKey(),
+                                            std::move(val.item));
                 return;
             }
 
             if (val.item->isCommitted()) {
-                // Committed item. If there's an outstanding prepared
-                // SyncWrite, commit it.
-                auto handle = vb.lockCollections(val.item->getKey());
-                auto prepared = vb.fetchPreparedValue(handle);
-                if (!prepared.storedValue) {
-                    return;
-                }
-
-                vb.ht.commit(prepared.lock, *prepared.storedValue);
+                // Committed item. _If_ there's an outstanding prepared
+                // SyncWrite, remove it (as it has already been committed).
+                outstandingPrepares.erase(val.item->getKey());
+                return;
             }
         }
 
         EPVBucket& vb;
+
+        /// Map of Document key -> outstanding (not yet Committed / Aborted)
+        /// prepares.
+        std::unordered_map<StoredDocKey, std::unique_ptr<Item>>
+                outstandingPrepares;
     };
 
     for (const auto vbid : shardVbIds[shardId]) {
+        const auto start = std::chrono::steady_clock::now();
         auto vb = store.getVBucket(vbid);
         auto& epVb = dynamic_cast<EPVBucket&>(*vb);
 
@@ -1176,22 +1173,44 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
         // (or were aborted).
         uint64_t startSeqno = 0;
 
-        auto valFilter = getValueFilterForCompressionMode(
-                store.getEPEngine().getCompressionMode());
-
         auto* kvStore = store.getROUnderlyingByShard(shardId);
-        auto* scanCtx = kvStore->initScanContext(storageCB,
-                                                 cacheCB,
-                                                 vbid,
-                                                 startSeqno,
-                                                 DocumentFilter::NO_DELETES,
-                                                 valFilter);
+        // Use ALL_ITEMS filter for the scan. NO_DELETES is insufficient
+        // because (committed) SyncDeletes manifest as a prepared_sync_write
+        // (doc on disk not deleted) followed by a commit_sync_write (which
+        // *is* marked as deleted as that's the resulting state).
+        // We need to see that Commit, hence ALL_ITEMS.
+        const auto docFilter = DocumentFilter::ALL_ITEMS;
+        const auto valFilter = getValueFilterForCompressionMode(
+                store.getEPEngine().getCompressionMode());
+        auto* scanCtx = kvStore->initScanContext(
+                storageCB, cacheCB, vbid, startSeqno, docFilter, valFilter);
         Expects(scanCtx);
 
         auto scanResult = kvStore->scan(scanCtx);
         Expects(scanResult == scan_success);
 
         kvStore->destroyScanContext(scanCtx);
+
+        EP_LOG_DEBUG(
+                "Warmup::loadPreparedSyncWrites: Identified {} outstanding "
+                "prepared SyncWrites for {} in {}",
+                storageCB->outstandingPrepares.size(),
+                vbid,
+                cb::time2text(std::chrono::steady_clock::now() - start));
+
+        // Insert all outstanding Prepares into the VBucket (HashTable &
+        // DurabilityMonitor).
+        std::vector<queued_item> prepares;
+        for (auto& prepare : storageCB->outstandingPrepares) {
+            prepares.emplace_back(std::move(prepare.second));
+        }
+        // Sequence must be sorted by seqno (ascending) for DurabilityMonitor.
+        std::sort(prepares.begin(),
+                  prepares.end(),
+                  [](const auto& a, const auto& b) {
+                      return a->getBySeqno() < b->getBySeqno();
+                  });
+        epVb.restoreOutstandingPreparesFromWarmup(std::move(prepares));
     }
 
     if (++threadtask_count == store.vbMap.getNumShards()) {

@@ -727,7 +727,7 @@ StoredValue::UniquePtr HashTable::unlocked_release(
     return released;
 }
 
-MutationStatus HashTable::insertFromWarmup(Item& itm,
+MutationStatus HashTable::insertFromWarmup(const Item& itm,
                                            bool eject,
                                            bool keyMetaDataOnly,
                                            EvictionPolicy evictionPolicy) {

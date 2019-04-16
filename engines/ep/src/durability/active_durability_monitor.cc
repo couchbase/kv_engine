@@ -29,6 +29,24 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(VBucket& vb)
     : vb(vb), state(*this) {
 }
 
+ActiveDurabilityMonitor::ActiveDurabilityMonitor(
+        VBucket& vb, std::vector<queued_item>&& outstandingPrepares)
+    : ActiveDurabilityMonitor(vb) {
+    auto s = state.wlock();
+    for (auto& prepare : outstandingPrepares) {
+        auto seqno = prepare->getBySeqno();
+        // Any outstanding prepares "grandfathered" into the DM should have
+        // already specified a non-default timeout.
+        Expects(!prepare->getDurabilityReqs().getTimeout().isDefault());
+        s->trackedWrites.emplace_back(nullptr,
+                                      std::move(prepare),
+                                      std::chrono::milliseconds{},
+                                      nullptr,
+                                      nullptr);
+        s->lastTrackedSeqno = seqno;
+    }
+}
+
 ActiveDurabilityMonitor::ActiveDurabilityMonitor(PassiveDurabilityMonitor&& pdm)
     : ActiveDurabilityMonitor(pdm.vb) {
     auto s = state.wlock();
