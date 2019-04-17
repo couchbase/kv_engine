@@ -31,6 +31,9 @@
 #include <platform/cb_malloc.h>
 
 VBucketTestBase::VBucketTestBase(item_eviction_policy_t eviction_policy) {
+    // Used for mem-checks at Replica VBuckets. Default=0 prevents any
+    // processSet, returns NoMem. I set a production-like value.
+    global_stats.replicationThrottleThreshold = 0.9;
     vbucket.reset(new EPVBucket(Vbid(0),
                                 vbucket_state_active,
                                 global_stats,

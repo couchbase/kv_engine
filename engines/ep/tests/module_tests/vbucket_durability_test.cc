@@ -21,8 +21,10 @@
 #include "checkpoint_manager.h"
 #include "checkpoint_utils.h"
 #include "durability/active_durability_monitor.h"
+#include "durability/passive_durability_monitor.h"
 #include "test_helpers.h"
 #include "thread_gate.h"
+#include "vbucket_utils.h"
 
 #include "../mock/mock_checkpoint_manager.h"
 
@@ -36,18 +38,16 @@ void VBucketDurabilityTest::SetUp() {
     ckptMgr = static_cast<MockCheckpointManager*>(
             vbucket->checkpointManager.get());
     vbucket->setState(vbucket_state_active);
-
-    monitor = &vbucket->getActiveDM();
-    ASSERT_TRUE(monitor);
-    vbucket->setReplicationTopology(nlohmann::json::array({{active, replica}}));
-    ASSERT_EQ(2, monitor->getFirstChainSize());
+    vbucket->setReplicationTopology(
+            nlohmann::json::array({{active, replica1}}));
+    ASSERT_EQ(2, vbucket->getActiveDM().getFirstChainSize());
 }
 
-size_t VBucketDurabilityTest::storeSyncWrites(
+void VBucketDurabilityTest::storeSyncWrites(
         const std::vector<SyncWriteSpec>& seqnos) {
     if (seqnos.empty()) {
         throw std::logic_error(
-                "VBucketDurabilityTest::addSyncWrites: seqnos list is empty");
+                "VBucketDurabilityTest::storeSyncWrites: seqnos list is empty");
     }
 
     // @todo: For now this function is supposed to be called once per test,
@@ -68,9 +68,8 @@ size_t VBucketDurabilityTest::storeSyncWrites(
     ckptMgr->createSnapshot(seqnos.front().seqno, seqnos.back().seqno);
     EXPECT_EQ(1, ckptMgr->getNumCheckpoints());
 
-    size_t numStored = ht->getNumItems();
-    size_t numCkptItems = ckptMgr->getNumItems();
-    size_t numTracked = monitor->getNumTracked();
+    const auto preHTCount = ht->getNumItems();
+    const auto preCMCount = ckptMgr->getNumItems();
     for (auto write : seqnos) {
         auto item = Item(makeStoredDocKey("key" + std::to_string(write.seqno)),
                          0 /*flags*/,
@@ -89,25 +88,24 @@ size_t VBucketDurabilityTest::storeSyncWrites(
         ctx.genBySeqno = GenerateBySeqno::No;
         ctx.durability = DurabilityItemCtx{item.getDurabilityReqs(), cookie};
 
-        EXPECT_EQ(MutationStatus::WasClean,
+        ASSERT_EQ(MutationStatus::WasClean,
                   public_processSet(item, 0 /*cas*/, ctx));
-
-        EXPECT_EQ(++numStored, ht->getNumItems());
-        EXPECT_EQ(++numTracked, monitor->getNumTracked());
-        EXPECT_EQ(++numCkptItems, ckptMgr->getNumItems());
     }
-    return numStored;
+    EXPECT_EQ(preHTCount + seqnos.size(), ht->getNumItems());
+    EXPECT_EQ(preCMCount + seqnos.size(), ckptMgr->getNumItems());
 }
 
 void VBucketDurabilityTest::simulateLocalAck(uint64_t seqno) {
     vbucket->setPersistenceSeqno(seqno);
-    monitor->notifyLocalPersistence();
+    vbucket->getActiveDM().notifyLocalPersistence();
 }
 
-void VBucketDurabilityTest::testSyncWrites(
+void VBucketDurabilityTest::testAddPrepare(
         const std::vector<SyncWriteSpec>& writes) {
-    auto numStored = storeSyncWrites(writes);
-    ASSERT_EQ(writes.size(), numStored);
+    {
+        SCOPED_TRACE("");
+        storeSyncWrites(writes);
+    }
 
     for (auto write : writes) {
         auto key = makeStoredDocKey("key" + std::to_string(write.seqno));
@@ -122,18 +120,23 @@ void VBucketDurabilityTest::testSyncWrites(
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     *ckptMgr);
     ASSERT_EQ(1, ckptList.size());
-    EXPECT_EQ(numStored, ckptList.front()->getNumItems());
+    EXPECT_EQ(writes.size(), ckptList.front()->getNumItems());
     for (const auto& qi : *ckptList.front()) {
         if (!qi->isCheckPointMetaItem()) {
             EXPECT_EQ(queue_op::pending_sync_write, qi->getOperation());
         }
     }
+}
+
+void VBucketDurabilityTest::testAddPrepareAndCommit(
+        const std::vector<SyncWriteSpec>& writes) {
+    testAddPrepare(writes);
 
     // Simulate flush + checkpoint-removal
     ckptMgr->clear(*vbucket, 0 /*lastBySeqno*/);
 
     // Simulate replica and active seqno-ack
-    vbucket->seqnoAcknowledged(replica, writes.back().seqno);
+    vbucket->seqnoAcknowledged(replica1, writes.back().seqno);
     simulateLocalAck(writes.back().seqno);
 
     for (auto write : writes) {
@@ -148,8 +151,11 @@ void VBucketDurabilityTest::testSyncWrites(
         EXPECT_EQ(write.deletion, sv->isDeleted());
     }
 
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *ckptMgr);
     ASSERT_EQ(1, ckptList.size());
-    EXPECT_EQ(numStored, ckptList.front()->getNumItems());
+    EXPECT_EQ(writes.size(), ckptList.front()->getNumItems());
     for (const auto& qi : *ckptList.front()) {
         if (!qi->isCheckPointMetaItem()) {
             EXPECT_EQ(queue_op::commit_sync_write, qi->getOperation());
@@ -157,25 +163,27 @@ void VBucketDurabilityTest::testSyncWrites(
     }
 }
 
-TEST_P(VBucketDurabilityTest, SyncWrites_ContinuousSeqnos) {
-    testSyncWrites({1, 2, 3});
+TEST_P(VBucketDurabilityTest, Active_AddPrepareAndCommit_ContinuousSeqnos) {
+    testAddPrepareAndCommit({1, 2, 3});
 }
 
-TEST_P(VBucketDurabilityTest, SyncWrites_ContinuousDeleteSeqnos) {
-    testSyncWrites({{1, true}, {2, true}, {3, true}});
+TEST_P(VBucketDurabilityTest,
+       Active_AddPrepareAndCommit_ContinuousDeleteSeqnos) {
+    testAddPrepareAndCommit({{1, true}, {2, true}, {3, true}});
 }
 
-TEST_P(VBucketDurabilityTest, SyncWrites_SparseSeqnos) {
-    testSyncWrites({1, 3, 10, 20, 30});
+TEST_P(VBucketDurabilityTest, Active_AddPrepareAndCommit_SparseSeqnos) {
+    testAddPrepareAndCommit({1, 3, 10, 20, 30});
 }
 
-TEST_P(VBucketDurabilityTest, SyncWrites_SparseDeleteSeqnos) {
-    testSyncWrites({{1, true}, {3, true}, {10, true}, {20, true}, {30, true}});
+TEST_P(VBucketDurabilityTest, Active_AddPrepareAndCommit_SparseDeleteSeqnos) {
+    testAddPrepareAndCommit(
+            {{1, true}, {3, true}, {10, true}, {20, true}, {30, true}});
 }
 
 // Mix of Mutations and Deletions.
-TEST_P(VBucketDurabilityTest, SyncWrites_SparseMixedSeqnos) {
-    testSyncWrites({{1, true}, 3, {10, true}, {20, true}, 30});
+TEST_P(VBucketDurabilityTest, Active_AddPrepareAndCommit_SparseMixedSeqnos) {
+    testAddPrepareAndCommit({{1, true}, 3, {10, true}, {20, true}, 30});
 }
 
 // Test cases which run in both Full and Value eviction
@@ -315,7 +323,7 @@ TEST(VBucketDurabilityTest, validateSetStateMetaTopologyNegative) {
                 HasSubstr("chain[0] node[0] (active) cannot be null"));
 }
 
-TEST_P(VBucketDurabilityTest, SetVBucketState_ClearTopologyAtReplica) {
+TEST_P(VBucketDurabilityTest, Replica_SetVBucketState_ClearTopology) {
     ASSERT_NE(nlohmann::json{}.dump(),
               vbucket->getReplicationTopology().dump());
 
@@ -325,18 +333,15 @@ TEST_P(VBucketDurabilityTest, SetVBucketState_ClearTopologyAtReplica) {
               vbucket->getReplicationTopology().dump());
 }
 
-TEST_P(VBucketDurabilityTest, MultipleReplicas) {
-    const std::string active = "active";
-    const std::string replica1 = "replica1";
-    const std::string replica2 = "replica2";
-    const std::string replica3 = "replica3";
-
-    monitor->setReplicationTopology(
+TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
+    auto& monitor = VBucketTestIntrospector::public_getActiveDM(*vbucket);
+    monitor.setReplicationTopology(
             nlohmann::json::array({{active, replica1, replica2, replica3}}));
-    ASSERT_EQ(4, monitor->getFirstChainSize());
+    ASSERT_EQ(4, monitor.getFirstChainSize());
 
     const int64_t preparedSeqno = 1;
-    ASSERT_EQ(1, storeSyncWrites({preparedSeqno}));
+    storeSyncWrites({preparedSeqno});
+    ASSERT_EQ(1, monitor.getNumTracked());
 
     auto key = makeStoredDocKey("key1");
 
@@ -389,9 +394,12 @@ TEST_P(VBucketDurabilityTest, MultipleReplicas) {
     checkCommitted();
 }
 
-TEST_P(VBucketDurabilityTest, PendingSkippedAtEjectionAndCommit) {
+TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
     const int64_t preparedSeqno = 1;
-    ASSERT_EQ(1, storeSyncWrites({preparedSeqno}));
+    storeSyncWrites({preparedSeqno});
+    ASSERT_EQ(1,
+              VBucketTestIntrospector::public_getActiveDM(*vbucket)
+                      .getNumTracked());
 
     auto key = makeStoredDocKey("key1");
     const auto& ckptList =
@@ -462,7 +470,7 @@ TEST_P(VBucketDurabilityTest, PendingSkippedAtEjectionAndCommit) {
     ASSERT_EQ(ENGINE_EINVAL, swCompleteTrace.status);
 
     // Simulate replica and active seqno-ack
-    vbucket->seqnoAcknowledged(replica, preparedSeqno);
+    vbucket->seqnoAcknowledged(replica1, preparedSeqno);
     simulateLocalAck(preparedSeqno);
 
     // Commit notified
@@ -533,8 +541,11 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbort) {
  * 2) a queue_op::abort_sync_write item is enqueued into the CheckpointManager
  * 3) the abort_sync_write is not added to the DurabilityMonitor
  */
-TEST_P(VBucketDurabilityTest, AbortSyncWrite_Active) {
-    ASSERT_EQ(1, storeSyncWrites({1} /*seqnos*/));
+TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
+    storeSyncWrites({1} /*seqno*/);
+    ASSERT_EQ(1,
+              VBucketTestIntrospector::public_getActiveDM(*vbucket)
+                      .getNumTracked());
 
     auto key = makeStoredDocKey("key1");
 
@@ -574,7 +585,8 @@ TEST_P(VBucketDurabilityTest, AbortSyncWrite_Active) {
     EXPECT_EQ("value", (*it)->getValue()->to_s());
 
     // The Pending is tracked by the DurabilityMonitor
-    EXPECT_EQ(1, monitor->getNumTracked());
+    const auto& monitor = VBucketTestIntrospector::public_getActiveDM(*vbucket);
+    EXPECT_EQ(1, monitor.getNumTracked());
 
     // Note: ensure 1 Ckpt in CM, easier to inspect the CkptList after Commit
     ckptMgr->clear(*vbucket, 0 /*seqno*/);
@@ -623,7 +635,7 @@ TEST_P(VBucketDurabilityTest, AbortSyncWrite_Active) {
     // The Aborted item is not added for tracking.
     // Note: The Pending has not been removed as we are testing at VBucket
     //     level, so num-tracked must be still 1.
-    EXPECT_EQ(1, monitor->getNumTracked());
+    EXPECT_EQ(1, monitor.getNumTracked());
 }
 
 /*
@@ -646,7 +658,7 @@ TEST_P(VBucketDurabilityTest, AbortSyncWrite_Active) {
  *     succeeds at fix. That is because the synchronization changes necessary
  *     at fix invalidate the test.
  */
-TEST_P(VBucketDurabilityTest, ParallelSet) {
+TEST_P(VBucketDurabilityTest, Active_ParallelSet) {
     const auto numThreads = 4;
     ThreadGate tg(numThreads);
     const auto threadLoad = 1000;
@@ -684,4 +696,13 @@ TEST_P(VBucketDurabilityTest, ParallelSet) {
     for (auto& t : threads) {
         t.join();
     }
+}
+
+TEST_P(VBucketDurabilityTest, Replica_AddPrepare) {
+    vbucket->setState(vbucket_state_replica);
+    const auto& monitor =
+            VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+    ASSERT_EQ(0, monitor.getNumTracked());
+    testAddPrepare({1, 2, 3} /*seqnos*/);
+    ASSERT_EQ(3, monitor.getNumTracked());
 }

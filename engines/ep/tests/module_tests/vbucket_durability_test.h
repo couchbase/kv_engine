@@ -51,9 +51,8 @@ protected:
      * Store the given Sync mutations into VBucket
      *
      * @param writes the mutations to be added
-     * @return the number of stored SyncWrites
      */
-    size_t storeSyncWrites(const std::vector<SyncWriteSpec>& writes);
+    void storeSyncWrites(const std::vector<SyncWriteSpec>& writes);
 
     /**
      * Simulate the local (active) seqno acknowledgement.
@@ -61,6 +60,15 @@ protected:
      * @param seqno The ack'ed seqno
      */
     void simulateLocalAck(uint64_t seqno);
+
+    /**
+     * Tests:
+     * 1) mutations added to VBucket
+     * 2) mutations in state "pending" in both HashTable and CheckpointManager
+     *
+     * @param writes the set of mutations to test
+     */
+    void testAddPrepare(const std::vector<SyncWriteSpec>& writes);
 
     /**
      * Tests the baseline progress of a set of SyncWrites in Vbucket:
@@ -71,13 +79,14 @@ protected:
      *
      * @param writes the set of mutations to test
      */
-    void testSyncWrites(const std::vector<SyncWriteSpec>& writes);
+    void testAddPrepareAndCommit(const std::vector<SyncWriteSpec>& writes);
 
     // All owned by VBucket
     HashTable* ht;
     MockCheckpointManager* ckptMgr;
-    ActiveDurabilityMonitor* monitor;
 
     const std::string active = "active";
-    const std::string replica = "replica";
+    const std::string replica1 = "replica1";
+    const std::string replica2 = "replica2";
+    const std::string replica3 = "replica3";
 };

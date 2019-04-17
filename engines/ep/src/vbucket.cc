@@ -1058,12 +1058,16 @@ VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
     }
     notifyCtx.bySeqno = item->getBySeqno();
 
-    // @todo-durability: Add support DurabilityMonitor at Replica
-    if (getState() == vbucket_state_active && item->isPending()) {
+    if (item->isPending()) {
         // Register this mutation with the durability monitor.
         Expects(ctx.durability.is_initialized());
-        const auto cookie = ctx.durability->cookie;
-        getActiveDM().addSyncWrite(cookie, item);
+        // @todo-durability: Add DurabilityMonitor support at vbstate Pending
+        // if necessary
+        if (state == vbucket_state_active) {
+            getActiveDM().addSyncWrite(ctx.durability->cookie, item);
+        } else if (state == vbucket_state_replica) {
+            getPassiveDM().addSyncWrite(item);
+        }
     }
 
     return notifyCtx;
