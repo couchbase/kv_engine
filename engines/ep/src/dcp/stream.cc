@@ -2355,7 +2355,7 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
         // That is because the front-end thread checks if buffer.empty() for
         // deciding if it's time to start again processing new incoming
         // mutations. That happens in PassiveStream::messageReceived.
-        auto& response = buffer.front(lh);
+        std::unique_ptr<DcpResponse> response = std::move(buffer.front(lh));
 
         // Release bufMutex whilst we attempt to process the message
         // a lock inversion exists with connManager if we hold this.
@@ -2416,8 +2416,17 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
         // run.
         // Note:
         //     1) no need to re-acquire bufMutex here
-        //     2) we have not removed the message from the buffer yet
+        //     2) we have not removed the unique_ptr from the buffer yet, but
+        //        we must give the item back to the buffer queue
         if (failed && isActive()) {
+            lh.lock();
+            // isActive should be false if the queue was emptied, but check
+            // anyway so we're more robust against any future code changes to
+            // isActive and closeStream
+            if (!buffer.messages.empty()) {
+                buffer.front(lh) = std::move(response);
+            }
+            lh.unlock();
             break;
         }
 
@@ -2425,7 +2434,7 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
         // then we can remove it from the buffer.
         // Note: we need to re-acquire bufMutex to update the buffer safely
         lh.lock();
-        buffer.pop_front(lh);
+        buffer.pop_front(lh, message_bytes);
 
         count++;
         if (ret != ENGINE_ERANGE) {

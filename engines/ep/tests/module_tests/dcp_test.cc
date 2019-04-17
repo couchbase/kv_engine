@@ -42,6 +42,7 @@
 #include "failover-table.h"
 #include "memory_tracker.h"
 #include "objectregistry.h"
+#include "replicationthrottle.h"
 #include "test_helpers.h"
 #include "thread_gate.h"
 
@@ -3571,6 +3572,14 @@ public:
         config_string += "max_size=104857600;replication_throttle_threshold=4";
         SingleThreadedEPBucketTest::SetUp();
     }
+
+    enum class mb_33773Mode {
+        closeStreamOnTask,
+        closeStreamBeforeTask,
+        noMemory,
+        noMemoryAndClosed
+    };
+    void mb_33773(mb_33773Mode mode);
 };
 
 /*
@@ -3707,7 +3716,6 @@ TEST_F(SingleThreadedStreamTest, MB31410) {
     std::function<void()> hook = [&tg,
                                   passiveStream,
                                   &isFirstRun,
-                                  seqno,
                                   nextFrontEndSeqno,
                                   &sync]() {
         // If the test succeeds (i.e., the frontEndTask above sees
@@ -3758,9 +3766,7 @@ TEST_F(SingleThreadedStreamTest, MB31410) {
             if (numBufferedItems == 2) {
                 auto& bufferedMessages = passiveStream->getBufferMessages();
                 auto* dcpResponse = bufferedMessages.at(0).get();
-                EXPECT_EQ(seqno,
-                          *dynamic_cast<MutationResponse&>(*dcpResponse)
-                                   .getBySeqno());
+                EXPECT_EQ(nullptr, dcpResponse);
                 dcpResponse = bufferedMessages.at(1).get();
                 EXPECT_EQ(nextFrontEndSeqno,
                           *dynamic_cast<MutationResponse&>(*dcpResponse)
@@ -3804,4 +3810,184 @@ TEST_F(SingleThreadedStreamTest, MB31410) {
 
     // Cleanup
     ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
+}
+
+// Main test code for MB-33773, see TEST_F for details of each mode.
+// The test generally forces the consumer to buffer mutations and then
+// interleaves various operations using ProcessBufferedMessages_postFront_Hook
+void SingleThreadedStreamTest::mb_33773(
+        SingleThreadedStreamTest::mb_33773Mode mode) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "MB_33773");
+
+    uint32_t opaque = 0;
+
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, vbid, 0 /*flags*/));
+    opaque++;
+
+    auto* passiveStream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    ASSERT_TRUE(passiveStream->isActive());
+
+    const uint64_t snapStart = 1;
+    const uint64_t snapEnd = 100;
+
+    // The consumer receives the snapshot-marker
+    SnapshotMarker snapshotMarker(opaque,
+                                  vbid,
+                                  snapStart,
+                                  snapEnd,
+                                  dcp_marker_flag_t::MARKER_FLAG_MEMORY);
+    passiveStream->processMarker(&snapshotMarker);
+
+    // This code is tricking the replication throttle into returning pause so
+    // that the mutation's are buffered.
+    engine->getReplicationThrottle().adjustWriteQueueCap(0);
+    const size_t size = engine->getEpStats().getMaxDataSize();
+    engine->getEpStats().setMaxDataSize(1);
+    ASSERT_EQ(ReplicationThrottle::Status::Pause,
+              engine->getReplicationThrottle().getStatus());
+
+    // Push mutations
+    EXPECT_EQ(0, passiveStream->getNumBufferItems());
+    for (size_t seqno = snapStart; seqno < snapEnd; seqno++) {
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  consumer->mutation(
+                          opaque,
+                          makeStoredDocKey("k" + std::to_string(seqno)),
+                          {},
+                          0,
+                          0,
+                          0,
+                          vbid,
+                          0,
+                          seqno,
+                          0,
+                          0,
+                          0,
+                          {},
+                          0));
+    }
+    // and check they were buffered.
+    ASSERT_EQ(snapEnd - snapStart, passiveStream->getNumBufferItems());
+    engine->getEpStats().setMaxDataSize(size); // undo the quota adjustment
+
+    // We expect flowcontrol bytes to increase when the buffered items are
+    // discarded.
+    auto bytes = consumer->getFlowControl().getFreedBytes();
+    auto backoffs = consumer->getNumBackoffs();
+    size_t flowControlBytesFreed = 0; // this is used for one test only
+    switch (mode) {
+    case mb_33773Mode::closeStreamOnTask:{
+        // Create and set a hook that will call setDead, the hook executes
+        // just after an item has been taken from the buffer
+        std::function<void()> hook = [this, consumer]() {
+            consumer->closeStreamDueToVbStateChange(vbid, vbucket_state_active);
+        };
+        passiveStream->setProcessBufferedMessages_postFront_Hook(hook);
+        break;
+    }
+    case mb_33773Mode::closeStreamBeforeTask:
+        consumer->closeStreamDueToVbStateChange(vbid, vbucket_state_active);
+        break;
+    case mb_33773Mode::noMemory: {
+        // Fudge memory again so the task has to rebuffer the messages
+        std::function<void()> hook = [this]() {
+            engine->getEpStats().setMaxDataSize(1);
+        };
+        passiveStream->setProcessBufferedMessages_postFront_Hook(hook);
+        break;
+    }
+    case mb_33773Mode::noMemoryAndClosed: {
+        // This hook will force quota to 1 so the processing fails.
+        // But also closes the stream so that the messages queue is emptied.
+        // We are testing that the item we've moved out of the queue is still
+        // accounted in flow-control
+        std::function<void()> hook = [this,
+                                      consumer,
+                                      &flowControlBytesFreed]() {
+            engine->getEpStats().setMaxDataSize(1);
+            consumer->closeStreamDueToVbStateChange(vbid, vbucket_state_active);
+            // Capture flow control freed bytes which should now include all
+            // buffered messages, except one (which was moved)
+            flowControlBytesFreed = consumer->getFlowControl().getFreedBytes();
+        };
+        passiveStream->setProcessBufferedMessages_postFront_Hook(hook);
+        break;
+    }
+    }
+
+    // Run the NonIO task. Without any fix (and in the interleaved test) the
+    // task will grab a reference to an object which will be freed as a side
+    // affect of calling closeStream. Crash/ASAN failure will occur.
+    auto& nonIo = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(nonIo);
+
+    switch (mode) {
+    case mb_33773Mode::closeStreamOnTask:
+    case mb_33773Mode::closeStreamBeforeTask:
+        // Expect that after running the task, which closed the stream via the
+        // hook flow control freed increased to reflect the buffered items which
+        // were discarded,
+        EXPECT_GT(consumer->getFlowControl().getFreedBytes(), bytes);
+        return;
+    case mb_33773Mode::noMemory: {
+        std::function<void()> hook = [] {};
+        passiveStream->setProcessBufferedMessages_postFront_Hook(hook);
+        // fall through to next case
+    }
+    case mb_33773Mode::noMemoryAndClosed: {
+        // Undo memory fudge for the rest of the test
+        engine->getEpStats().setMaxDataSize(size);
+        break;
+    }
+    }
+
+    // NOTE: Only the noMemory test runs from here
+
+    // backoffs should of increased
+    EXPECT_GT(consumer->getNumBackoffs(), backoffs);
+
+    if (mode == mb_33773Mode::noMemoryAndClosed) {
+        // Check the hook updated this counter
+        EXPECT_NE(0, flowControlBytesFreed);
+        // And check that consumer flow control is even bigger now
+        EXPECT_GT(consumer->getFlowControl().getFreedBytes(),
+                  flowControlBytesFreed);
+    } else {
+        // The items are still buffered
+        EXPECT_EQ(snapEnd - snapStart, passiveStream->getNumBufferItems());
+        // Run task again, it should of re-sheduled itself
+        runNextTask(nonIo);
+        // and all items now gone
+        EXPECT_EQ(0, passiveStream->getNumBufferItems());
+    }
+}
+
+// Do mb33773 with the close stream interleaved into the processBufferedMessages
+// This is more reflective of the actual MB as this case would result in a fault
+TEST_F(SingleThreadedStreamTest, MB_33773_interleaved) {
+    mb_33773(mb_33773Mode::closeStreamOnTask);
+}
+
+// Do mb33773 with the close stream before processBufferedMessages. This is
+// checking that flow-control is updated with the fix in place
+TEST_F(SingleThreadedStreamTest, MB_33773) {
+    mb_33773(mb_33773Mode::closeStreamBeforeTask);
+}
+
+// Test more of the changes in mb33773, this mode makes the processing fail
+// because there's not enough memory, this makes us exercise the code that swaps
+// a reponse back into the deque
+TEST_F(SingleThreadedStreamTest, MB_33773_oom) {
+    mb_33773(mb_33773Mode::noMemory);
+}
+
+// Test more of the changes in mb33773, this mode makes the processing fail
+// because there's not enough memory, this makes us exercise the code that swaps
+// a reponse back into the deque
+TEST_F(SingleThreadedStreamTest, MB_33773_oom_close) {
+    mb_33773(mb_33773Mode::noMemoryAndClosed);
 }
