@@ -110,10 +110,7 @@ public:
      */
     void addStats(const AddStatFn& addStat, const void* cookie) const override;
 
-protected:
     size_t getNumTracked() const override;
-
-    void toOStream(std::ostream& os) const override;
 
     /**
      * @return the size of FirstChain
@@ -150,6 +147,16 @@ protected:
     int64_t getNodeAckSeqno(const std::string& node) const;
 
     /**
+     * Test only.
+     *
+     * @return the set of seqnos tracked by this DurabilityMonitor
+     */
+    std::unordered_set<int64_t> getTrackedSeqnos() const;
+
+protected:
+    void toOStream(std::ostream& os) const override;
+
+    /**
      * Commit the given SyncWrite.
      *
      * @param sw The SyncWrite to commit
@@ -162,13 +169,6 @@ protected:
      * @param sw The SyncWrite to abort
      */
     void abort(const SyncWrite& sw);
-
-    /**
-     * Test only.
-     *
-     * @return the set of seqnos tracked by this DurabilityMonitor
-     */
-    std::unordered_set<int64_t> getTrackedSeqnos() const;
 
     /**
      * Test only (for now; shortly this will be probably needed at rollback).
@@ -271,4 +271,7 @@ protected:
     folly::Synchronized<State> state;
 
     const size_t maxReplicas = 3;
+
+    // @todo: Try to remove this, currenlty necessary for testing wipeTracked()
+    friend class ActiveDurabilityMonitorTest;
 };

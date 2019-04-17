@@ -20,11 +20,11 @@
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_utils.h"
+#include "durability/active_durability_monitor.h"
 #include "test_helpers.h"
 #include "thread_gate.h"
 
 #include "../mock/mock_checkpoint_manager.h"
-#include "../mock/mock_durability_monitor.h"
 
 #include <folly/portability/GMock.h>
 #include <thread>
@@ -37,14 +37,10 @@ void VBucketDurabilityTest::SetUp() {
             vbucket->checkpointManager.get());
     vbucket->setState(vbucket_state_active);
 
-    // Replace the VBucket::durabilityMonitor with a mock one
-    vbucket->durabilityMonitor =
-            std::make_unique<MockActiveDurabilityMonitor>(*vbucket);
-    monitor = dynamic_cast<MockActiveDurabilityMonitor*>(
-            vbucket->durabilityMonitor.get());
+    monitor = &vbucket->getActiveDM();
     ASSERT_TRUE(monitor);
     vbucket->setReplicationTopology(nlohmann::json::array({{active, replica}}));
-    ASSERT_EQ(2, monitor->public_getFirstChainSize());
+    ASSERT_EQ(2, monitor->getFirstChainSize());
 }
 
 size_t VBucketDurabilityTest::storeSyncWrites(
@@ -74,7 +70,7 @@ size_t VBucketDurabilityTest::storeSyncWrites(
 
     size_t numStored = ht->getNumItems();
     size_t numCkptItems = ckptMgr->getNumItems();
-    size_t numTracked = monitor->public_getNumTracked();
+    size_t numTracked = monitor->getNumTracked();
     for (auto write : seqnos) {
         auto item = Item(makeStoredDocKey("key" + std::to_string(write.seqno)),
                          0 /*flags*/,
@@ -97,7 +93,7 @@ size_t VBucketDurabilityTest::storeSyncWrites(
                   public_processSet(item, 0 /*cas*/, ctx));
 
         EXPECT_EQ(++numStored, ht->getNumItems());
-        EXPECT_EQ(++numTracked, monitor->public_getNumTracked());
+        EXPECT_EQ(++numTracked, monitor->getNumTracked());
         EXPECT_EQ(++numCkptItems, ckptMgr->getNumItems());
     }
     return numStored;
@@ -337,7 +333,7 @@ TEST_P(VBucketDurabilityTest, MultipleReplicas) {
 
     monitor->setReplicationTopology(
             nlohmann::json::array({{active, replica1, replica2, replica3}}));
-    ASSERT_EQ(4, monitor->public_getFirstChainSize());
+    ASSERT_EQ(4, monitor->getFirstChainSize());
 
     const int64_t preparedSeqno = 1;
     ASSERT_EQ(1, storeSyncWrites({preparedSeqno}));
@@ -578,7 +574,7 @@ TEST_P(VBucketDurabilityTest, AbortSyncWrite_Active) {
     EXPECT_EQ("value", (*it)->getValue()->to_s());
 
     // The Pending is tracked by the DurabilityMonitor
-    EXPECT_EQ(1, monitor->public_getNumTracked());
+    EXPECT_EQ(1, monitor->getNumTracked());
 
     // Note: ensure 1 Ckpt in CM, easier to inspect the CkptList after Commit
     ckptMgr->clear(*vbucket, 0 /*seqno*/);
@@ -627,7 +623,7 @@ TEST_P(VBucketDurabilityTest, AbortSyncWrite_Active) {
     // The Aborted item is not added for tracking.
     // Note: The Pending has not been removed as we are testing at VBucket
     //     level, so num-tracked must be still 1.
-    EXPECT_EQ(1, monitor->public_getNumTracked());
+    EXPECT_EQ(1, monitor->getNumTracked());
 }
 
 /*

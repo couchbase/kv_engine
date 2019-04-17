@@ -38,15 +38,16 @@
 #include <queue>
 
 class ActiveDurabilityMonitor;
-class EPStats;
 class CheckpointManager;
 class ConflictResolution;
 class Configuration;
-class DurabilityMonitor;
-class ItemMetaData;
-class PreLinkDocumentContext;
-class EventuallyPersistentEngine;
 class DCPBackfill;
+class DurabilityMonitor;
+class EPStats;
+class EventuallyPersistentEngine;
+class ItemMetaData;
+class PassiveDurabilityMonitor;
+class PreLinkDocumentContext;
 class RollbackResult;
 class VBucketBGFetchItem;
 struct vbucket_state;
@@ -1844,7 +1845,12 @@ protected:
     /**
      * @return a reference (if valid, i.e. vbstate=active) to the Active DM
      */
-    ActiveDurabilityMonitor& getActiveDM() const;
+    ActiveDurabilityMonitor& getActiveDM();
+
+    /**
+     * @return a reference (if valid, i.e. vbstate=replica) to the Passive DM
+     */
+    PassiveDurabilityMonitor& getPassiveDM();
 
     /**
      * @return a new instance of DurabilityMonitor, Active or Passive depending
@@ -2185,11 +2191,10 @@ private:
 
     static double mutationMemThreshold;
 
-    friend class ActiveDurabilityMonitorTest;
     friend class DurabilityMonitorTest;
-    friend class PassiveDurabilityMonitorTest;
     friend class SingleThreadedActiveStreamTest;
     friend class VBucketTestBase;
+    friend class VBucketTestIntrospector;
     friend class VBucketDurabilityTest;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);

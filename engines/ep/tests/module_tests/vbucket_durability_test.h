@@ -20,7 +20,7 @@
 #include "vbucket_test.h"
 
 class MockCheckpointManager;
-class MockActiveDurabilityMonitor;
+class ActiveDurabilityMonitor;
 
 /*
  * VBucket unit tests related to durability.
@@ -76,7 +76,7 @@ protected:
     // All owned by VBucket
     HashTable* ht;
     MockCheckpointManager* ckptMgr;
-    MockActiveDurabilityMonitor* monitor;
+    ActiveDurabilityMonitor* monitor;
 
     const std::string active = "active";
     const std::string replica = "replica";

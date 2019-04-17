@@ -38,17 +38,17 @@ public:
     /// @return the high_prepared_seqno.
     virtual int64_t getHighPreparedSeqno() const = 0;
 
+    /**
+     * @return the number of pending SyncWrite(s) currently tracked
+     */
+    virtual size_t getNumTracked() const = 0;
+
 protected:
     class SyncWrite;
     struct ReplicationChain;
     struct Position;
 
     using Container = std::list<SyncWrite>;
-
-    /**
-     * @return the number of pending SyncWrite(s) currently tracked
-     */
-    virtual size_t getNumTracked() const = 0;
 
     virtual void toOStream(std::ostream& os) const = 0;
 

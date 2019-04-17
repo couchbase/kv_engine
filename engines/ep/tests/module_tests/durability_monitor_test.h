@@ -23,7 +23,7 @@
 
 #include <folly/portability/GTest.h>
 
-class MockActiveDurabilityMonitor;
+class ActiveDurabilityMonitor;
 class PassiveDurabilityMonitor;
 
 class DurabilityMonitorTest : public SingleThreadedKVBucketTest {
@@ -142,7 +142,7 @@ protected:
                                 uint8_t expectedFirstChainMajority);
 
     // Owned by VBucket
-    MockActiveDurabilityMonitor* monitor;
+    ActiveDurabilityMonitor* monitor;
 
     const std::string active = "active";
     const std::string replica1 = "replica1";

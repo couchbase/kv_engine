@@ -19,10 +19,11 @@
 
 #include "checkpoint_manager.h"
 #include "test_helpers.h"
+#include "vbucket_utils.h"
 
+#include "durability/active_durability_monitor.h"
 #include "durability/passive_durability_monitor.h"
 
-#include "../mock/mock_durability_monitor.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 
 void DurabilityMonitorTest::SetUp() {
@@ -39,14 +40,11 @@ void ActiveDurabilityMonitorTest::SetUp() {
     vb = store->getVBuckets().getBucket(vbid).get();
     ASSERT_TRUE(vb);
 
-    // Replace the VBucket::durabilityMonitor with a mock one
-    vb->durabilityMonitor = std::make_unique<MockActiveDurabilityMonitor>(*vb);
-    monitor = dynamic_cast<MockActiveDurabilityMonitor*>(
-            vb->durabilityMonitor.get());
+    monitor = &VBucketTestIntrospector::public_getActiveDM(*vb);
     ASSERT_TRUE(monitor);
-    monitor->public_setReplicationTopology(
+    monitor->setReplicationTopology(
             nlohmann::json::array({{active, replica1}}));
-    ASSERT_EQ(2, monitor->public_getFirstChainSize());
+    ASSERT_EQ(2, monitor->getFirstChainSize());
 }
 
 void ActiveDurabilityMonitorTest::TearDown() {
@@ -75,13 +73,13 @@ size_t ActiveDurabilityMonitorTest::addSyncWrites(
         int64_t seqnoStart,
         int64_t seqnoEnd,
         cb::durability::Requirements req) {
-    size_t expectedNumTracked = monitor->public_getNumTracked();
+    size_t expectedNumTracked = monitor->getNumTracked();
     size_t added = 0;
     for (auto seqno = seqnoStart; seqno <= seqnoEnd; seqno++) {
         addSyncWrite(seqno, req);
         added++;
         expectedNumTracked++;
-        EXPECT_EQ(expectedNumTracked, monitor->public_getNumTracked());
+        EXPECT_EQ(expectedNumTracked, monitor->getNumTracked());
     }
     return added;
 }
@@ -93,13 +91,13 @@ size_t ActiveDurabilityMonitorTest::addSyncWrites(
                 "ActiveDurabilityMonitorTest::addSyncWrites: seqnos list is "
                 "empty");
     }
-    size_t expectedNumTracked = monitor->public_getNumTracked();
+    size_t expectedNumTracked = monitor->getNumTracked();
     size_t added = 0;
     for (auto seqno : seqnos) {
         addSyncWrite(seqno, req);
         added++;
         expectedNumTracked++;
-        EXPECT_EQ(expectedNumTracked, monitor->public_getNumTracked());
+        EXPECT_EQ(expectedNumTracked, monitor->getNumTracked());
     }
     return added;
 }
@@ -126,8 +124,8 @@ void ActiveDurabilityMonitorTest::assertNodeTracking(
         const std::string& node,
         uint64_t lastWriteSeqno,
         uint64_t lastAckSeqno) const {
-    ASSERT_EQ(lastWriteSeqno, monitor->public_getNodeWriteSeqno(node));
-    ASSERT_EQ(lastAckSeqno, monitor->public_getNodeAckSeqno(node));
+    ASSERT_EQ(lastWriteSeqno, monitor->getNodeWriteSeqno(node));
+    ASSERT_EQ(lastAckSeqno, monitor->getNodeAckSeqno(node));
 }
 
 void ActiveDurabilityMonitorTest::testLocalAck(int64_t ackSeqno,
@@ -136,7 +134,7 @@ void ActiveDurabilityMonitorTest::testLocalAck(int64_t ackSeqno,
                                                int64_t expectedLastAckSeqno) {
     vb->setPersistenceSeqno(ackSeqno);
     monitor->notifyLocalPersistence();
-    EXPECT_EQ(expectedNumTracked, monitor->public_getNumTracked());
+    EXPECT_EQ(expectedNumTracked, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
         assertNodeTracking(
@@ -151,7 +149,7 @@ void ActiveDurabilityMonitorTest::testSeqnoAckReceived(
         int64_t expectedLastWriteSeqno,
         int64_t expectedLastAckSeqno) const {
     EXPECT_NO_THROW(monitor->seqnoAckReceived(replica, ackSeqno));
-    EXPECT_EQ(expectedNumTracked, monitor->public_getNumTracked());
+    EXPECT_EQ(expectedNumTracked, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
         assertNodeTracking(
@@ -175,14 +173,13 @@ bool ActiveDurabilityMonitorTest::testDurabilityPossible(
         FAIL();
     };
 
-    monitor->public_setReplicationTopology(topology);
-    EXPECT_EQ(expectedFirstChainSize, monitor->public_getFirstChainSize());
-    EXPECT_EQ(expectedFirstChainMajority,
-              monitor->public_getFirstChainMajority());
+    monitor->setReplicationTopology(topology);
+    EXPECT_EQ(expectedFirstChainSize, monitor->getFirstChainSize());
+    EXPECT_EQ(expectedFirstChainMajority, monitor->getFirstChainMajority());
 
     if (expectedFirstChainSize < expectedFirstChainMajority) {
         expectAddSyncWriteImpossible();
-        EXPECT_EQ(0, monitor->public_getNumTracked());
+        EXPECT_EQ(0, monitor->getNumTracked());
         return false;
     }
 
@@ -192,7 +189,7 @@ bool ActiveDurabilityMonitorTest::testDurabilityPossible(
     //     (note some tests call this function multiple times).
     //     We can remove this step as soon as MB-33395 is fixed.
     // Note: This is also an implicit check on the number of tracked items.
-    EXPECT_EQ(1 /*numRemoved*/, monitor->public_wipeTracked());
+    EXPECT_EQ(1 /*numRemoved*/, monitor->wipeTracked());
     return true;
 }
 
@@ -359,7 +356,7 @@ TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceived_PersistToMajority) {
 
     // Check that we have not committed as the active has not ack'ed the
     // persisted seqno
-    EXPECT_EQ(3, monitor->public_getNumTracked());
+    EXPECT_EQ(3, monitor->getNumTracked());
 
     // Check that the tracking for Replica has been updated correctly
     assertNodeTracking(
@@ -374,7 +371,7 @@ TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceived_PersistToMajority) {
     monitor->notifyLocalPersistence();
 
     // Check that we committed and removed all SyncWrites
-    EXPECT_EQ(0, monitor->public_getNumTracked());
+    EXPECT_EQ(0, monitor->getNumTracked());
 
     // Check that the tracking for Active has been updated correctly
     assertNodeTracking(active, 5 /*lastWriteSeqno*/, ackSeqno /*lastAckSeqno*/);
@@ -454,11 +451,11 @@ TEST_F(ActiveDurabilityMonitorTest, SetTopology_NodeDuplicateIncChain) {
 TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {
     ASSERT_NO_THROW(monitor->setReplicationTopology(
             nlohmann::json::array({{active, replica1, replica2, replica3}})));
-    ASSERT_EQ(4, monitor->public_getFirstChainSize());
+    ASSERT_EQ(4, monitor->getFirstChainSize());
 
     const int64_t seqno = 1;
     addSyncWrite(seqno);
-    ASSERT_EQ(1, monitor->public_getNumTracked());
+    ASSERT_EQ(1, monitor->getNumTracked());
 
     // Nothing ack'ed yet
     for (const auto& node : {active, replica1, replica2, replica3}) {
@@ -466,7 +463,7 @@ TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {
         assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
     // Nothing committed
-    EXPECT_EQ(1, monitor->public_getNumTracked());
+    EXPECT_EQ(1, monitor->getNumTracked());
 
     {
         SCOPED_TRACE("");
@@ -498,24 +495,24 @@ TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {
 TEST_F(ActiveDurabilityMonitorTest, NeverExpireIfTimeoutNotSet) {
     ASSERT_NO_THROW(monitor->setReplicationTopology(
             nlohmann::json::array({{active, replica1}})));
-    ASSERT_EQ(2, monitor->public_getFirstChainSize());
+    ASSERT_EQ(2, monitor->getFirstChainSize());
 
     // Note: Timeout=0 (i.e., no timeout) in default Durability Requirements
     ASSERT_EQ(1, addSyncWrites({1} /*seqno*/));
-    EXPECT_EQ(1, monitor->public_getNumTracked());
+    EXPECT_EQ(1, monitor->getNumTracked());
 
     // Never expire, neither after 1 year !
     const auto year = std::chrono::hours(24 * 365);
     monitor->processTimeout(std::chrono::steady_clock::now() + year);
 
     // Not expired, still tracked
-    EXPECT_EQ(1, monitor->public_getNumTracked());
+    EXPECT_EQ(1, monitor->getNumTracked());
 }
 
 TEST_F(ActiveDurabilityMonitorTest, ProcessTimeout) {
     ASSERT_NO_THROW(monitor->setReplicationTopology(
             nlohmann::json::array({{active, replica1}})));
-    ASSERT_EQ(2, monitor->public_getFirstChainSize());
+    ASSERT_EQ(2, monitor->getFirstChainSize());
 
     auto assertNoAck = [this]() -> void {
         SCOPED_TRACE("");
@@ -538,7 +535,7 @@ TEST_F(ActiveDurabilityMonitorTest, ProcessTimeout) {
     monitor->processTimeout(std::chrono::steady_clock::now() +
                             std::chrono::milliseconds(1000));
 
-    EXPECT_EQ(0, monitor->public_getNumTracked());
+    EXPECT_EQ(0, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
         assertNoAck();
@@ -551,7 +548,7 @@ TEST_F(ActiveDurabilityMonitorTest, ProcessTimeout) {
     ASSERT_EQ(1, addSyncWrites({101} /*seqno*/, {level, 1 /*timeout*/}));
     ASSERT_EQ(1, addSyncWrites({102} /*seqno*/, {level, 10}));
     ASSERT_EQ(1, addSyncWrites({103} /*seqno*/, {level, 20}));
-    EXPECT_EQ(3, monitor->public_getNumTracked());
+    EXPECT_EQ(3, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
         assertNoAck();
@@ -560,7 +557,7 @@ TEST_F(ActiveDurabilityMonitorTest, ProcessTimeout) {
     monitor->processTimeout(std::chrono::steady_clock::now() +
                             std::chrono::milliseconds(10000));
 
-    EXPECT_EQ(0, monitor->public_getNumTracked());
+    EXPECT_EQ(0, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
         assertNoAck();
@@ -573,7 +570,7 @@ TEST_F(ActiveDurabilityMonitorTest, ProcessTimeout) {
     ASSERT_EQ(1, addSyncWrites({201} /*seqno*/, {level, 20 /*timeout*/}));
     ASSERT_EQ(1, addSyncWrites({202} /*seqno*/, {level, 1}));
     ASSERT_EQ(1, addSyncWrites({203} /*seqno*/, {level, 50000}));
-    EXPECT_EQ(3, monitor->public_getNumTracked());
+    EXPECT_EQ(3, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
         assertNoAck();
@@ -582,8 +579,8 @@ TEST_F(ActiveDurabilityMonitorTest, ProcessTimeout) {
     monitor->processTimeout(std::chrono::steady_clock::now() +
                             std::chrono::milliseconds(10000));
 
-    EXPECT_EQ(1, monitor->public_getNumTracked());
-    const auto tracked = monitor->public_getTrackedSeqnos();
+    EXPECT_EQ(1, monitor->getNumTracked());
+    const auto tracked = monitor->getTrackedSeqnos();
     EXPECT_TRUE(tracked.find(201) == tracked.end());
     EXPECT_TRUE(tracked.find(202) == tracked.end());
     EXPECT_TRUE(tracked.find(203) != tracked.end());
@@ -595,7 +592,7 @@ TEST_F(ActiveDurabilityMonitorTest, ProcessTimeout) {
     monitor->processTimeout(std::chrono::steady_clock::now() +
                             std::chrono::milliseconds(100000));
 
-    EXPECT_EQ(0, monitor->public_getNumTracked());
+    EXPECT_EQ(0, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
         assertNoAck();
@@ -633,14 +630,14 @@ TEST_F(ActiveDurabilityMonitorTest, MajorityAndPersistActive) {
 TEST_F(ActiveDurabilityMonitorTest, PersistToMajority_PersistAtActive) {
     ASSERT_NO_THROW(monitor->setReplicationTopology(
             nlohmann::json::array({{active, replica1, replica2}})));
-    ASSERT_EQ(3, monitor->public_getFirstChainSize());
+    ASSERT_EQ(3, monitor->getFirstChainSize());
 
     const int64_t seqno = 1;
     ASSERT_EQ(1,
               addSyncWrites({seqno},
                             {cb::durability::Level::PersistToMajority,
                              0 /*timeout*/}));
-    ASSERT_EQ(1, monitor->public_getNumTracked());
+    ASSERT_EQ(1, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
         assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
@@ -813,8 +810,7 @@ void PassiveDurabilityMonitorTest::SetUp() {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
     vb = store->getVBuckets().getBucket(vbid).get();
     ASSERT_TRUE(vb);
-    monitor = dynamic_cast<PassiveDurabilityMonitor*>(
-            vb->durabilityMonitor.get());
+    monitor = &VBucketTestIntrospector::public_getPassiveDM(*vb);
     ASSERT_TRUE(monitor);
 }
 

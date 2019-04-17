@@ -577,9 +577,14 @@ void VBucket::setReplicationTopology(const nlohmann::json& topology) {
     }
 }
 
-ActiveDurabilityMonitor& VBucket::getActiveDM() const {
+ActiveDurabilityMonitor& VBucket::getActiveDM() {
     Expects(state == vbucket_state_active);
     return dynamic_cast<ActiveDurabilityMonitor&>(*durabilityMonitor);
+}
+
+PassiveDurabilityMonitor& VBucket::getPassiveDM() {
+    Expects(state == vbucket_state_replica);
+    return dynamic_cast<PassiveDurabilityMonitor&>(*durabilityMonitor);
 }
 
 std::unique_ptr<DurabilityMonitor> VBucket::makeDurabilityMonitor() {
