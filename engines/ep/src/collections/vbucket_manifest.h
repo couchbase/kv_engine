@@ -24,7 +24,6 @@
 #include "systemevent.h"
 
 #include <boost/optional/optional_fwd.hpp>
-#include <folly/SharedMutex.h>
 #include <platform/non_negative_counter.h>
 #include <platform/rwlock.h>
 #include <platform/sized_buffer.h>
@@ -34,7 +33,6 @@
 #include <list>
 #include <mutex>
 #include <set>
-#include <shared_mutex>
 #include <unordered_map>
 
 class VBucket;
@@ -81,7 +79,6 @@ namespace VB {
 class Manifest {
 public:
     using container = ::std::unordered_map<CollectionID, ManifestEntry>;
-    using mutex_type = folly::SharedMutex;
 
     /**
      * RAII read locking for access to the Manifest.
@@ -98,7 +95,7 @@ public:
          */
         ReadHandle() = default;
 
-        ReadHandle(const Manifest* m, mutex_type& lock)
+        ReadHandle(const Manifest* m, cb::RWLock& lock)
             : readLock(lock), manifest(m) {
         }
 
@@ -260,7 +257,7 @@ public:
     protected:
         friend std::ostream& operator<<(std::ostream& os,
                                         const Manifest::ReadHandle& readHandle);
-        std::shared_lock<mutex_type> readLock;
+        std::unique_lock<cb::ReaderLock> readLock;
         const Manifest* manifest;
     };
 
@@ -292,7 +289,7 @@ public:
          *        should not be allowed, whereas a disk backfill is allowed
          */
         CachingReadHandle(const Manifest* m,
-                          mutex_type& lock,
+                          cb::RWLock& lock,
                           DocKey key,
                           bool allowSystem)
             : ReadHandle(m, lock),
@@ -469,7 +466,7 @@ public:
      */
     class StatsReadHandle : private ReadHandle {
     public:
-        StatsReadHandle(const Manifest* m, mutex_type& lock, CollectionID cid)
+        StatsReadHandle(const Manifest* m, cb::RWLock& lock, CollectionID cid)
             : ReadHandle(m, lock), itr(m->getManifestIterator(cid)) {
         }
 
@@ -503,7 +500,7 @@ public:
      */
     class WriteHandle {
     public:
-        WriteHandle(Manifest& m, mutex_type& lock)
+        WriteHandle(Manifest& m, cb::RWLock& lock)
             : writeLock(lock), manifest(m) {
         }
 
@@ -644,7 +641,7 @@ public:
         }
 
     private:
-        mutex_type::WriteHolder writeLock;
+        std::unique_lock<cb::WriterLock> writeLock;
         Manifest& manifest;
     };
 
@@ -1256,7 +1253,7 @@ protected:
     /**
      * shared lock to allow concurrent readers and safe updates
      */
-    mutable mutex_type rwlock;
+    mutable cb::RWLock rwlock;
 
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 

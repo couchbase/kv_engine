@@ -37,19 +37,19 @@ public:
     }
 
     bool exists(CollectionID identifier) const {
-        mutex_type::ReadHolder readLock(rwlock);
+        std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
         return exists_UNLOCKED(identifier);
     }
 
     size_t size() const {
-        mutex_type::ReadHolder readLock(rwlock);
+        std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
         return map.size();
     }
 
     bool compareEntry(CollectionID id,
                       const Collections::VB::ManifestEntry& entry,
                       bool ignoreHighSeqno = false) const {
-        mutex_type::ReadHolder readLock(rwlock);
+        std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
         if (exists_UNLOCKED(id)) {
             auto itr = map.find(id);
             const auto& myEntry = itr->second;
@@ -75,7 +75,7 @@ public:
     }
 
     bool operator==(const MockVBManifest& rhs) const {
-        mutex_type::ReadHolder readLock(rwlock);
+        std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
         if (rhs.size() != size()) {
             return false;
         }

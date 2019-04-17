@@ -871,8 +871,8 @@ boost::optional<std::vector<CollectionID>> Manifest::getCollectionsForScope(
 }
 
 bool Manifest::operator==(const Manifest& rhs) const {
-    mutex_type::ReadHolder readLock(rwlock);
-    mutex_type::ReadHolder otherReadLock(rhs.rwlock);
+    std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
+    std::lock_guard<cb::ReaderLock> otherReadLock(rhs.rwlock.reader());
 
     if (rhs.map.size() != map.size()) {
         return false;
