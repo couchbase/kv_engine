@@ -75,6 +75,13 @@ void logWarmupStats(EPBucket& epstore) {
             megabytes_per_seconds);
 }
 
+/**
+ * Returns the ValueFilter to use for KVStore scans, given the bucket
+ * compression mode.
+ */
+static ValueFilter getValueFilterForCompressionMode(
+        const BucketCompressionMode& compressionMode);
+
 //////////////////////////////////////////////////////////////////////////////
 //                                                                          //
 //    Helper class used to insert data into the epstore                     //
@@ -1109,36 +1116,84 @@ void Warmup::scheduleLoadPreparedSyncWrites() {
 }
 
 void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
-    // Perform a range lookup of just prepared namespace
-    // For each item found, load into HashTable
-    for (const auto vbid : shardVbIds[shardId]) {
-        // Need to form start and end keys which encompass _all_ possible
-        // keys under the DurabilityPrepare namespace.
-        //   Start: DurabilityPrepare=true, lowest possible collectionID,
-        //   zero length key.
-        //     0x02 0x00
-        auto startKey =
-                DiskDocKey{StoredDocKey{"", CollectionID::Default}, true};
-        //   End: DurabilityPrepare=false, CollectionID following
-        //   DurabilityPrepare, zero length key:
-        //     0x03 0x00
-        auto endCid = CollectionID{CollectionID::Reserved3,
-                                   CollectionID::SkipIDVerificationTag{}};
-        auto endKey = DiskDocKey{StoredDocKey{"", endCid}, false};
+    // Perform an in-order scan of the seqno index.
+    // a) For each Prepared item found, add to the Durability Monitor and
+    //    HashTable.
+    // b) For each Committed (via Mutation or Prepare) item, if a prepared
+    //    item exists in the HashTable (i.e. was added at step (a)) then mark
+    //    it as Committed in the DurabilityMonitor.
+    //
+    // At the end of the scan, all in-flight Prepared items (which did not
+    // have a Commit persisted to disk) will be registered with the Durability
+    // Monitor.
 
+    /// Disk load callback for scan.
+    struct LoadSyncWrites : public StatusCallback<GetValue> {
+        LoadSyncWrites(EPVBucket& vb) : vb(vb) {
+        }
+
+        void callback(GetValue& val) override {
+            // Should only be called back for non-deleted items.
+            Expects(!val.item->isDeleted());
+
+            if (val.item->isPending()) {
+                // Pending item which was not aborted (deleted). Load into
+                // VBucket.
+                queued_item qi(val.item.release());
+                const auto res = vb.insertFromWarmup(*qi,
+                                                     /*shouldEject*/ false,
+                                                     /*keyMetaDataOnly*/ false);
+                Expects(res == MutationStatus::NotFound);
+                return;
+            }
+
+            if (val.item->isCommitted()) {
+                // Committed item. If there's an outstanding prepared
+                // SyncWrite, commit it.
+                auto handle = vb.lockCollections(val.item->getKey());
+                auto prepared = vb.fetchPreparedValue(handle);
+                if (!prepared.storedValue) {
+                    return;
+                }
+
+                vb.ht.commit(prepared.lock, *prepared.storedValue);
+            }
+        }
+
+        EPVBucket& vb;
+    };
+
+    for (const auto vbid : shardVbIds[shardId]) {
         auto vb = store.getVBucket(vbid);
         auto& epVb = dynamic_cast<EPVBucket&>(*vb);
 
-        store.getROUnderlyingByShard(shardId)->getRange(
-                vbid, startKey, endKey, [&epVb](GetValue&& gv) {
-                    EP_LOG_DEBUG("Warmup::loadPreparedSyncWrites: {}",
-                                 *gv.item);
-                    const auto res =
-                            epVb.insertFromWarmup(*gv.item,
-                                                  /*shouldEject*/ false,
-                                                  gv.isPartial());
-                    Expects(res == MutationStatus::NotFound);
-                });
+        auto storageCB = std::make_shared<LoadSyncWrites>(epVb);
+
+        // Don't expect to find anything already in the HashTable, so use
+        // NoLookupCallback.
+        auto cacheCB = std::make_shared<NoLookupCallback>();
+
+        // @todo-durability: We can optimise this by starting the scan at the
+        // high_committed_seqno - all earlier prepares would have been committed
+        // (or were aborted).
+        uint64_t startSeqno = 0;
+
+        auto valFilter = getValueFilterForCompressionMode(
+                store.getEPEngine().getCompressionMode());
+
+        auto* kvStore = store.getROUnderlyingByShard(shardId);
+        auto* scanCtx = kvStore->initScanContext(storageCB,
+                                                 cacheCB,
+                                                 vbid,
+                                                 startSeqno,
+                                                 DocumentFilter::NO_DELETES,
+                                                 valFilter);
+        Expects(scanCtx);
+
+        auto scanResult = kvStore->scan(scanCtx);
+        Expects(scanResult == scan_success);
+
+        kvStore->destroyScanContext(scanCtx);
     }
 
     if (++threadtask_count == store.vbMap.getNumShards()) {
