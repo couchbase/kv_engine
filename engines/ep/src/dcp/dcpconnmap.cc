@@ -426,7 +426,7 @@ void DcpConnMap::notifyVBConnections(Vbid vbid, uint64_t bySeqno) {
     }
 }
 
-void DcpConnMap::seqnoAckVBPassiveStream(Vbid vbid) {
+void DcpConnMap::seqnoAckVBPassiveStream(Vbid vbid, int64_t seqno) {
     size_t index = vbid.get() % vbConnLockNum;
     std::lock_guard<std::mutex> lg(vbConnLocks[index]);
 
@@ -447,7 +447,7 @@ void DcpConnMap::seqnoAckVBPassiveStream(Vbid vbid) {
             //     pre-6.5 Producers (e.g., topology change in a 6.5 cluster
             //     where a new pre-6.5 Active is elected).
             if (consumer->isSyncReplicationEnabled()) {
-                consumer->seqnoAckStream(vbid);
+                consumer->seqnoAckStream(vbid, seqno);
             }
         }
     }

@@ -827,7 +827,7 @@ void VBucket::notifyClientOfSyncWriteComplete(const void* cookie,
     syncWriteCompleteCb(cookie, result);
 }
 
-void VBucket::seqnoAck(int64_t seqno) {
+void VBucket::sendSeqnoAck(int64_t seqno) {
     Expects(state == vbucket_state_replica);
     seqnoAckCb(getId(), seqno);
 }
@@ -3230,17 +3230,17 @@ ENGINE_ERROR_CODE VBucket::seqnoAcknowledged(const std::string& replicaId,
     return getActiveDM().seqnoAckReceived(replicaId, preparedSeqno);
 }
 
-void VBucket::notifyPersistenceToDurabilityMonitor(
-        EventuallyPersistentEngine& engine) {
-    // @todo-durability: Always delegate the DurabilityMonitor for
-    //     SeqnoAck (even for Replica). Requires that we implement
-    //     the DurabilityMonitor for Replica.
+void VBucket::notifyPersistenceToDurabilityMonitor() {
     folly::SharedMutex::ReadHolder wlh(stateLock);
-    if (getState() == vbucket_state_active) {
-        getActiveDM().notifyLocalPersistence();
-    } else if (getState() == vbucket_state_replica) {
-        engine.getDcpConnMap().seqnoAckVBPassiveStream(getId());
+
+    // @todo-durability: Consider vbstate Pending
+    if (state != vbucket_state_active && state != vbucket_state_replica) {
+        throw std::logic_error(
+                "VBucket::notifyPersistenceToDurabilityMonitor: state " +
+                std::string(toString(state)));
     }
+
+    durabilityMonitor->notifyLocalPersistence();
 }
 
 void VBucket::DeferredDeleter::operator()(VBucket* vb) const {

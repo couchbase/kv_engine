@@ -84,10 +84,10 @@ public:
 
     /**
      * Push a SeqnoAck message over this stream.
-     * The memory/disk seqnos in the SeqnoAck payload are respectively the
-     * high-seqno and the last-persisted-seqno for VBucket.
+     *
+     * @param seqno The payload
      */
-    void seqnoAck();
+    void seqnoAck(int64_t seqno);
 
     static const size_t batchSize;
 

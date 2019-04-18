@@ -204,7 +204,14 @@ void DurabilityPassiveStreamTest::TearDown() {
     SingleThreadedPassiveStreamTest::TearDown();
 }
 
-TEST_F(DurabilityPassiveStreamTest, MemorySeqnoAckAtSyncWriteReceived) {
+TEST_F(DurabilityPassiveStreamTest, SeqnoAckAtSyncWriteReceived) {
+    /*
+     * The consumer receives mutations {s:1, s:2, s:3}, with only s:2 durable
+     * with Level:Majority. We have to check that we send a SeqnoAck as soon as
+     * the Replica receives s:2 and that no further SeqnoAck is sent at
+     * receiving the snapshot-end mutation.
+     */
+
     // The consumer receives the snapshot-marker
     uint32_t opaque = 0;
     const uint64_t snapEnd = 3;
@@ -218,11 +225,6 @@ TEST_F(DurabilityPassiveStreamTest, MemorySeqnoAckAtSyncWriteReceived) {
     const auto& readyQ = stream->public_readyQ();
     EXPECT_EQ(0, readyQ.size());
 
-    // The consumer receives mutations {s:1, s:2, s:3}, with only s:2
-    // durable. We have to check that we send a SeqnoAck as soon as the
-    // replica receives a SyncWrite and that no further SeqnoAck is sent at
-    // receiving the snapshot-end mutation.
-
     const std::string value("value");
 
     ASSERT_EQ(ENGINE_SUCCESS,
@@ -230,41 +232,44 @@ TEST_F(DurabilityPassiveStreamTest, MemorySeqnoAckAtSyncWriteReceived) {
                       1 /*seqno*/, vbid, value, opaque)));
     EXPECT_EQ(0, readyQ.size());
 
-    const uint64_t syncWriteSeqno = 2;
+    const uint64_t swSeqno = 2;
 
-    auto checkReadyQ = [&readyQ, syncWriteSeqno]() -> void {
+    auto checkReadyQ = [&readyQ, swSeqno]() -> void {
         EXPECT_EQ(1, readyQ.size());
         ASSERT_EQ(1, readyQ.size());
         ASSERT_EQ(DcpResponse::Event::SeqnoAcknowledgement,
                   readyQ.front()->getEvent());
-        // @todo-durability: Disabled until DurabilityMonitor updated to have
-        // a single prepared seqno (currently we only prepare when on-disk).
-#if 0
         const auto* seqnoAck =
                 static_cast<const SeqnoAcknowledgement*>(readyQ.front().get());
-        EXPECT_EQ(ntohll(syncWriteSeqno), seqnoAck->getPreparedSeqno());
-#endif
+        EXPECT_EQ(ntohll(swSeqno), seqnoAck->getPreparedSeqno());
     };
 
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(makeMutationConsumerMessage(
-                      syncWriteSeqno,
+                      swSeqno,
                       vbid,
                       value,
                       opaque,
                       cb::durability::Requirements())));
-    // Verify that we have 1 SeqnoAck with memSeqno=syncWriteSeqno
+    // Verify that we have SeqnoAck(swSeqno) in readyQ
     checkReadyQ();
 
     // snapshot-end
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(makeMutationConsumerMessage(
                       snapEnd, vbid, value, opaque)));
-    // Verify that we still have only 1 SeqnoAck with memSeqno=syncWriteSeqno
+    // Verify that we still have just one SeqnoAck(swSeqno) in readyQ
     checkReadyQ();
 }
 
-TEST_F(DurabilityPassiveStreamTest, DiskSeqnoAckAtPersistedSeqno) {
+TEST_F(DurabilityPassiveStreamTest, SeqnoAckAtPersistedSeqno) {
+    /*
+     * The consumer receives mutations {s:1, s:2, s:3}, with only s:2 durable
+     * with Level:PersistToMajority. We have to check that we send a SeqnoAck
+     * as soon as the flush-batch is persisted, even if we have received and
+     * persisted a partial snapshot (note that we never receive s:4 here).
+     */
+
     // The consumer receives the snapshot-marker [1, 3]
     uint32_t opaque = 0;
     SnapshotMarker snapshotMarker(opaque,
@@ -277,11 +282,6 @@ TEST_F(DurabilityPassiveStreamTest, DiskSeqnoAckAtPersistedSeqno) {
     const auto& readyQ = stream->public_readyQ();
     EXPECT_EQ(0, readyQ.size());
 
-    // The consumer receives mutations {s:1, s:2, s:3}, with only s:2
-    // durable. We have to check that we do send a SeqnoAck as soon as the
-    // FlushBatch is persisted, even if we have received/persisted a partial
-    // snapshot (note that we never receive s:4 here).
-
     const std::string value("value");
 
     ASSERT_EQ(ENGINE_SUCCESS,
@@ -289,24 +289,21 @@ TEST_F(DurabilityPassiveStreamTest, DiskSeqnoAckAtPersistedSeqno) {
                       1 /*seqno*/, vbid, value, opaque)));
     EXPECT_EQ(0, readyQ.size());
 
+    const int64_t swSeqno = 2;
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(makeMutationConsumerMessage(
-                      2 /*seqno*/,
+                      swSeqno,
                       vbid,
                       value,
                       opaque,
-                      cb::durability::Requirements())));
-    EXPECT_EQ(1, readyQ.size());
-    // SeqnoAck carrying mem-seqno in readyQ (mem-seqno acked at Prepare
-    // receive)
-    ASSERT_EQ(1, readyQ.size());
-    ASSERT_EQ(DcpResponse::Event::SeqnoAcknowledgement,
-              readyQ.front()->getEvent());
-    const auto* seqnoAck =
-            static_cast<const SeqnoAcknowledgement*>(readyQ.front().get());
-    EXPECT_EQ(ntohll(0), seqnoAck->getPreparedSeqno());
-    ASSERT_TRUE(stream->public_popFromReadyQ());
+                      cb::durability::Requirements(
+                              cb::durability::Level::PersistToMajority,
+                              0 /*timeout*/))));
+    // No SeqnoAck yet, High Prepared Seqno has not been updated yet as
+    // Level:PersistToMajority and the Prepare has been persisted yet
+    EXPECT_EQ(0, readyQ.size());
 
+    // Another non-sync write comes
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(makeMutationConsumerMessage(
                       3 /*seqno*/, vbid, value, opaque)));
@@ -317,12 +314,156 @@ TEST_F(DurabilityPassiveStreamTest, DiskSeqnoAckAtPersistedSeqno) {
             std::make_pair(false /*more_to_flush*/, size_t(3) /*num_flushed*/),
             getEPBucket().flushVBucket(vbid));
 
-    // We must have a correct SeqnoAck in readyQ
+    // We must have a SeqnoAck with payload HPS in readyQ.
+    // Note that s:3 (which is a non-sync write) must not affect HPS, which
+    // must be set to the last locally-satisfied Prepare.
     ASSERT_EQ(1, readyQ.size());
     ASSERT_EQ(DcpResponse::Event::SeqnoAcknowledgement,
               readyQ.front()->getEvent());
-    seqnoAck = static_cast<const SeqnoAcknowledgement*>(readyQ.front().get());
-    EXPECT_EQ(ntohll(3), seqnoAck->getPreparedSeqno());
+    const auto* seqnoAck =
+            static_cast<const SeqnoAcknowledgement*>(readyQ.front().get());
+    EXPECT_EQ(ntohll(swSeqno), seqnoAck->getPreparedSeqno());
+}
+
+/**
+ * The test simulates a Replica receiving:
+ *
+ * snapshot-marker [1, 10] -> no-ack
+ * s:1 non-durable -> no ack
+ * s:2 Level:Majority -> ack (HPS=2)
+ * s:3 non-durable -> no ack
+ * s:4 Level:MajorityAndPersistOnMaster -> ack (HPS=4)
+ * s:5 non-durable -> no ack
+ * s:6 Level:PersistToMajority -> no ack (durability-fence)
+ * s:7 Level-Majority -> no ack
+ * s:8 Level:MajorityAndPersistOnMaster -> no ack
+ * s:9 non-durable -> no ack
+ * s:9 non-durable -> no ack
+ * s:10 non-durable (snapshot-end) -> no ack
+ *
+ * Last step: flusher persists all -> ack (HPS=8)
+ */
+TEST_F(DurabilityPassiveStreamTest, DurabilityFence) {
+    const auto& readyQ = stream->public_readyQ();
+    auto checkSeqnoAckInReadyQ = [this, &readyQ](int64_t seqno) -> void {
+        ASSERT_EQ(1, readyQ.size());
+        ASSERT_EQ(DcpResponse::Event::SeqnoAcknowledgement,
+                  readyQ.front()->getEvent());
+        const auto& seqnoAck =
+                static_cast<const SeqnoAcknowledgement&>(*readyQ.front());
+        EXPECT_EQ(ntohll(seqno), seqnoAck.getPreparedSeqno());
+        // Clear readyQ
+        ASSERT_TRUE(stream->public_popFromReadyQ());
+        ASSERT_FALSE(readyQ.size());
+    };
+
+    // snapshot-marker [1, 10] -> no-ack
+    uint32_t opaque = 0;
+    SnapshotMarker snapshotMarker(opaque,
+                                  vbid,
+                                  1 /*snapStart*/,
+                                  10 /*snapEnd*/,
+                                  dcp_marker_flag_t::MARKER_FLAG_MEMORY,
+                                  {});
+    stream->processMarker(&snapshotMarker);
+    EXPECT_EQ(0, readyQ.size());
+
+    // s:1 non-durable -> no ack
+    const std::string value("value");
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      1 /*seqno*/, vbid, value, opaque)));
+    EXPECT_EQ(0, readyQ.size());
+
+    // s:2 Level:Majority -> ack (HPS=2)
+    ASSERT_EQ(
+            ENGINE_SUCCESS,
+            stream->messageReceived(makeMutationConsumerMessage(
+                    2 /*seqno*/,
+                    vbid,
+                    value,
+                    opaque,
+                    cb::durability::Requirements(
+                            cb::durability::Level::Majority, 0 /*timeout*/))));
+    checkSeqnoAckInReadyQ(2 /*HPS*/);
+
+    // s:3 non-durable -> no ack
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      3 /*seqno*/, vbid, value, opaque)));
+    EXPECT_EQ(0, readyQ.size());
+
+    // s:4 Level:MajorityAndPersistOnMaster -> ack (HPS=4)
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      4 /*seqno*/,
+                      vbid,
+                      value,
+                      opaque,
+                      cb::durability::Requirements(
+                              cb::durability::Level::MajorityAndPersistOnMaster,
+                              0 /*timeout*/))));
+    checkSeqnoAckInReadyQ(4 /*HPS*/);
+
+    // s:5 non-durable -> no ack
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      5 /*seqno*/, vbid, value, opaque)));
+    EXPECT_EQ(0, readyQ.size());
+
+    // s:6 Level:PersistToMajority -> no ack (durability-fence)
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      6 /*seqno*/,
+                      vbid,
+                      value,
+                      opaque,
+                      cb::durability::Requirements(
+                              cb::durability::Level::PersistToMajority,
+                              0 /*timeout*/))));
+    EXPECT_EQ(0, readyQ.size());
+
+    // s:7 Level-Majority -> no ack
+    ASSERT_EQ(
+            ENGINE_SUCCESS,
+            stream->messageReceived(makeMutationConsumerMessage(
+                    7 /*seqno*/,
+                    vbid,
+                    value,
+                    opaque,
+                    cb::durability::Requirements(
+                            cb::durability::Level::Majority, 0 /*timeout*/))));
+    EXPECT_EQ(0, readyQ.size());
+
+    // s:8 Level:MajorityAndPersistOnMaster -> no ack
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      8 /*seqno*/,
+                      vbid,
+                      value,
+                      opaque,
+                      cb::durability::Requirements(
+                              cb::durability::Level::MajorityAndPersistOnMaster,
+                              0 /*timeout*/))));
+    EXPECT_EQ(0, readyQ.size());
+
+    // s:9 non-durable -> no ack
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      9 /*seqno*/, vbid, value, opaque)));
+    EXPECT_EQ(0, readyQ.size());
+
+    // s:10 non-durable (snapshot-end) -> no ack
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(
+                      makeMutationConsumerMessage(10, vbid, value, opaque)));
+    EXPECT_EQ(0, readyQ.size());
+
+    // Flusher persists all -> ack (HPS=8)
+    EXPECT_EQ(
+            std::make_pair(false /*more_to_flush*/, size_t(10) /*num_flushed*/),
+            getEPBucket().flushVBucket(vbid));
+    checkSeqnoAckInReadyQ(8 /*HPS*/);
 }
 
 void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {

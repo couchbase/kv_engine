@@ -68,15 +68,27 @@ void PassiveDurabilityMonitor::addSyncWrite(queued_item item) {
                 "PassiveDurabilityMonitor::addSyncWrite: Level::None");
     }
 
-    auto s = state.wlock();
-    s->trackedWrites.emplace_back(
-            nullptr /*cookie*/, std::move(item), nullptr /*firstChain*/);
+    int64_t prevHps{0};
+    int64_t hps{0};
+    {
+        auto s = state.wlock();
+        s->trackedWrites.emplace_back(
+                nullptr /*cookie*/, std::move(item), nullptr /*firstChain*/);
 
-    // Maybe the new tracked Prepare is already satisfied and could be ack'ed
-    // back to the Active.
-    s->updateHighPreparedSeqno();
+        // Maybe the new tracked Prepare is already satisfied and could be
+        // ack'ed back to the Active.
+        prevHps = s->highPreparedSeqno.lastWriteSeqno;
+        s->updateHighPreparedSeqno();
+        hps = s->highPreparedSeqno.lastWriteSeqno;
+    }
 
-    // @todo: Send SeqnoAck
+    // HPS may have not be changed, which would result in re-acking the same
+    // HPS multiple times. Not wrong as HPS is weakly-monotonic at Active, but
+    // we want to avoid sending unnecessary messages.
+    if (hps != prevHps) {
+        Expects(hps > prevHps);
+        vb.sendSeqnoAck(hps);
+    }
 }
 
 size_t PassiveDurabilityMonitor::getNumTracked() const {
@@ -84,9 +96,19 @@ size_t PassiveDurabilityMonitor::getNumTracked() const {
 }
 
 void PassiveDurabilityMonitor::notifyLocalPersistence() {
-    state.wlock()->updateHighPreparedSeqno();
+    int64_t prevHps{0};
+    int64_t hps{0};
+    {
+        auto s = state.wlock();
+        prevHps = s->highPreparedSeqno.lastWriteSeqno;
+        s->updateHighPreparedSeqno();
+        hps = s->highPreparedSeqno.lastWriteSeqno;
+    }
+    // Note: This function is supposed to be called only when the Flusher has
+    //     persisted a Prepare. So, HPS must have changed at this point.
+    Expects(hps > prevHps);
 
-    // @todo: Send SeqnoAck
+    vb.sendSeqnoAck(hps);
 }
 
 void PassiveDurabilityMonitor::toOStream(std::ostream& os) const {

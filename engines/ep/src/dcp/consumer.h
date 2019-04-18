@@ -232,12 +232,11 @@ public:
 
     /**
      * Send a SeqnoAck message over the PassiveStream for the given VBucket.
-     * The memory/disk seqnos in the SeqnoAck payload are respectively the
-     * high-seqno and the last-persisted-seqno for VBucket.
      *
      * @param vbid
+     * @param seqno The payload
      */
-    void seqnoAckStream(Vbid vbid);
+    void seqnoAckStream(Vbid vbid, int64_t seqno);
 
     void addStats(const AddStatFn& add_stat, const void* c) override;
 

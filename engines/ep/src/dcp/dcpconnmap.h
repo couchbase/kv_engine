@@ -67,12 +67,11 @@ public:
 
     /**
      * Send a SeqnoAck message over the PassiveStream for the given VBucket.
-     * The memory/disk seqnos in the SeqnoAck payload are respectively the
-     * high-seqno and the last-persisted-seqno for VBucket.
      *
      * @param vbid
+     * @param seqno The payload
      */
-    void seqnoAckVBPassiveStream(Vbid vbid);
+    void seqnoAckVBPassiveStream(Vbid vbid, int64_t seqno);
 
     void notifyBackfillManagerTasks();
 

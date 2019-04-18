@@ -840,10 +840,6 @@ TEST_F(PassiveDurabilityMonitorTest, HPS_Majority) {
                             cb::durability::Level::Majority,
                             3 /*expectedNumTracked*/,
                             3 /*expectHPS*/);
-
-    // This shouldn't happen, as there's no Level=PersistToMajority Prepare
-    // tracked. Just check that the HPS logic is resilient to this though.
-    notifyPersistenceAndCheckHPS(1000 /*persistedSeqno*/, 3 /*expectHPS*/);
 }
 
 TEST_F(PassiveDurabilityMonitorTest, HPS_MajorityAndPersistOnMaster) {
@@ -854,10 +850,6 @@ TEST_F(PassiveDurabilityMonitorTest, HPS_MajorityAndPersistOnMaster) {
                             cb::durability::Level::MajorityAndPersistOnMaster,
                             3 /*expectedNumTracked*/,
                             3 /*expectHPS*/);
-
-    // This shouldn't happen, as there's no Level=PersistToMajority Prepare
-    // tracked. Just check that the HPS logic is resilient to this though.
-    notifyPersistenceAndCheckHPS(1000 /*persistedSeqno*/, 3 /*expectHPS*/);
 }
 
 TEST_F(PassiveDurabilityMonitorTest, HPS_PersistToMajority) {

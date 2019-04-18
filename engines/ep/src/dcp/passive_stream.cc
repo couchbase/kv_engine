@@ -636,28 +636,14 @@ ENGINE_ERROR_CODE PassiveStream::processPrepare(
     auto result = processMessage(prepare, MessageType::Prepare);
     Expects(prepare->getItem()->getBySeqno() ==
             engine->getVBucket(vb_)->getHighSeqno());
-    seqnoAck();
     return result;
 }
 
-void PassiveStream::seqnoAck() {
-    // Durability
-    //
-    // This function is called for sending a SeqnoAck to the Active after:
-    // 1) a Prepare has been received over this PassiveStream
-    // 2) the Flusher has persisted all the items remaining for this VBucket
+void PassiveStream::seqnoAck(int64_t seqno) {
     {
-        VBucketPtr vb = engine->getVBucket(vb_);
         LockHolder lh(streamMutex);
-        /* @todo-durability: TEMP: Only sending getPersistenceSeqno() here
-         * to allow migration to single high_prepared_seqno before
-         * DurabilityMonitor fully updated to support it.
-         * We should send the high_prepared_seqno here instead of
-         * PersistenceSeqno, or otherwise get the (Passive)DurabilityMonitor
-         * to send the SeqnoAck
-         */
-        pushToReadyQ(std::make_unique<SeqnoAcknowledgement>(
-                opaque_, vb_, vb->getPersistenceSeqno()));
+        pushToReadyQ(
+                std::make_unique<SeqnoAcknowledgement>(opaque_, vb_, seqno));
     }
     notifyStreamReady();
 }

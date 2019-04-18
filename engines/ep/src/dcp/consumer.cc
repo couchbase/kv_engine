@@ -1105,14 +1105,14 @@ bool DcpConsumer::doRollback(uint32_t opaque,
     return false; // Do not reschedule the rollback
 }
 
-void DcpConsumer::seqnoAckStream(Vbid vbid) {
+void DcpConsumer::seqnoAckStream(Vbid vbid, int64_t seqno) {
     auto stream = findStream(vbid);
     if (!stream) {
         throw std::logic_error(
                 "DcpConsumer::seqnoAckStream: Stream not found for " +
                 vbid.to_string());
     }
-    stream->seqnoAck();
+    stream->seqnoAck(seqno);
 }
 
 void DcpConsumer::addStats(const AddStatFn& add_stat, const void* c) {

@@ -510,11 +510,12 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                     vb->setPersistenceSeqno(highSeqno);
                 }
 
-                // If this is an Active node, then it must notify the local
-                // DurabilityMonitor. If this is a Replica node, then it must
-                // send a SeqnoAck to the Active.
+                // Notify the local DM if the flush-batch contains any durable
+                // mutation. That updates the High Prepared Seqno for this node.
+                // In the case of a Replica node, this action will trigger a
+                // SeqnoAck to the Active.
                 if (pendingSyncWrite) {
-                    vb->notifyPersistenceToDurabilityMonitor(engine);
+                    vb->notifyPersistenceToDurabilityMonitor();
                 }
             }
 

@@ -1335,7 +1335,7 @@ public:
      *
      * @param seqno The payload
      */
-    void seqnoAck(int64_t seqno);
+    void sendSeqnoAck(int64_t seqno);
 
     /**
      * Update in memory data structures after an item is deleted on disk
@@ -1514,11 +1514,8 @@ public:
     /**
      * Notify the DurabilityMonitor that the Flusher has persisted all the
      * items remaining for this VBucket.
-     *
-     * @param engine The engine
      */
-    void notifyPersistenceToDurabilityMonitor(
-            EventuallyPersistentEngine& engine);
+    void notifyPersistenceToDurabilityMonitor();
 
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
