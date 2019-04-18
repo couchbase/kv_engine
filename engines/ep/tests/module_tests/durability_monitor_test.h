@@ -42,6 +42,15 @@ protected:
     void addSyncWrite(int64_t seqno, cb::durability::Requirements req = {});
 
     /**
+     * Adds the given mutations for tracking.
+     *
+     * @param seqnos the mutations to be added
+     * @param req The Durability Requirements
+     */
+    void addSyncWrites(const std::vector<int64_t>& seqnos,
+                       cb::durability::Requirements req = {});
+
+    /**
      * Stores the given item via VBucket::processSet.
      * Useful for setting an exact provided bySeqno.
      *
@@ -72,16 +81,6 @@ protected:
      */
     size_t addSyncWrites(int64_t seqnoStart,
                          int64_t seqnoEnd,
-                         cb::durability::Requirements req = {});
-
-    /**
-     * Adds the given mutations for tracking.
-     *
-     * @param seqnos the mutations to be added
-     * @param req The Durability Requirements
-     * @return the number of added SyncWrites
-     */
-    size_t addSyncWrites(const std::vector<int64_t>& seqnos,
                          cb::durability::Requirements req = {});
 
     /**
@@ -159,6 +158,30 @@ public:
     void TearDown() override;
 
 protected:
+    /**
+     * Add the given SyncWrites for tracking and check that High Prepared Seqno
+     * has been updated as expected.
+     *
+     * @param seqnos The mutations to be queued
+     * @param level The Durability Level of the queued mutations
+     * @param expectedNumTracked
+     * @param expectedHPS
+     */
+    void addSyncWriteAndCheckHPS(const std::vector<int64_t>& seqnos,
+                                 cb::durability::Level level,
+                                 int64_t expectedNumTracked,
+                                 int64_t expectedHPS);
+
+    /**
+     * Notify the persistedSeqno to the DM and check that High Prepared Seqno
+     * has been updated as expected.
+     *
+     * @param persistedSeqno
+     * @param expectedHPS
+     */
+    void notifyPersistenceAndCheckHPS(int64_t persistedSeqno,
+                                      int64_t expectedHPS);
+
     // Owned by VBucket
     PassiveDurabilityMonitor* monitor;
 };

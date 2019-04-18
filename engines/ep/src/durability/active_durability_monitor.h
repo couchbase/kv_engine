@@ -94,13 +94,7 @@ public:
      */
     void processTimeout(std::chrono::steady_clock::time_point asOf);
 
-    /**
-     * Advances the local disk-tracking to the last persisted seqno for VBucket.
-     * Expected to be called by the Flusher.
-     *
-     * @throw std::logic_error if the replication-chain is not set
-     */
-    void notifyLocalPersistence();
+    void notifyLocalPersistence() override;
 
     /**
      * Output DurabiltyMonitor stats.

@@ -84,22 +84,11 @@ size_t ActiveDurabilityMonitorTest::addSyncWrites(
     return added;
 }
 
-size_t ActiveDurabilityMonitorTest::addSyncWrites(
-        const std::vector<int64_t>& seqnos, cb::durability::Requirements req) {
-    if (seqnos.empty()) {
-        throw std::logic_error(
-                "ActiveDurabilityMonitorTest::addSyncWrites: seqnos list is "
-                "empty");
-    }
-    size_t expectedNumTracked = monitor->getNumTracked();
-    size_t added = 0;
+void DurabilityMonitorTest::addSyncWrites(const std::vector<int64_t>& seqnos,
+                                          cb::durability::Requirements req) {
     for (auto seqno : seqnos) {
         addSyncWrite(seqno, req);
-        added++;
-        expectedNumTracked++;
-        EXPECT_EQ(expectedNumTracked, monitor->getNumTracked());
     }
-    return added;
 }
 
 MutationStatus DurabilityMonitorTest::processSet(Item& item) {
@@ -198,7 +187,8 @@ TEST_F(ActiveDurabilityMonitorTest, AddSyncWrite) {
 }
 
 TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceivedSmallerThanLastAcked) {
-    addSyncWrites({1, 2} /*seqnos*/);
+    DurabilityMonitorTest::addSyncWrites({1, 2} /*seqnos*/);
+    EXPECT_EQ(2, monitor->getNumTracked());
 
     const int64_t ackSeqno = 1;
     SCOPED_TRACE("");
@@ -273,7 +263,8 @@ TEST_F(ActiveDurabilityMonitorTest,
 
 TEST_F(ActiveDurabilityMonitorTest,
        SeqnoAckReceivedGreaterThanPending_SparseSeqnos) {
-    ASSERT_EQ(3, addSyncWrites({1, 3, 5} /*seqnos*/));
+    DurabilityMonitorTest::addSyncWrites({1, 3, 5} /*seqnos*/);
+    EXPECT_EQ(3, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
         assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
@@ -317,7 +308,8 @@ TEST_F(ActiveDurabilityMonitorTest,
 
 TEST_F(ActiveDurabilityMonitorTest,
        SeqnoAckReceivedGreaterThanLastTracked_SparseSeqnos) {
-    ASSERT_EQ(3, addSyncWrites({1, 3, 5} /*seqnos*/));
+    DurabilityMonitorTest::addSyncWrites({1, 3, 5} /*seqnos*/);
+    EXPECT_EQ(3, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
         assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
@@ -339,10 +331,10 @@ TEST_F(ActiveDurabilityMonitorTest,
 
 // @todo: Refactor test suite and expand test cases
 TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceived_PersistToMajority) {
-    ASSERT_EQ(3,
-              addSyncWrites({1, 3, 5} /*seqnos*/,
-                            {cb::durability::Level::PersistToMajority,
-                             0 /*timeout*/}));
+    DurabilityMonitorTest::addSyncWrites(
+            {1, 3, 5} /*seqnos*/,
+            {cb::durability::Level::PersistToMajority, 0 /*timeout*/});
+    EXPECT_EQ(3, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
         assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
@@ -498,7 +490,7 @@ TEST_F(ActiveDurabilityMonitorTest, NeverExpireIfTimeoutNotSet) {
     ASSERT_EQ(2, monitor->getFirstChainSize());
 
     // Note: Timeout=0 (i.e., no timeout) in default Durability Requirements
-    ASSERT_EQ(1, addSyncWrites({1} /*seqno*/));
+    addSyncWrite(1 /*seqno*/);
     EXPECT_EQ(1, monitor->getNumTracked());
 
     // Never expire, neither after 1 year !
@@ -526,7 +518,8 @@ TEST_F(ActiveDurabilityMonitorTest, ProcessTimeout) {
 
     const auto level = cb::durability::Level::Majority;
 
-    ASSERT_EQ(1, addSyncWrites({1} /*seqno*/, {level, 1 /*timeout*/}));
+    addSyncWrite(1 /*seqno*/, {level, 1 /*timeout*/});
+    EXPECT_EQ(1, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
         assertNoAck();
@@ -545,10 +538,10 @@ TEST_F(ActiveDurabilityMonitorTest, ProcessTimeout) {
      * Multiple SyncWrites, ordered by timeout
      */
 
-    ASSERT_EQ(1, addSyncWrites({101} /*seqno*/, {level, 1 /*timeout*/}));
-    ASSERT_EQ(1, addSyncWrites({102} /*seqno*/, {level, 10}));
-    ASSERT_EQ(1, addSyncWrites({103} /*seqno*/, {level, 20}));
-    EXPECT_EQ(3, monitor->getNumTracked());
+    addSyncWrite(101 /*seqno*/, {level, 1 /*timeout*/});
+    addSyncWrite(102 /*seqno*/, {level, 10});
+    addSyncWrite(103 /*seqno*/, {level, 20});
+    ASSERT_EQ(3, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
         assertNoAck();
@@ -567,10 +560,10 @@ TEST_F(ActiveDurabilityMonitorTest, ProcessTimeout) {
      * Multiple SyncWrites, not ordered by timeout
      */
 
-    ASSERT_EQ(1, addSyncWrites({201} /*seqno*/, {level, 20 /*timeout*/}));
-    ASSERT_EQ(1, addSyncWrites({202} /*seqno*/, {level, 1}));
-    ASSERT_EQ(1, addSyncWrites({203} /*seqno*/, {level, 50000}));
-    EXPECT_EQ(3, monitor->getNumTracked());
+    addSyncWrite(201 /*seqno*/, {level, 20 /*timeout*/});
+    addSyncWrite(202 /*seqno*/, {level, 1});
+    addSyncWrite(203 /*seqno*/, {level, 50000});
+    ASSERT_EQ(3, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
         assertNoAck();
@@ -600,10 +593,10 @@ TEST_F(ActiveDurabilityMonitorTest, ProcessTimeout) {
 }
 
 TEST_F(ActiveDurabilityMonitorTest, MajorityAndPersistActive) {
-    ASSERT_EQ(3,
-              addSyncWrites({1, 3, 5} /*seqnos*/,
-                            {cb::durability::Level::MajorityAndPersistOnMaster,
-                             0 /*timeout*/}));
+    DurabilityMonitorTest::addSyncWrites(
+            {1, 3, 5} /*seqnos*/,
+            {cb::durability::Level::MajorityAndPersistOnMaster, 0 /*timeout*/});
+    ASSERT_EQ(3, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
         assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
@@ -633,10 +626,8 @@ TEST_F(ActiveDurabilityMonitorTest, PersistToMajority_PersistAtActive) {
     ASSERT_EQ(3, monitor->getFirstChainSize());
 
     const int64_t seqno = 1;
-    ASSERT_EQ(1,
-              addSyncWrites({seqno},
-                            {cb::durability::Level::PersistToMajority,
-                             0 /*timeout*/}));
+    addSyncWrite(seqno,
+                 {cb::durability::Level::PersistToMajority, 0 /*timeout*/});
     ASSERT_EQ(1, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
@@ -820,7 +811,190 @@ void PassiveDurabilityMonitorTest::TearDown() {
 
 TEST_F(PassiveDurabilityMonitorTest, AddSyncWrite) {
     ASSERT_EQ(0, monitor->getNumTracked());
-    auto item = makePendingItem(makeStoredDocKey("key"), "value");
-    EXPECT_NO_THROW(monitor->addSyncWrite(item));
+    addSyncWrite(1 /*seqno*/);
     EXPECT_EQ(1, monitor->getNumTracked());
+}
+
+void PassiveDurabilityMonitorTest::addSyncWriteAndCheckHPS(
+        const std::vector<int64_t>& seqnos,
+        cb::durability::Level level,
+        int64_t expectedNumTracked,
+        int64_t expectedHPS) {
+    addSyncWrites(seqnos, cb::durability::Requirements{level, 0 /*timeout*/});
+    ASSERT_EQ(expectedNumTracked, monitor->getNumTracked());
+    EXPECT_EQ(expectedHPS, monitor->getHighPreparedSeqno());
+}
+
+void PassiveDurabilityMonitorTest::notifyPersistenceAndCheckHPS(
+        int64_t persistedSeqno, int64_t expectedHPS) {
+    vb->setPersistenceSeqno(persistedSeqno);
+    monitor->notifyLocalPersistence();
+    EXPECT_EQ(expectedHPS, monitor->getHighPreparedSeqno());
+}
+
+TEST_F(PassiveDurabilityMonitorTest, HPS_Majority) {
+    ASSERT_EQ(0, monitor->getNumTracked());
+    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+
+    addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
+                            cb::durability::Level::Majority,
+                            3 /*expectedNumTracked*/,
+                            3 /*expectHPS*/);
+
+    // This shouldn't happen, as there's no Level=PersistToMajority Prepare
+    // tracked. Just check that the HPS logic is resilient to this though.
+    notifyPersistenceAndCheckHPS(1000 /*persistedSeqno*/, 3 /*expectHPS*/);
+}
+
+TEST_F(PassiveDurabilityMonitorTest, HPS_MajorityAndPersistOnMaster) {
+    ASSERT_EQ(0, monitor->getNumTracked());
+    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+
+    addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
+                            cb::durability::Level::MajorityAndPersistOnMaster,
+                            3 /*expectedNumTracked*/,
+                            3 /*expectHPS*/);
+
+    // This shouldn't happen, as there's no Level=PersistToMajority Prepare
+    // tracked. Just check that the HPS logic is resilient to this though.
+    notifyPersistenceAndCheckHPS(1000 /*persistedSeqno*/, 3 /*expectHPS*/);
+}
+
+TEST_F(PassiveDurabilityMonitorTest, HPS_PersistToMajority) {
+    ASSERT_EQ(0, monitor->getNumTracked());
+    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+
+    const std::vector<int64_t> seqnos{1, 2, 3};
+    addSyncWriteAndCheckHPS(seqnos,
+                            cb::durability::Level::PersistToMajority,
+                            3 /*expectedNumTracked*/,
+                            0 /*expectHPS*/);
+
+    for (const auto s : seqnos) {
+        vb->setPersistenceSeqno(s);
+        monitor->notifyLocalPersistence();
+        EXPECT_EQ(s, monitor->getHighPreparedSeqno());
+    }
+}
+
+TEST_F(PassiveDurabilityMonitorTest,
+       HPS_MajorityAndPersistOnMajority_Majority) {
+    ASSERT_EQ(0, monitor->getNumTracked());
+    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+
+    addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
+                            cb::durability::Level::MajorityAndPersistOnMaster,
+                            3 /*expectedNumTracked*/,
+                            3 /*expectHPS*/);
+
+    addSyncWriteAndCheckHPS({4, 10, 21} /*seqnos*/,
+                            cb::durability::Level::Majority,
+                            6 /*expectedNumTracked*/,
+                            21 /*expectHPS*/);
+}
+
+TEST_F(PassiveDurabilityMonitorTest,
+       HPS_Majority_MajorityAndPersistOnMajority) {
+    ASSERT_EQ(0, monitor->getNumTracked());
+    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+
+    addSyncWriteAndCheckHPS({1, 7, 1000} /*seqnos*/,
+                            cb::durability::Level::Majority,
+                            3 /*expectedNumTracked*/,
+                            1000 /*expectHPS*/);
+
+    addSyncWriteAndCheckHPS({1004, 1010, 2021} /*seqnos*/,
+                            cb::durability::Level::MajorityAndPersistOnMaster,
+                            6 /*expectedNumTracked*/,
+                            2021 /*expectHPS*/);
+}
+
+TEST_F(PassiveDurabilityMonitorTest, HPS_PersistToMajority_Majority) {
+    ASSERT_EQ(0, monitor->getNumTracked());
+    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+
+    addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
+                            cb::durability::Level::PersistToMajority,
+                            3 /*expectedNumTracked*/,
+                            0 /*expectHPS*/);
+
+    addSyncWriteAndCheckHPS({4, 10, 21} /*seqnos*/,
+                            cb::durability::Level::Majority,
+                            6 /*expectedNumTracked*/,
+                            0 /*expectHPS*/);
+
+    // Check that persisting s:2 moves HPS to 2 and not beyond, as s:3 is
+    // Level::PersistToMajority (i.e., a durability-fence)
+    notifyPersistenceAndCheckHPS(2 /*persistedSeqno*/, 2 /*expectHPS*/);
+
+    // Now, simulate persistence of s:4. HPS reaches the latest tracked as s:3
+    // is the last durability-fence.
+    notifyPersistenceAndCheckHPS(4 /*persistedSeqno*/, 21 /*expectHPS*/);
+}
+
+TEST_F(PassiveDurabilityMonitorTest, HPS_Majority_PersistToMajority) {
+    ASSERT_EQ(0, monitor->getNumTracked());
+    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+
+    addSyncWriteAndCheckHPS({1, 999, 1001} /*seqnos*/,
+                            cb::durability::Level::Majority,
+                            3 /*expectedNumTracked*/,
+                            1001 /*expectHPS*/);
+
+    addSyncWriteAndCheckHPS({2000, 2010, 2021} /*seqnos*/,
+                            cb::durability::Level::PersistToMajority,
+                            6 /*expectedNumTracked*/,
+                            1001 /*expectHPS*/);
+
+    notifyPersistenceAndCheckHPS(2010 /*persistedSeqno*/, 2010 /*expectHPS*/);
+
+    // Now, simulate persistence of s:4. HPS reaches the latest tracked as s:3
+    // is the last durability-fence.
+    notifyPersistenceAndCheckHPS(2021 /*persistedSeqno*/, 2021 /*expectHPS*/);
+}
+
+TEST_F(PassiveDurabilityMonitorTest,
+       HPS_PersistToMajority_MajorityAndPersistOnMaster) {
+    ASSERT_EQ(0, monitor->getNumTracked());
+    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+
+    addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
+                            cb::durability::Level::PersistToMajority,
+                            3 /*expectedNumTracked*/,
+                            0 /*expectHPS*/);
+
+    addSyncWriteAndCheckHPS({4, 10, 21} /*seqnos*/,
+                            cb::durability::Level::MajorityAndPersistOnMaster,
+                            6 /*expectedNumTracked*/,
+                            0 /*expectHPS*/);
+
+    // Check that persisting s:2 moves HPS to 2 and not beyond, as s:3 is
+    // Level::PersistToMajority (i.e., a durability-fence)
+    notifyPersistenceAndCheckHPS(2 /*persistedSeqno*/, 2 /*expectHPS*/);
+
+    // Now, simulate persistence of s:4. HPS reaches the latest tracked as s:3
+    // is the last durability-fence.
+    notifyPersistenceAndCheckHPS(4 /*persistedSeqno*/, 21 /*expectHPS*/);
+}
+
+TEST_F(PassiveDurabilityMonitorTest,
+       HPS_MajorityAndPersistOnMaster_PersistToMajority) {
+    ASSERT_EQ(0, monitor->getNumTracked());
+    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+
+    addSyncWriteAndCheckHPS({1, 999, 1001} /*seqnos*/,
+                            cb::durability::Level::MajorityAndPersistOnMaster,
+                            3 /*expectedNumTracked*/,
+                            1001 /*expectHPS*/);
+
+    addSyncWriteAndCheckHPS({2000, 2010, 2021} /*seqnos*/,
+                            cb::durability::Level::PersistToMajority,
+                            6 /*expectedNumTracked*/,
+                            1001 /*expectHPS*/);
+
+    notifyPersistenceAndCheckHPS(2010 /*persistedSeqno*/, 2010 /*expectHPS*/);
+
+    // Now, simulate persistence of s:4. HPS reaches the latest tracked as s:3
+    // is the last durability-fence.
+    notifyPersistenceAndCheckHPS(2021 /*persistedSeqno*/, 2021 /*expectHPS*/);
 }

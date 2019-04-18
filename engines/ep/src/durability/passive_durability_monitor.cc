@@ -27,7 +27,11 @@
 #include <gsl.h>
 #include <unordered_map>
 
-PassiveDurabilityMonitor::PassiveDurabilityMonitor(VBucket& vb) : vb(vb) {
+PassiveDurabilityMonitor::PassiveDurabilityMonitor(VBucket& vb)
+    : vb(vb), state(*this) {
+    // By design, instances of Container::Position can never be invalid
+    auto s = state.wlock();
+    s->highPreparedSeqno = Position(s->trackedWrites.end());
 }
 
 PassiveDurabilityMonitor::~PassiveDurabilityMonitor() = default;
@@ -53,8 +57,7 @@ void PassiveDurabilityMonitor::addStats(const AddStatFn& addStat,
 }
 
 int64_t PassiveDurabilityMonitor::getHighPreparedSeqno() const {
-    // @todo-durability: return a correct value for this.
-    return 0;
+    return state.rlock()->highPreparedSeqno.lastWriteSeqno;
 }
 
 void PassiveDurabilityMonitor::addSyncWrite(queued_item item) {
@@ -65,20 +68,79 @@ void PassiveDurabilityMonitor::addSyncWrite(queued_item item) {
                 "PassiveDurabilityMonitor::addSyncWrite: Level::None");
     }
 
-    state.wlock()->trackedWrites.emplace_back(
+    auto s = state.wlock();
+    s->trackedWrites.emplace_back(
             nullptr /*cookie*/, std::move(item), nullptr /*firstChain*/);
 
-    /*
-     * @todo: Missing step - we may be able to increase the high_prepared_seqno
-     * and ack back back to the Active.
-     */
+    // Maybe the new tracked Prepare is already satisfied and could be ack'ed
+    // back to the Active.
+    s->updateHighPreparedSeqno();
+
+    // @todo: Send SeqnoAck
 }
 
 size_t PassiveDurabilityMonitor::getNumTracked() const {
     return state.rlock()->trackedWrites.size();
 }
 
+void PassiveDurabilityMonitor::notifyLocalPersistence() {
+    state.wlock()->updateHighPreparedSeqno();
+
+    // @todo: Send SeqnoAck
+}
+
 void PassiveDurabilityMonitor::toOStream(std::ostream& os) const {
     os << "PassiveDurabilityMonitor[" << this << "]"
        << " high_prepared_seqno:" << getHighPreparedSeqno();
+}
+
+DurabilityMonitor::Container::iterator
+PassiveDurabilityMonitor::State::getIteratorNext(
+        const Container::iterator& it) {
+    // Note: Container::end could be the new position when the pointed SyncWrite
+    //     is removed from Container and the iterator repositioned.
+    //     In that case next=Container::begin
+    return (it == trackedWrites.end()) ? trackedWrites.begin() : std::next(it);
+}
+
+void PassiveDurabilityMonitor::State::updateHighPreparedSeqno() {
+    if (trackedWrites.empty()) {
+        return;
+    }
+
+    const auto updateHPS = [this](Container::iterator next) -> void {
+        // Note: Update last-write-seqno first to enforce monotonicity and
+        //     avoid any state-change if monotonicity checks fail
+        highPreparedSeqno.lastWriteSeqno = next->getBySeqno();
+        highPreparedSeqno.it = next;
+    };
+
+    Container::iterator next;
+    // First, blindly move HPS up to the given persistedSeqno. Note that
+    // here we don't need to check any Durability Level: persistence makes
+    // locally-satisfied all the pending Prepares up to persistedSeqno.
+    while ((next = getIteratorNext(highPreparedSeqno.it)) !=
+                   trackedWrites.end() &&
+           static_cast<uint64_t>(next->getBySeqno()) <=
+                   pdm.vb.getPersistenceSeqno()) {
+        updateHPS(next);
+    }
+
+    // Then, move the HPS to the last Prepare with Level != PersistToMajority.
+    // I.e., all the Majority and MajorityAndPersistToMaster Prepares that were
+    // blocked by non-satisfied PersistToMajority Prepares are implicitly
+    // satisfied now. The first non-satisfied Prepare is the first
+    // Level:PersistToMajority not covered by persistedSeqno.
+    while ((next = getIteratorNext(highPreparedSeqno.it)) !=
+           trackedWrites.end()) {
+        const auto level = next->getDurabilityReqs().getLevel();
+        Expects(level != cb::durability::Level::None);
+        // Note: We are in the PassiveDM. The first Level::PersistToMajority
+        // SyncWrite is our durability-fence.
+        if (level == cb::durability::Level::PersistToMajority) {
+            break;
+        }
+
+        updateHPS(next);
+    }
 }
