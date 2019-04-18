@@ -530,6 +530,15 @@ public:
             const std::string& key = "");
 
     /**
+     * Disable the ewouldblock engine entirely.
+     */
+    void disableEwouldBlockEngine() {
+        // We disable the engine by telling it to inject the given error
+        // the next 0 times
+        configureEwouldBlockEngine(EWBEngineMode::Next_N, ENGINE_SUCCESS, 0);
+    }
+
+    /**
      * Identify ourself to the server.
      *
      * @throws std::runtime_error if an error occurs
