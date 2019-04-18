@@ -694,6 +694,41 @@ TEST_P(HashTableStatsTest, SystemEventItem) {
     EXPECT_EQ(1, ht.getNumSystemItems());
 
     EXPECT_TRUE(del(ht, key));
+    EXPECT_EQ(0, ht.getNumSystemItems());
+}
+
+// Test case for the collections purging path. We mark a system event as deleted
+// so need to be able to deal with deleted system events in stats.
+// In particular, removing a "deleted" system event item from the hash table
+// should not cause us to update the numDeletedItems stat because we do not
+// want to track system events in numDeletedItems
+TEST_P(HashTableStatsTest, DeletedSystemEventItem) {
+    HashTable ht(global_stats, makeFactory(true), 128, 1);
+    StoredDocKey key("key", CollectionID::System);
+    store(ht, key);
+    ASSERT_EQ(1, ht.getNumSystemItems());
+    ASSERT_EQ(0, ht.getNumDeletedItems());
+
+    // Jump through a couple hoops to delete the thing, need the old StoredValue
+    // and a new "deleted" system event item
+    StoredValue* found = ht.findForWrite(key, WantsDeleted::No).storedValue;
+    Item item(key, 0, 0, "", strlen(""));
+    item.setDeleted(DeleteSource::Explicit);
+
+    // Mark our item as deleted
+    { // Scope for hbl so that we can del later
+        auto hbl = ht.getLockedBucket(key);
+        ht.unlocked_updateStoredValue(hbl, *found, item);
+    }
+    ASSERT_EQ(1, ht.getNumSystemItems());
+
+    // We shouldn't throw anything (i.e. underflow stat counters) but we also
+    // need to check the values in case we have turned assertions off.
+    bool delRes = false;
+    ASSERT_NO_THROW(delRes = del(ht, key));
+    EXPECT_TRUE(delRes);
+    EXPECT_EQ(0, ht.getNumSystemItems());
+    EXPECT_EQ(0, ht.getNumDeletedItems());
 }
 
 TEST_P(HashTableStatsTest, PreparedSyncWrite) {
