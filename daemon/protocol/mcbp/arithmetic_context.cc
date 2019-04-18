@@ -113,6 +113,13 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::storeNewItem() {
     } else if (ret == ENGINE_KEY_EEXISTS && cas == 0) {
         state = State::Reset;
         ret = ENGINE_SUCCESS;
+    } else if(ret == ENGINE_NOT_STORED) {
+        // hit race condition, item with our key was created between our call
+        // to bucket_store() and when we checked to see if it existed, by
+        // calling bucket_get() so just re-try by resetting our state to the
+        // start again.
+        state = State::Reset;
+        ret = ENGINE_SUCCESS;
     }
 
     return ret;
