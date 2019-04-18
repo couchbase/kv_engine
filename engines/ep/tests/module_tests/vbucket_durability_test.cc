@@ -70,26 +70,20 @@ void VBucketDurabilityTest::storeSyncWrites(
 
     const auto preHTCount = ht->getNumItems();
     const auto preCMCount = ckptMgr->getNumItems();
-    for (auto write : seqnos) {
-        auto item = Item(makeStoredDocKey("key" + std::to_string(write.seqno)),
-                         0 /*flags*/,
-                         0 /*exp*/,
-                         "value",
-                         5 /*valueSize*/,
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         0 /*cas*/,
-                         write.seqno);
+    for (const auto& write : seqnos) {
+        auto key = makeStoredDocKey("key" + std::to_string(write.seqno));
+        auto item = makePendingItem(key, "value");
+        item->setBySeqno(write.seqno);
         if (write.deletion) {
-            item.setDeleted();
+            item->setDeleted();
         }
-        using namespace cb::durability;
-        item.setPendingSyncWrite(Requirements(Level::Majority, 0 /*timeout*/));
+
         VBQueueItemCtx ctx;
         ctx.genBySeqno = GenerateBySeqno::No;
-        ctx.durability = DurabilityItemCtx{item.getDurabilityReqs(), cookie};
+        ctx.durability = DurabilityItemCtx{item->getDurabilityReqs(), cookie};
 
         ASSERT_EQ(MutationStatus::WasClean,
-                  public_processSet(item, 0 /*cas*/, ctx));
+                  public_processSet(*item, 0 /*cas*/, ctx));
     }
     EXPECT_EQ(preHTCount + seqnos.size(), ht->getNumItems());
     EXPECT_EQ(preCMCount + seqnos.size(), ckptMgr->getNumItems());
@@ -114,6 +108,7 @@ void VBucketDurabilityTest::testAddPrepare(
         const auto sv = ht->findForWrite(key).storedValue;
         ASSERT_NE(nullptr, sv);
         EXPECT_EQ(CommittedState::Pending, sv->getCommitted());
+        EXPECT_EQ(write.deletion, sv->isDeleted());
     }
 
     const auto& ckptList =
