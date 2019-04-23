@@ -482,7 +482,7 @@ public:
     void resetStats();
 
     ENGINE_ERROR_CODE storeInner(const void* cookie,
-                                 item* itm,
+                                 Item* itm,
                                  uint64_t& cas,
                                  ENGINE_STORE_OPERATION operation);
 

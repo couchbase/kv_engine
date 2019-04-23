@@ -352,7 +352,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(
     if (durability) {
         item->setPendingSyncWrite(durability.get());
     }
-    return acquireEngine(this)->storeInner(cookie, itm, cas, operation);
+    return acquireEngine(this)->storeInner(cookie, item, cas, operation);
 }
 
 cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
@@ -2504,11 +2504,10 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::storeInner(
         const void* cookie,
-        item* itm,
+        Item* itm,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation) {
-    Item& item = static_cast<Item&>(*static_cast<Item*>(itm));
-    auto rv = storeIfInner(cookie, item, cas, operation, {});
+    auto rv = storeIfInner(cookie, *itm, cas, operation, {});
     cas = rv.cas;
     return ENGINE_ERROR_CODE(rv.status);
 }
