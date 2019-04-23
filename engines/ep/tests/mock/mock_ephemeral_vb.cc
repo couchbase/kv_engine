@@ -15,6 +15,7 @@ MockEphemeralVBucket::MockEphemeralVBucket(
         std::unique_ptr<FailoverTable> table,
         NewSeqnoCallback newSeqnoCb,
         SyncWriteCompleteCallback syncWriteCb,
+        SeqnoAckCallback seqnoAckCb,
         Configuration& config,
         item_eviction_policy_t evictionPolicy)
     : EphemeralVBucket(i,
@@ -28,6 +29,7 @@ MockEphemeralVBucket::MockEphemeralVBucket(
                        std::move(table),
                        std::move(newSeqnoCb),
                        syncWriteCb,
+                       seqnoAckCb,
                        config,
                        evictionPolicy,
                        std::make_unique<Collections::VB::Manifest>()) {

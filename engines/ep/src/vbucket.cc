@@ -164,6 +164,7 @@ VBucket::VBucket(Vbid i,
                  std::unique_ptr<AbstractStoredValueFactory> valFact,
                  NewSeqnoCallback newSeqnoCb,
                  SyncWriteCompleteCallback syncWriteCb,
+                 SeqnoAckCallback seqnoAckCb,
                  Configuration& config,
                  item_eviction_policy_t evictionPolicy,
                  std::unique_ptr<Collections::VB::Manifest> manifest,
@@ -219,6 +220,7 @@ VBucket::VBucket(Vbid i,
       deferredDeletionCookie(nullptr),
       newSeqnoCb(std::move(newSeqnoCb)),
       syncWriteCompleteCb(syncWriteCb),
+      seqnoAckCb(seqnoAckCb),
       manifest(std::move(manifest)),
       mayContainXattrs(mightContainXattrs),
       durabilityMonitor(makeDurabilityMonitor()) {
@@ -823,6 +825,11 @@ void VBucket::notifyClientOfSyncWriteComplete(const void* cookie,
             result);
     Expects(cookie);
     syncWriteCompleteCb(cookie, result);
+}
+
+void VBucket::seqnoAck(int64_t seqno) {
+    Expects(state == vbucket_state_replica);
+    seqnoAckCb(getId(), seqno);
 }
 
 bool VBucket::addPendingOp(const void* cookie) {

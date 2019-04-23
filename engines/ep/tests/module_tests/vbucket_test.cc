@@ -46,6 +46,7 @@ VBucketTestBase::VBucketTestBase(item_eviction_policy_t eviction_policy) {
                                 /*flusher callback*/ nullptr,
                                 /*newSeqnoCb*/ nullptr,
                                 TracedSyncWriteCompleteCb,
+                                NoopSeqnoAckCb,
                                 config,
                                 eviction_policy,
                                 std::make_unique<Collections::VB::Manifest>()));

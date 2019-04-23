@@ -155,6 +155,16 @@ using SyncWriteCompleteCallback =
 const SyncWriteCompleteCallback NoopSyncWriteCompleteCb =
         [](const void* cookie, ENGINE_ERROR_CODE status) {};
 
+/**
+ * Callback function invoked at Replica for sending a SeqnoAck message to the
+ * Active. That is triggered at Replica by High Prepared Seqno updates within
+ * the PassiveDurabilityMonitor.
+ */
+using SeqnoAckCallback = std::function<void(Vbid vbid, int64_t seqno)>;
+
+/// Instance of SeqnoAckCallback which does nothing.
+const SeqnoAckCallback NoopSeqnoAckCb = [](Vbid vbid, int64_t seqno) {};
+
 class EventuallyPersistentEngine;
 class FailoverTable;
 class KVShard;
@@ -185,6 +195,7 @@ public:
             std::unique_ptr<AbstractStoredValueFactory> valFact,
             NewSeqnoCallback newSeqnoCb,
             SyncWriteCompleteCallback syncWriteCb,
+            SeqnoAckCallback seqnoAckCb,
             Configuration& config,
             item_eviction_policy_t evictionPolicy,
             std::unique_ptr<Collections::VB::Manifest> manifest,
@@ -1320,6 +1331,13 @@ public:
                                          ENGINE_ERROR_CODE result);
 
     /**
+     * Send a SeqnoAck message on the PassiveStream (if any) for this VBucket.
+     *
+     * @param seqno The payload
+     */
+    void seqnoAck(int64_t seqno);
+
+    /**
      * Update in memory data structures after an item is deleted on disk
      *
      * @param queuedItem reference to the deleted item
@@ -2165,6 +2183,12 @@ private:
      * Times Out)
      */
     SyncWriteCompleteCallback syncWriteCompleteCb;
+
+    /**
+     * Callback invoked by a Replica VBucket after a High Prepared Seqno update
+     * within the PassiveDurabilityMonitor.
+     */
+    SeqnoAckCallback seqnoAckCb;
 
     /// The VBucket collection state
     std::unique_ptr<Collections::VB::Manifest> manifest;

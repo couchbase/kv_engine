@@ -207,6 +207,7 @@ VBucketPtr EphemeralBucket::makeVBucket(
                                            std::move(table),
                                            std::move(newSeqnoCb),
                                            makeSyncWriteCompleteCB(),
+                                           makeSeqnoAckCB(),
                                            engine.getConfiguration(),
                                            eviction_policy,
                                            std::move(manifest),

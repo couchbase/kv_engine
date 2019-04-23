@@ -2434,3 +2434,11 @@ SyncWriteCompleteCallback KVBucket::makeSyncWriteCompleteCB() {
         engine.notifyIOComplete(cookie, status);
     };
 }
+
+SeqnoAckCallback KVBucket::makeSeqnoAckCB() const {
+    auto& engine = this->engine;
+    return [&engine](Vbid vbid, int64_t seqno) {
+        // @todo-durability: Send the provided seqno
+        engine.getDcpConnMap().seqnoAckVBPassiveStream(vbid);
+    };
+}

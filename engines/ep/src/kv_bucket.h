@@ -701,6 +701,12 @@ protected:
      */
     SyncWriteCompleteCallback makeSyncWriteCompleteCB();
 
+    /**
+     * Returns the callback function to be invoked at Replica for sending a
+     * SeqnoAck to the Active.
+     */
+    SeqnoAckCallback makeSeqnoAckCB() const;
+
     friend class Warmup;
     friend class PersistenceCallback;
 

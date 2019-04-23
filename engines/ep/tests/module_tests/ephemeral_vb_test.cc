@@ -47,6 +47,7 @@ protected:
                                               /*table*/ nullptr,
                                               /*newSeqnoCb*/ nullptr,
                                               NoopSyncWriteCompleteCb,
+                                              NoopSeqnoAckCb,
                                               config,
                                               VALUE_ONLY);
         /* vbucket manages the life time of mockEpheVB and is a base test class

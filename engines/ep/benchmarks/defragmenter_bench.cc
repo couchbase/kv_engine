@@ -56,6 +56,7 @@ public:
                               std::make_shared<DummyCB>(),
                               /*newSeqnoCb*/ nullptr,
                               NoopSyncWriteCompleteCb,
+                              NoopSeqnoAckCb,
                               config,
                               evictionPolicy,
                               std::make_unique<Collections::VB::Manifest>()));

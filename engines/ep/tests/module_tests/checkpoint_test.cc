@@ -63,6 +63,7 @@ CheckpointTest<V>::CheckpointTest()
                     callback,
                     /*newSeqnoCb*/ nullptr,
                     NoopSyncWriteCompleteCb,
+                    NoopSeqnoAckCb,
                     config,
                     item_eviction_policy_t::VALUE_ONLY,
                     std::make_unique<Collections::VB::Manifest>())) {
@@ -210,6 +211,7 @@ TYPED_TEST(CheckpointTest, basic_chk_test) {
                           cb,
                           /*newSeqnoCb*/ nullptr,
                           NoopSyncWriteCompleteCb,
+                          NoopSeqnoAckCb,
                           this->config,
                           item_eviction_policy_t::VALUE_ONLY,
                           std::make_unique<Collections::VB::Manifest>()));

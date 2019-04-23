@@ -40,6 +40,7 @@ public:
               std::shared_ptr<Callback<Vbid>> flusherCb,
               NewSeqnoCallback newSeqnoCb,
               SyncWriteCompleteCallback syncWriteCb,
+              SeqnoAckCallback seqnoAckCb,
               Configuration& config,
               item_eviction_policy_t evictionPolicy,
               std::unique_ptr<Collections::VB::Manifest> manifest,

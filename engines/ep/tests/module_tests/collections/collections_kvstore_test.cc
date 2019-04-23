@@ -60,6 +60,7 @@ public:
                   std::make_shared<DummyCB>(),
                   /*newSeqnoCb*/ nullptr,
                   NoopSyncWriteCompleteCb,
+                  NoopSeqnoAckCb,
                   config,
                   VALUE_ONLY,
                   std::make_unique<Collections::VB::Manifest>()) {
