@@ -17,13 +17,19 @@
 
 #include "topkeys.h"
 #include "settings.h"
+
+#include <platform/sysinfo.h>
+
+#include <folly/concurrency/CacheLocality.h>
 #include <inttypes.h>
 #include <nlohmann/json.hpp>
 #include <stdlib.h>
 #include <sys/types.h>
+
 #include <algorithm>
 #include <cstring>
 #include <gsl/gsl>
+#include <set>
 #include <stdexcept>
 
 /*
@@ -31,12 +37,23 @@
  *
  * === TopKeys ===
  *
- * The TopKeys class is split into NUM_SHARDS shards, each which owns
- * 1/NUM_SHARDS of the keyspace. This is to allow some level of
- * concurrent access - each shard has a mutex guarding all access.
- * Other than that the TopKeys class is pretty uninteresting - it
- * simply passes on requests to the correct Shard, and when statistics
- * are requested it aggregates information from each shard.
+ * The TopKeys class is split into shards for performance reasons. We create one
+ * shard per (logical) core to:
+ *
+ * a) prevent any cache contention
+ * b) allow as much concurrent access as possible (each shard is guarded by a
+ *    mutex)
+ *
+ * Topkeys passes on requests to the correct Shard (determined by the core id of
+ * the calling thread), and when statistics are requested it aggregates
+ * information from each shard. When aggregating information, the TopKeys class
+ * has to remove duplicates from the possible pool of top keys because we shard
+ * per core for performance. Previously, TopKeys would create 8 shards
+ * (regardless of machine size), each with storage for a configurably amount of
+ * keys and shard by key hash (which meant that we would not have duplicate keys
+ * across shards). Now that we shard per core instead of by key hash, to keep
+ * the size of the stat output the same we need a minimum of 8 X N keys per
+ * shard (because each shard could be an exact duplicate of the others).
  *
  * === TopKeys::Shard ===
  *
@@ -86,10 +103,10 @@
  * contents is replaced by the incoming key.  Finally the linked-list
  * is updated to move the updated element to the head of the list.
  */
-
-TopKeys::TopKeys(int mkeys) {
+TopKeys::TopKeys(int mkeys)
+    : keys_to_return(mkeys * legacy_multiplier), shards(cb::get_cpu_count()) {
     for (auto& shard : shards) {
-        shard.setMaxKeys(mkeys);
+        shard->setMaxKeys(keys_to_return);
     }
 }
 
@@ -123,14 +140,13 @@ ENGINE_ERROR_CODE TopKeys::json_stats(nlohmann::json& object,
     return ENGINE_SUCCESS;
 }
 
-TopKeys::Shard& TopKeys::getShard(size_t key_hash) {
-    /* This is special-cased for 8 */
-    static_assert(NUM_SHARDS == 8,
-                  "Topkeys::getShard() special-cased for SHARDS==8");
-    return shards[key_hash & 0x7];
+TopKeys::Shard& TopKeys::getShard() {
+    auto stripe =
+            folly::AccessSpreader<std::atomic>::cachedCurrent(shards.size());
+    return *shards[stripe];
 }
 
-TopKeys::Shard::topkey_t* TopKeys::Shard::searchForKey(
+TopKeys::topkey_t* TopKeys::Shard::searchForKey(
         size_t key_hash, const cb::const_char_buffer& key) {
     for (auto& topkey : storage) {
         if (topkey.first.hash == key_hash) {
@@ -153,7 +169,7 @@ bool TopKeys::Shard::updateKey(const cb::const_char_buffer& key,
 
         topkey_t* found_key = searchForKey(key_hash, key);
 
-        if (found_key == NULL) {
+        if (!found_key) {
             // Key not found.
             if (storage.size() == max_keys) {
                 // Re-use the lowest keys' storage.
@@ -202,22 +218,32 @@ void TopKeys::doUpdateKey(const void* key,
     }
 
     try {
+        // We store a key hash to make lookup of topkeys faster and because the
+        // memory footprint is relatively small.
         cb::const_char_buffer key_buf(static_cast<const char*>(key), nkey);
         std::hash<cb::const_char_buffer> hash_fn;
         const size_t key_hash = hash_fn(key_buf);
 
-        getShard(key_hash).updateKey(key_buf, key_hash, operation_time);
+        getShard().updateKey(key_buf, key_hash, operation_time);
     } catch (const std::bad_alloc&) {
         // Failed to increment topkeys, continue...
     }
 }
 
 struct tk_context {
+    using CallbackFn = void (*)(const std::string&,
+                                const topkey_item_t&,
+                                void*);
     tk_context(const void* c,
                const AddStatFn& a,
                rel_time_t t,
-               nlohmann::json* arr)
-        : cookie(c), add_stat(a), current_time(t), array(arr) {
+               nlohmann::json* arr,
+               CallbackFn callbackFn)
+        : cookie(c),
+          add_stat(a),
+          current_time(t),
+          array(arr),
+          callbackFunction(callbackFn) {
         // empty
     }
 
@@ -225,6 +251,7 @@ struct tk_context {
     AddStatFn add_stat;
     rel_time_t current_time;
     nlohmann::json* array;
+    CallbackFn callbackFunction;
 };
 
 static void tk_iterfunc(const std::string& key,
@@ -284,14 +311,23 @@ static void tk_jsonfunc(const std::string& key,
     c->array->push_back(obj);
 }
 
+static void tk_aggregate_func(const TopKeys::topkey_t& it, void* arg) {
+    auto* map = (std::unordered_map<std::string, topkey_item_t>*)arg;
+
+    auto res = map->insert(std::make_pair(it.first.key, it.second));
+
+    // If insert failed, then we have a duplicate top key. Add the stats
+    if (!res.second) {
+        res.first->second.ti_access_count += it.second.ti_access_count;
+    }
+}
+
 ENGINE_ERROR_CODE TopKeys::doStats(const void* cookie,
                                    rel_time_t current_time,
                                    const AddStatFn& add_stat) {
-    struct tk_context context(cookie, add_stat, current_time, nullptr);
-
-    for (auto& shard : shards) {
-        shard.accept_visitor(tk_iterfunc, &context);
-    }
+    struct tk_context context(
+            cookie, add_stat, current_time, nullptr, &tk_iterfunc);
+    doStatsInner(context);
 
     return ENGINE_SUCCESS;
 }
@@ -309,21 +345,51 @@ ENGINE_ERROR_CODE TopKeys::doStats(const void* cookie,
 ENGINE_ERROR_CODE TopKeys::do_json_stats(nlohmann::json& object,
                                          rel_time_t current_time) {
     nlohmann::json topkeys = nlohmann::json::array();
-    struct tk_context context(nullptr, nullptr, current_time, &topkeys);
+    struct tk_context context(
+            nullptr, nullptr, current_time, &topkeys, &tk_jsonfunc);
+    doStatsInner(context);
 
-    /* Collate the topkeys JSON object */
-    for (auto& shard : shards) {
-        shard.accept_visitor(tk_jsonfunc, &context);
-    }
-
+    auto str = topkeys.dump();
     object["topkeys"] = topkeys;
+
     return ENGINE_SUCCESS;
 }
 
 void TopKeys::Shard::accept_visitor(iterfunc_t visitor_func,
                                     void* visitor_ctx) {
     std::lock_guard<std::mutex> lock(mutex);
-    for (const auto key : list) {
-        visitor_func(key->first.key, key->second, visitor_ctx);
+    for (const auto* key : list) {
+        visitor_func(*key, visitor_ctx);
     }
+}
+
+void TopKeys::doStatsInner(const tk_context& stat_context) {
+    // 1) Find the unique set of top keys by putting every top key in a map
+    std::unordered_map<std::string, topkey_item_t> map =
+            std::unordered_map<std::string, topkey_item_t>();
+
+    for (auto& shard : shards) {
+        shard->accept_visitor(tk_aggregate_func, &map);
+    }
+
+    // Easiest way to sort this by access_count is to drop the contents of the
+    // map into a vector and sort that.
+    auto items = std::vector<topkey_stat_t>(map.begin(), map.end());
+    std::sort(items.begin(),
+              items.end(),
+              [](const TopKeys::topkey_stat_t& a,
+                 const TopKeys::topkey_stat_t& b) {
+                  // Sort by number of accesses
+                  return a.second.ti_access_count > b.second.ti_access_count;
+              });
+
+    // 2) Iterate on this set making the required callback for each key. We only
+    // iterate from the start of the container (highest access count) to the
+    // number of keys to return.
+    std::for_each(items.begin(),
+                  std::min(items.begin() + keys_to_return, items.end()),
+                  [stat_context](const topkey_stat_t& t) {
+                      stat_context.callbackFunction(
+                              t.first, t.second, (void*)&stat_context);
+                  });
 }

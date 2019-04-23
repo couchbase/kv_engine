@@ -21,11 +21,13 @@
 #include <platform/sized_buffer.h>
 #include <array>
 
+#include <folly/CachelinePadded.h>
 #include <list>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
-
+struct tk_context;
 /*
  * TopKeys
  *
@@ -48,12 +50,23 @@ struct topkey_item_t {
  */
 class TopKeys {
 public:
-    /* Constructor.
+    /** Constructor.
      * @param mkeys Number of keys stored in each shard (i.e. up to
-     * mkeys * SHARDS will be tracked).
+     *              mkeys * SHARDS will be tracked).
      */
     explicit TopKeys(int mkeys);
     ~TopKeys();
+
+    // Key type used in Shard. We store hashes of the key for faster lookup.
+    // Public for use in shard visitor functions.
+    struct KeyId {
+        size_t hash;
+        std::string key;
+    };
+
+    // Pair of the key's string and the statistics related to it.
+    typedef std::pair<KeyId, topkey_item_t> topkey_t;
+    typedef std::pair<std::string, topkey_item_t> topkey_stat_t;
 
     void updateKey(const void* key, size_t nkey, rel_time_t operation_time);
 
@@ -81,28 +94,37 @@ public:
 protected:
     void doUpdateKey(const void* key, size_t nkey, rel_time_t operation_time);
 
+    void doStatsInner(const tk_context& stat_context);
     ENGINE_ERROR_CODE doStats(const void* cookie,
                               rel_time_t current_time,
                               const AddStatFn& add_stat);
 
     ENGINE_ERROR_CODE do_json_stats(nlohmann::json& object,
                                     rel_time_t current_time);
-
 private:
-    // Number of shards the keyspace is broken into. Permits some level of
-    // concurrent update (there is one mutex per shard).
-    static const int NUM_SHARDS = 8;
+    /**
+     * Topkeys previously worked by storing 8 shards with variable size. As we
+     * now shard per core and not by key, topkeys may exist in multiple shards.
+     * We need to multiply our requested shard size by 8 to ensure that we
+     * have the same topkeys capacity.
+     */
+    const size_t legacy_multiplier = 8;
+
+    /**
+     * The number of topkeys that we return via stats
+     */
+    const size_t keys_to_return;
 
     class Shard;
 
-    Shard& getShard(size_t key_hash);
+    Shard& getShard();
 
     // One of N Shards which the keyspace has been broken
     // into.
     // Responsible for tracking the top {mkeys} within it's keyspace.
     class Shard {
     public:
-        void setMaxKeys(int mkeys) {
+        void setMaxKeys(size_t mkeys) {
             max_keys = mkeys;
             storage.reserve(max_keys);
             // reallocating storage invalidates the LRU list.
@@ -119,38 +141,25 @@ private:
                        size_t key_hash,
                        rel_time_t operation_time);
 
-        typedef void (*iterfunc_t)(const std::string& key,
-                                   const topkey_item_t& it,
-                                   void* arg);
+        typedef void (*iterfunc_t)(const topkey_t& it, void* arg);
 
         /* For each key in this shard, invoke the given callback function.
          */
         void accept_visitor(iterfunc_t visitor_func, void* visitor_ctx);
 
     private:
-        struct KeyId {
-            size_t hash;
-            std::string key;
-        };
-
-        // Pair of the key's string and the statistics related to it.
-        typedef std::pair<KeyId, topkey_item_t> topkey_t;
-
         // An ordered list of topkey_t*, used for LRU.
         typedef std::list<topkey_t*> key_history_t;
 
-        // Vector topket_t, used for actual topke storage.
+        // Vector topkey_t, used for actual topkey storage.
         typedef std::vector<topkey_t> key_storage_t;
 
         // Searches for the given key. If found returns a pointer to the
         // topkey_t, else returns NULL.
         topkey_t* searchForKey(size_t hash, const cb::const_char_buffer& key);
 
-        // Maxumum numbers of keys to be tracked per shard.
-        unsigned int max_keys;
-
-        // mutex to serial access to this shard.
-        std::mutex mutex;
+        // Maximum numbers of keys to be tracked per shard.
+        size_t max_keys;
 
         // list of keys, ordered from most-recently used (front) to least
         // recently used (back).
@@ -158,8 +167,12 @@ private:
 
         // Underlying topkey storage.
         key_storage_t storage;
+
+        // Mutex to serialize access to this shard.
+        std::mutex mutex;
     };
 
-    // array of topkey shards.
-    std::array<Shard, NUM_SHARDS> shards;
+    // Array of topkey shards. We have one shard per core so we need to
+    // cache line pad the shards to prevent any contention.
+    std::vector<folly::CachelinePadded<Shard>> shards;
 };

@@ -27,6 +27,8 @@ protected:
         topkeys.reset(new TopKeys(10));
     }
 
+    void testWithNKeys(int numKeys);
+
     std::unique_ptr<TopKeys> topkeys;
 };
 
@@ -39,22 +41,36 @@ static void dump_key(const char* key,
     (*count)++;
 }
 
-TEST_F(TopKeysTest, Basic) {
+void TopKeysTest::testWithNKeys(int numKeys) {
     // build list of keys
     std::vector<std::string> keys;
-    for (int ii = 0; ii < 160; ii++) {
+    for (int ii = 0; ii < numKeys; ii++) {
         keys.emplace_back("topkey_test_" + std::to_string(ii));
     }
 
     // loop inserting keys
-    for (int jj = 0; jj < 20000; jj++) {
+    for (int jj = 0; jj < 2000; jj++) {
         for (auto& key : keys) {
             topkeys->updateKey(key.c_str(), key.size(), jj);
         }
     }
 
-    // Verify we hit all shards inside TopKeys
+    // We should return the lesser of the number of keys used or 80 (because we
+    // constructed TopKeys with size 80).
+    auto expectedCount = std::min(numKeys, 80);
+
+    // Verify that we return the correct number of top keys.
     size_t count = 0;
     topkeys->stats(&count, 0, dump_key);
-    EXPECT_EQ(80, count);
+    EXPECT_EQ(expectedCount, count);
+}
+
+TEST_F(TopKeysTest, Basic) {
+    testWithNKeys(160);
+}
+
+TEST_F(TopKeysTest, FewerThan80Keys) {
+    testWithNKeys(1);
+    testWithNKeys(5);
+    testWithNKeys(20);
 }
