@@ -130,15 +130,13 @@ ExecutorPool *ExecutorPool::get(void) {
 
             Configuration &config =
                 ObjectRegistry::getCurrentEngine()->getConfiguration();
-            EventuallyPersistentEngine *epe =
-                                   ObjectRegistry::onSwitchThread(NULL, true);
+            NonBucketAllocationGuard guard;
             tmp = new ExecutorPool(config.getMaxThreads(),
                                    NUM_TASK_GROUPS,
                                    config.getNumReaderThreads(),
                                    config.getNumWriterThreads(),
                                    config.getNumAuxioThreads(),
                                    config.getNumNonioThreads());
-            ObjectRegistry::onSwitchThread(epe);
             instance.store(tmp);
         }
     }
@@ -149,6 +147,7 @@ void ExecutorPool::shutdown(void) {
     std::lock_guard<std::mutex> lock(initGuard);
     auto* tmp = instance.load();
     if (tmp != nullptr) {
+        NonBucketAllocationGuard guard;
         delete tmp;
         instance = nullptr;
     }
