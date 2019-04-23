@@ -54,11 +54,13 @@ public:
     /// return if the named handler exists for the vbid in the vbConns structure
     bool doesConnHandlerExist(Vbid vbid, const std::string& name) const {
         const auto& list = vbConns[vbid.get()];
-        return std::find_if(list.begin(),
-                            list.end(),
-                            [&name](const ConnHandler& c) -> bool {
-                                return c.getName() == name;
-                            }) != list.end();
+        return std::find_if(
+                       list.begin(),
+                       list.end(),
+                       [&name](const std::weak_ptr<ConnHandler>& c) -> bool {
+                           auto p = c.lock();
+                           return p && p->getName() == name;
+                       }) != list.end();
     }
 
 protected:

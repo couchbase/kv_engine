@@ -82,11 +82,16 @@ private:
     size_t snoozeTime;
 };
 
-ConnMap::ConnMap(EventuallyPersistentEngine& theEngine)
-    : vbConnLocks(vbConnLockNum),
-      vbConns(theEngine.getConfiguration().getMaxVbuckets()),
-      engine(theEngine),
-      connNotifier_(nullptr) {
+ConnMap::ConnMap(EventuallyPersistentEngine &theEngine)
+    :  vbConnLocks(vbConnLockNum),
+       engine(theEngine),
+       connNotifier_(nullptr) {
+
+    Configuration &config = engine.getConfiguration();
+    size_t max_vbs = config.getMaxVbuckets();
+    for (size_t i = 0; i < max_vbs; ++i) {
+        vbConns.push_back(std::list<std::weak_ptr<ConnHandler>>());
+    }
 }
 
 void ConnMap::initialize() {
@@ -153,17 +158,27 @@ void ConnMap::processPendingNotifications() {
     }
 }
 
-void ConnMap::addVBConnByVBId(ConnHandler& conn, Vbid vbid) {
+void ConnMap::addVBConnByVBId(std::shared_ptr<ConnHandler> conn, Vbid vbid) {
+    if (!conn.get()) {
+        return;
+    }
+
     size_t lock_num = vbid.get() % vbConnLockNum;
     std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
-    vbConns[vbid.get()].emplace_back(conn);
+    vbConns[vbid.get()].emplace_back(std::move(conn));
 }
 
 void ConnMap::removeVBConnByVBId_UNLOCKED(const void* connCookie, Vbid vbid) {
-    auto& vb_conns = vbConns[vbid.get()];
-    vb_conns.remove_if([connCookie](ConnHandler& conn) {
-        return connCookie == conn.getCookie();
-    });
+    std::list<std::weak_ptr<ConnHandler>>& vb_conns = vbConns[vbid.get()];
+    for (auto itr = vb_conns.begin(); itr != vb_conns.end(); ++itr) {
+        auto connection = (*itr).lock();
+        // Erase if we cannot lock, or if the cookie matches
+        if (!connection ||
+            (connection && connCookie == connection->getCookie())) {
+            vb_conns.erase(itr);
+            break;
+        }
+    }
 }
 
 void ConnMap::removeVBConnByVBId(const void* connCookie, Vbid vbid) {
