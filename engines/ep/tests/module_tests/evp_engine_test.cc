@@ -87,21 +87,13 @@ void EventuallyPersistentEngineTest::TearDown() {
     cb::io::rmrf(test_dbname);
 }
 
-void EventuallyPersistentEngineTest::store_item(Vbid vbid,
-                                                const std::string& key,
-                                                const std::string& value) {
-    Item item(makeStoredDocKey(key),
-              /*flags*/ 0,
-              /*exp*/ 0,
-              value.c_str(),
-              value.size(),
-              PROTOCOL_BINARY_RAW_BYTES,
-              0 /*cas*/,
-              -1 /*seqno*/,
-              vbid);
+queued_item EventuallyPersistentEngineTest::store_item(
+        Vbid vbid, const std::string& key, const std::string& value) {
+    auto item = makeCommittedItem(makeStoredDocKey(key), value);
     uint64_t cas;
     EXPECT_EQ(ENGINE_SUCCESS,
-              engine->storeInner(cookie, &item, cas, OPERATION_SET));
+              engine->storeInner(cookie, item.get(), cas, OPERATION_SET));
+    return item;
 }
 
 queued_item EventuallyPersistentEngineTest::store_pending_item(
@@ -114,6 +106,18 @@ queued_item EventuallyPersistentEngineTest::store_pending_item(
     EXPECT_EQ(ENGINE_EWOULDBLOCK,
               engine->storeInner(cookie, item.get(), cas, OPERATION_SET))
             << "pending SyncWrite should initially block (until durability "
+               "met).";
+    return item;
+}
+
+queued_item EventuallyPersistentEngineTest::store_pending_delete(
+        Vbid vbid, const std::string& key, cb::durability::Requirements reqs) {
+    auto item = makePendingItem(makeStoredDocKey(key), {}, reqs);
+    item->setDeleted(DeleteSource::Explicit);
+    uint64_t cas;
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              engine->storeInner(cookie, item.get(), cas, OPERATION_SET))
+            << "pending SyncDelete should initially block (until durability "
                "met).";
     return item;
 }

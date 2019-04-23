@@ -1222,7 +1222,7 @@ private:
     // Mutex for above map.
     std::mutex cookie_map_mutex;
 
-    // Current DCP mutation `item`. We return the address of this
+    // Current DCP mutation `item`. We return an instance of this
     // (in the dcp step() function) back to the server, and then in
     // get_item_info we check if the requested item is this one.
     class EwbDcpKey {

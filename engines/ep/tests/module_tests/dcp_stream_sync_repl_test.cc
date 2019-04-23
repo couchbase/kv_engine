@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "../mock/gmock_dcp_msg_producers.h"
 #include "checkpoint_manager.h"
 #include "dcp_stream_test.h"
 #include "ep_engine.h"
@@ -26,9 +27,42 @@
 #include <engines/ep/tests/mock/mock_stream.h>
 
 /**
+ * Tests if `arg` (an item*, aka void*) is equal to expected, excluding the
+ * exptime field. This is helpful because over DCP, `exptime` is used to record
+ * the deletion time, which differs for Items used in the frontend.
+ */
+
+MATCHER_P(ItemExcludingExptimeEq,
+          expected,
+          std::string(negation ? "isn't" : "is") +
+                  " equal (excluding exptime) to " +
+                  ::testing::PrintToString(expected)) {
+    // Don't want to re-implment Item::operator==, so just take copies of
+    // expected & actual and clear exptime.
+    auto expectedWithoutExp = expected;
+    auto actualWithoutExp = *static_cast<Item*>(arg);
+    expectedWithoutExp.setExpTime(0);
+    actualWithoutExp.setExpTime(0);
+    return expectedWithoutExp == actualWithoutExp;
+}
+
+/// Check a DcpResponse is equal to the expected prepared Item.
+void verifyDcpPrepare(const Item& expected, const DcpResponse& actual) {
+    EXPECT_EQ(DcpResponse::Event::Prepare, actual.getEvent());
+    const auto& dcpPrepare = dynamic_cast<const MutationResponse&>(actual);
+    EXPECT_EQ(makeStoredDocKey("1"), dcpPrepare.getItem()->getKey());
+    EXPECT_EQ(expected.getValue(), dcpPrepare.getItem()->getValue());
+    EXPECT_EQ(expected.isDeleted(), dcpPrepare.getItem()->isDeleted());
+    EXPECT_EQ(expected.getCas(), dcpPrepare.getItem()->getCas());
+    EXPECT_EQ(expected.getDurabilityReqs().getLevel(),
+              dcpPrepare.getItem()->getDurabilityReqs().getLevel());
+}
+
+/**
  * Test fixture for tests relating to DCP Streams and synchrnous replication.
  */
 class DcpStreamSyncReplTest : public StreamTest {
+protected:
     void SetUp() override {
         StreamTest::SetUp();
         // Need a valid replication chain to be able to perform SyncWrites
@@ -37,19 +71,79 @@ class DcpStreamSyncReplTest : public StreamTest {
                 vbucket_state_active,
                 {{"topology", nlohmann::json::array({{"active", "replica"}})}});
     }
+
+    /// Store a pending item of the given document state (alive / deleted).
+    queued_item storePending(DocumentState docState,
+                             std::string key,
+                             std::string value,
+                             cb::durability::Requirements reqs = {
+                                     cb::durability::Level::Majority, 0}) {
+        switch (docState) {
+        case DocumentState::Alive:
+            return store_pending_item(vbid, key, value, reqs);
+        case DocumentState::Deleted:
+            return store_pending_delete(vbid, key, reqs);
+        }
+        folly::assume_unreachable();
+    }
+
+    /**
+     * Test that a pending SyncWrite is not sent to DCP consumer which doesn't
+     * support sync replication.
+     */
+    void testNoPendingWithoutSyncReplica(DocumentState docState);
+
+    /**
+     * Test that if a mutation and pending SyncWrite is are present, a DCP
+     * consumer which doesn't support sync replication only sees the mutation.
+     */
+    void testPendingAndMutationWithoutSyncReplica(DocumentState docState);
+
+    /**
+     * Test a mutation and a pending Sync Write against the same key sent to
+     * DCP consumer which does not support sync replication.
+     */
+    void testMutationAndPendingWithoutSyncReplica(DocumentState docState);
+
+    void testPendingItemWithSyncReplica(DocumentState docState);
+
+    void testPendingAndMutationWithSyncReplica(DocumentState docState);
+
+    /**
+     * Test a mutation and a pending Sync Write against the same key sent to
+     * DCP consumer which does support sync replication.
+     */
+    void testMutationAndPending2SnapshotsWithSyncReplica(
+            DocumentState docState);
+
+    /// Test that backfill of a prepared Write / Delete is handled correctly.
+    void testBackfillPrepare(DocumentState docState);
+
+    /**
+     * Test that backfill of a prepared (Write or Delete) followed by a
+     * committed item is handled correctly.
+     */
+    void testBackfillPrepareCommit(DocumentState docState);
+
+    /**
+     * Test that backfill of a prepared (Write or Delete) followed by a
+     * aborted item is handled correctly.
+     */
+    void testBackfillPrepareAbort(DocumentState docState);
 };
 
-/// Test that a pending SyncWrite is not sent to DCP consumer which doesn't
-/// support sync replication.
-TEST_P(DcpStreamSyncReplTest, NoPendingItemWithoutSyncReplica) {
-    // Setup: add a pending SyncWrite, store it and setup a DCP stream to it.
-    store_pending_item(vbid, "key", "XXX");
+void DcpStreamSyncReplTest::testNoPendingWithoutSyncReplica(
+        DocumentState docState) {
+    // Setup: add a pending SyncWrite / Delete, store it and setup a DCP
+    // stream to it.
+    storePending(docState, "key", "value");
     setup_dcp_stream();
     ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
 
     // For a non- sync replication stream we should not see any responses
     // if the only item is pending.
-    MockDcpMessageProducers producers(engine);
+    GMockDcpMsgProducers producers; // no expectations set.
+
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
@@ -57,73 +151,121 @@ TEST_P(DcpStreamSyncReplTest, NoPendingItemWithoutSyncReplica) {
     destroy_dcp_stream();
 }
 
-/// Test that if a mutation and pending SyncWrite is are present, a DCP
-/// consumer which doesn't support sync replication only sees the mutation
-TEST_P(DcpStreamSyncReplTest, PendingAndMutationWithoutSyncReplica) {
-    // Setup: add a mutation and a pending SyncWrite, store them and setup a
-    // DCP stream.
-    store_item(vbid, "normal", "XXX");
-    store_pending_item(vbid, "pending", "YYY");
-    setup_dcp_stream();
-    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
-
-    // For a non- sync replication stream we should see only one mutation.
-    MockDcpMessageProducers producers(engine);
-
-    prepareCheckpointItemsForStep(producers, *producer, *vb0);
-
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
-    EXPECT_EQ(0, producers.last_snap_start_seqno);
-    EXPECT_EQ(1, producers.last_snap_end_seqno);
-
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
-    EXPECT_EQ("normal", producers.last_key);
-    EXPECT_EQ("XXX", producers.last_value);
-
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
-
-    destroy_dcp_stream();
+TEST_P(DcpStreamSyncReplTest, NoPendingWriteWithoutSyncReplica) {
+    testNoPendingWithoutSyncReplica(DocumentState::Alive);
 }
 
-/// Test a mutation and a pending Sync Write against the same key sent to DCP
-/// consumer which does not support sync replication.
-TEST_P(DcpStreamSyncReplTest, MutationAndPendingWithoutSyncReplica) {
-    // Setup: add a mutation and a pending SyncWrite, store them and setup a
-    // DCP stream.
-    store_item(vbid, "key", "XXX");
-    /// Force a new checkpoint to avid de-duplication
-    vb0->checkpointManager->createNewCheckpoint();
-    store_pending_item(vbid, "key", "YYY");
+TEST_P(DcpStreamSyncReplTest, NoPendingDeleteWithoutSyncReplica) {
+    testNoPendingWithoutSyncReplica(DocumentState::Deleted);
+}
+
+void DcpStreamSyncReplTest::testPendingAndMutationWithoutSyncReplica(
+        DocumentState docState) {
+    // Setup: add a mutation and a pending SyncWrite / Delete, store them
+    // and setup a DCP stream.
+    auto item = store_item(vbid, "normal", "XXX");
+    storePending(docState, "pending", "YYY");
     setup_dcp_stream();
     ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
 
     // For a non- sync replication stream we should see just one mutation.
-    MockDcpMessageProducers producers(engine);
+    GMockDcpMsgProducers producers;
+    {
+        ::testing::InSequence dummy;
+        using ::testing::_;
+        using ::testing::Return;
+
+        EXPECT_CALL(producers, marker(_, Vbid(0), 0, 1, _, _))
+                .WillOnce(Return(ENGINE_SUCCESS));
+
+        EXPECT_CALL(producers,
+                    mutation(_,
+                             ItemExcludingExptimeEq(*item),
+                             Vbid(0),
+                             item->getBySeqno(),
+                             item->getRevSeqno(),
+                             _,
+                             _,
+                             _,
+                             _,
+                             _))
+                .WillOnce(Return(ENGINE_SUCCESS));
+    }
 
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
-    EXPECT_EQ(0, producers.last_snap_start_seqno);
-    EXPECT_EQ(1, producers.last_snap_end_seqno);
-
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
-    EXPECT_EQ("key", producers.last_key);
-    EXPECT_EQ("XXX", producers.last_value);
-
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
 
     destroy_dcp_stream();
 }
 
-/// Test that a pending SyncWrite is sent to DCP consumer which does support
-/// sync replication.
-TEST_P(DcpStreamSyncReplTest, PendingItemWithSyncReplica) {
-    // Setup: add a pending SyncWrite, store it and setup a DCP stream to it.
-    store_pending_item(vbid, "key2", "XXX");
+TEST_P(DcpStreamSyncReplTest, PendingWriteAndMutationWithoutSyncReplica) {
+    testPendingAndMutationWithoutSyncReplica(DocumentState::Alive);
+}
+
+TEST_P(DcpStreamSyncReplTest, PendingDeleteAndMutationWithoutSyncReplica) {
+    testPendingAndMutationWithoutSyncReplica(DocumentState::Deleted);
+}
+
+void DcpStreamSyncReplTest::testMutationAndPendingWithoutSyncReplica(
+        DocumentState docState) {
+    // Setup: add a mutation and a pending SyncWrite, store them and setup a
+    // DCP stream.
+    auto item = store_item(vbid, "key", "XXX");
+    /// Force a new checkpoint to avid de-duplication
+    vb0->checkpointManager->createNewCheckpoint();
+    storePending(docState, "key", "YYY");
+    setup_dcp_stream();
+    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+
+    // For a non- sync replication stream we should see just one mutation.
+    GMockDcpMsgProducers producers;
+    {
+        ::testing::InSequence dummy;
+        using ::testing::_;
+        using ::testing::Return;
+
+        EXPECT_CALL(producers, marker(_, Vbid(0), 0, 1, _, _))
+                .WillOnce(Return(ENGINE_SUCCESS));
+
+        EXPECT_CALL(producers,
+                    mutation(_,
+                             ItemExcludingExptimeEq(*item),
+                             Vbid(0),
+                             item->getBySeqno(),
+                             item->getRevSeqno(),
+                             _,
+                             _,
+                             _,
+                             _,
+                             _))
+                .WillOnce(Return(ENGINE_SUCCESS));
+    }
+
+    prepareCheckpointItemsForStep(producers, *producer, *vb0);
+
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+
+    destroy_dcp_stream();
+}
+
+TEST_P(DcpStreamSyncReplTest, MutationAndPendingWriteWithoutSyncReplica) {
+    testMutationAndPendingWithoutSyncReplica(DocumentState::Alive);
+}
+
+TEST_P(DcpStreamSyncReplTest, MutationAndPendingDeleteWithoutSyncReplica) {
+    testMutationAndPendingWithoutSyncReplica(DocumentState::Deleted);
+}
+
+void DcpStreamSyncReplTest::testPendingItemWithSyncReplica(
+        DocumentState docState) {
+    // Setup: add a pending SyncWrite / Delete, store it and setup a DCP
+    // stream to it.
+    auto pending = storePending(docState, "key2", "XXX");
     setup_dcp_stream(0,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
@@ -132,27 +274,49 @@ TEST_P(DcpStreamSyncReplTest, PendingItemWithSyncReplica) {
 
     // For a sync replication stream we should see a snapshot marker
     // followed by one DcpPrepare.
-    MockDcpMessageProducers producers(engine);
+    GMockDcpMsgProducers producers;
+    {
+        ::testing::InSequence dummy;
+        using ::testing::_;
+        using ::testing::Return;
 
+        EXPECT_CALL(producers, marker(_, Vbid(0), 0, 1, _, _))
+                .WillOnce(Return(ENGINE_SUCCESS));
+
+        EXPECT_CALL(producers,
+                    prepare(_,
+                            ItemExcludingExptimeEq(*pending),
+                            Vbid(0),
+                            pending->getBySeqno(),
+                            pending->getRevSeqno(),
+                            _,
+                            _,
+                            docState,
+                            _))
+                .WillOnce(Return(ENGINE_SUCCESS));
+    }
+
+    // Drive the DcpMessageProducers
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
-
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
-
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpPrepare, producers.last_op);
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
 
     destroy_dcp_stream();
 }
 
-/// Test that if a mutation and pending SyncWrite is are present, a DCP
-/// consumer which does support sync replication only sees the mutation
-TEST_P(DcpStreamSyncReplTest, PendingAndMutationWithSyncReplica) {
-    // Setup: add a mutation and a pending SyncWrite, store them and setup a
-    // DCP stream.
-    store_item(vbid, "normal", "XXX");
-    store_pending_item(vbid, "pending", "YYY");
+TEST_P(DcpStreamSyncReplTest, PendingWriteWithSyncReplica) {
+    testPendingItemWithSyncReplica(DocumentState::Alive);
+}
+
+TEST_P(DcpStreamSyncReplTest, PendingDeleteWithSyncReplica) {
+    testPendingItemWithSyncReplica(DocumentState::Deleted);
+}
+
+void DcpStreamSyncReplTest::testPendingAndMutationWithSyncReplica(
+        DocumentState docState) {
+    auto mutation = store_item(vbid, "normal", "XXX");
+    auto pending = storePending(docState, "pending", "YYY");
     setup_dcp_stream(0,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
@@ -160,88 +324,133 @@ TEST_P(DcpStreamSyncReplTest, PendingAndMutationWithSyncReplica) {
     ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
 
     // For a sync replication stream we should see one mutation and one prepare.
-    MockDcpMessageProducers producers(engine);
+    GMockDcpMsgProducers producers;
+    {
+        ::testing::InSequence dummy;
+        using ::testing::_;
+        using ::testing::Return;
+
+        EXPECT_CALL(producers, marker(_, Vbid(0), 0, 2, _, _))
+                .WillOnce(Return(ENGINE_SUCCESS));
+
+        EXPECT_CALL(producers,
+                    mutation(_,
+                             ItemExcludingExptimeEq(*mutation),
+                             Vbid(0),
+                             mutation->getBySeqno(),
+                             mutation->getRevSeqno(),
+                             _,
+                             _,
+                             _,
+                             _,
+                             _))
+                .WillOnce(Return(ENGINE_SUCCESS));
+
+        EXPECT_CALL(producers,
+                    prepare(_,
+                            ItemExcludingExptimeEq(*pending),
+                            Vbid(0),
+                            pending->getBySeqno(),
+                            pending->getRevSeqno(),
+                            _,
+                            _,
+                            docState,
+                            _))
+                .WillOnce(Return(ENGINE_SUCCESS));
+    }
 
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
-    EXPECT_EQ(0, producers.last_snap_start_seqno);
-    EXPECT_EQ(2, producers.last_snap_end_seqno);
-
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
-    EXPECT_EQ("normal", producers.last_key);
-    EXPECT_EQ("XXX", producers.last_value);
-
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpPrepare, producers.last_op);
-    EXPECT_EQ("pending", producers.last_key);
-    EXPECT_EQ("YYY", producers.last_value);
-
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
 
     destroy_dcp_stream();
 }
 
-/// Test a mutation and a pending Sync Write against the same key sent to DCP
-/// consumer which does support sync replication.
-TEST_P(DcpStreamSyncReplTest, MutationAndPendingWithSyncReplica) {
+TEST_P(DcpStreamSyncReplTest, PendingWriteAndMutationWithSyncReplica) {
+    testPendingAndMutationWithSyncReplica(DocumentState::Alive);
+}
+
+TEST_P(DcpStreamSyncReplTest, PendingDeleteAndMutationWithSyncReplica) {
+    testPendingAndMutationWithSyncReplica(DocumentState::Deleted);
+}
+
+void DcpStreamSyncReplTest::testMutationAndPending2SnapshotsWithSyncReplica(
+        DocumentState docState) {
     // Setup: add a mutation and a pending SyncWrite, store them and setup a
     // DCP stream.
-    store_item(vbid, "key", "XXX");
+    auto mutation = store_item(vbid, "key", "XXX");
     /// Force a new checkpoint to avid de-duplication
     vb0->checkpointManager->createNewCheckpoint();
-    store_pending_item(vbid, "key", "YYY");
+    auto pending = storePending(docState, "pending", "YYY");
     setup_dcp_stream(0,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
                      {{"enable_synchronous_replication", "true"}});
     ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
 
-    // For a sync replication stream we should see one mutation and one prepare.
-    MockDcpMessageProducers producers(engine);
+    // For a sync replication stream we should see one mutation and one prepare
+    // each in their own snapshot.
+    GMockDcpMsgProducers producers;
+    {
+        ::testing::InSequence dummy;
+        using ::testing::_;
+        using ::testing::Return;
+
+        EXPECT_CALL(producers, marker(_, Vbid(0), 0, 1, _, _))
+                .WillOnce(Return(ENGINE_SUCCESS));
+
+        EXPECT_CALL(producers,
+                    mutation(_,
+                             ItemExcludingExptimeEq(*mutation),
+                             Vbid(0),
+                             mutation->getBySeqno(),
+                             mutation->getRevSeqno(),
+                             _,
+                             _,
+                             _,
+                             _,
+                             _))
+                .WillOnce(Return(ENGINE_SUCCESS));
+
+        EXPECT_CALL(producers, marker(_, Vbid(0), 2, 2, _, _))
+                .WillOnce(Return(ENGINE_SUCCESS));
+
+        EXPECT_CALL(producers,
+                    prepare(_,
+                            ItemExcludingExptimeEq(*pending),
+                            Vbid(0),
+                            pending->getBySeqno(),
+                            pending->getRevSeqno(),
+                            _,
+                            _,
+                            docState,
+                            _))
+                .WillOnce(Return(ENGINE_SUCCESS));
+    }
 
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
-    EXPECT_EQ(0, producers.last_snap_start_seqno);
-    EXPECT_EQ(1, producers.last_snap_end_seqno);
-
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
-    EXPECT_EQ("key", producers.last_key);
-    EXPECT_EQ("XXX", producers.last_value);
-
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
-    EXPECT_EQ(2, producers.last_snap_start_seqno);
-    EXPECT_EQ(2, producers.last_snap_end_seqno);
-
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpPrepare, producers.last_op);
-    EXPECT_EQ("key", producers.last_key);
-    EXPECT_EQ("YYY", producers.last_value);
-
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
 
     destroy_dcp_stream();
 }
 
-/// Check a DcpResponse is equal to the expected prepared Item.
-void verifyDcpPrepare(Item& expected, DcpResponse& actual) {
-    EXPECT_EQ(DcpResponse::Event::Prepare, actual.getEvent());
-    auto& dcpPrepare = dynamic_cast<MutationResponse&>(actual);
-    EXPECT_EQ(makeStoredDocKey("1"), dcpPrepare.getItem()->getKey());
-    EXPECT_EQ(expected.getValue(), dcpPrepare.getItem()->getValue());
-    EXPECT_EQ(expected.getCas(), dcpPrepare.getItem()->getCas());
-    EXPECT_EQ(expected.getDurabilityReqs().getLevel(),
-              dcpPrepare.getItem()->getDurabilityReqs().getLevel());
+TEST_P(DcpStreamSyncReplTest, MutationAndPendingWrite2SSWithSyncReplica) {
+    testMutationAndPending2SnapshotsWithSyncReplica(DocumentState::Alive);
 }
 
-/// Test that backfill of a prepared item is handled correctly.
-TEST_P(DcpStreamSyncReplTest, BackfillPrepare) {
+TEST_P(DcpStreamSyncReplTest, MutationAndPendingDelete2SSWithSyncReplica) {
+    testMutationAndPending2SnapshotsWithSyncReplica(DocumentState::Deleted);
+}
+
+void DcpStreamSyncReplTest::testBackfillPrepare(DocumentState docState) {
     if (GetParam() == "ephemeral") {
         // @todo-durability: This test currently fails under ephmeral as
         // in-memory backfill doesn't fill in the durability requirements:
@@ -253,8 +462,8 @@ TEST_P(DcpStreamSyncReplTest, BackfillPrepare) {
 
     // Store a pending item then remove the checkpoint to force backfill.
     using cb::durability::Level;
-    auto prepared = store_pending_item(
-            vbid, "1", "X", {Level::MajorityAndPersistOnMaster, 0});
+    auto prepared = storePending(
+            docState, "1", "X", {Level::MajorityAndPersistOnMaster, 0});
     removeCheckpoint(1);
 
     // Create sync repl DCP stream
@@ -285,8 +494,15 @@ TEST_P(DcpStreamSyncReplTest, BackfillPrepare) {
     verifyDcpPrepare(*prepared, *item);
 }
 
-/// Test that backfill of a prepared+committed item is handled correctly.
-TEST_P(DcpStreamSyncReplTest, BackfillPrepareCommit) {
+TEST_P(DcpStreamSyncReplTest, BackfillPrepareWrite) {
+    testBackfillPrepare(DocumentState::Alive);
+}
+
+TEST_P(DcpStreamSyncReplTest, BackfillPrepareDelete) {
+    testBackfillPrepare(DocumentState::Deleted);
+}
+
+void DcpStreamSyncReplTest::testBackfillPrepareCommit(DocumentState docState) {
     if (GetParam() == "ephemeral") {
         // @todo-durability: This test currently fails under ephmeral as
         // in-memory backfill doesn't fill in the durability requirements:
@@ -299,8 +515,8 @@ TEST_P(DcpStreamSyncReplTest, BackfillPrepareCommit) {
     // Store a pending item, commit it and then remove the checkpoint to force
     // backfill.
     using cb::durability::Level;
-    auto prepared = store_pending_item(
-            vbid, "1", "X", {Level::MajorityAndPersistOnMaster, 0});
+    auto prepared = storePending(
+            docState, "1", "X", {Level::MajorityAndPersistOnMaster, 0});
     ASSERT_EQ(ENGINE_SUCCESS,
               vb0->commit(prepared->getKey(),
                           prepared->getBySeqno(),
@@ -347,13 +563,21 @@ TEST_P(DcpStreamSyncReplTest, BackfillPrepareCommit) {
     EXPECT_EQ(prepared->getBySeqno() + 1, dcpCommit.getBySeqno());
 }
 
-/// Test that backfill of a prepared+aborted item is handled correctly.
-TEST_P(DcpStreamSyncReplTest, BackfillPrepareAbort) {
+TEST_P(DcpStreamSyncReplTest, BackfillPrepareWriteCommit) {
+    testBackfillPrepareCommit(DocumentState::Alive);
+}
+
+TEST_P(DcpStreamSyncReplTest, BackfillPrepareDeleteCommit) {
+    testBackfillPrepareCommit(DocumentState::Deleted);
+}
+
+void DcpStreamSyncReplTest::testBackfillPrepareAbort(DocumentState docState) {
     if (GetParam() == "ephemeral") {
         // @todo-durability: This test currently fails under ephmeral as
         // in-memory backfill doesn't fill in the durability requirements:
-        //     std::logic_error: StoredValue::toItemImpl: attempted to create
-        //     Item from Pending StoredValue without supplying durabilityReqs
+        //     std::logic_error: StoredValue::toItemImpl: attempted to
+        //     create Item from Pending StoredValue without supplying
+        //     durabilityReqs
         std::cerr << "NOTE: Skipped under Ephemeral\n";
         return;
     }
@@ -361,8 +585,8 @@ TEST_P(DcpStreamSyncReplTest, BackfillPrepareAbort) {
     // Store a pending item, commit it and then remove the checkpoint to force
     // backfill.
     using cb::durability::Level;
-    auto prepared = store_pending_item(
-            vbid, "1", "X", {Level::MajorityAndPersistOnMaster, 0});
+    auto prepared = storePending(
+            docState, "1", "X", {Level::MajorityAndPersistOnMaster, 0});
     ASSERT_EQ(ENGINE_SUCCESS,
               vb0->abort(prepared->getKey(),
                          prepared->getBySeqno(),
@@ -404,6 +628,14 @@ TEST_P(DcpStreamSyncReplTest, BackfillPrepareAbort) {
     EXPECT_EQ(prepared->getBySeqno(), dcpCommit.getPreparedSeqno());
 #endif
     EXPECT_EQ(prepared->getBySeqno() + 1, dcpCommit.getBySeqno());
+}
+
+TEST_P(DcpStreamSyncReplTest, BackfillPrepareWriteAbort) {
+    testBackfillPrepareAbort(DocumentState::Alive);
+}
+
+TEST_P(DcpStreamSyncReplTest, BackfillPrepareDeleteAbort) {
+    testBackfillPrepareAbort(DocumentState::Deleted);
 }
 
 // Test cases which run in both Full and Value eviction

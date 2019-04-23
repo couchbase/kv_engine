@@ -421,6 +421,10 @@ public:
         return item_;
     }
 
+    const queued_item& getItem() const {
+        return item_;
+    }
+
     std::unique_ptr<Item> getItemCopy() {
         return std::make_unique<Item>(*item_);
     }
