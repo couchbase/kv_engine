@@ -76,8 +76,8 @@ enum class DocumentState : uint8_t {
     Alive = 0xF0,
 };
 
-std::string to_string(DocumentState& ds);
-std::ostream& operator<<(std::ostream& os, DocumentState& ds);
+std::string to_string(const DocumentState& ds);
+std::ostream& operator<<(std::ostream& os, const DocumentState& ds);
 
 /**
  * The DocumentStateFilter is an enum which allows you to specify the state(s)

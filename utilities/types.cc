@@ -17,7 +17,7 @@
 
 #include <memcached/types.h>
 
-std::string to_string(DocumentState& ds) {
+std::string to_string(const DocumentState& ds) {
     switch (ds) {
     case DocumentState::Deleted:
         return "DocumentState::Deleted";
@@ -27,7 +27,7 @@ std::string to_string(DocumentState& ds) {
     return "Invalid DocumentState";
 }
 
-std::ostream& operator<<(std::ostream& os, DocumentState& ds) {
+std::ostream& operator<<(std::ostream& os, const DocumentState& ds) {
     return os << to_string(ds);
 }
 
