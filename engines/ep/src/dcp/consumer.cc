@@ -1411,16 +1411,16 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
         return ret;
     }
 
+    // MB-29441: Set the noop-interval on the producer:
+    //     - dcpNoopTxInterval, if the producer is a >=5.0.0 node
+    //     - 180 seconds, if the producer is a pre-5.0.0 node
+    //       (this is the expected value on a pre-5.0.0 producer)
+    auto intervalCount =
+            producerIsVersion5orHigher ? dcpNoopTxInterval.count() : 180;
+
     if (pendingSendNoopInterval) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
-
-        // MB-29441: Set the noop-interval on the producer:
-        //     - dcpNoopTxInterval, if the producer is a >=5.0.0 node
-        //     - 180 seconds, if the producer is a pre-5.0.0 node
-        //         (this is the expected value on a pre-5.0.0 producer)
-        auto intervalCount =
-                producerIsVersion5orHigher ? dcpNoopTxInterval.count() : 180;
         std::string interval = std::to_string(intervalCount);
         ret = producers->control(opaque, noopIntervalCtrlMsg, interval);
         pendingSendNoopInterval = false;
@@ -1432,9 +1432,12 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
     if ((now - lastMessageTime) > dcpIdleTimeout) {
         logger->info(
                 "Disconnecting because a message has not been received for "
-                "{}s. lastMessageTime:{}",
+                "the DCP idle timeout of {}s. "
+                "Received last message (e.g. mutation/noop/StreamEnd) {}s ago. "
+                "DCP noop interval is {}s.",
                 dcpIdleTimeout,
-                (now - lastMessageTime));
+                (now - lastMessageTime),
+                intervalCount);
         return ENGINE_DISCONNECT;
     }
 

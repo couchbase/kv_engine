@@ -1514,15 +1514,17 @@ ENGINE_ERROR_CODE DcpProducer::maybeDisconnect() {
     if (noopCtx.enabled && elapsedTime > dcpIdleTimeout) {
         logger->info(
                 "Disconnecting because a message has not been received for "
-                "DCP "
-                "idle timeout (which is "
-                "{}s). Sent last message {}s ago, received last message {}s "
-                "ago. noopCtx {{now - sendTime:{}, opaque: {}, "
-                "pendingRecv:{}}}",
+                "the DCP idle timeout of {}s. "
+                "Sent last message (e.g. mutation/noop/streamEnd) {}s ago. "
+                "Received last message {}s ago. "
+                "Last sent noop {}s ago. "
+                "DCP noop interval is {}s. "
+                "opaque: {}, pendingRecv: {}.",
                 dcpIdleTimeout,
                 (now - lastSendTime),
                 elapsedTime,
                 (now - noopCtx.sendTime),
+                noopCtx.dcpNoopTxInterval.count(),
                 noopCtx.opaque,
                 noopCtx.pendingRecv ? "true" : "false");
         return ENGINE_DISCONNECT;
