@@ -21,6 +21,7 @@
 #include "test_helpers.h"
 
 class DurabilityEPBucketTest : public STParameterizedEPBucketTest {
+protected:
     void SetUp() {
         STParameterizedEPBucketTest::SetUp();
         // Add an initial replication topology so we can accept SyncWrites.
@@ -33,14 +34,33 @@ class DurabilityEPBucketTest : public STParameterizedEPBucketTest {
         setVBucketStateAndRunPersistTask(
                 vbid, vbucket_state_active, {{"topology", topology}});
     }
+
+    /// Test that a prepare of a SyncWrite / SyncDelete is correctly persisted
+    /// to disk.
+    void testPersistPrepare(DocumentState docState);
+
+    /// Test that a prepare of a SyncWrite / SyncDelete, which is then aborted
+    /// is correctly persisted to disk.
+    void testPersistPrepareAbort(DocumentState docState);
+
+    /**
+     * Test that if a single key is prepared, aborted & re-prepared it is the
+     * second Prepare which is kept on disk.
+     * @param docState State to use for the second prepare (first is always
+     *                 state alive).
+     */
+    void testPersistPrepareAbortPrepare(DocumentState docState);
+
+    /**
+     * Test that if a single key is prepared, aborted re-prepared & re-aborted
+     * it is the second Abort which is kept on disk.
+     * @param docState State to use for the second prepare (first is always
+     *                 state alive).
+     */
+    void testPersistPrepareAbortX2(DocumentState docState);
 };
 
-/*
- * Testcases related to persistence of durability related items
- * (aka SyncWrites)
- */
-
-TEST_P(DurabilityEPBucketTest, PersistPrepare) {
+void DurabilityEPBucketTest::testPersistPrepare(DocumentState docState) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
@@ -52,6 +72,9 @@ TEST_P(DurabilityEPBucketTest, PersistPrepare) {
     auto& vb = *getEPBucket().getVBucket(vbid);
     ASSERT_EQ(1, vb.getNumItems());
     auto pending = makePendingItem(key, "valueB");
+    if (docState == DocumentState::Deleted) {
+        pending->setDeleted(DeleteSource::Explicit);
+    }
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
 
     const auto& ckptMgr = *getEPBucket().getVBucket(vbid)->checkpointManager;
@@ -77,16 +100,29 @@ TEST_P(DurabilityEPBucketTest, PersistPrepare) {
     // The item count must not increase when flushing Pending SyncWrites
     EXPECT_EQ(1, vb.getNumItems());
 
-    // Check the Prepare on disk
+    // Check the committed item on disk.
     auto* store = vb.getShard()->getROUnderlying();
+    auto gv = store->get(DiskDocKey(key), Vbid(0));
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(*committed, *gv.item);
+
+    // Check the Prepare on disk
     DiskDocKey prefixedKey(key, true /*prepare*/);
-    auto gv = store->get(prefixedKey, Vbid(0));
+    gv = store->get(prefixedKey, Vbid(0));
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
     EXPECT_TRUE(gv.item->isPending());
-    EXPECT_FALSE(gv.item->isDeleted());
+    EXPECT_EQ(docState == DocumentState::Deleted, gv.item->isDeleted());
 }
 
-TEST_P(DurabilityEPBucketTest, PersistAbort) {
+TEST_P(DurabilityEPBucketTest, PersistPrepareWrite) {
+    testPersistPrepare(DocumentState::Alive);
+}
+
+TEST_P(DurabilityEPBucketTest, PersistPrepareDelete) {
+    testPersistPrepare(DocumentState::Deleted);
+}
+
+void DurabilityEPBucketTest::testPersistPrepareAbort(DocumentState docState) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
@@ -97,6 +133,9 @@ TEST_P(DurabilityEPBucketTest, PersistAbort) {
 
     auto key = makeStoredDocKey("key");
     auto pending = makePendingItem(key, "value");
+    if (docState == DocumentState::Deleted) {
+        pending->setDeleted(DeleteSource::Explicit);
+    }
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
     // A Prepare doesn't account in curr-items
     ASSERT_EQ(0, vb.getNumItems());
@@ -157,9 +196,16 @@ TEST_P(DurabilityEPBucketTest, PersistAbort) {
     EXPECT_TRUE(gv.item->isDeleted());
 }
 
-/// Test that if a single key is prepared, aborted & re-prepared it is the
-/// second Prepare which is kept on disk.
-TEST_P(DurabilityEPBucketTest, PersistPrepareAbortPrepare) {
+TEST_P(DurabilityEPBucketTest, PersistPrepareWriteAbort) {
+    testPersistPrepareAbort(DocumentState::Alive);
+}
+
+TEST_P(DurabilityEPBucketTest, PersistPrepareDeleteAbort) {
+    testPersistPrepareAbort(DocumentState::Deleted);
+}
+
+void DurabilityEPBucketTest::testPersistPrepareAbortPrepare(
+        DocumentState docState) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
@@ -167,7 +213,7 @@ TEST_P(DurabilityEPBucketTest, PersistPrepareAbortPrepare) {
 
     auto& vb = *getEPBucket().getVBucket(vbid);
 
-    // First prepare and abort.
+    // First prepare (always a SyncWrite) and abort.
     auto key = makeStoredDocKey("key");
     auto pending = makePendingItem(key, "value");
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
@@ -179,6 +225,9 @@ TEST_P(DurabilityEPBucketTest, PersistPrepareAbortPrepare) {
 
     // Second prepare.
     auto pending2 = makePendingItem(key, "value2");
+    if (docState == DocumentState::Deleted) {
+        pending2->setDeleted(DeleteSource::Explicit);
+    }
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending2, cookie));
 
     // We do not deduplicate Prepare and Abort (achieved by inserting them into
@@ -206,13 +255,19 @@ TEST_P(DurabilityEPBucketTest, PersistPrepareAbortPrepare) {
     auto gv = store->get(prefixedKey, Vbid(0));
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
     EXPECT_TRUE(gv.item->isPending());
-    EXPECT_FALSE(gv.item->isDeleted());
+    EXPECT_EQ(docState == DocumentState::Deleted, gv.item->isDeleted());
     EXPECT_EQ(pending2->getBySeqno(), gv.item->getBySeqno());
 }
 
-/// Test that if a single key is prepared, aborted re-prepared & re-aborted it
-/// is the second Abort which is kept on disk.
-TEST_P(DurabilityEPBucketTest, PersistPrepareAbortx2) {
+TEST_P(DurabilityEPBucketTest, PersistPrepareAbortPrepare) {
+    testPersistPrepareAbortPrepare(DocumentState::Alive);
+}
+
+TEST_P(DurabilityEPBucketTest, PersistPrepareAbortPrepareDelete) {
+    testPersistPrepareAbortPrepare(DocumentState::Deleted);
+}
+
+void DurabilityEPBucketTest::testPersistPrepareAbortX2(DocumentState docState) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
@@ -232,6 +287,9 @@ TEST_P(DurabilityEPBucketTest, PersistPrepareAbortx2) {
 
     // Second prepare and abort.
     auto pending2 = makePendingItem(key, "value2");
+    if (docState == DocumentState::Deleted) {
+        pending2->setDeleted(DeleteSource::Explicit);
+    }
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending2, cookie));
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.abort(key,
@@ -266,6 +324,14 @@ TEST_P(DurabilityEPBucketTest, PersistPrepareAbortx2) {
     EXPECT_TRUE(gv.item->isAbort());
     EXPECT_TRUE(gv.item->isDeleted());
     EXPECT_EQ(pending2->getBySeqno() + 1, gv.item->getBySeqno());
+}
+
+TEST_P(DurabilityEPBucketTest, PersistPrepareAbortx2) {
+    testPersistPrepareAbortX2(DocumentState::Alive);
+}
+
+TEST_P(DurabilityEPBucketTest, PersistPrepareAbortPrepareDeleteAbort) {
+    testPersistPrepareAbortX2(DocumentState::Deleted);
 }
 
 TEST_P(DurabilityEPBucketTest, ActiveLocalNotifyPersistedSeqno) {
