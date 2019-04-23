@@ -59,6 +59,10 @@ public:
         return producerIsVersion5orHigher;
     }
 
+    FlowControl& getFlowControl() {
+        return flowControl;
+    }
+
     /*
      * Creates a PassiveStream.
      * @return a SingleThreadedRCPtr to the newly created MockPassiveStream.

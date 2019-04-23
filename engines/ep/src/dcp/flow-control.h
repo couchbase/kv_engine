@@ -53,6 +53,10 @@ public:
 
     void addStats(ADD_STAT add_stat, const void *c);
 
+    uint64_t getFreedBytes() const {
+        return freedBytes.load();
+    }
+
 private:
     void setBufSizeWithinBounds(size_t &bufSize);
 
