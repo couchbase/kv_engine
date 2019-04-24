@@ -16,6 +16,7 @@
  */
 #include <mcbp/protocol/datatype.h>
 #include <nlohmann/json.hpp>
+#include <sstream>
 
 std::string to_string(cb::mcbp::Datatype datatype) {
     return toJSON(datatype).dump();

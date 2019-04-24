@@ -50,6 +50,7 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/server_cookie_iface.h>
 #include <memcached/util.h>
+#include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
@@ -844,9 +845,7 @@ static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine* e,
             }
 
             try {
-                const nlohmann::detail::input_adapter adapter(
-                        reinterpret_cast<const char*>(val.data()), val.size());
-                meta = nlohmann::json::parse(adapter);
+                meta = nlohmann::json::parse(val);
             } catch (const std::exception&) {
                 e->setErrorContext(cookie, "Invalid JSON provided");
                 return ENGINE_EINVAL;

@@ -24,6 +24,7 @@
 
 #include <mcbp/protocol/request.h>
 #include <nlohmann/json.hpp>
+#include <sstream>
 
 #include <platform/thread.h>
 

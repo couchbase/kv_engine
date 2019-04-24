@@ -23,6 +23,7 @@
 
 #include <logger/logger.h>
 #include <mcbp/protocol/framebuilder.h>
+#include <nlohmann/json.hpp>
 #include <platform/base64.h>
 #include <algorithm>
 
