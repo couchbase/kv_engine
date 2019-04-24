@@ -411,9 +411,6 @@ if (NOT EP_BYPASS_TESTS)
                    $<TARGET_OBJECTS:memory_tracking>
                    $<TARGET_OBJECTS:couchstore_test_fileops>
                    $<TARGET_OBJECTS:couchfile_upgrade_objects>
-                   ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
-                   ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
-                   ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc
                    ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
 
     TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
@@ -424,7 +421,7 @@ if (NOT EP_BYPASS_TESTS)
                           dirutils engine_utilities ep-engine_collections gtest
                           gmock hdr_histogram_static JSON_checker
                           memcached_logger mcbp mcd_util mcd_tracing platform
-                          phosphor xattr cbcompress ${MALLOC_LIBRARIES}
+                          phosphor xattr cbcompress mock_server ${MALLOC_LIBRARIES}
                           ${LIBEVENT_LIBRARIES}
                           ${FOLLY_LIBRARIES})
 
