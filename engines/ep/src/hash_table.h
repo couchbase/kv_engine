@@ -345,7 +345,7 @@ public:
 
     private:
         /// Count of alive & deleted, in-memory non-resident and resident items.
-        /// Excludes temporary items.
+        /// Excludes temporary and prepared items.
         cb::NonNegativeCounter<size_t> numItems;
 
         /// Count of alive, non-resident items.
@@ -471,6 +471,7 @@ public:
 
     /**
      * Get the number of deleted items in the hash table.
+     * Excludes system events and prepared items.
      */
     size_t getNumDeletedItems() const {
         return valueStats.getNumDeletedItems();

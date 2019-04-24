@@ -713,6 +713,26 @@ TEST_P(HashTableStatsTest, PreparedSyncWrite) {
     EXPECT_TRUE(del(ht, key));
 }
 
+TEST_P(HashTableStatsTest, PreparedSyncDelete) {
+    // Setup
+    HashTable ht(global_stats, makeFactory(true), 128, 1);
+    auto prepared = makePendingItem(key, "prepared");
+    prepared->setDeleted(DeleteSource::Explicit);
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*prepared));
+
+    // Test
+    EXPECT_EQ(1, ht.getNumPreparedSyncWrites());
+    EXPECT_EQ(1, ht.getNumItems());
+    EXPECT_EQ(0, ht.getNumDeletedItems())
+            << "NumDeletedItems should not include prepared SyncDeletes";
+    for (const auto& count : ht.getDatatypeCounts()) {
+        EXPECT_EQ(0, count);
+    }
+
+    // Cleanup
+    EXPECT_TRUE(del(ht, key));
+}
+
 /// Store a prepared SyncWrite, commit it and check counts.
 TEST_P(HashTableStatsTest, CommittedSyncWrite) {
     // Setup
@@ -729,6 +749,31 @@ TEST_P(HashTableStatsTest, CommittedSyncWrite) {
     EXPECT_EQ(0, ht.getNumPreparedSyncWrites());
     EXPECT_EQ(1, ht.getNumItems());
     EXPECT_EQ(1, ht.getDatatypeCounts()[prepared->getDataType()]);
+
+    // Cleanup
+    EXPECT_TRUE(del(ht, key));
+}
+
+/// Store a prepared SyncDelete, commit it and check counts.
+TEST_P(HashTableStatsTest, CommittedSyncDelete) {
+    // Setup
+    HashTable ht(global_stats, makeFactory(true), 128, 1);
+    auto prepared = makePendingItem(key, "prepared");
+    prepared->setDeleted(DeleteSource::Explicit);
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*prepared));
+    { // locking scope.
+        auto result = ht.findForWrite(key);
+        ASSERT_TRUE(result.storedValue);
+        ht.commit(result.lock, *result.storedValue);
+    }
+
+    // Test
+    EXPECT_EQ(0, ht.getNumPreparedSyncWrites());
+    EXPECT_EQ(1, ht.getNumItems());
+    EXPECT_EQ(1, ht.getNumDeletedItems());
+    for (const auto& count : ht.getDatatypeCounts()) {
+        EXPECT_EQ(0, count);
+    }
 
     // Cleanup
     EXPECT_TRUE(del(ht, key));

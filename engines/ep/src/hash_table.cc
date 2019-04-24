@@ -510,8 +510,14 @@ void HashTable::Statistics::epilogue(StoredValueProperties pre,
 
     // Don't include system items in the deleted count, numSystemItems will
     // count both types (a marked deleted system event still has purpose)
-    if (pre.isDeleted != post.isDeleted && !post.isSystemItem) {
-        numDeletedItems.fetch_add(post.isDeleted - pre.isDeleted);
+    // Don't include prepared items in the deleted count - they haven't (yet)
+    // been deleted.
+    const bool preDeleted =
+            pre.isDeleted && !pre.isSystemItem && !pre.isPreparedSyncWrite;
+    const bool postDeleted =
+            post.isDeleted && !post.isSystemItem && !post.isPreparedSyncWrite;
+    if (preDeleted != postDeleted) {
+        numDeletedItems.fetch_add(postDeleted - preDeleted);
     }
 
     // Update datatypes. These are only tracked for non-temp, non-deleted,
