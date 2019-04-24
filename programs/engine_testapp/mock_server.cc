@@ -511,7 +511,6 @@ size_t get_number_of_mock_cookie_io_notifications(const void* cookie) {
     return c->num_io_notifications;
 }
 
-MEMCACHED_PUBLIC_API cb::tracing::Traceable& mock_get_traceable(
-        const void* cookie) {
+cb::tracing::Traceable& mock_get_traceable(const void* cookie) {
     return *cookie_to_mock_object(cookie);
 }

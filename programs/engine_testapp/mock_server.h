@@ -40,45 +40,41 @@ struct mock_callbacks {
     const void *cb_data;
 };
 
-MEMCACHED_PUBLIC_API void mock_init_alloc_hooks();
+void mock_init_alloc_hooks();
 
-MEMCACHED_PUBLIC_API SERVER_HANDLE_V1* get_mock_server_api();
+SERVER_HANDLE_V1* get_mock_server_api();
 
-MEMCACHED_PUBLIC_API void init_mock_server();
+void init_mock_server();
 
-MEMCACHED_PUBLIC_API const void* create_mock_cookie();
+const void* create_mock_cookie();
 
-MEMCACHED_PUBLIC_API void destroy_mock_cookie(const void *cookie);
+void destroy_mock_cookie(const void* cookie);
 
-MEMCACHED_PUBLIC_API void mock_set_ewouldblock_handling(const void *cookie, bool enable);
+void mock_set_ewouldblock_handling(const void* cookie, bool enable);
 
-MEMCACHED_PUBLIC_API void mock_set_mutation_extras_handling(const void *cookie,
-                                                            bool enable);
+void mock_set_mutation_extras_handling(const void* cookie, bool enable);
 
-MEMCACHED_PUBLIC_API void mock_set_collections_support(const void *cookie,
-                                                       bool enable);
+void mock_set_collections_support(const void* cookie, bool enable);
 
-MEMCACHED_PUBLIC_API void mock_set_datatype_support(
-        const void* cookie, protocol_binary_datatype_t datatypes);
+void mock_set_datatype_support(const void* cookie,
+                               protocol_binary_datatype_t datatypes);
 
-MEMCACHED_PUBLIC_API void lock_mock_cookie(const void *cookie);
+void lock_mock_cookie(const void* cookie);
 
-MEMCACHED_PUBLIC_API void unlock_mock_cookie(const void *cookie);
+void unlock_mock_cookie(const void* cookie);
 
-MEMCACHED_PUBLIC_API void waitfor_mock_cookie(const void *cookie);
+void waitfor_mock_cookie(const void* cookie);
 
-MEMCACHED_PUBLIC_API void mock_time_travel(int by);
+void mock_time_travel(int by);
 
-MEMCACHED_PUBLIC_API void disconnect_all_mock_connections();
+void disconnect_all_mock_connections();
 
-MEMCACHED_PUBLIC_API void destroy_mock_event_callbacks();
+void destroy_mock_event_callbacks();
 
-MEMCACHED_PUBLIC_API int get_number_of_mock_cookie_references(const void *cookie);
+int get_number_of_mock_cookie_references(const void* cookie);
 
-MEMCACHED_PUBLIC_API size_t
-get_number_of_mock_cookie_io_notifications(const void* cookie);
+size_t get_number_of_mock_cookie_io_notifications(const void* cookie);
 
 void mock_set_pre_link_function(PreLinkFunction function);
 
-MEMCACHED_PUBLIC_API cb::tracing::Traceable& mock_get_traceable(
-        const void* cookie);
+cb::tracing::Traceable& mock_get_traceable(const void* cookie);
