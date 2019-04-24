@@ -103,23 +103,37 @@ void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
      * cursor_dropping_lower_mark or cursor_dropping_checkpoint_mem_lower_mark
      * based on the trigger condition.
      */
-    const auto bucketQuota = engine->getConfiguration().getMaxSize();
+    const auto& config = engine->getConfiguration();
+    const auto bucketQuota = config.getMaxSize();
+
+    const auto activeVBChkptMemSize =
+            engine->getKVBucket()
+                    ->getVBuckets()
+                    .getActiveVBucketsTotalCheckpointMemoryUsage();
+
+    const auto chkptMemLimit =
+            bucketQuota *
+            (config.getCursorDroppingCheckpointMemUpperMark() / 100);
+
+    const bool hitCheckpointMemoryThreshold =
+            activeVBChkptMemSize >= chkptMemLimit;
 
     const bool aboveLowWatermark =
             stats.getEstimatedTotalMemoryUsed() >= stats.mem_low_wat.load();
-    const bool hitCheckpointMemoryThreshold =
-            engine->getKVBucket()
-                    ->getVBuckets()
-                    .getActiveVBucketsTotalCheckpointMemoryUsage() >=
-            bucketQuota * (engine->getConfiguration()
-                                   .getCursorDroppingCheckpointMemUpperMark() /
-                           100);
 
-    if (stats.getEstimatedTotalMemoryUsed() >
-                stats.cursorDroppingUThreshold.load() ||
-        (aboveLowWatermark && hitCheckpointMemoryThreshold)) {
+    const bool ckptMemExceedsCheckpointMemoryThreshold =
+            aboveLowWatermark && hitCheckpointMemoryThreshold;
+
+    const bool memUsedExceedsCursorDroppingUpperMark =
+            stats.getEstimatedTotalMemoryUsed() >
+            stats.cursorDroppingUThreshold.load();
+
+    auto toMB = [](size_t bytes) { return bytes / (1024 * 1024); };
+    if (memUsedExceedsCursorDroppingUpperMark ||
+        ckptMemExceedsCheckpointMemoryThreshold) {
         size_t amountOfMemoryToClear;
-        if (aboveLowWatermark && hitCheckpointMemoryThreshold) {
+
+        if (ckptMemExceedsCheckpointMemoryThreshold) {
             // If we were triggered by the fact we hit the low watermark and we
             // are over the threshold of allowed checkpoint memory usage, then
             // try to clear memory down to the lower limit of the allowable
@@ -127,13 +141,29 @@ void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
             amountOfMemoryToClear =
                     stats.getEstimatedTotalMemoryUsed() -
                     (bucketQuota *
-                     (engine->getConfiguration()
-                              .getCursorDroppingCheckpointMemLowerMark() /
-                      100));
+                     (config.getCursorDroppingCheckpointMemLowerMark() / 100));
+            LOG(EXTENSION_LOG_INFO,
+                "Triggering cursor dropping as checkpoint_memory (%lu MB) "
+                "exceeds cursor_dropping_checkpoint_mem_upper_mark (%lu%%, "
+                "%lu MB). Attempting to free %lu MB of memory.",
+                toMB(activeVBChkptMemSize),
+                config.getCursorDroppingCheckpointMemUpperMark(),
+                toMB(chkptMemLimit),
+                toMB(amountOfMemoryToClear));
+
         } else {
             amountOfMemoryToClear = stats.getEstimatedTotalMemoryUsed() -
                                     stats.cursorDroppingLThreshold.load();
+            LOG(EXTENSION_LOG_INFO,
+                "Triggering cursor dropping as mem_used (%lu MB) "
+                "exceeds cursor_dropping_upper_mark (%lu%%, %lu MB). "
+                "Attempting to free %lu MB of memory.",
+                toMB(stats.getEstimatedTotalMemoryUsed()),
+                config.getCursorDroppingUpperMark(),
+                toMB(stats.cursorDroppingUThreshold.load()),
+                toMB(amountOfMemoryToClear));
         }
+
         size_t memoryCleared = 0;
         KVBucketIface* kvBucket = engine->getKVBucket();
         // Get a list of active vbuckets sorted by memory usage
