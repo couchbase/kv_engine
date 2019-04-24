@@ -21,16 +21,18 @@
 #include "logger/logger_config.h"
 #include "network_interface.h"
 #include "opentracing_config.h"
-#include <utilities/breakpad_settings.h>
 
 #include <memcached/engine.h>
 #include <platform/dynamic.h>
 #include <relaxed_atomic.h>
+#include <utilities/breakpad_settings.h>
+
+#include <folly/Synchronized.h>
+
 #include <atomic>
 #include <cstdarg>
 #include <deque>
 #include <map>
-#include <mutex>
 #include <string>
 #include <vector>
 
@@ -138,11 +140,8 @@ public:
      * @param ifc the interface to add
      */
     void addInterface(const NetworkInterface& ifc) {
-        {
-            std::lock_guard<std::mutex> guard(interfaces_mutex);
-            interfaces.push_back(ifc);
-            has.interfaces = true;
-        }
+        interfaces.wlock()->push_back(ifc);
+        has.interfaces = true;
         notify_changed("interfaces");
     }
 
@@ -153,8 +152,7 @@ public:
      * @return the vector of interfaces
      */
     std::vector<NetworkInterface> getInterfaces() const {
-        std::lock_guard<std::mutex> guard(interfaces_mutex);
-        return std::vector<NetworkInterface>{interfaces};
+        return std::vector<NetworkInterface>{*interfaces.rlock()};
     }
 
     /**
@@ -698,13 +696,10 @@ public:
     }
 
     const std::string getOpcodeAttributesOverride() const {
-        std::lock_guard<std::mutex> guard(
-                Settings::opcode_attributes_override.mutex);
-        return std::string{opcode_attributes_override.value};
+        return std::string{*opcode_attributes_override.rlock()};
     }
 
-    void setOpcodeAttributesOverride(
-            const std::string& opcode_attributes_override);
+    void setOpcodeAttributesOverride(const std::string& value);
 
     bool isTopkeysEnabled() const {
         return topkeys_enabled.load(std::memory_order_acquire);
@@ -726,18 +721,14 @@ public:
         notify_changed("tracing_enabled");
     }
 
-    void setScramshaFallbackSalt(std::string value) {
-        {
-            std::lock_guard<std::mutex> guard(scramsha_fallback_salt.mutex);
-            has.scramsha_fallback_salt = true;
-            scramsha_fallback_salt.value = std::move(value);
-        }
+    void setScramshaFallbackSalt(const std::string& value) {
+        scramsha_fallback_salt.wlock()->assign(value);
+        has.scramsha_fallback_salt = true;
         notify_changed("scramsha_fallback_salt");
     }
 
     std::string getScramshaFallbackSalt() const {
-        std::lock_guard<std::mutex> guard(scramsha_fallback_salt.mutex);
-        return std::string{scramsha_fallback_salt.value};
+        return std::string{*scramsha_fallback_salt.rlock()};
     }
 
     void setExternalAuthServiceEnabled(bool enable) {
@@ -803,11 +794,8 @@ protected:
      * */
     size_t num_threads;
 
-    /**
-     * Array of interface settings we are listening on
-     */
-    std::vector<NetworkInterface> interfaces;
-    mutable std::mutex interfaces_mutex;
+    /// Array of interface settings we are listening on
+    folly::Synchronized<std::vector<NetworkInterface>> interfaces;
 
     /**
      * Configuration of the logger
@@ -895,21 +883,11 @@ protected:
      */
     int topkeys_size;
 
-    /**
-     * The available sasl mechanism list
-     */
-    struct {
-        mutable std::mutex mutex;
-        std::string value;
-    } sasl_mechanisms;
+    /// The available sasl mechanism list
+    folly::Synchronized<std::string> sasl_mechanisms;
 
-    /**
-     * The available sasl mechanism list to use over SSL
-     */
-    struct {
-        mutable std::mutex mutex;
-        std::string value;
-    } ssl_sasl_mechanisms;
+    /// The available sasl mechanism list to use over SSL
+    folly::Synchronized<std::string> ssl_sasl_mechanisms;
 
     /**
      * Should we deduplicate the cluster maps from the Not My VBucket messages
@@ -931,13 +909,8 @@ protected:
      */
     std::atomic_bool collections_enabled;
 
-    /**
-     * Any settings to override opcode attributes
-     */
-    struct {
-        mutable std::mutex mutex;
-        std::string value;
-    } opcode_attributes_override;
+    /// Any settings to override opcode attributes
+    folly::Synchronized<std::string> opcode_attributes_override;
 
     /**
      * Is topkeys enabled or not
@@ -1021,11 +994,7 @@ public:
     } has;
 
 protected:
-
-    struct {
-        mutable std::mutex mutex;
-        std::string value;
-    } scramsha_fallback_salt;
+    folly::Synchronized<std::string> scramsha_fallback_salt;
 
     /**
      * Note that it is not safe to add new listeners after we've spun up

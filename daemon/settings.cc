@@ -581,7 +581,7 @@ static void handle_opentracing(Settings& s, const nlohmann::json& obj) {
 void Settings::reconfigure(const nlohmann::json& json) {
     // Nuke the default interface added to the system in settings_init and
     // use the ones in the configuration file.. (this is a bit messy)
-    interfaces.clear();
+    interfaces.wlock()->clear();
 
     struct settings_config_tokens {
         /**
@@ -660,20 +660,14 @@ void Settings::reconfigure(const nlohmann::json& json) {
     }
 }
 
-void Settings::setOpcodeAttributesOverride(
-        const std::string& opcode_attributes_override) {
-    if (!opcode_attributes_override.empty()) {
+void Settings::setOpcodeAttributesOverride(const std::string& value) {
+    if (!value.empty()) {
         // Verify the content...
-        cb::mcbp::sla::reconfigure(
-                nlohmann::json::parse(opcode_attributes_override), false);
+        cb::mcbp::sla::reconfigure(nlohmann::json::parse(value), false);
     }
 
-    {
-        std::lock_guard<std::mutex> guard(
-                Settings::opcode_attributes_override.mutex);
-        Settings::opcode_attributes_override.value = opcode_attributes_override;
-        has.opcode_attributes_override = true;
-    }
+    opcode_attributes_override.wlock()->assign(value);
+    has.opcode_attributes_override = true;
     notify_changed("opcode_attributes_override");
 }
 
@@ -910,21 +904,23 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         auto next = other.getInterfaces();
         bool change = false;
 
-        if (next.size() == interfaces.size()) {
-            const auto total = next.size();
-            for (std::size_t ii = 0; ii < total; ++ii) {
-                if (interfaces[ii] != next[ii]) {
-                    change = true;
-                    break;
+        {
+            auto locked = interfaces.rlock();
+            if (next.size() == locked->size()) {
+                const auto total = next.size();
+                for (std::size_t ii = 0; ii < total; ++ii) {
+                    if (locked->at(ii) != next[ii]) {
+                        change = true;
+                        break;
+                    }
                 }
+            } else {
+                change = true;
             }
-        } else {
-            change = true;
         }
 
         if (change) {
-            std::lock_guard<std::mutex> guard(interfaces_mutex);
-            interfaces = std::move(next);
+            interfaces.wlock()->swap(next);
             notify_changed("interfaces");
         }
     }
@@ -1216,29 +1212,21 @@ void Settings::notify_changed(const std::string& key) {
 }
 
 std::string Settings::getSaslMechanisms() const {
-    std::lock_guard<std::mutex> guard(sasl_mechanisms.mutex);
-    return sasl_mechanisms.value;
+    return std::string{*sasl_mechanisms.rlock()};
 }
 
-void Settings::setSaslMechanisms(const std::string& sasl_mechanisms) {
-    {
-        std::lock_guard<std::mutex> guard(Settings::sasl_mechanisms.mutex);
-        Settings::sasl_mechanisms.value = sasl_mechanisms;
-        has.sasl_mechanisms = true;
-    }
+void Settings::setSaslMechanisms(const std::string& mechanisms) {
+    sasl_mechanisms.wlock()->assign(mechanisms);
+    has.sasl_mechanisms = true;
     notify_changed("sasl_mechanisms");
 }
 
 std::string Settings::getSslSaslMechanisms() const {
-    std::lock_guard<std::mutex> guard(ssl_sasl_mechanisms.mutex);
-    return ssl_sasl_mechanisms.value;
+    return std::string{*ssl_sasl_mechanisms.rlock()};
 }
 
-void Settings::setSslSaslMechanisms(const std::string& ssl_sasl_mechanisms) {
-    {
-        std::lock_guard<std::mutex> guard(Settings::ssl_sasl_mechanisms.mutex);
-        Settings::ssl_sasl_mechanisms.value = ssl_sasl_mechanisms;
-        has.ssl_sasl_mechanisms = true;
-    }
+void Settings::setSslSaslMechanisms(const std::string& mechanisms) {
+    ssl_sasl_mechanisms.wlock()->assign(mechanisms);
+    has.ssl_sasl_mechanisms = true;
     notify_changed("ssl_sasl_mechanisms");
 }
