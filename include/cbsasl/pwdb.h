@@ -17,7 +17,6 @@
 
 #pragma once
 
-#include <cbsasl/visibility.h>
 #include <iostream>
 #include <string>
 
@@ -34,7 +33,6 @@ namespace pwdb {
  * @throws std::runtime_error if we're failing to open files
  * @throws std::bad_alloc for memory issues
  */
-CBSASL_PUBLIC_API
 void convert(const std::string& ifile, const std::string& ofile);
 
 /**
@@ -45,7 +43,6 @@ void convert(const std::string& ifile, const std::string& ofile);
  * @param ofile output stream
  * @throws std::bad_alloc for memory issues
  */
-CBSASL_PUBLIC_API
 void convert(std::istream& is, std::ostream& os);
 
 /**
@@ -59,7 +56,6 @@ void convert(std::istream& is, std::ostream& os);
  * @throws std::exception if an error occurs while reading or decrypting
  *                        the content
  */
-CBSASL_PUBLIC_API
 std::string read_password_file(const std::string& filename);
 
 /**
@@ -73,7 +69,6 @@ std::string read_password_file(const std::string& filename);
  * @throws std::exception if an error occurs while reading or encrypting
  *                        the content
  */
-CBSASL_PUBLIC_API
 void write_password_file(const std::string& filename,
                          const std::string& content);
 

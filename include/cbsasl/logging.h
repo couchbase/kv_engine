@@ -16,7 +16,6 @@
  */
 #pragma once
 
-#include <cbsasl/visibility.h>
 #include <string>
 
 namespace cb {
@@ -63,7 +62,6 @@ using LogCallback = void (*)(Level level, const std::string& message);
 /**
  * Specify the callback function to use for logging
  */
-CBSASL_PUBLIC_API
 void set_log_callback(LogCallback callback);
 
 /**

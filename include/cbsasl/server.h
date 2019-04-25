@@ -20,7 +20,6 @@
 #include <cbsasl/context.h>
 #include <cbsasl/domain.h>
 #include <cbsasl/error.h>
-#include <cbsasl/visibility.h>
 
 #include <platform/sized_buffer.h>
 #include <functional>
@@ -37,32 +36,27 @@ namespace server {
  * This function initializes the server by loading passwords from the cbsasl
  * password file. This function should only be called once.
  */
-CBSASL_PUBLIC_API
 void initialize();
 
 /**
  * close and release allocated resources
  */
-CBSASL_PUBLIC_API
 void shutdown();
 
 /**
  * List all of the mechanisms available in cbsasl
  */
-CBSASL_PUBLIC_API
 std::string listmech();
 
 /**
  * Refresh the internal data (this may result in loading password
  * databases etc)
  */
-CBSASL_PUBLIC_API
 void refresh();
 
 /**
  * Set the HMAC interation count to use.
  */
-CBSASL_PUBLIC_API
 void set_hmac_iteration_count(int count);
 
 /**
@@ -71,12 +65,11 @@ void set_hmac_iteration_count(int count);
  * salt. Instead we're using a HMAC of the username and this salt as
  * the salt we're reporting back to the user.
  */
-CBSASL_PUBLIC_API
 void set_scramsha_fallback_salt(const std::string& salt);
 
 class ServerContext;
 
-class CBSASL_PUBLIC_API MechanismBackend {
+class MechanismBackend {
 public:
     explicit MechanismBackend(ServerContext& ctx)
         : context(ctx), domain(Domain::Local) {
@@ -110,7 +103,7 @@ protected:
     Domain domain;
 };
 
-class CBSASL_PUBLIC_API ServerContext : public Context {
+class ServerContext : public Context {
 public:
     const std::string getName() const {
         return backend->getName();

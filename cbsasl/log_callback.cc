@@ -31,7 +31,6 @@ namespace logging {
 
 extern cb::RelaxedAtomic<LogCallback> callback;
 
-CBSASL_PUBLIC_API
 void set_log_callback(LogCallback logCallback) {
     callback.store(logCallback);
 }

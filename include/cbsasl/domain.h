@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <cbsasl/visibility.h>
 #include <cstdint>
 #include <string>
 
@@ -40,11 +39,9 @@ enum class Domain : uint8_t {
     External
 };
 
-CBSASL_PUBLIC_API
 Domain to_domain(const std::string& domain);
 
 } // namespace sasl
 } // namespace cb
 
-CBSASL_PUBLIC_API
 std::string to_string(cb::sasl::Domain domain);

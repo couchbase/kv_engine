@@ -17,7 +17,6 @@
 
 #pragma once
 
-#include <cbsasl/visibility.h>
 #include <string>
 
 namespace cb {
@@ -41,5 +40,4 @@ enum class Error {
 } // namespace sasl
 } // namespace cb
 
-CBSASL_PUBLIC_API
 std::string to_string(cb::sasl::Error error);

@@ -19,7 +19,6 @@
 #include <cbsasl/context.h>
 #include <cbsasl/error.h>
 #include <cbsasl/user.h>
-#include <cbsasl/visibility.h>
 
 namespace cb {
 namespace sasl {
@@ -34,7 +33,6 @@ namespace plain {
  * @return Error::OK if the provided password match the supplied
  *                   password.
  */
-CBSASL_PUBLIC_API
 Error check_password(Context* context,
                      const cb::sasl::pwdb::User& user,
                      const std::string& password);

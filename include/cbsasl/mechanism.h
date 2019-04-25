@@ -18,7 +18,6 @@
 #pragma once
 
 #include <cbsasl/error.h>
-#include <cbsasl/visibility.h>
 
 #include <stdexcept>
 #include <string>
@@ -28,7 +27,7 @@ namespace sasl {
 
 enum class Mechanism { SCRAM_SHA512, SCRAM_SHA256, SCRAM_SHA1, PLAIN };
 
-class CBSASL_PUBLIC_API unknown_mechanism : public std::invalid_argument {
+class unknown_mechanism : public std::invalid_argument {
 public:
     explicit unknown_mechanism(const std::string& msg)
         : std::invalid_argument(msg) {
@@ -44,7 +43,6 @@ public:
  * @throws unknown_mechanism if no supported mechanism is listed in the
  *                           available mechanisms
  */
-CBSASL_PUBLIC_API
 Mechanism selectMechanism(const std::string& mechanisms);
 
 /**
@@ -56,7 +54,6 @@ Mechanism selectMechanism(const std::string& mechanisms);
  * @throws unknown_mechanism if mech isn't listed in mechanisms (or not
  *                           not supported internally.
  */
-CBSASL_PUBLIC_API
 Mechanism selectMechanism(const std::string& mech,
                           const std::string& mechanisms);
 
@@ -66,7 +63,7 @@ namespace plain {
  * Try to run a plain text authentication with the specified username and
  * password.
  */
-CBSASL_PUBLIC_API
+
 Error authenticate(const std::string& username, const std::string& passwd);
 
 } // namespace plain

@@ -83,12 +83,10 @@ std::pair<cb::sasl::Error, cb::const_char_buffer> ServerContext::start(
     return backend->start(input);
 }
 
-CBSASL_PUBLIC_API
 void refresh() {
     load_user_db();
 }
 
-CBSASL_PUBLIC_API
 void initialize() {
     const auto ret = load_user_db();
     if (ret != Error::OK) {
@@ -98,16 +96,13 @@ void initialize() {
     }
 }
 
-CBSASL_PUBLIC_API
 void shutdown() {
 }
 
-CBSASL_PUBLIC_API
 void set_hmac_iteration_count(int count) {
     pwdb::UserFactory::setDefaultHmacIterationCount(count);
 }
 
-CBSASL_PUBLIC_API
 void set_scramsha_fallback_salt(const std::string& salt) {
     pwdb::UserFactory::setScramshaFallbackSalt(salt);
 }

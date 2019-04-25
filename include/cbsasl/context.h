@@ -17,7 +17,6 @@
 
 #pragma once
 
-#include <cbsasl/visibility.h>
 #include <string>
 
 namespace cb {
@@ -27,7 +26,7 @@ namespace sasl {
  * An abstract context class to allow a common base class for the
  * client and server context.
  */
-class CBSASL_PUBLIC_API Context {
+class Context {
 public:
     virtual ~Context() = default;
 

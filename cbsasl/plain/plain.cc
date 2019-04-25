@@ -119,7 +119,6 @@ std::pair<Error, cb::const_char_buffer> ClientBackend::start() {
             Error::OK, {buffer.data(), buffer.size()});
 }
 
-CBSASL_PUBLIC_API
 Error authenticate(const std::string& username, const std::string& passwd) {
     cb::sasl::pwdb::User user;
     if (!find_user(username, user)) {

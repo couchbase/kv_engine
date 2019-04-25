@@ -24,7 +24,6 @@
 namespace cb {
 namespace sasl {
 
-CBSASL_PUBLIC_API
 Mechanism selectMechanism(const std::string& mechanisms) {
     std::string avail;
     std::transform(mechanisms.begin(),
@@ -54,7 +53,6 @@ Mechanism selectMechanism(const std::string& mechanisms) {
     throw unknown_mechanism(mechanisms);
 }
 
-CBSASL_PUBLIC_API
 Mechanism selectMechanism(const std::string& mech,
                           const std::string& mechanisms) {
     std::string avail;

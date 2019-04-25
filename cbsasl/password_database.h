@@ -16,7 +16,6 @@
  */
 #pragma once
 
-#include <cbsasl/visibility.h>
 #include <nlohmann/json_fwd.hpp>
 
 #include <string>
@@ -27,7 +26,7 @@ namespace cb {
 namespace sasl {
 namespace pwdb {
 
-class CBSASL_PUBLIC_API PasswordDatabase {
+class PasswordDatabase {
 public:
     /**
      * Create an instance of the password database without any

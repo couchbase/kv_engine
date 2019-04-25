@@ -18,7 +18,6 @@
 
 #include <stdexcept>
 
-CBSASL_PUBLIC_API
 cb::sasl::Domain cb::sasl::to_domain(const std::string& domain) {
     if (domain == "local") {
         return cb::sasl::Domain::Local;
@@ -29,7 +28,6 @@ cb::sasl::Domain cb::sasl::to_domain(const std::string& domain) {
                                 domain);
 }
 
-CBSASL_PUBLIC_API
 std::string to_string(cb::sasl::Domain domain) {
     switch (domain) {
     case cb::sasl::Domain::Local:

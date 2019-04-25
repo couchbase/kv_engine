@@ -32,13 +32,13 @@ namespace pwdb {
 
 class UserFactory;
 
-class CBSASL_PUBLIC_API User {
+class User {
 public:
     /**
      * To allow multiple authentication schemes we need to store
      * some metadata for each of the different scheme.
      */
-    class CBSASL_PUBLIC_API PasswordMetaData {
+    class PasswordMetaData {
     public:
         /**
          * Create a new instance of the PasswordMetaData
@@ -171,7 +171,7 @@ protected:
  * The UserFactory class is used to generate a User Object from a
  * username and plain text password.
  */
-class CBSASL_PUBLIC_API UserFactory {
+class UserFactory {
 public:
     /**
      * Construct a new user object

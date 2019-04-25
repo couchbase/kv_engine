@@ -1,4 +1,4 @@
-list(APPEND CBSASL_SOURCES
+add_library(cbsasl STATIC
      ${Memcached_SOURCE_DIR}/include/cbsasl/client.h
      ${Memcached_SOURCE_DIR}/include/cbsasl/context.h
      ${Memcached_SOURCE_DIR}/include/cbsasl/domain.h
@@ -33,11 +33,6 @@ list(APPEND CBSASL_SOURCES
      user.h
      util.h)
 
-add_library(cbsasl SHARED ${CBSASL_SOURCES})
-generate_export_header(cbsasl
-                       EXPORT_MACRO_NAME CBSASL_PUBLIC_API
-                       EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/cbsasl/visibility.h)
-set_target_properties(cbsasl PROPERTIES SOVERSION 2.0.0)
 target_link_libraries(cbsasl cbcrypto cbsocket dirutils mcd_util platform)
 add_sanitizers(cbsasl)
 

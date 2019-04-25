@@ -19,7 +19,6 @@
 
 #include <cbsasl/context.h>
 #include <cbsasl/error.h>
-#include <cbsasl/visibility.h>
 
 #include <platform/sized_buffer.h>
 #include <functional>
@@ -49,7 +48,7 @@ using GetPasswordCallback = std::function<std::string()>;
  * This class is internal to the CBSASL library, but public in order
  * to allow unit tests to access it.
  */
-class CBSASL_PUBLIC_API MechanismBackend {
+class MechanismBackend {
 public:
     explicit MechanismBackend(GetUsernameCallback user_cb,
                               GetPasswordCallback password_cb,
@@ -107,7 +106,7 @@ protected:
  *     throw std::runtime_error(
  *         "Authentication failed: " + to_string(server.first));
  */
-class CBSASL_PUBLIC_API ClientContext : public Context {
+class ClientContext : public Context {
 public:
     /**
      * Create a new instance of the ClientContext
