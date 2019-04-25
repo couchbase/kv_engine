@@ -123,4 +123,7 @@ protected:
     VBucket& vb;
 
     folly::Synchronized<State> state;
+
+    // Necessary for implementing ADM(PDM&&)
+    friend class ActiveDurabilityMonitor;
 };

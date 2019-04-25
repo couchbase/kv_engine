@@ -19,6 +19,7 @@
 
 #include "bucket_logger.h"
 #include "item.h"
+#include "passive_durability_monitor.h"
 #include "statwriter.h"
 #include "vbucket.h"
 
@@ -28,17 +29,21 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(VBucket& vb)
     : vb(vb), state(*this) {
 }
 
+ActiveDurabilityMonitor::ActiveDurabilityMonitor(PassiveDurabilityMonitor&& pdm)
+    : ActiveDurabilityMonitor(pdm.vb) {
+    auto s = state.wlock();
+    s->trackedWrites.swap(pdm.state.wlock()->trackedWrites);
+    if (!s->trackedWrites.empty()) {
+        s->lastTrackedSeqno = s->trackedWrites.back().getBySeqno();
+    }
+}
+
 ActiveDurabilityMonitor::~ActiveDurabilityMonitor() = default;
 
 void ActiveDurabilityMonitor::setReplicationTopology(
         const nlohmann::json& topology) {
-    // @todo: Add support for DurabilityMonitor at Replica
-    if (vb.getState() == vbucket_state_t::vbucket_state_replica) {
-        throw std::invalid_argument(
-                "ActiveDurabilityMonitor::setReplicationTopology: Not "
-                "supported at "
-                "Replica");
-    }
+    Expects(vb.getState() == vbucket_state_active);
+    Expects(!topology.is_null());
 
     if (!topology.is_array()) {
         throw std::invalid_argument(
@@ -78,7 +83,27 @@ void ActiveDurabilityMonitor::setReplicationTopology(
                 "in chain (active) cannot be undefined");
     }
 
-    state.wlock()->setReplicationTopology(topology);
+    // Setting the replication topology also resets the topology in all
+    // in-flight (tracked) SyncWrites. If the new topology contains only the
+    // Active, then some Prepares could be immediately satisfied and ready for
+    // commit.
+    //
+    // Note: We must release the lock to state before calling back to VBucket
+    // (in commit()) to avoid a lock inversion with HashBucketLock (same issue
+    // as at seqnoAckReceived(), details in there).
+    //
+    // Note: setReplicationTopology + updateHighPreparedSeqno must be a single
+    // atomic operation. We could commit out-of-seqno-order Prepares otherwise.
+    Container toCommit;
+    {
+        auto s = state.wlock();
+        s->setReplicationTopology(topology);
+        toCommit = s->updateHighPreparedSeqno();
+    }
+
+    for (const auto& sw : toCommit) {
+        commit(sw);
+    }
 }
 
 int64_t ActiveDurabilityMonitor::getHighPreparedSeqno() const {
@@ -481,12 +506,15 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
             fChain.emplace_back(UndefinedNode);
         }
     }
-    // Note: Topology changes (i.e., reset of replication-chain) are implicitly
-    //     supported. With the current model the new replication-chain will
-    //     kick-in at the first new SyncWrite added to tracking.
-    // @todo: Check if the above is legal
-    firstChain =
-            std::make_unique<ReplicationChain>(fChain, trackedWrites.begin());
+
+    // Note: Initially all the tracking iterators point to Container::end
+    firstChain = std::make_unique<ReplicationChain>(
+            fChain, trackedWrites.end() /*initPos*/);
+
+    // Apply the new topology to all in-flight SyncWrites
+    for (auto& write : trackedWrites) {
+        write.resetTopology(*firstChain);
+    }
 }
 
 void ActiveDurabilityMonitor::State::addSyncWrite(const void* cookie,

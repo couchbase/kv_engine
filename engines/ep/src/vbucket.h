@@ -1851,11 +1851,19 @@ protected:
     void updateRevSeqNoOfNewStoredValue(StoredValue& v);
 
     /**
-     * Set the replication topology
+     * Updates the replication topology and propagates the new topology to
+     * the DurabilityMonitor.
+     * A new DurabilityMonitor instance may be instantiated in this function,
+     * depending on the current VBucket::state and the previous vbstate given
+     * in input.
      *
-     * @param the new topology
+     * @param topology The new topology
+     * @param (Optional) prevVBState Previous VBucket State, if the function is
+     *     called as part of a vbstate transition
      */
-    void setReplicationTopology(const nlohmann::json& topology);
+    void setupSyncReplication(
+            const nlohmann::json& topology,
+            boost::optional<vbucket_state_t> prevVBState = {});
 
     /**
      * @return a reference (if valid, i.e. vbstate=active) to the Active DM
@@ -1866,12 +1874,6 @@ protected:
      * @return a reference (if valid, i.e. vbstate=replica) to the Passive DM
      */
     PassiveDurabilityMonitor& getPassiveDM();
-
-    /**
-     * @return a new instance of DurabilityMonitor, Active or Passive depending
-     *     on the current VBucket::state
-     */
-    std::unique_ptr<DurabilityMonitor> makeDurabilityMonitor();
 
 private:
     void fireAllOps(EventuallyPersistentEngine& engine, ENGINE_ERROR_CODE code);

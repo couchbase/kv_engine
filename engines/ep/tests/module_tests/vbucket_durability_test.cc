@@ -37,9 +37,9 @@ void VBucketDurabilityTest::SetUp() {
     ht = &vbucket->ht;
     ckptMgr = static_cast<MockCheckpointManager*>(
             vbucket->checkpointManager.get());
-    vbucket->setState(vbucket_state_active);
-    vbucket->setReplicationTopology(
-            nlohmann::json::array({{active, replica1}}));
+    vbucket->setState(
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{active, replica1}})}});
     ASSERT_EQ(2, vbucket->getActiveDM().getFirstChainSize());
 }
 
@@ -456,18 +456,16 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
     ckptMgr->clear(*vbucket, 0 /*seqno*/);
 
     // Client never notified yet
-    ASSERT_EQ(0, swCompleteTrace.count);
-    ASSERT_EQ(nullptr, swCompleteTrace.cookie);
-    ASSERT_EQ(ENGINE_EINVAL, swCompleteTrace.status);
+    ASSERT_EQ(SWCompleteTrace(0 /*count*/, nullptr, ENGINE_EINVAL),
+              swCompleteTrace);
 
     // Simulate replica and active seqno-ack
     vbucket->seqnoAcknowledged(replica1, preparedSeqno);
     simulateLocalAck(preparedSeqno);
 
     // Commit notified
-    ASSERT_EQ(1, swCompleteTrace.count);
-    ASSERT_EQ(cookie, swCompleteTrace.cookie);
-    ASSERT_EQ(ENGINE_SUCCESS, swCompleteTrace.status);
+    EXPECT_EQ(SWCompleteTrace(1 /*count*/, cookie, ENGINE_SUCCESS),
+              swCompleteTrace);
 
     // HashTable state:
     // visible at read
@@ -583,9 +581,8 @@ TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
     ckptMgr->clear(*vbucket, 0 /*seqno*/);
 
     // Client never notified yet
-    ASSERT_EQ(0, swCompleteTrace.count);
-    ASSERT_EQ(nullptr, swCompleteTrace.cookie);
-    ASSERT_EQ(ENGINE_EINVAL, swCompleteTrace.status);
+    ASSERT_EQ(SWCompleteTrace(0 /*count*/, nullptr, ENGINE_EINVAL),
+              swCompleteTrace);
 
     // Note: abort-seqno must be provided only at Replica
     EXPECT_EQ(ENGINE_SUCCESS,
@@ -596,9 +593,8 @@ TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
                              cookie));
 
     // Abort notified
-    ASSERT_EQ(1, swCompleteTrace.count);
-    ASSERT_EQ(cookie, swCompleteTrace.cookie);
-    ASSERT_EQ(ENGINE_SYNC_WRITE_AMBIGUOUS, swCompleteTrace.status);
+    EXPECT_EQ(SWCompleteTrace(1 /*count*/, cookie, ENGINE_SYNC_WRITE_AMBIGUOUS),
+              swCompleteTrace);
 
     // StoredValue has gone
     EXPECT_EQ(0, ht->getNumItems());
@@ -696,4 +692,42 @@ TEST_P(VBucketDurabilityTest, Replica_AddPrepare) {
     ASSERT_EQ(0, monitor.getNumTracked());
     testAddPrepare({1, 2, 3} /*seqnos*/);
     ASSERT_EQ(3, monitor.getNumTracked());
+}
+
+TEST_P(VBucketDurabilityTest, ConvertPassiveDMToActiveDM) {
+    ASSERT_TRUE(vbucket);
+    vbucket->setState(vbucket_state_replica);
+
+    // Queue some Prepares into the PDM
+    const auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+    ASSERT_EQ(0, pdm.getNumTracked());
+    const std::vector<SyncWriteSpec> seqnos{1, 2, 3};
+    testAddPrepare(seqnos);
+    ASSERT_EQ(seqnos.size(), pdm.getNumTracked());
+
+    // VBState transitions from Replica to Active
+    const nlohmann::json topology(
+            {{"topology", nlohmann::json::array({{active, replica1}})}});
+    vbucket->setState(vbucket_state_active, topology);
+    // The old PDM is an instance of ADM now. All Prepares are retained.
+    auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
+    EXPECT_EQ(seqnos.size(), adm.getNumTracked());
+    EXPECT_EQ(std::unordered_set<int64_t>({1, 2, 3}), adm.getTrackedSeqnos());
+
+    // Client never notified yet
+    ASSERT_EQ(SWCompleteTrace(0 /*count*/, nullptr, ENGINE_EINVAL),
+              swCompleteTrace);
+
+    // Check that the SyncWrite journey now proceeds to completion as expected
+    ASSERT_EQ(seqnos.back().seqno, adm.getHighPreparedSeqno());
+    ASSERT_EQ(0, adm.getNodeWriteSeqno(replica1));
+    size_t expectedNumTracked = seqnos.size();
+    for (const auto s : seqnos) {
+        adm.seqnoAckReceived(replica1, s.seqno);
+        EXPECT_EQ(--expectedNumTracked, adm.getNumTracked());
+        // Nothing to notify, we don't know anything about the oldADM->client
+        // connection.
+        EXPECT_EQ(SWCompleteTrace(0 /*count*/, nullptr, ENGINE_EINVAL),
+                  swCompleteTrace);
+    }
 }

@@ -41,6 +41,22 @@ public:
     }
 };
 
+struct SWCompleteTrace {
+    SWCompleteTrace() {
+    }
+    SWCompleteTrace(uint8_t count, const void* cookie, ENGINE_ERROR_CODE status)
+        : count(count), cookie(cookie), status(status) {
+    }
+    uint8_t count{0};
+    const void* cookie{nullptr};
+    ENGINE_ERROR_CODE status{ENGINE_EINVAL}; // just a placeholder
+
+    friend bool operator==(const SWCompleteTrace& lhs,
+                           const SWCompleteTrace& rhs);
+};
+
+bool operator==(const SWCompleteTrace& lhs, const SWCompleteTrace& rhs);
+
 /**
  * Base class for VBucket tests, for example DefragmenterTest
  */
@@ -102,11 +118,7 @@ protected:
 
     void public_incrementBackfillQueueSize();
 
-    struct {
-        uint8_t count{0};
-        const void* cookie{nullptr};
-        ENGINE_ERROR_CODE status{ENGINE_EINVAL}; // just a placeholder
-    } swCompleteTrace;
+    SWCompleteTrace swCompleteTrace;
 
     // Mock SyncWriteCompleteCallback that helps in testing client-notify for
     // Commit/Abort

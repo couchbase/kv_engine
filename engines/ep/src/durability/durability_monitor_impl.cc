@@ -31,16 +31,7 @@ DurabilityMonitor::SyncWrite::SyncWrite(const void* cookie,
                       : boost::optional<
                                 std::chrono::steady_clock::time_point>{}) {
     if (chain) {
-        majority = chain->majority;
-        active = chain->active;
-
-        // We are making a SyncWrite for tracking, we must have already ensured
-        // that the Durability Requirements can be met at this point.
-        Expects(chain->size() >= majority);
-
-        for (const auto& entry : chain->positions) {
-            acks[entry.first] = false;
-        }
+        resetTopology(*chain);
     }
 }
 
@@ -97,6 +88,26 @@ bool DurabilityMonitor::SyncWrite::isExpired(
         return false;
     }
     return expiryTime < asOf;
+}
+
+void DurabilityMonitor::SyncWrite::resetTopology(
+        const ReplicationChain& firstChain) {
+    majority = firstChain.majority;
+    active = firstChain.active;
+
+    // We are making a SyncWrite for tracking, we must have already ensured
+    // that the Durability Requirements can be met at this point.
+    Expects(firstChain.size() >= majority);
+
+    // Discard any previous state. This is a NOP if this SyncWrite is being
+    // constructed.
+    acks.clear();
+
+    // Reset
+    for (const auto& entry : firstChain.positions) {
+        acks[entry.first] = false;
+    }
+    ackCount.reset(0);
 }
 
 std::ostream& operator<<(std::ostream& os,

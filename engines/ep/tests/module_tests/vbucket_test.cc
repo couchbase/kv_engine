@@ -280,6 +280,11 @@ void VBucketTestBase::public_incrementBackfillQueueSize() {
     vbucket->stats.vbBackfillQueueSize++;
 }
 
+bool operator==(const SWCompleteTrace& lhs, const SWCompleteTrace& rhs) {
+    return lhs.count == rhs.count && lhs.cookie == rhs.cookie &&
+           lhs.status == rhs.status;
+}
+
 class BlobTest : public Blob {
 public:
     BlobTest() : Blob(0,0) {}

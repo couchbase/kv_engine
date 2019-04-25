@@ -26,6 +26,7 @@
 
 #include <unordered_set>
 
+class PassiveDurabilityMonitor;
 class VBucket;
 
 /*
@@ -41,6 +42,15 @@ public:
     // Note: constructor and destructor implementation in the .cc file to allow
     // the forward declaration of ReplicationChain in the header
     ActiveDurabilityMonitor(VBucket& vb);
+
+    /**
+     * Construct an ActiveDM by converting the given PassiveDM.
+     * All the (in-flight) tracked Prepares in the old PassiveDM are retained.
+     *
+     * @param pdm The PassiveDM to be converted
+     */
+    ActiveDurabilityMonitor(PassiveDurabilityMonitor&& pdm);
+
     ~ActiveDurabilityMonitor();
 
     /**

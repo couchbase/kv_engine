@@ -78,6 +78,16 @@ public:
      */
     bool isExpired(std::chrono::steady_clock::time_point asOf) const;
 
+    /**
+     * Reset the ack-state for this SyncWrite and set it up for the new
+     * given topology.
+     *
+     * @param firstChain
+     *
+     * @todo Add support for second chain
+     */
+    void resetTopology(const ReplicationChain& firstChain);
+
 private:
     // Client cookie associated with this SyncWrite request, to be notified
     // when the SyncWrite completes.
@@ -118,20 +128,20 @@ private:
  */
 struct DurabilityMonitor::ReplicationChain {
     /**
-     * @param nodes The list of active/replica nodes in the ns_server
-     * format: {active, replica1, replica2, replica3}
+     * @param nodes The list of active/replica nodes in the ns_server format
+     *         {active, replica1, replica2, replica3}
+     *     Replica node(s) (but not active) can be logically undefined if:
+     *     a) auto-failover has occurred but the cluster hasn't yet been
+     *         rebalanced. As such the old replica (which is now the active)
+     *         hasn't been replaced yet.
+     *     b) Bucket has had the replica count increased but not yet rebalanced.
+     *         To assign the correct replicas. An undefined replica is
+     *         represented by an empty node name (""s).
      *
-     * replica node(s) (but not active) can be logically undefined - if:
-     * a) auto-failover has occurred but the cluster hasn't yet been
-     * rebalanced
-     *    - as such the old replica (which is now the active) hasn't been
-     *    replaced yet.
-     * b) Bucket has had the replica count increased but not yet reblanced
-     *    (to assign the correct replicas. An undefined replica is
-     * represented by an empty node name (""s).
+     * @param initPos The initial position for tracking iterators in chain
      */
     ReplicationChain(const std::vector<std::string>& nodes,
-                     const Container::iterator& it);
+                     const Container::iterator& initPos);
 
     size_t size() const;
 
