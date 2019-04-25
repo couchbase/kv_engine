@@ -208,3 +208,54 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
     // There should only be the one checkpoint cursor now for persistence
     ASSERT_EQ(1, checkpointManager->getNumOfCursors());
 }
+
+// Test that we correctly determine whether to trigger cursor dropping.
+TEST_F(CheckpointRemoverEPTest, cursorDroppingTriggerTest) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto& config = engine->getConfiguration();
+    const auto& task = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
+            engine.get(),
+            engine->getEpStats(),
+            engine->getConfiguration().getChkRemoverStime());
+
+    bool shouldTriggerCursorDropping{false};
+    size_t amountOfMemoryToClear{0};
+
+    /*
+     * With a large max size (with no other changes) we should
+     * conclude the cursor dropping is not required.
+     */
+    config.setMaxSize(10240);
+
+    std::tie(shouldTriggerCursorDropping, amountOfMemoryToClear) =
+            task->isCursorDroppingNeeded();
+    EXPECT_FALSE(shouldTriggerCursorDropping);
+    EXPECT_EQ(0, amountOfMemoryToClear);
+
+    /*
+     * Trigger first condition for cursor dropping:
+     * the total memory used is greater than the upper threshold which is
+     * a percentage of the quota, specified by cursor_dropping_upper_mark
+     */
+    config.setMaxSize(1024);
+
+    std::tie(shouldTriggerCursorDropping, amountOfMemoryToClear) =
+            task->isCursorDroppingNeeded();
+    EXPECT_TRUE(shouldTriggerCursorDropping);
+    EXPECT_LT(0, amountOfMemoryToClear);
+
+    /*
+     * Trigger second condition for cursor dropping:
+     * the overall checkpoint memory usage goes above a certain % of the
+     * bucket quota, specified by cursor_dropping_checkpoint_mem_upper_mark and
+     * the checkpoint memory usage is above the memory low watermark.
+     */
+    config.setMaxSize(10240);
+    engine->getEpStats().mem_low_wat.store(1);
+    config.setCursorDroppingCheckpointMemUpperMark(1);
+
+    std::tie(shouldTriggerCursorDropping, amountOfMemoryToClear) =
+            task->isCursorDroppingNeeded();
+    EXPECT_TRUE(shouldTriggerCursorDropping);
+    EXPECT_LT(0, amountOfMemoryToClear);
+}
