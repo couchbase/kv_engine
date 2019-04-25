@@ -1254,9 +1254,7 @@ TEST_P(XattrWithMetaTest, xattrPruneUserKeysOnDelete2) {
     auto result = store->get(key, vbid, cookie, options);
     EXPECT_EQ(ENGINE_EWOULDBLOCK, result.getStatus());
 
-    // Run the BGFetcher task
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
 
     options = get_options_t(options & (~GET_DELETED_VALUE));
 
@@ -1309,8 +1307,7 @@ TEST_P(DelWithMetaTest, setting_deleteTime) {
                                  metadata,
                                  deleted,
                                  datatype));
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
     EXPECT_EQ(ENGINE_SUCCESS,
               store->getMetaData({"mykey", DocKeyEncodesCollectionId::No},
                                  vbid,
@@ -1341,9 +1338,7 @@ TEST_P(DelWithMetaTest, MB_31141) {
             {"mykey", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
     EXPECT_EQ(ENGINE_EWOULDBLOCK, result.getStatus());
 
-    // Run the BGFetcher task
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
 
     result = store->get(
             {"mykey", DocKeyEncodesCollectionId::No}, vbid, cookie, options);

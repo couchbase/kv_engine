@@ -495,11 +495,7 @@ TEST_P(KVBucketParamTest, SetCASDeleted) {
     if (engine->getConfiguration().getItemEvictionPolicy() ==
                "full_eviction") {
         EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(item2, cookie));
-
-        // Manually run the bgfetch task.
-        MockGlobalTask mockTask(engine->getTaskable(),
-                                TaskId::MultiBGFetcherTask);
-        store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+        runBGFetcherTask();
     }
 
     EXPECT_EQ(ENGINE_KEY_ENOENT, store->set(item2, cookie));
@@ -702,10 +698,8 @@ TEST_P(KVBucketParamTest, MB_28078_SetWithMeta_tempDeleted) {
         ASSERT_EQ(ENGINE_EWOULDBLOCK, doSetWithMeta());
     }
 
-    auto* shard = store->getVBucket(vbid)->getShard();
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
     if (engine->getConfiguration().getBucketType() == "persistent") {
-        shard->getBgFetcher()->run(&mockTask);
+        runBGFetcherTask();
         ASSERT_EQ(ENGINE_KEY_EEXISTS, doSetWithMeta());
     }
 
@@ -861,12 +855,10 @@ ENGINE_ERROR_CODE KVBucketTest::getMeta(Vbid vbid,
     };
 
     auto engineResult = doGetMetaData();
-    auto* shard = store->getVBucket(vbid)->getShard();
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
     if (engine->getConfiguration().getBucketType() == "persistent") {
         EXPECT_EQ(ENGINE_EWOULDBLOCK, engineResult);
         // Manually run the bgfetch task, and re-attempt getMetaData
-        shard->getBgFetcher()->run(&mockTask);
+        runBGFetcherTask();
 
         engineResult = doGetMetaData();
     }
@@ -1096,12 +1088,10 @@ TEST_P(KVBucketParamTest, MB_25948) {
 
     auto engineResult = doGetMetaData();
 
-    auto* shard = store->getVBucket(vbid)->getShard();
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
     if (engine->getConfiguration().getBucketType() == "persistent") {
         EXPECT_EQ(ENGINE_EWOULDBLOCK, engineResult);
         // Manually run the bgfetch task, and re-attempt getMetaData
-        shard->getBgFetcher()->run(&mockTask);
+        runBGFetcherTask();
 
         engineResult = doGetMetaData();
     }
@@ -1118,7 +1108,7 @@ TEST_P(KVBucketParamTest, MB_25948) {
     // Manually run the bgfetch task and retry the get()
     if (engine->getConfiguration().getBucketType() == "persistent") {
         ASSERT_EQ(ENGINE_EWOULDBLOCK, result.getStatus());
-        shard->getBgFetcher()->run(&mockTask);
+        runBGFetcherTask();
         result = doGet();
     }
     ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
@@ -1175,13 +1165,11 @@ TEST_P(KVBucketParamTest, MB_27162) {
 
      auto engineResult = doGetMetaData();
 
-     auto* shard = store->getVBucket(vbid)->getShard();
-     MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
      if (engine->getConfiguration().getBucketType() == "persistent" &&
          GetParam() == "item_eviction_policy=full_eviction") {
          ASSERT_EQ(ENGINE_EWOULDBLOCK, engineResult);
          // Manually run the bgfetch task, and re-attempt getMetaData
-         shard->getBgFetcher()->run(&mockTask);
+         runBGFetcherTask();
 
          engineResult = doGetMetaData();
      }

@@ -1787,9 +1787,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29861) {
                                  deleted,
                                  datatype));
 
-    // Manually run the bgfetch task.
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
     EXPECT_EQ(ENGINE_SUCCESS,
               store->getMetaData(makeStoredDocKey("key1"),
                                  vbid,
@@ -1866,9 +1864,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_27457) {
                                  deleted,
                                  datatype));
 
-    // Manually run the bgfetch task.
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
     EXPECT_EQ(ENGINE_SUCCESS,
               store->getMetaData(makeStoredDocKey("key1"),
                                  vbid,
@@ -1889,7 +1885,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_27457) {
                                  metadata,
                                  deleted,
                                  datatype));
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
     EXPECT_EQ(ENGINE_SUCCESS,
               store->getMetaData(makeStoredDocKey("key2"),
                                  vbid,
@@ -2389,9 +2385,7 @@ TEST_F(SingleThreadedEPBucketTest, mb25273) {
     auto gv = store->get(docKey, vbid, cookie, options);
     EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
 
-    // Manually run the bgfetch task.
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
     gv = store->get(docKey, vbid, cookie, GET_DELETED_VALUE);
     ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
 
@@ -2541,8 +2535,7 @@ TEST_P(XattrSystemUserTest, MB_29040) {
             {"key", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
     EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
 
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
 
     gv = kvbucket.get(
             {"key", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
@@ -2839,9 +2832,7 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
             {"key", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
     EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
 
-    // Manually run the bgfetch task.
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
     gv = store->get({"key", DocKeyEncodesCollectionId::No},
                     vbid,
                     cookie,
@@ -2909,9 +2900,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_31141_sanitise_input) {
             {"key", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
     EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
 
-    // Manually run the bgfetch task.
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
     gv = store->get({"key", DocKeyEncodesCollectionId::No},
                     vbid,
                     cookie,
@@ -3696,9 +3685,7 @@ TEST_F(SingleThreadedEPBucketTest, testRetainErroneousTombstones) {
 
     auto vb = store->getVBucket(vbid);
 
-    // Manually run the bgfetch task.
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    vb->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
     ASSERT_EQ(ENGINE_SUCCESS,
               store->getMetaData(key1,
                                  vbid,
@@ -3760,9 +3747,7 @@ TEST_F(SingleThreadedEPBucketTest, testValidTombstonePurgeOnRetainErroneousTombs
                                  deleted,
                                  datatype));
 
-    // Manually run the bgfetch task.
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
     ASSERT_EQ(ENGINE_SUCCESS,
               store->getMetaData(key1,
                                  vbid,

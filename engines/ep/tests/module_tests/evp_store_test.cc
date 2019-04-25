@@ -443,8 +443,7 @@ TEST_P(EPStoreEvictionTest, DeletedValue) {
 
     // Manually run the BGFetcher task; to fetch the two outstanding
     // requests (for the same key).
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
 
     auto result = do_get();
     EXPECT_EQ(ENGINE_SUCCESS, result.getStatus())

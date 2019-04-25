@@ -874,10 +874,7 @@ TEST_P(STExpiryPagerTest, MB_25650) {
               store->getMetaData(
                       key_1, vbid, cookie, metadata, deleted, datatype));
     if (std::get<0>(GetParam()) == "persistent") {
-        // Manually run the bgfetch task.
-        MockGlobalTask mockTask(engine->getTaskable(),
-                                TaskId::MultiBGFetcherTask);
-        store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+        runBGFetcherTask();
         EXPECT_EQ(ENGINE_SUCCESS,
                   store->getMetaData(
                           key_1, vbid, cookie, metadata, deleted, datatype));
@@ -893,10 +890,7 @@ TEST_P(STExpiryPagerTest, MB_25650) {
 
     // Verify that the xattr body still exists.
     if (std::get<0>(GetParam()) == "persistent") {
-        // Manually run the bgfetch task.
-        MockGlobalTask mockTask(engine->getTaskable(),
-                                TaskId::MultiBGFetcherTask);
-        store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+        runBGFetcherTask();
     }
     auto item = store->get(key_1, vbid, cookie, GET_DELETED_VALUE);
 
@@ -1032,9 +1026,7 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25931) {
     EXPECT_EQ(cb::mcbp::Status::Success, store->evictKey(key, vbid, &msg));
     EXPECT_STREQ("Ejected.", msg);
 
-    // Manually run the bgfetch task.
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
 
     TimeTraveller docBrown(15);
 
