@@ -24,7 +24,8 @@
 
 #include <gsl.h>
 
-ActiveDurabilityMonitor::ActiveDurabilityMonitor(VBucket& vb) : vb(vb) {
+ActiveDurabilityMonitor::ActiveDurabilityMonitor(VBucket& vb)
+    : vb(vb), state(*this) {
 }
 
 ActiveDurabilityMonitor::~ActiveDurabilityMonitor() = default;
@@ -81,8 +82,11 @@ void ActiveDurabilityMonitor::setReplicationTopology(
 }
 
 int64_t ActiveDurabilityMonitor::getHighPreparedSeqno() const {
-    // @todo-durability: return a correct value for this.
-    return 0;
+    const auto s = state.rlock();
+    if (!s->firstChain) {
+        return 0;
+    }
+    return s->getNodeWriteSeqno(s->getActive());
 }
 
 bool ActiveDurabilityMonitor::isDurabilityPossible() const {
@@ -113,12 +117,19 @@ void ActiveDurabilityMonitor::addSyncWrite(const void* cookie,
                 "ActiveDurabilityMonitor::addSyncWrite: Impossible");
     }
 
-    state.wlock()->addSyncWrite(cookie, std::move(item));
+    Container toCommit;
+    {
+        auto s = state.wlock();
+        s->addSyncWrite(cookie, std::move(item));
+        toCommit = s->updateHighPreparedSeqno();
+    }
 
-    // @todo: Missing step - check for satisfied SyncWrite, we may need to
-    //     commit immediately in the no-replica scenario. Consider to do that in
-    //     a dedicated function for minimizing contention on front-end threads,
-    //     as this function is supposed to execute under VBucket-level lock.
+    // @todo: Consider to commit in a dedicated function for minimizing
+    //     contention on front-end threads, as this function is supposed to
+    //     execute under VBucket-level lock.
+    for (const auto& sw : toCommit) {
+        commit(sw);
+    }
 }
 
 ENGINE_ERROR_CODE ActiveDurabilityMonitor::seqnoAckReceived(
@@ -179,24 +190,10 @@ void ActiveDurabilityMonitor::processTimeout(
 }
 
 void ActiveDurabilityMonitor::notifyLocalPersistence() {
-    // We must release the lock to m before calling back to VBucket (in
+    // We must release the lock to state before calling back to VBucket (in
     // commit()) to avoid a lock inversion with HashBucketLock (same issue as
     // at seqnoAckReceived(), details in there).
-    Container toCommit;
-    {
-        /*
-         * @todo: Temporarily (until we have not a fully working logic for
-         * high_prepared_seqno) all Prepares are ack'ed only when persisted
-         * (even for Level=Majority). That is a (temporary and semantically
-         * correct) pessimization.
-         */
-        auto s = state.wlock();
-        // Note: For the Active, everything up-to last-persisted-seqno is in
-        //     consistent state.
-        s->processSeqnoAck(s->getActive(),
-                           vb.getPersistenceSeqno(),
-                           toCommit);
-    }
+    Container toCommit = state.wlock()->updateHighPreparedSeqno();
 
     for (const auto& sw : toCommit) {
         commit(sw);
@@ -219,8 +216,8 @@ void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
         add_casted_stat(buf, s->trackedWrites.size(), addStat, cookie);
 
         checked_snprintf(buf, sizeof(buf), "vb_%d:high_prepared_seqno", vbid);
-        // @todo: return proper high_prepared_seqno
-        add_casted_stat(buf, 0 /*high_prepared_seqno*/, addStat, cookie);
+        add_casted_stat(
+                buf, s->getNodeWriteSeqno(s->getActive()), addStat, cookie);
 
         checked_snprintf(buf, sizeof(buf), "vb_%d:last_tracked_seqno", vbid);
         add_casted_stat(buf, s->lastTrackedSeqno, addStat, cookie);
@@ -277,6 +274,7 @@ uint8_t ActiveDurabilityMonitor::getFirstChainMajority() const {
 
 ActiveDurabilityMonitor::Container::iterator
 ActiveDurabilityMonitor::State::getNodeNext(const std::string& node) {
+    Expects(firstChain.get());
     const auto& it = firstChain->positions.at(node).it;
     // Note: Container::end could be the new position when the pointed SyncWrite
     //     is removed from Container and the iterator repositioned.
@@ -286,6 +284,7 @@ ActiveDurabilityMonitor::State::getNodeNext(const std::string& node) {
 
 void ActiveDurabilityMonitor::State::advanceNodePosition(
         const std::string& node) {
+    Expects(firstChain.get());
     auto& pos = const_cast<Position&>(firstChain->positions.at(node));
 
     if (pos.it == trackedWrites.end()) {
@@ -307,6 +306,7 @@ void ActiveDurabilityMonitor::State::advanceNodePosition(
 
 void ActiveDurabilityMonitor::State::updateNodeAck(const std::string& node,
                                                    int64_t seqno) {
+    Expects(firstChain.get());
     auto& pos = const_cast<Position&>(firstChain->positions.at(node));
     pos.lastAckSeqno = seqno;
 }
@@ -322,16 +322,19 @@ int64_t ActiveDurabilityMonitor::getNodeAckSeqno(
 }
 
 const std::string& ActiveDurabilityMonitor::State::getActive() const {
+    Expects(firstChain.get());
     return firstChain->active;
 }
 
 int64_t ActiveDurabilityMonitor::State::getNodeWriteSeqno(
         const std::string& node) const {
+    Expects(firstChain.get());
     return firstChain->positions.at(node).lastWriteSeqno;
 }
 
 int64_t ActiveDurabilityMonitor::State::getNodeAckSeqno(
         const std::string& node) const {
+    Expects(firstChain.get());
     return firstChain->positions.at(node).lastAckSeqno;
 }
 
@@ -358,6 +361,7 @@ ActiveDurabilityMonitor::State::removeSyncWrite(Container::iterator it) {
     //
     // Note: O(N) with N=<number of iterators>, max(N)=6
     //     (max 2 chains, 3 replicas, 1 iterator per replica)
+    Expects(firstChain.get());
     for (const auto& entry : firstChain->positions) {
         const auto& nodePos = entry.second;
         if (nodePos.it == it) {
@@ -487,6 +491,7 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
 
 void ActiveDurabilityMonitor::State::addSyncWrite(const void* cookie,
                                                   queued_item item) {
+    Expects(firstChain.get());
     const auto seqno = item->getBySeqno();
     trackedWrites.emplace_back(cookie, std::move(item), firstChain.get());
     lastTrackedSeqno = seqno;
@@ -508,4 +513,66 @@ void ActiveDurabilityMonitor::State::removeExpired(
             ++it;
         }
     }
+}
+
+DurabilityMonitor::Container
+ActiveDurabilityMonitor::State::updateHighPreparedSeqno() {
+    // Note: All the logic below relies on the fact that HPS for Active is
+    //     implicitly the tracked position for Active in FirstChain
+
+    if (trackedWrites.empty()) {
+        return {};
+    }
+
+    const auto& active = getActive();
+    DurabilityMonitor::Container toCommit;
+    // Check if Durability Requirements are satisfied for the Prepare currently
+    // tracked for Active, and add for commit in case.
+    auto removeForCommitIfSatisfied =
+            [this, &active, &toCommit]() mutable -> void {
+        Expects(firstChain.get());
+        const auto& pos = firstChain->positions.at(active);
+        Expects(pos.it != trackedWrites.end());
+        if (pos.it->isSatisfied()) {
+            auto removed = removeSyncWrite(pos.it);
+            toCommit.splice(toCommit.end(), removed);
+        }
+    };
+
+    Container::iterator next;
+    // First, blindly move HPS up to high-persisted-seqno. Note that here we
+    // don't need to check any Durability Level: persistence makes
+    // locally-satisfied all the pending Prepares up to high-persisted-seqno.
+    while ((next = getNodeNext(active)) != trackedWrites.end() &&
+           static_cast<uint64_t>(next->getBySeqno()) <=
+                   adm.vb.getPersistenceSeqno()) {
+        advanceNodePosition(active);
+        removeForCommitIfSatisfied();
+    }
+
+    // Then, move the HPS to the last Prepare with Level == Majority.
+    // I.e., all the Majority Prepares that were blocked by non-satisfied
+    // PersistToMajority and MajorityAndPersistToMaster Prepares are implicitly
+    // satisfied now. The first non-satisfied Prepare is the first
+    // PersistToMajority or MajorityAndPersistToMaster not covered by
+    // persisted-seqno.
+    while ((next = getNodeNext(active)) != trackedWrites.end()) {
+        const auto level = next->getDurabilityReqs().getLevel();
+        Expects(level != cb::durability::Level::None);
+
+        // Note: We are in the ActiveDM. The first Level::PersistToMajority
+        // or Level::MajorityAndPersistOnMaster write is our durability-fence.
+        if (level == cb::durability::Level::PersistToMajority ||
+            level == cb::durability::Level::MajorityAndPersistOnMaster) {
+            break;
+        }
+
+        advanceNodePosition(active);
+        removeForCommitIfSatisfied();
+    }
+
+    // Note: For Consistency with the HPS at Replica, I don't update the
+    //     Position::lastAckSeqno for the local (Active) tracking.
+
+    return toCommit;
 }

@@ -183,6 +183,12 @@ protected:
      * them on the ADM::State public interface.
      */
     struct State {
+        /**
+         * @param adm The owning ActiveDurabilityMonitor
+         */
+        State(const ActiveDurabilityMonitor& adm) : adm(adm) {
+        }
+
         void setReplicationTopology(const nlohmann::json& topology);
 
         void addSyncWrite(const void* cookie, queued_item item);
@@ -249,6 +255,37 @@ protected:
          */
         Container removeSyncWrite(Container::iterator it);
 
+        /**
+         * Logically 'moves' forward the High Prepared Seqno to the last
+         * locally-satisfied Prepare. In other terms, the function moves the HPS
+         * to before the current durability-fence.
+         *
+         * Details.
+         *
+         * In terms of Durability Requirements, Prepares at Active can be
+         * locally-satisfied:
+         * (1) as soon as the they are queued into the PDM, if Level Majority
+         * (2) when they are persisted, if Level PersistToMajority or
+         *     MajorityAndPersistOnMaster
+         *
+         * We call the first non-satisfied PersistToMajority or
+         * MajorityAndPersistOnMaster Prepare the "durability-fence".
+         * All Prepares /before/ the durability-fence are locally-satisfied.
+         *
+         * This functions's internal logic performs (2) first by moving the HPS
+         * up to the latest persisted Prepare (i.e., the durability-fence) and
+         * then (1) by moving to the HPS to the last Prepare /before/ the new
+         * durability-fence (note that after step (2) the durability-fence has
+         * implicitly moved as well).
+         *
+         * Note that in the ActiveDM the HPS is implemented as the Active
+         * tracking in FirstChain. So, differently from the PassiveDM, here we
+         * do not have a dedicated HPS iterator.
+         *
+         * @return the Prepares satisfied (ready for commit) by the HPS update
+         */
+        Container updateHighPreparedSeqno();
+
         /// The container of pending Prepares.
         Container trackedWrites;
         // @todo: Expand for supporting the SecondChain.
@@ -257,6 +294,8 @@ protected:
         // Useful for sanity checks, necessary because the tracked container
         // can by emptied by Commit/Abort.
         Monotonic<int64_t, ThrowExceptionPolicy> lastTrackedSeqno;
+
+        const ActiveDurabilityMonitor& adm;
     };
 
     // The VBucket owning this DurabilityMonitor instance

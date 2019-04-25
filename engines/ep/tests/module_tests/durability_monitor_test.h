@@ -58,8 +58,65 @@ protected:
      */
     MutationStatus processSet(Item& item);
 
+    /**
+     * Checks that the HPS is updated correctly when Level:Majority writes
+     * are queued into the DM.
+     * The same logic must apply for both ActiveDM and PassiveDM.
+     */
+    void testHPS_Majority();
+
+    /**
+     * Checks that the HPS is updated correctly when Level:PersistToMajority
+     * writes are queued into the DM.
+     * The same logic must apply for both ActiveDM and PassiveDM.
+     */
+    void testHPS_PersistToMajority();
+
+    /**
+     * Checks that the HPS is updated correctly when (1) Level:PersistToMajority
+     * writes are queued into the DM and then (2) Level:Majority writes are
+     * queued. Verifies that Level:PersistToMajority writes enforce a
+     * durability-fence.
+     * The same logic must apply for both ActiveDM and PassiveDM.
+     */
+    void testHPS_PersistToMajority_Majority();
+
+    /**
+     * Checks that the HPS is updated correctly when (1) Level:Majority writes
+     * are queued into the DM and then (2) Level:PersistToMajority writes are
+     * queued. Verifies that Level:Majority writes do *not* enforce a
+     * durability-fence.
+     * The same logic must apply for both ActiveDM and PassiveDM.
+     */
+    void testHPS_Majority_PersistToMajority();
+
+    /**
+     * Add the given SyncWrites for tracking and check that High Prepared Seqno
+     * has been updated as expected.
+     *
+     * @param seqnos The mutations to be queued
+     * @param level The Durability Level of the queued mutations
+     * @param expectedHPS
+     */
+    void addSyncWriteAndCheckHPS(const std::vector<int64_t>& seqnos,
+                                 cb::durability::Level level,
+                                 int64_t expectedHPS);
+
+    /**
+     * Notify the persistedSeqno to the DM and check that High Prepared Seqno
+     * has been updated as expected.
+     *
+     * @param persistedSeqno
+     * @param expectedHPS
+     */
+    void notifyPersistenceAndCheckHPS(int64_t persistedSeqno,
+                                      int64_t expectedHPS);
+
     // Owned by KVBucket
     VBucket* vb;
+
+    // Owned by VBucket
+    DurabilityMonitor* monitor;
 };
 
 /*
@@ -71,6 +128,8 @@ public:
     void TearDown() override;
 
 protected:
+    ActiveDurabilityMonitor& getActiveDM() const;
+
     /**
      * Adds a number of SyncWrites with seqno in [start, end].
      *
@@ -140,9 +199,6 @@ protected:
                                 uint8_t expectedFirstChainSize,
                                 uint8_t expectedFirstChainMajority);
 
-    // Owned by VBucket
-    ActiveDurabilityMonitor* monitor;
-
     const std::string active = "active";
     const std::string replica1 = "replica1";
     const std::string replica2 = "replica2";
@@ -156,32 +212,4 @@ class PassiveDurabilityMonitorTest : public DurabilityMonitorTest {
 public:
     void SetUp() override;
     void TearDown() override;
-
-protected:
-    /**
-     * Add the given SyncWrites for tracking and check that High Prepared Seqno
-     * has been updated as expected.
-     *
-     * @param seqnos The mutations to be queued
-     * @param level The Durability Level of the queued mutations
-     * @param expectedNumTracked
-     * @param expectedHPS
-     */
-    void addSyncWriteAndCheckHPS(const std::vector<int64_t>& seqnos,
-                                 cb::durability::Level level,
-                                 int64_t expectedNumTracked,
-                                 int64_t expectedHPS);
-
-    /**
-     * Notify the persistedSeqno to the DM and check that High Prepared Seqno
-     * has been updated as expected.
-     *
-     * @param persistedSeqno
-     * @param expectedHPS
-     */
-    void notifyPersistenceAndCheckHPS(int64_t persistedSeqno,
-                                      int64_t expectedHPS);
-
-    // Owned by VBucket
-    PassiveDurabilityMonitor* monitor;
 };
