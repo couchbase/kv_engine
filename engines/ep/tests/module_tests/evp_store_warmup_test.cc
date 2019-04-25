@@ -513,13 +513,19 @@ TEST_F(WarmupTest, MB_32577) {
 }
 
 // Test fixture for Durability-related Warmup tests.
-class DurabilityWarmupTest : public DurabilityKVBucketTest {};
+class DurabilityWarmupTest : public DurabilityKVBucketTest {
+protected:
+    // Test that a pending SyncWrite/Delete not yet committed is correctly
+    // warmed up when the bucket restarts.
+    void testPendingSyncWrite(DocumentState docState);
+};
 
-// Test that a pending SyncWrite not yet committed is correctly warmed up
-// when the bucket restarts.
-TEST_P(DurabilityWarmupTest, PendingSyncWrite) {
-    // Store a pending SyncWrite (without committing) and then restart
+void DurabilityWarmupTest::testPendingSyncWrite(DocumentState docState) {
+    // Store a pending SyncWrite/Delete (without committing) and then restart
     auto item = makePendingItem(makeStoredDocKey("pendingSW"), "pending_value");
+    if (docState == DocumentState::Deleted) {
+        item->setDeleted(DeleteSource::Explicit);
+    }
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
     flush_vbucket_to_disk(vbid);
 
@@ -531,7 +537,16 @@ TEST_P(DurabilityWarmupTest, PendingSyncWrite) {
     auto prepared = vb->fetchPreparedValue(handle);
     EXPECT_TRUE(prepared.storedValue);
     EXPECT_TRUE(prepared.storedValue->isPending());
+    EXPECT_EQ(item->isDeleted(), prepared.storedValue->isDeleted());
     EXPECT_EQ(item->getCas(), prepared.storedValue->getCas());
+}
+
+TEST_P(DurabilityWarmupTest, PendingSyncWrite) {
+    testPendingSyncWrite(DocumentState::Alive);
+}
+
+TEST_P(DurabilityWarmupTest, PendingSyncDelete) {
+    testPendingSyncWrite(DocumentState::Deleted);
 }
 
 // Test that a pending SyncWrite which was committed is correctly warmed up

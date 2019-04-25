@@ -1545,7 +1545,10 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
         bool onlyKeys =
                 (ctx->valFilter == ValueFilter::KEYS_ONLY) ? true : false;
 
-        if (!includeDeletes && itm->isDeleted()) {
+        // Skip deleted items if they were not requested - apart from
+        // Prepared SyncWrites as the "deleted" there refers to the future
+        // value (a Prepare is actually deleted using an Abort).
+        if (!includeDeletes && itm->isDeleted() && !itm->isPending()) {
             continue;
         }
         int64_t byseqno = itm->getBySeqno();

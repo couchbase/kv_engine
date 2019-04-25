@@ -1133,9 +1133,6 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
         }
 
         void callback(GetValue& val) override {
-            // Should only be called back for non-deleted items.
-            Expects(!val.item->isDeleted());
-
             if (val.item->isPending()) {
                 // Pending item which was not aborted (deleted). Load into
                 // VBucket.

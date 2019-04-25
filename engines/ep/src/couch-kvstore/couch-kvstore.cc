@@ -189,6 +189,9 @@ static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
             // refer to an already-committed SyncWrite and hence timeout
             // must be ignored.
             item->setPendingSyncWrite({metadata.getDurabilityLevel(), 0});
+            if (metadata.isPreparedSyncDelete()) {
+                item->setDeleted(DeleteSource::Explicit);
+            }
             break;
         case queue_op::commit_sync_write:
             item->setCommittedviaPrepareSyncWrite();
@@ -274,7 +277,8 @@ CouchRequest::CouchRequest(const Item& it, MutationRequestCallback cb)
         // don't know if the SyncWrite was actually already committed; as such
         // to ensure consistency the pending SyncWrite *must* eventually commit
         // (or sit in pending forever).
-        meta.setDurabilityLevel(it.getDurabilityReqs().getLevel());
+        const auto level = it.getDurabilityReqs().getLevel();
+        meta.setPrepareProperties(level, it.isDeleted());
     }
 
     dbDocInfo.db_seq = it.getBySeqno();
@@ -287,8 +291,9 @@ CouchRequest::CouchRequest(const Item& it, MutationRequestCallback cb)
     dbDocInfo.rev_seq = it.getRevSeqno();
     dbDocInfo.size = dbDoc.data.size;
 
-    if (it.isDeleted()) {
-        dbDocInfo.deleted =  1;
+    if (it.isDeleted() && !it.isPending()) {
+        // Prepared SyncDeletes are not marked as deleted.
+        dbDocInfo.deleted = 1;
         meta.setDeleteSource(it.deletionSource());
     } else {
         dbDocInfo.deleted = 0;

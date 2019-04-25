@@ -1973,7 +1973,7 @@ TEST_F(CouchKVStoreMetaData, writeToOverlay) {
     metadata->setDeleteSource(deleteSource);
     metadata->setDataType(PROTOCOL_BINARY_DATATYPE_JSON);
     constexpr auto level = cb::durability::Level::Majority;
-    metadata->setDurabilityLevel(level);
+    metadata->setPrepareProperties(level, /*isSyncDelete*/ false);
     metadata->setDurabilityOp(queue_op::pending_sync_write);
 
     // Check they all read back

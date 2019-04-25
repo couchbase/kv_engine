@@ -244,12 +244,12 @@ protected:
 
         void initialise(const char* raw) {
             operation = Operation(raw[0]);
-            level = cb::durability::Level(raw[1]);
+            pending.raw = uint8_t(raw[1]);
         };
 
         void copyToBuf(char* raw) const {
             raw[0] = char(operation);
-            raw[1] = char(level);
+            raw[1] = char(pending.raw);
         }
 
         void setDurabilityOp(queue_op op) {
@@ -286,11 +286,19 @@ protected:
         }
 
         cb::durability::Level getDurabilityLevel() const {
-            return level;
+            return static_cast<cb::durability::Level>(pending.bits.level);
         }
 
         void setDurabilityLevel(cb::durability::Level level_) {
-            level = level_;
+            pending.bits.level = static_cast<char>(level_);
+        }
+
+        bool isPreparedDelete() const {
+            return pending.bits.isDelete == 1;
+        }
+
+        void setPreparedDelete(bool isPreparedSyncDelete) {
+            pending.bits.isDelete = isPreparedSyncDelete;
         }
 
     private:
@@ -298,10 +306,17 @@ protected:
         // although only currently need 2 bits.
         Operation operation;
 
-        // [[if Pending]] cb::durability::Level.
-        // Assigning a whole bytes for this field although only current need 2
-        // bits.
-        cb::durability::Level level;
+        // [[if Pending]] Properties of the pending SyncWrite.
+        // Currently using 3 bits out of the available 8 in this byte.
+        union {
+            struct {
+                // 0:pendingSyncWrite, 1:pendingSyncDelete.
+                uint8_t isDelete : 1;
+                // cb::durability::Level
+                uint8_t level : 2;
+            } bits;
+            uint8_t raw;
+        } pending;
     };
 
     static_assert(sizeof(MetaDataV3) == 2,
@@ -459,12 +474,17 @@ public:
         return allMeta.v3.getDurabilityOp();
     }
 
-    void setDurabilityLevel(cb::durability::Level level) {
+    void setPrepareProperties(cb::durability::Level level, bool isSyncDelete) {
         allMeta.v3.setDurabilityLevel(level);
+        allMeta.v3.setPreparedDelete(isSyncDelete);
     }
 
     cb::durability::Level getDurabilityLevel() const {
         return allMeta.v3.getDurabilityLevel();
+    }
+
+    bool isPreparedSyncDelete() const {
+        return allMeta.v3.isPreparedDelete();
     }
 
     Version getVersionInitialisedFrom() const {
