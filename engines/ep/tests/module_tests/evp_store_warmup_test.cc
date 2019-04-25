@@ -518,6 +518,10 @@ protected:
     // Test that a pending SyncWrite/Delete not yet committed is correctly
     // warmed up when the bucket restarts.
     void testPendingSyncWrite(DocumentState docState);
+
+    // Test that a pending SyncWrite/Delete which was committed is correctly
+    // warmed up when the bucket restarts (as a Committed item).
+    void testCommittedSyncWrite(DocumentState docState);
 };
 
 void DurabilityWarmupTest::testPendingSyncWrite(DocumentState docState) {
@@ -549,12 +553,13 @@ TEST_P(DurabilityWarmupTest, PendingSyncDelete) {
     testPendingSyncWrite(DocumentState::Deleted);
 }
 
-// Test that a pending SyncWrite which was committed is correctly warmed up
-// when the bucket restarts (as a Committed item).
-TEST_P(DurabilityWarmupTest, CommittedSyncWrite) {
+void DurabilityWarmupTest::testCommittedSyncWrite(DocumentState docState) {
     // Store a pending SyncWrite (without committing) and then restart
     auto key = makeStoredDocKey("key");
     auto item = makePendingItem(key, "value");
+    if (docState == DocumentState::Deleted) {
+        item->setDeleted(DeleteSource::Explicit);
+    }
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
     flush_vbucket_to_disk(vbid);
 
@@ -568,12 +573,26 @@ TEST_P(DurabilityWarmupTest, CommittedSyncWrite) {
 
     // Check that the item is CommittedviaPrepare.
     auto vb = engine->getVBucket(vbid);
-    auto handle = vb->lockCollections(item->getKey());
-    auto res = vb->fetchValidValue(
-            WantsDeleted::No, TrackReference::No, QueueExpired::No, handle);
-    EXPECT_TRUE(res.storedValue);
-    EXPECT_EQ(CommittedState::CommittedViaPrepare,
-              res.storedValue->getCommitted());
+    auto options =
+            static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
+    auto gv = engine->getKVBucket()->get(item->getKey(), vbid, cookie, options);
+    if (docState == DocumentState::Deleted) {
+        // Need an extra bgFetch to get a deleted item.
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+        runBGFetcherTask();
+        gv = engine->getKVBucket()->get(item->getKey(), vbid, cookie, options);
+    }
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(CommittedState::CommittedViaPrepare, gv.item->getCommitted());
+    EXPECT_EQ(item->isDeleted(), gv.item->isDeleted());
+}
+
+TEST_P(DurabilityWarmupTest, CommittedSyncWrite) {
+    testCommittedSyncWrite(DocumentState::Alive);
+}
+
+TEST_P(DurabilityWarmupTest, CommittedSyncDelete) {
+    testCommittedSyncWrite(DocumentState::Deleted);
 }
 
 // Test that a committed mutation followed by a pending SyncWrite to the same

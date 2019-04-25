@@ -170,6 +170,7 @@ void StoredValue::restoreValue(const Item& itm) {
     value = itm.getValue();
 
     setFreqCounterValue(freq);
+    setCommitted(itm.getCommitted());
     setAge(age);
     setResident(true);
 }
@@ -192,6 +193,7 @@ void StoredValue::restoreMeta(const Item& itm) {
         setNru(INITIAL_NRU_VALUE);
     }
     setFreqCounterValue(itm.getFreqCounterValue());
+    setCommitted(itm.getCommitted());
 }
 
 size_t StoredValue::uncompressedValuelen() const {
