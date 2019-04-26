@@ -5726,7 +5726,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
             std::string consumerName;
             if (!value.empty()) {
                 jsonValue = nlohmann::json::parse(value);
-                consumerName = jsonValue.at("consumer_name");
+                consumerName = jsonValue.at("consumer_name").get<std::string>();
             }
             handler = dcpConnMap_->newConsumer(cookie, connName, consumerName);
 
