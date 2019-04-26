@@ -41,6 +41,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
         module_tests/collections/vbucket_manifest_test.cc
         module_tests/collections/vbucket_manifest_entry_test.cc
         module_tests/configuration_test.cc
+        module_tests/conn_store_test.cc
         module_tests/defragmenter_test.cc
         module_tests/dcp_durability_stream_test.cc
         module_tests/dcp_reflection_test.cc

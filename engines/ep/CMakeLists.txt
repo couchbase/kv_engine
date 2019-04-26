@@ -217,6 +217,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/conn_notifier.cc
             src/connhandler.cc
             src/connmap.cc
+            src/conn_store.cc
             src/crc32.c
             src/dcp/active_stream.cc
             src/dcp/active_stream.h
