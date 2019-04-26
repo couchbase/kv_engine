@@ -67,7 +67,7 @@ public:
                              cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE mutation(uint32_t opaque,
-                               item* itm,
+                               cb::unique_item_ptr,
                                Vbid vbucket,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
@@ -78,7 +78,7 @@ public:
                                cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE deletion(uint32_t opaque,
-                               item* itm,
+                               cb::unique_item_ptr,
                                Vbid vbucket,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
@@ -87,7 +87,7 @@ public:
                                cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE deletion_v2(uint32_t opaque,
-                                  gsl::not_null<item*> itm,
+                                  cb::unique_item_ptr,
                                   Vbid vbucket,
                                   uint64_t by_seqno,
                                   uint64_t rev_seqno,
@@ -95,7 +95,7 @@ public:
                                   cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE expiration(uint32_t opaque,
-                                 gsl::not_null<item*> itm,
+                                 cb::unique_item_ptr,
                                  Vbid vbucket,
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
@@ -128,7 +128,7 @@ public:
     ENGINE_ERROR_CODE get_error_map(uint32_t opaque, uint16_t version) override;
 
     ENGINE_ERROR_CODE prepare(uint32_t opaque,
-                              item* itm,
+                              cb::unique_item_ptr,
                               Vbid vbucket,
                               uint64_t by_seqno,
                               uint64_t rev_seqno,

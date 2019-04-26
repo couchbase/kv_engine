@@ -144,7 +144,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::marker(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
-                                                    item* itm,
+                                                    cb::unique_item_ptr itm,
                                                     Vbid vbucket,
                                                     uint64_t by_seqno,
                                                     uint64_t rev_seqno,
@@ -156,7 +156,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
     auto result = handleMutationOrPrepare(
             cb::mcbp::ClientOpcode::DcpMutation,
             opaque,
-            itm,
+            std::move(itm),
             vbucket,
             by_seqno,
             rev_seqno,
@@ -170,7 +170,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
 ENGINE_ERROR_CODE MockDcpMessageProducers::handleMutationOrPrepare(
         cb::mcbp::ClientOpcode opcode,
         uint32_t opaque,
-        void* itm,
+        cb::unique_item_ptr itm,
         Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
@@ -178,7 +178,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::handleMutationOrPrepare(
         cb::const_char_buffer meta,
         uint8_t nru) {
     clear_dcp_data();
-    Item* item = reinterpret_cast<Item*>(itm);
+    Item* item = reinterpret_cast<Item*>(itm.get());
     last_op = opcode;
     last_opaque = opaque;
     last_key.assign(item->getKey().c_str());
@@ -202,16 +202,12 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::handleMutationOrPrepare(
     last_datatype = item->getDataType();
     last_collection_id = item->getKey().getCollectionID();
 
-    if (engine_handle_v1 && engine_handle) {
-        engine_handle_v1->release(item);
-    }
-
     return mutationStatus;
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::deletionInner(
         uint32_t opaque,
-        item* itm,
+        cb::unique_item_ptr itm,
         Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
@@ -222,7 +218,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletionInner(
         DeleteSource deleteSource,
         cb::mcbp::DcpStreamId sid) {
     clear_dcp_data();
-    Item* item = reinterpret_cast<Item*>(itm);
+    auto* item = reinterpret_cast<Item*>(itm.get());
     if (deleteSource == DeleteSource::TTL) {
         last_op = cb::mcbp::ClientOpcode::DcpExpiration;
     } else {
@@ -246,17 +242,13 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletionInner(
     last_delete_time = deleteTime;
     last_collection_id = item->getKey().getCollectionID();
 
-    if (engine_handle_v1 && engine_handle) {
-        engine_handle_v1->release(item);
-    }
-
     last_stream_id = sid;
 
     return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::deletion(uint32_t opaque,
-                                                    item* itm,
+                                                    cb::unique_item_ptr itm,
                                                     Vbid vbucket,
                                                     uint64_t by_seqno,
                                                     uint64_t rev_seqno,
@@ -264,7 +256,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletion(uint32_t opaque,
                                                     uint16_t nmeta,
                                                     cb::mcbp::DcpStreamId sid) {
     return deletionInner(opaque,
-                         itm,
+                         std::move(itm),
                          vbucket,
                          by_seqno,
                          rev_seqno,
@@ -278,14 +270,14 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletion(uint32_t opaque,
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::deletion_v2(
         uint32_t opaque,
-        gsl::not_null<item*> itm,
+        cb::unique_item_ptr itm,
         Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
         uint32_t deleteTime,
         cb::mcbp::DcpStreamId sid) {
     return deletionInner(opaque,
-                         itm,
+                         std::move(itm),
                          vbucket,
                          by_seqno,
                          rev_seqno,
@@ -299,14 +291,14 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletion_v2(
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::expiration(
         uint32_t opaque,
-        gsl::not_null<item*> itm,
+        cb::unique_item_ptr itm,
         Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
         uint32_t deleteTime,
         cb::mcbp::DcpStreamId sid) {
     return deletionInner(opaque,
-                         itm,
+                         std::move(itm),
                          vbucket,
                          by_seqno,
                          rev_seqno,
@@ -397,7 +389,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::system_event(
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::prepare(
         uint32_t opaque,
-        item* itm,
+        cb::unique_item_ptr itm,
         Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
@@ -407,7 +399,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::prepare(
         cb::durability::Requirements durability) {
     return handleMutationOrPrepare(cb::mcbp::ClientOpcode::DcpPrepare,
                                    opaque,
-                                   itm,
+                                   std::move(itm),
                                    vbucket,
                                    by_seqno,
                                    rev_seqno,

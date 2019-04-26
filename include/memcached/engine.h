@@ -110,13 +110,7 @@ typedef ENGINE_ERROR_CODE (*CREATE_INSTANCE)(GET_SERVER_API get_server_api,
  */
 typedef void (*DESTROY_ENGINE)();
 
-/**
- * A unique_ptr to use with items returned from the engine interface.
- */
 namespace cb {
-class ItemDeleter;
-typedef std::unique_ptr<item, ItemDeleter> unique_item_ptr;
-
 using EngineErrorItemPair = std::pair<cb::engine_errc, cb::unique_item_ptr>;
 
 using EngineErrorMetadataPair = std::pair<engine_errc, item_info>;
@@ -134,7 +128,7 @@ struct EngineErrorCasPair {
     engine_errc status;
     uint64_t cas;
 };
-}
+} // namespace cb
 
 /**
  * The different compression modes that a bucket supports

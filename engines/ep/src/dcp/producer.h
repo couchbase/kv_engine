@@ -419,6 +419,12 @@ protected:
     uint8_t encodeItemHotness(const Item& item) const;
 
     /**
+     * Convert a unique_ptr<Item> to cb::unique_item_ptr, to transfer ownership
+     * of an Item over the DCP interface.
+     */
+    cb::unique_item_ptr toUniqueItemPtr(std::unique_ptr<Item>&& item) const;
+
+    /**
      * The StreamContainer stores the Stream via a shared_ptr, this is because
      * we have multi-threaded access to the DcpProducer and the possibility
      * that a stream maybe removed from the container whilst a thread is still

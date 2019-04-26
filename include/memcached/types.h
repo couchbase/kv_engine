@@ -52,6 +52,14 @@ typedef enum {
 typedef void item;
 
 /**
+ * A unique_ptr to use with items returned from the engine interface.
+ */
+namespace cb {
+class ItemDeleter;
+using unique_item_ptr = std::unique_ptr<item, ItemDeleter>;
+} // namespace cb
+
+/**
  * Constant value representing the masked CAS we return if an item is under lock
  */
 static constexpr uint64_t LOCKED_CAS = std::numeric_limits<uint64_t>::max();

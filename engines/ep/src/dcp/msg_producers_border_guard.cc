@@ -18,6 +18,8 @@
 #include "msg_producers_border_guard.h"
 #include "objectregistry.h"
 
+#include <memcached/engine.h>
+
 DcpMsgProducersBorderGuard::DcpMsgProducersBorderGuard(
         dcp_message_producers& guarded)
     : guarded(guarded) {
@@ -85,7 +87,7 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::marker(
 }
 ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::mutation(
         uint32_t opaque,
-        item* itm,
+        cb::unique_item_ptr itm,
         Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
@@ -96,7 +98,7 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::mutation(
         cb::mcbp::DcpStreamId sid) {
     NonBucketAllocationGuard guard;
     return guarded.mutation(opaque,
-                            itm,
+                            std::move(itm),
                             vbucket,
                             by_seqno,
                             rev_seqno,
@@ -108,7 +110,7 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::mutation(
 }
 ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::deletion(
         uint32_t opaque,
-        item* itm,
+        cb::unique_item_ptr itm,
         Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
@@ -116,32 +118,48 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::deletion(
         uint16_t nmeta,
         cb::mcbp::DcpStreamId sid) {
     NonBucketAllocationGuard guard;
-    return guarded.deletion(
-            opaque, itm, vbucket, by_seqno, rev_seqno, meta, nmeta, sid);
+    return guarded.deletion(opaque,
+                            std::move(itm),
+                            vbucket,
+                            by_seqno,
+                            rev_seqno,
+                            meta,
+                            nmeta,
+                            sid);
 }
 ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::deletion_v2(
         uint32_t opaque,
-        gsl::not_null<item*> itm,
+        cb::unique_item_ptr itm,
         Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
         uint32_t delete_time,
         cb::mcbp::DcpStreamId sid) {
     NonBucketAllocationGuard guard;
-    return guarded.deletion_v2(
-            opaque, itm, vbucket, by_seqno, rev_seqno, delete_time, sid);
+    return guarded.deletion_v2(opaque,
+                               std::move(itm),
+                               vbucket,
+                               by_seqno,
+                               rev_seqno,
+                               delete_time,
+                               sid);
 }
 ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::expiration(
         uint32_t opaque,
-        gsl::not_null<item*> itm,
+        cb::unique_item_ptr itm,
         Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
         uint32_t delete_time,
         cb::mcbp::DcpStreamId sid) {
     NonBucketAllocationGuard guard;
-    return guarded.expiration(
-            opaque, itm, vbucket, by_seqno, rev_seqno, delete_time, sid);
+    return guarded.expiration(opaque,
+                              std::move(itm),
+                              vbucket,
+                              by_seqno,
+                              rev_seqno,
+                              delete_time,
+                              sid);
 }
 ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::set_vbucket_state(
         uint32_t opaque, Vbid vbucket, vbucket_state_t state) {
@@ -184,7 +202,7 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::get_error_map(uint32_t opaque,
 }
 ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::prepare(
         uint32_t opaque,
-        item* itm,
+        cb::unique_item_ptr itm,
         Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
@@ -194,7 +212,7 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::prepare(
         cb::durability::Requirements durability) {
     NonBucketAllocationGuard guard;
     return guarded.prepare(opaque,
-                           itm,
+                           std::move(itm),
                            vbucket,
                            by_seqno,
                            rev_seqno,

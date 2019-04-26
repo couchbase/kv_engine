@@ -860,7 +860,7 @@ public:
                              cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE mutation(uint32_t opaque,
-                               item* itm,
+                               cb::unique_item_ptr itm,
                                Vbid vbucket,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
@@ -871,7 +871,7 @@ public:
                                cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE deletion(uint32_t opaque,
-                               item* itm,
+                               cb::unique_item_ptr itm,
                                Vbid vbucket,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
@@ -880,7 +880,7 @@ public:
                                cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE deletion_v2(uint32_t opaque,
-                                  gsl::not_null<item*> itm,
+                                  cb::unique_item_ptr itm,
                                   Vbid vbucket,
                                   uint64_t by_seqno,
                                   uint64_t rev_seqno,
@@ -888,7 +888,7 @@ public:
                                   cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE expiration(uint32_t opaque,
-                                 gsl::not_null<item*> itm,
+                                 cb::unique_item_ptr itm,
                                  Vbid vbucket,
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
@@ -919,7 +919,7 @@ public:
                                    cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE prepare(uint32_t opaque,
-                              item* itm,
+                              cb::unique_item_ptr itm,
                               Vbid vbucket,
                               uint64_t by_seqno,
                               uint64_t rev_seqno,
@@ -1024,7 +1024,7 @@ protected:
      * expiry and runsdeletionInner on it, which returns an ENGINE_ERROR_CODE.
      */
     ENGINE_ERROR_CODE deletionOrExpirationV2(uint32_t opaque,
-                                             gsl::not_null<item*> it,
+                                             cb::unique_item_ptr it,
                                              Vbid vbucket,
                                              uint64_t by_seqno,
                                              uint64_t rev_seqno,

@@ -119,8 +119,7 @@ struct dcp_message_producers {
      *
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
-     * @param itm the item to send. The core will call item_release on
-     *            the item when it is sent so remember to keep it around
+     * @param itm the item to send.
      * @param vbucket the vbucket id the message belong to
      * @param by_seqno
      * @param rev_seqno
@@ -133,7 +132,7 @@ struct dcp_message_producers {
      * @return ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE mutation(uint32_t opaque,
-                                       item* itm,
+                                       cb::unique_item_ptr itm,
                                        Vbid vbucket,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
@@ -148,9 +147,7 @@ struct dcp_message_producers {
      *
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
-     * @param itm the item to send. The core will call item_release on
-     *            the item when it is sent so remember to keep it around
-     * @param vbucket the vbucket id the message belong to
+     * @param itm the item to send.
      * @param by_seqno
      * @param rev_seqno
      * @param sid The stream-ID the deletion applies to (can be 0 for none)
@@ -158,7 +155,7 @@ struct dcp_message_producers {
      * @return ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE deletion(uint32_t opaque,
-                                       item* itm,
+                                       cb::unique_item_ptr itm,
                                        Vbid vbucket,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
@@ -171,8 +168,7 @@ struct dcp_message_producers {
      *
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
-     * @param itm the item to send. The core will call item_release on
-     *            the item when it is sent so remember to keep it around
+     * @param itm the item to send.
      * @param vbucket the vbucket id the message belong to
      * @param by_seqno
      * @param rev_seqno
@@ -182,7 +178,7 @@ struct dcp_message_producers {
      * @return ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE deletion_v2(uint32_t opaque,
-                                          gsl::not_null<item*> itm,
+                                          cb::unique_item_ptr itm,
                                           Vbid vbucket,
                                           uint64_t by_seqno,
                                           uint64_t rev_seqno,
@@ -194,9 +190,7 @@ struct dcp_message_producers {
      *
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
-     * @param itm the item to send. The core will call item_release on
-     *            the item when it is sent so remember to keep it around
-     * @param vbucket the vbucket id the message belong to
+     * @param itm the item to send.
      * @param by_seqno
      * @param rev_seqno
      * @param delete_time the time of the deletion (tombstone creation time)
@@ -205,7 +199,7 @@ struct dcp_message_producers {
      * @return ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE expiration(uint32_t opaque,
-                                         gsl::not_null<item*> itm,
+                                         cb::unique_item_ptr itm,
                                          Vbid vbucket,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
@@ -305,7 +299,7 @@ struct dcp_message_producers {
      */
     virtual ENGINE_ERROR_CODE prepare(
             uint32_t opaque,
-            item* itm,
+            cb::unique_item_ptr itm,
             Vbid vbucket,
             uint64_t by_seqno,
             uint64_t rev_seqno,

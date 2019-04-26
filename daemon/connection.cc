@@ -1599,7 +1599,7 @@ ENGINE_ERROR_CODE Connection::add_packet_to_send_pipe(
 
 ENGINE_ERROR_CODE Connection::deletionOrExpirationV2(
         uint32_t opaque,
-        gsl::not_null<item*> it,
+        cb::unique_item_ptr it,
         Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
@@ -1612,17 +1612,15 @@ ENGINE_ERROR_CODE Connection::deletionOrExpirationV2(
     } else {
         log_str = "deletion_v2";
     }
-    // Use a unique_ptr to make sure we release the item in all error paths
-    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngine()});
     item_info info;
-    if (!bucket_get_item_info(*this, it, &info)) {
+    if (!bucket_get_item_info(*this, it.get(), &info)) {
         LOG_WARNING("{}: Connection::{}: Failed to get item info",
                     getId(),
                     log_str);
         return ENGINE_FAILED;
     }
 
-    if (!reserveItem(it)) {
+    if (!reserveItem(it.get())) {
         LOG_WARNING("{}: Connection::{}: Failed to grow item array",
                     getId(),
                     log_str);
@@ -1631,7 +1629,7 @@ ENGINE_ERROR_CODE Connection::deletionOrExpirationV2(
 
     // we've reserved the item, and it'll be released when we're done sending
     // the item.
-    item.release();
+    it.release();
 
     auto key = info.key;
     if (!isCollectionsSupported()) {
@@ -1865,7 +1863,7 @@ ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
-                                       item* it,
+                                       cb::unique_item_ptr it,
                                        Vbid vbucket,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
@@ -1874,11 +1872,8 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
                                        uint16_t nmeta,
                                        uint8_t nru,
                                        cb::mcbp::DcpStreamId sid) {
-    // Use a unique_ptr to make sure we release the item in all error paths
-    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngine()});
-
     item_info info;
-    if (!bucket_get_item_info(*this, it, &info)) {
+    if (!bucket_get_item_info(*this, it.get(), &info)) {
         LOG_WARNING("{}: Failed to get item info", getId());
         return ENGINE_FAILED;
     }
@@ -1886,14 +1881,14 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
     cb::char_buffer buffer{root, info.value[0].iov_len};
 
-    if (!reserveItem(it)) {
+    if (!reserveItem(it.get())) {
         LOG_WARNING("{}: Failed to grow item array", getId());
         return ENGINE_FAILED;
     }
 
     // we've reserved the item, and it'll be released when we're done sending
     // the item.
-    item.release();
+    it.release();
 
     auto key = info.key;
     // The client doesn't support collections, so must not send an encoded key
@@ -2034,23 +2029,21 @@ ENGINE_ERROR_CODE Connection::deletionInner(const item_info& info,
 }
 
 ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
-                                       item* it,
+                                       cb::unique_item_ptr it,
                                        Vbid vbucket,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
                                        const void* meta,
                                        uint16_t nmeta,
                                        cb::mcbp::DcpStreamId sid) {
-    // Use a unique_ptr to make sure we release the item in all error paths
-    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngine()});
     item_info info;
-    if (!bucket_get_item_info(*this, it, &info)) {
+    if (!bucket_get_item_info(*this, it.get(), &info)) {
         LOG_WARNING("{}: Connection::deletion: Failed to get item info",
                     getId());
         return ENGINE_FAILED;
     }
 
-    if (!reserveItem(it)) {
+    if (!reserveItem(it.get())) {
         LOG_WARNING("{}: Connection::deletion: Failed to grow item array",
                     getId());
         return ENGINE_FAILED;
@@ -2065,7 +2058,7 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
 
     // we've reserved the item, and it'll be released when we're done sending
     // the item.
-    item.release();
+    it.release();
 
     auto key = info.key;
     if (!isCollectionsSupported()) {
@@ -2114,14 +2107,14 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
-                                          gsl::not_null<item*> it,
+                                          cb::unique_item_ptr it,
                                           Vbid vbucket,
                                           uint64_t by_seqno,
                                           uint64_t rev_seqno,
                                           uint32_t delete_time,
                                           cb::mcbp::DcpStreamId sid) {
     return deletionOrExpirationV2(opaque,
-                                  it,
+                                  std::move(it),
                                   vbucket,
                                   by_seqno,
                                   rev_seqno,
@@ -2131,14 +2124,14 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
-                                         gsl::not_null<item*> it,
+                                         cb::unique_item_ptr it,
                                          Vbid vbucket,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
                                          uint32_t delete_time,
                                          cb::mcbp::DcpStreamId sid) {
     return deletionOrExpirationV2(opaque,
-                                  it,
+                                  std::move(it),
                                   vbucket,
                                   by_seqno,
                                   rev_seqno,
@@ -2254,7 +2247,7 @@ ENGINE_ERROR_CODE Connection::get_error_map(uint32_t opaque, uint16_t version) {
 }
 
 ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
-                                      item* it,
+                                      cb::unique_item_ptr it,
                                       Vbid vbucket,
                                       uint64_t by_seqno,
                                       uint64_t rev_seqno,
@@ -2262,11 +2255,8 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
                                       uint8_t nru,
                                       DocumentState document_state,
                                       cb::durability::Requirements durability) {
-    // Use a unique_ptr to make sure we release the item in all error paths
-    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngine()});
-
     item_info info;
-    if (!bucket_get_item_info(*this, it, &info)) {
+    if (!bucket_get_item_info(*this, it.get(), &info)) {
         LOG_WARNING("{}: Connection::prepare: Failed to get item info",
                     getId());
         return ENGINE_FAILED;
@@ -2275,7 +2265,7 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
     cb::char_buffer buffer{root, info.value[0].iov_len};
 
-    if (!reserveItem(it)) {
+    if (!reserveItem(it.get())) {
         LOG_WARNING("{}: Connection::prepare: Failed to grow item array",
                     getId());
         return ENGINE_FAILED;
@@ -2283,7 +2273,7 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
 
     // we've reserved the item, and it'll be released when we're done sending
     // the item.
-    item.release();
+    it.release();
 
     auto key = info.key;
 

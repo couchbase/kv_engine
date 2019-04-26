@@ -572,6 +572,11 @@ uint8_t DcpProducer::encodeItemHotness(const Item& item) const {
     return ItemEviction::convertFreqCountToNRUValue(freqCount);
 }
 
+cb::unique_item_ptr DcpProducer::toUniqueItemPtr(
+        std::unique_ptr<Item>&& item) const {
+    return {item.release(), cb::ItemDeleter(&engine_)};
+}
+
 ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
 
     if (doDisconnect()) {
@@ -662,7 +667,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             const uint8_t hotness =
                     encodeItemHotness(*mutationResponse->getItem());
             ret = producers->mutation(mutationResponse->getOpaque(),
-                                      itmCpy.release(),
+                                      toUniqueItemPtr(std::move(itmCpy)),
                                       mutationResponse->getVBucket(),
                                       *mutationResponse->getBySeqno(),
                                       mutationResponse->getRevSeqno(),
@@ -701,7 +706,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                 }
                 ret = producers->expiration(
                         mutationResponse->getOpaque(),
-                        itmCpy.release(),
+                        toUniqueItemPtr(std::move(itmCpy)),
                         mutationResponse->getVBucket(),
                         *mutationResponse->getBySeqno(),
                         mutationResponse->getRevSeqno(),
@@ -731,7 +736,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                           : DocumentState::Alive;
             ret = producers->prepare(
                     mutationResponse->getOpaque(),
-                    itmCpy.release(),
+                    toUniqueItemPtr(std::move(itmCpy)),
                     mutationResponse->getVBucket(),
                     *mutationResponse->getBySeqno(),
                     mutationResponse->getRevSeqno(),
@@ -831,7 +836,7 @@ ENGINE_ERROR_CODE DcpProducer::deletionV1OrV2(
     if (includeDeleteTime == IncludeDeleteTime::Yes) {
         ret = producers->deletion_v2(
                 mutationResponse.getOpaque(),
-                itmCpy.release(),
+                toUniqueItemPtr(std::move(itmCpy)),
                 mutationResponse.getVBucket(),
                 *mutationResponse.getBySeqno(),
                 mutationResponse.getRevSeqno(),
@@ -839,7 +844,7 @@ ENGINE_ERROR_CODE DcpProducer::deletionV1OrV2(
                 sid);
     } else {
         ret = producers->deletion(mutationResponse.getOpaque(),
-                                  itmCpy.release(),
+                                  toUniqueItemPtr(std::move(itmCpy)),
                                   mutationResponse.getVBucket(),
                                   *mutationResponse.getBySeqno(),
                                   mutationResponse.getRevSeqno(),

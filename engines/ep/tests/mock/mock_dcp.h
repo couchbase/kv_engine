@@ -69,7 +69,7 @@ public:
                              cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE mutation(uint32_t opaque,
-                               item* itm,
+                               cb::unique_item_ptr itm,
                                Vbid vbucket,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
@@ -80,7 +80,7 @@ public:
                                cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE deletion(uint32_t opaque,
-                               item* itm,
+                               cb::unique_item_ptr itm,
                                Vbid vbucket,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
@@ -89,7 +89,7 @@ public:
                                cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE deletion_v2(uint32_t opaque,
-                                  gsl::not_null<item*> itm,
+                                  cb::unique_item_ptr itm,
                                   Vbid vbucket,
                                   uint64_t by_seqno,
                                   uint64_t rev_seqno,
@@ -97,7 +97,7 @@ public:
                                   cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE expiration(uint32_t opaque,
-                                 gsl::not_null<item*> itm,
+                                 cb::unique_item_ptr itm,
                                  Vbid vbucket,
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
@@ -128,7 +128,7 @@ public:
                                    cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE prepare(uint32_t opaque,
-                              item* itm,
+                              cb::unique_item_ptr itm,
                               Vbid vbucket,
                               uint64_t by_seqno,
                               uint64_t rev_seqno,
@@ -193,7 +193,7 @@ public:
 protected:
     /// Helper method for deletion / deletion_v2 / expiration
     ENGINE_ERROR_CODE deletionInner(uint32_t opaque,
-                                    item* itm,
+                                    cb::unique_item_ptr itm,
                                     Vbid vbucket,
                                     uint64_t by_seqno,
                                     uint64_t rev_seqno,
@@ -208,7 +208,7 @@ protected:
 
     ENGINE_ERROR_CODE handleMutationOrPrepare(cb::mcbp::ClientOpcode opcode,
                                               uint32_t opaque,
-                                              void* itm,
+                                              cb::unique_item_ptr itm,
                                               Vbid vbucket,
                                               uint64_t by_seqno,
                                               uint64_t rev_seqno,
