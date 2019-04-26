@@ -18,7 +18,6 @@
 #include <memcached/dcp_stream_id.h>
 #include <spdlog/fmt/ostr.h>
 
-MCD_UTIL_PUBLIC_API
 std::ostream& operator<<(std::ostream& os, const cb::mcbp::DcpStreamId id) {
     os << id.to_string();
     return os;

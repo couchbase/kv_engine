@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include <memcached/mcd_util-visibility.h>
-
 #include <nlohmann/json_fwd.hpp>
 #include <gsl/gsl>
 
@@ -39,7 +37,7 @@ enum class Content {
 /**
  * Settings for Breakpad crash catcher.
  */
-struct MCD_UTIL_PUBLIC_API Settings {
+struct Settings {
     /**
      * Default constructor initialize the object to be in a disabled state
      */
@@ -68,5 +66,4 @@ struct MCD_UTIL_PUBLIC_API Settings {
 } // namespace breakpad
 } // namespace cb
 
-MCD_UTIL_PUBLIC_API
 std::string to_string(cb::breakpad::Content content);

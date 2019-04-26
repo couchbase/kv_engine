@@ -26,23 +26,17 @@
  */
 
 #include <memcached/engine.h>
-#include <memcached/mcd_util-visibility.h>
 #include <platform/dynamic.h>
 #include <string>
 
-MCD_UTIL_PUBLIC_API
 bool safe_strtoull(const char* str, uint64_t& out) CB_ATTR_NONNULL(1);
 
-MCD_UTIL_PUBLIC_API
 bool safe_strtoll(const char* str, int64_t& out) CB_ATTR_NONNULL(1);
 
-MCD_UTIL_PUBLIC_API
 bool safe_strtoul(const char* str, uint32_t& out) CB_ATTR_NONNULL(1);
 
-MCD_UTIL_PUBLIC_API
 bool safe_strtol(const char* str, int32_t& out) CB_ATTR_NONNULL(1);
 
-MCD_UTIL_PUBLIC_API
 bool safe_strtof(const char* str, float& out) CB_ATTR_NONNULL(1);
 
 /**
@@ -50,7 +44,6 @@ bool safe_strtof(const char* str, float& out) CB_ATTR_NONNULL(1);
  *
  * @throws std::invalid_argument if the mode isn't one of the legal values
  */
-MCD_UTIL_PUBLIC_API
 std::string to_string(BucketCompressionMode mode);
 
 /**
@@ -58,5 +51,4 @@ std::string to_string(BucketCompressionMode mode);
  *
  * @throws std::invalid_argument if the mode isn't one of the legal values
  */
-MCD_UTIL_PUBLIC_API
 BucketCompressionMode parseCompressionMode(const std::string& mode);

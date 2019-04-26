@@ -17,7 +17,6 @@
 
 #pragma once
 
-#include <memcached/mcd_util-visibility.h>
 #include <platform/socket.h>
 #include <string>
 
@@ -56,7 +55,7 @@ typedef struct {
  * Vbid - a custom type class to control the use of vBucket ID's and their
  * output formatting, wrapping it with "vb:"
  */
-class MCD_UTIL_PUBLIC_API Vbid {
+class Vbid {
 public:
     typedef uint16_t id_type;
 
@@ -120,7 +119,6 @@ protected:
     id_type vbid;
 };
 
-MCD_UTIL_PUBLIC_API
 std::ostream& operator<<(std::ostream& os, const Vbid& d);
 
 namespace std {

@@ -15,7 +15,6 @@
  */
 #pragma once
 
-#include <memcached/mcd_util-visibility.h>
 #include <cstdint>
 #include <cstdio>
 
@@ -71,5 +70,4 @@ struct config_item {
  *         1 if config successfully parsed, but unknown tokens found
  *        -1 if illegal values was found in the config
  */
-MCD_UTIL_PUBLIC_API
 int parse_config(const char* str, struct config_item items[], FILE* error);

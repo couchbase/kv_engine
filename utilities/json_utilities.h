@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include <memcached/mcd_util-visibility.h>
-
 #include <boost/optional/optional_fwd.hpp>
 #include <nlohmann/json.hpp>
 
@@ -33,7 +31,7 @@ const int nlohmannExceptionTypeCode = 302;
  *
  * @param msg the error message to be printed
  */
-MCD_UTIL_PUBLIC_API[[noreturn]] void throwJsonTypeError(const std::string& msg);
+[[noreturn]] void throwJsonTypeError(const std::string& msg);
 
 /**
  *  Helper function that will allow us to do an
@@ -54,7 +52,6 @@ MCD_UTIL_PUBLIC_API[[noreturn]] void throwJsonTypeError(const std::string& msg);
  * @throws nlohmann::detail::type_error if the value is of an incorrect type
  * @return the value of type T
  */
-MCD_UTIL_PUBLIC_API
 template <typename T>
 T jsonGet(const nlohmann::json& obj, const std::string& key) {
     nlohmann::json value = obj.at(key);
@@ -84,7 +81,6 @@ T jsonGet(const nlohmann::json& obj, const std::string& key) {
  * @throws nlohmann::detail::type_error if the value is of an incorrect type
  * @return the value of type T
  */
-MCD_UTIL_PUBLIC_API
 template <typename T>
 T jsonGet(nlohmann::json::const_iterator it) {
     try {
@@ -102,7 +98,6 @@ T jsonGet(nlohmann::json::const_iterator it) {
  * @param key - the key for the wanted object
  * @return - json object if it exists, otherwise uninitialized
  */
-MCD_UTIL_PUBLIC_API
 boost::optional<nlohmann::json> getOptionalJsonObject(
         const nlohmann::json& object, const std::string& key);
 
@@ -115,7 +110,6 @@ boost::optional<nlohmann::json> getOptionalJsonObject(
  * @param expectedType - the objects expected type
  * @return - json object if it exists, otherwise uninitialized
  */
-MCD_UTIL_PUBLIC_API
 boost::optional<nlohmann::json> getOptionalJsonObject(
         const nlohmann::json& object,
         const std::string& key,
@@ -135,7 +129,6 @@ boost::optional<nlohmann::json> getOptionalJsonObject(
  * @throws - std::invalid_argument if the key is not in the given json, or if
  * the json at the given key is not of the expected type
  */
-MCD_UTIL_PUBLIC_API
 nlohmann::json getJsonObject(const nlohmann::json& object,
                              const std::string& key,
                              nlohmann::json::value_t expectedType,
@@ -154,7 +147,6 @@ nlohmann::json getJsonObject(const nlohmann::json& object,
  * @throws - std::invalid_argument if the json object is not of the expected
  * type
  */
-MCD_UTIL_PUBLIC_API
 void throwIfWrongType(const std::string& errorKey,
                       const nlohmann::json& object,
                       nlohmann::json::value_t expectedType,

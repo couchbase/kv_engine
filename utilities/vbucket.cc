@@ -18,7 +18,6 @@
 #include <memcached/vbucket.h>
 #include <spdlog/fmt/ostr.h>
 
-MCD_UTIL_PUBLIC_API
 std::ostream& operator<<(std::ostream& os, const Vbid& d) {
     return os << d.to_string();
 }

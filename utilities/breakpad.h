@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include <memcached/mcd_util-visibility.h>
-
 #include "breakpad_settings.h"
 
 #if defined(WIN32) && defined(HAVE_BREAKPAD)
@@ -74,7 +72,6 @@ namespace breakpad {
  * The function may be called multiple times and allow for reconfiguration
  * of the breakpad settings.
  */
-MCD_UTIL_PUBLIC_API
 void initialize(const cb::breakpad::Settings& settings);
 
 /**
@@ -83,14 +80,12 @@ void initialize(const cb::breakpad::Settings& settings);
  * @param directory specifies the dump directory to use (an empty directory
  *                  is accepted and ignored).
  */
-MCD_UTIL_PUBLIC_API
 void initialize(const std::string& dumpdir);
 
 /**
  * Cleaning up when breakpad no longer needed
  * (Assuming it is enabled and has been initialized)
  */
-MCD_UTIL_PUBLIC_API
 void destroy();
 
 } // namespace breakpad

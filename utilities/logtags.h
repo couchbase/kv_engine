@@ -16,7 +16,6 @@
  */
 #pragma once
 
-#include <memcached/mcd_util-visibility.h>
 #include <platform/sized_buffer.h>
 #include <spdlog/fmt/ostr.h>
 #include <string>
@@ -51,7 +50,7 @@ static inline std::string tagUserData(const std::string& data) {
  * userdata tags. UserDataView is a non-owning type, so if ownership is required
  * use UserData
  */
-class MCD_UTIL_PUBLIC_API UserDataView {
+class UserDataView {
 public:
     explicit UserDataView(const char* dataParam, size_t dataLen)
         : data(dataParam, dataLen){};
@@ -75,7 +74,6 @@ private:
     cb::const_char_buffer data;
 };
 
-MCD_UTIL_PUBLIC_API
 std::ostream& operator<<(std::ostream& os, const UserDataView& d);
 
 /**
@@ -83,7 +81,7 @@ std::ostream& operator<<(std::ostream& os, const UserDataView& d);
  * that could be printed in any format. UserData is an owning type, so in
  * cases where this is not needed, use UserDataView for efficiency
  */
-class MCD_UTIL_PUBLIC_API UserData {
+class UserData {
 public:
     explicit UserData(std::string dataParam) : data(std::move(dataParam)){};
 

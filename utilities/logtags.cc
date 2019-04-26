@@ -18,7 +18,6 @@
 #include "logtags.h"
 
 namespace cb {
-MCD_UTIL_PUBLIC_API
 std::ostream& operator<<(std::ostream& os, const UserDataView& d) {
     return os << d.getSanitizedValue();
 }

@@ -42,10 +42,6 @@ target_link_libraries(mcd_util memcached_logger engine_utilities
                       hdr_histogram_static platform ${BREAKPAD_LIBRARIES})
 add_sanitizers(mcd_util)
 
-generate_export_header(mcd_util
-                       EXPORT_MACRO_NAME MCD_UTIL_PUBLIC_API
-                       EXPORT_FILE_NAME ${Memcached_BINARY_DIR}/include/memcached/mcd_util-visibility.h)
-
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_executable(utilities_testapp util_test.cc)
     target_link_libraries(utilities_testapp

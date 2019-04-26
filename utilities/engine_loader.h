@@ -17,8 +17,6 @@
 #pragma once
 
 #include <memcached/engine.h>
-#include <memcached/mcd_util-visibility.h>
-
 #include <platform/dynamic.h>
 
 /*
@@ -31,7 +29,6 @@ typedef struct engine_reference engine_reference;
     Unload the engine.
     Triggers destroy_engine then closes the shared object finally freeing the reference.
 */
-MCD_UTIL_PUBLIC_API
 void unload_engine(engine_reference* engine);
 
 /**
@@ -44,19 +41,16 @@ void unload_engine(engine_reference* engine);
  * @param logger Where to print error messages (cannot be NULL)
  * @return engine_reference* on success or NULL for failure.
  */
-MCD_UTIL_PUBLIC_API
 engine_reference* load_engine(const char* soname, const char* create_function)
         CB_ATTR_NONNULL(1);
 
 /*
     Create an engine instance.
 */
-MCD_UTIL_PUBLIC_API
 bool create_engine_instance(engine_reference* engine,
                             SERVER_HANDLE_V1* (*get_server_api)(void),
                             EngineIface** engine_handle);
 /*
     Initialise the engine handle using the engine's exported initialize method.
 */
-MCD_UTIL_PUBLIC_API
 bool init_engine_instance(EngineIface* engine, const char* config_str);

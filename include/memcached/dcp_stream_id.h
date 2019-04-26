@@ -18,7 +18,6 @@
 #pragma once
 
 #include <mcbp/protocol/request.h>
-#include <memcached/mcd_util-visibility.h>
 #include <platform/sized_buffer.h>
 #include <platform/socket.h>
 
@@ -32,7 +31,7 @@ namespace mcbp {
  * DcpStreamId - allows a client to chose a value to associate with a stream
  * or if no value is chosen (normal DCP) 0 is reserved for meaning off.
  */
-class MCD_UTIL_PUBLIC_API DcpStreamId {
+class DcpStreamId {
 public:
     DcpStreamId() = default;
 
@@ -104,5 +103,4 @@ static_assert(sizeof(DcpStreamIdFrameInfo) == 3,
 } // namespace mcbp
 } // namespace cb
 
-MCD_UTIL_PUBLIC_API
 std::ostream& operator<<(std::ostream&, const cb::mcbp::DcpStreamId);

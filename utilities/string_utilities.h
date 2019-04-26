@@ -21,7 +21,6 @@
 #include <string>
 #include <vector>
 #include <platform/sized_buffer.h>
-#include <memcached/mcd_util-visibility.h>
 
 /**
  * Splits a string
@@ -32,7 +31,6 @@
  *              or 0 for unlimited times.
  * @return A vector of the pieces of the split string
  */
-MCD_UTIL_PUBLIC_API
 std::vector<std::string> split_string(const std::string& s,
                                       const std::string& delim,
                                       size_t limit = 0);
@@ -42,7 +40,6 @@ std::vector<std::string> split_string(const std::string& s,
  * @param s Percent encoded string
  * @return Decoded string
  */
-MCD_UTIL_PUBLIC_API
 std::string percent_decode(const std::string& s);
 
 using StrToStrMap = std::unordered_map<std::string, std::string>;
@@ -65,7 +62,6 @@ using StrToStrMap = std::unordered_map<std::string, std::string>;
  * @return A pair containing the string before the '?'
  *         and a map of the split up query arguments
  */
-MCD_UTIL_PUBLIC_API
 std::pair<std::string, StrToStrMap> decode_query(const std::string& s);
 
 /**
@@ -75,7 +71,6 @@ std::pair<std::string, StrToStrMap> decode_query(const std::string& s);
  * @return the constant byte buffer containing s as a byte
  *         array and its associated length
  */
-MCD_UTIL_PUBLIC_API
 cb::const_byte_buffer to_const_byte_buffer(const char* s);
 
 /**
@@ -84,7 +79,6 @@ cb::const_byte_buffer to_const_byte_buffer(const char* s);
  * @param buf byte buffer that needs to be converted to a string
  * @return the string representation of the byte buffer
  */
-MCD_UTIL_PUBLIC_API
 std::string to_string(cb::byte_buffer buf);
 
 /**
@@ -93,5 +87,4 @@ std::string to_string(cb::byte_buffer buf);
  * @param buf const byte buffer that needs to be converted to a string
  * @return the string representation of the byte buffer
  */
-MCD_UTIL_PUBLIC_API
 std::string to_string(cb::const_byte_buffer buf);
