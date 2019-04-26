@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include <cbcrypto/visibility.h>
-
 #include <gsl.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/sized_buffer.h>
@@ -28,7 +26,6 @@ namespace cb {
 namespace crypto {
 enum class Algorithm { MD5, SHA1, SHA256, SHA512 };
 
-CBCRYPTO_PUBLIC_API
 bool isSupported(Algorithm algorithm);
 
 const int MD5_DIGEST_SIZE = 16;
@@ -43,7 +40,6 @@ const int SHA512_DIGEST_SIZE = 64;
  * @throws std::invalid_argument - unsupported algorithm
  *         std::runtime_error - Failures generating the HMAC
  */
-CBCRYPTO_PUBLIC_API
 std::string HMAC(Algorithm algorithm,
                  cb::const_char_buffer key,
                  cb::const_char_buffer data);
@@ -55,7 +51,6 @@ std::string HMAC(Algorithm algorithm,
  * @throws std::invalid_argument - unsupported algorithm
  *         std::runtime_error - Failures generating the HMAC
  */
-CBCRYPTO_PUBLIC_API
 std::string PBKDF2_HMAC(Algorithm algorithm,
                         const std::string& pass,
                         cb::const_char_buffer salt,
@@ -64,7 +59,6 @@ std::string PBKDF2_HMAC(Algorithm algorithm,
 /**
  * Generate a digest by using the requested algorithm
  */
-CBCRYPTO_PUBLIC_API
 std::string digest(Algorithm algorithm, cb::const_char_buffer data);
 
 enum class Cipher { AES_256_cbc };
@@ -80,7 +74,6 @@ Cipher to_cipher(const std::string& str);
  * @param data The Pointer to the data to encrypt
  * @return The encrypted data
  */
-CBCRYPTO_PUBLIC_API
 std::string encrypt(Cipher cipher,
                     cb::const_char_buffer key,
                     cb::const_char_buffer iv,
@@ -100,7 +93,6 @@ std::string encrypt(Cipher cipher,
  * @param length the length of the data to encrypt
  * @return The encrypted data
  */
-CBCRYPTO_PUBLIC_API
 std::string encrypt(const nlohmann::json& json, cb::const_char_buffer data);
 
 /**
@@ -112,7 +104,6 @@ std::string encrypt(const nlohmann::json& json, cb::const_char_buffer data);
  * @param data The data to decrypt
  * @return The decrypted data
  */
-CBCRYPTO_PUBLIC_API
 std::string decrypt(Cipher cipher,
                     cb::const_char_buffer key,
                     cb::const_char_buffer iv,
@@ -132,7 +123,6 @@ std::string decrypt(Cipher cipher,
  * @param length the length of the data to decrypt
  * @return The decrypted data
  */
-CBCRYPTO_PUBLIC_API
 std::string decrypt(const nlohmann::json& json, cb::const_char_buffer data);
 
 } // namespace crypto
