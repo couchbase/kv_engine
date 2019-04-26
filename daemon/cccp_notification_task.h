@@ -16,11 +16,9 @@
  */
 #pragma once
 
-#include "buckets.h"
 #include "task.h"
 
-#include <string>
-#include <utility>
+class Bucket;
 
 /**
  * The CccpNotificationTask is responsible for walking all of the connections

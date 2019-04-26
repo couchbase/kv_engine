@@ -16,6 +16,7 @@
  */
 #include "cccp_notification_task.h"
 
+#include "buckets.h"
 #include "connection.h"
 #include "log_macros.h"
 #include "memcached.h"
@@ -23,6 +24,7 @@
 
 #include <mcbp/protocol/framebuilder.h>
 #include <memory>
+#include <string>
 
 CccpNotificationTask::CccpNotificationTask(int bucket_, int revision_)
     : Task(),
