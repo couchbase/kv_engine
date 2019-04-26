@@ -26,7 +26,7 @@
 #include "common.h"
 #include "connmap.h"
 #include "dcp/consumer.h"
-#include "dcp/dcpconnmap.h"
+#include "dcp/dcpconnmap_impl.h"
 #include "dcp/flow-control-manager.h"
 #include "dcp/msg_producers_border_guard.h"
 #include "dcp/producer.h"

@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2010 Couchbase, Inc
+ *     Copyright 2019 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 #include "atomic.h"
 #include "atomicqueue.h"
+#include "conn_store_fwd.h"
 #include "dcp/dcp-types.h"
 
 #include <climits>
@@ -72,8 +73,6 @@ public:
      */
     void addVBConnByVBId(std::shared_ptr<ConnHandler> conn, Vbid vbid);
 
-    void removeVBConnByVBId_UNLOCKED(const void* connCookie, Vbid vbid);
-
     void removeVBConnByVBId(const void* connCookie, Vbid vbid);
 
     /**
@@ -124,18 +123,15 @@ protected:
     // ConnHandler objects is guarded by {releaseLock}.
     std::mutex                                    connsLock;
 
-    using CookieToConnectionMap =
-            std::unordered_map<const void*, std::shared_ptr<ConnHandler>>;
-    CookieToConnectionMap map_;
-
-    std::vector<std::mutex> vbConnLocks;
-    std::vector<std::list<std::weak_ptr<ConnHandler>>> vbConns;
-
     /* Handle to the engine who owns us */
     EventuallyPersistentEngine &engine;
 
     AtomicQueue<std::weak_ptr<ConnHandler>> pendingNotifications;
     std::shared_ptr<ConnNotifier> connNotifier_;
+
+    // ConnStore is pretty big (the header) so use PIMPL to avoid including it
+    // wherever ConnMap is included
+    const std::unique_ptr<ConnStore> connStore;
 
     static size_t vbConnLockNum;
 };

@@ -17,6 +17,7 @@
 
 #include "mock_dcp_conn_map.h"
 
+#include "conn_store.h"
 #include "dcp/response.h"
 #include "mock_dcp_consumer.h"
 
@@ -27,4 +28,18 @@ std::shared_ptr<DcpConsumer> MockDcpConnMap::makeConsumer(
         const std::string& consumerName) const {
     return std::make_shared<MockDcpConsumer>(
             engine, cookie, connName, consumerName);
+}
+
+void MockDcpConnMap::addConn(const void* cookie,
+                             std::shared_ptr<ConnHandler> conn) {
+    connStore->getCookieToConnectionMapHandle()->addConnByCookie(cookie, conn);
+}
+
+bool MockDcpConnMap::removeConn(const void* cookie) {
+    connStore->getCookieToConnectionMapHandle()->removeConnByCookie(cookie);
+    return true;
+}
+
+bool MockDcpConnMap::doesConnHandlerExist(Vbid vbid, const std::string& name) {
+    return connStore->doesVbConnExist(vbid, name);
 }

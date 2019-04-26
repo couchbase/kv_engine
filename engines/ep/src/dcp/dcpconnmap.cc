@@ -16,9 +16,11 @@
  */
 
 #include "dcpconnmap.h"
+
 #include "bucket_logger.h"
 #include "configuration.h"
 #include "conn_notifier.h"
+#include "conn_store.h"
 #include "dcp/consumer.h"
 #include "dcp/producer.h"
 #include "ep_engine.h"
@@ -27,6 +29,7 @@
 #include <memcached/server_cookie_iface.h>
 #include <memcached/vbucket.h>
 #include <phosphor/phosphor.h>
+
 
 const uint32_t DcpConnMap::dbFileMem = 10 * 1024;
 const uint16_t DcpConnMap::numBackfillsThreshold = 4096;
@@ -70,14 +73,14 @@ DcpConnMap::~DcpConnMap() {
 DcpConsumer* DcpConnMap::newConsumer(const void* cookie,
                                      const std::string& name,
                                      const std::string& consumerName) {
-    LockHolder lh(connsLock);
-
     std::string conn_name("eq_dcpq:");
     conn_name.append(name);
 
-    const auto& iter = map_.find(cookie);
-    if (iter != map_.end()) {
-        iter->second->setDisconnect();
+    auto handle = connStore->getCookieToConnectionMapHandle();
+
+    const auto& connForCookie = handle->findConnHandlerByCookie(cookie);
+    if (connForCookie) {
+        connForCookie->setDisconnect();
         EP_LOG_INFO(
                 "Failed to create Dcp Consumer because connection "
                 "({}) already exists.",
@@ -89,23 +92,22 @@ DcpConsumer* DcpConnMap::newConsumer(const void* cookie,
      *  If we request a connection of the same name then
      *  mark the existing connection as "want to disconnect".
      */
-    for (const auto& cookieToConn : map_) {
-        if (cookieToConn.second->getName() == conn_name) {
-            EP_LOG_INFO(
-                    "{} Disconnecting existing Dcp Consumer {} as it has the "
-                    "same "
-                    "name as a new connection {}",
-                    cookieToConn.second->logHeader(),
-                    cookieToConn.first,
-                    cookie);
-            cookieToConn.second->setDisconnect();
-        }
+    const auto& connForName = handle->findConnHandlerByName(conn_name);
+    if (connForName) {
+        EP_LOG_INFO(
+                "{} Disconnecting existing Dcp Consumer {} as it has the "
+                "same "
+                "name as a new connection {}",
+                connForName->logHeader(),
+                connForName->getCookie(),
+                cookie);
+        connForName->setDisconnect();
     }
 
     auto consumer = makeConsumer(engine, cookie, conn_name, consumerName);
     EP_LOG_DEBUG("{} Connection created", consumer->logHeader());
     auto* rawPtr = consumer.get();
-    map_[cookie] = std::move(consumer);
+    handle->addConnByCookie(cookie, std::move(consumer));
     return rawPtr;
 }
 
@@ -119,7 +121,8 @@ std::shared_ptr<DcpConsumer> DcpConnMap::makeConsumer(
 }
 
 bool DcpConnMap::isPassiveStreamConnected_UNLOCKED(Vbid vbucket) {
-    for (const auto& cookieToConn : map_) {
+    auto handle = connStore->getCookieToConnectionMapHandle();
+    for (const auto& cookieToConn : *handle) {
         auto* dcpConsumer =
                 dynamic_cast<DcpConsumer*>(cookieToConn.second.get());
         if (dcpConsumer && dcpConsumer->isStreamPresent(vbucket)) {
@@ -155,64 +158,51 @@ ENGINE_ERROR_CODE DcpConnMap::addPassiveStream(ConnHandler& conn,
 DcpProducer* DcpConnMap::newProducer(const void* cookie,
                                      const std::string& name,
                                      uint32_t flags) {
-    DcpProducer* result{nullptr};
-    std::shared_ptr<ConnHandler> oldConn;
-    {
-        LockHolder lh(connsLock);
+    std::string conn_name("eq_dcpq:");
+    conn_name.append(name);
 
-        std::string conn_name("eq_dcpq:");
-        conn_name.append(name);
-
-        const auto it = map_.find(cookie);
-        if (it != map_.end()) {
-            oldConn = it->second;
-            oldConn->flagDisconnect();
-            EP_LOG_INFO(
-                    "Failed to create Dcp Producer because connection "
-                    "({}) already exists.",
-                    cookie);
-        } else {
-            // If we request a connection of the same name then mark the
-            // existing connection as "want to disconnect" and pull it out from
-            // the conn-map. Note (MB-36915): Just flag the connection here,
-            // defer stream-shutdown to oldConn->setDisconnect below (ie, after
-            // we release the connLock), potential deadlock by lock-inversion
-            // with KVBucket::setVBucketState otherwise (on connLock /
-            // vbstateLock).
-            for (const auto& cookieToConn : map_) {
-                if (cookieToConn.second->getName() == conn_name) {
-                    const auto* oldCookie = cookieToConn.first;
-                    oldConn = cookieToConn.second;
-                    EP_LOG_INFO(
-                            "{} Disconnecting existing Dcp Producer {} as it "
-                            "has the "
-                            "same "
-                            "name as a new connection {}",
-                            cookieToConn.second->logHeader(),
-                            oldCookie,
-                            cookie);
-                    oldConn->flagDisconnect();
-
-                    // Note: I thought that we need to 'map_.erase(oldCookie)'
-                    // here, the connection would stale in connMap forever
-                    // otherwise. But that is not the case. Memcached will call
-                    // down the disconnect-handle for oldCookie, which will be
-                    // correctly removed from conn-map. Any attempt to remove it
-                    // here will lead to issues described MB-36451.
-                }
-            }
-
-            auto producer = std::make_shared<DcpProducer>(
-                    engine, cookie, conn_name, flags, true /*startTask*/);
-            EP_LOG_DEBUG("{} Connection created", producer->logHeader());
-            result = producer.get();
-            map_[cookie] = std::move(producer);
-        }
+    auto handle = connStore->getCookieToConnectionMapHandle();
+    const auto& connForCookie = handle->findConnHandlerByCookie(cookie);
+    if (connForCookie) {
+        connForCookie->flagDisconnect();
+        EP_LOG_INFO(
+                "Failed to create Dcp Producer because connection "
+                "({}) already exists.",
+                cookie);
+        return nullptr;
     }
 
-    if (oldConn) {
-        oldConn->setDisconnect();
+    // If we request a connection of the same name then mark the
+    // existing connection as "want to disconnect" and pull it out from
+    // the conn-map. Note (MB-36915): Just flag the connection here,
+    // defer stream-shutdown to oldConn->setDisconnect below (ie, after
+    // we release the connLock), potential deadlock by lock-inversion
+    // with KVBucket::setVBucketState otherwise (on connLock /
+    // vbstateLock).
+    const auto& connForName = handle->findConnHandlerByName(conn_name);
+    if (connForName) {
+        EP_LOG_INFO(
+                "{} Disconnecting existing Dcp Producer {} as it has the "
+                "same "
+                "name as a new connection {}",
+                connForName->logHeader(),
+                connForName->getCookie(),
+                cookie);
+        connForName->flagDisconnect();
+
+        // Note: I thought that we need to 'map_.erase(oldCookie)'
+        // here, the connection would stale in connMap forever
+        // otherwise. But that is not the case. Memcached will call
+        // down the disconnect-handle for oldCookie, which will be
+        // correctly removed from conn-map. Any attempt to remove it
+        // here will lead to issues described MB-36451.
     }
+
+    auto producer = std::make_shared<DcpProducer>(
+            engine, cookie, conn_name, flags, true /*startTask*/);
+    EP_LOG_DEBUG("{} Connection created", producer->logHeader());
+    auto* result = producer.get();
+    handle->addConnByCookie(cookie, producer);
 
     return result;
 }
@@ -228,14 +218,11 @@ void DcpConnMap::shutdownAllConnections() {
     // Take a copy of the connection map (under lock), then using the
     // copy iterate across closing all streams and cancelling any
     // tasks.
-    // We do this so we don't hold the connsLock when calling
+    // We do this so we don't hold the write lock of the map when calling
     // notifyPaused() on producer streams, as that would create a lock
-    // cycle between connLock, worker thread lock and releaseLock.
-    CookieToConnectionMap mapCopy;
-    {
-        LockHolder lh(connsLock);
-        mapCopy = map_;
-    }
+    // cycle between the lock, worker thread lock and releaseLock.
+    auto mapCopy =
+            connStore->getCookieToConnectionMapHandle()->copyCookieToConn();
 
     closeStreams(mapCopy);
     cancelTasks(mapCopy);
@@ -247,7 +234,8 @@ void DcpConnMap::vbucketStateChanged(
         bool closeInboundStreams,
         boost::optional<folly::SharedMutex::WriteHolder&> vbstateLock) {
     LockHolder lh(connsLock);
-    for (const auto& cookieToConn : map_) {
+    auto handle = connStore->getCookieToConnectionMapHandle();
+    for (const auto& cookieToConn : *handle) {
         auto* producer = dynamic_cast<DcpProducer*>(cookieToConn.second.get());
         if (producer) {
             producer->closeStreamDueToVbStateChange(
@@ -260,8 +248,8 @@ void DcpConnMap::vbucketStateChanged(
 }
 
 void DcpConnMap::closeStreamsDueToRollback(Vbid vbucket) {
-    LockHolder lh(connsLock);
-    for (const auto& cookieToConn : map_) {
+    auto handle = connStore->getCookieToConnectionMapHandle();
+    for (const auto& cookieToConn : *handle) {
         auto* producer = dynamic_cast<DcpProducer*>(cookieToConn.second.get());
         if (producer) {
             producer->closeStreamDueToRollback(vbucket);
@@ -270,11 +258,10 @@ void DcpConnMap::closeStreamsDueToRollback(Vbid vbucket) {
 }
 
 bool DcpConnMap::handleSlowStream(Vbid vbid, const CheckpointCursor* cursor) {
-    size_t lock_num = vbid.get() % vbConnLockNum;
-    std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
-
-    for (const auto& weakPtr : vbConns[vbid.get()]) {
-        auto connection = weakPtr.lock();
+    bool ret = false;
+    auto handle = connStore->getConnsForVBHandle(vbid);
+    for (auto itr = handle.begin(); itr != handle.end(); itr++) {
+        auto connection = itr->connHandler.lock();
         if (!connection) {
             continue;
         }
@@ -283,7 +270,8 @@ bool DcpConnMap::handleSlowStream(Vbid vbid, const CheckpointCursor* cursor) {
             return true;
         }
     }
-    return false;
+
+    return ret;
 }
 
 void DcpConnMap::closeStreams(CookieToConnectionMap& map) {
@@ -329,18 +317,22 @@ void DcpConnMap::disconnect(const void *cookie) {
     // data structure (under connsLock).
     std::shared_ptr<ConnHandler> conn;
     {
-        LockHolder lh(connsLock);
-        auto itr(map_.find(cookie));
-        if (itr != map_.end()) {
-            conn = itr->second;
-            if (conn.get()) {
-                auto* epe = ObjectRegistry::onSwitchThread(nullptr, true);
+        auto handle = connStore->getCookieToConnectionMapHandle();
+        auto connForCookie = handle->findConnHandlerByCookie(cookie);
+        if (connForCookie) {
+            conn = connForCookie;
+            auto* epe = ObjectRegistry::getCurrentEngine();
+            {
+                NonBucketAllocationGuard guard;
                 if (epe) {
-                    auto conn_desc =
-                         epe->getServerApi()->cookie->get_log_info(cookie).second;
-                    conn->getLogger().info("Removing connection {}", conn_desc);
+                    auto conn_desc = epe->getServerApi()
+                                             ->cookie->get_log_info(cookie)
+                                             .second;
+                    connForCookie->getLogger().info("Removing connection {}",
+                                                    conn_desc);
                 } else {
-                    conn->getLogger().info("Removing connection {}", cookie);
+                    connForCookie->getLogger().info("Removing connection {}",
+                                                    cookie);
                 }
                 ObjectRegistry::onSwitchThread(epe);
                 // MB-36557: Just flag the connection as disconnected, defer
@@ -350,8 +342,8 @@ void DcpConnMap::disconnect(const void *cookie) {
                 // KVBucket::setVBucketState otherwise (on connLock /
                 // vbstateLock).
                 conn->flagDisconnect();
-                map_.erase(itr);
             }
+            handle->removeConnByCookie(cookie);
         }
     }
 
@@ -393,7 +385,8 @@ void DcpConnMap::manageConnections() {
         }
 
         // Collect the list of connections that need to be signaled.
-        for (const auto& cookieToConn : map_) {
+        auto handle = connStore->getCookieToConnectionMapHandle();
+        for (const auto& cookieToConn : *handle) {
             const auto& conn = cookieToConn.second;
             if (conn && (conn->isPaused() || conn->doDisconnect()) &&
                 conn->isReserved()) {
@@ -433,33 +426,15 @@ void DcpConnMap::manageConnections() {
 
 void DcpConnMap::removeVBConnections(DcpProducer& prod) {
     for (const auto vbid : prod.getVBVector()) {
-        size_t lock_num = vbid.get() % vbConnLockNum;
-        std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
-        auto& vb_conns = vbConns[vbid.get()];
-        for (auto itr = vb_conns.begin(); itr != vb_conns.end();) {
-            auto connection = (*itr).lock();
-            if (!connection) {
-                // ConnHandler no longer exists, cleanup.
-                itr = vb_conns.erase(itr);
-            } else if (prod.getCookie() == connection->getCookie()) {
-                // Found conn with matching cookie, done.
-                vb_conns.erase(itr);
-                break;
-            } else {
-                ++itr;
-            }
-        }
+        connStore->removeVBConnByVbid(vbid, prod.getCookie());
     }
 }
 
 void DcpConnMap::notifyVBConnections(Vbid vbid,
                                      uint64_t bySeqno,
                                      SyncWriteOperation syncWrite) {
-    size_t lock_num = vbid.get() % vbConnLockNum;
-    std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
-
-    for (auto& weakPtr : vbConns[vbid.get()]) {
-        auto connection = weakPtr.lock();
+    for (auto& vbConn : connStore->getConnsForVBHandle(vbid)) {
+        auto connection = vbConn.connHandler.lock();
         if (!connection) {
             continue;
         }
@@ -475,12 +450,9 @@ void DcpConnMap::seqnoAckVBPassiveStream(Vbid vbid, int64_t seqno) {
     // we may keep around old Consumers with either no PassiveStream for
     // this vBucket or a dead PassiveStream. We need to search the list of
     // ConnHandlers for the Consumer with the alive PassiveStream for this
-    // vBucket. We will just ack all alive Consumers and allow the Consumer to
-    // determine if it needs to do any work.
-    size_t index = vbid.get() % vbConnLockNum;
-    std::lock_guard<std::mutex> lg(vbConnLocks[index]);
-    for (auto& weakPtr : vbConns[vbid.get()]) {
-        auto connection = weakPtr.lock();
+    // vBucket.
+    for (auto& vbConn : connStore->getConnsForVBHandle(vbid)) {
+        auto connection = vbConn.connHandler.lock();
         if (!connection) {
             continue;
         }
@@ -498,8 +470,8 @@ void DcpConnMap::seqnoAckVBPassiveStream(Vbid vbid, int64_t seqno) {
 }
 
 void DcpConnMap::notifyBackfillManagerTasks() {
-    LockHolder lh(connsLock);
-    for (const auto& cookieToConn : map_) {
+    auto handle = connStore->getCookieToConnectionMapHandle();
+    for (const auto& cookieToConn : *handle) {
         auto* producer = dynamic_cast<DcpProducer*>(cookieToConn.second.get());
         if (producer) {
             producer->notifyBackfillManager();
@@ -579,8 +551,8 @@ void DcpConnMap::DcpConfigChangeListener::sizeValueChanged(const std::string &ke
  * Find all DcpConsumers and set the yield threshold
  */
 void DcpConnMap::consumerYieldConfigChanged(size_t newValue) {
-    LockHolder lh(connsLock);
-    for (const auto& cookieToConn : map_) {
+    auto handle = connStore->getCookieToConnectionMapHandle();
+    for (const auto& cookieToConn : *handle) {
         auto* dcpConsumer =
                 dynamic_cast<DcpConsumer*>(cookieToConn.second.get());
         if (dcpConsumer) {
@@ -593,8 +565,8 @@ void DcpConnMap::consumerYieldConfigChanged(size_t newValue) {
  * Find all DcpConsumers and set the processor batchsize
  */
 void DcpConnMap::consumerBatchSizeConfigChanged(size_t newValue) {
-    LockHolder lh(connsLock);
-    for (const auto& cookieToConn : map_) {
+    auto handle = connStore->getCookieToConnectionMapHandle();
+    for (const auto& cookieToConn : *handle) {
         auto* dcpConsumer =
                 dynamic_cast<DcpConsumer*>(cookieToConn.second.get());
         if (dcpConsumer) {
@@ -604,16 +576,16 @@ void DcpConnMap::consumerBatchSizeConfigChanged(size_t newValue) {
 }
 
 void DcpConnMap::idleTimeoutConfigChanged(size_t newValue) {
-    LockHolder lh(connsLock);
-    for (const auto& cookieToConn : map_) {
+    auto handle = connStore->getCookieToConnectionMapHandle();
+    for (const auto& cookieToConn : *handle) {
         cookieToConn.second.get()->setIdleTimeout(
                 std::chrono::seconds(newValue));
     }
 }
 
 std::shared_ptr<ConnHandler> DcpConnMap::findByName(const std::string& name) {
-    LockHolder lh(connsLock);
-    for (const auto& cookieToConn : map_) {
+    auto handle = connStore->getCookieToConnectionMapHandle();
+    for (const auto& cookieToConn : *handle) {
         // If the connection is NOT about to be disconnected
         // and the names match
         if (!cookieToConn.second->doDisconnect() &&
@@ -622,4 +594,9 @@ std::shared_ptr<ConnHandler> DcpConnMap::findByName(const std::string& name) {
         }
     }
     return nullptr;
+}
+
+bool DcpConnMap::isConnections() {
+    LockHolder lh(connsLock);
+    return !connStore->getCookieToConnectionMapHandle()->empty();
 }

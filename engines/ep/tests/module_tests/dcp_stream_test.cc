@@ -1569,7 +1569,7 @@ void SingleThreadedPassiveStreamTest::SetUp() {
 }
 
 void SingleThreadedPassiveStreamTest::TearDown() {
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(0 /*opaque*/, vbid));
+    ASSERT_NE(ENGINE_DISCONNECT, consumer->closeStream(0 /*opaque*/, vbid));
     consumer.reset();
     STParameterizedBucketTest::TearDown();
 }
@@ -2066,19 +2066,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
 // interleaves various operations using ProcessBufferedMessages_postFront_Hook
 void SingleThreadedPassiveStreamTest::mb_33773(
         SingleThreadedPassiveStreamTest::mb_33773Mode mode) {
-    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
-
-    auto consumer =
-            std::make_shared<MockDcpConsumer>(*engine, cookie, "MB_33773");
-
-    uint32_t opaque = 0;
-
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, vbid, 0 /*flags*/));
-    opaque++;
-
-    auto* passiveStream = static_cast<MockPassiveStream*>(
-            (consumer->getVbucketStream(vbid)).get());
-    ASSERT_TRUE(passiveStream->isActive());
+    uint32_t opaque = 1;
 
     const uint64_t snapStart = 1;
     const uint64_t snapEnd = 100;
@@ -2101,7 +2089,7 @@ void SingleThreadedPassiveStreamTest::mb_33773(
               engine->getReplicationThrottle().getStatus());
 
     // Push mutations
-    EXPECT_EQ(0, passiveStream->getNumBufferItems());
+    EXPECT_EQ(0, stream->getNumBufferItems());
     for (size_t seqno = snapStart; seqno < snapEnd; seqno++) {
         EXPECT_EQ(ENGINE_SUCCESS,
                   consumer->mutation(
@@ -2121,7 +2109,7 @@ void SingleThreadedPassiveStreamTest::mb_33773(
                           0));
     }
     // and check they were buffered.
-    ASSERT_EQ(snapEnd - snapStart, passiveStream->getNumBufferItems());
+    ASSERT_EQ(snapEnd - snapStart, stream->getNumBufferItems());
     engine->getEpStats().setMaxDataSize(size); // undo the quota adjustment
 
     // We expect flowcontrol bytes to increase when the buffered items are
@@ -2133,10 +2121,10 @@ void SingleThreadedPassiveStreamTest::mb_33773(
     case mb_33773Mode::closeStreamOnTask: {
         // Create and set a hook that will call setDead, the hook executes
         // just after an item has been taken from the buffer
-        std::function<void()> hook = [this, consumer]() {
+        std::function<void()> hook = [this]() {
             consumer->closeStreamDueToVbStateChange(vbid, vbucket_state_active);
         };
-        passiveStream->setProcessBufferedMessages_postFront_Hook(hook);
+        stream->setProcessBufferedMessages_postFront_Hook(hook);
         break;
     }
     case mb_33773Mode::closeStreamBeforeTask:
@@ -2147,7 +2135,7 @@ void SingleThreadedPassiveStreamTest::mb_33773(
         std::function<void()> hook = [this]() {
             engine->getEpStats().setMaxDataSize(1);
         };
-        passiveStream->setProcessBufferedMessages_postFront_Hook(hook);
+        stream->setProcessBufferedMessages_postFront_Hook(hook);
         break;
     }
     case mb_33773Mode::noMemoryAndClosed: {
@@ -2155,16 +2143,14 @@ void SingleThreadedPassiveStreamTest::mb_33773(
         // But also closes the stream so that the messages queue is emptied.
         // We are testing that the item we've moved out of the queue is still
         // accounted in flow-control
-        std::function<void()> hook = [this,
-                                      consumer,
-                                      &flowControlBytesFreed]() {
+        std::function<void()> hook = [this, &flowControlBytesFreed]() {
             engine->getEpStats().setMaxDataSize(1);
             consumer->closeStreamDueToVbStateChange(vbid, vbucket_state_active);
             // Capture flow control freed bytes which should now include all
             // buffered messages, except one (which was moved)
             flowControlBytesFreed = consumer->getFlowControl().getFreedBytes();
         };
-        passiveStream->setProcessBufferedMessages_postFront_Hook(hook);
+        stream->setProcessBufferedMessages_postFront_Hook(hook);
         break;
     }
     }
@@ -2185,7 +2171,7 @@ void SingleThreadedPassiveStreamTest::mb_33773(
         return;
     case mb_33773Mode::noMemory: {
         std::function<void()> hook = [] {};
-        passiveStream->setProcessBufferedMessages_postFront_Hook(hook);
+        stream->setProcessBufferedMessages_postFront_Hook(hook);
         // fall through to next case
     }
     case mb_33773Mode::noMemoryAndClosed: {
@@ -2208,11 +2194,11 @@ void SingleThreadedPassiveStreamTest::mb_33773(
                   flowControlBytesFreed);
     } else {
         // The items are still buffered
-        EXPECT_EQ(snapEnd - snapStart, passiveStream->getNumBufferItems());
+        EXPECT_EQ(snapEnd - snapStart, stream->getNumBufferItems());
         // Run task again, it should of re-scheduled itself
         runNextTask(nonIo);
         // and all items now gone
-        EXPECT_EQ(0, passiveStream->getNumBufferItems());
+        EXPECT_EQ(0, stream->getNumBufferItems());
     }
 }
 

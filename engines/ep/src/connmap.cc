@@ -26,14 +26,13 @@
 #include <phosphor/phosphor.h>
 
 #include "conn_notifier.h"
+#include "conn_store.h"
 #include "connhandler.h"
 #include "connmap.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/consumer.h"
 #include "dcp/producer.h"
 #include "executorpool.h"
-
-size_t ConnMap::vbConnLockNum = 32;
 
 /**
  * A task to manage connections.
@@ -108,16 +107,10 @@ private:
     size_t snoozeTime;
 };
 
-ConnMap::ConnMap(EventuallyPersistentEngine &theEngine)
-    :  vbConnLocks(vbConnLockNum),
-       engine(theEngine),
-       connNotifier_(nullptr) {
-
-    Configuration &config = engine.getConfiguration();
-    size_t max_vbs = config.getMaxVbuckets();
-    for (size_t i = 0; i < max_vbs; ++i) {
-        vbConns.push_back(std::list<std::weak_ptr<ConnHandler>>());
-    }
+ConnMap::ConnMap(EventuallyPersistentEngine& theEngine)
+    : engine(theEngine),
+      connNotifier_(nullptr),
+      connStore(std::make_unique<ConnStore>(theEngine)) {
 }
 
 void ConnMap::initialize() {
@@ -185,50 +178,13 @@ void ConnMap::processPendingNotifications() {
 }
 
 void ConnMap::addVBConnByVBId(std::shared_ptr<ConnHandler> conn, Vbid vbid) {
-    if (!conn.get()) {
-        return;
-    }
-
-    size_t lock_num = vbid.get() % vbConnLockNum;
-    std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
-    vbConns[vbid.get()].emplace_back(std::move(conn));
-}
-
-void ConnMap::removeVBConnByVBId_UNLOCKED(const void* connCookie, Vbid vbid) {
-    std::list<std::weak_ptr<ConnHandler>>& vb_conns = vbConns[vbid.get()];
-    for (auto itr = vb_conns.begin(); itr != vb_conns.end();) {
-        auto connection = (*itr).lock();
-        if (!connection) {
-            // ConnHandler no longer exists, cleanup.
-            itr = vb_conns.erase(itr);
-        } else if (connection->getCookie() == connCookie) {
-            // Found conn with matching cookie, done.
-            vb_conns.erase(itr);
-            break;
-        } else {
-            ++itr;
-        }
-    }
+    connStore->addVBConnByVbid(vbid, conn);
 }
 
 void ConnMap::removeVBConnByVBId(const void* connCookie, Vbid vbid) {
-    size_t lock_num = vbid.get() % vbConnLockNum;
-    std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
-    removeVBConnByVBId_UNLOCKED(connCookie, vbid);
+    connStore->removeVBConnByVbid(vbid, connCookie);
 }
 
 bool ConnMap::vbConnectionExists(ConnHandler* conn, Vbid vbid) {
-    size_t lock_num = vbid.get() % vbConnLockNum;
-    std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
-    auto& connsForVb = vbConns[vbid.get()];
-
-    // Check whether the connhandler already exists in vbConns for the
-    // provided vbid
-    for (const auto& existingConn : connsForVb) {
-        if (conn == existingConn.lock().get()) {
-            return true;
-        }
-    }
-
-    return false;
+    return connStore->doesVbConnExist(vbid, conn->getCookie());
 }

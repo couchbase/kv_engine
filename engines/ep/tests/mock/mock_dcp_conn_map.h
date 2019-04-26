@@ -46,32 +46,13 @@ public:
         // destructor
     }
 
-    void addConn(const void* cookie, std::shared_ptr<ConnHandler> conn) {
-        LockHolder lh(connsLock);
-        map_[cookie] = conn;
-    }
+    void addConn(const void* cookie, std::shared_ptr<ConnHandler> conn);
 
-    bool removeConn(const void* cookie) {
-        LockHolder lh(connsLock);
-        auto itr = map_.find(cookie);
-        if (itr != map_.end()) {
-            map_.erase(itr);
-            return true;
-        }
-        return false;
-    }
+    bool removeConn(const void* cookie);
 
-    /// return if the named handler exists for the vbid in the vbConns structure
-    bool doesConnHandlerExist(Vbid vbid, const std::string& name) const {
-        const auto& list = vbConns[vbid.get()];
-        return std::find_if(
-                       list.begin(),
-                       list.end(),
-                       [&name](const std::weak_ptr<ConnHandler>& c) -> bool {
-                           auto p = c.lock();
-                           return p && p->getName() == name;
-                       }) != list.end();
-    }
+    /// return if the named handler exists for the vbid in the vbToConns
+    /// structure
+    bool doesConnHandlerExist(Vbid vbid, const std::string& name);
 
 protected:
     /**

@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "conn_store_fwd.h"
 #include "connmap.h"
 #include "ep_types.h"
 
@@ -156,21 +157,13 @@ public:
 
     std::shared_ptr<ConnHandler> findByName(const std::string& name);
 
-    bool isConnections() {
-        LockHolder lh(connsLock);
-        return !map_.empty();
-    }
+    bool isConnections();
 
     /**
      * Call a function on each DCP connection.
      */
     template <typename Fun>
-    void each(Fun f) {
-        LockHolder lh(connsLock);
-        for (auto& c : map_) {
-            f(c.second);
-        }
-    }
+    void each(Fun f);
 
 protected:
     /*

@@ -1928,6 +1928,63 @@ protected:
     const Vbid vbid = Vbid(0);
 };
 
+// MB-33873: Test that we do not store stale references to a ConnHandler in the
+// ConnMap. This could cause a seg fault if we don't check them before use.
+TEST_F(DcpConnMapTest, StaleConnMapReferences) {
+    {
+        // We can put a MockDcpConnMap in the engine, but we have to move it
+        // (inheritance with unique pointers is a pain).
+        // We can just get it back out later if we jump through a couple of
+        // hoops.
+        auto mockConnMap = std::make_unique<MockDcpConnMap>(*engine);
+        engine->setDcpConnMap(std::move(mockConnMap));
+    }
+    auto& connMap = engine->getDcpConnMap();
+    auto& mockConnMap = dynamic_cast<MockDcpConnMap&>(connMap);
+
+    const void* cookie = create_mock_cookie();
+    // Create a new Dcp producer
+    auto* producer = connMap.newProducer(cookie, "test_producer", 0 /*flags*/);
+
+    // Bit of a test hack; when we close the stream we will only remove the
+    // ConnHandler reference from the vbToConns map if we do not set
+    // "send_stream_end_on_client_close_stream". We can purposefully leave it
+    // in by setting this control flag.
+    producer->control(
+            0 /*opaque*/, "send_stream_end_on_client_close_stream", "true");
+
+    // Create a stream
+    uint64_t rollbackSeqno;
+    producer->streamRequest(0 /*flags*/,
+                            0 /*opaque*/,
+                            Vbid(0),
+                            0 /*startSeqno*/,
+                            ~0 /*endSeqno*/,
+                            0 /*vbUUID*/,
+                            0 /*snapStart*/,
+                            0 /*snapEnd*/,
+                            &rollbackSeqno,
+                            mock_dcp_add_failover_log,
+                            {});
+
+    // The ConnMap will add the "ep_dcpq" name prefix to our name
+    ASSERT_TRUE(
+            mockConnMap.doesConnHandlerExist(Vbid(0), "eq_dcpq:test_producer"));
+
+    // Close it, the connection should still exist in the vbToConns map
+    producer->closeStream(0, Vbid(0));
+    ASSERT_TRUE(
+            mockConnMap.doesConnHandlerExist(Vbid(0), "eq_dcpq:test_producer"));
+
+    // Remove the connection, we should clean up the references in the
+    // vbToConns map now
+    connMap.disconnect(cookie);
+    EXPECT_FALSE(
+            mockConnMap.doesConnHandlerExist(Vbid(0), "eq_dcpq:test_producer"));
+
+    destroy_mock_cookie(cookie);
+}
+
 /* Tests that there is no memory loss due to cyclic reference between connection
  * and other objects (like dcp streams). It is possible that connections are
  * deleted from the dcp connmap when dcp connmap is deleted due to abrupt

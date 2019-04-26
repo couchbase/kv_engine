@@ -154,6 +154,12 @@ void CollectionsDcpStreamsTest::close_stream_by_id_test(bool enableStreamEnd,
         // However the vb may still have streams for manyStreams test
         EXPECT_EQ(manyStreams, rv.second);
     }
+
+    // We should still have an element in vbToConns if we have many streams
+    if (manyStreams) {
+        auto& connmap = engine->getDcpConnMap();
+        EXPECT_TRUE(connmap.vbConnectionExists(producer.get(), vbid));
+    }
 }
 
 TEST_F(CollectionsDcpStreamsTest, close_stream_by_id_with_end_stream) {
@@ -171,6 +177,26 @@ TEST_F(CollectionsDcpStreamsTest,
 
 TEST_F(CollectionsDcpStreamsTest, close_stream_by_id_and_many_streams) {
     close_stream_by_id_test(false, true);
+}
+
+TEST_F(CollectionsDcpStreamsTest,
+       close_stream_by_id_any_many_streams_removes_connhandler_for_last) {
+    close_stream_by_id_test(false, true);
+
+    // Close another of the streams
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->closeStream(0, vbid, cb::mcbp::DcpStreamId(101)));
+
+    // Still got 1 alive stream so the vbConn should still exist
+    auto& connmap = engine->getDcpConnMap();
+    EXPECT_TRUE(connmap.vbConnectionExists(producer.get(), vbid));
+
+    // Close last stream
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->closeStream(0, vbid, cb::mcbp::DcpStreamId(555)));
+
+    // Should no longer have the ConnHandler in vbToConns
+    EXPECT_FALSE(connmap.vbConnectionExists(producer.get(), vbid));
 }
 
 TEST_F(CollectionsDcpStreamsTest, two_streams) {
