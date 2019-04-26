@@ -48,16 +48,6 @@ extern "C" {
     }
 }
 
-struct kvstats_ctx {
-    kvstats_ctx(Collections::VB::Flush& collectionsFlush)
-        : collectionsFlush(collectionsFlush) {
-    }
-    /// A map of key to bool. If true, the key exists in the VB datafile
-    std::unordered_map<DiskDocKey, bool> keyStats;
-    /// Collection flusher data for managing manifest changes and item counts
-    Collections::VB::Flush& collectionsFlush;
-};
-
 static std::string getStrError(Db *db) {
     const size_t max_msg_len = 256;
     char msg[max_msg_len];

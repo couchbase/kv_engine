@@ -132,6 +132,16 @@ struct compaction_ctx {
     Collections::KVStore::DroppedCb droppedKeyCb;
 };
 
+struct kvstats_ctx {
+    kvstats_ctx(Collections::VB::Flush& collectionsFlush)
+        : collectionsFlush(collectionsFlush) {
+    }
+    /// A map of key to bool. If true, the key exists in the VB datafile
+    std::unordered_map<DiskDocKey, bool> keyStats;
+    /// Collection flusher data for managing manifest changes and item counts
+    Collections::VB::Flush& collectionsFlush;
+};
+
 /**
  * State associated with a KVStore transaction (begin() / commit() pair).
  * Users would typically subclass this, and provide an instance to begin().
