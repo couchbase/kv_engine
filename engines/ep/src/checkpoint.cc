@@ -122,10 +122,11 @@ Checkpoint::~Checkpoint() {
 
 QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                                         CheckpointManager* checkpointManager) {
-    if (checkpointState != CHECKPOINT_OPEN) {
-        throw std::logic_error("Checkpoint::queueDirty: checkpointState "
-                        "(which is" + std::to_string(checkpointState) +
-                        ") is not OPEN");
+    if (getState() != CHECKPOINT_OPEN) {
+        throw std::logic_error(
+                "Checkpoint::queueDirty: checkpointState "
+                "(which is" +
+                std::to_string(getState()) + ") is not OPEN");
     }
 
     QueueDirtyStatus rv;

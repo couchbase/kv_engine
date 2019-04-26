@@ -1058,8 +1058,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
 
     // We must have only 1 open checkpoint with id=0 (set by setVBucketState)
     EXPECT_EQ(ckptList.size(), 1);
-    EXPECT_EQ(ckptList.back()->getState_UNLOCKED(),
-              checkpoint_state::CHECKPOINT_OPEN);
+    EXPECT_EQ(ckptList.back()->getState(), checkpoint_state::CHECKPOINT_OPEN);
     EXPECT_EQ(ckptList.back()->getId(), 0);
     // We must have only one cursor (the persistence cursor), as there is no
     // DCP producer for vbid
@@ -1099,8 +1098,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
 
     // We must have 1 open checkpoint with id=0
     EXPECT_EQ(ckptList.size(), 1);
-    EXPECT_EQ(ckptList.back()->getState_UNLOCKED(),
-              checkpoint_state::CHECKPOINT_OPEN);
+    EXPECT_EQ(ckptList.back()->getState(), checkpoint_state::CHECKPOINT_OPEN);
     EXPECT_EQ(ckptList.back()->getId(), 0);
 
     // 2) the consumer receives the mutations until (snapshotEnd -1)
@@ -1108,8 +1106,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
 
     // We must have again 1 open checkpoint with id=0
     EXPECT_EQ(ckptList.size(), 1);
-    EXPECT_EQ(ckptList.back()->getState_UNLOCKED(),
-              checkpoint_state::CHECKPOINT_OPEN);
+    EXPECT_EQ(ckptList.back()->getState(), checkpoint_state::CHECKPOINT_OPEN);
     EXPECT_EQ(ckptList.back()->getId(), 0);
     // We must have no items in the checkpoint, as we enqueue into the
     // backfill-queue for disk-snapshot
@@ -1120,8 +1117,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
 
     // We must have again 1 open checkpoint with id=1
     EXPECT_EQ(ckptList.size(), 1);
-    EXPECT_EQ(ckptList.back()->getState_UNLOCKED(),
-              checkpoint_state::CHECKPOINT_OPEN);
+    EXPECT_EQ(ckptList.back()->getState(), checkpoint_state::CHECKPOINT_OPEN);
     EXPECT_EQ(ckptList.back()->getId(), 1);
     // Again, no items in the checkpoint for disk-snapshot
     EXPECT_EQ(ckptMgr->getNumOpenChkItems(), 0);
@@ -1266,11 +1262,11 @@ TEST_F(SingleThreadedCheckpointTest,
                 EXPECT_EQ(ckptList.back()->getId(),
                           ckptList.front()->getId() + 1);
                 EXPECT_EQ(checkpoint_state::CHECKPOINT_CLOSED,
-                          ckptList.front()->getState_UNLOCKED());
+                          ckptList.front()->getState());
                 EXPECT_EQ(snapshotEnd - snapshotStart + 1,
                           ckptList.front()->getNumItems());
                 EXPECT_EQ(checkpoint_state::CHECKPOINT_OPEN,
-                          ckptList.back()->getState_UNLOCKED());
+                          ckptList.back()->getState());
                 EXPECT_EQ(0, ckptList.back()->getNumItems());
             } else {
                 // Check that (mem_used < high_wat) when we processed the
@@ -1283,7 +1279,7 @@ TEST_F(SingleThreadedCheckpointTest,
                 // that store all mutations
                 EXPECT_EQ(1, ckptMgr->getNumCheckpoints());
                 EXPECT_EQ(checkpoint_state::CHECKPOINT_OPEN,
-                          ckptList.back()->getState_UNLOCKED());
+                          ckptList.back()->getState());
                 EXPECT_EQ(ckptList.back()->getNumItems(),
                           snapshotEnd - snapshotStart + 1);
             }

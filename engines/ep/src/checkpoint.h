@@ -24,6 +24,7 @@
 #include "monotonic.h"
 #include "stats.h"
 
+#include <folly/Synchronized.h>
 #include <platform/non_negative_counter.h>
 #include <utilities/memory_tracking_allocator.h>
 
@@ -395,12 +396,7 @@ public:
      * Return the current state of this checkpoint.
      */
     checkpoint_state getState() const {
-        LockHolder lh(lock);
-        return getState_UNLOCKED();
-    }
-
-    checkpoint_state getState_UNLOCKED() const {
-        return checkpointState;
+        return *checkpointState.rlock();
     }
 
     /**
@@ -408,16 +404,7 @@ public:
      * @param state the checkpoint's new state
      */
     void setState(checkpoint_state state) {
-        LockHolder lh(lock);
-        setState_UNLOCKED(state);
-    }
-
-    /**
-     * Set the current state of this checkpoint.
-     * @param state the checkpoint's new state
-     */
-    void setState_UNLOCKED(checkpoint_state state) {
-        checkpointState = state;
+        *checkpointState.wlock() = state;
     }
 
     void incNumOfCursorsInCheckpoint() {
@@ -556,7 +543,7 @@ private:
     Monotonic<int64_t> highestExpelledSeqno = 0;
     Vbid vbucketId;
     rel_time_t                     creationTime;
-    checkpoint_state               checkpointState;
+    folly::Synchronized<checkpoint_state> checkpointState;
     /// Number of non-meta items (see Item::isCheckPointMetaItem).
     size_t                         numItems;
     /// Number of meta items (see Item::isCheckPointMetaItem).
@@ -580,7 +567,6 @@ private:
     // Records the memory consumption of all items in the checkpoint.
     // This includes each item's key, metadata and the blob.
     cb::NonNegativeCounter<size_t> queuedItemsMemUsage;
-    mutable std::mutex lock;
 
     friend std::ostream& operator <<(std::ostream& os, const Checkpoint& m);
 };
