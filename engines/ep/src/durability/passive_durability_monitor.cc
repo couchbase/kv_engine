@@ -82,9 +82,10 @@ void PassiveDurabilityMonitor::addSyncWrite(queued_item item) {
         hps = s->highPreparedSeqno.lastWriteSeqno;
     }
 
-    // HPS may have not be changed, which would result in re-acking the same
-    // HPS multiple times. Not wrong as HPS is weakly-monotonic at Active, but
-    // we want to avoid sending unnecessary messages.
+    // HPS may have not changed (e.g., a locally-non-satisfied PersistToMajority
+    // Prepare has introduced a durability-fence), which would result in
+    // re-acking the same HPS multiple times. Not wrong as HPS is weakly
+    // monotonic at Active, but we want to avoid sending unnecessary messages.
     if (hps != prevHps) {
         Expects(hps > prevHps);
         vb.sendSeqnoAck(hps);
@@ -104,11 +105,16 @@ void PassiveDurabilityMonitor::notifyLocalPersistence() {
         s->updateHighPreparedSeqno();
         hps = s->highPreparedSeqno.lastWriteSeqno;
     }
-    // Note: This function is supposed to be called only when the Flusher has
-    //     persisted a Prepare. So, HPS must have changed at this point.
-    Expects(hps > prevHps);
 
-    vb.sendSeqnoAck(hps);
+    // HPS may have not changed (e.g., we have just persisted a Majority Prepare
+    // for which the HPS has been already increased at ADM::addSyncWrite), which
+    // would result in re-acking the same HPS multiple times. Not wrong as HPS
+    // is weakly monotonic at Active, but we want to avoid sending unnecessary
+    // messages.
+    if (hps != prevHps) {
+        Expects(hps > prevHps);
+        vb.sendSeqnoAck(hps);
+    }
 }
 
 void PassiveDurabilityMonitor::toOStream(std::ostream& os) const {

@@ -829,6 +829,8 @@ void DurabilityMonitorTest::testHPS_Majority() {
     addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
                             cb::durability::Level::Majority,
                             3 /*expectedHPS*/);
+
+    notifyPersistenceAndCheckHPS(1000 /*persistedSeqno*/, 3 /*expectedHPS*/);
 }
 
 TEST_F(PassiveDurabilityMonitorTest, HPS_Majority) {
@@ -846,6 +848,8 @@ TEST_F(PassiveDurabilityMonitorTest, HPS_MajorityAndPersistOnMaster) {
     addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
                             cb::durability::Level::MajorityAndPersistOnMaster,
                             3 /*expectedHPS*/);
+
+    notifyPersistenceAndCheckHPS(1000 /*persistedSeqno*/, 3 /*expectedHPS*/);
 }
 
 TEST_F(ActiveDurabilityMonitorTest, HPS_MajorityAndPersistOnMaster) {
