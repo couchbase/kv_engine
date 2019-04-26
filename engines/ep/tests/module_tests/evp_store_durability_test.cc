@@ -334,6 +334,82 @@ TEST_P(DurabilityEPBucketTest, PersistPrepareAbortPrepareDeleteAbort) {
     testPersistPrepareAbortX2(DocumentState::Deleted);
 }
 
+/// Test persistence of a prepared & committed SyncWrite, followed by a
+/// prepared & committed SyncDelete.
+TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto& vb = *getEPBucket().getVBucket(vbid);
+
+    // prepare SyncWrite and commit.
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "value");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb.commit(key,
+                        pending->getBySeqno(),
+                        {} /*commitSeqno*/,
+                        vb.lockCollections(key)));
+
+    // We do not deduplicate Prepare and Commit in CheckpointManager (achieved
+    // by inserting them into different checkpoints)
+    const auto& ckptMgr = *getEPBucket().getVBucket(vbid)->checkpointManager;
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    ckptMgr);
+    ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    EXPECT_EQ(2, ckptMgr.getNumItemsForPersistence());
+
+    // Note: Prepare and Commit are not in the same key-space and hence are not
+    //       deduplicated at Flush.
+    EXPECT_EQ(
+            std::make_pair(false /*more_to_flush*/, size_t(2) /*num_flushed*/),
+            getEPBucket().flushVBucket(vbid));
+
+    // prepare SyncDelete and commit.
+    uint64_t cas = 0;
+    using namespace cb::durability;
+    auto reqs = Requirements(Level::Majority, 0);
+    mutation_descr_t delInfo;
+    ASSERT_EQ(
+            ENGINE_EWOULDBLOCK,
+            store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
+
+    ASSERT_EQ(3, ckptList.size());
+    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    EXPECT_EQ(1, ckptMgr.getNumItemsForPersistence());
+
+    EXPECT_EQ(
+            std::make_pair(false /*more_to_flush*/, size_t(1) /*num_flushed*/),
+            getEPBucket().flushVBucket(vbid));
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb.commit(key,
+                        delInfo.seqno,
+                        {} /*commitSeqno*/,
+                        vb.lockCollections(key)));
+
+    ASSERT_EQ(4, ckptList.size());
+    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    EXPECT_EQ(1, ckptMgr.getNumItemsForPersistence());
+
+    EXPECT_EQ(
+            std::make_pair(false /*more_to_flush*/, size_t(1) /*num_flushed*/),
+            getEPBucket().flushVBucket(vbid));
+
+    // At persist-dedup, the 2nd Prepare and Commit survive.
+    auto* store = vb.getShard()->getROUnderlying();
+    auto gv = store->get(DiskDocKey(key), Vbid(0));
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_TRUE(gv.item->isCommitted());
+    EXPECT_TRUE(gv.item->isDeleted());
+    EXPECT_EQ(delInfo.seqno + 1, gv.item->getBySeqno());
+}
+
 TEST_P(DurabilityEPBucketTest, ActiveLocalNotifyPersistedSeqno) {
     setVBucketStateAndRunPersistTask(
             vbid,
