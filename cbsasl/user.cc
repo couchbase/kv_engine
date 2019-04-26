@@ -328,7 +328,7 @@ User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
                 "number of labels specified");
     }
 
-    salt = *s;
+    salt = s->get<std::string>();
     Couchbase::Base64::decode(salt);
     password.assign(Couchbase::Base64::decode(*h));
     iteration_count = gsl::narrow<int>(*i);

@@ -23,8 +23,8 @@
 
 Event::Event(const nlohmann::json& json) {
     id = json.at("id");
-    name = json.at("name");
-    description = json.at("description");
+    name = json.at("name").get<std::string>();
+    description = json.at("description").get<std::string>();
     sync = json.at("sync");
     enabled = json.at("enabled");
     auto cFilteringPermitted = json.value("filtering_permitted", -1);

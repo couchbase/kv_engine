@@ -313,7 +313,7 @@ void AuditConfig::add_pair_string_array(
                 throw std::invalid_argument(
                         "Incorrect type for source. Should be string.");
             }
-            source = s;
+            source = s.get<std::string>();
         }
 
         if (elem.find("domain") != elem.end()) {
@@ -322,7 +322,7 @@ void AuditConfig::add_pair_string_array(
                 throw std::invalid_argument(
                         "Incorrect type for domain. Should be string.");
             }
-            domain = d;
+            domain = d.get<std::string>();
         }
 
         if (!source.empty() || !domain.empty()) {
@@ -334,7 +334,7 @@ void AuditConfig::add_pair_string_array(
                     throw std::invalid_argument(
                             "Incorrect type for user. Should be string.");
                 }
-                user = u;
+                user = u.get<std::string>();
             }
 
             if (!user.empty()) {

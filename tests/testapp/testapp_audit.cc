@@ -407,7 +407,7 @@ TEST_P(AuditTest, MB33603_ValidDomainName) {
             return false;
         }
 
-        domain = entry["real_userid"]["domain"];
+        domain = entry["real_userid"]["domain"].get<std::string>();
         return true;
     });
 
