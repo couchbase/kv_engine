@@ -38,6 +38,9 @@ add_library(mcd_util STATIC
             util.cc
             vbucket.cc )
 set_property(TARGET mcd_util PROPERTY POSITION_INDEPENDENT_CODE 1)
+if (BREAKPAD_FOUND)
+  target_include_directories(mcd_util PRIVATE SYSTEM AFTER ${BREAKPAD_INCLUDE_DIR})
+endif()
 target_link_libraries(mcd_util memcached_logger engine_utilities
                       hdr_histogram_static platform ${BREAKPAD_LIBRARIES})
 add_sanitizers(mcd_util)

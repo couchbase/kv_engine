@@ -18,52 +18,6 @@
 
 #include "breakpad_settings.h"
 
-#if defined(WIN32) && defined(HAVE_BREAKPAD)
-
-/*
- * For some unknown reason, Folly has decided to undefine some Windows types
- * that are required by "dbghelp.h", which is included in Breakpad's Windows
- * "exception_handler.h". Nobody bothered to document why exactly they were
- * undefined, and it looks as though they are not, and never were, used within
- * the Folly codebase. So, if we have already pulled in Folly's "Windows.h" at
- * this point, then we need to re-define OUT and IN. To avoid any potential
- * issues with Folly, we'll undefine them after we've included Breakpad's
- * "exception_handler.h". If we haven't pulled in Folly's "Windows.h", then
- * Breakpad will pull in it's own, but it won't undefine OUT and IN so there
- * won't be an issue.
- */
-#ifdef _WINDOWS_
-#ifndef OUT
-#define UNDEFOUT 1
-#define OUT
-#endif
-
-#ifndef IN
-#define UNDEFIN 1
-#define IN
-#endif
-#endif
-
-#include "client/windows/handler/exception_handler.h"
-
-#ifdef UNDEFOUT
-#undef OUT
-#endif
-
-#ifdef UNDEFIN
-#undef IN
-#endif
-
-#elif defined(linux) && defined(HAVE_BREAKPAD)
-#include "client/linux/handler/exception_handler.h"
-#else
-namespace google_breakpad {
-class ExceptionHandler {
-public:
-};
-} // namespace google_breakpad
-#endif
-
 namespace cb {
 namespace breakpad {
 /**

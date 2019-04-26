@@ -127,7 +127,6 @@ ENDIF (MEMORY_ALLOCATOR)
 
 IF (BREAKPAD_FOUND)
     ADD_DEFINITIONS(-DHAVE_BREAKPAD)
-    INCLUDE_DIRECTORIES(AFTER ${BREAKPAD_INCLUDE_DIR} SYSTEM)
     IF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
         # On Linux Breakpad unit test relies on examining the minidump -> core
         # file with GDB.
