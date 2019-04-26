@@ -16,6 +16,7 @@
  */
 #include <memcached/rbac.h>
 
+#include <folly/Synchronized.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/rwlock.h>
@@ -25,7 +26,6 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
-#include <mutex>
 #include <streambuf>
 #include <string>
 
@@ -43,9 +43,7 @@ struct DatabaseContext {
     std::atomic<uint32_t> current_generation{0};
     std::atomic<uint32_t> create_generation{0};
 
-    // The read write lock needed when you want to build a context
-    cb::RWLock rwlock;
-    std::unique_ptr<PrivilegeDatabase> db;
+    folly::Synchronized<std::unique_ptr<PrivilegeDatabase>> db;
 };
 
 /// We keep one context for the local scope, and one for the external
@@ -351,15 +349,13 @@ PrivilegeContext createContext(const std::string& user,
                                Domain domain,
                                const std::string& bucket) {
     auto& ctx = contexts[to_index(domain)];
-    std::lock_guard<cb::ReaderLock> guard(ctx.rwlock.reader());
-    return ctx.db->createContext(user, domain, bucket);
+    return (*ctx.db.rlock())->createContext(user, domain, bucket);
 }
 
 std::pair<PrivilegeContext, bool> createInitialContext(const std::string& user,
                                                        Domain domain) {
     auto& ctx = contexts[to_index(domain)];
-    std::lock_guard<cb::ReaderLock> guard(ctx.rwlock.reader());
-    return ctx.db->createInitialContext(user, domain);
+    return (*ctx.db.rlock())->createInitialContext(user, domain);
 }
 
 void loadPrivilegeDatabase(const std::string& filename) {
@@ -381,11 +377,12 @@ void loadPrivilegeDatabase(const std::string& filename) {
     auto database = std::make_unique<PrivilegeDatabase>(json, Domain::Local);
 
     auto& ctx = contexts[to_index(Domain::Local)];
-    std::lock_guard<cb::WriterLock> guard(ctx.rwlock.writer());
+
+    auto locked = ctx.db.wlock();
     // Handle race conditions
-    if (ctx.db->generation < database->generation) {
+    if ((*locked)->generation < database->generation) {
         ctx.current_generation = database->generation;
-        ctx.db.swap(database);
+        locked->swap(database);
     }
 }
 
@@ -400,8 +397,8 @@ void initialize() {
 }
 
 void destroy() {
-    contexts[to_index(Domain::Local)].db.reset();
-    contexts[to_index(Domain::External)].db.reset();
+    contexts[to_index(Domain::Local)].db.wlock()->reset();
+    contexts[to_index(Domain::External)].db.wlock()->reset();
 }
 
 bool mayAccessBucket(const std::string& user,
@@ -426,28 +423,26 @@ void updateExternalUser(const std::string& descr) {
 
     auto& ctx = contexts[to_index(Domain::External)];
 
-    std::lock_guard<cb::WriterLock> guard(ctx.rwlock.writer());
-    auto next = ctx.db->updateUser(username, Domain::External, entry);
+    auto locked = ctx.db.wlock();
+    auto next = (*locked)->updateUser(username, Domain::External, entry);
     if (next) {
         // I changed the database. Update the context gen counter and
         // swap the databases
         ctx.current_generation = next->generation;
-        ctx.db.swap(next);
+        locked->swap(next);
     }
 }
 
 nlohmann::json to_json(Domain domain) {
     auto& ctx = contexts[to_index(domain)];
-    std::lock_guard<cb::ReaderLock> guard(ctx.rwlock.reader());
-    return ctx.db->to_json(domain);
+    return (*ctx.db.rlock())->to_json(domain);
 }
 
 boost::optional<std::chrono::steady_clock::time_point> getExternalUserTimestamp(
         const std::string& user) {
     auto& ctx = contexts[to_index(Domain::External)];
-    std::lock_guard<cb::WriterLock> guard(ctx.rwlock.reader());
     try {
-        auto ue = ctx.db->lookup(user);
+        auto ue = (*ctx.db.rlock())->lookup(user);
         return {ue.getTimestamp()};
     } catch (const NoSuchUserException&) {
         return {};
