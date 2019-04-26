@@ -345,12 +345,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(
         ENGINE_STORE_OPERATION operation,
         const boost::optional<cb::durability::Requirements>& durability,
         DocumentState document_state) {
-    Item* item = static_cast<Item*>(itm.get());
+    Item& item = *static_cast<Item*>(itm.get());
     if (document_state == DocumentState::Deleted) {
-        item->setDeleted();
+        item.setDeleted();
     }
     if (durability) {
-        item->setPendingSyncWrite(durability.get());
+        item.setPendingSyncWrite(durability.get());
     }
     return acquireEngine(this)->storeInner(cookie, item, cas, operation);
 }
@@ -2504,10 +2504,10 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::storeInner(
         const void* cookie,
-        Item* itm,
+        Item& itm,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation) {
-    auto rv = storeIfInner(cookie, *itm, cas, operation, {});
+    auto rv = storeIfInner(cookie, itm, cas, operation, {});
     cas = rv.cas;
     return ENGINE_ERROR_CODE(rv.status);
 }

@@ -92,7 +92,7 @@ queued_item EventuallyPersistentEngineTest::store_item(
     auto item = makeCommittedItem(makeStoredDocKey(key), value);
     uint64_t cas;
     EXPECT_EQ(ENGINE_SUCCESS,
-              engine->storeInner(cookie, item.get(), cas, OPERATION_SET));
+              engine->storeInner(cookie, *item, cas, OPERATION_SET));
     return item;
 }
 
@@ -104,7 +104,7 @@ queued_item EventuallyPersistentEngineTest::store_pending_item(
     auto item = makePendingItem(makeStoredDocKey(key), value, reqs);
     uint64_t cas;
     EXPECT_EQ(ENGINE_EWOULDBLOCK,
-              engine->storeInner(cookie, item.get(), cas, OPERATION_SET))
+              engine->storeInner(cookie, *item, cas, OPERATION_SET))
             << "pending SyncWrite should initially block (until durability "
                "met).";
     return item;
@@ -116,7 +116,7 @@ queued_item EventuallyPersistentEngineTest::store_pending_delete(
     item->setDeleted(DeleteSource::Explicit);
     uint64_t cas;
     EXPECT_EQ(ENGINE_EWOULDBLOCK,
-              engine->storeInner(cookie, item.get(), cas, OPERATION_SET))
+              engine->storeInner(cookie, *item, cas, OPERATION_SET))
             << "pending SyncDelete should initially block (until durability "
                "met).";
     return item;
@@ -127,7 +127,7 @@ void EventuallyPersistentEngineTest::store_committed_item(
     auto item = makeCommittedviaPrepareItem(makeStoredDocKey(key), value);
     uint64_t cas;
     EXPECT_EQ(ENGINE_SUCCESS,
-              engine->storeInner(cookie, item.get(), cas, OPERATION_SET));
+              engine->storeInner(cookie, *item, cas, OPERATION_SET));
 }
 
 const char EventuallyPersistentEngineTest::test_dbname[] = "ep_engine_ep_unit_tests_db";
