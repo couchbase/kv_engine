@@ -1,229 +1,100 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+
 #include "cmdline.h"
 #include "config_parse.h"
+#include "log_macros.h"
 #include "memcached.h"
 #include "settings.h"
 
 #include <getopt.h>
-#include <logger/logger.h>
-#include <platform/cb_malloc.h>
+#include <iostream>
 
+static std::string config_file;
 
-/* path to our config file. */
-static const char *config_file = NULL;
+static void usage() {
+    std::cerr << "memcached " << get_server_version() << R"(
+    -C file       Read configuration from file
+    -h            print this help and exit
 
-static void usage(void) {
-    printf("memcached %s\n", get_server_version());
-    printf("-C file       Read configuration from file\n");
-    printf("-h            print this help and exit\n");
-    printf("\nEnvironment variables:\n");
-    printf("MEMCACHED_PORT_FILENAME   File to write port information to\n");
+Environment variables:
+    MEMCACHED_PORT_FILENAME   File to write port information to
+)";
 }
 
-struct Option {
+void parse_arguments(int argc, char** argv) {
+    struct option long_options[] = {
+            {"config", required_argument, nullptr, 'C'},
+            {"threads", required_argument, nullptr, 't'},
+            {"verbosity", no_argument, nullptr, 'v'},
+            {"requests_per_event", required_argument, nullptr, 'R'},
+            {"help", no_argument, nullptr, 'h'},
+            {nullptr, 0, nullptr, 0}};
+
     int cmd;
-    char *optarg;
-    struct Option *next;
-};
 
-struct Option *options = NULL;
-struct Option *tail = NULL;
-
-static void add_option(int cmd, char *optarg) {
-    struct Option *o = reinterpret_cast<struct Option*>(cb_malloc(sizeof(*o)));
-    if (o == NULL) {
-        fprintf(stderr, "Failed to allocate memory\n");
-        exit(EXIT_FAILURE);
-    }
-    o->cmd = cmd;
-    o->optarg = optarg;
-    o->next = NULL;
-
-    if (options == NULL) {
-        options = tail = o;
-    } else {
-        tail->next = o;
-        tail = o;
-    }
-}
-
-static void handle_b(struct Option* o) {
-    fprintf(stderr,
-            "-b is no longer used. Update the per interface description\n");
-}
-
-static void handle_c(struct Option* o) {
-    fprintf(stderr,
-            "-c is no longer used. Update the per interface description\n");
-}
-
-static void apply_compat_arguments(void) {
-    struct Option *o;
-
-    /* Handle all other options */
-    for (o = options; o != NULL; o = o->next) {
-        LOG_WARNING(
-                "Option -{} passed to memcached is no longer supported."
-                " Consider using the configuration file instead\n",
-                o->cmd);
-
-        switch (o->cmd) {
-        case 'b':
-            handle_b(o);
-            break;
-        case 'R':
-            try {
-                settings.setRequestsPerEventNotification(std::stoi(o->optarg),
-                                                         EventPriority::Default);
-            } catch (const std::exception& e) {
-                LOG_ERROR(
-                        R"(Failed to parse "{}": {})", o->optarg, e.what());
-            }
-            break;
-        case 'c':
-            handle_c(o);
-            break;
-        case 't':
-            try {
-                settings.setNumWorkerThreads(std::stoi(o->optarg));
-            } catch (const std::exception& e) {
-                LOG_ERROR(
-                        R"(Failed to parse "{}": {})", o->optarg, e.what());
-            }
-            break;
-        case 'v':
-            settings.setVerbose(settings.getVerbose() + 1);
-            break;
-        }
-    }
-}
-
-void parse_arguments(int argc, char **argv) {
-    int c;
+    int verbosity = 0;
+    int threads = 0;
+    int requests = 0;
 
     // Tell getopt to restart the parsing (if we used getopt before calling
     // this method)
     optind = 1;
 
-    /* process arguments */
-    while ((c = getopt(argc,
-                       argv,
-                       "I:b:C:R:D:Ln:f:P:ihkc:Mm:u:da:s:p:U:t:vrB:E:e:l:")) !=
-           -1) {
-        switch (c) {
+    while ((cmd = getopt_long(argc, argv, "C:t:vR:h", long_options, nullptr)) !=
+           EOF) {
+        switch (cmd) {
         case 'C':
             config_file = optarg;
             break;
 
-        case 'b':
-        case 'R':
-        case 'c':
         case 't':
-        case 'v':
-            add_option(c, optarg);
-            break;
-
-        case 'E':
-        case 'e':
-        case 'I':
-        case 'm':
-        case 'M':
-        case 'f':
-        case 'n':
-            fprintf(stderr,
-                    "-%c is no longer used. update the per-engine config\n",
-                    c);
-            exit(EXIT_FAILURE);
-            break;
-
-        case 'D':
-            fprintf(stderr, "-D (delimiter) is no longer supported\n");
-            exit(EXIT_FAILURE);
-            break;
-
-        case 'k':
-            fprintf(stderr, "-k (mlockall) is no longer supported\n");
-            exit(EXIT_FAILURE);
-            break;
-
-        case 'L':
-            fprintf(stderr, "-L (Large memory pages) is no longer supported\n");
-            exit(EXIT_FAILURE);
-            break;
-
-        case 'P':
-            fprintf(stderr, "-P (pid file) is no longer supported\n");
-            exit(EXIT_FAILURE);
-            break;
-
-        case 'd':
-            fprintf(stderr, "-d is no longer used\n");
-            exit(EXIT_FAILURE);
-            break;
-
-        case 'u':
-            fprintf(stderr, "Changing user is no longer supported\n");
-            exit(EXIT_FAILURE);
-            break;
-
-        case 'a': /* FALLTHROUGH */
-        case 's':
-            fprintf(stderr, "UNIX socket path support is removed\n");
-            exit(EXIT_FAILURE);
-            break;
-
-        case 'r':
-            fprintf(stderr, "-r is no longer supported. Increase core"
-                    "file max size before starting memcached\n");
-            exit(EXIT_FAILURE);
-            break;
-
-        case 'B':
-            if (strcmp(optarg, "binary") != 0) {
-                fprintf(stderr, "Only binary protocol is supported (-B)\n");
-                exit(EXIT_FAILURE);
+            try {
+                threads = std::stoi(optarg);
+            } catch (const std::exception& e) {
+                LOG_ERROR(R"(Failed to parse "{}": {})", optarg, e.what());
             }
             break;
-
-        case 'U':
-            fprintf(stderr, "WARNING: UDP support is removed\n");
-            exit(EXIT_FAILURE);
+        case 'v':
+            ++verbosity;
             break;
-
-        case 'l':
-            fprintf(stderr, "-l is not supported you have to use -C\n");
-            exit(EXIT_FAILURE);
+        case 'R':
+            try {
+                requests = std::stoi(optarg);
+            } catch (const std::exception& e) {
+                LOG_ERROR(R"(Failed to parse "{}": {})", optarg, e.what());
+            }
             break;
-
-        case 'p':
-            fprintf(stderr, "-p is not supported you have to use -C\n");
-            exit(EXIT_FAILURE);
-            break;
-
-        case 'i': /* license */
-        case 'h': /* help */
+        case 'h':
+            usage();
+            std::exit(EXIT_SUCCESS);
         default:
             usage();
-            exit(EXIT_FAILURE);
+            std::exit(EXIT_FAILURE);
         }
     }
 
-    if (config_file) {
-        load_config_file(config_file, settings);
+    if (config_file.empty()) {
+        std::cerr << "Configuration file must be specified with -C"
+                  << std::endl;
+        std::exit(EXIT_FAILURE);
     }
 
-    /* Process other arguments */
-    if (options) {
-        apply_compat_arguments();
-        while (options) {
-            tail = options;
-            options = options->next;
-            cb_free(tail);
-        }
+    load_config_file(config_file.c_str(), settings);
+
+    if (verbosity > 0) {
+        settings.setVerbose(verbosity);
+    }
+
+    if (threads > 0) {
+        settings.setNumWorkerThreads(threads);
+    }
+
+    if (requests > 0) {
+        settings.setRequestsPerEventNotification(requests,
+                                                 EventPriority::Default);
     }
 }
 
-const char* get_config_file(void)
-{
+const std::string& get_config_file() {
     return config_file;
 }
