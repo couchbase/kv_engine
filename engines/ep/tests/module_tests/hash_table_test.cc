@@ -814,6 +814,40 @@ TEST_P(HashTableStatsTest, CommittedSyncDelete) {
     EXPECT_TRUE(del(ht, key));
 }
 
+// Test case for doing a sync write on top of a pre-existing item.
+// Stats should be tracked as follows:
+// 1) Pre-existing item created (no item -> committed item)
+// 2) Pending sync write created (no pending sw for item -> pending sw for item)
+// 3) Commit sync write (committed item -> [removed] + pending sw -> committed)
+TEST_P(HashTableStatsTest, CommittedSyncWritePreExisting) {
+    // Setup - set a pre-existing item
+    HashTable ht(global_stats, makeFactory(true), 128, 1);
+    StoredDocKey existing = makeStoredDocKey("existing");
+    store(ht, key);
+    ASSERT_EQ(0, ht.getNumPreparedSyncWrites());
+
+    // Setup - prepare a sync write
+    auto prepared = makePendingItem(key, "prepared");
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*prepared));
+    ASSERT_EQ(1, ht.getNumPreparedSyncWrites());
+
+    // Commit the sync write
+    { // locking scope.
+        auto result = ht.findForWrite(key);
+        ASSERT_TRUE(result.storedValue);
+
+        // We should not throw due to underflow (if assertions are turned on)
+        EXPECT_NO_THROW(ht.commit(result.lock, *result.storedValue));
+    }
+
+    // We should no longer have the prepared sync write (will only fail if
+    // assertions are turned off)
+    EXPECT_EQ(0, ht.getNumPreparedSyncWrites());
+
+    // Cleanup
+    EXPECT_TRUE(del(ht, key));
+}
+
 INSTANTIATE_TEST_CASE_P(ValueAndFullEviction,
                         HashTableStatsTest,
                         ::testing::Combine(::testing::Values(VALUE_ONLY,

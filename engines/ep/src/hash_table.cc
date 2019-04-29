@@ -319,7 +319,8 @@ void HashTable::commit(const HashTable::HashBucketLock& hbl, StoredValue& v) {
 
     if (oldValue) {
         // Update stats for committed -> [removed] item.
-        const auto committedPreProps = valueStats.prologue(&v);
+        const auto committedPreProps =
+                valueStats.prologue(oldValue.get().get());
         valueStats.epilogue(committedPreProps, nullptr);
     }
 
