@@ -38,6 +38,7 @@ using queued_item = SingleThreadedRCPtr<Item, Item*, std::default_delete<Item>>;
 enum class GenerateBySeqno { No, Yes };
 enum class GenerateRevSeqno { No, Yes };
 enum class GenerateCas { No, Yes };
+enum class GenerateDeleteTime { No, Yes };
 enum class TrackCasDrift { No, Yes };
 enum class WantsDeleted { No, Yes };
 enum class TrackReference { No, Yes };

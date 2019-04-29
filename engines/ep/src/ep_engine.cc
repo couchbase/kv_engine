@@ -1085,8 +1085,14 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
         break;
     case ENGINE_EWOULDBLOCK:
         LOG(EXTENSION_LOG_NOTICE,
-            "Compaction of db file id: %d scheduled "
-                "(awaiting completion).", compactreq.db_file_id);
+            "Compaction of db file id:%d, purge_before_ts:%" PRIu64
+            ", purge_before_seq:%" PRIu64
+            ", drop_deletes:%d scheduled "
+            "(awaiting completion).",
+            compactreq.db_file_id,
+            compactreq.purge_before_ts,
+            compactreq.purge_before_seq,
+            compactreq.drop_deletes);
         e->storeEngineSpecific(cookie, req);
         return ENGINE_EWOULDBLOCK;
     case ENGINE_TMPFAIL:

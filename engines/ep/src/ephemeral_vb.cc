@@ -92,6 +92,7 @@ bool EphemeralVBucket::pageOut(const HashTable::HashBucketLock& lh,
     }
     VBQueueItemCtx queueCtx(GenerateBySeqno::Yes,
                             GenerateCas::Yes,
+                            GenerateDeleteTime::Yes,
                             TrackCasDrift::No,
                             /*isBackfill*/ false,
                             nullptr);

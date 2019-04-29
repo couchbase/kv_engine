@@ -709,6 +709,7 @@ VBNotifyCtx VBucket::queueDirty(
         StoredValue& v,
         const GenerateBySeqno generateBySeqno,
         const GenerateCas generateCas,
+        const GenerateDeleteTime generateDeleteTime,
         const bool isBackfillItem,
         PreLinkDocumentContext* preLinkDocumentContext) {
     VBNotifyCtx notifyCtx;
@@ -720,7 +721,8 @@ VBNotifyCtx VBucket::queueDirty(
     // our tombstone purger can use to determine which tombstones to purge. A
     // DCP replicated or deleteWithMeta created delete may already have a time
     // assigned to it.
-    if (qi->isDeleted() && qi->getDeleteTime() == 0) {
+    if (qi->isDeleted() && (generateDeleteTime == GenerateDeleteTime::Yes ||
+                            qi->getExptime() == 0)) {
         qi->setExpTime(ep_real_time());
     }
 
@@ -1052,8 +1054,12 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm,
         v->unlock();
     }
 
+    // MB-33919: DCP backfill - we must respect the value set by the producer
+    // unless it is zero, which queueDirty will fix-up. Not mutations and
+    // deletions come through this path.
     VBQueueItemCtx queueItmCtx(genBySeqno,
                                GenerateCas::No,
+                               GenerateDeleteTime::No,
                                TrackCasDrift::No,
                                /*isBackfillItem*/ true,
                                nullptr /* No pre link should happen */);
@@ -1176,8 +1182,12 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
         v->unlock();
     }
 
+    // MB-33919: Do not generate the delete-time - delete's can come through
+    // this path and the delete time from the input should be used (unless it
+    // is 0, where it must be regenerated)
     VBQueueItemCtx queueItmCtx(genBySeqno,
                                genCas,
+                               GenerateDeleteTime::No,
                                TrackCasDrift::Yes,
                                /*isBackfillItem*/ false,
                                nullptr /* No pre link step needed */);
@@ -1314,6 +1324,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
                                   metadata,
                                   VBQueueItemCtx(GenerateBySeqno::Yes,
                                                  GenerateCas::Yes,
+                                                 GenerateDeleteTime::Yes,
                                                  TrackCasDrift::No,
                                                  /*isBackfillItem*/ false,
                                                  nullptr /* no pre link */),
@@ -1474,8 +1485,12 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
         delrv = MutationStatus::NeedBgFetch;
         metaBgFetch = false;
     } else {
+        // MB-33919: The incoming meta.exptime should be used as the delete-time
+        // so request GenerateDeleteTime::No, if the incoming value is 0, a new
+        // delete-time will be generated.
         VBQueueItemCtx queueItmCtx(genBySeqno,
                                    generateCas,
+                                   GenerateDeleteTime::No,
                                    TrackCasDrift::Yes,
                                    backfill,
                                    nullptr /* No pre link step needed */);
@@ -2482,8 +2497,10 @@ VBucket::processExpiredItem(const HashTable::HashBucketLock& hbl,
         return std::make_tuple(MutationStatus::NeedBgFetch,
                                &v,
                                queueDirty(v,
+
                                           GenerateBySeqno::Yes,
                                           GenerateCas::Yes,
+                                          GenerateDeleteTime::Yes,
                                           /*isBackfillItem*/ false));
     }
 
@@ -2506,6 +2523,7 @@ VBucket::processExpiredItem(const HashTable::HashBucketLock& hbl,
                                   onlyMarkDeleted,
                                   VBQueueItemCtx(GenerateBySeqno::Yes,
                                                  GenerateCas::Yes,
+                                                 GenerateDeleteTime::Yes,
                                                  TrackCasDrift::No,
                                                  /*isBackfillItem*/ false,
                                                  nullptr /* no pre link */),
@@ -2601,6 +2619,7 @@ VBNotifyCtx VBucket::queueDirty(StoredValue& v,
     return queueDirty(v,
                       queueItmCtx.genBySeqno,
                       queueItmCtx.genCas,
+                      queueItmCtx.generateDeleteTime,
                       queueItmCtx.isBackfillItem,
                       queueItmCtx.preLinkDocumentContext);
 }

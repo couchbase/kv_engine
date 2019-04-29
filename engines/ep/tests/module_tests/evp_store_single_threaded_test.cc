@@ -2755,8 +2755,9 @@ TEST_F(WarmupTest, produce_delete_times) {
                      (sizeof("KEY2") - 1);
     EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
 
-    // Finally expire a key and check that the delete_time we receive is the
-    // expiry time, not actually the time it was deleted.
+    // Finally expire a key and check that the delete_time we receive is not the
+    // expiry time, the delete time should always be re-created by the server to
+    // ensure old/future expiry times don't disrupt tombstone purging (MB-33919)
     auto expiryTime = ep_real_time() + 32000;
     store_item(vbid,
                {"KEY3", DocNamespace::DefaultCollection},
@@ -2779,7 +2780,7 @@ TEST_F(WarmupTest, produce_delete_times) {
 
     step(true);
 
-    EXPECT_EQ(expiryTime, dcp_last_delete_time);
+    EXPECT_NE(expiryTime, dcp_last_delete_time);
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_DELETION, dcp_last_op);
     EXPECT_EQ("KEY3", dcp_last_key);
     expectedBytes += SnapshotMarker::baseMsgBytes +
