@@ -62,7 +62,7 @@ public:
                   NoopSyncWriteCompleteCb,
                   NoopSeqnoAckCb,
                   config,
-                  VALUE_ONLY,
+                  EvictionPolicy::Value,
                   std::make_unique<Collections::VB::Manifest>()) {
     }
 

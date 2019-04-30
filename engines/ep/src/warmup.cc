@@ -765,7 +765,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             break;
         case WarmupState::State::LoadingData:
         case WarmupState::State::LoadingAccessLog:
-            if (epstore.getItemEvictionPolicy() == FULL_EVICTION) {
+            if (epstore.getItemEvictionPolicy() == EvictionPolicy::Full) {
                 ++stats.warmedUpKeys;
             }
             ++stats.warmedUpValues;
@@ -1194,7 +1194,7 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
     }
 
     if (++threadtask_count == store.vbMap.getNumShards()) {
-        if (store.getItemEvictionPolicy() == VALUE_ONLY) {
+        if (store.getItemEvictionPolicy() == EvictionPolicy::Value) {
             transition(WarmupState::State::KeyDump);
         } else {
             transition(WarmupState::State::CheckForAccessLog);
@@ -1269,7 +1269,7 @@ void Warmup::checkForAccessLog()
     if (accesslogs == store.vbMap.shards.size()) {
         transition(WarmupState::State::LoadingAccessLog);
     } else {
-        if (store.getItemEvictionPolicy() == VALUE_ONLY) {
+        if (store.getItemEvictionPolicy() == EvictionPolicy::Value) {
             transition(WarmupState::State::LoadingData);
         } else {
             transition(WarmupState::State::LoadingKVPairs);
@@ -1420,7 +1420,7 @@ void Warmup::loadKVPairsforShard(uint16_t shardId)
     bool maybe_enable_traffic = false;
     scan_error_t errorCode = scan_success;
 
-    if (store.getItemEvictionPolicy() == FULL_EVICTION) {
+    if (store.getItemEvictionPolicy() == EvictionPolicy::Full) {
         maybe_enable_traffic = true;
     }
 

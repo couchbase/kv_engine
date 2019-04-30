@@ -26,9 +26,8 @@
 
 #include <folly/portability/GTest.h>
 
-class ItemCompressorTest
-    : public ::testing::TestWithParam<item_eviction_policy_t>,
-      public VBucketTestBase {
+class ItemCompressorTest : public ::testing::TestWithParam<EvictionPolicy>,
+                           public VBucketTestBase {
 public:
     ItemCompressorTest() : VBucketTestBase(GetParam()) {
     }

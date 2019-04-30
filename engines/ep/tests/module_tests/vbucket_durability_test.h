@@ -25,9 +25,8 @@ class ActiveDurabilityMonitor;
 /*
  * VBucket unit tests related to durability.
  */
-class VBucketDurabilityTest
-    : public ::testing::TestWithParam<item_eviction_policy_t>,
-      public VBucketTestBase {
+class VBucketDurabilityTest : public ::testing::TestWithParam<EvictionPolicy>,
+                              public VBucketTestBase {
 public:
     VBucketDurabilityTest() : VBucketTestBase(GetParam()) {
     }

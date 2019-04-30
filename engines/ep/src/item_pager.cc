@@ -89,7 +89,7 @@ bool ItemPager::run(void) {
     bool inverse = true;
     if (((current > upper) || doEvict || wasNotified) &&
         (*available).compare_exchange_strong(inverse, false)) {
-        if (kvBucket->getItemEvictionPolicy() == VALUE_ONLY) {
+        if (kvBucket->getItemEvictionPolicy() == EvictionPolicy::Value) {
             doEvict = true;
         }
 

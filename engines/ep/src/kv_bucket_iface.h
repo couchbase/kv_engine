@@ -681,7 +681,7 @@ public:
     virtual KVStore *getOneROUnderlying() = 0;
     virtual KVStore *getOneRWUnderlying() = 0;
 
-    virtual item_eviction_policy_t getItemEvictionPolicy() const = 0;
+    virtual EvictionPolicy getItemEvictionPolicy() const = 0;
 
     /*
      * Request a rollback of the vbucket to the specified seqno.

@@ -26,9 +26,9 @@
 
 #include <folly/portability/GTest.h>
 
-class DefragmenterTest : public VBucketTestBase,
-                         public ::testing::TestWithParam<
-                                 std::tuple<item_eviction_policy_t, bool> > {
+class DefragmenterTest
+    : public VBucketTestBase,
+      public ::testing::TestWithParam<std::tuple<EvictionPolicy, bool> > {
 public:
     DefragmenterTest();
     ~DefragmenterTest();
@@ -77,7 +77,7 @@ protected:
     bool isModeStoredValue() const;
 
     /// @return the policy in use for the test
-    item_eviction_policy_t getEvictionPolicy() const;
+    EvictionPolicy getEvictionPolicy() const;
 
     /**
      * The value vs StoredValue variant of the defragger test uses different

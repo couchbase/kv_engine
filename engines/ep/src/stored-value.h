@@ -239,13 +239,13 @@ public:
         return value->isCompressible();
     }
 
-    bool eligibleForEviction(item_eviction_policy_t policy) const {
+    bool eligibleForEviction(EvictionPolicy policy) const {
         // Pending SyncWrite are always resident
         if (getCommitted() == CommittedState::Pending) {
             return false;
         }
 
-        if (policy == VALUE_ONLY) {
+        if (policy == EvictionPolicy::Value) {
             return isResident() && !isDirty() && !isDeleted();
         } else {
             return !isDirty() && !isDeleted();

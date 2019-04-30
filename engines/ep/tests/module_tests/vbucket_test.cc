@@ -30,7 +30,7 @@
 
 #include <platform/cb_malloc.h>
 
-VBucketTestBase::VBucketTestBase(item_eviction_policy_t eviction_policy) {
+VBucketTestBase::VBucketTestBase(EvictionPolicy eviction_policy) {
     // Used for mem-checks at Replica VBuckets. Default=0 prevents any
     // processSet, returns NoMem. I set a production-like value.
     global_stats.replicationThrottleThreshold = 0.9;
@@ -271,7 +271,7 @@ TEST_P(VBucketTest, SwapFilter) {
 
 TEST_P(VBucketTest, Add) {
     const auto eviction_policy = GetParam();
-    if (eviction_policy != VALUE_ONLY) {
+    if (eviction_policy != EvictionPolicy::Value) {
         return;
     }
     const int nkeys = 1000;
@@ -305,7 +305,7 @@ TEST_P(VBucketTest, Add) {
 
 TEST_P(VBucketTest, AddExpiry) {
     const auto eviction_policy = GetParam();
-    if (eviction_policy != VALUE_ONLY) {
+    if (eviction_policy != EvictionPolicy::Value) {
         return;
     }
     StoredDocKey k = makeStoredDocKey("aKey");
@@ -333,7 +333,7 @@ TEST_P(VBucketTest, AddExpiry) {
  */
 TEST_P(VBucketTest, unlockedSoftDeleteWithValue) {
     const auto eviction_policy = GetParam();
-    if (eviction_policy != VALUE_ONLY) {
+    if (eviction_policy != EvictionPolicy::Value) {
         return;
     }
 
@@ -393,7 +393,7 @@ TEST_P(VBucketTest, updateExpiredItem) {
  */
 TEST_P(VBucketTest, updateDeletedItem) {
     const auto eviction_policy = GetParam();
-    if (eviction_policy != VALUE_ONLY) {
+    if (eviction_policy != EvictionPolicy::Value) {
         return;
     }
 
@@ -612,11 +612,11 @@ TEST_P(VBucketEvictionTest, EjectionResidentCount) {
               this->public_processSet(item, item.getCas()));
 
     switch (eviction_policy) {
-    case VALUE_ONLY:
+    case EvictionPolicy::Value:
         // We have accurate VBucket counts in value eviction:
         EXPECT_EQ(1, this->vbucket->getNumItems());
         break;
-    case FULL_EVICTION:
+    case EvictionPolicy::Full:
         // In Full Eviction the vBucket count isn't accurate until the
         // flusher completes - hence just check count in HashTable.
         EXPECT_EQ(1, this->vbucket->ht.getNumItems());
@@ -632,13 +632,13 @@ TEST_P(VBucketEvictionTest, EjectionResidentCount) {
             stored_item.lock, stored_item.storedValue, eviction_policy));
 
     switch (eviction_policy) {
-    case VALUE_ONLY:
+    case EvictionPolicy::Value:
         // After ejection, should still have 1 item in HashTable (meta-only),
         // and VBucket count should also be 1.
         EXPECT_EQ(1, this->vbucket->getNumItems());
         EXPECT_EQ(1, this->vbucket->getNumNonResidentItems());
         break;
-    case FULL_EVICTION:
+    case EvictionPolicy::Full:
         // In Full eviction should be no items in HashTable (we fully
         // evicted it).
         EXPECT_EQ(0, this->vbucket->ht.getNumItems());
@@ -774,32 +774,24 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
 INSTANTIATE_TEST_CASE_P(
         FullAndValueEviction,
         VBucketTest,
-        ::testing::Values(VALUE_ONLY, FULL_EVICTION),
-        [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
-            if (info.param == VALUE_ONLY) {
-                return "VALUE_ONLY";
-            } else {
-                return "FULL_EVICTION";
-            }
+        ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full),
+        [](const ::testing::TestParamInfo<EvictionPolicy>& info) {
+            return to_string(info.param);
         });
 
 INSTANTIATE_TEST_CASE_P(
         FullAndValueEviction,
         VBucketEvictionTest,
-        ::testing::Values(VALUE_ONLY, FULL_EVICTION),
-        [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
-            if (info.param == VALUE_ONLY) {
-                return "VALUE_ONLY";
-            } else {
-                return "FULL_EVICTION";
-            }
+        ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full),
+        [](const ::testing::TestParamInfo<EvictionPolicy>& info) {
+            return to_string(info.param);
         });
 
 // Test cases which run in Full Eviction only
 INSTANTIATE_TEST_CASE_P(
         FullEviction,
         VBucketFullEvictionTest,
-        ::testing::Values(FULL_EVICTION),
-        [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
-            return "FULL_EVICTION";
+        ::testing::Values(EvictionPolicy::Full),
+        [](const ::testing::TestParamInfo<EvictionPolicy>& info) {
+            return to_string(info.param);
         });

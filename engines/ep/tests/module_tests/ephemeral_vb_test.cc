@@ -30,7 +30,7 @@
 
 class EphemeralVBucketTest : public VBucketTestBase, public ::testing::Test {
 public:
-    EphemeralVBucketTest() : VBucketTestBase(VALUE_ONLY) {
+    EphemeralVBucketTest() : VBucketTestBase(EvictionPolicy::Value) {
     }
 
 protected:
@@ -49,7 +49,7 @@ protected:
                                               NoopSyncWriteCompleteCb,
                                               NoopSeqnoAckCb,
                                               config,
-                                              VALUE_ONLY);
+                                              EvictionPolicy::Value);
         /* vbucket manages the life time of mockEpheVB and is a base test class
            ptr of owning type */
         vbucket.reset(mockEpheVB);

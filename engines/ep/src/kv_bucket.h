@@ -522,7 +522,7 @@ public:
     KVStore *getOneROUnderlying() override;
     KVStore *getOneRWUnderlying() override;
 
-    item_eviction_policy_t getItemEvictionPolicy() const override {
+    EvictionPolicy getItemEvictionPolicy() const override {
         return eviction_policy;
     }
 
@@ -770,7 +770,7 @@ protected:
     } cachedResidentRatio;
     size_t statsSnapshotTaskId;
     std::atomic<size_t> lastTransTimePerItem;
-    item_eviction_policy_t eviction_policy;
+    EvictionPolicy eviction_policy;
 
     std::mutex compactionLock;
     std::list<CompTaskEntry> compactionTasks;

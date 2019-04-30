@@ -197,7 +197,7 @@ public:
             SyncWriteCompleteCallback syncWriteCb,
             SeqnoAckCallback seqnoAckCb,
             Configuration& config,
-            item_eviction_policy_t evictionPolicy,
+            EvictionPolicy evictionPolicy,
             std::unique_ptr<Collections::VB::Manifest> manifest,
             vbucket_state_t initState = vbucket_state_dead,
             uint64_t purgeSeqno = 0,
@@ -1816,7 +1816,7 @@ protected:
                  const void* c);
 
     /* This member holds the eviction policy used */
-    const item_eviction_policy_t eviction;
+    const EvictionPolicy eviction;
 
     /* Reference to global (EP engine wide) stats */
     EPStats& stats;

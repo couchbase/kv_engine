@@ -66,7 +66,7 @@ public:
                         vbucketId.to_string());
             }
 
-            if (store.getItemEvictionPolicy() == VALUE_ONLY) {
+            if (store.getItemEvictionPolicy() == EvictionPolicy::Value) {
                 /**
                  * VALUE-ONLY EVICTION POLICY
                  * Consider deleted items only.
@@ -122,8 +122,8 @@ bool BloomFilterCallback::initTempFilter(Vbid vbucketId) {
         return false;
     }
 
-    item_eviction_policy_t eviction_policy = store.getItemEvictionPolicy();
-    if (eviction_policy == VALUE_ONLY) {
+    EvictionPolicy eviction_policy = store.getItemEvictionPolicy();
+    if (eviction_policy == EvictionPolicy::Value) {
         /**
          * VALUE-ONLY EVICTION POLICY
          * Obtain number of persisted deletes from underlying kvstore.
@@ -228,9 +228,9 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
     auto& config = engine.getConfiguration();
     const std::string& policy = config.getItemEvictionPolicy();
     if (policy.compare("value_only") == 0) {
-        eviction_policy = VALUE_ONLY;
+        eviction_policy = EvictionPolicy::Value;
     } else {
-        eviction_policy = FULL_EVICTION;
+        eviction_policy = EvictionPolicy::Full;
     }
     replicationThrottle = std::make_unique<ReplicationThrottle>(
             engine.getConfiguration(), stats);
@@ -1066,7 +1066,7 @@ void EPBucket::completeStatsVKey(const void* cookie,
                                  uint64_t bySeqNum) {
     GetValue gcb = getROUnderlying(vbid)->get(DiskDocKey{key}, vbid);
 
-    if (eviction_policy == FULL_EVICTION) {
+    if (eviction_policy == EvictionPolicy::Full) {
         VBucketPtr vb = getVBucket(vbid);
         if (vb) {
             vb->completeStatsVKey(key, gcb);
@@ -1278,7 +1278,7 @@ bool EPBucket::maybeEnableTraffic() {
                 maxSize,
                 stats.warmupMemUsedCap.load());
         return true;
-    } else if (eviction_policy == VALUE_ONLY &&
+    } else if (eviction_policy == EvictionPolicy::Value &&
                stats.warmedUpValues >=
                        (stats.warmedUpKeys * stats.warmupNumReadCap)) {
         // Let ep-engine think we're done with the warmup phase
@@ -1292,7 +1292,7 @@ bool EPBucket::maybeEnableTraffic() {
                 uint64_t(stats.warmedUpKeys.load()),
                 stats.warmupNumReadCap.load());
         return true;
-    } else if (eviction_policy == FULL_EVICTION &&
+    } else if (eviction_policy == EvictionPolicy::Full &&
                stats.warmedUpValues >= (warmupTask->getEstimatedItemCount() *
                                         stats.warmupNumReadCap)) {
         // In case of FULL EVICTION, warmed up keys always matches the number

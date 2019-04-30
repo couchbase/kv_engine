@@ -74,7 +74,7 @@ DefragmenterTest::DefragmenterTest()
 DefragmenterTest::~DefragmenterTest() {
 }
 
-item_eviction_policy_t DefragmenterTest::getEvictionPolicy() const {
+EvictionPolicy DefragmenterTest::getEvictionPolicy() const {
     return std::get<0>(GetParam());
 }
 
@@ -393,16 +393,12 @@ TEST_P(DefragmenterTest, DISABLED_MaxDefragValueSize) {
 INSTANTIATE_TEST_CASE_P(
         FullAndValueEviction,
         DefragmenterTest,
-        ::testing::Combine(::testing::Values(VALUE_ONLY, FULL_EVICTION),
+        ::testing::Combine(::testing::Values(EvictionPolicy::Value,
+                                             EvictionPolicy::Full),
                            ::testing::Bool()),
-        [](const ::testing::TestParamInfo<
-                std::tuple<item_eviction_policy_t, bool>>& info) {
-            std::string name;
-            if (std::get<0>(info.param) == VALUE_ONLY) {
-                name += "VALUE_ONLY";
-            } else {
-                name += "FULL_EVICTION";
-            }
+        [](const ::testing::TestParamInfo<std::tuple<EvictionPolicy, bool>>&
+                   info) {
+            std::string name = to_string(std::get<0>(info.param));
             if (std::get<1>(info.param)) {
                 name += "_DefragStoredValue";
             }

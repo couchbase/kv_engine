@@ -65,7 +65,7 @@ CheckpointTest<V>::CheckpointTest()
                     NoopSyncWriteCompleteCb,
                     NoopSeqnoAckCb,
                     config,
-                    item_eviction_policy_t::VALUE_ONLY,
+                    EvictionPolicy::Value,
                     std::make_unique<Collections::VB::Manifest>())) {
     createManager();
 }
@@ -213,7 +213,7 @@ TYPED_TEST(CheckpointTest, basic_chk_test) {
                           NoopSyncWriteCompleteCb,
                           NoopSeqnoAckCb,
                           this->config,
-                          item_eviction_policy_t::VALUE_ONLY,
+                          EvictionPolicy::Value,
                           std::make_unique<Collections::VB::Manifest>()));
 
     this->manager.reset(new MockCheckpointManager(

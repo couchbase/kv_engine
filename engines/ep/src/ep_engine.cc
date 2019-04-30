@@ -2321,7 +2321,8 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
         }
 
         // For second pass, or if full eviction, we'll need to issue a BG fetch.
-        if (ii == 1 || kvBucket->getItemEvictionPolicy() == FULL_EVICTION) {
+        if (ii == 1 ||
+            kvBucket->getItemEvictionPolicy() == EvictionPolicy::Full) {
             options = static_cast<get_options_t>(int(options) | QUEUE_BG_FETCH);
         }
 
@@ -2536,7 +2537,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::memoryCondition() {
         getKVBucket()->attemptToFreeMemory();
         return ENGINE_TMPFAIL;
     } else {
-        if (getKVBucket()->getItemEvictionPolicy() == FULL_EVICTION) {
+        if (getKVBucket()->getItemEvictionPolicy() == EvictionPolicy::Full) {
             ++stats.tmp_oom_errors;
             getKVBucket()->wakeUpCheckpointRemover();
             return ENGINE_TMPFAIL;

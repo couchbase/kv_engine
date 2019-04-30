@@ -167,7 +167,7 @@ public:
               NoopSyncWriteCompleteCb,
               NoopSeqnoAckCb,
               config,
-              VALUE_ONLY,
+              EvictionPolicy::Value,
               std::make_unique<Collections::VB::Manifest>()),
           vbR(Vbid(1),
               vbucket_state_replica,
@@ -183,7 +183,7 @@ public:
               NoopSyncWriteCompleteCb,
               NoopSeqnoAckCb,
               config,
-              VALUE_ONLY,
+              EvictionPolicy::Value,
               std::make_unique<Collections::VB::Manifest>()),
           lastCompleteDeletionArgs(0) {
     }

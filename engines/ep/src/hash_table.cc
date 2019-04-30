@@ -727,11 +727,10 @@ StoredValue::UniquePtr HashTable::unlocked_release(
     return released;
 }
 
-MutationStatus HashTable::insertFromWarmup(
-        Item& itm,
-        bool eject,
-        bool keyMetaDataOnly,
-        item_eviction_policy_t evictionPolicy) {
+MutationStatus HashTable::insertFromWarmup(Item& itm,
+                                           bool eject,
+                                           bool keyMetaDataOnly,
+                                           EvictionPolicy evictionPolicy) {
     const auto perspective = itm.isPending()
                                      ? HashTable::Perspective::Pending
                                      : HashTable::Perspective::Committed;
@@ -951,7 +950,7 @@ HashTable::Position HashTable::endPosition() const  {
 
 bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock&,
                                    StoredValue*& vptr,
-                                   item_eviction_policy_t policy) {
+                                   EvictionPolicy policy) {
     if (vptr == nullptr) {
         throw std::invalid_argument("HashTable::unlocked_ejectItem: "
                 "Unable to delete NULL StoredValue");
@@ -965,13 +964,13 @@ bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock&,
     const auto preProps = valueStats.prologue(vptr);
 
     switch (policy) {
-    case VALUE_ONLY: {
+    case EvictionPolicy::Value: {
         vptr->ejectValue();
         ++stats.numValueEjects;
         valueStats.epilogue(preProps, vptr);
         break;
     }
-    case FULL_EVICTION: {
+    case EvictionPolicy::Full: {
         // Remove the item from the hash table.
         int bucket_num = getBucketForHash(vptr->getKey().hash());
         auto removed = hashChainRemoveFirst(

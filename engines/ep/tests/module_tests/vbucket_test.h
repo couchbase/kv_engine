@@ -49,7 +49,7 @@ public:
     /**
      * Construct test objects with the given eviction policy
      */
-    VBucketTestBase(item_eviction_policy_t policy);
+    VBucketTestBase(EvictionPolicy policy);
     ~VBucketTestBase();
 
 protected:
@@ -120,7 +120,7 @@ protected:
     const void* cookie;
 };
 
-class VBucketTest : public ::testing::TestWithParam<item_eviction_policy_t>,
+class VBucketTest : public ::testing::TestWithParam<EvictionPolicy>,
                     public VBucketTestBase {
 public:
     VBucketTest() : VBucketTestBase(GetParam()) {

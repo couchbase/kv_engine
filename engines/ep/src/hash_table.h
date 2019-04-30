@@ -934,7 +934,7 @@ public:
      */
     bool unlocked_ejectItem(const HashTable::HashBucketLock& hbl,
                             StoredValue*& vptr,
-                            item_eviction_policy_t policy);
+                            EvictionPolicy policy);
 
     /**
      * Restore the value for the item.
@@ -996,7 +996,7 @@ public:
     MutationStatus insertFromWarmup(Item& itm,
                                     bool eject,
                                     bool keyMetaDataOnly,
-                                    item_eviction_policy_t evictionPolicy);
+                                    EvictionPolicy evictionPolicy);
 
     /**
      * 'Defragment' the StoredValue, this really means reallocate the object

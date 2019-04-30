@@ -66,11 +66,7 @@ TEST_P(EPVBucketTest, GetBGFetchItemsPerformance) {
 INSTANTIATE_TEST_CASE_P(
         FullAndValueEviction,
         EPVBucketTest,
-        ::testing::Values(VALUE_ONLY, FULL_EVICTION),
-        [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
-            if (info.param == VALUE_ONLY) {
-                return "VALUE_ONLY";
-            } else {
-                return "FULL_EVICTION";
-            }
+        ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full),
+        [](const ::testing::TestParamInfo<EvictionPolicy>& info) {
+            return to_string(info.param);
         });

@@ -30,15 +30,15 @@ class DefragmentBench : public benchmark::Fixture {
 public:
     void SetUp(::benchmark::State& state) {
         // The first parameter specifies the eviction mode:
-        item_eviction_policy_t evictionPolicy;
+        EvictionPolicy evictionPolicy;
         switch (state.range(0)) {
         case 0:
             state.SetLabel("ValueOnly");
-            evictionPolicy = VALUE_ONLY;
+            evictionPolicy = EvictionPolicy::Value;
             break;
         case 1:
             state.SetLabel("FullEviction");
-            evictionPolicy = FULL_EVICTION;
+            evictionPolicy = EvictionPolicy::Full;
             break;
         default:
             FAIL() << "Invalid input param(0) value:" << state.range(0);

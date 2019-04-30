@@ -18,6 +18,7 @@
 #include "ep_types.h"
 
 #include <boost/optional.hpp>
+#include <folly/lang/Assume.h>
 #include <ostream>
 
 GenerateBySeqno getGenerateBySeqno(const OptionalSeqno& seqno) {
@@ -82,19 +83,18 @@ std::string to_string(HighPriorityVBNotify hpNotifyType) {
                     static_cast<HighPriorityVBNotifyUType>(hpNotifyType)));
 }
 
-std::ostream& operator<<(std::ostream& os,
-                         const item_eviction_policy_t& policy) {
+std::ostream& operator<<(std::ostream& os, const EvictionPolicy& policy) {
+    return os << to_string(policy);
+}
+
+std::string to_string(EvictionPolicy policy) {
     switch (policy) {
-    case VALUE_ONLY:
-        os << "VALUE_ONLY";
-        return os;
-    case FULL_EVICTION:
-        os << "FULL_EVICTION";
-        return os;
+    case EvictionPolicy::Value:
+        return "Value";
+    case EvictionPolicy::Full:
+        return "Full";
     }
-    throw std::invalid_argument(
-            "operator<<(item_eviction_policy_t) unknown value " +
-            std::to_string(static_cast<int>(policy)));
+    folly::assume_unreachable();
 }
 
 std::ostream& operator<<(std::ostream& os, TransferVB transfer) {

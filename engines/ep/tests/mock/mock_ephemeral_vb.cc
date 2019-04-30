@@ -17,7 +17,7 @@ MockEphemeralVBucket::MockEphemeralVBucket(
         SyncWriteCompleteCallback syncWriteCb,
         SeqnoAckCallback seqnoAckCb,
         Configuration& config,
-        item_eviction_policy_t evictionPolicy)
+        EvictionPolicy evictionPolicy)
     : EphemeralVBucket(i,
                        newState,
                        st,

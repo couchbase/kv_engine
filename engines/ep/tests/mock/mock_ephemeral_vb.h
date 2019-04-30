@@ -42,7 +42,7 @@ public:
                          SyncWriteCompleteCallback syncWriteCb,
                          SeqnoAckCallback seqnoAckCb,
                          Configuration& config,
-                         item_eviction_policy_t evictionPolicy);
+                         EvictionPolicy evictionPolicy);
 
     /* Register fake read range for testing */
     void registerFakeReadRange(seqno_t start, seqno_t end) {

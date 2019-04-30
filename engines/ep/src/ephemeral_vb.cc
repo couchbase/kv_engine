@@ -44,7 +44,7 @@ EphemeralVBucket::EphemeralVBucket(
         SyncWriteCompleteCallback syncWriteCb,
         SeqnoAckCallback seqnoAckCb,
         Configuration& config,
-        item_eviction_policy_t evictionPolicy,
+        EvictionPolicy evictionPolicy,
         std::unique_ptr<Collections::VB::Manifest> manifest,
         vbucket_state_t initState,
         uint64_t purgeSeqno,

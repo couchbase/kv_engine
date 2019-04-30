@@ -94,11 +94,11 @@ private:
 EphemeralBucket::EphemeralBucket(EventuallyPersistentEngine& theEngine)
     : KVBucket(theEngine),
       notifyHpReqTask(std::make_shared<NotifyHighPriorityReqTask>(theEngine)) {
-    /* We always have VALUE_ONLY eviction policy because a key not
+    /* We always have EvictionPolicy::Value eviction policy because a key not
        present in HashTable implies key not present at all.
        Note: This should not be confused with the eviction algorithm
              that we are going to use like NRU, FIFO etc. */
-    eviction_policy = VALUE_ONLY;
+    eviction_policy = EvictionPolicy::Value;
 
     // Create tombstone purger task; it will later be scheduled as necessary
     // in initialize().

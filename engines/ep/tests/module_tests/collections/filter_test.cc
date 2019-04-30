@@ -54,7 +54,7 @@ public:
              NoopSyncWriteCompleteCb,
              NoopSeqnoAckCb,
              config,
-             VALUE_ONLY,
+             EvictionPolicy::Value,
              std::make_unique<Collections::VB::Manifest>()) {
         Collections::Manifest m(cm);
         vbm.wlock().update(vb, m);

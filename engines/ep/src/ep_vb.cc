@@ -45,7 +45,7 @@ EPVBucket::EPVBucket(Vbid i,
                      SyncWriteCompleteCallback syncWriteCb,
                      SeqnoAckCallback seqnoAckCb,
                      Configuration& config,
-                     item_eviction_policy_t evictionPolicy,
+                     EvictionPolicy evictionPolicy,
                      std::unique_ptr<Collections::VB::Manifest> manifest,
                      vbucket_state_t initState,
                      uint64_t purgeSeqno,
@@ -129,12 +129,12 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
                 status = ENGINE_SUCCESS;
             } else {
                 switch (eviction) {
-                case VALUE_ONLY:
+                case EvictionPolicy::Value:
                     if (v && !v->isResident()) {
                         restore = true;
                     }
                     break;
-                case FULL_EVICTION:
+                case EvictionPolicy::Full:
                     if (v) {
                         if (v->isTempInitialItem() || !v->isResident()) {
                             restore = true;
@@ -160,7 +160,7 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
                     }
                 } else if (status == ENGINE_KEY_ENOENT) {
                     v->setNonExistent();
-                    if (eviction == FULL_EVICTION) {
+                    if (eviction == EvictionPolicy::Full) {
                         // For the full eviction, we should notify
                         // ENGINE_SUCCESS to the memcached worker thread,
                         // so that the worker thread can visit the
@@ -268,7 +268,7 @@ void EPVBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) {
 }
 
 size_t EPVBucket::getNumItems() const {
-    if (eviction == VALUE_ONLY) {
+    if (eviction == EvictionPolicy::Value) {
         return ht.getNumInMemoryItems() -
                (ht.getNumDeletedItems() + ht.getNumSystemItems() +
                 ht.getNumPreparedSyncWrites());
@@ -300,7 +300,7 @@ void EPVBucket::decrNumTotalItems() {
 }
 
 size_t EPVBucket::getNumNonResidentItems() const {
-    if (eviction == VALUE_ONLY) {
+    if (eviction == EvictionPolicy::Value) {
         return ht.getNumInMemoryNonResItems();
     } else {
         size_t num_items = onDiskTotalItems;
@@ -345,7 +345,7 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
         iom->schedule(task);
         return ENGINE_EWOULDBLOCK;
     } else {
-        if (eviction == VALUE_ONLY) {
+        if (eviction == EvictionPolicy::Value) {
             return ENGINE_KEY_ENOENT;
         } else {
             TempAddStatus rv = addTempStoredValue(res.lock, key);
@@ -442,7 +442,7 @@ cb::mcbp::Status EPVBucket::evictKey(
             WantsDeleted::No, TrackReference::No, QueueExpired::Yes, cHandle);
     auto* v = res.storedValue;
     if (!v) {
-        if (eviction == VALUE_ONLY) {
+        if (eviction == EvictionPolicy::Value) {
             *msg = "Not found.";
             return cb::mcbp::Status::KeyEnoent;
         }
@@ -455,7 +455,7 @@ cb::mcbp::Status EPVBucket::evictKey(
             *msg = "Ejected.";
 
             // Add key to bloom filter in case of full eviction mode
-            if (eviction == FULL_EVICTION) {
+            if (eviction == EvictionPolicy::Full) {
                 addToFilter(cHandle.getKey());
             }
             return cb::mcbp::Status::Success;

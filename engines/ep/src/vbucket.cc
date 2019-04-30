@@ -166,7 +166,7 @@ VBucket::VBucket(Vbid i,
                  SyncWriteCompleteCallback syncWriteCb,
                  SeqnoAckCallback seqnoAckCb,
                  Configuration& config,
-                 item_eviction_policy_t evictionPolicy,
+                 EvictionPolicy evictionPolicy,
                  std::unique_ptr<Collections::VB::Manifest> manifest,
                  vbucket_state_t initState,
                  uint64_t purgeSeqno,
@@ -869,10 +869,11 @@ void VBucket::markDirty(const DocKey& key) {
 }
 
 bool VBucket::isResidentRatioUnderThreshold(float threshold) {
-    if (eviction != FULL_EVICTION) {
-        throw std::invalid_argument("VBucket::isResidentRatioUnderThreshold: "
-                "policy (which is " + std::to_string(eviction) +
-                ") must be FULL_EVICTION");
+    if (eviction != EvictionPolicy::Full) {
+        throw std::invalid_argument(
+                "VBucket::isResidentRatioUnderThreshold: "
+                "policy (which is " +
+                to_string(eviction) + ") must be EvictionPolicy::Full");
     }
     size_t num_items = getNumItems();
     size_t num_non_resident_items = getNumNonResidentItems();
@@ -1239,7 +1240,7 @@ cb::StoreIfStatus VBucket::callPredicate(cb::StoreIfPredicate predicate,
     }
 
     if (storeIfStatus == cb::StoreIfStatus::GetItemInfo &&
-        eviction == VALUE_ONLY) {
+        eviction == EvictionPolicy::Value) {
         // We're VE, if we don't have, we don't have it.
         storeIfStatus = cb::StoreIfStatus::Continue;
     }
@@ -1276,7 +1277,7 @@ ENGINE_ERROR_CODE VBucket::set(
     // if we're full-eviction with a CAS operation or a have a predicate that
     // requires the item's info
     if ((v == nullptr || v->isTempInitialItem()) &&
-        (eviction == FULL_EVICTION) &&
+        (eviction == EvictionPolicy::Full) &&
         ((itm.getCas() != 0) ||
          storeIfStatus == cb::StoreIfStatus::GetItemInfo)) {
         // Check Bloomfilter's prediction
@@ -1380,7 +1381,7 @@ ENGINE_ERROR_CODE VBucket::replace(
 
         MutationStatus mtype;
         boost::optional<VBNotifyCtx> notifyCtx;
-        if (eviction == FULL_EVICTION && v->isTempInitialItem()) {
+        if (eviction == EvictionPolicy::Full && v->isTempInitialItem()) {
             mtype = MutationStatus::NeedBgFetch;
         } else {
             PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
@@ -1440,7 +1441,7 @@ ENGINE_ERROR_CODE VBucket::replace(
 
         return ret;
     } else {
-        if (eviction == VALUE_ONLY) {
+        if (eviction == EvictionPolicy::Value) {
             return ENGINE_KEY_ENOENT;
         }
 
@@ -1590,7 +1591,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
             }
         }
     } else {
-        if (eviction == FULL_EVICTION) {
+        if (eviction == EvictionPolicy::Full) {
             // Check Bloomfilter's prediction
             if (!maybeKeyExistsInFilter(itm.getKey())) {
                 maybeKeyExists = false;
@@ -1686,7 +1687,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
 
     if (!v || v->isDeleted() || v->isTempItem() ||
         cHandle.isLogicallyDeleted(v->getBySeqno())) {
-        if (eviction == VALUE_ONLY) {
+        if (eviction == EvictionPolicy::Value) {
             return ENGINE_KEY_ENOENT;
         } else { // Full eviction.
             if (!v) { // Item might be evicted from cache.
@@ -1889,7 +1890,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
     boost::optional<VBNotifyCtx> notifyCtx;
     bool metaBgFetch = true;
     if (!v) {
-        if (eviction == FULL_EVICTION) {
+        if (eviction == EvictionPolicy::Full) {
             delrv = MutationStatus::NeedBgFetch;
         } else {
             delrv = MutationStatus::NotFound;
@@ -2027,7 +2028,7 @@ void VBucket::deleteExpiredItem(const Item& it,
             doCollectionsStats(cHandle, notifyCtx);
         }
     } else {
-        if (eviction == FULL_EVICTION) {
+        if (eviction == EvictionPolicy::Full) {
             // Create a temp item and delete and push it
             // into the checkpoint queue, only if the bloomfilter
             // predicts that the item may exist on disk.
@@ -2068,7 +2069,7 @@ ENGINE_ERROR_CODE VBucket::add(
 
     bool maybeKeyExists = true;
     if ((v == nullptr || v->isTempInitialItem()) &&
-        (eviction == FULL_EVICTION)) {
+        (eviction == EvictionPolicy::Full)) {
         // Check bloomfilter's prediction
         if (!maybeKeyExistsInFilter(itm.getKey())) {
             maybeKeyExists = false;
@@ -2160,7 +2161,7 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
 
         return {MutationStatus::WasClean, std::move(rv)};
     } else {
-        if (eviction == VALUE_ONLY) {
+        if (eviction == EvictionPolicy::Value) {
             return {MutationStatus::NotFound, GetValue()};
         } else {
             if (maybeKeyExistsInFilter(cHandle.getKey())) {
@@ -2281,7 +2282,8 @@ GetValue VBucket::getInternal(
                         !v->isResident(),
                         v->getNRUValue());
     } else {
-        if (!getDeletedValue && (eviction == VALUE_ONLY || diskFlushAll)) {
+        if (!getDeletedValue &&
+            (eviction == EvictionPolicy::Value || diskFlushAll)) {
             return GetValue();
         }
 
@@ -2384,7 +2386,7 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(
             deleteStoredValue(res.lock, *v);
             return ENGINE_KEY_ENOENT;
         }
-        if (eviction == FULL_EVICTION && v->isTempInitialItem()) {
+        if (eviction == EvictionPolicy::Full && v->isTempInitialItem()) {
             res.lock.getHTLock().unlock();
             bgFetch(cHandle.getKey(), cookie, engine, true);
             return ENGINE_EWOULDBLOCK;
@@ -2400,7 +2402,7 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(
 
         return ENGINE_SUCCESS;
     } else {
-        if (eviction == VALUE_ONLY) {
+        if (eviction == EvictionPolicy::Value) {
             return ENGINE_KEY_ENOENT;
         } else {
             if (maybeKeyExistsInFilter(cHandle.getKey())) {
@@ -2457,10 +2459,10 @@ GetValue VBucket::getLocked(
     } else {
         // No value found in the hashtable.
         switch (eviction) {
-        case VALUE_ONLY:
+        case EvictionPolicy::Value:
             return GetValue(NULL, ENGINE_KEY_ENOENT);
 
-        case FULL_EVICTION:
+        case EvictionPolicy::Full:
             if (maybeKeyExistsInFilter(cHandle.getKey())) {
                 ENGINE_ERROR_CODE ec = addTempItemAndBGFetch(
                         res.lock, cHandle.getKey(), cookie, engine, false);
@@ -2712,7 +2714,7 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
 
     // bgFetch only in FE, only if the bloom-filter thinks the key may exist.
     // But only for cas operations or if a store_if is requiring the item_info.
-    if (eviction == FULL_EVICTION && maybeKeyExists &&
+    if (eviction == EvictionPolicy::Full && maybeKeyExists &&
         (cas || storeIfStatus == cb::StoreIfStatus::GetItemInfo)) {
         if (!v || v->isTempInitialItem()) {
             return {MutationStatus::NeedBgFetch, {}};
@@ -2821,7 +2823,7 @@ std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
     std::pair<AddStatus, VBNotifyCtx> rv = {AddStatus::Success, {}};
 
     if (v) {
-        if (v->isTempInitialItem() && eviction == FULL_EVICTION &&
+        if (v->isTempInitialItem() && eviction == EvictionPolicy::Full &&
             maybeKeyExists) {
             // Need to figure out if an item exists on disk
             return {AddStatus::BgFetch, {}};
@@ -2845,7 +2847,7 @@ std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
                 updateStoredValue(hbl, *v, itm, queueItmCtx);
     } else {
         if (itm.getBySeqno() != StoredValue::state_temp_init) {
-            if (eviction == FULL_EVICTION && maybeKeyExists) {
+            if (eviction == EvictionPolicy::Full && maybeKeyExists) {
                 return {AddStatus::AddTmpAndBgFetch, VBNotifyCtx()};
             }
         }
@@ -2883,7 +2885,7 @@ VBucket::processSoftDelete(const HashTable::HashBucketLock& hbl,
                            uint64_t bySeqno,
                            DeleteSource deleteSource) {
     boost::optional<VBNotifyCtx> empty;
-    if (v.isTempInitialItem() && eviction == FULL_EVICTION) {
+    if (v.isTempInitialItem() && eviction == EvictionPolicy::Full) {
         return std::make_tuple(MutationStatus::NeedBgFetch, &v, empty);
     }
 
@@ -2943,7 +2945,7 @@ VBucket::processExpiredItem(
                 getId().to_string());
     }
 
-    if (v.isTempInitialItem() && eviction == FULL_EVICTION) {
+    if (v.isTempInitialItem() && eviction == EvictionPolicy::Full) {
         return std::make_tuple(MutationStatus::NeedBgFetch,
                                &v,
                                queueDirty(hbl, v, {} /*VBQueueItemCtx*/));

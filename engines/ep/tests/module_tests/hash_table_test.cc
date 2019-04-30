@@ -326,9 +326,9 @@ TEST_F(HashTableTest, PoisonKey) {
 }
 
 // Test fixture for HashTable statistics tests.
-class HashTableStatsTest : public HashTableTest,
-                           public ::testing::WithParamInterface<
-                                   std::tuple<item_eviction_policy_t, bool>> {
+class HashTableStatsTest
+    : public HashTableTest,
+      public ::testing::WithParamInterface<std::tuple<EvictionPolicy, bool>> {
 protected:
     HashTableStatsTest()
         : ht(stats, makeFactory(), 5, 1),
@@ -370,7 +370,7 @@ protected:
         EXPECT_EQ(0, ht.getCacheSize());
         EXPECT_EQ(initialSize, stats.getCurrentSize());
 
-        if (evictionPolicy == VALUE_ONLY) {
+        if (evictionPolicy == EvictionPolicy::Value) {
             // Only check is zero for ValueOnly; under full eviction getNumItems
             // return the total number of items (including those fully evicted).
             EXPECT_EQ(0, ht.getNumItems());
@@ -402,7 +402,7 @@ protected:
     const StoredDocKey key;
     const size_t itemSize;
     Item item;
-    const item_eviction_policy_t evictionPolicy;
+    const EvictionPolicy evictionPolicy;
 };
 
 TEST_P(HashTableStatsTest, Size) {
@@ -427,7 +427,7 @@ TEST_P(HashTableStatsTest, SizeEject) {
 TEST_P(HashTableStatsTest, SizeEjectRestoreValue) {
     auto* v = addAndEjectItem();
 
-    if (evictionPolicy == VALUE_ONLY) {
+    if (evictionPolicy == EvictionPolicy::Value) {
         // Value-only: expect to have metadata still present.
         EXPECT_EQ(1, ht.getNumItems());
         EXPECT_EQ(1, ht.getNumInMemoryNonResItems());
@@ -437,7 +437,7 @@ TEST_P(HashTableStatsTest, SizeEjectRestoreValue) {
         EXPECT_EQ(1, ht.getDatatypeCounts()[item.getDataType()]);
     }
 
-    if (evictionPolicy == FULL_EVICTION) {
+    if (evictionPolicy == EvictionPolicy::Full) {
         // ejectItem() will have removed both the value and meta.
         EXPECT_EQ(0, ht.getNumItems());
         EXPECT_EQ(0, ht.getNumInMemoryNonResItems());
@@ -471,7 +471,7 @@ TEST_P(HashTableStatsTest, SizeEjectRestoreValue) {
 
 // Check sizes when ejecting an item and then restoring metadata.
 TEST_P(HashTableStatsTest, SizeEjectRestoreMeta) {
-    if (evictionPolicy == VALUE_ONLY) {
+    if (evictionPolicy == EvictionPolicy::Value) {
         // restoreMeta only valid for Full eviction - metadata is
         // unevictable in value-only.
         return;
@@ -518,12 +518,12 @@ TEST_P(HashTableStatsTest, EjectFlush) {
     }
 
     switch (evictionPolicy) {
-    case VALUE_ONLY:
+    case EvictionPolicy::Value:
         EXPECT_EQ(1, ht.getNumItems());
         EXPECT_EQ(1, ht.getNumInMemoryItems());
         EXPECT_EQ(1, ht.getNumInMemoryNonResItems());
         break;
-    case FULL_EVICTION:
+    case EvictionPolicy::Full:
         // In full-eviction, ejectItem() also ejects the metadata; hence will
         // have 0 items in HashTable.
         EXPECT_EQ(0, ht.getNumItems());
@@ -848,11 +848,12 @@ TEST_P(HashTableStatsTest, CommittedSyncWritePreExisting) {
     EXPECT_TRUE(del(ht, key));
 }
 
-INSTANTIATE_TEST_CASE_P(ValueAndFullEviction,
-                        HashTableStatsTest,
-                        ::testing::Combine(::testing::Values(VALUE_ONLY,
-                                                             FULL_EVICTION),
-                                           ::testing::Bool()), );
+INSTANTIATE_TEST_CASE_P(
+        ValueAndFullEviction,
+        HashTableStatsTest,
+        ::testing::Combine(::testing::Values(EvictionPolicy::Value,
+                                             EvictionPolicy::Full),
+                           ::testing::Bool()), );
 
 TEST_F(HashTableTest, ItemAge) {
     // Setup

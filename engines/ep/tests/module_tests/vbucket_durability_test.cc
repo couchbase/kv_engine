@@ -185,13 +185,9 @@ TEST_P(VBucketDurabilityTest, Active_AddPrepareAndCommit_SparseMixedSeqnos) {
 INSTANTIATE_TEST_CASE_P(
         FullAndValueEviction,
         VBucketDurabilityTest,
-        ::testing::Values(VALUE_ONLY, FULL_EVICTION),
-        [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
-            if (info.param == VALUE_ONLY) {
-                return "VALUE_ONLY";
-            } else {
-                return "FULL_EVICTION";
-            }
+        ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full),
+        [](const ::testing::TestParamInfo<EvictionPolicy>& info) {
+            return to_string(info.param);
         });
 
 // Positive test for validateSetStateMeta 'topology' key - check that

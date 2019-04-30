@@ -1631,7 +1631,7 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
         }
         return ENGINE_TMPFAIL;
     } else {
-        if (eviction_policy == VALUE_ONLY) {
+        if (eviction_policy == EvictionPolicy::Value) {
             return ENGINE_KEY_ENOENT;
         } else {
             // With the full eviction, an item's lock is automatically

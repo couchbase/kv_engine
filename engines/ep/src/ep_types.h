@@ -142,12 +142,14 @@ const int64_t HlcCasSeqnoUninitialised = -1;
 /**
  * Item eviction policy
  */
-enum item_eviction_policy_t {
-    VALUE_ONLY, // Only evict an item's value.
-    FULL_EVICTION // Evict an item's key, metadata and value together.
+enum class EvictionPolicy {
+    Value, // Only evict an item's value.
+    Full // Evict an item's key, metadata and value together.
 };
 
-std::ostream& operator<<(std::ostream&, const item_eviction_policy_t& policy);
+std::string to_string(EvictionPolicy);
+
+std::ostream& operator<<(std::ostream&, const EvictionPolicy& policy);
 
 enum class TaskStatus {
     Reschedule, /* Reschedule for later */

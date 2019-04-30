@@ -352,7 +352,7 @@ void PagingVisitor::adjustPercent(double prob, vbucket_state_t state) {
 
 bool PagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
                                StoredValue* v) {
-    item_eviction_policy_t policy = store.getItemEvictionPolicy();
+    auto policy = store.getItemEvictionPolicy();
     StoredDocKey key(v->getKey());
 
     if (currentBucket->pageOut(readHandle, lh, v)) {
@@ -362,7 +362,7 @@ bool PagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
          * For FULL EVICTION MODE, add all items that are being
          * evicted to the corresponding bloomfilter.
          */
-        if (policy == FULL_EVICTION) {
+        if (policy == ::EvictionPolicy::Full) {
             currentBucket->addToFilter(key);
         }
         // performed eviction so return true
