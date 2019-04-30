@@ -21,7 +21,7 @@
 
 DurabilityMonitor::SyncWrite::SyncWrite(const void* cookie,
                                         queued_item item,
-                                        const ReplicationChain* chain)
+                                        const ReplicationChain* firstChain)
     : cookie(cookie),
       item(item),
       expiryTime(
@@ -31,8 +31,8 @@ DurabilityMonitor::SyncWrite::SyncWrite(const void* cookie,
                                         item->getDurabilityReqs().getTimeout())
                       : boost::optional<
                                 std::chrono::steady_clock::time_point>{}) {
-    if (chain) {
-        resetTopology(*chain);
+    if (firstChain) {
+        resetTopology(*firstChain);
     }
 }
 
@@ -54,30 +54,41 @@ const void* DurabilityMonitor::SyncWrite::getCookie() const {
 }
 
 void DurabilityMonitor::SyncWrite::ack(const std::string& node) {
-    if (acks.find(node) == acks.end()) {
+    if (!firstChain) {
+        throw std::logic_error(
+                "SyncWrite::ack: Acking without a ReplicationChain");
+    }
+
+    if (firstChain.chainPtr->positions.find(node) ==
+        firstChain.chainPtr->positions.end()) {
         throw std::logic_error("SyncWrite::ack: Node not valid: " + node);
     }
-    if (acks.at(node)) {
-        throw std::logic_error("SyncWrite::ack: ACK duplicate for node: " +
-                               node);
-    }
-    acks[node] = true;
-    ackCount++;
+
+    firstChain.ackCount++;
 }
 
 bool DurabilityMonitor::SyncWrite::isSatisfied() const {
+    if (!firstChain) {
+        throw std::logic_error(
+                "SyncWrite::isSatisfied: Attmpting to check "
+                "durability requirements are met without the "
+                "first replication chain");
+    }
+
     bool ret{false};
 
     switch (getDurabilityReqs().getLevel()) {
     case cb::durability::Level::Majority:
-        ret = ackCount >= majority;
+        ret = firstChain.ackCount >= firstChain.chainPtr->majority;
         break;
     case cb::durability::Level::PersistToMajority:
     case cb::durability::Level::MajorityAndPersistOnMaster:
-        ret = ackCount >= majority && acks.at(active);
+        ret = firstChain.ackCount >= firstChain.chainPtr->majority &&
+              firstChain.chainPtr->hasAcked(firstChain.chainPtr->active,
+                                            this->getBySeqno());
         break;
     case cb::durability::Level::None:
-        throw std::logic_error("SyncWrite::isVerified: Level::None");
+        throw std::logic_error("SyncWrite::isSatisfied: Level::None");
     }
 
     return ret;
@@ -93,22 +104,11 @@ bool DurabilityMonitor::SyncWrite::isExpired(
 
 void DurabilityMonitor::SyncWrite::resetTopology(
         const ReplicationChain& firstChain) {
-    majority = firstChain.majority;
-    active = firstChain.active;
+    this->firstChain.reset(&firstChain);
 
     // We are making a SyncWrite for tracking, we must have already ensured
     // that the Durability Requirements can be met at this point.
-    Expects(firstChain.size() >= majority);
-
-    // Discard any previous state. This is a NOP if this SyncWrite is being
-    // constructed.
-    acks.clear();
-
-    // Reset
-    for (const auto& entry : firstChain.positions) {
-        acks[entry.first] = false;
-    }
-    ackCount.reset(0);
+    Expects(firstChain.size() >= firstChain.majority);
 }
 
 std::ostream& operator<<(std::ostream& os,
@@ -116,16 +116,19 @@ std::ostream& operator<<(std::ostream& os,
     os << "SW @" << &sw << " "
        << "cookie:" << sw.cookie << " qi:[key:'" << sw.item->getKey()
        << "' seqno:" << sw.item->getBySeqno()
-       << " reqs:" << to_string(sw.item->getDurabilityReqs())
-       << "] maj:" << std::to_string(sw.majority)
-       << " #ack:" << std::to_string(sw.ackCount) << " acks:[";
+       << " reqs:" << to_string(sw.item->getDurabilityReqs()) << "] maj:"
+       << std::to_string(sw.firstChain ? sw.firstChain.chainPtr->majority : 0)
+       << " #1stChainAcks:" << std::to_string(sw.firstChain.ackCount)
+       << " 1stChainAcks:[";
     std::string acks;
-    for (const auto& ack : sw.acks) {
-        if (ack.second) {
-            if (!acks.empty()) {
-                acks += ",";
+    if (sw.firstChain) {
+        for (const auto& ack : sw.firstChain.chainPtr->positions) {
+            if (sw.firstChain.chainPtr->hasAcked(ack.first, sw.getBySeqno())) {
+                if (!acks.empty()) {
+                    acks += ",";
+                }
+                acks += ack.first;
             }
-            acks += ack.first;
         }
     }
     os << acks << "]";
@@ -175,4 +178,9 @@ std::string to_string(DurabilityMonitor::ReplicationChainName name) {
         return "Second";
     }
     folly::assume_unreachable();
+}
+
+bool DurabilityMonitor::ReplicationChain::hasAcked(const std::string& node,
+                                                   int64_t bySeqno) const {
+    return positions.at(node).lastWriteSeqno >= bySeqno;
 }

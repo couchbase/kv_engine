@@ -42,12 +42,13 @@ public:
      * @param (optional) cookie The cookie representing the client connection.
      *     Necessary at Active for notifying the client at SyncWrite completion.
      * @param item The pending Prepare being wrapped
-     * @param (optional) chain The repl-chain that the write is tracked against.
-     *     Necessary at Active for verifying the SW Durability Requirements.
+     * @param (optional) firstChain The repl-chain that the write is tracked
+     *     against.  Necessary at Active for verifying the SW Durability
+     *     Requirements.
      */
     SyncWrite(const void* cookie,
               queued_item item,
-              const ReplicationChain* chain);
+              const ReplicationChain* firstChain);
 
     const StoredDocKey& getKey() const;
 
@@ -100,20 +101,32 @@ private:
     // CheckpointManager can be safely removed.
     const queued_item item;
 
-    // Keeps track of node acks. An entry is <node, flag>.
-    // At ack, the node flag is set.
-    std::unordered_map<std::string, bool> acks;
+    /**
+     * Holds all the information required for a SyncWrite to determine if it
+     * is satisfied by a given chain. We can do all of this using the
+     * ReplicationChain, but we store an ackCount as well as an optimization.
+     */
+    struct ChainStatus {
+        operator bool() const {
+            return chainPtr;
+        }
 
-    // This optimization eliminates the need of scanning the ACK map for
-    // verifying Durability Requirements
-    Monotonic<uint8_t> ackCount{0};
+        void reset(const ReplicationChain* chainPtr) {
+            ackCount.reset(0);
+            this->chainPtr = chainPtr;
+        }
 
-    // Majority in the arithmetic definition: num-nodes / 2 + 1
-    uint8_t majority{0};
+        // Ack counter for the chain.
+        // This optimization eliminates the need of scanning the positions map
+        // in the ReplicationChain for verifying Durability Requirements.
+        Monotonic<uint8_t> ackCount{0};
 
-    // Name of the active node in replication-chain. Used at Durability
-    // Requirements verification.
-    std::string active{UndefinedNode};
+        // Pointer to the chain. Used to find out which node is the active and
+        // what the majority value is.
+        const ReplicationChain* chainPtr;
+    };
+
+    ChainStatus firstChain;
 
     // Used for enforcing the Durability Requirements Timeout. It is set
     // when this SyncWrite is added for tracking into the DurabilityMonitor.
@@ -149,6 +162,9 @@ struct DurabilityMonitor::ReplicationChain {
     size_t size() const;
 
     bool isDurabilityPossible() const;
+
+    // Check if the given node has acked at least the given seqno
+    bool hasAcked(const std::string& node, int64_t bySeqno) const;
 
     // Index of node Positions. The key is the node id.
     // A Position embeds the seqno-state of the tracked node.
