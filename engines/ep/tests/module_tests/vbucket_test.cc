@@ -21,6 +21,7 @@
 #include "checkpoint_manager.h"
 #include "ep_time.h"
 #include "ep_vb.h"
+#include "ephemeral_vb.h"
 #include "failover-table.h"
 #include "item.h"
 #include "persistence_callback.h"
@@ -30,26 +31,62 @@
 
 #include <platform/cb_malloc.h>
 
-VBucketTestBase::VBucketTestBase(EvictionPolicy eviction_policy) {
+using namespace std::string_literals;
+
+std::string VBucketTestBase::to_string(VBType vbType) {
+    switch (vbType) {
+    case VBType::Persistent:
+        return "Persistent";
+    case VBType::Ephemeral:
+        return "Ephemeral";
+    }
+    folly::assume_unreachable();
+}
+
+VBucketTestBase::VBucketTestBase(VBType vbType,
+                                 EvictionPolicy eviction_policy) {
     // Used for mem-checks at Replica VBuckets. Default=0 prevents any
     // processSet, returns NoMem. I set a production-like value.
     global_stats.replicationThrottleThreshold = 0.9;
-    vbucket.reset(new EPVBucket(Vbid(0),
-                                vbucket_state_active,
-                                global_stats,
-                                checkpoint_config,
-                                /*kvshard*/ nullptr,
-                                /*lastSeqno*/ 0,
-                                /*lastSnapStart*/ 0,
-                                /*lastSnapEnd*/ 0,
-                                /*table*/ nullptr,
-                                /*flusher callback*/ nullptr,
-                                /*newSeqnoCb*/ nullptr,
-                                TracedSyncWriteCompleteCb,
-                                NoopSeqnoAckCb,
-                                config,
-                                eviction_policy,
-                                std::make_unique<Collections::VB::Manifest>()));
+    switch (vbType) {
+    case VBType::Persistent:
+        vbucket.reset(
+                new EPVBucket(Vbid(0),
+                              vbucket_state_active,
+                              global_stats,
+                              checkpoint_config,
+                              /*kvshard*/ nullptr,
+                              /*lastSeqno*/ 0,
+                              /*lastSnapStart*/ 0,
+                              /*lastSnapEnd*/ 0,
+                              /*table*/ nullptr,
+                              /*flusher callback*/ nullptr,
+                              /*newSeqnoCb*/ nullptr,
+                              TracedSyncWriteCompleteCb,
+                              NoopSeqnoAckCb,
+                              config,
+                              eviction_policy,
+                              std::make_unique<Collections::VB::Manifest>()));
+        break;
+    case VBType::Ephemeral:
+        vbucket.reset(new EphemeralVBucket(
+                Vbid(0),
+                vbucket_state_active,
+                global_stats,
+                checkpoint_config,
+                /*kvshard*/ nullptr,
+                /*lastSeqno*/ 0,
+                /*lastSnapStart*/ 0,
+                /*lastSnapEnd*/ 0,
+                /*table*/ nullptr,
+                /*newSeqnoCb*/ nullptr,
+                TracedSyncWriteCompleteCb,
+                NoopSeqnoAckCb,
+                config,
+                eviction_policy,
+                std::make_unique<Collections::VB::Manifest>()));
+        break;
+    }
 
     vbucket->checkpointManager = std::make_unique<MockCheckpointManager>(
             global_stats,
@@ -259,6 +296,12 @@ TEST(BlobTest, basicAllocationSize){
     EXPECT_EQ(BlobTest::getAllocationSize(0), 9);
 }
 
+std::string VBucketTest::PrintToStringParamName(
+        const ::testing::TestParamInfo<ParamType>& info) {
+    return to_string(std::get<0>(info.param)) + "_" +
+           ::to_string(std::get<1>(info.param));
+}
+
 // Check the existence of bloom filter after performing a
 // swap of existing filter with a temporary filter.
 TEST_P(VBucketTest, SwapFilter) {
@@ -270,8 +313,7 @@ TEST_P(VBucketTest, SwapFilter) {
 }
 
 TEST_P(VBucketTest, Add) {
-    const auto eviction_policy = GetParam();
-    if (eviction_policy != EvictionPolicy::Value) {
+    if (getEvictionPolicy() != EvictionPolicy::Value) {
         return;
     }
     const int nkeys = 1000;
@@ -304,8 +346,7 @@ TEST_P(VBucketTest, Add) {
 }
 
 TEST_P(VBucketTest, AddExpiry) {
-    const auto eviction_policy = GetParam();
-    if (eviction_policy != EvictionPolicy::Value) {
+    if (getEvictionPolicy() != EvictionPolicy::Value) {
         return;
     }
     StoredDocKey k = makeStoredDocKey("aKey");
@@ -332,8 +373,7 @@ TEST_P(VBucketTest, AddExpiry) {
  * existing item with a new value results in a success
  */
 TEST_P(VBucketTest, unlockedSoftDeleteWithValue) {
-    const auto eviction_policy = GetParam();
-    if (eviction_policy != EvictionPolicy::Value) {
+    if (getEvictionPolicy() != EvictionPolicy::Value) {
         return;
     }
 
@@ -392,8 +432,7 @@ TEST_P(VBucketTest, updateExpiredItem) {
  * deleted item without a value and with a value
  */
 TEST_P(VBucketTest, updateDeletedItem) {
-    const auto eviction_policy = GetParam();
-    if (eviction_policy != EvictionPolicy::Value) {
+    if (getEvictionPolicy() != EvictionPolicy::Value) {
         return;
     }
 
@@ -444,60 +483,6 @@ TEST_P(VBucketTest, updateDeletedItem) {
     EXPECT_EQ(0, this->vbucket->getNumItems());
     EXPECT_EQ(1, this->vbucket->getNumInMemoryDeletes());
     EXPECT_EQ(prev_revseqno + 1, v->getRevSeqno());
-}
-
-TEST_P(VBucketTest, SizeStatsSoftDel) {
-    this->global_stats.reset();
-    ASSERT_EQ(0, this->vbucket->ht.getItemMemory());
-    ASSERT_EQ(0, this->vbucket->ht.getCacheSize());
-    size_t initialSize = this->global_stats.getCurrentSize();
-
-    const StoredDocKey k = makeStoredDocKey("somekey");
-    const size_t itemSize(16 * 1024);
-    char* someval(static_cast<char*>(cb_calloc(1, itemSize)));
-    EXPECT_TRUE(someval);
-
-    Item i(k, 0, 0, someval, itemSize);
-
-    EXPECT_EQ(MutationStatus::WasClean,
-              this->public_processSet(i, i.getCas()));
-
-    EXPECT_EQ(MutationStatus::WasDirty,
-              this->public_processSoftDelete(k, nullptr, 0));
-    this->public_deleteStoredValue(k);
-
-    EXPECT_EQ(0, this->vbucket->ht.getItemMemory());
-    EXPECT_EQ(0, this->vbucket->ht.getCacheSize());
-    EXPECT_EQ(initialSize, this->global_stats.getCurrentSize());
-
-    cb_free(someval);
-}
-
-TEST_P(VBucketTest, SizeStatsSoftDelFlush) {
-    this->global_stats.reset();
-    ASSERT_EQ(0, this->vbucket->ht.getItemMemory());
-    ASSERT_EQ(0, this->vbucket->ht.getCacheSize());
-    size_t initialSize = this->global_stats.getCurrentSize();
-
-    StoredDocKey k = makeStoredDocKey("somekey");
-    const size_t itemSize(16 * 1024);
-    char* someval(static_cast<char*>(cb_calloc(1, itemSize)));
-    EXPECT_TRUE(someval);
-
-    Item i(k, 0, 0, someval, itemSize);
-
-    EXPECT_EQ(MutationStatus::WasClean,
-              this->public_processSet(i, i.getCas()));
-
-    EXPECT_EQ(MutationStatus::WasDirty,
-              this->public_processSoftDelete(k, nullptr, 0));
-    this->vbucket->ht.clear();
-
-    EXPECT_EQ(0, this->vbucket->ht.getItemMemory());
-    EXPECT_EQ(0, this->vbucket->ht.getCacheSize());
-    EXPECT_EQ(initialSize, this->global_stats.getCurrentSize());
-
-    cb_free(someval);
 }
 
 // Check that getItemsForCursor() can impose a limit on items fetched, but
@@ -598,54 +583,6 @@ TEST_P(VBucketTest, GetItemsToPersist_LimitCkptMoreAvailable) {
 
 class VBucketEvictionTest : public VBucketTest {};
 
-// Check that counts of items and resident items are as expected when items are
-// ejected from the HashTable.
-TEST_P(VBucketEvictionTest, EjectionResidentCount) {
-    const auto eviction_policy = GetParam();
-    ASSERT_EQ(0, this->vbucket->getNumItems());
-    ASSERT_EQ(0, this->vbucket->getNumNonResidentItems());
-
-    Item item(makeStoredDocKey("key"), /*flags*/0, /*exp*/0,
-              /*data*/nullptr, /*ndata*/0);
-
-    EXPECT_EQ(MutationStatus::WasClean,
-              this->public_processSet(item, item.getCas()));
-
-    switch (eviction_policy) {
-    case EvictionPolicy::Value:
-        // We have accurate VBucket counts in value eviction:
-        EXPECT_EQ(1, this->vbucket->getNumItems());
-        break;
-    case EvictionPolicy::Full:
-        // In Full Eviction the vBucket count isn't accurate until the
-        // flusher completes - hence just check count in HashTable.
-        EXPECT_EQ(1, this->vbucket->ht.getNumItems());
-        break;
-    }
-    EXPECT_EQ(0, this->vbucket->getNumNonResidentItems());
-
-    auto stored_item = this->vbucket->ht.findForWrite(makeStoredDocKey("key"));
-    EXPECT_NE(nullptr, stored_item.storedValue);
-    // Need to clear the dirty flag to allow it to be ejected.
-    stored_item.storedValue->markClean();
-    EXPECT_TRUE(this->vbucket->ht.unlocked_ejectItem(
-            stored_item.lock, stored_item.storedValue, eviction_policy));
-
-    switch (eviction_policy) {
-    case EvictionPolicy::Value:
-        // After ejection, should still have 1 item in HashTable (meta-only),
-        // and VBucket count should also be 1.
-        EXPECT_EQ(1, this->vbucket->getNumItems());
-        EXPECT_EQ(1, this->vbucket->getNumNonResidentItems());
-        break;
-    case EvictionPolicy::Full:
-        // In Full eviction should be no items in HashTable (we fully
-        // evicted it).
-        EXPECT_EQ(0, this->vbucket->ht.getNumItems());
-        break;
-    }
-}
-
 // Regression test for MB-21448 - if an attempt is made to perform a CAS
 // operation on a logically deleted item we should return NOT_FOUND
 // (aka KEY_ENOENT) and *not* INVALID_CAS (aka KEY_EEXISTS).
@@ -696,9 +633,8 @@ TEST_P(VBucketEvictionTest, Durability_PendingNeverEjected) {
     // thing, i.e. that the item is not ejected because it is Pending (not
     // because it is dirty).
     storedItem.storedValue->markClean();
-    ASSERT_FALSE(ht.unlocked_ejectItem(storedItem.lock,
-                                       storedItem.storedValue,
-                                       GetParam() /*ejection-policy*/));
+    ASSERT_FALSE(ht.unlocked_ejectItem(
+            storedItem.lock, storedItem.storedValue, getEvictionPolicy()));
 
     // A Pending is never ejected (Key + Metadata + Value always resident)
     EXPECT_EQ(1, ht.getNumItems());
@@ -770,28 +706,35 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
     EXPECT_EQ(1, vbucket->getNumItems());
 }
 
-// Test cases which run in both Full and Value eviction
+// Test cases which run for persistent and ephemeral, and for each of their
+// respective eviction policies (Value/Full for persistent, Auto-delete and
+// fail new data for Ephemeral).
 INSTANTIATE_TEST_CASE_P(
-        FullAndValueEviction,
+        AllVBTypesAllEvictionModes,
         VBucketTest,
-        ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full),
-        [](const ::testing::TestParamInfo<EvictionPolicy>& info) {
-            return to_string(info.param);
-        });
+        ::testing::Combine(
+                ::testing::Values(VBucketTestBase::VBType::Persistent,
+                                  VBucketTestBase::VBType::Ephemeral),
+                ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full)),
+        VBucketTest::PrintToStringParamName);
 
+// Test cases related to eviction.
+// They run for persistent and ephemeral, and for each of their
+// respective eviction policies (Value/Full for persistent, Auto-delete and
+// fail new data for Ephemeral).
 INSTANTIATE_TEST_CASE_P(
-        FullAndValueEviction,
+        AllVBTypesAllEvictionModes,
         VBucketEvictionTest,
-        ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full),
-        [](const ::testing::TestParamInfo<EvictionPolicy>& info) {
-            return to_string(info.param);
-        });
+        ::testing::Combine(
+                ::testing::Values(VBucketTestBase::VBType::Persistent,
+                                  VBucketTestBase::VBType::Ephemeral),
+                ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full)),
+        VBucketTest::PrintToStringParamName);
 
-// Test cases which run in Full Eviction only
+// Test cases which run in for Persistent VBucket, Full Eviction only
 INSTANTIATE_TEST_CASE_P(
         FullEviction,
         VBucketFullEvictionTest,
-        ::testing::Values(EvictionPolicy::Full),
-        [](const ::testing::TestParamInfo<EvictionPolicy>& info) {
-            return to_string(info.param);
-        });
+        ::testing::Values(std::make_tuple(VBucketTestBase::VBType::Persistent,
+                                          EvictionPolicy::Full)),
+        VBucketTest::PrintToStringParamName);

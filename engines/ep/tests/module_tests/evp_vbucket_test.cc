@@ -16,11 +16,12 @@
  */
 
 #include "evp_vbucket_test.h"
-
 #include "bgfetcher.h"
 #include "ep_vb.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
+
+#include <platform/cb_malloc.h>
 
 void EPVBucketTest::SetUp() {
     SingleThreadedKVBucketTest::SetUp();
@@ -61,6 +62,117 @@ TEST_P(EPVBucketTest, GetBGFetchItemsPerformance) {
                                       &bgFetcher);
     }
     auto items = this->vbucket->getBGFetchItems();
+}
+
+// Test statistics after softDelete.
+// Persistent VBucket only as Ephemeral cannot totally clear the VBucket; it
+// must keep at least the last deleted seqno for correct tombstone handling
+TEST_P(EPVBucketTest, SizeStatsSoftDel) {
+    this->global_stats.reset();
+    ASSERT_EQ(0, this->vbucket->ht.getItemMemory());
+    ASSERT_EQ(0, this->vbucket->ht.getCacheSize());
+    size_t initialSize = this->global_stats.getCurrentSize();
+
+    const StoredDocKey k = makeStoredDocKey("somekey");
+    const size_t itemSize(16 * 1024);
+    char* someval(static_cast<char*>(cb_calloc(1, itemSize)));
+    EXPECT_TRUE(someval);
+
+    Item i(k, 0, 0, someval, itemSize);
+
+    EXPECT_EQ(MutationStatus::WasClean, this->public_processSet(i, i.getCas()));
+
+    EXPECT_EQ(MutationStatus::WasDirty,
+              this->public_processSoftDelete(k, nullptr, 0));
+    this->public_deleteStoredValue(k);
+
+    EXPECT_EQ(0, this->vbucket->ht.getItemMemory());
+    EXPECT_EQ(0, this->vbucket->ht.getCacheSize());
+    EXPECT_EQ(initialSize, this->global_stats.getCurrentSize());
+
+    cb_free(someval);
+}
+
+// Test statistics after softDelete and flush.
+// Persistent VBucket only as Ephemeral cannot totally clear the VBucket; it
+// must keep at least the last deleted seqno for correct tombstone handling
+TEST_P(EPVBucketTest, SizeStatsSoftDelFlush) {
+    this->global_stats.reset();
+    ASSERT_EQ(0, this->vbucket->ht.getItemMemory());
+    ASSERT_EQ(0, this->vbucket->ht.getCacheSize());
+    size_t initialSize = this->global_stats.getCurrentSize();
+
+    StoredDocKey k = makeStoredDocKey("somekey");
+    const size_t itemSize(16 * 1024);
+    char* someval(static_cast<char*>(cb_calloc(1, itemSize)));
+    EXPECT_TRUE(someval);
+
+    Item i(k, 0, 0, someval, itemSize);
+
+    EXPECT_EQ(MutationStatus::WasClean, this->public_processSet(i, i.getCas()));
+
+    EXPECT_EQ(MutationStatus::WasDirty,
+              this->public_processSoftDelete(k, nullptr, 0));
+    this->vbucket->ht.clear();
+
+    EXPECT_EQ(0, this->vbucket->ht.getItemMemory());
+    EXPECT_EQ(0, this->vbucket->ht.getCacheSize());
+    EXPECT_EQ(initialSize, this->global_stats.getCurrentSize());
+
+    cb_free(someval);
+}
+
+// Check that counts of items and resident items are as expected when items are
+// ejected from the HashTable.
+// Persisent VBucket only as Ephemeral doesn't support explicit ejection (and
+// even when items are removed they still exist as stale / deleted).
+TEST_P(EPVBucketTest, EjectionResidentCount) {
+    const auto eviction_policy = GetParam();
+    ASSERT_EQ(0, this->vbucket->getNumItems());
+    ASSERT_EQ(0, this->vbucket->getNumNonResidentItems());
+
+    Item item(makeStoredDocKey("key"),
+              /*flags*/ 0,
+              /*exp*/ 0,
+              /*data*/ nullptr,
+              /*ndata*/ 0);
+
+    EXPECT_EQ(MutationStatus::WasClean,
+              this->public_processSet(item, item.getCas()));
+
+    switch (eviction_policy) {
+    case EvictionPolicy::Value:
+        // We have accurate VBucket counts in value eviction:
+        EXPECT_EQ(1, this->vbucket->getNumItems());
+        break;
+    case EvictionPolicy::Full:
+        // In Full Eviction the vBucket count isn't accurate until the
+        // flusher completes - hence just check count in HashTable.
+        EXPECT_EQ(1, this->vbucket->ht.getNumItems());
+        break;
+    }
+    EXPECT_EQ(0, this->vbucket->getNumNonResidentItems());
+
+    auto stored_item = this->vbucket->ht.findForWrite(makeStoredDocKey("key"));
+    EXPECT_NE(nullptr, stored_item.storedValue);
+    // Need to clear the dirty flag to allow it to be ejected.
+    stored_item.storedValue->markClean();
+    EXPECT_TRUE(this->vbucket->ht.unlocked_ejectItem(
+            stored_item.lock, stored_item.storedValue, eviction_policy));
+
+    switch (eviction_policy) {
+    case EvictionPolicy::Value:
+        // After ejection, should still have 1 item in HashTable (meta-only),
+        // and VBucket count should also be 1.
+        EXPECT_EQ(1, this->vbucket->getNumItems());
+        EXPECT_EQ(1, this->vbucket->getNumNonResidentItems());
+        break;
+    case EvictionPolicy::Full:
+        // In Full eviction should be no items in HashTable (we fully
+        // evicted it).
+        EXPECT_EQ(0, this->vbucket->ht.getNumItems());
+        break;
+    }
 }
 
 INSTANTIATE_TEST_CASE_P(

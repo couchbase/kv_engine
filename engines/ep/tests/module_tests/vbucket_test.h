@@ -46,10 +46,14 @@ public:
  */
 class VBucketTestBase {
 public:
+    enum class VBType { Persistent, Ephemeral };
+
+    static std::string to_string(VBType vbtype);
+
     /**
-     * Construct test objects with the given eviction policy
+     * Construct test objects with the given vBucket type and eviction policy
      */
-    VBucketTestBase(EvictionPolicy policy);
+    VBucketTestBase(VBType vbType, EvictionPolicy policy);
     ~VBucketTestBase();
 
 protected:
@@ -120,9 +124,31 @@ protected:
     const void* cookie;
 };
 
-class VBucketTest : public ::testing::TestWithParam<EvictionPolicy>,
-                    public VBucketTestBase {
+/**
+ * Test fixture for VBucket-level tests which are applicable to both Ephemeral
+ * and EP VBuckets.
+ *
+ * Paramterised on:
+ * - The type of VBucket (ephemeral/persistent)
+ * - The eviction policy
+ */
+class VBucketTest
+    : public ::testing::TestWithParam<
+              std::tuple<VBucketTestBase::VBType, EvictionPolicy>>,
+      public VBucketTestBase {
 public:
-    VBucketTest() : VBucketTestBase(GetParam()) {
+    VBucketTest()
+        : VBucketTestBase(std::get<0>(GetParam()), std::get<1>(GetParam())) {
     }
+
+    EvictionPolicy getEvictionPolicy() const {
+        return std::get<1>(GetParam());
+    }
+
+    VBType getVbType() const {
+        return std::get<0>(GetParam());
+    }
+
+    static std::string PrintToStringParamName(
+            const ::testing::TestParamInfo<ParamType>&);
 };

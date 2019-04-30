@@ -225,7 +225,6 @@ public:
      */
     size_t getNumPersistedDeletes() const override;
 
-    /// Empty method for ephemeral as keys are dropped by the stale item remover
     void dropKey(
             int64_t bySeqno,
             Collections::VB::Manifest::CachingReadHandle& cHandle) override;

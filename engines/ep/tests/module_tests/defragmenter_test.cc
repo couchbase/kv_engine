@@ -67,7 +67,7 @@ static bool wait_for_mapped_below(size_t mapped_threshold,
 // Initialise the base class and the keyPattern, the keyPattern determines the
 // key length, which should be large for StoredValue tests
 DefragmenterTest::DefragmenterTest()
-    : VBucketTestBase(getEvictionPolicy()),
+    : VBucketTestBase(VBType::Persistent, getEvictionPolicy()),
       keyPattern(isModeStoredValue() ? keyPattern2 : keyPattern1) {
 }
 

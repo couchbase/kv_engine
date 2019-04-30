@@ -28,9 +28,13 @@
 #include <folly/portability/GTest.h>
 #include <thread>
 
+/**
+ * Test fixture for VBucket-level tests specific to Ephemeral VBuckets.
+ */
 class EphemeralVBucketTest : public VBucketTestBase, public ::testing::Test {
 public:
-    EphemeralVBucketTest() : VBucketTestBase(EvictionPolicy::Value) {
+    EphemeralVBucketTest()
+        : VBucketTestBase(VBType::Ephemeral, EvictionPolicy::Value) {
     }
 
 protected:

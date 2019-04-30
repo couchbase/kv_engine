@@ -46,13 +46,6 @@ TEST_P(ItemCompressorTest, testCompressionInActiveMode) {
                            0,
                            PROTOCOL_BINARY_DATATYPE_JSON);
 
-    // add an evicted item to be sure compression skips it
-    auto evictedItem = make_item(vbucket->getId(),
-                                 evictedKey,
-                                 nonCompressibleValue,
-                                 0,
-                                 PROTOCOL_BINARY_DATATYPE_JSON);
-
     auto compressible_item = makeCompressibleItem(vbucket->getId(),
                                                   key1,
                                                   compressibleValue,
@@ -64,19 +57,6 @@ TEST_P(ItemCompressorTest, testCompressionInActiveMode) {
 
     rv = public_processSet(item2, 0);
     ASSERT_EQ(MutationStatus::WasClean, rv);
-
-    rv = public_processSet(evictedItem, 0);
-    ASSERT_EQ(MutationStatus::WasClean, rv);
-
-    auto* stored_item = this->vbucket->ht.findForWrite(evictedKey).storedValue;
-    EXPECT_NE(nullptr, stored_item);
-    // Need to clear the dirty flag to allow it to be ejected.
-    stored_item->markClean();
-
-    const char* str;
-    auto handle = vbucket->lockCollections(evictedKey);
-    EXPECT_EQ(cb::mcbp::Status::Success, vbucket->evictKey(&str, handle))
-            << str;
 
     // Save the datatype counts before and after compression. The test needs
     // to verify if the datatype counts are updated correctly after
@@ -150,9 +130,10 @@ TEST_P(ItemCompressorTest, testStoreUncompressedInActiveMode) {
 }
 
 INSTANTIATE_TEST_CASE_P(
-        FullAndValueEviction,
+        AllVBTypesAllEvictionModes,
         ItemCompressorTest,
-        ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full),
-        [](const ::testing::TestParamInfo<EvictionPolicy>& info) {
-            return to_string(info.param);
-        });
+        ::testing::Combine(
+                ::testing::Values(VBucketTestBase::VBType::Persistent,
+                                  VBucketTestBase::VBType::Ephemeral),
+                ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full)),
+        VBucketTest::PrintToStringParamName);

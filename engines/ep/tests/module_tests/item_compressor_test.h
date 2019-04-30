@@ -26,12 +26,11 @@
 
 #include <folly/portability/GTest.h>
 
-class ItemCompressorTest : public ::testing::TestWithParam<EvictionPolicy>,
-                           public VBucketTestBase {
+/**
+ * Test fixture for Item compression tests.
+ */
+class ItemCompressorTest : public VBucketTest {
 public:
-    ItemCompressorTest() : VBucketTestBase(GetParam()) {
-    }
-
     static void SetUpTestCase() {
         // Setup the MemoryTracker.
         MemoryTracker::getInstance(*get_mock_server_api()->alloc_hooks);

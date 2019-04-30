@@ -28,7 +28,8 @@ class EPVBucketTest : public ::testing::WithParamInterface<EvictionPolicy>,
                       public VBucketTestBase,
                       public SingleThreadedKVBucketTest {
 public:
-    EPVBucketTest() : VBucketTestBase(GetParam()) {
+    EPVBucketTest()
+        : VBucketTestBase(VBucketTestBase::VBType::Persistent, GetParam()) {
     }
 
     void SetUp() override;

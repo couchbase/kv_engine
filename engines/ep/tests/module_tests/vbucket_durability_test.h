@@ -28,7 +28,7 @@ class ActiveDurabilityMonitor;
 class VBucketDurabilityTest : public ::testing::TestWithParam<EvictionPolicy>,
                               public VBucketTestBase {
 public:
-    VBucketDurabilityTest() : VBucketTestBase(GetParam()) {
+    VBucketDurabilityTest() : VBucketTestBase(VBType::Persistent, GetParam()) {
     }
 
     void SetUp();
