@@ -425,9 +425,35 @@ TEST_F(ActiveDurabilityMonitorTest, SetTopology_FirstChainEmpty) {
                    DurabilityMonitor::ReplicationChainName::First);
 }
 
+TEST_F(ActiveDurabilityMonitorTest, SetTopology_SecondChainEmpty) {
+    // It's valid to not have a second chain, but we shouldn't have an empty
+    // second chain
+    testChainEmpty(nlohmann::json::array(
+                           {{active, replica1}, nlohmann::json::array()}),
+                   DurabilityMonitor::ReplicationChainName::Second);
+}
+
+TEST_F(ActiveDurabilityMonitorTest, SetTopology_TooManyChains) {
+    try {
+        getActiveDM().setReplicationTopology(nlohmann::json::array(
+                {{active, replica1}, {active, replica2}, {active, replica3}}));
+    } catch (const std::invalid_argument& e) {
+        EXPECT_TRUE(std::string(e.what()).find("Too many chains specified") !=
+                    std::string::npos);
+        return;
+    }
+    FAIL();
+}
+
 TEST_F(ActiveDurabilityMonitorTest, SetTopology_FirstChainUndefinedActive) {
     testChainUndefinedActive(nlohmann::json::array({{nullptr}}),
                              DurabilityMonitor::ReplicationChainName::First);
+}
+
+TEST_F(ActiveDurabilityMonitorTest, SetTopology_SecondChainUndefinedActive) {
+    testChainUndefinedActive(
+            nlohmann::json::array({{active, replica1}, {nullptr}}),
+            DurabilityMonitor::ReplicationChainName::Second);
 }
 
 TEST_F(ActiveDurabilityMonitorTest, SetTopology_TooManyNodesInFirstChain) {
@@ -439,8 +465,21 @@ TEST_F(ActiveDurabilityMonitorTest, SetTopology_TooManyNodesInFirstChain) {
                           DurabilityMonitor::ReplicationChainName::First);
 }
 
+TEST_F(ActiveDurabilityMonitorTest, SetTopology_TooManyNodesInSecondChain) {
+    testChainTooManyNodes(
+            nlohmann::json::array(
+                    {{active, replica1},
+                     {active, replica1, replica2, replica3, "replica4"}}),
+            DurabilityMonitor::ReplicationChainName::Second);
+}
+
 TEST_F(ActiveDurabilityMonitorTest, SetTopology_NodeDuplicateInFirstChain) {
     testChainDuplicateNode(nlohmann::json::array({{"node1", "node1"}}));
+}
+
+TEST_F(ActiveDurabilityMonitorTest, SetTopology_NodeDuplicateInSecondChain) {
+    testChainDuplicateNode(
+            nlohmann::json::array({{active, replica1}, {active, active}}));
 }
 
 TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {

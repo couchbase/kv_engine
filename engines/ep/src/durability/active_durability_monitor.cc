@@ -225,6 +225,9 @@ void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
         if (s->firstChain) {
             addStatsForChain(addStat, cookie, *s->firstChain.get());
         }
+        if (s->secondChain) {
+            addStatsForChain(addStat, cookie, *s->secondChain.get());
+        }
     } catch (const std::exception& e) {
         EP_LOG_WARN(
                 "ActiveDurabilityMonitor::State:::addStats: error building "
@@ -523,6 +526,25 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
     auto& fChain = topology.at(0);
     ActiveDurabilityMonitor::validateChain(
             fChain, DurabilityMonitor::ReplicationChainName::First);
+
+    // Check if we should have a second replication chain.
+    if (topology.size() > 1) {
+        if (topology.size() > 2) {
+            // Too many chains specified
+            throw std::invalid_argument(
+                    "ActiveDurabilityMonitor::State::setReplicationTopology: "
+                    "Too many chains specified");
+        }
+
+        auto& sChain = topology.at(1);
+        ActiveDurabilityMonitor::validateChain(
+                sChain, DurabilityMonitor::ReplicationChainName::Second);
+        secondChain = makeChain(DurabilityMonitor::ReplicationChainName::Second,
+                                sChain);
+    }
+
+    // Only set the firstChain after validating (and setting) the second so that
+    // we throw and abort a state change before setting anything.
     firstChain =
             makeChain(DurabilityMonitor::ReplicationChainName::First, fChain);
 

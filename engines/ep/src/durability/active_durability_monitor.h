@@ -334,8 +334,16 @@ protected:
 
         /// The container of pending Prepares.
         Container trackedWrites;
-        // @todo: Expand for supporting the SecondChain.
+
+        /**
+         * @TODO Soon firstChain will be optional for warmup - update comment
+         * Our replication topology. firstChain is a requirement, secondChain is
+         * optional and only required for rebalance. It will be a nullptr if we
+         * do not have a second replication chain.
+         */
         std::unique_ptr<ReplicationChain> firstChain;
+        std::unique_ptr<ReplicationChain> secondChain;
+
         // Always stores the seqno of the last SyncWrite added for tracking.
         // Useful for sanity checks, necessary because the tracked container
         // can by emptied by Commit/Abort.
