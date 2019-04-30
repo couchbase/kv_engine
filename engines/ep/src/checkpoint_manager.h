@@ -27,6 +27,7 @@
 #include <memcached/vbucket.h>
 #include <memory>
 #include <unordered_map>
+#include <utility>
 
 class Checkpoint;
 class CheckpointConfig;
@@ -57,6 +58,12 @@ public:
     struct ItemsForCursor {
         snapshot_range_t range = {0, 0};
         bool moreAvailable = {false};
+    };
+
+    /// Return type of expelUnreferencedCheckpointItems()
+    struct ExpelResult {
+        size_t expelCount = {0};
+        size_t estimateOfFreeMemory = {0};
     };
 
     CheckpointManager(EPStats& st,
@@ -92,9 +99,11 @@ public:
      * Attempt to expel (i.e. eject from memory) items in the oldest checkpoint
      * that still has cursor registered in it.  This is to help avoid very large
      * checkpoints which consume a large amount of memory.
-     * @returns  the number of items that have been expelled.
+     * @returns  ExpelResult - this is a structure containing two elements.  The
+     * first element is the number of that have been expelled. The second
+     * element is an estimate of the amount of memory that will be recovered.
      */
-    size_t expelUnreferencedCheckpointItems();
+    ExpelResult expelUnreferencedCheckpointItems();
 
     /**
      * Register the cursor for getting items whose bySeqno values are between

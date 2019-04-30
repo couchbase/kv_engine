@@ -1696,7 +1696,10 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsTest) {
      * 1003 - 3rd item (key2)
      */
 
-    EXPECT_EQ(itemCount, this->manager->expelUnreferencedCheckpointItems());
+    CheckpointManager::ExpelResult expelResult =
+            this->manager->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(itemCount, expelResult.expelCount);
+    EXPECT_LT(0, expelResult.estimateOfFreeMemory);
     EXPECT_EQ(itemCount, this->global_stats.itemsExpelledFromCheckpoints);
 
     /*
@@ -1757,7 +1760,10 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
         ASSERT_FALSE(isLastMutationItem);
     }
 
-    ASSERT_EQ(itemCount, this->manager->expelUnreferencedCheckpointItems());
+    CheckpointManager::ExpelResult expelResult =
+            this->manager->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(itemCount, expelResult.expelCount);
+    EXPECT_LT(0, expelResult.estimateOfFreeMemory);
     EXPECT_EQ(itemCount, this->global_stats.itemsExpelledFromCheckpoints);
 
     /*
@@ -1816,7 +1822,10 @@ TYPED_TEST(CheckpointTest, expelCursorPointingToLastItem) {
     // move back one.  The expel point now points to a metadata item so
     // move back again.  We have now reached the dummy item and so we
     // don't expel anything.
-    EXPECT_EQ(0, this->manager->expelUnreferencedCheckpointItems());
+    CheckpointManager::ExpelResult expelResult =
+            this->manager->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(0, expelResult.expelCount);
+    EXPECT_EQ(0, expelResult.estimateOfFreeMemory);
     EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
@@ -1837,7 +1846,10 @@ TYPED_TEST(CheckpointTest, expelCursorPointingToChkptStart) {
      * 1001 - checkpoint start  <<<<<<< persistenceCursor
      */
 
-    EXPECT_EQ(0 , this->manager->expelUnreferencedCheckpointItems());
+    CheckpointManager::ExpelResult expelResult =
+            this->manager->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(0, expelResult.expelCount);
+    EXPECT_EQ(0, expelResult.estimateOfFreeMemory);
     EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
@@ -1886,7 +1898,10 @@ TYPED_TEST(CheckpointTest, dontExpelIfCursorAtMetadataItemWithSameSeqno) {
      */
 
     // We should not expel any items due to dcpCursor1
-    EXPECT_EQ(0, this->manager->expelUnreferencedCheckpointItems());
+    CheckpointManager::ExpelResult expelResult =
+            this->manager->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(0, expelResult.expelCount);
+    EXPECT_EQ(0, expelResult.estimateOfFreeMemory);
     EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
@@ -1957,6 +1972,98 @@ TYPED_TEST(CheckpointTest, doNotExpelIfHaveSameSeqnoAfterMutation) {
 
     // We should not expel any items due to dcpCursor1 as we end up
     // moving the expel point back to the dummy item.
-    EXPECT_EQ(0, this->manager->expelUnreferencedCheckpointItems());
+    CheckpointManager::ExpelResult expelResult =
+            this->manager->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(0, expelResult.expelCount);
+    EXPECT_EQ(0, expelResult.estimateOfFreeMemory);
     EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
+}
+
+// Test estimate for the amount of memory recovered by expelling is correct.
+TYPED_TEST(CheckpointTest, expelCheckpointItemsMemoryRecoveredTest) {
+    const int itemCount{3};
+    size_t sizeOfItem{0};
+
+    for (auto ii = 0; ii < itemCount; ++ii) {
+        std::string value("value");
+        queued_item item(new Item(makeStoredDocKey("key" + std::to_string(ii)),
+                                  0,
+                                  0,
+                                  value.c_str(),
+                                  value.size(),
+                                  PROTOCOL_BINARY_RAW_BYTES,
+                                  0,
+                                  -1,
+                                  Vbid(0)));
+
+        sizeOfItem = item->size();
+
+        // Add the queued_item to the checkpoint
+        this->manager->queueDirty(*this->vbucket,
+                                  item,
+                                  GenerateBySeqno::Yes,
+                                  GenerateCas::Yes,
+                                  /*preLinkDocCtx*/ nullptr);
+    }
+
+    ASSERT_EQ(1, this->manager->getNumCheckpoints()); // Single open checkpoint.
+    ASSERT_EQ(itemCount, this->manager->getNumOpenChkItems());
+    ASSERT_EQ(itemCount, this->manager->getNumItemsForPersistence());
+    ASSERT_EQ(1000 + itemCount, this->manager->getHighSeqno());
+
+    bool isLastMutationItem{true};
+    for (auto ii = 0; ii < 3; ++ii) {
+        auto item = this->manager->nextItem(
+                this->manager->getPersistenceCursor(), isLastMutationItem);
+        ASSERT_FALSE(isLastMutationItem);
+    }
+
+    /*
+     * Checkpoint now looks as follows:
+     * 1000 - dummy item
+     * 1001 - checkpoint start
+     * 1001 - 1st item (key0)
+     * 1002 - 2nd item (key1) <<<<<<< persistenceCursor
+     * 1003 - 3rd item (key2)
+     */
+
+    CheckpointManager::ExpelResult expelResult =
+            this->manager->expelUnreferencedCheckpointItems();
+
+    /*
+     * After expelling checkpoint now looks as follows:
+     * 1000 - dummy Item <<<<<<< persistenceCursor
+     * 1003 - 3rd item (key 2)
+     */
+
+    /*
+     * We have expelled:
+     * 1001 - checkpoint start
+     * 1001 - 1st item (key 0)
+     * 1002 - 2nd item (key 1)
+     */
+
+    size_t extra = 0;
+    // A list is comprised of 3 pointers (forward, backwards and
+    // pointer to the element).
+    const size_t perElementOverhead = extra + (3 * sizeof(uintptr_t));
+#if WIN32
+    // On windows for an empty list we still allocate space for
+    // containing one element.
+    extra = perElementOverhead;
+#endif
+
+    const size_t checkpointListSaving =
+            (perElementOverhead * expelResult.expelCount) + extra;
+    const auto& checkpointStartItem =
+            this->manager->public_createCheckpointItem(
+                    0, Vbid(0), queue_op::checkpoint_start);
+    const size_t queuedItemSaving =
+            checkpointStartItem->size() + (sizeOfItem * (itemCount - 1));
+    const size_t expectedMemoryRecovered =
+            checkpointListSaving + queuedItemSaving;
+
+    EXPECT_EQ(3, expelResult.expelCount);
+    EXPECT_EQ(expectedMemoryRecovered, expelResult.estimateOfFreeMemory);
+    EXPECT_EQ(3, this->global_stats.itemsExpelledFromCheckpoints);
 }

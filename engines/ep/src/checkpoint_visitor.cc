@@ -22,6 +22,8 @@
 #include "ep_engine.h"
 #include "kv_bucket.h"
 
+#include <tuple>
+
 CheckpointVisitor::CheckpointVisitor(KVBucketIface* s,
                                      EPStats& st,
                                      std::atomic<bool>& sfin,
@@ -55,11 +57,14 @@ void CheckpointVisitor::visitBucket(const VBucketPtr& vb) {
     removed = 0;
 
     if (expelItems == ExpelItems::Yes) {
-        auto expelled =
+        CheckpointManager::ExpelResult expelResult =
                 vb->checkpointManager->expelUnreferencedCheckpointItems();
-        EP_LOG_DEBUG("Expelled {} unreferenced checkpoint items from {}",
-                     expelled,
-                     vb->getId());
+        EP_LOG_DEBUG(
+                "Expelled {} unreferenced checkpoint items from {} "
+                "and estimated to have recovered {} bytes.",
+                expelResult.expelCount,
+                vb->getId(),
+                expelResult.estimateOfFreeMemory);
     }
 }
 

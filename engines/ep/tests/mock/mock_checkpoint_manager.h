@@ -82,4 +82,11 @@ public:
         LockHolder lh(queueLock);
         return checkpointList.size();
     }
+
+    queued_item public_createCheckpointItem(uint64_t id,
+                                            Vbid vbid,
+                                            queue_op checkpoint_op) {
+        LockHolder lh(queueLock);
+        return createCheckpointItem(id, vbid, checkpoint_op);
+    }
 };

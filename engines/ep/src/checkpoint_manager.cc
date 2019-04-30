@@ -448,7 +448,8 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
     return numUnrefItems;
 }
 
-size_t CheckpointManager::expelUnreferencedCheckpointItems() {
+CheckpointManager::ExpelResult
+CheckpointManager::expelUnreferencedCheckpointItems() {
     CheckpointQueue expelledItems;
     {
         LockHolder lh(queueLock);
@@ -467,12 +468,12 @@ size_t CheckpointManager::expelUnreferencedCheckpointItems() {
 
         if (currentCheckpoint == nullptr) {
             // There are no eligible checkpoints to expel items from.
-            return 0;
+            return {};
         }
 
         if (currentCheckpoint->getNumItems() == 0) {
             // There are no mutation items in the checkpoint to expel.
-            return 0;
+            return {};
         }
 
         const auto findLowestCursor =
@@ -521,8 +522,8 @@ size_t CheckpointManager::expelUnreferencedCheckpointItems() {
         auto lowestCheckpointCursor = lowestCursor.lock();
         if (lowestCheckpointCursor == nullptr) {
             // Failed to get a shared_ptr to the lowest checkpoint cursor
-            // so just return 0
-            return 0;
+            // so just return.
+            return {};
         }
 
         auto expelUpToAndIncluding = CheckpointCursor(
@@ -551,7 +552,7 @@ size_t CheckpointManager::expelUnreferencedCheckpointItems() {
         // If pointing to the dummy item then cannot expel anything and so just
         // return.
         if (iterator == currentCheckpoint->begin()) {
-            return 0;
+            return {};
         }
 
         /*
@@ -564,7 +565,41 @@ size_t CheckpointManager::expelUnreferencedCheckpointItems() {
         expelledItems = currentCheckpoint->expelItems(expelUpToAndIncluding);
     }
 
+    // If called currentCheckpoint->expelItems but did not manage to expel
+    // anything then just return.
+    if (expelledItems.empty()) {
+        return {};
+    }
+
     stats.itemsExpelledFromCheckpoints.fetch_add(expelledItems.size());
+
+    /*
+     * Calculate an *estimate* of the amount of memory we will recover.
+     * This is comprised of two parts:
+     * 1. Memory used by each item to be expelled.  For each item this
+     *    is calculated as the sizeof(Item) + key size + value size.
+     * 2. Memory used to hold the items in the checkpoint list.
+     *    The checkpoint list will be shorter by expelledItems.size().
+     *    This saving is equal to the memory allocated by the
+     *    expelledItems list.  Note: On Windows this is not strictly
+     *    true as we allocate space for size + 1.  However as its
+     *    an estimate we do not need to adjust.
+     *
+     * It is an optimistic estimate as it assumes that each queued_item
+     * is not referenced by anyone else (e.g. a DCP stream) and therefore
+     * its reference count will drop to zero on exiting the function
+     * allowing the memory to be freed.
+     */
+
+    // Part 1 of calculating the estimate (see comment above).
+    size_t estimateOfAmountOfRecoveredMemory{0};
+    for (const auto& ei : expelledItems) {
+        estimateOfAmountOfRecoveredMemory += ei->size();
+    }
+
+    // Part 2 of calculating the estimate (see comment above).
+    estimateOfAmountOfRecoveredMemory +=
+            *(expelledItems.get_allocator().getBytesAllocated());
 
     /*
      * We are now outside of the queueLock when the method exits,
@@ -572,7 +607,7 @@ size_t CheckpointManager::expelUnreferencedCheckpointItems() {
      * of expelled items will go to zero and hence will be deleted
      * outside of the queuelock.
      */
-    return expelledItems.size();
+    return {expelledItems.size(), estimateOfAmountOfRecoveredMemory};
 }
 
 std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
