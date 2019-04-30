@@ -63,6 +63,14 @@ public:
     void SetUp() override;
     void TearDown() override;
 
+    enum class mb_33773Mode {
+        closeStreamOnTask,
+        closeStreamBeforeTask,
+        noMemory,
+        noMemoryAndClosed
+    };
+    void mb_33773(mb_33773Mode mode);
+
 protected:
     std::shared_ptr<MockDcpConsumer> consumer;
     // Owned by the engine

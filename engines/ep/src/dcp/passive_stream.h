@@ -251,12 +251,12 @@ protected:
         /*
          * Caller must of locked bufMutex and pass as lh (not asserted)
          */
-        std::unique_ptr<DcpResponse> pop_front(
-                std::unique_lock<std::mutex>& lh) {
-            std::unique_ptr<DcpResponse> rval(std::move(messages.front()));
+        void pop_front(std::unique_lock<std::mutex>& lh, size_t bytesPopped) {
+            if (messages.empty()) {
+                return;
+            }
             messages.pop_front();
-            bytes -= rval->getMessageSize();
-            return rval;
+            bytes -= bytesPopped;
         }
 
         /*
