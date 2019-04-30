@@ -58,31 +58,6 @@ void ActiveDurabilityMonitor::setReplicationTopology(
                 "empty");
     }
 
-    const auto& firstChain = topology.at(0);
-
-    if (firstChain.size() == 0) {
-        throw std::invalid_argument(
-                "ActiveDurabilityMonitor::setReplicationTopology: FirstChain "
-                "cannot "
-                "be empty");
-    }
-
-    // Max Active + MaxReplica
-    if (firstChain.size() > 1 + maxReplicas) {
-        throw std::invalid_argument(
-                "ActiveDurabilityMonitor::setReplicationTopology: Too many "
-                "nodes "
-                "in chain: " +
-                firstChain.dump());
-    }
-
-    if (!firstChain.at(0).is_string()) {
-        throw std::invalid_argument(
-                "ActiveDurabilityMonitor::setReplicationTopology: "
-                "first node "
-                "in chain (active) cannot be undefined");
-    }
-
     // Setting the replication topology also resets the topology in all
     // in-flight (tracked) SyncWrites. If the new topology contains only the
     // Active, then some Prepares could be immediately satisfied and ready for
@@ -247,39 +222,48 @@ void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
         checked_snprintf(buf, sizeof(buf), "vb_%d:last_tracked_seqno", vbid);
         add_casted_stat(buf, s->lastTrackedSeqno, addStat, cookie);
 
-        checked_snprintf(
-                buf, sizeof(buf), "vb_%d:replication_chain_first:size", vbid);
-        add_casted_stat(buf,
-                        (s->firstChain ? s->firstChain->positions.size() : 0),
-                        addStat,
-                        cookie);
-
         if (s->firstChain) {
-            for (const auto& entry : s->firstChain->positions) {
-                const auto* node = entry.first.c_str();
-                const auto& pos = entry.second;
-
-                checked_snprintf(
-                        buf,
-                        sizeof(buf),
-                        "vb_%d:replication_chain_first:%s:last_write_seqno",
-                        vbid,
-                        node);
-                add_casted_stat(buf, pos.lastWriteSeqno, addStat, cookie);
-                checked_snprintf(
-                        buf,
-                        sizeof(buf),
-                        "vb_%d:replication_chain_first:%s:last_ack_seqno",
-                        vbid,
-                        node);
-                add_casted_stat(buf, pos.lastAckSeqno, addStat, cookie);
-            }
+            addStatsForChain(addStat, cookie, *s->firstChain.get());
         }
     } catch (const std::exception& e) {
         EP_LOG_WARN(
                 "ActiveDurabilityMonitor::State:::addStats: error building "
                 "stats: {}",
                 e.what());
+    }
+}
+
+void ActiveDurabilityMonitor::addStatsForChain(
+        const AddStatFn& addStat,
+        const void* cookie,
+        const ReplicationChain& chain) const {
+    char buf[256];
+    const auto vbid = vb.getId().get();
+    checked_snprintf(buf,
+                     sizeof(buf),
+                     "vb_%d:replication_chain_%s:size",
+                     vbid,
+                     to_string(chain.name).c_str());
+    add_casted_stat(buf, chain.positions.size(), addStat, cookie);
+
+    for (const auto& entry : chain.positions) {
+        const auto* node = entry.first.c_str();
+        const auto& pos = entry.second;
+
+        checked_snprintf(buf,
+                         sizeof(buf),
+                         "vb_%d:replication_chain_%s:%s:last_write_seqno",
+                         vbid,
+                         to_string(chain.name).c_str(),
+                         node);
+        add_casted_stat(buf, pos.lastWriteSeqno, addStat, cookie);
+        checked_snprintf(buf,
+                         sizeof(buf),
+                         "vb_%d:replication_chain_%s:%s:last_ack_seqno",
+                         vbid,
+                         to_string(chain.name).c_str(),
+                         node);
+        add_casted_stat(buf, pos.lastAckSeqno, addStat, cookie);
     }
 }
 
@@ -493,23 +477,54 @@ void ActiveDurabilityMonitor::toOStream(std::ostream& os) const {
     os << "]";
 }
 
-void ActiveDurabilityMonitor::State::setReplicationTopology(
-        const nlohmann::json& topology) {
-    // @todo: Add support for SecondChain
-    std::vector<std::string> fChain;
-    for (auto& node : topology.at(0).items()) {
+void ActiveDurabilityMonitor::validateChain(
+        const nlohmann::json& chain,
+        DurabilityMonitor::ReplicationChainName chainName) {
+    if (chain.size() == 0) {
+        throw std::invalid_argument("ActiveDurabilityMonitor::validateChain: " +
+                                    to_string(chainName) +
+                                    " chain cannot be empty");
+    }
+
+    // Max Active + MaxReplica
+    if (chain.size() > 1 + maxReplicas) {
+        throw std::invalid_argument(
+                "ActiveDurabilityMonitor::validateChain: Too many nodes in " +
+                to_string(chainName) + " chain: " + chain.dump());
+    }
+
+    if (!chain.at(0).is_string()) {
+        throw std::invalid_argument(
+                "ActiveDurabilityMonitor::validateChain: first node in " +
+                to_string(chainName) + " chain (active) cannot be undefined");
+    }
+}
+
+std::unique_ptr<DurabilityMonitor::ReplicationChain>
+ActiveDurabilityMonitor::State::makeChain(
+        const DurabilityMonitor::ReplicationChainName name,
+        const nlohmann::json& chain) {
+    std::vector<std::string> nodes;
+    for (auto& node : chain.items()) {
         // First node (active) must be present, remaining (replica) nodes
         // are allowed to be Null indicating they are undefined.
         if (node.value().is_string()) {
-            fChain.push_back(node.value());
+            nodes.push_back(node.value());
         } else {
-            fChain.emplace_back(UndefinedNode);
+            nodes.emplace_back(UndefinedNode);
         }
     }
 
-    // Note: Initially all the tracking iterators point to Container::end
-    firstChain = std::make_unique<ReplicationChain>(
-            fChain, trackedWrites.end() /*initPos*/);
+    return std::make_unique<ReplicationChain>(name, nodes, trackedWrites.end());
+}
+
+void ActiveDurabilityMonitor::State::setReplicationTopology(
+        const nlohmann::json& topology) {
+    auto& fChain = topology.at(0);
+    ActiveDurabilityMonitor::validateChain(
+            fChain, DurabilityMonitor::ReplicationChainName::First);
+    firstChain =
+            makeChain(DurabilityMonitor::ReplicationChainName::First, fChain);
 
     // Apply the new topology to all in-flight SyncWrites
     for (auto& write : trackedWrites) {

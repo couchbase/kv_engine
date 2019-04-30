@@ -51,6 +51,11 @@ public:
      */
     virtual void notifyLocalPersistence() = 0;
 
+    enum class ReplicationChainName {
+        First = 1,
+        Second = 2,
+    };
+
 protected:
     class SyncWrite;
     struct ReplicationChain;

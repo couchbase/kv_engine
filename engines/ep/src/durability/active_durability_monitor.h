@@ -183,6 +183,31 @@ protected:
      */
     size_t wipeTracked();
 
+    /**
+     * Validate the given json replication chain checking if it's an array, not
+     * too large etc.
+     *
+     * @param chain json replication chain
+     * @param chainName name printed in exceptions
+     * @throws std::invalid_argument if the chain is invalid
+     */
+    static void validateChain(
+            const nlohmann::json& chain,
+            DurabilityMonitor::ReplicationChainName chainName);
+
+    /**
+     * Output DurabilityMonitor stats for the given chain
+     *
+     * @param addStat the callback to memcached
+     * @param cookie
+     * @param vbid raw vb id printed in stats
+     * @param chainName name of the chain, printed in stats
+     * @param chain reference to the chain to output stats for
+     */
+    void addStatsForChain(const AddStatFn& addStat,
+                          const void* cookie,
+                          const ReplicationChain& chain) const;
+
     /*
      * This class embeds the state of an ADM. It has been designed for being
      * wrapped by a folly::Synchronized<T>, which manages the read/write
@@ -198,6 +223,17 @@ protected:
          */
         State(const ActiveDurabilityMonitor& adm) : adm(adm) {
         }
+
+        /**
+         * Create a replication chain. Not static as we require an iterator from
+         * trackedWrites.
+         *
+         * @param name Name of chain (used for stats and exception logging)
+         * @param chain Unique ptr to the chain
+         */
+        std::unique_ptr<ReplicationChain> makeChain(
+                const DurabilityMonitor::ReplicationChainName name,
+                const nlohmann::json& chain);
 
         void setReplicationTopology(const nlohmann::json& topology);
 
@@ -313,7 +349,7 @@ protected:
 
     folly::Synchronized<State> state;
 
-    const size_t maxReplicas = 3;
+    static const size_t maxReplicas = 3;
 
     // @todo: Try to remove this, currenlty necessary for testing wipeTracked()
     friend class ActiveDurabilityMonitorTest;

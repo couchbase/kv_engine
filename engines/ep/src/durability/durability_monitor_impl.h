@@ -138,9 +138,12 @@ struct DurabilityMonitor::ReplicationChain {
      *         To assign the correct replicas. An undefined replica is
      *         represented by an empty node name (""s).
      *
+     * @param name Name of chain (used for stats and exception logging)
+     * @param nodes The names of the nodes in this chain
      * @param initPos The initial position for tracking iterators in chain
      */
-    ReplicationChain(const std::vector<std::string>& nodes,
+    ReplicationChain(const DurabilityMonitor::ReplicationChainName name,
+                     const std::vector<std::string>& nodes,
                      const Container::iterator& initPos);
 
     size_t size() const;
@@ -156,4 +159,9 @@ struct DurabilityMonitor::ReplicationChain {
     const uint8_t majority;
 
     const std::string active;
+
+    // Name of the chain
+    const DurabilityMonitor::ReplicationChainName name;
 };
+
+std::string to_string(DurabilityMonitor::ReplicationChainName name);

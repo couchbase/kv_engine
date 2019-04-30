@@ -196,6 +196,61 @@ bool ActiveDurabilityMonitorTest::testDurabilityPossible(
     return true;
 }
 
+void ActiveDurabilityMonitorTest::testChainEmpty(
+        const nlohmann::json::array_t& topology,
+        DurabilityMonitor::ReplicationChainName chainName) {
+    try {
+        getActiveDM().setReplicationTopology(topology);
+    } catch (const std::invalid_argument& e) {
+        EXPECT_TRUE(std::string(e.what()).find(to_string(chainName) +
+                                               " chain cannot be empty") !=
+                    std::string::npos);
+        return;
+    }
+    FAIL();
+}
+
+void ActiveDurabilityMonitorTest::testChainUndefinedActive(
+        const nlohmann::json::array_t& topology,
+        DurabilityMonitor::ReplicationChainName chainName) {
+    try {
+        getActiveDM().setReplicationTopology(topology);
+    } catch (const std::invalid_argument& e) {
+        EXPECT_TRUE(std::string(e.what()).find(
+                            "first node in " + to_string(chainName) +
+                            " chain (active) "
+                            "cannot be undefined") != std::string::npos);
+        return;
+    }
+    FAIL();
+}
+
+void ActiveDurabilityMonitorTest::testChainTooManyNodes(
+        const nlohmann::json::array_t& topology,
+        DurabilityMonitor::ReplicationChainName chainName) {
+    try {
+        getActiveDM().setReplicationTopology(topology);
+    } catch (const std::invalid_argument& e) {
+        EXPECT_TRUE(std::string(e.what()).find("Too many nodes in " +
+                                               to_string(chainName) +
+                                               " chain") != std::string::npos);
+        return;
+    }
+    FAIL();
+}
+
+void ActiveDurabilityMonitorTest::testChainDuplicateNode(
+        const nlohmann::json::array_t& topology) {
+    try {
+        getActiveDM().setReplicationTopology(topology);
+    } catch (const std::invalid_argument& e) {
+        EXPECT_TRUE(std::string(e.what()).find("Duplicate node") !=
+                    std::string::npos);
+        return;
+    }
+    FAIL();
+}
+
 TEST_F(ActiveDurabilityMonitorTest, AddSyncWrite) {
     EXPECT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
 }
@@ -366,52 +421,26 @@ TEST_F(ActiveDurabilityMonitorTest, SetTopology_Empty) {
 }
 
 TEST_F(ActiveDurabilityMonitorTest, SetTopology_FirstChainEmpty) {
-    try {
-        getActiveDM().setReplicationTopology(nlohmann::json::array({{}}));
-    } catch (const std::invalid_argument& e) {
-        EXPECT_TRUE(std::string(e.what()).find("FirstChain cannot be empty") !=
-                    std::string::npos);
-        return;
-    }
-    FAIL();
+    testChainEmpty(nlohmann::json::array({{}}),
+                   DurabilityMonitor::ReplicationChainName::First);
 }
 
 TEST_F(ActiveDurabilityMonitorTest, SetTopology_FirstChainUndefinedActive) {
-    try {
-        getActiveDM().setReplicationTopology(
-                nlohmann::json::array({{nullptr}}));
-    } catch (const std::invalid_argument& e) {
-        EXPECT_TRUE(
-                std::string(e.what()).find(
-                        "first node in chain (active) cannot be undefined") !=
-                std::string::npos);
-        return;
-    }
-    FAIL();
+    testChainUndefinedActive(nlohmann::json::array({{nullptr}}),
+                             DurabilityMonitor::ReplicationChainName::First);
 }
 
-TEST_F(ActiveDurabilityMonitorTest, SetTopology_TooManyNodesInChain) {
-    try {
-        getActiveDM().setReplicationTopology(nlohmann::json::array(
-                {{"active", "replica1", "replica2", "replica3", "replica4"}}));
-    } catch (const std::invalid_argument& e) {
-        EXPECT_TRUE(std::string(e.what()).find("Too many nodes in chain") !=
-                    std::string::npos);
-        return;
-    }
-    FAIL();
+TEST_F(ActiveDurabilityMonitorTest, SetTopology_TooManyNodesInFirstChain) {
+    testChainTooManyNodes(nlohmann::json::array({{"active",
+                                                  "replica1",
+                                                  "replica2",
+                                                  "replica3",
+                                                  "replica4"}}),
+                          DurabilityMonitor::ReplicationChainName::First);
 }
 
-TEST_F(ActiveDurabilityMonitorTest, SetTopology_NodeDuplicateIncChain) {
-    try {
-        getActiveDM().setReplicationTopology(
-                nlohmann::json::array({{"node1", "node1"}}));
-    } catch (const std::invalid_argument& e) {
-        EXPECT_TRUE(std::string(e.what()).find("Duplicate node") !=
-                    std::string::npos);
-        return;
-    }
-    FAIL();
+TEST_F(ActiveDurabilityMonitorTest, SetTopology_NodeDuplicateInFirstChain) {
+    testChainDuplicateNode(nlohmann::json::array({{"node1", "node1"}}));
 }
 
 TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {

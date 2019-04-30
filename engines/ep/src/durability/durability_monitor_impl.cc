@@ -16,6 +16,7 @@
  */
 
 #include "durability_monitor_impl.h"
+#include <folly/lang/Assume.h>
 #include <gsl.h>
 
 DurabilityMonitor::SyncWrite::SyncWrite(const void* cookie,
@@ -132,8 +133,10 @@ std::ostream& operator<<(std::ostream& os,
 }
 
 DurabilityMonitor::ReplicationChain::ReplicationChain(
-        const std::vector<std::string>& nodes, const Container::iterator& it)
-    : majority(nodes.size() / 2 + 1), active(nodes.at(0)) {
+        const DurabilityMonitor::ReplicationChainName name,
+        const std::vector<std::string>& nodes,
+        const Container::iterator& it)
+    : majority(nodes.size() / 2 + 1), active(nodes.at(0)), name(name) {
     if (nodes.at(0) == UndefinedNode) {
         throw std::invalid_argument(
                 "ReplicationChain::ReplicationChain: Active node cannot be "
@@ -162,4 +165,14 @@ bool DurabilityMonitor::ReplicationChain::isDurabilityPossible() const {
     Expects(size());
     Expects(majority);
     return size() >= majority;
+}
+
+std::string to_string(DurabilityMonitor::ReplicationChainName name) {
+    switch (name) {
+    case DurabilityMonitor::ReplicationChainName::First:
+        return "First";
+    case DurabilityMonitor::ReplicationChainName::Second:
+        return "Second";
+    }
+    folly::assume_unreachable();
 }

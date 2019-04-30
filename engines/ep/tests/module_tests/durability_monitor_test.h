@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include "durability/durability_monitor.h"
 #include "evp_store_single_threaded_test.h"
 #include "test_helpers.h"
 
@@ -198,6 +199,46 @@ protected:
                                 queued_item& item,
                                 uint8_t expectedFirstChainSize,
                                 uint8_t expectedFirstChainMajority);
+
+    /**
+     * Check that the expected chain empty exception is thrown for the given
+     * topology
+     *
+     * @param topology The replication topology to apply
+     * @param chainName Chain name prefix printed in the exception
+     */
+    void testChainEmpty(const nlohmann::json::array_t& topology,
+                        DurabilityMonitor::ReplicationChainName chainName);
+
+    /**
+     * Check that the expected undefined active exception is thrown for the
+     * given topology
+     *
+     * @param topology The replication topology to apply
+     * @param chainName Chain name prefix printed in the exception
+     */
+    void testChainUndefinedActive(
+            const nlohmann::json::array_t& topology,
+            DurabilityMonitor::ReplicationChainName chainName);
+
+    /**
+     * Check that the expected too many nodes exception is thrown for the given
+     * topology
+     *
+     * @param topology The replication topology to apply
+     * @param chainName Chain name prefix printed in the exception
+     */
+    void testChainTooManyNodes(
+            const nlohmann::json::array_t& topology,
+            DurabilityMonitor::ReplicationChainName chainName);
+
+    /**
+     * Check that the expected duplicate node exception is thrown for the given
+     * topology
+     *
+     * @param topology The replication topology to apply
+     */
+    void testChainDuplicateNode(const nlohmann::json::array_t& topology);
 
     const std::string active = "active";
     const std::string replica1 = "replica1";
