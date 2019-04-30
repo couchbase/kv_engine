@@ -314,14 +314,23 @@ TEST(VBucketDurabilityTest, validateSetStateMetaTopologyNegative) {
                 HasSubstr("chain[0] node[0] (active) cannot be null"));
 }
 
-TEST_P(VBucketDurabilityTest, Replica_SetVBucketState_ClearTopology) {
+void VBucketDurabilityTest::testSetVBucketState_ClearTopology(
+        vbucket_state_t state) {
     ASSERT_NE(nlohmann::json{}.dump(),
               vbucket->getReplicationTopology().dump());
 
-    vbucket->setState(vbucket_state_replica);
+    vbucket->setState(state);
 
     EXPECT_EQ(nlohmann::json{}.dump(),
               vbucket->getReplicationTopology().dump());
+}
+
+TEST_P(VBucketDurabilityTest, Replica_SetVBucketState_ClearTopology) {
+    testSetVBucketState_ClearTopology(vbucket_state_replica);
+}
+
+TEST_P(VBucketDurabilityTest, Pending_SetVBucketState_ClearTopology) {
+    testSetVBucketState_ClearTopology(vbucket_state_pending);
 }
 
 TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
@@ -685,8 +694,8 @@ TEST_P(VBucketDurabilityTest, Active_ParallelSet) {
     }
 }
 
-TEST_P(VBucketDurabilityTest, Replica_AddPrepare) {
-    vbucket->setState(vbucket_state_replica);
+void VBucketDurabilityTest::testAddPrepareInPassiveDM(vbucket_state_t state) {
+    vbucket->setState(state);
     const auto& monitor =
             VBucketTestIntrospector::public_getPassiveDM(*vbucket);
     ASSERT_EQ(0, monitor.getNumTracked());
@@ -694,9 +703,18 @@ TEST_P(VBucketDurabilityTest, Replica_AddPrepare) {
     ASSERT_EQ(3, monitor.getNumTracked());
 }
 
-TEST_P(VBucketDurabilityTest, ConvertPassiveDMToActiveDM) {
+TEST_P(VBucketDurabilityTest, Replica_AddPrepareInPassiveDM) {
+    testAddPrepareInPassiveDM(vbucket_state_replica);
+}
+
+TEST_P(VBucketDurabilityTest, Pending_AddPrepareInPassiveDM) {
+    testAddPrepareInPassiveDM(vbucket_state_pending);
+}
+
+void VBucketDurabilityTest::testConvertPassiveDMToActiveDM(
+        vbucket_state_t initialState) {
     ASSERT_TRUE(vbucket);
-    vbucket->setState(vbucket_state_replica);
+    vbucket->setState(initialState);
 
     // Queue some Prepares into the PDM
     const auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
@@ -730,4 +748,12 @@ TEST_P(VBucketDurabilityTest, ConvertPassiveDMToActiveDM) {
         EXPECT_EQ(SWCompleteTrace(0 /*count*/, nullptr, ENGINE_EINVAL),
                   swCompleteTrace);
     }
+}
+
+TEST_P(VBucketDurabilityTest, Replica_ConvertPassiveDMToActiveDM) {
+    testConvertPassiveDMToActiveDM(vbucket_state_replica);
+}
+
+TEST_P(VBucketDurabilityTest, Pending_ConvertPassiveDMToActiveDM) {
+    testConvertPassiveDMToActiveDM(vbucket_state_pending);
 }

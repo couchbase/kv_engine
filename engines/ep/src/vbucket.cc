@@ -579,8 +579,8 @@ void VBucket::setupSyncReplication(
 
     // Then, initialize the DM and propagate the new topology if necessary
     if (state == vbucket_state_active) {
-        // @todo: Do the same for Pending->Active
-        if (prevVBState && prevVBState == vbucket_state_replica) {
+        if (prevVBState && (prevVBState == vbucket_state_replica ||
+                            prevVBState == vbucket_state_pending)) {
             durabilityMonitor = std::make_unique<ActiveDurabilityMonitor>(
                     std::move(dynamic_cast<PassiveDurabilityMonitor&>(
                             *durabilityMonitor)));
@@ -598,7 +598,8 @@ void VBucket::setupSyncReplication(
         if (!topology.is_null()) {
             getActiveDM().setReplicationTopology(*replicationTopology.rlock());
         }
-    } else if (state == vbucket_state_replica) {
+    } else if (state == vbucket_state_replica ||
+               state == vbucket_state_pending) {
         durabilityMonitor = std::make_unique<PassiveDurabilityMonitor>(*this);
     }
 }
@@ -609,7 +610,7 @@ ActiveDurabilityMonitor& VBucket::getActiveDM() {
 }
 
 PassiveDurabilityMonitor& VBucket::getPassiveDM() {
-    Expects(state == vbucket_state_replica);
+    Expects(state == vbucket_state_replica || state == vbucket_state_pending);
     return dynamic_cast<PassiveDurabilityMonitor&>(*durabilityMonitor);
 }
 
@@ -843,7 +844,7 @@ void VBucket::notifyClientOfSyncWriteComplete(const void* cookie,
 }
 
 void VBucket::sendSeqnoAck(int64_t seqno) {
-    Expects(state == vbucket_state_replica);
+    Expects(state == vbucket_state_replica || state == vbucket_state_pending);
     seqnoAckCb(getId(), seqno);
 }
 
@@ -1084,11 +1085,10 @@ VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
     if (item->isPending()) {
         // Register this mutation with the durability monitor.
         Expects(ctx.durability.is_initialized());
-        // @todo-durability: Add DurabilityMonitor support at vbstate Pending
-        // if necessary
         if (state == vbucket_state_active) {
             getActiveDM().addSyncWrite(ctx.durability->cookie, item);
-        } else if (state == vbucket_state_replica) {
+        } else if (state == vbucket_state_replica ||
+                   state == vbucket_state_pending) {
             getPassiveDM().addSyncWrite(item);
         }
     }

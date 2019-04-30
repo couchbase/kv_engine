@@ -80,6 +80,30 @@ protected:
      */
     void testAddPrepareAndCommit(const std::vector<SyncWriteSpec>& writes);
 
+    /**
+     * Tests that the Replication Topology is cleared when a VBucket transitions
+     * to the given state.
+     *
+     * @param state The new state for VBucket
+     */
+    void testSetVBucketState_ClearTopology(vbucket_state_t state);
+
+    /**
+     * Tests that the PassiveDM queues incoming Prepares correctly when the
+     * owning VBucket is in the given state.
+     *
+     * @param state The state for VBucket
+     */
+    void testAddPrepareInPassiveDM(vbucket_state_t state);
+
+    /**
+     * Tests that the PassiveDM is correctly converted to ActiveDM when a
+     * VBucket in the provided initial state transitions to vbstate-active.
+     *
+     * @param initialState The initial state for VBucket
+     */
+    void testConvertPassiveDMToActiveDM(vbucket_state_t initialState);
+
     // All owned by VBucket
     HashTable* ht;
     MockCheckpointManager* ckptMgr;
