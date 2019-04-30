@@ -25,12 +25,8 @@ class ActiveDurabilityMonitor;
 /*
  * VBucket unit tests related to durability.
  */
-class VBucketDurabilityTest : public ::testing::TestWithParam<EvictionPolicy>,
-                              public VBucketTestBase {
+class VBucketDurabilityTest : public VBucketTest {
 public:
-    VBucketDurabilityTest() : VBucketTestBase(VBType::Persistent, GetParam()) {
-    }
-
     void SetUp();
 
 protected:
@@ -118,6 +114,12 @@ protected:
     void testCompleteSWInPassiveDM(vbucket_state_t initialState,
                                    Resolution res);
 
+    /**
+     * Test a normal set followed by a pending SyncWrite; then committing the
+     * pending SyncWrite which should replace the previous committed.
+     */
+    void testHTCommitExisting();
+
     // All owned by VBucket
     HashTable* ht;
     MockCheckpointManager* ckptMgr;
@@ -127,3 +129,6 @@ protected:
     const std::string replica2 = "replica2";
     const std::string replica3 = "replica3";
 };
+
+class EPVBucketDurabilityTest : public VBucketDurabilityTest {};
+class EphemeralVBucketDurabilityTest : public VBucketDurabilityTest {};

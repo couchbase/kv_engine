@@ -392,16 +392,37 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
                                     const Item& itm,
                                     const VBQueueItemCtx& queueItmCtx,
                                     bool justTouch) {
+    // Don't make any update if we know that this is a pending sync write. We
+    // need to abort before we make any modification to the seqList.
+    if (v.isPending()) {
+        return std::make_tuple(
+                nullptr, MutationStatus::IsPendingSyncWrite, VBNotifyCtx{});
+    }
+
+    VBNotifyCtx notifyCtx;
+    StoredValue* newSv = nullptr;
+    MutationStatus status(MutationStatus::WasClean);
+
+    // If this is a new SyncWrite then we don't actually want to update an
+    // existing StoredValue, we just want to add the new pending. What about
+    // if we already have an existing (committed) pending I hear you ask? It
+    // should be stale and the StaleItemDeleter should remove it when it next
+    // runs. It has no affect on operations so we can ignore it. Do this before
+    // we take any locks as addNewStoredValue will attempt to acquire the same
+    // locks.
+    if (itm.isPending()) {
+        std::tie(newSv, notifyCtx) =
+                addNewStoredValue(hbl, itm, queueItmCtx, GenerateRevSeqno::No);
+        return {newSv, status, notifyCtx};
+    }
+
     std::lock_guard<std::mutex> lh(sequenceLock);
 
     const bool wasTemp = v.isTempItem();
     const bool oldValueDeleted = v.isDeleted();
     const bool recreatingDeletedItem = v.isDeleted() && !itm.isDeleted();
 
-    VBNotifyCtx notifyCtx;
-    StoredValue* newSv = nullptr;
     StoredValue::UniquePtr ownedSv;
-    MutationStatus status(MutationStatus::WasClean);
 
     {
         // Once we update the seqList, there is a short period where the
@@ -434,7 +455,7 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
                      marking stale because once marked stale list assumes the
                      ownership of the item and may delete it anytime. */
             /* Release current storedValue from hash table */
-            ownedSv = ht.unlocked_release(hbl, v.getKey());
+            ownedSv = ht.unlocked_release(hbl, &v);
 
             /* Add a new storedvalue for the item */
             newSv = ht.unlocked_addNewStoredValue(hbl, itm);
@@ -641,9 +662,74 @@ VBNotifyCtx EphemeralVBucket::commitStoredValue(
         HashTable::FindCommitResult& values,
         const VBQueueItemCtx& queueItmCtx,
         boost::optional<int64_t> commitSeqno) {
-    // @todo-durability: Implement this.
-    throw std::logic_error(
-            "EphemeralVBucket::commitStoredValue - not yet implemented");
+    if (!values.pending) {
+        throw std::invalid_argument(
+                "EphemeralVBucket::commitStoredValue: Cannot call on a "
+                "non-Pending StoredValue");
+    }
+
+    // Committing an item in an Ephemeral VBucket consists of:
+    // 1a. If an existing Committed exists, update that with the data from
+    //     the Prepare.
+    // 1b. If no existing Committed OSV, then create a new Committed and
+    // populate
+    //     with data from the Prepare.
+    // 2. Mark the Prepare as stale in the seqList and remove it from the
+    //    HashTable - this means that the key is no longer locked against
+    //    mutations (ESYNC_WRITE_IN_PROGRESS).
+
+    // Look for an existing Committed OSV under this key.
+    StoredValue* newCommitted;
+    VBNotifyCtx notifyCtx;
+    // Need an Item to hold the state to apply to the existing / new Committed
+    // OSV, so create one from the preparedSV.
+    // PERF: Would be faster if we didn't create a temporary Item just to
+    //       to the Committed OSV. Possible alternatives:
+    //       a) use the existing Prepared SV, or
+    //       b) pass down the Item which DurabilityMonitor already has - but
+    //          this complicates the VBucket API just for the Ephemeral case.
+
+    // While Item construction requires valid durability requirements for a
+    // pending_sync_write, the next line below we change the Item to Committed
+    // so just provide a dummy requirements.
+    auto dummyReqs =
+            cb::durability::Requirements(cb::durability::Level::Majority, {});
+    auto item = values.pending->toItem(getId(),
+                                       StoredValue::HideLockedCas::No,
+                                       StoredValue::IncludeValue::Yes,
+                                       dummyReqs);
+    item->setCommittedviaPrepareSyncWrite();
+    if (commitSeqno) {
+        item->setBySeqno(*commitSeqno);
+    }
+
+    if (values.committed) {
+        std::tie(newCommitted, std::ignore, notifyCtx) = updateStoredValue(
+                values.pending.getHBL(), *values.committed, *item, queueItmCtx);
+        Expects(newCommitted);
+    } else {
+        std::tie(newCommitted, notifyCtx) =
+                addNewStoredValue(values.pending.getHBL(),
+                                  *item,
+                                  queueItmCtx,
+                                  GenerateRevSeqno::No);
+    }
+
+    // Set the OSV to stale so that we can:
+    // a) Allow the StaleItemPurger to delete the item
+    // b) Ensure that we delete the OSV on destruction of the seqList as it does
+    //    not exist in the HashTable
+    std::lock_guard<std::mutex> listWriteLg(seqList->getListWriteLock());
+    // Remove the prepare from the hash table so that we can now allow mutations
+    // against the same key
+    auto release = ht.unlocked_release(values.pending.getHBL(),
+                                       values.pending.getSV());
+    seqList->markItemStale(listWriteLg, std::move(release), nullptr);
+    // Manually release this ptr (not reset) as we don't want to destruct the
+    // item in the seqList.
+    release.release();
+
+    return notifyCtx;
 }
 
 VBNotifyCtx EphemeralVBucket::abortStoredValue(

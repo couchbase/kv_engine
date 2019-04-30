@@ -318,9 +318,9 @@ private:
     bool isValidDurabilityLevel(cb::durability::Level level) override;
 
     /**
-     * (i) Updates an already non-temp element in the sequence list (OR)
+     * (i) Repositions an already non-temp element in the sequence list (OR)
      * (ii) For a temp item that is being updated (that is, being made non-temp
-     *      by an update), appends it to the sequence list
+     *      by an update), appends it to the sequence list.
      *
      * @param seqLock A sequence lock the calling module is expected to hold.
      * @param writeLock Write lock of the sequenceList from getListWriteLock()
