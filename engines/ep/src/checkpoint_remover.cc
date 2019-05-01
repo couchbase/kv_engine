@@ -28,7 +28,8 @@
 #include <phosphor/phosphor.h>
 #include <memory>
 
-void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
+std::pair<bool, size_t>
+ClosedUnrefCheckpointRemoverTask::isCursorDroppingNeeded() const {
     /**
      * Cursor dropping will commence if one of the following conditions is met:
      * 1. if the total memory used is greater than the upper threshold which is
@@ -50,8 +51,8 @@ void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
                     .getActiveVBucketsTotalCheckpointMemoryUsage();
 
     const auto chkptMemLimit =
-            bucketQuota *
-            (config.getCursorDroppingCheckpointMemUpperMark() / 100);
+            (bucketQuota * config.getCursorDroppingCheckpointMemUpperMark()) /
+            100;
 
     const bool hitCheckpointMemoryThreshold =
             activeVBChkptMemSize >= chkptMemLimit;
@@ -78,8 +79,9 @@ void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
             // memory usage threshold.
             amountOfMemoryToClear =
                     stats.getEstimatedTotalMemoryUsed() -
-                    (bucketQuota *
-                     (config.getCursorDroppingCheckpointMemLowerMark() / 100));
+                    ((bucketQuota *
+                      config.getCursorDroppingCheckpointMemLowerMark()) /
+                     100);
             EP_LOG_INFO(
                     "Triggering cursor dropping as checkpoint_memory ({} MB) "
                     "exceeds cursor_dropping_checkpoint_mem_upper_mark ({}%, "
@@ -101,41 +103,47 @@ void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
                     toMB(stats.cursorDroppingUThreshold.load()),
                     toMB(amountOfMemoryToClear));
         }
+        // Cursor dropping is required.
+        return std::make_pair(true, amountOfMemoryToClear);
+    }
+    // Cursor dropping is not required.
+    return std::make_pair(false, 0);
+}
 
-        size_t memoryCleared = 0;
-        KVBucketIface* kvBucket = engine->getKVBucket();
-        // Get a list of active vbuckets sorted by memory usage
-        // of their respective checkpoint managers.
-        auto vbuckets =
-                   kvBucket->getVBuckets().getActiveVBucketsSortedByChkMgrMem();
-        for (const auto& it: vbuckets) {
-            if (memoryCleared < amountOfMemoryToClear) {
-                Vbid vbid = it.first;
-                VBucketPtr vb = kvBucket->getVBucket(vbid);
-                if (vb) {
-                    // Get a list of cursors that can be dropped from the
-                    // vbucket's checkpoint manager, so as to unreference
-                    // an estimated number of checkpoints.
-                    auto cursors =
-                            vb->checkpointManager->getListOfCursorsToDrop();
-                    for (const auto& cursor : cursors) {
-                        if (memoryCleared < amountOfMemoryToClear) {
-                            if (engine->getDcpConnMap().handleSlowStream(
-                                        vbid, cursor.lock().get())) {
-                                auto memoryFreed =
-                                        vb->getChkMgrMemUsageOfUnrefCheckpoints();
-                                ++stats.cursorsDropped;
-                                stats.cursorMemoryFreed += memoryFreed;
-                                memoryCleared += memoryFreed;
-                            }
-                        } else {
-                            break;
+void ClosedUnrefCheckpointRemoverTask::attemptCursorDropping(
+        size_t amountOfMemoryToClear) {
+    size_t memoryCleared = 0;
+    KVBucketIface* kvBucket = engine->getKVBucket();
+    // Get a list of active vbuckets sorted by memory usage
+    // of their respective checkpoint managers.
+    auto vbuckets =
+            kvBucket->getVBuckets().getActiveVBucketsSortedByChkMgrMem();
+    for (const auto& it : vbuckets) {
+        if (memoryCleared < amountOfMemoryToClear) {
+            Vbid vbid = it.first;
+            VBucketPtr vb = kvBucket->getVBucket(vbid);
+            if (vb) {
+                // Get a list of cursors that can be dropped from the
+                // vbucket's checkpoint manager, so as to unreference
+                // an estimated number of checkpoints.
+                auto cursors = vb->checkpointManager->getListOfCursorsToDrop();
+                for (const auto& cursor : cursors) {
+                    if (memoryCleared < amountOfMemoryToClear) {
+                        if (engine->getDcpConnMap().handleSlowStream(
+                                    vbid, cursor.lock().get())) {
+                            auto memoryFreed =
+                                    vb->getChkMgrMemUsageOfUnrefCheckpoints();
+                            ++stats.cursorsDropped;
+                            stats.cursorMemoryFreed += memoryFreed;
+                            memoryCleared += memoryFreed;
                         }
+                    } else {
+                        break;
                     }
                 }
-            } else {    // memoryCleared >= amountOfMemoryToClear
-                break;
             }
+        } else { // memoryCleared >= amountOfMemoryToClear
+            break;
         }
     }
 }
@@ -144,7 +152,13 @@ bool ClosedUnrefCheckpointRemoverTask::run(void) {
     TRACE_EVENT0("ep-engine/task", "ClosedUnrefCheckpointRemoverTask");
     bool inverse = true;
     if (available.compare_exchange_strong(inverse, false)) {
-        cursorDroppingIfNeeded();
+        bool shouldTriggerCursorDropping{false};
+        size_t amountOMemoryToClear{0};
+        std::tie(shouldTriggerCursorDropping, amountOMemoryToClear) =
+                isCursorDroppingNeeded();
+        if (shouldTriggerCursorDropping) {
+            attemptCursorDropping(amountOMemoryToClear);
+        }
         KVBucketIface* kvBucket = engine->getKVBucket();
 
         auto expelItems = engine->getConfiguration().isChkExpelEnabled()

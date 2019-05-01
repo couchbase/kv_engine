@@ -38,7 +38,7 @@ public:
         GlobalTask(e, TaskId::ClosedUnrefCheckpointRemoverTask, interval, false),
         engine(e), stats(st), sleepTime(interval), available(true) {}
 
-    void cursorDroppingIfNeeded(void);
+    void attemptCursorDropping(size_t amountOfMemoryToClear);
 
     bool run(void);
 
@@ -51,6 +51,8 @@ public:
         // under 250ms 99.99999% of the time.
         return std::chrono::milliseconds(250);
     }
+
+    std::pair<bool, size_t> isCursorDroppingNeeded() const;
 
 private:
     EventuallyPersistentEngine *engine;
