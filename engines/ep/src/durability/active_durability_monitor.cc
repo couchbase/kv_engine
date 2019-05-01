@@ -91,12 +91,11 @@ int64_t ActiveDurabilityMonitor::getHighPreparedSeqno() const {
 
 bool ActiveDurabilityMonitor::isDurabilityPossible() const {
     const auto s = state.rlock();
-    // @todo: Requirements must be possible for all chains, add check for
-    //     SecondChain when it is implemented
-    if (!(s->firstChain && s->firstChain->isDurabilityPossible())) {
-        return false;
-    }
-    return true;
+    // Durability is only possible if we have a first chain for which
+    // durability is possible. If we have a second chain, durability must also
+    // be possible for that chain.
+    return s->firstChain && s->firstChain->isDurabilityPossible() &&
+           (!s->secondChain || s->secondChain->isDurabilityPossible());
 }
 
 void ActiveDurabilityMonitor::addSyncWrite(const void* cookie,
@@ -279,26 +278,100 @@ uint8_t ActiveDurabilityMonitor::getFirstChainSize() const {
     return s->firstChain ? s->firstChain->positions.size() : 0;
 }
 
+uint8_t ActiveDurabilityMonitor::getSecondChainSize() const {
+    const auto s = state.rlock();
+    return s->secondChain ? s->secondChain->positions.size() : 0;
+}
+
 uint8_t ActiveDurabilityMonitor::getFirstChainMajority() const {
     const auto s = state.rlock();
     return s->firstChain ? s->firstChain->majority : 0;
 }
 
+uint8_t ActiveDurabilityMonitor::getSecondChainMajority() const {
+    const auto s = state.rlock();
+    return s->secondChain ? s->secondChain->majority : 0;
+}
+
 ActiveDurabilityMonitor::Container::iterator
 ActiveDurabilityMonitor::State::getNodeNext(const std::string& node) {
     Expects(firstChain.get());
-    const auto& it = firstChain->positions.at(node).it;
     // Note: Container::end could be the new position when the pointed SyncWrite
     //     is removed from Container and the iterator repositioned.
     //     In that case next=Container::begin
-    return (it == trackedWrites.end()) ? trackedWrites.begin() : std::next(it);
+    auto firstChainItr = firstChain->positions.find(node);
+    if (firstChainItr != firstChain->positions.end()) {
+        const auto& it = firstChainItr->second.it;
+        return (it == trackedWrites.end()) ? trackedWrites.begin()
+                                           : std::next(it);
+    }
+
+    if (secondChain) {
+        auto secondChainItr = secondChain->positions.find(node);
+        if (secondChainItr != secondChain->positions.end()) {
+            const auto& it = secondChainItr->second.it;
+            return (it == trackedWrites.end()) ? trackedWrites.begin()
+                                               : std::next(it);
+        }
+    }
+
+    // Node not found, return the trackedWrites.end(), stl style.
+    return trackedWrites.end();
 }
 
-void ActiveDurabilityMonitor::State::advanceNodePosition(
-        const std::string& node) {
+ActiveDurabilityMonitor::Container::iterator
+ActiveDurabilityMonitor::State::advanceNodePosition(const std::string& node) {
+    // We must have at least a firstChain
     Expects(firstChain.get());
-    auto& pos = const_cast<Position&>(firstChain->positions.at(node));
 
+    // But the node may not be in it if we have a secondChain
+    auto firstChainItr = firstChain->positions.find(node);
+    auto firstChainFound = firstChainItr != firstChain->positions.end();
+    if (!firstChainFound && !secondChain) {
+        // Attempting to advance for a node we don't know about, panic
+        throw std::logic_error(
+                "ActiveDurabilityMonitor::State::advanceNodePosition: "
+                "Attempting to advance positions for an invalid node " +
+                node);
+    }
+
+    std::unordered_map<std::string, Position>::iterator secondChainItr;
+    auto secondChainFound = false;
+    if (secondChain) {
+        secondChainItr = secondChain->positions.find(node);
+        secondChainFound = secondChainItr != secondChain->positions.end();
+        if (!firstChainFound && !secondChainFound) {
+            throw std::logic_error(
+                    "ActiveDurabilityMonitor::State::advanceNodePosition "
+                    "Attempting to advance positions for an invalid node " +
+                    node + ". Node is not in firstChain or secondChain");
+        }
+    }
+
+    // Node may be in both chains (or only one) so we need to advance only the
+    // correct chain.
+    if (firstChainFound) {
+        auto& pos = const_cast<Position&>(firstChainItr->second);
+        // We only ack if we do not have this node in the secondChain because
+        // we only want to ack once
+        advanceAndAckForPosition(pos, node, !secondChainFound /*should ack*/);
+        if (!secondChainFound) {
+            return pos.it;
+        }
+    }
+
+    if (secondChainFound) {
+        // Update second chain itr
+        auto& pos = const_cast<Position&>(secondChainItr->second);
+        advanceAndAckForPosition(pos, node, true /* should ack*/);
+        return pos.it;
+    }
+
+    folly::assume_unreachable();
+}
+
+void ActiveDurabilityMonitor::State::advanceAndAckForPosition(
+        Position& pos, const std::string& node, bool shouldAck) {
     if (pos.it == trackedWrites.end()) {
         pos.it = trackedWrites.begin();
     } else {
@@ -313,14 +386,38 @@ void ActiveDurabilityMonitor::State::advanceNodePosition(
     pos.lastWriteSeqno = pos.it->getBySeqno();
 
     // Update the SyncWrite ack-counters, necessary for DurReqs verification
-    pos.it->ack(node);
+    if (shouldAck) {
+        pos.it->ack(node);
+    }
 }
 
 void ActiveDurabilityMonitor::State::updateNodeAck(const std::string& node,
                                                    int64_t seqno) {
+    // We must have at least a firstChain
     Expects(firstChain.get());
-    auto& pos = const_cast<Position&>(firstChain->positions.at(node));
-    pos.lastAckSeqno = seqno;
+
+    // But the node may not be in it.
+    auto firstChainItr = firstChain->positions.find(node);
+    auto firstChainFound = firstChainItr != firstChain->positions.end();
+    if (firstChainFound) {
+        auto& firstChainPos = const_cast<Position&>(firstChainItr->second);
+        firstChainPos.lastAckSeqno = seqno;
+    }
+
+    if (secondChain) {
+        auto secondChainItr = secondChain->positions.find(node);
+        if (secondChainItr != secondChain->positions.end()) {
+            auto& secondChainPos =
+                    const_cast<Position&>(secondChainItr->second);
+            secondChainPos.lastAckSeqno = seqno;
+        }
+    }
+
+    // Just drop out of here if we don't find the node. We could be receiving an
+    // ack from a new replica that is not yet in the second chain. We don't want
+    // to make each sync write wait on a vBucket being (almost) fully
+    // transferred during a rebalance so ns_server deal with these by waiting
+    // for seqno persistence on the new replica.
 }
 
 int64_t ActiveDurabilityMonitor::getNodeWriteSeqno(
@@ -341,13 +438,43 @@ const std::string& ActiveDurabilityMonitor::State::getActive() const {
 int64_t ActiveDurabilityMonitor::State::getNodeWriteSeqno(
         const std::string& node) const {
     Expects(firstChain.get());
-    return firstChain->positions.at(node).lastWriteSeqno;
+    auto firstChainItr = firstChain->positions.find(node);
+    if (firstChainItr != firstChain->positions.end()) {
+        return firstChainItr->second.lastWriteSeqno;
+    }
+
+    if (secondChain) {
+        auto secondChainItr = secondChain->positions.find(node);
+        if (secondChainItr != secondChain->positions.end()) {
+            return secondChainItr->second.lastWriteSeqno;
+        }
+    }
+
+    throw std::invalid_argument(
+            "ActiveDurabilityMonitor::State::getNodeWriteSeqno: "
+            "Node " +
+            node + " not found");
 }
 
 int64_t ActiveDurabilityMonitor::State::getNodeAckSeqno(
         const std::string& node) const {
     Expects(firstChain.get());
-    return firstChain->positions.at(node).lastAckSeqno;
+    auto firstChainItr = firstChain->positions.find(node);
+    if (firstChainItr != firstChain->positions.end()) {
+        return firstChainItr->second.lastAckSeqno;
+    }
+
+    if (secondChain) {
+        auto secondChainItr = secondChain->positions.find(node);
+        if (secondChainItr != secondChain->positions.end()) {
+            return secondChainItr->second.lastAckSeqno;
+        }
+    }
+
+    throw std::invalid_argument(
+            "ActiveDurabilityMonitor::State::getNodeAckSeqno: "
+            "Node " +
+            node + " not found");
 }
 
 ActiveDurabilityMonitor::Container
@@ -378,6 +505,15 @@ ActiveDurabilityMonitor::State::removeSyncWrite(Container::iterator it) {
         const auto& nodePos = entry.second;
         if (nodePos.it == it) {
             const_cast<Position&>(nodePos).it = prev;
+        }
+    }
+
+    if (secondChain) {
+        for (const auto& entry : secondChain->positions) {
+            const auto& nodePos = entry.second;
+            if (nodePos.it == it) {
+                const_cast<Position&>(nodePos).it = prev;
+            }
         }
     }
 
@@ -431,13 +567,11 @@ void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
     while ((next = getNodeNext(node)) != trackedWrites.end() &&
            next->getBySeqno() <= seqno) {
         // Update replica tracking
-        advanceNodePosition(node);
-
-        const auto& pos = firstChain->positions.at(node);
+        const auto& posIt = advanceNodePosition(node);
 
         // Check if Durability Requirements satisfied now, and add for commit
-        if (pos.it->isSatisfied()) {
-            auto removed = removeSyncWrite(pos.it);
+        if (posIt->isSatisfied()) {
+            auto removed = removeSyncWrite(posIt);
             toCommit.splice(toCommit.end(), removed);
         }
     }

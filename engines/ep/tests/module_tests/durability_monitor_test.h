@@ -188,12 +188,19 @@ protected:
      * @param expectedFirstChainMajority The expected Majority for first-chain.
      *     Note that the computation of Majority accounts for both defined and
      *     undefined nodes in chain.
+     * @param expectedSecondChainSize The expected number of defined nodes in
+     *     second-chain
+     * @param expectedFirstChainMajority The expected Majority for second-chain.
+     *     Note that the computation of Majority accounts for both defined and
+     *     undefined nodes in chain.
      * @return true if durability is possible, false otherwise
      */
     bool testDurabilityPossible(const nlohmann::json::array_t& topology,
                                 queued_item& item,
                                 uint8_t expectedFirstChainSize,
-                                uint8_t expectedFirstChainMajority);
+                                uint8_t expectedFirstChainMajority,
+                                uint8_t expectedSecondChainSize = 0,
+                                uint8_t expectedSecondChainMajority = 0);
 
     /**
      * Check that the expected chain empty exception is thrown for the given
@@ -323,10 +330,27 @@ protected:
     void testSeqnoAckMajorityAndPersistOnMaster(
             const std::vector<std::string>& nodesToAck);
 
+    /**
+     * Check that seqnoAckReceived does not throw and that a SyncWrite is not
+     * committed when an unknown node acks. This is a valid case during
+     * rebalance. Ns_server only sets the secondChain when a new replica has
+     * caught up to the active so that SyncWrites are not blocked by rebalance
+     * progress.
+     *
+     * @param nodeToAck the unknown node we should ack
+     * @param unchangedNodes list of nodes that should remain unchanged
+     */
+    void testSeqnoAckUnknownNode(
+            const std::string& nodeToAck,
+            const std::vector<std::string>& unchangedNodes);
+
     const std::string active = "active";
     const std::string replica1 = "replica1";
     const std::string replica2 = "replica2";
     const std::string replica3 = "replica3";
+    const std::string replica4 = "replica4";
+    const std::string replica5 = "replica5";
+    const std::string replica6 = "replica6";
 };
 
 /*

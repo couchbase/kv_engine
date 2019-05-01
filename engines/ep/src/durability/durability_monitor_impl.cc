@@ -65,12 +65,24 @@ void DurabilityMonitor::SyncWrite::ack(const std::string& node) {
                 "SyncWrite::ack: Acking without a ReplicationChain");
     }
 
-    if (firstChain.chainPtr->positions.find(node) ==
+    // The node to ack may be in the firstChain, secondChain, or both, but we
+    // don't know which.
+    bool acked = false;
+    if (firstChain.chainPtr->positions.find(node) !=
         firstChain.chainPtr->positions.end()) {
-        throw std::logic_error("SyncWrite::ack: Node not valid: " + node);
+        firstChain.ackCount++;
+        acked = true;
     }
 
-    firstChain.ackCount++;
+    if (secondChain && secondChain.chainPtr->positions.find(node) !=
+                               secondChain.chainPtr->positions.end()) {
+        secondChain.ackCount++;
+        acked = true;
+    }
+
+    if (!acked) {
+        throw std::logic_error("SyncWrite::ack: Node not valid: " + node);
+    }
 }
 
 bool DurabilityMonitor::SyncWrite::isSatisfied() const {
@@ -83,15 +95,28 @@ bool DurabilityMonitor::SyncWrite::isSatisfied() const {
 
     bool ret{false};
 
+    auto firstChainSatisfied =
+            firstChain.ackCount >= firstChain.chainPtr->majority;
+    auto firstChainActiveSatisfied = firstChain.chainPtr->hasAcked(
+            firstChain.chainPtr->active, this->getBySeqno());
+    auto secondChainSatisfied =
+            !secondChain ||
+            secondChain.ackCount >= secondChain.chainPtr->majority;
+    auto secondChainActiveSatisfied =
+            !secondChain ||
+            (secondChain.chainPtr->active == firstChain.chainPtr->active ||
+             secondChain.chainPtr->hasAcked(secondChain.chainPtr->active,
+                                            this->getBySeqno()));
+
     switch (getDurabilityReqs().getLevel()) {
     case cb::durability::Level::Majority:
-        ret = firstChain.ackCount >= firstChain.chainPtr->majority;
+        ret = firstChainSatisfied && secondChainSatisfied &&
+              secondChainActiveSatisfied;
         break;
     case cb::durability::Level::PersistToMajority:
     case cb::durability::Level::MajorityAndPersistOnMaster:
-        ret = firstChain.ackCount >= firstChain.chainPtr->majority &&
-              firstChain.chainPtr->hasAcked(firstChain.chainPtr->active,
-                                            this->getBySeqno());
+        ret = firstChainSatisfied && firstChainActiveSatisfied &&
+              secondChainSatisfied && secondChainActiveSatisfied;
         break;
     case cb::durability::Level::None:
         throw std::logic_error("SyncWrite::isSatisfied: Level::None");

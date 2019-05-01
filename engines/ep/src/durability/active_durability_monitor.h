@@ -122,9 +122,19 @@ public:
     uint8_t getFirstChainSize() const;
 
     /**
+     * @return the size of SecondChain
+     */
+    uint8_t getSecondChainSize() const;
+
+    /**
      * @return the FirstChain Majority
      */
     uint8_t getFirstChainMajority() const;
+
+    /**
+     * @return the SecondChain Majority
+     */
+    uint8_t getSecondChainMajority() const;
 
     /**
      * Returns the seqno of the SyncWrites currently pointed by the
@@ -243,7 +253,8 @@ protected:
          * Returns the next position for a node iterator.
          *
          * @param node
-         * @return the iterator to the next position for the given node
+         * @return the iterator to the next position for the given node. Returns
+         *         trackedWrites.end() if the node is not found.
          */
         Container::iterator getNodeNext(const std::string& node);
 
@@ -252,15 +263,24 @@ protected:
          * Container. Note that a Position tracks a node in terms of both:
          * - iterator to a SyncWrite in the tracked Container
          * - seqno of the last SyncWrite ack'ed by the node
-         * This function advances both iterator and seqno.
          *
-         * @param node
+         * @param node the node to advance
+         * @return an iterator to the new position (tracked SyncWrite) of the
+         *         given node.
+         * @throws std::logic_error if the node is not found
          */
-        void advanceNodePosition(const std::string& node);
+        Container::iterator advanceNodePosition(const std::string& node);
 
         /**
          * This function updates the tracking with the last seqno ack'ed by
          * node.
+         *
+         * Does nothing if the node is not found. This may be the case
+         * during a rebalance when a new replica is acking sync writes but we do
+         * not yet have a second chain because ns_server is waiting for
+         * persistence to allow sync writes to be transferred the the replica
+         * asynchronously. When the new replica catches up to the active,
+         * ns_server will give us a second chain.
          *
          * @param node
          * @param seqno New ack seqno
@@ -332,6 +352,22 @@ protected:
          */
         Container updateHighPreparedSeqno();
 
+    private:
+        /**
+         * Advance the current Position (iterator and seqno).
+         *
+         * @param pos the current Position of the node
+         * @param node the node to advance (used to update the SyncWrite if
+         *        acking)
+         * @param shouldAck should we call SyncWrite->ack() on this node?
+         *        Optional as we want to avoid acking a SyncWrite twice if a
+         *        node exists in both the first and second chain.
+         */
+        void advanceAndAckForPosition(Position& pos,
+                                      const std::string& node,
+                                      bool shouldAck);
+
+    public:
         /// The container of pending Prepares.
         Container trackedWrites;
 

@@ -149,7 +149,9 @@ bool ActiveDurabilityMonitorTest::testDurabilityPossible(
         const nlohmann::json::array_t& topology,
         queued_item& item,
         uint8_t expectedFirstChainSize,
-        uint8_t expectedFirstChainMajority) {
+        uint8_t expectedFirstChainMajority,
+        uint8_t expectedSecondChainSize,
+        uint8_t expectedSecondChainMajority) {
     auto& adm = getActiveDM();
     auto expectAddSyncWriteImpossible = [&adm, &item]() -> void {
         try {
@@ -165,8 +167,11 @@ bool ActiveDurabilityMonitorTest::testDurabilityPossible(
     adm.setReplicationTopology(topology);
     EXPECT_EQ(expectedFirstChainSize, adm.getFirstChainSize());
     EXPECT_EQ(expectedFirstChainMajority, adm.getFirstChainMajority());
+    EXPECT_EQ(expectedSecondChainSize, adm.getSecondChainSize());
+    EXPECT_EQ(expectedSecondChainMajority, adm.getSecondChainMajority());
 
-    if (expectedFirstChainSize < expectedFirstChainMajority) {
+    if (expectedFirstChainSize < expectedFirstChainMajority ||
+        expectedSecondChainSize < expectedSecondChainMajority) {
         expectAddSyncWriteImpossible();
         EXPECT_EQ(0, monitor->getNumTracked());
         return false;
@@ -558,16 +563,71 @@ void ActiveDurabilityMonitorTest::testSeqnoAckMajorityAndPersistOnMaster(
                  0 /*expectedLastAckSeqno*/);
 }
 
+void ActiveDurabilityMonitorTest::testSeqnoAckUnknownNode(
+        const std::string& nodeToAck,
+        const std::vector<std::string>& unchangedNodes) {
+    DurabilityMonitorTest::addSyncWrite(1);
+    ASSERT_EQ(1, monitor->getNumTracked());
+    {
+        SCOPED_TRACE("");
+        assertNodeTracking(active, 1 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+    // Nothing ack'ed yet
+    for (const auto& node : unchangedNodes) {
+        SCOPED_TRACE("");
+        assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+
+    EXPECT_NO_THROW(getActiveDM().seqnoAckReceived(nodeToAck, 1));
+
+    {
+        SCOPED_TRACE("");
+        assertNodeTracking(active, 1 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+    // Nothing ack'ed yet
+    for (const auto& node : unchangedNodes) {
+        SCOPED_TRACE("");
+        assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+    EXPECT_EQ(1, monitor->getNumTracked());
+}
+
 TEST_P(ActiveDurabilityMonitorTest, AddSyncWrite) {
     EXPECT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
+}
+
+TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceivedUnknownNode) {
+    testSeqnoAckUnknownNode(replica2, {replica1});
+}
+
+TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceivedUnknownNodeTwoChains) {
+    getActiveDM().setReplicationTopology(
+            nlohmann::json::array({{active, replica1}, {active, replica2}}));
+    testSeqnoAckUnknownNode(replica3, {replica1, replica2});
 }
 
 TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceivedSmallerThanLastAcked) {
     testSeqnoAckSmallerThanLastAck();
 }
 
+TEST_P(ActiveDurabilityMonitorTest,
+       SeqnoAckReceivedSmallerThanLastAckedSecondChain) {
+    getActiveDM().setReplicationTopology({{active}, {active, replica1}});
+    testSeqnoAckSmallerThanLastAck();
+}
+
 TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceivedEqualPending) {
     testSeqnoAckEqualToPending(std::vector<std::string>{replica1});
+}
+
+TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceivedEqualPendingTwoChains) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1}, {active, replica2}}));
+    ASSERT_EQ(2, adm.getFirstChainSize());
+    ASSERT_EQ(2, adm.getSecondChainSize());
+
+    testSeqnoAckEqualToPending(std::vector<std::string>{replica1, replica2});
 }
 
 TEST_P(ActiveDurabilityMonitorTest,
@@ -576,8 +636,30 @@ TEST_P(ActiveDurabilityMonitorTest,
 }
 
 TEST_P(ActiveDurabilityMonitorTest,
+       SeqnoAckReceivedGreaterThanPending_ContinuousSeqnosTwoChains) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1}, {active, replica2}}));
+    ASSERT_EQ(2, adm.getFirstChainSize());
+    ASSERT_EQ(2, adm.getSecondChainSize());
+
+    testSeqnoAckGreaterThanPendingContinuousSeqnos({replica1, replica2});
+}
+
+TEST_P(ActiveDurabilityMonitorTest,
        SeqnoAckReceivedGreaterThanPending_SparseSeqnos) {
     testSeqnoAckGreaterThanPendingSparseSeqnos({replica1});
+}
+
+TEST_P(ActiveDurabilityMonitorTest,
+       SeqnoAckReceivedGreaterThanPending_SparseSeqnosTwoChains) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1}, {active, replica2}}));
+    ASSERT_EQ(2, adm.getFirstChainSize());
+    ASSERT_EQ(2, adm.getSecondChainSize());
+
+    testSeqnoAckGreaterThanPendingSparseSeqnos({replica1, replica2});
 }
 
 TEST_P(ActiveDurabilityMonitorTest,
@@ -586,13 +668,81 @@ TEST_P(ActiveDurabilityMonitorTest,
 }
 
 TEST_P(ActiveDurabilityMonitorTest,
+       SeqnoAckReceivedGreaterThanLastTracked_ContinuousSeqnosTwoChains) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1}, {active, replica2}}));
+    ASSERT_EQ(2, adm.getFirstChainSize());
+    ASSERT_EQ(2, adm.getSecondChainSize());
+
+    testSeqnoAckGreaterThanLastTrackedContinuousSeqnos({replica1, replica2});
+}
+
+TEST_P(ActiveDurabilityMonitorTest,
        SeqnoAckReceivedGreaterThanLastTracked_SparseSeqnos) {
     testSeqnoAckGreaterThanLastTrackedSparseSeqnos({replica1});
+}
+
+TEST_P(ActiveDurabilityMonitorTest,
+       SeqnoAckReceivedGreaterThanLastTracked_SparseSeqnosTwoChains) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1}, {active, replica2}}));
+    ASSERT_EQ(2, adm.getFirstChainSize());
+    ASSERT_EQ(2, adm.getSecondChainSize());
+
+    testSeqnoAckGreaterThanLastTrackedSparseSeqnos({replica1, replica2});
+}
+
+TEST_P(ActiveDurabilityMonitorTest,
+       SeqnoAckReceived_PersistToSecondChainNewActive) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1}, {replica2, replica1}}));
+    ASSERT_EQ(2, adm.getFirstChainSize());
+    ASSERT_EQ(2, adm.getSecondChainSize());
+
+    DurabilityMonitorTest::addSyncWrites({1, 3, 5} /*seqnos*/);
+    EXPECT_EQ(3, monitor->getNumTracked());
+    {
+        SCOPED_TRACE("");
+        assertNodeTracking(active, 5 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        assertNodeTracking(replica2, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+
+    const int64_t ackSeqno = 10;
+
+    SCOPED_TRACE("");
+    // active has already acked, replica 1 now acks which gives us majority on
+    // both fist and second chain. However, we still need the ack from our new
+    // active (replica2)
+    testSeqnoAckReceived(replica1,
+                         ackSeqno /*ackSeqno*/,
+                         3 /*expectedNumTracked*/,
+                         5 /*expectedLastWriteSeqno*/,
+                         ackSeqno /*expectedLastAckSeqno*/);
+    testSeqnoAckReceived(replica2,
+                         ackSeqno /*ackSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         5 /*expectedLastWriteSeqno*/,
+                         ackSeqno /*expectedLastAckSeqno*/);
 }
 
 // @todo: Refactor test suite and expand test cases
 TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceived_PersistToMajority) {
     testSeqnoAckPersistToMajority({replica1});
+}
+
+TEST_P(ActiveDurabilityMonitorTest,
+       SeqnoAckReceived_PersistToMajorityTwoChains) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1}, {active, replica2}}));
+    ASSERT_EQ(2, adm.getFirstChainSize());
+    ASSERT_EQ(2, adm.getSecondChainSize());
+
+    testSeqnoAckPersistToMajority({replica1, replica2});
 }
 
 TEST_P(ActiveDurabilityMonitorTest, SetTopology_NotAnArray) {
@@ -686,6 +836,30 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {
     ASSERT_EQ(4, adm.getFirstChainSize());
 
     testSeqnoAckMultipleReplicas({replica2, replica3}, {replica1});
+}
+
+TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceived_MultipleReplicaTwoChains) {
+    auto& adm = getActiveDM();
+    ASSERT_NO_THROW(adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2, replica3},
+                                   {active, replica1, replica2, replica4}})));
+    ASSERT_EQ(4, adm.getFirstChainSize());
+    ASSERT_EQ(4, adm.getSecondChainSize());
+
+    testSeqnoAckMultipleReplicas({replica2, replica3, replica4}, {replica1});
+}
+
+TEST_P(ActiveDurabilityMonitorTest,
+       SeqnoAckReceived_MultipleReplicaTwoChainsDisjoint) {
+    auto& adm = getActiveDM();
+    ASSERT_NO_THROW(adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2, replica3},
+                                   {active, replica4, replica5, replica6}})));
+    ASSERT_EQ(4, adm.getFirstChainSize());
+    ASSERT_EQ(4, adm.getSecondChainSize());
+
+    testSeqnoAckMultipleReplicas({replica2, replica3, replica4, replica5},
+                                 {replica1, replica6});
 }
 
 TEST_P(ActiveDurabilityMonitorTest, NeverExpireIfTimeoutNotSet) {
@@ -809,6 +983,16 @@ TEST_P(ActiveDurabilityMonitorTest, MajorityAndPersistOnMaster) {
     testSeqnoAckMajorityAndPersistOnMaster({replica1});
 }
 
+TEST_P(ActiveDurabilityMonitorTest, MajorityAndPersistOnMasterTwoChains) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1}, {active, replica2}}));
+    ASSERT_EQ(2, adm.getFirstChainSize());
+    ASSERT_EQ(2, adm.getSecondChainSize());
+
+    testSeqnoAckMajorityAndPersistOnMaster({replica1, replica2});
+}
+
 TEST_P(ActiveDurabilityMonitorTest, PersistToMajority_EnsurePersistAtActive) {
     auto& adm = getActiveDM();
     ASSERT_NO_THROW(adm.setReplicationTopology(
@@ -816,6 +1000,17 @@ TEST_P(ActiveDurabilityMonitorTest, PersistToMajority_EnsurePersistAtActive) {
     ASSERT_EQ(3, adm.getFirstChainSize());
 
     testSeqnoAckPersistToMajority({replica1, replica2});
+}
+
+TEST_P(ActiveDurabilityMonitorTest,
+       PersistToMajority_EnsurePersistAtActiveTwoChains) {
+    auto& adm = getActiveDM();
+    ASSERT_NO_THROW(adm.setReplicationTopology(nlohmann::json::array(
+            {{active, replica1, replica2}, {active, replica3, replica4}})));
+    ASSERT_EQ(3, adm.getFirstChainSize());
+    ASSERT_EQ(3, adm.getSecondChainSize());
+
+    testSeqnoAckPersistToMajority({replica1, replica2, replica3, replica4});
 }
 
 /*
@@ -847,6 +1042,24 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_NoReplica) {
     }
 }
 
+TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_NoReplica) {
+    auto item = makePendingItem(
+            makeStoredDocKey("key"),
+            "value",
+            cb::durability::Requirements(
+                    cb::durability::Level::PersistToMajority, 0 /*timeout*/));
+    item->setBySeqno(1);
+    {
+        SCOPED_TRACE("");
+        EXPECT_TRUE(testDurabilityPossible({{active}, {replica1}},
+                                           item,
+                                           1 /*expectedFirstChainSize*/,
+                                           1 /*expectedFirstChainMajority*/,
+                                           1 /*expectedSecondChainSize*/,
+                                           1 /*expectedSecondChainMajority*/));
+    }
+}
+
 TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_1Replica) {
     auto item = makePendingItem(makeStoredDocKey("key"), "value");
 
@@ -866,6 +1079,45 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_1Replica) {
                                             item,
                                             1 /*expectedFirstChainSize*/,
                                             2 /*expectedFirstChainMajority*/));
+    }
+}
+
+TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_1Replica) {
+    auto item = makePendingItem(makeStoredDocKey("key"), "value");
+
+    item->setBySeqno(1);
+    {
+        SCOPED_TRACE("");
+        EXPECT_TRUE(
+                testDurabilityPossible({{active, replica1}, {active, replica2}},
+                                       item,
+                                       2 /*expectedFirstChainSize*/,
+                                       2 /*expectedFirstChainMajority*/,
+                                       2 /*expectedSecondChainSize*/,
+                                       2 /*expectedSecondChainMajority*/));
+    }
+
+    item->setBySeqno(2);
+    {
+        SCOPED_TRACE("");
+        EXPECT_FALSE(
+                testDurabilityPossible({{active, nullptr}, {active, replica2}},
+                                       item,
+                                       1 /*expectedFirstChainSize*/,
+                                       2 /*expectedFirstChainMajority*/,
+                                       2 /*expectedSecondChainSize*/,
+                                       2 /*expectedSecondChainMajority*/));
+    }
+
+    {
+        SCOPED_TRACE("");
+        EXPECT_FALSE(
+                testDurabilityPossible({{active, replica1}, {active, nullptr}},
+                                       item,
+                                       2 /*expectedFirstChainSize*/,
+                                       2 /*expectedFirstChainMajority*/,
+                                       1 /*expectedSecondChainSize*/,
+                                       2 /*expectedSecondChainMajority*/));
     }
 }
 
@@ -897,6 +1149,69 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_2Replicas) {
                                             item,
                                             1 /*expectedFirstChainSize*/,
                                             2 /*expectedFirstChainMajority*/));
+    }
+}
+
+TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_2Replicas) {
+    auto item = makePendingItem(makeStoredDocKey("key"), "value");
+
+    item->setBySeqno(1);
+    {
+        SCOPED_TRACE("");
+        EXPECT_TRUE(testDurabilityPossible(
+                {{active, replica1, replica2}, {active, replica3, replica4}},
+                item,
+                3 /*expectedFirstChainSize*/,
+                2 /*expectedFirstChainMajority*/,
+                3 /*expectedSecondChainSize*/,
+                2 /*expectedSecondChainMajority*/));
+    }
+
+    item->setBySeqno(2);
+    {
+        SCOPED_TRACE("");
+        EXPECT_TRUE(testDurabilityPossible(
+                {{active, replica1, nullptr}, {active, replica3, replica4}},
+                item,
+                2 /*expectedFirstChainSize*/,
+                2 /*expectedFirstChainMajority*/,
+                3 /*expectedSecondChainSize*/,
+                2 /*expectedSecondChainMajority*/));
+    }
+
+    {
+        SCOPED_TRACE("");
+        EXPECT_FALSE(testDurabilityPossible(
+                {{active, nullptr, nullptr}, {active, replica3, replica4}},
+                item,
+                1 /*expectedFirstChainSize*/,
+                2 /*expectedFirstChainMajority*/,
+                3 /*expectedSecondChainSize*/,
+                2 /*expectedSecondChainMajority*/));
+    }
+
+    item->setBySeqno(4);
+    {
+        SCOPED_TRACE("");
+        EXPECT_TRUE(testDurabilityPossible(
+                {{active, replica1, replica2}, {active, replica3, nullptr}},
+                item,
+                3 /*expectedFirstChainSize*/,
+                2 /*expectedFirstChainMajority*/,
+                2 /*expectedSecondChainSize*/,
+                2 /*expectedSecondChainMajority*/));
+    }
+
+    item->setBySeqno(5);
+    {
+        SCOPED_TRACE("");
+        EXPECT_FALSE(testDurabilityPossible(
+                {{active, replica1, replica2}, {active, nullptr, nullptr}},
+                item,
+                3 /*expectedFirstChainSize*/,
+                2 /*expectedFirstChainMajority*/,
+                1 /*expectedSecondChainSize*/,
+                2 /*expectedSecondChainMajority*/));
     }
 }
 
@@ -950,6 +1265,102 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_3Replicas) {
                                        item,
                                        1 /*expectedFirstChainSize*/,
                                        3 /*expectedFirstChainMajority*/));
+    }
+}
+
+TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_3Replicas) {
+    // Note: In this test, playing with Undefined nodes in different and
+    // non-consecutive positions.
+    // Not sure if ns_server can set something like that (e.g. {A, u, R2, u}),
+    // but better that we cover the most general case.
+    auto item = makePendingItem(makeStoredDocKey("key"), "value");
+
+    item->setBySeqno(1);
+    {
+        SCOPED_TRACE("");
+        EXPECT_TRUE(
+                testDurabilityPossible({{active, replica1, replica2, replica3},
+                                        {active, replica4, replica5, replica6}},
+                                       item,
+                                       4 /*expectedFirstChainSize*/,
+                                       3 /*expectedFirstChainMajority*/,
+                                       4 /*expectedSecondChainSize*/,
+                                       3 /*expectedSecondChainMajority*/));
+    }
+
+    item->setBySeqno(2);
+    {
+        SCOPED_TRACE("");
+        EXPECT_TRUE(
+                testDurabilityPossible({{active, replica1, nullptr, replica3},
+                                        {active, replica4, replica5, replica6}},
+                                       item,
+                                       3 /*expectedFirstChainSize*/,
+                                       3 /*expectedFirstChainMajority*/,
+                                       4 /*expectedSecondChainSize*/,
+                                       3 /*expectedSecondChainMajority*/));
+    }
+
+    item->setBySeqno(3);
+    {
+        SCOPED_TRACE("");
+        EXPECT_FALSE(
+                testDurabilityPossible({{active, nullptr, nullptr, replica3},
+                                        {active, replica3, replica5, replica6}},
+                                       item,
+                                       2 /*expectedFirstChainSize*/,
+                                       3 /*expectedFirstChainMajority*/,
+                                       4 /*expectedSecondChainSize*/,
+                                       3 /*expectedSecondChainMajority*/));
+    }
+
+    {
+        SCOPED_TRACE("");
+        EXPECT_FALSE(
+                testDurabilityPossible({{active, nullptr, nullptr, nullptr},
+                                        {active, replica4, replica5, replica6}},
+                                       item,
+                                       1 /*expectedFirstChainSize*/,
+                                       3 /*expectedFirstChainMajority*/,
+                                       4 /*expectedSecondChainSize*/,
+                                       3 /*expectedSecondChainMajority*/));
+    }
+
+    {
+        SCOPED_TRACE("");
+        EXPECT_TRUE(
+                testDurabilityPossible({{active, replica1, replica2, replica3},
+                                        {active, replica4, nullptr, replica6}},
+                                       item,
+                                       4 /*expectedFirstChainSize*/,
+                                       3 /*expectedFirstChainMajority*/,
+                                       3 /*expectedSecondChainSize*/,
+                                       3 /*expectedSecondChainMajority*/));
+    }
+
+    item->setBySeqno(4);
+    {
+        SCOPED_TRACE("");
+        EXPECT_FALSE(
+                testDurabilityPossible({{active, replica1, replica2, replica3},
+                                        {active, nullptr, nullptr, replica6}},
+                                       item,
+                                       4 /*expectedFirstChainSize*/,
+                                       3 /*expectedFirstChainMajority*/,
+                                       2 /*expectedSecondChainSize*/,
+                                       3 /*expectedSecondChainMajority*/));
+    }
+
+    {
+        SCOPED_TRACE("");
+        EXPECT_FALSE(
+                testDurabilityPossible({{active, replica1, replica2, replica3},
+                                        {active, nullptr, nullptr, nullptr}},
+                                       item,
+                                       4 /*expectedFirstChainSize*/,
+                                       3 /*expectedFirstChainMajority*/,
+                                       1 /*expectedSecondChainSize*/,
+                                       3 /*expectedSecondChainMajority*/));
     }
 }
 
