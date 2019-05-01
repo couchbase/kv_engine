@@ -35,6 +35,17 @@ MemcachedConnection& ConnectionMap::getConnection(bool ssl,
     throw std::runtime_error("No connection matching the request");
 }
 
+MemcachedConnection& ConnectionMap::getConnection(const std::string& tag,
+                                                  sa_family_t family) {
+    for (auto& conn : connections) {
+        if (conn->getTag() == tag && conn->getFamily() == family) {
+            return *conn.get();
+        }
+    }
+
+    throw std::runtime_error("No connection matching the request");
+}
+
 bool ConnectionMap::contains(bool ssl, sa_family_t family) {
     try {
         (void)getConnection(ssl, family, 0);
@@ -68,6 +79,7 @@ void ConnectionMap::initialize(const nlohmann::json& ports) {
         }
         connections.push_back(
                 std::make_unique<MemcachedConnection>("", port, family, ssl));
+        connections.back()->setTag(cb::jsonGet<std::string>(obj, "tag"));
     }
 }
 

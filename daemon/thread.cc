@@ -6,6 +6,7 @@
 #include "connections.h"
 #include "cookie.h"
 #include "front_end_thread.h"
+#include "listening_port.h"
 #include "log_macros.h"
 #include "memcached.h"
 #include "opentracing.h"
@@ -250,6 +251,9 @@ static void dispatch_new_connections(FrontEndThread& me) {
         if (conn_new(entry.first, *entry.second, me.base, &me) == nullptr) {
             LOG_WARNING("Failed to dispatch event for socket {}",
                         long(entry.first));
+            if (entry.second->system) {
+                --stats.system_conns;
+            }
             safe_close(entry.first);
         }
     }
@@ -401,6 +405,10 @@ void dispatch_conn_new(SOCKET sfd, SharedListeningPort& interface) {
     } catch (const std::bad_alloc& e) {
         LOG_WARNING("dispatch_conn_new: Failed to dispatch new connection: {}",
                     e.what());
+
+        if (interface->system) {
+            --stats.system_conns;
+        }
         safe_close(sfd);
         return ;
     }

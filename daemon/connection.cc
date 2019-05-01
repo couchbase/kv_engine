@@ -753,31 +753,6 @@ int Connection::sslPreConnection() {
             }
             return -1;
         }
-
-        if (!saslAuthEnabled) {
-            // SASL is disabled iff the client authenticated by using the
-            // X.509 certificate. Given that the client is authenticated
-            // we need to check the connection limits.
-            size_t current = stats.getUserConnections();
-            size_t limit = settings.getMaxUserConnections();
-
-            if (isInternal()) {
-                current = stats.getSystemConnections();
-                limit = settings.getSystemConnections();
-            }
-
-            if (current > limit) {
-                LOG_WARNING(
-                        "{}: Shutting down client X.509 authenticated client "
-                        "({}) as we're running out of connections: {} of {}",
-                        getId(),
-                        getDescription(),
-                        current,
-                        limit);
-                cb::net::set_econnreset();
-                return -1;
-            }
-        }
     } else {
         if (ssl.getError(r) == SSL_ERROR_WANT_READ) {
             ssl.drainBioSendPipe(socketDescriptor);
@@ -1261,6 +1236,7 @@ bool Connection::enableSSL(const std::string& cert, const std::string& pkey) {
 
 Connection::Connection()
     : socketDescriptor(INVALID_SOCKET),
+      connectedToSystemPort(false),
       base(nullptr),
       peername("unknown"),
       sockname("unknown"),
@@ -1274,6 +1250,7 @@ Connection::Connection()
 
 Connection::Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc)
     : socketDescriptor(sfd),
+      connectedToSystemPort(ifc.system),
       base(b),
       parent_port(ifc.port),
       peername(cb::net::getpeername(socketDescriptor)),
@@ -1301,7 +1278,7 @@ Connection::Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc)
 }
 
 Connection::~Connection() {
-    if (internal) {
+    if (connectedToSystemPort) {
         --stats.system_conns;
     }
     if (authenticated && domain == cb::sasl::Domain::External) {
@@ -1354,13 +1331,7 @@ bool Connection::shouldDelete() {
 }
 
 void Connection::setInternal(bool internal) {
-    if (Connection::internal) {
-        --stats.system_conns;
-    }
     Connection::internal = internal;
-    if (internal) {
-        ++stats.system_conns;
-    }
 }
 
 size_t Connection::getNumberOfCookies() const {

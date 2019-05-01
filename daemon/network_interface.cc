@@ -107,6 +107,11 @@ static void handle_interface_ssl(NetworkInterface& ifc,
     }
 }
 
+static void handle_interface_system(NetworkInterface& ifc,
+                                    nlohmann::json::const_iterator it) {
+    ifc.system = cb::jsonGet<bool>(it);
+}
+
 NetworkInterface::NetworkInterface(const nlohmann::json& json) {
     struct interface_config_tokens {
         /**
@@ -134,6 +139,7 @@ NetworkInterface::NetworkInterface(const nlohmann::json& json) {
             {"ipv4", handle_interface_ipv4},
             {"ipv6", handle_interface_ipv6},
             {"ssl", handle_interface_ssl},
+            {"system", handle_interface_system},
     };
 
     for (auto it = json.begin(); it != json.end(); ++it) {

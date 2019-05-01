@@ -107,6 +107,11 @@ object describing a single interface with the following properties:
                   to allow the server to find the interface if an
                   ephemeral port is being used (port = 0)
 
+    system        Set to true if this interface is to be considered as
+                  a system interface (with its own connection limit).
+                  Set to false if this interface is to be used for normal
+                  connections.
+
     host          A string value specifying the hostname to bind to.
                   If the attribute is missing (or set to "*")
                   IN_ADDR_ANY is used.

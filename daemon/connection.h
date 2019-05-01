@@ -131,6 +131,10 @@ public:
         return sockname;
     }
 
+    bool isConnectedToSystemPort() const {
+        return connectedToSystemPort;
+    }
+
     /**
      * Returns a descriptive name for the connection, of the form:
      *   "[peer_name - local_name ]"
@@ -1036,6 +1040,8 @@ protected:
      * The actual socket descriptor used by this connection
      */
     SOCKET socketDescriptor;
+
+    const bool connectedToSystemPort;
 
     // The number of times we've been backing off and yielding
     // to allow other threads to run

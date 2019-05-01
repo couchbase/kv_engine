@@ -47,6 +47,10 @@ public:
                                        sa_family_t family = AF_INET,
                                        in_port_t port = 0);
 
+    /// Get a connection mapped to the given tag
+    MemcachedConnection& getConnection(const std::string& tag,
+                                       sa_family_t family = AF_INET);
+
     /**
      * Just get a connection to the server (protocol / ssl etc
      * doesn't matter)

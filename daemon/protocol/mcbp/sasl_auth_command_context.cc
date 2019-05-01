@@ -125,32 +125,6 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::step() {
 }
 
 ENGINE_ERROR_CODE SaslAuthCommandContext::authOk() {
-    // Check if we're exceeding the connection limits
-    size_t current = stats.getUserConnections();
-    size_t limit = settings.getMaxUserConnections();
-
-    if (connection.isInternal()) {
-        current = stats.getSystemConnections();
-        limit = settings.getSystemConnections();
-    }
-
-    if (current > limit) {
-        LOG_WARNING(
-                "{}: Shutting down authenticated client ({}) as we're running "
-                "out of connections: {} of {}",
-                connection.getId(),
-                connection.getDescription(),
-                current,
-                limit);
-
-        // We could have returned ENGINE_DISCONNECT, but that would cause
-        // SteppableCommandContext::drive to add an extra entry into the
-        // log.
-        connection.setState(StateMachine::State::closing);
-        state = State::Done;
-        return ENGINE_SUCCESS;
-    }
-
     auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
     auto payload = auth_task->getResponse();
     cookie.sendResponse(cb::mcbp::Status::Success,

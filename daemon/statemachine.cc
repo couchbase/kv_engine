@@ -394,44 +394,6 @@ bool StateMachine::conn_validate() {
         }
     } // We don't currently have any validators for response packets
 
-    // Make sure that we don't run out of connections by using the following
-    // logic:
-    //    * Connections already authenticated is allowed to continue to
-    //      stay connected
-    //    * If we've consumed all of the connections reserved for normal
-    //      client access the client is disconnected if it tries to run
-    //      a command which isn't part of the "authentication phase" (hello,
-    //      sasl list mech, sasl auth, sasl step)
-    //    * As part of the authentication we check the limits for user/system
-    //      connections and disconnects clients which doesn't map to a
-    //      system connection if all user connections is used
-    if (!connection.isAuthenticated()) {
-        if (stats.getCurrConnections() > settings.getMaxUserConnections()) {
-            bool authentication = false;
-            if (header.isRequest()) {
-                const auto& request = header.getRequest();
-                if (cb::mcbp::is_client_magic(request.getMagic())) {
-                    auto opcode = request.getClientOpcode();
-                    using cb::mcbp::ClientOpcode;
-                    authentication = opcode == ClientOpcode::Hello ||
-                                     opcode == ClientOpcode::SaslListMechs ||
-                                     opcode == ClientOpcode::SaslAuth ||
-                                     opcode == ClientOpcode::SaslStep;
-                }
-            }
-
-            if (!authentication) {
-                LOG_WARNING(
-                        "{}: Shutting down client ({}) as we're running out of"
-                        " connections",
-                        connection.getId(),
-                        connection.getDescription());
-                setCurrentState(State::closing);
-                return true;
-            }
-        }
-    }
-
     setCurrentState(State::execute);
     return true;
 }

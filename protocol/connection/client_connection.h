@@ -265,6 +265,15 @@ public:
 
     ~MemcachedConnection();
 
+    // Set a tag / label on this connection
+    void setTag(std::string tag) {
+        MemcachedConnection::tag = std::move(tag);
+    }
+
+    const std::string& getTag() const {
+        return tag;
+    }
+
     // Creates clone (copy) of the given connection - i.e. a second independent
     // channel to memcached. Used for multi-connection testing.
     std::unique_ptr<MemcachedConnection> clone();
@@ -767,6 +776,7 @@ protected:
     SSL_CTX* context = nullptr;
     BIO* bio = nullptr;
     SOCKET sock = INVALID_SOCKET;
+    std::string tag;
     boost::optional<std::chrono::microseconds> traceData;
 
     typedef std::unordered_set<uint16_t> Featureset;

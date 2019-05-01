@@ -473,13 +473,17 @@ nlohmann::json TestappTest::generate_config(uint16_t ssl_port) {
         ret["verbosity"] = memcached_verbose - 1;
     }
 
+    // For simplicity in the test to check for max connections we mark the
+    // SSL port as an admin port
     ret["interfaces"][0] = {{"tag", "plain"},
+                            {"system", false},
                             {"port", 0},
                             {"ipv4", "required"},
                             {"ipv6", "required"},
                             {"host", "*"}};
 
     ret["interfaces"][1] = {{"tag", "ssl"},
+                            {"system", true},
                             {"port", ssl_port},
                             {"ipv4", "required"},
                             {"ipv6", "required"},

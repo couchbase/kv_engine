@@ -34,12 +34,14 @@ public:
                   std::string host,
                   in_port_t port,
                   sa_family_t family,
+                  bool system,
                   std::string key,
                   std::string cert)
         : tag(std::move(tag)),
           host(std::move(host)),
           port(port),
           family(family),
+          system(system),
           sslKey(std::move(key)),
           sslCert(std::move(cert)) {
     }
@@ -67,6 +69,9 @@ public:
 
     /// Is this AF_INET or AF_INET6
     const sa_family_t family;
+
+    /// Is this an interface used for system traffic
+    const bool system;
 
     // SSL related properties for the port. Both key and certificate must
     // be set

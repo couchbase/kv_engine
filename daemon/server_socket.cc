@@ -143,17 +143,37 @@ void ServerSocket::acceptNewClient() {
         return;
     }
 
-    size_t curr_conns =
-            stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
+    stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
 
-    if (curr_conns >= settings.getMaxConnections()) {
+    // Check if we're exceeding the connection limits
+    size_t current;
+    size_t limit;
+
+    if (interface->system) {
+        ++stats.system_conns;
+        current = stats.getSystemConnections();
+        limit = settings.getSystemConnections();
+    } else {
+        current = stats.getUserConnections();
+        limit = settings.getMaxUserConnections();
+    }
+
+    LOG_DEBUG("Accepting client {} of {}{}",
+              current,
+              limit,
+              interface->system ? " on system port" : "");
+    if (current > limit) {
         stats.rejected_conns++;
         LOG_WARNING(
-                R"(Too many open connections. total: {}/{})",
-                curr_conns,
-                settings.getMaxConnections());
-
+                "Shutting down client as we're running "
+                "out of connections{}: {} of {}",
+                interface->system ? " on system interface" : "",
+                current,
+                limit);
         safe_close(client);
+        if (interface->system) {
+            --stats.system_conns;
+        }
         return;
     }
 
@@ -179,6 +199,8 @@ nlohmann::json ServerSocket::toJson() const {
 
     ret["name"] = sockname;
     ret["port"] = interface->port;
+    ret["system"] = interface->system;
+    ret["tag"] = interface->tag;
 
     return ret;
 }
@@ -207,6 +229,7 @@ void ServerSocket::updateSSL(const std::string& key, const std::string& cert) {
                                                 interface->host,
                                                 interface->port,
                                                 interface->family,
+                                                interface->system,
                                                 key,
                                                 cert);
 }

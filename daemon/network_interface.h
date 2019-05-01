@@ -40,7 +40,7 @@ public:
     bool operator==(const NetworkInterface& o) const {
         return host == o.host && ssl.key == o.ssl.key &&
                ssl.cert == o.ssl.cert && port == o.port && ipv6 == o.ipv6 &&
-               ipv4 == o.ipv4 && tag == o.tag;
+               ipv4 == o.ipv4 && tag == o.tag && system == o.system;
     }
 
     bool operator!=(const NetworkInterface& o) const {
@@ -56,6 +56,7 @@ public:
     in_port_t port = 11211;
     Protocol ipv6 = Protocol::Optional;
     Protocol ipv4 = Protocol::Optional;
+    bool system = false;
 };
 
 std::string to_string(const NetworkInterface::Protocol& proto);
