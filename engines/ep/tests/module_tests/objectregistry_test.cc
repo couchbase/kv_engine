@@ -101,15 +101,10 @@ protected:
 
         BucketLoggerTest::SetUp();
         ObjectRegistryTest::SetUp();
-
-        // Enable memory tracking hooks
-        MemoryTracker::getInstance(*get_mock_server_api()->alloc_hooks);
-        engine->getEpStats().memoryTrackerEnabled.store(true);
+        ObjectRegistry::onSwitchThread(engine.get());
     }
 
     void TearDown() override {
-        MemoryTracker::destroyInstance();
-
         // Parent classes TearDown methods are sufficient here.
         BucketLoggerTest::TearDown();
         // called last so that the engine is destroyed last

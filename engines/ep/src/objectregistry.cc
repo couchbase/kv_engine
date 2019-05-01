@@ -21,6 +21,7 @@
 #include "item.h"
 #include "stored-value.h"
 #include "threadlocal.h"
+#include <platform/cb_arena_malloc.h>
 
 #if 1
 static ThreadLocal<EventuallyPersistentEngine*> *th;
@@ -178,14 +179,25 @@ EventuallyPersistentEngine *ObjectRegistry::onSwitchThread(
         old_engine = th->get();
     }
 
+    // Set the engine so that onDeleteItem etc... can update their stats
     th->set(engine);
+
+    // Next tell ArenaMalloc what todo so that we can account memory to the
+    // bucket
+    if (engine) {
+        cb::ArenaMalloc::switchToClient(engine->getArenaMallocClient());
+    } else {
+        cb::ArenaMalloc::switchFromClient();
+    }
     return old_engine;
 }
 
+// @todo remove the initial_track and associated code, no longer used.
 void ObjectRegistry::setStats(std::atomic<size_t>* init_track) {
     initial_track->set(init_track);
 }
 
+// @todo remove the memory hooks and associated code, no longer called.
 bool ObjectRegistry::memoryAllocated(size_t mem) {
     EventuallyPersistentEngine *engine = th->get();
     if (initial_track->get()) {
@@ -212,13 +224,12 @@ bool ObjectRegistry::memoryDeallocated(size_t mem) {
     return true;
 }
 
-NonBucketAllocationGuard::NonBucketAllocationGuard() {
-    engine = th->get();
-    th->set(nullptr);
+NonBucketAllocationGuard::NonBucketAllocationGuard()
+    : engine(ObjectRegistry::onSwitchThread(nullptr, true)) {
 }
 
 NonBucketAllocationGuard::~NonBucketAllocationGuard() {
-    th->set(engine);
+    ObjectRegistry::onSwitchThread(engine);
 }
 
 BucketAllocationGuard::BucketAllocationGuard(EventuallyPersistentEngine* engine)

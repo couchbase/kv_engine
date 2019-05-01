@@ -23,6 +23,7 @@
 #include <folly/CachelinePadded.h>
 #include <memcached/durability_spec.h>
 #include <memcached/types.h>
+#include <platform/cb_arena_malloc.h>
 #include <platform/corestore.h>
 #include <platform/non_negative_counter.h>
 #include <platform/platform_time.h>
@@ -32,6 +33,15 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+
+// If we're running with TSAN/ASAN our global new operator replacement does
+// not work, so any new/delete will not call through cb_malloc so ArenaMalloc
+// will not be much use.
+#if defined(THREAD_SANITIZER) || defined(ADDRESS_SANITIZER)
+constexpr bool GlobalNewDeleteIsOurs = false;
+#else
+constexpr bool GlobalNewDeleteIsOurs = true;
+#endif
 
 class CoreLocalStats;
 
@@ -57,51 +67,48 @@ public:
         return maxDataSize.load();
     }
 
+    /**
+     * Set the max data size and return the estimated memory update threshold
+     * which cb::ArenaMalloc requires
+     */
     void setMaxDataSize(size_t size);
 
     /**
-     * Set a percentage which is used to calculate a threshold to which the
-     * per core memory tracker value is merged into the global counter.
-     * @param percent A float percent assumed to be 0.0 to 100.0 which is used
-     *  when setMaxDataSize is called. A per core threshold is calculated which
-     *  tries to ensure that getEstimatedTotalMemoryUsed returns a value which
-     *  lags the total of all allocations by percent.
+     * Memory tracking is enabled only if new/delete is replaced, so is
+     * redirected to cb_malloc and if ArenaMalloc has the capability to track
+     * allocations.
+     * @return if memory tracking is enabled
      */
-    void setMemUsedMergeThresholdPercent(float percent);
-
-    /// @return the value of memUsedMergeThreshold
-    int64_t getMemUsedMergeThreshold() const {
-        return memUsedMergeThreshold.load();
+    static constexpr bool isMemoryTrackingEnabled() {
+        return cb::ArenaMalloc::canTrackAllocations() && GlobalNewDeleteIsOurs;
     }
 
     /**
-     * @return a estimated memory used. This is an estimate because memory is
-     * tracked in a CoreStore container and the estimate value is only updated
-     * when certain core thresholds are exceeded. Thus this function returns a
-     * value which may lag behind what getPreciseTotalMemoryUsed function
-     * returns.
+     * The estimated memory lags behind the value getPreciseTotalMemoryUsed
+     * may return (can be above or below). The returned value is only updated
+     * when.
+     * 1) getPreciseTotalMemoryUsed is called
+     * 2) The memory tracker thread runs (which is currently every 250ms)
+     *
+     * Note that some non-production configurations the ArenaMalloc cannot track
+     * deallocation, so in that case just return the getCurrentSize() +
+     * getMemOverhead()
+     *
+     * @return a estimate of the total memory allocated to the engine
      */
     size_t getEstimatedTotalMemoryUsed() const {
-        int64_t rv = 0;
-        if (memoryTrackerEnabled.load()) {
-            rv = estimatedTotalMemory->load();
-        } else {
-            rv = getCurrentSize() + getMemOverhead();
+        if (isMemoryTrackingEnabled()) {
+            return cb::ArenaMalloc::getEstimatedAllocated(arena);
         }
-        // Don't allow a negative result to be exposed as a size_t
-        return size_t(std::max(int64_t(0), rv));
+        return size_t(std::max(size_t(0), getCurrentSize() + getMemOverhead()));
     }
 
     /**
-     * @return a "precise" memory used value. Calling this method triggers a
-     * merge of all core local counters into the estimate, which means setting
-     * each core local counter to zero (hence non const).
-     *
-     * This is described as 'precise' because in the case of the total becoming
-     * negative (which can occur if a core deallocs an amount that the summation
-     * loop has not accounted for) we return 0
+     * @return a "precise" memory used value. This asks the underlying platform
+     * ArenaMalloc how much is allocated to the engine. When this method is
+     * called the current estimate is updated.
      */
-    size_t getPreciseTotalMemoryUsed();
+    size_t getPreciseTotalMemoryUsed() const;
 
     /// @returns total size of stored objects.
     size_t getCurrentSize() const;
@@ -269,8 +276,6 @@ public:
     //! Core-local statistics
     CoreStore<folly::CachelinePadded<CoreLocalStats>> coreLocal;
 
-    //! True if the memory usage tracker is enabled.
-    std::atomic<bool> memoryTrackerEnabled;
     //! Whether or not to force engine shutdown.
     std::atomic<bool> forceShutdown;
     //! Number of times unrecoverable oom errors happened while processing operations.
@@ -522,6 +527,8 @@ public:
                size_t(cb::durability::Level::PersistToMajority)>
             syncWriteCommitTimes;
 
+    cb::ArenaMallocClient arena;
+
     //! Reset all stats to reasonable values.
     void reset();
 
@@ -544,23 +551,8 @@ protected:
     void maybeUpdateEstimatedTotalMemUsed(
             cb::RelaxedAtomic<int64_t>& coreMemory, int64_t value);
 
-    /**
-     * Set memUsedMergeThreshold by calculating a percentage of max_size and
-     * divided by the size of the coreTotalMemory container.
-     */
-    void calculateMemUsedMergeThreshold();
-
     //! Max allowable memory size.
     std::atomic<size_t> maxDataSize;
-
-    /**
-     * The threshold at which memAllocated/Deallocated will write their core
-     * local value into the 'global' memory counter (estimatedTotalMemory)
-     */
-    cb::RelaxedAtomic<int64_t> memUsedMergeThreshold;
-
-    /// percentage used in calculating the memUsedMergeThreshold
-    float memUsedMergeThresholdPercent;
 };
 
 /**

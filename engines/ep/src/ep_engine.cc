@@ -61,7 +61,7 @@
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
-#include <platform/cb_malloc.h>
+#include <platform/cb_arena_malloc.h>
 #include <platform/checked_snprintf.h>
 #include <platform/compress.h>
 #include <platform/platform_time.h>
@@ -192,6 +192,7 @@ static void checkNumeric(const char* str) {
 
 void EventuallyPersistentEngine::destroy(const bool force) {
     auto eng = acquireEngine(this);
+    cb::ArenaMalloc::switchToClient(eng->getArenaMallocClient());
     eng->destroyInner(force);
     delete eng.get();
 }
@@ -1729,26 +1730,17 @@ ENGINE_ERROR_CODE create_ep_engine_instance(GET_SERVER_API get_server_api,
 
     BucketLogger::setLoggerAPI(api->log);
 
-    MemoryTracker::getInstance(*api->alloc_hooks);
-    ObjectRegistry::initialize(api->alloc_hooks->get_allocation_size);
+    // Register and track the engine creation
+    auto arena = cb::ArenaMalloc::registerClient();
+    cb::ArenaMallocGuard trackEngineCreation(arena);
 
-    std::atomic<size_t>* inital_tracking = new std::atomic<size_t>();
-
-    ObjectRegistry::setStats(inital_tracking);
     EventuallyPersistentEngine* engine;
-    engine = new EventuallyPersistentEngine(get_server_api);
-    ObjectRegistry::setStats(NULL);
+    engine = new EventuallyPersistentEngine(get_server_api, arena);
 
     if (engine == NULL) {
+        cb::ArenaMalloc::unregisterClient(arena);
         return ENGINE_ENOMEM;
     }
-
-    if (MemoryTracker::trackingMemoryAllocations()) {
-        engine->getEpStats().estimatedTotalMemory.get()->store(
-                inital_tracking->load());
-        engine->getEpStats().memoryTrackerEnabled.store(true);
-    }
-    delete inital_tracking;
 
     initialize_time_functions(api->core);
 
@@ -1854,7 +1846,7 @@ bool EventuallyPersistentEngine::isXattrEnabled() {
 }
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(
-        GET_SERVER_API get_server_api)
+        GET_SERVER_API get_server_api, cb::ArenaMallocClient arena)
     : kvBucket(nullptr),
       workload(NULL),
       workloadPriority(NO_BUCKET_PRIORITY),
@@ -1864,7 +1856,11 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       startupTime(0),
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
-      minCompressionRatio(default_min_compression_ratio) {
+      minCompressionRatio(default_min_compression_ratio),
+      arena(arena) {
+    // copy through to stats so we can ask for mem used
+    getEpStats().arena = arena;
+
     serverApi = getServerApiFunc();
 }
 
@@ -2729,7 +2725,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
     add_casted_stat(
             "ep_tmp_oom_errors", stats.tmp_oom_errors, add_stat, cookie);
     add_casted_stat("ep_mem_tracker_enabled",
-                    stats.memoryTrackerEnabled,
+                    EPStats::isMemoryTrackingEnabled(),
                     add_stat,
                     cookie);
     add_casted_stat("ep_bg_fetched", epstats.bg_fetched,
@@ -3137,7 +3133,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(
     add_casted_stat("mem_used", memUsed, add_stat, cookie);
 
     add_casted_stat("mem_used_merge_threshold",
-                    stats.getMemUsedMergeThreshold(),
+                    arena.estimateUpdateThreshold.load(),
                     add_stat,
                     cookie);
 
@@ -6569,10 +6565,9 @@ EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     delete workload;
     delete checkpointConfig;
 
-    // About to destruct EPStats object, after which it won't be possible
-    // to record memory tracking (as tracking requires a valid EPStats object).
-    // As such, if we haven't already disassociated the current thread from
-    // the engine, we need to now.
+    // Engine going away, tell ArenaMalloc to unregister
+    cb::ArenaMalloc::unregisterClient(arena);
+    // Ensure the soon to be invalid engine is no longer in the ObjectRegistry
     ObjectRegistry::onSwitchThread(nullptr);
 
     /* Unique_ptr(s) are deleted in the reverse order of the initialization */
@@ -6687,6 +6682,11 @@ void EventuallyPersistentEngine::setMaxDataSize(size_t size) {
         getKVBucket()->getVBuckets().getShard(ii)->forEachKVStore(
                 [size](KVStore* kvs) { kvs->setMaxDataSize(size); });
     }
+
+    // Update the ArenaMalloc threshold
+    arena.setEstimateUpdateThreshold(
+            size, configuration.getMemUsedMergeThresholdPercent());
+    cb::ArenaMalloc::setAllocatedThreshold(arena);
 }
 
 void EventuallyPersistentEngine::set_num_reader_threads(

@@ -19,6 +19,8 @@
 
 #include "objectregistry.h"
 
+#include <platform/cb_arena_malloc.h>
+
 #ifndef DEFAULT_MAX_DATA_SIZE
 /* Something something something ought to be enough for anybody */
 #define DEFAULT_MAX_DATA_SIZE (std::numeric_limits<size_t>::max())
@@ -73,7 +75,6 @@ EPStats::EPStats()
       numFailedEjects(0),
       numNotMyVBuckets(0),
       estimatedTotalMemory(0),
-      memoryTrackerEnabled(false),
       forceShutdown(false),
       oom_errors(0),
       tmp_oom_errors(0),
@@ -123,10 +124,7 @@ EPStats::EPStats()
       dirtyAgeHisto(),
       diskCommitHisto(),
       timingLog(NULL),
-      maxDataSize(DEFAULT_MAX_DATA_SIZE),
-      // A "sensible" default, will change when setMaxDataSize is called
-      memUsedMergeThreshold(102400),
-      memUsedMergeThresholdPercent(0.5) {
+      maxDataSize(DEFAULT_MAX_DATA_SIZE) {
 }
 
 EPStats::~EPStats() {
@@ -136,21 +134,7 @@ EPStats::~EPStats() {
 void EPStats::setMaxDataSize(size_t size) {
     if (size > 0) {
         maxDataSize.store(size);
-        calculateMemUsedMergeThreshold();
     }
-}
-
-void EPStats::setMemUsedMergeThresholdPercent(float percent) {
-    memUsedMergeThresholdPercent = percent;
-    calculateMemUsedMergeThreshold();
-}
-
-void EPStats::calculateMemUsedMergeThreshold() {
-    // threshold is n% of total (but divided by the number of CoreStore
-    // elements, i.e. nCpu)
-    memUsedMergeThreshold =
-            maxDataSize * (memUsedMergeThresholdPercent / 100.0);
-    memUsedMergeThreshold = memUsedMergeThreshold / coreLocal.size();
 }
 
 void EPStats::memAllocated(size_t sz) {
@@ -192,23 +176,18 @@ void EPStats::memDeallocated(size_t sz) {
 void EPStats::maybeUpdateEstimatedTotalMemUsed(
         cb::RelaxedAtomic<int64_t>& coreMemory, int64_t value) {
     // If this thread succeeds in swapping, this thread updates total
-    if (std::abs(value) > memUsedMergeThreshold) {
+    // @todo: remove this function and callers - it is deadcode
+    if (std::abs(value) > 0) {
         // Swap the core's value to 0 and update total with whatever we got
         estimatedTotalMemory->fetch_add(coreMemory.exchange(0));
     }
 }
 
-size_t EPStats::getPreciseTotalMemoryUsed() {
-    if (memoryTrackerEnabled.load()) {
-        for (auto& core : coreLocal) {
-            estimatedTotalMemory->fetch_add(
-                    core.get()->totalMemory.exchange(0));
-        }
-        // This still could become negative, e.g. core 0 allocated X after we
-        // read it, then core n deallocated X and we read -X.
-        return size_t(std::max(int64_t(0), estimatedTotalMemory->load()));
+size_t EPStats::getPreciseTotalMemoryUsed() const {
+    if (isMemoryTrackingEnabled()) {
+        return cb::ArenaMalloc::getPreciseAllocated(arena);
     }
-    return getCurrentSize() + getMemOverhead();
+    return size_t(std::max(size_t(0), getCurrentSize() + getMemOverhead()));
 }
 
 size_t EPStats::getCurrentSize() const {

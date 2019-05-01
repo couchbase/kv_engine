@@ -31,25 +31,4 @@
  */
 class ItemCompressorTest : public VBucketTest {
 public:
-    static void SetUpTestCase() {
-        // Setup the MemoryTracker.
-        MemoryTracker::getInstance(*get_mock_server_api()->alloc_hooks);
-    }
-
-    static void TearDownTestCase() {
-        MemoryTracker::destroyInstance();
-    }
-
-protected:
-    void SetUp() override {
-        // Setup object registry. As we do not create a full ep-engine, we
-        // use the "initial_tracking" for all memory tracking".
-        ObjectRegistry::setStats(&mem_used);
-    }
-
-    void TearDown() override {
-        ObjectRegistry::setStats(nullptr);
-    }
-
-    std::atomic<size_t> mem_used{0};
 };

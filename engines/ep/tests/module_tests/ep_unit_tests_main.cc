@@ -31,6 +31,7 @@
 #include <memcached/config_parser.h>
 #include <memcached/server_core_iface.h>
 #include <memcached/server_log_iface.h>
+#include <platform/cb_arena_malloc.h>
 
 /* static storage for environment variable set by putenv(). */
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
@@ -86,23 +87,34 @@ int main(int argc, char **argv) {
     // Parse command-line options.
     int cmd;
     bool invalid_argument = false;
-    while (!invalid_argument &&
-           (cmd = getopt(argc, argv, "v")) != EOF) {
+
+    // ep-engine unit tests run without thread-caching for a mem_used that is
+    // more testable, but occasionally turning it on is useful
+    bool threadCacheEnabled = false;
+    while (!invalid_argument && (cmd = getopt(argc, argv, "vt")) != EOF) {
         switch (cmd) {
         case 'v':
             verbose_logging = true;
             break;
+        case 't':
+            threadCacheEnabled = true;
+            break;
         default:
-            std::cerr << "Usage: " << argv[0] << " [-v] [gtest_options...]" << std::endl
+            std::cerr << "Usage: " << argv[0] << " [-v] [gtest_options...]"
                       << std::endl
-                      << "  -v Verbose - Print verbose output to stderr."
-                      << std::endl << std::endl;
+                      << std::endl
+                      << "  -v Verbose - Print verbose output to stderr.\n"
+                      << "  -t Alloc Thread Cache On - Use thread-caching "
+                      << "in malloc/calloc etc...\n"
+                      << std::endl;
             invalid_argument = true;
             break;
         }
     }
 
     putenv(allow_no_stats_env);
+
+    cb::ArenaMalloc::setTCacheEnabled(threadCacheEnabled);
 
     // Create a blackhole logger to prevent Address sanitizer error when
     // calling mock_init_alloc_hooks

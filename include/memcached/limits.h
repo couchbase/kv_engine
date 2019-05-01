@@ -16,13 +16,16 @@
  */
 #pragma once
 
+#include <platform/cb_arena_malloc_client.h>
+
 #include <cstddef>
 
 namespace cb {
 namespace limits {
 
-/// The total number of buckets which may be created on the server
-constexpr std::size_t TotalBuckets = 100;
+/// The total number of buckets which may be created on the server, limited by
+/// how many concurrent arenas are available
+constexpr std::size_t TotalBuckets = cb::ArenaMallocMaxClients;
 
 /// The total number of bytes which may be used from privileged (system)
 /// users in a document

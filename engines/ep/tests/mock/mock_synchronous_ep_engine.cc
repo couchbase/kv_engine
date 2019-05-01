@@ -29,8 +29,9 @@
 #include <programs/engine_testapp/mock_server.h>
 #include <string>
 
-SynchronousEPEngine::SynchronousEPEngine(std::string extra_config)
-    : EventuallyPersistentEngine(get_mock_server_api) {
+SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
+                                         std::string extra_config)
+    : EventuallyPersistentEngine(get_mock_server_api, client) {
     // Tests may need to create multiple failover table entries, so allow that
     maxFailoverEntries = 5;
 
@@ -93,7 +94,10 @@ void SynchronousEPEngine::setDcpConnMap(
 
 SynchronousEPEngineUniquePtr SynchronousEPEngine::build(
         const std::string& config) {
-    SynchronousEPEngineUniquePtr engine(new SynchronousEPEngine(config));
+    auto client = cb::ArenaMalloc::registerClient();
+    cb::ArenaMalloc::switchToClient(client);
+    SynchronousEPEngineUniquePtr engine(
+            new SynchronousEPEngine(client, config));
 
     // switch current thread to this new engine, so all sub-created objects
     // are accounted in it's mem_used.

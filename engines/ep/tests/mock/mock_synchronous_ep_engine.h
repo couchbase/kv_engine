@@ -41,7 +41,8 @@ using SynchronousEPEngineUniquePtr =
  */
 class SynchronousEPEngine : public EventuallyPersistentEngine {
 public:
-    SynchronousEPEngine(std::string extra_config = {});
+    SynchronousEPEngine(const cb::ArenaMallocClient& client,
+                        std::string extra_config = {});
 
     void setKVBucket(std::unique_ptr<KVBucket> store);
     void setDcpConnMap(std::unique_ptr<DcpConnMap> dcpConnMap);

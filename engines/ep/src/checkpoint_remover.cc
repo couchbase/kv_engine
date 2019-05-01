@@ -136,7 +136,7 @@ ClosedUnrefCheckpointRemoverTask::isReductionInCheckpointMemoryNeeded() const {
                     "exceeds cursor_dropping_upper_mark ({}%, {} MB). "
                     "current checkpoint consumption is {} MB "
                     "Attempting to free {} MB of memory.",
-                    toMB(stats.getEstimatedTotalMemoryUsed()),
+                    toMB(memUsed),
                     config.getCursorDroppingUpperMark(),
                     toMB(stats.cursorDroppingUThreshold.load()),
                     toMB(vBucketChkptMemSize),

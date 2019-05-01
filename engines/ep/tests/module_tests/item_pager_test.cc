@@ -61,11 +61,25 @@ public:
 
 protected:
     void SetUp() override {
-        // Set specific ht_size given we need to control expected memory usage.
-        config_string += "ht_size=47;max_size=" + std::to_string(200 * 1024) +
-                         ";mem_low_wat=" + std::to_string(120 * 1024) +
-                         ";mem_high_wat=" + std::to_string(160 * 1024);
+        config_string += "ht_size=47";
         STParameterizedBucketTest::SetUp();
+        auto& stats = engine->getEpStats();
+
+        // Setup the bucket from the entry state, which can be polluted from
+        // previous tests, i.e. not guaranteed to be '0'. The worst offender is
+        // if a background thread is still around, it could have data in the
+        // arena inflating it - e.g. rocksdb threads
+        const size_t expectedStart = stats.getPreciseTotalMemoryUsed();
+
+        ObjectRegistry::onSwitchThread(engine.get());
+
+        // Bump the quota 350KiB above the current mem_used
+        const size_t quota = expectedStart + (350 * 1024);
+        engine->getConfiguration().setMaxSize(quota);
+
+        // Set the water marks to 70% and 85%
+        engine->getConfiguration().setMemLowWat(quota * 0.7);
+        engine->getConfiguration().setMemHighWat(quota * 0.85);
 
         // How many nonIO tasks we expect initially
         // - 0 for persistent.
@@ -76,8 +90,8 @@ protected:
 
         // Sanity check - need memory tracker to be able to check our memory
         // usage.
-        ASSERT_TRUE(MemoryTracker::trackingMemoryAllocations())
-            << "Memory tracker not enabled - cannot continue";
+        ASSERT_TRUE(cb::ArenaMalloc::canTrackAllocations())
+                << "Memory tracker not enabled - cannot continue";
 
         store->setVBucketState(vbid, vbucket_state_active);
 
@@ -86,12 +100,6 @@ protected:
         ASSERT_EQ(47, store->getVBucket(vbid)->ht.getSize())
                 << "Expected to have a HashTable of size 47 (mem calculations "
                    "based on this).";
-        auto& stats = engine->getEpStats();
-        ASSERT_LE(stats.getEstimatedTotalMemoryUsed(), 20 * 1024)
-                << "Expected to start with less than 20KB of memory used";
-        ASSERT_LT(stats.getEstimatedTotalMemoryUsed(),
-                  stats.getMaxDataSize() * 0.5)
-                << "Expected to start below 50% of bucket quota";
     }
 
     ENGINE_ERROR_CODE storeItem(Item& item) {
@@ -110,7 +118,7 @@ protected:
      */
     size_t populateUntilTmpFail(Vbid vbid, rel_time_t ttl = 0) {
         size_t count = 0;
-        const std::string value(512, 'x'); // 512B value to use for documents.
+        const std::string value(1024, 'x'); // 1024B value to use for documents.
         ENGINE_ERROR_CODE result;
         const auto expiry =
                 (ttl != 0) ? ep_abs_time(ep_reltime(ttl)) : time_t(0);
@@ -129,9 +137,8 @@ protected:
 
         auto& stats = engine->getEpStats();
         EXPECT_GT(stats.getEstimatedTotalMemoryUsed(),
-                  stats.getMaxDataSize() * 0.8)
-                << "Expected to exceed 80% of bucket quota after hitting "
-                   "TMPFAIL";
+                  stats.mem_high_wat.load())
+                << "Expected to exceed high watermark after hitting TMPFAIL";
         EXPECT_GT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat.load())
                 << "Expected to exceed low watermark after hitting TMPFAIL";
 
@@ -278,12 +285,12 @@ TEST_P(STItemPagerTest, ServerQuotaReached) {
     auto& stats = engine->getEpStats();
     auto vb = engine->getVBucket(vbid);
     if (std::get<1>(GetParam()) == "fail_new_data") {
-        EXPECT_GT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat.load())
+        EXPECT_GT(stats.getPreciseTotalMemoryUsed(), stats.mem_low_wat.load())
                 << "Expected still to exceed low watermark after hitting "
                    "TMPFAIL with fail_new_data bucket";
         EXPECT_EQ(count, vb->getNumItems());
     } else {
-        EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat.load())
+        EXPECT_LT(stats.getPreciseTotalMemoryUsed(), stats.mem_low_wat.load())
                 << "Expected to be below low watermark after running item "
                    "pager";
         const auto numResidentItems =
@@ -665,8 +672,6 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
     store->setVBucketState(replica_vb, vbucket_state_active);
 
     auto& stats = engine->getEpStats();
-    ASSERT_LE(stats.getEstimatedTotalMemoryUsed(), 40 * 1024)
-            << "Expected to start with less than 40KB of memory used";
     ASSERT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat.load())
             << "Expected to start below low watermark";
 
@@ -697,22 +702,16 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
     store->setVBucketState(replica_vb, vbucket_state_replica);
     runHighMemoryPager();
 
-    EXPECT_EQ(replica_count, store->getVBucket(replica_vb)->getNumItems())
-        << "Replica count should be unchanged after Item Pager";
-
     // Expected active vb behaviour depends on the full policy:
     if (std::get<1>(GetParam()) == "fail_new_data") {
-        EXPECT_GT(stats.getEstimatedTotalMemoryUsed(),
-                  stats.mem_high_wat.load())
-                << "Expected to be above high watermark after running item "
-                   "pager (fail_new_data)";
+        EXPECT_EQ(store->getVBucket(replica_vb)->getNumItems(), replica_count)
+                << "Expected replica count to remain equal";
         EXPECT_EQ(store->getVBucket(active_vb)->getNumItems(), active_count)
                 << "Active count should be the same after Item Pager "
                    "(fail_new_data)";
     } else {
-        EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat.load())
-                << "Expected to be below low watermark after running item "
-                   "pager";
+        EXPECT_EQ(store->getVBucket(replica_vb)->getNumItems(), replica_count)
+                << "Expected replica count to remain equal";
         EXPECT_LT(store->getVBucket(active_vb)->getNumItems(), active_count)
                 << "Active count should have decreased after Item Pager";
     }

@@ -159,12 +159,6 @@ TEST_F(StatTest, vbucket_takeover_stats_stream_not_active) {
 
 // MB-32589: Check that _hash-dump stats correctly accounts temporary memory.
 TEST_F(StatTest, HashStatsMemUsed) {
-    // Enable memory tracking hooks
-    MemoryTracker::getInstance(*get_mock_server_api()->alloc_hooks);
-    engine->getEpStats().memoryTrackerEnabled.store(true);
-
-    ASSERT_TRUE(engine->getEpStats().memoryTrackerEnabled);
-
     // Add some items to VBucket 0 so the stats call has some data to
     // dump.
     store_item(Vbid(0), makeStoredDocKey("key1"), std::string(100, 'x'));
@@ -411,87 +405,3 @@ INSTANTIATE_TEST_CASE_P(FullAndValueEviction, DatatypeStatTest,
                                 (const ::testing::TestParamInfo<std::string>&
                                 info) {return info.param;});
 
-class TestEpStat : public EPStats {
-public:
-    void setMemUsedMergeThreshold(int64_t value) {
-        memUsedMergeThreshold = value;
-    }
-};
-
-class EpStatsTest : public ::testing::Test {
-public:
-};
-
-TEST_F(EpStatsTest, memoryNegative) {
-    TestEpStat stats;
-    stats.memoryTrackerEnabled = true;
-
-    stats.memDeallocated(100);
-    EXPECT_EQ(0, stats.getEstimatedTotalMemoryUsed());
-    EXPECT_EQ(0, stats.getPreciseTotalMemoryUsed());
-    // getPrecise will have merged, check we really have negative
-    EXPECT_EQ(-100, stats.estimatedTotalMemory->load());
-}
-
-TEST_F(EpStatsTest, memoryNegativeUntracked) {
-    TestEpStat stats;
-    stats.memoryTrackerEnabled = false;
-
-    stats.coreLocal.get()->memOverhead.fetch_sub(100);
-    ASSERT_EQ(-100, stats.coreLocal.get()->memOverhead.load());
-
-    EXPECT_EQ(0, stats.getEstimatedTotalMemoryUsed());
-}
-
-// Create n threads who all allocate the same amount of memory in very different
-// orders
-TEST_F(EpStatsTest, memoryAllocated) {
-    TestEpStat stats;
-    stats.memoryTrackerEnabled = true;
-    stats.setMemUsedMergeThreshold(100);
-
-    const int nThreads = 4;
-    ThreadGate tg(nThreads);
-    std::vector<std::thread> workers;
-    for (int i = 0; i < nThreads; i++) {
-        workers.push_back(std::thread([i, &tg, &stats]() {
-            std::mt19937 generator(i);
-            const int nAllocs = 250;
-            std::vector<int> inputs1(nAllocs);
-            std::vector<int> inputs2(nAllocs);
-            std::iota(inputs1.begin(), inputs1.end(), 1);
-            std::iota(inputs2.begin(), inputs2.end(), 1);
-
-            // Shuffle this threads order of updates
-            std::shuffle(inputs1.begin(), inputs1.end(), generator);
-            std::shuffle(inputs2.begin(), inputs2.end(), generator);
-
-            // Bind to the functions of interest
-            std::function<void(size_t)> f1 = std::bind(
-                    &EPStats::memAllocated, &stats, std::placeholders::_1);
-            std::function<void(size_t)> f2 = std::bind(
-                    &EPStats::memDeallocated, &stats, std::placeholders::_1);
-
-            // Reorder if thread id is odd
-            if (i & 1) {
-                f1.swap(f2);
-            }
-
-            tg.threadUp();
-
-            // Now run f1 then f2
-            for (size_t i = 0; i < inputs1.size(); i++) {
-                f1(inputs1.at(i));
-            }
-            for (size_t i = 0; i < inputs2.size(); i++) {
-                f2(inputs2.at(i));
-            }
-        }));
-    }
-
-    for (int i = 0; i < nThreads; i++) {
-        workers.at(i).join();
-    }
-
-    EXPECT_EQ(0, stats.getPreciseTotalMemoryUsed());
-}

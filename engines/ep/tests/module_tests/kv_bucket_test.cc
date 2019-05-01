@@ -128,11 +128,11 @@ Item KVBucketTest::store_item(Vbid vbid,
                               protocol_binary_datatype_t datatype) {
     auto item = make_item(vbid, key, value, exptime, datatype);
     auto returnCode = store->set(item, cookie);
-    EXPECT_NE(expected.end(),
-              std::find(expected.begin(),
-                        expected.end(),
-                        cb::engine_errc(returnCode)))
-            << returnCode;
+    // Doing the EXPECT this way as it is a less noisy when many operations fail
+    auto expectedCount = std::count(
+            expected.begin(), expected.end(), cb::engine_errc(returnCode));
+    EXPECT_NE(0, expectedCount)
+            << "unexpected error:" << cb::to_engine_errc(returnCode);
     return item;
 }
 

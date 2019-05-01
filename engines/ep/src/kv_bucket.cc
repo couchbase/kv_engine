@@ -101,7 +101,9 @@ public:
 
     void floatValueChanged(const std::string& key, float value) override {
         if (key.compare("mem_used_merge_threshold_percent") == 0) {
-            stats.setMemUsedMergeThresholdPercent(value);
+            store.getEPEngine()
+                    .getArenaMallocClient()
+                    .setEstimateUpdateThreshold(stats.getMaxDataSize(), value);
         } else {
             EP_LOG_WARN(
                     "StatsValueChangeListener(float) failed to change value "
@@ -311,9 +313,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     }
     stats.coreLocal.get()->memOverhead = sizeof(KVBucket);
 
-    // Set memUsedThresholdPercent before setting max_size
-    stats.setMemUsedMergeThresholdPercent(
-            config.getMemUsedMergeThresholdPercent());
     config.addValueChangedListener(
             "mem_used_merge_threshold_percent",
             std::make_unique<StatsValueChangeListener>(stats, *this));

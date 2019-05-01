@@ -22,6 +22,8 @@
 #include "memory_tracker.h"
 #include "objectregistry.h"
 
+#include <platform/cb_arena_malloc.h>
+
 #include <programs/engine_testapp/mock_server.h>
 
 #include <folly/portability/GTest.h>
@@ -45,13 +47,12 @@ public:
 
 protected:
     void SetUp() override {
-        // Setup object registry. As we do not create a full ep-engine, we
-        // use the "initial_tracking" for all memory tracking".
-        ObjectRegistry::setStats(&mem_used);
+        global_stats.arena = cb::ArenaMalloc::registerClient();
+        cb::ArenaMalloc::switchToClient(global_stats.arena);
     }
 
     void TearDown() override {
-        ObjectRegistry::setStats(nullptr);
+        cb::ArenaMalloc::unregisterClient(global_stats.arena);
     }
 
     /**
@@ -89,7 +90,4 @@ protected:
     const char* keyPattern2 = "%0250d";
     const char* keyPattern{nullptr};
     char keyScratch[257];
-
-    // Track of memory used (from ObjectRegistry).
-    std::atomic<size_t> mem_used{0};
 };

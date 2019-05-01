@@ -353,7 +353,7 @@ TEST_F(CheckpointRemoverEPTest, memoryRecoverTriggerTest) {
      * With a large max size (with no other changes) we should
      * conclude the cursor dropping is not required.
      */
-    config.setMaxSize(10240);
+    config.setMaxSize(engine->getEpStats().getPreciseTotalMemoryUsed() * 2);
 
     std::tie(shouldTriggerMemoryRecovery, amountOfMemoryToClear) =
             task->isReductionInCheckpointMemoryNeeded();
@@ -389,6 +389,8 @@ TEST_F(CheckpointRemoverEPTest, memoryRecoverTriggerTest) {
 
 void CheckpointRemoverEPTest::testExpelingOccursBeforeCursorDropping(
         bool moveCursor) {
+    // 1)Get enough checkpoint metadata to trigger expel
+    // 2) doesn't hit maxDataSize first
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto& config = engine->getConfiguration();
     const auto& task = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
@@ -411,7 +413,9 @@ void CheckpointRemoverEPTest::testExpelingOccursBeforeCursorDropping(
     auto cursor = activeStream.getCursor().lock();
 
     config.setChkExpelEnabled(true);
-    config.setMaxSize(200000);
+    config.setMaxSize(engine->getEpStats().getPreciseTotalMemoryUsed() +
+                      (400 * 1024));
+    config.setCursorDroppingCheckpointMemUpperMark(10);
     const auto chkptMemLimit =
             (config.getMaxSize() *
              config.getCursorDroppingCheckpointMemUpperMark()) /
