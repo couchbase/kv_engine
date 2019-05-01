@@ -53,7 +53,7 @@ void VBucketDurabilityTest::storeSyncWrites(
     // @todo: For now this function is supposed to be called once per test,
     //     expand if necessary
     ht->clear();
-    ckptMgr->clear(*vbucket, 0 /*lastBySeqno*/);
+    ckptMgr->clear(*vbucket, ckptMgr->getHighSeqno());
 
     // In general we need to test SyncWrites at sparse seqnos. To achieve that
     // we have 2 options (e.g., if we want to add SyncWrites with seqnos
@@ -128,7 +128,7 @@ void VBucketDurabilityTest::testAddPrepareAndCommit(
     testAddPrepare(writes);
 
     // Simulate flush + checkpoint-removal
-    ckptMgr->clear(*vbucket, 0 /*lastBySeqno*/);
+    ckptMgr->clear(*vbucket, ckptMgr->getHighSeqno());
 
     // Simulate replica and active seqno-ack
     vbucket->seqnoAcknowledged(replica1, writes.back().seqno);
@@ -389,7 +389,7 @@ TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
 
     // replica3 acks, Durability Requirements satisfied
     // Note: ensure 1 Ckpt in CM, easier to inspect the CkptList after Commit
-    ckptMgr->clear(*vbucket, 0 /*lastBySeqno*/);
+    ckptMgr->clear(*vbucket, ckptMgr->getHighSeqno());
     vbucket->seqnoAcknowledged(replica3, preparedSeqno);
     checkCommitted();
 }
@@ -462,7 +462,7 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
     EXPECT_TRUE(sv->getValue());
 
     // Note: ensure 1 Ckpt in CM, easier to inspect the CkptList after Commit
-    ckptMgr->clear(*vbucket, 0 /*seqno*/);
+    ckptMgr->clear(*vbucket, ckptMgr->getHighSeqno());
 
     // Client never notified yet
     ASSERT_EQ(SWCompleteTrace(0 /*count*/, nullptr, ENGINE_EINVAL),
@@ -587,7 +587,7 @@ TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
     EXPECT_EQ(1, monitor.getNumTracked());
 
     // Note: ensure 1 Ckpt in CM, easier to inspect the CkptList after Commit
-    ckptMgr->clear(*vbucket, 0 /*seqno*/);
+    ckptMgr->clear(*vbucket, ckptMgr->getHighSeqno());
 
     // Client never notified yet
     ASSERT_EQ(SWCompleteTrace(0 /*count*/, nullptr, ENGINE_EINVAL),
