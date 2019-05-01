@@ -28,11 +28,59 @@
 #include <folly/portability/GMock.h>
 #include <getopt.h>
 #include <logger/logger.h>
+#include <memcached/config_parser.h>
+#include <memcached/server_core_iface.h>
 #include <memcached/server_log_iface.h>
 
 /* static storage for environment variable set by putenv(). */
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 
+/**
+ * Implementation of ServerCoreIface for unit tests.
+ *
+ * In unit tests time stands still, to give deterministic behaviour.
+ */
+class UnitTestServerCore : public ServerCoreIface {
+public:
+    rel_time_t get_current_time() override {
+        // Return a fixed time of '0'.
+        return 0;
+    }
+
+    rel_time_t realtime(rel_time_t exptime) override {
+        throw std::runtime_error(
+                "UnitTestServerCore::realtime() not implemented");
+    }
+
+    time_t abstime(rel_time_t reltime) override {
+        return get_current_time() + reltime;
+    }
+
+    time_t limit_abstime(time_t t, std::chrono::seconds limit) override {
+        throw std::runtime_error(
+                "UnitTestServerCore::limit_abstime() not implemented");
+    }
+
+    int parse_config(const char* str,
+                     config_item* items,
+                     FILE* error) override {
+        return ::parse_config(str, items, error);
+    }
+
+    void shutdown() override {
+        throw std::runtime_error(
+                "UnitTestServerCore::shutdown() not implemented");
+    }
+
+    size_t get_max_item_iovec_size() override {
+        return 1;
+    }
+
+    void trigger_tick() override {
+        throw std::runtime_error(
+                "UnitTestServerCore::trigger_tick() not implemented");
+    }
+};
 
 int main(int argc, char **argv) {
     bool verbose_logging = false;
@@ -79,7 +127,8 @@ int main(int argc, char **argv) {
     BucketLogger::setLoggerAPI(get_mock_server_api()->log);
 
     // Need to initialize ep_real_time and friends.
-    initialize_time_functions(get_mock_server_api()->core);
+    UnitTestServerCore unitTestServerCore;
+    initialize_time_functions(&unitTestServerCore);
 
     auto ret = RUN_ALL_TESTS();
 
