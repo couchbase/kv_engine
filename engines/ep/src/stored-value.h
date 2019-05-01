@@ -1037,20 +1037,9 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
  */
 class OrderedStoredValue : public StoredValue {
 public:
-    /**
-     * C++14 will call the sized delete version, but we
-     * allocate the object by using the new operator with a custom
-     * size (the key is packed after the object). We need to use
-     * the non-sized delete variant as the runtime don't know
-     * the size of the allocated object.
-     */
-    static void operator delete(void* ptr) {
-        ::operator delete(ptr);
-    }
-
-    // Intrusive linked-list for sequence number ordering.
-    // Guarded by the SequenceList's writeLock.
-    boost::intrusive::list_member_hook<> seqno_hook;
+    /* Do not allow assignment */
+    OrderedStoredValue& operator=(const OrderedStoredValue& other) = delete;
+    OrderedStoredValue& operator=(OrderedStoredValue&& other) = delete;
 
     ~OrderedStoredValue() {
         if (isStalePriv()) {
@@ -1097,6 +1086,11 @@ public:
     }
 
     /**
+     * Return the time the item was deleted. Only valid for deleted items.
+     */
+    rel_time_t getDeletedTime() const;
+
+    /**
      * Check if the contents of the StoredValue is same as that of the other
      * one. Does not consider the intrusive hash bucket link.
      *
@@ -1109,9 +1103,15 @@ public:
     static size_t getRequiredStorage(const DocKey& key);
 
     /**
-     * Return the time the item was deleted. Only valid for deleted items.
+     * C++14 will call the sized delete version, but we
+     * allocate the object by using the new operator with a custom
+     * size (the key is packed after the object). We need to use
+     * the non-sized delete variant as the runtime don't know
+     * the size of the allocated object.
      */
-    rel_time_t getDeletedTime() const;
+    static void operator delete(void* ptr) {
+        ::operator delete(ptr);
+    }
 
 protected:
     SerialisedDocKey* key() {
@@ -1127,14 +1127,14 @@ protected:
 
     /* Update the value for this OSV from the given item.
      * Implementation for OrderedStoredValue instances (dispatched to by
-     *  setValue()).
+     * setValue()).
      */
     void setValueImpl(const Item& itm);
 
     /**
      * Set the time the item was deleted to the specified time.
      */
-    inline void setDeletedTime(rel_time_t time);
+    void setDeletedTime(rel_time_t time);
 
 private:
     // Constructor. Private, as needs to be carefully created via
@@ -1157,8 +1157,11 @@ private:
         : StoredValue(other, std::move(n), stats) {
     }
 
-    /* Do not allow assignment */
-    OrderedStoredValue& operator=(const OrderedStoredValue& other) = delete;
+public:
+    // Intrusive linked-list for sequence number ordering.
+    // Guarded by the SequenceList's writeLock.
+    // Logically private to the object, however Boost requires it to be public.
+    boost::intrusive::list_member_hook<> seqno_hook;
 
     // Grant friendship so our factory can call our (private) constructor.
     friend class OrderedStoredValueFactory;
