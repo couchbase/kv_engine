@@ -20,12 +20,13 @@
 #include <folly/lang/Assume.h>
 #include <hdr_histogram.h>
 #include <nlohmann/json.hpp>
+#include <platform/cb_malloc.h>
 #include <iostream>
 #include <sstream>
 
 // Custom deleter for the hdr_histogram struct.
 void HdrHistogram::HdrDeleter::operator()(struct hdr_histogram* val) {
-    hdr_close(val);
+    hdr_close_ex(val, cb_free);
 }
 
 HdrHistogram::HdrHistogram(uint64_t lowestTrackableValue,
@@ -45,10 +46,11 @@ HdrHistogram::HdrHistogram(uint64_t lowestTrackableValue,
     // We add a bias of +1 to the lowest and highest trackable value
     // because we add +1 to all values we store in the histogram (as this
     // allows us to record the value 0).
-    hdr_init(lowestTrackableValue + 1,
-             highestTrackableValue + 1, // Add one because all values
-             significantFigures,
-             &hist); // Pointer to initialise
+    hdr_init_ex(lowestTrackableValue + 1,
+                highestTrackableValue + 1, // Add one because all values
+                significantFigures,
+                &hist, // Pointer to initialise
+                cb_calloc);
 
     histogram.reset(hist);
     defaultIterationMode = iterMode;
@@ -328,10 +330,11 @@ void HdrHistogram::resize(uint64_t lowestTrackableValue,
     // We add a bias of +1 to the lowest and highest value that can be tracked
     // because we add +1 to all values we store in the histogram (as this
     // allows us to record the value 0).
-    hdr_init(lowestTrackableValue + 1,
-             highestTrackableValue + 1, // Add one because all values
-             significantFigures,
-             &hist); // Pointer to initialise
+    hdr_init_ex(lowestTrackableValue + 1,
+                highestTrackableValue + 1, // Add one because all values
+                significantFigures,
+                &hist, // Pointer to initialise
+                cb_calloc);
 
     hdr_add(hist, histogram.get());
     histogram.reset(hist);

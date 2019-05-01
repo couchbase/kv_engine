@@ -46,6 +46,7 @@
 #include "locks.h"
 #include <libcouchstore/couch_db.h>
 #include <memcached/engine.h>
+#include <memcached/engine_error.h>
 #include <memcached/engine_testapp.h>
 #include <memcached/types.h>
 #include <nlohmann/json.hpp>
@@ -5080,16 +5081,19 @@ static enum test_result test_memory_condition(EngineIface* h) {
 
     //Write 10 times as much data as the bucket quota
     for (uint64_t j = 0; j < 26214400; ++j) {
-        std::stringstream ss;
-        ss << "key-" << j;
-        std::string key(ss.str());
+        std::string key("key-");
+        key += std::to_string(j);
 
         ENGINE_ERROR_CODE err =
                 store(h, NULL, OPERATION_SET, key.c_str(), data);
 
-        check(err == ENGINE_SUCCESS || err == ENGINE_TMPFAIL,
-              "Failed to store a value");
-        if (err == ENGINE_TMPFAIL) {
+        std::string checkMsg("Failed for reason ");
+        checkMsg += to_string(cb::to_engine_errc(err));
+        check(err == ENGINE_SUCCESS || err == ENGINE_TMPFAIL ||
+                      err == ENGINE_ENOMEM,
+              checkMsg.c_str());
+
+        if (err == ENGINE_TMPFAIL || err == ENGINE_ENOMEM) {
             break;
         }
     }
