@@ -734,12 +734,90 @@ VBNotifyCtx EphemeralVBucket::commitStoredValue(
 
 VBNotifyCtx EphemeralVBucket::abortStoredValue(
         const HashTable::HashBucketLock& hbl,
-        StoredValue& v,
+        StoredValue& prepared,
         int64_t prepareSeqno,
         boost::optional<int64_t> abortSeqno) {
-    // @todo-durability: Implement this.
-    throw std::logic_error(
-            "EphemeralVBucket::abortStoredValue - not yet implemented");
+    if (prepared.getCommitted() != CommittedState::Pending) {
+        throw std::invalid_argument(
+                "EphemeralVBucket::abortStoredValue: Cannot call on a "
+                "non-Pending StoredValue");
+    }
+
+    // Aborting an item in an Ephemeral VBucket consists of:
+    // 1. Updating the OSV in the seqList
+    // 2. Removing the prepare from the hash table
+    // 3. Marking the prepare as stale
+
+    // This function is similar to softDeleteStoredValue, but implemented
+    // separately as we would have to special case a few things for prepares
+    // that would make the code less readable.
+
+    VBQueueItemCtx queueItmCtx;
+    VBNotifyCtx notifyCtx;
+
+    // Need the sequenceLock as we may be generating a new seqno
+    std::lock_guard<std::mutex> lh(sequenceLock);
+
+    StoredValue* newSv = &prepared;
+    StoredValue::UniquePtr oldSv;
+    {
+        // 1) Typical ephemeral seqList manipulation due to range reads. See
+        // softDeleteStoredValue for more information.
+        std::lock_guard<std::mutex> listWriteLg(seqList->getListWriteLock());
+        SequenceList::UpdateStatus res = modifySeqList(
+                lh, listWriteLg, *(prepared.toOrderedStoredValue()));
+        switch (res) {
+        case SequenceList::UpdateStatus::Success:
+            break;
+        case SequenceList::UpdateStatus::Append:
+            std::tie(newSv, oldSv) = ht.unlocked_replaceByCopy(hbl, prepared);
+            seqList->appendToList(
+                    lh, listWriteLg, *(newSv->toOrderedStoredValue()));
+            break;
+        }
+
+        // Set the specified seqno and queue using queueAbort. A normal deletion
+        // would use queueDirty. Typically, we would also perform the required
+        // HashTable operation before calling queueDirty/Abort. We do not do
+        // this here because queueDirty /could/ throw an exception (and does in
+        // some tests). As we wish to remove the prepare from the HashTable
+        // (we call unlocked_release) this would have the unfortunately awful
+        // to debug side effect of causing the destruction of the returned
+        // StoredValue::UniquePtr to destruct with the pointer still intact
+        // which breaks a seqList invariant and aborts the program. So, just
+        // call it first.
+        if (abortSeqno) {
+            queueItmCtx.genBySeqno = GenerateBySeqno::No;
+            newSv->setBySeqno(*abortSeqno);
+        }
+        notifyCtx = queueAbort(hbl, *newSv, prepareSeqno, queueItmCtx);
+
+        // A normal deletion does not need to manually set the bySeqno of the
+        // abort item because queueDirty does this for you. As we are using
+        // queueAbort, update the bySeqno manually.
+        if (!abortSeqno) {
+            newSv->setBySeqno(notifyCtx.bySeqno);
+        }
+        // 2) Instead of deleting the prepare, actually remove it from the
+        // HashTable so that we allow subsequent SyncWrites.
+        auto ownedSv = ht.unlocked_release(hbl, newSv);
+
+        /* Update the high seqno in the sequential storage */
+        auto& osv = *(ownedSv->toOrderedStoredValue());
+        seqList->updateHighSeqno(listWriteLg, osv);
+
+        // If we did an append we still need to mark the un-updated StoredValue
+        // as stale.
+        if (res == SequenceList::UpdateStatus::Append) {
+            seqList->markItemStale(listWriteLg, std::move(oldSv), newSv);
+        }
+
+        // 3) Make the prepare as stale
+        seqList->markItemStale(listWriteLg, std::move(ownedSv), nullptr);
+        ownedSv.release();
+    }
+
+    return notifyCtx;
 }
 
 void EphemeralVBucket::bgFetch(const DocKey& key,

@@ -621,10 +621,6 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbort) {
  * 3) the abort_sync_write is not added to the DurabilityMonitor
  */
 TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
-    if (getVbType() == VBType::Ephemeral) {
-        // @todo-durability: Implement abort.
-        return;
-    }
     storeSyncWrites({1} /*seqno*/);
     ASSERT_EQ(1,
               VBucketTestIntrospector::public_getActiveDM(*vbucket)
@@ -1259,6 +1255,41 @@ TEST_P(EPVBucketDurabilityTest, Replica_Abort) {
     testCompleteSWInPassiveDM(vbucket_state_replica, Resolution::Abort);
 }
 
-TEST_P(EPVBucketDurabilityTest, Pending_Abort) {
+TEST_P(VBucketDurabilityTest, Pending_Abort) {
     testCompleteSWInPassiveDM(vbucket_state_pending, Resolution::Abort);
+}
+
+TEST_P(EphemeralVBucketDurabilityTest, Replica_Abort) {
+    testCompleteSWInPassiveDM(vbucket_state_replica, Resolution::Abort);
+
+    // Check that we have the expected items in the seqList.
+    // 3 stale prepare
+    auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
+    EXPECT_EQ(3, mockEphVb->public_getNumStaleItems());
+    EXPECT_EQ(3, mockEphVb->public_getNumListItems());
+
+    // Do a purge of the stale items and check result. We always keep the last
+    // item so it is not expected that we purge everything
+    EXPECT_EQ(2, mockEphVb->purgeStaleItems());
+    EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
+    EXPECT_EQ(1, mockEphVb->public_getNumListItems());
+}
+
+TEST_P(EphemeralVBucketDurabilityTest, Replica_Abort_RangeRead) {
+    // Register our range read
+    auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
+    mockEphVb->registerFakeReadRange(0, 1000);
+
+    testCompleteSWInPassiveDM(vbucket_state_replica, Resolution::Abort);
+
+    // Check that we have the expected items in the seqList.
+    // 6 stale prepare. We append to the seqList because of the range read.
+    EXPECT_EQ(6, mockEphVb->public_getNumStaleItems());
+    EXPECT_EQ(6, mockEphVb->public_getNumListItems());
+
+    // Do a purge of the stale items and check result. We always keep the last
+    // item so it is not expected that we purge everything
+    EXPECT_EQ(5, mockEphVb->purgeStaleItems());
+    EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
+    EXPECT_EQ(1, mockEphVb->public_getNumListItems());
 }
