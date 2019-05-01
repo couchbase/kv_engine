@@ -45,10 +45,14 @@ public:
      * @param (optional) firstChain The repl-chain that the write is tracked
      *     against.  Necessary at Active for verifying the SW Durability
      *     Requirements.
+     * @param (optional) secondChain The second repl-chain that the write is
+     *     tracked against. Necessary at Active for verifying the SW Durability
+     *     Requirements.
      */
     SyncWrite(const void* cookie,
               queued_item item,
-              const ReplicationChain* firstChain);
+              const ReplicationChain* firstChain,
+              const ReplicationChain* secondChain);
 
     const StoredDocKey& getKey() const;
 
@@ -84,10 +88,10 @@ public:
      * given topology.
      *
      * @param firstChain
-     *
-     * @todo Add support for second chain
+     * @param secondChain
      */
-    void resetTopology(const ReplicationChain& firstChain);
+    void resetTopology(const ReplicationChain& firstChain,
+                       const ReplicationChain* secondChain);
 
 private:
     // Client cookie associated with this SyncWrite request, to be notified
@@ -127,6 +131,7 @@ private:
     };
 
     ChainStatus firstChain;
+    ChainStatus secondChain;
 
     // Used for enforcing the Durability Requirements Timeout. It is set
     // when this SyncWrite is added for tracking into the DurabilityMonitor.

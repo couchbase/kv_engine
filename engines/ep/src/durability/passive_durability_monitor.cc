@@ -72,8 +72,10 @@ void PassiveDurabilityMonitor::addSyncWrite(queued_item item) {
     int64_t hps{0};
     {
         auto s = state.wlock();
-        s->trackedWrites.emplace_back(
-                nullptr /*cookie*/, std::move(item), nullptr /*firstChain*/);
+        s->trackedWrites.emplace_back(nullptr /*cookie*/,
+                                      std::move(item),
+                                      nullptr /*firstChain*/,
+                                      nullptr /*secondChain*/);
 
         // Maybe the new tracked Prepare is already satisfied and could be
         // ack'ed back to the Active.

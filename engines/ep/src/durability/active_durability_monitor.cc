@@ -548,9 +548,13 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
     firstChain =
             makeChain(DurabilityMonitor::ReplicationChainName::First, fChain);
 
+    // @TODO we must check before calling write.resetTopology if durability is
+    // possible for the new topology. If it is now, we should abort the in
+    // flight sync writes.
+
     // Apply the new topology to all in-flight SyncWrites
     for (auto& write : trackedWrites) {
-        write.resetTopology(*firstChain);
+        write.resetTopology(*firstChain, secondChain.get());
     }
 }
 
@@ -558,7 +562,8 @@ void ActiveDurabilityMonitor::State::addSyncWrite(const void* cookie,
                                                   queued_item item) {
     Expects(firstChain.get());
     const auto seqno = item->getBySeqno();
-    trackedWrites.emplace_back(cookie, std::move(item), firstChain.get());
+    trackedWrites.emplace_back(
+            cookie, std::move(item), firstChain.get(), secondChain.get());
     lastTrackedSeqno = seqno;
 }
 

@@ -21,7 +21,8 @@
 
 DurabilityMonitor::SyncWrite::SyncWrite(const void* cookie,
                                         queued_item item,
-                                        const ReplicationChain* firstChain)
+                                        const ReplicationChain* firstChain,
+                                        const ReplicationChain* secondChain)
     : cookie(cookie),
       item(item),
       expiryTime(
@@ -31,8 +32,13 @@ DurabilityMonitor::SyncWrite::SyncWrite(const void* cookie,
                                         item->getDurabilityReqs().getTimeout())
                       : boost::optional<
                                 std::chrono::steady_clock::time_point>{}) {
+    // We should always have a first chain if we have a second
+    if (secondChain) {
+        Expects(firstChain);
+    }
+
     if (firstChain) {
-        resetTopology(*firstChain);
+        resetTopology(*firstChain, secondChain);
     }
 }
 
@@ -103,12 +109,24 @@ bool DurabilityMonitor::SyncWrite::isExpired(
 }
 
 void DurabilityMonitor::SyncWrite::resetTopology(
-        const ReplicationChain& firstChain) {
+        const ReplicationChain& firstChain,
+        const ReplicationChain* secondChain) {
     this->firstChain.reset(&firstChain);
+    this->secondChain.reset(secondChain);
 
-    // We are making a SyncWrite for tracking, we must have already ensured
-    // that the Durability Requirements can be met at this point.
-    Expects(firstChain.size() >= firstChain.majority);
+    // We can call resetTopology in one of two cases:
+    // a) for a new SyncWrite
+    // b) for a topology change
+    // In both cases, creating a SyncWrite is only valid if durability is
+    // possible for each chain in the given topology.
+    // This condition should be checked and dealt with by the caller but
+    // we will enforce it here to defend from any races in the setting of a new
+    // topology.
+    Expects(firstChain.isDurabilityPossible());
+
+    if (secondChain) {
+        Expects(secondChain->isDurabilityPossible());
+    }
 }
 
 std::ostream& operator<<(std::ostream& os,
@@ -124,6 +142,19 @@ std::ostream& operator<<(std::ostream& os,
     if (sw.firstChain) {
         for (const auto& ack : sw.firstChain.chainPtr->positions) {
             if (sw.firstChain.chainPtr->hasAcked(ack.first, sw.getBySeqno())) {
+                if (!acks.empty()) {
+                    acks += ",";
+                }
+                acks += ack.first;
+            }
+        }
+    }
+    os << acks << "] #2ndChainAcks:" << std::to_string(sw.secondChain.ackCount)
+       << " 2ndChainAcks:[";
+    acks = "";
+    if (sw.secondChain) {
+        for (const auto& ack : sw.secondChain.chainPtr->positions) {
+            if (sw.secondChain.chainPtr->hasAcked(ack.first, sw.getBySeqno())) {
                 if (!acks.empty()) {
                     acks += ",";
                 }
