@@ -1485,4 +1485,4 @@ INSTANTIATE_TEST_CASE_P(CollectionsExpiryLimitTests,
 INSTANTIATE_TEST_CASE_P(CollectionsEphemeralOrPersistent,
                         CollectionsParameterizedTest,
                         STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTestPrintName());
+                        STParameterizedBucketTest::PrintToStringParamName);

@@ -1895,4 +1895,4 @@ TEST_P(CollectionsDcpParameterizedTest, legacy_stream_closes) {
 INSTANTIATE_TEST_CASE_P(CollectionsDcpEphemeralOrPersistent,
                         CollectionsDcpParameterizedTest,
                         STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTestPrintName());
+                        STParameterizedBucketTest::PrintToStringParamName);

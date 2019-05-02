@@ -492,4 +492,4 @@ TEST_P(CollectionsEraserTest, erase_after_warmup) {
 INSTANTIATE_TEST_CASE_P(CollectionsEraserTests,
                         CollectionsEraserTest,
                         STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTestPrintName());
+                        STParameterizedBucketTest::PrintToStringParamName);

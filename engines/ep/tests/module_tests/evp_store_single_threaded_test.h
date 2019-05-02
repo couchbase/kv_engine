@@ -205,14 +205,69 @@ struct STParameterizedEPBucketTestPrintName {
 };
 
 /**
- * Test fixture for KVBucket tests running in single-threaded mode.
+ * Test fixture for KVBucket tests running in single-threaded mode, for some
+ * combination of bucket type, eviction mode and KVStore type.
+ *
+ * Allows tests to be defined once which are applicable to more than one
+ * configuration, and then instantiated with appropriate config parameters.
  *
  * Parameterised on a pair of:
- * - bucket_type (ephemeral of persistent)
+ * - bucket type (ephemeral or persistent, and additional persistent variants
+ *   (e.g. RocksDB) for additional storage backends.
  * - eviction type.
  *   - For ephemeral buckets: used for specifying ephemeral auto-delete /
  *     fail_new_data
  *   - For persistent buckets: used for specifying value_only or full_eviction
+ *
+ * See `allConfigValues(), persistentConfigValues(), etc methods to instantiate
+ * tests for some set / subset of the avbove parameters.
+ *
+ * Note that specific instantiations of tests may not instantiate for all
+ * possible variants - a test may only be applicable to persistent buckets and
+ * hence will only instantiate for persistentConfigValues.
+ *
+ * Suggested usage:
+ * 1. For a given group of tests (e.g. CollectionsDCP tests), create a subclass
+ *   of this class:
+ *
+ *     class MyTestSuite : public STParameterizedBucketTest {};
+ *
+ * 2. Write some (parameterized) tests:
+ *
+ *     TEST_P(MyTestSuite, DoesFoo) { ... }
+ *
+ * 3. Instantiate your test suite with the config values applicable to it -
+ * for example a test which is applicable to all variants of a Persistent
+ * bucket:
+ *
+ *     INSTANTIATE_TEST_CASE_P(
+ *         Persistent,
+ *         MyTestSuite,
+ *         STParameterizedBucketTest::persistentConfigValues(),
+ *         STParameterizedBucketTest::PrintToStringParamName);
+ *
+ * Advanced usage:
+ * - If you have some tests in a suite which only work for some config params
+ *   but not others (e.g. some don't work under Ephemeral), split your suite
+ *   into two sibling classes then instantiate each class with a different
+ *   config:
+ *
+ *   class DcpActiveStreamTest : public STParameterizedBucketTest {};
+ *   class DcpActiveStreamTestPersistent : public STParameterizedBucketTest {};
+ *
+ *   ... define some TEST_P() for each suite...
+ *
+ *     INSTANTIATE_TEST_CASE_P(
+ *         PersistentAndEphemeral,
+ *         DcpActiveStreamTest,
+ *         STParameterizedBucketTest::allConfigValues(),
+ *         STParameterizedBucketTest::PrintToStringParamName);
+ *
+ *     INSTANTIATE_TEST_CASE_P(
+ *         Persistent,
+ *         DcpActiveStreamTestPersistent,
+ *         STParameterizedBucketTest::persistentAllBackendsConfigValues(),
+ *         STParameterizedBucketTest::PrintToStringParamName());
  */
 class STParameterizedBucketTest
     : virtual public SingleThreadedKVBucketTest,
@@ -258,6 +313,10 @@ public:
         return std::get<0>(GetParam()).find("persistent") != std::string::npos;
     }
 
+    /// @returns a string representing this tests' parameters.
+    static std::string PrintToStringParamName(
+            const ::testing::TestParamInfo<ParamType>& info);
+
 protected:
     void SetUp() override {
         if (!config_string.empty()) {
@@ -281,9 +340,4 @@ protected:
 
         SingleThreadedKVBucketTest::SetUp();
     }
-};
-
-struct STParameterizedBucketTestPrintName {
-    std::string operator()(const ::testing::TestParamInfo<
-                           ::testing::tuple<std::string, std::string>>&) const;
 };

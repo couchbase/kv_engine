@@ -705,4 +705,4 @@ INSTANTIATE_TEST_CASE_P(
         FullOrValue,
         DurabilityWarmupTest,
         STParameterizedBucketTest::persistentAllBackendsConfigValues(),
-        STParameterizedBucketTestPrintName());
+        STParameterizedBucketTest::PrintToStringParamName);

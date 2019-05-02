@@ -329,6 +329,18 @@ void SingleThreadedKVBucketTest::runCollectionsEraser() {
     }
 }
 
+/// @returns a string representing this tests' parameters.
+std::string STParameterizedBucketTest::PrintToStringParamName(
+        const ::testing::TestParamInfo<ParamType>& info) {
+    auto bucket = std::get<0>(info.param);
+
+    auto evictionPolicy = std::get<1>(info.param);
+    if (evictionPolicy.empty()) {
+        return bucket;
+    }
+    return bucket + "_" + evictionPolicy;
+}
+
 /*
  * MB-31175
  * The following test checks to see that when we call handleSlowStream in an
@@ -3787,20 +3799,8 @@ INSTANTIATE_TEST_CASE_P(XattrCompressedTest,
                         ::testing::Combine(::testing::Bool(),
                                            ::testing::Bool()), );
 
-std::string STParameterizedBucketTestPrintName::operator()(
-        const ::testing::TestParamInfo<
-                ::testing::tuple<std::string, std::string>>& info) const {
-    auto bucket = std::get<0>(info.param);
-
-    auto evictionPolicy = std::get<1>(info.param);
-    if (evictionPolicy.empty()) {
-        return bucket;
-    }
-    return bucket + "_" + evictionPolicy;
-}
-
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         STParameterizedBucketTest,
                         STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTestPrintName());
+                        STParameterizedBucketTest::PrintToStringParamName);

@@ -1183,26 +1183,26 @@ TEST_P(MB_32669, expire_a_compressed_and_evicted_xattr_document) {
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         STItemPagerTest,
                         STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTestPrintName());
+                        STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         STExpiryPagerTest,
                         STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTestPrintName());
+                        STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_CASE_P(ValueOnly,
                         STValueEvictionExpiryPagerTest,
                         STValueEvictionExpiryPagerTest::configValues(),
-                        STParameterizedBucketTestPrintName());
+                        STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_CASE_P(Persistent,
                         MB_32669,
                         STValueEvictionExpiryPagerTest::configValues(),
-                        STParameterizedBucketTestPrintName());
+                        STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_CASE_P(Ephemeral,
                         STEphemeralItemPagerTest,
                         STParameterizedBucketTest::ephConfigValues(),
-                        STParameterizedBucketTestPrintName());
+                        STParameterizedBucketTest::PrintToStringParamName);
 
 #endif
