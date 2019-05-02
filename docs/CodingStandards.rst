@@ -1306,6 +1306,62 @@ does not cover every enumeration value. If you write a default label on a fully
 covered switch over an enumeration then the ``-Wswitch`` warning won't fire
 when new elements are added to that enumeration.
 
+Don't:
+
+.. code-block:: c++
+
+  enum class Color { Red, Green } color;
+  switch (color) {
+  case Color::Red:
+      ...
+      break;
+  case Color::Green:
+      ...
+      break;
+  default:
+      throw std::logic_error("Unhandled case");
+  }
+
+Don't:
+
+.. code-block:: c++
+
+  enum class Color { Red, Green } color;
+  switch (color) {
+  case Color::Red:
+      ...
+      break;
+  case Color::Green:
+      ...
+      break;
+  }
+
+Note that it is valid (although generally not desirable) behaviour to assign
+a value to an enumeration type which doesn't equal any of the named enumerators,
+for example the following is valid:
+
+.. code-block:: c++
+
+  enum class E {A=0, B=1, C=2};
+  E e = static_cast<E>(3);
+
+As such, if you omit the default for a fully-covered switch, the compiler can
+_still_ warn about unexpected control-flow - i.e. it cannot assume that one of
+the cases has been taken (``warning: control reaches end of non-void function``).
+To avoid this warning use ``folly::assume_unreachable()``:
+
+.. code-block:: c++
+
+  enum class E {A, B, C};
+  std::string to_string(E e) {
+      switch (e) {
+      case E::A: return "A";
+      case E::B: return "B";
+      case E::C: return "C";
+      }
+      folly::assume_unreachable();
+  }
+
 Don't use ``inline`` when defining a function in a class definition
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
