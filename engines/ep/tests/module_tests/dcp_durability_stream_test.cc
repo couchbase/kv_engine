@@ -111,7 +111,7 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
     ASSERT_FALSE(resp);
 }
 
-TEST_F(DurabilityActiveStreamTest, SendDcpPrepare) {
+TEST_P(DurabilityActiveStreamTest, SendDcpPrepare) {
     testSendDcpPrepare();
 }
 
@@ -119,7 +119,7 @@ TEST_F(DurabilityActiveStreamTest, SendDcpPrepare) {
  * This test checks that the ActiveStream::readyQ contains the right DCP
  * messages during the journey of an Aborted sync-write.
  */
-TEST_F(DurabilityActiveStreamTest, SendDcpAbort) {
+TEST_P(DurabilityActiveStreamTest, SendDcpAbort) {
     // First, we need to enqueue a Prepare.
     testSendDcpPrepare();
     auto vb = engine->getVBucket(vbid);
@@ -204,7 +204,7 @@ void DurabilityPassiveStreamTest::TearDown() {
     SingleThreadedPassiveStreamTest::TearDown();
 }
 
-TEST_F(DurabilityPassiveStreamTest, SeqnoAckAtSyncWriteReceived) {
+TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSyncWriteReceived) {
     /*
      * The consumer receives mutations {s:1, s:2, s:3}, with only s:2 durable
      * with Level:Majority. We have to check that we send a SeqnoAck as soon as
@@ -263,7 +263,7 @@ TEST_F(DurabilityPassiveStreamTest, SeqnoAckAtSyncWriteReceived) {
     checkReadyQ();
 }
 
-TEST_F(DurabilityPassiveStreamTest, SeqnoAckAtPersistedSeqno) {
+TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtPersistedSeqno) {
     /*
      * The consumer receives mutations {s:1, s:2, s:3}, with only s:2 durable
      * with Level:PersistToMajority. We have to check that we send a SeqnoAck
@@ -311,9 +311,7 @@ TEST_F(DurabilityPassiveStreamTest, SeqnoAckAtPersistedSeqno) {
     EXPECT_EQ(0, readyQ.size());
 
     // Flush
-    EXPECT_EQ(
-            std::make_pair(false /*more_to_flush*/, size_t(3) /*num_flushed*/),
-            getEPBucket().flushVBucket(vbid));
+    flushVBucketToDiskIfPersistent(vbid, 3);
 
     // We must have a SeqnoAck with payload HPS in readyQ.
     // Note that s:3 (which is a non-sync write) must not affect HPS, which
@@ -344,7 +342,7 @@ TEST_F(DurabilityPassiveStreamTest, SeqnoAckAtPersistedSeqno) {
  *
  * Last step: flusher persists all -> ack (HPS=8)
  */
-TEST_F(DurabilityPassiveStreamTest, DurabilityFence) {
+TEST_P(DurabilityPassiveStreamTest, DurabilityFence) {
     const auto& readyQ = stream->public_readyQ();
     auto checkSeqnoAckInReadyQ = [this, &readyQ](int64_t seqno) -> void {
         ASSERT_EQ(1, readyQ.size());
@@ -455,9 +453,8 @@ TEST_F(DurabilityPassiveStreamTest, DurabilityFence) {
     EXPECT_EQ(0, readyQ.size());
 
     // Flusher persists all -> ack (HPS=8)
-    EXPECT_EQ(
-            std::make_pair(false /*more_to_flush*/, size_t(10) /*num_flushed*/),
-            getEPBucket().flushVBucket(vbid));
+    flushVBucketToDiskIfPersistent(vbid, 10);
+
     checkSeqnoAckInReadyQ(8 /*HPS*/);
 }
 
@@ -522,7 +519,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
     EXPECT_EQ(1, (*it)->getBySeqno());
 }
 
-TEST_F(DurabilityPassiveStreamTest, ReceiveDcpPrepare) {
+TEST_P(DurabilityPassiveStreamTest, ReceiveDcpPrepare) {
     testReceiveDcpPrepare();
 }
 
@@ -530,7 +527,7 @@ TEST_F(DurabilityPassiveStreamTest, ReceiveDcpPrepare) {
  * This test checks that a DCP Consumer receives and processes correctly a
  * DCP_ABORT message.
  */
-TEST_F(DurabilityPassiveStreamTest, ReceiveDcpAbort) {
+TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbort) {
     // First, simulate the Consumer receiving a Prepare
     testReceiveDcpPrepare();
     auto vb = engine->getVBucket(vbid);
@@ -620,3 +617,15 @@ TEST_F(DurabilityPassiveStreamTest, ReceiveDcpAbort) {
     EXPECT_FALSE((*it)->getValue());
     EXPECT_EQ(abortSeqno, (*it)->getBySeqno());
 }
+
+INSTANTIATE_TEST_CASE_P(
+        AllBucketTypes,
+        DurabilityActiveStreamTest,
+        STParameterizedBucketTest::persistentAllBackendsConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_CASE_P(
+        AllBucketTypes,
+        DurabilityPassiveStreamTest,
+        STParameterizedBucketTest::persistentAllBackendsConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);

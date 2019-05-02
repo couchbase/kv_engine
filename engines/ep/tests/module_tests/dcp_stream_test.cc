@@ -1350,7 +1350,7 @@ INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
                         });
 
 void SingleThreadedActiveStreamTest::SetUp() {
-    SingleThreadedEPBucketTest::SetUp();
+    STParameterizedBucketTest::SetUp();
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     setupProducer();
 }
@@ -1358,7 +1358,7 @@ void SingleThreadedActiveStreamTest::SetUp() {
 void SingleThreadedActiveStreamTest::TearDown() {
     stream.reset();
     producer.reset();
-    SingleThreadedEPBucketTest::TearDown();
+    STParameterizedBucketTest::TearDown();
 }
 
 void SingleThreadedActiveStreamTest::setupProducer(
@@ -1409,7 +1409,7 @@ MutationStatus SingleThreadedActiveStreamTest::public_processSet(
 void SingleThreadedPassiveStreamTest::SetUp() {
     // Bucket Quota 100MB, Replication Threshold 4%
     config_string += "max_size=104857600;replication_throttle_threshold=4";
-    SingleThreadedEPBucketTest::SetUp();
+    STParameterizedBucketTest::SetUp();
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
@@ -1432,7 +1432,7 @@ void SingleThreadedPassiveStreamTest::SetUp() {
 void SingleThreadedPassiveStreamTest::TearDown() {
     ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(0 /*opaque*/, vbid));
     consumer.reset();
-    SingleThreadedEPBucketTest::TearDown();
+    STParameterizedBucketTest::TearDown();
 }
 
 /*
@@ -1445,7 +1445,7 @@ void SingleThreadedPassiveStreamTest::TearDown() {
  * test covers a generic scenario where we try to process any kind of
  * out-of-order messages (e.g., mutations and snapshot-markers).
  */
-TEST_F(SingleThreadedPassiveStreamTest, MB31410) {
+TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
     const std::string value(1024 * 1024, 'x');
     const uint64_t snapStart = 1;
     const uint64_t snapEnd = 100;
@@ -1799,26 +1799,32 @@ void SingleThreadedPassiveStreamTest::mb_33773(
 
 // Do mb33773 with the close stream interleaved into the processBufferedMessages
 // This is more reflective of the actual MB as this case would result in a fault
-TEST_F(SingleThreadedPassiveStreamTest, MB_33773_interleaved) {
+TEST_P(SingleThreadedPassiveStreamTest, MB_33773_interleaved) {
     mb_33773(mb_33773Mode::closeStreamOnTask);
 }
 
 // Do mb33773 with the close stream before processBufferedMessages. This is
 // checking that flow-control is updated with the fix in place
-TEST_F(SingleThreadedPassiveStreamTest, MB_33773) {
+TEST_P(SingleThreadedPassiveStreamTest, MB_33773) {
     mb_33773(mb_33773Mode::closeStreamBeforeTask);
 }
 
 // Test more of the changes in mb33773, this mode makes the processing fail
 // because there's not enough memory, this makes us exercise the code that swaps
 // a reponse back into the deque
-TEST_F(SingleThreadedPassiveStreamTest, MB_33773_oom) {
+TEST_P(SingleThreadedPassiveStreamTest, MB_33773_oom) {
     mb_33773(mb_33773Mode::noMemory);
 }
 
 // Test more of the changes in mb33773, this mode makes the processing fail
 // because there's not enough memory, this makes us exercise the code that swaps
 // a reponse back into the deque
-TEST_F(SingleThreadedPassiveStreamTest, MB_33773_oom_close) {
+TEST_P(SingleThreadedPassiveStreamTest, MB_33773_oom_close) {
     mb_33773(mb_33773Mode::noMemoryAndClosed);
 }
+
+INSTANTIATE_TEST_CASE_P(
+        AllBucketTypes,
+        SingleThreadedPassiveStreamTest,
+        STParameterizedBucketTest::persistentAllBackendsConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);

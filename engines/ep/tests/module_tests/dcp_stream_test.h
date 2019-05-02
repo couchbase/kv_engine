@@ -36,14 +36,15 @@ protected:
 };
 
 /*
- * Test fixture for single-threaded ActiveStream tests
+ * Test fixture for single-threaded ActiveStream tests.
+ *
+ * Instantiated for both Persistent and Ephemeral buckets.
  */
-class SingleThreadedActiveStreamTest : public SingleThreadedEPBucketTest {
-public:
+class SingleThreadedActiveStreamTest : public STParameterizedBucketTest {
+protected:
     void SetUp() override;
     void TearDown() override;
 
-protected:
     void setupProducer(const std::vector<std::pair<std::string, std::string>>&
                                controls = {});
 
@@ -57,9 +58,11 @@ protected:
 
 /*
  * Test fixture for single-threaded PassiveStream tests
+ *
+ * Instantiated for both Persistent and Ephemeral buckets.
  */
-class SingleThreadedPassiveStreamTest : public SingleThreadedEPBucketTest {
-public:
+class SingleThreadedPassiveStreamTest : public STParameterizedBucketTest {
+protected:
     void SetUp() override;
     void TearDown() override;
 

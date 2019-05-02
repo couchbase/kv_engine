@@ -26,7 +26,7 @@ class DiskDocKey;
  */
 class EPVBucketTest : public ::testing::WithParamInterface<EvictionPolicy>,
                       public VBucketTestBase,
-                      public SingleThreadedKVBucketTest {
+                      public SingleThreadedEPBucketTest {
 public:
     EPVBucketTest()
         : VBucketTestBase(VBucketTestBase::VBType::Persistent, GetParam()) {
