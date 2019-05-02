@@ -251,11 +251,7 @@ void ActiveDurabilityMonitorTest::testChainDuplicateNode(
     FAIL();
 }
 
-TEST_F(ActiveDurabilityMonitorTest, AddSyncWrite) {
-    EXPECT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
-}
-
-TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceivedSmallerThanLastAcked) {
+void ActiveDurabilityMonitorTest::testSeqnoAckSmallerThanLastAck() {
     DurabilityMonitorTest::addSyncWrites({1, 2} /*seqnos*/);
     ASSERT_EQ(2, monitor->getNumTracked());
 
@@ -280,7 +276,8 @@ TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceivedSmallerThanLastAcked) {
     FAIL();
 }
 
-TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceivedEqualPending) {
+void ActiveDurabilityMonitorTest::testSeqnoAckEqualToPending(
+        const std::vector<std::string>& nodesToAck) {
     int64_t seqnoStart = 1;
     int64_t seqnoEnd = 3;
 
@@ -289,91 +286,167 @@ TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceivedEqualPending) {
     {
         SCOPED_TRACE("");
         assertNodeTracking(active, 3 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+
+    {
+        SCOPED_TRACE("");
+        for (const auto& node : nodesToAck) {
+            assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        }
     }
 
     for (int64_t ackSeqno = seqnoStart; ackSeqno <= seqnoEnd; ackSeqno++) {
         SCOPED_TRACE("");
-        testSeqnoAckReceived(replica1,
-                             ackSeqno,
-                             --numItems /*expectedNumTracked*/,
-                             ackSeqno /*expectedLastWriteSeqno*/,
-                             ackSeqno /*expectedLastAckSeqno*/);
+        for (const auto& node : nodesToAck) {
+            // We must have a last element if we're iterating on nodesToAck.
+            if (node == nodesToAck.back()) {
+                // We should only commit the SyncWrite for the last node that we
+                // ack
+                --numItems;
+            }
+            testSeqnoAckReceived(node,
+                                 ackSeqno,
+                                 numItems /*expectedNumTracked*/,
+                                 ackSeqno /*expectedLastWriteSeqno*/,
+                                 ackSeqno /*expectedLastAckSeqno*/);
+        }
     }
 }
 
-TEST_F(ActiveDurabilityMonitorTest,
-       SeqnoAckReceivedGreaterThanPending_ContinuousSeqnos) {
-    ASSERT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
+void ActiveDurabilityMonitorTest::
+        testSeqnoAckGreaterThanPendingContinuousSeqnos(
+                const std::vector<std::string>& nodesToAck) {
+    auto numTracked = addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/);
+    ASSERT_EQ(3, numTracked);
     {
         SCOPED_TRACE("");
         assertNodeTracking(active, 3 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    SCOPED_TRACE("");
-    testSeqnoAckReceived(replica1,
-                         2 /*ackSeqno*/,
-                         1 /*expectedNumTracked*/,
-                         2 /*expectedLastWriteSeqno*/,
-                         2 /*expectedLastAckSeqno*/);
+    {
+        SCOPED_TRACE("");
+        for (const auto& node : nodesToAck) {
+            assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        }
+    }
+
+    for (const auto& node : nodesToAck) {
+        SCOPED_TRACE("");
+        // We must have a last element if we're iterating on nodesToAck.
+        if (node == nodesToAck.back()) {
+            // We should only commit the SyncWrite for the last node that we
+            // ack
+            numTracked = 1;
+        }
+        testSeqnoAckReceived(node,
+                             2 /*ackSeqno*/,
+                             numTracked /*expectedNumTracked*/,
+                             2 /*expectedLastWriteSeqno*/,
+                             2 /*expectedLastAckSeqno*/);
+    }
 }
 
-TEST_F(ActiveDurabilityMonitorTest,
-       SeqnoAckReceivedGreaterThanPending_SparseSeqnos) {
+void ActiveDurabilityMonitorTest::testSeqnoAckGreaterThanPendingSparseSeqnos(
+        const std::vector<std::string>& nodesToAck) {
     DurabilityMonitorTest::addSyncWrites({1, 3, 5} /*seqnos*/);
-    EXPECT_EQ(3, monitor->getNumTracked());
+    auto numTracked = monitor->getNumTracked();
+    ASSERT_EQ(3, numTracked);
     {
         SCOPED_TRACE("");
         assertNodeTracking(active, 5 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    SCOPED_TRACE("");
-    testSeqnoAckReceived(replica1,
-                         4 /*ackSeqno*/,
-                         1 /*expectedNumTracked*/,
-                         3 /*expectedLastWriteSeqno*/,
-                         4 /*expectedLastAckSeqno*/);
+    {
+        SCOPED_TRACE("");
+        for (const auto& node : nodesToAck) {
+            assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        }
+    }
+
+    for (const auto& node : nodesToAck) {
+        SCOPED_TRACE("");
+        // We must have a last element if we're iterating on nodesToAck.
+        if (node == nodesToAck.back()) {
+            // We should only commit the SyncWrite for the last node that we
+            // ack
+            numTracked = 1;
+        }
+        testSeqnoAckReceived(node,
+                             4 /*ackSeqno*/,
+                             numTracked /*expectedNumTracked*/,
+                             3 /*expectedLastWriteSeqno*/,
+                             4 /*expectedLastAckSeqno*/);
+    }
 }
 
-TEST_F(ActiveDurabilityMonitorTest,
-       SeqnoAckReceivedGreaterThanLastTracked_ContinuousSeqnos) {
-    ASSERT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
+void ActiveDurabilityMonitorTest::
+        testSeqnoAckGreaterThanLastTrackedContinuousSeqnos(
+                const std::vector<std::string>& nodesToAck) {
+    auto numTracked = addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/);
+    ASSERT_EQ(3, numTracked);
     {
         SCOPED_TRACE("");
         assertNodeTracking(active, 3 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    SCOPED_TRACE("");
-    testSeqnoAckReceived(replica1,
-                         4 /*ackSeqno*/,
-                         0 /*expectedNumTracked*/,
-                         3 /*expectedLastWriteSeqno*/,
-                         4 /*expectedLastAckSeqno*/);
+    {
+        SCOPED_TRACE("");
+        for (const auto& node : nodesToAck) {
+            assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        }
+    }
+
+    for (const auto& node : nodesToAck) {
+        SCOPED_TRACE("");
+        // We must have a last element if we're iterating on nodesToAck.
+        if (node == nodesToAck.back()) {
+            // We should only commit the SyncWrite for the last node that we
+            // ack
+            numTracked = 0;
+        }
+        testSeqnoAckReceived(node,
+                             4 /*ackSeqno*/,
+                             numTracked /*expectedNumTracked*/,
+                             3 /*expectedLastWriteSeqno*/,
+                             4 /*expectedLastAckSeqno*/);
+    }
 }
 
-TEST_F(ActiveDurabilityMonitorTest,
-       SeqnoAckReceivedGreaterThanLastTracked_SparseSeqnos) {
+void ActiveDurabilityMonitorTest::
+        testSeqnoAckGreaterThanLastTrackedSparseSeqnos(
+                const std::vector<std::string>& nodesToAck) {
     DurabilityMonitorTest::addSyncWrites({1, 3, 5} /*seqnos*/);
-    EXPECT_EQ(3, monitor->getNumTracked());
+    auto numTracked = monitor->getNumTracked();
     {
         SCOPED_TRACE("");
         assertNodeTracking(active, 5 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    SCOPED_TRACE("");
-    testSeqnoAckReceived(replica1,
-                         10 /*ackSeqno*/,
-                         0 /*expectedNumTracked*/,
-                         5 /*expectedLastWriteSeqno*/,
-                         10 /*expectedLastAckSeqno*/);
+    {
+        SCOPED_TRACE("");
+        for (const auto& node : nodesToAck) {
+            assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        }
+    }
+
+    for (const auto& node : nodesToAck) {
+        SCOPED_TRACE("");
+        // We must have a last element if we're iterating on nodesToAck.
+        if (node == nodesToAck.back()) {
+            // We should only commit the SyncWrite for the last node that we
+            // ack
+            numTracked = 0;
+        }
+        testSeqnoAckReceived(node,
+                             10 /*ackSeqno*/,
+                             numTracked /*expectedNumTracked*/,
+                             5 /*expectedLastWriteSeqno*/,
+                             10 /*expectedLastAckSeqno*/);
+    }
 }
 
-// @todo: Refactor test suite and expand test cases
-TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceived_PersistToMajority) {
+void ActiveDurabilityMonitorTest::testSeqnoAckPersistToMajority(
+        const std::vector<std::string>& nodesToAck) {
     DurabilityMonitorTest::addSyncWrites(
             {1, 3, 5} /*seqnos*/,
             {cb::durability::Level::PersistToMajority, 0 /*timeout*/});
@@ -381,21 +454,157 @@ TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceived_PersistToMajority) {
     {
         SCOPED_TRACE("");
         assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+
+    {
+        SCOPED_TRACE("");
+        for (const auto& node : nodesToAck) {
+            assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        }
     }
 
     const int64_t ackSeqno = 10;
 
-    SCOPED_TRACE("");
-    testSeqnoAckReceived(replica1,
-                         ackSeqno /*ackSeqno*/,
-                         3 /*expectedNumTracked*/,
-                         5 /*expectedLastWriteSeqno*/,
-                         ackSeqno /*expectedLastAckSeqno*/);
+    for (const auto& node : nodesToAck) {
+        SCOPED_TRACE("");
+        testSeqnoAckReceived(node,
+                             ackSeqno /*ackSeqno*/,
+                             3 /*expectedNumTracked*/,
+                             5 /*expectedLastWriteSeqno*/,
+                             ackSeqno /*expectedLastAckSeqno*/);
+    }
+
     testLocalAck(ackSeqno,
                  0 /*expectedNumTracked*/,
                  5 /*expectedLastWriteSeqno*/,
                  0 /*expectedLastAckSeqno*/);
+}
+
+void ActiveDurabilityMonitorTest::testSeqnoAckMultipleReplicas(
+        const std::vector<std::string>& nodesToAck,
+        const std::vector<std::string>& unchangedNodes) {
+    int64_t seqno = 1;
+    addSyncWrite(seqno);
+    ASSERT_EQ(1, monitor->getNumTracked());
+
+    // Active has implicitly ack'ed
+    {
+        SCOPED_TRACE("");
+        assertNodeTracking(active, 1 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+
+    // Nothing ack'ed yet by Replicas
+    for (const auto& node : nodesToAck) {
+        SCOPED_TRACE("");
+        assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+    // Nothing ack'ed yet by Replicas
+    for (const auto& node : unchangedNodes) {
+        SCOPED_TRACE("");
+        assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+
+    // Nothing committed
+    EXPECT_EQ(1, monitor->getNumTracked());
+
+    {
+        SCOPED_TRACE("");
+
+        auto expectedNumTracked = seqno;
+        for (const auto& node : nodesToAck) {
+            SCOPED_TRACE("");
+            // We must have a last element if we're iterating on nodesToAck.
+            if (node == nodesToAck.back()) {
+                // We should only commit the SyncWrite for the last node that we
+                // ack
+                expectedNumTracked = 0;
+            }
+            testSeqnoAckReceived(node,
+                                 seqno /*ackSeqno*/,
+                                 expectedNumTracked /*expectedNumTracked*/,
+                                 seqno /*expectedLastWriteSeqno*/,
+                                 seqno /*expectedLastAckSeqno*/);
+        }
+
+        for (const auto& node : unchangedNodes) {
+            assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        }
+    }
+}
+
+void ActiveDurabilityMonitorTest::testSeqnoAckMajorityAndPersistOnMaster(
+        const std::vector<std::string>& nodesToAck) {
+    DurabilityMonitorTest::addSyncWrites(
+            {1, 3, 5} /*seqnos*/,
+            {cb::durability::Level::MajorityAndPersistOnMaster, 0 /*timeout*/});
+    ASSERT_EQ(3, monitor->getNumTracked());
+    {
+        SCOPED_TRACE("");
+        assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+    // Nothing ack'ed yet by Replicas
+    for (const auto& node : nodesToAck) {
+        SCOPED_TRACE("");
+        assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+
+    const int64_t ackSeqno = 10;
+
+    // Ack all replicas, nothing should be committed
+    for (const auto& node : nodesToAck) {
+        SCOPED_TRACE("");
+        testSeqnoAckReceived(node,
+                             ackSeqno,
+                             3 /*expectedNumTracked*/,
+                             5 /*expectedLastWriteSeqno*/,
+                             ackSeqno /*expectedLastAckSeqno*/);
+    }
+
+    SCOPED_TRACE("");
+
+    // Simulate the Flusher that notifies the local DurabilityMonitor after
+    // persistence. Then: all satisfied, all committed.
+    testLocalAck(ackSeqno /*ackSeqno*/,
+                 0 /*expectedNumTracked*/,
+                 5 /*expectedLastWriteSeqno*/,
+                 0 /*expectedLastAckSeqno*/);
+}
+
+TEST_F(ActiveDurabilityMonitorTest, AddSyncWrite) {
+    EXPECT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
+}
+
+TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceivedSmallerThanLastAcked) {
+    testSeqnoAckSmallerThanLastAck();
+}
+
+TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceivedEqualPending) {
+    testSeqnoAckEqualToPending(std::vector<std::string>{replica1});
+}
+
+TEST_F(ActiveDurabilityMonitorTest,
+       SeqnoAckReceivedGreaterThanPending_ContinuousSeqnos) {
+    testSeqnoAckGreaterThanPendingContinuousSeqnos({replica1});
+}
+
+TEST_F(ActiveDurabilityMonitorTest,
+       SeqnoAckReceivedGreaterThanPending_SparseSeqnos) {
+    testSeqnoAckGreaterThanPendingSparseSeqnos({replica1});
+}
+
+TEST_F(ActiveDurabilityMonitorTest,
+       SeqnoAckReceivedGreaterThanLastTracked_ContinuousSeqnos) {
+    testSeqnoAckGreaterThanLastTrackedContinuousSeqnos({replica1});
+}
+
+TEST_F(ActiveDurabilityMonitorTest,
+       SeqnoAckReceivedGreaterThanLastTracked_SparseSeqnos) {
+    testSeqnoAckGreaterThanLastTrackedSparseSeqnos({replica1});
+}
+
+// @todo: Refactor test suite and expand test cases
+TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceived_PersistToMajority) {
+    testSeqnoAckPersistToMajority({replica1});
 }
 
 TEST_F(ActiveDurabilityMonitorTest, SetTopology_NotAnArray) {
@@ -488,44 +697,7 @@ TEST_F(ActiveDurabilityMonitorTest, SeqnoAckReceived_MultipleReplica) {
             nlohmann::json::array({{active, replica1, replica2, replica3}})));
     ASSERT_EQ(4, adm.getFirstChainSize());
 
-    const int64_t seqno = 1;
-    addSyncWrite(seqno);
-    ASSERT_EQ(1, monitor->getNumTracked());
-
-    // Active has implicitly ack'ed
-    {
-        SCOPED_TRACE("");
-        assertNodeTracking(active, 1 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-    }
-
-    // Nothing ack'ed yet by Replicas
-    for (const auto& node : {replica1, replica2, replica3}) {
-        SCOPED_TRACE("");
-        assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-    }
-    // Nothing committed
-    EXPECT_EQ(1, monitor->getNumTracked());
-
-    {
-        SCOPED_TRACE("");
-
-        // replica2 acks; nothing committed yet
-        testSeqnoAckReceived(replica2,
-                             seqno /*ackSeqno*/,
-                             1 /*expectedNumTracked*/,
-                             seqno /*expectedLastWriteSeqno*/,
-                             seqno /*expectedLastAckSeqno*/);
-
-        // replica3 acks; requirements verified, committed
-        testSeqnoAckReceived(replica3,
-                             seqno /*ackSeqno*/,
-                             0 /*expectedNumTracked*/,
-                             seqno /*expectedLastWriteSeqno*/,
-                             seqno /*expectedLastAckSeqno*/);
-
-        // replica1 has not ack'ed yet
-        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-    }
+    testSeqnoAckMultipleReplicas({replica2, replica3}, {replica1});
 }
 
 TEST_F(ActiveDurabilityMonitorTest, NeverExpireIfTimeoutNotSet) {
@@ -646,31 +818,7 @@ TEST_F(ActiveDurabilityMonitorTest, ProcessTimeout) {
 }
 
 TEST_F(ActiveDurabilityMonitorTest, MajorityAndPersistOnMaster) {
-    DurabilityMonitorTest::addSyncWrites(
-            {1, 3, 5} /*seqnos*/,
-            {cb::durability::Level::MajorityAndPersistOnMaster, 0 /*timeout*/});
-    ASSERT_EQ(3, monitor->getNumTracked());
-    {
-        SCOPED_TRACE("");
-        assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-    }
-
-    const int64_t ackSeqno = 10;
-
-    SCOPED_TRACE("");
-    // Replica acks all; nothing ack'ed on active though, so nothing committed
-    testSeqnoAckReceived(replica1,
-                         ackSeqno,
-                         3 /*expectedNumTracked*/,
-                         5 /*expectedLastWriteSeqno*/,
-                         ackSeqno /*expectedLastAckSeqno*/);
-    // Simulate the Flusher that notifies the local DurabilityMonitor after
-    // persistence. Then: all satisfied, all committed.
-    testLocalAck(ackSeqno /*ackSeqno*/,
-                 0 /*expectedNumTracked*/,
-                 5 /*expectedLastWriteSeqno*/,
-                 0 /*expectedLastAckSeqno*/);
+    testSeqnoAckMajorityAndPersistOnMaster({replica1});
 }
 
 TEST_F(ActiveDurabilityMonitorTest, PersistToMajority_EnsurePersistAtActive) {
@@ -679,44 +827,7 @@ TEST_F(ActiveDurabilityMonitorTest, PersistToMajority_EnsurePersistAtActive) {
             nlohmann::json::array({{active, replica1, replica2}})));
     ASSERT_EQ(3, adm.getFirstChainSize());
 
-    const int64_t seqno = 1;
-    addSyncWrite(seqno,
-                 {cb::durability::Level::PersistToMajority, 0 /*timeout*/});
-    ASSERT_EQ(1, monitor->getNumTracked());
-    {
-        SCOPED_TRACE("");
-        assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-        assertNodeTracking(replica2, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-    }
-
-    {
-        SCOPED_TRACE("");
-        // replica1 acks; write not satisfied yet
-        testSeqnoAckReceived(replica1,
-                             seqno /*ackSeqno*/,
-                             1 /*expectedNumTracked*/,
-                             seqno /*expectedLastWriteSeqno*/,
-                             seqno /*expectedLastAckSeqno*/);
-    }
-
-    {
-        SCOPED_TRACE("");
-        // replica2 acks; Majority has ack'ed, but Majority doesn't include the
-        // Active, so write not satisfied yet
-        testSeqnoAckReceived(replica2,
-                             seqno /*ackSeqno*/,
-                             1 /*expectedNumTracked*/,
-                             seqno /*expectedLastWriteSeqno*/,
-                             seqno /*expectedLastAckSeqno*/);
-    }
-
-    // Simulate the Flusher that notifies the local DurabilityMonitor after
-    // persistence. Now, write satisfied, committed and removed from tracking.
-    testLocalAck(seqno /*ackSeqno*/,
-                 0 /*expectedNumTracked*/,
-                 seqno /*expectedLastWriteSeqno*/,
-                 0 /*expectedLastAckSeqno*/);
+    testSeqnoAckPersistToMajority({replica1, replica2});
 }
 
 /*

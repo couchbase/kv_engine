@@ -240,6 +240,94 @@ protected:
      */
     void testChainDuplicateNode(const nlohmann::json::array_t& topology);
 
+    /**
+     * Check that the expected Monotonic exception is thrown when attempting to
+     * ack a lower seqno than has been previously acked on node "replica1"
+     */
+    void testSeqnoAckSmallerThanLastAck();
+
+    /**
+     * Check that the SyncWrites at seqno 1, 2, and 3 are committed on the
+     * seqno acks at 1, 2, and 3 respectively.
+     *
+     * @param nodesToAck list of nodes to ack, the last node to ack in the list
+     *                   should be the one to commit the SyncWrites
+     */
+    void testSeqnoAckEqualToPending(const std::vector<std::string>& nodesToAck);
+
+    /**
+     * Check that the SyncWrites at seqno 1 and 2 are committed when acking
+     * seqno 2, but not a SyncWrite at seqno 3.
+     *
+     * @param nodesToAck list of nodes to ack, the last node to ack in the list
+     *                   should be the one to commit the SyncWrites
+     */
+    void testSeqnoAckGreaterThanPendingContinuousSeqnos(
+            const std::vector<std::string>& nodesToAck);
+
+    /**
+     * Check that the SyncWrites at senqo 1 and 3 are committed, but not the
+     * SyncWrite at seqno 5 when acking seqno 4.
+     *
+     * @param nodesToAck list of nodes to ack, the last node to ack in the list
+     *                   should be the one to commit the SyncWrites
+     */
+    void testSeqnoAckGreaterThanPendingSparseSeqnos(
+            const std::vector<std::string>& nodesToAck);
+
+    /**
+     * Check that the SyncWrites at seqno 1 to 3 are committed when acking seqno
+     * 4.
+     *
+     * @param nodesToAck list of nodes to ack, the last node to ack in the list
+     *                   should be the one to commit the SyncWrites
+     */
+    void testSeqnoAckGreaterThanLastTrackedContinuousSeqnos(
+            const std::vector<std::string>& nodesToAck);
+
+    /**
+     * Check that the SyncWrites at seqno 1, 3, and 5 are committed when acking
+     * seqno 10.
+     *
+     * @param nodesToAck list of nodes to ack, the last node to ack in the list
+     *                   should be the one to commit the SyncWrites
+     */
+    void testSeqnoAckGreaterThanLastTrackedSparseSeqnos(
+            const std::vector<std::string>& nodesToAck);
+
+    /**
+     * Check that the PersistToMajority SyncWrites at senqo 1, 3, and 5 are
+     * committed only when the active acks persistence after acking all the
+     * given nodes.
+     *
+     * @param nodesToAck list of nodes to ack
+     */
+    void testSeqnoAckPersistToMajority(
+            const std::vector<std::string>& nodesToAck);
+
+    /**
+     * Check that a SyncWrite is committed when the majority requirement is met
+     * when their are multiple replicas.
+     *
+     * @param nodesToAck list of nodes to ack, the last node to ack in the list
+     *                   should be the one to commit the SyncWrite
+     * @param unchangedNodes list of nodes that do not ack, and should remain
+     *                       unchanged throughout
+     */
+    void testSeqnoAckMultipleReplicas(
+            const std::vector<std::string>& nodesToAck,
+            const std::vector<std::string>& unchangedNodes);
+
+    /**
+     * Check that the MajorityAndPersistOnMaster SyncWrites at seqno 1, 3, and 5
+     * are committed only when the active acks persistence after acking all the
+     * given nodes.
+     *
+     * @param nodesToAck list of nodes to ack
+     */
+    void testSeqnoAckMajorityAndPersistOnMaster(
+            const std::vector<std::string>& nodesToAck);
+
     const std::string active = "active";
     const std::string replica1 = "replica1";
     const std::string replica2 = "replica2";
