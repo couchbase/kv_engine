@@ -1734,6 +1734,11 @@ void PassiveDurabilityMonitorTest::testRemoveCompletedOnlyIfLocallySatisfied(
     ASSERT_EQ(1, pdm.getHighCompletedSeqno());
     ASSERT_EQ(0, pdm.getNumTracked());
 
+    if (!persistent()) {
+        // PersistToMajority not valid for ephemeral
+        return;
+    }
+
     // Add PersistToMajority + Majority to tracking
     DurabilityMonitorTest::addSyncWrite(
             {2} /*seqno*/,
@@ -2180,7 +2185,7 @@ TEST_P(ActiveDurabilityMonitorTest, NoReplicaSyncDelete) {
 
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         ActiveDurabilityMonitorTest,
-                        STParameterizedBucketTest::persistentConfigValues(),
+                        STParameterizedBucketTest::allConfigValues(),
                         STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_CASE_P(
@@ -2191,7 +2196,7 @@ INSTANTIATE_TEST_CASE_P(
 
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         PassiveDurabilityMonitorTest,
-                        STParameterizedBucketTest::persistentConfigValues(),
+                        STParameterizedBucketTest::allConfigValues(),
                         STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_CASE_P(

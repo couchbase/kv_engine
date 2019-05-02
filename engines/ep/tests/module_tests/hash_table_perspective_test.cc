@@ -26,11 +26,13 @@ using namespace std::string_literals;
 /*
  * Tests related to using the HashTable via the Pending and Committed
  * perspectives, as used by Synchronous Writes.
+ * Parameterised on if the HashTable should be ordered(true) or not (false).
  */
-class HashTablePerspectiveTest : public HashTableTest {
+class HashTablePerspectiveTest : public HashTableTest,
+                                 public ::testing::WithParamInterface<bool> {
 public:
     HashTablePerspectiveTest()
-        : ht(global_stats, makeFactory(), 5, 1),
+        : ht(global_stats, makeFactory(GetParam()), 5, 1),
           key("key", CollectionID::Default) {
     }
 
@@ -44,7 +46,7 @@ public:
 
 // Test that we can add a Pending item to the HashTable; and then find it when
 // using Pending perspective, but *not* via Committed.
-TEST_F(HashTablePerspectiveTest, PendingItem) {
+TEST_P(HashTablePerspectiveTest, PendingItem) {
     auto i = makePendingItem(key, "pending"s);
     ASSERT_EQ(MutationStatus::WasClean, ht.set(*i));
 
@@ -68,7 +70,7 @@ TEST_F(HashTablePerspectiveTest, PendingItem) {
 
 // Test that we can add a Committed item to the HashTable; and then find it
 // using both Committed and Pending perspective.
-TEST_F(HashTablePerspectiveTest, CommittedItem) {
+TEST_P(HashTablePerspectiveTest, CommittedItem) {
     auto i = makeCommittedItem(key, "committed"s);
     ASSERT_EQ(MutationStatus::WasClean, ht.set(*i));
 
@@ -95,7 +97,7 @@ TEST_F(HashTablePerspectiveTest, CommittedItem) {
 
 // Test that when both a pending and committed item exist; then Pending
 // perspective returns the pending one and Committed the committed one.
-TEST_F(HashTablePerspectiveTest, CorrectItemForEachPersisective) {
+TEST_P(HashTablePerspectiveTest, CorrectItemForEachPersisective) {
     // Setup -create both committed and pending items.
     // Attempt setting the item again with a committed value.
     auto committed = makeCommittedItem(key, "committed"s);
@@ -126,7 +128,7 @@ TEST_F(HashTablePerspectiveTest, CorrectItemForEachPersisective) {
 
 // Test that the normal set() method cannot be used to change a pending item
 // to committed - commit() must be used.
-TEST_F(HashTablePerspectiveTest, DenyReplacePendingWithCommitted) {
+TEST_P(HashTablePerspectiveTest, DenyReplacePendingWithCommitted) {
     auto pending = makePendingItem(key, "pending"s);
     ASSERT_EQ(MutationStatus::WasClean, ht.set(*pending));
 
@@ -137,7 +139,7 @@ TEST_F(HashTablePerspectiveTest, DenyReplacePendingWithCommitted) {
 
 // Test that the normal set() method cannot be used to change a pending item
 // to another pending - commit() must be used.
-TEST_F(HashTablePerspectiveTest, DenyReplacePendingWithPending) {
+TEST_P(HashTablePerspectiveTest, DenyReplacePendingWithPending) {
     auto pending = makePendingItem(key, "pending"s);
     ASSERT_EQ(MutationStatus::WasClean, ht.set(*pending));
 
@@ -150,7 +152,7 @@ TEST_F(HashTablePerspectiveTest, DenyReplacePendingWithPending) {
 // same key), then findforWrite finds the pending one.
 // (While normally pending is added _after_ the existing Committed; during
 // warmup we load pending first.)
-TEST_F(HashTablePerspectiveTest, WarmupPendingAddedBeforeCommited) {
+TEST_P(HashTablePerspectiveTest, WarmupPendingAddedBeforeCommited) {
     // Setup - Insert pending then committed.
     auto pending = makePendingItem(key, "pending"s);
     pending->setBySeqno(2);
@@ -178,7 +180,7 @@ TEST_F(HashTablePerspectiveTest, WarmupPendingAddedBeforeCommited) {
 }
 
 // CHeck that findOnlyCommitted only finds committed items.
-TEST_F(HashTablePerspectiveTest, findOnlyCommitted) {
+TEST_P(HashTablePerspectiveTest, findOnlyCommitted) {
     // Setup -create both committed and pending items with same key, then
     // a pending item under another key.
     auto committed = makeCommittedItem(key, "committed"s);
@@ -216,7 +218,7 @@ TEST_F(HashTablePerspectiveTest, findOnlyCommitted) {
 }
 
 // CHeck that findOnlyPrepared only finds prepared items.
-TEST_F(HashTablePerspectiveTest, findOnlyPrepared) {
+TEST_P(HashTablePerspectiveTest, findOnlyPrepared) {
     // Setup -create both committed and prepared items with same key, then
     // a committed item under another key.
     auto committed = makeCommittedItem(key, "committed"s);
@@ -259,7 +261,7 @@ TEST_F(HashTablePerspectiveTest, findOnlyPrepared) {
 }
 
 /// Check that toItem correctly create an Item from a StoredValue.
-TEST_F(HashTablePerspectiveTest, ToItemPrepared) {
+TEST_P(HashTablePerspectiveTest, ToItemPrepared) {
     // Round-trip from Item -> SV -> Item, check the two Items are equal.
     auto prepared = makePendingItem(key, "prepared"s);
     prepared->setPreparedMaybeVisible();
@@ -272,3 +274,11 @@ TEST_F(HashTablePerspectiveTest, ToItemPrepared) {
 
     EXPECT_EQ(*prepared, *prepared2);
 }
+
+INSTANTIATE_TEST_CASE_P(Persistent,
+                        HashTablePerspectiveTest,
+                        ::testing::Values(false), );
+
+INSTANTIATE_TEST_CASE_P(Ephemeral,
+                        HashTablePerspectiveTest,
+                        ::testing::Values(true), );

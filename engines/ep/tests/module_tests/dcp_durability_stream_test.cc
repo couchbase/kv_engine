@@ -741,17 +741,15 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbort) {
     EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
 }
 
-INSTANTIATE_TEST_CASE_P(
-        AllBucketTypes,
-        DurabilityActiveStreamTest,
-        STParameterizedBucketTest::persistentAllBackendsConfigValues(),
-        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_CASE_P(AllBucketTypes,
+                        DurabilityActiveStreamTest,
+                        STParameterizedBucketTest::allConfigValues(),
+                        STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(
-        AllBucketTypes,
-        DurabilityPassiveStreamTest,
-        STParameterizedBucketTest::persistentAllBackendsConfigValues(),
-        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_CASE_P(AllBucketTypes,
+                        DurabilityPassiveStreamTest,
+                        STParameterizedBucketTest::allConfigValues(),
+                        STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_CASE_P(
         AllBucketTypes,
