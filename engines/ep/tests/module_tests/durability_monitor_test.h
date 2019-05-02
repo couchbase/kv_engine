@@ -27,11 +27,7 @@
 class ActiveDurabilityMonitor;
 class PassiveDurabilityMonitor;
 
-class DurabilityMonitorTest : public SingleThreadedKVBucketTest {
-public:
-    void SetUp() override;
-    void TearDown() override;
-
+class DurabilityMonitorTest : public STParameterizedBucketTest {
 protected:
     /**
      * Add a SyncWrite for tracking.
@@ -126,7 +122,6 @@ protected:
 class ActiveDurabilityMonitorTest : public DurabilityMonitorTest {
 public:
     void SetUp() override;
-    void TearDown() override;
 
 protected:
     ActiveDurabilityMonitor& getActiveDM() const;
