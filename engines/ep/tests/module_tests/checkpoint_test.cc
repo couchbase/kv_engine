@@ -1696,18 +1696,17 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsTest) {
      * 1003 - 3rd item (key2)
      */
 
-    EXPECT_EQ(itemCount + 1, this->manager->expelUnreferencedCheckpointItems());
-    EXPECT_EQ(itemCount + 1, this->global_stats.itemsExpelledFromCheckpoints);
+    EXPECT_EQ(itemCount, this->manager->expelUnreferencedCheckpointItems());
+    EXPECT_EQ(itemCount, this->global_stats.itemsExpelledFromCheckpoints);
 
     /*
      * After expelling checkpoint now looks as follows:
-     * 1000 - New Dummy Item <<<<<<< persistenceCursor
+     * 1000 - dummy Item <<<<<<< persistenceCursor
      * 1003 - 3rd item (key 2)
      */
 
     /*
      * We have expelled:
-     * 1000 - dummy item
      * 1001 - checkpoint start
      * 1001 - 1st item (key 0)
      * 1002 - 2nd item (key 1)
@@ -1758,12 +1757,12 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
         ASSERT_FALSE(isLastMutationItem);
     }
 
-    ASSERT_EQ(itemCount + 1, this->manager->expelUnreferencedCheckpointItems());
-    EXPECT_EQ(itemCount + 1, this->global_stats.itemsExpelledFromCheckpoints);
+    ASSERT_EQ(itemCount, this->manager->expelUnreferencedCheckpointItems());
+    EXPECT_EQ(itemCount, this->global_stats.itemsExpelledFromCheckpoints);
 
     /*
      * After expelling checkpoint now looks as follows:
-     * 1000 - New Dummy Item <<<<<<< persistenceCursor
+     * 1000 - dummy Item <<<<<<< persistenceCursor
      * 1003 - 3rd item (key2)
      */
 
@@ -1773,7 +1772,7 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
 
     /*
      * Checkpoint now looks as follows:
-     * 1000 - New Dummy Item <<<<<<< persistenceCursor
+     * 1000 - dummy Item <<<<<<< persistenceCursor
      * 1003 - 3rd item (key2)
      * 1004 - 4th item (key0)  << The New item added >>
      */

@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include <gsl.h>
 #include <platform/checked_snprintf.h>
 #include <string>
 #include <utility>
@@ -310,18 +311,21 @@ CheckpointQueue Checkpoint::expelItems(
     highestExpelledSeqno =
             iterator.getUnderlyingIterator()->get()->getBySeqno();
 
-    // Add the item pointed to by the iterator to the expelledItems.
-    expelledItems.push_back(*(iterator.getUnderlyingIterator()));
+    // The item to be swapped with the dummy is not expected to be a
+    // meta-data item.
+    Expects(!iterator.getUnderlyingIterator()->get()->isCheckPointMetaItem());
 
-    // Update the item pointed to by the iterator to become the new dummy.
+    // Swap the item pointed to by our iterator with the dummy item
     auto dummy = begin().getUnderlyingIterator();
-    iterator.getUnderlyingIterator()->reset(*dummy);
+    iterator.getUnderlyingIterator()->swap(*dummy);
+
+
     /*
      * Move from (and including) the first item in the checkpoint queue upto
      * (but not including) the item pointed to by iterator.  The item pointed
      * to by iterator is now the new dummy item for the checkpoint queue.
      */
-    expelledItems.splice(++(expelledItems.begin()),
+    expelledItems.splice(expelledItems.begin(),
                          toWrite,
                          begin().getUnderlyingIterator(),
                          iterator.getUnderlyingIterator());
