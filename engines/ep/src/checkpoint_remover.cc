@@ -114,10 +114,9 @@ void ClosedUnrefCheckpointRemoverTask::attemptCursorDropping(
         size_t amountOfMemoryToClear) {
     size_t memoryCleared = 0;
     KVBucketIface* kvBucket = engine->getKVBucket();
-    // Get a list of active vbuckets sorted by memory usage
+    // Get a list of vbuckets sorted by memory usage
     // of their respective checkpoint managers.
-    auto vbuckets =
-            kvBucket->getVBuckets().getActiveVBucketsSortedByChkMgrMem();
+    auto vbuckets = kvBucket->getVBuckets().getVBucketsSortedByChkMgrMem();
     for (const auto& it : vbuckets) {
         if (memoryCleared < amountOfMemoryToClear) {
             Vbid vbid = it.first;

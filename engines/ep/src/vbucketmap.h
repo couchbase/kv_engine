@@ -90,8 +90,15 @@ public:
      */
     std::vector<Vbid> getBucketsInState(vbucket_state_t state) const;
 
-    std::vector<std::pair<Vbid, size_t>> getActiveVBucketsSortedByChkMgrMem()
-            const;
+    /**
+     * Returns a vector of vbuckets with the amount of memory that each
+     * vbucket's checkpoint manager uses.  The vbuckets are sorted with
+     * those having the highest checkpoint manager memory usage at the
+     * beginning.
+     * @return vector of pairs comprised of vbucket and amount of memory
+     * used by their respective checkpoint manager.
+     */
+    std::vector<std::pair<Vbid, size_t>> getVBucketsSortedByChkMgrMem() const;
 
     /**
      * Get the memory usage by checkpoints for all active vbuckets.

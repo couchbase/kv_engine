@@ -107,12 +107,11 @@ std::vector<Vbid> VBucketMap::getBucketsInState(vbucket_state_t state) const {
     return rv;
 }
 
-std::vector<std::pair<Vbid, size_t>>
-VBucketMap::getActiveVBucketsSortedByChkMgrMem(void) const {
+std::vector<std::pair<Vbid, size_t>> VBucketMap::getVBucketsSortedByChkMgrMem() const {
     std::vector<std::pair<Vbid, size_t>> rv;
     for (size_t i = 0; i < size; ++i) {
         VBucketPtr b = getBucket(Vbid(i));
-        if (b && b->getState() == vbucket_state_active) {
+        if (b) {
             rv.push_back(std::make_pair(b->getId(), b->getChkMgrMemUsage()));
         }
     }

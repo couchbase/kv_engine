@@ -34,10 +34,10 @@ size_t CheckpointRemoverTest::getMaxCheckpointItems(VBucket& vb) {
 }
 
 /**
- * Check that the VBucketMap.getActiveVBucketsSortedByChkMgrMem() returns the
+ * Check that the VBucketMap.getVBucketsSortedByChkMgrMem() returns the
  * correct ordering of vBuckets, sorted from largest memory usage to smallest.
  */
-TEST_F(CheckpointRemoverEPTest, GetActiveVBucketsSortedByChkMgrMem) {
+TEST_F(CheckpointRemoverEPTest, GetVBucketsSortedByChkMgrMem) {
     for (uint16_t i = 0; i < 3; i++) {
         setVBucketStateAndRunPersistTask(Vbid(i), vbucket_state_active);
         for (uint16_t j = 0; j < i; j++) {
@@ -47,7 +47,7 @@ TEST_F(CheckpointRemoverEPTest, GetActiveVBucketsSortedByChkMgrMem) {
         }
     }
 
-    auto map = store->getVBuckets().getActiveVBucketsSortedByChkMgrMem();
+    auto map = store->getVBuckets().getVBucketsSortedByChkMgrMem();
 
     // The map should be 3 elements long, since we created 3 vBuckets
     ASSERT_EQ(3, map.size());
