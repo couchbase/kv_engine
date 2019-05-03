@@ -19,6 +19,7 @@
 
 #include <include/memcached/protocol_binary.h>
 #include <mcbp/protocol/framebuilder.h>
+#include <memcached/durability_spec.h>
 
 using namespace cb::mcbp;
 using cb::mcbp::request::FrameInfoId;

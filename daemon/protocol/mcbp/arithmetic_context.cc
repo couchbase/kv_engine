@@ -21,6 +21,7 @@
 #include <daemon/cookie.h>
 #include <daemon/mcbp.h>
 #include <mcbp/protocol/header.h>
+#include <memcached/durability_spec.h>
 #include <memcached/util.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>

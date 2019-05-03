@@ -14,6 +14,8 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
+#include <memcached/durability_spec.h>
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <memcached/protocol_binary.h>

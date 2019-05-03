@@ -17,6 +17,7 @@
 #include "../../mcbp.h"
 #include "engine_wrapper.h"
 #include "utilities.h"
+#include <memcached/durability_spec.h>
 #include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
 #include <xattr/blob.h>

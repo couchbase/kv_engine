@@ -36,6 +36,7 @@
 #include "xattr/utils.h"
 
 #include <logger/logger.h>
+#include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 #include <xattr/blob.h>

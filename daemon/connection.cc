@@ -34,6 +34,7 @@
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
+#include <memcached/durability_spec.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/cbassert.h>

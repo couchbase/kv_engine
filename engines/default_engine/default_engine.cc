@@ -15,6 +15,7 @@
 #include "engines/default_engine.h"
 #include "engine_manager.h"
 
+#include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/server_core_iface.h>
 #include <platform/cbassert.h>

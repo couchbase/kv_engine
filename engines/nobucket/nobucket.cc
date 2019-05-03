@@ -17,6 +17,7 @@
 #include "nobucket.h"
 
 #include <memcached/dcp.h>
+#include <memcached/durability_spec.h>
 #include <memcached/server_log_iface.h>
 
 #include <cstdlib>

@@ -15,16 +15,17 @@
  *   limitations under the License.
  */
 
+#include "mcbp_validators.h"
 #include "buckets.h"
 #include "connection.h"
 #include "cookie.h"
-#include "mcbp_validators.h"
 #include "memcached.h"
 #include "subdocument_validators.h"
 #include "xattr/utils.h"
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/dcp.h>
+#include <memcached/durability_spec.h>
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
 #include <platform/compress.h>

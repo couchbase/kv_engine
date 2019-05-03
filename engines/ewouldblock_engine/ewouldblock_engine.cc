@@ -81,6 +81,7 @@
 
 #include <logger/logger.h>
 #include <memcached/dcp.h>
+#include <memcached/durability_spec.h>
 #include <memcached/engine.h>
 #include <memcached/server_bucket_iface.h>
 #include <memcached/server_callback_iface.h>

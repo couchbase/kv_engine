@@ -16,6 +16,7 @@
  */
 #include <mcbp/mcbp.h>
 #include <memcached/dcp_stream_id.h>
+#include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
 #include <platform/byte_buffer_dump.h>
 #include <platform/string_hex.h>

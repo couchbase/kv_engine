@@ -18,6 +18,7 @@
 #include "msg_producers_border_guard.h"
 #include "objectregistry.h"
 
+#include <memcached/durability_spec.h>
 #include <memcached/engine.h>
 
 DcpMsgProducersBorderGuard::DcpMsgProducersBorderGuard(

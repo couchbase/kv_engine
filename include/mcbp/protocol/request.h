@@ -22,7 +22,6 @@
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/magic.h>
 #include <mcbp/protocol/opcode.h>
-#include <memcached/durability_spec.h>
 #include <memcached/vbucket.h>
 #include <platform/sized_buffer.h>
 
@@ -32,6 +31,12 @@
 
 #include <cstdint>
 #include <functional>
+
+namespace cb {
+namespace durability {
+class Requirements;
+}
+} // namespace cb
 
 namespace cb {
 namespace mcbp {

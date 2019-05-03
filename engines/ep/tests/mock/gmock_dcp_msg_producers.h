@@ -18,6 +18,7 @@
 
 #include <folly/portability/GMock.h>
 #include <memcached/dcp.h>
+#include <memcached/durability_spec.h>
 #include <memcached/engine.h>
 
 class Item;

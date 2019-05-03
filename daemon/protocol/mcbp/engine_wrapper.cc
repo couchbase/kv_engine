@@ -23,6 +23,7 @@
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/request.h>
+#include <memcached/durability_spec.h>
 #include <memcached/limits.h>
 #include <tracing/trace_helpers.h>
 

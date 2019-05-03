@@ -1303,17 +1303,9 @@ public:
         return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
 
-    cb::durability::Requirements getDurability() const {
-        cb::durability::Requirements ret;
-        ret.setLevel(cb::durability::Level(durability_level));
-        ret.setTimeout(ntohs(durability_timeout));
-        return ret;
-    }
+    cb::durability::Requirements getDurability() const;
 
-    void setDurability(const cb::durability::Requirements& durability) {
-        DcpPreparePayload::durability_timeout = htons(durability.getTimeout());
-        DcpPreparePayload::durability_level = uint8_t(durability.getLevel());
-    }
+    void setDurability(const cb::durability::Requirements& durability);
 
 protected:
     uint64_t by_seqno = 0;

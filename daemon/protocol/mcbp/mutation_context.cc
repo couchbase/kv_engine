@@ -23,6 +23,7 @@
 #include <daemon/cookie.h>
 #include <daemon/mcbp.h>
 #include <daemon/memcached.h>
+#include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 #include <xattr/utils.h>

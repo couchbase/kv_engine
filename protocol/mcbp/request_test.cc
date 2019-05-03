@@ -18,6 +18,7 @@
 #include <folly/portability/GTest.h>
 
 #include <mcbp/protocol/framebuilder.h>
+#include <memcached/durability_spec.h>
 
 using namespace cb::mcbp;
 using namespace cb::durability;

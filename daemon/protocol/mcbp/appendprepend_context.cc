@@ -19,6 +19,7 @@
 
 #include <daemon/cookie.h>
 #include <daemon/stats.h>
+#include <memcached/durability_spec.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
