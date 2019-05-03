@@ -16,7 +16,6 @@
 #include <platform/socket.h>
 #include <platform/strerror.h>
 #include <platform/string_hex.h>
-#include <snappy-c.h>
 #include <gsl/gsl>
 
 #include <getopt.h>

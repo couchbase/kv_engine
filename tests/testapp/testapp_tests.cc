@@ -23,7 +23,6 @@
 #include <ctype.h>
 #include <time.h>
 #include <evutil.h>
-#include <snappy-c.h>
 #include <valgrind/valgrind.h>
 
 #include <folly/portability/GTest.h>

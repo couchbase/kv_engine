@@ -93,7 +93,6 @@ endif()
 
 INCLUDE_DIRECTORIES(BEFORE
                     ${LIBEVENT_INCLUDE_DIR}
-                    ${SNAPPY_INCLUDE_DIR}
                     ${OPENSSL_INCLUDE_DIR}
                     ${CMAKE_INSTALL_PREFIX}/include
                     ${CMAKE_CURRENT_SOURCE_DIR}/include

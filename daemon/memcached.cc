@@ -78,7 +78,6 @@
 #include <platform/socket.h>
 #include <platform/strerror.h>
 #include <platform/sysinfo.h>
-#include <snappy-c.h>
 #include <utilities/breakpad.h>
 #include <gsl/gsl>
 
