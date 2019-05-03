@@ -582,6 +582,7 @@ cb::mcbp::request::DcpPreparePayload::getDurability() const {
 
 void cb::mcbp::request::DcpPreparePayload::setDurability(
         const cb::durability::Requirements& durability) {
-    DcpPreparePayload::durability_timeout = htons(durability.getTimeout());
+    DcpPreparePayload::durability_timeout =
+            htons(durability.getTimeout().get());
     DcpPreparePayload::durability_level = uint8_t(durability.getLevel());
 }

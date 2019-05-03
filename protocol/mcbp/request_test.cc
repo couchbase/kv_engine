@@ -257,7 +257,7 @@ TEST(Request_GetDurationSpec, OnlyRequirement) {
     auto dur = req.getDurabilityRequirements();
     EXPECT_TRUE(dur);
     EXPECT_EQ(Level::Majority, dur->getLevel());
-    EXPECT_EQ(0, dur->getTimeout());
+    EXPECT_TRUE(dur->getTimeout().isDefault());
 }
 
 TEST(Request_GetDurationSpec, FullSpecPresent) {
@@ -274,7 +274,43 @@ TEST(Request_GetDurationSpec, FullSpecPresent) {
     auto dur = req.getDurabilityRequirements();
     EXPECT_TRUE(dur);
     EXPECT_EQ(Level::PersistToMajority, dur->getLevel());
-    EXPECT_EQ(0xaabb, dur->getTimeout());
+    EXPECT_EQ(0xaabb, dur->getTimeout().get());
+}
+
+/// Test that reserved timeout value 0x0 raises the correct error.
+TEST(Request_GetDurationSpec, InvalidTimeoutZero) {
+    std::vector<uint8_t> fe;
+    // ID:1, Len:3 packed into first byte:
+    fe.push_back(0x13);
+    // Level:Majority (0x1)
+    fe.push_back(0x03);
+    // Timeout:0x0000 (invalid)
+    fe.push_back(0x00);
+    fe.push_back(0x00);
+    std::vector<uint8_t> packet(sizeof(Request) + fe.size());
+    RequestBuilder builder({packet.data(), packet.size()});
+    builder.setMagic(Magic::AltClientRequest);
+    builder.setFramingExtras({fe.data(), fe.size()});
+    EXPECT_THROW(builder.getFrame()->getDurabilityRequirements(),
+                 std::invalid_argument);
+}
+
+/// Test that reserved timeout value 0xffff raises the correct error.
+TEST(Request_GetDurationSpec, InvalidTimeoutFFFF) {
+    std::vector<uint8_t> fe;
+    // ID:1, Len:3 packed into first byte:
+    fe.push_back(0x13);
+    // Level:Majority (0x1)
+    fe.push_back(0x03);
+    // Timeout:0xffff (invalid)
+    fe.push_back(0xff);
+    fe.push_back(0xff);
+    std::vector<uint8_t> packet(sizeof(Request) + fe.size());
+    RequestBuilder builder({packet.data(), packet.size()});
+    builder.setMagic(Magic::AltClientRequest);
+    builder.setFramingExtras({fe.data(), fe.size()});
+    EXPECT_THROW(builder.getFrame()->getDurabilityRequirements(),
+                 std::invalid_argument);
 }
 
 static std::vector<uint8_t> buildPacket(ClientOpcode opcode, bool reorder) {

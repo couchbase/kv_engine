@@ -27,6 +27,16 @@
 namespace cb {
 namespace durability {
 
+std::string to_string(Timeout t) {
+    if (t.isDefault()) {
+        return "default";
+    }
+    if (t.isInfinite()) {
+        return "infinite";
+    }
+    return std::to_string(t.get());
+}
+
 std::string to_string(Requirements r) {
     std::string desc = "{";
     switch (r.getLevel()) {
@@ -43,7 +53,7 @@ std::string to_string(Requirements r) {
         desc += "PersistToMajority, ";
         break;
     }
-    desc += "timeout=" + std::to_string(r.getTimeout()) + "}";
+    desc += "timeout=" + to_string(r.getTimeout()) + "}";
     return desc;
 }
 

@@ -102,7 +102,7 @@ std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
         Vbid vbid,
         const std::string& value,
         uint64_t opaque,
-        cb::durability::Requirements reqs) {
+        boost::optional<cb::durability::Requirements> reqs) {
     queued_item qi(new Item(makeStoredDocKey("key_" + std::to_string(seqno)),
                             0 /*flags*/,
                             0 /*expiry*/,
@@ -112,8 +112,8 @@ std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
                             0 /*cas*/,
                             seqno,
                             vbid));
-    if (reqs.isValid()) {
-        qi->setPendingSyncWrite(reqs);
+    if (reqs) {
+        qi->setPendingSyncWrite(*reqs);
     }
     return std::make_unique<MutationConsumerMessage>(
             std::move(qi),

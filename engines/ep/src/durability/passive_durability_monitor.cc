@@ -67,13 +67,24 @@ void PassiveDurabilityMonitor::addSyncWrite(queued_item item) {
         throw std::invalid_argument(
                 "PassiveDurabilityMonitor::addSyncWrite: Level::None");
     }
+    if (durReq.getTimeout().isDefault()) {
+        throw std::invalid_argument(
+                "PassiveDurabilityMonitor::addSyncWrite: timeout is default "
+                "(explicit value should have been specified by Active node)");
+    }
 
     int64_t prevHps{0};
     int64_t hps{0};
     {
+        // Need to specfify defaultTimeout for SyncWrite ctor, but we've already
+        // checked just above the requirements have a non-default value,
+        // just pass dummy value here.
+        std::chrono::milliseconds dummy{};
+
         auto s = state.wlock();
         s->trackedWrites.emplace_back(nullptr /*cookie*/,
                                       std::move(item),
+                                      dummy,
                                       nullptr /*firstChain*/,
                                       nullptr /*secondChain*/);
 

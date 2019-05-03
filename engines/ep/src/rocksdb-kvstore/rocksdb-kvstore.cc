@@ -1057,10 +1057,11 @@ std::unique_ptr<Item> RocksDBKVStore::makeItem(Vbid vb,
         // Item already defaults to Mutation - nothing else to do.
         return item;
     case rockskv::MetaData::Operation::PreparedSyncWrite:
-        // From disk we return a zero (infinite) timeout; as this could
+        // From disk we return an infinite timeout; as this could
         // refer to an already-committed SyncWrite and hence timeout
         // must be ignored.
-        item->setPendingSyncWrite({meta.getDurabilityLevel(), 0});
+        item->setPendingSyncWrite({meta.getDurabilityLevel(),
+                                   cb::durability::Timeout::Infinity()});
         return item;
     case rockskv::MetaData::Operation::CommittedSyncWrite:
         item->setCommittedviaPrepareSyncWrite();

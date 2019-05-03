@@ -362,7 +362,7 @@ TYPED_TEST(ValueTest, committedState) {
     this->sv->setValue(itm);
     EXPECT_EQ(CommittedState::CommittedViaMutation, this->sv->getCommitted());
 
-    itm.setPendingSyncWrite({cb::durability::Level::Majority, 0});
+    itm.setPendingSyncWrite({cb::durability::Level::Majority, {}});
     this->sv->setValue(itm);
     EXPECT_EQ(CommittedState::Pending, this->sv->getCommitted());
 

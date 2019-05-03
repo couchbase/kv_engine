@@ -72,7 +72,11 @@ void VBucketDurabilityTest::storeSyncWrites(
     const auto preCMCount = ckptMgr->getNumItems();
     for (const auto& write : seqnos) {
         auto key = makeStoredDocKey("key" + std::to_string(write.seqno));
-        auto item = makePendingItem(key, "value");
+        // Use a Level::Majority with an Infinite timeout - these tests
+        // don't rely on specific timeout values.
+        using namespace cb::durability;
+        auto reqs = Requirements{Level::Majority, Timeout::Infinity()};
+        auto item = makePendingItem(key, "value", reqs);
         item->setBySeqno(write.seqno);
         if (write.deletion) {
             item->setDeleted();

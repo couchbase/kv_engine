@@ -373,7 +373,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     // prepare SyncDelete and commit.
     uint64_t cas = 0;
     using namespace cb::durability;
-    auto reqs = Requirements(Level::Majority, 0);
+    auto reqs = Requirements(Level::Majority, {});
     mutation_descr_t delInfo;
     ASSERT_EQ(
             ENGINE_EWOULDBLOCK,
@@ -417,7 +417,7 @@ TEST_P(DurabilityEPBucketTest, ActiveLocalNotifyPersistedSeqno) {
             {{"topology", nlohmann::json::array({{"active", "replica"}})}});
 
     const cb::durability::Requirements reqs = {
-            cb::durability::Level::PersistToMajority, 0 /*timeout*/};
+            cb::durability::Level::PersistToMajority, {}};
 
     for (uint8_t seqno = 1; seqno <= 3; seqno++) {
         auto item = makePendingItem(

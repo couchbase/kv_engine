@@ -242,11 +242,8 @@ protected:
                             ss << "PersistToMajority";
                             break;
                         }
-                        if (requirements.getTimeout() == 0) {
-                            ss << ", Timeout=default";
-                        } else {
-                            ss << ", Timeout=" << requirements.getTimeout();
-                        }
+                        ss << ", Timeout="
+                           << to_string(requirements.getTimeout());
                     }
                     break;
                 case cb::mcbp::request::FrameInfoId::DcpStreamId:

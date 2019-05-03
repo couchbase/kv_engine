@@ -104,7 +104,7 @@ TEST_F(FrameExtrasValidatorTests, DurabilityRequirementInvalidCommand) {
 }
 
 TEST_F(FrameExtrasValidatorTests, DurabilityRequirementInvalidSize) {
-    uint8_t level[10] = {1, 0};
+    uint8_t level[10] = {1, 0, 1};
     auto fe = encodeFrameInfo(FrameInfoId::DurabilityRequirement, {level, 2});
     builder.setFramingExtras({fe.data(), fe.size()});
     EXPECT_EQ("Invalid sized buffer provided: 2",

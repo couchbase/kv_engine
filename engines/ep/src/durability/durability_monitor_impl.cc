@@ -19,19 +19,32 @@
 #include <folly/lang/Assume.h>
 #include <gsl.h>
 
-DurabilityMonitor::SyncWrite::SyncWrite(const void* cookie,
-                                        queued_item item,
-                                        const ReplicationChain* firstChain,
-                                        const ReplicationChain* secondChain)
+/// Helper function to determine the expiry time for a SyncWrite from the
+/// durability requirements.
+static boost::optional<std::chrono::steady_clock::time_point>
+expiryFromDurabiltyReqs(const cb::durability::Requirements& reqs,
+                        std::chrono::milliseconds defaultTimeout) {
+    auto timeout = reqs.getTimeout();
+    if (timeout.isInfinite()) {
+        return {};
+    }
+
+    auto relativeTimeout = timeout.isDefault()
+                                   ? defaultTimeout
+                                   : std::chrono::milliseconds(timeout.get());
+    return std::chrono::steady_clock::now() + relativeTimeout;
+}
+
+DurabilityMonitor::SyncWrite::SyncWrite(
+        const void* cookie,
+        queued_item item,
+        std::chrono::milliseconds defaultTimeout,
+        const ReplicationChain* firstChain,
+        const ReplicationChain* secondChain)
     : cookie(cookie),
       item(item),
-      expiryTime(
-              item->getDurabilityReqs().getTimeout()
-                      ? std::chrono::steady_clock::now() +
-                                std::chrono::milliseconds(
-                                        item->getDurabilityReqs().getTimeout())
-                      : boost::optional<
-                                std::chrono::steady_clock::time_point>{}) {
+      expiryTime(expiryFromDurabiltyReqs(item->getDurabilityReqs(),
+                                         defaultTimeout)) {
     // We should always have a first chain if we have a second
     if (secondChain) {
         Expects(firstChain);

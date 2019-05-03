@@ -44,18 +44,86 @@ enum class Level : uint8_t {
 };
 
 /**
- * The requirements specification for an operation.
+ * The timeout to use for this durability request. If the request cannot be
+ * completed within the timeout (as measured by the Server once the request
+ * has been accepted), then the request is aborted.
  *
- * If the timeout is set to 0, use the system default value (the
- * memcached core populates the value to all of the engines so they'll
- * never see 0)
+ * Can also represent special values for:
+ * - Engine specified default timeout (value 0)
+ * - Infinite timeout (value 0xffff) - but note that clients are *not*
+ *   permitted to encode this.
+ */
+class Timeout {
+public:
+    /// default ctor - creates with bucket default timeout.
+    Timeout() = default;
+
+    /**
+     * ctor used to construct a timeout from a client-specified value on the
+     * wire.
+     * Permits a specific timeout in milliseconds (non-0, up to 0xfffe).
+     * Does *not* allow specifying the special 'BucketDefault' timeout (0) -
+     * just use the default ctor.
+     * Does *not allow specifying the special 'Infinite' timeout (0xffff) -
+     * that is reserved for internal usage.
+     */
+    constexpr Timeout(uint16_t val) {
+        if (val == BucketDefaultVal) {
+            throw std::invalid_argument(
+                    "Timeout(): Cannot specify bucket default timeout");
+        }
+        if (val == InfinityVal) {
+            throw std::invalid_argument(
+                    "Timeout(): Cannot specify an infinite timeout");
+        }
+        value = val;
+    }
+
+    /// Factory method for an infinite timeout.
+    static Timeout Infinity() {
+        return Timeout(PrivateCtorTag(), InfinityVal);
+    }
+
+    uint16_t get() const {
+        return value;
+    }
+
+    /// @returns true if this Timeout should use the Engine's default value.
+    bool isDefault() const {
+        return value == BucketDefaultVal;
+    }
+
+    /// @returns true if this Timeout is infinite.
+    bool isInfinite() const {
+        return value == InfinityVal;
+    }
+
+private:
+    class PrivateCtorTag {};
+
+    /// Private ctor which can construct the special values.
+    Timeout(PrivateCtorTag, uint16_t val) : value(val) {
+    }
+
+    /// Special value to indicate the bucket's default timeout should be used.
+    static constexpr uint16_t BucketDefaultVal{0};
+    /// Special value to indicate an infinite timeout should be used.
+    static constexpr uint16_t InfinityVal{0xffff};
+
+    uint16_t value{BucketDefaultVal};
+};
+
+std::string to_string(Timeout);
+
+/**
+ * The requirements specification for an operation.
  */
 class Requirements {
 public:
     Requirements() = default;
     Requirements(const Requirements&) = default;
 
-    constexpr Requirements(Level level_, uint16_t timeout_)
+    constexpr Requirements(Level level_, Timeout timeout_)
         : level(level_), timeout(timeout_) {
     }
 
@@ -83,10 +151,10 @@ public:
     void setLevel(Level level) {
         Requirements::level = level;
     }
-    uint16_t getTimeout() const {
+    Timeout getTimeout() const {
         return timeout;
     }
-    void setTimeout(uint16_t timeout) {
+    void setTimeout(Timeout timeout) {
         Requirements::timeout = timeout;
     }
 
@@ -110,15 +178,14 @@ public:
 
 protected:
     Level level{Level::Majority};
-    /// The timeout in ms
-    uint16_t timeout{0};
+    Timeout timeout;
 };
 
 // @todo-durability: Might be able to remove this now we are using
 // boost::optional for requirements in VBucket, and Item uses the queue_op
 // to determine it's CommittedState. Check if any references remain.
 // (Can also remove Level::None).
-static constexpr Requirements NoRequirements = {Level::None, 0};
+static constexpr Requirements NoRequirements = {Level::None, Timeout{}};
 
 std::string to_string(Requirements r);
 

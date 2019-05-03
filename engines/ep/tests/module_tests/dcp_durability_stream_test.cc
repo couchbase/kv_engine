@@ -244,13 +244,14 @@ TEST_F(DurabilityPassiveStreamTest, SeqnoAckAtSyncWriteReceived) {
         EXPECT_EQ(ntohll(swSeqno), seqnoAck->getPreparedSeqno());
     };
 
+    using namespace cb::durability;
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(makeMutationConsumerMessage(
                       swSeqno,
                       vbid,
                       value,
                       opaque,
-                      cb::durability::Requirements())));
+                      Requirements(Level::Majority, Timeout::Infinity()))));
     // Verify that we have SeqnoAck(swSeqno) in readyQ
     checkReadyQ();
 
@@ -290,15 +291,15 @@ TEST_F(DurabilityPassiveStreamTest, SeqnoAckAtPersistedSeqno) {
     EXPECT_EQ(0, readyQ.size());
 
     const int64_t swSeqno = 2;
+    using namespace cb::durability;
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(makeMutationConsumerMessage(
                       swSeqno,
                       vbid,
                       value,
                       opaque,
-                      cb::durability::Requirements(
-                              cb::durability::Level::PersistToMajority,
-                              0 /*timeout*/))));
+                      Requirements(Level::PersistToMajority,
+                                   Timeout::Infinity()))));
     // No SeqnoAck yet, High Prepared Seqno has not been updated yet as
     // Level:PersistToMajority and the Prepare has been persisted yet
     EXPECT_EQ(0, readyQ.size());
@@ -376,15 +377,14 @@ TEST_F(DurabilityPassiveStreamTest, DurabilityFence) {
     EXPECT_EQ(0, readyQ.size());
 
     // s:2 Level:Majority -> ack (HPS=2)
-    ASSERT_EQ(
-            ENGINE_SUCCESS,
-            stream->messageReceived(makeMutationConsumerMessage(
-                    2 /*seqno*/,
-                    vbid,
-                    value,
-                    opaque,
-                    cb::durability::Requirements(
-                            cb::durability::Level::Majority, 0 /*timeout*/))));
+    using namespace cb::durability;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      2 /*seqno*/,
+                      vbid,
+                      value,
+                      opaque,
+                      Requirements(Level::Majority, Timeout::Infinity()))));
     checkSeqnoAckInReadyQ(2 /*HPS*/);
 
     // s:3 non-durable -> no ack
@@ -400,9 +400,8 @@ TEST_F(DurabilityPassiveStreamTest, DurabilityFence) {
                       vbid,
                       value,
                       opaque,
-                      cb::durability::Requirements(
-                              cb::durability::Level::MajorityAndPersistOnMaster,
-                              0 /*timeout*/))));
+                      Requirements(Level::MajorityAndPersistOnMaster,
+                                   Timeout::Infinity()))));
     checkSeqnoAckInReadyQ(4 /*HPS*/);
 
     // s:5 non-durable -> no ack
@@ -418,21 +417,18 @@ TEST_F(DurabilityPassiveStreamTest, DurabilityFence) {
                       vbid,
                       value,
                       opaque,
-                      cb::durability::Requirements(
-                              cb::durability::Level::PersistToMajority,
-                              0 /*timeout*/))));
+                      Requirements(Level::PersistToMajority,
+                                   Timeout::Infinity()))));
     EXPECT_EQ(0, readyQ.size());
 
     // s:7 Level-Majority -> no ack
-    ASSERT_EQ(
-            ENGINE_SUCCESS,
-            stream->messageReceived(makeMutationConsumerMessage(
-                    7 /*seqno*/,
-                    vbid,
-                    value,
-                    opaque,
-                    cb::durability::Requirements(
-                            cb::durability::Level::Majority, 0 /*timeout*/))));
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      7 /*seqno*/,
+                      vbid,
+                      value,
+                      opaque,
+                      Requirements(Level::Majority, Timeout::Infinity()))));
     EXPECT_EQ(0, readyQ.size());
 
     // s:8 Level:MajorityAndPersistOnMaster -> no ack
@@ -442,9 +438,8 @@ TEST_F(DurabilityPassiveStreamTest, DurabilityFence) {
                       vbid,
                       value,
                       opaque,
-                      cb::durability::Requirements(
-                              cb::durability::Level::MajorityAndPersistOnMaster,
-                              0 /*timeout*/))));
+                      Requirements(Level::MajorityAndPersistOnMaster,
+                                   Timeout::Infinity()))));
     EXPECT_EQ(0, readyQ.size());
 
     // s:9 non-durable -> no ack
@@ -485,13 +480,14 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
     // The consumer receives s:1 durable
     const std::string value("value");
     const uint64_t prepareSeqno = 1;
+    using namespace cb::durability;
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(makeMutationConsumerMessage(
                       prepareSeqno,
                       vbid,
                       value,
                       opaque,
-                      cb::durability::Requirements())));
+                      Requirements(Level::Majority, Timeout::Infinity()))));
 
     EXPECT_EQ(0, vb->getNumItems());
     EXPECT_EQ(1, vb->ht.getNumItems());

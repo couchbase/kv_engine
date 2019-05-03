@@ -385,6 +385,11 @@ protected:
         // can by emptied by Commit/Abort.
         Monotonic<int64_t, ThrowExceptionPolicy> lastTrackedSeqno;
 
+        // The durability timeout value to use for SyncWrites which haven't
+        // specified an explicit timeout.
+        // @todo-durability: Allow this to be configurable.
+        std::chrono::milliseconds defaultTimeout = std::chrono::seconds(30);
+
         const ActiveDurabilityMonitor& adm;
     };
 

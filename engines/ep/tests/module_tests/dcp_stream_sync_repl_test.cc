@@ -77,7 +77,7 @@ protected:
                              std::string key,
                              std::string value,
                              cb::durability::Requirements reqs = {
-                                     cb::durability::Level::Majority, 0}) {
+                                     cb::durability::Level::Majority, {}}) {
         switch (docState) {
         case DocumentState::Alive:
             return store_pending_item(vbid, key, value, reqs);
@@ -463,7 +463,7 @@ void DcpStreamSyncReplTest::testBackfillPrepare(DocumentState docState) {
     // Store a pending item then remove the checkpoint to force backfill.
     using cb::durability::Level;
     auto prepared = storePending(
-            docState, "1", "X", {Level::MajorityAndPersistOnMaster, 0});
+            docState, "1", "X", {Level::MajorityAndPersistOnMaster, {}});
     removeCheckpoint(1);
 
     // Create sync repl DCP stream
@@ -516,7 +516,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(DocumentState docState) {
     // backfill.
     using cb::durability::Level;
     auto prepared = storePending(
-            docState, "1", "X", {Level::MajorityAndPersistOnMaster, 0});
+            docState, "1", "X", {Level::MajorityAndPersistOnMaster, {}});
     ASSERT_EQ(ENGINE_SUCCESS,
               vb0->commit(prepared->getKey(),
                           prepared->getBySeqno(),
@@ -586,7 +586,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareAbort(DocumentState docState) {
     // backfill.
     using cb::durability::Level;
     auto prepared = storePending(
-            docState, "1", "X", {Level::MajorityAndPersistOnMaster, 0});
+            docState, "1", "X", {Level::MajorityAndPersistOnMaster, {}});
     ASSERT_EQ(ENGINE_SUCCESS,
               vb0->abort(prepared->getKey(),
                          prepared->getBySeqno(),

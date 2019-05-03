@@ -42,6 +42,8 @@ public:
      * @param (optional) cookie The cookie representing the client connection.
      *     Necessary at Active for notifying the client at SyncWrite completion.
      * @param item The pending Prepare being wrapped
+     * @param defaultTimeout If durability requirements in item do not specify
+     *     a timeout, the timeout value to use for this SyncWrite.
      * @param (optional) firstChain The repl-chain that the write is tracked
      *     against.  Necessary at Active for verifying the SW Durability
      *     Requirements.
@@ -51,6 +53,7 @@ public:
      */
     SyncWrite(const void* cookie,
               queued_item item,
+              std::chrono::milliseconds defaultTimeout,
               const ReplicationChain* firstChain,
               const ReplicationChain* secondChain);
 

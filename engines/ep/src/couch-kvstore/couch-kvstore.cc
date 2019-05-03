@@ -176,10 +176,11 @@ static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
         // Metadata is from a SyncWrite - update the Item appropriately.
         switch (metadata.getDurabilityOp()) {
         case queue_op::pending_sync_write:
-            // From disk we return a zero (infinite) timeout; as this could
+            // From disk we return an infinite timeout; as this could
             // refer to an already-committed SyncWrite and hence timeout
             // must be ignored.
-            item->setPendingSyncWrite({metadata.getDurabilityLevel(), 0});
+            item->setPendingSyncWrite({metadata.getDurabilityLevel(),
+                                       cb::durability::Timeout::Infinity()});
             if (metadata.isPreparedSyncDelete()) {
                 item->setDeleted(DeleteSource::Explicit);
             }

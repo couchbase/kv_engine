@@ -696,8 +696,11 @@ void ActiveDurabilityMonitor::State::addSyncWrite(const void* cookie,
                                                   queued_item item) {
     Expects(firstChain.get());
     const auto seqno = item->getBySeqno();
-    trackedWrites.emplace_back(
-            cookie, std::move(item), firstChain.get(), secondChain.get());
+    trackedWrites.emplace_back(cookie,
+                               std::move(item),
+                               defaultTimeout,
+                               firstChain.get(),
+                               secondChain.get());
     lastTrackedSeqno = seqno;
 }
 

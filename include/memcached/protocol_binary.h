@@ -1319,6 +1319,7 @@ protected:
     uint16_t durability_timeout = 0;
     uint8_t durability_level = 0;
 };
+
 static_assert(sizeof(DcpPreparePayload) == 33, "Unexpected struct size");
 
 class DcpSeqnoAcknowledgedPayload {

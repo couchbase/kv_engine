@@ -131,9 +131,13 @@ contains the durability level by using the following table:
     0x02 = majority and persist on master
     0x03 = persist to majority
 
-The (optional) 2nd and 3rd byte contains the timeout specified in
-milliseconds (network byte order). If omitted the default
-timeout value configured on the server will be used.
+The (optional) 2nd and 3rd byte contains the timeout specified in milliseconds
+(network byte order). If the timeout is omitted the default timeout value
+configured on the server will be used.
+
+If _timeout_ is specified, the valid range is 1..65535. Values `0x0` and
+`0xffff` are reserved and will result in the request failing with
+`Status::Einval` (0x4) if used.
 
 ##### ID:2 - DCP stream-ID
 

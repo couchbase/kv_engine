@@ -43,10 +43,10 @@ protected:
         std::vector<uint8_t> ret(1); // First we'll need the id and length tag
         ret.push_back(uint8_t(spec.getLevel()));
         auto timeout = spec.getTimeout();
-        if (timeout != 0) {
+        if (!timeout.isDefault()) {
             ret.resize(ret.size() + sizeof(uint16_t));
             auto* ptr = reinterpret_cast<uint16_t*>(&ret[2]);
-            *ptr = htons(timeout);
+            *ptr = htons(timeout.get());
         }
         ret[0] = uint8_t((ret.size() - 1) << 4) |
                  uint8_t(FrameInfoId::DurabilityRequirement);

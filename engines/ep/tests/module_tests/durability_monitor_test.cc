@@ -442,7 +442,7 @@ void ActiveDurabilityMonitorTest::testSeqnoAckPersistToMajority(
         const std::vector<std::string>& nodesToAck) {
     DurabilityMonitorTest::addSyncWrites(
             {1, 3, 5} /*seqnos*/,
-            {cb::durability::Level::PersistToMajority, 0 /*timeout*/});
+            {cb::durability::Level::PersistToMajority, {}});
     EXPECT_EQ(3, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
@@ -529,7 +529,7 @@ void ActiveDurabilityMonitorTest::testSeqnoAckMajorityAndPersistOnMaster(
         const std::vector<std::string>& nodesToAck) {
     DurabilityMonitorTest::addSyncWrites(
             {1, 3, 5} /*seqnos*/,
-            {cb::durability::Level::MajorityAndPersistOnMaster, 0 /*timeout*/});
+            {cb::durability::Level::MajorityAndPersistOnMaster, {}});
     ASSERT_EQ(3, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
@@ -868,8 +868,9 @@ TEST_P(ActiveDurabilityMonitorTest, NeverExpireIfTimeoutNotSet) {
             nlohmann::json::array({{active, replica1}})));
     ASSERT_EQ(2, adm.getFirstChainSize());
 
-    // Note: Timeout=0 (i.e., no timeout) in default Durability Requirements
-    addSyncWrite(1 /*seqno*/);
+    using namespace cb::durability;
+    addSyncWrite(1 /*seqno*/,
+                 Requirements(Level::Majority, Timeout::Infinity()));
     EXPECT_EQ(1, monitor->getNumTracked());
 
     // Never expire, neither after 1 year !
@@ -1031,7 +1032,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_NoReplica) {
             makeStoredDocKey("key"),
             "value",
             cb::durability::Requirements(
-                    cb::durability::Level::PersistToMajority, 0 /*timeout*/));
+                    cb::durability::Level::PersistToMajority, {}));
     item->setBySeqno(1);
     {
         SCOPED_TRACE("");
@@ -1379,8 +1380,22 @@ void PassiveDurabilityMonitorTest::TearDown() {
 
 TEST_P(PassiveDurabilityMonitorTest, AddSyncWrite) {
     ASSERT_EQ(0, monitor->getNumTracked());
-    addSyncWrite(1 /*seqno*/);
+    using namespace cb::durability;
+    addSyncWrite(1 /*seqno*/,
+                 Requirements{Level::Majority, Timeout::Infinity()});
     EXPECT_EQ(1, monitor->getNumTracked());
+}
+
+/// Check that attempting to add a SyncWrite to PDM with default timeout
+/// fails (active should have set an explicit timeout).
+TEST_P(PassiveDurabilityMonitorTest, AddSyncWriteDefaultTimeoutInvalid) {
+    using namespace cb::durability;
+    auto item = makePendingItem(makeStoredDocKey("key"),
+                                "value",
+                                Requirements{Level::Majority, Timeout()});
+    EXPECT_THROW(VBucketTestIntrospector::public_getPassiveDM(*vb).addSyncWrite(
+                         item),
+                 std::invalid_argument);
 }
 
 void DurabilityMonitorTest::addSyncWriteAndCheckHPS(
@@ -1388,7 +1403,11 @@ void DurabilityMonitorTest::addSyncWriteAndCheckHPS(
         cb::durability::Level level,
         int64_t expectedHPS) {
     const size_t expectedNumTracked = monitor->getNumTracked() + seqnos.size();
-    addSyncWrites(seqnos, cb::durability::Requirements{level, 0 /*timeout*/});
+    // Use non-default timeout as this function is used by both active and
+    // passive DM tests (and passive DM doesn't accept Timeout::BucketDefault
+    // as active should have already set it to an explicit value).
+    cb::durability::Timeout timeout(10);
+    addSyncWrites(seqnos, cb::durability::Requirements{level, timeout});
     EXPECT_EQ(expectedNumTracked, monitor->getNumTracked());
     EXPECT_EQ(expectedHPS, monitor->getHighPreparedSeqno());
 }
