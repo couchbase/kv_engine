@@ -169,8 +169,7 @@ public:
     }
 
     size_t getItemCount(Vbid vbid) override {
-        // TODO storage-team 2018-10-9 need to implement
-        return 0;
+        return getMagmaInfo(vbid).docCount;
     }
 
     RollbackResult rollback(Vbid vbid,
@@ -367,13 +366,14 @@ private:
                           const std::string& value,
                           GetMetaOnly getMetaOnly = GetMetaOnly::No);
 
-    int saveDocs(Vbid vbid,
-                 Collections::VB::Flush& collectionsFlush,
-                 const PendingRequestQueue& commitBatch);
+    int saveDocs(Collections::VB::Flush& collectionsFlush, kvstats_ctx& kvctx);
 
-    void commitCallback(int status, const PendingRequestQueue& commitBatch);
+    void commitCallback(int status, kvstats_ctx& kvctx);
 
     int64_t readHighSeqnoFromDisk(const KVMagma& db);
+
+    static ENGINE_ERROR_CODE magmaErr2EngineErr(magma::Status::Code err,
+                                                bool found);
 
     // Used for queueing mutation requests (in `set` and `del`) and flushing
     // them to disk (in `commit`).

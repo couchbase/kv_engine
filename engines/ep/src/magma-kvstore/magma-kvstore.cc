@@ -41,24 +41,39 @@ namespace magmakv {
 #pragma pack(1)
 class MetaData {
 public:
-    MetaData()
-        : bySeqno(0),
-          cas(0),
-          exptime(0),
-          revSeqno(0),
-          flags(0),
-          valueSize(0),
-          vbid(0),
-          deleted(0),
-          deleteSource(static_cast<uint8_t>(DeleteSource::Explicit)),
-          metaDataVersion(0),
-          datatype(0){};
+    // The Operation this represents - maps to queue_op types:
+    enum class Operation {
+        // A standard mutation (or deletion). Present in the 'normal'
+        // (committed) namespace.
+        Mutation,
+
+        // A prepared SyncWrite. `durability_level` field indicates the level
+        // Present in the DurabilityPrepare namespace.
+        PreparedSyncWrite,
+
+        // A committed SyncWrite.
+        // This exists so we can correctly backfill from disk a Committed
+        // mutation and sent out as a DCP_COMMIT to sync_replication
+        // enabled DCP clients.
+        // Present in the 'normal' (committed) namespace.
+        CommittedSyncWrite,
+
+        // An aborted SyncWrite.
+        // This exists so we can correctly backfill from disk an Aborted
+        // mutation and sent out as a DCP_ABORT to sync_replication
+        // enabled DCP clients.
+        // Present in the DurabilityPrepare namespace.
+        Abort,
+    };
+
+    MetaData() = default;
 
     MetaData(const Item& it)
-        : bySeqno(it.getBySeqno()),
+        : metaDataVersion(0),
+          bySeqno(it.getBySeqno()),
           cas(it.getCas()),
-          exptime(it.getExptime()),
           revSeqno(it.getRevSeqno()),
+          exptime(it.getExptime()),
           flags(it.getFlags()),
           valueSize(it.getNBytes()),
           vbid(it.getVBucketId().get()),
@@ -68,74 +83,112 @@ public:
             deleteSource = static_cast<uint8_t>(it.deletionSource());
         } else {
             deleted = 0;
+            deleteSource = 0;
         }
-
-        if (it.getOperation() == queue_op::pending_sync_write) {
-            queue_op = static_cast<uint8_t>(it.getOperation());
-            // Note: durabilty timeout /isn't/ persisted as part of a pending
-            // SyncWrite. This is because if we ever read it back from disk
-            // during warmup (i.e. the commit_sync_write was never persisted),
-            // we don't know if the SyncWrite was actually already committed; as
-            // such to ensure consistency the pending SyncWrite *must*
-            // eventually commit (or sit in pending forever).
-            durabilityLevel =
-                    static_cast<uint8_t>(it.getDurabilityReqs().getLevel());
-        }
-        metaDataVersion = 0;
+        operation = static_cast<uint8_t>(toOperation(it.getOperation()));
+        durabilityLevel =
+                static_cast<uint8_t>(it.getDurabilityReqs().getLevel());
     };
 
     // Magma requires meta data for local documents. Rather than support 2
     // different meta data versions, we simplify by using just 1.
     MetaData(bool isDeleted, uint32_t valueSize, int64_t seqno, Vbid vbid)
-        : bySeqno(seqno),
+        : metaDataVersion(0),
+          bySeqno(seqno),
+          cas(0),
+          revSeqno(0),
+          exptime(0),
+          flags(0),
           valueSize(valueSize),
           vbid(vbid.get()),
-          deleted(isDeleted ? 1 : 0) {
+          datatype(0),
+          operation(0),
+          durabilityLevel(0) {
         if (isDeleted) {
+            deleted = 1;
             deleteSource = static_cast<uint8_t>(DeleteSource::Explicit);
+        } else {
+            deleted = 0;
+            deleteSource = 0;
         }
-        cas = 0;
-        exptime = 0;
-        revSeqno = 0;
-        flags = 0;
-        metaDataVersion = 0;
-        datatype = 0;
-        durabilityLevel = 0;
-        queue_op = 0;
     };
+
+    Operation getOperation() const {
+        return static_cast<Operation>(operation);
+    }
+
+    cb::durability::Level getDurabilityLevel() const {
+        return static_cast<cb::durability::Level>(durabilityLevel);
+    }
 
     std::string to_string() const {
         std::stringstream ss;
+        int vers = metaDataVersion;
+        int dt = datatype;
+        auto op = to_string(static_cast<Operation>(operation));
+        cb::durability::Requirements req(getDurabilityLevel(), 0);
         ss << "bySeqno:" << bySeqno << " cas:" << cas << " exptime:" << exptime
-           << " revSeqno:" << revSeqno << " flags:" << flags << " valueSize "
-           << valueSize << " "
-           << " vbid:" << vbid
+           << " revSeqno:" << revSeqno << " flags:" << flags
+           << " valueSize:" << valueSize << " vbid:" << vbid
            << " deleted:" << (deleted == 0 ? "false" : "true")
            << " deleteSource:"
            << (deleted == 0 ? " " : deleteSource == 0 ? "Explicit" : "TTL")
-           << " version:" << metaDataVersion
-           << " datatype:" << uint8_t(datatype)
-           << " queue_op:" << uint8_t(queue_op)
-           << " durability:" << uint8_t(durabilityLevel);
+           << " version:" << vers << " datatype:" << dt << " operation:" << op
+           << " durabilityLevel:" << cb::durability::to_string(req);
         return ss.str();
     }
 
+    uint8_t metaDataVersion;
     int64_t bySeqno;
     uint64_t cas;
-    uint32_t exptime;
     uint64_t revSeqno;
+    uint32_t exptime;
     uint32_t flags;
     uint32_t valueSize;
     uint16_t vbid;
+    uint8_t datatype;
     uint8_t deleted : 1;
     uint8_t deleteSource : 1;
-    uint8_t metaDataVersion : 6;
-    uint8_t datatype;
-    uint8_t queue_op;
-    uint8_t durabilityLevel;
+    uint8_t operation : 2;
+    uint8_t durabilityLevel : 2;
+
+private:
+    static Operation toOperation(queue_op op) {
+        switch (op) {
+        case queue_op::mutation:
+            return Operation::Mutation;
+        case queue_op::pending_sync_write:
+            return Operation::PreparedSyncWrite;
+        case queue_op::commit_sync_write:
+            return Operation::CommittedSyncWrite;
+        case queue_op::abort_sync_write:
+            return Operation::Abort;
+        case queue_op::system_event:
+            return Operation::Mutation;
+        default:
+            throw std::invalid_argument(
+                    "magma::MetaData::toOperation: Unsupported op " +
+                    std::to_string(static_cast<uint8_t>(op)));
+        }
+    }
+
+    static std::string to_string(Operation op) {
+        switch (op) {
+        case Operation::Mutation:
+            return "Mutation";
+        case Operation::PreparedSyncWrite:
+            return "PreparedSyncWrite";
+        case Operation::CommittedSyncWrite:
+            return "CommittedSyncWrite";
+        case Operation::Abort:
+            return "Abort";
+        }
+        return "Unknonw";
+    }
 };
 #pragma pack()
-static_assert(sizeof(MetaData) == 42,
+
+static_assert(sizeof(MetaData) == 41,
               "magmakv::MetaData is not the expected size.");
 } // namespace magmakv
 
@@ -193,20 +246,16 @@ public:
         return docMeta;
     }
 
-    Vbid getVbID() {
+    Vbid getVbID() const {
         return Vbid(docMeta.vbid);
-    }
-
-    int64_t getBySeqno() const {
-        return docMeta.bySeqno;
     }
 
     size_t getKeyLen() const {
         return key.size();
     }
 
-    char* getKey() const {
-        return reinterpret_cast<char*>(const_cast<uint8_t*>(key.data()));
+    const char* getKey() const {
+        return reinterpret_cast<const char*>(key.data());
     }
 
     size_t getBodySize() const {
@@ -217,7 +266,7 @@ public:
         return docBody ? const_cast<char*>(docBody->getData()) : nullptr;
     }
 
-    size_t getMetaSize() {
+    size_t getMetaSize() const {
         return sizeof(magmakv::MetaData);
     }
 
@@ -225,7 +274,7 @@ public:
         itemOldExists = true;
     }
 
-    bool oldItemExists() {
+    bool oldItemExists() const {
         return itemOldExists;
     }
 
@@ -233,7 +282,7 @@ public:
         itemOldIsDelete = true;
     }
 
-    bool oldItemIsDelete() {
+    bool oldItemIsDelete() const {
         return itemOldIsDelete;
     }
 
@@ -241,7 +290,7 @@ public:
         reqFailed = true;
     }
 
-    bool requestFailed() {
+    bool requestFailed() const {
         return reqFailed;
     }
 
@@ -288,6 +337,10 @@ static const bool isDeleted(const Slice& metaSlice) {
     magmakv::MetaData* docMeta = reinterpret_cast<magmakv::MetaData*>(
             const_cast<char*>(metaSlice.Data()));
     return docMeta->deleted > 0 ? true : false;
+}
+
+static DiskDocKey makeDiskDocKey(const Slice& key) {
+    return DiskDocKey{key.Data(), key.Len()};
 }
 
 class KVMagma {
@@ -497,6 +550,7 @@ bool MagmaKVStore::commit(Collections::VB::Flush& collectionsFlush) {
     // This behaviour is to replicate the one in Couchstore.
     // If `commit` is called when not in transaction, just return true.
     if (!in_transaction) {
+        logger->warn("MagmaKVStore::commit called not in transaction");
         return true;
     }
 
@@ -505,29 +559,19 @@ bool MagmaKVStore::commit(Collections::VB::Flush& collectionsFlush) {
         return true;
     }
 
-    // Swap `pendingReqs` with the temporary `commitBatch` so that we can
-    // shorten the scope of the lock.
-    PendingRequestQueue commitBatch;
-    {
-        std::lock_guard<std::mutex> lock(writeLock);
-        std::swap(*pendingReqs, commitBatch);
-    }
-
+    kvstats_ctx kvctx(collectionsFlush);
     bool success = true;
-    auto vbid = commitBatch[0].getVBucketId();
 
     // Flush all documents to disk
-    auto status = saveDocs(vbid, collectionsFlush, commitBatch);
+    auto status = saveDocs(collectionsFlush, kvctx);
     if (status) {
-        logger->warn(
-                "MagmaKVStore::commit: saveDocs error:{}, "
-                "vb:{}",
-                status,
-                vbid);
+        logger->warn("MagmaKVStore::commit: saveDocs {} error:{}",
+                     pendingReqs->front().getVbID(),
+                     status);
         success = false;
     }
 
-    commitCallback(status, commitBatch);
+    commitCallback(status, kvctx);
 
     // This behaviour is to replicate the one in Couchstore.
     // Set `in_transanction = false` only if `commit` is successful.
@@ -536,25 +580,74 @@ bool MagmaKVStore::commit(Collections::VB::Flush& collectionsFlush) {
         transactionCtx.reset();
     }
 
+    pendingReqs->clear();
+    logger->trace("MagmaKVStore::commit success:{}", success);
+
     return success;
 }
 
-void MagmaKVStore::commitCallback(int status,
-                                  const PendingRequestQueue& commitBatch) {
-    for (const auto& req : commitBatch) {
-        if (!status) {
+void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
+    for (const auto& req : *pendingReqs) {
+        if (errCode) {
             ++st.numSetFailure;
-        } else {
-            st.writeTimeHisto.add(req.getDelta() / 1000);
-            st.writeSizeHisto.add(req.getKeyLen() + req.getBodySize());
         }
-        // TODO: Should set `mr.second` to true or false depending on if
-        // this is an insertion (true) or an update of an existing item
-        // (false). However, to achieve this we would need to perform a lookup
-        // which is costly. For now just assume that the item
-        // did not exist. Later maybe use hyperlog for a better answer?
-        mutation_result mr = std::make_pair(1, true);
-        req.getSetCallback()(*transactionCtx, mr);
+
+        size_t mutationSize =
+                req.getKeyLen() + req.getBodySize() + req.getMetaSize();
+        st.io_num_write++;
+        st.io_write_bytes += mutationSize;
+
+        // Note:
+        // There are 3 cases for setting rv based on errCode
+        // MUTATUION_SUCCESS
+        // DOC_NOT_FOUND
+        // MUTATION_FAILED - magma does not support this case because
+        //     we don't want to requeue the item.  If errCode is bad,
+        //     its most likely something fatal with the kvstore
+        //     or it might be the kvstore is pending being dropped.
+        int rv = DOC_NOT_FOUND;
+        if (req.oldItemExists() && !req.oldItemIsDelete()) {
+            rv = MUTATION_SUCCESS;
+        }
+
+        if (req.isDelete()) {
+            if (req.requestFailed()) {
+                st.numDelFailure++;
+            } else {
+                st.delTimeHisto.add(req.getDelta());
+            }
+
+            logger->trace("commitCallback {} errCode:{} getDelCallback rv:{}",
+                          pendingReqs->front().getVbID(),
+                          errCode,
+                          rv);
+
+            req.getDelCallback()(*transactionCtx, rv);
+        } else {
+            int mutationStatus = MUTATION_SUCCESS;
+            if (req.oldItemIsDelete()) {
+                rv = DOC_NOT_FOUND;
+            }
+
+            if (req.requestFailed()) {
+                st.numSetFailure++;
+                mutationStatus = MUTATION_FAILED;
+            } else {
+                st.writeTimeHisto.add(req.getDelta());
+                st.writeSizeHisto.add(mutationSize);
+            }
+            mutation_result p(mutationStatus,
+                              rv == DOC_NOT_FOUND ? true : false);
+            req.getSetCallback()(*transactionCtx, p);
+
+            logger->trace(
+                    "commitCallback {} errCode:{} getSetCallback rv:{} "
+                    "insertion:{}",
+                    pendingReqs->front().getVbID(),
+                    errCode,
+                    rv,
+                    mutationStatus);
+        }
     }
 }
 
@@ -652,8 +745,6 @@ void MagmaKVStore::del(const Item& item, KVStore::DeleteCallback cb) {
                 "MagmaKVStore::del: in_transaction must be true to perform a "
                 "delete operation.");
     }
-    // TODO: Deleted items remain as tombstones, but are not yet expired,
-    // they will accumuate forever.
     pendingReqs->emplace_back(item, std::move(cb), logger);
 }
 
@@ -678,7 +769,11 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbucketId,
     if (!cachedVBStates[vbucketId.get()]) {
         auto status = readVBStateFromDisk(vbucketId);
         if (!status) {
-            if (status.ErrorCode() != Status::Code::NotFound) {
+            switch (status.ErrorCode()) {
+            case magma::Status::Code::NotExists: // kvstore doesn't exist
+            case magma::Status::Code::NotFound: // pending delete
+                break;
+            default:
                 throw std::logic_error("MagmaKVStore::snapshotVBucket " +
                                        status.String());
             }
@@ -798,61 +893,137 @@ GetValue MagmaKVStore::makeGetValue(Vbid vb,
             makeItem(vb, key, value, getMetaOnly), ENGINE_SUCCESS, -1, 0);
 }
 
-int MagmaKVStore::saveDocs(Vbid vbid,
-                           Collections::VB::Flush& collectionsFlush,
-                           const PendingRequestQueue& commitBatch) {
-    auto reqsSize = commitBatch.size();
-    if (reqsSize == 0) {
-        st.docsCommitted = 0;
-        return 0;
-    }
-
-    auto& vbstate = cachedVBStates[vbid.get()];
-    if (vbstate == nullptr) {
-        throw std::logic_error("MagmaKVStore::saveDocs: cachedVBStates[" +
-                               std::to_string(vbid.get()) + "] is NULL");
-    }
-
+int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
+                           kvstats_ctx& kvctx) {
+    uint64_t ninserts = 0;
+    uint64_t ndeletes = 0;
     int64_t lastSeqno = 0;
-    int status = 0;
+
+    auto vbid = pendingReqs->front().getVbID();
+
+    // Start a magma CommitBatch.
+    // This is an atomic batch of items... all or nothing.
+    std::unique_ptr<Magma::CommitBatch> batch;
+    Status status = magma->NewCommitBatch(vbid.get(), batch);
+    if (!status) {
+        logger->warn("MagmaKVStore::saveDocs NewCommitBatch failed {} err:{}",
+                     vbid,
+                     status.String());
+        return status.ErrorCode();
+    }
 
     auto begin = std::chrono::steady_clock::now();
-    {
-        KVMagma db(vbid, magmaPath);
 
-        for (const auto& request : commitBatch) {
-            status = db.SetOrDel(&request);
-            if (status < 0) {
-                logger->warn(
-                        "MagmaKVStore::saveDocs: magma::DB::Insert error:{}, "
-                        "vb:{}",
-                        status,
-                        vbid);
+    for (auto& req : *pendingReqs) {
+        Slice key = Slice{req.getKey(), req.getKeyLen()};
+        auto docMeta = req.getDocMeta();
+        Slice meta = Slice{reinterpret_cast<char*>(&docMeta),
+                           sizeof(magmakv::MetaData)};
+        Slice value = Slice{req.getBodyData(), req.getBodySize()};
+
+        if (req.getDocMeta().bySeqno > lastSeqno) {
+            lastSeqno = req.getDocMeta().bySeqno;
+        }
+
+        bool found{false};
+        bool tombstone{false};
+        status = batch->Set(key, meta, value, &found, &tombstone);
+        if (!status) {
+            logger->warn("MagmaKVStore::saveDocs: Set {} error {}",
+                         vbid,
+                         status.String());
+            req.markRequestFailed();
+            continue;
+        }
+
+        if (logger->should_log(spdlog::level::debug)) {
+            std::string hex, ascii;
+            hexdump(key.Data(), key.Len(), hex, ascii);
+            logger->debug(
+                    "MagmaKVStore::saveDocs {} key:{} {} seqno:{} delete:{} "
+                    "found:{} "
+                    "tombstone:{}",
+                    vbid,
+                    ascii,
+                    hex,
+                    req.getDocMeta().bySeqno,
+                    req.isDelete(),
+                    found,
+                    tombstone);
+        }
+
+        if (found) {
+            req.markOldItemExists();
+            if (tombstone) {
+                req.markOldItemIsDelete();
+                // Old item is a delete and new is an insert.
+                if (!req.isDelete()) {
+                    ninserts++;
+                }
+            } else if (req.isDelete()) {
+                // Old item is insert and new is delete.
+                ndeletes++;
             }
-            if (request.getBySeqno() > lastSeqno) {
-                lastSeqno = request.getBySeqno();
+        } else {
+            // Old item doesn't exist and new is an insert.
+            if (!req.isDelete()) {
+                ninserts++;
             }
+        }
+
+        auto collectionsKey = makeDiskDocKey(key);
+        kvctx.keyStats[collectionsKey] = false;
+
+        if (req.oldItemExists()) {
+            if (!req.oldItemIsDelete()) {
+                // If we are replacing the item...
+                auto itr = kvctx.keyStats.find(collectionsKey);
+                if (itr != kvctx.keyStats.end()) {
+                    itr->second = true;
+                }
+            }
+        }
+    }
+
+    auto* vbstate = getVBucketState(vbid);
+    if (vbstate) {
+        vbstate->highSeqno = lastSeqno;
+    }
+
+    auto magmaInfo = getMagmaInfo(vbid);
+    magmaInfo.docCount += ninserts - ndeletes;
+    magmaInfo.persistedDeletes += ndeletes;
+
+    // Write out current vbstate to the CommitBatch.
+    status = writeVBStateToDisk(vbid, *(batch.get()));
+    if (!status) {
+        return status.ErrorCode();
+    }
+
+    // Done with the CommitBatch so add in the endTxn and create
+    // a snapshot so that documents can not be read.
+    status = magma->ExecuteCommitBatch(std::move(batch));
+    if (!status) {
+        logger->warn("MagmaKVStore::saveDocs: ExecuteCommitBatch {} error {}",
+                     vbid,
+                     status.ErrorCode());
+    } else {
+        // Flush the WAL to disk.
+        // If the shard writeCache is full, this will trigger all the
+        // KVStores to persist their memtables.
+        status = magma->SyncCommitBatches(commitPointEveryBatch);
+        if (!status) {
+            logger->warn(
+                    "MagmaKVStore::saveDocs: SyncCommitBatches {} error {}",
+                    vbid,
+                    status.ErrorCode());
         }
     }
 
     st.commitHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - begin));
-    if (status) {
-        logger->warn(
-                "MagmaKVStore::saveDocs: magma::DB::Write error:{}, "
-                "vb:%d",
-                status,
-                vbid.get());
-        return status;
-    }
 
-    vbstate->highSeqno = lastSeqno;
-
-    return status;
-}
-
-int64_t MagmaKVStore::readHighSeqnoFromDisk(const KVMagma& db) {
-    return 0;
+    return status.ErrorCode();
 }
 
 ScanContext* MagmaKVStore::initScanContext(
@@ -921,9 +1092,9 @@ vbucket_state* MagmaKVStore::getVBucketState(Vbid vbid) {
         vbstate = cachedVBStates[vbid.get()].get();
     }
 
-    if (logger->should_log(spdlog::level::debug)) {
+    if (logger->should_log(spdlog::level::trace)) {
         auto j = encodeVBState(*vbstate, getMagmaInfo(vbid));
-        logger->debug("getVBucketState {} vbstate:{}", vbid, j.dump());
+        logger->trace("getVBucketState {} vbstate:{}", vbid, j.dump());
     }
     return vbstate;
 }
@@ -956,7 +1127,7 @@ magma::Status MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
     }
 
     vbucket_state vbstate = j;
-    logger->debug("readVBStateFromDisk {} vbstate:{}", vbid, j.dump());
+    logger->trace("readVBStateFromDisk {} vbstate:{}", vbid, j.dump());
 
     auto vbs = std::make_unique<vbucket_state>(vbstate);
     cachedVBStates[vbid.get()] = std::move(vbs);
@@ -985,7 +1156,7 @@ magma::Status MagmaKVStore::writeVBStateToDisk(
     }
 
     auto jstr = encodeVBState(*vbs, *minfo).dump();
-    logger->debug("writeVBStateToDisk {} vbstate:{}", vbid, jstr);
+    logger->trace("writeVBStateToDisk {} vbstate:{}", vbid, jstr);
     return setLocalDoc(commitBatch, vbstateKey, jstr, false);
 }
 
@@ -996,8 +1167,10 @@ std::string MagmaKVStore::encodeLocalDoc(Vbid vbid,
     magma->GetMaxSeqno(vbid.get(), seqno);
     auto docMeta = magmakv::MetaData(
             isDelete, sizeof(magmakv::MetaData) + value.size(), seqno, vbid);
-    std::string retString = {reinterpret_cast<char*>(&docMeta),
-                             sizeof(magmakv::MetaData)};
+    std::string retString;
+    retString.reserve(sizeof(magmakv::MetaData) + value.size());
+    retString.append(reinterpret_cast<char*>(&docMeta),
+                     sizeof(magmakv::MetaData));
     retString.append(value.data(), value.size());
     return retString;
 }
@@ -1045,7 +1218,7 @@ std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
                              vbid,
                              keySlice.ToString());
             } else {
-                logger->debug("MagmaKVStore::readLocalDoc({} key:{})",
+                logger->trace("MagmaKVStore::readLocalDoc({} key:{})",
                               vbid,
                               keySlice.ToString());
             }
@@ -1065,7 +1238,7 @@ Status MagmaKVStore::setLocalDoc(Magma::CommitBatch& commitBatch,
     // Store in localDB
     Slice valSlice = {valString.c_str(), valString.size()};
 
-    logger->debug("MagmaKVStore::setLocalDoc({} key:{})",
+    logger->trace("MagmaKVStore::setLocalDoc({} key:{})",
                   commitBatch.GetkvID(),
                   const_cast<Slice&>(keySlice).ToString());
 
@@ -1079,4 +1252,20 @@ nlohmann::json MagmaKVStore::encodeVBState(vbucket_state& vbstate,
     j["persisted_deletes"] =
             std::to_string(static_cast<uint64_t>(magmaInfo.persistedDeletes));
     return j;
+}
+
+ENGINE_ERROR_CODE MagmaKVStore::magmaErr2EngineErr(Status::Code err,
+                                                   bool found) {
+    if (!found) {
+        return ENGINE_KEY_ENOENT;
+    }
+    // This routine is intended to mimic couchErr2EngineErr.
+    // Since magma doesn't have a memory allocation error, all magma errors
+    // get translated into ENGINE_TMPFAIL.
+    switch (err) {
+    case Status::Code::Ok:
+        return ENGINE_SUCCESS;
+    default:
+        return ENGINE_TMPFAIL;
+    }
 }
