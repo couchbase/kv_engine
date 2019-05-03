@@ -3250,11 +3250,11 @@ ENGINE_ERROR_CODE VBucket::seqnoAcknowledged(const std::string& replicaId,
 void VBucket::notifyPersistenceToDurabilityMonitor() {
     folly::SharedMutex::ReadHolder wlh(stateLock);
 
-    // @todo-durability: Consider vbstate Pending
-    if (state != vbucket_state_active && state != vbucket_state_replica) {
+    if (state != vbucket_state_active && state != vbucket_state_replica &&
+        state != vbucket_state_pending) {
         throw std::logic_error(
-                "VBucket::notifyPersistenceToDurabilityMonitor: state " +
-                std::string(toString(state)));
+                "VBucket::notifyPersistenceToDurabilityMonitor: vb " +
+                id.to_string() + "state " + std::string(toString(state)));
     }
 
     durabilityMonitor->notifyLocalPersistence();
