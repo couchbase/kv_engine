@@ -487,6 +487,87 @@ TEST_P(DurabilityEPBucketTest, ActiveLocalNotifyPersistedSeqno) {
     }
 }
 
+TEST_P(DurabilityEPBucketTest, SetDurabilityImpossible) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology",
+              nlohmann::json::array({{"active", nullptr, nullptr}})}});
+
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "value");
+
+    EXPECT_EQ(ENGINE_DURABILITY_IMPOSSIBLE, store->set(*pending, cookie));
+
+    auto item = makeCommittedItem(key, "value");
+    EXPECT_NE(ENGINE_DURABILITY_IMPOSSIBLE, store->set(*item, cookie));
+}
+
+TEST_P(DurabilityEPBucketTest, AddDurabilityImpossible) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology",
+              nlohmann::json::array({{"active", nullptr, nullptr}})}});
+
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "value");
+
+    EXPECT_EQ(ENGINE_DURABILITY_IMPOSSIBLE, store->add(*pending, cookie));
+
+    auto item = makeCommittedItem(key, "value");
+    EXPECT_NE(ENGINE_DURABILITY_IMPOSSIBLE, store->add(*item, cookie));
+}
+
+TEST_P(DurabilityEPBucketTest, ReplaceDurabilityImpossible) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology",
+              nlohmann::json::array({{"active", nullptr, nullptr}})}});
+
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "value");
+
+    EXPECT_EQ(ENGINE_DURABILITY_IMPOSSIBLE, store->replace(*pending, cookie));
+
+    auto item = makeCommittedItem(key, "value");
+    EXPECT_NE(ENGINE_DURABILITY_IMPOSSIBLE, store->replace(*item, cookie));
+}
+
+TEST_P(DurabilityEPBucketTest, DeleteDurabilityImpossible) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology",
+              nlohmann::json::array({{"active", nullptr, nullptr}})}});
+
+    auto key = makeStoredDocKey("key");
+
+    uint64_t cas = 0;
+    mutation_descr_t mutation_descr;
+    cb::durability::Requirements durabilityRequirements;
+    durabilityRequirements.setLevel(cb::durability::Level::Majority);
+    EXPECT_EQ(ENGINE_DURABILITY_IMPOSSIBLE,
+              store->deleteItem(key,
+                                cas,
+                                vbid,
+                                cookie,
+                                durabilityRequirements,
+                                nullptr,
+                                mutation_descr));
+
+    durabilityRequirements.setLevel(cb::durability::Level::None);
+    EXPECT_NE(ENGINE_DURABILITY_IMPOSSIBLE,
+              store->deleteItem(key,
+                                cas,
+                                vbid,
+                                cookie,
+                                durabilityRequirements,
+                                nullptr,
+                                mutation_descr));
+}
+
 // Test cases which run against all enabled storage backends.
 INSTANTIATE_TEST_CASE_P(AllBackends,
                         DurabilityEPBucketTest,

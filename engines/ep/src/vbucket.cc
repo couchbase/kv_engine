@@ -1269,6 +1269,10 @@ ENGINE_ERROR_CODE VBucket::set(
         EventuallyPersistentEngine& engine,
         cb::StoreIfPredicate predicate,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+    if (itm.isPending() && !getActiveDM().isDurabilityPossible()) {
+        return ENGINE_DURABILITY_IMPOSSIBLE;
+    }
+
     bool cas_op = (itm.getCas() != 0);
     auto htRes = ht.findForWrite(itm.getKey());
     auto* v = htRes.storedValue;
@@ -1377,6 +1381,10 @@ ENGINE_ERROR_CODE VBucket::replace(
         EventuallyPersistentEngine& engine,
         cb::StoreIfPredicate predicate,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+    if (itm.isPending() && !getActiveDM().isDurabilityPossible()) {
+        return ENGINE_DURABILITY_IMPOSSIBLE;
+    }
+
     auto htRes = ht.findForWrite(itm.getKey());
     auto* v = htRes.storedValue;
     auto& hbl = htRes.lock;
@@ -1696,6 +1704,11 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         ItemMetaData* itemMeta,
         mutation_descr_t& mutInfo,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+    if (durability && durability->isValid() &&
+        !getActiveDM().isDurabilityPossible()) {
+        return ENGINE_DURABILITY_IMPOSSIBLE;
+    }
+
     auto htRes = ht.findForWrite(cHandle.getKey());
     auto* v = htRes.storedValue;
     auto& hbl = htRes.lock;
@@ -2078,6 +2091,9 @@ ENGINE_ERROR_CODE VBucket::add(
         const void* cookie,
         EventuallyPersistentEngine& engine,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+    if (itm.isPending() && !getActiveDM().isDurabilityPossible()) {
+        return ENGINE_DURABILITY_IMPOSSIBLE;
+    }
     auto htRes = ht.findForWrite(itm.getKey());
     auto* v = htRes.storedValue;
     auto& hbl = htRes.lock;
@@ -2195,6 +2211,7 @@ GetValue VBucket::getAndUpdateTtl(
         EventuallyPersistentEngine& engine,
         time_t exptime,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+    // @TODO durability: MB-34070 add durability impossible check
     auto res = fetchValidValue(
             WantsDeleted::Yes, TrackReference::Yes, QueueExpired::Yes, cHandle);
     GetValue gv;
