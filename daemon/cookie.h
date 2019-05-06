@@ -70,6 +70,15 @@ public:
     void initialize(const cb::mcbp::Header& packet, bool tracing_enabled);
 
     /**
+     * Validates the packet content, and (possibly) set the error
+     * state and reason.
+     *
+     * @return Success if the packet was correctly encoded
+     * @throw std::runtime_error if an unsupported packet is encountered
+     */
+    cb::mcbp::Status validate();
+
+    /**
      * Reset the Cookie object to allow it to be reused in the same
      * context as the last time.
      */

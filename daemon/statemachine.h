@@ -17,6 +17,7 @@
 #pragma once
 
 class Connection;
+class Cookie;
 
 /**
  * The state machinery for connections in the daemon
@@ -200,7 +201,7 @@ protected:
     bool conn_drain_send_buffer();
 
     // Validate the input packet and set the next state
-    bool validate_input_packet();
+    bool validate_input_packet(Cookie& cookie);
 
     State currentState;
     Connection& connection;

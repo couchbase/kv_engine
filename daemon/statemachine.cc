@@ -201,7 +201,7 @@ bool StateMachine::conn_ship_log() {
     if (connection.isPacketAvailable()) {
         cookie.initialize(connection.getPacket(),
                           connection.isTracingEnabled());
-        return validate_input_packet();
+        return validate_input_packet(cookie);
     }
 
     const auto ret = connection.getBucket().getDcpIface()->step(
@@ -234,9 +234,10 @@ bool StateMachine::conn_read_packet() {
     }
 
     if (connection.isPacketAvailable()) {
-        connection.getCookieObject().initialize(connection.getPacket(),
-                                                connection.isTracingEnabled());
-        return validate_input_packet();
+        auto& cookie = connection.getCookieObject();
+        cookie.initialize(connection.getPacket(),
+                          connection.isTracingEnabled());
+        return validate_input_packet(cookie);
     }
 
     return false;
@@ -260,57 +261,18 @@ bool StateMachine::conn_new_cmd() {
     return !connection.maybeYield();
 }
 
-bool StateMachine::validate_input_packet() {
-    static McbpValidator packetValidator;
-
-    if (is_bucket_dying(connection)) {
-        return true;
+bool StateMachine::validate_input_packet(Cookie& cookie) {
+    const auto ret = cookie.validate();
+    if (ret == cb::mcbp::Status::Success) {
+        cookie.setValidated(true);
+        setCurrentState(State::execute);
+    } else {
+        cookie.sendResponse(ret);
+        if (ret != cb::mcbp::Status::UnknownCommand) {
+            setCurrentState(State::closing);
+        }
     }
 
-    auto& cookie = connection.getCookieObject();
-    const auto& header = cookie.getHeader();
-    // We validated the basics of the header in try_read_mcbp_command
-    // (we needed that in order to know if we could use the length field...
-
-    if (header.isRequest()) {
-        const auto& request = header.getRequest();
-        if (cb::mcbp::is_client_magic(request.getMagic())) {
-            auto opcode = request.getClientOpcode();
-            if (!cb::mcbp::is_valid_opcode(opcode)) {
-                // We don't know about this command so we can stop
-                // processing it. We know that the header adds
-                cookie.sendResponse(cb::mcbp::Status::UnknownCommand);
-                return true;
-            }
-
-            auto result = packetValidator.validate(opcode, cookie);
-            if (result != cb::mcbp::Status::Success) {
-                LOG_WARNING(
-                        R"({}: Invalid format specified for "{}" - Status: "{}" - Closing connection. Packet:[{}] Reason:"{}")",
-                        connection.getId(),
-                        to_string(opcode),
-                        to_string(result),
-                        request.toJSON(false).dump(),
-                        cookie.getErrorContext());
-                audit_invalid_packet(cookie.getConnection(),
-                                     cookie.getPacket());
-                cookie.sendResponse(result);
-                setCurrentState(State::closing);
-                return true;
-            }
-            cookie.setValidated(true);
-        } else {
-            // We should not be receiving a server command.
-            // Audit and log
-            audit_invalid_packet(connection, cookie.getPacket());
-            LOG_WARNING("{}: Received a server command. Closing connection",
-                        connection.getId());
-            setCurrentState(State::closing);
-            return true;
-        }
-    } // We don't currently have any validators for response packets
-
-    setCurrentState(State::execute);
     return true;
 }
 

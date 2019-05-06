@@ -20,6 +20,7 @@
 #include "buckets.h"
 #include "connection.h"
 #include "cookie_trace_context.h"
+#include "mcaudit.h"
 #include "mcbp.h"
 #include "mcbp_executors.h"
 #include "protocol/mcbp/engine_errc_2_mcbp.h"
@@ -446,6 +447,51 @@ void Cookie::initialize(const cb::mcbp::Header& header, bool tracing_enabled) {
                                   sizeof(*packet)}));
         }
     }
+}
+
+cb::mcbp::Status Cookie::validate() {
+    static McbpValidator packetValidator;
+
+    const auto& header = getHeader();
+
+    if (!header.isValid()) {
+        audit_invalid_packet(connection, getPacket());
+        throw std::runtime_error("Received an invalid packet");
+    }
+
+    if (header.isRequest()) {
+        const auto& request = header.getRequest();
+        if (cb::mcbp::is_client_magic(request.getMagic())) {
+            auto opcode = request.getClientOpcode();
+            if (!cb::mcbp::is_valid_opcode(opcode)) {
+                // We don't know about this command so we can stop
+                // processing it.
+                return cb::mcbp::Status::UnknownCommand;
+            }
+
+            auto result = packetValidator.validate(opcode, *this);
+            if (result != cb::mcbp::Status::Success) {
+                LOG_WARNING(
+                        "{}: Invalid format specified for \"{}\" - Status: "
+                        "\"{}\" - Closing connection. Packet:[{}] "
+                        "Reason:\"{}\"",
+                        connection.getId(),
+                        to_string(opcode),
+                        to_string(result),
+                        request.toJSON(false).dump(),
+                        getErrorContext());
+                audit_invalid_packet(getConnection(), getPacket());
+                return result;
+            }
+        } else {
+            // We should not be receiving a server command.
+            // Audit the packet, and close the connection
+            audit_invalid_packet(connection, getPacket());
+            throw std::runtime_error("Received a server command");
+        }
+    } // We don't currently have any validators for response packets
+
+    return cb::mcbp::Status::Success;
 }
 
 void Cookie::reset() {
