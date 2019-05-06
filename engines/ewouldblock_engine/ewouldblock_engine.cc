@@ -1352,17 +1352,18 @@ ENGINE_ERROR_CODE EWB_Engine::step(
         if (stream->second.first && count > 0) {
             // This is using the internal dcp implementation which always
             // send the same item back
-            auto ret =
-                    producers->mutation(0xdeadbeef /*opqaue*/,
-                                        cb::unique_item_ptr(&dcp_mutation_item),
-                                        Vbid(0),
-                                        0 /*by_seqno*/,
-                                        0 /*rev_seqno*/,
-                                        0 /*lock_time*/,
-                                        nullptr /*meta*/,
-                                        0 /*nmeta*/,
-                                        0 /*nru*/,
-                                        {});
+            auto ret = producers->mutation(
+                    0xdeadbeef /*opqaue*/,
+                    cb::unique_item_ptr(&dcp_mutation_item,
+                                        cb::ItemDeleter(this)),
+                    Vbid(0),
+                    0 /*by_seqno*/,
+                    0 /*rev_seqno*/,
+                    0 /*lock_time*/,
+                    nullptr /*meta*/,
+                    0 /*nmeta*/,
+                    0 /*nru*/,
+                    {});
             --count;
             return ret;
         }
