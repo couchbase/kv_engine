@@ -42,19 +42,6 @@ void StateMachine::setCurrentState(State task) {
         return;
     }
 
-    if (connection.isDCP()) {
-        /*
-         * DCP connections behaves differently than normal
-         * connections because they operate in a full duplex mode.
-         * New messages may appear from both sides, so we can't block on
-         * read from the network / engine
-         */
-
-        if (task == State::waiting) {
-            task = State::ship_log;
-        }
-    }
-
     currentState = task;
 }
 
@@ -64,8 +51,6 @@ const char* StateMachine::getStateName(State state) const {
         return "ssl_init";
     case StateMachine::State::new_cmd:
         return "new_cmd";
-    case StateMachine::State::waiting:
-        return "waiting";
     case StateMachine::State::read_packet:
         return "read_packet";
     case StateMachine::State::closing:
@@ -92,7 +77,6 @@ const char* StateMachine::getStateName(State state) const {
 bool StateMachine::isIdleState() const {
     switch (currentState) {
     case State::read_packet:
-    case State::waiting:
     case State::new_cmd:
     case State::ship_log:
     case State::send_data:
@@ -115,8 +99,6 @@ bool StateMachine::execute() {
         return conn_ssl_init();
     case StateMachine::State::new_cmd:
         return conn_new_cmd();
-    case StateMachine::State::waiting:
-        return conn_waiting();
     case StateMachine::State::read_packet:
         return conn_read_packet();
     case StateMachine::State::closing:
@@ -246,15 +228,6 @@ bool StateMachine::conn_ship_log() {
     return true;
 }
 
-bool StateMachine::conn_waiting() {
-    if (is_bucket_dying(connection) || connection.processServerEvents()) {
-        return true;
-    }
-
-    setCurrentState(State::read_packet);
-    return true;
-}
-
 bool StateMachine::conn_read_packet() {
     if (is_bucket_dying(connection) || connection.processServerEvents()) {
         return true;
@@ -266,7 +239,6 @@ bool StateMachine::conn_read_packet() {
         return validate_input_packet();
     }
 
-    setCurrentState(State::waiting);
     return false;
 }
 
@@ -276,7 +248,11 @@ bool StateMachine::conn_new_cmd() {
     }
 
     connection.getCookieObject().reset();
-    setCurrentState(State::waiting);
+    if (connection.isDCP()) {
+        setCurrentState(State::ship_log);
+    } else {
+        setCurrentState(State::read_packet);
+    }
 
     // In order to ensure that all clients will be served each
     // connection will only process a certain number of operations
