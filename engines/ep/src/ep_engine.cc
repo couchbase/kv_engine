@@ -734,7 +734,7 @@ cb::mcbp::Status EventuallyPersistentEngine::setVbucketParam(
         } else if (key == "max_cas") {
             uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
             checkNumeric(val.c_str());
-            EP_LOG_WARN("setVbucketParam: max_cas:{} {}", v, vbucket);
+            EP_LOG_INFO("setVbucketParam: max_cas:{} {}", v, vbucket);
             if (getKVBucket()->forceMaxCas(vbucket, v) != ENGINE_SUCCESS) {
                 rv = cb::mcbp::Status::NotMyVbucket;
                 msg = "Not my vbucket";
@@ -6145,7 +6145,7 @@ void EventuallyPersistentEngine::setCompressionMode(
     try {
         compressionMode = parseCompressionMode(compressModeStr);
         if (oldCompressionMode != compressionMode) {
-            EP_LOG_WARN(R"(Transitioning from "{}"->"{}" compression mode)",
+            EP_LOG_INFO(R"(Transitioning from "{}"->"{}" compression mode)",
                         to_string(oldCompressionMode),
                         compressModeStr);
         }
