@@ -86,6 +86,30 @@ void MemoryTrackerTest::AccountingTestThread(void* arg) {
     operator delete[](p, sizeof(char) * 100);
     EXPECT_EQ(0, alloc_size);
 
+    // Test nothrow new, with normal delete
+    p = new (std::nothrow) char;
+    EXPECT_GT(alloc_size, 0);
+    delete (p);
+    EXPECT_EQ(0, alloc_size);
+
+    // Test nothrow new[], with normal delete[]
+    p = new (std::nothrow) char[100];
+    EXPECT_GE(alloc_size, 100);
+    delete[] p;
+    EXPECT_EQ(0, alloc_size);
+
+    // Test new, with nothrow delete
+    p = new char();
+    EXPECT_GT(alloc_size, 0);
+    operator delete(p, std::nothrow);
+    EXPECT_EQ(0, alloc_size);
+
+    // Test new[], with nothrow delete[]
+    p = new char[100];
+    EXPECT_GE(alloc_size, 100);
+    operator delete[](p, std::nothrow);
+    EXPECT_EQ(0, alloc_size);
+
     // Test cb_malloc() / cb_free() /////////////////////////////////////////////
     p = static_cast<char*>(cb_malloc(sizeof(char) * 10));
     EXPECT_GE(alloc_size, 10);
