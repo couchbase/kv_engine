@@ -52,7 +52,14 @@ public:
         return std::chrono::milliseconds(250);
     }
 
-    std::pair<bool, size_t> isCursorDroppingNeeded() const;
+    /**
+     * Determines whether to attempt to reduce checkpoint memory
+     * usage.
+     * @return a boolean value indicating whether to attempt
+     * checkpoint memory reduction, and the size (in bytes) that it
+     * should be reduced by.
+     */
+    std::pair<bool, size_t> isReductionInCheckpointMemoryNeeded() const;
 
 private:
     EventuallyPersistentEngine *engine;

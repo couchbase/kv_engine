@@ -319,7 +319,7 @@ TEST_F(CheckpointRemoverEPTest, cursorDroppingTriggerTest) {
     config.setMaxSize(10240);
 
     std::tie(shouldTriggerCursorDropping, amountOfMemoryToClear) =
-            task->isCursorDroppingNeeded();
+            task->isReductionInCheckpointMemoryNeeded();
     EXPECT_FALSE(shouldTriggerCursorDropping);
     EXPECT_EQ(0, amountOfMemoryToClear);
 
@@ -331,7 +331,7 @@ TEST_F(CheckpointRemoverEPTest, cursorDroppingTriggerTest) {
     config.setMaxSize(1024);
 
     std::tie(shouldTriggerCursorDropping, amountOfMemoryToClear) =
-            task->isCursorDroppingNeeded();
+            task->isReductionInCheckpointMemoryNeeded();
     EXPECT_TRUE(shouldTriggerCursorDropping);
     EXPECT_LT(0, amountOfMemoryToClear);
 
@@ -346,7 +346,7 @@ TEST_F(CheckpointRemoverEPTest, cursorDroppingTriggerTest) {
     config.setCursorDroppingCheckpointMemUpperMark(1);
 
     std::tie(shouldTriggerCursorDropping, amountOfMemoryToClear) =
-            task->isCursorDroppingNeeded();
+            task->isReductionInCheckpointMemoryNeeded();
     EXPECT_TRUE(shouldTriggerCursorDropping);
     EXPECT_LT(0, amountOfMemoryToClear);
 }

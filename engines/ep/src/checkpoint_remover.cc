@@ -29,7 +29,7 @@
 #include <memory>
 
 std::pair<bool, size_t>
-ClosedUnrefCheckpointRemoverTask::isCursorDroppingNeeded() const {
+ClosedUnrefCheckpointRemoverTask::isReductionInCheckpointMemoryNeeded() const {
     /**
      * Cursor dropping will commence if one of the following conditions is met:
      * 1. if the total memory used is greater than the upper threshold which is
@@ -154,7 +154,7 @@ bool ClosedUnrefCheckpointRemoverTask::run(void) {
         bool shouldTriggerCursorDropping{false};
         size_t amountOMemoryToClear{0};
         std::tie(shouldTriggerCursorDropping, amountOMemoryToClear) =
-                isCursorDroppingNeeded();
+                isReductionInCheckpointMemoryNeeded();
         if (shouldTriggerCursorDropping) {
             attemptCursorDropping(amountOMemoryToClear);
         }
