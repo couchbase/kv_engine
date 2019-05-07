@@ -25,6 +25,7 @@
 #include "ep_types.h"
 #include "storeddockey.h"
 
+#include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
 
 #include <chrono>

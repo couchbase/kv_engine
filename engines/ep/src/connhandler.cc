@@ -21,6 +21,7 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 
+#include <memcached/durability_spec.h>
 #include <memcached/server_cookie_iface.h>
 #include <phosphor/phosphor.h>
 

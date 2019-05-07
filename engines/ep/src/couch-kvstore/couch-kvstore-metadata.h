@@ -21,6 +21,7 @@
 
 #include <folly/lang/Assume.h>
 #include <libcouchstore/couch_common.h>
+#include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 
