@@ -128,11 +128,11 @@ std::vector<std::pair<Vbid, size_t>> VBucketMap::getVBucketsSortedByChkMgrMem() 
     return rv;
 }
 
-size_t VBucketMap::getActiveVBucketsTotalCheckpointMemoryUsage() const {
+size_t VBucketMap::getVBucketsTotalCheckpointMemoryUsage() const {
     size_t checkpointMemoryUsage = 0;
     for (size_t i = 0; i < size; ++i) {
         VBucketPtr b = getBucket(Vbid(i));
-        if (b && b->getState() == vbucket_state_active) {
+        if (b) {
             checkpointMemoryUsage += b->getChkMgrMemUsage();
         }
     }

@@ -62,6 +62,35 @@ TEST_F(CheckpointRemoverEPTest, GetVBucketsSortedByChkMgrMem) {
 }
 
 /**
+ * Check that the VBucketMap.getVBucketsTotalCheckpointMemoryUsage() returns the
+ * total memory usage of the checkpoints of all vbuckets.
+ */
+TEST_F(CheckpointRemoverEPTest, GetVBucketsTotalCheckpointMemoryUsage) {
+    const auto numOfCheckpoints{3};
+    for (uint16_t i = 0; i < numOfCheckpoints; i++) {
+        setVBucketStateAndRunPersistTask(Vbid(i), vbucket_state_active);
+        for (uint16_t j = 0; j < i; j++) {
+            std::string doc_key =
+                    "key_" + std::to_string(i) + "_" + std::to_string(j);
+            store_item(Vbid(i), makeStoredDocKey(doc_key), "value");
+        }
+        // Set to different vbucket states (active=1, replica=2 and pending=3).
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  store->setVBucketState(Vbid(i), vbucket_state_t(i + 1), {}));
+    }
+
+    size_t totalCheckpointMemoryUsage{0};
+    for (size_t i = 0; i < numOfCheckpoints; i++) {
+        VBucketPtr b = store->getVBuckets().getBucket(Vbid(i));
+        if (b) {
+            totalCheckpointMemoryUsage += b->getChkMgrMemUsage();
+        }
+    }
+    EXPECT_EQ(totalCheckpointMemoryUsage,
+              store->getVBuckets().getVBucketsTotalCheckpointMemoryUsage());
+}
+
+/**
  * Check that the CheckpointManager memory usage calculation is correct and
  * accurate based on the size of the checkpoints in it.
  */

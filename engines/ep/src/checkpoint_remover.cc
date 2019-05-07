@@ -45,17 +45,17 @@ ClosedUnrefCheckpointRemoverTask::isReductionInCheckpointMemoryNeeded() const {
     const auto& config = engine->getConfiguration();
     const auto bucketQuota = config.getMaxSize();
 
-    const auto activeVBChkptMemSize =
+    const auto vBucketChkptMemSize =
             engine->getKVBucket()
                     ->getVBuckets()
-                    .getActiveVBucketsTotalCheckpointMemoryUsage();
+                    .getVBucketsTotalCheckpointMemoryUsage();
 
     const auto chkptMemLimit =
             (bucketQuota * config.getCursorDroppingCheckpointMemUpperMark()) /
             100;
 
     const bool hitCheckpointMemoryThreshold =
-            activeVBChkptMemSize >= chkptMemLimit;
+            vBucketChkptMemSize >= chkptMemLimit;
 
     const bool aboveLowWatermark =
             stats.getEstimatedTotalMemoryUsed() >= stats.mem_low_wat.load();
@@ -86,7 +86,7 @@ ClosedUnrefCheckpointRemoverTask::isReductionInCheckpointMemoryNeeded() const {
                     "Triggering cursor dropping as checkpoint_memory ({} MB) "
                     "exceeds cursor_dropping_checkpoint_mem_upper_mark ({}%, "
                     "{} MB). Attempting to free {} MB of memory.",
-                    toMB(activeVBChkptMemSize),
+                    toMB(vBucketChkptMemSize),
                     config.getCursorDroppingCheckpointMemUpperMark(),
                     toMB(chkptMemLimit),
                     toMB(amountOfMemoryToClear));

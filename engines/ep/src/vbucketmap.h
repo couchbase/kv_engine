@@ -101,10 +101,10 @@ public:
     std::vector<std::pair<Vbid, size_t>> getVBucketsSortedByChkMgrMem() const;
 
     /**
-     * Get the memory usage by checkpoints for all active vbuckets.
+     * Get the total memory usage of the checkpoints of all vbuckets.
      * @return Total checkpoint memory usage
      */
-    size_t getActiveVBucketsTotalCheckpointMemoryUsage() const;
+    size_t getVBucketsTotalCheckpointMemoryUsage() const;
     KVShard* getShardByVbId(Vbid id) const;
     KVShard* getShard(KVShard::id_type shardId) const;
     size_t getNumShards() const;
