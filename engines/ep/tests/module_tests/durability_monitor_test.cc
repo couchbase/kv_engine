@@ -1048,7 +1048,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_NoReplica) {
             makeStoredDocKey("key"),
             "value",
             cb::durability::Requirements(
-                    cb::durability::Level::PersistToMajority, 0 /*timeout*/));
+                    cb::durability::Level::PersistToMajority, {}));
     item->setBySeqno(1);
     {
         SCOPED_TRACE("");
