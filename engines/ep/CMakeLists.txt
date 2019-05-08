@@ -530,7 +530,6 @@ if (NOT EP_BYPASS_TESTS)
                           ${EP_STORAGE_LIBS} cbcompress dirutils JSON_checker
                           platform xattr
                           ${LIBEVENT_LIBRARIES})
-    ADD_DEPENDENCIES(ep_testsuite engine_testapp)
 
     ADD_LIBRARY(ep_testsuite_basic MODULE
                 tests/ep_testsuite_basic.cc
@@ -548,7 +547,6 @@ if (NOT EP_BYPASS_TESTS)
             platform
             ${LIBEVENT_LIBRARIES}
             ${SNAPPY_LIBRARIES})
-    ADD_DEPENDENCIES(ep_testsuite engine_testapp)
 
     ADD_LIBRARY(ep_testsuite_dcp MODULE
                 tests/ep_testsuite_dcp.cc
@@ -566,7 +564,6 @@ if (NOT EP_BYPASS_TESTS)
             platform
             ${LIBEVENT_LIBRARIES}
             ${SNAPPY_LIBRARIES})
-    ADD_DEPENDENCIES(ep_testsuite_dcp engine_testapp)
 
     ADD_LIBRARY(ep_testsuite_checkpoint MODULE
                 tests/ep_testsuite_checkpoint.cc
@@ -582,7 +579,6 @@ if (NOT EP_BYPASS_TESTS)
             platform
             ${LIBEVENT_LIBRARIES}
             ${SNAPPY_LIBRARIES})
-    ADD_DEPENDENCIES(ep_testsuite_checkpoint engine_testapp)
 
     ADD_LIBRARY(ep_testsuite_xdcr MODULE
                 tests/ep_testsuite_xdcr.cc
@@ -591,7 +587,6 @@ if (NOT EP_BYPASS_TESTS)
     TARGET_LINK_LIBRARIES(ep_testsuite_xdcr mcd_util engine_utilities
             mcbp JSON_checker dirutils platform xattr
                           ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
-    ADD_DEPENDENCIES(ep_testsuite_xdcr engine_testapp)
 
     ADD_LIBRARY(ep_perfsuite MODULE
                 tests/ep_perfsuite.cc
@@ -606,7 +601,6 @@ if (NOT EP_BYPASS_TESTS)
             mcd_util
             platform
             ${LIBEVENT_LIBRARIES})
-    ADD_DEPENDENCIES(ep_perfsuite engine_testapp)
 
     #ADD_CUSTOM_COMMAND(OUTPUT
     #                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_0.c
