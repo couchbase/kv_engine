@@ -86,6 +86,8 @@ cb::mcbp::Status cb::mcbp::to_status(cb::engine_errc code) {
         return Status::UnknownScope;
     case engine_errc::failed:
         return Status::Einternal;
+    case engine_errc::durability_invalid_level:
+        return Status::DurabilityInvalidLevel;
     case engine_errc::durability_impossible:
         return Status::DurabilityImpossible;
     case engine_errc::sync_write_in_progress:

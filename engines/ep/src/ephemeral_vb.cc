@@ -774,3 +774,17 @@ int64_t EphemeralVBucket::addSystemEventItem(
     }
     return v->getBySeqno();
 }
+
+bool EphemeralVBucket::isValidDurabilityLevel(cb::durability::Level level) {
+    switch (level) {
+    case cb::durability::Level::Majority:
+        return true;
+    case cb::durability::Level::None:
+    case cb::durability::Level::MajorityAndPersistOnMaster:
+    case cb::durability::Level::PersistToMajority:
+        // No persistence on Ephemeral
+        return false;
+    }
+
+    folly::assume_unreachable();
+}

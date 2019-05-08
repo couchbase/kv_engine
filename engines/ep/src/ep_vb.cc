@@ -794,3 +794,16 @@ int64_t EPVBucket::addSystemEventItem(
     }
     return qi->getBySeqno();
 }
+
+bool EPVBucket::isValidDurabilityLevel(cb::durability::Level level) {
+    switch (level) {
+    case cb::durability::Level::None:
+        return false;
+    case cb::durability::Level::Majority:
+    case cb::durability::Level::MajorityAndPersistOnMaster:
+    case cb::durability::Level::PersistToMajority:
+        return true;
+    }
+
+    folly::assume_unreachable();
+}

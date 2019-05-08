@@ -420,7 +420,7 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
     case ENGINE_EACCESS:break;
     case ENGINE_NO_BUCKET:break;
     case ENGINE_AUTH_STALE:break;
-
+    case ENGINE_DURABILITY_INVALID_LEVEL:
     case ENGINE_DURABILITY_IMPOSSIBLE:
         break;
     case ENGINE_SYNC_WRITE_IN_PROGRESS:

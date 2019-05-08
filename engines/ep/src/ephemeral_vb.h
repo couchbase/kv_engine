@@ -316,6 +316,8 @@ private:
 
     size_t estimateNewMemoryUsage(EPStats& st, const Item& item) override;
 
+    bool isValidDurabilityLevel(cb::durability::Level level) override;
+
     /**
      * (i) Updates an already non-temp element in the sequence list (OR)
      * (ii) For a temp item that is being updated (that is, being made non-temp

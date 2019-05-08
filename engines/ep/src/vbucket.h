@@ -2108,6 +2108,24 @@ private:
                                     StoredValue* v);
 
     /**
+     * Is the durability level valid for this type of vBucket?
+     *
+     * @param level Level to check
+     * @return True if valid, false if not
+     */
+    virtual bool isValidDurabilityLevel(cb::durability::Level level) = 0;
+
+    /**
+     * Check if the durability requirements of the given item can be satisfied
+     * by this vBucket.
+     *
+     * @param item The durable write
+     * @return ENGINE_SUCCESS if durability is possible, appropriate error code
+     *         to return if not
+     */
+    ENGINE_ERROR_CODE checkDurabilityRequirements(const Item& item);
+
+    /**
      * Base function for queueing an item for persistence and replication.
      *
      * @param item The item to queue.

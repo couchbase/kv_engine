@@ -135,6 +135,9 @@ enum class engine_errc {
     /// feature is enabled.
     dcp_streamid_invalid = 0x1f,
 
+    /// The durability level is invalid (e.g. persist on Ephemeral)
+    durability_invalid_level = 0x20,
+
     /** Generic failue. */
     failed = 0xff
 };
@@ -203,6 +206,8 @@ typedef enum {
             int(cb::engine_errc::collections_manifest_is_ahead),
     ENGINE_FAILED = int(cb::engine_errc::failed),
     ENGINE_PREDICATE_FAILED = int(cb::engine_errc::predicate_failed),
+    ENGINE_DURABILITY_INVALID_LEVEL =
+            int(cb::engine_errc::durability_invalid_level),
     ENGINE_DURABILITY_IMPOSSIBLE = int(cb::engine_errc::durability_impossible),
     ENGINE_SYNC_WRITE_IN_PROGRESS =
             int(cb::engine_errc::sync_write_in_progress),

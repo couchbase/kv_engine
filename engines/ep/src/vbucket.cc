@@ -1269,8 +1269,9 @@ ENGINE_ERROR_CODE VBucket::set(
         EventuallyPersistentEngine& engine,
         cb::StoreIfPredicate predicate,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    if (itm.isPending() && !getActiveDM().isDurabilityPossible()) {
-        return ENGINE_DURABILITY_IMPOSSIBLE;
+    auto ret = checkDurabilityRequirements(itm);
+    if (ret != ENGINE_SUCCESS) {
+        return ret;
     }
 
     bool cas_op = (itm.getCas() != 0);
@@ -1326,8 +1327,7 @@ ENGINE_ERROR_CODE VBucket::set(
 
     // For pending SyncWrites we initially return EWOULDBLOCK; will notify
     // client when request is committed / aborted later.
-    ENGINE_ERROR_CODE ret =
-            itm.isPending() ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
+    ret = itm.isPending() ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
     switch (status) {
     case MutationStatus::NoMem:
         ret = ENGINE_ENOMEM;
@@ -1381,8 +1381,9 @@ ENGINE_ERROR_CODE VBucket::replace(
         EventuallyPersistentEngine& engine,
         cb::StoreIfPredicate predicate,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    if (itm.isPending() && !getActiveDM().isDurabilityPossible()) {
-        return ENGINE_DURABILITY_IMPOSSIBLE;
+    auto ret = checkDurabilityRequirements(itm);
+    if (ret != ENGINE_SUCCESS) {
+        return ret;
     }
 
     auto htRes = ht.findForWrite(itm.getKey());
@@ -1426,8 +1427,7 @@ ENGINE_ERROR_CODE VBucket::replace(
 
         // For pending SyncWrites we initially return EWOULDBLOCK; will notify
         // client when request is committed / aborted later.
-        ENGINE_ERROR_CODE ret =
-                itm.isPending() ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
+        ret = itm.isPending() ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
         switch (mtype) {
         case MutationStatus::NoMem:
             ret = ENGINE_ENOMEM;
@@ -1704,9 +1704,14 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         ItemMetaData* itemMeta,
         mutation_descr_t& mutInfo,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    if (durability && durability->isValid() &&
-        !getActiveDM().isDurabilityPossible()) {
-        return ENGINE_DURABILITY_IMPOSSIBLE;
+    if (durability && durability->isValid()) {
+        if (!isValidDurabilityLevel(durability->getLevel())) {
+            return ENGINE_DURABILITY_INVALID_LEVEL;
+        }
+
+        if (!getActiveDM().isDurabilityPossible()) {
+            return ENGINE_DURABILITY_IMPOSSIBLE;
+        }
     }
 
     auto htRes = ht.findForWrite(cHandle.getKey());
@@ -2091,9 +2096,11 @@ ENGINE_ERROR_CODE VBucket::add(
         const void* cookie,
         EventuallyPersistentEngine& engine,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    if (itm.isPending() && !getActiveDM().isDurabilityPossible()) {
-        return ENGINE_DURABILITY_IMPOSSIBLE;
+    auto ret = checkDurabilityRequirements(itm);
+    if (ret != ENGINE_SUCCESS) {
+        return ret;
     }
+
     auto htRes = ht.findForWrite(itm.getKey());
     auto* v = htRes.storedValue;
     auto& hbl = htRes.lock;
@@ -2211,7 +2218,6 @@ GetValue VBucket::getAndUpdateTtl(
         EventuallyPersistentEngine& engine,
         time_t exptime,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    // @TODO durability: MB-34070 add durability impossible check
     auto res = fetchValidValue(
             WantsDeleted::Yes, TrackReference::Yes, QueueExpired::Yes, cHandle);
     GetValue gv;
@@ -3289,4 +3295,18 @@ void VBucket::DeferredDeleter::operator()(VBucket* vb) const {
 
 void VBucket::setFreqSaturatedCallback(std::function<void()> callbackFunction) {
     ht.setFreqSaturatedCallback(callbackFunction);
+}
+
+ENGINE_ERROR_CODE VBucket::checkDurabilityRequirements(const Item& item) {
+    if (item.isPending()) {
+        if (!isValidDurabilityLevel(item.getDurabilityReqs().getLevel())) {
+            return ENGINE_DURABILITY_INVALID_LEVEL;
+        }
+
+        if (!getActiveDM().isDurabilityPossible()) {
+            return ENGINE_DURABILITY_IMPOSSIBLE;
+        }
+    }
+
+    return ENGINE_SUCCESS;
 }

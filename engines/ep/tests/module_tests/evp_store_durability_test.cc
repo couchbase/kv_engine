@@ -60,6 +60,12 @@ protected:
     void testPersistPrepareAbortX2(DocumentState docState);
 };
 
+class DurabilityBucketTest : public STParameterizedBucketTest {
+protected:
+    template <typename F>
+    void testDurabilityInvalidLevel(F& func);
+};
+
 void DurabilityEPBucketTest::testPersistPrepare(DocumentState docState) {
     setVBucketStateAndRunPersistTask(
             vbid,
@@ -553,9 +559,98 @@ TEST_P(DurabilityEPBucketTest, DeleteDurabilityImpossible) {
                                 mutation_descr));
 }
 
-// Test cases which run against all enabled storage backends.
+template <typename F>
+void DurabilityBucketTest::testDurabilityInvalidLevel(F& func) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto key = makeStoredDocKey("key");
+    using namespace cb::durability;
+    auto reqs = Requirements(Level::Majority, {});
+    auto pending = makePendingItem(key, "value", reqs);
+    EXPECT_NE(ENGINE_DURABILITY_INVALID_LEVEL, func(pending, cookie));
+
+    reqs = Requirements(Level::MajorityAndPersistOnMaster, {});
+    pending = makePendingItem(key, "value", reqs);
+    if (persistent()) {
+        EXPECT_NE(ENGINE_DURABILITY_INVALID_LEVEL, func(pending, cookie));
+    } else {
+        EXPECT_EQ(ENGINE_DURABILITY_INVALID_LEVEL, func(pending, cookie));
+    }
+
+    reqs = Requirements(Level::PersistToMajority, {});
+    pending = makePendingItem(key, "value", reqs);
+    if (persistent()) {
+        EXPECT_NE(ENGINE_DURABILITY_INVALID_LEVEL, func(pending, cookie));
+    } else {
+        EXPECT_EQ(ENGINE_DURABILITY_INVALID_LEVEL, func(pending, cookie));
+    }
+}
+
+TEST_P(DurabilityBucketTest, SetDurabilityInvalidLevel) {
+    auto op = [this](queued_item pending,
+                     const void* cookie) -> ENGINE_ERROR_CODE {
+        return store->set(*pending, cookie);
+    };
+    testDurabilityInvalidLevel(op);
+}
+
+TEST_P(DurabilityBucketTest, AddDurabilityInvalidLevel) {
+    auto op = [this](queued_item pending,
+                     const void* cookie) -> ENGINE_ERROR_CODE {
+        return store->add(*pending, cookie);
+    };
+    testDurabilityInvalidLevel(op);
+}
+
+TEST_P(DurabilityBucketTest, ReplaceDurabilityInvalidLevel) {
+    auto op = [this](queued_item pending,
+                     const void* cookie) -> ENGINE_ERROR_CODE {
+        return store->replace(*pending, cookie);
+    };
+    testDurabilityInvalidLevel(op);
+}
+
+TEST_P(DurabilityBucketTest, DeleteDurabilityInvalidLevel) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    using namespace cb::durability;
+    auto durabilityRequirements = Requirements(Level::Majority, {});
+
+    auto del = [this](cb::durability::Requirements requirements)
+            -> ENGINE_ERROR_CODE {
+        auto key = makeStoredDocKey("key");
+        uint64_t cas = 0;
+        mutation_descr_t mutation_descr;
+        return store->deleteItem(
+                key, cas, vbid, cookie, requirements, nullptr, mutation_descr);
+    };
+    EXPECT_NE(ENGINE_DURABILITY_INVALID_LEVEL, del(durabilityRequirements));
+
+    durabilityRequirements =
+            Requirements(Level::MajorityAndPersistOnMaster, {});
+    if (persistent()) {
+        EXPECT_NE(ENGINE_DURABILITY_INVALID_LEVEL, del(durabilityRequirements));
+    } else {
+        EXPECT_EQ(ENGINE_DURABILITY_INVALID_LEVEL, del(durabilityRequirements));
+    }
+
+    durabilityRequirements = Requirements(Level::PersistToMajority, {});
+    if (persistent()) {
+        EXPECT_NE(ENGINE_DURABILITY_INVALID_LEVEL, del(durabilityRequirements));
+    } else {
+        EXPECT_EQ(ENGINE_DURABILITY_INVALID_LEVEL, del(durabilityRequirements));
+    }
+}
+
+// Test cases which run against all persistent storage backends.
 INSTANTIATE_TEST_CASE_P(
         AllBackends,
         DurabilityEPBucketTest,
         STParameterizedBucketTest::persistentAllBackendsConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
+
+// Test cases which run against all configurations.
+INSTANTIATE_TEST_CASE_P(AllBackends,
+                        DurabilityBucketTest,
+                        STParameterizedBucketTest::allConfigValues(),
+                        STParameterizedBucketTest::PrintToStringParamName);
