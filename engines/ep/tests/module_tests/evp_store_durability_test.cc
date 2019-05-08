@@ -20,10 +20,10 @@
 #include "checkpoint_utils.h"
 #include "test_helpers.h"
 
-class DurabilityEPBucketTest : public STParameterizedEPBucketTest {
+class DurabilityEPBucketTest : public STParameterizedBucketTest {
 protected:
     void SetUp() {
-        STParameterizedEPBucketTest::SetUp();
+        STParameterizedBucketTest::SetUp();
         // Add an initial replication topology so we can accept SyncWrites.
         setVBucketToActiveWithValidTopology();
     }
@@ -69,7 +69,8 @@ void DurabilityEPBucketTest::testPersistPrepare(DocumentState docState) {
     auto key = makeStoredDocKey("key");
     auto committed = makeCommittedItem(key, "valueA");
     ASSERT_EQ(ENGINE_SUCCESS, store->set(*committed, cookie));
-    auto& vb = *getEPBucket().getVBucket(vbid);
+    auto& vb = *store->getVBucket(vbid);
+    flushVBucketToDiskIfPersistent(vbid, 1);
     ASSERT_EQ(1, vb.getNumItems());
     auto pending = makePendingItem(key, "valueB");
     if (docState == DocumentState::Deleted) {
@@ -77,8 +78,8 @@ void DurabilityEPBucketTest::testPersistPrepare(DocumentState docState) {
     }
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
 
-    const auto& ckptMgr = *getEPBucket().getVBucket(vbid)->checkpointManager;
-    ASSERT_EQ(2, ckptMgr.getNumItemsForPersistence());
+    const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
+    ASSERT_EQ(1, ckptMgr.getNumItemsForPersistence());
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     ckptMgr);
@@ -86,12 +87,10 @@ void DurabilityEPBucketTest::testPersistPrepare(DocumentState docState) {
     ASSERT_EQ(2, ckptList.size());
 
     const auto& stats = engine->getEpStats();
-    ASSERT_EQ(2, stats.diskQueueSize);
+    ASSERT_EQ(1, stats.diskQueueSize);
 
     // Item must be flushed
-    EXPECT_EQ(
-            std::make_pair(false /*more_to_flush*/, size_t(2) /*num_flushed*/),
-            getEPBucket().flushVBucket(vbid));
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Item must have been removed from the disk queue
     EXPECT_EQ(0, ckptMgr.getNumItemsForPersistence());
@@ -128,7 +127,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbort(DocumentState docState) {
             vbucket_state_active,
             {{"topology", nlohmann::json::array({{"active", "replica"}})}});
 
-    auto& vb = *getEPBucket().getVBucket(vbid);
+    auto& vb = *store->getVBucket(vbid);
     ASSERT_EQ(0, vb.getNumItems());
 
     auto key = makeStoredDocKey("key");
@@ -148,7 +147,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbort(DocumentState docState) {
     }
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(1, stats.diskQueueSize);
-    const auto& ckptMgr = *getEPBucket().getVBucket(vbid)->checkpointManager;
+    const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
     ASSERT_EQ(1, ckptMgr.getNumItemsForPersistence());
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
@@ -179,9 +178,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbort(DocumentState docState) {
 
     // Note: Prepare and Abort are in the same key-space, so they will be
     //     deduplicated at Flush
-    EXPECT_EQ(
-            std::make_pair(false /*more_to_flush*/, size_t(1) /*num_flushed*/),
-            getEPBucket().flushVBucket(vbid));
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     EXPECT_EQ(0, vb.getNumItems());
     EXPECT_EQ(0, ckptMgr.getNumItemsForPersistence());
@@ -211,7 +208,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbortPrepare(
             vbucket_state_active,
             {{"topology", nlohmann::json::array({{"active", "replica"}})}});
 
-    auto& vb = *getEPBucket().getVBucket(vbid);
+    auto& vb = *store->getVBucket(vbid);
 
     // First prepare (always a SyncWrite) and abort.
     auto key = makeStoredDocKey("key");
@@ -232,7 +229,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbortPrepare(
 
     // We do not deduplicate Prepare and Abort (achieved by inserting them into
     // different checkpoints)
-    const auto& ckptMgr = *getEPBucket().getVBucket(vbid)->checkpointManager;
+    const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     ckptMgr);
@@ -245,9 +242,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbortPrepare(
 
     // Note: Prepare and Abort are in the same key-space, so they will be
     //     deduplicated at Flush
-    EXPECT_EQ(
-            std::make_pair(false /*more_to_flush*/, size_t(1) /*num_flushed*/),
-            getEPBucket().flushVBucket(vbid));
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     // At persist-dedup, the 2nd Prepare survives
     auto* store = vb.getShard()->getROUnderlying();
@@ -273,7 +268,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbortX2(DocumentState docState) {
             vbucket_state_active,
             {{"topology", nlohmann::json::array({{"active", "replica"}})}});
 
-    auto& vb = *getEPBucket().getVBucket(vbid);
+    auto& vb = *store->getVBucket(vbid);
 
     // First prepare and abort.
     auto key = makeStoredDocKey("key");
@@ -299,7 +294,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbortX2(DocumentState docState) {
 
     // We do not deduplicate Prepare and Abort (achieved by inserting them into
     // different checkpoints)
-    const auto& ckptMgr = *getEPBucket().getVBucket(vbid)->checkpointManager;
+    const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     ckptMgr);
@@ -312,9 +307,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbortX2(DocumentState docState) {
 
     // Note: Prepare and Abort are in the same key-space and hence are
     //       deduplicated at Flush.
-    EXPECT_EQ(
-            std::make_pair(false /*more_to_flush*/, size_t(1) /*num_flushed*/),
-            getEPBucket().flushVBucket(vbid));
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     // At persist-dedup, the 2nd Abort survives
     auto* store = vb.getShard()->getROUnderlying();
@@ -342,7 +335,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
             vbucket_state_active,
             {{"topology", nlohmann::json::array({{"active", "replica"}})}});
 
-    auto& vb = *getEPBucket().getVBucket(vbid);
+    auto& vb = *store->getVBucket(vbid);
 
     // prepare SyncWrite and commit.
     auto key = makeStoredDocKey("key");
@@ -356,7 +349,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
 
     // We do not deduplicate Prepare and Commit in CheckpointManager (achieved
     // by inserting them into different checkpoints)
-    const auto& ckptMgr = *getEPBucket().getVBucket(vbid)->checkpointManager;
+    const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     ckptMgr);
@@ -366,9 +359,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
 
     // Note: Prepare and Commit are not in the same key-space and hence are not
     //       deduplicated at Flush.
-    EXPECT_EQ(
-            std::make_pair(false /*more_to_flush*/, size_t(2) /*num_flushed*/),
-            getEPBucket().flushVBucket(vbid));
+    flushVBucketToDiskIfPersistent(vbid, 2);
 
     // prepare SyncDelete and commit.
     uint64_t cas = 0;
@@ -383,9 +374,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     ASSERT_EQ(1, ckptList.back()->getNumItems());
     EXPECT_EQ(1, ckptMgr.getNumItemsForPersistence());
 
-    EXPECT_EQ(
-            std::make_pair(false /*more_to_flush*/, size_t(1) /*num_flushed*/),
-            getEPBucket().flushVBucket(vbid));
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.commit(key,
@@ -397,9 +386,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     ASSERT_EQ(1, ckptList.back()->getNumItems());
     EXPECT_EQ(1, ckptMgr.getNumItemsForPersistence());
 
-    EXPECT_EQ(
-            std::make_pair(false /*more_to_flush*/, size_t(1) /*num_flushed*/),
-            getEPBucket().flushVBucket(vbid));
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     // At persist-dedup, the 2nd Prepare and Commit survive.
     auto* store = vb.getShard()->getROUnderlying();
@@ -425,7 +412,7 @@ TEST_P(DurabilityEPBucketTest, ActiveLocalNotifyPersistedSeqno) {
         ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
     }
 
-    const auto& vb = getEPBucket().getVBucket(vbid);
+    const auto& vb = store->getVBucket(vbid);
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     *vb->checkpointManager);
@@ -453,9 +440,7 @@ TEST_P(DurabilityEPBucketTest, ActiveLocalNotifyPersistedSeqno) {
     // Flusher runs on Active. This:
     // - persists all pendings
     // - and notifies local DurabilityMonitor of persistence
-    EXPECT_EQ(
-            std::make_pair(false /*more_to_flush*/, size_t(3) /*num_flushed*/),
-            getEPBucket().flushVBucket(vbid));
+    flushVBucketToDiskIfPersistent(vbid, 3);
 
     // When seqno:1 is persisted:
     //
@@ -569,7 +554,8 @@ TEST_P(DurabilityEPBucketTest, DeleteDurabilityImpossible) {
 }
 
 // Test cases which run against all enabled storage backends.
-INSTANTIATE_TEST_CASE_P(AllBackends,
-                        DurabilityEPBucketTest,
-                        DurabilityEPBucketTest::allConfigValues(),
-                        STParameterizedEPBucketTestPrintName());
+INSTANTIATE_TEST_CASE_P(
+        AllBackends,
+        DurabilityEPBucketTest,
+        STParameterizedBucketTest::persistentAllBackendsConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);

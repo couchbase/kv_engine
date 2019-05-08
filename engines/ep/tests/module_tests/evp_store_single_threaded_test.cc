@@ -3776,20 +3776,6 @@ TEST_F(SingleThreadedEPBucketTest, testValidTombstonePurgeOnRetainErroneousTombs
     EXPECT_EQ(2, store->getVBucket(vbid)->getPurgeSeqno());
 }
 
-void STParameterizedEPBucketTest::SetUp() {
-    if (!config_string.empty()) {
-        config_string += ";";
-    }
-    config_string += "backend=" + GetParam();
-
-    SingleThreadedEPBucketTest::SetUp();
-}
-
-std::string STParameterizedEPBucketTestPrintName::operator()(
-        const ::testing::TestParamInfo<std::string>& info) const {
-    return info.param;
-}
-
 INSTANTIATE_TEST_CASE_P(XattrSystemUserTest,
                         XattrSystemUserTest,
                         ::testing::Bool(), );

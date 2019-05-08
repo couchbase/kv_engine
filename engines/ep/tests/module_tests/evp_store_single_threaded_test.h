@@ -179,32 +179,6 @@ protected:
 };
 
 /**
- * Test fixture for single-threaded tests on EPBucket, parameterised on:
- * - backend (couchstore, rocksdb, magma...)
- */
-class STParameterizedEPBucketTest
-    : virtual public SingleThreadedEPBucketTest,
-      public ::testing::WithParamInterface<std::string> {
-public:
-    static auto allConfigValues() {
-        using namespace std::string_literals;
-        return ::testing::Values("couchdb"
-#ifdef EP_USE_ROCKSDB
-                                 ,
-                                 "rocksdb"
-#endif
-        );
-    };
-
-protected:
-    void SetUp() override;
-};
-
-struct STParameterizedEPBucketTestPrintName {
-    std::string operator()(const ::testing::TestParamInfo<std::string>&) const;
-};
-
-/**
  * Test fixture for KVBucket tests running in single-threaded mode, for some
  * combination of bucket type, eviction mode and KVStore type.
  *
