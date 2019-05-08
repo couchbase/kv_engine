@@ -356,6 +356,31 @@ TEST_P(VBucketDurabilityTest, ActiveActive_SetVBucketState_KeepsTrackedWrites) {
     EXPECT_EQ(20, monitor2.getHighPreparedSeqno());
 }
 
+/**
+ * Test that when the vbucket is replica and changes to pending that existing
+ * tracked SyncWrites are not discarded.
+ */
+TEST_P(VBucketDurabilityTest,
+       ReplicaPending_SetVBucketState_KeepsTrackedWrites) {
+    vbucket->setState(vbucket_state_replica);
+    const auto& monitor =
+            VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+    storeSyncWrites({10, 20});
+    ASSERT_EQ(2, monitor.getNumTracked());
+
+    vbucket->setState(vbucket_state_pending);
+
+    auto& monitor2 = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+    EXPECT_EQ(2, monitor2.getNumTracked());
+    EXPECT_EQ(20, monitor2.getHighPreparedSeqno());
+
+    vbucket->setState(vbucket_state_replica);
+
+    auto& monitor3 = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+    EXPECT_EQ(2, monitor3.getNumTracked());
+    EXPECT_EQ(20, monitor3.getHighPreparedSeqno());
+}
+
 TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
     auto& monitor = VBucketTestIntrospector::public_getActiveDM(*vbucket);
     monitor.setReplicationTopology(

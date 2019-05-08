@@ -576,10 +576,10 @@ void VBucket::setupSyncReplication(const nlohmann::json& topology) {
     }
 
     // Then, initialize the DM and propagate the new topology if necessary
+    auto* currentPassiveDM =
+            dynamic_cast<PassiveDurabilityMonitor*>(durabilityMonitor.get());
     switch (state) {
     case vbucket_state_active: {
-        auto* currentPassiveDM = dynamic_cast<PassiveDurabilityMonitor*>(
-                durabilityMonitor.get());
         if (currentPassiveDM) {
             // Change to active from passive durability monitor - construct
             // an ActiveDM from the PassiveDM, maintaining any in-flight
@@ -611,6 +611,12 @@ void VBucket::setupSyncReplication(const nlohmann::json& topology) {
     }
     case vbucket_state_replica:
     case vbucket_state_pending:
+        if (currentPassiveDM) {
+            // Already have a PassiveDM - given topology changes are not
+            // applicable to PassiveDM, nothing to do here.
+            return;
+        }
+        // Current DM (if exists) is not Passive; replace it with a Passive one.
         durabilityMonitor = std::make_unique<PassiveDurabilityMonitor>(*this);
         return;
     case vbucket_state_dead:
