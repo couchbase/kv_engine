@@ -97,15 +97,12 @@ public:
      */
     void set(const Item& item, SetCallback cb) override;
 
-    GetValue get(const DiskDocKey& key,
-                 Vbid vb,
-                 bool fetchDelete = false) override;
+    GetValue get(const DiskDocKey& key, Vbid vb) override;
 
     GetValue getWithHeader(void* dbHandle,
                            const DiskDocKey& key,
                            Vbid vb,
-                           GetMetaOnly getMetaOnly,
-                           bool fetchDelete = false) override;
+                           GetMetaOnly getMetaOnly) override;
 
     void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) override;
 

@@ -627,15 +627,12 @@ public:
     /**
      * Get an item from the kv store.
      */
-    virtual GetValue get(const DiskDocKey& key,
-                         Vbid vb,
-                         bool fetchDelete = false) = 0;
+    virtual GetValue get(const DiskDocKey& key, Vbid vb) = 0;
 
     virtual GetValue getWithHeader(void* dbHandle,
                                    const DiskDocKey& key,
                                    Vbid vb,
-                                   GetMetaOnly getMetaOnly,
-                                   bool fetchDelete = false) = 0;
+                                   GetMetaOnly getMetaOnly) = 0;
 
     /**
      * Retrieve multiple documents from the underlying storage system at once.

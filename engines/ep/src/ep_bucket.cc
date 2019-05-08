@@ -1204,7 +1204,7 @@ void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
             !item->isCheckPointMetaItem() &&
             !item->getKey().getCollectionID().isSystem()) {
             GetValue gcb = getROUnderlying(vb.getId())
-                                   ->get(DiskDocKey{*item}, vb.getId(), false);
+                                   ->get(DiskDocKey{*item}, vb.getId());
 
             if (gcb.getStatus() == ENGINE_SUCCESS) {
                 vb.setFromInternal(*gcb.item.get());

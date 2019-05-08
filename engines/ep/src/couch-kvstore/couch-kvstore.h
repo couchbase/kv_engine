@@ -203,13 +203,9 @@ public:
      *
      * @param key the key of a document to be retrieved
      * @param vb vbucket id of a document
-     * @param fetchDelete True if we want to retrieve a deleted item if it not
-     *        purged yet.
      * @return the result of the get
      */
-    GetValue get(const DiskDocKey& key,
-                 Vbid vb,
-                 bool fetchDelete = false) override;
+    GetValue get(const DiskDocKey& key, Vbid vb) override;
 
     /**
      * Retrieve the document with a given key from the underlying storage.
@@ -218,15 +214,12 @@ public:
      * @param vb vbucket id of a document
      * @param getMetaOnly Yes if we only want to retrieve the meta data for a
      * document
-     * @param fetchDelete True if we want to retrieve a deleted item if it not
-     *        purged yet.
      * @return the result of the get
      */
     GetValue getWithHeader(void* dbHandle,
                            const DiskDocKey& key,
                            Vbid vb,
-                           GetMetaOnly getMetaOnly,
-                           bool fetchDelete = false) override;
+                           GetMetaOnly getMetaOnly) override;
 
     void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) override;
 

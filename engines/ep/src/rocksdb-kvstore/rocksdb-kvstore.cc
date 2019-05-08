@@ -685,15 +685,14 @@ void RocksDBKVStore::set(const Item& item, SetCallback cb) {
     pendingReqs->emplace_back(item, std::move(cb));
 }
 
-GetValue RocksDBKVStore::get(const DiskDocKey& key, Vbid vb, bool fetchDelete) {
-    return getWithHeader(nullptr, key, vb, GetMetaOnly::No, fetchDelete);
+GetValue RocksDBKVStore::get(const DiskDocKey& key, Vbid vb) {
+    return getWithHeader(nullptr, key, vb, GetMetaOnly::No);
 }
 
 GetValue RocksDBKVStore::getWithHeader(void* dbHandle,
                                        const DiskDocKey& key,
                                        Vbid vb,
-                                       GetMetaOnly getMetaOnly,
-                                       bool fetchDelete) {
+                                       GetMetaOnly getMetaOnly) {
     const auto vbh = getVBHandle(vb);
     rocksdb::Slice keySlice = getKeySlice(key);
     rocksdb::PinnableSlice value;

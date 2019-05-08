@@ -458,7 +458,7 @@ void CouchKVStore::set(const Item& itm, SetCallback cb) {
     pendingReqsQ.emplace_back(itm, std::move(cb));
 }
 
-GetValue CouchKVStore::get(const DiskDocKey& key, Vbid vb, bool fetchDelete) {
+GetValue CouchKVStore::get(const DiskDocKey& key, Vbid vb) {
     DbHolder db(*this);
     couchstore_error_t errCode = openDB(vb, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode != COUCHSTORE_SUCCESS) {
@@ -469,15 +469,14 @@ GetValue CouchKVStore::get(const DiskDocKey& key, Vbid vb, bool fetchDelete) {
         return GetValue(nullptr, couchErr2EngineErr(errCode));
     }
 
-    GetValue gv = getWithHeader(db, key, vb, GetMetaOnly::No, fetchDelete);
+    GetValue gv = getWithHeader(db, key, vb, GetMetaOnly::No);
     return gv;
 }
 
 GetValue CouchKVStore::getWithHeader(void* dbHandle,
                                      const DiskDocKey& key,
                                      Vbid vb,
-                                     GetMetaOnly getMetaOnly,
-                                     bool fetchDelete) {
+                                     GetMetaOnly getMetaOnly) {
     Db *db = (Db *)dbHandle;
     auto start = std::chrono::steady_clock::now();
     DocInfo *docInfo = NULL;

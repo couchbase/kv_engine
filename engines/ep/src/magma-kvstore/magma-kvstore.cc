@@ -684,15 +684,14 @@ void MagmaKVStore::set(const Item& item, SetCallback cb) {
     pendingReqs->emplace_back(item, std::move(cb), logger);
 }
 
-GetValue MagmaKVStore::get(const DiskDocKey& key, Vbid vb, bool fetchDelete) {
-    return getWithHeader(nullptr, key, vb, GetMetaOnly::No, fetchDelete);
+GetValue MagmaKVStore::get(const DiskDocKey& key, Vbid vb) {
+    return getWithHeader(nullptr, key, vb, GetMetaOnly::No);
 }
 
 GetValue MagmaKVStore::getWithHeader(void* dbHandle,
                                      const DiskDocKey& key,
                                      Vbid vb,
-                                     GetMetaOnly getMetaOnly,
-                                     bool fetchDelete) {
+                                     GetMetaOnly getMetaOnly) {
     void* value = nullptr;
     int valueLen = 0;
     KVMagma db(vb, magmaPath);
