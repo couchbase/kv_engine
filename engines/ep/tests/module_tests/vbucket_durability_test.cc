@@ -337,6 +337,25 @@ TEST_P(VBucketDurabilityTest, Pending_SetVBucketState_ClearTopology) {
     testSetVBucketState_ClearTopology(vbucket_state_pending);
 }
 
+/**
+ * Test that when the vbucket is active and topology changes (but is still
+ * active) that existing tracked SyncWrites are not discarded.
+ */
+TEST_P(VBucketDurabilityTest, ActiveActive_SetVBucketState_KeepsTrackedWrites) {
+    auto& monitor = VBucketTestIntrospector::public_getActiveDM(*vbucket);
+    storeSyncWrites({10, 20});
+    ASSERT_EQ(2, monitor.getNumTracked());
+
+    vbucket->setState(
+            vbucket_state_active,
+            {{"topology",
+              nlohmann::json::array({{active, replica1, replica2}})}});
+
+    auto& monitor2 = VBucketTestIntrospector::public_getActiveDM(*vbucket);
+    EXPECT_EQ(2, monitor2.getNumTracked());
+    EXPECT_EQ(20, monitor2.getHighPreparedSeqno());
+}
+
 TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
     auto& monitor = VBucketTestIntrospector::public_getActiveDM(*vbucket);
     monitor.setReplicationTopology(

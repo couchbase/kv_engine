@@ -1854,16 +1854,12 @@ protected:
      * Updates the replication topology and propagates the new topology to
      * the DurabilityMonitor.
      * A new DurabilityMonitor instance may be instantiated in this function,
-     * depending on the current VBucket::state and the previous vbstate given
-     * in input.
+     * depending on the current VBucket::state and any previous
+     * durabilityMonitor.
      *
      * @param topology The new topology
-     * @param (Optional) prevVBState Previous VBucket State, if the function is
-     *     called as part of a vbstate transition
      */
-    void setupSyncReplication(
-            const nlohmann::json& topology,
-            boost::optional<vbucket_state_t> prevVBState = {});
+    void setupSyncReplication(const nlohmann::json& topology);
 
     /**
      * @return a reference (if valid, i.e. vbstate=active) to the Active DM
