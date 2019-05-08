@@ -298,16 +298,6 @@ protected:
             const std::vector<std::string>& nodesToAck);
 
     /**
-     * Check that the PersistToMajority SyncWrites at senqo 1, 3, and 5 are
-     * committed only when the active acks persistence after acking all the
-     * given nodes.
-     *
-     * @param nodesToAck list of nodes to ack
-     */
-    void testSeqnoAckPersistToMajority(
-            const std::vector<std::string>& nodesToAck);
-
-    /**
      * Check that a SyncWrite is committed when the majority requirement is met
      * when their are multiple replicas.
      *
@@ -319,16 +309,6 @@ protected:
     void testSeqnoAckMultipleReplicas(
             const std::vector<std::string>& nodesToAck,
             const std::vector<std::string>& unchangedNodes);
-
-    /**
-     * Check that the MajorityAndPersistOnMaster SyncWrites at seqno 1, 3, and 5
-     * are committed only when the active acks persistence after acking all the
-     * given nodes.
-     *
-     * @param nodesToAck list of nodes to ack
-     */
-    void testSeqnoAckMajorityAndPersistOnMaster(
-            const std::vector<std::string>& nodesToAck);
 
     /**
      * Check that seqnoAckReceived does not throw and that a SyncWrite is not
@@ -354,6 +334,34 @@ protected:
 };
 
 /*
+ * ActiveDurabilityMonitor test fixture for tests that should only run against
+ * persistent buckets
+ */
+class ActiveDurabilityMonitorPersistentTest
+    : public ActiveDurabilityMonitorTest {
+protected:
+    /**
+     * Check that the PersistToMajority SyncWrites at senqo 1, 3, and 5 are
+     * committed only when the active acks persistence after acking all the
+     * given nodes.
+     *
+     * @param nodesToAck list of nodes to ack
+     */
+    void testSeqnoAckPersistToMajority(
+            const std::vector<std::string>& nodesToAck);
+
+    /**
+     * Check that the MajorityAndPersistOnMaster SyncWrites at seqno 1, 3, and 5
+     * are committed only when the active acks persistence after acking all the
+     * given nodes.
+     *
+     * @param nodesToAck list of nodes to ack
+     */
+    void testSeqnoAckMajorityAndPersistOnMaster(
+            const std::vector<std::string>& nodesToAck);
+};
+
+/*
  * PassiveDurabilityMonitor test fixture
  */
 class PassiveDurabilityMonitorTest : public DurabilityMonitorTest {
@@ -361,3 +369,10 @@ public:
     void SetUp() override;
     void TearDown() override;
 };
+
+/*
+ * PassiveDurabilityMonitor test fixture for tests that should only run against
+ * persistent buckets
+ */
+class PassiveDurabilityMonitorPersistentTest
+    : public PassiveDurabilityMonitorTest {};

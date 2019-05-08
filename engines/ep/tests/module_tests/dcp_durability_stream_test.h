@@ -49,3 +49,10 @@ protected:
      */
     void testReceiveDcpPrepare();
 };
+
+/**
+ * PassiveStream tests for Durability against persistent buckets.
+ * Single-threaded.
+ */
+class DurabilityPassiveStreamPersistentTest
+    : public DurabilityPassiveStreamTest {};

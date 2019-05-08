@@ -264,7 +264,7 @@ TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSyncWriteReceived) {
     checkReadyQ();
 }
 
-TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtPersistedSeqno) {
+TEST_P(DurabilityPassiveStreamPersistentTest, SeqnoAckAtPersistedSeqno) {
     /*
      * The consumer receives mutations {s:1, s:2, s:3}, with only s:2 durable
      * with Level:PersistToMajority. We have to check that we send a SeqnoAck
@@ -343,7 +343,7 @@ TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtPersistedSeqno) {
  *
  * Last step: flusher persists all -> ack (HPS=8)
  */
-TEST_P(DurabilityPassiveStreamTest, DurabilityFence) {
+TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
     const auto& readyQ = stream->public_readyQ();
     auto checkSeqnoAckInReadyQ = [this, &readyQ](int64_t seqno) -> void {
         ASSERT_EQ(1, readyQ.size());
@@ -628,5 +628,11 @@ INSTANTIATE_TEST_CASE_P(
 INSTANTIATE_TEST_CASE_P(
         AllBucketTypes,
         DurabilityPassiveStreamTest,
+        STParameterizedBucketTest::persistentAllBackendsConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_CASE_P(
+        AllBucketTypes,
+        DurabilityPassiveStreamPersistentTest,
         STParameterizedBucketTest::persistentAllBackendsConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);

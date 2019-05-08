@@ -438,7 +438,7 @@ void ActiveDurabilityMonitorTest::
     }
 }
 
-void ActiveDurabilityMonitorTest::testSeqnoAckPersistToMajority(
+void ActiveDurabilityMonitorPersistentTest::testSeqnoAckPersistToMajority(
         const std::vector<std::string>& nodesToAck) {
     DurabilityMonitorTest::addSyncWrites(
             {1, 3, 5} /*seqnos*/,
@@ -525,8 +525,9 @@ void ActiveDurabilityMonitorTest::testSeqnoAckMultipleReplicas(
     }
 }
 
-void ActiveDurabilityMonitorTest::testSeqnoAckMajorityAndPersistOnMaster(
-        const std::vector<std::string>& nodesToAck) {
+void ActiveDurabilityMonitorPersistentTest::
+        testSeqnoAckMajorityAndPersistOnMaster(
+                const std::vector<std::string>& nodesToAck) {
     DurabilityMonitorTest::addSyncWrites(
             {1, 3, 5} /*seqnos*/,
             {cb::durability::Level::MajorityAndPersistOnMaster, {}});
@@ -730,11 +731,12 @@ TEST_P(ActiveDurabilityMonitorTest,
 }
 
 // @todo: Refactor test suite and expand test cases
-TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceived_PersistToMajority) {
+TEST_P(ActiveDurabilityMonitorPersistentTest,
+       SeqnoAckReceived_PersistToMajority) {
     testSeqnoAckPersistToMajority({replica1});
 }
 
-TEST_P(ActiveDurabilityMonitorTest,
+TEST_P(ActiveDurabilityMonitorPersistentTest,
        SeqnoAckReceived_PersistToMajorityTwoChains) {
     auto& adm = getActiveDM();
     adm.setReplicationTopology(
@@ -980,11 +982,11 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
     }
 }
 
-TEST_P(ActiveDurabilityMonitorTest, MajorityAndPersistOnMaster) {
+TEST_P(ActiveDurabilityMonitorPersistentTest, MajorityAndPersistOnMaster) {
     testSeqnoAckMajorityAndPersistOnMaster({replica1});
 }
 
-TEST_P(ActiveDurabilityMonitorTest, MajorityAndPersistOnMasterTwoChains) {
+TEST_P(ActiveDurabilityMonitorPersistentTest, MajorityAndPersistOnMasterTwoChains) {
     auto& adm = getActiveDM();
     adm.setReplicationTopology(
             nlohmann::json::array({{active, replica1}, {active, replica2}}));
@@ -994,7 +996,8 @@ TEST_P(ActiveDurabilityMonitorTest, MajorityAndPersistOnMasterTwoChains) {
     testSeqnoAckMajorityAndPersistOnMaster({replica1, replica2});
 }
 
-TEST_P(ActiveDurabilityMonitorTest, PersistToMajority_EnsurePersistAtActive) {
+TEST_P(ActiveDurabilityMonitorPersistentTest,
+       PersistToMajority_EnsurePersistAtActive) {
     auto& adm = getActiveDM();
     ASSERT_NO_THROW(adm.setReplicationTopology(
             nlohmann::json::array({{active, replica1, replica2}})));
@@ -1003,7 +1006,7 @@ TEST_P(ActiveDurabilityMonitorTest, PersistToMajority_EnsurePersistAtActive) {
     testSeqnoAckPersistToMajority({replica1, replica2});
 }
 
-TEST_P(ActiveDurabilityMonitorTest,
+TEST_P(ActiveDurabilityMonitorPersistentTest,
        PersistToMajority_EnsurePersistAtActiveTwoChains) {
     auto& adm = getActiveDM();
     ASSERT_NO_THROW(adm.setReplicationTopology(nlohmann::json::array(
@@ -1438,7 +1441,7 @@ TEST_P(ActiveDurabilityMonitorTest, HPS_Majority) {
     testHPS_Majority();
 }
 
-TEST_P(PassiveDurabilityMonitorTest, HPS_MajorityAndPersistOnMaster) {
+TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_MajorityAndPersistOnMaster) {
     ASSERT_EQ(0, monitor->getNumTracked());
     ASSERT_EQ(0, monitor->getHighPreparedSeqno());
 
@@ -1449,7 +1452,7 @@ TEST_P(PassiveDurabilityMonitorTest, HPS_MajorityAndPersistOnMaster) {
     notifyPersistenceAndCheckHPS(1000 /*persistedSeqno*/, 3 /*expectedHPS*/);
 }
 
-TEST_P(ActiveDurabilityMonitorTest, HPS_MajorityAndPersistOnMaster) {
+TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_MajorityAndPersistOnMaster) {
     ASSERT_EQ(0, monitor->getNumTracked());
     ASSERT_EQ(0, monitor->getHighPreparedSeqno());
 
@@ -1477,15 +1480,15 @@ void DurabilityMonitorTest::testHPS_PersistToMajority() {
     }
 }
 
-TEST_P(PassiveDurabilityMonitorTest, HPS_PersistToMajority) {
+TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_PersistToMajority) {
     testHPS_PersistToMajority();
 }
 
-TEST_P(ActiveDurabilityMonitorTest, HPS_PersistToMajority) {
+TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_PersistToMajority) {
     testHPS_PersistToMajority();
 }
 
-TEST_P(PassiveDurabilityMonitorTest,
+TEST_P(PassiveDurabilityMonitorPersistentTest,
        HPS_MajorityAndPersistOnMajority_Majority) {
     ASSERT_EQ(0, monitor->getNumTracked());
     ASSERT_EQ(0, monitor->getHighPreparedSeqno());
@@ -1499,7 +1502,8 @@ TEST_P(PassiveDurabilityMonitorTest,
                             21 /*expectHPS*/);
 }
 
-TEST_P(ActiveDurabilityMonitorTest, HPS_MajorityAndPersistOnMajority_Majority) {
+TEST_P(ActiveDurabilityMonitorPersistentTest,
+       HPS_MajorityAndPersistOnMajority_Majority) {
     ASSERT_EQ(0, monitor->getNumTracked());
     ASSERT_EQ(0, monitor->getHighPreparedSeqno());
 
@@ -1514,7 +1518,7 @@ TEST_P(ActiveDurabilityMonitorTest, HPS_MajorityAndPersistOnMajority_Majority) {
     notifyPersistenceAndCheckHPS(3 /*persistedSeqno*/, 21 /*expectedHPS*/);
 }
 
-TEST_P(PassiveDurabilityMonitorTest,
+TEST_P(PassiveDurabilityMonitorPersistentTest,
        HPS_Majority_MajorityAndPersistOnMajority) {
     ASSERT_EQ(0, monitor->getNumTracked());
     ASSERT_EQ(0, monitor->getHighPreparedSeqno());
@@ -1528,7 +1532,8 @@ TEST_P(PassiveDurabilityMonitorTest,
                             2021 /*expectHPS*/);
 }
 
-TEST_P(ActiveDurabilityMonitorTest, HPS_Majority_MajorityAndPersistOnMajority) {
+TEST_P(ActiveDurabilityMonitorPersistentTest,
+       HPS_Majority_MajorityAndPersistOnMajority) {
     ASSERT_EQ(0, monitor->getNumTracked());
     ASSERT_EQ(0, monitor->getHighPreparedSeqno());
 
@@ -1567,11 +1572,11 @@ void DurabilityMonitorTest::testHPS_PersistToMajority_Majority() {
     notifyPersistenceAndCheckHPS(4 /*persistedSeqno*/, 21 /*expectHPS*/);
 }
 
-TEST_P(PassiveDurabilityMonitorTest, HPS_PersistToMajority_Majority) {
+TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_PersistToMajority_Majority) {
     testHPS_PersistToMajority_Majority();
 }
 
-TEST_P(ActiveDurabilityMonitorTest, HPS_PersistToMajority_Majority) {
+TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_PersistToMajority_Majority) {
     testHPS_PersistToMajority_Majority();
 }
 
@@ -1594,15 +1599,15 @@ void DurabilityMonitorTest::testHPS_Majority_PersistToMajority() {
     notifyPersistenceAndCheckHPS(2021 /*persistedSeqno*/, 2021 /*expectHPS*/);
 }
 
-TEST_P(PassiveDurabilityMonitorTest, HPS_Majority_PersistToMajority) {
+TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_Majority_PersistToMajority) {
     testHPS_Majority_PersistToMajority();
 }
 
-TEST_P(ActiveDurabilityMonitorTest, HPS_Majority_PersistToMajority) {
+TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_Majority_PersistToMajority) {
     testHPS_Majority_PersistToMajority();
 }
 
-TEST_P(PassiveDurabilityMonitorTest,
+TEST_P(PassiveDurabilityMonitorPersistentTest,
        HPS_PersistToMajority_MajorityAndPersistOnMaster) {
     ASSERT_EQ(0, monitor->getNumTracked());
     ASSERT_EQ(0, monitor->getHighPreparedSeqno());
@@ -1624,7 +1629,7 @@ TEST_P(PassiveDurabilityMonitorTest,
     notifyPersistenceAndCheckHPS(4 /*persistedSeqno*/, 21 /*expectHPS*/);
 }
 
-TEST_P(ActiveDurabilityMonitorTest,
+TEST_P(ActiveDurabilityMonitorPersistentTest,
        HPS_PersistToMajority_MajorityAndPersistOnMaster) {
     ASSERT_EQ(0, monitor->getNumTracked());
     ASSERT_EQ(0, monitor->getHighPreparedSeqno());
@@ -1646,7 +1651,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     notifyPersistenceAndCheckHPS(4 /*persistedSeqno*/, 4 /*expectHPS*/);
 }
 
-TEST_P(PassiveDurabilityMonitorTest,
+TEST_P(PassiveDurabilityMonitorPersistentTest,
        HPS_MajorityAndPersistOnMaster_PersistToMajority) {
     ASSERT_EQ(0, monitor->getNumTracked());
     ASSERT_EQ(0, monitor->getHighPreparedSeqno());
@@ -1666,7 +1671,7 @@ TEST_P(PassiveDurabilityMonitorTest,
     notifyPersistenceAndCheckHPS(2021 /*persistedSeqno*/, 2021 /*expectHPS*/);
 }
 
-TEST_P(ActiveDurabilityMonitorTest,
+TEST_P(ActiveDurabilityMonitorPersistentTest,
        HPS_MajorityAndPersistOnMaster_PersistToMajority) {
     ASSERT_EQ(0, monitor->getNumTracked());
     ASSERT_EQ(0, monitor->getHighPreparedSeqno());
@@ -1687,7 +1692,19 @@ INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         STParameterizedBucketTest::persistentConfigValues(),
                         STParameterizedBucketTest::PrintToStringParamName);
 
+INSTANTIATE_TEST_CASE_P(
+        AllBucketTypes,
+        ActiveDurabilityMonitorPersistentTest,
+        STParameterizedBucketTest::persistentAllBackendsConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
+
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         PassiveDurabilityMonitorTest,
                         STParameterizedBucketTest::persistentConfigValues(),
                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_CASE_P(
+        AllBucketTypes,
+        PassiveDurabilityMonitorPersistentTest,
+        STParameterizedBucketTest::persistentAllBackendsConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
