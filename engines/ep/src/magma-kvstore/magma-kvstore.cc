@@ -347,6 +347,12 @@ static const bool isDeleted(const Slice& metaSlice) {
     return docMeta->deleted > 0 ? true : false;
 }
 
+static const bool isCompressed(const Slice& metaSlice) {
+    magmakv::MetaData* docMeta = reinterpret_cast<magmakv::MetaData*>(
+            const_cast<char*>(metaSlice.Data()));
+    return mcbp::datatype::is_snappy(docMeta->datatype);
+}
+
 static DiskDocKey makeDiskDocKey(const Slice& key) {
     return DiskDocKey{key.Data(), key.Len()};
 }
@@ -1186,24 +1192,79 @@ ScanContext* MagmaKVStore::initScanContext(
         ValueFilter valOptions) {
     size_t scanId = scanCounter++;
 
-    // As we cannot efficiently determine how many documents this scan will
-    // find, we approximate this value with the seqno difference + 1
-    // as scan is supposed to be inclusive at both ends,
-    // seqnos 2 to 4 covers 3 docs not 4 - 2 = 2
+    auto vbstate = getVBucketState(vbid);
+    if (!vbstate) {
+        logger->warn("MagmaKVStore::initScanContext {} vbstate is null", vbid);
+        return nullptr;
+    }
 
-    uint64_t endSeqno = cachedVBStates[vbid.get()]->highSeqno;
-    return new ScanContext(cb,
-                           cl,
-                           vbid,
-                           scanId,
-                           startSeqno,
-                           endSeqno,
-                           0, /*TODO MAGMA: pass the read purge-seqno */
-                           options,
-                           valOptions,
-                           /* documentCount */ endSeqno - startSeqno + 1,
-                           configuration,
-                           {/* TODO: add collections in magma */});
+    auto magmaInfo = getMagmaInfo(vbid);
+    auto collectionsManifest = getDroppedCollections(vbid);
+
+    if (logger->should_log(spdlog::level::debug)) {
+        std::string docFilter;
+        switch (options) {
+        case DocumentFilter::ALL_ITEMS:
+            docFilter = "ALL_ITEMS";
+            break;
+        case DocumentFilter::NO_DELETES:
+            docFilter = "NO_DELETES";
+            break;
+        case DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS:
+            docFilter = "ALL_ITEMS_AND_DROPPED_COLLECTIONS";
+            break;
+        }
+        if (docFilter.size() == 0) {
+            throw std::logic_error(
+                    "MagmaKVStore::initScanContext Unknown DocumentFilter:" +
+                    std::to_string(static_cast<int>(options)));
+        }
+
+        std::string valFilter;
+        switch (valOptions) {
+        case ValueFilter::KEYS_ONLY:
+            valFilter = "KEYS_ONLY";
+            break;
+        case ValueFilter::VALUES_COMPRESSED:
+            valFilter = "VALUES_COMPRESSED";
+            break;
+        case ValueFilter::VALUES_DECOMPRESSED:
+            valFilter = "VALUES_DECOMPRESSED";
+            break;
+        }
+        if (valFilter.size() == 0) {
+            throw std::logic_error(
+                    "MagmaKVStore::initScanContext Unknown ValueFilter:" +
+                    std::to_string(static_cast<int>(valOptions)));
+        }
+
+        logger->debug(
+                "initScanContext {} seqno:{} endSeqno:{}"
+                " purgeSeqno:{} docCount:{} docFilter:{} valFilter:{}",
+                vbid,
+                startSeqno,
+                vbstate->highSeqno,
+                vbstate->purgeSeqno,
+                magmaInfo.docCount,
+                docFilter,
+                valFilter);
+    }
+
+    auto sctx = new ScanContext(cb,
+                                cl,
+                                vbid,
+                                scanId,
+                                startSeqno,
+                                vbstate->highSeqno,
+                                vbstate->purgeSeqno,
+                                options,
+                                valOptions,
+                                magmaInfo.docCount,
+                                configuration,
+                                collectionsManifest);
+
+    sctx->logger = logger.get();
+    return sctx;
 }
 
 scan_error_t MagmaKVStore::scan(ScanContext* ctx) {
@@ -1212,6 +1273,10 @@ scan_error_t MagmaKVStore::scan(ScanContext* ctx) {
     }
 
     if (ctx->lastReadSeqno == ctx->maxSeqno) {
+        logger->trace("scan {} lastReadSeqno:{} == maxSeqno:{}",
+                      ctx->vbid,
+                      ctx->lastReadSeqno,
+                      ctx->maxSeqno);
         return scan_success;
     }
 
@@ -1219,14 +1284,131 @@ scan_error_t MagmaKVStore::scan(ScanContext* ctx) {
     if (ctx->lastReadSeqno != 0) {
         startSeqno = ctx->lastReadSeqno + 1;
     }
-    (void)startSeqno;
+
+    GetMetaOnly isMetaOnly = ctx->valFilter == ValueFilter::KEYS_ONLY
+                                     ? GetMetaOnly::Yes
+                                     : GetMetaOnly::No;
+    bool onlyKeys = ctx->valFilter == ValueFilter::KEYS_ONLY;
+
+    auto itr = magma->NewSeqIterator(ctx->vbid.get());
+
+    for (itr->Seek(startSeqno, ctx->maxSeqno); itr->Valid(); itr->Next()) {
+        Slice keySlice, metaSlice, valSlice;
+        uint64_t seqno;
+        itr->GetRecord(keySlice, metaSlice, valSlice, seqno);
+
+        if (keySlice.Len() > std::numeric_limits<uint16_t>::max()) {
+            throw std::invalid_argument(
+                    "MagmaKVStore::scan: "
+                    "key length " +
+                    std::to_string(keySlice.Len()) + " > " +
+                    std::to_string(std::numeric_limits<uint16_t>::max()));
+        }
+
+        std::string hex, ascii;
+        if (logger->should_log(spdlog::level::debug)) {
+            hexdump((char*)keySlice.Data(), keySlice.Len(), hex, ascii);
+        }
+
+        if (isDeleted(metaSlice) &&
+            ctx->docFilter == DocumentFilter::NO_DELETES) {
+            logger->trace("scan SKIPPED(Deleted) key:{} {} seqno:{}",
+                          ascii,
+                          hex,
+                          seqno);
+            continue;
+        }
+
+        auto diskKey = makeDiskDocKey(keySlice);
+        auto docKey = diskKey.getDocKey();
+
+        // Determine if the key is logically deleted, if it is we skip the key
+        // Note that system event keys (like create scope) are never skipped
+        // here
+        if (!docKey.getCollectionID().isSystem()) {
+            if (ctx->docFilter !=
+                DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
+                if (ctx->collectionsContext.isLogicallyDeleted(docKey, seqno)) {
+                    ctx->lastReadSeqno = seqno;
+                    logger->trace(
+                            "scan SKIPPED(Collection Deleted) key:{} {} "
+                            "seqno:{}",
+                            ascii,
+                            hex,
+                            seqno);
+                    continue;
+                }
+            }
+
+            CacheLookup lookup(diskKey, seqno, ctx->vbid);
+
+            ctx->lookup->callback(lookup);
+            if (ctx->lookup->getStatus() == ENGINE_KEY_EEXISTS) {
+                ctx->lastReadSeqno = seqno;
+                logger->trace(
+                        "scan SKIPPED(ENGINE_KEY_EEXISTS) key:{} {} seqno:{}",
+                        ascii,
+                        hex,
+                        seqno);
+                continue;
+            } else if (ctx->lookup->getStatus() == ENGINE_ENOMEM) {
+                logger->warn(
+                        "MagmaKVStore::scan lookup->callback {} "
+                        "key:{} returned ENGINE_ENOMEM",
+                        ctx->vbid,
+                        diskKey.to_string());
+                return scan_again;
+            }
+        }
+
+        logger->trace(
+                "scan key:{} {} seqno:{} deleted:{} expiry:{} compressed:{}",
+                ascii,
+                hex,
+                seqno,
+                isDeleted(metaSlice),
+                getExpiryTime(metaSlice),
+                isCompressed(metaSlice));
+
+        auto itm =
+                makeItem(ctx->vbid, keySlice, metaSlice, valSlice, isMetaOnly);
+
+        // When we are suppose to return the values as compressed AND
+        // the value isn't compressed, we need to compress the value.
+        if (ctx->valFilter == ValueFilter::VALUES_COMPRESSED &&
+            !isCompressed(metaSlice)) {
+            if (!itm->compressValue(true)) {
+                logger->warn(
+                        "MagmaKVStore::scan failed to compress value - key:{} "
+                        "{} seqno:{}",
+                        ascii,
+                        hex,
+                        seqno);
+                continue;
+            }
+        }
+
+        GetValue rv(std::move(itm), ENGINE_SUCCESS, -1, onlyKeys);
+        ctx->callback->callback(rv);
+        auto callbackStatus = ctx->callback->getStatus();
+        if (callbackStatus == ENGINE_ENOMEM) {
+            logger->warn(
+                    "MagmaKVStore::scan callback {} "
+                    "key:{} returned ENGINE_ENOMEM",
+                    ctx->vbid,
+                    diskKey.to_string());
+            return scan_again;
+        }
+        ctx->lastReadSeqno = seqno;
+    }
 
     return scan_success;
 }
 
 void MagmaKVStore::destroyScanContext(ScanContext* ctx) {
-    // TODO Might be nice to have the snapshot in the ctx and
-    // release it on destruction
+    if (ctx) {
+        delete ctx;
+    }
 }
 
 vbucket_state* MagmaKVStore::getVBucketState(Vbid vbid) {

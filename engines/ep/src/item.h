@@ -152,8 +152,11 @@ public:
         return ret;
     }
 
-    /* Snappy compress value and update datatype */
-    bool compressValue();
+    /* Snappy compress value and update datatype
+     * @param force force compression regardless if it makes
+     *              the value larger than the original
+     */
+    bool compressValue(bool force = false);
 
     /* Snappy uncompress value and update datatype */
     bool decompressValue();

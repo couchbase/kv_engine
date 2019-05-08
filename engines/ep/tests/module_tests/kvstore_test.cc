@@ -2134,6 +2134,12 @@ void KVStoreParamTest::TearDown() {
     KVStoreTest::TearDown();
 }
 
+class KVStoreParamTestSkipMagma : public KVStoreParamTest {
+public:
+    KVStoreParamTestSkipMagma() : KVStoreParamTest() {
+    }
+};
+
 // Test basic set / get of a document
 TEST_P(KVStoreParamTest, BasicTest) {
     kvstore->begin(std::make_unique<TransactionContext>());
@@ -2288,12 +2294,13 @@ TEST_P(KVStoreParamTest, DelVBucketConcurrentOperationsTest) {
 // the current view of the fileMap causing scan to fail.
 TEST_P(KVStoreParamTest, CompactAndScan) {
     WriteCallback wc;
+    int64_t seqno = 1;
     for (int i = 1; i < 10; i++) {
         kvstore->begin(std::make_unique<TransactionContext>());
-        kvstore->set(make_item(Vbid(0),
-                               makeStoredDocKey(std::string(i, 'k')),
-                               "value"),
-                     wc);
+        auto item = make_item(
+                Vbid(0), makeStoredDocKey(std::string(i, 'k')), "value");
+        item.setBySeqno(seqno++);
+        kvstore->set(item, wc);
         kvstore->commit(flush);
     }
 
