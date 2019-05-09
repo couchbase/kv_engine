@@ -130,7 +130,7 @@ private:
 
         // Pointer to the chain. Used to find out which node is the active and
         // what the majority value is.
-        const ReplicationChain* chainPtr;
+        const ReplicationChain* chainPtr{nullptr};
     };
 
     ChainStatus firstChain;
