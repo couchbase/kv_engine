@@ -576,7 +576,7 @@ cb::durability::Requirements
 cb::mcbp::request::DcpPreparePayload::getDurability() const {
     cb::durability::Requirements ret;
     ret.setLevel(cb::durability::Level(durability_level));
-    ret.setTimeout(ntohs(durability_timeout));
+    ret.setTimeout(cb::durability::Timeout::Infinity());
     return ret;
 }
 
