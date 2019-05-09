@@ -313,6 +313,7 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
 
     ready.push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
+    pendingAddStream = false;
 
     return ENGINE_SUCCESS;
 }
@@ -829,6 +830,10 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
 
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
+    }
+
+    if (pendingAddStream) {
+        return ENGINE_EWOULDBLOCK;
     }
 
     ENGINE_ERROR_CODE ret;

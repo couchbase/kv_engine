@@ -1290,6 +1290,18 @@ TEST_P(ConnectionTest, test_consumer_add_stream) {
     destroy_mock_cookie(cookie);
 }
 
+TEST_P(ConnectionTest, consumer_waits_for_add_stream) {
+    const void* cookie = create_mock_cookie();
+    MockDcpMessageProducers producers(engine);
+    MockDcpConsumer consumer(*engine, cookie, "test_consumer");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, consumer.step(&producers));
+    // fake that we received add stream
+    consumer.setPendingAddStream(false);
+    ASSERT_EQ(ENGINE_SUCCESS, consumer.step(&producers));
+
+    destroy_mock_cookie(cookie);
+}
+
 TEST_P(ConnectionTest, consumer_get_error_map) {
     // We want to test that the Consumer processes the GetErrorMap negotiation
     // with the Producer correctly. I.e., the Consumer must check the
@@ -1303,6 +1315,7 @@ TEST_P(ConnectionTest, consumer_get_error_map) {
 
         // Create a mock DcpConsumer
         MockDcpConsumer consumer(*engine, cookie, "test_consumer");
+        consumer.setPendingAddStream(false);
         ASSERT_EQ(1 /*PendingRequest*/,
                   static_cast<uint8_t>(consumer.getGetErrorMapState()));
         ASSERT_EQ(false, consumer.getProducerIsVersion5orHigher());
@@ -1430,6 +1443,7 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     // Create a new Dcp consumer
     auto& consumer = dynamic_cast<MockDcpConsumer&>(
             *connMap.newConsumer(cookie, "mb_20716_consumer"));
+    consumer.setPendingAddStream(false);
 
     // Move consumer into paused state (aka EWOULDBLOCK).
     MockDcpMessageProducers producers(handle);

@@ -33,6 +33,16 @@ public:
         : DcpConsumer(theEngine, cookie, name, consumerName) {
     }
 
+    void setPendingAddStream(bool value) {
+        // The unit tests was written before memcached marked the
+        // connection as DCP as part of a successfull DCP Open (and wouldn't
+        // call step() before add stream was received.
+        //
+        // Some of the tests we've got just want to verify other things
+        // so let's allow them to fake that the message was received
+        pendingAddStream = value;
+    }
+
     void setLastMessageTime(const rel_time_t timeValue) {
         lastMessageTime = timeValue;
     }

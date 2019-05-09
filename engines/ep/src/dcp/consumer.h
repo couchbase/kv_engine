@@ -527,6 +527,9 @@ protected:
     // The interval that the consumer tells the producer to send noops
     const std::chrono::seconds dcpNoopTxInterval;
 
+    // Step can't start sending packets until we've received add stream
+    bool pendingAddStream = true;
+
     bool pendingEnableNoop;
     bool pendingSendNoopInterval;
     bool pendingSetPriority;

@@ -1681,6 +1681,16 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
               std::to_string(ep_max_size).c_str());
     checkeq(ep_max_size, get_int_stat(h, "ep_max_size"), "Incorrect new size.");
 
+    std::vector<Vbid> vbuckets = {
+            {Vbid{1}, Vbid{2}, Vbid{3}, Vbid{4}, Vbid{5}, Vbid{6}}};
+    checkeq(std::size_t(max_conns),
+            vbuckets.size(),
+            "I need one vbucket per cookie");
+    for (const auto& vb : vbuckets) {
+        check(set_vbucket_state(h, vb, vbucket_state_replica),
+              "Failed to set VBucket state.");
+    }
+
     /* Create first connection */
     const std::string name("unittest_");
     const auto name1(name + "0");
@@ -1693,6 +1703,10 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
     checkeq(ENGINE_SUCCESS,
             dcp->open(cookie[0], opaque, seqno, flags, name1),
             "Failed dcp consumer open connection.");
+
+    checkeq(ENGINE_SUCCESS,
+            dcp->add_stream(cookie[0], 0, vbuckets[0], 0),
+            "Failed to set up stream");
 
     /* Check the max limit */
     auto stat_name = "eq_dcpq:" + name1 + ":max_buffer_bytes";
@@ -1707,6 +1721,10 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
         checkeq(ENGINE_SUCCESS,
                 dcp->open(cookie[count], opaque, seqno, flags, name2),
                 "Failed dcp consumer open connection.");
+
+        checkeq(ENGINE_SUCCESS,
+                dcp->add_stream(cookie[count], 0, vbuckets[count], 0),
+                "Failed to set up stream");
 
         for (auto i = 0; i <= count; i++) {
             /* Check if the buffer size of all connections has changed */
@@ -1725,6 +1743,12 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
     checkeq(ENGINE_SUCCESS,
             dcp->open(cookie[max_conns - 1], opaque, seqno, flags, name3),
             "Failed dcp consumer open connection.");
+
+    checkeq(ENGINE_SUCCESS,
+            dcp->add_stream(
+                    cookie[max_conns - 1], 0, vbuckets[max_conns - 1], 0),
+            "Failed to set up stream");
+
     checkeq(flow_ctl_buf_min,
             get_int_stat(h, stat_name2.c_str(), "dcp"),
             "Flow Control Buffer Size not equal to min");
@@ -3474,6 +3498,11 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
                                         uint64_t exp_snap_end) {
     using cb::mcbp::ClientOpcode;
 
+    auto dcp = requireDcpIface(h);
+    checkeq(ENGINE_SUCCESS,
+            dcp->add_stream(cookie, opaque, vbucket, flags),
+            "Add stream request failed");
+
     MockDcpMessageProducers producers(h);
 
     auto dcpStepAndExpectControlMsg =
@@ -3521,11 +3550,6 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
     dcpStepAndExpectControlMsg("enable_expiry_opcode"s);
     dcpStepAndExpectControlMsg("enable_synchronous_replication"s);
     simulateProdRespAtSyncReplNegotiation(h, cookie, producers);
-
-    auto dcp = requireDcpIface(h);
-    checkeq(ENGINE_SUCCESS,
-            dcp->add_stream(cookie, opaque, vbucket, flags),
-            "Add stream request failed");
 
     dcp_step(h, cookie, producers);
     uint32_t stream_opaque = producers.last_opaque;
@@ -4203,13 +4227,14 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
             dcp->open(cookie, opaque, 0, flags, name),
             "Failed dcp Consumer open connection.");
 
-    drainDcpControl(h, cookie, producers);
-
     checkeq(ENGINE_SUCCESS,
             dcp->add_stream(cookie, ++opaque, vbid, 0),
             "Add stream request failed");
 
-    dcp_step(h, cookie, producers);
+    // When drainDcpControl stops producers.last_XXXX contains the value
+    // for the first non-control message
+    drainDcpControl(h, cookie, producers);
+
     uint32_t stream_opaque = producers.last_opaque;
     cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpStreamReq);
     cb_assert(producers.last_opaque != opaque);
@@ -4298,13 +4323,14 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
             dcp->open(cookie, opaque, 0, flags, name),
             "Failed dcp Consumer open connection.");
 
-    drainDcpControl(h, cookie, producers);
-
     checkeq(ENGINE_SUCCESS,
             dcp->add_stream(cookie, opaque, Vbid(0), 0),
             "Add stream request failed");
 
-    dcp_step(h, cookie, producers);
+    // drainDcpControl keeps on consuming the messages via DCP step
+    // and when it returns the producers.last_XXX contains the first
+    // non-DCP-Control message
+    drainDcpControl(h, cookie, producers);
     cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpStreamReq);
     cb_assert(producers.last_opaque != opaque);
 
@@ -4416,13 +4442,14 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h) {
             dcp->open(cookie, opaque, 0, flags, name),
             "Failed dcp Consumer open connection.");
 
-    drainDcpControl(h, cookie, producers);
-
     checkeq(ENGINE_SUCCESS,
             dcp->add_stream(cookie, opaque, Vbid(0), 0),
             "Add stream request failed");
 
-    dcp_step(h, cookie, producers);
+    // drainDcpControl keeps on consuming the messages via DCP step
+    // and when it returns the producers.last_XXX contains the first
+    // non-DCP-Control message
+    drainDcpControl(h, cookie, producers);
     cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpStreamReq);
     cb_assert(producers.last_opaque != opaque);
 
