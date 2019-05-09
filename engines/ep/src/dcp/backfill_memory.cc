@@ -21,6 +21,7 @@
 #include "ep_time.h"
 #include "ephemeral_vb.h"
 #include "seqlist.h"
+#include "stored-value.h"
 
 #include <phosphor/phosphor.h>
 
@@ -297,11 +298,19 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
             // mutated with the HashBucketLock, so get the correct bucket lock
             // before calling StoredValue::toItem
             auto hbl = evb->ht.getLockedBucket((*rangeItr).getKey());
-            // @todo-durability: Need to record the original durability
-            // requirements in OrderedStoredValue (and then add into the
-            // item we make here); otherwise we cannot correctly form the
-            // DCP_PREPARE messages for Pending items.
-            item = (*rangeItr).toItem(getVBucketId());
+            // Ephemeral only supports a durable write level of Majority so
+            // instead of storing a durability level in our OrderedStoredValues
+            // we can just assume that all durable writes have the Majority
+            // level. Given that this is a backfill item (we will send via DCP)
+            // we also need to specify an infinite durable write timeout so that
+            // we do not lose any durable writes. We can supply these items
+            // for all stored values as they are only set if the underlying
+            // StoredValue has the CommittedState of Pending.
+            item = (*rangeItr).toItem(getVBucketId(),
+                                      StoredValue::HideLockedCas::No,
+                                      StoredValue::IncludeValue::Yes,
+                                      {{cb::durability::Level::Majority,
+                                        cb::durability::Timeout::Infinity()}});
             // A deleted ephemeral item stores the delete time under a delete
             // time field, this must be copied to the expiry time so that DCP
             // can transmit the original time of deletion

@@ -17,6 +17,7 @@
 
 #include "dcp_durability_stream_test.h"
 
+#include "../../src/dcp/backfill-manager.h"
 #include "checkpoint_utils.h"
 #include "dcp/response.h"
 #include "dcp_utils.h"
@@ -203,6 +204,51 @@ TEST_P(DurabilityActiveStreamTest, SendDcpAbort) {
     ASSERT_EQ(0, stream->public_readyQSize());
     resp = stream->public_popFromReadyQ();
     ASSERT_FALSE(resp);
+}
+
+TEST_P(DurabilityActiveStreamEphemeralTest, BackfillDurabilityLevel) {
+    auto vb = engine->getVBucket(vbid);
+    auto& ckptMgr = *vb->checkpointManager;
+    // Get rid of set_vb_state and any other queue_op we are not interested in
+    ckptMgr.clear(*vb, 0 /*seqno*/);
+
+    const auto key = makeStoredDocKey("key");
+    const auto& value = "value";
+    auto item = makePendingItem(
+            key,
+            value,
+            cb::durability::Requirements(cb::durability::Level::Majority,
+                                         1 /*timeout*/));
+    VBQueueItemCtx ctx;
+    ctx.durability =
+            DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
+
+    EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
+
+    // We don't account Prepares in VB stats
+    EXPECT_EQ(0, vb->getNumItems());
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+
+    // Run the backfill we scheduled when we transitioned to the backfilling
+    // state
+    auto& bfm = producer->getBFM();
+    bfm.backfill();
+
+    const auto& readyQ = stream->public_readyQ();
+    EXPECT_EQ(2, readyQ.size());
+
+    // First item is a snapshot marker so just skip it
+    auto resp = stream->public_popFromReadyQ();
+    resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+    const auto& prep = static_cast<MutationResponse&>(*resp);
+    const auto respItem = prep.getItem();
+    EXPECT_EQ(cb::durability::Level::Majority,
+              respItem->getDurabilityReqs().getLevel());
+    EXPECT_TRUE(respItem->getDurabilityReqs().getTimeout().isInfinite());
 }
 
 TEST_P(DurabilityActiveStreamTest, RemoveUnknownSeqnoAckAtDestruction) {
@@ -798,3 +844,8 @@ INSTANTIATE_TEST_CASE_P(
         DurabilityPassiveStreamPersistentTest,
         STParameterizedBucketTest::persistentAllBackendsConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_CASE_P(AllBucketTypes,
+                        DurabilityActiveStreamEphemeralTest,
+                        STParameterizedBucketTest::ephConfigValues(),
+                        STParameterizedBucketTest::PrintToStringParamName);

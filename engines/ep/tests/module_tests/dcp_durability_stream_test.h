@@ -56,3 +56,9 @@ protected:
  */
 class DurabilityPassiveStreamPersistentTest
     : public DurabilityPassiveStreamTest {};
+
+/**
+ * ActiveStream tests for Durability against ephemeral buckets. Single-threaded.
+ */
+class DurabilityActiveStreamEphemeralTest : public DurabilityActiveStreamTest {
+};
