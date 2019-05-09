@@ -385,6 +385,14 @@ protected:
         // can by emptied by Commit/Abort.
         Monotonic<int64_t, ThrowExceptionPolicy> lastTrackedSeqno;
 
+        // Stores the last committed seqno. Only used for debug / statistics
+        // purposes.
+        Monotonic<int64_t> lastCommittedSeqno = 0;
+
+        // Stores the last aborted seqno. Only used for debug / statistics
+        // purposes.
+        Monotonic<int64_t> lastAbortedSeqno = 0;
+
         // The durability timeout value to use for SyncWrites which haven't
         // specified an explicit timeout.
         // @todo-durability: Allow this to be configurable.

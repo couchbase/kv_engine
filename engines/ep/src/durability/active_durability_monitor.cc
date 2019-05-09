@@ -536,6 +536,7 @@ void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
                 "status:" +
                 std::to_string(result));
     }
+    state.wlock()->lastCommittedSeqno = sw.getBySeqno();
 }
 
 void ActiveDurabilityMonitor::abort(const SyncWrite& sw) {
@@ -550,6 +551,7 @@ void ActiveDurabilityMonitor::abort(const SyncWrite& sw) {
                 "status:" +
                 std::to_string(result));
     }
+    state.wlock()->lastAbortedSeqno = sw.getBySeqno();
 }
 
 void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
@@ -606,7 +608,10 @@ size_t ActiveDurabilityMonitor::wipeTracked() {
 void ActiveDurabilityMonitor::toOStream(std::ostream& os) const {
     const auto s = state.rlock();
     os << "ActiveDurabilityMonitor[" << this
-       << "] #trackedWrites:" << s->trackedWrites.size() << "\n";
+       << "] #trackedWrites:" << s->trackedWrites.size()
+       << " lastTrackedSeqno:" << s->lastTrackedSeqno
+       << " lastCommittedSeqno:" << s->lastCommittedSeqno
+       << " lastAbortedSeqno:" << s->lastAbortedSeqno << "\n";
     for (const auto& w : s->trackedWrites) {
         os << "    " << w << "\n";
     }
