@@ -288,8 +288,8 @@ class MemcachedClient(object):
         return self._doCmd(cmd, key, val, struct.pack(SET_PKT_FMT, flags, exp),
             cas, collection)
 
-    def _mutateDurable(self, cmd, key, exp, flags, cas, val, level, collection):
-        flex = self._encodeDurabilityFlex(level)
+    def _mutateDurable(self, cmd, key, exp, flags, cas, val, level, timeout, collection):
+        flex = self._encodeDurabilityFlex(level, timeout)
         return self._doAltCmd(cmd, flex, key, val, struct.pack(SET_PKT_FMT, flags, exp),
                            cas, collection)
 
@@ -340,10 +340,11 @@ class MemcachedClient(object):
 
     def setDurable(self, key, exp, flags, val,
                    level=memcacheConstants.DURABILITY_LEVEL_MAJORITY,
+                   timeout=None,
                    collection=None):
         """Set a value with the given durability requirements"""
         return self._mutateDurable(memcacheConstants.CMD_SET, key, exp, flags,
-                                   0, val, level, collection)
+                                   0, val, level, timeout, collection)
 
     def setWithMeta(self, key, value, exp, flags, seqno, remote_cas, collection=None):
         """Set a value and its meta data in the memcached server."""
@@ -360,10 +361,11 @@ class MemcachedClient(object):
 
     def addDurable(self, key, exp, flags, val,
                    level=memcacheConstants.DURABILITY_LEVEL_MAJORITY,
+                   timeout=None,
                    collection=None):
         """Add a value with the given durability requirements if it doesn't already exist."""
         return self._mutateDurable(memcacheConstants.CMD_ADD, key, exp, flags,
-                                   0, val, level, collection)
+                                   0, val, level, timeout, collection)
 
     def addWithMeta(self, key, value, exp, flags, seqno, remote_cas, collection=None):
         return self._doMetaCmd(memcacheConstants.CMD_ADD_WITH_META,
@@ -376,10 +378,11 @@ class MemcachedClient(object):
 
     def replaceDurable(self, key, exp, flags, val,
                    level=memcacheConstants.DURABILITY_LEVEL_MAJORITY,
+                   timeout=None,
                    collection=None):
         """Replace a value with the given durability requirements iff it already exists."""
         return self._mutateDurable(memcacheConstants.CMD_REPLACE, key, exp, flags,
-                                   0, val, level, collection)
+                                   0, val, level, timeout, collection)
 
     def observe(self, key, vbucket, collection=None):
         """Observe a key for persistence and replication."""
