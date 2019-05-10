@@ -1004,7 +1004,7 @@ static Status dcp_abort_validator(Cookie& cookie) {
     using cb::mcbp::request::DcpAbortPayload;
     auto status = McbpValidator::verify_header(cookie,
                                                sizeof(DcpAbortPayload),
-                                               ExpectedKeyLen::Zero,
+                                               ExpectedKeyLen::NonZero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::NotSet,
                                                PROTOCOL_BINARY_RAW_BYTES);

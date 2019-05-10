@@ -673,6 +673,7 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged,
                   dcp_seqno_acknowledged_executor);
     setup_handler(cb::mcbp::ClientOpcode::DcpCommit, dcp_commit_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpAbort, dcp_abort_executor);
 
     setup_handler(cb::mcbp::ClientOpcode::CollectionsSetManifest,
                   collections_set_manifest_executor);
@@ -874,9 +875,10 @@ static void execute_client_response_packet(Cookie& cookie,
         handler(cookie);
     } else {
         auto& c = cookie.getConnection();
-        LOG_INFO("{}: Unsupported response packet received with opcode: {:x}",
-                 c.getId(),
-                 uint32_t(opcode));
+        LOG_WARNING(
+                "{}: Unsupported response packet received with opcode: {:x}",
+                c.getId(),
+                uint32_t(opcode));
         c.setState(StateMachine::State::closing);
     }
 }
