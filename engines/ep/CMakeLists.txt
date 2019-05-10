@@ -307,150 +307,25 @@ TARGET_LINK_LIBRARIES(ep JSON_checker ${EP_STORAGE_LIBS}
                       ${FOLLY_LIBRARIES})
 add_sanitizers(ep)
 
-ADD_LIBRARY(mock_dcp OBJECT tests/mock/mock_dcp.cc)
-SET_PROPERTY(TARGET mock_dcp PROPERTY POSITION_INDEPENDENT_CODE 1)
-add_sanitizers(mock_dcp)
-
-ADD_LIBRARY(ep_testsuite_objs OBJECT
-            tests/ep_testsuite_common.cc
-            tests/ep_test_apis.cc
-            src/ext_meta_parser.cc
-            src/storeddockey.cc)
-SET_PROPERTY(TARGET ep_testsuite_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
-add_sanitizers(ep_testsuite_objs)
-
 if (NOT EP_BYPASS_TESTS)
-    # Single executable containing all class-level unit tests involving
-    # EventuallyPersistentEngine driven by GoogleTest.
-    # (We end up compiling most of the src/ files of ep-engine for these unit tests,
-    # so simpler / quicker just to link them into a single executable).
-    ADD_EXECUTABLE(ep-engine_ep_unit_tests
-                   tests/mock/mock_dcp_conn_map.cc
-                   tests/mock/mock_dcp_producer.cc
-                   tests/mock/mock_ephemeral_vb.cc
-                   tests/mock/mock_executor_pool.cc
-                   tests/mock/mock_stream.cc
-                   tests/mock/mock_synchronous_ep_engine.cc
-                   tests/module_tests/atomic_unordered_map_test.cc
-                   tests/module_tests/basic_ll_test.cc
-                   tests/module_tests/bloomfilter_test.cc
-                   tests/module_tests/bucket_logger_engine_test.cc
-                   tests/module_tests/bucket_logger_test.cc
-                   tests/module_tests/checkpoint_durability_test.cc
-                   tests/module_tests/checkpoint_iterator_test.cc
-                   tests/module_tests/checkpoint_remover_test.h
-                   tests/module_tests/checkpoint_remover_test.cc
-                   tests/module_tests/checkpoint_test.h
-                   tests/module_tests/checkpoint_test.cc
-                   tests/module_tests/checkpoint_utils.h
-                   tests/module_tests/collections/collections_dcp_test.cc
-                   tests/module_tests/collections/collections_kvstore_test.cc
-                   tests/module_tests/collections/evp_store_collections_dcp_test.cc
-                   tests/module_tests/collections/evp_store_collections_dcp_stream_test.cc
-                   tests/module_tests/collections/evp_store_collections_eraser_test.cc
-                   tests/module_tests/collections/evp_store_collections_test.cc
-                   tests/module_tests/collections/filter_test.cc
-                   tests/module_tests/collections/manifest_test.cc
-                   tests/module_tests/collections/test_manifest.cc
-                   tests/module_tests/collections/vbucket_manifest_test.cc
-                   tests/module_tests/collections/vbucket_manifest_entry_test.cc
-                   tests/module_tests/configuration_test.cc
-                   tests/module_tests/defragmenter_test.cc
-                   tests/module_tests/dcp_durability_stream_test.cc
-                   tests/module_tests/dcp_reflection_test.cc
-                   tests/module_tests/dcp_stream_test.cc
-                   tests/module_tests/dcp_stream_sync_repl_test.cc
-                   tests/module_tests/dcp_test.cc
-                   tests/module_tests/dcp_utils.cc
-                   tests/module_tests/diskdockey_test.cc
-                   tests/module_tests/durability_monitor_test.cc
-                   tests/module_tests/ep_unit_tests_main.cc
-                   tests/module_tests/ephemeral_bucket_test.cc
-                   tests/module_tests/ephemeral_vb_test.cc
-                   tests/module_tests/evp_engine_test.cc
-                   tests/module_tests/evp_store_durability_test.cc
-                   tests/module_tests/evp_store_rollback_test.cc
-                   tests/module_tests/evp_store_test.cc
-                   tests/module_tests/evp_store_single_threaded_test.cc
-                   tests/module_tests/evp_store_warmup_test.cc
-                   tests/module_tests/evp_store_with_meta.cc
-                   tests/module_tests/evp_vbucket_test.cc
-                   tests/module_tests/executorpool_test.cc
-                   tests/module_tests/failover_table_test.cc
-                   tests/module_tests/futurequeue_test.cc
-                   tests/module_tests/hash_table_eviction_test.cc
-                   tests/module_tests/hash_table_perspective_test.cc
-                   tests/module_tests/hash_table_test.cc
-                   tests/module_tests/hdrhistogram_test.cc
-                   tests/module_tests/item_compressor_test.cc
-                   tests/module_tests/item_eviction_test.cc
-                   tests/module_tests/item_pager_test.cc
-                   tests/module_tests/item_test.cc
-                   tests/module_tests/kvstore_test.cc
-                   tests/module_tests/kv_bucket_test.cc
-                   tests/module_tests/memory_tracker_test.cc
-                   tests/module_tests/memory_tracking_allocator_test.cc
-                   tests/module_tests/mock_hooks_api.cc
-                   tests/module_tests/monotonic_test.cc
-                   tests/module_tests/mutation_log_test.cc
-                   tests/module_tests/objectregistry_test.cc
-                   tests/module_tests/mutex_test.cc
-                   tests/module_tests/probabilistic_counter_test.cc
-                   tests/module_tests/stats_test.cc
-                   tests/module_tests/storeddockey_test.cc
-                   tests/module_tests/stored_value_test.cc
-                   tests/module_tests/stream_container_test.cc
-                   tests/module_tests/systemevent_test.cc
-                   tests/module_tests/tagged_ptr_test.cc
-                   tests/module_tests/test_helpers.cc
-                   tests/module_tests/vbucket_test.cc
-                   tests/module_tests/vbucket_durability_test.cc
-                   tests/module_tests/warmup_test.cc
-                   $<TARGET_OBJECTS:mock_dcp>
-                   $<TARGET_OBJECTS:ep_objs>
-                   $<TARGET_OBJECTS:memory_tracking>
-                   $<TARGET_OBJECTS:couchstore_test_fileops>
-                   $<TARGET_OBJECTS:couchfile_upgrade_objects>
-                   ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
+    add_subdirectory(tests)
 
-    TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
-                               PUBLIC
-                               ${Couchstore_SOURCE_DIR})
-
-    TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests ${EP_STORAGE_LIBS}
-                          dirutils engine_utilities ep-engine_collections gtest
-                          gmock hdr_histogram_static JSON_checker
-                          memcached_logger mcbp mcd_util mcd_tracing platform
-                          phosphor xattr cbcompress mock_server ${MALLOC_LIBRARIES}
-                          ${LIBEVENT_LIBRARIES}
-                          ${FOLLY_LIBRARIES})
-
-    add_sanitizers(ep-engine_ep_unit_tests)
-
-    ADD_EXECUTABLE(ep-engine_atomic_ptr_test
-                   tests/module_tests/atomic_ptr_test.cc
-                   src/atomic.cc
-            )
-    TARGET_LINK_LIBRARIES(ep-engine_atomic_ptr_test platform)
-
-    ADD_EXECUTABLE(ep-engine_couch-fs-stats_test
-                   src/couch-kvstore/couch-fs-stats.cc
-                   src/generated_configuration.h
-                   tests/module_tests/couch-fs-stats_test.cc
-                   $<TARGET_OBJECTS:couchstore_wrapped_fileops_test_framework>)
-    TARGET_INCLUDE_DIRECTORIES(ep-engine_couch-fs-stats_test
-                               PRIVATE
-                               ${Couchstore_SOURCE_DIR}
-                               ${Couchstore_SOURCE_DIR}/src)
-    TARGET_LINK_LIBRARIES(ep-engine_couch-fs-stats_test gtest gtest_main gmock platform mcd_util)
-
-    ADD_EXECUTABLE(ep-engine_misc_test tests/module_tests/misc_test.cc)
-    TARGET_LINK_LIBRARIES(ep-engine_misc_test mcbp platform)
-
-    ADD_EXECUTABLE(ep-engine_string_utils_test
-                   tests/module_tests/string_utils_test.cc
-                   src/string_utils.cc)
-    TARGET_LINK_LIBRARIES(ep-engine_string_utils_test gtest gtest_main platform)
+    # While ep_perfsuite is arguably a "test" and hence should live under
+    # tests/, we *don't* want optimizations disabled for it hence keep in
+    # this directory.
+    ADD_LIBRARY(ep_perfsuite MODULE
+            tests/ep_perfsuite.cc
+            $<TARGET_OBJECTS:ep_testsuite_objs>
+            $<TARGET_OBJECTS:mock_dcp>)
+    SET_TARGET_PROPERTIES(ep_perfsuite PROPERTIES PREFIX "")
+    TARGET_LINK_LIBRARIES(ep_perfsuite
+            cbcompress
+            dirutils
+            engine_utilities
+            mcbp
+            mcd_util
+            platform
+            ${LIBEVENT_LIBRARIES})
 
     ADD_EXECUTABLE(ep_engine_benchmarks
                    benchmarks/access_scanner_bench.cc
@@ -504,15 +379,6 @@ if (NOT EP_BYPASS_TESTS)
 
     add_sanitizers(ep_engine_benchmarks)
 
-    ADD_TEST(NAME ep-engine_atomic_ptr_test COMMAND ep-engine_atomic_ptr_test)
-    ADD_TEST(NAME ep-engine_couch-fs-stats_test COMMAND ep-engine_couch-fs-stats_test)
-    ADD_TEST(NAME ep-engine_ep_unit_tests COMMAND ep-engine_ep_unit_tests)
-    ADD_TEST(NAME ep-engine_misc_test COMMAND ep-engine_misc_test)
-
-    ADD_LIBRARY(timing_tests MODULE tests/module_tests/timing_tests.cc)
-    SET_TARGET_PROPERTIES(timing_tests PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(timing_tests mcbp platform)
-
     ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc
                    $<TARGET_OBJECTS:ep_objs>)
     TARGET_LINK_LIBRARIES(ep-engine_sizes JSON_checker hdr_histogram_static
@@ -521,119 +387,7 @@ if (NOT EP_BYPASS_TESTS)
                           mcd_tracing phosphor xattr ${LIBEVENT_LIBRARIES} ${FOLLY_LIBRARIES})
     add_sanitizers(ep-engine_sizes)
 
-    ADD_LIBRARY(ep_testsuite MODULE
-                tests/ep_testsuite.cc
-                $<TARGET_OBJECTS:ep_testsuite_objs>
-                $<TARGET_OBJECTS:mock_dcp>)
-    SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_testsuite engine_utilities mcbp mcd_util
-                          ${EP_STORAGE_LIBS} cbcompress dirutils JSON_checker
-                          platform xattr
-                          ${LIBEVENT_LIBRARIES})
 
-    ADD_LIBRARY(ep_testsuite_basic MODULE
-                tests/ep_testsuite_basic.cc
-                $<TARGET_OBJECTS:ep_testsuite_objs>
-                $<TARGET_OBJECTS:mock_dcp>
-                )
-    SET_TARGET_PROPERTIES(ep_testsuite_basic PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_testsuite_basic
-            cbcompress
-            dirutils
-            engine_utilities
-            JSON_checker
-            mcbp
-            mcd_util
-            platform
-            ${LIBEVENT_LIBRARIES}
-            ${SNAPPY_LIBRARIES})
-
-    ADD_LIBRARY(ep_testsuite_dcp MODULE
-                tests/ep_testsuite_dcp.cc
-                $<TARGET_OBJECTS:ep_testsuite_objs>
-                $<TARGET_OBJECTS:mock_dcp>
-                )
-    SET_TARGET_PROPERTIES(ep_testsuite_dcp PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_testsuite_dcp
-            cbcompress
-            dirutils
-            engine_utilities
-            JSON_checker
-            mcbp
-            mcd_util
-            platform
-            ${LIBEVENT_LIBRARIES}
-            ${SNAPPY_LIBRARIES})
-
-    ADD_LIBRARY(ep_testsuite_checkpoint MODULE
-                tests/ep_testsuite_checkpoint.cc
-                $<TARGET_OBJECTS:ep_testsuite_objs>)
-    SET_TARGET_PROPERTIES(ep_testsuite_checkpoint PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_testsuite_checkpoint
-            cbcompress
-            dirutils
-            engine_utilities
-            JSON_checker
-            mcbp
-            mcd_util
-            platform
-            ${LIBEVENT_LIBRARIES}
-            ${SNAPPY_LIBRARIES})
-
-    ADD_LIBRARY(ep_testsuite_xdcr MODULE
-                tests/ep_testsuite_xdcr.cc
-                $<TARGET_OBJECTS:ep_testsuite_objs>)
-    SET_TARGET_PROPERTIES(ep_testsuite_xdcr PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_testsuite_xdcr mcd_util engine_utilities
-            mcbp JSON_checker dirutils platform xattr
-                          ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
-
-    ADD_LIBRARY(ep_perfsuite MODULE
-                tests/ep_perfsuite.cc
-                $<TARGET_OBJECTS:ep_testsuite_objs>
-                $<TARGET_OBJECTS:mock_dcp>)
-    SET_TARGET_PROPERTIES(ep_perfsuite PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_perfsuite
-            cbcompress
-            dirutils
-            engine_utilities
-            mcbp
-            mcd_util
-            platform
-            ${LIBEVENT_LIBRARIES})
-
-    #ADD_CUSTOM_COMMAND(OUTPUT
-    #                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_0.c
-    #                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_1.c
-    #                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_2.c
-    #                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_3.c
-    #                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_4.c
-    #                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_5.c
-    #                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_6.c
-    #                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_7.c
-    #                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_8.c
-    #                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_9.c
-    #                  COMMAND
-    #                     ${PYTHON_EXECUTABLE} tests/module_tests/gen_engine_test.py
-    #                  DEPENDS
-    #                        tests/module_tests/gen_engine_test.py
-    #                        tests/module_tests/breakdancer.py
-    #                  COMMENT "Generating testsuite")
-    #
-    #ADD_LIBRARY(generated_testsuite SHARED
-    #            tests/suite_stubs.c
-    #            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_0.c
-    #            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_1.c
-    #            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_2.c
-    #            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_3.c
-    #            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_4.c
-    #            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_5.c
-    #            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_6.c
-    #            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_7.c
-    #            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_8.c
-    #            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_9.c)
-
-    #SET_TARGET_PROPERTIES(generated_testsuite PROPERTIES PREFIX "")
 endif (NOT EP_BYPASS_TESTS)
 
 INSTALL(FILES
@@ -645,89 +399,7 @@ INSTALL(TARGETS ep
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
-if (NOT EP_BYPASS_TESTS)
-    IF (EP_USE_ROCKSDB)
-        ADD_TEST(NAME ep-engine-persistence-unit-tests.rocksdb
-                 COMMAND memcached_testapp -E ep -c "backend=rocksdb" --gtest_filter=*PersistToTest*)
-        SET_TESTS_PROPERTIES(ep-engine-persistence-unit-tests.rocksdb PROPERTIES TIMEOUT 300)
-    ENDIF (EP_USE_ROCKSDB)
-
-    # Defines a testsuite which runs in full and value eviction
-    # (persistent), ephemeral buckets (which has no eviction).
-    FUNCTION(ADD_TESTSUITE name timeout)
-        CMAKE_PARSE_ARGUMENTS("arg" "SKIP_EPHEMERAL" "" "" ${ARGN})
-
-        SET(_cmdline
-            ${Memcached_BINARY_DIR}/engine_testapp
-            -E $<TARGET_FILE:ep>
-            -T $<TARGET_FILE:${name}>)
-        ADD_TEST(NAME ${name}.value_eviction.comp_passive
-                 COMMAND ${_cmdline} -v -e "compression_mode=passive$<SEMICOLON>dbname=./${name}.value_eviction.comp_passive.db")
-        ADD_TEST(NAME ${name}.value_eviction.comp_active
-                 COMMAND ${_cmdline} -v -e "compression_mode=active$<SEMICOLON>dbname=./${name}.value_eviction.comp_active.db")
-        ADD_TEST(NAME ${name}.full_eviction.comp_passive
-                 COMMAND ${_cmdline} -v -e "compression_mode=passive$<SEMICOLON>item_eviction_policy=full_eviction\
-$<SEMICOLON>dbname=./${name}.full_eviction.comp_passive.db")
-        ADD_TEST(NAME ${name}.full_eviction.comp_active
-                 COMMAND ${_cmdline} -v -e "compression_mode=active$<SEMICOLON>item_eviction_policy=full_eviction\
-$<SEMICOLON>dbname=./${name}.full_eviction.comp_active.db")
-        SET_TESTS_PROPERTIES(${name}.value_eviction.comp_passive PROPERTIES TIMEOUT ${timeout})
-        SET_TESTS_PROPERTIES(${name}.value_eviction.comp_active PROPERTIES TIMEOUT ${timeout})
-        SET_TESTS_PROPERTIES(${name}.full_eviction.comp_passive PROPERTIES TIMEOUT ${timeout})
-        SET_TESTS_PROPERTIES(${name}.full_eviction.comp_active PROPERTIES TIMEOUT ${timeout})
-
-        IF (NOT arg_SKIP_EPHEMERAL)
-            ADD_TEST(NAME ${name}.ephemeral.comp_passive
-                     COMMAND ${_cmdline} -v -e "compression_mode=passive$<SEMICOLON>bucket_type=ephemeral\
-$<SEMICOLON>dbname=./${name}.ephemeral.comp_passive.db")
-            ADD_TEST(NAME ${name}.ephemeral.comp_active
-                     COMMAND ${_cmdline} -v -e "compression_mode=active$<SEMICOLON>bucket_type=ephemeral\
-$<SEMICOLON>dbname=./${name}.ephemeral.comp_active.db")
-            SET_TESTS_PROPERTIES(${name}.ephemeral.comp_passive PROPERTIES TIMEOUT ${timeout})
-            SET_TESTS_PROPERTIES(${name}.ephemeral.comp_active PROPERTIES TIMEOUT ${timeout})
-        ENDIF ()
-
-        IF (EP_USE_ROCKSDB)
-            ADD_TEST(NAME ${name}.value_eviction.rocksdb
-                     COMMAND ${_cmdline} -v -e "dbname=./${name}.value_eviction.rocksdb$<SEMICOLON>backend=rocksdb")
-            ADD_TEST(NAME ${name}.full_eviction.rocksdb
-                     COMMAND ${_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./${name}.full_eviction.rocksdb$<SEMICOLON>backend=rocksdb")
-            SET_TESTS_PROPERTIES(${name}.value_eviction.rocksdb PROPERTIES TIMEOUT ${timeout})
-            SET_TESTS_PROPERTIES(${name}.full_eviction.rocksdb PROPERTIES TIMEOUT ${timeout})
-        ENDIF (EP_USE_ROCKSDB)
-    ENDFUNCTION()
-
-    ADD_TESTSUITE(ep_testsuite 1800)
-
-    ADD_TESTSUITE(ep_testsuite_basic 600)
-
-    ADD_TESTSUITE(ep_testsuite_dcp 1200)
-
-    ADD_TESTSUITE(ep_testsuite_checkpoint 120)
-
-    ADD_TESTSUITE(ep_testsuite_xdcr 120)
-
-    # ================================ PERF_TESTS ================================ #
-    SET(_ep_perfsuite_cmdline $<TARGET_FILE:engine_testapp> -E $<TARGET_FILE:ep> -T $<TARGET_FILE:ep_perfsuite> -v)
-
-    # Micro perf tests: value-only eviction mode. Note that it makes no sense to run
-    # these tests in full-eviction mode as we disable persistence - see MB-19504.
-    ADD_CUSTOM_TARGET(test-perfsuite
-                      COMMAND ${_ep_perfsuite_cmdline}
-                      DEPENDS engine_testapp
-                      ep
-                      ep_perfsuite
-                      VERBATIM)
-    ADD_TEST(NAME ep_perfsuite.value_eviction
-             COMMAND ${_ep_perfsuite_cmdline} -e "dbname=./ep_perfsuite.value_eviction.db")
-
-    ADD_TEST(NAME ep_perfsuite.ephemeral
-             COMMAND ${_ep_perfsuite_cmdline} -e "bucket_type=ephemeral$<SEMICOLON>dbname=./ep_perfsuite.ephemeral.db")
-
-    # ============================================================================ #
-
-    ENABLE_CODE_COVERAGE_REPORT()
-endif (NOT EP_BYPASS_TESTS)
+ENABLE_CODE_COVERAGE_REPORT()
 
 if(CB_ENABLE_HEADER_INCLUDE_CHECK)
     # Extra (non-default) target to compile all ep-engine headers (for
