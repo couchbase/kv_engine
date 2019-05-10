@@ -911,7 +911,6 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                 opaque_,
                 item->getVBucketId(),
                 item->getKey(),
-                item->getPrepareSeqno(),
                 item->getBySeqno() /*abortSeqno*/);
     }
 

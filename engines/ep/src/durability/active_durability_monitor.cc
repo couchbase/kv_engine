@@ -541,7 +541,6 @@ void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
 void ActiveDurabilityMonitor::abort(const SyncWrite& sw) {
     const auto& key = sw.getKey();
     auto result = vb.abort(key,
-                           sw.getBySeqno() /*prepareSeqno*/,
                            {} /*abortSeqno*/,
                            vb.lockCollections(key),
                            sw.getCookie());

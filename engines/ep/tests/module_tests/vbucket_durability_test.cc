@@ -533,7 +533,6 @@ TEST_P(VBucketDurabilityTest, NonExistingKeyAtAbort) {
     auto noentKey = makeStoredDocKey("non-existing-key");
     EXPECT_EQ(ENGINE_KEY_ENOENT,
               vbucket->abort(noentKey,
-                             0 /*prepareSeqno*/,
                              {} /*abortSeqno*/,
                              vbucket->lockCollections(noentKey)));
 }
@@ -551,7 +550,6 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbort) {
     ASSERT_EQ(bySeqno, sv->getBySeqno());
     EXPECT_EQ(ENGINE_EINVAL,
               vbucket->abort(nonPendingKey,
-                             bySeqno /*prepareSeqno*/,
                              {} /*abortSeqno*/,
                              vbucket->lockCollections(nonPendingKey)));
 }
@@ -619,7 +617,6 @@ TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
     // Note: abort-seqno must be provided only at Replica
     EXPECT_EQ(ENGINE_SUCCESS,
               vbucket->abort(key,
-                             1 /*prepareSeqno*/,
                              {} /*abortSeqno*/,
                              vbucket->lockCollections(key),
                              cookie));

@@ -1652,12 +1652,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::abort(
         uint32_t opaque,
         Vbid vbucket,
         const DocKey& key,
-        uint64_t preparedSeqno,
         uint64_t abortSeqno) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        return conn->abort(opaque, vbucket, key, preparedSeqno, abortSeqno);
+        return conn->abort(opaque, vbucket, key, abortSeqno);
     }
     return ENGINE_DISCONNECT;
 }

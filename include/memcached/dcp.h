@@ -350,7 +350,6 @@ struct dcp_message_producers {
     virtual ENGINE_ERROR_CODE abort(uint32_t opaque,
                                     Vbid vbucket,
                                     const DocKey& key,
-                                    uint64_t prepared_seqno,
                                     uint64_t abort_seqno) = 0;
 };
 
@@ -748,6 +747,5 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
                                     uint32_t opaque,
                                     Vbid vbucket,
                                     const DocKey& key,
-                                    uint64_t prepared_seqno,
                                     uint64_t abort_seqno) = 0;
 };

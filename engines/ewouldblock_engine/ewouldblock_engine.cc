@@ -925,7 +925,6 @@ public:
                             uint32_t opaque,
                             Vbid vbucket,
                             const DocKey& key,
-                            uint64_t prepared_seqno,
                             uint64_t abort_seqno) override;
 
     static void handle_disconnect(const void* cookie,
@@ -1773,13 +1772,12 @@ ENGINE_ERROR_CODE EWB_Engine::abort(gsl::not_null<const void*> cookie,
                                     uint32_t opaque,
                                     Vbid vbucket,
                                     const DocKey& key,
-                                    uint64_t prepared_seqno,
                                     uint64_t abort_seqno) {
     if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
         return real_engine_dcp->abort(
-                cookie, opaque, vbucket, key, prepared_seqno, abort_seqno);
+                cookie, opaque, vbucket, key, abort_seqno);
     }
 }
 

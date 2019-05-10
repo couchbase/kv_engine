@@ -672,7 +672,6 @@ public:
     AbortSyncWrite(uint32_t opaque,
                    Vbid vbucket,
                    const DocKey& key,
-                   uint64_t preparedSeqno,
                    uint64_t abortSeqno);
 
     Vbid getVbucket() const {
@@ -681,14 +680,6 @@ public:
 
     const StoredDocKey& getKey() const {
         return key;
-    }
-
-    uint64_t getPreparedSeqno() const {
-        return payload.getPreparedSeqno();
-    }
-
-    uint64_t getAbortSeqno() const {
-        return payload.getAbortSeqno();
     }
 
     OptionalSeqno getBySeqno() const override {

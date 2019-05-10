@@ -143,12 +143,11 @@ uint32_t CommitSyncWrite::getMessageSize() const {
 AbortSyncWrite::AbortSyncWrite(uint32_t opaque,
                                Vbid vbucket,
                                const DocKey& key,
-                               uint64_t preparedSeqno,
                                uint64_t abortSeqno)
     : DcpResponse(Event::Abort, opaque, cb::mcbp::DcpStreamId{}),
       vbucket(vbucket),
       key(key),
-      payload(preparedSeqno, abortSeqno) {
+      payload(abortSeqno) {
 }
 
 uint32_t AbortSyncWrite::getMessageSize() const {

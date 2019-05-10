@@ -159,11 +159,10 @@ public:
                                    const DocKey& key,
                                    uint64_t commit_seqno));
 
-    MOCK_METHOD5(abort,
+    MOCK_METHOD4(abort,
                  ENGINE_ERROR_CODE(uint32_t opaque,
                                    Vbid vbucket,
                                    const DocKey& key,
-                                   uint64_t prepared_seqno,
                                    uint64_t abort_seqno));
 
     // Current version of GMock doesn't support move-only types (e.g.

@@ -181,7 +181,6 @@ void DurabilityEPBucketTest::testPersistPrepareAbort(DocumentState docState) {
 
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.abort(key,
-                       1 /*prepareSeqno*/,
                        {} /*abortSeqno*/,
                        vb.lockCollections(key)));
 
@@ -236,7 +235,6 @@ void DurabilityEPBucketTest::testPersistPrepareAbortPrepare(
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.abort(key,
-                       pending->getBySeqno(),
                        {} /*abortSeqno*/,
                        vb.lockCollections(key)));
 
@@ -296,7 +294,6 @@ void DurabilityEPBucketTest::testPersistPrepareAbortX2(DocumentState docState) {
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.abort(key,
-                       pending->getBySeqno(),
                        {} /*abortSeqno*/,
                        vb.lockCollections(key)));
 
@@ -308,7 +305,6 @@ void DurabilityEPBucketTest::testPersistPrepareAbortX2(DocumentState docState) {
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending2, cookie));
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.abort(key,
-                       pending2->getBySeqno(),
                        {} /*abortSeqno*/,
                        vb.lockCollections(key)));
 

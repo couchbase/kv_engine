@@ -751,8 +751,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             ret = producers->abort(abort.getOpaque(),
                                    abort.getVbucket(),
                                    abort.getKey(),
-                                   abort.getPreparedSeqno(),
-                                   abort.getAbortSeqno());
+                                   *abort.getBySeqno());
             break;
         }
         case DcpResponse::Event::SnapshotMarker:

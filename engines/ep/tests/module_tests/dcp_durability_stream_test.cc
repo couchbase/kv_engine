@@ -188,8 +188,7 @@ TEST_P(DurabilityActiveStreamTest, SendDcpAbort) {
     EXPECT_EQ(DcpResponse::Event::Abort, resp->getEvent());
     const auto& abort = static_cast<AbortSyncWrite&>(*resp);
     EXPECT_EQ(key, abort.getKey());
-    EXPECT_EQ(prepareSeqno, abort.getPreparedSeqno());
-    EXPECT_EQ(2, abort.getAbortSeqno());
+    EXPECT_EQ(2, *abort.getBySeqno());
     ASSERT_EQ(0, stream->public_readyQSize());
     resp = stream->public_popFromReadyQ();
     ASSERT_FALSE(resp);
@@ -543,10 +542,10 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbort) {
 
     // Now simulate the Consumer receiving Abort for that Prepare
     uint32_t opaque = 0;
-    auto abortReceived = [this, opaque, &key, prepareSeqno](
-                                 uint64_t abortSeqno) -> ENGINE_ERROR_CODE {
+    auto abortReceived =
+            [this, opaque, &key](uint64_t abortSeqno) -> ENGINE_ERROR_CODE {
         return stream->messageReceived(std::make_unique<AbortSyncWrite>(
-                opaque, vbid, key, prepareSeqno, abortSeqno));
+                opaque, vbid, key, abortSeqno));
     };
 
     // Check a negative first: at Replica we don't expect multiple Durable

@@ -279,7 +279,6 @@ ENGINE_ERROR_CODE ConnHandler::commit(uint32_t opaque,
 ENGINE_ERROR_CODE ConnHandler::abort(uint32_t opaque,
                                      Vbid vbucket,
                                      const DocKey& key,
-                                     uint64_t prepareSeqno,
                                      uint64_t abortSeqno) {
     logger->warn(
             "Disconnecting - This connection doesn't support the dcp abort "

@@ -237,8 +237,7 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::commit(uint32_t opaque,
 ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::abort(uint32_t opaque,
                                                     Vbid vbucket,
                                                     const DocKey& key,
-                                                    uint64_t prepared_seqno,
                                                     uint64_t abort_seqno) {
     NonBucketAllocationGuard guard;
-    return guarded.abort(opaque, vbucket, key, prepared_seqno, abort_seqno);
+    return guarded.abort(opaque, vbucket, key, abort_seqno);
 }
