@@ -1748,7 +1748,6 @@ ENGINE_ERROR_CODE DcpConsumer::commit(uint32_t opaque,
             err = stream->messageReceived(
                     std::make_unique<CommitSyncWrite>(opaque,
                                                       vbucket,
-                                                      /*prepared_seqno*/ 0,
                                                       commit_seqno,
                                                       key));
         } catch (const std::bad_alloc&) {

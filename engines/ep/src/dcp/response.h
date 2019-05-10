@@ -628,7 +628,6 @@ class CommitSyncWrite : public DcpResponse {
 public:
     CommitSyncWrite(uint32_t opaque,
                     Vbid vbucket,
-                    uint64_t preparedSeqno,
                     uint64_t commitSeqno,
                     const DocKey& key);
 
@@ -644,14 +643,6 @@ public:
 
     Vbid getVbucket() const {
         return vbucket;
-    }
-
-    uint64_t getPreparedSeqno() const {
-        return payload.getPreparedSeqno();
-    }
-
-    uint64_t getCommitSeqno() const {
-        return payload.getCommitSeqno();
     }
 
     static constexpr uint32_t commitBaseMsgBytes =

@@ -359,7 +359,6 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.commit(key,
-                        pending->getBySeqno(),
                         {} /*commitSeqno*/,
                         vb.lockCollections(key)));
 
@@ -394,7 +393,6 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
 
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.commit(key,
-                        delInfo.seqno,
                         {} /*commitSeqno*/,
                         vb.lockCollections(key)));
 

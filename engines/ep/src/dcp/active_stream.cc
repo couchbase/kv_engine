@@ -901,7 +901,6 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
         (syncReplication == SyncReplication::Yes)) {
         return std::make_unique<CommitSyncWrite>(opaque_,
                                                  item->getVBucketId(),
-                                                 /*preparedSeqno*/ 0,
                                                  item->getBySeqno(),
                                                  item->getKey());
     }

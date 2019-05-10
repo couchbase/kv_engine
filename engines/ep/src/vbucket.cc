@@ -761,7 +761,6 @@ void VBucket::handlePreExpiry(const HashTable::HashBucketLock& hbl,
 
 ENGINE_ERROR_CODE VBucket::commit(
         const DocKey& key,
-        uint64_t pendingSeqno,
         boost::optional<int64_t> commitSeqno,
         const Collections::VB::Manifest::CachingReadHandle& cHandle,
         const void* cookie) {

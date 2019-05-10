@@ -1344,16 +1344,9 @@ static_assert(sizeof(DcpSeqnoAcknowledgedPayload) == 8,
 
 class DcpCommitPayload {
 public:
-    DcpCommitPayload(uint64_t prepared, uint64_t committed)
-        : prepared_seqno(htonll(prepared)), commit_seqno(htonll(committed)) {
+    DcpCommitPayload(uint64_t committed) : commit_seqno(htonll(committed)) {
     }
 
-    uint64_t getPreparedSeqno() const {
-        return ntohll(prepared_seqno);
-    }
-    void setPreparedSeqno(uint64_t prepared_seqno) {
-        DcpCommitPayload::prepared_seqno = htonll(prepared_seqno);
-    }
     uint64_t getCommitSeqno() const {
         return ntohll(commit_seqno);
     }
@@ -1366,10 +1359,9 @@ public:
     }
 
 protected:
-    uint64_t prepared_seqno = 0;
     uint64_t commit_seqno = 0;
 };
-static_assert(sizeof(DcpCommitPayload) == 16, "Unexpected struct size");
+static_assert(sizeof(DcpCommitPayload) == 8, "Unexpected struct size");
 
 class DcpAbortPayload {
 public:

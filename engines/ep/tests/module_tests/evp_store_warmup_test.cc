@@ -565,7 +565,7 @@ void DurabilityWarmupTest::testCommittedSyncWrite(DocumentState docState) {
 
     { // scoping vb - is invalid once resetEngineAndWarmup() is called.
         auto vb = engine->getVBucket(vbid);
-        vb->commit(key, item->getBySeqno(), {}, vb->lockCollections(key));
+        vb->commit(key, {}, vb->lockCollections(key));
 
         flush_vbucket_to_disk(vbid, 1);
     }

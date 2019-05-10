@@ -1637,7 +1637,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::commit(
         uint32_t opaque,
         Vbid vbucket,
         const DocKey& key,
-        uint64_t prepared_seqno,
         uint64_t commit_seqno) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);

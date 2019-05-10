@@ -126,14 +126,12 @@ std::ostream& operator<<(std::ostream& os, const DcpResponse& r) {
 
 CommitSyncWrite::CommitSyncWrite(uint32_t opaque,
                                  Vbid vbucket,
-                                 uint64_t preparedSeqno,
                                  uint64_t commitSeqno,
                                  const DocKey& key)
-    /// @todo-durability: Remove key, use pending seqno to identify instead.
     : DcpResponse(Event::Commit, opaque, cb::mcbp::DcpStreamId{}),
       vbucket(vbucket),
       key(key),
-      payload(preparedSeqno, commitSeqno) {
+      payload(commitSeqno) {
 }
 
 uint32_t CommitSyncWrite::getMessageSize() const {

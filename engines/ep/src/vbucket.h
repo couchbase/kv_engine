@@ -1285,8 +1285,6 @@ public:
      * Perform a commit against the given pending Sync Write.
      *
      * @param key Key to commit
-     * @param preparedSeqno The sequence number of the existing pending
-     *                      SyncWrite
      * @param commitSeqno Optional commit sequence number to use for the commit.
      *                    If omitted then a sequence number will be generated
      *                    by the CheckpointManager.
@@ -1295,7 +1293,6 @@ public:
      */
     ENGINE_ERROR_CODE commit(
             const DocKey& key,
-            uint64_t preparedSeqno,
             boost::optional<int64_t> commitSeqno,
             const Collections::VB::Manifest::CachingReadHandle& cHandle,
             const void* cookie = nullptr);

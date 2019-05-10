@@ -333,8 +333,6 @@ struct dcp_message_producers {
      * @param opaque
      * @param vbucket the vbucket the event applies to
      * @param key The key of the committed mutation.
-     * @todo-durability change from identifying by key to the pendingSeqno -
-     * more efficient over the wire.
      * @param commit_seqno The sequence number to commit this mutation at.
      * @return
      */
@@ -735,7 +733,6 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
                                      uint32_t opaque,
                                      Vbid vbucket,
                                      const DocKey& key,
-                                     uint64_t prepared_seqno,
                                      uint64_t commit_seqno) = 0;
     /**
      * Called by the core when it receives a DCP ABORT message over the

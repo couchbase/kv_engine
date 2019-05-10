@@ -2327,7 +2327,7 @@ ENGINE_ERROR_CODE Connection::commit(uint32_t opaque,
                                      Vbid vbucket,
                                      const DocKey& key_,
                                      uint64_t commit_seqno) {
-    cb::mcbp::request::DcpCommitPayload extras(0, commit_seqno);
+    cb::mcbp::request::DcpCommitPayload extras(commit_seqno);
     // @todo-durability: Don't send the key
     auto key = key_;
     if (!isCollectionsSupported()) {
