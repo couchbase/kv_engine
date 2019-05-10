@@ -758,9 +758,13 @@ class MemcachedClient(object):
                 # A scope with no collections is legal
                 pass
 
-    def _encodeDurabilityFlex(self, level=1, timeout=0):
-        # 1st nibble: Object identifier (1)
-        # 2nd nibble: object length (1 if no timeout specified; 3 for timeout)
-        # For simplicity always encode length as 3 and specify timeout even
-        # if default (0).
-        return struct.pack("BBH", ((1<<4) | 3), level, timeout)
+    def _encodeDurabilityFlex(self, level=1, timeout=None):
+        # 1st byte:
+        #   1st nibble: Object identifier (1)
+        #   2nd nibble: object length (1 if no timeout specified; 3 for timeout)
+        # 2nd byte: level
+        # Optional 3rd and 4th bytes: Timeout.
+        if timeout:
+            return struct.pack("BBH", ((1<<4) | 3), level, timeout)
+        else:
+            return struct.pack("BB", ((1<<4) | 1), level)
