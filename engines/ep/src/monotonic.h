@@ -18,7 +18,6 @@
 #pragma once
 
 #include <atomic>
-#include <functional>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -52,6 +51,31 @@ using DefaultOrderReversedPolicy = IgnorePolicy<T>;
 using DefaultOrderReversedPolicy = ThrowExceptionPolicy<T>;
 #endif
 
+namespace cb {
+/**
+ * Function object which returns true if lhs > rhs.
+ * Equivalent to std::greater, but without having to pull in all of <functional>
+ */
+template <typename T>
+struct greater {
+    constexpr bool operator()(const T& lhs, const T& rhs) const {
+        return lhs > rhs;
+    }
+};
+
+/**
+ * Function object which returns true if lhs >= rhs.
+ * Equivalent to std::greater_equal, but without having to pull in all of
+ * <functional>
+ */
+template <typename T>
+struct greater_equal {
+    constexpr bool operator()(const T& lhs, const T& rhs) const {
+        return lhs >= rhs;
+    }
+};
+} // namespace cb
+
 /**
  * Monotonic is a class template for simple types T. It provides guarantee
  * of updating the class objects by only values that are greater than what is
@@ -69,7 +93,7 @@ using DefaultOrderReversedPolicy = ThrowExceptionPolicy<T>;
 template <typename T,
           template <class> class OrderReversedPolicy =
                   DefaultOrderReversedPolicy,
-          template <class> class Invariant = std::greater>
+          template <class> class Invariant = cb::greater>
 class Monotonic : public OrderReversedPolicy<T> {
 public:
     Monotonic(const T val = std::numeric_limits<T>::min()) : val(val) {
@@ -131,8 +155,7 @@ private:
 template <class T,
           template <class> class OrderReversedPolicy =
                   DefaultOrderReversedPolicy>
-using WeaklyMonotonic =
-        Monotonic<T, OrderReversedPolicy, std::greater_equal>;
+using WeaklyMonotonic = Monotonic<T, OrderReversedPolicy, cb::greater_equal>;
 
 /**
  * Variant of the Monotonic class, except that the type T is wrapped in
@@ -141,7 +164,7 @@ using WeaklyMonotonic =
 template <typename T,
           template <class> class OrderReversedPolicy =
                   DefaultOrderReversedPolicy,
-          template <class> class Invariant = std::greater>
+          template <class> class Invariant = cb::greater>
 class AtomicMonotonic : public OrderReversedPolicy<T> {
 public:
     AtomicMonotonic(T val = std::numeric_limits<T>::min()) : val(val) {
@@ -213,4 +236,4 @@ template <class T,
           template <class> class OrderReversedPolicy =
                   DefaultOrderReversedPolicy>
 using WeaklyAtomicMonotonic =
-        AtomicMonotonic<T, OrderReversedPolicy, std::greater_equal>;
+        AtomicMonotonic<T, OrderReversedPolicy, cb::greater_equal>;
