@@ -1,0 +1,89 @@
+/*
+ *     Copyright 2019 Couchbase, Inc
+ *
+ *   Licensed under the Apache License, Version 2.0 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+#include "clustertest.h"
+
+#include "bucket.h"
+#include "cluster.h"
+#include <event2/thread.h>
+#include <protocol/connection/client_connection.h>
+#include <protocol/connection/client_mcbp_commands.h>
+#include <csignal>
+#include <cstdlib>
+#include <string>
+
+class BasicClusterTest : public cb::test::ClusterTest {};
+
+TEST_F(BasicClusterTest, GetReplica) {
+    auto bucket = cluster->getBucket("default");
+    {
+        auto conn = bucket->getConnection(Vbid(0));
+        conn->authenticate("@admin", "password", "PLAIN");
+        conn->selectBucket(bucket->getName());
+        auto info = conn->store("foo", Vbid(0), "value");
+        EXPECT_NE(0, info.cas);
+    }
+
+    // make sure that it is replicated to all the nodes in the
+    // cluster
+    const auto nrep = bucket->getVbucketMap()[0].size() - 1;
+    for (std::size_t rep = 0; rep < nrep; ++rep) {
+        auto conn = bucket->getConnection(Vbid(0), vbucket_state_replica, rep);
+        conn->authenticate("@admin", "password", "PLAIN");
+        conn->selectBucket(bucket->getName());
+
+        BinprotResponse rsp;
+        do {
+            BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::GetReplica);
+            cmd.setVBucket(Vbid(0));
+            cmd.setKey("foo");
+
+            rsp = conn->execute(cmd);
+        } while (rsp.getStatus() == cb::mcbp::Status::KeyEnoent);
+        EXPECT_TRUE(rsp.isSuccess());
+    }
+}
+
+char isasl_env_var[1024];
+int main(int argc, char** argv) {
+    cb_initialize_sockets();
+    evthread_use_pthreads();
+
+    // We need to set MEMCACHED_UNIT_TESTS to enable the use of
+    // the ewouldblock engine..
+    static char envvar[80];
+    snprintf(envvar, sizeof(envvar), "MEMCACHED_UNIT_TESTS=true");
+    putenv(envvar);
+
+    std::string isasl_file_name = SOURCE_ROOT;
+    isasl_file_name.append("/tests/testapp/cbsaslpw.json");
+    std::replace(isasl_file_name.begin(), isasl_file_name.end(), '\\', '/');
+
+    // Add the file to the exec environment
+    snprintf(isasl_env_var,
+             sizeof(isasl_env_var),
+             "CBSASL_PWFILE=%s",
+             isasl_file_name.c_str());
+    putenv(isasl_env_var);
+
+    if (sigignore(SIGPIPE) == -1) {
+        std::cerr << "Fatal: failed to ignore SIGPIPE; sigaction" << std::endl;
+        return 1;
+    }
+
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}

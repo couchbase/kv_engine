@@ -1,0 +1,214 @@
+/*
+ *     Copyright 2019 Couchbase, Inc
+ *
+ *   Licensed under the Apache License, Version 2.0 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+#include "cluster.h"
+#include "bucket.h"
+#include "node.h"
+
+#include <platform/dirutils.h>
+#include <protocol/connection/client_mcbp_commands.h>
+#include <iostream>
+#include <vector>
+
+namespace cb {
+namespace test {
+
+Cluster::~Cluster() = default;
+
+class ClusterImpl : public Cluster {
+public:
+    ClusterImpl() = delete;
+    ClusterImpl(const ClusterImpl&) = delete;
+    ClusterImpl(std::vector<std::unique_ptr<Node>>& nodes, std::string dir)
+        : nodes(std::move(nodes)), directory(std::move(dir)) {
+    }
+
+    ~ClusterImpl() override;
+
+    std::shared_ptr<Bucket> createBucket(
+            const std::string& name, const nlohmann::json& attributes) override;
+
+    void deleteBucket(const std::shared_ptr<Bucket>& bucket) override {
+        throw std::runtime_error("Not implemented");
+    }
+
+    std::shared_ptr<Bucket> getBucket(const std::string& name) const override {
+        for (auto& bucket : buckets) {
+            if (bucket->getName() == name) {
+                return bucket;
+            }
+        }
+
+        return std::shared_ptr<Bucket>();
+    }
+
+    std::unique_ptr<MemcachedConnection> getConnection(
+            size_t node) const override {
+        if (node < nodes.size()) {
+            return nodes[node]->getConnection();
+        }
+        throw std::invalid_argument(
+                "ClusterImpl::getConnection: Invalid node number");
+    }
+
+    size_t size() const override;
+
+protected:
+    std::vector<std::unique_ptr<Node>> nodes;
+    std::vector<std::shared_ptr<Bucket>> buckets;
+    const std::string directory;
+};
+
+std::shared_ptr<Bucket> ClusterImpl::createBucket(
+        const std::string& name, const nlohmann::json& attributes) {
+    size_t vbuckets = 1024;
+    size_t replicas = std::min<size_t>(nodes.size() - 1, 3);
+
+    nlohmann::json json = {{"max_size", 67108864},
+                           {"backend", "couchdb"},
+                           {"couch_bucket", name},
+                           {"max_vbuckets", vbuckets},
+                           {"data_traffic_enabled", false},
+                           {"max_num_workers", 3},
+                           {"conflict_resolution_type", "seqno"},
+                           {"bucket_type", "persistent"},
+                           {"item_eviction_policy", "value_only"},
+                           {"max_ttl", 0},
+                           {"ht_locks", 47},
+                           {"compression_mode", "off"},
+                           {"failpartialwarmup", false}};
+
+    json.update(attributes);
+
+    auto iter = json.find("max_vbuckets");
+    if (iter != json.end()) {
+        vbuckets = iter->get<size_t>();
+    }
+
+    iter = json.find("replicas");
+    if (iter != json.end()) {
+        replicas = iter->get<size_t>();
+        // The underlying bucket don't know about replicas
+        json.erase(iter);
+        if (replicas > nodes.size() - 1) {
+            throw std::invalid_argument(
+                    "ClusterImpl::createBucket: Not enough nodes in the "
+                    "cluster for " +
+                    std::to_string(replicas) + " replicas");
+        }
+    }
+
+    auto bucket = std::make_shared<Bucket>(*this, name, vbuckets, replicas);
+    const auto& vbucketmap = bucket->getVbucketMap();
+    json["uuid"] = bucket->getUuid();
+
+    try {
+        //  @todo I need at least the number of nodes to set active + n replicas
+        for (std::size_t node_idx = 0; node_idx < nodes.size(); ++node_idx) {
+            auto connection = nodes[node_idx]->getConnection();
+            connection->connect();
+            connection->authenticate("@admin", "password", "plain");
+            json["dbname"] = nodes[node_idx]->directory + "/" + name;
+            cb::io::mkdirp(json["dbname"].get<std::string>());
+            json["alog_path"] =
+                    json["dbname"].get<std::string>() + "/access.log";
+            std::string config;
+            for (auto it = json.begin(); it != json.end(); ++it) {
+                if (it.value().is_string()) {
+                    config += it.key() + "=" + it.value().get<std::string>() +
+                              ";";
+                } else {
+                    config += it.key() + "=" + it.value().dump() + ";";
+                }
+            }
+            connection->createBucket(name, config, BucketType::Couchbase);
+            connection->selectBucket(name);
+
+            // iterate over all of the vbuckets and find that node number and
+            // define the vbuckets
+            for (std::size_t vbucket = 0; vbucket < vbucketmap.size();
+                 ++vbucket) {
+                for (std::size_t ii = 0; ii < vbucketmap[vbucket].size();
+                     ++ii) {
+                    if (vbucketmap[vbucket][ii] == int(node_idx)) {
+                        // This is me
+                        connection->setVbucket(Vbid{uint16_t(vbucket)},
+                                               ii == 0 ? vbucket_state_active
+                                                       : vbucket_state_replica,
+                                               {});
+                    }
+                }
+            }
+
+            // Call enable traffic
+            auto rsp = connection->execute(BinprotGenericCommand{
+                    cb::mcbp::ClientOpcode::EnableTraffic});
+            if (!rsp.isSuccess()) {
+                throw ConnectionError("Failed to enable traffic",
+                                      rsp.getStatus());
+            }
+        }
+
+        bucket->setupReplication();
+        buckets.push_back(bucket);
+        return bucket;
+    } catch (const ConnectionError& e) {
+        std::cerr << "ERROR: " << e.what() << std::endl;
+        for (auto& b : nodes) {
+            auto connection = b->getConnection();
+            connection->connect();
+            connection->authenticate("@admin", "password", "plain");
+            try {
+                connection->deleteBucket(name);
+            } catch (const std::exception& e) {
+            }
+        }
+    }
+
+    return {};
+}
+
+size_t ClusterImpl::size() const {
+    return nodes.size();
+}
+ClusterImpl::~ClusterImpl() {
+    buckets.clear();
+    nodes.clear();
+    // @todo I should make this configurable?
+    if (cb::io::isDirectory(directory)) {
+        cb::io::rmrf(directory);
+    }
+}
+
+std::unique_ptr<Cluster> Cluster::create(size_t num_nodes) {
+    auto pattern = cb::io::getcwd() + "/cluster_";
+    cb::io::sanitizePath(pattern);
+    auto clusterdir = cb::io::mkdtemp(pattern);
+
+    std::vector<std::unique_ptr<Node>> nodes;
+    for (size_t n = 0; n < num_nodes; ++n) {
+        const std::string id = "n_" + std::to_string(n);
+        const std::string nodedir = clusterdir + "/" + id;
+
+        cb::io::mkdirp(nodedir);
+        nodes.emplace_back(Node::create(nodedir, id));
+    }
+
+    return std::make_unique<ClusterImpl>(nodes, clusterdir);
+}
+
+} // namespace test
+} // namespace cb
