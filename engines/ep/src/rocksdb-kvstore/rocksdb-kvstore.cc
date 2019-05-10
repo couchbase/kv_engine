@@ -348,6 +348,17 @@ RocksDBKVStore::RocksDBKVStore(RocksDBKVStoreConfig& configuration)
     // Apply the environment rate limit for Flush and Compaction
     dbOptions.rate_limiter = configuration.getEnvRateLimiter();
 
+    // Use a Database (per-shard) write buffer limit.
+    // MB-34129: Temporary, ideally should have the per column-family limits
+    // setup by applyMemtablesQuota but that currently results in the following
+    // asserting firing in Debug builds of RocksDB:
+    //    Assertion failed: (!ShouldScheduleFlush()), function MemTable,
+    //        file ../db/memtable.cc, line 110.
+    const auto perShardMemTablesQuota = configuration.getBucketQuota() /
+                                        configuration.getMaxShards() *
+                                        configuration.getMemtablesRatio();
+    dbOptions.db_write_buffer_size = perShardMemTablesQuota;
+
     // Allocate the per-shard Block Cache
     if (configuration.getBlockCacheRatio() > 0.0) {
         auto blockCacheQuota = configuration.getBucketQuota() *
@@ -372,12 +383,6 @@ RocksDBKVStore::RocksDBKVStore(RocksDBKVStoreConfig& configuration)
     // Open the DB and load the ColumnFamilyHandle for all the
     // existing Column Families (populates the 'vbHandles' vector)
     openDB();
-
-    // Calculate and apply the correct write_buffer_size for all Column
-    // Families. The Memtable size of each CF depends on the count of existing
-    // CFs in DB (besides other things). Thus, this must be called after
-    // 'openDB' (so that all the existing CFs have been loaded).
-    applyMemtablesQuota(std::lock_guard<std::mutex>(vbhMutex));
 
     // Read persisted VBs state
     for (const auto vbh : vbHandles) {
@@ -522,10 +527,6 @@ std::shared_ptr<VBHandle> RocksDBKVStore::getVBHandle(Vbid vbid) {
 
     vbHandles[vbid.get()] =
             std::make_shared<VBHandle>(*rdb, handles[0], handles[1], vbid);
-
-    // The number of VBuckets has increased, we need to re-balance the
-    // Memtables Quota among the CFs of existing VBuckets.
-    applyMemtablesQuota(lg);
 
     return vbHandles[vbid.get()];
 }
@@ -807,10 +808,6 @@ void RocksDBKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
         // Drop all the CF for vbid.
         sharedPtr->dropColumnFamilies();
     }
-
-    // The number of VBuckets has decreased, we need to re-balance the
-    // Memtables Quota among the CFs of existing VBuckets.
-    applyMemtablesQuota(lg2);
 }
 
 bool RocksDBKVStore::snapshotVBucket(Vbid vbucketId,
@@ -1669,6 +1666,8 @@ bool RocksDBKVStore::getStatFromProperties(ColumnFamily cf,
     return true;
 }
 
+// NOTE: THIS FUNCTION IS CURRENTLY NOT USED - see MB-34129
+//
 // As we implement a VBucket as a pair of two Column Families (a 'default' CF
 // and a 'local+seqno' CF), we need to re-set the 'write_buffer_size' for each
 // CF when the number of VBuckets managed by the current store changes. The
