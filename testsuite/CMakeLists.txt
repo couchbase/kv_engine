@@ -1,3 +1,5 @@
+add_compile_options_disable_optimization()
+
 ADD_SUBDIRECTORY(basic)
 # Under threadsanitizer these tests are pretty slow, and they don't
 # really expose anything interesting from a threading pov, so skip

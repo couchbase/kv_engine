@@ -1,3 +1,5 @@
+add_compile_options_disable_optimization()
+
 ADD_LIBRARY(mock_dcp OBJECT mock/mock_dcp.cc)
 SET_PROPERTY(TARGET mock_dcp PROPERTY POSITION_INDEPENDENT_CODE 1)
 add_sanitizers(mock_dcp)
