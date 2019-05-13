@@ -146,6 +146,28 @@ void PassiveDurabilityMonitor::notifyLocalPersistence() {
     }
 }
 
+void PassiveDurabilityMonitor::commit(const StoredDocKey& key) {
+    auto s = state.wlock();
+
+    if (s->trackedWrites.empty()) {
+        throw std::logic_error(
+                "PassiveDurabilityMonitor::commit: No tracked, but received "
+                "commit for key " +
+                key.to_string());
+    }
+
+    // Sanity check for In-Order Commit
+    const auto& front = s->trackedWrites.front();
+    if (front.getKey() != key) {
+        std::stringstream ss;
+        ss << "Pending commit for '" << front
+           << "', but received unexpected commit for key " << key;
+        throw std::logic_error("PassiveDurabilityMonitor::commit: " + ss.str());
+    }
+
+    s->removeFront();
+}
+
 void PassiveDurabilityMonitor::toOStream(std::ostream& os) const {
     os << "PassiveDurabilityMonitor[" << this << "]"
        << " high_prepared_seqno:" << getHighPreparedSeqno();
@@ -200,4 +222,16 @@ void PassiveDurabilityMonitor::State::updateHighPreparedSeqno() {
 
         updateHPS(next);
     }
+}
+
+void PassiveDurabilityMonitor::State::removeFront() {
+    // In PassiveDM we have just one iterator pointing to items in the tracked
+    // Container: the HPS. Ensure that the iterator is never invalid by pointing
+    // it to Container::end if the underlying item is removed.
+    auto begin = trackedWrites.begin();
+    if (begin == highPreparedSeqno.it) {
+        highPreparedSeqno.it = trackedWrites.end();
+    }
+
+    trackedWrites.erase(begin);
 }

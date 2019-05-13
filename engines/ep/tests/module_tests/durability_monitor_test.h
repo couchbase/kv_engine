@@ -100,6 +100,15 @@ protected:
                                  int64_t expectedHPS);
 
     /**
+     * Check the number of tracked Prepares and the HPS in DurabilityMonitor.
+     *
+     * @param expectedNumTracked
+     * @param expectedHPS
+     */
+    void assertNumTrackedAndHPS(const size_t expectedNumTracked,
+                                const int64_t expectedHPS) const;
+
+    /**
      * Notify the persistedSeqno to the DM and check that High Prepared Seqno
      * has been updated as expected.
      *
@@ -368,6 +377,9 @@ class PassiveDurabilityMonitorTest : public DurabilityMonitorTest {
 public:
     void SetUp() override;
     void TearDown() override;
+
+protected:
+    PassiveDurabilityMonitor& getPassiveDM() const;
 };
 
 /*

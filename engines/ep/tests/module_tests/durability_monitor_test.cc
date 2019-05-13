@@ -1381,6 +1381,10 @@ void PassiveDurabilityMonitorTest::TearDown() {
     STParameterizedBucketTest::TearDown();
 }
 
+PassiveDurabilityMonitor& PassiveDurabilityMonitorTest::getPassiveDM() const {
+    return dynamic_cast<PassiveDurabilityMonitor&>(*monitor);
+}
+
 TEST_P(PassiveDurabilityMonitorTest, AddSyncWrite) {
     ASSERT_EQ(0, monitor->getNumTracked());
     using namespace cb::durability;
@@ -1411,8 +1415,13 @@ void DurabilityMonitorTest::addSyncWriteAndCheckHPS(
     // as active should have already set it to an explicit value).
     cb::durability::Timeout timeout(10);
     addSyncWrites(seqnos, cb::durability::Requirements{level, timeout});
-    EXPECT_EQ(expectedNumTracked, monitor->getNumTracked());
-    EXPECT_EQ(expectedHPS, monitor->getHighPreparedSeqno());
+    assertNumTrackedAndHPS(expectedNumTracked, expectedHPS);
+}
+
+void DurabilityMonitorTest::assertNumTrackedAndHPS(
+        const size_t expectedNumTracked, const int64_t expectedHPS) const {
+    ASSERT_EQ(expectedNumTracked, monitor->getNumTracked());
+    ASSERT_EQ(expectedHPS, monitor->getHighPreparedSeqno());
 }
 
 void DurabilityMonitorTest::notifyPersistenceAndCheckHPS(int64_t persistedSeqno,
@@ -1423,8 +1432,7 @@ void DurabilityMonitorTest::notifyPersistenceAndCheckHPS(int64_t persistedSeqno,
 }
 
 void DurabilityMonitorTest::testHPS_Majority() {
-    ASSERT_EQ(0, monitor->getNumTracked());
-    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+    assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
                             cb::durability::Level::Majority,
@@ -1441,9 +1449,62 @@ TEST_P(ActiveDurabilityMonitorTest, HPS_Majority) {
     testHPS_Majority();
 }
 
+/*
+ * Simulate and verify that:
+ * 1) PDM queues some Prepares
+ * 2) PDM is notified of Commit for the tracked Prepares
+ * 3) The Prepares are removed from tracking
+ */
+TEST_P(PassiveDurabilityMonitorTest, Commit) {
+    assertNumTrackedAndHPS(0, 0);
+
+    // PassiveDM doesn't track anything yet, no commit expected
+    auto& pdm = getPassiveDM();
+    auto thrown{false};
+    try {
+        pdm.commit(makeStoredDocKey("akey"));
+    } catch (const std::logic_error& e) {
+        EXPECT_TRUE(std::string(e.what()).find(
+                            "No tracked, but received commit for key") !=
+                    std::string::npos);
+        thrown = true;
+    }
+    if (!thrown) {
+        FAIL();
+    }
+
+    const std::vector<int64_t> seqnos{1, 2, 3};
+    addSyncWriteAndCheckHPS(seqnos,
+                            cb::durability::Level::Majority,
+                            seqnos.back() /*expectHPS*/);
+    ASSERT_EQ(seqnos.size(), monitor->getNumTracked());
+
+    // A negative check first: we must enforce In-Order Commit at Active, so
+    // Replica expects a commit for s:1 at this point.
+    thrown = false;
+    try {
+        pdm.commit(makeStoredDocKey("key2"));
+    } catch (const std::logic_error& e) {
+        EXPECT_TRUE(std::string(e.what()).find(
+                            "received unexpected commit for key") !=
+                    std::string::npos);
+        thrown = true;
+    }
+    if (!thrown) {
+        FAIL();
+    }
+
+    // Commit all Prepares now
+    uint8_t numTracked = monitor->getNumTracked();
+    for (const auto s : seqnos) {
+        pdm.commit(makeStoredDocKey("key" + std::to_string(s)));
+        EXPECT_EQ(--numTracked, monitor->getNumTracked());
+    }
+    EXPECT_EQ(0, monitor->getNumTracked());
+}
+
 TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_MajorityAndPersistOnMaster) {
-    ASSERT_EQ(0, monitor->getNumTracked());
-    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+    assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
                             cb::durability::Level::MajorityAndPersistOnMaster,
@@ -1453,8 +1514,7 @@ TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_MajorityAndPersistOnMaster) {
 }
 
 TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_MajorityAndPersistOnMaster) {
-    ASSERT_EQ(0, monitor->getNumTracked());
-    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+    assertNumTrackedAndHPS(0, 0);
 
     const std::vector<int64_t> seqnos{1, 2, 3};
     addSyncWriteAndCheckHPS(seqnos,
@@ -1467,8 +1527,7 @@ TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_MajorityAndPersistOnMaster) {
 }
 
 void DurabilityMonitorTest::testHPS_PersistToMajority() {
-    ASSERT_EQ(0, monitor->getNumTracked());
-    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+    assertNumTrackedAndHPS(0, 0);
 
     const std::vector<int64_t> seqnos{1, 2, 3};
     addSyncWriteAndCheckHPS(seqnos,
@@ -1490,8 +1549,7 @@ TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_PersistToMajority) {
 
 TEST_P(PassiveDurabilityMonitorPersistentTest,
        HPS_MajorityAndPersistOnMajority_Majority) {
-    ASSERT_EQ(0, monitor->getNumTracked());
-    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+    assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
                             cb::durability::Level::MajorityAndPersistOnMaster,
@@ -1504,8 +1562,7 @@ TEST_P(PassiveDurabilityMonitorPersistentTest,
 
 TEST_P(ActiveDurabilityMonitorPersistentTest,
        HPS_MajorityAndPersistOnMajority_Majority) {
-    ASSERT_EQ(0, monitor->getNumTracked());
-    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+    assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
                             cb::durability::Level::MajorityAndPersistOnMaster,
@@ -1520,8 +1577,7 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
 
 TEST_P(PassiveDurabilityMonitorPersistentTest,
        HPS_Majority_MajorityAndPersistOnMajority) {
-    ASSERT_EQ(0, monitor->getNumTracked());
-    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+    assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 7, 1000} /*seqnos*/,
                             cb::durability::Level::Majority,
@@ -1534,8 +1590,7 @@ TEST_P(PassiveDurabilityMonitorPersistentTest,
 
 TEST_P(ActiveDurabilityMonitorPersistentTest,
        HPS_Majority_MajorityAndPersistOnMajority) {
-    ASSERT_EQ(0, monitor->getNumTracked());
-    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+    assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 7, 1000} /*seqnos*/,
                             cb::durability::Level::Majority,
@@ -1552,8 +1607,7 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
 }
 
 void DurabilityMonitorTest::testHPS_PersistToMajority_Majority() {
-    ASSERT_EQ(0, monitor->getNumTracked());
-    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+    assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
                             cb::durability::Level::PersistToMajority,
@@ -1581,8 +1635,7 @@ TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_PersistToMajority_Majority) {
 }
 
 void DurabilityMonitorTest::testHPS_Majority_PersistToMajority() {
-    ASSERT_EQ(0, monitor->getNumTracked());
-    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+    assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 999, 1001} /*seqnos*/,
                             cb::durability::Level::Majority,
@@ -1609,8 +1662,7 @@ TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_Majority_PersistToMajority) {
 
 TEST_P(PassiveDurabilityMonitorPersistentTest,
        HPS_PersistToMajority_MajorityAndPersistOnMaster) {
-    ASSERT_EQ(0, monitor->getNumTracked());
-    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+    assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
                             cb::durability::Level::PersistToMajority,
@@ -1631,8 +1683,7 @@ TEST_P(PassiveDurabilityMonitorPersistentTest,
 
 TEST_P(ActiveDurabilityMonitorPersistentTest,
        HPS_PersistToMajority_MajorityAndPersistOnMaster) {
-    ASSERT_EQ(0, monitor->getNumTracked());
-    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+    assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
                             cb::durability::Level::PersistToMajority,
@@ -1653,8 +1704,7 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
 
 TEST_P(PassiveDurabilityMonitorPersistentTest,
        HPS_MajorityAndPersistOnMaster_PersistToMajority) {
-    ASSERT_EQ(0, monitor->getNumTracked());
-    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+    assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 999, 1001} /*seqnos*/,
                             cb::durability::Level::MajorityAndPersistOnMaster,
@@ -1673,8 +1723,7 @@ TEST_P(PassiveDurabilityMonitorPersistentTest,
 
 TEST_P(ActiveDurabilityMonitorPersistentTest,
        HPS_MajorityAndPersistOnMaster_PersistToMajority) {
-    ASSERT_EQ(0, monitor->getNumTracked());
-    ASSERT_EQ(0, monitor->getHighPreparedSeqno());
+    assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 999, 1001} /*seqnos*/,
                             cb::durability::Level::MajorityAndPersistOnMaster,

@@ -68,6 +68,13 @@ public:
 
     void notifyLocalPersistence() override;
 
+    /**
+     * Commit the given Prepare, i.e. remove it from tracking.
+     *
+     * @param key The key of the Prepare to be removed
+     */
+    void commit(const StoredDocKey& key);
+
 protected:
     void toOStream(std::ostream& os) const override;
 
@@ -119,6 +126,11 @@ protected:
          * implicitly moved as well).
          */
         void updateHighPreparedSeqno();
+
+        /**
+         * Remove the first (front) SyncWrite in the tracked Container.
+         */
+        void removeFront();
 
         /// The container of pending Prepares.
         Container trackedWrites;
