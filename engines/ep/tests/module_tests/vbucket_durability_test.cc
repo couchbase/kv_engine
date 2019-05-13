@@ -200,6 +200,64 @@ TEST_P(VBucketDurabilityTest, Active_AddPrepareAndCommit_SparseMixedSeqnos) {
     testAddPrepareAndCommit({{1, true}, 3, {10, true}, {20, true}, 30});
 }
 
+TEST_P(VBucketDurabilityTest, CommitSyncWriteThenWriteToSameKey) {
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "valueB");
+
+    using namespace cb::durability;
+    auto reqs = Requirements{Level::Majority, Timeout::Infinity()};
+    pending->setPendingSyncWrite(reqs);
+
+    VBQueueItemCtx ctx;
+    ctx.durability = DurabilityItemCtx{reqs, cookie};
+
+    ASSERT_EQ(MutationStatus::WasClean,
+              public_processSet(*pending, 0 /*cas*/, ctx));
+
+    auto item = makeCommittedItem(key, "value");
+    ctx.durability = {};
+    ASSERT_EQ(MutationStatus::IsPendingSyncWrite,
+              public_processSet(*item, 0 /*cas*/, ctx));
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vbucket->commit(key, {}, vbucket->lockCollections(key), cookie));
+
+    // Do a normal mutation
+    EXPECT_EQ(MutationStatus::WasDirty,
+              public_processSet(*item, 0 /*cas*/, ctx));
+
+    // And another prepare
+    ctx.durability = DurabilityItemCtx{reqs, cookie};
+    EXPECT_EQ(MutationStatus::WasClean,
+              public_processSet(*pending, 0 /*cas*/, ctx));
+}
+
+TEST_P(VBucketDurabilityTest, CommitSyncWriteLoop) {
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "valueB");
+
+    using namespace cb::durability;
+    auto reqs = Requirements{Level::Majority, Timeout::Infinity()};
+    pending->setPendingSyncWrite(reqs);
+
+    // Do 3 iterations. Why? The 1st and second iterations take different paths
+    // (add vs update) so we want to verify everything is correct with the 3rd.
+    for (int i = 0; i < 3; i++) {
+        VBQueueItemCtx ctx;
+        ctx.durability = DurabilityItemCtx{reqs, cookie};
+
+        ASSERT_EQ(MutationStatus::WasClean,
+                  public_processSet(*pending, 0 /*cas*/, ctx));
+        auto item = makeCommittedItem(key, "value" + std::to_string(i));
+        ctx.durability = {};
+        ASSERT_EQ(MutationStatus::IsPendingSyncWrite,
+                  public_processSet(*item, 0 /*cas*/, ctx));
+        ASSERT_EQ(ENGINE_SUCCESS,
+                  vbucket->commit(
+                          key, {}, vbucket->lockCollections(key), cookie));
+    }
+}
+
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(
         AllVBTypesAllEvictionModes,
