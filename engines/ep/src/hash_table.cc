@@ -770,30 +770,56 @@ void HashTable::unlocked_del(const HashBucketLock& hbl, const DocKey& key) {
     unlocked_release(hbl, key).reset();
 }
 
+void HashTable::unlocked_del(
+        const HashBucketLock& hbl,
+        StoredValue* value) {
+    unlocked_release(hbl, value).reset();
+}
+
 StoredValue::UniquePtr HashTable::unlocked_release(
         const HashBucketLock& hbl, const DocKey& key) {
+    // Remove the first (should only be one) StoredValue with the given key.
+    auto releasePredicate = [&key](const StoredValue* v) {
+        return v->hasKey(key);
+    };
+    return unlocked_release_inner(hbl, releasePredicate);
+}
+
+StoredValue::UniquePtr HashTable::unlocked_release(
+        const HashBucketLock& hbl,
+        StoredValue* valueToRelease) {
+    // Remove the first (should only be one) StoredValue matching the given
+    // pointer
+    auto releasePredicate = [&valueToRelease](const StoredValue* v) {
+        return v == valueToRelease;
+    };
+    return unlocked_release_inner(hbl, releasePredicate);
+}
+
+template <typename Pred>
+StoredValue::UniquePtr HashTable::unlocked_release_inner(
+        const HashBucketLock& hbl, Pred& releasePredicate) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
-                "HashTable::unlocked_release: htLock "
-                "not held");
+                "HashTable::unlocked_release_base: htLock not held");
     }
 
     if (!isActive()) {
         throw std::logic_error(
-                "HashTable::unlocked_release: Cannot call on a "
+                "HashTable::unlocked_release_base: Cannot call on a "
                 "non-active object");
     }
 
-    // Remove the first (should only be one) StoredValue with the given key.
+    // Remove the first (should only be one) StoredValue that matches the given
+    // releasePredicate
     auto released = hashChainRemoveFirst(
-            values[hbl.getBucketNum()],
-            [key](const StoredValue* v) { return v->hasKey(key); });
+            values[hbl.getBucketNum()], releasePredicate);
 
     if (!released) {
         /* We shouldn't reach here, we must delete the StoredValue in the
            HashTable */
         throw std::logic_error(
-                "HashTable::unlocked_release: StoredValue to be released "
+                "HashTable::unlocked_release_base: StoredValue to be released "
                 "not found in HashTable; possibly HashTable leak");
     }
 

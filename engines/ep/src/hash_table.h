@@ -952,7 +952,17 @@ public:
      * @param hbl HashBucketLock that must be held
      * @param key the key to delete
      */
-    void unlocked_del(const HashBucketLock& hbl, const DocKey& key);
+    void unlocked_del(
+            const HashBucketLock& hbl,
+            const DocKey& key);
+
+    /**
+     * Same as above overload but takes a StoredValue pointer instead of key to
+     * compare
+     */
+    void unlocked_del(
+            const HashBucketLock& hbl,
+            StoredValue* value);
 
     /**
      * Visit all items within this hashtable.
@@ -1072,8 +1082,17 @@ public:
      *
      * @return the StoredValue that is removed from the HT
      */
-    StoredValue::UniquePtr unlocked_release(const HashBucketLock& hbl,
-                                                  const DocKey& key);
+    StoredValue::UniquePtr unlocked_release(
+            const HashBucketLock& hbl,
+            const DocKey& key);
+
+    /**
+     * Same as above overload but takes a StoredValue pointer instead of key to
+     * compare
+     */
+    StoredValue::UniquePtr unlocked_release(
+            const HashBucketLock& hbl,
+            StoredValue* valueToRelease);
 
     /**
      * Insert an item during Warmup into the HashTable.
@@ -1240,6 +1259,28 @@ private:
     }
 
     std::unique_ptr<Item> getRandomKeyFromSlot(int slot);
+
+    /**
+     * Releases an item(StoredValue) in the hash table, but does not delete it.
+     * It will pass out the removed item to the caller who can decide whether to
+     * delete it or not.
+     * Once removed the item will not be found if we look in the HT later, even
+     * if the item is not deleted. Hence the deletion of this
+     * removed StoredValue must be handled by another (maybe calling) module.
+     * Assumes that the hash bucket lock is already held.
+     *
+     * @param hbl HashBucketLock that must be held
+     * @param releasePredicate A predicate that returns true for the value to be
+     *                         deleted.
+     *                         The signature of the predicate function should be
+     *                         equivalent to the following:
+     *                                bool pred(const StoredValue* a);
+     *
+     * @return the StoredValue that is removed from the HT
+     */
+    template <typename Pred>
+    StoredValue::UniquePtr unlocked_release_inner(const HashBucketLock& hbl,
+                                                  Pred& releasePredicate);
 
     /** Searches for the first element in the specified hashChain which matches
      * predicate p, and unlinks it from the chain.
