@@ -764,8 +764,8 @@ ENGINE_ERROR_CODE VBucket::commit(
         boost::optional<int64_t> commitSeqno,
         const Collections::VB::Manifest::CachingReadHandle& cHandle,
         const void* cookie) {
-    auto htRes = ht.findForWrite(key);
-    if (!htRes.storedValue) {
+    auto res = ht.findForWrite(HashTable::StoredValueProxy::RetSVPTag{}, key);
+    if (!res) {
         // If we are committing we /should/ always find the pending item.
         EP_LOG_WARN(
                 "VBucket::commit ({}) failed as no HashTable item found with "
@@ -775,11 +775,11 @@ ENGINE_ERROR_CODE VBucket::commit(
         return ENGINE_KEY_ENOENT;
     }
 
-    if (htRes.storedValue->getCommitted() != CommittedState::Pending) {
+    if (res->getCommitted() != CommittedState::Pending) {
         // We should always find a pending item when committing; if not
         // this is a logic error...
         std::stringstream ss;
-        ss << *htRes.storedValue;
+        ss << *res;
         EP_LOG_WARN(
                 "VBucket::commit ({}) failed as HashTable value is not "
                 "CommittedState::Pending - {}",
@@ -789,14 +789,13 @@ ENGINE_ERROR_CODE VBucket::commit(
     }
 
     // Value for Pending must never be ejected
-    Expects(htRes.storedValue->isResident());
+    Expects(res->isResident());
 
     VBQueueItemCtx queueItmCtx;
     if (commitSeqno) {
         queueItmCtx.genBySeqno = GenerateBySeqno::No;
     }
-    auto notify = commitStoredValue(
-            htRes.lock, *htRes.storedValue, queueItmCtx, commitSeqno);
+    auto notify = commitStoredValue(res, queueItmCtx, commitSeqno);
 
     notifyNewSeqno(notify);
     doCollectionsStats(cHandle, notify);

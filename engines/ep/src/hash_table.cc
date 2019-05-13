@@ -85,6 +85,19 @@ std::ostream& operator<<(std::ostream& os, const HashTable::Position& pos) {
     return os;
 }
 
+HashTable::StoredValueProxy::StoredValueProxy(HashBucketLock&& hbl,
+                                              StoredValue* sv,
+                                              Statistics& stats)
+    : lock(std::move(hbl)),
+      value(sv),
+      valueStats(stats),
+      pre(valueStats.prologue(sv)) {
+}
+
+HashTable::StoredValueProxy::~StoredValueProxy() {
+    valueStats.epilogue(pre, value);
+}
+
 HashTable::HashTable(EPStats& st,
                      std::unique_ptr<AbstractStoredValueFactory> svFactory,
                      size_t initialSize,
@@ -342,6 +355,10 @@ void HashTable::commit(const HashTable::HashBucketLock& hbl, StoredValue& v) {
 
     // Update stats for pending -> Committed item
     valueStats.epilogue(pendingPreProps, &v);
+}
+
+void HashTable::commit(StoredValueProxy& p) {
+    commit(p.getHBL(), *p.getSV());
 }
 
 void HashTable::abort(const HashBucketLock& hbl, StoredValue& v) {
@@ -739,6 +756,15 @@ HashTable::FindResult HashTable::findForWrite(const DocKey& key,
         return {nullptr, std::move(result.lock)};
     }
     return {sv, std::move(result.lock)};
+}
+
+HashTable::StoredValueProxy HashTable::findForWrite(StoredValueProxy::RetSVPTag,
+                                                    const DocKey& key,
+                                                    WantsDeleted wantsDeleted) {
+    auto result =
+            find(key, TrackReference::No, wantsDeleted, Perspective::Pending);
+    return StoredValueProxy(
+            std::move(result.lock), result.storedValue, valueStats);
 }
 
 void HashTable::unlocked_del(const HashBucketLock& hbl, const DocKey& key) {

@@ -645,6 +645,88 @@ public:
     };
 
     /**
+     * The motivation behind the StoredValueProxy class is to allow users of the
+     * HashTable to interact more directly with StoredValues without breaking
+     * things in the HashTable such as stats. Notably, a StoredValueProxy will
+     * always call valueStats.prologue(...) and valueStats.epilogue(...) in the
+     * constructor and destructor respectively. StoredValueProxy is a non-owning
+     * handle on a StoredValue.
+     *
+     * You might ask the question, why don't we just create functions in the
+     * HashTable for everything that we may wish to do? That becomes
+     * unmanageable when you have multiple users wishing to do "something" but
+     * in a different way. Consider SyncWrites in EP and Ephemeral buckets. In
+     * EP buckets, to commit a SyncWrite you convert the existing prepare value
+     * to a committed one. In Ephemeral buckets this is not possible due to the
+     * range read mechanism. To prevent blocking all SyncWrites on range reads,
+     * we allow pending and committed SyncWrites to exist in the HashTable for
+     * the same key. This means that performing a commit should differ in
+     * implementation for EP and Ephemeral buckets. Having a "commitEP" and
+     * "commitEphemeral" method on HashTable would soon spiral out of control.
+     * Instead, just allow the caller to do what they need to, but in a more
+     * managed way.
+     */
+    class StoredValueProxy {
+    public:
+        // Tag used for overload resolution while we migrate to using
+        // StoredValueProxy's in HashTable.
+        struct RetSVPTag {};
+
+        StoredValueProxy(HashBucketLock&& hbl,
+                         StoredValue* sv,
+                         Statistics& stats);
+
+        ~StoredValueProxy();
+
+        // Copy is not allowed.
+        StoredValueProxy(const StoredValueProxy& other) = delete;
+        StoredValueProxy& operator=(const StoredValueProxy& other) = delete;
+
+        // But move is.
+        StoredValueProxy(StoredValueProxy&&) = default;
+        StoredValueProxy& operator=(StoredValueProxy&&) = default;
+
+        // Any read only access is okay, allow this via the -> and * operators.
+        const StoredValue* operator->() const {
+            return value;
+        }
+
+        // Caller must have ensured that this is a valid StoredValueProxy (maps
+        // to a real item in the hash table) or a pre-condition will throw.
+        const StoredValue& operator*() const {
+            Expects(value);
+            return *value;
+        }
+
+        // If the StoredValue is a nullptr then the StoredValueProxy is invalid.
+        operator bool() const {
+            return value;
+        }
+
+        // @TODO Ideally we want to remove getSV() to force all users to use the
+        //  rest of the interface defined by the class. This is a substantial
+        //  refactor though because of functions like VBucket::queueDirty so
+        //  we'll come back to that later.
+        StoredValue* getSV() {
+            return value;
+        }
+
+        HashBucketLock& getHBL() {
+            return lock;
+        }
+
+        void setBySeqno(int64_t newSeqno) {
+            value->setBySeqno(newSeqno);
+        }
+
+    private:
+        HashBucketLock lock;
+        StoredValue* value;
+        Statistics& valueStats;
+        Statistics::StoredValueProperties pre;
+    };
+
+    /**
      * Find an item with the specified key for write access.
      *
      * Does not modify referenced status, as typically the lookup of a SV to
@@ -668,6 +750,12 @@ public:
      */
     FindResult findForWrite(const DocKey& key,
                             WantsDeleted wantsDeleted = WantsDeleted::Yes);
+
+    /// @return Overload of above function returning a StoredValueProxy
+    StoredValueProxy findForWrite(
+            StoredValueProxy::RetSVPTag,
+            const DocKey& key,
+            WantsDeleted wantsDeleted = WantsDeleted::Yes);
 
     /**
      * Find a resident item
@@ -694,6 +782,15 @@ public:
      * @param v Reference to the StoredValue to be committed.
      */
     void commit(const HashBucketLock& hbl, StoredValue& v);
+
+    /**
+     * Commit a pending SyncWrite; marking it at committed and removing any
+     * existing Committed item with the same key.
+     *
+     * @param p StoredValueProxy containing HashBucketLock and StoredValue to
+     *          commit.
+     */
+    void commit(StoredValueProxy& p);
 
     /**
      * Abort a pending SyncWrite, i.e. remove the existing Pending StoredValue.

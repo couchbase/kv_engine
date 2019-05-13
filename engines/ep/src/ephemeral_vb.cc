@@ -627,8 +627,7 @@ EphemeralVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
 }
 
 VBNotifyCtx EphemeralVBucket::commitStoredValue(
-        const HashTable::HashBucketLock& hbl,
-        StoredValue& v,
+        HashTable::StoredValueProxy& prepared,
         const VBQueueItemCtx& queueItmCtx,
         boost::optional<int64_t> commitSeqno) {
     // @todo-durability: Implement this.
