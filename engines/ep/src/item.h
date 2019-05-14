@@ -422,6 +422,11 @@ public:
         return op == queue_op::pending_sync_write;
     }
 
+    /// Returns if this is a durable Commit
+    bool isCommitSyncWrite() const {
+        return op == queue_op::commit_sync_write;
+    }
+
     /// Returns if this is a durable Abort
     bool isAbort() const {
         return op == queue_op::abort_sync_write;

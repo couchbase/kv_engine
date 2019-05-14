@@ -93,8 +93,10 @@ protected:
      * owning VBucket is in the given state.
      *
      * @param state The state for VBucket
+     * @param writes The Prepares to be queued
      */
-    void testAddPrepareInPassiveDM(vbucket_state_t state);
+    void testAddPrepareInPassiveDM(vbucket_state_t state,
+                                   const std::vector<SyncWriteSpec>& writes);
 
     /**
      * Tests that the PassiveDM is correctly converted to ActiveDM when a
@@ -103,6 +105,14 @@ protected:
      * @param initialState The initial state for VBucket
      */
     void testConvertPassiveDMToActiveDM(vbucket_state_t initialState);
+
+    /**
+     * Tests that the PassiveDM behaves correctly when VBucket notifies the
+     * PassiveDM of Commit received.
+     *
+     * @param initialState The initial state for VBucket
+     */
+    void testPassiveDMCommit(vbucket_state_t initialState);
 
     // All owned by VBucket
     HashTable* ht;

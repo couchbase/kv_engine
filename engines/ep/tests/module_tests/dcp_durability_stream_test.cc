@@ -20,6 +20,7 @@
 #include "checkpoint_utils.h"
 #include "dcp/response.h"
 #include "dcp_utils.h"
+#include "durability/durability_monitor.h"
 #include "test_helpers.h"
 
 #include "../mock/mock_dcp_consumer.h"
@@ -517,10 +518,90 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
     EXPECT_TRUE((*it)->getValue());
     EXPECT_EQ(value, (*it)->getValue()->to_s());
     EXPECT_EQ(1, (*it)->getBySeqno());
+
+    EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
 }
 
 TEST_P(DurabilityPassiveStreamTest, ReceiveDcpPrepare) {
     testReceiveDcpPrepare();
+}
+
+/*
+ * This test checks that a DCP Consumer receives and processes correctly a
+ * DCP_COMMIT message.
+ */
+TEST_P(DurabilityPassiveStreamTest, ReceiveDcpCommit) {
+    // First, simulate the Consumer receiving a Prepare
+    testReceiveDcpPrepare();
+    auto vb = engine->getVBucket(vbid);
+    const uint64_t prepareSeqno = 1;
+    const auto key = makeStoredDocKey("key_" + std::to_string(prepareSeqno));
+    {
+        const auto sv = vb->ht.findForWrite(key);
+        ASSERT_TRUE(sv.storedValue);
+        ASSERT_EQ(CommittedState::Pending, sv.storedValue->getCommitted());
+        ASSERT_EQ(prepareSeqno, sv.storedValue->getBySeqno());
+    }
+
+    // At Replica we don't expect multiple Durability items (for the same key)
+    // within the same snapshot. That is because the Active prevents that for
+    // avoiding de-duplication.
+    // So, we need to simulate a Producer sending another SnapshotMarker with
+    // the MARKER_FLAG_CHK set before the Consumer receives the Commit. That
+    // will force the Consumer closing the open checkpoint (which Contains the
+    // Prepare) and creating a new open one for queueing the Commit.
+    uint32_t opaque = 0;
+    SnapshotMarker marker(
+            opaque,
+            vbid,
+            2 /*snapStart*/,
+            2 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // 2 checkpoints
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *vb->checkpointManager);
+    ASSERT_EQ(2, ckptList.size());
+    auto* ckpt = ckptList.front().get();
+    ASSERT_EQ(checkpoint_state::CHECKPOINT_CLOSED, ckpt->getState());
+    ckpt = ckptList.back().get();
+    ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
+    ASSERT_EQ(0, ckpt->getNumItems());
+
+    // Now simulate the Consumer receiving Commit for that Prepare
+    auto commitSeqno = prepareSeqno + 1;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<CommitSyncWrite>(
+                      opaque, vbid, commitSeqno, key)));
+
+    EXPECT_EQ(1, vb->ht.getNumItems());
+    {
+        const auto sv = vb->ht.findForWrite(key).storedValue;
+        EXPECT_TRUE(sv);
+        EXPECT_EQ(CommittedState::CommittedViaPrepare, sv->getCommitted());
+        ASSERT_TRUE(vb->ht.findForWrite(key).storedValue);
+    }
+
+    // empty-item
+    auto it = ckpt->begin();
+    ASSERT_EQ(queue_op::empty, (*it)->getOperation());
+    // 1 metaitem (checkpoint-start)
+    it++;
+    ASSERT_EQ(1, ckpt->getNumMetaItems());
+    EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
+    // 1 non-metaitem is Commit and contains the expected value
+    it++;
+    ASSERT_EQ(1, ckpt->getNumItems());
+    EXPECT_EQ(queue_op::commit_sync_write, (*it)->getOperation());
+    EXPECT_EQ(key, (*it)->getKey());
+    EXPECT_TRUE((*it)->getValue());
+    EXPECT_EQ("value", (*it)->getValue()->to_s());
+    EXPECT_EQ(commitSeqno, (*it)->getBySeqno());
+
+    EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
 }
 
 /*

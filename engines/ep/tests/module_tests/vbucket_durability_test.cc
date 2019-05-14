@@ -739,21 +739,22 @@ TEST_P(VBucketDurabilityTest, Active_ParallelSet) {
     }
 }
 
-void VBucketDurabilityTest::testAddPrepareInPassiveDM(vbucket_state_t state) {
+void VBucketDurabilityTest::testAddPrepareInPassiveDM(
+        vbucket_state_t state, const std::vector<SyncWriteSpec>& writes) {
     vbucket->setState(state);
     const auto& monitor =
             VBucketTestIntrospector::public_getPassiveDM(*vbucket);
     ASSERT_EQ(0, monitor.getNumTracked());
-    testAddPrepare({1, 2, 3} /*seqnos*/);
-    ASSERT_EQ(3, monitor.getNumTracked());
+    testAddPrepare(writes);
+    ASSERT_EQ(writes.size(), monitor.getNumTracked());
 }
 
 TEST_P(VBucketDurabilityTest, Replica_AddPrepareInPassiveDM) {
-    testAddPrepareInPassiveDM(vbucket_state_replica);
+    testAddPrepareInPassiveDM(vbucket_state_replica, {1, 2, 3} /*seqnos*/);
 }
 
 TEST_P(VBucketDurabilityTest, Pending_AddPrepareInPassiveDM) {
-    testAddPrepareInPassiveDM(vbucket_state_pending);
+    testAddPrepareInPassiveDM(vbucket_state_pending, {1, 2, 3} /*seqnos*/);
 }
 
 void VBucketDurabilityTest::testConvertPassiveDMToActiveDM(
@@ -801,4 +802,54 @@ TEST_P(VBucketDurabilityTest, Replica_ConvertPassiveDMToActiveDM) {
 
 TEST_P(VBucketDurabilityTest, Pending_ConvertPassiveDMToActiveDM) {
     testConvertPassiveDMToActiveDM(vbucket_state_pending);
+}
+
+void VBucketDurabilityTest::testPassiveDMCommit(vbucket_state_t state) {
+    const std::vector<SyncWriteSpec>& writes{1, 2, 3}; // seqnos
+    testAddPrepareInPassiveDM(state, writes);
+    ASSERT_EQ(writes.size(), vbucket->durabilityMonitor->getNumTracked());
+
+    // This is just for an easier inspection of the CheckpointManager below
+    ckptMgr->clear(*vbucket, ckptMgr->getHighSeqno());
+
+    // Commit all + check HT
+    // Note: At replica, snapshots are defined at PassiveStream level, need to
+    //     do it manually here given that we are testing at VBucket level.
+    ckptMgr->createSnapshot(writes.back().seqno + 1, writes.back().seqno + 100);
+    for (auto write : writes) {
+        auto key = makeStoredDocKey("key" + std::to_string(write.seqno));
+
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  vbucket->commit(key,
+                                  write.seqno + 10 /*commitSeqno*/,
+                                  vbucket->lockCollections(key)));
+
+        const auto sv = ht->findForRead(key).storedValue;
+        EXPECT_TRUE(sv);
+        EXPECT_EQ(CommittedState::CommittedViaPrepare, sv->getCommitted());
+        EXPECT_TRUE(ht->findForWrite(key).storedValue);
+    }
+
+    // Check CM
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *ckptMgr);
+    ASSERT_EQ(1, ckptList.size());
+    EXPECT_EQ(writes.size(), ckptList.front()->getNumItems());
+    for (const auto& qi : *ckptList.front()) {
+        if (!qi->isCheckPointMetaItem()) {
+            EXPECT_EQ(queue_op::commit_sync_write, qi->getOperation());
+        }
+    }
+
+    // Check DM
+    EXPECT_EQ(0, vbucket->durabilityMonitor->getNumTracked());
+}
+
+TEST_P(VBucketDurabilityTest, Replica_Commit) {
+    testPassiveDMCommit(vbucket_state_replica);
+}
+
+TEST_P(VBucketDurabilityTest, Pending_Commit) {
+    testPassiveDMCommit(vbucket_state_pending);
 }

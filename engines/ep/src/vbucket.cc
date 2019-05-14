@@ -1104,15 +1104,25 @@ VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
     }
     notifyCtx.bySeqno = item->getBySeqno();
 
-    if (item->isPending()) {
-        // Register this mutation with the durability monitor.
-        Expects(ctx.durability.is_initialized());
-        if (state == vbucket_state_active) {
+    // Process Durability items (notify the DurabilityMonitor of
+    // Prepare/Commit/Abort)
+    switch (state) {
+    case vbucket_state_active:
+        if (item->isPending()) {
+            Expects(ctx.durability.is_initialized());
             getActiveDM().addSyncWrite(ctx.durability->cookie, item);
-        } else if (state == vbucket_state_replica ||
-                   state == vbucket_state_pending) {
-            getPassiveDM().addSyncWrite(item);
         }
+        break;
+    case vbucket_state_replica:
+    case vbucket_state_pending:
+    case vbucket_state_dead:
+        auto& pdm = getPassiveDM();
+        if (item->isPending()) {
+            pdm.addSyncWrite(item);
+        } else if (item->isCommitSyncWrite()) {
+            pdm.commit(item->getKey());
+        }
+        break;
     }
 
     return notifyCtx;
