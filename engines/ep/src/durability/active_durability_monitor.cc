@@ -107,6 +107,11 @@ int64_t ActiveDurabilityMonitor::getHighPreparedSeqno() const {
     return s->getNodeWriteSeqno(s->getActive());
 }
 
+int64_t ActiveDurabilityMonitor::getHighCompletedSeqno() const {
+    const auto s = state.rlock();
+    return std::max(s->lastCommittedSeqno, s->lastAbortedSeqno);
+}
+
 bool ActiveDurabilityMonitor::isDurabilityPossible() const {
     const auto s = state.rlock();
     // Durability is only possible if we have a first chain for which
@@ -226,6 +231,12 @@ void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
 
         checked_snprintf(buf, sizeof(buf), "vb_%d:last_tracked_seqno", vbid);
         add_casted_stat(buf, s->lastTrackedSeqno, addStat, cookie);
+
+        checked_snprintf(buf, sizeof(buf), "vb_%d:last_committed_seqno", vbid);
+        add_casted_stat(buf, s->lastCommittedSeqno, addStat, cookie);
+
+        checked_snprintf(buf, sizeof(buf), "vb_%d:last_aborted_seqno", vbid);
+        add_casted_stat(buf, s->lastAbortedSeqno, addStat, cookie);
 
         if (s->firstChain) {
             addStatsForChain(addStat, cookie, *s->firstChain.get());
@@ -541,7 +552,16 @@ void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
                 "status:" +
                 std::to_string(result));
     }
-    state.wlock()->lastCommittedSeqno = sw.getBySeqno();
+    {
+        auto s = state.wlock();
+        s->lastCommittedSeqno = sw.getBySeqno();
+        // Note:
+        // - Level Majority locally-satisfied first at Active by-logic
+        // - Level MajorityAndPersistOnMaster and PersistToMajority must always
+        //     include the Active for being globally satisfied
+        const auto hps = s->getNodeWriteSeqno(s->getActive());
+        Ensures(s->lastCommittedSeqno <= hps);
+    }
 }
 
 void ActiveDurabilityMonitor::abort(const SyncWrite& sw) {

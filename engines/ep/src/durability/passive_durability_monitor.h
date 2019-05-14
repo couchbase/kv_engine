@@ -58,6 +58,8 @@ public:
 
     int64_t getHighPreparedSeqno() const override;
 
+    int64_t getHighCompletedSeqno() const override;
+
     /**
      * Add a pending Prepare for tracking into the PDM.
      *

@@ -237,6 +237,18 @@ public:
      */
     int64_t getHighPreparedSeqno() const;
 
+    /**
+     * Get the vBucket's High Completed Seqno. This is the sequence number of
+     * the highest prepared SyncWrite which has been completed, i.e.:
+     *
+     * 1) whether the Prepare has globally met its durability requirements and
+     *     has been committed by the active node
+     * 2) or, timeout has triggered on Active for the Prepare and it has been
+     *     aborted
+     * 3) And (in either cases) all earlier SyncWrites have been completed.
+     */
+    int64_t getHighCompletedSeqno() const;
+
     size_t getChkMgrMemUsage() const;
 
     size_t getChkMgrMemUsageOfUnrefCheckpoints() const;

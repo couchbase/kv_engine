@@ -75,34 +75,41 @@ protected:
 
     /**
      * Add the given SyncWrites for tracking and check that High Prepared Seqno
-     * has been updated as expected.
+     *  and High Completed Seqno have been updated as expected.
      *
      * @param seqnos The mutations to be queued
      * @param level The Durability Level of the queued mutations
      * @param expectedHPS
+     * @param expectedHCS
      */
-    void addSyncWriteAndCheckHPS(const std::vector<int64_t>& seqnos,
-                                 cb::durability::Level level,
-                                 int64_t expectedHPS);
+    void addSyncWrite(const std::vector<int64_t>& seqnos,
+                      const cb::durability::Level level,
+                      const int64_t expectedHPS,
+                      const int64_t expectedHCS);
 
     /**
-     * Check the number of tracked Prepares and the HPS in DurabilityMonitor.
+     * Check the number of tracked Prepares, the HPS and the HCS in
+     * DurabilityMonitor.
      *
      * @param expectedNumTracked
      * @param expectedHPS
+     * @param expectedHCS
      */
-    void assertNumTrackedAndHPS(const size_t expectedNumTracked,
-                                const int64_t expectedHPS) const;
+    void assertNumTrackedAndHPSAndHCS(const size_t expectedNumTracked,
+                                      const int64_t expectedHPS,
+                                      const int64_t expectedHCS) const;
 
     /**
      * Notify the persistedSeqno to the DM and check that High Prepared Seqno
-     * has been updated as expected.
+     * and High Completed Seqno have been updated as expected.
      *
      * @param persistedSeqno
      * @param expectedHPS
+     * @param expectedHCS
      */
-    void notifyPersistenceAndCheckHPS(int64_t persistedSeqno,
-                                      int64_t expectedHPS);
+    void notifyPersistence(const int64_t persistedSeqno,
+                           const int64_t expectedHPS,
+                           const int64_t expectedHCS);
 
     // Owned by KVBucket
     VBucket* vb;
@@ -145,6 +152,15 @@ protected:
                             uint64_t lastAckSeqno) const;
 
     /**
+     * Check the current High Prepared Seqno and High Completed Seqno on Active.
+     *
+     * @param expectedHPS
+     * @param expectedHCS
+     */
+    void assertHPSAndHCS(const int64_t expectedHPS,
+                         const int64_t expectedHCS) const;
+
+    /**
      * Processes the (local) ack-seqno and checks expected stats.
      *
      * @param ackSeqno The seqno-ack to be processed
@@ -162,15 +178,19 @@ protected:
      *
      * @param replica The replica that "receives" the ack
      * @param ackSeqno The seqno-ack to be processed
+     * @param expectedLastWriteSeqno The seqno tracked for the given replica
+     * @param expectedLastAckSeqno The ack tracked for the given replica
      * @param expectedNumTracked
-     * @param expectedLastWriteSeqno
-     * @param expectedLastAckSeqno
+     * @param expectedHPS
+     * @param expectedHCS
      */
     void testSeqnoAckReceived(const std::string& replica,
                               int64_t ackSeqno,
-                              size_t expectedNumTracked,
                               int64_t expectedLastWriteSeqno,
-                              int64_t expectedLastAckSeqno) const;
+                              int64_t expectedLastAckSeqno,
+                              size_t expectedNumTracked,
+                              int64_t expectedHPS,
+                              int64_t expectedHCS) const;
 
     /**
      * Check durability possible/impossible at DM::addSyncWrite under the
@@ -242,68 +262,6 @@ protected:
      * ack a lower seqno than has been previously acked on node "replica1"
      */
     void testSeqnoAckSmallerThanLastAck();
-
-    /**
-     * Check that the SyncWrites at seqno 1, 2, and 3 are committed on the
-     * seqno acks at 1, 2, and 3 respectively.
-     *
-     * @param nodesToAck list of nodes to ack, the last node to ack in the list
-     *                   should be the one to commit the SyncWrites
-     */
-    void testSeqnoAckEqualToPending(const std::vector<std::string>& nodesToAck);
-
-    /**
-     * Check that the SyncWrites at seqno 1 and 2 are committed when acking
-     * seqno 2, but not a SyncWrite at seqno 3.
-     *
-     * @param nodesToAck list of nodes to ack, the last node to ack in the list
-     *                   should be the one to commit the SyncWrites
-     */
-    void testSeqnoAckGreaterThanPendingContinuousSeqnos(
-            const std::vector<std::string>& nodesToAck);
-
-    /**
-     * Check that the SyncWrites at senqo 1 and 3 are committed, but not the
-     * SyncWrite at seqno 5 when acking seqno 4.
-     *
-     * @param nodesToAck list of nodes to ack, the last node to ack in the list
-     *                   should be the one to commit the SyncWrites
-     */
-    void testSeqnoAckGreaterThanPendingSparseSeqnos(
-            const std::vector<std::string>& nodesToAck);
-
-    /**
-     * Check that the SyncWrites at seqno 1 to 3 are committed when acking seqno
-     * 4.
-     *
-     * @param nodesToAck list of nodes to ack, the last node to ack in the list
-     *                   should be the one to commit the SyncWrites
-     */
-    void testSeqnoAckGreaterThanLastTrackedContinuousSeqnos(
-            const std::vector<std::string>& nodesToAck);
-
-    /**
-     * Check that the SyncWrites at seqno 1, 3, and 5 are committed when acking
-     * seqno 10.
-     *
-     * @param nodesToAck list of nodes to ack, the last node to ack in the list
-     *                   should be the one to commit the SyncWrites
-     */
-    void testSeqnoAckGreaterThanLastTrackedSparseSeqnos(
-            const std::vector<std::string>& nodesToAck);
-
-    /**
-     * Check that a SyncWrite is committed when the majority requirement is met
-     * when their are multiple replicas.
-     *
-     * @param nodesToAck list of nodes to ack, the last node to ack in the list
-     *                   should be the one to commit the SyncWrite
-     * @param unchangedNodes list of nodes that do not ack, and should remain
-     *                       unchanged throughout
-     */
-    void testSeqnoAckMultipleReplicas(
-            const std::vector<std::string>& nodesToAck,
-            const std::vector<std::string>& unchangedNodes);
 
     /**
      * Check that seqnoAckReceived does not throw and that a SyncWrite is not

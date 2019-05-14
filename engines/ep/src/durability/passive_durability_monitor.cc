@@ -76,6 +76,11 @@ int64_t PassiveDurabilityMonitor::getHighPreparedSeqno() const {
     return state.rlock()->highPreparedSeqno.lastWriteSeqno;
 }
 
+int64_t PassiveDurabilityMonitor::getHighCompletedSeqno() const {
+    // @todo: return proper value
+    return 0;
+}
+
 void PassiveDurabilityMonitor::addSyncWrite(queued_item item) {
     auto durReq = item->getDurabilityReqs();
 

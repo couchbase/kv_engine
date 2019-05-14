@@ -80,6 +80,11 @@ public:
     int64_t getHighPreparedSeqno() const override;
 
     /**
+     * @return the High Completed Seqno, the last Committed or Aborted Prepare
+     */
+    int64_t getHighCompletedSeqno() const override;
+
+    /**
      * @return true if the replication topology allows Majority being reached,
      *     false otherwise
      */
@@ -403,12 +408,10 @@ protected:
         // can by emptied by Commit/Abort.
         Monotonic<int64_t, ThrowExceptionPolicy> lastTrackedSeqno;
 
-        // Stores the last committed seqno. Only used for debug / statistics
-        // purposes.
+        // Stores the last committed seqno.
         Monotonic<int64_t> lastCommittedSeqno = 0;
 
-        // Stores the last aborted seqno. Only used for debug / statistics
-        // purposes.
+        // Stores the last aborted seqno.
         Monotonic<int64_t> lastAbortedSeqno = 0;
 
         // The durability timeout value to use for SyncWrites which haven't

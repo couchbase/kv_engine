@@ -276,10 +276,16 @@ int64_t VBucket::getHighSeqno() const {
 
 int64_t VBucket::getHighPreparedSeqno() const {
     if (!durabilityMonitor) {
-        // Note: I prefer -1 to 0 as the latter is a valid DM value.
         return -1;
     }
     return durabilityMonitor->getHighPreparedSeqno();
+}
+
+int64_t VBucket::getHighCompletedSeqno() const {
+    if (!durabilityMonitor) {
+        return -1;
+    }
+    return durabilityMonitor->getHighCompletedSeqno();
 }
 
 size_t VBucket::getChkMgrMemUsage() const {
