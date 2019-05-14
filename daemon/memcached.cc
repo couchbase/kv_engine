@@ -755,8 +755,8 @@ bool is_bucket_dying(Connection& c) {
 }
 
 static void create_portnumber_file(bool terminate) {
-    const char* filename = getenv("MEMCACHED_PORT_FILENAME");
-    if (filename != nullptr) {
+    auto filename = settings.getPortnumberFile();
+    if (!filename.empty()) {
         nlohmann::json json;
         json["ports"] = nlohmann::json::array();
 
@@ -785,9 +785,9 @@ static void create_portnumber_file(bool terminate) {
         }
 
         LOG_INFO("Port numbers available in {}", filename);
-        if (rename(tempname.c_str(), filename) == -1) {
+        if (rename(tempname.c_str(), filename.c_str()) == -1) {
             LOG_CRITICAL(R"(Failed to rename "{}" to "{}": {})",
-                         tempname.c_str(),
+                         tempname,
                          filename,
                          cb_strerror());
             if (terminate) {
@@ -2379,6 +2379,20 @@ extern "C" int memcached_main(int argc, char **argv) {
         start_stdin_listener(shutdown_server);
     }
 
+    if (settings.getPortnumberFile().empty()) {
+        const auto* env = getenv("MEMCACHED_PORT_FILENAME");
+        if (env != nullptr) {
+            settings.setPortnumberFile(env);
+        }
+    }
+
+    if (settings.getParentIdentifier() == -1) {
+        const auto* env = getenv("MEMCACHED_PARENT_MONITOR");
+        if (env != nullptr) {
+            settings.setParentIdentifier(std::stoi(env));
+        }
+    }
+
 #ifdef HAVE_LIBNUMA
     // Log the NUMA policy selected (now the logger is available).
     LOG_INFO("NUMA: {}", numa_status);
@@ -2491,11 +2505,13 @@ extern "C" int memcached_main(int argc, char **argv) {
     /* Initialise memcached time keeping */
     mc_time_init(main_base);
 
-    /* Optional parent monitor */
-    char *env = getenv("MEMCACHED_PARENT_MONITOR");
-    if (env != nullptr) {
-        LOG_INFO("Starting parent monitor");
-        parent_monitor = std::make_unique<ParentMonitor>(std::stoi(env));
+    // Optional parent monitor
+    {
+        int parent = settings.getParentIdentifier();
+        if (parent != 0) {
+            LOG_INFO("Starting parent monitor");
+            parent_monitor = std::make_unique<ParentMonitor>(parent);
+        }
     }
 
     if (!memcached_shutdown) {

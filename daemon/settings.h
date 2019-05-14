@@ -777,6 +777,26 @@ public:
         notify_changed("opentracing_config");
     }
 
+    std::string getPortnumberFile() const {
+        return portnumber_file;
+    }
+
+    void setPortnumberFile(std::string val) {
+        portnumber_file = std::move(val);
+        has.portnumber_file = true;
+        notify_changed("portnumber_file");
+    }
+
+    int getParentIdentifier() const {
+        return parent_identifier;
+    }
+
+    void setParentIdentifier(int val) {
+        parent_identifier = val;
+        has.parent_identifier = true;
+        notify_changed("parent_identifier");
+    }
+
 protected:
 
     /**
@@ -944,6 +964,12 @@ protected:
     /// The configuration used by OpenTracing
     std::shared_ptr<OpenTracingConfig> opentracing_config;
 
+    /// The name of the file to store portnumber information
+    /// May also be set in environment (cannot change)
+    std::string portnumber_file;
+    /// The identifier to use for the parent monitor
+    int parent_identifier = -1;
+
 public:
     /**
      * Flags for each of the above config options, indicating if they were
@@ -991,6 +1017,9 @@ public:
         bool max_connections = false;
         bool system_connections = false;
         bool opentracing_config = false;
+
+        bool portnumber_file = false;
+        bool parent_identifier = false;
     } has;
 
 protected:

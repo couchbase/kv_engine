@@ -543,6 +543,14 @@ static void handle_logger(Settings& s, const nlohmann::json& obj) {
     s.setLoggerConfig(config);
 }
 
+static void handle_portnumber_file(Settings& s, const nlohmann::json& obj) {
+    s.setPortnumberFile(obj.get<std::string>());
+}
+
+static void handle_parent_identifier(Settings& s, const nlohmann::json& obj) {
+    s.setParentIdentifier(obj.get<int>());
+}
+
 /**
  * Handle the "interfaces" tag in the settings
  *
@@ -642,7 +650,9 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"external_auth_service", handle_external_auth_service},
             {"active_external_users_push_interval",
              handle_active_external_users_push_interval},
-            {"opentracing", handle_opentracing}};
+            {"opentracing", handle_opentracing},
+            {"portnumber_file", handle_portnumber_file},
+            {"parent_identifier", handle_parent_identifier}};
 
     for (const auto& obj : json.items()) {
         bool found = false;
@@ -729,6 +739,20 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         if (other.error_maps_dir != error_maps_dir) {
             throw std::invalid_argument(
                     "error_maps_dir can't be changed dynamically");
+        }
+    }
+
+    if (other.has.parent_identifier) {
+        if (other.parent_identifier != parent_identifier) {
+            throw std::invalid_argument(
+                    "parent_monitor_file can't be changed dynamically");
+        }
+    }
+
+    if (other.has.portnumber_file) {
+        if (other.portnumber_file != portnumber_file) {
+            throw std::invalid_argument(
+                    "portnumber_file can't be changed dynamically");
         }
     }
 
