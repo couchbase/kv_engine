@@ -326,33 +326,6 @@ MutationStatus HashTable::set(Item& val) {
     }
 }
 
-void HashTable::abort(const HashBucketLock& hbl, StoredValue& v) {
-    if (v.getCommitted() != CommittedState::Pending) {
-        throw std::invalid_argument(
-                "HashTable::abort: Cannot call on a non-Pending StoredValue");
-    }
-
-    // Record properties of the pending item we are about to abort
-    const auto pendingPreProps = valueStats.prologue(&v);
-
-    // Locate the existing Pending SV and remove it
-    auto& key = v.getKey();
-    auto removed = hashChainRemoveFirst(
-            values[hbl.getBucketNum()], [&key](const StoredValue* v) {
-                return v->hasKey(key) &&
-                       v->getCommitted() == CommittedState::Pending;
-            });
-
-    if (!removed) {
-        throw std::invalid_argument(
-                "HashTable::abort: No matching StoredValue found at removing "
-                "Pending item");
-    }
-
-    // Update stats for Pending -> Removed item
-    valueStats.epilogue(pendingPreProps, nullptr);
-}
-
 HashTable::UpdateResult HashTable::unlocked_updateStoredValue(
         const HashBucketLock& hbl, StoredValue& v, const Item& itm) {
     if (!hbl.getHTLock()) {

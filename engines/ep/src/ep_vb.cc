@@ -636,7 +636,7 @@ VBNotifyCtx EPVBucket::abortStoredValue(const HashTable::HashBucketLock& hbl,
     }
     auto notify = queueAbort(hbl, v, prepareSeqno, queueItmCtx);
 
-    ht.abort(hbl, v);
+    ht.unlocked_del(hbl, &v);
 
     return notify;
 }
