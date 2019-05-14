@@ -804,7 +804,8 @@ TEST_P(VBucketDurabilityTest, Pending_ConvertPassiveDMToActiveDM) {
     testConvertPassiveDMToActiveDM(vbucket_state_pending);
 }
 
-void VBucketDurabilityTest::testPassiveDMCommit(vbucket_state_t state) {
+void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
+                                                      Resolution res) {
     const std::vector<SyncWriteSpec>& writes{1, 2, 3}; // seqnos
     testAddPrepareInPassiveDM(state, writes);
     ASSERT_EQ(writes.size(), vbucket->durabilityMonitor->getNumTracked());
@@ -819,15 +820,32 @@ void VBucketDurabilityTest::testPassiveDMCommit(vbucket_state_t state) {
     for (auto write : writes) {
         auto key = makeStoredDocKey("key" + std::to_string(write.seqno));
 
-        EXPECT_EQ(ENGINE_SUCCESS,
-                  vbucket->commit(key,
-                                  write.seqno + 10 /*commitSeqno*/,
-                                  vbucket->lockCollections(key)));
+        switch (res) {
+        case Resolution::Commit: {
+            EXPECT_EQ(ENGINE_SUCCESS,
+                      vbucket->commit(key,
+                                      write.seqno + 10 /*commitSeqno*/,
+                                      vbucket->lockCollections(key)));
 
-        const auto sv = ht->findForRead(key).storedValue;
-        EXPECT_TRUE(sv);
-        EXPECT_EQ(CommittedState::CommittedViaPrepare, sv->getCommitted());
-        EXPECT_TRUE(ht->findForWrite(key).storedValue);
+            const auto sv = ht->findForRead(key).storedValue;
+            EXPECT_TRUE(sv);
+            EXPECT_EQ(CommittedState::CommittedViaPrepare, sv->getCommitted());
+            EXPECT_TRUE(ht->findForWrite(key).storedValue);
+
+            break;
+        }
+        case Resolution::Abort: {
+            EXPECT_EQ(ENGINE_SUCCESS,
+                      vbucket->abort(key,
+                                     write.seqno + 10 /*abortSeqno*/,
+                                     vbucket->lockCollections(key)));
+
+            EXPECT_FALSE(ht->findForRead(key).storedValue);
+            EXPECT_FALSE(ht->findForWrite(key).storedValue);
+
+            break;
+        }
+        }
     }
 
     // Check CM
@@ -836,9 +854,12 @@ void VBucketDurabilityTest::testPassiveDMCommit(vbucket_state_t state) {
                     *ckptMgr);
     ASSERT_EQ(1, ckptList.size());
     EXPECT_EQ(writes.size(), ckptList.front()->getNumItems());
+    const auto expectedOp =
+            (res == Resolution::Commit ? queue_op::commit_sync_write
+                                       : queue_op::abort_sync_write);
     for (const auto& qi : *ckptList.front()) {
         if (!qi->isCheckPointMetaItem()) {
-            EXPECT_EQ(queue_op::commit_sync_write, qi->getOperation());
+            EXPECT_EQ(expectedOp, qi->getOperation());
         }
     }
 
@@ -847,9 +868,17 @@ void VBucketDurabilityTest::testPassiveDMCommit(vbucket_state_t state) {
 }
 
 TEST_P(VBucketDurabilityTest, Replica_Commit) {
-    testPassiveDMCommit(vbucket_state_replica);
+    testCompleteSWInPassiveDM(vbucket_state_replica, Resolution::Commit);
 }
 
 TEST_P(VBucketDurabilityTest, Pending_Commit) {
-    testPassiveDMCommit(vbucket_state_pending);
+    testCompleteSWInPassiveDM(vbucket_state_pending, Resolution::Commit);
+}
+
+TEST_P(VBucketDurabilityTest, Replica_Abort) {
+    testCompleteSWInPassiveDM(vbucket_state_replica, Resolution::Abort);
+}
+
+TEST_P(VBucketDurabilityTest, Pending_Abort) {
+    testCompleteSWInPassiveDM(vbucket_state_pending, Resolution::Abort);
 }

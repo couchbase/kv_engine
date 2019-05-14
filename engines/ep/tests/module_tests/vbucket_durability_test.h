@@ -106,13 +106,17 @@ protected:
      */
     void testConvertPassiveDMToActiveDM(vbucket_state_t initialState);
 
+    enum class Resolution { Commit, Abort };
+
     /**
      * Tests that the PassiveDM behaves correctly when VBucket notifies the
-     * PassiveDM of Commit received.
+     * PassiveDM of Prepare completion (ie, Commit or Abort).
      *
      * @param initialState The initial state for VBucket
+     * @param res The type of resolution, Commit/Abort
      */
-    void testPassiveDMCommit(vbucket_state_t initialState);
+    void testCompleteSWInPassiveDM(vbucket_state_t initialState,
+                                   Resolution res);
 
     // All owned by VBucket
     HashTable* ht;

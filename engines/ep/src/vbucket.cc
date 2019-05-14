@@ -1122,6 +1122,9 @@ VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
         } else if (item->isCommitSyncWrite()) {
             pdm.completeSyncWrite(item->getKey(),
                                   PassiveDurabilityMonitor::Resolution::Commit);
+        } else if (item->isAbort()) {
+            pdm.completeSyncWrite(item->getKey(),
+                                  PassiveDurabilityMonitor::Resolution::Abort);
         }
         break;
     }

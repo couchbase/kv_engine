@@ -697,6 +697,8 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbort) {
     EXPECT_EQ(key, (*it)->getKey());
     EXPECT_FALSE((*it)->getValue());
     EXPECT_EQ(abortSeqno, (*it)->getBySeqno());
+
+    EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
 }
 
 INSTANTIATE_TEST_CASE_P(
