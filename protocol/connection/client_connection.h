@@ -265,6 +265,14 @@ public:
 
     ~MemcachedConnection();
 
+    /**
+     * Release the socket from this instance. The caller is required
+     * to close the socket when it is no longer in use!
+     *
+     * @return the underlying socket
+     */
+    SOCKET releaseSocket();
+
     // Set a tag / label on this connection
     void setTag(std::string tag) {
         MemcachedConnection::tag = std::move(tag);

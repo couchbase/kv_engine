@@ -301,6 +301,15 @@ std::tuple<SOCKET, SSL_CTX*, BIO*> cb::net::new_ssl_socket(
     return std::tuple<SOCKET, SSL_CTX*, BIO*>{sock, context, bio};
 }
 
+SOCKET MemcachedConnection::releaseSocket() {
+    if (ssl) {
+        throw std::runtime_error("releaseSocket: Can't release SSL socket");
+    }
+    auto ret = sock;
+    sock = INVALID_SOCKET;
+    return ret;
+}
+
 void MemcachedConnection::connect() {
     if (bio != nullptr) {
         BIO_free_all(bio);
