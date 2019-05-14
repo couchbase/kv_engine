@@ -146,23 +146,36 @@ void PassiveDurabilityMonitor::notifyLocalPersistence() {
     }
 }
 
-void PassiveDurabilityMonitor::commit(const StoredDocKey& key) {
+std::string PassiveDurabilityMonitor::to_string(Resolution res) {
+    switch (res) {
+    case Resolution::Commit:
+        return "commit";
+    case Resolution::Abort:
+        return "abort";
+    }
+    folly::assume_unreachable();
+}
+
+void PassiveDurabilityMonitor::completeSyncWrite(const StoredDocKey& key,
+                                                 Resolution res) {
     auto s = state.wlock();
 
     if (s->trackedWrites.empty()) {
         throw std::logic_error(
-                "PassiveDurabilityMonitor::commit: No tracked, but received "
-                "commit for key " +
-                key.to_string());
+                "PassiveDurabilityMonitor::resolvePrepare: No tracked, but "
+                "received " +
+                to_string(res) + " for key " + key.to_string());
     }
 
     // Sanity check for In-Order Commit
     const auto& front = s->trackedWrites.front();
     if (front.getKey() != key) {
         std::stringstream ss;
-        ss << "Pending commit for '" << front
-           << "', but received unexpected commit for key " << key;
-        throw std::logic_error("PassiveDurabilityMonitor::commit: " + ss.str());
+        ss << "Pending resolution for '" << front
+           << "', but received unexpected " + to_string(res) + " for key "
+           << key;
+        throw std::logic_error("PassiveDurabilityMonitor::resolvePrepare: " +
+                               ss.str());
     }
 
     s->removeFront();

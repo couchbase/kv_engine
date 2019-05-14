@@ -17,6 +17,7 @@
 #pragma once
 
 #include "durability/durability_monitor.h"
+#include "durability/passive_durability_monitor.h"
 #include "evp_store_single_threaded_test.h"
 #include "test_helpers.h"
 
@@ -25,7 +26,6 @@
 #include <folly/portability/GTest.h>
 
 class ActiveDurabilityMonitor;
-class PassiveDurabilityMonitor;
 
 class DurabilityMonitorTest : public STParameterizedBucketTest {
 protected:
@@ -380,6 +380,16 @@ public:
 
 protected:
     PassiveDurabilityMonitor& getPassiveDM() const;
+
+    /**
+     * Simulate and verify that:
+     * 1) PDM queues some Prepares
+     * 2) PDM is notified of resolution for the tracked Prepares
+     * 3) The Prepares are removed from tracking
+     *
+     * @param res The type of resolution, Commit/Abort
+     */
+    void testResolvePrepare(PassiveDurabilityMonitor::Resolution res);
 };
 
 /*

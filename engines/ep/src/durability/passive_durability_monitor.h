@@ -20,6 +20,7 @@
 #include "item.h"
 
 #include <folly/Synchronized.h>
+#include <folly/lang/Assume.h>
 
 #include <queue>
 
@@ -64,16 +65,21 @@ public:
      */
     void addSyncWrite(queued_item item);
 
+    enum class Resolution : uint8_t { Commit, Abort };
+
+    /**
+     * Complete the given Prepare, i.e. remove it from tracking.
+     *
+     * @param key The key of the Prepare to be removed
+     * @param res The type of resolution, Commit/Abort
+     */
+    void completeSyncWrite(const StoredDocKey& key, Resolution res);
+
+    static std::string to_string(Resolution res);
+
     size_t getNumTracked() const override;
 
     void notifyLocalPersistence() override;
-
-    /**
-     * Commit the given Prepare, i.e. remove it from tracking.
-     *
-     * @param key The key of the Prepare to be removed
-     */
-    void commit(const StoredDocKey& key);
 
 protected:
     void toOStream(std::ostream& os) const override;

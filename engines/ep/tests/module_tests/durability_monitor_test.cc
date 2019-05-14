@@ -22,7 +22,6 @@
 #include "vbucket_utils.h"
 
 #include "durability/active_durability_monitor.h"
-#include "durability/passive_durability_monitor.h"
 
 #include "../mock/mock_synchronous_ep_engine.h"
 
@@ -1449,24 +1448,20 @@ TEST_P(ActiveDurabilityMonitorTest, HPS_Majority) {
     testHPS_Majority();
 }
 
-/*
- * Simulate and verify that:
- * 1) PDM queues some Prepares
- * 2) PDM is notified of Commit for the tracked Prepares
- * 3) The Prepares are removed from tracking
- */
-TEST_P(PassiveDurabilityMonitorTest, Commit) {
+void PassiveDurabilityMonitorTest::testResolvePrepare(
+        PassiveDurabilityMonitor::Resolution res) {
     assertNumTrackedAndHPS(0, 0);
 
     // PassiveDM doesn't track anything yet, no commit expected
     auto& pdm = getPassiveDM();
     auto thrown{false};
     try {
-        pdm.commit(makeStoredDocKey("akey"));
+        pdm.completeSyncWrite(makeStoredDocKey("akey"), res);
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find(
-                            "No tracked, but received commit for key") !=
-                    std::string::npos);
+                            "No tracked, but received " +
+                            PassiveDurabilityMonitor::to_string(res) +
+                            " for key") != std::string::npos);
         thrown = true;
     }
     if (!thrown) {
@@ -1483,11 +1478,12 @@ TEST_P(PassiveDurabilityMonitorTest, Commit) {
     // Replica expects a commit for s:1 at this point.
     thrown = false;
     try {
-        pdm.commit(makeStoredDocKey("key2"));
+        pdm.completeSyncWrite(makeStoredDocKey("key2"), res);
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find(
-                            "received unexpected commit for key") !=
-                    std::string::npos);
+                            "received unexpected " +
+                            PassiveDurabilityMonitor::to_string(res) +
+                            " for key") != std::string::npos);
         thrown = true;
     }
     if (!thrown) {
@@ -1497,10 +1493,18 @@ TEST_P(PassiveDurabilityMonitorTest, Commit) {
     // Commit all Prepares now
     uint8_t numTracked = monitor->getNumTracked();
     for (const auto s : seqnos) {
-        pdm.commit(makeStoredDocKey("key" + std::to_string(s)));
+        pdm.completeSyncWrite(makeStoredDocKey("key" + std::to_string(s)), res);
         EXPECT_EQ(--numTracked, monitor->getNumTracked());
     }
     EXPECT_EQ(0, monitor->getNumTracked());
+}
+
+TEST_P(PassiveDurabilityMonitorTest, Commit) {
+    testResolvePrepare(PassiveDurabilityMonitor::Resolution::Commit);
+}
+
+TEST_P(PassiveDurabilityMonitorTest, Abort) {
+    testResolvePrepare(PassiveDurabilityMonitor::Resolution::Abort);
 }
 
 TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_MajorityAndPersistOnMaster) {
