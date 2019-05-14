@@ -1556,3 +1556,36 @@ void BinprotAuditPutCommand::encode(std::vector<uint8_t>& buf) const {
     append(buf, id);
     buf.insert(buf.end(), payload.begin(), payload.end());
 }
+
+BinprotSetVbucketCommand::BinprotSetVbucketCommand(Vbid vbid,
+                                                   vbucket_state_t state,
+                                                   nlohmann::json payload)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetVbucket),
+      state(state),
+      payload(std::move(payload)) {
+    setVBucket(vbid);
+}
+
+void BinprotSetVbucketCommand::encode(std::vector<uint8_t>& buf) const {
+    if (payload.empty()) {
+        writeHeader(buf, 0, 1);
+        buf.push_back(uint8_t(state));
+    } else {
+        std::string json = payload.dump();
+        writeHeader(buf, json.size(), 1);
+        buf.push_back(uint8_t(state));
+        buf.insert(buf.end(), json.begin(), json.end());
+        auto& hdr = *reinterpret_cast<cb::mcbp::Request*>(buf.data());
+        hdr.setDatatype(cb::mcbp::Datatype::JSON);
+    }
+}
+
+BinprotDcpAddStreamCommand::BinprotDcpAddStreamCommand(uint32_t flags)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::DcpAddStream),
+      flags(flags) {
+}
+
+void BinprotDcpAddStreamCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, 0, sizeof(flags));
+    append(buf, flags);
+}

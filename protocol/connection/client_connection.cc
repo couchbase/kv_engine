@@ -1351,6 +1351,16 @@ BinprotResponse MemcachedConnection::execute(const BinprotCommand &command) {
     return response;
 }
 
+void MemcachedConnection::setVbucket(Vbid vbid,
+                                     vbucket_state_t state,
+                                     const nlohmann::json& payload) {
+    auto rsp = execute(BinprotSetVbucketCommand{vbid, state, payload});
+    if (!rsp.isSuccess()) {
+        throw ConnectionError("setVbucket: Faled to set state",
+                              rsp.getStatus());
+    }
+}
+
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the ConnectionError class
 /////////////////////////////////////////////////////////////////////////

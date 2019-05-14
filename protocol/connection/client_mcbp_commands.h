@@ -826,6 +826,15 @@ private:
     uint64_t dcp_snap_end_seqno;
 };
 
+class BinprotDcpAddStreamCommand : public BinprotGenericCommand {
+public:
+    explicit BinprotDcpAddStreamCommand(uint32_t flags);
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    uint32_t flags;
+};
+
 class BinprotGetFailoverLogCommand : public BinprotGenericCommand {
 public:
     BinprotGetFailoverLogCommand()
@@ -956,4 +965,17 @@ public:
 protected:
     const uint32_t id;
     const std::string payload;
+};
+
+class BinprotSetVbucketCommand : public BinprotGenericCommand {
+public:
+    BinprotSetVbucketCommand(Vbid vbid,
+                             vbucket_state_t state,
+                             nlohmann::json payload);
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    const vbucket_state_t state;
+    const nlohmann::json payload;
 };

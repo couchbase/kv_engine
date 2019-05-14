@@ -742,6 +742,10 @@ public:
     void setFeatures(const std::string& agent,
                      const std::vector<cb::mcbp::Feature>& features);
 
+    void setVbucket(Vbid vbid,
+                    vbucket_state_t state,
+                    const nlohmann::json& payload);
+
 protected:
     void read(Frame& frame, size_t bytes);
 
