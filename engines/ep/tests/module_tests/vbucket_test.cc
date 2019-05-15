@@ -29,6 +29,8 @@
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket_bgfetch_item.h"
 
+#include "../mock/mock_ephemeral_vb.h"
+
 #include <platform/cb_malloc.h>
 
 using namespace std::string_literals;
@@ -69,22 +71,20 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
                               std::make_unique<Collections::VB::Manifest>()));
         break;
     case VBType::Ephemeral:
-        vbucket.reset(new EphemeralVBucket(
-                Vbid(0),
-                vbucket_state_active,
-                global_stats,
-                checkpoint_config,
-                /*kvshard*/ nullptr,
-                /*lastSeqno*/ 0,
-                /*lastSnapStart*/ 0,
-                /*lastSnapEnd*/ 0,
-                /*table*/ nullptr,
-                /*newSeqnoCb*/ nullptr,
-                TracedSyncWriteCompleteCb,
-                NoopSeqnoAckCb,
-                config,
-                eviction_policy,
-                std::make_unique<Collections::VB::Manifest>()));
+        vbucket.reset(new MockEphemeralVBucket(Vbid(0),
+                                               vbucket_state_active,
+                                               global_stats,
+                                               checkpoint_config,
+                                               /*kvshard*/ nullptr,
+                                               /*lastSeqno*/ 0,
+                                               /*lastSnapStart*/ 0,
+                                               /*lastSnapEnd*/ 0,
+                                               /*table*/ nullptr,
+                                               /*newSeqnoCb*/ nullptr,
+                                               TracedSyncWriteCompleteCb,
+                                               NoopSeqnoAckCb,
+                                               config,
+                                               eviction_policy));
         break;
     }
 

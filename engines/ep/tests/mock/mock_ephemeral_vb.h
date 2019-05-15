@@ -81,6 +81,10 @@ public:
      */
     size_t markOldTombstonesStale(rel_time_t purgeAge);
 
+    void public_doCollectionsStats(
+            const Collections::VB::Manifest::CachingReadHandle& cHandle,
+            const VBNotifyCtx& notifyCtx);
+
 private:
     /* non owning ptr to the linkedlist in the ephemeral vbucket obj */
     MockBasicLinkedList* mockLL;

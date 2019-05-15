@@ -50,3 +50,9 @@ size_t MockEphemeralVBucket::markOldTombstonesStale(rel_time_t purgeAge) {
 
     return purger.getNumItemsMarkedStale();
 }
+
+void MockEphemeralVBucket::public_doCollectionsStats(
+        const Collections::VB::Manifest::CachingReadHandle& cHandle,
+        const VBNotifyCtx& notifyCtx) {
+    VBucket::doCollectionsStats(cHandle, notifyCtx);
+}
