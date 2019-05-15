@@ -123,15 +123,14 @@ enum class DeletionDurability : uint8_t {};
  *     want to be searched - as a Pending item will typically block any changes
  *     to the key until it is later committed (or aborted).
  *
- * To facilitate this, find() operations on the HashTable expose two
- * _perspectives_ which items can be searched via:
+ * To facilitate this, find..() operations on the HashTable check for both
+ * Committed and Pending SVs (as appropriate):
  *
- * A) findForRead() - uses Committed perspective. Only returns Committed
- *    items; Pending items are ignored.
+ * A) findForRead() - Only returns Committed items; Pending items are ignored.
  *
- * B) findForWrite() - used Pending perspective. Returns both Committed
- *    and Pending items; if both Pending and Committed items exist for a
- *    key then the Pending item is returned.
+ * B) findForWrite() - Returns either Committed or Pending items; if both
+ *    Pending and Committed items exist for a key then the Pending item is
+ *    returned.
  *
  * Implementation
  * ==============
@@ -613,8 +612,7 @@ public:
     /**
      * Find an item with the specified key for read-only access.
      *
-     * Uses the Committed perspective so only StoredValues which are committed
-     * will be returned.
+     * Only StoredValues which are committed will be returned.
      *
      * @param key The key of the item to find
      * @param trackReference Should this lookup update referenced status (i.e.
@@ -653,8 +651,8 @@ public:
      * change shouldn't affect the (old) reference count; the reference count
      * will get updated later part of actually changing the item.
      *
-     * Uses the Pending perspective so StoredValues which are either committed
-     * or pending will be returned.
+     * Returns the Prepare StoredValue for the key if one exists, otherwise
+     * returns the Committed StoredValue, or nullptr neither exist.
      *
      * @param key The key of the item to find
      * @param wantsDeleted whether a deleted value should be returned
@@ -1059,29 +1057,43 @@ private:
     }
 
     /**
-     * Find the item with the given key.
+     * Result of the findInner() method.
+     */
+    struct FindInnerResult {
+        /**
+         * The (locked) HashBucketLock for the given key. Note this always
+         * returns a locked object; even if the requested key doesn't exist.
+         * This is to facilitate use-cases where the caller subsequently needs
+         * to insert a StoredValue for this key, to avoid unlocking and
+         * re-locking the mutex.
+         */
+        HashBucketLock lock;
+        /// The Committed StoredValue with this key if in HashTable, else
+        /// nullptr.
+        StoredValue* committedSV;
+        /// The Committed StoredValue with this key if in HashTable, else
+        /// nullptr.
+        StoredValue* pendingSV;
+    };
+
+    /**
+     * Find the committed/pending item(s) with the given key.
      *
      * Helper method for findForRead / findForWrite.
      *
-     * If the item exists, returns a pointer to the item along with a lock
+     * Searches for both Committed and Pending items with the given key,
+     * returning pointers to zero, one or both items along with a lock
      * on the items' hash bucket - the StoreValue can be safely accessed as
      * long as the lock object remains in scope.
      *
      * @param key the key to find
-     * @param trackReference whether to track the reference or not
-     * @param wantsDeleted whether a deleted value needs to be returned
-     *                     or not
-     * @param perspective Under what perspective should the HashTable be
-     *        searched
      * @return A FindResult consisting of:
-     *         - a pointer to a StoredValue -- NULL if not found
+     *         - a pointer to a Committed StoredValue -- NULL if not found
+     *         - a pointer to a Pending StoredValue -- NULL if not found
      *         - a HashBucketLock for the hash bucket of the found key. If
      * not found then HashBucketLock is empty.
      */
-    FindResult find(const DocKey& key,
-                    TrackReference trackReference,
-                    WantsDeleted wantsDeleted,
-                    Perspective perspective = Perspective::Committed);
+    FindInnerResult findInner(const DocKey& key);
 
     // The initial (and minimum) size of the HashTable.
     const size_t initialSize;

@@ -1239,17 +1239,11 @@ HashTable::FindResult VBucket::fetchValidValue(
 
 HashTable::FindResult VBucket::fetchPreparedValue(
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    const auto& key = cHandle.getKey();
-    auto hbl = ht.getLockedBucket(key);
-    auto* sv = ht.unlocked_find(key,
-                                hbl.getBucketNum(),
-                                WantsDeleted::Yes,
-                                TrackReference::No,
-                                HashTable::Perspective::Pending);
-    if (sv && sv->isPending()) {
-        return {sv, std::move(hbl)};
+    auto res = ht.findForWrite(cHandle.getKey(), WantsDeleted::Yes);
+    if (res.storedValue && res.storedValue->isPending()) {
+        return res;
     }
-    return {nullptr, std::move(hbl)};
+    return {nullptr, std::move(res.lock)};
 }
 
 void VBucket::incExpirationStat(const ExpireBy source) {

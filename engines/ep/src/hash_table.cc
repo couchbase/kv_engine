@@ -259,18 +259,31 @@ void HashTable::resize(size_t newSize) {
     stats.coreLocal.get()->memOverhead.fetch_add(memorySize());
 }
 
-HashTable::FindResult HashTable::find(const DocKey& key,
-                                      TrackReference trackReference,
-                                      WantsDeleted wantsDeleted,
-                                      Perspective perspective) {
+HashTable::FindInnerResult HashTable::findInner(const DocKey& key) {
     if (!isActive()) {
-        throw std::logic_error("HashTable::find: Cannot call on a "
+        throw std::logic_error(
+                "HashTable::find: Cannot call on a "
                 "non-active object");
     }
     HashBucketLock hbl = getLockedBucket(key);
-    auto* sv = unlocked_find(
-            key, hbl.getBucketNum(), wantsDeleted, trackReference, perspective);
-    return {sv, std::move(hbl)};
+    // Scan through all elements in the hash bucket chain looking for Committed
+    // and Pending items with the same key.
+    StoredValue* foundCmt = nullptr;
+    StoredValue* foundPend = nullptr;
+    for (StoredValue* v = values[hbl.getBucketNum()].get().get(); v;
+         v = v->getNext().get().get()) {
+        if (v->hasKey(key)) {
+            if (v->isPending()) {
+                Expects(!foundPend);
+                foundPend = v;
+            } else {
+                Expects(!foundCmt);
+                foundCmt = v;
+            }
+        }
+    }
+
+    return {std::move(hbl), foundCmt, foundPend};
 }
 
 std::unique_ptr<Item> HashTable::getRandomKey(long rnd) {
@@ -679,14 +692,53 @@ StoredValue* HashTable::unlocked_find(const DocKey& key,
 HashTable::FindROResult HashTable::findForRead(const DocKey& key,
                                                TrackReference trackReference,
                                                WantsDeleted wantsDeleted) {
-    auto result =
-            find(key, trackReference, wantsDeleted, Perspective::Committed);
-    return {result.storedValue, std::move(result.lock)};
+    auto result = findInner(key);
+
+    /// Reading uses the Committed StoredValue.
+    auto* sv = result.committedSV;
+
+    if (!sv) {
+        // No item found - return null.
+        return {nullptr, std::move(result.lock)};
+    }
+
+    if (result.committedSV->isDeleted()) {
+        // Deleted items should only be returned if caller asked for them,
+        // and we don't update ref-counts for them.
+        return {(wantsDeleted == WantsDeleted::Yes) ? sv : nullptr,
+                std::move(result.lock)};
+    }
+
+    // Found a non-deleted item. Now check if we should update ref-count.
+    if (trackReference == TrackReference::Yes) {
+        updateFreqCounter(*sv);
+
+        // @todo remove the referenced call when eviction algorithm is
+        // updated to use the frequency counter value.
+        sv->referenced();
+    }
+
+    return {sv, std::move(result.lock)};
 }
 
 HashTable::FindResult HashTable::findForWrite(const DocKey& key,
                                               WantsDeleted wantsDeleted) {
-    return find(key, TrackReference::No, wantsDeleted, Perspective::Pending);
+    auto result = findInner(key);
+
+    /// Writing using the Pending StoredValue (if found), else committed.
+    auto* sv = result.pendingSV ? result.pendingSV : result.committedSV;
+
+    if (!sv) {
+        // No item found - return null.
+        return {nullptr, std::move(result.lock)};
+    }
+
+    if (sv->isDeleted() && wantsDeleted == WantsDeleted::No) {
+        // Deleted items should only be returned if caller asked for them -
+        // otherwise return null.
+        return {nullptr, std::move(result.lock)};
+    }
+    return {sv, std::move(result.lock)};
 }
 
 void HashTable::unlocked_del(const HashBucketLock& hbl, const DocKey& key) {
@@ -731,12 +783,8 @@ MutationStatus HashTable::insertFromWarmup(const Item& itm,
                                            bool eject,
                                            bool keyMetaDataOnly,
                                            EvictionPolicy evictionPolicy) {
-    const auto perspective = itm.isPending()
-                                     ? HashTable::Perspective::Pending
-                                     : HashTable::Perspective::Committed;
-    auto htRes = find(
-            itm.getKey(), TrackReference::No, WantsDeleted::No, perspective);
-    auto* v = htRes.storedValue;
+    auto htRes = findInner(itm.getKey());
+    auto* v = (itm.isCommitted() ? htRes.committedSV : htRes.pendingSV);
     auto& hbl = htRes.lock;
 
     if (v == NULL) {
