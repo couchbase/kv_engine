@@ -157,10 +157,7 @@ void VBucketTestBase::setMany(std::vector<StoredDocKey>& keys,
 
 void VBucketTestBase::softDeleteOne(const StoredDocKey& k,
                                     MutationStatus expect) {
-    auto* v(vbucket->ht.findForWrite(k, WantsDeleted::No).storedValue);
-    EXPECT_NE(nullptr, v);
-
-    EXPECT_EQ(expect, public_processSoftDelete(v->getKey(), v, 0))
+    EXPECT_EQ(expect, public_processSoftDelete(k).first)
             << "Failed to soft delete key " << k.c_str();
 }
 
@@ -228,32 +225,34 @@ AddStatus VBucketTestBase::public_processAdd(Item& itm) {
             .first;
 }
 
-MutationStatus VBucketTestBase::public_processSoftDelete(const DocKey& key,
-                                                         StoredValue* v,
-                                                         uint64_t cas) {
+std::pair<MutationStatus, StoredValue*>
+VBucketTestBase::public_processSoftDelete(const DocKey& key) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(key);
-    auto hbl = vbucket->ht.getLockedBucket(key);
-    if (!v) {
-        v = vbucket->ht.unlocked_find(
-                key, hbl.getBucketNum(), WantsDeleted::No, TrackReference::No);
-        if (!v) {
-            return MutationStatus::NotFound;
-        }
+    auto res = vbucket->ht.findForWrite(key, WantsDeleted::No);
+    if (!res.storedValue) {
+        return {MutationStatus::NotFound, nullptr};
     }
+    return public_processSoftDelete(res.lock, *res.storedValue);
+}
+
+std::pair<MutationStatus, StoredValue*>
+VBucketTestBase::public_processSoftDelete(const HashTable::HashBucketLock& hbl,
+                                          StoredValue& v) {
     ItemMetaData metadata;
-    metadata.revSeqno = v->getRevSeqno() + 1;
+    metadata.revSeqno = v.getRevSeqno() + 1;
     MutationStatus status;
-    std::tie(status, std::ignore, std::ignore) =
+    StoredValue* deletedSV;
+    std::tie(status, deletedSV, std::ignore) =
             vbucket->processSoftDelete(hbl,
-                                       *v,
-                                       cas,
+                                       v,
+                                       /*cas*/ 0,
                                        metadata,
                                        VBQueueItemCtx{},
                                        /*use_meta*/ false,
-                                       /*bySeqno*/ v->getBySeqno(),
+                                       v.getBySeqno(),
                                        DeleteSource::Explicit);
-    return status;
+    return {status, deletedSV};
 }
 
 bool VBucketTestBase::public_deleteStoredValue(const DocKey& key) {
@@ -340,9 +339,9 @@ TEST_P(VBucketTest, Add) {
 
     // Verify we can read after a soft deletion.
     EXPECT_EQ(MutationStatus::WasDirty,
-              this->public_processSoftDelete(keys[0], nullptr, 0));
+              this->public_processSoftDelete(keys[0]).first);
     EXPECT_EQ(MutationStatus::NotFound,
-              this->public_processSoftDelete(keys[0], nullptr, 0));
+              this->public_processSoftDelete(keys[0]).first);
     EXPECT_FALSE(this->vbucket->ht.findForRead(keys[0]).storedValue);
 
     Item i(keys[0], 0, 0, "newtest", 7);
@@ -447,12 +446,9 @@ TEST_P(VBucketTest, updateDeletedItem) {
     ASSERT_EQ(MutationStatus::WasClean,
               this->public_processSet(stored_item, stored_item.getCas()));
 
-    auto* v(this->vbucket->ht.findForWrite(key).storedValue);
-    EXPECT_NE(nullptr, v);
-
-    ItemMetaData itm_meta;
-    EXPECT_EQ(MutationStatus::WasDirty,
-              this->public_processSoftDelete(v->getKey(), v, 0));
+    auto deleteRes = this->public_processSoftDelete(key);
+    EXPECT_EQ(MutationStatus::WasDirty, deleteRes.first);
+    auto* v = deleteRes.second;
     verifyValue(key, nullptr, TrackReference::Yes, WantsDeleted::Yes);
     EXPECT_EQ(0, this->vbucket->getNumItems());
     EXPECT_EQ(1, this->vbucket->getNumInMemoryDeletes());
@@ -598,7 +594,7 @@ TEST_P(VBucketEvictionTest, MB21448_UnlockedSetWithCASDeleted) {
     ASSERT_EQ(MutationStatus::WasClean,
               this->public_processSet(item, item.getCas()));
     ASSERT_EQ(MutationStatus::WasDirty,
-              this->public_processSoftDelete(key, nullptr, 0));
+              this->public_processSoftDelete(key).first);
 
     // Attempt to perform a set on a deleted key with a CAS.
     Item replacement(key, 0, 0, "value", strlen("value"));

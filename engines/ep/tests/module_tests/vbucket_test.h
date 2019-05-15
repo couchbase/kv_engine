@@ -108,9 +108,11 @@ protected:
 
     AddStatus public_processAdd(Item& itm);
 
-    MutationStatus public_processSoftDelete(const DocKey& key,
-                                            StoredValue* v,
-                                            uint64_t cas);
+    /// Public access to processSoftDelete() method.
+    std::pair<MutationStatus, StoredValue*> public_processSoftDelete(
+            const DocKey& key);
+    std::pair<MutationStatus, StoredValue*> public_processSoftDelete(
+            const HashTable::HashBucketLock& hbl, StoredValue& v);
 
     bool public_deleteStoredValue(const DocKey& key);
 

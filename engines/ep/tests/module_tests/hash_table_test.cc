@@ -967,24 +967,20 @@ TEST_F(HashTableTest, ReleaseItem) {
     StoredDocKey releaseKey1 =
             makeStoredDocKey(std::string("key" + std::to_string(0)));
 
-    auto hbl = ht.getLockedBucket(releaseKey1);
-    StoredValue* vToRelease1 = ht.unlocked_find(releaseKey1,
-                                                hbl.getBucketNum(),
-                                                WantsDeleted::Yes,
-                                                TrackReference::No);
+    {
+        // Locking scope.
+        auto vToRelease1 = ht.findForWrite(releaseKey1, WantsDeleted::Yes);
+        auto releasedSv1 = ht.unlocked_release(vToRelease1.lock, releaseKey1);
 
-    auto releasedSv1 = ht.unlocked_release(hbl, releaseKey1);
+        /* Validate the copied contents */
+        EXPECT_EQ(*vToRelease1.storedValue, *(releasedSv1).get());
 
-    /* Validate the copied contents */
-    EXPECT_EQ(*vToRelease1, *(releasedSv1).get());
+        /* Validate the HT element replace (hence released from HT) */
+        EXPECT_EQ(vToRelease1.storedValue, releasedSv1.get().get());
 
-    /* Validate the HT element replace (hence released from HT) */
-    EXPECT_EQ(vToRelease1, releasedSv1.get().get());
-
-    /* Validate the HT count */
-    EXPECT_EQ(numItems - 1, ht.getNumItems());
-
-    hbl.getHTLock().unlock();
+        /* Validate the HT count */
+        EXPECT_EQ(numItems - 1, ht.getNumItems());
+    }
 
     /* Remove the element added last. This is certainly the head element of a
        hash bucket */

@@ -83,7 +83,7 @@ TEST_P(EPVBucketTest, SizeStatsSoftDel) {
     EXPECT_EQ(MutationStatus::WasClean, this->public_processSet(i, i.getCas()));
 
     EXPECT_EQ(MutationStatus::WasDirty,
-              this->public_processSoftDelete(k, nullptr, 0));
+              this->public_processSoftDelete(k).first);
     this->public_deleteStoredValue(k);
 
     EXPECT_EQ(0, this->vbucket->ht.getItemMemory());
@@ -112,7 +112,7 @@ TEST_P(EPVBucketTest, SizeStatsSoftDelFlush) {
     EXPECT_EQ(MutationStatus::WasClean, this->public_processSet(i, i.getCas()));
 
     EXPECT_EQ(MutationStatus::WasDirty,
-              this->public_processSoftDelete(k, nullptr, 0));
+              this->public_processSoftDelete(k).first);
     this->vbucket->ht.clear();
 
     EXPECT_EQ(0, this->vbucket->ht.getItemMemory());
