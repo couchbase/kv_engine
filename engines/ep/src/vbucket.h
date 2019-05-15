@@ -1706,6 +1706,11 @@ protected:
                            int64_t prepareSeqno,
                            const VBQueueItemCtx& ctx);
 
+    struct AddTempSVResult {
+        TempAddStatus status;
+        StoredValue* storedValue;
+    };
+
     /**
      * Adds a temporary StoredValue in in-memory data structures like HT.
      * Assumes that HT bucket lock is grabbed.
@@ -1713,10 +1718,11 @@ protected:
      * @param hbl Hash table bucket lock that must be held
      * @param key the key for which a temporary item needs to be added
      *
-     * @return Result indicating the status of the operation
+     * @return Result indicating the status of the operation. If successful
+     *         (BgFetch) then includes the pointer to the created temp item.
      */
-    TempAddStatus addTempStoredValue(const HashTable::HashBucketLock& hbl,
-                                     const DocKey& key);
+    AddTempSVResult addTempStoredValue(const HashTable::HashBucketLock& hbl,
+                                       const DocKey& key);
 
     /**
      * Internal wrapper function around the callback to be called when a new

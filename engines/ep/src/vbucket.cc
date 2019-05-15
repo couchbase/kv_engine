@@ -1913,28 +1913,22 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
             } else {
                 // Even though bloomfilter predicted that item doesn't exist
                 // on disk, we must put this delete on disk if the cas is valid.
-                TempAddStatus rv = addTempStoredValue(hbl, key);
-                if (rv == TempAddStatus::NoMem) {
+                auto rv = addTempStoredValue(hbl, key);
+                if (rv.status == TempAddStatus::NoMem) {
                     return ENGINE_ENOMEM;
                 }
-                v = ht.unlocked_find(key,
-                                     hbl.getBucketNum(),
-                                     WantsDeleted::Yes,
-                                     TrackReference::No);
+                v = rv.storedValue;
                 v->setTempDeleted();
             }
         }
     } else {
         if (!v) {
             // We should always try to persist a delete here.
-            TempAddStatus rv = addTempStoredValue(hbl, key);
-            if (rv == TempAddStatus::NoMem) {
+            auto rv = addTempStoredValue(hbl, key);
+            if (rv.status == TempAddStatus::NoMem) {
                 return ENGINE_ENOMEM;
             }
-            v = ht.unlocked_find(key,
-                                 hbl.getBucketNum(),
-                                 WantsDeleted::Yes,
-                                 TrackReference::No);
+            v = rv.storedValue;
             v->setTempDeleted();
             v->setCas(cas);
         } else if (v->isTempInitialItem()) {
@@ -2096,14 +2090,11 @@ void VBucket::deleteExpiredItem(const Item& it,
             // into the checkpoint queue, only if the bloomfilter
             // predicts that the item may exist on disk.
             if (maybeKeyExistsInFilter(key)) {
-                TempAddStatus rv = addTempStoredValue(hbl, key);
-                if (rv == TempAddStatus::NoMem) {
+                auto addTemp = addTempStoredValue(hbl, key);
+                if (addTemp.status == TempAddStatus::NoMem) {
                     return;
                 }
-                v = ht.unlocked_find(key,
-                                     hbl.getBucketNum(),
-                                     WantsDeleted::Yes,
-                                     TrackReference::No);
+                v = addTemp.storedValue;
                 v->setTempDeleted();
                 v->setRevSeqno(it.getRevSeqno());
                 auto result = ht.unlocked_updateStoredValue(hbl, *v, it);
@@ -3065,8 +3056,8 @@ bool VBucket::deleteStoredValue(const HashTable::HashBucketLock& hbl,
     return true;
 }
 
-TempAddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
-                                          const DocKey& key) {
+VBucket::AddTempSVResult VBucket::addTempStoredValue(
+        const HashTable::HashBucketLock& hbl, const DocKey& key) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "VBucket::addTempStoredValue: htLock not held for " +
@@ -3083,7 +3074,7 @@ TempAddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
              StoredValue::state_temp_init);
 
     if (!hasMemoryForStoredValue(stats, itm)) {
-        return TempAddStatus::NoMem;
+        return {TempAddStatus::NoMem, nullptr};
     }
 
     /* A 'temp initial item' is just added to the hash table. It is
@@ -3094,7 +3085,7 @@ TempAddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
     itm.setRevSeqno(v->getRevSeqno());
     v->setNRUValue(MAX_NRU_VALUE);
 
-    return TempAddStatus::BgFetch;
+    return {TempAddStatus::BgFetch, v};
 }
 
 void VBucket::notifyNewSeqno(

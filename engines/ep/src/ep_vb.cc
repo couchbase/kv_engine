@@ -347,8 +347,8 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
         if (eviction == EvictionPolicy::Value) {
             return ENGINE_KEY_ENOENT;
         } else {
-            TempAddStatus rv = addTempStoredValue(res.lock, key);
-            switch (rv) {
+            auto rv = addTempStoredValue(res.lock, key);
+            switch (rv.status) {
             case TempAddStatus::NoMem:
                 return ENGINE_ENOMEM;
             case TempAddStatus::BgFetch: {
@@ -357,9 +357,10 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
                 ExTask task = std::make_shared<VKeyStatBGFetchTask>(
                         &engine, key, getId(), -1, cookie, false);
                 iom->schedule(task);
+                return ENGINE_EWOULDBLOCK;
             }
             }
-            return ENGINE_EWOULDBLOCK;
+            folly::assume_unreachable();
         }
     }
 }
@@ -657,15 +658,16 @@ EPVBucket::addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
                                  const void* cookie,
                                  EventuallyPersistentEngine& engine,
                                  bool metadataOnly) {
-    TempAddStatus rv = addTempStoredValue(hbl, key);
-    switch (rv) {
+    auto rv = addTempStoredValue(hbl, key);
+    switch (rv.status) {
     case TempAddStatus::NoMem:
         return ENGINE_ENOMEM;
     case TempAddStatus::BgFetch:
         hbl.getHTLock().unlock();
         bgFetch(key, cookie, engine, metadataOnly);
+        return ENGINE_EWOULDBLOCK;
     }
-    return ENGINE_EWOULDBLOCK;
+    folly::assume_unreachable();
 }
 
 void EPVBucket::updateBGStats(
