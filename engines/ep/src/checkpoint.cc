@@ -330,6 +330,16 @@ CheckpointQueue Checkpoint::expelItems(
                          begin().getUnderlyingIterator(),
                          iterator.getUnderlyingIterator());
 
+    /*
+     * Reduce the queuedItems memory usage by the size of the items
+     * being expelled from memory.
+     */
+    const auto addSize = [](size_t a, queued_item qi) {
+        return a + qi->size();
+    };
+    queuedItemsMemUsage -= std::accumulate(
+            expelledItems.begin(), expelledItems.end(), 0, addSize);
+
     // Return the items that have been expelled in a separate queue.
     return expelledItems;
 }

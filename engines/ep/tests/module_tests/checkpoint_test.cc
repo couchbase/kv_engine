@@ -2028,6 +2028,10 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsMemoryRecoveredTest) {
      * 1003 - 3rd item (key2)
      */
 
+    // Get the memory usage before expelling
+    const auto checkpointMemoryUsageBeforeExpel =
+            this->manager->getMemoryUsage();
+
     CheckpointManager::ExpelResult expelResult =
             this->manager->expelUnreferencedCheckpointItems();
 
@@ -2044,6 +2048,9 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsMemoryRecoveredTest) {
      * 1002 - 2nd item (key 1)
      */
 
+    // Get the memory usage after expelling
+    auto checkpointMemoryUsageAfterExpel = this->manager->getMemoryUsage();
+
     size_t extra = 0;
     // A list is comprised of 3 pointers (forward, backwards and
     // pointer to the element).
@@ -2054,8 +2061,10 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsMemoryRecoveredTest) {
     extra = perElementOverhead;
 #endif
 
+    const size_t reductionInCheckpointMemoryUsage =
+            checkpointMemoryUsageBeforeExpel - checkpointMemoryUsageAfterExpel;
     const size_t checkpointListSaving =
-            (perElementOverhead * expelResult.expelCount) + extra;
+            (perElementOverhead * expelResult.expelCount);
     const auto& checkpointStartItem =
             this->manager->public_createCheckpointItem(
                     0, Vbid(0), queue_op::checkpoint_start);
@@ -2065,6 +2074,8 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsMemoryRecoveredTest) {
             checkpointListSaving + queuedItemSaving;
 
     EXPECT_EQ(3, expelResult.expelCount);
-    EXPECT_EQ(expectedMemoryRecovered, expelResult.estimateOfFreeMemory);
+    EXPECT_EQ(expectedMemoryRecovered,
+              expelResult.estimateOfFreeMemory - extra);
+    EXPECT_EQ(expectedMemoryRecovered, reductionInCheckpointMemoryUsage);
     EXPECT_EQ(3, this->global_stats.itemsExpelledFromCheckpoints);
 }
