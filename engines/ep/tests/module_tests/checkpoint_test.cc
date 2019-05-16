@@ -566,10 +566,9 @@ TYPED_TEST(CheckpointTest, ItemBasedCheckpointCreation) {
     // moves the single cursor registered outside of the initial checkpoint,
     // allowing a new open checkpoint to be created.
     EXPECT_EQ(1, this->manager->getNumOfCursors());
-    snapshot_range_t range;
     std::vector<queued_item> items;
-    range = this->manager->getAllItemsForCursor(CheckpointManager::pCursorName,
-                                                items);
+    snapshot_range_t range = this->manager->getAllItemsForCursor(
+            CheckpointManager::pCursorName, items);
 
     EXPECT_EQ(0, range.start);
     EXPECT_EQ(1021, range.end);

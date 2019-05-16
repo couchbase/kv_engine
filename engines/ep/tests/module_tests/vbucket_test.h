@@ -98,5 +98,7 @@ protected:
     CheckpointConfig checkpoint_config;
     Configuration config;
     const void* cookie = {};
+    const uint64_t lastSeqno{1000};
+    const snapshot_range_t range{5, lastSeqno};
 };
 
