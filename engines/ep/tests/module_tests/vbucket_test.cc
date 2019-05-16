@@ -226,19 +226,21 @@ AddStatus VBucketTestBase::public_processAdd(Item& itm) {
 }
 
 std::pair<MutationStatus, StoredValue*>
-VBucketTestBase::public_processSoftDelete(const DocKey& key) {
+VBucketTestBase::public_processSoftDelete(const DocKey& key,
+        VBQueueItemCtx ctx) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(key);
     auto res = vbucket->ht.findForWrite(key, WantsDeleted::No);
     if (!res.storedValue) {
         return {MutationStatus::NotFound, nullptr};
     }
-    return public_processSoftDelete(res.lock, *res.storedValue);
+    return public_processSoftDelete(res.lock, *res.storedValue, ctx);
 }
 
 std::pair<MutationStatus, StoredValue*>
 VBucketTestBase::public_processSoftDelete(const HashTable::HashBucketLock& hbl,
-                                          StoredValue& v) {
+                                          StoredValue& v,
+                                          VBQueueItemCtx ctx) {
     ItemMetaData metadata;
     metadata.revSeqno = v.getRevSeqno() + 1;
     MutationStatus status;
@@ -248,7 +250,7 @@ VBucketTestBase::public_processSoftDelete(const HashTable::HashBucketLock& hbl,
                                        v,
                                        /*cas*/ 0,
                                        metadata,
-                                       VBQueueItemCtx{},
+                                       ctx,
                                        /*use_meta*/ false,
                                        v.getBySeqno(),
                                        DeleteSource::Explicit);

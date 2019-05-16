@@ -1970,15 +1970,15 @@ private:
     /**
      * Commit the given pending item; removing any previous committed item with
      * the same key from in-memory structures.
-     * @param prepared Reference to the struct containg the StoredValue to be
-     *            committed. Must refer to a pending StoredValue.
+     * @param values Reference to the struct containing StoredValueProxies to
+     *               the pending and committed items.
      * @param queueItmCtx Options on how the item should be queued.
      * @param commitSeqno Optional seqno to use for the committed item. If
      *                    omitted then CheckpointManager will generate one.
      * @return Information on who should be notified of the commit.
      */
     virtual VBNotifyCtx commitStoredValue(
-            HashTable::StoredValueProxy& prepared,
+            HashTable::FindCommitResult& values,
             const VBQueueItemCtx& queueItmCtx,
             boost::optional<int64_t> commitSeqno) = 0;
 

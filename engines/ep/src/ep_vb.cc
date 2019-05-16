@@ -603,16 +603,24 @@ EPVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
     folly::assume_unreachable();
 }
 
-VBNotifyCtx EPVBucket::commitStoredValue(HashTable::StoredValueProxy& prepared,
+VBNotifyCtx EPVBucket::commitStoredValue(HashTable::FindCommitResult& values,
                                          const VBQueueItemCtx& queueItmCtx,
                                          boost::optional<int64_t> commitSeqno) {
-    ht.commit(prepared);
-    if (commitSeqno) {
-        Expects(queueItmCtx.genBySeqno == GenerateBySeqno::No);
-        prepared.setBySeqno(*commitSeqno);
+    // Remove a previously committed SV if one exists
+    if (values.committed) {
+        // Only delete the existing committed item
+        ht.unlocked_del(values.pending.getHBL(), values.committed);
     }
 
-    return queueDirty(prepared.getHBL(), *prepared.getSV(), queueItmCtx);
+    values.pending.setCommitted(CommittedState::CommittedViaPrepare);
+
+    if (commitSeqno) {
+        Expects(queueItmCtx.genBySeqno == GenerateBySeqno::No);
+        values.pending.setBySeqno(*commitSeqno);
+    }
+
+    return queueDirty(
+            values.pending.getHBL(), *values.pending.getSV(), queueItmCtx);
 }
 
 VBNotifyCtx EPVBucket::abortStoredValue(const HashTable::HashBucketLock& hbl,

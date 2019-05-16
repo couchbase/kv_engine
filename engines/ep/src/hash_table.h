@@ -719,11 +719,29 @@ public:
             value->setBySeqno(newSeqno);
         }
 
+        void setCommitted(CommittedState state) {
+            value->setCommitted(state);
+        }
+
     private:
         HashBucketLock lock;
         StoredValue* value;
         Statistics& valueStats;
         Statistics::StoredValueProperties pre;
+    };
+
+    /**
+     * Result of the findForCommit() method.
+     *
+     * Contains a StoredValueProxy for the prepare so that we can modify it
+     * outside of HashTable functions and a pointer to the previously committed
+     * StoredValue (if one exists). Works under the assumption that the prepare
+     * and committed items exist in the same HashBucket, as only one lock is
+     * returned (in the pending StoredValueProxy).
+     */
+    struct FindCommitResult {
+        StoredValueProxy pending;
+        StoredValue* committed;
     };
 
     /**
@@ -758,6 +776,12 @@ public:
             WantsDeleted wantsDeleted = WantsDeleted::Yes);
 
     /**
+     * @return A pair of StoredValues (pending and prepare) so that we can
+     *         update accordingly when committing a SyncWrite.
+     */
+    FindCommitResult findForCommit(const DocKey& key);
+
+    /**
      * Find a resident item
      *
      * @param rnd a randomization input
@@ -773,24 +797,6 @@ public:
      * @return a result indicating the status of the store
      */
     MutationStatus set(Item& val);
-
-    /**
-     * Commit a pending SyncWrite; marking it at committed and removing any
-     * existing Committed item with the same key.
-     *
-     * @param hbl Hash table bucket lock that must be held.
-     * @param v Reference to the StoredValue to be committed.
-     */
-    void commit(const HashBucketLock& hbl, StoredValue& v);
-
-    /**
-     * Commit a pending SyncWrite; marking it at committed and removing any
-     * existing Committed item with the same key.
-     *
-     * @param p StoredValueProxy containing HashBucketLock and StoredValue to
-     *          commit.
-     */
-    void commit(StoredValueProxy& p);
 
     /**
      * Abort a pending SyncWrite, i.e. remove the existing Pending StoredValue.

@@ -326,41 +326,6 @@ MutationStatus HashTable::set(Item& val) {
     }
 }
 
-void HashTable::commit(const HashTable::HashBucketLock& hbl, StoredValue& v) {
-    if (v.getCommitted() != CommittedState::Pending) {
-        throw std::invalid_argument(
-                "HashTable::commit: Cannot call on a non-Pending StoredValue");
-    }
-
-    // Record properties of the pending item we are about to commit.
-    const auto pendingPreProps = valueStats.prologue(&v);
-
-    // Locate any existing committed SV and remove it.
-    auto& key = v.getKey();
-    auto oldValue = hashChainRemoveFirst(
-            values[hbl.getBucketNum()], [&key](const StoredValue* v) {
-                return v->hasKey(key) &&
-                       v->getCommitted() != CommittedState::Pending;
-            });
-
-    if (oldValue) {
-        // Update stats for committed -> [removed] item.
-        const auto committedPreProps =
-                valueStats.prologue(oldValue.get().get());
-        valueStats.epilogue(committedPreProps, nullptr);
-    }
-
-    // Change the pending item to Committed.
-    v.setCommitted(CommittedState::CommittedViaPrepare);
-
-    // Update stats for pending -> Committed item
-    valueStats.epilogue(pendingPreProps, &v);
-}
-
-void HashTable::commit(StoredValueProxy& p) {
-    commit(p.getHBL(), *p.getSV());
-}
-
 void HashTable::abort(const HashBucketLock& hbl, StoredValue& v) {
     if (v.getCommitted() != CommittedState::Pending) {
         throw std::invalid_argument(
@@ -766,13 +731,19 @@ HashTable::StoredValueProxy HashTable::findForWrite(StoredValueProxy::RetSVPTag,
             std::move(result.lock), result.storedValue, valueStats);
 }
 
+HashTable::FindCommitResult HashTable::findForCommit(const DocKey& key) {
+    auto result = findInner(key);
+
+    StoredValueProxy prepare{
+            std::move(result.lock), result.pendingSV, valueStats};
+    return {std::move(prepare), result.committedSV};
+}
+
 void HashTable::unlocked_del(const HashBucketLock& hbl, const DocKey& key) {
     unlocked_release(hbl, key).reset();
 }
 
-void HashTable::unlocked_del(
-        const HashBucketLock& hbl,
-        StoredValue* value) {
+void HashTable::unlocked_del(const HashBucketLock& hbl, StoredValue* value) {
     unlocked_release(hbl, value).reset();
 }
 

@@ -110,9 +110,9 @@ protected:
 
     /// Public access to processSoftDelete() method.
     std::pair<MutationStatus, StoredValue*> public_processSoftDelete(
-            const DocKey& key);
+            const DocKey& key, VBQueueItemCtx ctx = {});
     std::pair<MutationStatus, StoredValue*> public_processSoftDelete(
-            const HashTable::HashBucketLock& hbl, StoredValue& v);
+            const HashTable::HashBucketLock& hbl, StoredValue& v, VBQueueItemCtx ctx = {});
 
     bool public_deleteStoredValue(const DocKey& key);
 

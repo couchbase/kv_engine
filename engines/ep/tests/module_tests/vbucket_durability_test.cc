@@ -757,6 +757,234 @@ TEST_P(VBucketDurabilityTest, Pending_AddPrepareInPassiveDM) {
     testAddPrepareInPassiveDM(vbucket_state_pending, {1, 2, 3} /*seqnos*/);
 }
 
+// Test adding a pending item and then committing it.
+TEST_P(VBucketDurabilityTest, Commit) {
+    auto key = makeStoredDocKey("key1");
+    storeSyncWrites({1});
+
+    // Check preconditions - pending item should be found as pending.
+    auto result = ht->findForWrite(key).storedValue;
+    ASSERT_TRUE(result);
+    ASSERT_EQ(CommittedState::Pending, result->getCommitted());
+
+    // Test
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+
+    // Check postconditions - should only have one item for that key.
+    auto readView = ht->findForRead(key).storedValue;
+    auto writeView = ht->findForWrite(key).storedValue;
+    EXPECT_TRUE(readView);
+    EXPECT_TRUE(writeView);
+    EXPECT_EQ(CommittedState::CommittedViaPrepare, readView->getCommitted());
+    EXPECT_EQ(*readView, *writeView);
+}
+
+// Test a normal set followed by a pending SyncWrite; then committing the
+// pending SyncWrite which should replace the previous committed.
+TEST_P(VBucketDurabilityTest, CommitExisting) {
+    auto key = makeStoredDocKey("key");
+    auto committed = makeCommittedItem(key, "valueA"s);
+    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*committed, 0, {}));
+
+    auto pending = makePendingItem(key, "valueB"s);
+    VBQueueItemCtx ctx;
+    ctx.durability = DurabilityItemCtx{pending->getDurabilityReqs(), cookie};
+    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*pending, 0, ctx));
+
+    ASSERT_EQ(2, ht->getNumItems());
+
+    // Check preconditions - item should be found as pending.
+    auto result = ht->findForWrite(key).storedValue;
+    ASSERT_TRUE(result);
+    ASSERT_EQ(CommittedState::Pending, result->getCommitted());
+
+    // Test
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+
+    // Check postconditions - should only have one item for that key.
+    auto readView = ht->findForRead(key).storedValue;
+    auto writeView = ht->findForWrite(key).storedValue;
+    EXPECT_TRUE(readView);
+    EXPECT_TRUE(writeView);
+    EXPECT_EQ(*readView, *writeView);
+
+    EXPECT_EQ(1, ht->getNumItems());
+
+    // Should be CommittedViaPrepare
+    EXPECT_EQ(CommittedState::CommittedViaPrepare, readView->getCommitted());
+}
+
+TEST_P(VBucketDurabilityTest, SyncDeleteCommit) {
+    auto key = makeStoredDocKey("key");
+    auto committed = makeCommittedItem(key, "value"s);
+    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*committed, 0, {}));
+
+    // Do a SyncDelete
+    auto result = ht->findForWrite(key).storedValue;
+    ASSERT_TRUE(result);
+    VBQueueItemCtx ctx;
+    ctx.durability =
+            DurabilityItemCtx{{cb::durability::Level::Majority, {}}, cookie};
+    ASSERT_EQ(MutationStatus::WasDirty,
+              public_processSoftDelete(key, ctx).first);
+
+    // Test - commit the pending SyncDelete.
+    result = ht->findForWrite(key).storedValue;
+    ASSERT_TRUE(result);
+    ASSERT_EQ(CommittedState::Pending, result->getCommitted());
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+
+    // Check postconditions:
+    // 1. Upon commit, both read and write view should show same deleted item.
+    auto* readView =
+            ht->findForRead(key, TrackReference::Yes, WantsDeleted::Yes)
+                    .storedValue;
+    ASSERT_TRUE(readView);
+    auto* writeView = ht->findForWrite(key).storedValue;
+    ASSERT_TRUE(writeView);
+
+    EXPECT_EQ(readView, writeView);
+    EXPECT_TRUE(readView->isDeleted());
+    EXPECT_FALSE(readView->getValue());
+
+    EXPECT_EQ(CommittedState::CommittedViaPrepare, readView->getCommitted());
+
+    // Should currently have 1 item:
+    EXPECT_EQ(1, ht->getNumItems());
+}
+
+// Negative test - check it is not possible to commit a non-pending item.
+TEST_P(VBucketDurabilityTest, CommitNonPendingFails) {
+    auto key = makeStoredDocKey("key");
+    auto committed = makeCommittedItem(key, "valueA"s);
+    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*committed, 0, {}));
+
+    // Check preconditions - item should be found as committed.
+    auto result = ht->findForWrite(key).storedValue;
+    ASSERT_TRUE(result);
+    ASSERT_EQ(CommittedState::CommittedViaMutation, result->getCommitted());
+
+    // Test
+    EXPECT_EQ(ENGINE_KEY_ENOENT,
+              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+}
+
+// Test that a normal set after a Committed SyncWrite is allowed and handled
+// correctly.
+TEST_P(VBucketDurabilityTest, MutationAfterCommit) {
+    // Setup - Commit a SyncWrite into the HashTable.
+    auto key = makeStoredDocKey("key1");
+    storeSyncWrites({1});
+    ASSERT_EQ(1, ht->getNumItems());
+
+    // Check preconditions - item should be found as pending.
+    auto result = ht->findForWrite(key).storedValue;
+    ASSERT_TRUE(result);
+    ASSERT_EQ(CommittedState::Pending, result->getCommitted());
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+
+    auto readView = ht->findForRead(key).storedValue;
+    ASSERT_TRUE(readView);
+    ASSERT_EQ(CommittedState::CommittedViaPrepare, readView->getCommitted());
+
+    // Test - attempt to update with a normal Mutation (should be allowed).
+    auto committed = makeCommittedItem(key, "mutation"s);
+    ASSERT_EQ(MutationStatus::WasDirty, public_processSet(*committed, 0, {}));
+
+    // Check postconditions
+    // 1. Should only have 1 item (and should be same)
+    readView = ht->findForRead(key).storedValue;
+    auto writeView = ht->findForWrite(key).storedValue;
+    EXPECT_TRUE(readView);
+    EXPECT_TRUE(writeView);
+    EXPECT_EQ(*readView, *writeView);
+
+    // Should be CommittedViaMutation
+    EXPECT_EQ(CommittedState::CommittedViaMutation, readView->getCommitted());
+}
+
+/// Store a prepared SyncWrite, commit it and check counts.
+TEST_P(VBucketDurabilityTest, StatsCommittedSyncWrite) {
+    // Setup
+    auto key = makeStoredDocKey("key");
+    auto prepared = makePendingItem(key, "valueB"s);
+    VBQueueItemCtx ctx;
+    ctx.durability = DurabilityItemCtx{prepared->getDurabilityReqs(), cookie};
+    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*prepared, 0, ctx));
+
+    auto result = ht->findForWrite(key).storedValue;
+    ASSERT_TRUE(result);
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+
+    // Test
+    EXPECT_EQ(0, ht->getNumPreparedSyncWrites());
+    EXPECT_EQ(1, ht->getNumItems());
+    EXPECT_EQ(1, ht->getDatatypeCounts()[prepared->getDataType()]);
+}
+
+/// Store a prepared SyncDelete, commit it and check counts.
+TEST_P(VBucketDurabilityTest, StatsCommittedSyncDelete) {
+    // Setup
+    auto key = makeStoredDocKey("key");
+    auto prepared = makePendingItem(key, "prepared");
+    prepared->setDeleted(DeleteSource::Explicit);
+    VBQueueItemCtx ctx;
+    ctx.durability = DurabilityItemCtx{prepared->getDurabilityReqs(), cookie};
+    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*prepared, 0, ctx));
+
+    auto result = ht->findForWrite(key).storedValue;
+    ASSERT_TRUE(result);
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+
+    // Test
+    EXPECT_EQ(0, ht->getNumPreparedSyncWrites());
+    EXPECT_EQ(1, ht->getNumItems());
+    EXPECT_EQ(1, ht->getNumDeletedItems());
+    for (const auto& count : ht->getDatatypeCounts()) {
+        EXPECT_EQ(0, count);
+    }
+}
+
+// Test case for doing a sync write on top of a pre-existing item.
+// Stats should be tracked as follows:
+// 1) Pre-existing item created (no item -> committed item)
+// 2) Pending sync write created (no pending sw for item -> pending sw for item)
+// 3) Commit sync write (committed item -> [removed] + pending sw -> committed)
+TEST_P(VBucketDurabilityTest, StatsCommittedSyncWritePreExisting) {
+    // Setup - set a pre-existing item
+    auto key = makeStoredDocKey("key");
+    StoredDocKey existing = makeStoredDocKey("existing");
+    auto item = makeCommittedItem(key, "value");
+    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*item, 0, {}));
+
+    ASSERT_EQ(0, ht->getNumPreparedSyncWrites());
+
+    // Setup - prepare a sync write
+    auto prepared = makePendingItem(key, "prepared");
+    VBQueueItemCtx ctx;
+    ctx.durability = DurabilityItemCtx{prepared->getDurabilityReqs(), cookie};
+    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*prepared, 0, ctx));
+    ASSERT_EQ(1, ht->getNumPreparedSyncWrites());
+
+    // Commit the sync write
+    auto result = ht->findForWrite(key).storedValue;
+    ASSERT_TRUE(result);
+
+    // We should not throw due to underflow (if assertions are turned on)
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+
+    // We should no longer have the prepared sync write (will only fail if
+    // assertions are turned off)
+    EXPECT_EQ(0, ht->getNumPreparedSyncWrites());
+}
+
 void VBucketDurabilityTest::testConvertPassiveDMToActiveDM(
         vbucket_state_t initialState) {
     ASSERT_TRUE(vbucket);
