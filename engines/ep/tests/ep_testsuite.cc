@@ -6147,6 +6147,110 @@ static enum test_result test_mb19635_upgrade_from_25x(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static void force_vbstate_MB34173_corruption(std::string dbname,
+                                             const std::string state,
+                                             int vbucket) {
+    std::string filename = dbname + DIRECTORY_SEPARATOR_CHARACTER +
+                           std::to_string(vbucket) + ".couch.1";
+    Db* handle;
+    couchstore_error_t err = couchstore_open_db(
+            filename.c_str(), COUCHSTORE_OPEN_FLAG_CREATE, &handle);
+
+    checkeq(COUCHSTORE_SUCCESS, err, "Failed to open new database");
+
+    // snap_start is > end
+    std::string vbstate =
+            R"({"state": ")" + state +
+            R"(","checkpoint_id": "0","max_deleted_seqno": "0",
+             "failover_table": [{"id":152278645979842,"seq":0}],
+             "snap_start": "34344987306","snap_end": "96","max_cas":
+             "1558003782564577280","hlc_epoch": "1",
+             "might_contain_xattrs": false})";
+    LocalDoc ldoc;
+    ldoc.id.buf = (char*)"_local/vbstate";
+    ldoc.id.size = sizeof("_local/vbstate") - 1;
+    ldoc.json.buf = (char*)vbstate.c_str();
+    ldoc.json.size = vbstate.size();
+    ldoc.deleted = 0;
+
+    err = couchstore_save_local_document(handle, &ldoc);
+    checkeq(COUCHSTORE_SUCCESS, err, "Failed to write local document");
+    couchstore_commit(handle);
+    couchstore_close_file(handle);
+    couchstore_free_db(handle);
+}
+
+static enum test_result test_MB34173_warmup(ENGINE_HANDLE* h,
+                                            ENGINE_HANDLE_V1* h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
+    std::string backend = get_str_stat(h, h1, "ep_backend");
+    if (backend == "rocksdb") {
+        // TODO RDB:
+        return SKIPPED_UNDER_ROCKSDB;
+    }
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+          "Failed to set vbucket state (vb 0).");
+    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+          "Failed to set vbucket state (vb 1).");
+    check(set_vbucket_state(h, h1, 2, vbucket_state_pending),
+          "Failed to set vbucket state (vb 2).");
+
+    wait_for_flusher_to_settle(h, h1);
+
+    std::string dbname = get_dbname(testHarness.get_current_testcase()->cfg);
+
+    force_vbstate_MB34173_corruption(dbname, "active", 0);
+    force_vbstate_MB34173_corruption(dbname, "replica", 1);
+    force_vbstate_MB34173_corruption(dbname, "pending", 2);
+
+    // Warmup
+    testHarness.reload_engine(&h,
+                              &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true,
+                              false);
+
+    wait_for_warmup_complete(h, h1);
+
+    auto checkRange = [h, h1](int vb) {
+        std::string statKey = "vb_" + std::to_string(vb);
+        auto key1 = statKey + ":high_seqno";
+        auto key2 = statKey + ":last_persisted_snap_start";
+        auto key3 = statKey + ":last_persisted_snap_end";
+        uint64_t highSeq = get_ull_stat(h, h1, key1.c_str(), "vbucket-seqno");
+        uint64_t snapStart = get_ull_stat(h, h1, key2.c_str(), "vbucket-seqno");
+        uint64_t snapEnd = get_ull_stat(h, h1, key3.c_str(), "vbucket-seqno");
+        check(highSeq <= snapEnd && highSeq >= snapStart,
+              "Invalid snapshot range");
+    };
+
+    checkRange(0);
+
+    // Expect that vb1/2 have now gone away, warmup skipped them because of the
+    // snapshot corruption
+    checkeq(cb::engine_errc::not_my_vbucket,
+            gat(h, h1, "no-vb", 1, 0).first,
+            "Should have received not my vbucket response for vb1");
+    checkeq(cb::engine_errc::not_my_vbucket,
+            gat(h, h1, "no-vb", 2, 0).first,
+            "Should have received not my vbucket response for vb2");
+
+    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+          "Failed to set vbucket state (vb 1).");
+    check(set_vbucket_state(h, h1, 2, vbucket_state_replica),
+          "Failed to set vbucket state (vb 2).");
+
+    checkRange(1);
+    checkRange(2);
+
+    return SUCCESS;
+}
+
 // Regression test the stats calls that they don't blow the snprintf
 // buffers. All of the tests in this batch make sure that all of the stats
 // exists (the stats call return a fixed set of stats)
@@ -8168,6 +8272,12 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test_MB-23640_get_document_of_any_state", test_mb23640,
                  test_setup, teardown, nullptr, prepare, cleanup),
 
-        TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
-};
+        TestCase("test_MB34173_warmup",
+                 test_MB34173_warmup,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare_ep_bucket_skip_broken_under_rocks,
+                 cleanup),
 
+        TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)};

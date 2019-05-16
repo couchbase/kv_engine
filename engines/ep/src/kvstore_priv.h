@@ -103,3 +103,14 @@ inline const bool getJSONObjBool(const cJSON* i) {
     }
     return i->type == cJSON_True;
 }
+
+inline const int64_t getJSONObjInt64(const cJSON* i) {
+    if (i == nullptr) {
+        return 0;
+    } else if (i->type != cJSON_Number) {
+        throw std::invalid_argument("getJSONObjInt64: type of object (" +
+                                    std::to_string(i->type) +
+                                    ") is not number");
+    }
+    return i->valueint;
+}
