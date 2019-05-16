@@ -1201,40 +1201,47 @@ HashTable::FindResult VBucket::fetchValidValue(
         TrackReference trackReference,
         QueueExpired queueExpired,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    const auto& key = cHandle.getKey();
-    auto hbl = ht.getLockedBucket(key);
-
     if (queueExpired == QueueExpired::Yes && !cHandle.valid()) {
         throw std::invalid_argument(
                 "VBucket::fetchValidValue cannot queue "
                 "expired items for invalid collection");
     }
-    StoredValue* v = ht.unlocked_find(
-            key, hbl.getBucketNum(), wantsDeleted, trackReference);
+    const auto& key = cHandle.getKey();
+    auto res = ht.findForRead(key, trackReference, wantsDeleted);
+    // Temp: The following const_cast<> is needed because unfortunately this
+    // function does need a non-const SV to be able to perform expiry, and also
+    // because various existing callers of this method expect a non-const SV.
+    // I prefer to have HashTable::findForRead() return a const SV so at least
+    // other use-cases _can_ be const-correct, even if we cannot be here.
+    // Ideally this should be removed; but that requires that findForRead() is
+    // refactored to return a proxy object which while logically const, *does*
+    // allow some "physically" const methods (like ht.unlocked_restore) to be
+    // called on it.
+    auto* v = const_cast<StoredValue*>(res.storedValue);
     if (v && !v->isDeleted() && !v->isTempItem()) {
         // In the deleted case, we ignore expiration time.
         if (v->isExpired(ep_real_time())) {
             if (getState() != vbucket_state_active) {
                 return {(wantsDeleted == WantsDeleted::Yes) ? v : nullptr,
-                        std::move(hbl)};
+                        std::move(res.lock)};
             }
 
             // queueDirty only allowed on active VB
             if (queueExpired == QueueExpired::Yes &&
                 getState() == vbucket_state_active) {
                 incExpirationStat(ExpireBy::Access);
-                handlePreExpiry(hbl, *v);
+                handlePreExpiry(res.lock, *v);
                 VBNotifyCtx notifyCtx;
                 std::tie(std::ignore, v, notifyCtx) =
-                        processExpiredItem(hbl, *v, cHandle);
+                        processExpiredItem(res.lock, *v, cHandle);
                 notifyNewSeqno(notifyCtx);
                 doCollectionsStats(cHandle, notifyCtx);
             }
             return {(wantsDeleted == WantsDeleted::Yes) ? v : nullptr,
-                    std::move(hbl)};
+                    std::move(res.lock)};
         }
     }
-    return {v, std::move(hbl)};
+    return {v, std::move(res.lock)};
 }
 
 HashTable::FindResult VBucket::fetchPreparedValue(
