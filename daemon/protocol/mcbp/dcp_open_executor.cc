@@ -75,6 +75,7 @@ void dcp_open_executor(Cookie& cookie) {
         connection.setDcpXattrAware(dcpXattrAware);
         connection.setDcpNoValue(dcpNoValue);
         connection.setDcpDeleteTimeEnabled(dcpDeleteTimes);
+        connection.setDCP(true);
 
         // String buffer with max length = total length of all possible contents
         std::string logBuffer;

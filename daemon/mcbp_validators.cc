@@ -481,13 +481,13 @@ Status McbpValidator::verify_header(Cookie& cookie,
  * @param cookie The command cookie
  */
 static Status verify_common_dcp_restrictions(Cookie& cookie) {
-    auto* dcp = cookie.getConnection().getBucket().getDcpIface();
+    const auto& connection = cookie.getConnection();
+    auto* dcp = connection.getBucket().getDcpIface();
     if (!dcp) {
         cookie.setErrorContext("Attached bucket does not support DCP");
         return Status::NotSupported;
     }
 
-    const auto& connection = cookie.getConnection();
     if (connection.allowUnorderedExecution()) {
         LOG_WARNING(
                 "DCP on a connection with unordered execution is currently "
@@ -496,6 +496,27 @@ static Status verify_common_dcp_restrictions(Cookie& cookie) {
         cookie.setErrorContext(
                 "DCP on connections with unordered execution is not supported");
         return Status::NotSupported;
+    }
+
+    using cb::mcbp::ClientOpcode;
+    const auto opcode = cookie.getRequest().getClientOpcode();
+    if (opcode == ClientOpcode::DcpOpen) {
+        if (connection.isDCP()) {
+            LOG_DEBUG("{}: Can't do DCP OPEN twice",
+                      cookie.getConnection().getId());
+            cookie.setErrorContext(
+                    "The connection is already opened as a DCP connection");
+            return Status::Einval;
+        }
+    } else if (opcode != ClientOpcode::GetFailoverLog) {
+        if (!connection.isDCP()) {
+            LOG_DEBUG("{}: Can't send {} on connection before DCP open",
+                      cookie.getConnection().getId(),
+                      to_string(cookie.getRequest().getClientOpcode()));
+            cookie.setErrorContext(
+                    "The command can only be sent on a DCP connection");
+            return Status::Einval;
+        }
     }
 
     return Status::Success;
