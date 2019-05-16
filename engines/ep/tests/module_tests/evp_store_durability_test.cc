@@ -413,6 +413,114 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     EXPECT_EQ(delInfo.seqno + 1, gv.item->getBySeqno());
 }
 
+/// Test SyncDelete on top of SyncWrite
+TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto& vb = *store->getVBucket(vbid);
+
+    // prepare SyncWrite and commit.
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "value");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb.commit(key, {} /*commitSeqno*/, vb.lockCollections(key)));
+
+    // We do not deduplicate Prepare and Commit in CheckpointManager (achieved
+    // by inserting them into different checkpoints)
+    const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    ckptMgr);
+    ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(1, ckptList.back()->getNumItems());
+
+    // Note: Prepare and Commit are not in the same key-space and hence are not
+    //       deduplicated at Flush.
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // prepare SyncDelete and commit.
+    uint64_t cas = 0;
+    using namespace cb::durability;
+    auto reqs = Requirements(Level::Majority, {});
+    mutation_descr_t delInfo;
+
+    ASSERT_EQ(1, vb.getNumItems());
+    EXPECT_EQ(0, vb.ht.getNumPreparedSyncWrites());
+    ASSERT_EQ(
+            ENGINE_EWOULDBLOCK,
+            store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
+
+    EXPECT_EQ(1, vb.getNumItems());
+    EXPECT_EQ(1, vb.ht.getNumPreparedSyncWrites());
+
+    ASSERT_EQ(3, ckptList.size());
+    ASSERT_EQ(1, ckptList.back()->getNumItems());
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb.commit(key, {} /*commitSeqno*/, vb.lockCollections(key)));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    EXPECT_EQ(0, vb.getNumItems());
+
+    ASSERT_EQ(4, ckptList.size());
+    ASSERT_EQ(1, ckptList.back()->getNumItems());
+}
+
+/// Test delete on top of SyncWrite
+TEST_P(DurabilityBucketTest, SyncWriteDelete) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto& vb = *store->getVBucket(vbid);
+
+    // prepare SyncWrite and commit.
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "value");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb.commit(key, {} /*commitSeqno*/, vb.lockCollections(key)));
+
+    // We do not deduplicate Prepare and Commit in CheckpointManager (achieved
+    // by inserting them into different checkpoints)
+    const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    ckptMgr);
+    ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(1, ckptList.back()->getNumItems());
+
+    // Note: Prepare and Commit are not in the same key-space and hence are not
+    //       deduplicated at Flush.
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // prepare SyncDelete and commit.
+    uint64_t cas = 0;
+    using namespace cb::durability;
+    mutation_descr_t delInfo;
+
+    ASSERT_EQ(1, vb.getNumItems());
+    EXPECT_EQ(0, vb.ht.getNumPreparedSyncWrites());
+    ASSERT_EQ(ENGINE_SUCCESS,
+              store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    EXPECT_EQ(0, vb.getNumItems());
+    EXPECT_EQ(0, vb.ht.getNumPreparedSyncWrites());
+
+    ASSERT_EQ(3, ckptList.size());
+    ASSERT_EQ(1, ckptList.back()->getNumItems());
+}
+
 TEST_P(DurabilityEPBucketTest, ActiveLocalNotifyPersistedSeqno) {
     setVBucketStateAndRunPersistTask(
             vbid,

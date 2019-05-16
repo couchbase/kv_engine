@@ -946,14 +946,27 @@ TEST_P(EphemeralVBucketDurabilityTest, PrepareOnCommitted) {
     EXPECT_EQ(2, mockEphVb->public_getNumListItems());
 }
 
-TEST_P(EPVBucketDurabilityTest, SyncDeleteCommit) {
+void VBucketDurabilityTest::testHTSyncDeleteCommit() {
     auto key = makeStoredDocKey("key");
     auto committed = makeCommittedItem(key, "value"s);
     ASSERT_EQ(MutationStatus::WasClean, public_processSet(*committed, 0, {}));
 
+    // Because we called public_processSet (which calls VBucket::set) we skip
+    // the call to update the collections stats using the notifyCtx. This is
+    // fine for persistent buckets because we never flush anything, but for
+    // Ephemeral buckets we need to manually poke the collections item counter
+    // or we will throw when we attempt to decrement it below 0.
+    if (getVbType() == VBType::Ephemeral) {
+        auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
+        VBNotifyCtx notifyCtx;
+        notifyCtx.itemCountDifference = 1;
+        mockEphVb->public_doCollectionsStats(vbucket->lockCollections(key),
+                                             notifyCtx);
+    }
+
     // Do a SyncDelete
-    auto result = ht->findForWrite(key).storedValue;
-    ASSERT_TRUE(result);
+    auto* writeView = ht->findForWrite(key).storedValue;
+    ASSERT_TRUE(writeView);
     VBQueueItemCtx ctx;
     ctx.durability =
             DurabilityItemCtx{{cb::durability::Level::Majority, {}}, cookie};
@@ -961,19 +974,24 @@ TEST_P(EPVBucketDurabilityTest, SyncDeleteCommit) {
               public_processSoftDelete(key, ctx).first);
 
     // Test - commit the pending SyncDelete.
-    result = ht->findForWrite(key).storedValue;
-    ASSERT_TRUE(result);
-    ASSERT_EQ(CommittedState::Pending, result->getCommitted());
+    writeView = ht->findForWrite(key).storedValue;
+    ASSERT_TRUE(writeView);
+
+    auto* readView = ht->findForRead(key).storedValue;
+    ASSERT_TRUE(readView);
+    EXPECT_FALSE(readView->isDeleted());
+    EXPECT_TRUE(readView->getValue());
+
+    ASSERT_EQ(CommittedState::Pending, writeView->getCommitted());
     ASSERT_EQ(ENGINE_SUCCESS,
               vbucket->commit(key, {}, vbucket->lockCollections(key)));
 
     // Check postconditions:
     // 1. Upon commit, both read and write view should show same deleted item.
-    auto* readView =
-            ht->findForRead(key, TrackReference::Yes, WantsDeleted::Yes)
-                    .storedValue;
+    readView = ht->findForRead(key, TrackReference::Yes, WantsDeleted::Yes)
+                       .storedValue;
     ASSERT_TRUE(readView);
-    auto* writeView = ht->findForWrite(key).storedValue;
+    writeView = ht->findForWrite(key).storedValue;
     ASSERT_TRUE(writeView);
 
     EXPECT_EQ(readView, writeView);
@@ -984,6 +1002,65 @@ TEST_P(EPVBucketDurabilityTest, SyncDeleteCommit) {
 
     // Should currently have 1 item:
     EXPECT_EQ(1, ht->getNumItems());
+}
+
+TEST_P(EPVBucketDurabilityTest, SyncDeleteCommit) {
+    testHTSyncDeleteCommit();
+}
+
+TEST_P(EphemeralVBucketDurabilityTest, SyncDeleteCommit) {
+    testHTSyncDeleteCommit();
+
+    // Check that we have the expected items in the seqList.
+    // 1 stale prepare
+    // 1 value
+    auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
+    EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
+    EXPECT_EQ(2, mockEphVb->public_getNumListItems());
+
+    // Do a purge of the stale items and check result. Can't delete last item so
+    // no change
+    EXPECT_EQ(1, mockEphVb->purgeStaleItems());
+    EXPECT_EQ(0, mockEphVb->public_getNumStaleItems());
+    EXPECT_EQ(1, mockEphVb->public_getNumListItems());
+}
+
+TEST_P(EphemeralVBucketDurabilityTest, SyncDeleteCommit_RangeRead) {
+    testHTCommitExisting();
+
+    // Manually bump the collections doc count as we are going to hit an
+    // internal function
+    auto key = makeStoredDocKey("key");
+    VBNotifyCtx notifyCtx;
+    notifyCtx.itemCountDifference = 1;
+    auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
+    mockEphVb->public_doCollectionsStats(vbucket->lockCollections(key),
+                                         notifyCtx);
+
+    // Make our prepare outside of the range read
+    VBQueueItemCtx ctx;
+    ctx.durability =
+            DurabilityItemCtx{{cb::durability::Level::Majority, {}}, cookie};
+    ASSERT_EQ(MutationStatus::WasDirty,
+              public_processSoftDelete(key, ctx).first);
+
+    // Do the SyncDelete Commit in a range read
+    mockEphVb->registerFakeReadRange(0, 1000);
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+
+    // Check that we have the expected items in the seqList.
+    // 1 stale value
+    // 1 stale prepare
+    // 1 value (committed)
+    EXPECT_EQ(2, mockEphVb->public_getNumStaleItems());
+    EXPECT_EQ(3, mockEphVb->public_getNumListItems());
+
+    // Do a purge of the stale items and check result. Can't remove everything
+    // from the seqList
+    EXPECT_EQ(2, mockEphVb->purgeStaleItems());
+    EXPECT_EQ(0, mockEphVb->public_getNumStaleItems());
+    EXPECT_EQ(1, mockEphVb->public_getNumListItems());
 }
 
 // Negative test - check it is not possible to commit a non-pending item.

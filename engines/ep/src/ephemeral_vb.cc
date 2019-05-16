@@ -560,9 +560,6 @@ EphemeralVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
                                         const VBQueueItemCtx& queueItmCtx,
                                         uint64_t bySeqno,
                                         DeleteSource deleteSource) {
-    // @todo-durability: Handle durability requirements in queueItemCtx -
-    // see EPVBucket impl
-
     std::lock_guard<std::mutex> lh(sequenceLock);
 
     StoredValue* newSv = &v;

@@ -125,6 +125,11 @@ protected:
      */
     void setupPendingDelete(StoredDocKey key);
 
+    /**
+     * Test a commit of a sync delete
+     */
+    void testHTSyncDeleteCommit();
+
     // All owned by VBucket
     HashTable* ht;
     MockCheckpointManager* ckptMgr;
