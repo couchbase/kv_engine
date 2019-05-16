@@ -367,18 +367,6 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
 
             Collections::VB::Flush collectionFlush(vb->getManifest());
 
-            // For Durability, a node must acknowledge the last persisted seqno.
-            // Given that:
-            // - a FlushBatch may or may not contain SyncWrites
-            // - a FlushBatch is persisted atomically
-            // then:
-            // 1) we sign the current FlushBatch as "containing at least one
-            //     Prepare mutation" (done by setting the pendingSyncWrite flag
-            //     when a Prepare is processed)
-            // 2) we acknowledge the last persisted seqno only /after/ the
-            //     FlushBatch has been committed (and only if the flag is set)
-            bool pendingSyncWrite = false;
-
             // Iterate through items, checking if we (a) can skip persisting,
             // (b) can de-duplicate as the previous key was the same, or (c)
             // actually need to persist.
@@ -412,11 +400,6 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                     prev = item.get();
                     ++items_flushed;
                     flushOneDelOrSet(item, vb.getVB());
-
-                    // At least one pending SyncWrite in the FlushBatch?
-                    if (item->isPending()) {
-                        pendingSyncWrite = true;
-                    }
 
                     maxSeqno = std::max(maxSeqno, (uint64_t)item->getBySeqno());
 
@@ -511,13 +494,39 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                     vb->setPersistenceSeqno(highSeqno);
                 }
 
-                // Notify the local DM if the flush-batch contains any durable
-                // mutation. That updates the High Prepared Seqno for this node.
-                // In the case of a Replica node, this action will trigger a
-                // SeqnoAck to the Active.
-                if (pendingSyncWrite) {
-                    vb->notifyPersistenceToDurabilityMonitor();
-                }
+                // Notify the local DM that the Flusher has run. Persistence
+                // could unblock some pending Prepares in the DM.
+                // If it is the case, this call updates the High Prepared Seqno
+                // for this node.
+                // In the case of a Replica node, that could trigger a SeqnoAck
+                // to the Active.
+                //
+                // Note: This is a NOP if the there's no Prepare queued in DM.
+                //     We could notify the DM only if strictly required (i.e.,
+                //     only when the Flusher has persisted up to the snap-end
+                //     mutation of an in-memory snapshot, see HPS comments in
+                //     PassiveDM for details), but that requires further work.
+                //     The main problem is that in general a flush-batch does
+                //     not coincide with in-memory snapshots (ie, we don't
+                //     persist at snapshot boundaries). So, the Flusher could
+                //     split a single in-memory snapshot into multiple
+                //     flush-batches. That may happen at Replica, e.g.:
+                //
+                //     1) received snap-marker [1, 2]
+                //     2) received 1:PRE
+                //     3) flush-batch {1:PRE}
+                //     4) received 2:mutation
+                //     5) flush-batch {2:mutation}
+                //
+                //     In theory we need to notify the DM only at step (5) and
+                //     only if the the snapshot contains at least 1 Prepare
+                //     (which is the case in our example), but the problem is
+                //     that the Flusher doesn't know about 1:PRE at step (5).
+                //
+                //     So, given that here we are executing in a slow bg-thread
+                //     (write+sync to disk), then we can just afford to calling
+                //     back to the DM unconditionally.
+                vb->notifyPersistenceToDurabilityMonitor();
             }
 
             auto flush_end = std::chrono::steady_clock::now();

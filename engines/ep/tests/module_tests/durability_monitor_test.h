@@ -56,38 +56,6 @@ protected:
     MutationStatus processSet(Item& item);
 
     /**
-     * Checks that the HPS is updated correctly when Level:Majority writes
-     * are queued into the DM.
-     * The same logic must apply for both ActiveDM and PassiveDM.
-     */
-    void testHPS_Majority();
-
-    /**
-     * Checks that the HPS is updated correctly when Level:PersistToMajority
-     * writes are queued into the DM.
-     * The same logic must apply for both ActiveDM and PassiveDM.
-     */
-    void testHPS_PersistToMajority();
-
-    /**
-     * Checks that the HPS is updated correctly when (1) Level:PersistToMajority
-     * writes are queued into the DM and then (2) Level:Majority writes are
-     * queued. Verifies that Level:PersistToMajority writes enforce a
-     * durability-fence.
-     * The same logic must apply for both ActiveDM and PassiveDM.
-     */
-    void testHPS_PersistToMajority_Majority();
-
-    /**
-     * Checks that the HPS is updated correctly when (1) Level:Majority writes
-     * are queued into the DM and then (2) Level:PersistToMajority writes are
-     * queued. Verifies that Level:Majority writes do *not* enforce a
-     * durability-fence.
-     * The same logic must apply for both ActiveDM and PassiveDM.
-     */
-    void testHPS_Majority_PersistToMajority();
-
-    /**
      * Add the given SyncWrites for tracking and check that High Prepared Seqno
      * has been updated as expected.
      *
@@ -390,6 +358,37 @@ protected:
      * @param res The type of resolution, Commit/Abort
      */
     void testResolvePrepare(PassiveDurabilityMonitor::Resolution res);
+
+    /**
+     * Notify the DM that the snapshot-end mutation has been received on the
+     * PassiveStream and check that High Prepared Seqno has been updated as
+     * expected.
+     *
+     * @param snapEnd
+     * @param expectedHPS
+     */
+    void notifySnapEndReceivedAndCheckHPS(int64_t snapEnd, int64_t expectedHPS);
+
+    /**
+     * Checks that the HPS is updated correctly when (1) Level:PersistToMajority
+     * writes are queued into the DM and then (2) Level Majority or
+     * MajorityAndPersistOnMaster writes are queued.
+     * Verifies that Level:PersistToMajority writes enforce a durability-fence.
+     *
+     * @param testedLevel The level tested, Majority/MajorityAndPersistOnMaster
+     */
+    void testHPS_PersistToMajorityIsDurabilityFence(
+            cb::durability::Level testedLevel);
+
+    /**
+     * Checks that the HPS is updated correctly when (1) Level:Majority writes
+     * are queued into the DM and then (2) Level:PersistToMajority writes are
+     * queued. Verifies that Level Majority and MajorityAndPersistOnMaster
+     * writes do *not* enforce a durability-fence.
+     *
+     * @param testedLevel The level tested, Majority/MajorityAndPersistOnMaster
+     */
+    void testHPS_LevelIsNotDurabilityFence(cb::durability::Level testedLevel);
 };
 
 /*

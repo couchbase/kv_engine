@@ -79,6 +79,16 @@ public:
 
     size_t getNumTracked() const override;
 
+    /**
+     * Notify this PDM that the snapshot-end mutation has been received for the
+     * owning VBucket.
+     * The snapshot-end seqno is used for the correct implementation of the HPS
+     * move-logic.
+     *
+     * @param snapEnd The snapshot-end seqno
+     */
+    void notifySnapshotEndReceived(uint64_t snapEnd);
+
     void notifyLocalPersistence() override;
 
 protected:
@@ -147,6 +157,12 @@ protected:
         //     - the Prepare has been persisted locally, if Level
         //         PersistToMajority
         Position highPreparedSeqno;
+
+        // The last snapshot-end mutation received for the (owning)
+        // replica/pending VBucket.
+        // Used for implementing the correct move-logic of High Prepared Seqno.
+        // Must be set at snapshot-end received on PassiveStream.
+        Monotonic<uint64_t, ThrowExceptionPolicy> snapshotEnd{0};
 
         const PassiveDurabilityMonitor& pdm;
     };

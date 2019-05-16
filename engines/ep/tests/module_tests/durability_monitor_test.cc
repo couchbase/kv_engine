@@ -1430,7 +1430,19 @@ void DurabilityMonitorTest::notifyPersistenceAndCheckHPS(int64_t persistedSeqno,
     EXPECT_EQ(expectedHPS, monitor->getHighPreparedSeqno());
 }
 
-void DurabilityMonitorTest::testHPS_Majority() {
+TEST_P(PassiveDurabilityMonitorTest, HPS_Majority) {
+    assertNumTrackedAndHPS(0, 0);
+
+    addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
+                            cb::durability::Level::Majority,
+                            0 /*expectedHPS*/);
+
+    notifySnapEndReceivedAndCheckHPS(3 /*snapEnd*/, 3 /*expectedHPS*/);
+
+    notifyPersistenceAndCheckHPS(1000 /*persistedSeqno*/, 3 /*expectedHPS*/);
+}
+
+TEST_P(ActiveDurabilityMonitorTest, HPS_Majority) {
     assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
@@ -1438,14 +1450,6 @@ void DurabilityMonitorTest::testHPS_Majority() {
                             3 /*expectedHPS*/);
 
     notifyPersistenceAndCheckHPS(1000 /*persistedSeqno*/, 3 /*expectedHPS*/);
-}
-
-TEST_P(PassiveDurabilityMonitorTest, HPS_Majority) {
-    testHPS_Majority();
-}
-
-TEST_P(ActiveDurabilityMonitorTest, HPS_Majority) {
-    testHPS_Majority();
 }
 
 void PassiveDurabilityMonitorTest::testResolvePrepare(
@@ -1469,10 +1473,11 @@ void PassiveDurabilityMonitorTest::testResolvePrepare(
     }
 
     const std::vector<int64_t> seqnos{1, 2, 3};
-    addSyncWriteAndCheckHPS(seqnos,
-                            cb::durability::Level::Majority,
-                            seqnos.back() /*expectHPS*/);
+    addSyncWriteAndCheckHPS(
+            seqnos, cb::durability::Level::Majority, 0 /*expectHPS*/);
     ASSERT_EQ(seqnos.size(), monitor->getNumTracked());
+
+    notifySnapEndReceivedAndCheckHPS(3 /*snapEnd*/, 3 /*expectedHPS*/);
 
     // A negative check first: we must enforce In-Order Commit at Active, so
     // Replica expects a commit for s:1 at this point.
@@ -1507,12 +1512,20 @@ TEST_P(PassiveDurabilityMonitorTest, Abort) {
     testResolvePrepare(PassiveDurabilityMonitor::Resolution::Abort);
 }
 
+void PassiveDurabilityMonitorTest::notifySnapEndReceivedAndCheckHPS(
+        int64_t snapEnd, int64_t expectedHPS) {
+    getPassiveDM().notifySnapshotEndReceived(snapEnd);
+    EXPECT_EQ(expectedHPS, monitor->getHighPreparedSeqno());
+}
+
 TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_MajorityAndPersistOnMaster) {
     assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
                             cb::durability::Level::MajorityAndPersistOnMaster,
-                            3 /*expectedHPS*/);
+                            0 /*expectedHPS*/);
+
+    notifySnapEndReceivedAndCheckHPS(500 /*snapEnd*/, 3 /*expectedHPS*/);
 
     notifyPersistenceAndCheckHPS(1000 /*persistedSeqno*/, 3 /*expectedHPS*/);
 }
@@ -1530,7 +1543,7 @@ TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_MajorityAndPersistOnMaster) {
     }
 }
 
-void DurabilityMonitorTest::testHPS_PersistToMajority() {
+TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_PersistToMajority) {
     assertNumTrackedAndHPS(0, 0);
 
     const std::vector<int64_t> seqnos{1, 2, 3};
@@ -1538,34 +1551,55 @@ void DurabilityMonitorTest::testHPS_PersistToMajority() {
                             cb::durability::Level::PersistToMajority,
                             0 /*expectHPS*/);
 
+    // All Prepares persisted but snapshot-end not received (so, not persisted),
+    // so replica cannot ack yet.
+    for (const auto s : seqnos) {
+        notifyPersistenceAndCheckHPS(s /*persistedSeqno*/, 0 /*expectedHPS*/);
+    }
+
+    // Snapshot-end received and all Prepares persisted, but we have not
+    // persisted the complete snapshot, so PersistToMajority cannot be ack'ed
+    // yet.
+    const int64_t snapEnd = 1000;
+    notifySnapEndReceivedAndCheckHPS(snapEnd, 0 /*expectedHPS*/);
+
+    // The flusher persists the entire snapshot (and over), PersistToMajority
+    // are locally-satisfied now, the HPS can move on to them.
+    notifyPersistenceAndCheckHPS(snapEnd + 10 /*persistedSeqno*/,
+                                 3 /*expectedHPS*/);
+}
+
+TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_PersistToMajority) {
+    assertNumTrackedAndHPS(0, 0);
+
+    const std::vector<int64_t> seqnos{1, 2, 3};
+    addSyncWriteAndCheckHPS(
+            seqnos, cb::durability::Level::PersistToMajority, 0 /*expectHPS*/);
+
     for (const auto s : seqnos) {
         notifyPersistenceAndCheckHPS(s /*persistedSeqno*/, s /*expectedHPS*/);
     }
 }
 
-TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_PersistToMajority) {
-    testHPS_PersistToMajority();
-}
-
-TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_PersistToMajority) {
-    testHPS_PersistToMajority();
-}
-
 TEST_P(PassiveDurabilityMonitorPersistentTest,
-       HPS_MajorityAndPersistOnMajority_Majority) {
+       HPS_MajorityAndPersistOnMaster_Majority) {
     assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
                             cb::durability::Level::MajorityAndPersistOnMaster,
-                            3 /*expectHPS*/);
+                            0 /*expectHPS*/);
+
+    notifySnapEndReceivedAndCheckHPS(3 /*snapEnd*/, 3 /*expectedHPS*/);
 
     addSyncWriteAndCheckHPS({4, 10, 21} /*seqnos*/,
                             cb::durability::Level::Majority,
-                            21 /*expectHPS*/);
+                            3 /*expectHPS*/);
+
+    notifySnapEndReceivedAndCheckHPS(100 /*snapEnd*/, 21 /*expectedHPS*/);
 }
 
 TEST_P(ActiveDurabilityMonitorPersistentTest,
-       HPS_MajorityAndPersistOnMajority_Majority) {
+       HPS_MajorityAndPersistOnMaster_Majority) {
     assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
@@ -1580,20 +1614,24 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
 }
 
 TEST_P(PassiveDurabilityMonitorPersistentTest,
-       HPS_Majority_MajorityAndPersistOnMajority) {
+       HPS_Majority_MajorityAndPersistOnMaster) {
     assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 7, 1000} /*seqnos*/,
                             cb::durability::Level::Majority,
-                            1000 /*expectHPS*/);
+                            0 /*expectHPS*/);
+
+    notifySnapEndReceivedAndCheckHPS(1002 /*snapEnd*/, 1000 /*expectedHPS*/);
 
     addSyncWriteAndCheckHPS({1004, 1010, 2021} /*seqnos*/,
                             cb::durability::Level::MajorityAndPersistOnMaster,
-                            2021 /*expectHPS*/);
+                            1000 /*expectHPS*/);
+
+    notifySnapEndReceivedAndCheckHPS(3000 /*snapEnd*/, 2021 /*expectedHPS*/);
 }
 
 TEST_P(ActiveDurabilityMonitorPersistentTest,
-       HPS_Majority_MajorityAndPersistOnMajority) {
+       HPS_Majority_MajorityAndPersistOnMaster) {
     assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 7, 1000} /*seqnos*/,
@@ -1610,7 +1648,52 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
     }
 }
 
-void DurabilityMonitorTest::testHPS_PersistToMajority_Majority() {
+void PassiveDurabilityMonitorTest::testHPS_PersistToMajorityIsDurabilityFence(
+        cb::durability::Level testedLevel) {
+    ASSERT_TRUE(testedLevel == cb::durability::Level::Majority ||
+                testedLevel ==
+                        cb::durability::Level::MajorityAndPersistOnMaster);
+
+    assertNumTrackedAndHPS(0, 0);
+
+    // We receive a snapshot[1, 50] with a mix of PersistToMajority (first) and
+    // testedLevel Prepares
+    addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
+                            cb::durability::Level::PersistToMajority,
+                            0 /*expectHPS*/);
+
+    // Note: We are persisting in the middle of a snapshot, which can happen
+    // at Replica.
+    // Check that persisting s:8 doesn't moves HPS, as we have not received
+    // the complete snapshot yet.
+    notifyPersistenceAndCheckHPS(8 /*persistedSeqno*/, 0 /*expectHPS*/);
+
+    // Receiving other Prepares in the same snapshot (Level!=PersistToMajority)
+    addSyncWriteAndCheckHPS(
+            {10, 11, 21} /*seqnos*/, testedLevel, 0 /*expectHPS*/);
+
+    // We receive the snap-end mutation, but the HPS can't move yet has we have
+    // some PersistToMajority Prepares that:
+    // 1) represents a durability-fence
+    // 2) cannot be locally-satisfied yet because we have not persisted the
+    //     complete snapshot
+    const uint64_t snapEnd = 50;
+    notifySnapEndReceivedAndCheckHPS(snapEnd, 0 /*expectedHPS*/);
+
+    // The HPS can move to the latest Prepare now:
+    // 1) We have persisted (even over) the complete snapshot
+    // 2) PersistToMajority represented a durability-fence that has been removed
+    //     now, so the HPS can move to covering all the following Majority or
+    //     MajorityAndPersistOnMaster Prepares in the snapshot
+    notifyPersistenceAndCheckHPS(snapEnd + 10 /*persistedSeqno*/,
+                                 21 /*expectedHPS*/);
+}
+
+TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_PersistToMajority_Majority) {
+    testHPS_PersistToMajorityIsDurabilityFence(cb::durability::Level::Majority);
+}
+
+TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_PersistToMajority_Majority) {
     assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
@@ -1630,15 +1713,59 @@ void DurabilityMonitorTest::testHPS_PersistToMajority_Majority() {
     notifyPersistenceAndCheckHPS(4 /*persistedSeqno*/, 21 /*expectHPS*/);
 }
 
-TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_PersistToMajority_Majority) {
-    testHPS_PersistToMajority_Majority();
+void PassiveDurabilityMonitorTest::testHPS_LevelIsNotDurabilityFence(
+        cb::durability::Level testedLevel) {
+    ASSERT_TRUE(testedLevel == cb::durability::Level::Majority ||
+                testedLevel ==
+                        cb::durability::Level::MajorityAndPersistOnMaster);
+
+    assertNumTrackedAndHPS(0, 0);
+
+    // We receive a snapshot[1, 3000] with a mix of Majority or
+    // MajorityAndPersistOnMaster (first) and PersistToMajority Prepares.
+    addSyncWriteAndCheckHPS(
+            {1, 999, 1001} /*seqnos*/, testedLevel, 0 /*expectHPS*/);
+    addSyncWriteAndCheckHPS({2000, 2010, 2021} /*seqnos*/,
+                            cb::durability::Level::PersistToMajority,
+                            0 /*expectHPS*/);
+
+    // Note: We are persisting in the middle of a snapshot, which can happen
+    // at Replica.
+    // Check that persisting s:2500 doesn't moves HPS, as at any Level we
+    // require that the snap-end mutation is received
+    notifyPersistenceAndCheckHPS(2500 /*persistedSeqno*/, 0 /*expectHPS*/);
+
+    // Other PersistToMajority received in the same snapshot.
+    addSyncWriteAndCheckHPS({2600, 2700} /*seqnos*/,
+                            cb::durability::Level::PersistToMajority,
+                            0 /*expectHPS*/);
+
+    // We receive the snap-end mutation. The HPS does move, but only up to
+    // before the durability-fence (ie, the first non-locally-satisfied
+    // PersistToMajority Prepare), as the we have not persisted the complete
+    // snapshot yet.
+    notifySnapEndReceivedAndCheckHPS(3000 /*snapEnd*/, 1001 /*expectedHPS*/);
+
+    // We receive another partial snapshot[3001, 3010] with only Majority or
+    // MajorityAndPersistOnMaster Prepares. HPS doesn't move.
+    addSyncWriteAndCheckHPS({3002} /*seqnos*/, testedLevel, 1001 /*expectHPS*/);
+
+    // We persist a seqno beyond the snap-end mutation of the first snapshot,
+    // and the HPS moves to the last Prepare in the first snapshot.
+    // Note that the HPS doesn't move into the second snapshot as at any Level
+    // we require that the complete snapshot is received before the HPS can move
+    // into the snapshot.
+    notifyPersistenceAndCheckHPS(3005 /*persistedSeqno*/, 2700 /*expectHPS*/);
+
+    // Second snapshot complete in memory, HPS moves to the latest Prepare
+    notifySnapEndReceivedAndCheckHPS(3010 /*snapEnd*/, 3002 /*expectedHPS*/);
 }
 
-TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_PersistToMajority_Majority) {
-    testHPS_PersistToMajority_Majority();
+TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_Majority_PersistToMajority) {
+    testHPS_LevelIsNotDurabilityFence(cb::durability::Level::Majority);
 }
 
-void DurabilityMonitorTest::testHPS_Majority_PersistToMajority() {
+TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_Majority_PersistToMajority) {
     assertNumTrackedAndHPS(0, 0);
 
     addSyncWriteAndCheckHPS({1, 999, 1001} /*seqnos*/,
@@ -1656,33 +1783,10 @@ void DurabilityMonitorTest::testHPS_Majority_PersistToMajority() {
     notifyPersistenceAndCheckHPS(2021 /*persistedSeqno*/, 2021 /*expectHPS*/);
 }
 
-TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_Majority_PersistToMajority) {
-    testHPS_Majority_PersistToMajority();
-}
-
-TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_Majority_PersistToMajority) {
-    testHPS_Majority_PersistToMajority();
-}
-
 TEST_P(PassiveDurabilityMonitorPersistentTest,
        HPS_PersistToMajority_MajorityAndPersistOnMaster) {
-    assertNumTrackedAndHPS(0, 0);
-
-    addSyncWriteAndCheckHPS({1, 2, 3} /*seqnos*/,
-                            cb::durability::Level::PersistToMajority,
-                            0 /*expectHPS*/);
-
-    addSyncWriteAndCheckHPS({4, 10, 21} /*seqnos*/,
-                            cb::durability::Level::MajorityAndPersistOnMaster,
-                            0 /*expectHPS*/);
-
-    // Check that persisting s:2 moves HPS to 2 and not beyond, as s:3 is
-    // Level::PersistToMajority (i.e., a durability-fence)
-    notifyPersistenceAndCheckHPS(2 /*persistedSeqno*/, 2 /*expectHPS*/);
-
-    // Now, simulate persistence of s:4. HPS reaches the latest tracked as s:3
-    // is the last durability-fence.
-    notifyPersistenceAndCheckHPS(4 /*persistedSeqno*/, 21 /*expectHPS*/);
+    testHPS_PersistToMajorityIsDurabilityFence(
+            cb::durability::Level::MajorityAndPersistOnMaster);
 }
 
 TEST_P(ActiveDurabilityMonitorPersistentTest,
@@ -1708,21 +1812,8 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
 
 TEST_P(PassiveDurabilityMonitorPersistentTest,
        HPS_MajorityAndPersistOnMaster_PersistToMajority) {
-    assertNumTrackedAndHPS(0, 0);
-
-    addSyncWriteAndCheckHPS({1, 999, 1001} /*seqnos*/,
-                            cb::durability::Level::MajorityAndPersistOnMaster,
-                            1001 /*expectHPS*/);
-
-    addSyncWriteAndCheckHPS({2000, 2010, 2021} /*seqnos*/,
-                            cb::durability::Level::PersistToMajority,
-                            1001 /*expectHPS*/);
-
-    notifyPersistenceAndCheckHPS(2010 /*persistedSeqno*/, 2010 /*expectHPS*/);
-
-    // Now, simulate persistence of s:4. HPS reaches the latest tracked as s:3
-    // is the last durability-fence.
-    notifyPersistenceAndCheckHPS(2021 /*persistedSeqno*/, 2021 /*expectHPS*/);
+    testHPS_LevelIsNotDurabilityFence(
+            cb::durability::Level::MajorityAndPersistOnMaster);
 }
 
 TEST_P(ActiveDurabilityMonitorPersistentTest,

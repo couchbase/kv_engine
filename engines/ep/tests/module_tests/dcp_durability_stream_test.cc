@@ -215,13 +215,10 @@ void DurabilityPassiveStreamTest::TearDown() {
     SingleThreadedPassiveStreamTest::TearDown();
 }
 
-TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSyncWriteReceived) {
-    /*
-     * The consumer receives mutations {s:1, s:2, s:3}, with only s:2 durable
-     * with Level:Majority. We have to check that we send a SeqnoAck as soon as
-     * the Replica receives s:2 and that no further SeqnoAck is sent at
-     * receiving the snapshot-end mutation.
-     */
+TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSnapshotEndReceived) {
+    // The consumer receives mutations {s:1, s:2, s:3}, with only s:2 durable
+    // with Level:Majority. We have to check that we do send a SeqnoAck, but
+    // only when the Replica receives the snapshot-end mutation.
 
     // The consumer receives the snapshot-marker
     uint32_t opaque = 0;
@@ -243,19 +240,8 @@ TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSyncWriteReceived) {
                       1 /*seqno*/, vbid, value, opaque)));
     EXPECT_EQ(0, readyQ.size());
 
-    const uint64_t swSeqno = 2;
-
-    auto checkReadyQ = [&readyQ, swSeqno]() -> void {
-        EXPECT_EQ(1, readyQ.size());
-        ASSERT_EQ(1, readyQ.size());
-        ASSERT_EQ(DcpResponse::Event::SeqnoAcknowledgement,
-                  readyQ.front()->getEvent());
-        const auto* seqnoAck =
-                static_cast<const SeqnoAcknowledgement*>(readyQ.front().get());
-        EXPECT_EQ(ntohll(swSeqno), seqnoAck->getPreparedSeqno());
-    };
-
     using namespace cb::durability;
+    const uint64_t swSeqno = 2;
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(makeMutationConsumerMessage(
                       swSeqno,
@@ -263,26 +249,30 @@ TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSyncWriteReceived) {
                       value,
                       opaque,
                       Requirements(Level::Majority, Timeout::Infinity()))));
-    // Verify that we have SeqnoAck(swSeqno) in readyQ
-    checkReadyQ();
+    // readyQ still empty, we have not received the snap-end mutation yet
+    EXPECT_EQ(0, readyQ.size());
 
     // snapshot-end
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(makeMutationConsumerMessage(
                       snapEnd, vbid, value, opaque)));
-    // Verify that we still have just one SeqnoAck(swSeqno) in readyQ
-    checkReadyQ();
+    // Verify that we have the expected SeqnoAck in readyQ now
+    ASSERT_EQ(1, readyQ.size());
+    ASSERT_EQ(DcpResponse::Event::SeqnoAcknowledgement,
+              readyQ.front()->getEvent());
+    const auto* seqnoAck =
+            static_cast<const SeqnoAcknowledgement*>(readyQ.front().get());
+    EXPECT_EQ(ntohll(swSeqno), seqnoAck->getPreparedSeqno());
 }
 
 TEST_P(DurabilityPassiveStreamPersistentTest, SeqnoAckAtPersistedSeqno) {
-    /*
-     * The consumer receives mutations {s:1, s:2, s:3}, with only s:2 durable
-     * with Level:PersistToMajority. We have to check that we send a SeqnoAck
-     * as soon as the flush-batch is persisted, even if we have received and
-     * persisted a partial snapshot (note that we never receive s:4 here).
-     */
+    // The consumer receives mutations {s:1, s:2, s:3} in the snapshot:[1, 4],
+    // with only s:2 durable with Level:PersistToMajority.
+    // We have to check that we do send a SeqnoAck for s:2, but only after:
+    // (1) the snapshot-end mutation (s:4) is received
+    // (2) the complete snapshot is persisted
 
-    // The consumer receives the snapshot-marker [1, 3]
+    // The consumer receives the snapshot-marker [1, 4]
     uint32_t opaque = 0;
     SnapshotMarker snapshotMarker(opaque,
                                   vbid,
@@ -311,22 +301,39 @@ TEST_P(DurabilityPassiveStreamPersistentTest, SeqnoAckAtPersistedSeqno) {
                       opaque,
                       Requirements(Level::PersistToMajority,
                                    Timeout::Infinity()))));
-    // No SeqnoAck yet, High Prepared Seqno has not been updated yet as
-    // Level:PersistToMajority and the Prepare has been persisted yet
+    // No SeqnoAck, HPS has not moved as Level:PersistToMajority requires to be
+    // persisted for being locally-satisfied
     EXPECT_EQ(0, readyQ.size());
 
-    // Another non-sync write comes
+    // Flush (in the middle of the snapshot, which can happen at replica)
+    flushVBucketToDiskIfPersistent(vbid, 2 /*expectedNumFlushed*/);
+    // No SeqnoAck, HPS has not moved as Level:PersistToMajority Prepare has
+    // been persisted but at any Level we require that the complete snapshot is
+    // received before moving the HPS into the snapshot.
+    EXPECT_EQ(0, readyQ.size());
+
+    // Non-durable s:3 received
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(makeMutationConsumerMessage(
                       3 /*seqno*/, vbid, value, opaque)));
+    // No ack yet, we have not yet received the complete snapshot
     EXPECT_EQ(0, readyQ.size());
 
-    // Flush
-    flushVBucketToDiskIfPersistent(vbid, 3);
+    // Non-durable s:4 (snapshot-end) received
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      4 /*seqno*/, vbid, value, opaque)));
+    // No ack yet, we have received the snap-end mutation but we have not yet
+    // persisted the complete snapshot
+    EXPECT_EQ(0, readyQ.size());
 
-    // We must have a SeqnoAck with payload HPS in readyQ.
-    // Note that s:3 (which is a non-sync write) must not affect HPS, which
-    // must be set to the last locally-satisfied Prepare.
+    // Flush, complete snapshot persisted after this call
+    flushVBucketToDiskIfPersistent(vbid, 2 /*expectedNumFlushed*/);
+
+    // HPS must have moved to the (already) persisted s:2 and we must have a
+    // SeqnoAck with payload HPS in readyQ.
+    // Note that s:3 and s:4 (which is a non-sync write) don't affect HPS, which
+    // is set to the last locally-satisfied Prepare.
     ASSERT_EQ(1, readyQ.size());
     ASSERT_EQ(DcpResponse::Event::SeqnoAcknowledgement,
               readyQ.front()->getEvent());
@@ -340,16 +347,16 @@ TEST_P(DurabilityPassiveStreamPersistentTest, SeqnoAckAtPersistedSeqno) {
  *
  * snapshot-marker [1, 10] -> no-ack
  * s:1 non-durable -> no ack
- * s:2 Level:Majority -> ack (HPS=2)
+ * s:2 Level:Majority -> no ack
  * s:3 non-durable -> no ack
- * s:4 Level:MajorityAndPersistOnMaster -> ack (HPS=4)
+ * s:4 Level:MajorityAndPersistOnMaster -> no ack
  * s:5 non-durable -> no ack
- * s:6 Level:PersistToMajority -> no ack (durability-fence)
+ * s:6 Level:PersistToMajority (durability-fence) -> no ack
  * s:7 Level-Majority -> no ack
  * s:8 Level:MajorityAndPersistOnMaster -> no ack
  * s:9 non-durable -> no ack
  * s:9 non-durable -> no ack
- * s:10 non-durable (snapshot-end) -> no ack
+ * s:10 non-durable (snapshot-end) -> ack (HPS=4)
  *
  * Last step: flusher persists all -> ack (HPS=8)
  */
@@ -385,7 +392,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
                       1 /*seqno*/, vbid, value, opaque)));
     EXPECT_EQ(0, readyQ.size());
 
-    // s:2 Level:Majority -> ack (HPS=2)
+    // s:2 Level:Majority -> no ack
     using namespace cb::durability;
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(makeMutationConsumerMessage(
@@ -394,7 +401,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
                       value,
                       opaque,
                       Requirements(Level::Majority, Timeout::Infinity()))));
-    checkSeqnoAckInReadyQ(2 /*HPS*/);
+    EXPECT_EQ(0, readyQ.size());
 
     // s:3 non-durable -> no ack
     ASSERT_EQ(ENGINE_SUCCESS,
@@ -402,7 +409,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
                       3 /*seqno*/, vbid, value, opaque)));
     EXPECT_EQ(0, readyQ.size());
 
-    // s:4 Level:MajorityAndPersistOnMaster -> ack (HPS=4)
+    // s:4 Level:MajorityAndPersistOnMaster -> no ack
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(makeMutationConsumerMessage(
                       4 /*seqno*/,
@@ -411,7 +418,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
                       opaque,
                       Requirements(Level::MajorityAndPersistOnMaster,
                                    Timeout::Infinity()))));
-    checkSeqnoAckInReadyQ(4 /*HPS*/);
+    EXPECT_EQ(0, readyQ.size());
 
     // s:5 non-durable -> no ack
     ASSERT_EQ(ENGINE_SUCCESS,
@@ -457,15 +464,14 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
                       9 /*seqno*/, vbid, value, opaque)));
     EXPECT_EQ(0, readyQ.size());
 
-    // s:10 non-durable (snapshot-end) -> no ack
+    // s:10 non-durable (snapshot-end) -> ack (HPS=4, durability-fence at 6)
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(
                       makeMutationConsumerMessage(10, vbid, value, opaque)));
-    EXPECT_EQ(0, readyQ.size());
+    checkSeqnoAckInReadyQ(4 /*HPS*/);
 
     // Flusher persists all -> ack (HPS=8)
-    flushVBucketToDiskIfPersistent(vbid, 10);
-
+    flushVBucketToDiskIfPersistent(vbid, 10 /*expectedNumFlushed*/);
     checkSeqnoAckInReadyQ(8 /*HPS*/);
 }
 

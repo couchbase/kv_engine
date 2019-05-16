@@ -89,21 +89,27 @@ void PassiveDurabilityMonitor::addSyncWrite(queued_item item) {
                 "(explicit value should have been specified by Active node)");
     }
 
+    // Need to specify defaultTimeout for SyncWrite ctor, but we've already
+    // checked just above the requirements have a non-default value,
+    // just pass dummy value here.
+    std::chrono::milliseconds dummy{};
+    state.wlock()->trackedWrites.emplace_back(nullptr /*cookie*/,
+                                              std::move(item),
+                                              dummy,
+                                              nullptr /*firstChain*/,
+                                              nullptr /*secondChain*/);
+}
+
+size_t PassiveDurabilityMonitor::getNumTracked() const {
+    return state.rlock()->trackedWrites.size();
+}
+
+void PassiveDurabilityMonitor::notifySnapshotEndReceived(uint64_t snapEnd) {
     int64_t prevHps{0};
     int64_t hps{0};
     {
-        // Need to specfify defaultTimeout for SyncWrite ctor, but we've already
-        // checked just above the requirements have a non-default value,
-        // just pass dummy value here.
-        std::chrono::milliseconds dummy{};
-
         auto s = state.wlock();
-        s->trackedWrites.emplace_back(nullptr /*cookie*/,
-                                      std::move(item),
-                                      dummy,
-                                      nullptr /*firstChain*/,
-                                      nullptr /*secondChain*/);
-
+        s->snapshotEnd = snapEnd;
         // Maybe the new tracked Prepare is already satisfied and could be
         // ack'ed back to the Active.
         prevHps = s->highPreparedSeqno.lastWriteSeqno;
@@ -119,10 +125,6 @@ void PassiveDurabilityMonitor::addSyncWrite(queued_item item) {
         Expects(hps > prevHps);
         vb.sendSeqnoAck(hps);
     }
-}
-
-size_t PassiveDurabilityMonitor::getNumTracked() const {
-    return state.rlock()->trackedWrites.size();
 }
 
 void PassiveDurabilityMonitor::notifyLocalPersistence() {
@@ -196,6 +198,37 @@ PassiveDurabilityMonitor::State::getIteratorNext(
 }
 
 void PassiveDurabilityMonitor::State::updateHighPreparedSeqno() {
+    // The HPS moves (ie, Prepares are locally-satisfied and ack'ed to Master)
+    // at PDM under the following constraints:
+    //
+    // (1) Nothing is ack'ed before the complete snapshot is received
+    //
+    // (2) Majority and MajorityAndPersistOnMaster Prepares (which don't need to
+    //     be persisted for being locally satisfied) may be satisfied as soon as
+    //     the complete snapshot is received
+    //
+    // (3) PersistToMajority Prepares represent a durability-fence. So, at (2)
+    //     we can satisfy only Prepares up to before the durability-fence (if
+    //     any)
+    //
+    // (4) The durability-fence can move (ie, PersistToMajority Prepares are
+    //     locally-satisfied) only when the complete snapshot is persisted.
+    //
+    // This function implements all the logic necessary for moving the HPS by
+    // enforcing the rules above. The function is called:
+    //
+    // (a) Every time a snapshot-end is received for the owning VBucket.
+    //     That updates the PDM::snapshotEnd and calls down here, where the HPS
+    //     is potentially moved (given that a new snapshot-end received may
+    //     immediately unblock some pending (locally-unsatisfied) Prepares; eg,
+    //     Majority / MajorityAndPersistOnMaster Prepare)
+    //
+    // (b) Every time the Flusher has run, as persistence may move the
+    //     durability-fence (ie, unblock some PersistToMajority Prepares, if
+    //     any) and unblock any other Prepare previously blocked on
+    //     durability-fence. As already mentioned, we can move the
+    //     durability-fence only if the complete snapshot is persisted.
+
     if (trackedWrites.empty()) {
         return;
     }
@@ -208,23 +241,35 @@ void PassiveDurabilityMonitor::State::updateHighPreparedSeqno() {
     };
 
     Container::iterator next;
-    // First, blindly move HPS up to the given persistedSeqno. Note that
-    // here we don't need to check any Durability Level: persistence makes
-    // locally-satisfied all the pending Prepares up to persistedSeqno.
-    while ((next = getIteratorNext(highPreparedSeqno.it)) !=
-                   trackedWrites.end() &&
-           static_cast<uint64_t>(next->getBySeqno()) <=
-                   pdm.vb.getPersistenceSeqno()) {
-        updateHPS(next);
+
+    // First, blindly move HPS up to the last persisted snapshot-end.
+    // That ensures that the durability-fence moves only when the complete
+    // snapshot is persisted.
+    // Note that here we don't need to check any Durability Level: persistence
+    // of a complete snapshot makes locally-satisfied all the pending Prepares
+    // in that snapshot.
+    if (pdm.vb.getPersistenceSeqno() >= snapshotEnd) {
+        while ((next = getIteratorNext(highPreparedSeqno.it)) !=
+                       trackedWrites.end() &&
+               static_cast<uint64_t>(next->getBySeqno()) <= snapshotEnd) {
+            updateHPS(next);
+        }
     }
 
     // Then, move the HPS to the last Prepare with Level != PersistToMajority.
+    //
     // I.e., all the Majority and MajorityAndPersistToMaster Prepares that were
-    // blocked by non-satisfied PersistToMajority Prepares are implicitly
-    // satisfied now. The first non-satisfied Prepare is the first
-    // Level:PersistToMajority not covered by persistedSeqno.
+    // blocked by non-locally-satisfied PersistToMajority Prepares
+    // (durability-fence) maybe implicitly satisfied now (as the previous step
+    // may have moved the durability-fence).
+    //
+    // So, here the HPS moves up to the first non-locally-satisfied
+    // PersistToMajority Prepare.
+    // Again, the HPS moves always at snapshot boundaries (ie, in this case
+    // within the latest complete snapshot *received*).
     while ((next = getIteratorNext(highPreparedSeqno.it)) !=
-           trackedWrites.end()) {
+                   trackedWrites.end() &&
+           static_cast<uint64_t>(next->getBySeqno()) <= snapshotEnd) {
         const auto level = next->getDurabilityReqs().getLevel();
         Expects(level != cb::durability::Level::None);
         // Note: We are in the PassiveDM. The first Level::PersistToMajority

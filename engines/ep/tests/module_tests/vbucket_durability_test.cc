@@ -378,6 +378,10 @@ TEST_P(VBucketDurabilityTest,
             VBucketTestIntrospector::public_getPassiveDM(*vbucket);
     storeSyncWrites({10, 20});
     ASSERT_EQ(2, monitor.getNumTracked());
+    ASSERT_EQ(0, monitor.getHighPreparedSeqno());
+    // Note: simulating a snapshot:[10, 30]
+    vbucket->notifyPassiveDMOfSnapEndReceived(30 /*snapEnd*/);
+    EXPECT_EQ(20, monitor.getHighPreparedSeqno());
 
     vbucket->setState(vbucket_state_pending);
 

@@ -1325,6 +1325,17 @@ public:
                                          ENGINE_ERROR_CODE result);
 
     /**
+     * Notify the PassiveDM that the snapshot-end mutation for the currently
+     * processed snapshot has been received.
+     * The PassiveDM uses the last snapshot-end seqno for enforcing some
+     * snapshot-boundary rules at HPS updates.
+     *
+     * @param snapEnd The seqno of the last snapshot-end mutation received over
+     *     the PassiveStream
+     */
+    void notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd);
+
+    /**
      * Send a SeqnoAck message on the PassiveStream (if any) for this VBucket.
      *
      * @param seqno The payload

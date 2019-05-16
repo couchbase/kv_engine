@@ -855,6 +855,10 @@ void VBucket::notifyClientOfSyncWriteComplete(const void* cookie,
     syncWriteCompleteCb(cookie, result);
 }
 
+void VBucket::notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd) {
+    getPassiveDM().notifySnapshotEndReceived(snapEnd);
+}
+
 void VBucket::sendSeqnoAck(int64_t seqno) {
     Expects(state == vbucket_state_replica || state == vbucket_state_pending);
     seqnoAckCb(getId(), seqno);
@@ -3291,11 +3295,8 @@ ENGINE_ERROR_CODE VBucket::seqnoAcknowledged(const std::string& replicaId,
 void VBucket::notifyPersistenceToDurabilityMonitor() {
     folly::SharedMutex::ReadHolder wlh(stateLock);
 
-    if (state != vbucket_state_active && state != vbucket_state_replica &&
-        state != vbucket_state_pending) {
-        throw std::logic_error(
-                "VBucket::notifyPersistenceToDurabilityMonitor: vb " +
-                id.to_string() + "state " + std::string(toString(state)));
+    if (state == vbucket_state_dead) {
+        return;
     }
 
     durabilityMonitor->notifyLocalPersistence();
