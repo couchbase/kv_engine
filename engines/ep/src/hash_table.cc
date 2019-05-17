@@ -589,61 +589,6 @@ HashTable::DeleteResult HashTable::unlocked_softDelete(
     folly::assume_unreachable();
 }
 
-StoredValue* HashTable::unlocked_find(const DocKey& key,
-                                      int bucket_num,
-                                      WantsDeleted wantsDeleted,
-                                      TrackReference trackReference,
-                                      Perspective perspective) {
-    // Scan through all elements in the hash bucket chain looking for a
-    // matching key.
-    StoredValue* foundSv = nullptr;
-    for (StoredValue* v = values[bucket_num].get().get(); v;
-            v = v->getNext().get().get()) {
-        if (v->hasKey(key)) {
-            // When using Committed perspective; only return Committed
-            // items - skip pending.
-            if ((perspective == Perspective::Committed) & v->isPending()) {
-                continue;
-            }
-
-            // For Perspective::Pending, given we could have both pending *and*
-            // Committed items for the same key, we need to check the entire
-            // bucket chain for a Pending even if we first find a Committed
-            // item.
-            if ((perspective == Perspective::Pending) && v->isCommitted()) {
-                // Note the committed item found, continue checking for a
-                // pending.
-                Expects(!foundSv);
-                foundSv = v;
-                continue;
-            } else {
-                // Found matching item and don't need to check further.
-                foundSv = v;
-                break;
-            }
-        }
-    }
-
-    if (!foundSv) {
-        return nullptr;
-    }
-
-    // Ignore deleted items unless explicitly requested.
-    if (foundSv->isDeleted() && wantsDeleted == WantsDeleted::No) {
-        return nullptr;
-    }
-
-    // Update frequency counter if requested for non-deleted items.
-    if (trackReference == TrackReference::Yes && !foundSv->isDeleted()) {
-        updateFreqCounter(*foundSv);
-
-        // @todo remove the referenced call when eviction algorithm is
-        // updated to use the frequency counter value.
-        foundSv->referenced();
-    }
-    return foundSv;
-}
-
 HashTable::FindROResult HashTable::findForRead(const DocKey& key,
                                                TrackReference trackReference,
                                                WantsDeleted wantsDeleted) {

@@ -167,14 +167,6 @@ public:
     using DatatypeCombo = std::array<cb::NonNegativeCounter<size_t>,
                                      mcbp::datatype::highest + 1>;
 
-    /// Under what perspective (view) should the HashTable be accessed.
-    enum class Perspective {
-        /// Only access items which are Committed
-        Committed,
-        /// Access both Committed and Pending items.
-        Pending,
-    };
-
     /**
      * Represents a position within the hashtable.
      *
@@ -908,24 +900,6 @@ public:
                                      bool onlyMarkDeleted,
                                      DeleteSource delSource,
                                      SyncDelete syncDelete = SyncDelete::No);
-
-    /**
-     * Find an item within a specific bucket assuming you already
-     * locked the bucket.
-     *
-     * @param key the key of the item to find
-     * @param bucket_num the bucket number
-     * @param wantsDeleted true if soft deleted items should be returned
-     * @param perspective Under what perspective should the HashTable be
-     *        searched
-     * @return a pointer to a StoredValue -- NULL if not found
-     */
-    StoredValue* unlocked_find(
-            const DocKey& key,
-            int bucket_num,
-            WantsDeleted wantsDeleted,
-            TrackReference trackReference,
-            Perspective perspective = Perspective::Committed);
 
     /**
      * Get a lock holder holding a lock for the bucket for the hash of
