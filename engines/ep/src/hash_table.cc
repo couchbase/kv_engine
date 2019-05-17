@@ -657,6 +657,16 @@ HashTable::FindCommitResult HashTable::findForCommit(const DocKey& key) {
     return {std::move(prepare), result.committedSV};
 }
 
+HashTable::FindResult HashTable::findOnlyCommitted(const DocKey& key) {
+    auto result = findInner(key);
+    return {result.committedSV, std::move(result.lock)};
+}
+
+HashTable::FindResult HashTable::findOnlyPrepared(const DocKey& key) {
+    auto result = findInner(key);
+    return {result.pendingSV, std::move(result.lock)};
+}
+
 void HashTable::unlocked_del(const HashBucketLock& hbl, const DocKey& key) {
     unlocked_release(hbl, key).reset();
 }

@@ -604,7 +604,10 @@ public:
     /**
      * Find an item with the specified key for read-only access.
      *
-     * Only StoredValues which are committed will be returned.
+     * Only StoredValues which are committed will be returned, unless the key
+     * has a Pending SyncWrite which is ReCommitting - in which case that
+     * PendingReCommitting item will be returned (so user should check and
+     * block access to the key).
      *
      * @param key The key of the item to find
      * @param trackReference Should this lookup update referenced status (i.e.
@@ -621,7 +624,7 @@ public:
             WantsDeleted wantsDeleted = WantsDeleted::No);
 
     /**
-     * Result of the find() methods.
+     * Result of the findFor...() methods which return a non-const result.
      */
     struct FindResult {
         /// If find successful then pointer to found StoredValue; else nullptr.
@@ -772,6 +775,65 @@ public:
      *         update accordingly when committing a SyncWrite.
      */
     FindCommitResult findForCommit(const DocKey& key);
+
+    /**
+     * Find only a Committed item with the specified key. If no Committed item
+     * exists for this key returns nullptr.
+     *
+     *   ***NOTE***
+     *   This function skips the normal checks a client access is subject to
+     *   - e.g. it allows access to keys which have a SyncWrite which is
+     *   recomitting.
+     *   Returning such values back to a client would break SyncWrite
+     *   consistency!!!
+     *   ***NOTE***
+     *
+     * The intent of this method is when non-frontend functions *need* to
+     * access the Committed variant of a key, regardless of any Prepares - for
+     * example:
+     * - during warmup to load Committed items into memory.
+     * - for background fetch operations
+     * - diagnostic purposes.
+     *
+     * Only StoredValues which are committed will be returned.
+     * They are returned as non-const; the expectation is the backend may need
+     * to "modify" a SV such as restoring an evicted value.
+     *
+     * @param key The key of the item to find
+     * @return A FindResult consisting of:
+     *         - a pointer to a StoredValue -- NULL if not found
+     *         - a (locked) HashBucketLock for the key's hash bucket.
+     */
+    FindResult findOnlyCommitted(const DocKey& key);
+
+    /**
+     * Find only a Prepared item with the specified key. If no prepared item
+     * exists for this key returns nullptr.
+     *
+     *   ***NOTE***
+     *   This function skips the normal checks a client access is subject to
+     *   - e.g. it allows access to the prepared (uncommitted) StoredValue for
+     *   a key before it been Committed.
+     *
+     *   Returning such values back to a client would break SyncWrite
+     *   consistency!!!
+     *   ***NOTE***
+     *
+     * The intent of this method is when non-frontend functions *need* to
+     * access the Prepared variant of a key - for example:
+     * - persistence callback for prepares, regardless of if a commited variant
+     *   exists.
+     * - diagnostic purposes.
+     *
+     * They are returned as non-const; the expectation is the backend may need
+     * to "modify" a SV such as restoring an evicted value.
+     *
+     * @param key The key of the item to find
+     * @return A FindResult consisting of:
+     *         - a pointer to a StoredValue -- NULL if not found
+     *         - a (locked) HashBucketLock for the key's hash bucket.
+     */
+    FindResult findOnlyPrepared(const DocKey& key);
 
     /**
      * Find a resident item

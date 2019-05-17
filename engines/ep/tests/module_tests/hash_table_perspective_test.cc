@@ -83,8 +83,7 @@ TEST_F(HashTablePerspectiveTest, PendingItem) {
 }
 
 // Test that we can add a Committed item to the HashTable; and then find it
-// using
-// // Committed but and Pending perspective.
+// using both Committed and Pending perspective.
 TEST_F(HashTablePerspectiveTest, CommittedItem) {
     auto i = makeCommittedItem(key, "committed"s);
     ASSERT_EQ(MutationStatus::WasClean, ht.set(*i));
@@ -264,4 +263,85 @@ TEST_F(HashTablePerspectiveTest, WarmupPendingAddedBeforeCommited) {
     ASSERT_TRUE(writeView);
     EXPECT_TRUE(writeView->isPending());
     EXPECT_EQ(2, writeView->getBySeqno());
+}
+
+// CHeck that findOnlyCommitted only finds committed items.
+TEST_F(HashTablePerspectiveTest, findOnlyCommitted) {
+    // Setup -create both committed and pending items with same key, then
+    // a pending item under another key.
+    auto committed = makeCommittedItem(key, "committed"s);
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*committed));
+    auto prepared = makePendingItem(key, "pending"s);
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*prepared));
+
+    auto pendingKey = StoredDocKey("pending", CollectionID::Default);
+    auto pending2 = makePendingItem(pendingKey, "pending2"s);
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*pending2));
+
+    // Test
+    // 1) Check looking for a non-existing key finds nothing.
+    {
+        auto nonExistentKey = StoredDocKey("missing", CollectionID::Default);
+        auto nonExistent = ht.findOnlyCommitted(nonExistentKey);
+        EXPECT_FALSE(nonExistent.storedValue);
+        EXPECT_TRUE(nonExistent.lock.getHTLock()) << "Mutex should be locked";
+    }
+
+    // 2) Check looking for the committed&pending key returns committed
+    {
+        auto actual = ht.findOnlyCommitted(key);
+        ASSERT_TRUE(actual.storedValue);
+        EXPECT_EQ(*committed, *actual.storedValue->toItem(Vbid{0}));
+        EXPECT_TRUE(actual.lock.getHTLock()) << "Mutex should be locked";
+    }
+
+    // 3) Check looking for the pending key returns nothing
+    {
+        auto actual = ht.findOnlyCommitted(pendingKey);
+        EXPECT_FALSE(actual.storedValue);
+        EXPECT_TRUE(actual.lock.getHTLock()) << "Mutex should be locked";
+    }
+}
+
+// CHeck that findOnlyPrepared only finds prepared items.
+TEST_F(HashTablePerspectiveTest, findOnlyPrepared) {
+    // Setup -create both committed and prepared items with same key, then
+    // a committed item under another key.
+    auto committed = makeCommittedItem(key, "committed"s);
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*committed));
+    auto prepared = makePendingItem(key, "pending"s);
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*prepared));
+
+    auto committedKey = StoredDocKey("committed", CollectionID::Default);
+    auto committed2 = makeCommittedItem(committedKey, "committed2"s);
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*committed2));
+
+    // Test
+    // 1) Check looking for a non-existing key finds nothing.
+    {
+        auto nonExistentKey = StoredDocKey("missing", CollectionID::Default);
+        auto nonExistent = ht.findOnlyPrepared(nonExistentKey);
+        EXPECT_FALSE(nonExistent.storedValue);
+        EXPECT_TRUE(nonExistent.lock.getHTLock()) << "Mutex should be locked";
+    }
+
+    // 2) Check looking for the committed&prepared key returns prepared
+    {
+        auto actual = ht.findOnlyPrepared(key);
+        ASSERT_TRUE(actual.storedValue);
+        auto actualItem =
+                actual.storedValue->toItem(Vbid{0},
+                                           StoredValue::HideLockedCas::No,
+                                           StoredValue::IncludeValue::Yes,
+                                           prepared->getDurabilityReqs());
+        EXPECT_EQ(*prepared, *actualItem);
+        EXPECT_TRUE(actual.lock.getHTLock()) << "Mutex should be locked";
+    }
+
+    // 3) Check looking for the committed key returns nothing
+    {
+        auto actual = ht.findOnlyPrepared(committedKey);
+        EXPECT_FALSE(actual.storedValue);
+        EXPECT_TRUE(actual.lock.getHTLock()) << "Mutex should be locked";
+    }
 }
