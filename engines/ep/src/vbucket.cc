@@ -1307,102 +1307,115 @@ ENGINE_ERROR_CODE VBucket::set(
     }
 
     bool cas_op = (itm.getCas() != 0);
-    auto htRes = ht.findForWrite(itm.getKey());
-    auto* v = htRes.storedValue;
-    auto& hbl = htRes.lock;
 
-    cb::StoreIfStatus storeIfStatus = cb::StoreIfStatus::Continue;
-    if (predicate &&
-        (storeIfStatus = callPredicate(predicate, v)) ==
-                cb::StoreIfStatus::Fail) {
-        return ENGINE_PREDICATE_FAILED;
-    }
+    { // HashBucketLock scope
+        auto htRes = ht.findForWrite(itm.getKey());
+        auto* v = htRes.storedValue;
+        auto& hbl = htRes.lock;
 
-    if (v && v->isLocked(ep_current_time()) &&
-        (getState() == vbucket_state_replica ||
-         getState() == vbucket_state_pending)) {
-        v->unlock();
-    }
-
-    bool maybeKeyExists = true;
-    // If we didn't find a valid item then check the bloom filter, but only
-    // if we're full-eviction with a CAS operation or a have a predicate that
-    // requires the item's info
-    if ((v == nullptr || v->isTempInitialItem()) &&
-        (eviction == EvictionPolicy::Full) &&
-        ((itm.getCas() != 0) ||
-         storeIfStatus == cb::StoreIfStatus::GetItemInfo)) {
-        // Check Bloomfilter's prediction
-        if (!maybeKeyExistsInFilter(itm.getKey())) {
-            maybeKeyExists = false;
+        cb::StoreIfStatus storeIfStatus = cb::StoreIfStatus::Continue;
+        if (predicate && (storeIfStatus = callPredicate(predicate, v)) ==
+                                 cb::StoreIfStatus::Fail) {
+            return ENGINE_PREDICATE_FAILED;
         }
-    }
 
-    PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
-    VBQueueItemCtx queueItmCtx;
-    if (itm.isPending()) {
-        queueItmCtx.durability =
-                DurabilityItemCtx{itm.getDurabilityReqs(), cookie};
-    }
-    queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
-    MutationStatus status;
-    boost::optional<VBNotifyCtx> notifyCtx;
-    std::tie(status, notifyCtx) = processSet(hbl,
-                                             v,
-                                             itm,
-                                             itm.getCas(),
-                                             /*allowExisting*/ true,
-                                             /*hashMetaData*/ false,
-                                             queueItmCtx,
-                                             storeIfStatus,
-                                             maybeKeyExists);
+        if (v && v->isLocked(ep_current_time()) &&
+            (getState() == vbucket_state_replica ||
+             getState() == vbucket_state_pending)) {
+            v->unlock();
+        }
 
-    // For pending SyncWrites we initially return EWOULDBLOCK; will notify
-    // client when request is committed / aborted later.
-    ret = itm.isPending() ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
-    switch (status) {
-    case MutationStatus::NoMem:
-        ret = ENGINE_ENOMEM;
-        break;
-    case MutationStatus::InvalidCas:
-        ret = ENGINE_KEY_EEXISTS;
-        break;
-    case MutationStatus::IsLocked:
-        ret = ENGINE_LOCKED;
-        break;
-    case MutationStatus::NotFound:
-        if (cas_op) {
-            ret = ENGINE_KEY_ENOENT;
+        bool maybeKeyExists = true;
+        // If we didn't find a valid item then check the bloom filter, but only
+        // if we're full-eviction with a CAS operation or a have a predicate
+        // that requires the item's info
+        if ((v == nullptr || v->isTempInitialItem()) &&
+            (eviction == EvictionPolicy::Full) &&
+            ((itm.getCas() != 0) ||
+             storeIfStatus == cb::StoreIfStatus::GetItemInfo)) {
+            // Check Bloomfilter's prediction
+            if (!maybeKeyExistsInFilter(itm.getKey())) {
+                maybeKeyExists = false;
+            }
+        }
+
+        PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
+        VBQueueItemCtx queueItmCtx;
+        if (itm.isPending()) {
+            queueItmCtx.durability =
+                    DurabilityItemCtx{itm.getDurabilityReqs(), cookie};
+        }
+        queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
+        MutationStatus status;
+        boost::optional<VBNotifyCtx> notifyCtx;
+        std::tie(status, notifyCtx) = processSet(hbl,
+                                                 v,
+                                                 itm,
+                                                 itm.getCas(),
+                                                 /*allowExisting*/ true,
+                                                 /*hashMetaData*/ false,
+                                                 queueItmCtx,
+                                                 storeIfStatus,
+                                                 maybeKeyExists);
+
+        // For pending SyncWrites we initially return EWOULDBLOCK; will notify
+        // client when request is committed / aborted later.
+        ret = itm.isPending() ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
+        switch (status) {
+        case MutationStatus::NoMem:
+            ret = ENGINE_ENOMEM;
+            break;
+        case MutationStatus::InvalidCas:
+            ret = ENGINE_KEY_EEXISTS;
+            break;
+        case MutationStatus::IsLocked:
+            ret = ENGINE_LOCKED;
+            break;
+        case MutationStatus::NotFound:
+            if (cas_op) {
+                ret = ENGINE_KEY_ENOENT;
+                break;
+            }
+            // FALLTHROUGH
+        case MutationStatus::WasDirty:
+            // Even if the item was dirty, push it into the vbucket's open
+            // checkpoint.
+        case MutationStatus::WasClean:
+            notifyNewSeqno(*notifyCtx);
+            doCollectionsStats(cHandle, *notifyCtx);
+
+            itm.setBySeqno(v->getBySeqno());
+            itm.setCas(v->getCas());
+            break;
+        case MutationStatus::NeedBgFetch: { // CAS operation with non-resident
+                                            // item
+            // +
+            // full eviction.
+            if (v) {
+                // temp item is already created. Simply schedule a bg fetch job
+                hbl.getHTLock().unlock();
+                bgFetch(itm.getKey(), cookie, engine, true);
+                return ENGINE_EWOULDBLOCK;
+            }
+            ret = addTempItemAndBGFetch(
+                    hbl, itm.getKey(), cookie, engine, true);
             break;
         }
-    // FALLTHROUGH
-    case MutationStatus::WasDirty:
-    // Even if the item was dirty, push it into the vbucket's open
-    // checkpoint.
-    case MutationStatus::WasClean:
-        notifyNewSeqno(*notifyCtx);
-        doCollectionsStats(cHandle, *notifyCtx);
 
-        itm.setBySeqno(v->getBySeqno());
-        itm.setCas(v->getCas());
-        break;
-    case MutationStatus::NeedBgFetch: { // CAS operation with non-resident item
-        // +
-        // full eviction.
-        if (v) {
-            // temp item is already created. Simply schedule a bg fetch job
-            hbl.getHTLock().unlock();
-            bgFetch(itm.getKey(), cookie, engine, true);
-            return ENGINE_EWOULDBLOCK;
+        case MutationStatus::IsPendingSyncWrite:
+            ret = ENGINE_SYNC_WRITE_IN_PROGRESS;
+            break;
         }
-        ret = addTempItemAndBGFetch(hbl, itm.getKey(), cookie, engine, true);
-        break;
     }
 
-    case MutationStatus::IsPendingSyncWrite:
-        ret = ENGINE_SYNC_WRITE_IN_PROGRESS;
-        break;
-    }
+    // Commit if possible. This allows us to do "durable" sets in the case where
+    // we have no replicas (i.e. every set should be completed immediately).
+    // We can't do this when we add the SyncWrite because the general use case
+    // is to commit on replica ack. This requires doing a find against the
+    // HashTable (requires locking the HashBucket) which would result in a
+    // deadlock if we did it inside the addSyncWrite call. To keep things
+    // simple, just commit after doing the set.
+    getActiveDM().checkForCommit();
 
     return ret;
 }
@@ -1418,97 +1431,107 @@ ENGINE_ERROR_CODE VBucket::replace(
         return ret;
     }
 
-    auto htRes = ht.findForWrite(itm.getKey());
-    auto* v = htRes.storedValue;
-    auto& hbl = htRes.lock;
+    { // HashBucketLock scope
+        auto htRes = ht.findForWrite(itm.getKey());
+        auto* v = htRes.storedValue;
+        auto& hbl = htRes.lock;
 
-    cb::StoreIfStatus storeIfStatus = cb::StoreIfStatus::Continue;
-    if (predicate &&
-        (storeIfStatus = callPredicate(predicate, v)) ==
-                cb::StoreIfStatus::Fail) {
-        return ENGINE_PREDICATE_FAILED;
-    }
-
-    if (v) {
-        if (isLogicallyNonExistent(*v, cHandle)) {
-            ht.cleanupIfTemporaryItem(hbl, *v);
-            return ENGINE_KEY_ENOENT;
+        cb::StoreIfStatus storeIfStatus = cb::StoreIfStatus::Continue;
+        if (predicate && (storeIfStatus = callPredicate(predicate, v)) ==
+                                 cb::StoreIfStatus::Fail) {
+            return ENGINE_PREDICATE_FAILED;
         }
 
-        MutationStatus mtype;
-        boost::optional<VBNotifyCtx> notifyCtx;
-        if (eviction == EvictionPolicy::Full && v->isTempInitialItem()) {
-            mtype = MutationStatus::NeedBgFetch;
-        } else {
-            PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
-            VBQueueItemCtx queueItmCtx;
-            queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
-            if (itm.isPending()) {
-                queueItmCtx.durability =
-                        DurabilityItemCtx{itm.getDurabilityReqs(), cookie};
+        if (v) {
+            if (isLogicallyNonExistent(*v, cHandle)) {
+                ht.cleanupIfTemporaryItem(hbl, *v);
+                return ENGINE_KEY_ENOENT;
             }
-            std::tie(mtype, notifyCtx) = processSet(hbl,
-                                                    v,
-                                                    itm,
-                                                    0,
-                                                    /*allowExisting*/ true,
-                                                    /*hasMetaData*/ false,
-                                                    queueItmCtx,
-                                                    storeIfStatus);
-        }
 
-        // For pending SyncWrites we initially return EWOULDBLOCK; will notify
-        // client when request is committed / aborted later.
-        ret = itm.isPending() ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
-        switch (mtype) {
-        case MutationStatus::NoMem:
-            ret = ENGINE_ENOMEM;
-            break;
-        case MutationStatus::IsLocked:
-            ret = ENGINE_LOCKED;
-            break;
-        case MutationStatus::InvalidCas:
-        case MutationStatus::NotFound:
-            ret = ENGINE_NOT_STORED;
-            break;
-        // FALLTHROUGH
-        case MutationStatus::WasDirty:
-        // Even if the item was dirty, push it into the vbucket's open
-        // checkpoint.
-        case MutationStatus::WasClean:
-            notifyNewSeqno(*notifyCtx);
-            doCollectionsStats(cHandle, *notifyCtx);
+            MutationStatus mtype;
+            boost::optional<VBNotifyCtx> notifyCtx;
+            if (eviction == EvictionPolicy::Full && v->isTempInitialItem()) {
+                mtype = MutationStatus::NeedBgFetch;
+            } else {
+                PreLinkDocumentContext preLinkDocumentContext(
+                        engine, cookie, &itm);
+                VBQueueItemCtx queueItmCtx;
+                queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
+                if (itm.isPending()) {
+                    queueItmCtx.durability =
+                            DurabilityItemCtx{itm.getDurabilityReqs(), cookie};
+                }
+                std::tie(mtype, notifyCtx) = processSet(hbl,
+                                                        v,
+                                                        itm,
+                                                        0,
+                                                        /*allowExisting*/ true,
+                                                        /*hasMetaData*/ false,
+                                                        queueItmCtx,
+                                                        storeIfStatus);
+            }
 
-            itm.setBySeqno(v->getBySeqno());
-            itm.setCas(v->getCas());
-            break;
-        case MutationStatus::NeedBgFetch: {
-            // temp item is already created. Simply schedule a bg fetch job
-            hbl.getHTLock().unlock();
-            bgFetch(itm.getKey(), cookie, engine, true);
-            ret = ENGINE_EWOULDBLOCK;
-            break;
-        }
-        case MutationStatus::IsPendingSyncWrite:
-            ret = ENGINE_SYNC_WRITE_IN_PROGRESS;
-            break;
-        }
+            // For pending SyncWrites we initially return EWOULDBLOCK; will
+            // notify client when request is committed / aborted later.
+            ret = itm.isPending() ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
+            switch (mtype) {
+            case MutationStatus::NoMem:
+                ret = ENGINE_ENOMEM;
+                break;
+            case MutationStatus::IsLocked:
+                ret = ENGINE_LOCKED;
+                break;
+            case MutationStatus::InvalidCas:
+            case MutationStatus::NotFound:
+                ret = ENGINE_NOT_STORED;
+                break;
+                // FALLTHROUGH
+            case MutationStatus::WasDirty:
+                // Even if the item was dirty, push it into the vbucket's open
+                // checkpoint.
+            case MutationStatus::WasClean:
+                notifyNewSeqno(*notifyCtx);
+                doCollectionsStats(cHandle, *notifyCtx);
 
-        return ret;
-    } else {
-        if (eviction == EvictionPolicy::Value) {
-            return ENGINE_KEY_ENOENT;
-        }
-
-        if (maybeKeyExistsInFilter(itm.getKey())) {
-            return addTempItemAndBGFetch(
-                    hbl, itm.getKey(), cookie, engine, false);
+                itm.setBySeqno(v->getBySeqno());
+                itm.setCas(v->getCas());
+                break;
+            case MutationStatus::NeedBgFetch: {
+                // temp item is already created. Simply schedule a bg fetch job
+                hbl.getHTLock().unlock();
+                bgFetch(itm.getKey(), cookie, engine, true);
+                ret = ENGINE_EWOULDBLOCK;
+                break;
+            }
+            case MutationStatus::IsPendingSyncWrite:
+                ret = ENGINE_SYNC_WRITE_IN_PROGRESS;
+                break;
+            }
         } else {
-            // As bloomfilter predicted that item surely doesn't exist
-            // on disk, return ENOENT for replace().
-            return ENGINE_KEY_ENOENT;
+            if (eviction == EvictionPolicy::Value) {
+                return ENGINE_KEY_ENOENT;
+            }
+
+            if (maybeKeyExistsInFilter(itm.getKey())) {
+                return addTempItemAndBGFetch(
+                        hbl, itm.getKey(), cookie, engine, false);
+            } else {
+                // As bloomfilter predicted that item surely doesn't exist
+                // on disk, return ENOENT for replace().
+                return ENGINE_KEY_ENOENT;
+            }
         }
     }
+    // Commit if possible. This allows us to do "durable" sets in the case where
+    // we have no replicas (i.e. every set should be completed immediately).
+    // We can't do this when we add the SyncWrite because the general use case
+    // is to commit on replica ack. This requires doing a find against the
+    // HashTable (requires locking the HashBucket) which would result in a
+    // deadlock if we did it inside the addSyncWrite call. To keep things
+    // simple, just commit after doing the set.
+    getActiveDM().checkForCommit();
+
+    return ret;
 }
 
 ENGINE_ERROR_CODE VBucket::addBackfillItem(
@@ -1752,127 +1775,140 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         }
     }
 
-    auto htRes = ht.findForWrite(cHandle.getKey());
-    auto* v = htRes.storedValue;
-    auto& hbl = htRes.lock;
-
-    if (!v || v->isDeleted() || v->isTempItem() ||
-        cHandle.isLogicallyDeleted(v->getBySeqno())) {
-        if (eviction == EvictionPolicy::Value) {
-            return ENGINE_KEY_ENOENT;
-        } else { // Full eviction.
-            if (!v) { // Item might be evicted from cache.
-                if (maybeKeyExistsInFilter(cHandle.getKey())) {
-                    return addTempItemAndBGFetch(
-                            hbl, cHandle.getKey(), cookie, engine, true);
-                } else {
-                    // As bloomfilter predicted that item surely doesn't
-                    // exist on disk, return ENOENT for deleteItem().
-                    return ENGINE_KEY_ENOENT;
-                }
-            } else if (v->isTempInitialItem()) {
-                hbl.getHTLock().unlock();
-                bgFetch(cHandle.getKey(), cookie, engine, true);
-                return ENGINE_EWOULDBLOCK;
-            } else { // Non-existent or deleted key.
-                if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
-                    // Delete a temp non-existent item to ensure that
-                    // if a delete were issued over an item that doesn't
-                    // exist, then we don't preserve a temp item.
-                    deleteStoredValue(hbl, *v);
-                }
-                return ENGINE_KEY_ENOENT;
-            }
-        }
-    }
-
-    if (v->isLocked(ep_current_time()) &&
-        (getState() == vbucket_state_replica ||
-         getState() == vbucket_state_pending)) {
-        v->unlock();
-    }
-
-    if (itemMeta != nullptr) {
-        itemMeta->cas = v->getCas();
-    }
-
-    MutationStatus delrv;
-    boost::optional<VBNotifyCtx> notifyCtx;
-    if (v->isExpired(ep_real_time())) {
-        std::tie(delrv, v, notifyCtx) = processExpiredItem(hbl, *v, cHandle);
-    } else {
-        ItemMetaData metadata;
-        metadata.revSeqno = v->getRevSeqno() + 1;
-        VBQueueItemCtx queueItmCtx;
-        if (durability) {
-            queueItmCtx.durability = DurabilityItemCtx{*durability, cookie};
-        }
-        std::tie(delrv, v, notifyCtx) =
-                processSoftDelete(hbl,
-                                  *v,
-                                  cas,
-                                  metadata,
-                                  queueItmCtx,
-                                  /*use_meta*/ false,
-                                  /*bySeqno*/ v->getBySeqno(),
-                                  DeleteSource::Explicit);
-    }
-
-    uint64_t seqno = 0;
-
     // For pending SyncDeletes we initially return EWOULDBLOCK; will notify
     // client when request is committed / aborted later.
     ENGINE_ERROR_CODE ret = durability ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
 
-    switch (delrv) {
-    case MutationStatus::NoMem:
-        ret = ENGINE_ENOMEM;
-        break;
-    case MutationStatus::InvalidCas:
-        ret = ENGINE_KEY_EEXISTS;
-        break;
-    case MutationStatus::IsLocked:
-        ret = ENGINE_LOCKED_TMPFAIL;
-        break;
-    case MutationStatus::NotFound:
-        ret = ENGINE_KEY_ENOENT;
-    /* Fallthrough:
-     * A NotFound return value at this point indicates that the
-     * item has expired. But, a deletion still needs to be queued
-     * for the item in order to persist it.
-     */
-    case MutationStatus::WasClean:
-    case MutationStatus::WasDirty:
-        if (itemMeta != nullptr) {
-            itemMeta->revSeqno = v->getRevSeqno();
-            itemMeta->flags = v->getFlags();
-            itemMeta->exptime = v->getExptime();
-        }
+    { // HashBucketLock scope
+        auto htRes = ht.findForWrite(cHandle.getKey());
+        auto* v = htRes.storedValue;
+        auto& hbl = htRes.lock;
 
-        notifyNewSeqno(*notifyCtx);
-        doCollectionsStats(cHandle, *notifyCtx);
-        seqno = static_cast<uint64_t>(v->getBySeqno());
-        cas = v->getCas();
-
-        if (delrv != MutationStatus::NotFound) {
-            mutInfo.seqno = seqno;
-            mutInfo.vbucket_uuid = failovers->getLatestUUID();
-            if (itemMeta != nullptr) {
-                itemMeta->cas = v->getCas();
+        if (!v || v->isDeleted() || v->isTempItem() ||
+            cHandle.isLogicallyDeleted(v->getBySeqno())) {
+            if (eviction == EvictionPolicy::Value) {
+                return ENGINE_KEY_ENOENT;
+            } else { // Full eviction.
+                if (!v) { // Item might be evicted from cache.
+                    if (maybeKeyExistsInFilter(cHandle.getKey())) {
+                        return addTempItemAndBGFetch(
+                                hbl, cHandle.getKey(), cookie, engine, true);
+                    } else {
+                        // As bloomfilter predicted that item surely doesn't
+                        // exist on disk, return ENOENT for deleteItem().
+                        return ENGINE_KEY_ENOENT;
+                    }
+                } else if (v->isTempInitialItem()) {
+                    hbl.getHTLock().unlock();
+                    bgFetch(cHandle.getKey(), cookie, engine, true);
+                    return ENGINE_EWOULDBLOCK;
+                } else { // Non-existent or deleted key.
+                    if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
+                        // Delete a temp non-existent item to ensure that
+                        // if a delete were issued over an item that doesn't
+                        // exist, then we don't preserve a temp item.
+                        deleteStoredValue(hbl, *v);
+                    }
+                    return ENGINE_KEY_ENOENT;
+                }
             }
         }
-        break;
-    case MutationStatus::NeedBgFetch:
-        // We already figured out if a bg fetch is requred for a full-evicted
-        // item above.
-        throw std::logic_error(
-                "VBucket::deleteItem: "
-                "Unexpected NEEDS_BG_FETCH from processSoftDelete");
 
-    case MutationStatus::IsPendingSyncWrite:
-        ret = ENGINE_SYNC_WRITE_IN_PROGRESS;
-        break;
+        if (v->isLocked(ep_current_time()) &&
+            (getState() == vbucket_state_replica ||
+             getState() == vbucket_state_pending)) {
+            v->unlock();
+        }
+
+        if (itemMeta != nullptr) {
+            itemMeta->cas = v->getCas();
+        }
+
+        MutationStatus delrv;
+        boost::optional<VBNotifyCtx> notifyCtx;
+        if (v->isExpired(ep_real_time())) {
+            std::tie(delrv, v, notifyCtx) =
+                    processExpiredItem(hbl, *v, cHandle);
+        } else {
+            ItemMetaData metadata;
+            metadata.revSeqno = v->getRevSeqno() + 1;
+            VBQueueItemCtx queueItmCtx;
+            if (durability) {
+                queueItmCtx.durability = DurabilityItemCtx{*durability, cookie};
+            }
+            std::tie(delrv, v, notifyCtx) =
+                    processSoftDelete(hbl,
+                                      *v,
+                                      cas,
+                                      metadata,
+                                      queueItmCtx,
+                                      /*use_meta*/ false,
+                                      /*bySeqno*/ v->getBySeqno(),
+                                      DeleteSource::Explicit);
+        }
+
+        uint64_t seqno = 0;
+
+        switch (delrv) {
+        case MutationStatus::NoMem:
+            ret = ENGINE_ENOMEM;
+            break;
+        case MutationStatus::InvalidCas:
+            ret = ENGINE_KEY_EEXISTS;
+            break;
+        case MutationStatus::IsLocked:
+            ret = ENGINE_LOCKED_TMPFAIL;
+            break;
+        case MutationStatus::NotFound:
+            ret = ENGINE_KEY_ENOENT;
+            /* Fallthrough:
+             * A NotFound return value at this point indicates that the
+             * item has expired. But, a deletion still needs to be queued
+             * for the item in order to persist it.
+             */
+        case MutationStatus::WasClean:
+        case MutationStatus::WasDirty:
+            if (itemMeta != nullptr) {
+                itemMeta->revSeqno = v->getRevSeqno();
+                itemMeta->flags = v->getFlags();
+                itemMeta->exptime = v->getExptime();
+            }
+
+            notifyNewSeqno(*notifyCtx);
+            doCollectionsStats(cHandle, *notifyCtx);
+            seqno = static_cast<uint64_t>(v->getBySeqno());
+            cas = v->getCas();
+
+            if (delrv != MutationStatus::NotFound) {
+                mutInfo.seqno = seqno;
+                mutInfo.vbucket_uuid = failovers->getLatestUUID();
+                if (itemMeta != nullptr) {
+                    itemMeta->cas = v->getCas();
+                }
+            }
+            break;
+        case MutationStatus::NeedBgFetch:
+            // We already figured out if a bg fetch is requred for a
+            // full-evicted item above.
+            throw std::logic_error(
+                    "VBucket::deleteItem: "
+                    "Unexpected NEEDS_BG_FETCH from processSoftDelete");
+
+        case MutationStatus::IsPendingSyncWrite:
+            ret = ENGINE_SYNC_WRITE_IN_PROGRESS;
+            break;
+        }
     }
+
+    // Commit if possible. This allows us to do "durable" sets in the case where
+    // we have no replicas (i.e. every set should be completed immediately).
+    // We can't do this when we add the SyncWrite because the general use case
+    // is to commit on replica ack. This requires doing a find against the
+    // HashTable (requires locking the HashBucket) which would result in a
+    // deadlock if we did it inside the addSyncWrite call. To keep things
+    // simple, just commit after doing the set.
+    getActiveDM().checkForCommit();
+
     return ret;
 }
 
@@ -2134,50 +2170,61 @@ ENGINE_ERROR_CODE VBucket::add(
         return ret;
     }
 
-    auto htRes = ht.findForWrite(itm.getKey());
-    auto* v = htRes.storedValue;
-    auto& hbl = htRes.lock;
+    { // HashBucketLock scope
+        auto htRes = ht.findForWrite(itm.getKey());
+        auto* v = htRes.storedValue;
+        auto& hbl = htRes.lock;
 
-    bool maybeKeyExists = true;
-    if ((v == nullptr || v->isTempInitialItem()) &&
-        (eviction == EvictionPolicy::Full)) {
-        // Check bloomfilter's prediction
-        if (!maybeKeyExistsInFilter(itm.getKey())) {
-            maybeKeyExists = false;
+        bool maybeKeyExists = true;
+        if ((v == nullptr || v->isTempInitialItem()) &&
+            (eviction == EvictionPolicy::Full)) {
+            // Check bloomfilter's prediction
+            if (!maybeKeyExistsInFilter(itm.getKey())) {
+                maybeKeyExists = false;
+            }
+        }
+
+        PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
+        VBQueueItemCtx queueItmCtx;
+        queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
+        if (itm.isPending()) {
+            queueItmCtx.durability =
+                    DurabilityItemCtx{itm.getDurabilityReqs(), cookie};
+        }
+        AddStatus status;
+        boost::optional<VBNotifyCtx> notifyCtx;
+        std::tie(status, notifyCtx) =
+                processAdd(hbl, v, itm, maybeKeyExists, queueItmCtx, cHandle);
+
+        switch (status) {
+        case AddStatus::NoMem:
+            return ENGINE_ENOMEM;
+        case AddStatus::Exists:
+            return ENGINE_NOT_STORED;
+        case AddStatus::AddTmpAndBgFetch:
+            return addTempItemAndBGFetch(
+                    hbl, itm.getKey(), cookie, engine, true);
+        case AddStatus::BgFetch:
+            hbl.getHTLock().unlock();
+            bgFetch(itm.getKey(), cookie, engine, true);
+            return ENGINE_EWOULDBLOCK;
+        case AddStatus::Success:
+        case AddStatus::UnDel:
+            notifyNewSeqno(*notifyCtx);
+            doCollectionsStats(cHandle, *notifyCtx);
+            itm.setBySeqno(v->getBySeqno());
+            itm.setCas(v->getCas());
+            break;
         }
     }
-
-    PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
-    VBQueueItemCtx queueItmCtx;
-    queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
-    if (itm.isPending()) {
-        queueItmCtx.durability =
-                DurabilityItemCtx{itm.getDurabilityReqs(), cookie};
-    }
-    AddStatus status;
-    boost::optional<VBNotifyCtx> notifyCtx;
-    std::tie(status, notifyCtx) =
-            processAdd(hbl, v, itm, maybeKeyExists, queueItmCtx, cHandle);
-
-    switch (status) {
-    case AddStatus::NoMem:
-        return ENGINE_ENOMEM;
-    case AddStatus::Exists:
-        return ENGINE_NOT_STORED;
-    case AddStatus::AddTmpAndBgFetch:
-        return addTempItemAndBGFetch(hbl, itm.getKey(), cookie, engine, true);
-    case AddStatus::BgFetch:
-        hbl.getHTLock().unlock();
-        bgFetch(itm.getKey(), cookie, engine, true);
-        return ENGINE_EWOULDBLOCK;
-    case AddStatus::Success:
-    case AddStatus::UnDel:
-        notifyNewSeqno(*notifyCtx);
-        doCollectionsStats(cHandle, *notifyCtx);
-        itm.setBySeqno(v->getBySeqno());
-        itm.setCas(v->getCas());
-        break;
-    }
+    // Commit if possible. This allows us to do "durable" sets in the case where
+    // we have no replicas (i.e. every set should be completed immediately).
+    // We can't do this when we add the SyncWrite because the general use case
+    // is to commit on replica ack. This requires doing a find against the
+    // HashTable (requires locking the HashBucket) which would result in a
+    // deadlock if we did it inside the addSyncWrite call. To keep things
+    // simple, just commit after doing the set.
+    getActiveDM().checkForCommit();
 
     // For pending SyncWrites we initially return EWOULDBLOCK; will notify
     // client when request is committed / aborted later.

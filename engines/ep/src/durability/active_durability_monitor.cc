@@ -134,19 +134,7 @@ void ActiveDurabilityMonitor::addSyncWrite(const void* cookie,
                 "ActiveDurabilityMonitor::addSyncWrite: Impossible");
     }
 
-    Container toCommit;
-    {
-        auto s = state.wlock();
-        s->addSyncWrite(cookie, std::move(item));
-        toCommit = s->updateHighPreparedSeqno();
-    }
-
-    // @todo: Consider to commit in a dedicated function for minimizing
-    //     contention on front-end threads, as this function is supposed to
-    //     execute under VBucket-level lock.
-    for (const auto& sw : toCommit) {
-        commit(sw);
-    }
+    state.wlock()->addSyncWrite(cookie, std::move(item));
 }
 
 ENGINE_ERROR_CODE ActiveDurabilityMonitor::seqnoAckReceived(
@@ -803,4 +791,15 @@ ActiveDurabilityMonitor::State::updateHighPreparedSeqno() {
     //     Position::lastAckSeqno for the local (Active) tracking.
 
     return toCommit;
+}
+
+void ActiveDurabilityMonitor::checkForCommit() {
+    Container toCommit = state.wlock()->updateHighPreparedSeqno();
+
+    // @todo: Consider to commit in a dedicated function for minimizing
+    //     contention on front-end threads, as this function is supposed to
+    //     execute under VBucket-level lock.
+    for (const auto& sw : toCommit) {
+        commit(sw);
+    }
 }

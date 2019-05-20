@@ -180,6 +180,11 @@ public:
      */
     std::unordered_set<int64_t> getTrackedSeqnos() const;
 
+    /**
+     * Check if we can commit any SyncWrites and commit them.
+     */
+    void checkForCommit();
+
 protected:
     void toOStream(std::ostream& os) const override;
 

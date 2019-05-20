@@ -30,13 +30,24 @@ class ActiveDurabilityMonitor;
 class DurabilityMonitorTest : public STParameterizedBucketTest {
 protected:
     /**
-     * Add a SyncWrite for tracking.
+     * Add a SyncWrite for tracking. Adds a SyncWrite at a specific seqno by
+     * adding non-SyncWrite items up until the given seqno. Uses VBucket::set.
      *
-     * @param seqno
+     * @param seqno the seqno to put a SyncWrite at
      * @param req The Durability Requirements
-     * @return the error code from the underlying engine
      */
-    void addSyncWrite(int64_t seqno, cb::durability::Requirements req = {});
+    virtual void addSyncWrite(int64_t seqno,
+                              cb::durability::Requirements req = {});
+
+    /**
+     * Add a SyncDelete for tracking. Adds a SyncDelete at a specific seqno by
+     * adding non-SyncWrite/Delete items up until the given seqno. Uses
+     * VBuclet::set.
+     *
+     * @param seqno the seqno to put a SyncWrite at
+     * @param req The Durability Requirements
+     */
+    void addSyncDelete(int64_t seqno, cb::durability::Requirements req = {});
 
     /**
      * Adds the given mutations for tracking.
@@ -54,6 +65,13 @@ protected:
      * @param item the item to be stored
      */
     MutationStatus processSet(Item& item);
+
+    /**
+     * Stores the given item via VBucket::set.
+     *
+     * @param item the item to be stored
+     */
+    ENGINE_ERROR_CODE set(Item& item);
 
     /**
      * Add the given SyncWrites for tracking and check that High Prepared Seqno
@@ -348,6 +366,19 @@ public:
 
 protected:
     PassiveDurabilityMonitor& getPassiveDM() const;
+
+    /**
+     * Add a SyncWrite for tracking. Adds a SyncWrite at a specific seqno by
+     * using VBucket::processSet. Overrides the default implementation because
+     * a set call will fail for replica/pending vBuckets (we check the activeDM
+     * for durability requirements/checkForCommit).
+     *
+     * @param seqno the seqno to put a SyncWrite at
+     * @param req The Durability Requirements
+     * @return the error code from the underlying engine
+     */
+    void addSyncWrite(int64_t seqno,
+                      cb::durability::Requirements req = {}) override;
 
     /**
      * Simulate and verify that:

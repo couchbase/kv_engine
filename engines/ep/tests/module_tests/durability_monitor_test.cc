@@ -50,6 +50,33 @@ ActiveDurabilityMonitor& ActiveDurabilityMonitorTest::getActiveDM() const {
 
 void DurabilityMonitorTest::addSyncWrite(int64_t seqno,
                                          cb::durability::Requirements req) {
+    auto current = vb->getHighSeqno();
+    ASSERT_LE(current, seqno);
+    auto item = Item(makeStoredDocKey("key" + std::to_string(seqno)),
+                     0 /*flags*/,
+                     0 /*exp*/,
+                     "value",
+                     5 /*valueSize*/,
+                     PROTOCOL_BINARY_RAW_BYTES,
+                     0 /*cas*/,
+                     seqno);
+
+    // Note: necessary for non-auto-generated seqno. Instead of hooking into
+    // processSet (we can't because we call checkForCommit in VBucket::set) we
+    // set a specific seqno by storing items up to that point.
+    for (auto i = current; i < seqno - 1; i++) {
+        auto key = makeStoredDocKey("key");
+        store_item(vbid, key, "value");
+    }
+
+    // Note: need to go through VBucket::set make sure we call
+    // ADM::checkForCommit
+    item.setPendingSyncWrite(req);
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, set(item));
+}
+
+void PassiveDurabilityMonitorTest::addSyncWrite(
+        int64_t seqno, cb::durability::Requirements req) {
     auto item = Item(makeStoredDocKey("key" + std::to_string(seqno)),
                      0 /*flags*/,
                      0 /*exp*/,
@@ -62,8 +89,45 @@ void DurabilityMonitorTest::addSyncWrite(int64_t seqno,
     item.setPendingSyncWrite(req);
     // Note: necessary for non-auto-generated seqno
     vb->checkpointManager->createSnapshot(seqno, seqno);
-    // Note: need to go through VBucket::processSet to set the given bySeqno
-    ASSERT_EQ(MutationStatus::WasClean, processSet(item));
+    processSet(item);
+}
+
+void DurabilityMonitorTest::addSyncDelete(int64_t seqno,
+                                          cb::durability::Requirements req) {
+    ASSERT_GT(seqno, 1);
+    auto current = vb->getHighSeqno();
+    ASSERT_LE(current, seqno);
+    auto item = Item(makeStoredDocKey("key" + std::to_string(seqno)),
+                     0 /*flags*/,
+                     0 /*exp*/,
+                     "value",
+                     5 /*valueSize*/,
+                     PROTOCOL_BINARY_RAW_BYTES,
+                     0 /*cas*/,
+                     current + 1);
+    ASSERT_EQ(ENGINE_SUCCESS, set(item));
+    uint64_t cas = item.getCas();
+    current = vb->getHighSeqno();
+
+    // Note: necessary for non-auto-generated seqno. Instead of hooking into
+    // processSet (we can't because we call checkForCommit in VBucket::set) we
+    // set a specific seqno by storing items up to that point.
+    for (auto i = current; i < seqno - 1; i++) {
+        auto key = makeStoredDocKey("key");
+        store_item(vbid, key, "value");
+    }
+    // Note: need to go through VBucket::set make sure we call
+    // ADM::checkForCommit
+    mutation_descr_t mutation_descr;
+    auto cHandle = vb->lockCollections(item.getKey());
+    ASSERT_EQ(ENGINE_EWOULDBLOCK,
+              vb->deleteItem(cas,
+                             cookie,
+                             *engine,
+                             req,
+                             nullptr,
+                             mutation_descr,
+                             cHandle));
 }
 
 size_t ActiveDurabilityMonitorTest::addSyncWrites(
@@ -104,6 +168,11 @@ MutationStatus DurabilityMonitorTest::processSet(Item& item) {
                          ctx,
                          {/*no predicate*/})
             .first;
+}
+
+ENGINE_ERROR_CODE DurabilityMonitorTest::set(Item& item) {
+    auto cHandle = vb->lockCollections(item.getKey());
+    return vb->set(item, cookie, *engine, {}, cHandle);
 }
 
 void ActiveDurabilityMonitorTest::assertNodeTracking(
@@ -1829,6 +1898,22 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
                             0 /*expectHPS*/);
 
     notifyPersistenceAndCheckHPS(2021 /*persistedSeqno*/, 2021 /*expectHPS*/);
+}
+
+TEST_P(ActiveDurabilityMonitorTest, NoReplicaSyncWrite) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(nlohmann::json::array({{active}}));
+    assertNumTrackedAndHPS(0, 0);
+    addSyncWrite(1);
+    assertNumTrackedAndHPS(0, 1);
+}
+
+TEST_P(ActiveDurabilityMonitorTest, NoReplicaSyncDelete) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(nlohmann::json::array({{active}}));
+    assertNumTrackedAndHPS(0, 0);
+    addSyncDelete(2);
+    assertNumTrackedAndHPS(0, 2);
 }
 
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
