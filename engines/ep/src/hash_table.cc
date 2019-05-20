@@ -761,8 +761,7 @@ HashTable::FindResult HashTable::findForWrite(const DocKey& key,
 HashTable::StoredValueProxy HashTable::findForWrite(StoredValueProxy::RetSVPTag,
                                                     const DocKey& key,
                                                     WantsDeleted wantsDeleted) {
-    auto result =
-            find(key, TrackReference::No, wantsDeleted, Perspective::Pending);
+    auto result = findForWrite(key, wantsDeleted);
     return StoredValueProxy(
             std::move(result.lock), result.storedValue, valueStats);
 }
