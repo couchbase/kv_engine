@@ -2507,8 +2507,8 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     // Optional parent monitor
     {
-        int parent = settings.getParentIdentifier();
-        if (parent != 0) {
+        const int parent = settings.getParentIdentifier();
+        if (parent != -1) {
             LOG_INFO("Starting parent monitor");
             parent_monitor = std::make_unique<ParentMonitor>(parent);
         }
