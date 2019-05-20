@@ -21,7 +21,7 @@
 #include <platform/strerror.h>
 #include <protocol/connection/client_connection_map.h>
 #include <signal.h>
-#include <wait.h>
+#include <sys/wait.h>
 #include <chrono>
 #include <fstream>
 #include <iostream>
