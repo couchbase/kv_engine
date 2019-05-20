@@ -782,6 +782,10 @@ ENGINE_ERROR_CODE VBucket::commit(
     if (commitSeqno) {
         queueItmCtx.genBySeqno = GenerateBySeqno::No;
     }
+    // Never generate a new cas. We should always take the existing cas because
+    // it may have been set explicitly.
+    queueItmCtx.genCas = GenerateCas::No;
+
     auto notify = commitStoredValue(res, queueItmCtx, commitSeqno);
 
     notifyNewSeqno(notify);

@@ -61,6 +61,16 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
 
     EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
 
+    auto prepareSeqno = 1;
+    uint64_t cas;
+    {
+        const auto sv = vb->ht.findForWrite(key);
+        ASSERT_TRUE(sv.storedValue);
+        ASSERT_EQ(CommittedState::Pending, sv.storedValue->getCommitted());
+        ASSERT_EQ(prepareSeqno, sv.storedValue->getBySeqno());
+        cas = sv.storedValue->getCas();
+    }
+
     // We don't account Prepares in VB stats
     EXPECT_EQ(0, vb->getNumItems());
     // We do in HT stats
@@ -103,11 +113,11 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
     resp = stream->public_popFromReadyQ();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
-    const uint64_t prepareSeqno = 1;
     EXPECT_EQ(prepareSeqno, *resp->getBySeqno());
     auto& prepare = static_cast<MutationResponse&>(*resp);
     EXPECT_EQ(key, prepare.getItem()->getKey());
     EXPECT_EQ(value, prepare.getItem()->getValue()->to_s());
+    EXPECT_EQ(cas, prepare.getItem()->getCas());
     ASSERT_EQ(0, stream->public_readyQSize());
     resp = stream->public_popFromReadyQ();
     ASSERT_FALSE(resp);
@@ -479,13 +489,30 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
     const std::string value("value");
     const uint64_t prepareSeqno = 1;
     using namespace cb::durability;
+
+    const uint64_t cas = 999;
+    queued_item qi(
+            new Item(makeStoredDocKey("key_" + std::to_string(prepareSeqno)),
+                     0 /*flags*/,
+                     0 /*expiry*/,
+                     value.c_str(),
+                     value.size(),
+                     PROTOCOL_BINARY_RAW_BYTES,
+                     cas /*cas*/,
+                     prepareSeqno,
+                     vbid));
+    qi->setPendingSyncWrite(Requirements(Level::Majority, Timeout::Infinity()));
+
     ASSERT_EQ(ENGINE_SUCCESS,
-              stream->messageReceived(makeMutationConsumerMessage(
-                      prepareSeqno,
-                      vbid,
-                      value,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      std::move(qi),
                       opaque,
-                      Requirements(Level::Majority, Timeout::Infinity()))));
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
 
     EXPECT_EQ(0, vb->getNumItems());
     EXPECT_EQ(1, vb->ht.getNumItems());
@@ -495,6 +522,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
         ASSERT_TRUE(sv.storedValue);
         EXPECT_EQ(CommittedState::Pending, sv.storedValue->getCommitted());
         EXPECT_EQ(prepareSeqno, sv.storedValue->getBySeqno());
+        EXPECT_EQ(cas, sv.storedValue->getCas());
     }
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
@@ -518,6 +546,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
     EXPECT_TRUE((*it)->getValue());
     EXPECT_EQ(value, (*it)->getValue()->to_s());
     EXPECT_EQ(1, (*it)->getBySeqno());
+    EXPECT_EQ(cas, (*it)->getCas());
 
     EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
 }
@@ -535,12 +564,14 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpCommit) {
     testReceiveDcpPrepare();
     auto vb = engine->getVBucket(vbid);
     const uint64_t prepareSeqno = 1;
-    const auto key = makeStoredDocKey("key_" + std::to_string(prepareSeqno));
+    uint64_t cas;
+    auto key = makeStoredDocKey("key_" + std::to_string(prepareSeqno));
     {
         const auto sv = vb->ht.findForWrite(key);
         ASSERT_TRUE(sv.storedValue);
         ASSERT_EQ(CommittedState::Pending, sv.storedValue->getCommitted());
         ASSERT_EQ(prepareSeqno, sv.storedValue->getBySeqno());
+        cas = sv.storedValue->getCas();
     }
 
     // At Replica we don't expect multiple Durability items (for the same key)
@@ -600,6 +631,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpCommit) {
     EXPECT_TRUE((*it)->getValue());
     EXPECT_EQ("value", (*it)->getValue()->to_s());
     EXPECT_EQ(commitSeqno, (*it)->getBySeqno());
+    EXPECT_EQ(cas, (*it)->getCas());
 
     EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
 }

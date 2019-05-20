@@ -131,6 +131,14 @@ void VBucketDurabilityTest::testAddPrepareAndCommit(
         const std::vector<SyncWriteSpec>& writes) {
     testAddPrepare(writes);
 
+    std::vector<uint64_t> cas;
+    for (auto write : writes) {
+        cas.push_back(
+                ht->findForWrite(
+                          makeStoredDocKey("key" + std::to_string(write.seqno)))
+                        .storedValue->getCas());
+    }
+
     // Simulate flush + checkpoint-removal
     ckptMgr->clear(*vbucket, ckptMgr->getHighSeqno());
 
@@ -138,6 +146,7 @@ void VBucketDurabilityTest::testAddPrepareAndCommit(
     vbucket->seqnoAcknowledged(replica1, writes.back().seqno);
     simulateLocalAck(writes.back().seqno);
 
+    int i = 0;
     for (auto write : writes) {
         auto key = makeStoredDocKey("key" + std::to_string(write.seqno));
 
@@ -148,6 +157,8 @@ void VBucketDurabilityTest::testAddPrepareAndCommit(
         EXPECT_NE(nullptr, ht->findForWrite(key).storedValue);
         EXPECT_EQ(CommittedState::CommittedViaPrepare, sv->getCommitted());
         EXPECT_EQ(write.deletion, sv->isDeleted());
+        EXPECT_EQ(cas[i], sv->getCas());
+        i++;
     }
 
     const auto& ckptList =
