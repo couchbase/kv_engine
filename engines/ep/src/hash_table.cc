@@ -342,6 +342,7 @@ HashTable::UpdateResult HashTable::unlocked_updateStoredValue(
 
     switch (v.getCommitted()) {
     case CommittedState::Pending:
+    case CommittedState::PreparedMaybeVisible:
         // Cannot update a SV if it's a Pending item.
         return {MutationStatus::IsPendingSyncWrite, nullptr};
 
@@ -547,6 +548,7 @@ HashTable::DeleteResult HashTable::unlocked_softDelete(
         HashTable::SyncDelete syncDelete) {
     switch (v.getCommitted()) {
     case CommittedState::Pending:
+    case CommittedState::PreparedMaybeVisible:
         // Cannot update a SV if it's a Pending item.
         return {DeletionStatus::IsPendingSyncWrite, nullptr};
 
@@ -994,7 +996,7 @@ std::unique_ptr<Item> HashTable::getRandomKeyFromSlot(int slot) {
     for (StoredValue* v = values[slot].get().get(); v;
             v = v->getNext().get().get()) {
         if (!v->isTempItem() && !v->isDeleted() && v->isResident() &&
-            v->getCommitted() != CommittedState::Pending) {
+            v->isCommitted()) {
             return v->toItem(Vbid(0));
         }
     }

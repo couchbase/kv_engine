@@ -714,7 +714,7 @@ void VBucket::addStat(const char* nm,
 void VBucket::handlePreExpiry(const HashTable::HashBucketLock& hbl,
                               StoredValue& v) {
     // Pending items should not be subject to expiry
-    if (v.getCommitted() == CommittedState::Pending) {
+    if (v.isPending()) {
         std::stringstream ss;
         ss << v;
         throw std::invalid_argument(
@@ -815,7 +815,7 @@ ENGINE_ERROR_CODE VBucket::abort(
         return ENGINE_KEY_ENOENT;
     }
 
-    if (htRes.storedValue->getCommitted() != CommittedState::Pending) {
+    if (!htRes.storedValue->isPending()) {
         // We should always find a pending item when aborting; if not
         // this is a logic error...
         std::stringstream ss;

@@ -393,7 +393,14 @@ public:
      */
     void setPendingSyncWrite(cb::durability::Requirements requirements);
 
-    /// Sets the item as being a Commited via Pending SyncWrite.
+    /**
+     * Sets the item as being a prepared SyncWrite which maybe have already
+     * been made visible (and hence shouldn't should allow clients to read
+     * this key).
+     */
+    void setPreparedMaybeVisible();
+
+    /// Sets the item as being a Committed via Pending SyncWrite.
     void setCommittedviaPrepareSyncWrite();
 
     /// Sets the item as being a Aborted.
@@ -403,7 +410,8 @@ public:
     CommittedState getCommitted() const {
         switch (op) {
         case queue_op::pending_sync_write:
-            return CommittedState::Pending;
+            return maybeVisible ? CommittedState::PreparedMaybeVisible
+                                : CommittedState::Pending;
         case queue_op::commit_sync_write:
             return CommittedState::CommittedViaPrepare;
         case queue_op::mutation:
@@ -520,6 +528,9 @@ private:
     uint8_t deleted : 1;
     // If deleted, deletionCause stores the cause of the deletion.
     uint8_t deletionCause : 1;
+
+    /// True if this Item is a PreparedMaybeVisible SyncWrite.
+    uint8_t maybeVisible : 1;
 
     // Keep a cached version of the datatype. It allows for using
     // "partial" items created from from the hashtable. Every time the

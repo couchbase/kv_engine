@@ -113,6 +113,8 @@ private:
     uint16_t value{BucketDefaultVal};
 };
 
+bool operator==(const Timeout& lhs, const Timeout& rhs);
+
 std::string to_string(Timeout);
 
 /**
@@ -180,6 +182,8 @@ protected:
     Level level{Level::Majority};
     Timeout timeout;
 };
+
+bool operator==(const Requirements& lhs, const Requirements& rhs);
 
 // @todo-durability: Might be able to remove this now we are using
 // boost::optional for requirements in VBucket, and Item uses the queue_op

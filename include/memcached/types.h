@@ -181,10 +181,16 @@ std::string to_string(DeleteSource deleteSource);
 /**
  * The committed state of the Item.
  *
- * Consists of three states: CommittedViaMutation, CommittedViaPrepare and
- * Pending. The first two are generally considered as the same 'Committed' state
+ * Consists of four states: CommittedViaMutation, CommittedViaPrepare
+ * Pending and PreparedMaybeVisible.
+ * The first two are generally considered as the same 'Committed' state
  * by external observers, but internally we need to differentiate between
  * them to write to disk / send over DCP hence having two different states.
+ *
+ * Similarly, Pending and PreparedMaybeVisible are generally treated the same,
+ * but after warmup or failover SyncWrites which _may_ already have been
+ * Committed (but haven't yet been Committed locally) are marked as
+ * PreparedMaybeVisible.
  *
  * Used in a bitfield in StoredValue hence explicit values for enums required.
  */
@@ -198,4 +204,10 @@ enum class CommittedState : char {
     /// Item is pending (is not yet committed) and hence not visible to
     /// external clients yet.
     Pending = 2,
+    /// Item is prepared, but *may* have already been committed by another node
+    /// or before a restart, and as such cannot allow access to *any* value
+    /// for this key until the SyncWrite is committed.
+    /// Same semantics as 'Pending, with the addition of blocking reads to any
+    /// existing value.
+    PreparedMaybeVisible = 3,
 };

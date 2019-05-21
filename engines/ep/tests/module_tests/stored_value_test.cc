@@ -361,14 +361,26 @@ TYPED_TEST(ValueTest, committedState) {
 
     this->sv->setValue(itm);
     EXPECT_EQ(CommittedState::CommittedViaMutation, this->sv->getCommitted());
+    EXPECT_TRUE(this->sv->isCommitted());
+    EXPECT_FALSE(this->sv->isPending());
 
     itm.setPendingSyncWrite({cb::durability::Level::Majority, {}});
     this->sv->setValue(itm);
     EXPECT_EQ(CommittedState::Pending, this->sv->getCommitted());
+    EXPECT_FALSE(this->sv->isCommitted());
+    EXPECT_TRUE(this->sv->isPending());
+
+    itm.setPreparedMaybeVisible();
+    this->sv->setValue(itm);
+    EXPECT_EQ(CommittedState::PreparedMaybeVisible, this->sv->getCommitted());
+    EXPECT_FALSE(this->sv->isCommitted());
+    EXPECT_TRUE(this->sv->isPending());
 
     itm.setCommittedviaPrepareSyncWrite();
     this->sv->setValue(itm);
     EXPECT_EQ(CommittedState::CommittedViaPrepare, this->sv->getCommitted());
+    EXPECT_TRUE(this->sv->isCommitted());
+    EXPECT_FALSE(this->sv->isPending());
 }
 
 /**

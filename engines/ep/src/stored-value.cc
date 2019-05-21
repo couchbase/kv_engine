@@ -231,12 +231,16 @@ std::unique_ptr<Item> StoredValue::toItem(
     // requirements) on the new item.
     switch (getCommitted()) {
     case CommittedState::Pending:
+    case CommittedState::PreparedMaybeVisible:
         if (!durabilityReqs) {
             throw std::logic_error(
                     "StoredValue::toItemImpl: attempted to create Item from "
                     "Pending StoredValue without supplying durabilityReqs");
         }
         item->setPendingSyncWrite(*durabilityReqs);
+        if (isPreparedMaybeVisible()) {
+            item->setPreparedMaybeVisible();
+        }
         break;
     case CommittedState::CommittedViaPrepare:
         item->setCommittedviaPrepareSyncWrite();
@@ -484,6 +488,9 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
         break;
     case CommittedState::Pending:
         os << "Pe";
+        break;
+    case CommittedState::PreparedMaybeVisible:
+        os << "Pv";
         break;
     }
 

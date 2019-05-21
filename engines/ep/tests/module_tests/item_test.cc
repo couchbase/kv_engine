@@ -156,6 +156,12 @@ TEST_F(ItemTest, retainInfoUponItemCopy) {
     // Delete the item via TTL
     item1.setDeleted(DeleteSource::TTL);
 
+    // Set non-default committed state.
+    using namespace cb::durability;
+    item1.setPendingSyncWrite(
+            Requirements{Level::MajorityAndPersistOnMaster, Timeout(3)});
+    item1.setPreparedMaybeVisible();
+
     // Copy item using constructor
     Item item2 = Item(item1);
 

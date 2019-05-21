@@ -47,6 +47,7 @@ Item::Item(const DocKey& k,
                                                      : queue_op::mutation),
       nru(INITIAL_NRU_VALUE),
       deleted(0), // false
+      maybeVisible(0),
       datatype(dtype) {
     if (bySeqno == 0) {
         throw std::invalid_argument("Item(): bySeqno must be non-zero");
@@ -77,6 +78,7 @@ Item::Item(const DocKey& k,
                                                      : queue_op::mutation),
       nru(nru),
       deleted(0), // false
+      maybeVisible(0),
       datatype(dtype) {
     if (bySeqno == 0) {
         throw std::invalid_argument("Item(): bySeqno must be non-zero");
@@ -99,7 +101,8 @@ Item::Item(const DocKey& k,
       vbucketId(vb),
       op(o),
       nru(INITIAL_NRU_VALUE),
-      deleted(0) { // false
+      deleted(0), // false
+      maybeVisible(0) {
     if (bySeqno < 0) {
         throw std::invalid_argument("Item(): bySeqno must be non-negative");
     }
@@ -118,6 +121,7 @@ Item::Item(const Item& other)
       nru(other.nru),
       deleted(other.deleted),
       deletionCause(other.deletionCause),
+      maybeVisible(other.maybeVisible),
       datatype(other.datatype),
       durabilityReqs(other.durabilityReqs) {
     ObjectRegistry::onCreateItem(this);
@@ -161,21 +165,19 @@ std::ostream& operator<<(std::ostream& os, const queue_op& op) {
 }
 
 bool operator==(const Item& lhs, const Item& rhs) {
-    return (lhs.metaData == rhs.metaData) &&
-           (*lhs.value == *rhs.value) &&
-           (lhs.key == rhs.key) &&
-           (lhs.bySeqno == rhs.bySeqno) &&
+    return (lhs.metaData == rhs.metaData) && (*lhs.value == *rhs.value) &&
+           (lhs.key == rhs.key) && (lhs.bySeqno == rhs.bySeqno) &&
            // Note: queuedTime is *not* compared. The rationale is it is
            // simply used for stats (measureing queue duration) and hence can
            // be ignored from an "equivilence" pov.
            // (lhs.queuedTime == rhs.queuedTime) &&
-           (lhs.vbucketId == rhs.vbucketId) &&
-           (lhs.op == rhs.op) &&
-           (lhs.nru == rhs.nru) &&
-           (lhs.deleted == rhs.deleted) &&
+           (lhs.vbucketId == rhs.vbucketId) && (lhs.op == rhs.op) &&
+           (lhs.nru == rhs.nru) && (lhs.deleted == rhs.deleted) &&
            // Note: deletionCause is only checked if the item is deleted
            ((lhs.deleted && lhs.deletionCause) ==
-            (rhs.deleted && rhs.deletionCause));
+            (rhs.deleted && rhs.deletionCause)) &&
+           (lhs.durabilityReqs == rhs.durabilityReqs) &&
+           lhs.maybeVisible == rhs.maybeVisible;
 }
 
 std::ostream& operator<<(std::ostream& os, const Item& i) {
@@ -188,8 +190,11 @@ std::ostream& operator<<(std::ostream& os, const Item& i) {
     }
     os << "\tmetadata:" << i.metaData << "\n"
        << "\tbySeqno:" << i.bySeqno << " queuedTime:" << i.queuedTime << " "
-       << i.vbucketId << " op:" << to_string(i.op) << " nru:" << int(i.nru)
-       << " datatype:" << int(i.getDataType());
+       << i.vbucketId << " op:" << to_string(i.op);
+    if (i.maybeVisible) {
+        os << "(maybeVisible)";
+    }
+    os << " nru:" << int(i.nru) << " datatype:" << int(i.getDataType());
 
     if (i.isDeleted()) {
         os << " deleted:true(" << to_string(i.deletionSource()) << ")";
@@ -325,6 +330,11 @@ void Item::setPendingSyncWrite(cb::durability::Requirements requirements) {
     }
     durabilityReqs = requirements;
     op = queue_op::pending_sync_write;
+}
+
+void Item::setPreparedMaybeVisible() {
+    Expects(op == queue_op::pending_sync_write);
+    maybeVisible = 1;
 }
 
 void Item::setCommittedviaPrepareSyncWrite() {

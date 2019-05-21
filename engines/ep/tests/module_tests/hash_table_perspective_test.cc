@@ -345,3 +345,18 @@ TEST_F(HashTablePerspectiveTest, findOnlyPrepared) {
         EXPECT_TRUE(actual.lock.getHTLock()) << "Mutex should be locked";
     }
 }
+
+/// Check that toItem correctly create an Item from a StoredValue.
+TEST_F(HashTablePerspectiveTest, ToItemPrepared) {
+    // Round-trip from Item -> SV -> Item, check the two Items are equal.
+    auto prepared = makePendingItem(key, "prepared"s);
+    prepared->setPreparedMaybeVisible();
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(*prepared));
+    auto prepared2 = ht.findOnlyPrepared(key).storedValue->toItem(
+            Vbid(0),
+            StoredValue::HideLockedCas::No,
+            StoredValue::IncludeValue::Yes,
+            prepared->getDurabilityReqs());
+
+    EXPECT_EQ(*prepared, *prepared2);
+}

@@ -241,7 +241,7 @@ public:
 
     bool eligibleForEviction(EvictionPolicy policy) const {
         // Pending SyncWrite are always resident
-        if (getCommitted() == CommittedState::Pending) {
+        if (isPending()) {
             return false;
         }
 
@@ -805,9 +805,18 @@ public:
         committed = static_cast<uint8_t>(value);
     }
 
-    /// Returns if the stored value is a Pending SyncWrite
+    /// Returns if the stored value is a Pending SyncWrite.
     bool isPending() const {
-        return getCommitted() == CommittedState::Pending;
+        return (getCommitted() == CommittedState::Pending) ||
+               (getCommitted() == CommittedState::PreparedMaybeVisible);
+    }
+
+    /**
+     * Returns true if this is a Prepared SyncWrite which may already be
+     * visible, and hence blocks read access to any previous Committed value.
+     */
+    bool isPreparedMaybeVisible() const {
+        return getCommitted() == CommittedState::PreparedMaybeVisible;
     }
 
     /**
