@@ -1047,6 +1047,22 @@ TEST_P(VBucketDurabilityTest, Pending_ConvertPassiveDMToActiveDM) {
     testConvertPassiveDMToActiveDM(vbucket_state_pending);
 }
 
+TEST_P(VBucketDurabilityTest, IgnoreAckAtTakeoverDead) {
+    // Queue some Prepares into the PDM
+    const auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
+    ASSERT_EQ(0, adm.getNumTracked());
+    const std::vector<SyncWriteSpec> seqnos{1, 2, 3};
+    testAddPrepare(seqnos);
+    ASSERT_EQ(seqnos.size(), adm.getNumTracked());
+
+    // VBState transitions from Replica to Active
+    vbucket->setState(vbucket_state_dead, nlohmann::json{});
+
+    EXPECT_EQ(ENGINE_SUCCESS, vbucket->seqnoAcknowledged("replica1", 3));
+    // We won't have crashed and we will have ignored the ack
+    EXPECT_EQ(seqnos.size(), adm.getNumTracked());
+}
+
 void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
                                                       Resolution res) {
     const std::vector<SyncWriteSpec>& writes{1, 2, 3}; // seqnos

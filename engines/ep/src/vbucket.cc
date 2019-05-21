@@ -3348,6 +3348,15 @@ bool VBucket::isLogicallyNonExistent(
 
 ENGINE_ERROR_CODE VBucket::seqnoAcknowledged(const std::string& replicaId,
                                              uint64_t preparedSeqno) {
+    // Take the state lock to ensure that we don't change state whilst
+    // processing a seqno ack.
+    folly::SharedMutex::ReadHolder rlh(getStateLock());
+
+    // We may receive an ack after we have set a vBucket to dead during a
+    // takeover; just ignore it.
+    if (getState() == vbucket_state_dead) {
+        return ENGINE_SUCCESS;
+    }
     return getActiveDM().seqnoAckReceived(replicaId, preparedSeqno);
 }
 
