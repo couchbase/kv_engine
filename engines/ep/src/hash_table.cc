@@ -596,7 +596,13 @@ HashTable::FindROResult HashTable::findForRead(const DocKey& key,
                                                WantsDeleted wantsDeleted) {
     auto result = findInner(key);
 
-    /// Reading uses the Committed StoredValue.
+    /// Reading normally uses the Committed StoredValue - however if a
+    /// pendingSV is found we must check if it's marked as MaybeVisible -
+    /// which will block reading.
+    if (result.pendingSV && result.pendingSV->isPreparedMaybeVisible()) {
+        // Return the pending one as an indication the caller cannot read it.
+        return {result.pendingSV, std::move(result.lock)};
+    }
     auto* sv = result.committedSV;
 
     if (!sv) {

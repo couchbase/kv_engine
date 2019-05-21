@@ -531,12 +531,32 @@ protected:
     // same key is correctly warmed up when the bucket restarts.
     void testCommittedAndPendingSyncWrite(vbucket_state_t vbState,
                                           DocumentState docState);
+
+    // Helper method - fetches the given Item via engine->get(); issuing a
+    // BG fetch and second get() if necessary.
+    GetValue getItemFetchFromDiskIfNeeded(const DocKey& key,
+                                          DocumentState docState);
 };
+
+GetValue DurabilityWarmupTest::getItemFetchFromDiskIfNeeded(
+        const DocKey& key, DocumentState docState) {
+    const auto options =
+            static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
+    auto gv = engine->getKVBucket()->get(key, vbid, cookie, options);
+    if (docState == DocumentState::Deleted) {
+        // Need an extra bgFetch to get a deleted item.
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+        runBGFetcherTask();
+        gv = engine->getKVBucket()->get(key, vbid, cookie, options);
+    }
+    return gv;
+}
 
 void DurabilityWarmupTest::testPendingSyncWrite(vbucket_state_t vbState,
                                                 DocumentState docState) {
     // Store a pending SyncWrite/Delete (without committing) and then restart
-    auto item = makePendingItem(makeStoredDocKey("pendingSW"), "pending_value");
+    auto key = makeStoredDocKey("key");
+    auto item = makePendingItem(key, "pending_value");
     if (docState == DocumentState::Deleted) {
         item->setDeleted(DeleteSource::Explicit);
     }
@@ -547,6 +567,10 @@ void DurabilityWarmupTest::testPendingSyncWrite(vbucket_state_t vbState,
         setVBucketStateAndRunPersistTask(vbid, vbState);
     }
     resetEngineAndWarmup();
+
+    // Check that attempts to read this key via frontend are blocked.
+    auto gv = store->get(key, vbid, cookie, {});
+    EXPECT_EQ(ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS, gv.getStatus());
 
     // Check that the item is still pending with the correct CAS.
     auto vb = engine->getVBucket(vbid);
@@ -578,7 +602,7 @@ TEST_P(DurabilityWarmupTest, ReplicaPendingSyncDelete) {
 }
 void DurabilityWarmupTest::testCommittedSyncWrite(vbucket_state_t vbState,
                                                   DocumentState docState) {
-    // Store a pending SyncWrite (without committing) and then restart
+    // prepare & commit a SyncWrite then restart.
     auto key = makeStoredDocKey("key");
     auto item = makePendingItem(key, "value");
     if (docState == DocumentState::Deleted) {
@@ -597,22 +621,18 @@ void DurabilityWarmupTest::testCommittedSyncWrite(vbucket_state_t vbState,
     if (vbState != vbucket_state_active) {
         setVBucketStateAndRunPersistTask(vbid, vbState);
     }
+
+    const auto expectedItem = getItemFetchFromDiskIfNeeded(key, docState);
+    ASSERT_EQ(ENGINE_SUCCESS, expectedItem.getStatus());
+
     resetEngineAndWarmup();
 
     // Check that the item is CommittedviaPrepare.
     auto vb = engine->getVBucket(vbid);
-    auto options =
-            static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
-    auto gv = engine->getKVBucket()->get(item->getKey(), vbid, cookie, options);
-    if (docState == DocumentState::Deleted) {
-        // Need an extra bgFetch to get a deleted item.
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
-        runBGFetcherTask();
-        gv = engine->getKVBucket()->get(item->getKey(), vbid, cookie, options);
-    }
+    GetValue gv = getItemFetchFromDiskIfNeeded(item->getKey(), docState);
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
     EXPECT_EQ(CommittedState::CommittedViaPrepare, gv.item->getCommitted());
-    EXPECT_EQ(item->isDeleted(), gv.item->isDeleted());
+    EXPECT_EQ(*expectedItem.item, *gv.item);
 
     // DurabilityMonitor should be empty as no outstanding prepares.
     EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
@@ -639,7 +659,7 @@ void DurabilityWarmupTest::testCommittedAndPendingSyncWrite(
     // Store committed mutation followed by a pending SyncWrite (without
     // committing) and then restart.
     auto key = makeStoredDocKey("key");
-    store_item(vbid, key, "A");
+    auto committedItem = store_item(vbid, key, "A");
     auto item = makePendingItem(key, "B");
     if (docState == DocumentState::Deleted) {
         item->setDeleted(DeleteSource::Explicit);
@@ -654,23 +674,37 @@ void DurabilityWarmupTest::testCommittedAndPendingSyncWrite(
     resetEngineAndWarmup();
 
     // Should load two items into memory - both committed and the pending value.
-    // Check the original committed value is still readable.
+    // Check the original committed value is inaccessible due to the pending
+    // needing to be re-committed.
     auto vb = engine->getVBucket(vbid);
     // @TODO Durability (MB-34092): Check that number of items == 1 post warmup
     EXPECT_EQ(1, vb->ht.getNumPreparedSyncWrites());
-    auto gv = store->get(key, vbid, cookie, {});
-    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
-    EXPECT_EQ("A", gv.item->getValue()->to_s());
 
-    // Check that the item is still pending, with correct CAS.
-    auto handle = vb->lockCollections(item->getKey());
-    auto prepared = vb->fetchPreparedValue(handle);
-    EXPECT_TRUE(prepared.storedValue);
-    EXPECT_TRUE(prepared.storedValue->isPending());
-    EXPECT_EQ(item->getCas(), prepared.storedValue->getCas());
+    auto gv = store->get(key, vbid, cookie, {});
+    ASSERT_EQ(ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS, gv.getStatus());
+
+    // Check that the item is still pending.
+    {
+        auto handle = vb->lockCollections(item->getKey());
+        auto prepared = vb->fetchPreparedValue(handle);
+        EXPECT_TRUE(prepared.storedValue);
+        EXPECT_TRUE(prepared.storedValue->isPending());
+        EXPECT_EQ(item->getCas(), prepared.storedValue->getCas());
+        EXPECT_EQ("B", prepared.storedValue->getValue()->to_s());
+    }
 
     // DurabilityMonitor be tracking the prepare.
     EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
+
+    // Abort the prepare so we can validate the previous Committed value
+    // is present, readable and the same it was before warmup.
+    {
+        auto handle = vb->lockCollections(item->getKey());
+        ASSERT_EQ(ENGINE_SUCCESS, vb->abort(key, {}, handle));
+    }
+    gv = store->get(key, vbid, cookie, {});
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(committedItem, *gv.item);
 }
 
 TEST_P(DurabilityWarmupTest, ActiveCommittedAndPendingSyncWrite) {

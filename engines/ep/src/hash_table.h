@@ -605,8 +605,8 @@ public:
      * Find an item with the specified key for read-only access.
      *
      * Only StoredValues which are committed will be returned, unless the key
-     * has a Pending SyncWrite which is ReCommitting - in which case that
-     * PendingReCommitting item will be returned (so user should check and
+     * has a Pending SyncWrite which is MaybeVisible - in which case that
+     * PreparedMaybeVisible item will be returned (so caller should check and
      * block access to the key).
      *
      * @param key The key of the item to find

@@ -840,25 +840,33 @@ void LoadStorageKVPairCallback::purge() {
 
 void LoadValueCallback::callback(CacheLookup &lookup)
 {
-    if (warmupState == WarmupState::State::LoadingData) {
-        VBucketPtr vb = vbuckets.getBucket(lookup.getVBucketId());
-        if (!vb) {
-            return;
-        }
-
-        // Prepared SyncWrites are ignored in the normal LoadValueCallback -
-        // they are handled in an earlier warmup phase.
-        if (lookup.getKey().isPrepared()) {
-            setStatus(ENGINE_KEY_EEXISTS);
-            return;
-        }
-
-        auto v = vb->ht.findForRead(lookup.getKey().getDocKey());
-        if (v.storedValue && v.storedValue->isResident()) {
-            setStatus(ENGINE_KEY_EEXISTS);
-            return;
-        }
+    if (warmupState != WarmupState::State::LoadingData) {
+        setStatus(ENGINE_SUCCESS);
+        return;
     }
+
+    // Prepared SyncWrites are ignored in the normal LoadValueCallback -
+    // they are handled in an earlier warmup phase so return ENGINE_KEY_EEXISTS
+    // to indicate this key should be skipped.
+    if (lookup.getKey().isPrepared()) {
+        setStatus(ENGINE_KEY_EEXISTS);
+        return;
+    }
+
+    VBucketPtr vb = vbuckets.getBucket(lookup.getVBucketId());
+    if (!vb) {
+        return;
+    }
+
+    // We explicitly want the committedSV (if exists).
+    auto res = vb->ht.findOnlyCommitted(lookup.getKey().getDocKey());
+    if (res.storedValue && res.storedValue->isResident()) {
+        // Already resident in memory - skip loading from disk.
+        setStatus(ENGINE_KEY_EEXISTS);
+        return;
+    }
+
+    // Otherwise - item value not in hashTable - continue with disk load.
     setStatus(ENGINE_SUCCESS);
 }
 

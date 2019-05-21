@@ -747,8 +747,11 @@ void EPVBucket::restoreOutstandingPreparesFromWarmup(
     // stateLock.
     folly::SharedMutex::WriteHolder wlh(getStateLock());
 
-    // First insert all prepares into the HashTable:
-    for (const auto& prepare : outstandingPrepares) {
+    // First insert all prepares into the HashTable, updating their type
+    // to PreparedMaybeVisible to ensure that the document cannot be read until
+    // the Prepare is re-committed.
+    for (auto& prepare : outstandingPrepares) {
+        prepare->setPreparedMaybeVisible();
         auto res = insertFromWarmup(*prepare,
                                     /*shouldEject*/ false,
                                     /*metadataOnly*/ false);

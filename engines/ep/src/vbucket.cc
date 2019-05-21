@@ -2337,6 +2337,13 @@ GetValue VBucket::getInternal(
             WantsDeleted::Yes, trackReference, QueueExpired::Yes, cHandle);
     auto* v = res.storedValue;
     if (v) {
+        // If the fetched value is a Prepared SyncWrite which may already have
+        // been made visible to clients, then we cannot yet report _any_
+        // value for this key until the Prepare has bee re-committed.
+        if (v->isPreparedMaybeVisible()) {
+            return GetValue(nullptr, ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS);
+        }
+
         // 1 If SV is deleted and user didn't request deleted items
         // 2 (or) If collection says this key is gone.
         // then return ENOENT.
