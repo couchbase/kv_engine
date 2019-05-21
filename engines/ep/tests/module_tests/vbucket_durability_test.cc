@@ -81,6 +81,10 @@ void VBucketDurabilityTest::storeSyncWrites(
         if (write.deletion) {
             item->setDeleted();
         }
+        if (vbucket->getState() != vbucket_state_active) {
+            // Non-active Vbs have prepares added as "MaybeVisible"
+            item->setPreparedMaybeVisible();
+        }
 
         VBQueueItemCtx ctx;
         ctx.genBySeqno = GenerateBySeqno::No;
@@ -108,10 +112,10 @@ void VBucketDurabilityTest::testAddPrepare(
     for (auto write : writes) {
         auto key = makeStoredDocKey("key" + std::to_string(write.seqno));
 
-        EXPECT_EQ(nullptr, ht->findForRead(key).storedValue);
+        EXPECT_EQ(nullptr, ht->findOnlyCommitted(key).storedValue);
         const auto sv = ht->findForWrite(key).storedValue;
         ASSERT_NE(nullptr, sv);
-        EXPECT_EQ(CommittedState::Pending, sv->getCommitted());
+        EXPECT_TRUE(sv->isPending());
         EXPECT_EQ(write.deletion, sv->isDeleted());
     }
 
@@ -1025,6 +1029,18 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDM(
     ASSERT_EQ(SWCompleteTrace(0 /*count*/, nullptr, ENGINE_EINVAL),
               swCompleteTrace);
 
+    // Check that any attempts to read keys which are have Prepared SyncWrites
+    // against them fail with SyncWriteReCommitting (until they are committed).
+    for (const auto& spec : seqnos) {
+        auto key = makeStoredDocKey("key"s + std::to_string(spec.seqno));
+        auto result = vbucket->fetchValidValue(WantsDeleted::No,
+                                               TrackReference::No,
+                                               QueueExpired::No,
+                                               vbucket->lockCollections(key));
+        ASSERT_TRUE(result.storedValue);
+        EXPECT_TRUE(result.storedValue->isPreparedMaybeVisible());
+    }
+
     // Check that the SyncWrite journey now proceeds to completion as expected
     ASSERT_EQ(seqnos.back().seqno, adm.getHighPreparedSeqno());
     ASSERT_EQ(0, adm.getNodeWriteSeqno(replica1));
@@ -1036,6 +1052,18 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDM(
         // connection.
         EXPECT_EQ(SWCompleteTrace(0 /*count*/, nullptr, ENGINE_EINVAL),
                   swCompleteTrace);
+    }
+
+    // After commit() check that the keys are now accessible and appear as
+    // committed.
+    for (const auto& spec : seqnos) {
+        auto key = makeStoredDocKey("key"s + std::to_string(spec.seqno));
+        auto result = vbucket->fetchValidValue(WantsDeleted::No,
+                                               TrackReference::No,
+                                               QueueExpired::No,
+                                               vbucket->lockCollections(key));
+        ASSERT_TRUE(result.storedValue);
+        EXPECT_TRUE(result.storedValue->isCommitted());
     }
 }
 
