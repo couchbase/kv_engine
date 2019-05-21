@@ -498,6 +498,11 @@ public:
 
     void fireAllOps(EventuallyPersistentEngine &engine);
 
+    /**
+     * Get the cookies for all in-flight SyncWrites from the ADM
+     */
+    std::vector<const void*> getCookiesForInFlightSyncWrites();
+
     size_t size(void) {
         HashTableDepthStatVisitor v;
         ht.visitDepth(v);

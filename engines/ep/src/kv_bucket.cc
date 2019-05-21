@@ -223,6 +223,45 @@ private:
     const std::string description;
 };
 
+class RespondAmbiguousNotification : public GlobalTask {
+public:
+    RespondAmbiguousNotification(EventuallyPersistentEngine& e,
+                                 VBucketPtr& vb,
+                                 std::vector<const void*> cookies)
+        : GlobalTask(&e, TaskId::PendingOpsNotification, 0, false),
+          vbucket(vb),
+          cookies(cookies),
+          description("Notify clients of Sync Write Ambiguous " +
+                      vbucket->getId().to_string()) {
+    }
+
+    std::string getDescription() {
+        return description;
+    }
+
+    std::chrono::microseconds maxExpectedDuration() {
+        // Copied from PendingOpsNotification as this task is very similar
+        return std::chrono::milliseconds(100);
+    }
+
+    bool run(void) {
+        TRACE_EVENT1("ep-engine/task",
+                     "RespondAmbiguousNotification",
+                     "vb",
+                     (vbucket->getId()).get());
+        for (const auto* cookie : cookies) {
+            vbucket->notifyClientOfSyncWriteComplete(
+                    cookie, ENGINE_SYNC_WRITE_AMBIGUOUS);
+        }
+        return false;
+    }
+
+private:
+    VBucketPtr vbucket;
+    std::vector<const void*> cookies;
+    const std::string description;
+};
+
 KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     : engine(theEngine),
       stats(engine.getEpStats()),
@@ -792,6 +831,25 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
     }
 
     if (vb) {
+        // We need to process any outstanding SyncWrites before we set the
+        // vBucket state so that we can keep our invariant that we do not use
+        // an ActiveDurabilityMonitor in a state other than active. This is done
+        // under a write lock of the vbState and we will set the vBucket to dead
+        // under the same lock so we will not attempt to queue any more
+        // SyncWrites after sending these notifications.
+        if (vb->getState() == vbucket_state_active &&
+            to == vbucket_state_dead) {
+            // At takeover (VBucket active -> VBucket dead) we should return
+            // ENGINE_SYNC_WRITE_AMBIGUOUS to any clients waiting for the result
+            // of a SyncWrite as they will timeout anyway.
+
+            // Get a list of cookies that we should respond to
+            auto connectionsToRespondTo = vb->getCookiesForInFlightSyncWrites();
+            ExTask notifyTask = std::make_shared<RespondAmbiguousNotification>(
+                    engine, vb, connectionsToRespondTo);
+            ExecutorPool::get()->schedule(notifyTask);
+        }
+
         auto oldstate = vbMap.setState(vb, to, meta, vbStateLock);
 
         if (oldstate != to && notify_dcp) {

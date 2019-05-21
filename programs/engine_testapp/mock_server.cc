@@ -72,7 +72,7 @@ void MockCookie::validate() const {
 
 void disconnect_mock_connection(struct MockCookie* c);
 
-static MockCookie* cookie_to_mock_object(const void* cookie) {
+MockCookie* cookie_to_mock_object(const void* cookie) {
     auto* ret = reinterpret_cast<const MockCookie*>(cookie);
     ret->validate();
     return const_cast<MockCookie*>(ret);

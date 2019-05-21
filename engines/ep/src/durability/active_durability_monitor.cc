@@ -579,6 +579,16 @@ void ActiveDurabilityMonitor::abort(const SyncWrite& sw) {
     state.wlock()->lastAbortedSeqno = sw.getBySeqno();
 }
 
+std::vector<const void*>
+ActiveDurabilityMonitor::getCookiesForInFlightSyncWrites() {
+    auto s = state.wlock();
+    auto vec = std::vector<const void*>();
+    for (auto write : s->trackedWrites) {
+        vec.push_back(write.getCookie());
+    }
+    return vec;
+}
+
 void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
                                                      int64_t seqno,
                                                      Container& toCommit) {

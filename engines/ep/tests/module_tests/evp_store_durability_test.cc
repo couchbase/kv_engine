@@ -20,6 +20,8 @@
 #include "checkpoint_utils.h"
 #include "test_helpers.h"
 
+#include <programs/engine_testapp/mock_server.h>
+
 class DurabilityEPBucketTest : public STParameterizedBucketTest {
 protected:
     void SetUp() {
@@ -648,6 +650,37 @@ TEST_P(DurabilityBucketTest, DeleteDurabilityInvalidLevel) {
     } else {
         EXPECT_EQ(ENGINE_DURABILITY_INVALID_LEVEL, del(durabilityRequirements));
     }
+}
+
+TEST_P(DurabilityBucketTest, TakeoverSendsDurabilityAmbiguous) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // Make pending
+    auto key = makeStoredDocKey("key");
+    using namespace cb::durability;
+    auto pending = makePendingItem(key, "value");
+
+    // Store it
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+
+    // We don't send EWOULDBLOCK to clients
+    auto mockCookie = cookie_to_mock_object(cookie);
+    EXPECT_EQ(ENGINE_SUCCESS, mockCookie->status);
+
+    // Set state to dead
+    EXPECT_EQ(ENGINE_SUCCESS, store->setVBucketState(vbid, vbucket_state_dead));
+
+    // We have set state to dead but we have not yet run the notification task
+    EXPECT_EQ(ENGINE_SUCCESS, mockCookie->status);
+
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(lpAuxioQ);
+
+    // We should have told client the SyncWrite is ambiguous
+    EXPECT_EQ(ENGINE_SYNC_WRITE_AMBIGUOUS, mockCookie->status);
 }
 
 // Test cases which run against all persistent storage backends.

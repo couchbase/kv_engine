@@ -347,6 +347,10 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine) {
     }
 }
 
+std::vector<const void*> VBucket::getCookiesForInFlightSyncWrites() {
+    return getActiveDM().getCookiesForInFlightSyncWrites();
+}
+
 VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
     // Fetch up to approxLimit items from rejectQueue, backfill items and
     // checkpointManager (in that order); then check if we obtained everything

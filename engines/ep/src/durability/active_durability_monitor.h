@@ -122,6 +122,11 @@ public:
      */
     void processTimeout(std::chrono::steady_clock::time_point asOf);
 
+    /**
+     * Get the cookies for all in-flight SyncWrites
+     */
+    std::vector<const void*> getCookiesForInFlightSyncWrites();
+
     void notifyLocalPersistence() override;
 
     /**

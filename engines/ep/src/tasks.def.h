@@ -61,6 +61,7 @@ TASK(StatSnap, WRITER_TASK_IDX, 9)
 
 // Non-IO tasks
 TASK(PendingOpsNotification, NONIO_TASK_IDX, 0)
+TASK(RespondAmbiguousNotification, NONIO_TASK_IDX, 0)
 TASK(NotifyHighPriorityReqTask, NONIO_TASK_IDX, 0)
 TASK(ItemPager, NONIO_TASK_IDX, 1)
 TASK(ExpiredItemPager, NONIO_TASK_IDX, 1)
