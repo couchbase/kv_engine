@@ -62,6 +62,7 @@ bool isStatusSuccess(Status status) {
     case Status::DurabilityImpossible:
     case Status::SyncWriteInProgress:
     case Status::SyncWriteAmbiguous:
+    case Status::SyncWriteReCommitInProgress:
     case Status::SubdocPathEnoent:
     case Status::SubdocPathMismatch:
     case Status::SubdocPathEinval:
@@ -187,6 +188,8 @@ std::string to_string(cb::mcbp::Status status) {
         return "Synchronous write in progress";
     case Status::SyncWriteAmbiguous:
         return "Synchronous write ambiguous";
+    case Status::SyncWriteReCommitInProgress:
+        return "Synchronous write re-commit in progress";
     case Status::SubdocPathEnoent:
         return "Subdoc: Path not does not exist";
     case Status::SubdocPathMismatch:

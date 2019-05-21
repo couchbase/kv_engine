@@ -139,10 +139,27 @@ enum class Status : uint16_t {
      */
     DcpStreamIdInvalid = 0x8d,
 
+    /// The specified durability level is invalid.
     DurabilityInvalidLevel = 0xa0,
+
+    /**
+     * The specified durability requirements are not currently possible (for
+     * example there are insufficient replicas online).
+     */
     DurabilityImpossible = 0xa1,
+
+    /// A SyncWrite is already in progress on the specified key.
     SyncWriteInProgress = 0xa2,
+
+    /**
+     * The SyncWrite request has not completed in the specified time and has
+     * ambiguous result - it may Succeed or Fail; but the final value is not
+     * yet known.
+     */
     SyncWriteAmbiguous = 0xa3,
+
+    /// The SyncWrite is being re-committed after a change in active node.
+    SyncWriteReCommitInProgress = 0xa4,
 
     /*
      * Sub-document specific responses.

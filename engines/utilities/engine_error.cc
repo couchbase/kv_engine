@@ -112,6 +112,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "dcp_streamid_invalid";
     case engine_errc::durability_invalid_level:
         return "durability invalid level";
+    case engine_errc::sync_write_re_commit_in_progress:
+        return "synchronous write re-commit in progress";
     };
     throw std::invalid_argument(
         "engine_error_category::message: code does not represent a "
@@ -185,6 +187,8 @@ cb::engine_errc cb::to_engine_errc(ENGINE_ERROR_CODE eec) {
         return cb::engine_errc::sync_write_in_progress;
     case ENGINE_SYNC_WRITE_AMBIGUOUS:
         return cb::engine_errc::sync_write_ambiguous;
+    case ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS:
+        return cb::engine_errc::sync_write_re_commit_in_progress;
     case ENGINE_DCP_STREAMID_INVALID:
         return cb::engine_errc::dcp_streamid_invalid;
     case ENGINE_DURABILITY_INVALID_LEVEL:

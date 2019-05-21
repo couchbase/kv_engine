@@ -138,6 +138,9 @@ enum class engine_errc {
     /// The durability level is invalid (e.g. persist on Ephemeral)
     durability_invalid_level = 0x20,
 
+    /// The SyncWrite is being re-committed after a change in active node.
+    sync_write_re_commit_in_progress = 0x21,
+
     /** Generic failue. */
     failed = 0xff
 };
@@ -212,6 +215,8 @@ typedef enum {
     ENGINE_SYNC_WRITE_IN_PROGRESS =
             int(cb::engine_errc::sync_write_in_progress),
     ENGINE_SYNC_WRITE_AMBIGUOUS = int(cb::engine_errc::sync_write_ambiguous),
+    ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS =
+            int(cb::engine_errc::sync_write_re_commit_in_progress),
     ENGINE_DCP_STREAMID_INVALID = int(cb::engine_errc::dcp_streamid_invalid)
 } ENGINE_ERROR_CODE;
 

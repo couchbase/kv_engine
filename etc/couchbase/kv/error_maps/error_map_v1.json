@@ -263,6 +263,14 @@
                 "item-only"
             ]
         },
+        "a4": {
+            "name": "SyncWriteReCommitInProgress",
+            "desc": "The requested key has a SyncWrite which is being re-committed.",
+            "attrs": [
+                "item-only",
+                "retry-later"
+            ]
+        },
         "c0": {
             "name": "SUBDOC_PATH_ENOENT",
             "desc": "Subdoc: Path not found in document",

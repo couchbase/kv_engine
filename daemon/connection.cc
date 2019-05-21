@@ -424,6 +424,7 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
     case ENGINE_DURABILITY_IMPOSSIBLE:
         break;
     case ENGINE_SYNC_WRITE_IN_PROGRESS:
+    case ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS:
         // we can return tmpfail to old clients and have them retry the
         // operation
         return ENGINE_TMPFAIL;
