@@ -1715,6 +1715,13 @@ ENGINE_ERROR_CODE DcpConsumer::prepare(
                               nru,
                               nru /*freqCounter */));
     item->setPendingSyncWrite(durability);
+    // Any incoming Prepares could have already been make visible by the Active
+    // node by the time the replica receives / processes it (assuming the
+    // SyncWrite was committed without this node / consumer having to ACK it).
+    // As such, always mark as MaybeVisible; so *if* we are later promoted to
+    // active this node must (re)commit the Prepare before exposing any
+    // value for it.
+    item->setPreparedMaybeVisible();
     if (document_state == DocumentState::Deleted) {
         item->setDeleted();
     }
