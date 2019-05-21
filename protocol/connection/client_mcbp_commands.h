@@ -226,12 +226,6 @@ public:
     protocol_binary_datatype_t getDatatype() const;
 
     /**
-     * Get a pointer to the payload of the response. This begins immediately
-     * after the 24 byte memcached header
-     */
-    const uint8_t* getPayload() const;
-
-    /**
      * Get a pointer to the key returned in the packet, if a key is present.
      * Use #getKeyLen() to determine this.
      */
@@ -269,9 +263,6 @@ public:
 
 protected:
     const cb::mcbp::Header& getHeader() const;
-
-    const uint8_t* begin() const;
-
     std::vector<uint8_t> payload;
 };
 

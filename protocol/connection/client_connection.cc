@@ -1097,8 +1097,7 @@ std::string MemcachedConnection::ioctl_get(const std::string& key) {
     if (!response.isSuccess()) {
         throw ConnectionError("ioctl_get '" + key + "' failed", response);
     }
-    return std::string(reinterpret_cast<const char*>(response.getPayload()),
-                       response.getBodylen());
+    return response.getDataString();
 }
 
 void MemcachedConnection::ioctl_set(const std::string& key,
@@ -1334,7 +1333,8 @@ std::pair<cb::mcbp::Status, GetMetaResponse> MemcachedConnection::getMeta(
     auto resp = execute(cmd);
 
     GetMetaResponse meta;
-    memcpy(&meta, resp.getPayload(), resp.getBodylen());
+    const auto ext = resp.getResponse().getExtdata();
+    memcpy(&meta, ext.data(), ext.size());
     meta.deleted = ntohl(meta.deleted);
     meta.expiry = ntohl(meta.expiry);
     meta.seqno = ntohll(meta.seqno);

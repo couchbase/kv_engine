@@ -374,10 +374,6 @@ protocol_binary_datatype_t BinprotResponse::getDatatype() const {
     return protocol_binary_datatype_t(getResponse().getDatatype());
 }
 
-const uint8_t* BinprotResponse::getPayload() const {
-    return begin() + getHeaderLen();
-}
-
 cb::const_char_buffer BinprotResponse::getKey() const {
     const auto buf = getResponse().getKey();
     return {reinterpret_cast<const char*>(buf.data()), buf.size()};
@@ -407,10 +403,6 @@ void BinprotResponse::clear() {
 
 const cb::mcbp::Header& BinprotResponse::getHeader() const {
     return *reinterpret_cast<const cb::mcbp::Header*>(payload.data());
-}
-
-const uint8_t* BinprotResponse::begin() const {
-    return payload.data();
 }
 
 void BinprotSubdocResponse::assign(std::vector<uint8_t>&& srcbuf) {
@@ -560,7 +552,15 @@ uint32_t BinprotGetResponse::getDocumentFlags() const {
     if (!isSuccess()) {
         return 0;
     }
-    return ntohl(*reinterpret_cast<const uint32_t*>(getPayload()));
+
+    auto extras = getResponse().getExtdata();
+    if (extras.size() < sizeof(uint32_t)) {
+        throw std::runtime_error(
+                "BinprotGetResponse::getDocumentFlags(): extras does not "
+                "contain flags");
+    }
+
+    return ntohl(*reinterpret_cast<const uint32_t*>(extras.data()));
 }
 
 BinprotMutationCommand& BinprotMutationCommand::setMutationType(
@@ -714,12 +714,13 @@ void BinprotMutationResponse::assign(std::vector<uint8_t>&& buf) {
     mutation_info.cas = getCas();
     mutation_info.size = 0; // TODO: what's this?
 
-    if (getExtlen() == 0) {
+    const auto extras = getResponse().getExtdata();
+
+    if (extras.empty()) {
         mutation_info.vbucketuuid = 0;
         mutation_info.seqno = 0;
-    } else if (getExtlen() == 16) {
-        auto const* bufs = reinterpret_cast<const uint64_t*>(
-                getPayload() + getFramingExtraslen());
+    } else if (extras.size() == 16) {
+        auto const* bufs = reinterpret_cast<const uint64_t*>(extras.data());
         mutation_info.vbucketuuid = ntohll(bufs[0]);
         mutation_info.seqno = ntohll(bufs[1]);
     } else {
