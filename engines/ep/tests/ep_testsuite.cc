@@ -1533,6 +1533,67 @@ static enum test_result test_compaction_config(EngineIface* h) {
     return SUCCESS;
 }
 
+static enum test_result test_MB_33919(EngineIface* h) {
+    const char* expKey = "expiryKey";
+    const char* otherKey = "otherKey";
+    const char* value = "value";
+
+    // Test runs in the future as we need to set times in the past without
+    // falling foul of the expiry time being behind server start
+    auto fiveDays =
+            std::chrono::system_clock::now() + std::chrono::hours(5 * 24);
+
+    // Calculate expiry and purgeBefore times
+    auto threeDaysAgo = std::chrono::system_clock::to_time_t(
+            fiveDays - std::chrono::hours(3 * 24));
+    auto fourDaysAgo = std::chrono::system_clock::to_time_t(
+            fiveDays - std::chrono::hours(4 * 24));
+    // Time travel forwards by 5 days to give the illusion of 5 days uptime.
+    testHarness->time_travel((86400 * 5));
+
+    // Set expiring key, expiry 4 days ago
+    checkeq(ENGINE_SUCCESS,
+            store(h,
+                  nullptr,
+                  OPERATION_SET,
+                  expKey,
+                  value,
+                  nullptr,
+                  0,
+                  Vbid(0),
+                  fourDaysAgo),
+            "Failed to set expiring key");
+
+    // Force it to expire
+    ENGINE_ERROR_CODE val = verify_key(h, expKey);
+    checkeq(ENGINE_KEY_ENOENT, val, "expiryKey has not expired.");
+
+    // And a second key (after expiry), compaction won't purge the high-seqno
+    checkeq(ENGINE_SUCCESS,
+            store(h, nullptr, OPERATION_SET, otherKey, value),
+            "Failed to set non-expiring key");
+
+    // Wait for the item to be expired
+    wait_for_stat_to_be(h, "vb_active_expired", 1);
+
+    wait_for_flusher_to_settle(h);
+
+    checkeq(0,
+            get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno"),
+            "purge_seqno not found to be zero before compaction");
+
+    // Compaction on VBucket
+    compact_db(h, Vbid(0), Vbid(0), threeDaysAgo, 0, 0);
+    wait_for_stat_to_be(h, "ep_pending_compactions", 0);
+
+    // Purge-seqno should not of moved, without the fix it would
+    checkeq(0,
+            get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno"),
+            "purge_seqno not found to be zero before compaction");
+
+    return SUCCESS;
+}
+
 struct comp_thread_ctx {
     EngineIface* h;
     Vbid vbid;
@@ -8478,6 +8539,12 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test_MB-23640_get_document_of_any_state", test_mb23640,
                  test_setup, teardown, nullptr, prepare, cleanup),
 
-        TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
-};
+        TestCase("test MB-33919 past tombstone",
+                 test_MB_33919,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
+                 cleanup),
 
+        TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)};
