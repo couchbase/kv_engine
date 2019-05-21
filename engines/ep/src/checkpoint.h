@@ -628,7 +628,9 @@ public:
 
     /// Return type of getItemsForCursor()
     struct ItemsForCursor {
-        snapshot_range_t range = {0, 0};
+        ItemsForCursor(uint64_t start, uint64_t end) : range(start, end) {
+        }
+        snapshot_range_t range;
         bool moreAvailable = {false};
     };
 

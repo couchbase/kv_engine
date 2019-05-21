@@ -4521,6 +4521,79 @@ static enum test_result test_dcp_replica_stream_backfill(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+// Test generates a replica VB and splits the generation with a warmup.
+// Importantly the very first batch of DCP items are marked as 'backfill' and
+// the test requires that the flusher_batch_split_trigger setting is less than
+// the size of the first batch.
+static enum test_result test_dcp_replica_stream_backfill_MB_34173(
+        ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+    const int items = 100;
+
+    // Validate that the flusher will split the items
+    checkgt(items,
+            get_int_stat(h, h1, "ep_flusher_batch_split_trigger", "config"),
+            "flusher_batch_split_trigger must be less than items");
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t seqno = 0;
+    uint32_t flags = 0;
+    const char* name = "MB_34173";
+
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, seqno, flags, name, {}),
+            "Failed dcp producer open connection.");
+    std::string type = get_str_stat(h, h1, "eq_dcpq:MB_34173:type", "dcp");
+    checkeq(0, type.compare("consumer"), "Consumer not found");
+
+    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
+                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    // backfill items 1 to 100
+    dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x02, 1, items, 1, items);
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "vb_0:high_seqno", items, "vbucket-seqno");
+
+    testHarness.destroy_cookie(cookie);
+
+    testHarness.reload_engine(&h,
+                              &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true,
+                              true);
+    wait_for_warmup_complete(h, h1);
+
+    cookie = testHarness.create_cookie();
+    opaque = 0xFFFF0000;
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, seqno, flags, name, {}),
+            "Failed dcp producer open connection.");
+
+    type = get_str_stat(h, h1, "eq_dcpq:MB_34173:type", "dcp");
+    checkeq(0, type.compare("consumer"), "Consumer not found");
+
+    opaque = add_stream_for_consumer(
+            h, h1, cookie, opaque, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    // A second batch could fail if MB-34173 is not fixed, I say could because
+    // the corruption of the snapshot range may not yield a failure...
+    dcp_stream_to_replica(h,
+                          h1,
+                          cookie,
+                          opaque,
+                          0,
+                          0x02,
+                          items + 1,
+                          items + 10,
+                          items + 1,
+                          items + 10);
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
 static enum test_result test_dcp_replica_stream_in_memory(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1)
 {
@@ -6082,6 +6155,12 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_replica_stream_backfill, test_setup, teardown,
                  "chk_remover_stime=1;max_checkpoints=2",
                  prepare,
+                 cleanup),
+        TestCase("test dcp replica stream backfill and warmup (MB-34173)",
+                 test_dcp_replica_stream_backfill_MB_34173, test_setup, teardown,
+                 "chk_remover_stime=1;max_checkpoints=2;"
+                 "flusher_batch_split_trigger=10",
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("test dcp replica stream in-memory",
                  test_dcp_replica_stream_in_memory, test_setup, teardown,

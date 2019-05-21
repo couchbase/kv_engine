@@ -454,7 +454,7 @@ public:
 
     struct ItemsToFlush {
         std::vector<queued_item> items;
-        snapshot_range_t range;
+        snapshot_range_t range{0, 0};
         bool moreAvailable = false;
     };
 

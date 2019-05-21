@@ -410,7 +410,27 @@ public:
     static int recordDbDump(Db *db, DocInfo *docinfo, void *ctx);
     static int recordDbStat(Db *db, DocInfo *docinfo, void *ctx);
     static int getMultiCb(Db *db, DocInfo *docinfo, void *ctx);
-    ENGINE_ERROR_CODE readVBState(Db *db, uint16_t vbId);
+
+    enum class ReadVBStateStatus {
+        Success,
+        JsonInvalid,
+        CorruptSnapshot,
+        CouchstoreError
+    };
+
+    ReadVBStateStatus readVBState(Db* db, uint16_t vbId);
+
+    /**
+     * Process the vbstate snapshot strings which are stored in the vbstate
+     * document. Check for validity and return a status + decoded snapshot.
+     */
+    std::pair<ReadVBStateStatus, snapshot_info_t> processVbstateSnapshot(
+            uint16_t vb,
+            vbucket_state_t state,
+            int64_t version,
+            const std::string& snapStart,
+            const std::string& snapEnd,
+            uint64_t highSeqno);
 
     couchstore_error_t fetchDoc(Db* db,
                                 DocInfo* docinfo,
