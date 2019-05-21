@@ -703,9 +703,21 @@ BinprotMutationCommand& BinprotMutationCommand::setExpiry(uint32_t expiry_) {
     return *this;
 }
 
+BinprotMutationResponse::BinprotMutationResponse(BinprotResponse&& other)
+    : BinprotResponse(other) {
+    decode();
+}
+
 void BinprotMutationResponse::assign(std::vector<uint8_t>&& buf) {
     BinprotResponse::assign(std::move(buf));
+    decode();
+}
 
+const MutationInfo& BinprotMutationResponse::getMutationInfo() const {
+    return mutation_info;
+}
+
+void BinprotMutationResponse::decode() {
     if (!isSuccess()) {
         // No point parsing the other info..
         return;
@@ -724,11 +736,9 @@ void BinprotMutationResponse::assign(std::vector<uint8_t>&& buf) {
         mutation_info.vbucketuuid = ntohll(bufs[0]);
         mutation_info.seqno = ntohll(bufs[1]);
     } else {
-        throw std::runtime_error("BinprotMutationResponse::assign: Bad extras length");
+        throw std::runtime_error(
+                "BinprotMutationResponse::decode: Bad extras length");
     }
-}
-const MutationInfo& BinprotMutationResponse::getMutationInfo() const {
-    return mutation_info;
 }
 
 void BinprotHelloCommand::encode(std::vector<uint8_t>& buf) const {
@@ -755,9 +765,21 @@ BinprotHelloCommand& BinprotHelloCommand::enableFeature(
     return *this;
 }
 
+BinprotHelloResponse::BinprotHelloResponse(BinprotResponse&& other)
+    : BinprotResponse(other) {
+    decode();
+}
+
 void BinprotHelloResponse::assign(std::vector<uint8_t>&& buf) {
     BinprotResponse::assign(std::move(buf));
+    decode();
+}
+const std::vector<cb::mcbp::Feature>& BinprotHelloResponse::getFeatures()
+        const {
+    return features;
+}
 
+void BinprotHelloResponse::decode() {
     if (isSuccess()) {
         // Ensure body length is even
         auto value = getResponse().getValue();
@@ -777,10 +799,6 @@ void BinprotHelloResponse::assign(std::vector<uint8_t>&& buf) {
             features.push_back(cb::mcbp::Feature(htons(*cur)));
         }
     }
-}
-const std::vector<cb::mcbp::Feature>& BinprotHelloResponse::getFeatures()
-        const {
-    return features;
 }
 
 void BinprotIncrDecrCommand::encode(std::vector<uint8_t>& buf) const {
@@ -817,17 +835,26 @@ BinprotIncrDecrCommand& BinprotIncrDecrCommand::setExpiry(uint32_t expiry_) {
     return *this;
 }
 
+BinprotIncrDecrResponse::BinprotIncrDecrResponse(BinprotResponse&& other)
+    : BinprotMutationResponse(std::move(other)) {
+    decode();
+}
+
 void BinprotIncrDecrResponse::assign(std::vector<uint8_t>&& buf) {
     BinprotMutationResponse::assign(std::move(buf));
-    // Assign the value:
+    decode();
+}
+
+uint64_t BinprotIncrDecrResponse::getValue() const {
+    return value;
+}
+
+void BinprotIncrDecrResponse::decode() {
     if (isSuccess()) {
         value = htonll(*reinterpret_cast<const uint64_t*>(getData().data()));
     } else {
         value = 0;
     }
-}
-uint64_t BinprotIncrDecrResponse::getValue() const {
-    return value;
 }
 
 void BinprotRemoveCommand::encode(std::vector<uint8_t>& buf) const {
@@ -1494,15 +1521,20 @@ void BinprotObserveSeqnoCommand::encode(std::vector<uint8_t>& buf) const {
     append(buf, uuid);
 }
 
-void BinprotObserveSeqnoResponse::assign(std::vector<uint8_t>&& buf) {
-    BinprotResponse::assign(std::move(buf));
+BinprotObserveSeqnoResponse::BinprotObserveSeqnoResponse(
+        BinprotResponse&& other)
+    : BinprotResponse(other) {
+    decode();
+}
+
+void BinprotObserveSeqnoResponse::decode() {
     if (!isSuccess()) {
         return;
     }
 
     if ((getBodylen() != 43) && (getBodylen() != 27)) {
         throw std::runtime_error(
-                "BinprotObserveSeqnoResponse::assign: Invalid payload size - "
+                "BinprotObserveSeqnoResponse::decode: Invalid payload size - "
                 "expected:43 or 27, actual:" +
                 std::to_string(getBodylen()));
     }
@@ -1527,9 +1559,14 @@ void BinprotObserveSeqnoResponse::assign(std::vector<uint8_t>&& buf) {
 
     default:
         throw std::runtime_error(
-                "BinprotObserveSeqnoResponse::assign: Unexpected formatType:" +
+                "BinprotObserveSeqnoResponse::decode: Unexpected formatType:" +
                 std::to_string(info.formatType));
     }
+}
+
+void BinprotObserveSeqnoResponse::assign(std::vector<uint8_t>&& buf) {
+    BinprotResponse::assign(std::move(buf));
+    decode();
 }
 
 BinprotUpdateUserPermissionsCommand::BinprotUpdateUserPermissionsCommand(

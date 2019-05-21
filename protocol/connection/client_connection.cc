@@ -725,10 +725,7 @@ void MemcachedConnection::authenticate(const std::string& username,
     BinprotSaslAuthCommand authCommand;
     authCommand.setChallenge(client_data.second);
     authCommand.setMechanism(client.getName());
-    sendCommand(authCommand);
-
-    BinprotResponse response;
-    recvResponse(response);
+    auto response = execute(authCommand);
 
     while (response.getStatus() == cb::mcbp::Status::AuthContinue) {
         auto respdata = response.getData();
@@ -745,8 +742,7 @@ void MemcachedConnection::authenticate(const std::string& username,
         BinprotSaslStepCommand stepCommand;
         stepCommand.setMechanism(client.getName());
         stepCommand.setChallenge(client_data.second);
-        sendCommand(stepCommand);
-        recvResponse(response);
+        response = execute(stepCommand);
     }
 
     if (!response.isSuccess()) {
@@ -774,11 +770,8 @@ void MemcachedConnection::createBucket(const std::string& name,
 
     BinprotCreateBucketCommand command(name.c_str());
     command.setConfig(module, config);
-    sendCommand(command);
 
-    BinprotResponse response;
-    recvResponse(response);
-
+    const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("Create bucket failed", response);
     }
@@ -786,10 +779,7 @@ void MemcachedConnection::createBucket(const std::string& name,
 
 void MemcachedConnection::deleteBucket(const std::string& name) {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::DeleteBucket, name);
-    sendCommand(command);
-    BinprotResponse response;
-    recvResponse(response);
-
+    const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("Delete bucket failed", response);
     }
@@ -797,10 +787,7 @@ void MemcachedConnection::deleteBucket(const std::string& name) {
 
 void MemcachedConnection::selectBucket(const std::string& name) {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::SelectBucket, name);
-    sendCommand(command);
-    BinprotResponse response;
-    recvResponse(response);
-
+    const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError(
                 std::string{"Select bucket [" + name + "] failed"}, response);
@@ -827,11 +814,7 @@ std::string MemcachedConnection::to_string() {
 
 std::vector<std::string> MemcachedConnection::listBuckets() {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::ListBuckets);
-    sendCommand(command);
-
-    BinprotResponse response;
-    recvResponse(response);
-
+    const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("List bucket failed", response);
     }
@@ -851,11 +834,8 @@ Document MemcachedConnection::get(const std::string& id, Vbid vbucket) {
     BinprotGetCommand command;
     command.setKey(id);
     command.setVBucket(vbucket);
-    sendCommand(command);
 
-    BinprotGetResponse response;
-    recvResponse(response);
-
+    const auto response = BinprotGetResponse(execute(command));
     if (!response.isSuccess()) {
         throw ConnectionError("Failed to get: " + id, response.getStatus());
     }
@@ -864,9 +844,8 @@ Document MemcachedConnection::get(const std::string& id, Vbid vbucket) {
     ret.info.flags = response.getDocumentFlags();
     ret.info.cas = response.getCas();
     ret.info.id = id;
-    ret.info.datatype = cb::mcbp::Datatype(response.getDatatype());
-    ret.value.assign(response.getData().data(),
-                     response.getData().data() + response.getData().size());
+    ret.info.datatype = response.getResponse().getDatatype();
+    ret.value = response.getDataString();
     return ret;
 }
 
@@ -886,10 +865,7 @@ MutationInfo MemcachedConnection::mutate(const DocumentInfo& info,
     command.addValueBuffer(value);
     command.setVBucket(vbucket);
     command.setMutationType(type);
-    sendCommand(command);
-
-    BinprotMutationResponse response;
-    recvResponse(response);
+    const auto response = BinprotMutationResponse(execute(command));
     if (!response.isSuccess()) {
         throw ConnectionError("Failed to store " + info.id,
                               response.getStatus());
@@ -968,10 +944,9 @@ void MemcachedConnection::configureEwouldBlockEngine(const EWBEngineMode& mode,
 
     Frame frame;
     frame.payload = std::move(buffer);
-    sendFrame(frame);
 
-    recvFrame(frame);
-    auto* bytes = frame.payload.data();
+    auto response = execute(frame);
+    auto* bytes = response.payload.data();
     auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(bytes);
     auto& header = rsp->message.header.response;
     if (header.getStatus() != cb::mcbp::Status::Success) {
@@ -982,10 +957,7 @@ void MemcachedConnection::configureEwouldBlockEngine(const EWBEngineMode& mode,
 
 void MemcachedConnection::reloadAuditConfiguration() {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::AuditConfigReload);
-    sendCommand(command);
-    BinprotResponse response;
-    recvResponse(response);
-
+    const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("Failed to reload audit configuration", response);
     }
@@ -1004,11 +976,7 @@ void MemcachedConnection::applyFeatures(const std::string& agent,
         command.enableFeature(cb::mcbp::Feature(feature), true);
     }
 
-    sendCommand(command);
-
-    BinprotHelloResponse response;
-    recvResponse(response);
-
+    const auto response = BinprotHelloResponse(execute(command));
     if (!response.isSuccess()) {
         throw ConnectionError("Failed to say hello", response);
     }
@@ -1027,11 +995,7 @@ void MemcachedConnection::setFeatures(
         command.enableFeature(cb::mcbp::Feature(feature), true);
     }
 
-    sendCommand(command);
-
-    BinprotHelloResponse response;
-    recvResponse(response);
-
+    const auto response = BinprotHelloResponse(execute(command));
     if (!response.isSuccess()) {
         throw ConnectionError("Failed to say hello", response);
     }
@@ -1077,10 +1041,7 @@ void MemcachedConnection::setFeature(cb::mcbp::Feature feature, bool enabled) {
 
 std::string MemcachedConnection::getSaslMechanisms() {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::SaslListMechs);
-    sendCommand(command);
-
-    BinprotResponse response;
-    recvResponse(response);
+    const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("Failed to fetch sasl mechanisms", response);
     }
@@ -1090,10 +1051,7 @@ std::string MemcachedConnection::getSaslMechanisms() {
 
 std::string MemcachedConnection::ioctl_get(const std::string& key) {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::IoctlGet, key);
-    sendCommand(command);
-
-    BinprotResponse response;
-    recvResponse(response);
+    const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("ioctl_get '" + key + "' failed", response);
     }
@@ -1103,10 +1061,7 @@ std::string MemcachedConnection::ioctl_get(const std::string& key) {
 void MemcachedConnection::ioctl_set(const std::string& key,
                                     const std::string& value) {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::IoctlSet, key, value);
-    sendCommand(command);
-
-    BinprotResponse response;
-    recvResponse(response);
+    const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("ioctl_set '" + key + "' failed", response);
     }
@@ -1151,11 +1106,7 @@ uint64_t MemcachedConnection::incr_decr(cb::mcbp::ClientOpcode opcode,
     command.setOp(opcode).setKey(key);
     command.setDelta(delta).setInitialValue(initial).setExpiry(exptime);
 
-    sendCommand(command);
-
-    BinprotIncrDecrResponse response;
-    recvResponse(response);
-
+    const auto response = BinprotIncrDecrResponse(execute(command));
     if (!response.isSuccess()) {
         throw ConnectionError(
                 std::string(opcode_name) + " \"" + key + "\" failed.",
@@ -1182,10 +1133,7 @@ MutationInfo MemcachedConnection::remove(const std::string& key,
     command.setKey(key).setVBucket(vbucket);
     command.setVBucket(vbucket);
     command.setCas(cas);
-    sendCommand(command);
-
-    BinprotRemoveResponse response;
-    recvResponse(response);
+    const auto response = BinprotRemoveResponse(execute(command));
 
     if (!response.isSuccess()) {
         throw ConnectionError("Failed to remove: " + key, response.getStatus());
@@ -1201,10 +1149,7 @@ Document MemcachedConnection::get_and_lock(const std::string& id,
     command.setKey(id);
     command.setVBucket(vbucket);
     command.setLockTimeout(lock_timeout);
-    sendCommand(command);
-
-    BinprotGetAndLockResponse response;
-    recvResponse(response);
+    const auto response = BinprotGetAndLockResponse(execute(command));
 
     if (!response.isSuccess()) {
         throw ConnectionError("Failed to get: " + id, response.getStatus());
@@ -1214,21 +1159,15 @@ Document MemcachedConnection::get_and_lock(const std::string& id,
     ret.info.flags = response.getDocumentFlags();
     ret.info.cas = response.getCas();
     ret.info.id = id;
-    ret.info.datatype = cb::mcbp::Datatype(response.getDatatype());
-    ret.value.assign(response.getData().data(),
-                     response.getData().data() + response.getData().size());
+    ret.info.datatype = response.getResponse().getDatatype();
+    ret.value = response.getDataString();
     return ret;
 }
 
 BinprotResponse MemcachedConnection::getFailoverLog(Vbid vbucket) {
     BinprotGetFailoverLogCommand command;
     command.setVBucket(vbucket);
-    sendCommand(command);
-
-    BinprotResponse response;
-    recvResponse(response);
-
-    return response;
+    return execute(command);
 }
 
 void MemcachedConnection::unlock(const std::string& id,
@@ -1238,11 +1177,7 @@ void MemcachedConnection::unlock(const std::string& id,
     command.setKey(id);
     command.setVBucket(vbucket);
     command.setCas(cas);
-    sendCommand(command);
-
-    BinprotUnlockResponse response;
-    recvResponse(response);
-
+    const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("unlock(): " + id, response.getStatus());
     }
@@ -1251,10 +1186,7 @@ void MemcachedConnection::unlock(const std::string& id,
 void MemcachedConnection::dropPrivilege(cb::rbac::Privilege privilege) {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::DropPrivilege,
                                   cb::rbac::to_string(privilege));
-    sendCommand(command);
-
-    BinprotResponse response;
-    recvResponse(response);
+    const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("dropPrivilege \"" +
                                       cb::rbac::to_string(privilege) +
@@ -1272,10 +1204,7 @@ MutationInfo MemcachedConnection::mutateWithMeta(
         std::vector<uint8_t> metaExtras) {
     BinprotSetWithMetaCommand swm(
             doc, vbucket, cas, seqno, metaOption, metaExtras);
-    sendCommand(swm);
-
-    BinprotMutationResponse response;
-    recvResponse(response);
+    const auto response = BinprotMutationResponse(execute(swm));
     if (!response.isSuccess()) {
         throw ConnectionError("Failed to mutateWithMeta " + doc.info.id,
                               response.getStatus());
@@ -1286,11 +1215,7 @@ MutationInfo MemcachedConnection::mutateWithMeta(
 
 ObserveInfo MemcachedConnection::observeSeqno(Vbid vbid, uint64_t uuid) {
     BinprotObserveSeqnoCommand observe(vbid, uuid);
-    sendCommand(observe);
-
-    BinprotObserveSeqnoResponse response;
-    recvResponse(response);
-
+    const auto response = BinprotObserveSeqnoResponse(execute(observe));
     if (!response.isSuccess()) {
         throw ConnectionError(std::string("Failed to observeSeqno for ") +
                                       vbid.to_string() + " uuid:" +
@@ -1301,11 +1226,8 @@ ObserveInfo MemcachedConnection::observeSeqno(Vbid vbid, uint64_t uuid) {
 }
 
 void MemcachedConnection::enablePersistence() {
-    sendCommand(
-            BinprotGenericCommand(cb::mcbp::ClientOpcode::StartPersistence));
-
-    BinprotResponse response;
-    recvResponse(response);
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::StartPersistence);
+    const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("Failed to enablePersistence ",
                               response.getStatus());
@@ -1313,10 +1235,8 @@ void MemcachedConnection::enablePersistence() {
 }
 
 void MemcachedConnection::disablePersistence() {
-    sendCommand(BinprotGenericCommand(cb::mcbp::ClientOpcode::StopPersistence));
-
-    BinprotResponse response;
-    recvResponse(response);
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::StopPersistence);
+    const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("Failed to disablePersistence ",
                               response.getStatus());
@@ -1357,6 +1277,13 @@ void MemcachedConnection::setUnorderedExecutionMode(ExecutionMode mode) {
 BinprotResponse MemcachedConnection::execute(const BinprotCommand &command) {
     BinprotResponse response;
     executeCommand(command, response);
+    return response;
+}
+
+Frame MemcachedConnection::execute(const Frame& frame) {
+    sendFrame(frame);
+    Frame response;
+    recvFrame(response);
     return response;
 }
 

@@ -500,10 +500,14 @@ private:
 
 class BinprotHelloResponse : public BinprotResponse {
 public:
+    BinprotHelloResponse() = default;
+    explicit BinprotHelloResponse(BinprotResponse&& other);
+
     void assign(std::vector<uint8_t>&& buf) override;
     const std::vector<cb::mcbp::Feature>& getFeatures() const;
 
-private:
+protected:
+    void decode();
     std::vector<cb::mcbp::Feature> features;
 };
 
@@ -560,6 +564,10 @@ protected:
 
 class BinprotGetResponse : public BinprotResponse {
 public:
+    BinprotGetResponse() = default;
+    explicit BinprotGetResponse(BinprotResponse&& other)
+        : BinprotResponse(other) {
+    }
     uint32_t getDocumentFlags() const;
 };
 
@@ -673,11 +681,15 @@ private:
 
 class BinprotMutationResponse : public BinprotResponse {
 public:
+    BinprotMutationResponse() = default;
+    explicit BinprotMutationResponse(BinprotResponse&& other);
+
     void assign(std::vector<uint8_t>&& buf) override;
 
     const MutationInfo& getMutationInfo() const;
 
-private:
+protected:
+    void decode();
     MutationInfo mutation_info;
 };
 
@@ -699,11 +711,14 @@ private:
 
 class BinprotIncrDecrResponse : public BinprotMutationResponse {
 public:
+    BinprotIncrDecrResponse() = default;
+    explicit BinprotIncrDecrResponse(BinprotResponse&& other);
     uint64_t getValue() const;
 
     void assign(std::vector<uint8_t>&& buf) override;
 
-private:
+protected:
+    void decode();
     uint64_t value = 0;
 };
 
@@ -924,9 +939,14 @@ private:
 
 class BinprotObserveSeqnoResponse : public BinprotResponse {
 public:
+    BinprotObserveSeqnoResponse() = default;
+    explicit BinprotObserveSeqnoResponse(BinprotResponse&& other);
     void assign(std::vector<uint8_t>&& buf) override;
 
     ObserveInfo info;
+
+protected:
+    void decode();
 };
 
 class BinprotUpdateUserPermissionsCommand : public BinprotGenericCommand {

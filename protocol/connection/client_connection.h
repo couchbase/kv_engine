@@ -526,6 +526,8 @@ public:
      */
     BinprotResponse execute(const BinprotCommand& command);
 
+    /// Execute a command on the server and return the response
+    Frame execute(const Frame& frame);
     /**
      * Get a textual representation of this connection
      *
