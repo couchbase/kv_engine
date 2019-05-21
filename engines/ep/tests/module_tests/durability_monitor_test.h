@@ -350,13 +350,16 @@ protected:
 
     /**
      * Notify the DM that the snapshot-end mutation has been received on the
-     * PassiveStream and check that High Prepared Seqno has been updated as
-     * expected.
+     * PassiveStream and check that High Prepared Seqno  and the High Completed
+     * Seqno have been updated as expected.
      *
      * @param snapEnd
      * @param expectedHPS
+     * @param expectedHCS
      */
-    void notifySnapEndReceivedAndCheckHPS(int64_t snapEnd, int64_t expectedHPS);
+    void notifySnapEndReceived(int64_t snapEnd,
+                               int64_t expectedHPS,
+                               int64_t expectedHCS);
 
     /**
      * Checks that the HPS is updated correctly when (1) Level:PersistToMajority
@@ -378,6 +381,16 @@ protected:
      * @param testedLevel The level tested, Majority/MajorityAndPersistOnMaster
      */
     void testHPS_LevelIsNotDurabilityFence(cb::durability::Level testedLevel);
+
+    /**
+     * Checks that the Prepares can be removed from the PassiveDM only if they
+     * are locally-satisfied. Note that (differenlty from ActiveDM) in PassiveDM
+     * a Prepare can be completed *before* the local HPS has covered it.
+     *
+     * @param res The type of resolution, Commit/Abort
+     */
+    void testRemoveCompletedOnlyIfLocallySatisfied(
+            PassiveDurabilityMonitor::Resolution res);
 };
 
 /*

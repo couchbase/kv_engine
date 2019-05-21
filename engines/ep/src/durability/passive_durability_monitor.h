@@ -146,9 +146,20 @@ protected:
         void updateHighPreparedSeqno();
 
         /**
-         * Remove the first (front) SyncWrite in the tracked Container.
+         * Check if there are Prepares eligible for removal, and remove them if
+         * any. A Prepare is eligible for removal if:
+         *
+         * 1) it is completed (Committed or Aborted)
+         * 2) it is locally-satisfied
+         *
+         * In terms of PassiveDM internal structures, the above means that a
+         * Prepare is eligible for removal if both the HighCompletedSeqno and
+         * the HighPreparedSeqno have covered it.
+         *
+         * Thus, this function is called every time the HCS and the HPS are
+         * updated.
          */
-        void removeFront();
+        void checkForAndRemovePrepares();
 
         /// The container of pending Prepares.
         Container trackedWrites;
@@ -165,6 +176,11 @@ protected:
         // Used for implementing the correct move-logic of High Prepared Seqno.
         // Must be set at snapshot-end received on PassiveStream.
         Monotonic<uint64_t, ThrowExceptionPolicy> snapshotEnd{0};
+
+        // Points to the last Prepare that has been completed (Committed or
+        // Aborted). Together with the HPS Position, it is used for implementing
+        // the correct Prepare remove-logic in PassiveDM.
+        Position highCompletedSeqno;
 
         const PassiveDurabilityMonitor& pdm;
     };

@@ -32,6 +32,7 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(VBucket& vb)
     // By design, instances of Container::Position can never be invalid
     auto s = state.wlock();
     s->highPreparedSeqno = Position(s->trackedWrites.end());
+    s->highCompletedSeqno = Position(s->trackedWrites.end());
 }
 
 PassiveDurabilityMonitor::PassiveDurabilityMonitor(
@@ -65,6 +66,9 @@ void PassiveDurabilityMonitor::addStats(const AddStatFn& addStat,
         checked_snprintf(buf, sizeof(buf), "vb_%d:high_prepared_seqno", vbid);
         add_casted_stat(buf, getHighPreparedSeqno(), addStat, cookie);
 
+        checked_snprintf(buf, sizeof(buf), "vb_%d:high_completed_seqno", vbid);
+        add_casted_stat(buf, getHighCompletedSeqno(), addStat, cookie);
+
     } catch (const std::exception& e) {
         EP_LOG_WARN(
                 "PassiveDurabilityMonitor::addStats: error building stats: {}",
@@ -77,8 +81,7 @@ int64_t PassiveDurabilityMonitor::getHighPreparedSeqno() const {
 }
 
 int64_t PassiveDurabilityMonitor::getHighCompletedSeqno() const {
-    // @todo: return proper value
-    return 0;
+    return state.rlock()->highCompletedSeqno.lastWriteSeqno;
 }
 
 void PassiveDurabilityMonitor::addSyncWrite(queued_item item) {
@@ -174,18 +177,32 @@ void PassiveDurabilityMonitor::completeSyncWrite(const StoredDocKey& key,
                 to_string(res) + " for key " + key.to_string());
     }
 
+    const auto next = s->getIteratorNext(s->highCompletedSeqno.it);
+
+    if (next == s->trackedWrites.end()) {
+        throw std::logic_error(
+                "PassiveDurabilityMonitor::resolvePrepare: No Prepare waiting "
+                "for completion, but received " +
+                to_string(res) + " for key " + key.to_string());
+    }
+
     // Sanity check for In-Order Commit
-    const auto& front = s->trackedWrites.front();
-    if (front.getKey() != key) {
+    if (next->getKey() != key) {
         std::stringstream ss;
-        ss << "Pending resolution for '" << front
+        ss << "Pending resolution for '" << *next
            << "', but received unexpected " + to_string(res) + " for key "
            << key;
         throw std::logic_error("PassiveDurabilityMonitor::resolvePrepare: " +
                                ss.str());
     }
 
-    s->removeFront();
+    // Note: Update last-write-seqno first to enforce monotonicity and
+    //     avoid any state-change if monotonicity checks fail
+    s->highCompletedSeqno.lastWriteSeqno = next->getBySeqno();
+    s->highCompletedSeqno.it = next;
+
+    // HCS has moved, which could make some Prepare eligible for removal.
+    s->checkForAndRemovePrepares();
 }
 
 void PassiveDurabilityMonitor::toOStream(std::ostream& os) const {
@@ -245,6 +262,8 @@ void PassiveDurabilityMonitor::State::updateHighPreparedSeqno() {
         highPreparedSeqno.it = next;
     };
 
+    const auto prevHPS = highPreparedSeqno.lastWriteSeqno;
+
     Container::iterator next;
 
     // First, blindly move HPS up to the last persisted snapshot-end.
@@ -285,16 +304,38 @@ void PassiveDurabilityMonitor::State::updateHighPreparedSeqno() {
 
         updateHPS(next);
     }
+
+    if (highPreparedSeqno.lastWriteSeqno != prevHPS) {
+        Expects(highPreparedSeqno.lastWriteSeqno > prevHPS);
+        // HPS has moved, which could make some Prepare eligible for removal.
+        checkForAndRemovePrepares();
+    }
 }
 
-void PassiveDurabilityMonitor::State::removeFront() {
-    // In PassiveDM we have just one iterator pointing to items in the tracked
-    // Container: the HPS. Ensure that the iterator is never invalid by pointing
-    // it to Container::end if the underlying item is removed.
-    auto begin = trackedWrites.begin();
-    if (begin == highPreparedSeqno.it) {
-        highPreparedSeqno.it = trackedWrites.end();
+void PassiveDurabilityMonitor::State::checkForAndRemovePrepares() {
+    if (trackedWrites.empty()) {
+        return;
     }
 
-    trackedWrites.erase(begin);
+    const auto fence = std::min(int64_t(highCompletedSeqno.lastWriteSeqno),
+                                int64_t(highPreparedSeqno.lastWriteSeqno));
+
+    auto it = trackedWrites.begin();
+    while (it != trackedWrites.end() && it->getBySeqno() <= fence) {
+        // In PassiveDM we have two iterators pointing to items in the tracked
+        // Container: the HPS and the High Completed Seqno.
+        // Ensure that iterators are never invalid by pointing them to
+        // Container::end if the underlying item is removed.
+        if (it == highCompletedSeqno.it) {
+            highCompletedSeqno.it = trackedWrites.end();
+        }
+        if (it == highPreparedSeqno.it) {
+            highPreparedSeqno.it = trackedWrites.end();
+        }
+
+        // Note: 'it' will be invalidated, so it will need to be reset
+        const auto next = std::next(it);
+        trackedWrites.erase(it);
+        it = next;
+    }
 }

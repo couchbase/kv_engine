@@ -780,8 +780,10 @@ void VBucketDurabilityTest::testAddPrepareInPassiveDM(
     const auto& monitor =
             VBucketTestIntrospector::public_getPassiveDM(*vbucket);
     ASSERT_EQ(0, monitor.getNumTracked());
+    ASSERT_EQ(0, monitor.getHighCompletedSeqno());
     testAddPrepare(writes);
     ASSERT_EQ(writes.size(), monitor.getNumTracked());
+    ASSERT_EQ(0, monitor.getHighCompletedSeqno());
 }
 
 TEST_P(VBucketDurabilityTest, Replica_AddPrepareInPassiveDM) {
@@ -1189,18 +1191,20 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
     // This is just for an easier inspection of the CheckpointManager below
     ckptMgr->clear(*vbucket, ckptMgr->getHighSeqno());
 
-    // Commit all + check HT
+    auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+
+    // Commit all + check HT + check PassiveDM::completedSeqno
     // Note: At replica, snapshots are defined at PassiveStream level, need to
     //     do it manually here given that we are testing at VBucket level.
     ckptMgr->createSnapshot(writes.back().seqno + 1, writes.back().seqno + 100);
-    for (auto write : writes) {
-        auto key = makeStoredDocKey("key" + std::to_string(write.seqno));
+    for (auto prepare : writes) {
+        auto key = makeStoredDocKey("key" + std::to_string(prepare.seqno));
 
         switch (res) {
         case Resolution::Commit: {
             EXPECT_EQ(ENGINE_SUCCESS,
                       vbucket->commit(key,
-                                      write.seqno + 10 /*commitSeqno*/,
+                                      prepare.seqno + 10 /*commitSeqno*/,
                                       vbucket->lockCollections(key)));
 
             const auto sv = ht->findForRead(key).storedValue;
@@ -1213,7 +1217,7 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
         case Resolution::Abort: {
             EXPECT_EQ(ENGINE_SUCCESS,
                       vbucket->abort(key,
-                                     write.seqno + 10 /*abortSeqno*/,
+                                     prepare.seqno + 10 /*abortSeqno*/,
                                      vbucket->lockCollections(key)));
 
             EXPECT_FALSE(ht->findForRead(key).storedValue);
@@ -1222,6 +1226,9 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
             break;
         }
         }
+
+        // HCS moves
+        EXPECT_EQ(prepare.seqno, pdm.getHighCompletedSeqno());
     }
 
     // Check CM
@@ -1239,8 +1246,20 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
         }
     }
 
-    // Check DM
+    // Nothing removed from PassiveDM as HPS has never moved (we have not
+    // notified the PDM of snapshot-end received). Remember that we cannot
+    // remove Prepares before the HPS (even the completed ones).
+    EXPECT_EQ(writes.size(), vbucket->durabilityMonitor->getNumTracked());
+    EXPECT_EQ(writes.back().seqno, pdm.getHighCompletedSeqno());
+    EXPECT_EQ(0, pdm.getHighPreparedSeqno());
+
+    pdm.notifySnapshotEndReceived(4 /*snap-end*/);
+
+    // All removed from PassiveDM as HPS has moved up to covering all the
+    // completed Prepares.
     EXPECT_EQ(0, vbucket->durabilityMonitor->getNumTracked());
+    EXPECT_EQ(writes.back().seqno, pdm.getHighCompletedSeqno());
+    EXPECT_EQ(writes.back().seqno, pdm.getHighPreparedSeqno());
 }
 
 TEST_P(VBucketDurabilityTest, Replica_Commit) {

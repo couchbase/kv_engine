@@ -607,12 +607,12 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
     // Get rid of set_vb_state and any other queue_op we are not interested in
     ckptMgr.clear(*vb, 0 /*seqno*/);
 
-    // The consumer receives snapshot-marker [1, 2]
+    // The consumer receives snapshot-marker [1, 1]
     uint32_t opaque = 0;
     SnapshotMarker marker(opaque,
                           vbid,
                           1 /*snapStart*/,
-                          2 /*snapEnd*/,
+                          1 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_MEMORY,
                           {} /*streamId*/);
     stream->processMarker(&marker);
@@ -681,6 +681,8 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
     EXPECT_EQ(cas, (*it)->getCas());
 
     EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
+    // Level:Majority + snap-end received -> HPS has moved
+    EXPECT_EQ(1, vb->getDurabilityMonitor().getHighPreparedSeqno());
 }
 
 TEST_P(DurabilityPassiveStreamTest, ReceiveDcpPrepare) {

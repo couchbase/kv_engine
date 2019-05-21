@@ -1673,7 +1673,7 @@ TEST_P(PassiveDurabilityMonitorTest, HPS_Majority) {
                                         0 /*expectedHPS*/,
                                         0 /*expectedHCS*/);
 
-    notifySnapEndReceivedAndCheckHPS(3 /*snapEnd*/, 3 /*expectedHPS*/);
+    notifySnapEndReceived(3 /*snapEnd*/, 3 /*expectedHPS*/, 0 /*expectedHCS*/);
 
     notifyPersistence(
             1000 /*persistedSeqno*/, 3 /*expectedHPS*/, 0 /*expectedHCS*/);
@@ -1718,7 +1718,7 @@ void PassiveDurabilityMonitorTest::testResolvePrepare(
                                         0 /*expectedHCS*/);
     ASSERT_EQ(seqnos.size(), monitor->getNumTracked());
 
-    notifySnapEndReceivedAndCheckHPS(3 /*snapEnd*/, 3 /*expectedHPS*/);
+    notifySnapEndReceived(3 /*snapEnd*/, 3 /*expectedHPS*/, 0 /*expectedHCS*/);
 
     // A negative check first: we must enforce In-Order Commit at Active, so
     // Replica expects a commit for s:1 at this point.
@@ -1753,10 +1753,90 @@ TEST_P(PassiveDurabilityMonitorTest, Abort) {
     testResolvePrepare(PassiveDurabilityMonitor::Resolution::Abort);
 }
 
-void PassiveDurabilityMonitorTest::notifySnapEndReceivedAndCheckHPS(
-        int64_t snapEnd, int64_t expectedHPS) {
+void PassiveDurabilityMonitorTest::testRemoveCompletedOnlyIfLocallySatisfied(
+        PassiveDurabilityMonitor::Resolution res) {
+    assertNumTrackedAndHPSAndHCS(0, 0, 0);
+
+    // Add Majority to tracking
+    DurabilityMonitorTest::addSyncWrite({1} /*seqno*/,
+                                        cb::durability::Level::Majority,
+                                        0 /*expectedHPS*/,
+                                        0 /*expectedHCS*/);
+    const auto& pdm = getPassiveDM();
+    ASSERT_EQ(0, pdm.getHighCompletedSeqno());
+    ASSERT_EQ(1, pdm.getNumTracked());
+
+    // Note: for simulating a real scenario, we have to receive the snapshot-end
+    // mutation before receiving a Commit/Abort for the Prepare.
+    // That is because at Active we ensure no-dedup by avoiding Prepare and
+    // Commit/Abort (for the same key) in the same snapshot.
+
+    // snapshot-end received -> HPS moves
+    notifySnapEndReceived(1 /*snap-end*/, 1 /*expectedHPS*/, 0 /*expectedHCS*/);
+    ASSERT_EQ(0, pdm.getHighCompletedSeqno());
+    ASSERT_EQ(1, pdm.getNumTracked());
+
+    // Commit: HCP moves -> we can remove the Prepare from tracking
+    getPassiveDM().completeSyncWrite(makeStoredDocKey("key1"), res);
+    ASSERT_EQ(1, pdm.getHighPreparedSeqno());
+    ASSERT_EQ(1, pdm.getHighCompletedSeqno());
+    ASSERT_EQ(0, pdm.getNumTracked());
+
+    // Add PersistToMajority + Majority to tracking
+    DurabilityMonitorTest::addSyncWrite(
+            {2} /*seqno*/,
+            cb::durability::Level::PersistToMajority,
+            1 /*expectHPS*/,
+            1 /*expectedHCS*/);
+    ASSERT_EQ(1, pdm.getHighCompletedSeqno());
+    ASSERT_EQ(1, pdm.getNumTracked());
+    DurabilityMonitorTest::addSyncWrite({3} /*seqno*/,
+                                        cb::durability::Level::Majority,
+                                        1 /*expectHPS*/,
+                                        1 /*expectedHCS*/);
+    ASSERT_EQ(1, pdm.getHighCompletedSeqno());
+    ASSERT_EQ(2, pdm.getNumTracked());
+
+    // Snapshot-end received: HPS doesn't move as we have not persisted the
+    // complete snapshot yet (ie, we cannot move the durability-fence
+    // represented by the PersistToMajority seqno:2).
+    notifySnapEndReceived(3 /*snap-end*/, 1 /*expectedHPS*/, 1 /*expectedHCS*/);
+    ASSERT_EQ(1, pdm.getHighCompletedSeqno());
+    ASSERT_EQ(2, pdm.getNumTracked());
+
+    // Commit all, still 2 tracked as the Prepares are completed before the HPS
+    // moves
+    getPassiveDM().completeSyncWrite(makeStoredDocKey("key2"), res);
+    ASSERT_EQ(1, pdm.getHighPreparedSeqno());
+    ASSERT_EQ(2, pdm.getHighCompletedSeqno());
+    ASSERT_EQ(2, pdm.getNumTracked());
+    getPassiveDM().completeSyncWrite(makeStoredDocKey("key3"), res);
+    ASSERT_EQ(1, pdm.getHighPreparedSeqno());
+    ASSERT_EQ(3, pdm.getHighCompletedSeqno());
+    ASSERT_EQ(2, pdm.getNumTracked());
+
+    // Snapshot-end persisted: HPS moves, now we can remove all Prepares
+    notifyPersistence(
+            3 /*persistedSeqno*/, 3 /*expectedHPS*/, 3 /*expectedHCS*/);
+    ASSERT_EQ(0, pdm.getNumTracked());
+}
+
+TEST_P(PassiveDurabilityMonitorTest, RemoveCommittedOnlyIfLocallySatisfied) {
+    testRemoveCompletedOnlyIfLocallySatisfied(
+            PassiveDurabilityMonitor::Resolution::Commit);
+}
+
+TEST_P(PassiveDurabilityMonitorTest, RemoveAbortedOnlyIfLocallySatisfied) {
+    testRemoveCompletedOnlyIfLocallySatisfied(
+            PassiveDurabilityMonitor::Resolution::Abort);
+}
+
+void PassiveDurabilityMonitorTest::notifySnapEndReceived(int64_t snapEnd,
+                                                         int64_t expectedHPS,
+                                                         int64_t expectedHCS) {
     getPassiveDM().notifySnapshotEndReceived(snapEnd);
-    EXPECT_EQ(expectedHPS, monitor->getHighPreparedSeqno());
+    ASSERT_EQ(expectedHPS, monitor->getHighPreparedSeqno());
+    ASSERT_EQ(expectedHCS, monitor->getHighCompletedSeqno());
 }
 
 TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_MajorityAndPersistOnMaster) {
@@ -1768,7 +1848,8 @@ TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_MajorityAndPersistOnMaster) {
             0 /*expectedHPS*/,
             0 /*expectedHCS*/);
 
-    notifySnapEndReceivedAndCheckHPS(500 /*snapEnd*/, 3 /*expectedHPS*/);
+    notifySnapEndReceived(
+            500 /*snapEnd*/, 3 /*expectedHPS*/, 0 /*expectedHCS*/);
 
     notifyPersistence(
             1000 /*persistedSeqno*/, 3 /*expectedHPS*/, 0 /*expectedHCS*/);
@@ -1810,7 +1891,7 @@ TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_PersistToMajority) {
     // persisted the complete snapshot, so PersistToMajority cannot be ack'ed
     // yet.
     const int64_t snapEnd = 1000;
-    notifySnapEndReceivedAndCheckHPS(snapEnd, 0 /*expectedHPS*/);
+    notifySnapEndReceived(snapEnd, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
 
     // The flusher persists the entire snapshot (and over), PersistToMajority
     // are locally-satisfied now, the HPS can move on to them.
@@ -1844,14 +1925,15 @@ TEST_P(PassiveDurabilityMonitorPersistentTest,
             0 /*expectHPS*/,
             0 /*expectedHCS*/);
 
-    notifySnapEndReceivedAndCheckHPS(3 /*snapEnd*/, 3 /*expectedHPS*/);
+    notifySnapEndReceived(3 /*snapEnd*/, 3 /*expectedHPS*/, 0 /*expectedHCS*/);
 
     DurabilityMonitorTest::addSyncWrite({4, 10, 21} /*seqnos*/,
                                         cb::durability::Level::Majority,
                                         3 /*expectHPS*/,
                                         0 /*expectedHCS*/);
 
-    notifySnapEndReceivedAndCheckHPS(100 /*snapEnd*/, 21 /*expectedHPS*/);
+    notifySnapEndReceived(
+            100 /*snapEnd*/, 21 /*expectedHPS*/, 0 /*expectedHCS*/);
 }
 
 TEST_P(ActiveDurabilityMonitorPersistentTest,
@@ -1881,7 +1963,8 @@ TEST_P(PassiveDurabilityMonitorPersistentTest,
                                         0 /*expectHPS*/,
                                         0 /*expectedHCS*/);
 
-    notifySnapEndReceivedAndCheckHPS(1002 /*snapEnd*/, 1000 /*expectedHPS*/);
+    notifySnapEndReceived(
+            1002 /*snapEnd*/, 1000 /*expectedHPS*/, 0 /*expectedHCS*/);
 
     DurabilityMonitorTest::addSyncWrite(
             {1004, 1010, 2021} /*seqnos*/,
@@ -1889,7 +1972,8 @@ TEST_P(PassiveDurabilityMonitorPersistentTest,
             1000 /*expectHPS*/,
             0 /*expectedHCS*/);
 
-    notifySnapEndReceivedAndCheckHPS(3000 /*snapEnd*/, 2021 /*expectedHPS*/);
+    notifySnapEndReceived(
+            3000 /*snapEnd*/, 2021 /*expectedHPS*/, 0 /*expectedHCS*/);
 }
 
 TEST_P(ActiveDurabilityMonitorPersistentTest,
@@ -1947,7 +2031,7 @@ void PassiveDurabilityMonitorTest::testHPS_PersistToMajorityIsDurabilityFence(
     // 2) cannot be locally-satisfied yet because we have not persisted the
     //     complete snapshot
     const uint64_t snapEnd = 50;
-    notifySnapEndReceivedAndCheckHPS(snapEnd, 0 /*expectedHPS*/);
+    notifySnapEndReceived(snapEnd, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
 
     // The HPS can move to the latest Prepare now:
     // 1) We have persisted (even over) the complete snapshot
@@ -2024,7 +2108,8 @@ void PassiveDurabilityMonitorTest::testHPS_LevelIsNotDurabilityFence(
     // before the durability-fence (ie, the first non-locally-satisfied
     // PersistToMajority Prepare), as the we have not persisted the complete
     // snapshot yet.
-    notifySnapEndReceivedAndCheckHPS(3000 /*snapEnd*/, 1001 /*expectedHPS*/);
+    notifySnapEndReceived(
+            3000 /*snapEnd*/, 1001 /*expectedHPS*/, 0 /*expectedHCS*/);
 
     // We receive another partial snapshot[3001, 3010] with only Majority or
     // MajorityAndPersistOnMaster Prepares. HPS doesn't move.
@@ -2042,7 +2127,8 @@ void PassiveDurabilityMonitorTest::testHPS_LevelIsNotDurabilityFence(
             3005 /*persistedSeqno*/, 2700 /*expectHPS*/, 0 /*expectedHCS*/);
 
     // Second snapshot complete in memory, HPS moves to the latest Prepare
-    notifySnapEndReceivedAndCheckHPS(3010 /*snapEnd*/, 3002 /*expectedHPS*/);
+    notifySnapEndReceived(
+            3010 /*snapEnd*/, 3002 /*expectedHPS*/, 0 /*expectedHCS*/);
 }
 
 TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_Majority_PersistToMajority) {
