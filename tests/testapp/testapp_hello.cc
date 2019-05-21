@@ -54,8 +54,7 @@ TEST_F(HelloTest, AgentName) {
     const std::string agentname{
             "AgentInformation - c21fee83af4e7943/c21fee83af4e7943"};
     BinprotHelloCommand cmd(agentname);
-    BinprotHelloResponse resp;
-    conn.executeCommand(cmd, resp);
+    const auto resp = BinprotHelloResponse(conn.execute(cmd));
     ASSERT_TRUE(resp.isSuccess());
 
     auto stats = conn.stats("connections");
@@ -84,8 +83,7 @@ TEST_F(HelloTest, JsonAgentInformation) {
     auto& conn = getConnection();
     BinprotHelloCommand cmd(
             R"({"a":"AgentInformation","i":"c21fee83af4e7943/c21fee83af4e7943"})");
-    BinprotHelloResponse resp;
-    conn.executeCommand(cmd, resp);
+    const auto resp = BinprotHelloResponse(conn.execute(cmd));
     ASSERT_TRUE(resp.isSuccess());
 
     auto stats = conn.stats("connections");
@@ -128,8 +126,7 @@ TEST_F(HelloTest, JsonAgentInformationStringsTruncated) {
 
     BinprotHelloCommand cmd(R"({"a":")" + agentname + R"(","i":")" + cid +
                             R"("})");
-    BinprotHelloResponse resp;
-    conn.executeCommand(cmd, resp);
+    const auto resp = BinprotHelloResponse(conn.execute(cmd));
     ASSERT_TRUE(resp.isSuccess());
 
     auto stats = conn.stats("connections");
@@ -159,8 +156,7 @@ TEST_F(HelloTest, JsonAgentInformationStringsTruncated) {
 TEST_F(HelloTest, AltRequestSupport) {
     BinprotHelloCommand cmd("AltRequestSupport");
     cmd.enableFeature(cb::mcbp::Feature::AltRequestSupport);
-    BinprotHelloResponse rsp;
-    getConnection().executeCommand(cmd, rsp);
+    const auto rsp = BinprotHelloResponse(getConnection().execute(cmd));
     ASSERT_TRUE(rsp.isSuccess());
     const auto& features = rsp.getFeatures();
     ASSERT_EQ(1, features.size());
@@ -171,8 +167,7 @@ TEST_F(HelloTest, AltRequestSupport) {
 TEST_F(HelloTest, SyncReplication) {
     BinprotHelloCommand cmd("SyncReplication");
     cmd.enableFeature(cb::mcbp::Feature::SyncReplication);
-    BinprotHelloResponse rsp;
-    getConnection().executeCommand(cmd, rsp);
+    const auto rsp = BinprotHelloResponse(getConnection().execute(cmd));
     ASSERT_TRUE(rsp.isSuccess());
     const auto& features = rsp.getFeatures();
     ASSERT_EQ(1, features.size());
@@ -182,8 +177,7 @@ TEST_F(HelloTest, SyncReplication) {
 TEST_F(HelloTest, Collections) {
     BinprotHelloCommand cmd("Collections");
     cmd.enableFeature(cb::mcbp::Feature::Collections);
-    BinprotHelloResponse rsp;
-    getConnection().executeCommand(cmd, rsp);
+    const auto rsp = BinprotHelloResponse(getConnection().execute(cmd));
 
     ASSERT_TRUE(rsp.isSuccess());
     if (GetTestBucket().supportsCollections()) {

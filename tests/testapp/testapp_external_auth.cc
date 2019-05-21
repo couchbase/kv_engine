@@ -67,8 +67,7 @@ protected:
         // Register as RBAC provider
         provider->authenticate("@admin", "password", "PLAIN");
         provider->setDuplexSupport(true);
-        BinprotResponse response;
-        provider->executeCommand(BinprotAuthProviderCommand{}, response);
+        const auto response = provider->execute(BinprotAuthProviderCommand{});
         ASSERT_TRUE(response.isSuccess());
     }
 

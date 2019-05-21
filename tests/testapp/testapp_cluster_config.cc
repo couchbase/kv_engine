@@ -32,10 +32,7 @@ protected:
                                      const std::string& config) {
         auto& conn = getAdminConnection();
         conn.selectBucket("default");
-        BinprotResponse response;
-        conn.executeCommand(BinprotSetClusterConfigCommand{token, config},
-                            response);
-        return response;
+        return conn.execute(BinprotSetClusterConfigCommand{token, config});
     }
 
     void test_MB_17506(bool dedupe);
@@ -58,14 +55,14 @@ void ClusterConfigTest::test_MB_17506(bool dedupe) {
     command.setVBucket(Vbid(1));
 
     // Execute the first get command. This one should _ALWAYS_ contain a map
-    conn.executeCommand(command, response);
+    response = conn.execute(command);
 
     ASSERT_FALSE(response.isSuccess());
     ASSERT_EQ(cb::mcbp::Status::NotMyVbucket, response.getStatus());
     EXPECT_EQ(clustermap, response.getDataString());
 
     // Execute it one more time..
-    conn.executeCommand(command, response);
+    response = conn.execute(command);
 
     ASSERT_FALSE(response.isSuccess());
     ASSERT_EQ(cb::mcbp::Status::NotMyVbucket, response.getStatus());
@@ -115,12 +112,11 @@ TEST_P(ClusterConfigTest, SetClusterConfigWithCorrectToken) {
 
 TEST_P(ClusterConfigTest, GetClusterConfig) {
     const std::string config{R"({"rev":100})"};
-    auto response = setClusterConfig(token, config);
-    ASSERT_TRUE(response.isSuccess());
+    ASSERT_TRUE(setClusterConfig(token, config).isSuccess());
 
     BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetClusterConfig, "", ""};
     auto& conn = getConnection();
-    conn.executeCommand(cmd, response);
+    const auto response = conn.execute(cmd);
     EXPECT_TRUE(response.isSuccess());
     const auto value = response.getDataString();
     EXPECT_EQ(config, value);
@@ -171,9 +167,9 @@ TEST_P(ClusterConfigTest, CccpPushNotification) {
     second->setDuplexSupport(true);
     second->setClustermapChangeNotification(true);
 
-    BinprotResponse response;
-    conn.executeCommand(BinprotSetClusterConfigCommand{token, R"({"rev":666})"},
-                        response);
+    ASSERT_TRUE(conn.execute(BinprotSetClusterConfigCommand{token,
+                                                            R"({"rev":666})"})
+                        .isSuccess());
 
     Frame frame;
 

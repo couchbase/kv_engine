@@ -100,9 +100,8 @@ void TestappXattrClientTest::setBodyAndXattr(
 
 void TestappXattrClientTest::setClusterSessionToken(uint64_t nval) {
     auto& conn = getAdminConnection();
-    BinprotResponse response;
-
-    conn.executeCommand(BinprotSetControlTokenCommand{nval, token}, response);
+    const auto response =
+            conn.execute(BinprotSetControlTokenCommand{nval, token});
 
     if (!response.isSuccess()) {
         throw ConnectionError("TestappClientTest::setClusterSessionToken",

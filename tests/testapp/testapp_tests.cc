@@ -1217,8 +1217,7 @@ TEST_F(TestappTest, CollectionsSelectBucket) {
     // Hello collections to enable collections for this connection
     BinprotHelloCommand cmd("Collections");
     cmd.enableFeature(cb::mcbp::Feature::Collections);
-    BinprotHelloResponse rsp;
-    conn.executeCommand(cmd, rsp);
+    const auto rsp = BinprotHelloResponse(conn.execute(cmd));
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
 
     try {

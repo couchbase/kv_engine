@@ -305,14 +305,13 @@ TEST_P(SaslTest, CollectionsBucketAssociation) {
     getCmd.setOp(cb::mcbp::ClientOpcode::Get);
     getCmd.setKey("key");
     getCmd.setVBucket(Vbid(0));
-    BinprotGetResponse getRsp;
 
     // Should be able to authenticate to the memcache bucket because the
     // connection has not enabled collections yet
     conn.authenticate(bucket1, password1, "PLAIN");
 
     // Our get should return not found
-    conn.executeCommand(getCmd, getRsp);
+    auto getRsp = BinprotGetResponse(conn.execute(getCmd));
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, getRsp.getStatus());
 
     // Now select the collections aware bucket so that we can enable collections
@@ -321,13 +320,9 @@ TEST_P(SaslTest, CollectionsBucketAssociation) {
 
     // Before we try to enable collections, make sure we're associated with
     // the right bucket
-    conn.executeCommand(getCmd, getRsp);
-
-    // We might temp fail so just retry - rather timeout here on failure of
-    // the test than add a sporadic CV failure so just keep looping
-    while (getRsp.getStatus() == cb::mcbp::Status::Etmpfail) {
-        conn.executeCommand(getCmd, getRsp);
-    }
+    const auto auto_retry_tmpfail = conn.getAutoRetryTmpfail();
+    conn.setAutoRetryTmpfail(true);
+    getRsp = BinprotGetResponse(conn.execute(getCmd));
 
     // Our get should return not my vBucket
     EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, getRsp.getStatus());
@@ -338,9 +333,7 @@ TEST_P(SaslTest, CollectionsBucketAssociation) {
     // We also need to enable XERROR to ensure that we can receive no bucket
     // errors when we attempt to verify what auth does
     cmd.enableFeature(cb::mcbp::Feature::XERROR);
-    BinprotHelloResponse rsp;
-    conn.executeCommand(cmd, rsp);
-    ASSERT_TRUE(rsp.isSuccess());
+    ASSERT_TRUE(conn.execute(cmd).isSuccess());
 
     // Now, attempt to re-auth with credentials that would select one of the
     // memcached buckets for us. As we have set collections to be enabled for
@@ -350,7 +343,7 @@ TEST_P(SaslTest, CollectionsBucketAssociation) {
     conn.authenticate(bucket1, password1, "PLAIN");
 
     // Send a get command to check that we were moved to the no bucket
-    conn.executeCommand(getCmd, getRsp);
+    getRsp = BinprotGetResponse(conn.execute(getCmd));
     EXPECT_EQ(cb::mcbp::Status::NoBucket, getRsp.getStatus());
 
     // We've been moved to the no bucket. Finally, check that we can still
@@ -359,14 +352,10 @@ TEST_P(SaslTest, CollectionsBucketAssociation) {
     conn.authenticate(bucket3, password1, "PLAIN");
 
     // Now our get should return not my vBucket again
-    conn.executeCommand(getCmd, getRsp);
-
-    // We might temp fail so just retry - rather timeout here on failure of
-    // the test than add a sporadic CV failure so just keep looping
-    while (getRsp.getStatus() == cb::mcbp::Status::Etmpfail) {
-        conn.executeCommand(getCmd, getRsp);
-    }
+    getRsp = BinprotGetResponse(conn.execute(getCmd));
     EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, getRsp.getStatus());
+
+    conn.setAutoRetryTmpfail(auto_retry_tmpfail);
 }
 
 // Pretend we're a collection aware client
@@ -378,14 +367,11 @@ TEST_P(SaslTest, CollectionsConnectionSetup) {
     helloCmd.enableFeature(cb::mcbp::Feature::Collections);
     helloCmd.enableFeature(cb::mcbp::Feature::XERROR);
     helloCmd.enableFeature(cb::mcbp::Feature::SELECT_BUCKET);
-    BinprotHelloResponse helloRsp;
-    conn.executeCommand(helloCmd, helloRsp);
+    const auto helloRsp = BinprotHelloResponse(conn.execute(helloCmd));
     ASSERT_TRUE(helloRsp.isSuccess());
 
     // Get err map
-    BinprotGetErrorMapCommand errMapCmd;
-    BinprotGetErrorMapResponse errMapRsp;
-    conn.executeCommand(errMapCmd, errMapRsp);
+    const auto errMapRsp = conn.execute(BinprotGetErrorMapCommand{});
 
     // Get SASL mechs
     const auto mechs = conn.getSaslMechanisms();
@@ -401,13 +387,10 @@ TEST_P(SaslTest, CollectionsConnectionSetup) {
     getCmd.setOp(cb::mcbp::ClientOpcode::Get);
     getCmd.setKey("key");
     getCmd.setVBucket(Vbid(0));
-    BinprotGetResponse getRsp;
-    conn.executeCommand(getCmd, getRsp);
 
-    // We might temp fail so just retry - rather timeout here on failure of
-    // the test than add a sporadic CV failure so just keep looping
-    while (getRsp.getStatus() == cb::mcbp::Status::Etmpfail) {
-        conn.executeCommand(getCmd, getRsp);
-    }
+    auto auto_retry_tmpfail = conn.getAutoRetryTmpfail();
+    conn.setAutoRetryTmpfail(true);
+    const auto getRsp = BinprotGetResponse(conn.execute(getCmd));
+    conn.setAutoRetryTmpfail(auto_retry_tmpfail);
     EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, getRsp.getStatus());
 }

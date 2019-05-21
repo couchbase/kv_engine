@@ -441,6 +441,9 @@ protected:
 
 class BinprotSubdocMultiLookupResponse : public BinprotResponse {
 public:
+    BinprotSubdocMultiLookupResponse() = default;
+    explicit BinprotSubdocMultiLookupResponse(BinprotResponse&& other);
+
     struct LookupResult {
         cb::mcbp::Status status;
         std::string value;
@@ -453,6 +456,7 @@ public:
     void assign(std::vector<uint8_t>&& srcbuf) override;
 
 protected:
+    void decode();
     std::vector<LookupResult> results;
 };
 

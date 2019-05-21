@@ -1277,8 +1277,7 @@ void TestappTest::reconfigure() {
     auto& conn = getAdminConnection();
 
     BinprotGenericCommand req{cb::mcbp::ClientOpcode::ConfigReload, {}, {}};
-    BinprotResponse resp;
-    conn.executeCommand(req, resp);
+    const auto resp = conn.execute(req);
     ASSERT_TRUE(resp.isSuccess()) << "Failed to reconfigure the server";
     conn.reconnect();
 }

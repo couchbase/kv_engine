@@ -47,12 +47,11 @@ bool ErrmapTest::validateJson(const nlohmann::json& json, size_t reqversion) {
 
 TEST_P(ErrmapTest, GetErrmapOk) {
     BinprotGetErrorMapCommand cmd;
-    BinprotGetErrorMapResponse resp;
 
     const uint16_t version = 1;
     cmd.setVersion(version);
 
-    getConnection().executeCommand(cmd, resp);
+    const auto resp = getConnection().execute(cmd);
 
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     ASSERT_GT(resp.getBodylen(), 0);
@@ -62,11 +61,10 @@ TEST_P(ErrmapTest, GetErrmapOk) {
 
 TEST_P(ErrmapTest, GetErrmapAnyVersion) {
     BinprotGetErrorMapCommand cmd;
-    BinprotResponse resp;
     const uint16_t version = 256;
 
     cmd.setVersion(version);
-    getConnection().executeCommand(cmd, resp);
+    const auto resp = getConnection().execute(cmd);
 
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     ASSERT_GT(resp.getBodylen(), 0);
@@ -78,8 +76,7 @@ TEST_P(ErrmapTest, GetErrmapAnyVersion) {
 
 TEST_P(ErrmapTest, GetErrmapBadversion) {
     BinprotGetErrorMapCommand cmd;
-    BinprotResponse resp;
     cmd.setVersion(0);
-    getConnection().executeCommand(cmd, resp);
+    const auto resp = getConnection().execute(cmd);
     ASSERT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus());
 }

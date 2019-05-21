@@ -1093,8 +1093,8 @@ TEST_P(XattrTest, MB_25562_IncludeValueCrc32cInDocumentVAttr) {
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(document.info.id);
     cmd.addGet("$document.value_crc32c", SUBDOC_FLAG_XATTR_PATH);
-    BinprotSubdocMultiLookupResponse multiResp;
-    connection.executeCommand(cmd, multiResp);
+    const auto multiResp =
+            BinprotSubdocMultiLookupResponse(connection.execute(cmd));
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
     EXPECT_EQ(expectedValueCrc32c, multiResp.getResults()[0].value);
@@ -1445,8 +1445,6 @@ TEST_P(XattrTest, mb25928_UserCantExceedDocumentLimit) {
     value.back() = '"';
 
     BinprotSubdocCommand cmd;
-    BinprotSubdocResponse resp;
-
     cmd.setOp(cb::mcbp::ClientOpcode::SubdocDictUpsert);
     cmd.setKey("mb25928");
     cmd.setPath("user.long_string");
@@ -1454,7 +1452,7 @@ TEST_P(XattrTest, mb25928_UserCantExceedDocumentLimit) {
     cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
     cmd.addDocFlags(mcbp::subdoc::doc_flag::None);
 
-    conn.executeCommand(cmd, resp);
+    const auto resp = conn.execute(cmd);
     EXPECT_FALSE(resp.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::E2big, resp.getStatus());
 }
@@ -1481,8 +1479,6 @@ TEST_P(XattrTest, mb25928_SystemCanExceedDocumentLimit) {
     value.back() = '"';
 
     BinprotSubdocCommand cmd;
-    BinprotSubdocResponse resp;
-
     cmd.setOp(cb::mcbp::ClientOpcode::SubdocDictUpsert);
     cmd.setKey("mb25928");
     cmd.setPath("_system.long_string");
@@ -1490,7 +1486,7 @@ TEST_P(XattrTest, mb25928_SystemCanExceedDocumentLimit) {
     cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
     cmd.addDocFlags(mcbp::subdoc::doc_flag::None);
 
-    conn.executeCommand(cmd, resp);
+    const auto resp = conn.execute(cmd);
     EXPECT_TRUE(resp.isSuccess())
                 << "Expected to be able to store system xattrs";
 }
@@ -1515,8 +1511,6 @@ TEST_P(XattrTest, mb25928_SystemCantExceedSystemLimit) {
     value.back() = '"';
 
     BinprotSubdocCommand cmd;
-    BinprotSubdocResponse resp;
-
     cmd.setOp(cb::mcbp::ClientOpcode::SubdocDictUpsert);
     cmd.setKey("mb25928");
     cmd.setPath("_system.long_string");
@@ -1524,7 +1518,7 @@ TEST_P(XattrTest, mb25928_SystemCantExceedSystemLimit) {
     cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
     cmd.addDocFlags(mcbp::subdoc::doc_flag::None);
 
-    conn.executeCommand(cmd, resp);
+    const auto resp = conn.execute(cmd);
     EXPECT_FALSE(resp.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::E2big, resp.getStatus())
             << "The system space is max 1M";

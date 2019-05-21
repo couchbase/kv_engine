@@ -38,8 +38,7 @@ TEST_P(RegressionTest, MB_26196) {
     conn.authenticate("jones", "jonespassword", "PLAIN");
 
     BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetClusterConfig, "", ""};
-    BinprotResponse response;
-    conn.executeCommand(cmd, response);
+    auto response = conn.execute(cmd);
     EXPECT_FALSE(response.isSuccess());
     // We don't have access to the global config
     EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
@@ -74,7 +73,6 @@ TEST_P(RegressionTest, MB_26196) {
 TEST_P(RegressionTest, MB_26828_AddIsUnaffected) {
     auto& conn = getConnection();
 
-    BinprotSubdocResponse resp;
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
 
@@ -84,12 +82,12 @@ TEST_P(RegressionTest, MB_26828_AddIsUnaffected) {
             SUBDOC_FLAG_MKDIR_P,
             "cron_timers",
             R"({"callback_func": "NDtimerCallback", "payload": "doc_id_610"})");
-    conn.executeCommand(cmd, resp);
+    auto resp = conn.execute(cmd);
 
     EXPECT_TRUE(resp.isSuccess()) << "Expected to work for Add";
     // If we try it one more time, it should fail as we want to
     // _ADD_ the doc if it isn't there
-    conn.executeCommand(cmd, resp);
+    resp = conn.execute(cmd);
     EXPECT_FALSE(resp.isSuccess()) << "Add should fail when it isn't there";
     EXPECT_EQ(cb::mcbp::Status::KeyEexists, resp.getStatus());
 }
@@ -108,7 +106,6 @@ TEST_P(RegressionTest, MB_26828_AddIsUnaffected) {
  */
 TEST_P(RegressionTest, MB_26828_SetIsFixed) {
     auto& conn = getConnection();
-    BinprotSubdocResponse resp;
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
 
@@ -125,12 +122,12 @@ TEST_P(RegressionTest, MB_26828_SetIsFixed) {
             SUBDOC_FLAG_MKDIR_P,
             "cron_timers",
             R"({"callback_func": "NDtimerCallback", "payload": "doc_id_610"})");
-    conn.executeCommand(cmd, resp);
+    auto resp = conn.execute(cmd);
 
     EXPECT_TRUE(resp.isSuccess());
     // Reset connection to make sure we're not affected by any ewb logic
     conn = getConnection();
-    conn.executeCommand(cmd, resp);
+    resp = conn.execute(cmd);
     EXPECT_TRUE(resp.isSuccess());
 }
 
@@ -161,8 +158,7 @@ TEST_P(RegressionTest, MB_31070) {
     cmd.setKey(name);
     cmd.addGet("$document.exptime", SUBDOC_FLAG_XATTR_PATH);
 
-    BinprotSubdocMultiLookupResponse multiResp;
-    conn.executeCommand(cmd, multiResp);
+    auto multiResp = BinprotSubdocMultiLookupResponse(conn.execute(cmd));
 
     auto& results = multiResp.getResults();
 
@@ -175,7 +171,7 @@ TEST_P(RegressionTest, MB_31070) {
     document.info.expiration = 0;
     conn.mutate(document, Vbid(0), MutationType::Append);
 
-    conn.executeCommand(cmd, multiResp);
+    multiResp = BinprotSubdocMultiLookupResponse(conn.execute(cmd));
 
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);

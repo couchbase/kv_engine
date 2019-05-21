@@ -44,7 +44,6 @@ void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
 
     // Encode a set_flush_param (like cbepctl)
     BinprotGenericCommand cmd;
-    BinprotResponse resp;
     cmd.setOp(cb::mcbp::ClientOpcode::SetParam);
     cmd.setKey("xattr_enabled");
     cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
@@ -55,7 +54,7 @@ void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
         cmd.setValue("false");
     }
 
-    conn.executeCommand(cmd, resp);
+    const auto resp = conn.execute(cmd);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 }
 
@@ -66,14 +65,13 @@ void TestBucketImpl::setCompressionMode(MemcachedConnection& conn,
 
     // Encode a set_flush_param (like cbepctl)
     BinprotGenericCommand cmd;
-    BinprotResponse resp;
     cmd.setOp(cb::mcbp::ClientOpcode::SetParam);
     cmd.setKey("compression_mode");
     cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
             cb::mcbp::request::SetParamPayload::Type::Flush)));
     cmd.setValue(value);
 
-    conn.executeCommand(cmd, resp);
+    const auto resp = conn.execute(cmd);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 }
 
@@ -84,14 +82,13 @@ void TestBucketImpl::setMinCompressionRatio(MemcachedConnection& conn,
 
     // Encode a set_flush_param (like cbepctl)
     BinprotGenericCommand cmd;
-    BinprotResponse resp;
     cmd.setOp(cb::mcbp::ClientOpcode::SetParam);
     cmd.setKey("min_compression_ratio");
     cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
             cb::mcbp::request::SetParamPayload::Type::Flush)));
     cmd.setValue(value);
 
-    conn.executeCommand(cmd, resp);
+    const auto resp = conn.execute(cmd);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 }
 
@@ -211,11 +208,9 @@ public:
         createEwbBucket(name, "ep.so", settings, conn);
 
         BinprotGenericCommand cmd;
-        BinprotResponse resp;
-
         cmd.setOp(cb::mcbp::ClientOpcode::SelectBucket);
         cmd.setKey(name);
-        conn.executeCommand(cmd, resp);
+        auto resp = conn.execute(cmd);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         cmd.clear();
@@ -224,17 +219,14 @@ public:
         cmd.setOp(cb::mcbp::ClientOpcode::SetVbucket);
         cmd.setExtrasValue<uint32_t>(htonl(1));
 
-        conn.executeCommand(cmd, resp);
+        resp = conn.execute(cmd);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        do {
-            cmd.clear();
-            resp.clear();
-            cmd.setOp(cb::mcbp::ClientOpcode::EnableTraffic);
-            // Enable traffic
-            conn.executeCommand(cmd, resp);
-        } while (resp.getStatus() == cb::mcbp::Status::Etmpfail);
-
+        auto auto_retry_tmpfail = conn.getAutoRetryTmpfail();
+        conn.setAutoRetryTmpfail(true);
+        resp = conn.execute(
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::EnableTraffic});
+        conn.setAutoRetryTmpfail(auto_retry_tmpfail);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     }
 

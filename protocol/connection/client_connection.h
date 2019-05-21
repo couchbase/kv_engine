@@ -515,12 +515,6 @@ public:
 
     void recvResponse(BinprotResponse& response);
 
-    void executeCommand(const BinprotCommand& command,
-                        BinprotResponse& response) {
-        sendCommand(command);
-        recvResponse(response);
-    }
-
     /**
      * Execute a command on the server and return the raw response packet.
      */

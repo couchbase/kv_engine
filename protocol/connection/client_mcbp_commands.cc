@@ -1140,6 +1140,18 @@ BinprotSubdocMultiLookupCommand::setExpiry_Unsupported(uint32_t expiry_) {
 
 void BinprotSubdocMultiLookupResponse::assign(std::vector<uint8_t>&& buf) {
     BinprotResponse::assign(std::move(buf));
+    decode();
+}
+const std::vector<BinprotSubdocMultiLookupResponse::LookupResult>&
+BinprotSubdocMultiLookupResponse::getResults() const {
+    return results;
+}
+void BinprotSubdocMultiLookupResponse::clear() {
+    BinprotResponse::clear();
+    results.clear();
+}
+
+void BinprotSubdocMultiLookupResponse::decode() {
     // Check if this is a success - either full or partial.
     switch (getStatus()) {
     case cb::mcbp::Status::Success:
@@ -1171,13 +1183,11 @@ void BinprotSubdocMultiLookupResponse::assign(std::vector<uint8_t>&& buf) {
         bufcur += cur_len;
     }
 }
-const std::vector<BinprotSubdocMultiLookupResponse::LookupResult>&
-BinprotSubdocMultiLookupResponse::getResults() const {
-    return results;
-}
-void BinprotSubdocMultiLookupResponse::clear() {
-    BinprotResponse::clear();
-    results.clear();
+
+BinprotSubdocMultiLookupResponse::BinprotSubdocMultiLookupResponse(
+        BinprotResponse&& other)
+    : BinprotResponse(other) {
+    decode();
 }
 
 void BinprotGetCmdTimerCommand::encode(std::vector<uint8_t>& buf) const {
