@@ -331,7 +331,9 @@ TEST_F(WarmupTest, produce_delete_times) {
 
     step(true);
 
-    EXPECT_EQ(expiryTime, producers.last_delete_time);
+    // The delete time should always be re-created by the server to
+    // ensure old/future expiry times don't disrupt tombstone purging (MB-33919)
+    EXPECT_NE(expiryTime, producers.last_delete_time);
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, producers.last_op);
     EXPECT_EQ("KEY3", producers.last_key);
     expectedBytes += SnapshotMarker::baseMsgBytes +

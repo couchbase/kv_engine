@@ -90,17 +90,30 @@ struct DurabilityItemCtx {
 /**
  * Structure that holds info needed to queue an item in chkpt or vb backfill
  * queue
+ *
+ * GenerateDeleteTime - Only the queueing of items where isDeleted() == true
+ * does this parameter have any affect. E.g. an add of an Item with this set to
+ * Yes will have no effect, whilst an explicit delete this parameter will have
+ * have an effect of generating a tombstone time.
+ *
+ * Note that when queueing a delete with and expiry time of 0, the delete time
+ * is always generated. It is invalid to queue an Item with a 0 delete time,
+ * in this case the GenerateDeleteTime setting is ignored.
+ *
  */
 struct VBQueueItemCtx {
     VBQueueItemCtx() = default;
+
     VBQueueItemCtx(GenerateBySeqno genBySeqno,
                    GenerateCas genCas,
+                   GenerateDeleteTime generateDeleteTime,
                    TrackCasDrift trackCasDrift,
                    bool isBackfillItem,
                    boost::optional<DurabilityItemCtx> durability,
                    PreLinkDocumentContext* preLinkDocumentContext_)
         : genBySeqno(genBySeqno),
           genCas(genCas),
+          generateDeleteTime(generateDeleteTime),
           trackCasDrift(trackCasDrift),
           isBackfillItem(isBackfillItem),
           durability(durability),
@@ -109,6 +122,7 @@ struct VBQueueItemCtx {
 
     GenerateBySeqno genBySeqno = GenerateBySeqno::Yes;
     GenerateCas genCas = GenerateCas::Yes;
+    GenerateDeleteTime generateDeleteTime = GenerateDeleteTime::Yes;
     TrackCasDrift trackCasDrift = TrackCasDrift::No;
     /// Whether the item must be enqueued into the backfill-queue or checkpoint
     bool isBackfillItem = false;

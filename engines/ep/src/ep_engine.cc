@@ -1026,9 +1026,14 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
         return ENGINE_EINVAL;
     case ENGINE_EWOULDBLOCK:
         EP_LOG_INFO(
-                "Compaction of db file id: {} scheduled "
+                "Compaction of db file id: {}, purge_before_ts:{}"
+                ", purge_before_seq:{}"
+                ", drop_deletes:{} scheduled "
                 "(awaiting completion).",
-                compactionConfig.db_file_id.get());
+                compactionConfig.db_file_id,
+                compactionConfig.purge_before_ts,
+                compactionConfig.purge_before_seq,
+                compactionConfig.drop_deletes);
         // We don't use the value stored in the engine-specific code, just
         // that it is non-null...
         e->storeEngineSpecific(cookie, static_cast<void*>(e));

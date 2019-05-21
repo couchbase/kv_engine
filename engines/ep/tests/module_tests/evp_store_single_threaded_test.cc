@@ -2478,8 +2478,9 @@ TEST_P(STParameterizedBucketTest, enable_expiry_output) {
         EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(producers));
     };
 
-    // Expire a key and check that the delete_time we receive is the
-    // expiry time, not actually the time it was deleted.
+    // Finally expire a key and check that the delete_time we receive is not the
+    // expiry time, the delete time should always be re-created by the server to
+    // ensure old/future expiry times don't disrupt tombstone purging (MB-33919)
     auto expiryTime = ep_real_time() + 32000;
     store_item(
             vbid, {"KEY3", DocKeyEncodesCollectionId::No}, "value", expiryTime);
@@ -2508,7 +2509,7 @@ TEST_P(STParameterizedBucketTest, enable_expiry_output) {
 
     step(true);
 
-    EXPECT_EQ(expiryTime, producers.last_delete_time);
+    EXPECT_NE(expiryTime, producers.last_delete_time);
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpExpiration, producers.last_op);
     EXPECT_EQ("KEY3", producers.last_key);
     expectedBytes += SnapshotMarker::baseMsgBytes +
@@ -3399,7 +3400,9 @@ void SingleThreadedEPBucketTest::backfillExpiryOutput(bool xattr) {
     // Now step the producer to transfer the delete/tombstone
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
 
-    EXPECT_EQ(expiryTime, producers.last_delete_time);
+    // The delete time should always be re-created by the server to
+    // ensure old/future expiry times don't disrupt tombstone purging (MB-33919)
+    EXPECT_NE(expiryTime, producers.last_delete_time);
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpExpiration, producers.last_op);
     EXPECT_EQ("KEY3", producers.last_key);
 
@@ -3495,7 +3498,17 @@ TEST_P(STParameterizedBucketTest, slow_stream_backfill_expiry) {
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(expiryTime, producers.last_delete_time);
+
+    // The delete time should always be re-created by the server to
+    // ensure old/future expiry times don't disrupt tombstone purging (MB-33919)
+    if (persistent()) {
+        EXPECT_NE(expiryTime, producers.last_delete_time);
+    } else {
+        // This is incorrect, the tombstone still has the original expiry time
+        // The backfill is using the StoredValue in ephemeral and still has the
+        // original time-stamp. MB-34262
+        EXPECT_EQ(expiryTime, producers.last_delete_time);
+    }
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpExpiration, producers.last_op);
     EXPECT_EQ("KEY3", producers.last_key);
 

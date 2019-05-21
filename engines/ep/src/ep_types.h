@@ -38,6 +38,7 @@ using UniqueItemPtr = std::unique_ptr<Item>;
 enum class GenerateBySeqno : char { No, Yes };
 enum class GenerateRevSeqno : char { No, Yes };
 enum class GenerateCas : char { No, Yes };
+enum class GenerateDeleteTime { No, Yes };
 enum class TrackCasDrift : char { No, Yes };
 enum class WantsDeleted : char { No, Yes };
 enum class TrackReference : char { No, Yes };

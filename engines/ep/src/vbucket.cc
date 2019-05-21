@@ -1145,7 +1145,8 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
     // our tombstone purger can use to determine which tombstones to purge. A
     // DCP replicated or deleteWithMeta created delete may already have a time
     // assigned to it.
-    if (qi->isDeleted() && qi->getDeleteTime() == 0) {
+    if (qi->isDeleted() && (ctx.generateDeleteTime == GenerateDeleteTime::Yes ||
+                            qi->getExptime() == 0)) {
         qi->setExpTime(ep_real_time());
     }
 
@@ -1521,6 +1522,7 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(
     VBQueueItemCtx queueItmCtx{
             GenerateBySeqno::No,
             GenerateCas::No,
+            GenerateDeleteTime::No,
             TrackCasDrift::No,
             /*isBackfillItem*/ true,
             DurabilityItemCtx{itm.getDurabilityReqs(), nullptr},
@@ -1655,13 +1657,18 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
         v->unlock();
     }
 
+    // MB-33919: Do not generate the delete-time - delete's can come through
+    // this path and the delete time from the input should be used (unless it
+    // is 0, where it must be regenerated)
     VBQueueItemCtx queueItmCtx{
             genBySeqno,
             genCas,
+            GenerateDeleteTime::No,
             TrackCasDrift::Yes,
             /*isBackfillItem*/ false,
             DurabilityItemCtx{itm.getDurabilityReqs(), cookie},
             nullptr /* No pre link step needed */};
+
     MutationStatus status;
     boost::optional<VBNotifyCtx> notifyCtx;
     std::tie(status, notifyCtx) = processSet(hbl,
@@ -1956,8 +1963,12 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
         delrv = MutationStatus::NeedBgFetch;
         metaBgFetch = false;
     } else {
+        // MB-33919: The incoming meta.exptime should be used as the delete-time
+        // so request GenerateDeleteTime::No, if the incoming value is 0, a new
+        // delete-time will be generated.
         VBQueueItemCtx queueItmCtx{genBySeqno,
                                    generateCas,
+                                   GenerateDeleteTime::No,
                                    TrackCasDrift::Yes,
                                    backfill,
                                    {},
@@ -3116,6 +3127,7 @@ void VBucket::doCollectionsStats(
         readHandle.decrementDiskCount(collection);
     }
 }
+
 void VBucket::doCollectionsStats(
         const Collections::VB::Manifest::WriteHandle& writeHandle,
         CollectionID collection,

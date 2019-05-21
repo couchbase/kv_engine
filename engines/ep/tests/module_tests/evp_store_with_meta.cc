@@ -1318,6 +1318,42 @@ TEST_P(DelWithMetaTest, setting_deleteTime) {
     EXPECT_EQ(itemMeta.exptime, metadata.exptime);
 }
 
+// Perform a DeleteWithMeta with a deleteTime of 0 and verify that a time is
+// generated.
+TEST_P(DelWithMetaTest, setting_zero_deleteTime) {
+    ItemMetaData itemMeta{0xdeadbeef, 0xf00dcafe, 0xfacefeed, 0};
+    oneOpAndCheck(op,
+                  itemMeta,
+                  0, // no-options
+                  withValue,
+                  cb::mcbp::Status::Success,
+                  withValue ? ENGINE_SUCCESS : ENGINE_EWOULDBLOCK);
+
+    EXPECT_EQ(std::make_pair(false, size_t(1)),
+              getEPBucket().flushVBucket(vbid));
+
+    ItemMetaData metadata;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              store->getMetaData({"mykey", DocKeyEncodesCollectionId::No},
+                                 vbid,
+                                 cookie,
+                                 metadata,
+                                 deleted,
+                                 datatype));
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->getMetaData({"mykey", DocKeyEncodesCollectionId::No},
+                                 vbid,
+                                 cookie,
+                                 metadata,
+                                 deleted,
+                                 datatype));
+    EXPECT_NE(0, metadata.exptime);
+}
+
 TEST_P(DelWithMetaTest, MB_31141) {
     ItemMetaData itemMeta{0xdeadbeef, 0xf00dcafe, 0xfacefeed, expiry};
     // Do a delete with valid extended meta
