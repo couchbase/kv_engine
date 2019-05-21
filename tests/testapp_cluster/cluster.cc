@@ -154,11 +154,8 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
             }
 
             // Call enable traffic
-            BinprotResponse rsp;
-            do {
-                rsp = connection->execute(BinprotGenericCommand{
-                        cb::mcbp::ClientOpcode::EnableTraffic});
-            } while (rsp.getStatus() == cb::mcbp::Status::Etmpfail);
+            const auto rsp = connection->execute(BinprotGenericCommand{
+                    cb::mcbp::ClientOpcode::EnableTraffic});
 
             if (!rsp.isSuccess()) {
                 throw ConnectionError("Failed to enable traffic",

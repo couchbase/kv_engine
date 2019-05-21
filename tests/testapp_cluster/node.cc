@@ -212,7 +212,9 @@ bool NodeImpl::isRunning() const {
 }
 
 std::unique_ptr<MemcachedConnection> NodeImpl::getConnection() {
-    return connectionMap.getConnection().clone();
+    auto ret = connectionMap.getConnection().clone();
+    ret->setAutoRetryTmpfail(true);
+    return ret;
 }
 
 std::unique_ptr<Node> Node::create(const std::string& directory,
