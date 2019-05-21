@@ -756,6 +756,17 @@ public:
                     vbucket_state_t state,
                     const nlohmann::json& payload);
 
+    /// should the client automatically retry operations which fail
+    /// with a tmpfail or not (note that this is only possible when
+    /// the client object have the command frame available
+    void setAutoRetryTmpfail(bool value) {
+        auto_retry_tmpfail = value;
+    }
+
+    bool getAutoRetryTmpfail() const {
+        return auto_retry_tmpfail;
+    }
+
 protected:
     void read(Frame& frame, size_t bytes);
 
@@ -781,9 +792,27 @@ protected:
     void sendBufferSsl(cb::const_byte_buffer buf);
     void sendBufferSsl(const std::vector<iovec>& list);
 
+    /**
+     * Keep on calling the executor function until it returns true.
+     *
+     * Every time the function returns false the thread sleeps for the
+     * provided number of milliseconds. If the loop takes longer than
+     * the provided number of seconds the method throws an exception.
+     *
+     * @param executor The function to call until it returns true
+     * @param backoff The number of milliseconds to back off
+     * @param timeout The number of seconds until an exception is thrown
+     * @throws std::runtime_error for timeouts
+     */
+    void backoff_execute(
+            std::function<bool()> executor,
+            std::chrono::milliseconds backoff = std::chrono::milliseconds(10),
+            std::chrono::seconds timeout = std::chrono::seconds(30));
+
     std::string host;
     in_port_t port;
     sa_family_t family;
+    bool auto_retry_tmpfail = false;
     bool ssl;
     std::string ssl_cert_file;
     std::string ssl_key_file;

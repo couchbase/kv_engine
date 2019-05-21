@@ -634,6 +634,7 @@ static Frame to_frame(const BinprotCommand& command) {
 std::unique_ptr<MemcachedConnection> MemcachedConnection::clone() {
     auto result = std::make_unique<MemcachedConnection>(
             this->host, this->port, this->family, this->ssl);
+    result->auto_retry_tmpfail = this->auto_retry_tmpfail;
     result->setSslCertFile(this->ssl_cert_file);
     result->setSslKeyFile(this->ssl_key_file);
     result->connect();
@@ -1276,15 +1277,41 @@ void MemcachedConnection::setUnorderedExecutionMode(ExecutionMode mode) {
 
 BinprotResponse MemcachedConnection::execute(const BinprotCommand &command) {
     BinprotResponse response;
-    executeCommand(command, response);
+    backoff_execute([&command, &response, this]() -> bool {
+        sendCommand(command);
+        recvResponse(response);
+        return !(auto_retry_tmpfail &&
+                 response.getStatus() == cb::mcbp::Status::Etmpfail);
+    });
     return response;
 }
 
 Frame MemcachedConnection::execute(const Frame& frame) {
-    sendFrame(frame);
     Frame response;
-    recvFrame(response);
+    backoff_execute([&frame, &response, this]() -> bool {
+        sendFrame(frame);
+        recvFrame(response);
+        return !(auto_retry_tmpfail && response.getResponse()->getStatus() ==
+                                               cb::mcbp::Status::Etmpfail);
+    });
     return response;
+}
+
+void MemcachedConnection::backoff_execute(std::function<bool()> executor,
+                                          std::chrono::milliseconds backoff,
+                                          std::chrono::seconds timeout) {
+    using std::chrono::steady_clock;
+    const auto wait_timeout = steady_clock::now() + timeout;
+    do {
+        if (executor()) {
+            return;
+        }
+        std::this_thread::sleep_for(backoff);
+    } while (steady_clock::now() < wait_timeout);
+    throw std::runtime_error(
+            "MemcachedConnection::backoff_executor: Timed out after waiting "
+            "more than " +
+            std::to_string(timeout.count()) + " seconds");
 }
 
 void MemcachedConnection::setVbucket(Vbid vbid,
