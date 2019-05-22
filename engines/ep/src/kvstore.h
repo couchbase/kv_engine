@@ -151,20 +151,6 @@ struct TransactionContext {
     virtual ~TransactionContext(){};
 };
 
-/**
- * Result of database mutation operations.
- *
- * This is a pair where .first is the number of rows affected, and
- * .second is true if it is an insertion.
- *
- * .first will be -1 if there was an error performing the update.
- *
- * .first will be 0 if the update did not error, but did not occur.
- * This would generally be considered a fatal condition (in practice,
- * it requires you to be firing an update at a missing rowid).
- */
-typedef std::pair<int, bool> mutation_result;
-
 class NoLookupCallback : public StatusCallback<CacheLookup> {
 public:
     NoLookupCallback() {}
@@ -525,12 +511,29 @@ struct KVFileHandleDeleter {
  */
 class KVStore {
 public:
+    /**
+     * Enum to provide a implementation independent mutation status code of
+     * a mutation result at the storage layer. Storage engines should re-map
+     * their status codes to a KVStore::MutationStatus. When calling the
+     * persistence callbacks. To inform it of the result of the mutation.
+     */
+    enum class MutationStatus { Success, DocNotFound, Failed };
+
+    /**
+     * Enum to represent the state of a resulting set mutation performed by
+     * the storage engine. This is used to inform the set persistence callback
+     * of the given mutation and is re-mapped from the KVStore::MutationStatus
+     * returned from the given storage engine.
+     */
+    enum class MutationSetResultState { DocNotFound, Failed, Insert, Update };
+
     /// Callback invoked when a set operation is committed to disk.
     using SetCallback =
-            std::function<void(TransactionContext&, mutation_result)>;
+            std::function<void(TransactionContext&, MutationSetResultState)>;
 
     /// Callback invoked when a delete operation is committed to disk.
-    using DeleteCallback = std::function<void(TransactionContext&, int)>;
+    using DeleteCallback =
+            std::function<void(TransactionContext&, MutationStatus)>;
 
     KVStore(KVStoreConfig& config, bool read_only = false);
 
@@ -979,6 +982,9 @@ protected:
      */
     bool updateCachedVBState(Vbid vbid, const vbucket_state& vbState);
 };
+
+std::string to_string(KVStore::MutationStatus status);
+std::string to_string(KVStore::MutationSetResultState status);
 
 /**
  * Structure holding the read/write and read only instances of the KVStore.

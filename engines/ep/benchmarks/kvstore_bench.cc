@@ -40,7 +40,7 @@ enum Storage {
 
 class MockWriteCallback {
 public:
-    void operator()(TransactionContext&, mutation_result result) {
+    void operator()(TransactionContext&, KVStore::MutationSetResultState) {
     }
 };
 

@@ -599,15 +599,16 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
 
         // Note:
         // There are 3 cases for setting rv based on errCode
-        // MUTATUION_SUCCESS
-        // DOC_NOT_FOUND
-        // MUTATION_FAILED - magma does not support this case because
+        // MutationStatus::MutationSuccess
+        // MutationStatus::DocNotFound
+        // MutationStatus::MutationFailed - magma does not support this case
+        // because
         //     we don't want to requeue the item.  If errCode is bad,
         //     its most likely something fatal with the kvstore
         //     or it might be the kvstore is pending being dropped.
-        int rv = DOC_NOT_FOUND;
+        auto rv = MutationStatus::DocNotFound;
         if (req.oldItemExists() && !req.oldItemIsDelete()) {
-            rv = MUTATION_SUCCESS;
+            rv = MutationStatus::Success;
         }
 
         if (req.isDelete()) {
@@ -620,33 +621,35 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
             logger->trace("commitCallback {} errCode:{} getDelCallback rv:{}",
                           pendingReqs->front().getVbID(),
                           errCode,
-                          rv);
+                          to_string(rv));
 
             req.getDelCallback()(*transactionCtx, rv);
         } else {
-            int mutationStatus = MUTATION_SUCCESS;
+            auto mutationSetStatus = MutationSetResultState::Update;
             if (req.oldItemIsDelete()) {
-                rv = DOC_NOT_FOUND;
+                rv = MutationStatus::DocNotFound;
             }
 
             if (req.requestFailed()) {
                 st.numSetFailure++;
-                mutationStatus = MUTATION_FAILED;
+                mutationSetStatus = MutationSetResultState::Failed;
             } else {
                 st.writeTimeHisto.add(req.getDelta());
                 st.writeSizeHisto.add(mutationSize);
             }
-            mutation_result p(mutationStatus,
-                              rv == DOC_NOT_FOUND ? true : false);
-            req.getSetCallback()(*transactionCtx, p);
+
+            if (rv == MutationStatus::DocNotFound) {
+                mutationSetStatus = MutationSetResultState::Insert;
+            }
+            req.getSetCallback()(*transactionCtx, mutationSetStatus);
 
             logger->trace(
                     "commitCallback {} errCode:{} getSetCallback rv:{} "
                     "insertion:{}",
                     pendingReqs->front().getVbID(),
                     errCode,
-                    rv,
-                    mutationStatus);
+                    to_string(rv),
+                    to_string(mutationSetStatus));
         }
     }
 }

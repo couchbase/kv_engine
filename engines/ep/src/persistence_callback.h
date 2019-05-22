@@ -46,13 +46,14 @@ public:
     ~PersistenceCallback();
 
     // This callback is invoked for set only.
-    void operator()(TransactionContext&, mutation_result value);
+    void operator()(TransactionContext&,
+                    KVStore::MutationSetResultState mutationResult);
 
     // This callback is invoked for deletions only.
     //
     // The boolean indicates whether the underlying storage
     // successfully deleted the item.
-    void operator()(TransactionContext&, int value);
+    void operator()(TransactionContext&, KVStore::MutationStatus deleteStatus);
 
 private:
     void redirty(EPStats& stats, VBucket& vbucket);

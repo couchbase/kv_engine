@@ -591,17 +591,17 @@ bool RocksDBKVStore::commit(Collections::VB::Flush& collectionsFlush) {
     return success;
 }
 
-static int getMutationStatus(rocksdb::Status status) {
+static KVStore::MutationStatus getMutationStatus(rocksdb::Status status) {
     switch (status.code()) {
     case rocksdb::Status::Code::kOk:
-        return MUTATION_SUCCESS;
+        return KVStore::MutationStatus::Success;
     case rocksdb::Status::Code::kNotFound:
         // This return value causes ep-engine to drop the failed flush
-        return DOC_NOT_FOUND;
+        return KVStore::MutationStatus::DocNotFound;
     case rocksdb::Status::Code::kBusy:
         // This return value causes ep-engine to keep re-queueing the failed
         // flush
-        return MUTATION_FAILED;
+        return KVStore::MutationStatus::Failed;
     default:
         throw std::runtime_error(
                 std::string("getMutationStatus: RocksDB error:") +
@@ -619,22 +619,23 @@ void RocksDBKVStore::commitCallback(rocksdb::Status status,
         ++st.io_num_write;
         st.io_write_bytes += (key.size() + dataSize);
 
-        auto rv = getMutationStatus(status);
+        auto mutationStatus = getMutationStatus(status);
         if (request.isDelete()) {
             if (status.code()) {
                 ++st.numDelFailure;
             } else {
                 st.delTimeHisto.add(request.getDelta() / 1000);
             }
-            if (rv != -1) {
-                // TODO: Should set `rv` to 1 or 0 depending on if this is a
-                // delete to an existing (1) or non-existing (0) item. However,
-                // to achieve this we would need to perform a Get to RocksDB
-                // which is costly. For now just assume that the item did
-                // not exist.
-                rv = 0;
+            if (mutationStatus != MutationStatus::Failed) {
+                // TODO: Should set `mutationStatus` to Success or
+                // DocNotFound depending on if this is a delete to an existing
+                // (Success) or non-existing (DocNotFound) item.
+                // However, to achieve this we would need to perform a Get to
+                // RocksDB which is costly. For now just assume that the item
+                // did not exist.
+                mutationStatus = MutationStatus::DocNotFound;
             }
-            request.getDelCallback()(*transactionCtx, rv);
+            request.getDelCallback()(*transactionCtx, mutationStatus);
         } else {
             if (status.code()) {
                 ++st.numSetFailure;
@@ -643,12 +644,13 @@ void RocksDBKVStore::commitCallback(rocksdb::Status status,
                 st.writeSizeHisto.add(dataSize + key.size());
             }
             // TODO: Should set `mr.second` to true or false depending on if
-            // this is an insertion (true) or an update of an existing item
-            // (false). However, to achieve this we would need to perform a Get
-            // to RocksDB which is costly. For now just assume that the item
-            // did not exist.
-            mutation_result mr = std::make_pair(1, true);
-            request.getSetCallback()(*transactionCtx, mr);
+            // this is an insertion (MutationSetResultState::Insert) or an
+            // update of an existing item (MutationSetResultState::Update).
+            // However, to achieve this we would need to perform a Get to
+            // RocksDB which is costly. For now just assume that the item did
+            // not exist.
+            request.getSetCallback()(*transactionCtx,
+                                     MutationSetResultState::Insert);
         }
     }
 }

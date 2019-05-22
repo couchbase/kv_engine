@@ -101,13 +101,13 @@ private:
 };
 
 struct WriteCallback {
-    void operator()(TransactionContext, mutation_result) {
+    void operator()(TransactionContext, KVStore::MutationSetResultState) {
     }
 };
 
 struct DeleteCallback {
 public:
-    void operator()(TransactionContext&, int) {
+    void operator()(TransactionContext&, KVStore::MutationStatus) {
     }
 };
 
@@ -2079,27 +2079,32 @@ public:
     // Actual operator() methods which will be called by the storage layer.
     // GMock cannot mock these directly, so instead provide named 'callback'
     // methods which these functions call.
-    void operator()(TransactionContext& txCtx, mutation_result result) {
+    void operator()(TransactionContext& txCtx,
+                    KVStore::MutationSetResultState result) {
         callback(txCtx, result);
     }
-    void operator()(TransactionContext& txCtx, int value) {
+    void operator()(TransactionContext& txCtx, KVStore::MutationStatus value) {
         callback(txCtx, value);
     }
 
     // SET callback.
     virtual void callback(TransactionContext& txCtx,
-                          mutation_result& result) = 0;
+                          KVStore::MutationSetResultState& result) = 0;
 
     // DEL callback.
     // @param value number of items that the underlying storage has deleted
-    virtual void callback(TransactionContext& txCtx, int& result) = 0;
+    virtual void callback(TransactionContext& txCtx,
+                          KVStore::MutationStatus& result) = 0;
 };
 
 class MockPersistenceCallbacks : public PersistenceCallbacks {
 public:
     MOCK_METHOD2(callback,
-                 void(TransactionContext& txCtx, mutation_result& result));
-    MOCK_METHOD2(callback, void(TransactionContext& txCtx, int& value));
+                 void(TransactionContext& txCtx,
+                      KVStore::MutationSetResultState& result));
+    MOCK_METHOD2(callback,
+                 void(TransactionContext& txCtx,
+                      KVStore::MutationStatus& value));
 };
 
 void KVStoreParamTest::SetUp() {
@@ -2148,15 +2153,15 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
 
     // Expect that the SET callback will not be called just after `set`
     MockPersistenceCallbacks mpc;
-    mutation_result result = std::make_pair(1, true);
-    EXPECT_CALL(mpc, callback(_, result)).Times(0);
+    auto mutationStatus = KVStore::MutationSetResultState::Insert;
+    EXPECT_CALL(mpc, callback(_, mutationStatus)).Times(0);
 
     auto key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", 5);
     kvstore->set(item, std::ref(mpc));
 
     // Expect that the SET callback will be called once after `commit`
-    EXPECT_CALL(mpc, callback(_, result)).Times(1);
+    EXPECT_CALL(mpc, callback(_, mutationStatus)).Times(1);
 
     EXPECT_TRUE(kvstore->commit(flush));
 }
@@ -2180,14 +2185,14 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForDel) {
     kvstore->begin(std::make_unique<TransactionContext>());
 
     // Expect that the DEL callback will not be called just after `del`
-    int delCount = 1;
-    EXPECT_CALL(mpc, callback(_, delCount)).Times(0);
+    auto status = KVStore::MutationStatus::Success;
+    EXPECT_CALL(mpc, callback(_, status)).Times(0);
 
     item.setDeleted();
     kvstore->del(item, std::ref(mpc));
 
     // Expect that the DEL callback will be called once after `commit`
-    EXPECT_CALL(mpc, callback(_, delCount)).Times(1);
+    EXPECT_CALL(mpc, callback(_, status)).Times(1);
 
     EXPECT_TRUE(kvstore->commit(flush));
 }

@@ -3708,7 +3708,7 @@ TEST_F(SingleThreadedEPBucketTest, testRetainErroneousTombstones) {
     itm->setExpTime(0);
 
     struct DummyCallback {
-        void operator()(TransactionContext&, int) {
+        void operator()(TransactionContext&, KVStore::MutationStatus) {
         }
     } dc;
     kvstore->begin(std::make_unique<TransactionContext>());

@@ -15,9 +15,10 @@
  *   limitations under the License.
  */
 
+#include <fcntl.h>
+#include <folly/lang/Assume.h>
 #include <map>
 #include <string>
-#include <fcntl.h>
 
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
@@ -543,6 +544,32 @@ void KVStore::delSystemEvent(const Item& item, DeleteCallback cb) {
     }
     collectionsMeta.needsCommit = true;
     del(item, cb);
+}
+
+std::string to_string(KVStore::MutationStatus status) {
+    switch (status) {
+    case KVStore::MutationStatus::Success:
+        return "MutationStatus::Success";
+    case KVStore::MutationStatus::DocNotFound:
+        return "MutationStatus::DocNotFound";
+    case KVStore::MutationStatus::Failed:
+        return "MutationStatus::Failed";
+    }
+    folly::assume_unreachable();
+}
+
+std::string to_string(KVStore::MutationSetResultState status) {
+    switch (status) {
+    case KVStore::MutationSetResultState::DocNotFound:
+        return "MutationSetResultState::DocNotFound";
+    case KVStore::MutationSetResultState::Failed:
+        return "MutationSetResultState::Failed";
+    case KVStore::MutationSetResultState::Insert:
+        return "MutationSetResultState::Insert";
+    case KVStore::MutationSetResultState::Update:
+        return "MutationSetResultState::Update";
+    }
+    folly::assume_unreachable();
 }
 
 IORequest::IORequest(Vbid vbId, MutationRequestCallback cb, DiskDocKey itmKey)

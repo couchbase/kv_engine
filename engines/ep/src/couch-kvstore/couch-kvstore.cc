@@ -94,20 +94,20 @@ static void discoverDbFiles(const std::string &dir,
     }
 }
 
-static int getMutationStatus(couchstore_error_t errCode) {
+static KVStore::MutationStatus getMutationStatus(couchstore_error_t errCode) {
     switch (errCode) {
     case COUCHSTORE_SUCCESS:
-        return MUTATION_SUCCESS;
+        return KVStore::MutationStatus::Success;
     case COUCHSTORE_ERROR_NO_HEADER:
     case COUCHSTORE_ERROR_NO_SUCH_FILE:
     case COUCHSTORE_ERROR_DOC_NOT_FOUND:
         // this return causes ep engine to drop the failed flush
         // of an item since it does not know about the itme any longer
-        return DOC_NOT_FOUND;
+        return KVStore::MutationStatus::DocNotFound;
     default:
         // this return causes ep engine to keep requeuing the failed
         // flush of an item
-        return MUTATION_FAILED;
+        return KVStore::MutationStatus::Failed;
     }
 }
 
@@ -2202,13 +2202,19 @@ void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
         st.io_write_bytes += (keySize + dataSize);
 
         if (committed.isDelete()) {
-            int rv = getMutationStatus(errCode);
-            if (rv != -1) {
+            auto mutationStatus = getMutationStatus(errCode);
+            if (mutationStatus != MutationStatus::Failed) {
                 const auto& key = committed.getKey();
                 if (kvctx.keyStats[key]) {
-                    rv = 1; // Deletion is for an existing item on DB file.
+                    mutationStatus =
+                            MutationStatus::Success; // Deletion is for an
+                                                     // existing item on
+                                                     // DB file.
                 } else {
-                    rv = 0; // Deletion is for a non-existing item on DB file.
+                    mutationStatus =
+                            MutationStatus::DocNotFound; // Deletion is for a
+                                                         // non-existing item on
+                                                         // DB file.
                 }
             }
             if (errCode) {
@@ -2216,9 +2222,9 @@ void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
             } else {
                 st.delTimeHisto.add(committed.getDelta());
             }
-            committed.getDelCallback()(*transactionCtx, rv);
+            committed.getDelCallback()(*transactionCtx, mutationStatus);
         } else {
-            int rv = getMutationStatus(errCode);
+            auto mutationStatus = getMutationStatus(errCode);
             const auto& key = committed.getKey();
             bool insertion = !kvctx.keyStats[key];
             if (errCode) {
@@ -2227,8 +2233,18 @@ void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
                 st.writeTimeHisto.add(committed.getDelta());
                 st.writeSizeHisto.add(dataSize + keySize);
             }
-            mutation_result p(rv, insertion);
-            committed.getSetCallback()(*transactionCtx, p);
+
+            auto setState = MutationSetResultState::Failed;
+            if (mutationStatus == MutationStatus::Success) {
+                if (insertion) {
+                    setState = MutationSetResultState::Insert;
+                } else {
+                    setState = MutationSetResultState::Update;
+                }
+            } else if (mutationStatus == MutationStatus::DocNotFound) {
+                setState = MutationSetResultState::DocNotFound;
+            }
+            committed.getSetCallback()(*transactionCtx, setState);
         }
     }
 }

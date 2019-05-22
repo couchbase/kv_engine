@@ -29,10 +29,6 @@
 
 class KVStoreConfig;
 
-static const int MUTATION_FAILED = -1;
-static const int DOC_NOT_FOUND = 0;
-static const int MUTATION_SUCCESS = 1;
-
 /**
  * Callback for the mutation being performed.
  */

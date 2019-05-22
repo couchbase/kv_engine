@@ -685,8 +685,9 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
 
     // (1.2) Mimic flusher by running the PCB for the store at (1)
     EPTransactionContext tc1(global_stats, *vbucket);
-    auto mr1 = std::make_pair(1, true);
-    cb1(tc1, mr1); // Using the create/update callback
+    cb1(tc1,
+        KVStore::MutationSetResultState::Insert); // Using the create/update
+                                                  // callback
 
     EXPECT_EQ(1, vbucket->getNumItems());
 
@@ -706,8 +707,8 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
     EXPECT_EQ(MutationStatus::WasDirty, public_processSet(*qi, qi->getCas()));
 
     // (3.1) Run the PCB for the delete/expiry (2)
-    int value = 1;
-    cb1(tc1, value); // Using the delete callback
+    // Using the delete callback
+    cb1(tc1, KVStore::MutationStatus::Success);
 
     // In FE mode, getNumItems is tracking disk items, so we should have 0 disk
     // items until the 'flush' of the second store (3)
@@ -715,7 +716,9 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
 
     // (4) run the create/update PCB again, the store (3) should look like a
     // create because of the delete at (2)
-    cb1(tc1, mr1); // Using the create/update callback
+    cb1(tc1,
+        KVStore::MutationSetResultState::Insert); // Using the create/update
+                                                  // callback
 
     EXPECT_EQ(1, vbucket->getNumItems());
 }

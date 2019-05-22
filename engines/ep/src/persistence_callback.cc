@@ -28,12 +28,15 @@ PersistenceCallback::PersistenceCallback(const queued_item& qi, uint64_t c)
 PersistenceCallback::~PersistenceCallback() = default;
 
 // This callback is invoked for set only.
-void PersistenceCallback::operator()(TransactionContext& txCtx,
-                                     mutation_result value) {
+void PersistenceCallback::operator()(
+        TransactionContext& txCtx,
+        KVStore::MutationSetResultState mutationResult) {
     auto& epCtx = dynamic_cast<EPTransactionContext&>(txCtx);
     auto& vbucket = epCtx.vbucket;
 
-    if (value.first == 1) {
+    switch (mutationResult) {
+    case KVStore::MutationSetResultState::Insert:
+    case KVStore::MutationSetResultState::Update: {
         auto handle = vbucket.lockCollections(queuedItem->getKey());
         auto res = vbucket.fetchValidValue(
                 WantsDeleted::Yes,
@@ -48,7 +51,7 @@ void PersistenceCallback::operator()(TransactionContext& txCtx,
                 v->markClean();
             }
             if (v->isNewCacheItem()) {
-                if (value.second) {
+                if (mutationResult == KVStore::MutationSetResultState::Insert) {
                     // Insert in value-only or full eviction mode.
                     ++vbucket.opsCreate;
                     vbucket.incrNumTotalItems();
@@ -67,70 +70,71 @@ void PersistenceCallback::operator()(TransactionContext& txCtx,
         vbucket.doStatsForFlushing(*queuedItem, queuedItem->size());
         --epCtx.stats.diskQueueSize;
         epCtx.stats.totalPersisted++;
-    } else {
-        // If the return was 0 here, we're in a bad state because
-        // we do not know the rowid of this object.
-        if (value.first == 0) {
-            auto handle = vbucket.lockCollections(queuedItem->getKey());
-            auto res = vbucket.fetchValidValue(
-                    WantsDeleted::Yes,
-                    TrackReference::No,
-                    handle.valid() ? QueueExpired::Yes : QueueExpired::No,
-                    handle);
-            if (res.storedValue) {
-                EP_LOG_WARN(
-                        "PersistenceCallback::callback: Persisting on "
-                        "{}, seqno:{} returned 0 updates",
-                        queuedItem->getVBucketId(),
-                        res.storedValue->getBySeqno());
-            } else {
-                EP_LOG_WARN(
-                        "PersistenceCallback::callback: Error persisting, a key"
-                        "is missing from {}",
-                        queuedItem->getVBucketId());
-            }
-
-            vbucket.doStatsForFlushing(*queuedItem, queuedItem->size());
-            --epCtx.stats.diskQueueSize;
+        return;
+    }
+    case KVStore::MutationSetResultState::DocNotFound: {
+        auto handle = vbucket.lockCollections(queuedItem->getKey());
+        auto res = vbucket.fetchValidValue(
+                WantsDeleted::Yes,
+                TrackReference::No,
+                handle.valid() ? QueueExpired::Yes : QueueExpired::No,
+                handle);
+        if (res.storedValue) {
+            EP_LOG_WARN(
+                    "PersistenceCallback::callback: Persisting on "
+                    "{}, seqno:{} returned: {}",
+                    queuedItem->getVBucketId(),
+                    res.storedValue->getBySeqno(),
+                    to_string(mutationResult));
         } else {
             EP_LOG_WARN(
-                    "PersistenceCallback::callback: Fatal error in persisting "
-                    "SET on {}",
+                    "PersistenceCallback::callback: Error persisting, a key"
+                    "is missing from {}",
                     queuedItem->getVBucketId());
-            redirty(epCtx.stats, vbucket);
         }
+
+        vbucket.doStatsForFlushing(*queuedItem, queuedItem->size());
+        --epCtx.stats.diskQueueSize;
+        return;
     }
+    case KVStore::MutationSetResultState::Failed:
+        EP_LOG_WARN(
+                "PersistenceCallback::callback: Fatal error in persisting "
+                "SET on {}",
+                queuedItem->getVBucketId());
+        redirty(epCtx.stats, vbucket);
+        return;
+    }
+    folly::assume_unreachable();
 }
 
 // This callback is invoked for deletions only.
 //
 // The boolean indicates whether the underlying storage
 // successfully deleted the item.
-void PersistenceCallback::operator()(TransactionContext& txCtx, int value) {
+void PersistenceCallback::operator()(TransactionContext& txCtx,
+                                     KVStore::MutationStatus deleteStatus) {
     auto& epCtx = dynamic_cast<EPTransactionContext&>(txCtx);
     auto& vbucket = epCtx.vbucket;
 
-    // > 1 would be bad.  We were only trying to delete one row.
-    if (value > 1) {
-        throw std::logic_error(
-                "PersistenceCallback::callback: value "
-                "(which is " +
-                std::to_string(value) + ") should be <= 1 for deletions");
-    }
-    // -1 means fail
-    // 1 means we deleted one row
-    // 0 means we did not delete a row, but did not fail (did not exist)
-    if (value >= 0) {
+    switch (deleteStatus) {
+    case KVStore::MutationStatus::Success:
+    case KVStore::MutationStatus::DocNotFound: {
         // We have successfully removed an item from the disk, we
         // may now remove it from the hash table.
-        vbucket.deletedOnDiskCbk(*queuedItem, (value > 0));
-    } else {
+        bool deleted = deleteStatus == KVStore::MutationStatus::Success;
+        vbucket.deletedOnDiskCbk(*queuedItem, deleted);
+        return;
+    }
+    case KVStore::MutationStatus::Failed:
         EP_LOG_WARN(
                 "PersistenceCallback::callback: Fatal error in persisting "
                 "DELETE on {}",
                 queuedItem->getVBucketId());
         redirty(epCtx.stats, vbucket);
+        return;
     }
+    folly::assume_unreachable();
 }
 
 void PersistenceCallback::redirty(EPStats& stats, VBucket& vbucket) {
