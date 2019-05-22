@@ -780,7 +780,12 @@ MutationStatus HashTable::insertFromWarmup(const Item& itm,
                 return MutationStatus::InvalidCas;
             }
         }
-        Expects(unlocked_restoreValue(hbl.getHTLock(), itm, *v));
+
+        // CAS is equal - exact same item. Update the SV if it's not already
+        // resident.
+        if (!v->isResident()) {
+            Expects(unlocked_restoreValue(hbl.getHTLock(), itm, *v));
+        }
     }
 
     v->markClean();

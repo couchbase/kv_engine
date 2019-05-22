@@ -67,10 +67,11 @@ static int count(HashTable &h, bool verify=true) {
     return c.count;
 }
 
-static void store(HashTable &h, const StoredDocKey& k) {
+static Item store(HashTable& h, const StoredDocKey& k) {
     auto value = k.to_string();
     Item i(k, 0, 0, value.data(), value.size());
     EXPECT_EQ(MutationStatus::WasClean, h.set(i));
+    return i;
 }
 
 static void storeMany(HashTable &h, std::vector<StoredDocKey> &keys) {
@@ -1160,4 +1161,27 @@ TEST_F(HashTableTest, reallocateStoredValue) {
 
     // Check the empty hash-table returns false as well
     EXPECT_FALSE(ht3.reallocateStoredValue(std::forward<StoredValue>(*v2)));
+}
+
+// MB-33944: Test that calling HashTable::insertFromWarmup() doesn't fail
+// of the given key is already resident (for example if a BG load already
+// loaded it).
+TEST_F(HashTableTest, InsertFromWarmupAlreadyResident) {
+    // Setup - store a key into HashTable.
+    HashTable ht(global_stats, makeFactory(), 5, 1);
+    auto key = makeStoredDocKey("key");
+    auto item = store(ht, key);
+    {
+        // Sanity check - key should be resident.
+        auto res = ht.findForRead(key);
+        ASSERT_TRUE(res.storedValue);
+        ASSERT_TRUE(res.storedValue->isResident());
+    }
+
+    // Test - insertFromWarmup should succesfully skip (re)adding this item.
+    EXPECT_EQ(MutationStatus::NotFound,
+              ht.insertFromWarmup(item,
+                                  /*eject*/ false,
+                                  /*keyMetaOnly*/ false,
+                                  EvictionPolicy::Full));
 }
