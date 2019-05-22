@@ -19,6 +19,7 @@
 #include "bucket.h"
 #include "cluster.h"
 #include <event2/thread.h>
+#include <platform/dirutils.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <csignal>
@@ -60,7 +61,20 @@ TEST_F(BasicClusterTest, GetReplica) {
 char isasl_env_var[1024];
 int main(int argc, char** argv) {
     cb_initialize_sockets();
-    evthread_use_pthreads();
+
+#if defined(EVTHREAD_USE_WINDOWS_THREADS_IMPLEMENTED)
+    const auto failed = evthread_use_windows_threads() == -1;
+#elif defined(EVTHREAD_USE_PTHREADS_IMPLEMENTED)
+    const auto failed = evthread_use_pthreads() == -1;
+#else
+#error "No locking mechanism for libevent available!"
+#endif
+
+    if (failed) {
+        std::cerr << "Failed to enable libevent locking. Terminating program"
+                  << std::endl;
+        exit(EXIT_FAILURE);
+    }
 
     // We need to set MEMCACHED_UNIT_TESTS to enable the use of
     // the ewouldblock engine..
@@ -70,7 +84,7 @@ int main(int argc, char** argv) {
 
     std::string isasl_file_name = SOURCE_ROOT;
     isasl_file_name.append("/tests/testapp/cbsaslpw.json");
-    std::replace(isasl_file_name.begin(), isasl_file_name.end(), '\\', '/');
+    cb::io::sanitizePath(isasl_file_name);
 
     // Add the file to the exec environment
     snprintf(isasl_env_var,
@@ -79,11 +93,12 @@ int main(int argc, char** argv) {
              isasl_file_name.c_str());
     putenv(isasl_env_var);
 
+#ifndef WIN32
     if (sigignore(SIGPIPE) == -1) {
         std::cerr << "Fatal: failed to ignore SIGPIPE; sigaction" << std::endl;
         return 1;
     }
-
+#endif
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

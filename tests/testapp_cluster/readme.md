@@ -25,10 +25,4 @@ an authentication phase):
 ## Limitations
 
 * Can't move vbuckets around (rebalance)
-
-## Why we don't build for windows
-
-1. process startup and teardown (I didn't bother implement it as I don't
-   have the setup to test it right now. I'll spin up a VM later to fix it)
-2. Program path's (I've not sanitized them)
-
+* No support for CCCP bootstrapping (we should be able to do that)

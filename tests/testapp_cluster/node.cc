@@ -20,8 +20,10 @@
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
 #include <protocol/connection/client_connection_map.h>
+#ifndef WIN32
 #include <signal.h>
 #include <sys/wait.h>
+#endif
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -48,7 +50,11 @@ protected:
     void parsePortnumberFile();
 
     std::string configfile;
+#ifdef WIN32
+    mutable HANDLE child = INVALID_HANDLE_VALUE;
+#else
     mutable pid_t child = 0;
+#endif
     nlohmann::json config;
     ConnectionMap connectionMap;
     const std::string id;
@@ -62,6 +68,10 @@ NodeImpl::NodeImpl(std::string directory, std::string id)
     std::string rbac(SOURCE_ROOT);
     rbac.append("/tests/testapp/rbac.json");
     cb::io::sanitizePath(rbac);
+    std::string log_filename = NodeImpl::directory + "/memcached_log";
+    cb::io::sanitizePath(log_filename);
+    std::string portnumber_file = NodeImpl::directory + "/memcached.ports.json";
+    cb::io::sanitizePath(portnumber_file);
 
     config = {
             {"max_connections", 1000},
@@ -81,15 +91,23 @@ NodeImpl::NodeImpl(std::string directory, std::string id)
             {"logger",
              {{"unit_test", true},
               {"console", false},
-              {"filename", NodeImpl::directory + "/memcached_log"}}},
-            {"portnumber_file", NodeImpl::directory + "/memcached.ports.json"},
-            {"parent_identifier", (int)getpid()}};
+              {"filename", log_filename}}},
+            {"portnumber_file", portnumber_file},
+#ifdef WIN32
+            {"parent_identifier",
+             static_cast<pid_t>(reinterpret_cast<size_t>(GetCurrentProcess()))}
+#else
+            {"parent_identifier", (int)getpid()}
+#endif
+
+    };
     config["interfaces"][0] = {{"tag", "plain"},
                                {"system", true},
                                {"port", 0},
                                {"ipv4", "required"},
                                {"host", "*"}};
     configfile = NodeImpl::directory + "/memcached.json";
+    cb::io::sanitizePath(configfile);
     std::ofstream out(configfile);
     out << config.dump(2);
     out.close();
@@ -97,9 +115,29 @@ NodeImpl::NodeImpl(std::string directory, std::string id)
 
 void NodeImpl::startMemcachedServer() {
 #ifdef WIN32
-    throw std::runtime_error("Not implemented yet");
-#endif
+    STARTUPINFO sinfo{};
+    PROCESS_INFORMATION pinfo{};
+    sinfo.cb = sizeof(sinfo);
 
+    char commandline[1024];
+    sprintf(commandline, "memcached.exe -C %s", configfile.c_str());
+    if (!CreateProcess("memcached.exe", // lpApplicationName
+                       commandline, // lpCommandLine
+                       nullptr, // lpProcessAttributes
+                       nullptr, // lpThreadAttributes
+                       false, // bInheritHandles
+                       0, // dwCreationFlags
+                       nullptr, // lpEnvironment
+                       nullptr, // lpCurrentDirectory
+                       &sinfo, // lpStartupInfo
+                       &pinfo)) { // lpProcessInfoqrmation
+        throw std::system_error(GetLastError(),
+                                std::system_category(),
+                                "Failed to execute memcached");
+    }
+
+    child = pinfo.hProcess;
+#else
     child = fork();
     if (child == -1) {
         throw std::system_error(
@@ -107,9 +145,6 @@ void NodeImpl::startMemcachedServer() {
     }
 
     if (child == 0) {
-        // child
-        // putenv(mcd_port_filename_env);
-
         std::string binary(OBJECT_ROOT);
         binary.append("/memcached");
 
@@ -125,6 +160,7 @@ void NodeImpl::startMemcachedServer() {
         throw std::system_error(
                 errno, std::system_category(), "Failed to execute memcached");
     }
+#endif
 
     // wait and read the portnumber file
     parsePortnumberFile();
@@ -132,6 +168,13 @@ void NodeImpl::startMemcachedServer() {
 
 NodeImpl::~NodeImpl() {
     if (isRunning()) {
+#ifdef WIN32
+        // @todo This should be made a bit more robust
+        TerminateProcess(child, 0);
+        WaitForSingleObject(child, 60000);
+        DWORD status;
+        GetExitCodeProcess(child, &status);
+#else
         // Start by giving it a slow and easy start...
         const auto timeout =
                 std::chrono::steady_clock::now() + std::chrono::seconds(15);
@@ -156,6 +199,7 @@ NodeImpl::~NodeImpl() {
                 break;
             }
         }
+#endif
     }
 
     if (!configfile.empty()) {
@@ -187,9 +231,35 @@ void NodeImpl::parsePortnumberFile() {
 
     connectionMap.initialize(
             nlohmann::json::parse(cb::io::loadFile(config["portnumber_file"])));
-    //    cb::io::rmrf(config["portnumber_file"]);
+    cb::io::rmrf(config["portnumber_file"]);
 }
 
+#ifdef WIN32
+bool NodeImpl::isRunning() const {
+    if (child != INVALID_HANDLE_VALUE) {
+        DWORD status;
+
+        if (!GetExitCodeProcess(child, &status)) {
+            throw std::system_error(
+                    GetLastError(),
+                    std::system_category(),
+                    "NodeImpl::isRunning: GetExitCodeProcess failed");
+
+            std::cerr << "GetExitCodeProcess: failed: " << cb_strerror()
+                      << std::endl;
+            exit(EXIT_FAILURE);
+        }
+
+        if (status == STILL_ACTIVE) {
+            return true;
+        }
+
+        CloseHandle(child);
+        child = INVALID_HANDLE_VALUE;
+    }
+    return false;
+}
+#else
 bool NodeImpl::isRunning() const {
     if (child != 0) {
         int status;
@@ -210,6 +280,7 @@ bool NodeImpl::isRunning() const {
 
     return false;
 }
+#endif
 
 std::unique_ptr<MemcachedConnection> NodeImpl::getConnection() {
     auto ret = connectionMap.getConnection().clone();

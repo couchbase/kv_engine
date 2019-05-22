@@ -121,10 +121,13 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
             auto connection = nodes[node_idx]->getConnection();
             connection->connect();
             connection->authenticate("@admin", "password", "plain");
-            json["dbname"] = nodes[node_idx]->directory + "/" + name;
+            std::string fname = nodes[node_idx]->directory + "/" + name;
+            cb::io::sanitizePath(fname);
+            json["dbname"] = fname;
             cb::io::mkdirp(json["dbname"].get<std::string>());
-            json["alog_path"] =
-                    json["dbname"].get<std::string>() + "/access.log";
+            fname = json["dbname"].get<std::string>() + "/access.log";
+            cb::io::sanitizePath(fname);
+            json["alog_path"] = fname;
             std::string config;
             for (auto it = json.begin(); it != json.end(); ++it) {
                 if (it.value().is_string()) {
@@ -174,7 +177,7 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
             connection->authenticate("@admin", "password", "plain");
             try {
                 connection->deleteBucket(name);
-            } catch (const std::exception& e) {
+            } catch (const std::exception&) {
             }
         }
     }
@@ -202,8 +205,8 @@ std::unique_ptr<Cluster> Cluster::create(size_t num_nodes) {
     std::vector<std::unique_ptr<Node>> nodes;
     for (size_t n = 0; n < num_nodes; ++n) {
         const std::string id = "n_" + std::to_string(n);
-        const std::string nodedir = clusterdir + "/" + id;
-
+        std::string nodedir = clusterdir + "/" + id;
+        cb::io::sanitizePath(nodedir);
         cb::io::mkdirp(nodedir);
         nodes.emplace_back(Node::create(nodedir, id));
     }
