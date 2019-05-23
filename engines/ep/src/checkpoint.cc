@@ -347,8 +347,9 @@ CheckpointQueue Checkpoint::expelItems(
 std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
     os << "Checkpoint[" << &c << "] with"
        << " seqno:{" << c.getLowSeqno() << "," << c.getHighSeqno() << "}"
-       << " state:" << to_string(c.getState())
-       << " items:[" << std::endl;
+       << " snap:{" << c.getSnapshotStartSeqno() << ","
+       << c.getSnapshotEndSeqno() << "}"
+       << " state:" << to_string(c.getState()) << " items:[" << std::endl;
     for (const auto& e : c.toWrite) {
         os << "\t{" << e->getBySeqno() << "," << to_string(e->getOperation());
         e->isDeleted() ? os << "[d]," : os << ",";

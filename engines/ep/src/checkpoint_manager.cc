@@ -823,16 +823,16 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     if (!cursorPtr) {
         EP_LOG_WARN("getAllItemsForCursor(): Caller had a null cursor {}",
                     vbucketId);
-        return {};
+        return {0, 0};
     }
 
     auto& cursor = *cursorPtr;
 
     // Fetch whole checkpoints; as long as we don't exceed the approx item
     // limit.
-    ItemsForCursor result;
-    result.range.start = (*cursor.currentCheckpoint)->getSnapshotStartSeqno();
-    result.range.end = (*cursor.currentCheckpoint)->getSnapshotEndSeqno();
+    ItemsForCursor result((*cursor.currentCheckpoint)->getSnapshotStartSeqno(),
+                          (*cursor.currentCheckpoint)->getSnapshotEndSeqno());
+
     size_t itemCount = 0;
     while ((result.moreAvailable = incrCursor(cursor))) {
         queued_item& qi = *(cursor.currentPos);
@@ -1099,10 +1099,9 @@ snapshot_info_t CheckpointManager::getSnapshotInfo() {
 
     const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
 
-    snapshot_info_t info;
-    info.range.start = openCkpt.getSnapshotStartSeqno();
-    info.start = lastBySeqno;
-    info.range.end = openCkpt.getSnapshotEndSeqno();
+    snapshot_info_t info(
+            lastBySeqno,
+            {openCkpt.getSnapshotStartSeqno(), openCkpt.getSnapshotEndSeqno()});
 
     // If there are no items in the open checkpoint then we need to resume by
     // using that sequence numbers of the last closed snapshot. The exception is

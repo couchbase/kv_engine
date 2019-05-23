@@ -58,9 +58,9 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
                               global_stats,
                               checkpoint_config,
                               /*kvshard*/ nullptr,
-                              /*lastSeqno*/ 0,
-                              /*lastSnapStart*/ 0,
-                              /*lastSnapEnd*/ 0,
+                              lastSeqno,
+                              range.start,
+                              range.end,
                               /*table*/ nullptr,
                               /*flusher callback*/ nullptr,
                               /*newSeqnoCb*/ nullptr,
@@ -76,9 +76,9 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
                                                global_stats,
                                                checkpoint_config,
                                                /*kvshard*/ nullptr,
-                                               /*lastSeqno*/ 0,
-                                               /*lastSnapStart*/ 0,
-                                               /*lastSnapEnd*/ 0,
+                                               lastSeqno,
+                                               range.start,
+                                               range.end,
                                                /*table*/ nullptr,
                                                /*newSeqnoCb*/ nullptr,
                                                TracedSyncWriteCompleteCb,
@@ -92,9 +92,9 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
             global_stats,
             Vbid(0),
             checkpoint_config,
-            0,
-            0,
-            0,
+            lastSeqno,
+            range.start,
+            range.end,
             /*flusher callback*/ nullptr);
 
     cookie = create_mock_cookie();
@@ -510,6 +510,8 @@ TEST_P(VBucketTest, GetItemsForCursor_Limit) {
     EXPECT_STREQ("1", result.items[1]->getKey().c_str());
     EXPECT_STREQ("2", result.items[2]->getKey().c_str());
     EXPECT_TRUE(result.items[3]->isCheckPointMetaItem());
+    EXPECT_EQ(range.start, result.range.start);
+    EXPECT_EQ(range.end + 2, result.range.end);
 
     // Asking for 5 items should give us all items in second checkpoint and
     // third checkpoint - 7 total
@@ -524,6 +526,8 @@ TEST_P(VBucketTest, GetItemsForCursor_Limit) {
     EXPECT_TRUE(result.items[4]->isCheckPointMetaItem());
     EXPECT_STREQ("5", result.items[5]->getKey().c_str());
     EXPECT_STREQ("6", result.items[6]->getKey().c_str());
+    EXPECT_EQ(range.end + 2, result.range.start);
+    EXPECT_EQ(range.end + 6, result.range.end);
 }
 
 // Check that getItemsToPersist() can correctly impose a limit on items fetched.
@@ -541,7 +545,8 @@ TEST_P(VBucketTest, GetItemsToPersist_Limit) {
 
     // Add 2 items to checkpoint manager (in addition to initial
     // checkpoint_start).
-    auto keys = generateKeys(2, 5);
+    const int itemsToGenerate = 2;
+    auto keys = generateKeys(itemsToGenerate, 5);
     setMany(keys, MutationStatus::WasClean);
 
     // Test - fetch items in chunks spanning the different item sources.
@@ -551,12 +556,16 @@ TEST_P(VBucketTest, GetItemsToPersist_Limit) {
     EXPECT_TRUE(result.moreAvailable);
     EXPECT_EQ(1, result.items.size());
     EXPECT_STREQ("1", result.items[0]->getKey().c_str());
+    EXPECT_EQ(range.start, result.range.start);
+    EXPECT_EQ(range.end + itemsToGenerate, result.range.end);
 
     result = this->vbucket->getItemsToPersist(2);
     EXPECT_TRUE(result.moreAvailable);
     EXPECT_EQ(2, result.items.size());
     EXPECT_STREQ("2", result.items[0]->getKey().c_str());
     EXPECT_STREQ("3", result.items[1]->getKey().c_str());
+    EXPECT_EQ(range.start, result.range.start);
+    EXPECT_EQ(range.end + itemsToGenerate, result.range.end);
 
     // Next call should read 1 item from backfill; and *all* items from
     // checkpoint (even through we only asked for 2 total), as it is not valid
@@ -568,6 +577,8 @@ TEST_P(VBucketTest, GetItemsToPersist_Limit) {
     EXPECT_TRUE(result.items[1]->isCheckPointMetaItem());
     EXPECT_STREQ("5", result.items[2]->getKey().c_str());
     EXPECT_STREQ("6", result.items[3]->getKey().c_str());
+    EXPECT_EQ(range.start, result.range.start);
+    EXPECT_EQ(range.end + itemsToGenerate, result.range.end);
 }
 
 // Check that getItemsToPersist() correctly returns `moreAvailable` if we

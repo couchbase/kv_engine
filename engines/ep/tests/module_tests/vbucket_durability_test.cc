@@ -53,7 +53,7 @@ void VBucketDurabilityTest::storeSyncWrites(
     // @todo: For now this function is supposed to be called once per test,
     //     expand if necessary
     ht->clear();
-    ckptMgr->clear(*vbucket, ckptMgr->getHighSeqno());
+    ckptMgr->clear(*vbucket, 0);
 
     // In general we need to test SyncWrites at sparse seqnos. To achieve that
     // we have 2 options (e.g., if we want to add SyncWrites with seqnos
@@ -85,7 +85,6 @@ void VBucketDurabilityTest::storeSyncWrites(
         VBQueueItemCtx ctx;
         ctx.genBySeqno = GenerateBySeqno::No;
         ctx.durability = DurabilityItemCtx{item->getDurabilityReqs(), cookie};
-
         ASSERT_EQ(MutationStatus::WasClean,
                   public_processSet(*item, 0 /*cas*/, ctx));
     }
@@ -586,7 +585,7 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbort) {
     // Visible at read
     const auto* sv = ht->findForRead(nonPendingKey).storedValue;
     ASSERT_TRUE(sv);
-    const int64_t bySeqno = 1;
+    const int64_t bySeqno = 1001;
     ASSERT_EQ(bySeqno, sv->getBySeqno());
     EXPECT_EQ(ENGINE_EINVAL,
               vbucket->abort(nonPendingKey,

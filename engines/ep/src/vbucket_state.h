@@ -103,6 +103,12 @@ struct vbucket_state {
      * First GA'd in 6.5
      */
     nlohmann::json replicationTopology;
+
+    /**
+     * We started storing the version in 5.5.4-MP, 6.0.2 and mad-hatter, added
+     * with MB-34173.
+     */
+    int version = 2;
 };
 
 /// Method to allow nlohmann::json to convert vbucket_state to JSON.
