@@ -228,8 +228,10 @@ void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
         runNextTask(lpAuxioQ);
         // backfill:complete()
         runNextTask(lpAuxioQ);
-        // backfill:finished()
-        runNextTask(lpAuxioQ);
+        if (engine->getConfiguration().getBucketType() == "persistent") {
+            // backfill:finished()
+            runNextTask(lpAuxioQ);
+        }
     }
 
     // Next step which will process a snapshot marker and then the caller
@@ -1768,15 +1770,17 @@ TEST_F(SingleThreadedEPBucketTest, MB_29861) {
 }
 
 /*
- * Test that the DCP processor returns a 'yield' return code when
- * working on a large enough buffer size.
+ * Test that the consumer will use the delete time given
  */
-TEST_F(SingleThreadedEPBucketTest, MB_27457) {
+TEST_P(STParameterizedBucketTest, MB_27457) {
     // We need a replica VB
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
     // Create a MockDcpConsumer
     auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "test");
+
+    // Bump forwards so ep_current_time cannot be 0
+    TimeTraveller biff(64000);
 
     // Add the stream
     EXPECT_EQ(ENGINE_SUCCESS,
@@ -1794,26 +1798,25 @@ TEST_F(SingleThreadedEPBucketTest, MB_27457) {
                          /*values*/ {},
                          /*priv_bytes*/ 0,
                          /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
-                         /*cas*/ 0,
+                         /*cas*/ 1,
                          /*vbucket*/ vbid,
                          /*bySeqno*/ 1,
                          /*revSeqno*/ 0,
                          /*deleteTime*/ 0);
 
-    const uint32_t deleteTime = 10;
+    const uint32_t deleteTime = 1958601165;
     consumer->deletionV2(/*opaque*/ 1,
                          {"key2", DocNamespace::DefaultCollection},
                          /*value*/ {},
                          /*priv_bytes*/ 0,
                          /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
-                         /*cas*/ 0,
+                         /*cas*/ 2,
                          /*vbucket*/ vbid,
                          /*bySeqno*/ 2,
                          /*revSeqno*/ 0,
                          deleteTime);
 
-    EXPECT_EQ(std::make_pair(false, size_t(2)),
-              getEPBucket().flushVBucket(vbid));
+    flushVBucketToDiskIfPersistent(vbid, 2);
 
     // Drop the stream
     consumer->closeStream(/*opaque*/ 0, vbid);
@@ -1823,48 +1826,85 @@ TEST_F(SingleThreadedEPBucketTest, MB_27457) {
     ItemMetaData metadata;
     uint32_t deleted = 0;
     uint8_t datatype = 0;
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
-              store->getMetaData(makeStoredDocKey("key1"),
-                                 vbid,
-                                 cookie,
-                                 metadata,
-                                 deleted,
-                                 datatype));
+    uint64_t tombstoneTime;
+    if (persistent()) {
+        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+                  store->getMetaData(makeStoredDocKey("key1"),
+                                     vbid,
+                                     cookie,
+                                     metadata,
+                                     deleted,
+                                     datatype));
 
-    // Manually run the bgfetch task.
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
-    EXPECT_EQ(ENGINE_SUCCESS,
-              store->getMetaData(makeStoredDocKey("key1"),
-                                 vbid,
-                                 cookie,
-                                 metadata,
-                                 deleted,
-                                 datatype));
+        // Manually run the bgfetch task.
+        MockGlobalTask mockTask(engine->getTaskable(),
+                                TaskId::MultiBGFetcherTask);
+        store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  store->getMetaData(makeStoredDocKey("key1"),
+                                     vbid,
+                                     cookie,
+                                     metadata,
+                                     deleted,
+                                     datatype));
+        tombstoneTime = uint64_t(metadata.exptime);
+    } else {
+        //  Ephemeral tombstone time is not in the expiry field, we can only
+        // check the value by directly peeking at the StoredValue
+        auto vb = store->getVBucket(vbid);
+        auto* sv = vb->ht.find({"key1", DocNamespace::DefaultCollection},
+                               TrackReference::No,
+                               WantsDeleted::Yes);
+        ASSERT_NE(nullptr, sv);
+        deleted = sv->isDeleted();
+        tombstoneTime = uint64_t(sv->toOrderedStoredValue()->getDeletedTime());
+    }
+
     EXPECT_EQ(1, deleted);
     EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, datatype);
-    EXPECT_NE(0, metadata.exptime); // A locally created deleteTime
+    EXPECT_GE(tombstoneTime, biff.get())
+            << "Expected a tombstone to have been set which is equal or "
+               "greater than our time traveller jump";
 
     deleted = 0;
     datatype = 0;
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
-              store->getMetaData(makeStoredDocKey("key2"),
-                                 vbid,
-                                 cookie,
-                                 metadata,
-                                 deleted,
-                                 datatype));
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
-    EXPECT_EQ(ENGINE_SUCCESS,
-              store->getMetaData(makeStoredDocKey("key2"),
-                                 vbid,
-                                 cookie,
-                                 metadata,
-                                 deleted,
-                                 datatype));
+    if (persistent()) {
+        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+                  store->getMetaData(makeStoredDocKey("key2"),
+                                     vbid,
+                                     cookie,
+                                     metadata,
+                                     deleted,
+                                     datatype));
+        // Manually run the bgfetch task.
+        MockGlobalTask mockTask(engine->getTaskable(),
+                                TaskId::MultiBGFetcherTask);
+        store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  store->getMetaData(makeStoredDocKey("key2"),
+                                     vbid,
+                                     cookie,
+                                     metadata,
+                                     deleted,
+                                     datatype));
+
+        tombstoneTime = uint64_t(metadata.exptime);
+    } else {
+        auto vb = store->getVBucket(vbid);
+        auto* sv = vb->ht.find({"key2", DocNamespace::DefaultCollection},
+                               TrackReference::No,
+                               WantsDeleted::Yes);
+        ASSERT_NE(nullptr, sv);
+        deleted = sv->isDeleted();
+        tombstoneTime =
+                ep_abs_time((sv->toOrderedStoredValue()->getDeletedTime()));
+    }
     EXPECT_EQ(1, deleted);
     EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, datatype);
-    EXPECT_EQ(deleteTime, metadata.exptime); // Our replicated deleteTime!
+    EXPECT_EQ(deleteTime, tombstoneTime)
+            << "key2 did not have our replicated deleteTime:" << deleteTime;
 }
 
 /*
@@ -2694,15 +2734,16 @@ TEST_F(SingleThreadedEPBucketTest, CreatedItemFreqDecayerTask) {
 
 extern uint32_t dcp_last_delete_time;
 extern std::string dcp_last_key;
-// Combine warmup and DCP so we can check deleteTimes come back from disk
-TEST_F(WarmupTest, produce_delete_times) {
+TEST_P(STParameterizedBucketTest, produce_delete_times) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto t1 = ep_real_time();
     storeAndDeleteItem(
             vbid, {"KEY1", DocNamespace::DefaultCollection}, "value");
     auto t2 = ep_real_time();
-    // Now warmup to ensure that DCP will have to go to disk.
-    resetEngineAndWarmup();
+
+    // Clear checkpoint so DCP will goto backfill
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    vb->checkpointManager->clear(*vb, 2);
 
     auto cookie = create_mock_cookie();
     auto producer =

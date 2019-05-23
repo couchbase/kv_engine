@@ -87,6 +87,10 @@ public:
         mock_time_travel(-by);
     }
 
+    int get() const {
+        return by;
+    }
+
 private:
     // Amount of time travel.
     int by;

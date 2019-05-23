@@ -20,6 +20,7 @@
 #include "dcp/backfill_memory.h"
 #include "dcp/stream.h"
 #include "ep_engine.h"
+#include "ep_time.h"
 #include "ephemeral_vb.h"
 #include "seqlist.h"
 
@@ -294,6 +295,12 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
             // before calling StoredValue::toItem
             auto hbl = evb->ht.getLockedBucket((*rangeItr).getKey());
             item = (*rangeItr).toItem(false, getVBucketId());
+            // A deleted ephemeral item stores the delete time under a delete
+            // time field, this must be copied to the expiry time so that DCP
+            // can transmit the original time of deletion
+            if (item->isDeleted()) {
+                item->setExpTime(ep_abs_time((*rangeItr).getDeletedTime()));
+            }
         } catch (const std::bad_alloc&) {
             stream->log(EXTENSION_LOG_WARNING,
                         "Alloc error when trying to create an "

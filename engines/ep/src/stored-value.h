@@ -958,6 +958,11 @@ public:
      */
     rel_time_t getDeletedTime() const;
 
+    /**
+     * Set the time the item was deleted to the specified time.
+     */
+    void setDeletedTime(rel_time_t time);
+
 protected:
     SerialisedDocKey* key() {
         return reinterpret_cast<SerialisedDocKey*>(this + 1);
@@ -975,11 +980,6 @@ protected:
      *  setValue()).
      */
     void setValueImpl(const Item& itm);
-
-    /**
-     * Set the time the item was deleted to the specified time.
-     */
-    inline void setDeletedTime(rel_time_t time);
 
 private:
     // Constructor. Private, as needs to be carefully created via
