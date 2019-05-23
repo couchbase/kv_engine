@@ -33,32 +33,39 @@ void PersistenceCallback::operator()(
         KVStore::MutationSetResultState mutationResult) {
     auto& epCtx = dynamic_cast<EPTransactionContext&>(txCtx);
     auto& vbucket = epCtx.vbucket;
+    bool isInHashTable = false;
+    int64_t hashTableSeqno = -1;
 
-    switch (mutationResult) {
-    case KVStore::MutationSetResultState::Insert:
-    case KVStore::MutationSetResultState::Update: {
-        auto handle = vbucket.lockCollections(queuedItem->getKey());
-        auto res = vbucket.fetchValidValue(
-                WantsDeleted::Yes,
-                TrackReference::No,
-                handle.valid() ? QueueExpired::Yes : QueueExpired::No,
-                handle);
+    { // scope for hashtable lock
+        const auto& key = queuedItem->getKey();
+        auto res = queuedItem->isPending() ? vbucket.ht.findOnlyPrepared(key)
+                                           : vbucket.ht.findOnlyCommitted(key);
+
         auto* v = res.storedValue;
         if (v) {
+            isInHashTable = true;
+            hashTableSeqno = v->getBySeqno();
             if (v->getCas() == cas) {
                 // mark this item clean only if current and stored cas
                 // value match
                 v->markClean();
             }
-            if (mutationResult == KVStore::MutationSetResultState::Insert) {
-                // Insert in value-only or full eviction mode.
-                ++vbucket.opsCreate;
-                vbucket.incrNumTotalItems();
-                vbucket.incrMetaDataDisk(*queuedItem);
-            } else {
-                // Update in value-only or full eviction mode.
-                ++vbucket.opsUpdate;
-            }
+        }
+    } // end of hashtable lock scope
+
+    switch (mutationResult) {
+    case KVStore::MutationSetResultState::Insert: {
+        // Only increment on disk count if this value is in the hash table
+        // or if the mutation wasn't committed but is an insertion and we
+        // didn't find an a valid value for it. Then it must be the first
+        // time we're writing a prepare for this key to disk. Thus, treat it
+        // as a create.
+        // This make sure we don't increment for sets that have been performed
+        // for collection manifests
+        if (isInHashTable || queuedItem->isPending()) {
+            ++vbucket.opsCreate;
+            vbucket.incrNumTotalItems();
+            vbucket.incrMetaDataDisk(*queuedItem);
         }
 
         vbucket.doStatsForFlushing(*queuedItem, queuedItem->size());
@@ -66,19 +73,22 @@ void PersistenceCallback::operator()(
         epCtx.stats.totalPersisted++;
         return;
     }
+    case KVStore::MutationSetResultState::Update: {
+        // Update in value-only or full eviction mode.
+        ++vbucket.opsUpdate;
+
+        vbucket.doStatsForFlushing(*queuedItem, queuedItem->size());
+        --epCtx.stats.diskQueueSize;
+        epCtx.stats.totalPersisted++;
+        return;
+    }
     case KVStore::MutationSetResultState::DocNotFound: {
-        auto handle = vbucket.lockCollections(queuedItem->getKey());
-        auto res = vbucket.fetchValidValue(
-                WantsDeleted::Yes,
-                TrackReference::No,
-                handle.valid() ? QueueExpired::Yes : QueueExpired::No,
-                handle);
-        if (res.storedValue) {
+        if (isInHashTable) {
             EP_LOG_WARN(
                     "PersistenceCallback::callback: Persisting on "
                     "{}, seqno:{} returned: {}",
                     queuedItem->getVBucketId(),
-                    res.storedValue->getBySeqno(),
+                    hashTableSeqno,
                     to_string(mutationResult));
         } else {
             EP_LOG_WARN(

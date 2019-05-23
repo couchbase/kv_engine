@@ -2002,7 +2002,7 @@ bool CouchKVStore::commit2couchstore(Collections::VB::Flush& collectionsFlush) {
 static void saveDocsCallback(const DocInfo* oldInfo,
                              const DocInfo* newInfo,
                              void* context) {
-    kvstats_ctx* cbCtx = static_cast<kvstats_ctx*>(context);
+    auto* cbCtx = static_cast<kvstats_ctx*>(context);
 
     if (!newInfo) {
         // Should this even happen?

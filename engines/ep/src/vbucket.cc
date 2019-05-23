@@ -2729,12 +2729,9 @@ GetValue VBucket::getLocked(
 }
 
 void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
-    auto handle = manifest->lock(queuedItem.getKey());
-    auto res = fetchValidValue(
-            WantsDeleted::Yes,
-            TrackReference::No,
-            handle.valid() ? QueueExpired::Yes : QueueExpired::No,
-            handle);
+    const auto& key = queuedItem.getKey();
+    auto res = queuedItem.isPending() ? ht.findOnlyPrepared(key)
+                                      : ht.findOnlyCommitted(key);
     auto* v = res.storedValue;
 
     // Delete the item in the hash table iff:

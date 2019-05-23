@@ -61,6 +61,109 @@ protected:
      *                 state alive).
      */
     void testPersistPrepareAbortX2(DocumentState docState);
+
+    /**
+     * Method to verify that a document of a given key is delete
+     * @param vb the vbucket that should contain the deleted document
+     * @param key the key of the document that should have been delete
+     */
+    void verifyDocumentIsDelete(VBucket& vb, StoredDocKey key);
+
+    /**
+     * Method to verify that a document is present in a vbucket
+     * @param vb the vbucket that should contain the stored document
+     * @param key the key of the stored document
+     */
+    void verifyDocumentIsStored(VBucket& vb, StoredDocKey key);
+
+    /**
+     * Method to create a SyncWrite by calling store, check the on disk
+     * item count and collection count after calling the store
+     * @param vb vbucket to perform the prepare SyncWrite to
+     * @param pendingItem the new mutation that should be written to disk
+     * @param expectedDiskCount expected number of items on disk after the
+     * call to store
+     * @param expectedCollectedCount expected number of items in the default
+     * collection after the call to store
+     */
+    void performPrepareSyncWrite(VBucket& vb,
+                                 queued_item pendingItem,
+                                 uint64_t expectedDiskCount,
+                                 uint64_t expectedCollectedCount);
+
+    /**
+     * Method to create a SyncDelete by calling delete on the vbucket, check
+     * the on disk item count and collection count after calling the store
+     * @param vb vbucket to perform the prepare SyncDelete to
+     * @param key of the document to be deleted
+     * @param expectedDiskCount expected number of items on disk after the
+     * call to delete
+     * @param expectedCollectedCount expected number of items in the default
+     * collection after the call to delete
+     */
+    void performPrepareSyncDelete(VBucket& vb,
+                                  StoredDocKey key,
+                                  uint64_t expectedDiskCount,
+                                  uint64_t expectedCollectedCount);
+
+    /**
+     * Method to perform a commit of a mutation for a given key and
+     * check the on disk item count afterwards.
+     * @param vb vbucket to perform the commit to
+     * @param key StoredDockKey that we should be committing
+     * @param expectedDiskCount expected number of items on disk after the
+     * commit
+     * @param expectedCollectedCount expected number of items in the default
+     * collection after the commit
+     */
+    void performCommitForKey(VBucket& vb,
+                             StoredDocKey key,
+                             uint64_t expectedDiskCount,
+                             uint64_t expectedCollectedCount);
+
+    /**
+     * Method to perform an end to end SyncWrite by creating an document of
+     * keyName with the value value and then performing a flush of the
+     * prepare and committed mutations.
+     * @param vb vbucket to perform the SyncWrite on
+     * @param keyName name of the key to perform a SyncWrite too
+     * @param value that should be written to the key
+     */
+    void testCommittedSyncWriteFlushAfterCommit(VBucket& vb,
+                                                std::string keyName,
+                                                std::string value);
+
+    /**
+     * Method to perform an end to end SyncDelete for the document with the key
+     * keyName. We also flush the prepare and commit of the SyncDelete to disk
+     * and then check that the value has been written to disk.
+     * prepare and committed mutations.
+     * @param vb vbucket to perform the SyncDelete on
+     * @param keyName the name of the key to delete
+     */
+    void testSyncDeleteFlushAfterCommit(VBucket& vb, std::string keyName);
+
+    /**
+     * Method to verify a vbucket's on disk item count
+     * @param vb VBucket reference that stores the on disk count that we want
+     * to assert
+     * @param expectedValue The value of the on disk item count that expect the
+     * counter to be.
+     */
+    void verifyOnDiskItemCount(VBucket& vb, uint64_t expectedValue);
+
+    /**
+     * Method to verify collection's item count
+     * @param vb VBucket reference that stores the on disk count that we want
+     * to assert
+     * @param cID The CollectionID of the collection that contains the on disk
+     * count that we want to assert against the expectedValue
+     * @param expectedValue The value of the on disk item count that expect the
+     * counter to be.
+     */
+    void verifyCollectionItemCount(VBucket& vb,
+                                   CollectionID cID,
+                                   uint64_t expectedValue);
 };
 
 class DurabilityBucketTest : public STParameterizedBucketTest {
@@ -579,6 +682,499 @@ TEST_P(DurabilityBucketTest, SyncWriteDelete) {
 
     ASSERT_EQ(3, ckptList.size());
     ASSERT_EQ(1, ckptList.back()->getNumItems());
+}
+
+void DurabilityEPBucketTest::verifyOnDiskItemCount(VBucket& vb,
+                                                   uint64_t expectedValue) {
+    // skip for rocksdb as it treats every mutation as an insertion
+    // and so we would expect a different item count compared with couchstore
+    auto bucketType = std::get<0>(GetParam());
+    if (bucketType == "persistentRocksdb") {
+        return;
+    }
+    EXPECT_EQ(expectedValue, vb.getNumTotalItems());
+}
+
+void DurabilityEPBucketTest::verifyCollectionItemCount(VBucket& vb,
+                                                       CollectionID cID,
+                                                       uint64_t expectedValue) {
+    // skip for rocksdb as it dose not perform item counting for collections
+    auto bucketType = std::get<0>(GetParam());
+    if (bucketType == "persistentRocksdb") {
+        return;
+    }
+    {
+        auto rh = vb.lockCollections();
+        EXPECT_EQ(expectedValue, rh.getItemCount(cID));
+    }
+}
+
+void DurabilityEPBucketTest::verifyDocumentIsStored(VBucket& vb,
+                                                    StoredDocKey key) {
+    auto* store = vb.getShard()->getROUnderlying();
+    auto gv = store->get(DiskDocKey(key), Vbid(0));
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_FALSE(gv.item->isDeleted());
+    ASSERT_TRUE(gv.item->isCommitted());
+}
+
+void DurabilityEPBucketTest::verifyDocumentIsDelete(VBucket& vb,
+                                                    StoredDocKey key) {
+    auto* store = vb.getShard()->getROUnderlying();
+    auto gv = store->get(DiskDocKey(key), Vbid(0));
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_TRUE(gv.item->isDeleted());
+    ASSERT_TRUE(gv.item->isCommitted());
+}
+
+void DurabilityEPBucketTest::performPrepareSyncWrite(
+        VBucket& vb,
+        queued_item pendingItem,
+        uint64_t expectedDiskCount,
+        uint64_t expectedCollectedCount) {
+    auto cID = pendingItem->getKey().getCollectionID();
+    // First prepare SyncWrite and commit for test_doc.
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pendingItem, cookie));
+    verifyOnDiskItemCount(vb, expectedDiskCount);
+    verifyCollectionItemCount(vb, cID, expectedCollectedCount);
+}
+
+void DurabilityEPBucketTest::performPrepareSyncDelete(
+        VBucket& vb,
+        StoredDocKey key,
+        uint64_t expectedDiskCount,
+        uint64_t expectedCollectedCount) {
+    mutation_descr_t delInfo;
+    uint64_t cas = 0;
+    auto reqs =
+            cb::durability::Requirements(cb::durability::Level::Majority, {});
+    ASSERT_EQ(
+            ENGINE_EWOULDBLOCK,
+            store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
+
+    verifyOnDiskItemCount(vb, expectedDiskCount);
+    verifyCollectionItemCount(
+            vb, key.getCollectionID(), expectedCollectedCount);
+}
+
+void DurabilityEPBucketTest::performCommitForKey(
+        VBucket& vb,
+        StoredDocKey key,
+        uint64_t expectedDiskCount,
+        uint64_t expectedCollectedCount) {
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb.commit(key, {} /*commitSeqno*/, vb.lockCollections(key)));
+    verifyOnDiskItemCount(vb, expectedDiskCount);
+    verifyCollectionItemCount(
+            vb, key.getCollectionID(), expectedCollectedCount);
+}
+
+void DurabilityEPBucketTest::testCommittedSyncWriteFlushAfterCommit(
+        VBucket& vb, std::string keyName, std::string value) {
+    // prepare SyncWrite and commit.
+    auto key = makeStoredDocKey(keyName);
+    auto keyCollectionID = key.getCollectionID();
+    auto pending = makePendingItem(key, value);
+
+    auto initOnDiskCount = vb.getNumTotalItems();
+    uint64_t currentCollectionCount = 0;
+    {
+        auto rh = vb.lockCollections();
+        currentCollectionCount = rh.getItemCount(keyCollectionID);
+    }
+
+    performPrepareSyncWrite(
+            vb, pending, initOnDiskCount, currentCollectionCount);
+    performCommitForKey(vb, key, initOnDiskCount, currentCollectionCount);
+
+    const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    ckptMgr);
+
+    // We do not deduplicate Prepare and Commit in CheckpointManager (achieved
+    // by inserting them into different checkpoints)
+    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    ASSERT_EQ(2, ckptMgr.getNumItemsForPersistence());
+
+    // Note: Prepare and Commit are not in the same key-space and hence are not
+    //       deduplicated at Flush.
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // check the value is correctly set on disk
+    verifyDocumentIsStored(vb, key);
+}
+
+void DurabilityEPBucketTest::testSyncDeleteFlushAfterCommit(
+        VBucket& vb, std::string keyName) {
+    auto key = makeStoredDocKey(keyName);
+    auto keyCollectionID = key.getCollectionID();
+
+    auto initOnDiskCount = vb.getNumTotalItems();
+    uint64_t currentCollectionCount = 0;
+    {
+        auto rh = vb.lockCollections();
+        currentCollectionCount = rh.getItemCount(keyCollectionID);
+    }
+
+    performPrepareSyncDelete(vb, key, initOnDiskCount, currentCollectionCount);
+    performCommitForKey(vb, key, initOnDiskCount, currentCollectionCount);
+
+    const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    ckptMgr);
+
+    // We do not deduplicate Prepare and Commit in CheckpointManager (achieved
+    // by inserting them into different checkpoints)
+    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    ASSERT_EQ(2, ckptMgr.getNumItemsForPersistence());
+
+    // flush the prepare and commit mutations to disk
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // check the value is correctly deleted on disk
+    verifyDocumentIsDelete(vb, key);
+}
+
+/// Test persistence of a prepared & committed SyncWrite, a second prepared
+/// & committed SyncWrite, followed by a prepared & committed SyncDelete.
+TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncWriteSyncDelete) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto& vb = *store->getVBucket(vbid);
+    verifyOnDiskItemCount(vb, 0);
+    verifyCollectionItemCount(vb, 0, 0);
+
+    // prepare SyncWrite and commit.
+    testCommittedSyncWriteFlushAfterCommit(vb, "key", "value");
+    verifyOnDiskItemCount(vb, 2);
+    verifyCollectionItemCount(vb, 0, 1);
+
+    // Second prepare SyncWrite and commit.
+    testCommittedSyncWriteFlushAfterCommit(vb, "key", "value2");
+    verifyOnDiskItemCount(vb, 2);
+    verifyCollectionItemCount(vb, 0, 1);
+
+    // prepare SyncDelete and commit.
+    auto key = makeStoredDocKey("key");
+    performPrepareSyncDelete(vb, key, 2, 1);
+
+    const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    ckptMgr);
+
+    ASSERT_EQ(5, ckptList.size());
+    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    EXPECT_EQ(1, ckptMgr.getNumItemsForPersistence());
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    verifyOnDiskItemCount(vb, 2);
+    verifyCollectionItemCount(vb, key.getCollectionID(), 1);
+
+    performCommitForKey(vb, key, 2, 1);
+
+    ASSERT_EQ(6, ckptList.size());
+    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    EXPECT_EQ(1, ckptMgr.getNumItemsForPersistence());
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    verifyOnDiskItemCount(vb, 1);
+    verifyCollectionItemCount(vb, key.getCollectionID(), 0);
+
+    // At persist-dedup, the 2nd Prepare and Commit survive.
+    verifyDocumentIsDelete(vb, key);
+}
+
+/**
+ * Test to check that our on disk count and collections count are tracked
+ * correctly and do not underflow.
+ *
+ * This test does two rounds of SyncWrite then SyncDelete of a document with
+ * the same key called "test_doc". Before the fix for MB-34094 and MB-34120 we
+ * would expect our on disk counters to underflow and throw and exception.
+ *
+ * Note in this version of the test we flush after each commit made.
+ */
+TEST_P(DurabilityEPBucketTest,
+       PersistSyncWriteSyncDeleteTwiceFlushAfterEachCommit) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto& vb = *store->getVBucket(vbid);
+
+    verifyOnDiskItemCount(vb, 0);
+    verifyCollectionItemCount(vb, 0, 0);
+
+    // First prepare SyncWrite and commit for test_doc.
+    testCommittedSyncWriteFlushAfterCommit(vb, "test_doc", "{ \"run\": 1 }");
+    verifyOnDiskItemCount(vb, 2);
+    verifyCollectionItemCount(vb, 0, 1);
+
+    // First prepare SyncDelete and commit.
+    testSyncDeleteFlushAfterCommit(vb, "test_doc");
+    verifyOnDiskItemCount(vb, 1);
+    verifyCollectionItemCount(vb, 0, 0);
+
+    // Second prepare SyncWrite and commit.
+    testCommittedSyncWriteFlushAfterCommit(vb, "test_doc", "{ \"run\": 2 }");
+    verifyOnDiskItemCount(vb, 2);
+    verifyCollectionItemCount(vb, 0, 1);
+
+    // Second prepare SyncDelete and commit.
+    testSyncDeleteFlushAfterCommit(vb, "test_doc");
+    verifyOnDiskItemCount(vb, 1);
+    verifyCollectionItemCount(vb, 0, 0);
+}
+
+/**
+ * Test to check that our on disk count and collections count are track
+ * correctly and do not underflow.
+ *
+ * This test does two rounds of SyncWrite then SyncDelete of a document with
+ * the same key called "test_doc". Before the fix for MB-34094 and MB-34120 we
+ * would expect our on disk counters to underflow and throw and exception.
+ *
+ * Note in this version of the test we flush after all commits an prepares
+ * have been made.
+ */
+TEST_P(DurabilityEPBucketTest,
+       PersistSyncWriteSyncDeleteTwiceFlushAfterAllMutations) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    using namespace cb::durability;
+    auto& vb = *store->getVBucket(vbid);
+    auto* kvstore = vb.getShard()->getROUnderlying();
+
+    std::string keyName("test_doc");
+    auto key = makeStoredDocKey(keyName);
+    auto keyCollectionID = key.getCollectionID();
+    auto pending = makePendingItem(key, "{ \"run\": 1 }");
+
+    verifyOnDiskItemCount(vb, 0);
+    verifyCollectionItemCount(vb, keyCollectionID, 0);
+
+    // First prepare SyncWrite and commit for test_doc.
+    performPrepareSyncWrite(vb, pending, 0, 0);
+    performCommitForKey(vb, key, 0, 0);
+
+    // check the value is correctly set on disk
+    auto gv = kvstore->get(DiskDocKey(key), Vbid(0));
+    ASSERT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    // First prepare SyncDelete and commit.
+    performPrepareSyncDelete(vb, key, 0, 0);
+    performCommitForKey(vb, key, 0, 0);
+
+    // check the value is correctly deleted on disk
+    gv = kvstore->get(DiskDocKey(key), Vbid(0));
+    ASSERT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    // Second prepare SyncWrite and commit.
+    pending = makePendingItem(key, "{ \"run\": 2 }");
+    performPrepareSyncWrite(vb, pending, 0, 0);
+    performCommitForKey(vb, key, 0, 0);
+
+    // check the value is correctly set on disk
+    gv = kvstore->get(DiskDocKey(key), Vbid(0));
+    ASSERT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    // Second prepare SyncDelete and commit.
+    performPrepareSyncDelete(vb, key, 0, 0);
+    performCommitForKey(vb, key, 0, 0);
+
+    // flush the prepare and commit mutations to disk
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    verifyOnDiskItemCount(vb, 1);
+    verifyCollectionItemCount(vb, keyCollectionID, 0);
+
+    // check the value is correctly deleted on disk
+    verifyDocumentIsDelete(vb, key);
+}
+
+/**
+ * Test to check that our on disk count and collections count are track
+ * correctly and do not underflow.
+ *
+ * This test does two rounds of SyncWrite then SyncDelete of a document with
+ * the same key called "test_doc". Before the fix for MB-34094 and MB-34120 we
+ * would expect our on disk counters to underflow and throw and exception.
+ *
+ * Note in this version of the test we flush after each commit and prepare made.
+ */
+TEST_P(DurabilityEPBucketTest,
+       PersistSyncWriteSyncDeleteTwiceFlushAfterEachMutation) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    using namespace cb::durability;
+    auto& vb = *store->getVBucket(vbid);
+
+    std::string keyName("test_doc");
+    auto key = makeStoredDocKey(keyName);
+    auto keyCollectionID = key.getCollectionID();
+    auto pending = makePendingItem(key, "{ \"run\": 1 }");
+
+    verifyOnDiskItemCount(vb, 0);
+    verifyCollectionItemCount(vb, keyCollectionID, 0);
+
+    // First prepare SyncWrite and commit for test_doc.
+    performPrepareSyncWrite(vb, pending, 0, 0);
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    verifyOnDiskItemCount(vb, 1);
+    verifyCollectionItemCount(vb, keyCollectionID, 0);
+
+    performCommitForKey(vb, key, 1, 0);
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    verifyOnDiskItemCount(vb, 2);
+    verifyCollectionItemCount(vb, keyCollectionID, 1);
+
+    // check the value is correctly set on disk
+    verifyDocumentIsStored(vb, key);
+
+    // First prepare SyncDelete and commit.
+    performPrepareSyncDelete(vb, key, 2, 1);
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    verifyOnDiskItemCount(vb, 2);
+    verifyCollectionItemCount(vb, keyCollectionID, 1);
+
+    performCommitForKey(vb, key, 2, 1);
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    verifyOnDiskItemCount(vb, 1);
+    verifyCollectionItemCount(vb, keyCollectionID, 0);
+
+    // check the value is correctly deleted on disk
+    verifyDocumentIsDelete(vb, key);
+
+    // Second prepare SyncWrite and commit.
+    pending = makePendingItem(key, "{ \"run\": 2 }");
+    performPrepareSyncWrite(vb, pending, 1, 0);
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    verifyOnDiskItemCount(vb, 1);
+    verifyCollectionItemCount(vb, keyCollectionID, 0);
+
+    performCommitForKey(vb, key, 1, 0);
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    verifyOnDiskItemCount(vb, 2);
+    verifyCollectionItemCount(vb, keyCollectionID, 1);
+
+    // check the value is correctly set on disk
+    verifyDocumentIsStored(vb, key);
+
+    // Second prepare SyncDelete and commit.
+    performPrepareSyncDelete(vb, key, 2, 1);
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    verifyOnDiskItemCount(vb, 2);
+    verifyCollectionItemCount(vb, keyCollectionID, 1);
+
+    performCommitForKey(vb, key, 2, 1);
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    verifyOnDiskItemCount(vb, 1);
+    verifyCollectionItemCount(vb, keyCollectionID, 0);
+
+    // check the value is correctly deleted on disk
+    verifyDocumentIsDelete(vb, key);
+}
+
+/**
+ * Test to check that our on disk count and collections count are track
+ * correctly and do not underflow.
+ *
+ * This test does 3 rounds of SyncWrite then SyncDelete of a document with
+ * for a set of documents "test_doc-{0..9}". Before the fix for MB-34094 and
+ * MB-34120 we would expect our on disk counters to underflow and throw and
+ * exception.
+ *
+ * This performs multiple runs with ten documents as this allows us to perform
+ * a sanity test that when we are setting and deleting more than one document
+ * that our on disk accounting remain consistent.
+ */
+TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDeleteTenDocs3Times) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    using namespace cb::durability;
+    std::string keyName("test_doc-");
+    auto& vb = *store->getVBucket(vbid);
+
+    const uint32_t numberOfRuns = 3;
+    const uint32_t numberOfDocks = 10;
+    uint32_t numberOfPrepsOnDisk = 0;
+
+    // Perform multiple runs of the creating and deletion of documents named
+    // "test_doc-{0..9}".
+    for (uint32_t j = 0; j < numberOfRuns; j++) {
+        // Set and then delete ten documents names "test_doc-{0..9}"
+        for (uint32_t i = 0; i < numberOfDocks; i++) {
+            // prepare SyncWrite and commit.
+            testCommittedSyncWriteFlushAfterCommit(
+                    vb,
+                    keyName + std::to_string(i),
+                    "{ \"run\":" + std::to_string(j) + " }");
+            if (numberOfPrepsOnDisk < numberOfDocks) {
+                numberOfPrepsOnDisk++;
+            }
+            verifyOnDiskItemCount(vb, numberOfPrepsOnDisk + 1);
+            verifyCollectionItemCount(vb, 0, 1);
+
+            // prepare SyncDelete and commit.
+            testSyncDeleteFlushAfterCommit(vb, keyName + std::to_string(i));
+            verifyOnDiskItemCount(vb, numberOfPrepsOnDisk);
+            verifyCollectionItemCount(vb, 0, 0);
+        }
+    }
+}
+
+/// Test to check that after 20 SyncWrites and then 20 SyncDeletes
+/// that on disk count is 0.
+/// Sanity test to make sure our accounting is consitant when we create
+/// Multiple documents on disk.
+TEST_P(DurabilityEPBucketTest, PersistSyncWrite20SyncDelete20) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    using namespace cb::durability;
+    std::string keyName("test_doc-");
+    auto& vb = *store->getVBucket(vbid);
+
+    const uint32_t numberOfDocks = 20;
+    // SyncWrite numberOfDocks docs
+    for (uint32_t i = 0; i < numberOfDocks; i++) {
+        // prepare SyncWrite and commit.
+        testCommittedSyncWriteFlushAfterCommit(
+                vb, keyName + std::to_string(i), "{ \"Hello\": \"World\" }");
+
+        verifyOnDiskItemCount(vb, i * 2 + 2);
+        verifyCollectionItemCount(vb, 0, i + 1);
+    }
+    // SyncDelete Docs
+    for (uint32_t i = 0; i < numberOfDocks; i++) {
+        testSyncDeleteFlushAfterCommit(vb, keyName + std::to_string(i));
+
+        verifyOnDiskItemCount(vb, numberOfDocks * 2 - i - 1);
+        verifyCollectionItemCount(vb, 0, numberOfDocks - i - 1);
+    }
+    verifyOnDiskItemCount(vb, numberOfDocks);
+    verifyCollectionItemCount(vb, 0, 0);
 }
 
 TEST_P(DurabilityEPBucketTest, ActiveLocalNotifyPersistedSeqno) {
