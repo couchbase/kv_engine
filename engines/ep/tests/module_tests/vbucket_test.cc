@@ -59,8 +59,8 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
                               checkpoint_config,
                               /*kvshard*/ nullptr,
                               lastSeqno,
-                              range.start,
-                              range.end,
+                              range.getStart(),
+                              range.getEnd(),
                               /*table*/ nullptr,
                               /*flusher callback*/ nullptr,
                               /*newSeqnoCb*/ nullptr,
@@ -77,8 +77,8 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
                                                checkpoint_config,
                                                /*kvshard*/ nullptr,
                                                lastSeqno,
-                                               range.start,
-                                               range.end,
+                                               range.getStart(),
+                                               range.getEnd(),
                                                /*table*/ nullptr,
                                                /*newSeqnoCb*/ nullptr,
                                                TracedSyncWriteCompleteCb,
@@ -93,8 +93,8 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
             Vbid(0),
             checkpoint_config,
             lastSeqno,
-            range.start,
-            range.end,
+            range.getStart(),
+            range.getEnd(),
             /*flusher callback*/ nullptr);
 
     cookie = create_mock_cookie();
@@ -510,8 +510,8 @@ TEST_P(VBucketTest, GetItemsForCursor_Limit) {
     EXPECT_STREQ("1", result.items[1]->getKey().c_str());
     EXPECT_STREQ("2", result.items[2]->getKey().c_str());
     EXPECT_TRUE(result.items[3]->isCheckPointMetaItem());
-    EXPECT_EQ(range.start, result.range.start);
-    EXPECT_EQ(range.end + 2, result.range.end);
+    EXPECT_EQ(range.getStart(), result.range.getStart());
+    EXPECT_EQ(range.getEnd() + 2, result.range.getEnd());
 
     // Asking for 5 items should give us all items in second checkpoint and
     // third checkpoint - 7 total
@@ -526,8 +526,8 @@ TEST_P(VBucketTest, GetItemsForCursor_Limit) {
     EXPECT_TRUE(result.items[4]->isCheckPointMetaItem());
     EXPECT_STREQ("5", result.items[5]->getKey().c_str());
     EXPECT_STREQ("6", result.items[6]->getKey().c_str());
-    EXPECT_EQ(range.end + 2, result.range.start);
-    EXPECT_EQ(range.end + 6, result.range.end);
+    EXPECT_EQ(range.getEnd() + 2, result.range.getStart());
+    EXPECT_EQ(range.getEnd() + 6, result.range.getEnd());
 }
 
 // Check that getItemsToPersist() can correctly impose a limit on items fetched.
@@ -556,16 +556,16 @@ TEST_P(VBucketTest, GetItemsToPersist_Limit) {
     EXPECT_TRUE(result.moreAvailable);
     EXPECT_EQ(1, result.items.size());
     EXPECT_STREQ("1", result.items[0]->getKey().c_str());
-    EXPECT_EQ(range.start, result.range.start);
-    EXPECT_EQ(range.end + itemsToGenerate, result.range.end);
+    EXPECT_EQ(range.getStart(), result.range.getStart());
+    EXPECT_EQ(range.getEnd() + itemsToGenerate, result.range.getEnd());
 
     result = this->vbucket->getItemsToPersist(2);
     EXPECT_TRUE(result.moreAvailable);
     EXPECT_EQ(2, result.items.size());
     EXPECT_STREQ("2", result.items[0]->getKey().c_str());
     EXPECT_STREQ("3", result.items[1]->getKey().c_str());
-    EXPECT_EQ(range.start, result.range.start);
-    EXPECT_EQ(range.end + itemsToGenerate, result.range.end);
+    EXPECT_EQ(range.getStart(), result.range.getStart());
+    EXPECT_EQ(range.getEnd() + itemsToGenerate, result.range.getEnd());
 
     // Next call should read 1 item from backfill; and *all* items from
     // checkpoint (even through we only asked for 2 total), as it is not valid
@@ -577,8 +577,8 @@ TEST_P(VBucketTest, GetItemsToPersist_Limit) {
     EXPECT_TRUE(result.items[1]->isCheckPointMetaItem());
     EXPECT_STREQ("5", result.items[2]->getKey().c_str());
     EXPECT_STREQ("6", result.items[3]->getKey().c_str());
-    EXPECT_EQ(range.start, result.range.start);
-    EXPECT_EQ(range.end + itemsToGenerate, result.range.end);
+    EXPECT_EQ(range.getStart(), result.range.getStart());
+    EXPECT_EQ(range.getEnd() + itemsToGenerate, result.range.getEnd());
 }
 
 // Check that getItemsToPersist() correctly returns `moreAvailable` if we

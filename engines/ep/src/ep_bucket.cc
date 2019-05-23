@@ -310,7 +310,7 @@ static bool canDeDuplicate(Item* lastFlushed, Item& candidate) {
 
     // items match - the candidate must have a lower seqno.
     Expects(lastFlushed->getBySeqno() > candidate.getBySeqno());
-  
+
     // Otherwise - valid to de-dupe.
     return true;
 }
@@ -361,7 +361,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             uint64_t maxSeqno = 0;
             auto minSeqno = std::numeric_limits<uint64_t>::max();
 
-            range.start = std::max(range.start, vbstate.lastSnapStart);
+            range.setStart(std::max(range.getStart(), vbstate.lastSnapStart));
 
             bool mustCheckpointVBState = false;
 
@@ -432,16 +432,15 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
                 if (vb->getState() == vbucket_state_active) {
                     if (maxSeqno) {
-                        range.start = maxSeqno;
-                        range.end = maxSeqno;
+                        range = snapshot_range_t(maxSeqno, maxSeqno);
                     }
                 }
 
                 // Update VBstate based on the changes we have just made,
                 // then tell the rwUnderlying the 'new' state
                 // (which will persisted as part of the commit() below).
-                vbstate.lastSnapStart = range.start;
-                vbstate.lastSnapEnd = range.end;
+                vbstate.lastSnapStart = range.getStart();
+                vbstate.lastSnapEnd = range.getEnd();
 
                 // Track the lowest seqno written in spock and record it as
                 // the HLC epoch, a seqno which we can be sure the value has a
@@ -488,7 +487,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             }
 
             if (vb->rejectQueue.empty()) {
-                vb->setPersistedSnapshot(range.start, range.end);
+                vb->setPersistedSnapshot(range.getStart(), range.getEnd());
                 uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);
                 if (highSeqno > 0 && highSeqno != vb->getPersistenceSeqno()) {
                     vb->setPersistenceSeqno(highSeqno);

@@ -3906,7 +3906,12 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
     checkeq(ENGINE_SUCCESS,
-            dcp->snapshot_marker(cookie, stream_opaque, Vbid(0), 200, 300, 300),
+            dcp->snapshot_marker(cookie,
+                                 stream_opaque,
+                                 Vbid(0),
+                                 num_items,
+                                 num_items + 100,
+                                 0),
             "Failed to send snapshot marker");
 
     wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");

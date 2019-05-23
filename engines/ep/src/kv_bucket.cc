@@ -829,9 +829,9 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
             // takeover), which means this is a new fork in the vBucket history
             // - create a new failover table entry.
             const snapshot_range_t range = vb->getPersistedSnapshot();
-            auto highSeqno = range.end == vb->getPersistenceSeqno()
-                                     ? range.end
-                                     : range.start;
+            auto highSeqno = range.getEnd() == vb->getPersistenceSeqno()
+                                     ? range.getEnd()
+                                     : range.getStart();
             vb->failovers->createEntry(highSeqno);
 
             auto entry = vb->failovers->getLatestEntry();

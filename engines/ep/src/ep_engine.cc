@@ -3990,7 +3990,7 @@ void EventuallyPersistentEngine::addSeqnoVbStats(const void* cookie,
     uint64_t relHighSeqno = vb->getHighSeqno();
     if (vb->getState() != vbucket_state_active) {
         snapshot_info_t info = vb->checkpointManager->getSnapshotInfo();
-        relHighSeqno = info.range.end;
+        relHighSeqno = info.range.getEnd();
     }
 
     try {
@@ -4021,12 +4021,12 @@ void EventuallyPersistentEngine::addSeqnoVbStats(const void* cookie,
                          sizeof(buffer),
                          "vb_%d:last_persisted_snap_start",
                          vb->getId().get());
-        add_casted_stat(buffer, range.start, add_stat, cookie);
+        add_casted_stat(buffer, range.getStart(), add_stat, cookie);
         checked_snprintf(buffer,
                          sizeof(buffer),
                          "vb_%d:last_persisted_snap_end",
                          vb->getId().get());
-        add_casted_stat(buffer, range.end, add_stat, cookie);
+        add_casted_stat(buffer, range.getEnd(), add_stat, cookie);
 
         checked_snprintf(buffer,
                          sizeof(buffer),
@@ -5956,7 +5956,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
                 } else {
                     snapshot_info_t info =
                             vb->checkpointManager->getSnapshotInfo();
-                    highSeqno = htonll(info.range.end);
+                    highSeqno = htonll(info.range.getEnd());
                 }
             }
             auto offset = payload.size();

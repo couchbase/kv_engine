@@ -58,7 +58,34 @@ std::string to_string(TrackCasDrift trackCasDrift);
 
 struct snapshot_range_t {
     snapshot_range_t(uint64_t start, uint64_t end) : start(start), end(end) {
-        // @todo: enforce start < end in a non-maintenance release
+        checkInvariant();
+    }
+
+    void setStart(uint64_t value) {
+        start = value;
+        checkInvariant();
+    }
+
+    void setEnd(uint64_t value) {
+        end = value;
+        checkInvariant();
+    }
+
+    uint64_t getStart() const {
+        return start;
+    }
+
+    uint64_t getEnd() const {
+        return end;
+    }
+
+private:
+    void checkInvariant() const {
+        if (start > end) {
+            throw std::runtime_error(
+                    "snapshot_range_t(" + std::to_string(start) + "," +
+                    std::to_string(end) + ") requires start <= end");
+        }
     }
 
     uint64_t start;

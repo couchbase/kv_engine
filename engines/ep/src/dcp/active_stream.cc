@@ -90,8 +90,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
     folly::SharedMutex::ReadHolder rlh(vbucket.getStateLock());
     if (vbucket.getState() == vbucket_state_replica) {
         snapshot_info_t info = vbucket.checkpointManager->getSnapshotInfo();
-        if (info.range.end > en_seqno) {
-            end_seqno_ = info.range.end;
+        if (info.range.getEnd() > en_seqno) {
+            end_seqno_ = info.range.getEnd();
         }
     }
 
@@ -277,8 +277,8 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
                     logPrefix,
                     startSeqno,
                     endSeqno,
-                    info.range.end);
-                endSeqno = info.range.end;
+                    info.range.getEnd());
+                endSeqno = info.range.getEnd();
             }
         }
 

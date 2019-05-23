@@ -180,13 +180,13 @@ void PassiveStream::reconnectStream(VBucketPtr& vb,
     vb_uuid_ = start_seqno ? vb->failovers->getLatestEntry().vb_uuid : 0;
 
     snapshot_info_t info = vb->checkpointManager->getSnapshotInfo();
-    if (info.range.end == info.start) {
-        info.range.start = info.start;
+    if (info.range.getEnd() == info.start) {
+        info.range.setStart(info.start);
     }
 
-    snap_start_seqno_ = info.range.start;
+    snap_start_seqno_ = info.range.getStart();
     start_seqno_ = info.start;
-    snap_end_seqno_ = info.range.end;
+    snap_end_seqno_ = info.range.getEnd();
 
     auto stream_req_value = createStreamReqValue();
 

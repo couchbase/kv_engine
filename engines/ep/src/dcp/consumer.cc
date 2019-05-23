@@ -261,8 +261,8 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
     }
 
     snapshot_info_t info = vb->checkpointManager->getSnapshotInfo();
-    if (info.range.end == info.start) {
-        info.range.start = info.start;
+    if (info.range.getEnd() == info.start) {
+        info.range.setStart(info.start);
     }
 
     uint32_t new_opaque = ++opaqueCounter;
@@ -270,8 +270,8 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
     uint64_t start_seqno = info.start;
     uint64_t end_seqno = std::numeric_limits<uint64_t>::max();
     uint64_t vbucket_uuid = entry.vb_uuid;
-    uint64_t snap_start_seqno = info.range.start;
-    uint64_t snap_end_seqno = info.range.end;
+    uint64_t snap_start_seqno = info.range.getStart();
+    uint64_t snap_end_seqno = info.range.getEnd();
     uint64_t high_seqno = vb->getHighSeqno();
     const Collections::ManifestUid vb_manifest_uid =
             vb->lockCollections().getManifestUid();

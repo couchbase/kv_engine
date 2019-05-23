@@ -844,8 +844,8 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
             // our limit.
             if (itemCount >= approxLimit) {
                 // Reached our limit - don't want any more items.
-                result.range.end =
-                        (*cursor.currentCheckpoint)->getSnapshotEndSeqno();
+                result.range.setEnd(
+                        (*cursor.currentCheckpoint)->getSnapshotEndSeqno());
 
                 // However, we *do* want to move the cursor into the next
                 // checkpoint if possible; as that means the checkpoint we just
@@ -856,7 +856,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
             }
         }
         // May have moved into a new checkpoint - update range.end.
-        result.range.end = (*cursor.currentCheckpoint)->getSnapshotEndSeqno();
+        result.range.setEnd((*cursor.currentCheckpoint)->getSnapshotEndSeqno());
     }
 
     EP_LOG_DEBUG(
@@ -865,8 +865,8 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
             "moreAvailable:{}}}",
             cursor.name,
             uint64_t(itemCount),
-            result.range.start,
-            result.range.end,
+            result.range.getStart(),
+            result.range.getEnd(),
             result.moreAvailable ? "true" : "false");
 
     cursor.numVisits++;
@@ -1112,9 +1112,8 @@ snapshot_info_t CheckpointManager::getSnapshotInfo() {
     // be overwritten once the next snapshot marker is received since there are
     // no items in it.
     if (openCkpt.getNumItems() == 0 &&
-        static_cast<uint64_t>(lastBySeqno) < info.range.start) {
-        info.range.start = lastBySeqno;
-        info.range.end = lastBySeqno;
+        static_cast<uint64_t>(lastBySeqno) < info.range.getStart()) {
+        info.range = snapshot_range_t(lastBySeqno, lastBySeqno);
     }
 
     return info;
