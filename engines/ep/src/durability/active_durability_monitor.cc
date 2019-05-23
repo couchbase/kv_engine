@@ -320,6 +320,10 @@ uint8_t ActiveDurabilityMonitor::getSecondChainMajority() const {
     return s->secondChain ? s->secondChain->majority : 0;
 }
 
+void ActiveDurabilityMonitor::removedQueuedAck(const std::string& node) {
+    state.wlock()->queuedSeqnoAcks.erase(node);
+}
+
 ActiveDurabilityMonitor::Container::iterator
 ActiveDurabilityMonitor::State::getNodeNext(const std::string& node) {
     Expects(firstChain.get());
@@ -431,20 +435,23 @@ void ActiveDurabilityMonitor::State::updateNodeAck(const std::string& node,
         firstChainPos.lastAckSeqno = seqno;
     }
 
+    bool secondChainFound = false;
     if (secondChain) {
         auto secondChainItr = secondChain->positions.find(node);
         if (secondChainItr != secondChain->positions.end()) {
+            secondChainFound = true;
             auto& secondChainPos =
                     const_cast<Position&>(secondChainItr->second);
             secondChainPos.lastAckSeqno = seqno;
         }
     }
 
-    // Just drop out of here if we don't find the node. We could be receiving an
-    // ack from a new replica that is not yet in the second chain. We don't want
-    // to make each sync write wait on a vBucket being (almost) fully
-    // transferred during a rebalance so ns_server deal with these by waiting
-    // for seqno persistence on the new replica.
+    if (!firstChainFound && !secondChainFound) {
+        // We didn't find the node in either of our chains, but we still need to
+        // track the ack for this node in case we are about to get a topology
+        // change in which this node will exist.
+        queuedSeqnoAcks[node] = seqno;
+    }
 }
 
 int64_t ActiveDurabilityMonitor::getNodeWriteSeqno(
@@ -617,6 +624,9 @@ void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
                 std::to_string(lastTrackedSeqno) + "\"");
     }
 
+    // We should never ack for the active
+    Expects(firstChain->active != node);
+
     // Note: process up to the ack'ed seqno
     ActiveDurabilityMonitor::Container::iterator next;
     while ((next = getNodeNext(node)) != trackedWrites.end() &&
@@ -747,6 +757,50 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
     // Apply the new topology to all in-flight SyncWrites
     for (auto& write : trackedWrites) {
         write.resetTopology(*firstChain, secondChain.get());
+    }
+
+    // Manually ack any nodes that did not previously exist in either chain
+    performQueuedAckForChain(*firstChain);
+
+    if (secondChain) {
+        performQueuedAckForChain(*secondChain);
+    }
+}
+
+void ActiveDurabilityMonitor::State::performQueuedAckForChain(
+        const DurabilityMonitor::ReplicationChain& chain) {
+    for (const auto& node : chain.positions) {
+        auto existingAck = queuedSeqnoAcks.find(node.first);
+        if (existingAck != queuedSeqnoAcks.end()) {
+            Container toCommit;
+            processSeqnoAck(existingAck->first, existingAck->second, toCommit);
+            // ======================= FIRST CHAIN =============================
+            // @TODO MB-34318 this should no longer be true and we will need
+            // to remove the pre-condition check.
+            //
+            // This is a little bit counter-intuitive. We may actually need to
+            // commit something post-topology change, however, because we have
+            // reset the ackCount of all in flight SyncWrites previously we
+            // should never ack here. If we had Replicas=1 then we would have
+            // already committed due to active ack or would require an active
+            // ack (PERSIST levels) to commit. So, if we do commit something as
+            // a result of a topology change it will only be done when we move
+            // the HighPreparedSeqno. The active can never exist in the
+            // queuedSeqnoAcks map so we should also never attempt to ack it
+            // here.
+            // ===================== SECOND CHAIN ==============================
+            // We don't expect any SyncWrite to currently need committing. Why?
+            // We require that a SyncWrite must satisfy both firstChain and
+            // secondChain. The SyncWrite should have already been committed
+            // if the firstChain is satisfied and we are under a vbState lock
+            // which will block seqno acks until this topology change has been
+            // completed.
+            Expects(toCommit.empty());
+
+            // Remove the existingAck, we don't need to track it any further as
+            // it is in a chain.
+            queuedSeqnoAcks.erase(existingAck);
+        }
     }
 }
 

@@ -2183,6 +2183,233 @@ TEST_P(ActiveDurabilityMonitorTest, NoReplicaSyncDelete) {
     assertNumTrackedAndHPSAndHCS(0, 2, 2 /*expectedHCS*/);
 }
 
+TEST_P(ActiveDurabilityMonitorTest,
+       FirstChainNodeAckBeforeAndCommitOnTopologySet) {
+    EXPECT_NO_THROW(getActiveDM().setReplicationTopology(
+            nlohmann::json::array({{active, replica1, nullptr}})));
+
+    // To start, we have 1 chain with active and replica1
+    addSyncWrite(1);
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // We ack a new "unknown" node
+    EXPECT_NO_THROW(getActiveDM().seqnoAckReceived(replica2, 1));
+
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // Add the secondChain with the new node
+    EXPECT_NO_THROW(getActiveDM().setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2}})));
+
+    // Should have committed
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(0, 1, 1);
+    }
+}
+
+TEST_P(ActiveDurabilityMonitorTest, FirstChainNodeAckBeforeTopologySet) {
+    EXPECT_NO_THROW(getActiveDM().setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2, nullptr}})));
+
+    // To start, we have 1 chain with active and replica1
+    addSyncWrite(1);
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // We ack a new "unknown" node
+    EXPECT_NO_THROW(getActiveDM().seqnoAckReceived(replica3, 1));
+
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // Add the secondChain with the new node
+    EXPECT_NO_THROW(getActiveDM().setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2, replica3}})));
+
+    // Should not have committed
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // Should commit on replica1 ack.
+    testSeqnoAckReceived(replica1,
+                         1 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         1 /*expectedLastAckSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         1 /*expectedHCS*/);
+}
+
+TEST_P(ActiveDurabilityMonitorTest, SecondChainNodeAckBeforeTopologySet) {
+    // To start, we have 1 chain with active and replica1
+    addSyncWrite(1);
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // We ack a new "unknown" node
+    EXPECT_NO_THROW(getActiveDM().seqnoAckReceived(replica2, 1));
+
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // Add the secondChain with the new node
+    EXPECT_NO_THROW(getActiveDM().setReplicationTopology(
+            nlohmann::json::array({{active, replica1}, {active, replica2}})));
+
+    // Still can't commit because firstChain must also be satisfied
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // Should commit on replica1 ack.
+    testSeqnoAckReceived(replica1,
+                         1 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         1 /*expectedLastAckSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         1 /*expectedHCS*/);
+}
+
+TEST_P(ActiveDurabilityMonitorTest,
+       SecondChainNodeAckBeforeTopologySetMultipleReplica) {
+    addSyncWrite(1);
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // We ack a new "unknown" node
+    EXPECT_NO_THROW(getActiveDM().seqnoAckReceived(replica2, 1));
+
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // Add the secondChain with the new nodes
+    EXPECT_NO_THROW(getActiveDM().setReplicationTopology(nlohmann::json::array(
+            {{active, replica1}, {active, replica2, replica3, replica4}})));
+
+    // Still can't commit because firstChain must also be satisfied
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // Still not satisfied second chain so replica1 ack should not commit
+    testSeqnoAckReceived(replica1,
+                         1 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         1 /*expectedLastAckSeqno*/,
+                         1 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         0 /*expectedHCS*/);
+
+    // Should commit on replica3 ack.
+    testSeqnoAckReceived(replica3,
+                         1 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         1 /*expectedLastAckSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         1 /*expectedHCS*/);
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(0, 1, 1);
+    }
+}
+
+TEST_P(ActiveDurabilityMonitorTest,
+       SecondChainNodeAckBeforeTopologySetAlreadyCommitted) {
+    // To start, we have 1 chain with active and replica1
+    addSyncWrite(1);
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // Should commit on replica1 ack.
+    testSeqnoAckReceived(replica1,
+                         1 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         1 /*expectedLastAckSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         1 /*expectedHCS*/);
+
+    // We ack a new "unknown" node, already committed.
+    EXPECT_NO_THROW(getActiveDM().seqnoAckReceived(replica2, 1));
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(0, 1, 1);
+    }
+
+    // Add the secondChain with the new node
+    EXPECT_NO_THROW(getActiveDM().setReplicationTopology(
+            nlohmann::json::array({{active, replica1}, {active, replica2}})));
+
+    // Still committed
+    EXPECT_EQ(0, getActiveDM().getNumTracked());
+}
+
+// Unexpected topology change, just ensuring that we don't crash or do something
+// stupid. Ensuring that we don't break something if we attempt to ack twice if
+// for some reason the unexpected ack is from a node that exists in both chains
+// (we should not even attempt this but it should be a no-op if we do).
+TEST_P(ActiveDurabilityMonitorTest, BothChainNodeAckBeforeTopologySet) {
+    // To start, we have 1 chain with active and replica1
+    addSyncWrite(1);
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // We ack a new "unknown" node
+    EXPECT_NO_THROW(getActiveDM().seqnoAckReceived(replica2, 1));
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // Replica2 in the firstChain is the unexpected part
+    EXPECT_NO_THROW(getActiveDM().setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2},
+                                   {active, replica1, replica2, replica3}})));
+
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // Should commit on replica1 ack
+    testSeqnoAckReceived(replica1,
+                         1 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         1 /*expectedLastAckSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         1 /*expectedHCS*/);
+}
+
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         ActiveDurabilityMonitorTest,
                         STParameterizedBucketTest::allConfigValues(),

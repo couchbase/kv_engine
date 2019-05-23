@@ -3556,3 +3556,7 @@ ENGINE_ERROR_CODE VBucket::checkDurabilityRequirements(const Item& item) {
 
     return ENGINE_SUCCESS;
 }
+
+void VBucket::removeQueuedAckFromDM(const std::string& node) {
+    getActiveDM().removedQueuedAck(node);
+}

@@ -1640,6 +1640,14 @@ public:
      */
     const DurabilityMonitor& getDurabilityMonitor() const;
 
+    /**
+     * Remove any queued acks for the given node from the Durability Monitor.
+     * (should be Active)
+     *
+     * @param node Name of the node for which we wish to remove the ack
+     */
+    void removeQueuedAckFromDM(const std::string& node);
+
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 

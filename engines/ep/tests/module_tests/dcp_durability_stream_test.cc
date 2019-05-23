@@ -205,6 +205,48 @@ TEST_P(DurabilityActiveStreamTest, SendDcpAbort) {
     ASSERT_FALSE(resp);
 }
 
+TEST_P(DurabilityActiveStreamTest, RemoveUnknownSeqnoAckAtDestruction) {
+    auto vb = engine->getVBucket(vbid);
+
+    const auto key = makeStoredDocKey("key");
+    const auto& value = "value";
+    auto item = makePendingItem(
+            key,
+            value,
+            cb::durability::Requirements(cb::durability::Level::Majority,
+                                         1 /*timeout*/));
+    VBQueueItemCtx ctx;
+    ctx.durability =
+            DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
+
+    EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // We don't include prepares in the numItems stat (should not exist in here)
+    EXPECT_EQ(0, vb->getNumItems());
+
+    // Our topology gives replica name as "replica" an our producer/stream has
+    // name "test_producer". Simulate a seqno ack by calling the vBucket level
+    // function.
+    vb->seqnoAcknowledged("test_producer", 1);
+
+    // An unknown seqno ack should not have committed the item
+    EXPECT_EQ(0, vb->getNumItems());
+
+    // Disconnect the ActiveStream
+    stream->setDead(END_STREAM_DISCONNECTED);
+
+    // If the seqno ack still existed in the queuedSeqnoAcks map then it would
+    // result in a commit on topology change
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology",
+              nlohmann::json::array(
+                      {{"active", "replica1", "test_producer"}})}});
+    EXPECT_EQ(0, vb->getNumItems());
+}
+
 void DurabilityPassiveStreamTest::SetUp() {
     SingleThreadedPassiveStreamTest::SetUp();
     consumer->enableSyncReplication();

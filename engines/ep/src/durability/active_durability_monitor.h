@@ -199,6 +199,16 @@ public:
      */
     void checkForCommit();
 
+    /**
+     * We track acks for unknown nodes as they may precede a topology change
+     * that could cause a SyncWrite to timeout. We only receive these acks via
+     * DCP so we can remove any "unknown" ack for a given node when we close the
+     * ActiveStream serving it.
+     *
+     * @param node Node for which we wish to remove the unknown ack
+     */
+    void removedQueuedAck(const std::string& node);
+
 protected:
     void toOStream(std::ostream& os) const override;
 
@@ -384,6 +394,14 @@ protected:
          */
         Container updateHighPreparedSeqno();
 
+        /**
+         * Perform the manual ack (from the map of queuedSeqnoAcks) that is
+         * required at rebalance for the given chain
+         *
+         * @param chain Chain for which we should manually ack nodes
+         */
+        void performQueuedAckForChain(const ReplicationChain& chain);
+
     private:
         /**
          * Advance the current Position (iterator and seqno).
@@ -436,6 +454,12 @@ protected:
         std::chrono::milliseconds defaultTimeout = std::chrono::seconds(30);
 
         const ActiveDurabilityMonitor& adm;
+
+        // Map of node to seqno value for seqno acks that we have seen but
+        // do not exist in the current replication topology. They may be
+        // required to manually ack for a new node if we receive an ack before
+        // ns_server sends us a new replication topology.
+        std::unordered_map<std::string, Monotonic<int64_t>> queuedSeqnoAcks;
     };
 
     // The VBucket owning this DurabilityMonitor instance

@@ -1123,6 +1123,21 @@ uint32_t ActiveStream::setDead(end_stream_status_t status) {
     if (status != END_STREAM_DISCONNECTED) {
         notifyStreamReady();
     }
+
+    // Remove any unknown acks for the stream. Why here and not on
+    // destruction of the object? We could be replacing an existing
+    // DcpProducer with another. This old ActiveStream may then live on
+    // (owned by a backfill) and clear a seqno ack from a new ActiveStream.
+    if (supportSyncReplication()) {
+        auto vb = engine->getVBucket(vb_);
+        // Take the vb state lock so that we don't change the state of
+        // this vb
+        folly::SharedMutex::ReadHolder vbStateLh(vb->getStateLock());
+        if (vb->getState() == vbucket_state_active) {
+            vb->removeQueuedAckFromDM(name_);
+        }
+    }
+
     return 0;
 }
 
