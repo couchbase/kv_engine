@@ -938,6 +938,77 @@ TEST_P(KVBucketParamTest, unlockKeyTempDeletedTest) {
     EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
 }
 
+// Test that getLocked correctly returns ESyncWriteInProgress if targetted at
+// a key which has a prepared SyncWrite in progress.
+TEST_P(KVBucketParamTest, GetLockedWithPreparedSyncWrite) {
+    // Setup - need a valid topology to accept SyncWrites - but don't want them
+    // to auto-commit so create a topology with 2 nodes.
+    ASSERT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(
+                      vbid,
+                      vbucket_state_active,
+                      {{"topology", nlohmann::json::array({{"a", "b"}})}}));
+
+    // Store both a committed and prepared SV.
+    auto key = makeStoredDocKey("key");
+    ASSERT_EQ(ENGINE_SUCCESS,
+              store->set(*makeCommittedItem(key, "value1"), cookie));
+    ASSERT_EQ(ENGINE_EWOULDBLOCK,
+              store->set(*makePendingItem(key, "value2"), cookie));
+
+    // Test
+    auto gv = store->getLocked(key, vbid, ep_current_time(), 10, cookie);
+    EXPECT_EQ(ENGINE_SYNC_WRITE_IN_PROGRESS, gv.getStatus());
+}
+
+// Test that unlock correctly returns ESyncWriteInProgress if targetted at
+// a key which has a prepared SyncWrite in progress.
+TEST_P(KVBucketParamTest, UnlockWithPreparedSyncWrite) {
+    // Setup - need a valid topology to accept SyncWrites - but don't want them
+    // to auto-commit so create a topology with 2 nodes.
+    ASSERT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(
+                      vbid,
+                      vbucket_state_active,
+                      {{"topology", nlohmann::json::array({{"a", "b"}})}}));
+
+    // Store both a committed and prepared SV.
+    auto key = makeStoredDocKey("key");
+    auto committed = makeCommittedItem(key, "value1");
+    ASSERT_EQ(ENGINE_SUCCESS, store->set(*committed, cookie));
+    ASSERT_EQ(ENGINE_EWOULDBLOCK,
+              store->set(*makePendingItem(key, "value2"), cookie));
+
+    // Test
+    EXPECT_EQ(
+            ENGINE_SYNC_WRITE_IN_PROGRESS,
+            store->unlockKey(
+                    key, vbid, committed->getCas(), ep_current_time(), cookie));
+}
+
+// Test that GAT correctly returns ESyncWriteInProgress if targetted at
+// a key which has a prepared SyncWrite in progress.
+TEST_P(KVBucketParamTest, GetAndUpdateTtlWithPreparedSyncWrite) {
+    // Setup - need a valid topology to accept SyncWrites - but don't want them
+    // to auto-commit so create a topology with 2 nodes.
+    ASSERT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(
+                      vbid,
+                      vbucket_state_active,
+                      {{"topology", nlohmann::json::array({{"a", "b"}})}}));
+
+    // Store both a committed and prepared SV.
+    auto key = makeStoredDocKey("key");
+    ASSERT_EQ(ENGINE_SUCCESS,
+              store->set(*makeCommittedItem(key, "value1"), cookie));
+    ASSERT_EQ(ENGINE_EWOULDBLOCK,
+              store->set(*makePendingItem(key, "value2"), cookie));
+
+    // Test
+    auto gv = store->getAndUpdateTtl(key, vbid, cookie, 10);
+    EXPECT_EQ(ENGINE_SYNC_WRITE_IN_PROGRESS, gv.getStatus());
+}
+
 TEST_P(KVBucketParamTest, replaceTempDeletedTest) {
     //This test is to check if the replace function will
     //remove temporary deleted items from memory

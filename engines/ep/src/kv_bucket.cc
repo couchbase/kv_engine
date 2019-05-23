@@ -1671,10 +1671,10 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
         return ENGINE_UNKNOWN_COLLECTION;
     }
 
-    auto res = vb->fetchValidValue(
-            WantsDeleted::Yes, TrackReference::Yes, QueueExpired::Yes, cHandle);
-    auto* v = res.storedValue;
-    if (v) {
+    auto res = vb->fetchValueForWrite(cHandle, QueueExpired::Yes);
+    switch (res.status) {
+    case VBucket::FetchForWriteResult::Status::OkFound: {
+        auto* v = res.storedValue;
         if (VBucket::isLogicallyNonExistent(*v, cHandle)) {
             vb->ht.cleanupIfTemporaryItem(res.lock, *v);
             return ENGINE_KEY_ENOENT;
@@ -1687,7 +1687,8 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
             return ENGINE_LOCKED_TMPFAIL;
         }
         return ENGINE_TMPFAIL;
-    } else {
+    }
+    case VBucket::FetchForWriteResult::Status::OkVacant:
         if (eviction_policy == EvictionPolicy::Value) {
             return ENGINE_KEY_ENOENT;
         } else {
@@ -1699,7 +1700,11 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
             // exists in disk or not.
             return ENGINE_TMPFAIL;
         }
+
+    case VBucket::FetchForWriteResult::Status::ESyncWriteInProgress:
+        return ENGINE_SYNC_WRITE_IN_PROGRESS;
     }
+    folly::assume_unreachable();
 }
 
 ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,

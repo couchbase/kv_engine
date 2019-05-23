@@ -903,6 +903,63 @@ public:
             const Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     /**
+     * Result of the fetchValueForWrite() method.
+     */
+    struct FetchForWriteResult {
+        enum class Status {
+            /// Found an existing item with the given key.
+            OkFound,
+            /// No item found with this key, but key is available to write.
+            /// `storedValue` set to nullptr, lock acquired ready for inserting.
+            OkVacant,
+            /// An item exists with the given key, however it cannot be accessed
+            /// as a SyncWrite is in progress.
+            /// storedValue set to nullptr, lock doesn't own anything.
+            ESyncWriteInProgress,
+        };
+        Status status;
+
+        /// status==OkFound then pointer to found StoredValue; else nullptr.
+        StoredValue* storedValue = nullptr;
+        /**
+         * The (locked) HashBucketLock for the given key.
+         * This returns a locked object for the 'Ok...' status codes (even if
+         * the requested key doesn't exist) to facilitate use-cases where the
+         * caller subsequently needs to insert a StoredValue for this key, to
+         * avoid unlocking and re-locking the mutex.
+         * For 'E...' status codes it is unlocked, as those are error states
+         * and no valid lock to hold.
+         */
+        HashTable::HashBucketLock lock;
+    };
+
+    /**
+     * Searches for a StoredValue in the VBucket to modify.
+     *
+     * Only looks in the in-memory HashTable; if fully-evicted returns false.
+     *
+     * If the item exists then returns OkFound and the StoredValue+lock.
+     * If the item doesn't exist (but the key can be written to) returns
+     * OkVacant and the lock for where that key would be (and nullptr).
+     * Otherwise returns an error status code - ee FetchForWriteResult::Status
+     * for details.
+     *
+     * If an expired item is found then will enqueue a delete to clean up the
+     * item if QueueExpired is yes.
+     *
+     * @param cHandle Collections readhandle (caching mode) for this key.
+     * @param wantsDeleted If Yes then deleted items will be returned,
+     *        otherwise a deleted item is treated as non-existant (and will
+     *        return nullptr).
+     * @param queueExpired Delete an expired item
+     * @return a FindResult consisting of a pointer to the StoredValue (if
+     * found) and the associated HashBucketLock which guards it.
+     */
+    FetchForWriteResult fetchValueForWrite(
+            const Collections::VB::Manifest::CachingReadHandle& cHandle,
+            QueueExpired queueExpired);
+
+    /**
      * Searches for a Prepared SyncWrite in the VBucket.
      *
      * Only looks in the in-memory HashTable (Prepared items are never

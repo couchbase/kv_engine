@@ -1251,6 +1251,62 @@ HashTable::FindResult VBucket::fetchValidValue(
     return {v, std::move(res.lock)};
 }
 
+VBucket::FetchForWriteResult VBucket::fetchValueForWrite(
+        const Collections::VB::Manifest::CachingReadHandle& cHandle,
+        QueueExpired queueExpired) {
+    if (queueExpired == QueueExpired::Yes && !cHandle.valid()) {
+        throw std::invalid_argument(
+                "VBucket::fetchValueForWrite cannot queue "
+                "expired items for invalid collection");
+    }
+
+    auto res = ht.findForWrite(cHandle.getKey(), WantsDeleted::Yes);
+    if (!res.storedValue) {
+        // No item found.
+        return {FetchForWriteResult::Status::OkVacant, {}, std::move(res.lock)};
+    }
+
+    auto* sv = res.storedValue;
+
+    if (sv->isPending()) {
+        // Attempted to write and found a Pending SyncWrite. Cannot write until
+        // the in-flight one has completed.
+        return {FetchForWriteResult::Status::ESyncWriteInProgress, nullptr, {}};
+    }
+
+    if (sv->isDeleted()) {
+        // If we got a deleted value then can return directly (and skip
+        // expiration checks because deleted items are not subject
+        // to expiration).
+        return {FetchForWriteResult::Status::OkFound, sv, std::move(res.lock)};
+    }
+
+    if (sv->isTempItem()) {
+        // No expiry check needed for temps.
+        return {FetchForWriteResult::Status::OkFound, sv, std::move(res.lock)};
+    }
+
+    if (!sv->isExpired(ep_real_time())) {
+        // Not expired, good to return as-is.
+        return {FetchForWriteResult::Status::OkFound, sv, std::move(res.lock)};
+    }
+
+    // Expired - but queueDirty only allowed on active VB
+    if ((getState() == vbucket_state_active) &&
+        (queueExpired == QueueExpired::Yes)) {
+        incExpirationStat(ExpireBy::Access);
+        handlePreExpiry(res.lock, *sv);
+        VBNotifyCtx notifyCtx;
+        std::tie(std::ignore, sv, notifyCtx) =
+                processExpiredItem(res.lock, *sv, cHandle);
+        notifyNewSeqno(notifyCtx);
+        doCollectionsStats(cHandle, notifyCtx);
+    }
+
+    // Item found (but now deleted via expiration).
+    return {FetchForWriteResult::Status::OkFound, sv, std::move(res.lock)};
+}
+
 HashTable::FindResult VBucket::fetchPreparedValue(
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
     auto res = ht.findForWrite(cHandle.getKey(), WantsDeleted::Yes);
@@ -2310,26 +2366,35 @@ GetValue VBucket::getAndUpdateTtl(
         EventuallyPersistentEngine& engine,
         time_t exptime,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    auto res = fetchValidValue(
-            WantsDeleted::Yes, TrackReference::Yes, QueueExpired::Yes, cHandle);
-    GetValue gv;
-    MutationStatus status;
-    std::tie(status, gv) =
-            processGetAndUpdateTtl(res.lock, res.storedValue, exptime, cHandle);
+    auto res = fetchValueForWrite(cHandle, QueueExpired::Yes);
+    switch (res.status) {
+    case FetchForWriteResult::Status::OkFound:
+    case FetchForWriteResult::Status::OkVacant: {
+        // In both OkFound and OkVacent, call processGetAndUpdateTtl - even
+        // if currently vacant it might exist after bgfetch.
+        GetValue gv;
+        MutationStatus status;
+        std::tie(status, gv) = processGetAndUpdateTtl(
+                res.lock, res.storedValue, exptime, cHandle);
 
-    if (status == MutationStatus::NeedBgFetch) {
-        if (res.storedValue) {
-            bgFetch(cHandle.getKey(), cookie, engine);
-            return GetValue(
-                    nullptr, ENGINE_EWOULDBLOCK, res.storedValue->getBySeqno());
-        } else {
-            ENGINE_ERROR_CODE ec = addTempItemAndBGFetch(
-                    res.lock, cHandle.getKey(), cookie, engine, false);
-            return GetValue(NULL, ec, -1, true);
+        if (status == MutationStatus::NeedBgFetch) {
+            if (res.storedValue) {
+                bgFetch(cHandle.getKey(), cookie, engine);
+                return GetValue(nullptr,
+                                ENGINE_EWOULDBLOCK,
+                                res.storedValue->getBySeqno());
+            } else {
+                ENGINE_ERROR_CODE ec = addTempItemAndBGFetch(
+                        res.lock, cHandle.getKey(), cookie, engine, false);
+                return GetValue(NULL, ec, -1, true);
+            }
         }
+        return gv;
     }
-
-    return gv;
+    case FetchForWriteResult::Status::ESyncWriteInProgress:
+        return GetValue(nullptr, ENGINE_SYNC_WRITE_IN_PROGRESS);
+    }
+    folly::assume_unreachable();
 }
 
 GetValue VBucket::getInternal(
@@ -2561,11 +2626,10 @@ GetValue VBucket::getLocked(
         const void* cookie,
         EventuallyPersistentEngine& engine,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    auto res = fetchValidValue(
-            WantsDeleted::Yes, TrackReference::Yes, QueueExpired::Yes, cHandle);
-    auto* v = res.storedValue;
-
-    if (v) {
+    auto res = fetchValueForWrite(cHandle, QueueExpired::Yes);
+    switch (res.status) {
+    case FetchForWriteResult::Status::OkFound: {
+        auto* v = res.storedValue;
         if (isLogicallyNonExistent(*v, cHandle)) {
             ht.cleanupIfTemporaryItem(res.lock, *v);
             return GetValue(NULL, ENGINE_KEY_ENOENT);
@@ -2592,8 +2656,8 @@ GetValue VBucket::getLocked(
         v->setCas(it->getCas());
 
         return GetValue(std::move(it));
-
-    } else {
+    }
+    case FetchForWriteResult::Status::OkVacant:
         // No value found in the hashtable.
         switch (eviction) {
         case EvictionPolicy::Value:
@@ -2610,8 +2674,11 @@ GetValue VBucket::getLocked(
                 return GetValue(NULL, ENGINE_KEY_ENOENT);
             }
         }
-        return GetValue(); // just to prevent compiler warning
+        folly::assume_unreachable();
+    case FetchForWriteResult::Status::ESyncWriteInProgress:
+        return GetValue(nullptr, ENGINE_SYNC_WRITE_IN_PROGRESS);
     }
+    folly::assume_unreachable();
 }
 
 void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
