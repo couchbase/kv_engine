@@ -374,18 +374,15 @@ void CouchKVStore::initialize() {
         DbHolder db(*this);
         errorCode = openDB(id, db, COUCHSTORE_OPEN_FLAG_RDONLY);
         if (errorCode == COUCHSTORE_SUCCESS) {
-            auto engineError = readVBState(db, id);
-            // We return ENGINE_EINVAL if something went wrong with the JSON
-            // parsing, all other error codes are acceptable at this point in
-            // the code
-            if (engineError != ENGINE_EINVAL) {
+            auto readStatus = readVBState(db, id);
+            if (readStatus == ReadVBStateStatus::Success) {
                 /* update stat */
                 ++st.numLoadedVb;
             } else {
                 logger.warn(
                         "CouchKVStore::initialize: readVBState"
-                        " error:{}, name:{}/{}.couch.{}",
-                        cb::to_string(cb::to_engine_errc(engineError)),
+                        " readVBState:{}, name:{}/{}.couch.{}",
+                        int(readStatus),
                         dbname,
                         id.get(),
                         db.getFileRev());
@@ -2236,48 +2233,90 @@ void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
     }
 }
 
-ENGINE_ERROR_CODE CouchKVStore::readVBState(Db* db, Vbid vbId) {
+std::tuple<CouchKVStore::ReadVBStateStatus, uint64_t, uint64_t>
+CouchKVStore::processVbstateSnapshot(Vbid vb,
+                                     vbucket_state_t state,
+                                     int64_t version,
+                                     uint64_t snapStart,
+                                     uint64_t snapEnd,
+                                     uint64_t highSeqno) {
+    ReadVBStateStatus status = ReadVBStateStatus::Success;
+
+    // All upgrade paths we now expect start and end
+    if (!(highSeqno >= snapStart && highSeqno <= snapEnd)) {
+        // very likely MB-34173, log this occurrence.
+        // log the state, range and version
+        logger.warn(
+                "CouchKVStore::processVbstateSnapshot {} {} with invalid "
+                "snapshot range. Found version:{}, highSeqno:{}, start:{}, "
+                "end:{}",
+                vb,
+                VBucket::toString(state),
+                version,
+                highSeqno,
+                snapStart,
+                snapEnd);
+
+        if (state == vbucket_state_active) {
+            // Reset the snapshot range to match what the flusher would
+            // normally set, that is start and end equal the high-seqno
+            snapStart = snapEnd = highSeqno;
+        } else {
+            // Flag that the VB is corrupt, it needs rebuilding
+            status = ReadVBStateStatus::CorruptSnapshot;
+            snapStart = 0, snapEnd = 0;
+        }
+    }
+
+    return {status, snapStart, snapEnd};
+}
+
+CouchKVStore::ReadVBStateStatus CouchKVStore::readVBState(Db* db, Vbid vbId) {
     sized_buf id;
     LocalDoc *ldoc = NULL;
-    couchstore_error_t errCode = COUCHSTORE_SUCCESS;
+    ReadVBStateStatus status = ReadVBStateStatus::Success;
     // High sequence number and purge sequence number are stored automatically
     // by couchstore.
     int64_t highSeqno = 0;
     uint64_t purgeSeqno = 0;
+    snapshot_info_t snapshot{0, {0, 0}};
     DbInfo info;
-    errCode = couchstore_db_info(db, &info);
-    if (errCode == COUCHSTORE_SUCCESS) {
+    auto couchStoreStatus = couchstore_db_info(db, &info);
+    if (couchStoreStatus == COUCHSTORE_SUCCESS) {
         highSeqno = info.last_sequence;
         purgeSeqno = info.purge_seq;
     } else {
         logger.warn(
                 "CouchKVStore::readVBState: couchstore_db_info error:{}"
                 ", {}",
-                couchstore_strerror(errCode),
+                couchstore_strerror(couchStoreStatus),
                 vbId);
-        return couchErr2EngineErr(errCode);
+        return ReadVBStateStatus::CouchstoreError;
     }
 
     vbucket_state vbState;
 
     id.buf = (char *)"_local/vbstate";
     id.size = sizeof("_local/vbstate") - 1;
-    errCode = couchstore_open_local_document(db, (void *)id.buf,
-                                             id.size, &ldoc);
-    if (errCode != COUCHSTORE_SUCCESS) {
-        if (errCode == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
-            logger.info(
-                    "CouchKVStore::readVBState: '_local/vbstate' not found "
-                    "for {}",
-                    vbId);
-        } else {
-            logger.warn(
-                    "CouchKVStore::readVBState: couchstore_open_local_document"
-                    " error:{}, {}",
-                    couchstore_strerror(errCode),
-                    vbId);
-        }
-    } else {
+    couchStoreStatus =
+            couchstore_open_local_document(db, (void*)id.buf, id.size, &ldoc);
+
+    if (couchStoreStatus == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+        logger.info(
+                "CouchKVStore::readVBState: '_local/vbstate' not found "
+                "for {}",
+                vbId);
+    } else if (couchStoreStatus != COUCHSTORE_SUCCESS) {
+        logger.warn(
+                "CouchKVStore::readVBState: couchstore_open_local_document"
+                " error:{}, {}",
+                couchstore_strerror(couchStoreStatus),
+                vbId);
+        return ReadVBStateStatus::CouchstoreError;
+    }
+
+    // Proceed to read/parse the vbstate if success
+    if (couchStoreStatus == COUCHSTORE_SUCCESS) {
         const std::string statjson(ldoc->json.buf, ldoc->json.size);
 
         nlohmann::json json;
@@ -2292,7 +2331,7 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db* db, Vbid vbId) {
                     vbId,
                     statjson,
                     e.what());
-            return ENGINE_EINVAL;
+            return ReadVBStateStatus::JsonInvalid;
         }
 
         // Merge in the high_seqno & purge_seqno read previously from db info.
@@ -2311,7 +2350,7 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db* db, Vbid vbId) {
                     vbId,
                     json.dump(),
                     e.what());
-            return ENGINE_EINVAL;
+            return ReadVBStateStatus::JsonInvalid;
         }
 
         // MB-17517: If the maxCas on disk was invalid then don't use it -
@@ -2327,14 +2366,24 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db* db, Vbid vbId) {
                     vbId);
             vbState.maxCas = 0;
         }
+
+        std::tie(status, vbState.lastSnapStart, vbState.lastSnapEnd) =
+                processVbstateSnapshot(vbId,
+                                       vbState.state,
+                                       vbState.version,
+                                       vbState.lastSnapStart,
+                                       vbState.lastSnapEnd,
+                                       uint64_t(highSeqno));
+
         couchstore_free_local_document(ldoc);
     }
 
-    // Cannot use make_unique here as it doesn't support brace-initialization
-    // until C++20.
-    cachedVBStates[vbId.get()].reset(new vbucket_state(vbState));
-
-    return couchErr2EngineErr(errCode);
+    if (status == ReadVBStateStatus::Success) {
+        // Cannot use make_unique here as it doesn't support
+        // brace-initialization until C++20.
+        cachedVBStates[vbId.get()].reset(new vbucket_state(vbState));
+    }
+    return status;
 }
 
 couchstore_error_t CouchKVStore::saveVBState(Db *db,
@@ -2735,7 +2784,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
         return RollbackResult(false, 0, 0, 0);
     }
 
-    if (readVBState(newdb, vbid) != ENGINE_SUCCESS) {
+    if (readVBState(newdb, vbid) != ReadVBStateStatus::Success) {
         return RollbackResult(false, 0, 0, 0);
     }
     cachedDeleteCount[vbid.get()] = info.deleted_count;

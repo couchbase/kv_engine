@@ -56,15 +56,22 @@ std::string to_string(GenerateBySeqno generateBySeqno);
 std::string to_string(GenerateCas generateCas);
 std::string to_string(TrackCasDrift trackCasDrift);
 
-typedef struct {
+struct snapshot_range_t {
+    snapshot_range_t(uint64_t start, uint64_t end) : start(start), end(end) {
+        // @todo: enforce start < end in a non-maintenance release
+    }
+
     uint64_t start;
     uint64_t end;
-} snapshot_range_t;
+};
 
-typedef struct {
+struct snapshot_info_t {
+    snapshot_info_t(uint64_t start, snapshot_range_t range)
+        : start(start), range(range) {
+    }
     uint64_t start;
     snapshot_range_t range;
-} snapshot_info_t;
+};
 
 /**
  * The following options can be specified

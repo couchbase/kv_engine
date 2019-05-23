@@ -43,6 +43,7 @@ void vbucket_state::reset() {
     failovers.clear();
     supportsNamespaces = true;
     replicationTopology.clear();
+    version = 2;
 }
 
 void to_json(nlohmann::json& json, const vbucket_state& vbs) {
@@ -63,7 +64,8 @@ void to_json(nlohmann::json& json, const vbucket_state& vbs) {
             {"max_cas", std::to_string(vbs.maxCas)},
             {"hlc_epoch", std::to_string(vbs.hlcCasEpochSeqno)},
             {"might_contain_xattrs", vbs.mightContainXattrs},
-            {"namespaces_supported", vbs.supportsNamespaces}};
+            {"namespaces_supported", vbs.supportsNamespaces},
+            {"version", vbs.version}};
 
     // Insert optional fields.
     if (!vbs.failovers.empty()) {
@@ -99,5 +101,12 @@ void from_json(const nlohmann::json& j, vbucket_state& vbs) {
     auto topologyIt = j.find("replication_topology");
     if (topologyIt != j.end()) {
         vbs.replicationTopology = *topologyIt;
+    }
+
+    auto version = j.find("version");
+    if (version != j.end()) {
+        vbs.version = (*version).get<int>();
+    } else {
+        vbs.version = 1;
     }
 }
