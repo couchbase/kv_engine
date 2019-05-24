@@ -161,3 +161,16 @@ TEST_P(CmdTimerTest, DefaultBucket) {
     EXPECT_TRUE(response.isSuccess());
     EXPECT_EQ(1, getNumberOfOps(response.getDataString()));
 }
+
+/**
+ * Attempting to fetch timings for an empty histogram should succeed (but return
+ * no samples)
+ */
+TEST_P(CmdTimerTest, EmptySuccess) {
+    auto& c = getAdminConnection();
+    c.execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Stat, "reset"});
+    const auto response = c.execute(
+            BinprotGetCmdTimerCommand{"default", cb::mcbp::ClientOpcode::Set});
+    EXPECT_TRUE(response.isSuccess());
+    EXPECT_EQ(0, getNumberOfOps(response.getDataString()));
+}

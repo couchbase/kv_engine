@@ -279,25 +279,22 @@ nlohmann::json HdrHistogram::to_json(Iterator::IterMode itrType) {
     // Five is the number of iteration steps per half-distance to 100%.
     Iterator itr = makePercentileIterator(5);
 
-    if (itr.total_count > 0) {
-        rootObj["total"] = itr.total_count;
-        // bucketsLow represents the starting value of the first bucket
-        // e.g. if the first bucket was from [0 - 10]ms then it would be 0
-        rootObj["bucketsLow"] = itr.value_iterated_from;
-        nlohmann::json dataArr;
+    rootObj["total"] = itr.total_count;
+    // bucketsLow represents the starting value of the first bucket
+    // e.g. if the first bucket was from [0 - 10]ms then it would be 0
+    rootObj["bucketsLow"] = itr.value_iterated_from;
+    nlohmann::json dataArr;
 
-        int64_t lastval = 0;
-        while (auto pair = getNextValueAndPercentile(itr)) {
-            if (!pair.is_initialized())
-                break;
+    int64_t lastval = 0;
+    while (auto pair = getNextValueAndPercentile(itr)) {
+        if (!pair.is_initialized())
+            break;
 
-            dataArr.push_back({pair->first,
-                               itr.cumulative_count - lastval,
-                               pair->second});
-            lastval = itr.cumulative_count;
-        }
-        rootObj["data"] = dataArr;
+        dataArr.push_back(
+                {pair->first, itr.cumulative_count - lastval, pair->second});
+        lastval = itr.cumulative_count;
     }
+    rootObj["data"] = dataArr;
 
     return rootObj;
 }

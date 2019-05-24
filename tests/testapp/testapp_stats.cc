@@ -446,9 +446,9 @@ TEST_P(StatsTest, TestSubdocExecute) {
     MemcachedConnection& conn = getConnection();
     auto stats = conn.stats("subdoc_execute");
 
-    // json returned should be null as no ops have been performed
+    // json returned should have zero samples as no ops have been performed
     EXPECT_TRUE(stats.is_object());
-    EXPECT_TRUE(stats["0"].is_null());
+    EXPECT_EQ(0, stats["0"]["total"].get<uint64_t>());
 }
 
 TEST_P(StatsTest, TestResponseStats) {

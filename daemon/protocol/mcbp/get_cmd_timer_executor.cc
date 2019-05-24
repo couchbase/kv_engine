@@ -72,7 +72,7 @@ static std::pair<ENGINE_ERROR_CODE, Hdr1sfMicroSecHistogram> get_timings(
     } else {
         // histogram for this opcode hasn't been created yet so just
         // return an histogram with no data in it
-        return {ENGINE_EACCESS, {}};
+        return {ENGINE_SUCCESS, {}};
     }
 }
 
