@@ -164,8 +164,10 @@ class MemcachedClient(object):
         # Iterate all addresses for the given family; using the first
         # one we can successfully connect to. If none succeed raise
         # the last attempted as an exception.
-        for info in socket.getaddrinfo(self.host, self.port, family,
-                                       socket.SOCK_STREAM):
+        addrs = socket.getaddrinfo(self.host, self.port, family,
+                                   socket.SOCK_STREAM)
+        sock_error = None
+        for info in addrs:
             _family, socktype, proto, _, sockaddr = info
             try:
                 sock = socket.socket(_family, socktype, proto)
@@ -173,9 +175,10 @@ class MemcachedClient(object):
                 sock.connect(sockaddr)
                 self.s = sock
                 break
-            except socket.error as sock_error:
+            except OSError as err:
                 # If we get here socket objects will be close()d via
                 # garbage collection.
+                sock_error = err
                 pass
         else:
             # Didn't break from the loop, re-raise the last error
@@ -190,7 +193,8 @@ class MemcachedClient(object):
         self.collection_map = {}
 
     def close(self):
-        self.s.close()
+        if hasattr(self, 's'):
+            self.s.close()
 
     def __del__(self):
         self.close()

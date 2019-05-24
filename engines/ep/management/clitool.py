@@ -54,8 +54,10 @@ class CliTool(object):
 
         try:
             mc = mc_bin_client.MemcachedClient(host, port, family)
-        except socket.error as e:
-            print('Connection error: %s' % e)
+        except OSError as e:
+            print(
+                "Failed to connect to host {} on port {}: {}".format(host, port,
+                                                                     e))
             sys.exit(1)
 
         f = self.cmds.get(self.cmd)
