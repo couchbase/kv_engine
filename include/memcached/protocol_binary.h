@@ -1325,7 +1325,7 @@ static_assert(sizeof(DcpPreparePayload) == 33, "Unexpected struct size");
 class DcpSeqnoAcknowledgedPayload {
 public:
     explicit DcpSeqnoAcknowledgedPayload(uint64_t prepared)
-        : prepared_seqno(prepared) {
+        : prepared_seqno(htonll(prepared)) {
     }
 
     uint64_t getPreparedSeqno() const {
@@ -1337,6 +1337,7 @@ public:
     }
 
 protected:
+    // Stored in network order.
     uint64_t prepared_seqno = 0;
 };
 static_assert(sizeof(DcpSeqnoAcknowledgedPayload) == 8,

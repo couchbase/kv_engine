@@ -597,6 +597,12 @@ void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
                 "ActiveDurabilityMonitor::processSeqnoAck: FirstChain not "
                 "set");
     }
+    if (seqno > lastTrackedSeqno) {
+        throw std::invalid_argument(
+                "ActiveDurabilityMonitor::processSeqnoAck: seqno(" +
+                std::to_string(seqno) + ") is greater than lastTrackedSeqno(" +
+                std::to_string(lastTrackedSeqno) + "\"");
+    }
 
     // Note: process up to the ack'ed seqno
     ActiveDurabilityMonitor::Container::iterator next;

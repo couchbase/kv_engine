@@ -362,7 +362,7 @@ void ActiveDurabilityMonitorPersistentTest::testSeqnoAckPersistToMajority(
         }
     }
 
-    const int64_t ackSeqno = 10;
+    const int64_t ackSeqno = 5;
 
     for (const auto& node : nodesToAck) {
         SCOPED_TRACE("");
@@ -398,7 +398,7 @@ void ActiveDurabilityMonitorPersistentTest::
         assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    const int64_t ackSeqno = 10;
+    const int64_t ackSeqno = 5;
 
     // Ack all replicas, nothing should be committed
     for (const auto& node : nodesToAck) {
@@ -682,16 +682,8 @@ TEST_P(ActiveDurabilityMonitorTest,
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    {
-        SCOPED_TRACE("");
-        testSeqnoAckReceived(replica1,
-                             4 /*ackSeqno*/,
-                             3 /*expectedLastWriteSeqno*/,
-                             4 /*expectedLastAckSeqno*/,
-                             0 /*expectedNumTracked*/,
-                             3 /*expectedHPS*/,
-                             3 /*expectedHCS*/);
-    }
+    EXPECT_THROW(getActiveDM().seqnoAckReceived(replica1, 4),
+                 std::invalid_argument);
 }
 
 TEST_P(ActiveDurabilityMonitorTest,
@@ -711,27 +703,11 @@ TEST_P(ActiveDurabilityMonitorTest,
         assertNodeTracking(replica2, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    {
-        SCOPED_TRACE("");
-        testSeqnoAckReceived(replica1,
-                             4 /*ackSeqno*/,
-                             3 /*expectedLastWriteSeqno*/,
-                             4 /*expectedLastAckSeqno*/,
-                             numTracked /*expectedNumTracked*/,
-                             3 /*expectedHPS*/,
-                             0 /*expectedHCS*/);
-    }
+    EXPECT_THROW(getActiveDM().seqnoAckReceived(replica1, 4),
+                 std::invalid_argument);
 
-    {
-        SCOPED_TRACE("");
-        testSeqnoAckReceived(replica2,
-                             4 /*ackSeqno*/,
-                             3 /*expectedLastWriteSeqno*/,
-                             4 /*expectedLastAckSeqno*/,
-                             0 /*expectedNumTracked*/,
-                             3 /*expectedHPS*/,
-                             3 /*expectedHCS*/);
-    }
+    EXPECT_THROW(getActiveDM().seqnoAckReceived(replica2, 4),
+                 std::invalid_argument);
 }
 
 TEST_P(ActiveDurabilityMonitorTest,
@@ -745,16 +721,8 @@ TEST_P(ActiveDurabilityMonitorTest,
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    {
-        SCOPED_TRACE("");
-        testSeqnoAckReceived(replica1,
-                             10 /*ackSeqno*/,
-                             5 /*expectedLastWriteSeqno*/,
-                             10 /*expectedLastAckSeqno*/,
-                             0 /*expectedNumTracked*/,
-                             5 /*expectedHPS*/,
-                             5 /*expectedHCS*/);
-    }
+    EXPECT_THROW(getActiveDM().seqnoAckReceived(replica1, 10),
+                 std::invalid_argument);
 }
 
 TEST_P(ActiveDurabilityMonitorTest,
@@ -775,27 +743,11 @@ TEST_P(ActiveDurabilityMonitorTest,
         assertNodeTracking(replica2, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    {
-        SCOPED_TRACE("");
-        testSeqnoAckReceived(replica1,
-                             10 /*ackSeqno*/,
-                             5 /*expectedLastWriteSeqno*/,
-                             10 /*expectedLastAckSeqno*/,
-                             numTracked /*expectedNumTracked*/,
-                             5 /*expectedHPS*/,
-                             0 /*expectedHCS*/);
-    }
+    EXPECT_THROW(getActiveDM().seqnoAckReceived(replica1, 10),
+                 std::invalid_argument);
 
-    {
-        SCOPED_TRACE("");
-        testSeqnoAckReceived(replica2,
-                             10 /*ackSeqno*/,
-                             5 /*expectedLastWriteSeqno*/,
-                             10 /*expectedLastAckSeqno*/,
-                             0 /*expectedNumTracked*/,
-                             5 /*expectedHPS*/,
-                             5 /*expectedHCS*/);
-    }
+    EXPECT_THROW(getActiveDM().seqnoAckReceived(replica2, 10),
+                 std::invalid_argument);
 }
 
 TEST_P(ActiveDurabilityMonitorTest,
@@ -815,7 +767,7 @@ TEST_P(ActiveDurabilityMonitorTest,
         assertNodeTracking(replica2, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    const int64_t ackSeqno = 10;
+    const int64_t ackSeqno = 5;
 
     SCOPED_TRACE("");
     // active has already acked, replica 1 now acks which gives us majority on

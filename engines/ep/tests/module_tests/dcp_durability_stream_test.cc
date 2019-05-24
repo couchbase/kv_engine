@@ -262,7 +262,7 @@ TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSnapshotEndReceived) {
               readyQ.front()->getEvent());
     const auto* seqnoAck =
             static_cast<const SeqnoAcknowledgement*>(readyQ.front().get());
-    EXPECT_EQ(ntohll(swSeqno), seqnoAck->getPreparedSeqno());
+    EXPECT_EQ(swSeqno, seqnoAck->getPreparedSeqno());
 }
 
 TEST_P(DurabilityPassiveStreamPersistentTest, SeqnoAckAtPersistedSeqno) {
@@ -339,7 +339,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, SeqnoAckAtPersistedSeqno) {
               readyQ.front()->getEvent());
     const auto* seqnoAck =
             static_cast<const SeqnoAcknowledgement*>(readyQ.front().get());
-    EXPECT_EQ(ntohll(swSeqno), seqnoAck->getPreparedSeqno());
+    EXPECT_EQ(swSeqno, seqnoAck->getPreparedSeqno());
 }
 
 /**
@@ -368,7 +368,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
                   readyQ.front()->getEvent());
         const auto& seqnoAck =
                 static_cast<const SeqnoAcknowledgement&>(*readyQ.front());
-        EXPECT_EQ(ntohll(seqno), seqnoAck.getPreparedSeqno());
+        EXPECT_EQ(seqno, seqnoAck.getPreparedSeqno());
         // Clear readyQ
         ASSERT_TRUE(stream->public_popFromReadyQ());
         ASSERT_FALSE(readyQ.size());
