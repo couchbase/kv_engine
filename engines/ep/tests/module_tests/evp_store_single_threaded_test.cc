@@ -1814,15 +1814,17 @@ TEST_F(SingleThreadedEPBucketTest, MB_29861) {
 }
 
 /*
- * Test that the DCP processor returns a 'yield' return code when
- * working on a large enough buffer size.
+ * Test that the consumer will use the delete time given
  */
-TEST_F(SingleThreadedEPBucketTest, MB_27457) {
+TEST_P(STParameterizedBucketTest, MB_27457) {
     // We need a replica VB
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
     // Create a MockDcpConsumer
     auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "test");
+
+    // Bump forwards so ep_current_time cannot be 0
+    TimeTraveller biff(64000);
 
     // Add the stream
     EXPECT_EQ(ENGINE_SUCCESS,
@@ -1840,26 +1842,25 @@ TEST_F(SingleThreadedEPBucketTest, MB_27457) {
                          /*values*/ {},
                          /*priv_bytes*/ 0,
                          /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
-                         /*cas*/ 0,
+                         /*cas*/ 1,
                          /*vbucket*/ vbid,
                          /*bySeqno*/ 1,
                          /*revSeqno*/ 0,
                          /*deleteTime*/ 0);
 
-    const uint32_t deleteTime = 10;
+    const uint32_t deleteTime = 1958601165;
     consumer->deletionV2(/*opaque*/ 1,
                          {"key2", DocKeyEncodesCollectionId::No},
                          /*value*/ {},
                          /*priv_bytes*/ 0,
                          /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
-                         /*cas*/ 0,
+                         /*cas*/ 2,
                          /*vbucket*/ vbid,
                          /*bySeqno*/ 2,
                          /*revSeqno*/ 0,
                          deleteTime);
 
-    EXPECT_EQ(std::make_pair(false, size_t(2)),
-              getEPBucket().flushVBucket(vbid));
+    flushVBucketToDiskIfPersistent(vbid, 2);
 
     // Drop the stream
     consumer->closeStream(/*opaque*/ 0, vbid);
@@ -1869,46 +1870,78 @@ TEST_F(SingleThreadedEPBucketTest, MB_27457) {
     ItemMetaData metadata;
     uint32_t deleted = 0;
     uint8_t datatype = 0;
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
-              store->getMetaData(makeStoredDocKey("key1"),
-                                 vbid,
-                                 cookie,
-                                 metadata,
-                                 deleted,
-                                 datatype));
+    uint64_t tombstoneTime;
+    if (persistent()) {
+        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+                  store->getMetaData(makeStoredDocKey("key1"),
+                                     vbid,
+                                     cookie,
+                                     metadata,
+                                     deleted,
+                                     datatype));
+        runBGFetcherTask();
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  store->getMetaData(makeStoredDocKey("key1"),
+                                     vbid,
+                                     cookie,
+                                     metadata,
+                                     deleted,
+                                     datatype));
+        tombstoneTime = uint64_t(metadata.exptime);
+    } else {
+        //  Ephemeral tombstone time is not in the expiry field, we can only
+        // check the value by directly peeking at the StoredValue
+        auto vb = store->getVBucket(vbid);
+        auto ro = vb->ht.findForRead(makeStoredDocKey("key1"),
+                                     TrackReference::No,
+                                     WantsDeleted::Yes);
+        auto* sv = ro.storedValue;
+        ASSERT_NE(nullptr, sv);
+        deleted = sv->isDeleted();
+        tombstoneTime = uint64_t(sv->toOrderedStoredValue()->getDeletedTime());
+    }
 
-    runBGFetcherTask();
-    EXPECT_EQ(ENGINE_SUCCESS,
-              store->getMetaData(makeStoredDocKey("key1"),
-                                 vbid,
-                                 cookie,
-                                 metadata,
-                                 deleted,
-                                 datatype));
     EXPECT_EQ(1, deleted);
     EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, datatype);
-    EXPECT_NE(0, metadata.exptime); // A locally created deleteTime
+    EXPECT_GE(tombstoneTime, biff.get())
+            << "Expected a tombstone to have been set which is equal or "
+               "greater than our time traveller jump";
 
     deleted = 0;
     datatype = 0;
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
-              store->getMetaData(makeStoredDocKey("key2"),
-                                 vbid,
-                                 cookie,
-                                 metadata,
-                                 deleted,
-                                 datatype));
-    runBGFetcherTask();
-    EXPECT_EQ(ENGINE_SUCCESS,
-              store->getMetaData(makeStoredDocKey("key2"),
-                                 vbid,
-                                 cookie,
-                                 metadata,
-                                 deleted,
-                                 datatype));
+    if (persistent()) {
+        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+                  store->getMetaData(makeStoredDocKey("key2"),
+                                     vbid,
+                                     cookie,
+                                     metadata,
+                                     deleted,
+                                     datatype));
+        runBGFetcherTask();
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  store->getMetaData(makeStoredDocKey("key2"),
+                                     vbid,
+                                     cookie,
+                                     metadata,
+                                     deleted,
+                                     datatype));
+
+        tombstoneTime = uint64_t(metadata.exptime);
+    } else {
+        auto vb = store->getVBucket(vbid);
+        auto ro = vb->ht.findForRead(makeStoredDocKey("key2"),
+                                     TrackReference::No,
+                                     WantsDeleted::Yes);
+        auto* sv = ro.storedValue;
+        ASSERT_NE(nullptr, sv);
+        deleted = sv->isDeleted();
+        tombstoneTime =
+                ep_abs_time((sv->toOrderedStoredValue()->getDeletedTime()));
+    }
     EXPECT_EQ(1, deleted);
     EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, datatype);
-    EXPECT_EQ(deleteTime, metadata.exptime); // Our replicated deleteTime!
+    EXPECT_EQ(deleteTime, tombstoneTime)
+            << "key2 did not have our replicated deleteTime:" << deleteTime;
 }
 
 /*
@@ -3501,14 +3534,7 @@ TEST_P(STParameterizedBucketTest, slow_stream_backfill_expiry) {
 
     // The delete time should always be re-created by the server to
     // ensure old/future expiry times don't disrupt tombstone purging (MB-33919)
-    if (persistent()) {
-        EXPECT_NE(expiryTime, producers.last_delete_time);
-    } else {
-        // This is incorrect, the tombstone still has the original expiry time
-        // The backfill is using the StoredValue in ephemeral and still has the
-        // original time-stamp. MB-34262
-        EXPECT_EQ(expiryTime, producers.last_delete_time);
-    }
+    EXPECT_NE(expiryTime, producers.last_delete_time);
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpExpiration, producers.last_op);
     EXPECT_EQ("KEY3", producers.last_key);
 
@@ -3788,6 +3814,101 @@ TEST_F(SingleThreadedEPBucketTest, testValidTombstonePurgeOnRetainErroneousTombs
     runCompaction(~0, 3);
 
     EXPECT_EQ(2, store->getVBucket(vbid)->getPurgeSeqno());
+}
+
+TEST_P(STParameterizedBucketTest, produce_delete_times) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto t1 = ep_real_time();
+    storeAndDeleteItem(vbid, {"KEY1", DocKeyEncodesCollectionId::No}, "value");
+    auto t2 = ep_real_time();
+
+    // Clear checkpoint so DCP will goto backfill
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    vb->checkpointManager->clear(*vb, 2);
+
+    auto cookie = create_mock_cookie();
+    auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
+    MockDcpMessageProducers producers(engine.get());
+
+    createDcpStream(*producer);
+
+    // noop off as we will play with time travel
+    producer->setNoopEnabled(false);
+
+    auto step = [this, producer, &producers](bool inMemory) {
+        notifyAndStepToCheckpoint(*producer,
+                                  producers,
+                                  cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                                  inMemory);
+
+        // Now step the producer to transfer the delete/tombstone.
+        EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(producers));
+    };
+
+    step(false);
+    EXPECT_NE(0, producers.last_delete_time);
+    EXPECT_GE(producers.last_delete_time, t1);
+    EXPECT_LE(producers.last_delete_time, t2);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, producers.last_op);
+    EXPECT_EQ("KEY1", producers.last_key);
+    size_t expectedBytes = SnapshotMarker::baseMsgBytes +
+                           MutationResponse::deletionV2BaseMsgBytes +
+                           (sizeof("KEY1") - 1);
+    EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
+
+    // Now a new delete, in-memory will also have a delete time
+    t1 = ep_real_time();
+    storeAndDeleteItem(vbid, {"KEY2", DocKeyEncodesCollectionId::No}, "value");
+    t2 = ep_real_time();
+
+    step(true);
+
+    EXPECT_NE(0, producers.last_delete_time);
+    EXPECT_GE(producers.last_delete_time, t1);
+    EXPECT_LE(producers.last_delete_time, t2);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, producers.last_op);
+    EXPECT_EQ("KEY2", producers.last_key);
+    expectedBytes += SnapshotMarker::baseMsgBytes +
+                     MutationResponse::deletionV2BaseMsgBytes +
+                     (sizeof("KEY2") - 1);
+    EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
+
+    // Finally expire a key and check that the delete_time we receive is the
+    // expiry time, not actually the time it was deleted.
+    auto expiryTime = ep_real_time() + 32000;
+    store_item(
+            vbid, {"KEY3", DocKeyEncodesCollectionId::No}, "value", expiryTime);
+
+    step(true);
+    expectedBytes += SnapshotMarker::baseMsgBytes +
+                     MutationResponse::mutationBaseMsgBytes +
+                     (sizeof("value") - 1) + (sizeof("KEY3") - 1);
+    EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
+
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    TimeTraveller arron(64000);
+
+    // Trigger expiry on a GET
+    auto gv = store->get(
+            {"KEY3", DocKeyEncodesCollectionId::No}, vbid, cookie, NONE);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    step(true);
+
+    // The delete time should always be re-created by the server to
+    // ensure old/future expiry times don't disrupt tombstone purging (MB-33919)
+    EXPECT_NE(expiryTime, producers.last_delete_time);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, producers.last_op);
+    EXPECT_EQ("KEY3", producers.last_key);
+    expectedBytes += SnapshotMarker::baseMsgBytes +
+                     MutationResponse::deletionV2BaseMsgBytes +
+                     (sizeof("KEY3") - 1);
+    EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
+
+    destroy_mock_cookie(cookie);
+    producer->closeAllStreams();
+    producer->cancelCheckpointCreatorTask();
+    producer.reset();
 }
 
 INSTANTIATE_TEST_CASE_P(XattrSystemUserTest,
