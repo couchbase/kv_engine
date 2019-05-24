@@ -18,6 +18,7 @@
 #pragma once
 
 #include "checkpoint.h"
+#include "checkpoint_config.h"
 #include "checkpoint_manager.h"
 
 /*
@@ -88,5 +89,9 @@ public:
                                             queue_op checkpoint_op) {
         LockHolder lh(queueLock);
         return createCheckpointItem(id, vbid, checkpoint_op);
+    }
+
+    void resetConfig(CheckpointConfig& c) {
+        checkpointConfig = c;
     }
 };

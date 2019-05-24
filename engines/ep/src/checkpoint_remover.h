@@ -27,6 +27,9 @@ class EventuallyPersistentEngine;
  */
 class ClosedUnrefCheckpointRemoverTask : public GlobalTask {
 public:
+    // Enum for specifying the mechanism for recovering memory
+    // (expelling or cursor dropping).
+    enum class MemoryRecoveryMechanism { checkpointExpel, cursorDrop };
 
     /**
      * Construct ClosedUnrefCheckpointRemover.
@@ -38,7 +41,17 @@ public:
         GlobalTask(e, TaskId::ClosedUnrefCheckpointRemoverTask, interval, false),
         engine(e), stats(st), sleepTime(interval), available(true) {}
 
-    void attemptCursorDropping(size_t amountOfMemoryToClear);
+    /**
+     * Attempts to free memory using either checkpoint expelling
+     * or cursor dropping.
+     * @param mechanism  The mechanism to use to recover memory
+     * (either expelling or cursor dropping).
+     * @param amountOfMemoryToClear  The amount of memory in bytes
+     * that needs to be recovered.
+     * @return the amount (in bytes) that was recovered.
+     */
+    size_t attemptMemoryRecovery(MemoryRecoveryMechanism mechanism,
+                                 size_t amountOfMemoryToClear);
 
     bool run(void);
 

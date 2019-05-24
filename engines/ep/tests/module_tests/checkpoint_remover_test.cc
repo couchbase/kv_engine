@@ -328,8 +328,8 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
     ASSERT_EQ(1, checkpointManager->getNumOfCursors());
 }
 
-// Test that we correctly determine whether to trigger cursor dropping.
-TEST_F(CheckpointRemoverEPTest, cursorDroppingTriggerTest) {
+// Test that we correctly determine whether to trigger memory recovery.
+TEST_F(CheckpointRemoverEPTest, memoryRecoverTriggerTest) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto& config = engine->getConfiguration();
     const auto& task = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
@@ -337,7 +337,7 @@ TEST_F(CheckpointRemoverEPTest, cursorDroppingTriggerTest) {
             engine->getEpStats(),
             engine->getConfiguration().getChkRemoverStime());
 
-    bool shouldTriggerCursorDropping{false};
+    bool shouldTriggerMemoryRecovery{false};
     size_t amountOfMemoryToClear{0};
 
     /*
@@ -346,35 +346,118 @@ TEST_F(CheckpointRemoverEPTest, cursorDroppingTriggerTest) {
      */
     config.setMaxSize(10240);
 
-    std::tie(shouldTriggerCursorDropping, amountOfMemoryToClear) =
+    std::tie(shouldTriggerMemoryRecovery, amountOfMemoryToClear) =
             task->isReductionInCheckpointMemoryNeeded();
-    EXPECT_FALSE(shouldTriggerCursorDropping);
+    EXPECT_FALSE(shouldTriggerMemoryRecovery);
     EXPECT_EQ(0, amountOfMemoryToClear);
 
     /*
-     * Trigger first condition for cursor dropping:
+     * Trigger condition for memory recovery:
      * the total memory used is greater than the upper threshold which is
      * a percentage of the quota, specified by cursor_dropping_upper_mark
      */
     config.setMaxSize(1024);
 
-    std::tie(shouldTriggerCursorDropping, amountOfMemoryToClear) =
+    std::tie(shouldTriggerMemoryRecovery, amountOfMemoryToClear) =
             task->isReductionInCheckpointMemoryNeeded();
-    EXPECT_TRUE(shouldTriggerCursorDropping);
+    EXPECT_TRUE(shouldTriggerMemoryRecovery);
     EXPECT_LT(0, amountOfMemoryToClear);
 
     /*
-     * Trigger second condition for cursor dropping:
+     * Trigger condition for memory recovery:
      * the overall checkpoint memory usage goes above a certain % of the
-     * bucket quota, specified by cursor_dropping_checkpoint_mem_upper_mark and
-     * the checkpoint memory usage is above the memory low watermark.
+     * bucket quota, specified by cursor_dropping_checkpoint_mem_upper_mark
+     * and the checkpoint memory usage is above the memory low watermark.
      */
-    config.setMaxSize(10240);
     engine->getEpStats().mem_low_wat.store(1);
     config.setCursorDroppingCheckpointMemUpperMark(1);
 
-    std::tie(shouldTriggerCursorDropping, amountOfMemoryToClear) =
+    std::tie(shouldTriggerMemoryRecovery, amountOfMemoryToClear) =
             task->isReductionInCheckpointMemoryNeeded();
-    EXPECT_TRUE(shouldTriggerCursorDropping);
+    EXPECT_TRUE(shouldTriggerMemoryRecovery);
     EXPECT_LT(0, amountOfMemoryToClear);
+}
+
+void CheckpointRemoverEPTest::testExpelingOccursBeforeCursorDropping(
+        bool moveCursor) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto& config = engine->getConfiguration();
+    const auto& task = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
+            engine.get(),
+            engine->getEpStats(),
+            engine->getConfiguration().getChkRemoverStime());
+
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto* checkpointManager =
+            static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
+    CheckpointConfig c(*engine.get());
+    checkpointManager->resetConfig(c);
+
+    auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
+    createDcpStream(*producer);
+
+    bool isLastMutation;
+    ActiveStream& activeStream =
+            reinterpret_cast<ActiveStream&>(*producer->findStream(vbid));
+    auto cursor = activeStream.getCursor().lock();
+
+    config.setChkExpelEnabled(true);
+    config.setMaxSize(200000);
+    const auto chkptMemLimit =
+            (config.getMaxSize() *
+             config.getCursorDroppingCheckpointMemUpperMark()) /
+            100;
+    engine->getEpStats().mem_low_wat.store(1);
+
+    int ii = 0;
+    while (engine->getKVBucket()
+                   ->getVBuckets()
+                   .getVBucketsTotalCheckpointMemoryUsage() < chkptMemLimit) {
+        std::string doc_key = "key_" + std::to_string(ii);
+        store_item(vbid, makeStoredDocKey(doc_key), "value");
+        ++ii;
+    }
+    flush_vbucket_to_disk(vbid, ii);
+
+    if (moveCursor) {
+        // Move the cursor past 90% of the items added.
+        for (int jj = 0; jj < ii * 0.9; ++jj) {
+            checkpointManager->nextItem(cursor.get(), isLastMutation);
+        }
+    }
+
+    bool shouldReduceMemory{false};
+    size_t amountOfMemoryToClear{0};
+    std::tie(shouldReduceMemory, amountOfMemoryToClear) =
+            task->isReductionInCheckpointMemoryNeeded();
+    EXPECT_TRUE(shouldReduceMemory);
+
+    bool newOpenCheckpointCreated;
+    checkpointManager->removeClosedUnrefCheckpoints(*vb,
+                                                    newOpenCheckpointCreated);
+
+    task->run();
+    checkpointManager->removeClosedUnrefCheckpoints(*vb,
+                                                    newOpenCheckpointCreated);
+
+    std::tie(shouldReduceMemory, amountOfMemoryToClear) =
+            task->isReductionInCheckpointMemoryNeeded();
+    EXPECT_FALSE(shouldReduceMemory);
+}
+
+// Test that we correctly apply expelling before cursor dropping.
+TEST_F(CheckpointRemoverEPTest, expelButNoCursorDrop) {
+    testExpelingOccursBeforeCursorDropping(true);
+    EXPECT_NE(0, engine->getEpStats().itemsExpelledFromCheckpoints);
+    EXPECT_EQ(0, engine->getEpStats().cursorsDropped);
+}
+
+// Test that we correctly trigger cursor dropping when have checkpoint
+// with cursor at the start and so cannot use expelling.
+TEST_F(CheckpointRemoverEPTest, notExpelButCursorDrop) {
+    engine->getConfiguration().setChkMaxItems(10);
+    engine->getConfiguration().setMaxCheckpoints(20);
+    testExpelingOccursBeforeCursorDropping(false);
+    EXPECT_EQ(0, engine->getEpStats().itemsExpelledFromCheckpoints);
+    EXPECT_EQ(1, engine->getEpStats().cursorsDropped);
 }

@@ -29,16 +29,10 @@ class KVBucketIface;
  */
 class CheckpointVisitor : public CappedDurationVBucketVisitor {
 public:
-    // Enum for specifying whether to expel items during the checkpoint visit.
-    enum class ExpelItems { Yes, No };
-
     /**
      * Construct a CheckpointVisitor.
      */
-    CheckpointVisitor(KVBucketIface* s,
-                      EPStats& st,
-                      std::atomic<bool>& sfin,
-                      ExpelItems expelItems);
+    CheckpointVisitor(KVBucketIface* s, EPStats& st, std::atomic<bool>& sfin);
 
     void visitBucket(const VBucketPtr& vb) override;
 
@@ -51,7 +45,4 @@ private:
     std::chrono::steady_clock::time_point taskStart;
     bool wasHighMemoryUsage;
     std::atomic<bool>& stateFinalizer;
-    // For determining if we should attempt to expel items during
-    // the checkpoint visit.
-    ExpelItems expelItems;
 };

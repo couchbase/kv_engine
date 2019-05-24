@@ -49,4 +49,20 @@ protected:
     EPBucket& getEPBucket() {
         return dynamic_cast<EPBucket&>(*store);
     }
+
+    /**
+     * Helper function to the expelButNoCursorDrop and
+     * notExpelButCursorDrop tests. It adds a cursor to a checkpoint that
+     * been configured to more easily allow the triggering of memory
+     * recovery.  It then adds items to a checkpoint, flushes those items
+     * to disk.  Then depending on whether the moveCursor parameter is
+     * true will move the cursor past 90% of the items added.  It then
+     * invokes the run method of ClosedUnrefCheckpointRemoverTask, which
+     * first attempts to recover memory by expelling followed, if necessary,
+     * by cursor dropping, and the subsequent removal of closed unreferenced
+     * checkpoints.
+     * @param moveCursor  indicates whether the cursor created in the
+     * test should be moved forward.
+     */
+    void testExpelingOccursBeforeCursorDropping(bool moveCursor);
 };
