@@ -610,6 +610,68 @@ void Connection::event_callback(bufferevent*, short event, void* ctx) {
     }
 }
 
+void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
+    auto& instance = *reinterpret_cast<Connection*>(ctx);
+    // Lets inspect the certificate before we'll do anything further
+    instance.setState(StateMachine::State::new_cmd);
+    auto* ssl_st = bufferevent_openssl_get_ssl(bev);
+    cb::openssl::unique_x509_ptr cert(SSL_get_peer_certificate(ssl_st));
+    auto certResult = Settings::instance().lookupUser(cert.get());
+    bool disconnect = false;
+    switch (certResult.first) {
+    case cb::x509::Status::NoMatch:
+    case cb::x509::Status::Error:
+        disconnect = true;
+        break;
+    case cb::x509::Status::NotPresent:
+        if (Settings::instance().getClientCertMode() ==
+            cb::x509::Mode::Mandatory) {
+            disconnect = true;
+        } else if (is_default_bucket_enabled()) {
+            associate_bucket(instance, "default");
+        }
+        break;
+    case cb::x509::Status::Success:
+        if (!instance.tryAuthFromSslCert(certResult.second)) {
+            disconnect = true;
+            // Don't print an error message... already logged
+            certResult.second.clear();
+        }
+    }
+
+    if (disconnect) {
+        if (certResult.first == cb::x509::Status::NotPresent) {
+            audit_auth_failure(instance,
+                               "Client did not provide an X.509 certificate");
+        } else {
+            audit_auth_failure(
+                    instance,
+                    "Failed to use client provided X.509 certificate");
+        }
+        instance.setState(StateMachine::State::closing);
+        if (!certResult.second.empty()) {
+            LOG_WARNING(
+                    "{}: conn_ssl_init: disconnection client due to error [{}]",
+                    instance.getId(),
+                    certResult.second);
+        }
+    } else {
+        LOG_INFO("{}: Using SSL cipher:{}",
+                 instance.getId(),
+                 SSL_get_cipher_name(ssl_st));
+    }
+
+    // update the callback to call the normal read callback
+    bufferevent_setcb(bev,
+                      Connection::read_callback,
+                      Connection::write_callback,
+                      Connection::event_callback,
+                      ctx);
+
+    // and let's call it to make sure we step through the state machinery
+    Connection::read_callback(bev, ctx);
+}
+
 void Connection::setAuthenticated(bool authenticated) {
     Connection::authenticated = authenticated;
     if (authenticated) {
@@ -793,20 +855,19 @@ Connection::Connection(SOCKET sfd,
         client_ctx = SSL_new(server_ctx);
         bev.reset(bufferevent_openssl_socket_new(
                 base, sfd, client_ctx, BUFFEREVENT_SSL_ACCEPTING, 0));
-        // Given that we want to be able to inspect the client certificate
-        // as part of the connection establishment, we start off in another
-        // state (we might want to kill the connection if the clients isn't
-        // accepted).
-        setState(StateMachine::State::ssl_init);
+        bufferevent_setcb(bev.get(),
+                          Connection::ssl_read_callback,
+                          Connection::write_callback,
+                          Connection::event_callback,
+                          static_cast<void*>(this));
     } else {
         bev.reset(bufferevent_socket_new(base, sfd, 0));
+        bufferevent_setcb(bev.get(),
+                          Connection::read_callback,
+                          Connection::write_callback,
+                          Connection::event_callback,
+                          static_cast<void*>(this));
     }
-
-    bufferevent_setcb(bev.get(),
-                      Connection::read_callback,
-                      Connection::write_callback,
-                      Connection::event_callback,
-                      static_cast<void*>(this));
 
     bufferevent_enable(bev.get(), EV_READ);
 }

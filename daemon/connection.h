@@ -1099,6 +1099,13 @@ protected:
     static void read_callback(bufferevent*, void* ctx);
     static void write_callback(bufferevent*, void* ctx);
     static void event_callback(bufferevent*, short event, void* ctx);
+    /**
+     * The initial read callback for SSL connections and perform
+     * client certificate verification, authentication and authorization
+     * if configured. When the action is performed we'll switch over to
+     * the standard read callback.
+     */
+    static void ssl_read_callback(bufferevent*, void* ctx);
 };
 
 /**

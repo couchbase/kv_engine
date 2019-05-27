@@ -47,8 +47,6 @@ void StateMachine::setCurrentState(State task) {
 
 const char* StateMachine::getStateName(State state) const {
     switch (state) {
-    case StateMachine::State::ssl_init:
-        return "ssl_init";
     case StateMachine::State::new_cmd:
         return "new_cmd";
     case StateMachine::State::read_packet:
@@ -82,7 +80,6 @@ bool StateMachine::isIdleState() const {
     case State::send_data:
     case State::pending_close:
     case State::drain_send_buffer:
-    case State::ssl_init:
         return true;
     case State::closing:
     case State::immediate_close:
@@ -95,8 +92,6 @@ bool StateMachine::isIdleState() const {
 
 bool StateMachine::execute() {
     switch (currentState) {
-    case StateMachine::State::ssl_init:
-        return conn_ssl_init();
     case StateMachine::State::new_cmd:
         return conn_new_cmd();
     case StateMachine::State::read_packet:
@@ -119,64 +114,6 @@ bool StateMachine::execute() {
         return conn_ship_log();
     }
     throw std::invalid_argument("execute(): invalid state");
-}
-
-static std::pair<cb::x509::Status, std::string> getCertUserName(Connection& c) {
-    auto* ssl_st = bufferevent_openssl_get_ssl(c.bev.get());
-    cb::openssl::unique_x509_ptr cert(SSL_get_peer_certificate(ssl_st));
-    return Settings::instance().lookupUser(cert.get());
-}
-
-bool StateMachine::conn_ssl_init() {
-    connection.setState(StateMachine::State::new_cmd);
-    auto certResult = getCertUserName(connection);
-    bool disconnect = false;
-    switch (certResult.first) {
-    case cb::x509::Status::NoMatch:
-    case cb::x509::Status::Error:
-        disconnect = true;
-        break;
-    case cb::x509::Status::NotPresent:
-        if (Settings::instance().getClientCertMode() ==
-            cb::x509::Mode::Mandatory) {
-            disconnect = true;
-        } else if (is_default_bucket_enabled()) {
-            associate_bucket(connection, "default");
-        }
-        break;
-    case cb::x509::Status::Success:
-        if (!connection.tryAuthFromSslCert(certResult.second)) {
-            disconnect = true;
-            // Don't print an error message... already logged
-            certResult.second.resize(0);
-        }
-    }
-
-    if (disconnect) {
-        if (certResult.first == cb::x509::Status::NotPresent) {
-            audit_auth_failure(connection,
-                               "Client did not provide an X.509 certificate");
-        } else {
-            audit_auth_failure(
-                    connection,
-                    "Failed to use client provided X.509 certificate");
-        }
-        connection.setState(StateMachine::State::closing);
-        if (!certResult.second.empty()) {
-            LOG_WARNING(
-                    "{}: conn_ssl_init: disconnection client due to"
-                    " error [{}]",
-                    connection.getId(),
-                    certResult.second);
-        }
-    } else {
-        auto* ssl_st = bufferevent_openssl_get_ssl(connection.bev.get());
-        LOG_INFO("{}: Using SSL cipher:{}",
-                 connection.getId(),
-                 SSL_get_cipher_name(ssl_st));
-    }
-
-    return true;
 }
 
 /**

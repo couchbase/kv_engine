@@ -26,15 +26,6 @@ class StateMachine {
 public:
     enum class State {
         /**
-         * SSL connections start off in this state in order to allow for
-         * checking the SSL certificate
-         *
-         * possible next state:
-         *   * closing - there was an error with the certificate
-         *   * new_cmd - start processing the first command
-         */
-        ssl_init,
-        /**
          * new_cmd is the initial state for a connection object, and the
          * initial state for the processing a new command. It is used to
          * prepare the connection object for handling the next command. It
@@ -188,7 +179,6 @@ public:
 
 protected:
     // The various methods implementing the logic for that state
-    bool conn_ssl_init();
     bool conn_new_cmd();
     bool conn_read_packet();
     bool conn_closing();
