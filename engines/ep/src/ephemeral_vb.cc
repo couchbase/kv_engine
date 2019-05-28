@@ -737,7 +737,7 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
         StoredValue& prepared,
         int64_t prepareSeqno,
         boost::optional<int64_t> abortSeqno) {
-    if (prepared.getCommitted() != CommittedState::Pending) {
+    if (!prepared.isPending()) {
         throw std::invalid_argument(
                 "EphemeralVBucket::abortStoredValue: Cannot call on a "
                 "non-Pending StoredValue");

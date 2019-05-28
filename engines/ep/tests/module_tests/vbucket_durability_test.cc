@@ -872,13 +872,33 @@ TEST_P(EphemeralVBucketDurabilityTest, CommitExisting) {
 }
 
 TEST_P(EphemeralVBucketDurabilityTest, CommitExisting_RangeRead) {
+    // Do a commit (which will remain unchanged due to range read)
+    testHTCommitExisting();
+
     auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
     mockEphVb->registerFakeReadRange(0, 1000);
 
-    testHTCommitExisting();
+    // Now do a commit on top of the existing commit (within the range read)
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "valueC"s);
+    VBQueueItemCtx ctx;
+    ctx.durability = DurabilityItemCtx{pending->getDurabilityReqs(), cookie};
+    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*pending, 0, ctx));
+
+    // 1 stale (old prepare), 2 non-stale (commit + new prepare)
+    EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
+    EXPECT_EQ(3, mockEphVb->public_getNumListItems());
+    EXPECT_EQ(1, mockEphVb->purgeStaleItems());
+
+    // Prepare would exist outside the range read so we would not hit the append
+    // case if we just committed now. Grab another range read to cover the
+    // prepare so that we can test commit under range read.
+    mockEphVb->registerFakeReadRange(1000, 2000);
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vbucket->commit(key, {}, vbucket->lockCollections(key)));
 
     // Check that we have the expected items in the seqList.
-    // 1 stale commit via mutation (because of the range read)
+    // 1 stale commit (because of the range read)
     // 1 stale prepare
     // 1 commit via prepare
     EXPECT_EQ(2, mockEphVb->public_getNumStaleItems());
