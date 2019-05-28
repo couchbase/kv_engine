@@ -239,7 +239,6 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
             "DcpConsumer", "addStream", "vbid", vbucket.get(), "flags", flags);
 
     lastMessageTime = ep_current_time();
-    LockHolder lh(readyMutex);
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -311,6 +310,7 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
                                vb_manifest_uid);
     registerStream(stream);
 
+    LockHolder lh(readyMutex);
     ready.push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
     pendingAddStream = false;
