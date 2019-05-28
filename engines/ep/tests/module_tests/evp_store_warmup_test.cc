@@ -442,6 +442,16 @@ protected:
     // BG fetch and second get() if necessary.
     GetValue getItemFetchFromDiskIfNeeded(const DocKey& key,
                                           DocumentState docState);
+
+    enum class Resolution : uint8_t { Commit, Abort };
+
+    /**
+     * Test that when we complete a Prepare the correct HCS is persisted into
+     * the local document.
+     *
+     * @param res The type of resolution (Commit/Abort)
+     */
+    void testHCSPersistedAndLoadedIntoVBState(Resolution res);
 };
 
 GetValue DurabilityWarmupTest::getItemFetchFromDiskIfNeeded(
@@ -709,6 +719,71 @@ TEST_P(DurabilityWarmupTest, ReplicationTopologyLoaded) {
     // Check topology has been correctly loaded from disk.
     auto vb = engine->getKVBucket()->getVBucket(vbid);
     EXPECT_EQ(topology.dump(), vb->getReplicationTopology().dump());
+}
+
+void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState(
+        Resolution res) {
+    // Queue a Prepare
+    auto key = makeStoredDocKey("key");
+    auto prepare = makePendingItem(key, "value");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*prepare, cookie));
+
+    // Check the Prepared
+    const int64_t preparedSeqno = 1;
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    const auto* sv = vb->ht.findForWrite(key).storedValue;
+    ASSERT_TRUE(sv);
+    ASSERT_TRUE(sv->isPending());
+    ASSERT_EQ(preparedSeqno, sv->getBySeqno());
+
+    // Persist the Prepare and vbstate.
+    flush_vbucket_to_disk(vbid);
+    vb.reset();
+    resetEngineAndWarmup();
+
+    // HCS still 0 in vbstate
+    auto checkHCS = [this](int64_t hcs) -> void {
+        auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
+        auto vbstate = *kvstore->getVBucketState(vbid);
+        ASSERT_EQ(hcs, vbstate.highCompletedSeqno);
+    };
+    checkHCS(0);
+
+    // Complete the Prepare
+    vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    switch (res) {
+    case Resolution::Commit:
+        ASSERT_EQ(
+                ENGINE_SUCCESS,
+                vb->commit(key, {} /*commitSeqno*/, vb->lockCollections(key)));
+        sv = vb->ht.findForRead(key).storedValue;
+        ASSERT_TRUE(sv);
+        ASSERT_TRUE(sv->isCommitted());
+        ASSERT_GT(sv->getBySeqno(), preparedSeqno);
+        break;
+    case Resolution::Abort:
+        ASSERT_EQ(ENGINE_SUCCESS,
+                  vb->abort(key, {} /*abortSeqno*/, vb->lockCollections(key)));
+        break;
+    }
+
+    // Persist the Commit/Abort and vbstate.
+    flush_vbucket_to_disk(vbid);
+    vb.reset();
+    resetEngineAndWarmup();
+
+    // HCS must have been loaded from vbstate from disk
+    checkHCS(preparedSeqno);
+}
+
+TEST_P(DurabilityWarmupTest, HCSPersistedAndLoadedIntoVBState_Commit) {
+    testHCSPersistedAndLoadedIntoVBState(Resolution::Commit);
+}
+
+TEST_P(DurabilityWarmupTest, HCSPersistedAndLoadedIntoVBState_Abort) {
+    testHCSPersistedAndLoadedIntoVBState(Resolution::Abort);
 }
 
 INSTANTIATE_TEST_CASE_P(

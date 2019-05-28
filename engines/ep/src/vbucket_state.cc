@@ -24,10 +24,12 @@ bool vbucket_state::needsToBePersisted(const vbucket_state& vbstate) {
      * detected in:
      * - the state
      * - the failover table, or
-     * - the replication topology.
+     * - the replication topology or
+     * - the high completed seqno.
      */
     return (state != vbstate.state || failovers != vbstate.failovers ||
-            replicationTopology != vbstate.replicationTopology);
+            replicationTopology != vbstate.replicationTopology ||
+            highCompletedSeqno != vbstate.highCompletedSeqno);
 }
 
 void vbucket_state::reset() {
@@ -43,7 +45,8 @@ void vbucket_state::reset() {
     failovers.clear();
     supportsNamespaces = true;
     replicationTopology.clear();
-    version = 2;
+    version = CurrentVersion;
+    highCompletedSeqno = 0;
 }
 
 void to_json(nlohmann::json& json, const vbucket_state& vbs) {
@@ -65,7 +68,8 @@ void to_json(nlohmann::json& json, const vbucket_state& vbs) {
             {"hlc_epoch", std::to_string(vbs.hlcCasEpochSeqno)},
             {"might_contain_xattrs", vbs.mightContainXattrs},
             {"namespaces_supported", vbs.supportsNamespaces},
-            {"version", vbs.version}};
+            {"version", vbs.version},
+            {"high_completed_seqno", std::to_string(vbs.highCompletedSeqno)}};
 
     // Insert optional fields.
     if (!vbs.failovers.empty()) {
@@ -108,5 +112,13 @@ void from_json(const nlohmann::json& j, vbucket_state& vbs) {
         vbs.version = (*version).get<int>();
     } else {
         vbs.version = 1;
+    }
+
+    // Note: We don't have any HCS in pre-6.5
+    auto hcs = j.find("high_completed_seqno");
+    if (hcs != j.end()) {
+        vbs.highCompletedSeqno = std::stoll((*hcs).get<std::string>());
+    } else {
+        vbs.highCompletedSeqno = 0;
     }
 }

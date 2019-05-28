@@ -44,6 +44,19 @@
  * upgrade).
  */
 struct vbucket_state {
+    /**
+     * Current version of vbucket_state structure.
+     * This value is supposed to increase every time we make a
+     * change to the structure (ie, adding/removing members) or we make a change
+     * in the usage/interpretation of any member.
+     * History:
+     * v1: Implicit, pre 5.5.4-MP, 6.0.2 and mad-hatter.
+     * v2: 5.5.4-MP, 6.0.2 and Mad-Hatter (pre GA), added with MB-34173.
+     *     Indicates snapshot start/end are sanitized with respect to
+     *     high_seqno.
+     * v3: Mad-Hatter (pre GA). high_completed_seqno added.
+     */
+    static constexpr int CurrentVersion = 3;
 
     bool needsToBePersisted(const vbucket_state& vbstate);
 
@@ -105,10 +118,16 @@ struct vbucket_state {
     nlohmann::json replicationTopology;
 
     /**
-     * We started storing the version in 5.5.4-MP, 6.0.2 and mad-hatter, added
-     * with MB-34173.
+     * Version of vbucket_state. See comments against CurrentVersion for
+     * details.
      */
-    int version = 2;
+    int version = CurrentVersion;
+
+    /**
+     * Stores the seqno of the last completed (Committed or Aborted) Prepare.
+     * Added for SyncReplication in 6.5.
+     */
+    int64_t highCompletedSeqno = 0;
 };
 
 /// Method to allow nlohmann::json to convert vbucket_state to JSON.

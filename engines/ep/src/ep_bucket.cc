@@ -39,6 +39,8 @@
 
 #include "dcp/dcpconnmap.h"
 
+#include <gsl.h>
+
 /**
  * Callback class used by EpStore, for adding relevant keys
  * to bloomfilter during compaction.
@@ -367,6 +369,10 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
 
             Collections::VB::Flush collectionFlush(vb->getManifest());
 
+            // HCS is optional because we have to update it on disk only if some
+            // Commit/Abort SyncWrite is found in the flush-batch
+            boost::optional<int64_t> hcs;
+
             // Iterate through items, checking if we (a) can skip persisting,
             // (b) can de-duplicate as the previous key was the same, or (c)
             // actually need to persist.
@@ -383,7 +389,13 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                     continue;
                 }
 
-                if (item->getOperation() == queue_op::set_vbucket_state) {
+                const auto op = item->getOperation();
+                if (op == queue_op::commit_sync_write ||
+                    op == queue_op::abort_sync_write) {
+                    hcs = {item->getPrepareSeqno()};
+                }
+
+                if (op == queue_op::set_vbucket_state) {
                     // No actual item explicitly persisted to (this op exists
                     // to ensure a commit occurs with the current vbstate);
                     // flag that we must trigger a snapshot even if there are
@@ -461,6 +473,11 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 auto options = VBStatePersist::VBSTATE_CACHE_UPDATE_ONLY;
                 if ((items_flushed == 0) && mustCheckpointVBState) {
                     options = VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT;
+                }
+
+                if (hcs) {
+                    Expects(hcs > vbstate.highCompletedSeqno);
+                    vbstate.highCompletedSeqno = *hcs;
                 }
 
                 if (rwUnderlying->snapshotVBucket(vb->getId(), vbstate,
