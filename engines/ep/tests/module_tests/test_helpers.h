@@ -100,6 +100,10 @@ public:
 
     ~TimeTraveller();
 
+    int get() const {
+        return by;
+    }
+
 private:
     // Amount of time travel.
     int by;

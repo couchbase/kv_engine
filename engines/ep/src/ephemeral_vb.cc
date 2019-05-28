@@ -21,6 +21,7 @@
 #include "configuration.h"
 #include "dcp/backfill_memory.h"
 #include "ep_engine.h"
+#include "ep_time.h"
 #include "ephemeral_tombstone_purger.h"
 #include "executorpool.h"
 #include "failover-table.h"
@@ -591,6 +592,16 @@ EphemeralVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
 
         if (queueItmCtx.genBySeqno == GenerateBySeqno::No) {
             newSv->setBySeqno(bySeqno);
+        }
+
+        // Replica/DelWithMeta can dictate the tombstone time, check for it.
+        if (queueItmCtx.generateDeleteTime == GenerateDeleteTime::No &&
+            newSv->isDeleted() && newSv->getExptime()) {
+            // The deleted time is relative and the replicated tombstone time is
+            // absolute and held in the expiry field, convert the abs to rel
+            // using ep_reltime
+            newSv->toOrderedStoredValue()->setDeletedTime(
+                    ep_reltime(newSv->getExptime()));
         }
 
         notifyCtx = queueDirty(hbl, *newSv, queueItmCtx);
