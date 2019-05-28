@@ -544,8 +544,7 @@ HashTable::DeleteResult HashTable::unlocked_softDelete(
         const HashBucketLock& hbl,
         StoredValue& v,
         bool onlyMarkDeleted,
-        DeleteSource delSource,
-        HashTable::SyncDelete syncDelete) {
+        DeleteSource delSource) {
     switch (v.getCommitted()) {
     case CommittedState::Pending:
     case CommittedState::PreparedMaybeVisible:
@@ -554,29 +553,6 @@ HashTable::DeleteResult HashTable::unlocked_softDelete(
 
     case CommittedState::CommittedViaMutation:
     case CommittedState::CommittedViaPrepare:
-        if (syncDelete == SyncDelete::Yes) {
-            // Logically we /can/ delete a non-Pending StoredValue with a
-            // SyncDelete, however internally this is implemented as a separate
-            // (new) StoredValue object for the Pending delete.
-
-            // Clone the existing StoredValue (for it's key, CAS, other
-            // metadata), set the opcode to pending and call del() to prepare it
-            // as a deleted item. The existing StoredValue keeps the same state
-            // until we Commit the pending one.
-            auto pendingDel = valFact->copyStoredValue(
-                    v, std::move(values[hbl.getBucketNum()]));
-            pendingDel->setCommitted(CommittedState::Pending);
-            pendingDel->del(delSource);
-
-            // Adding a new item into the HashTable; update stats.
-            const auto emptyProperties = valueStats.prologue(nullptr);
-            valueStats.epilogue(emptyProperties, pendingDel.get().get());
-            values[hbl.getBucketNum()] = std::move(pendingDel);
-
-            return {DeletionStatus::Success,
-                    values[hbl.getBucketNum()].get().get()};
-        }
-        // non-syncDelete requests, can directly update existing SV.
         const auto preProps = valueStats.prologue(&v);
 
         if (onlyMarkDeleted) {
@@ -589,6 +565,16 @@ HashTable::DeleteResult HashTable::unlocked_softDelete(
         return {DeletionStatus::Success, &v};
     }
     folly::assume_unreachable();
+}
+
+StoredValue::UniquePtr HashTable::unlocked_createSyncDeletePrepare(
+        const HashTable::HashBucketLock& hbl,
+        const StoredValue& v,
+        DeleteSource delSource) {
+    auto pendingDel = valFact->copyStoredValue(v, nullptr /*next chain ptr*/);
+    pendingDel->setCommitted(CommittedState::Pending);
+    pendingDel->del(delSource);
+    return pendingDel;
 }
 
 HashTable::FindROResult HashTable::findForRead(const DocKey& key,
@@ -639,6 +625,14 @@ HashTable::FindResult HashTable::findForWrite(const DocKey& key,
     if (!sv) {
         // No item found - return null.
         return {nullptr, std::move(result.lock)};
+    }
+
+    // Early return if we found a prepare. We should always return prepares
+    // regardless of whether or not they are deleted or the caller has asked for
+    // deleted SVs. For example, consider searching for a SyncDelete, we should
+    // always return the deleted prepare.
+    if (result.pendingSV) {
+        return {sv, std::move(result.lock)};
     }
 
     if (sv->isDeleted() && wantsDeleted == WantsDeleted::No) {

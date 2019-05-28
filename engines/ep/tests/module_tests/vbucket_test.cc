@@ -230,8 +230,11 @@ VBucketTestBase::public_processSoftDelete(const DocKey& key,
         VBQueueItemCtx ctx) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(key);
-    auto res = vbucket->ht.findForWrite(key, WantsDeleted::No);
+    auto res = vbucket->ht.findForWrite(key, WantsDeleted::Yes);
     if (!res.storedValue) {
+        return {MutationStatus::NotFound, nullptr};
+    }
+    if (res.storedValue->isDeleted() && !res.storedValue->isPending()) {
         return {MutationStatus::NotFound, nullptr};
     }
     return public_processSoftDelete(res.lock, *res.storedValue, ctx);

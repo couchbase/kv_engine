@@ -120,6 +120,11 @@ protected:
      */
     void testHTCommitExisting();
 
+    /**
+     * Add a pending SyncDelete to the vBucket for the given key.
+     */
+    void setupPendingDelete(StoredDocKey key);
+
     // All owned by VBucket
     HashTable* ht;
     MockCheckpointManager* ckptMgr;

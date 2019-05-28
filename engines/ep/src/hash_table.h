@@ -954,14 +954,26 @@ public:
      * @param onlyMarkDeleted indicates if we must reset the StoredValue or
      *                        just mark deleted
      * @param delSource The source of the deletion (explicit or expiry)
-     * @param syncDelete Is this a regular or durable delete?
      * @return the outcome of the deletion attempt.
      */
     DeleteResult unlocked_softDelete(const HashBucketLock& hbl,
                                      StoredValue& v,
                                      bool onlyMarkDeleted,
-                                     DeleteSource delSource,
-                                     SyncDelete syncDelete = SyncDelete::No);
+                                     DeleteSource delSource);
+
+    /**
+     * Create a new StoredValue from an existing one and modify it to be a
+     * SyncDelete prepare.
+     *
+     * @param hbl Hash table bucket lock that must be held.
+     * @param v Reference to the StoredValue to be copied
+     * @param delSource The source of the deletion (explicit or expiry)
+     * @return New SyncDelete prepare SV not present in the HashTable
+     */
+    StoredValue::UniquePtr unlocked_createSyncDeletePrepare(
+            const HashBucketLock& hbl,
+            const StoredValue& v,
+            DeleteSource delSource);
 
     /**
      * Get a lock holder holding a lock for the bucket for the hash of

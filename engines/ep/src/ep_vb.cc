@@ -580,11 +580,7 @@ EPVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
                                  const VBQueueItemCtx& queueItmCtx,
                                  uint64_t bySeqno,
                                  DeleteSource deleteSource) {
-    const auto isSyncDelete = queueItmCtx.durability
-                                      ? HashTable::SyncDelete::Yes
-                                      : HashTable::SyncDelete::No;
-    auto result = ht.unlocked_softDelete(
-            hbl, v, onlyMarkDeleted, deleteSource, isSyncDelete);
+    auto result = ht.unlocked_softDelete(hbl, v, onlyMarkDeleted, deleteSource);
     switch (result.status) {
     case DeletionStatus::Success:
         // Proceed to queue the deletion into the CheckpointManager.

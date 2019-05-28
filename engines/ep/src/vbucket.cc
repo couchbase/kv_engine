@@ -3120,13 +3120,32 @@ VBucket::processSoftDelete(const HashTable::HashBucketLock& hbl,
     VBNotifyCtx notifyCtx;
     StoredValue* newSv;
     DeletionStatus delStatus;
-    std::tie(newSv, delStatus, notifyCtx) =
-            softDeleteStoredValue(hbl,
-                                  v,
-                                  /*onlyMarkDeleted*/ false,
-                                  queueItmCtx,
-                                  bySeqno,
-                                  deleteSource);
+
+    // SyncDeletes are special cases. We actually want to add a new prepare.
+    if (queueItmCtx.durability) {
+        if (v.isPending()) {
+            delStatus = DeletionStatus::IsPendingSyncWrite;
+        } else {
+            auto deletedPrepare =
+                    ht.unlocked_createSyncDeletePrepare(hbl, v, deleteSource);
+            auto itm = deletedPrepare->toItem(
+                    getId(),
+                    StoredValue::HideLockedCas::No,
+                    StoredValue::IncludeValue::Yes,
+                    queueItmCtx.durability->requirements);
+            std::tie(newSv, notifyCtx) = addNewStoredValue(
+                    hbl, *itm, queueItmCtx, GenerateRevSeqno::No);
+            delStatus = DeletionStatus::Success;
+        }
+    } else {
+        std::tie(newSv, delStatus, notifyCtx) =
+                softDeleteStoredValue(hbl,
+                                      v,
+                                      /*onlyMarkDeleted*/ false,
+                                      queueItmCtx,
+                                      bySeqno,
+                                      deleteSource);
+    }
     switch (delStatus) {
     case DeletionStatus::Success:
         ht.updateMaxDeletedRevSeqno(metadata.revSeqno);

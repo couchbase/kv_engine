@@ -1202,6 +1202,78 @@ TEST_P(VBucketDurabilityTest, IgnoreAckAtTakeoverDead) {
     EXPECT_EQ(seqnos.size(), adm.getNumTracked());
 }
 
+void VBucketDurabilityTest::setupPendingDelete(StoredDocKey key) {
+    // Perform a regular mutation (so we have something to delete).
+    auto committed = makeCommittedItem(key, "committed"s);
+    ASSERT_EQ(MutationStatus::WasClean, ht->set(*committed));
+    ASSERT_EQ(1, ht->getNumItems());
+
+    // Test: Now delete it via a SyncDelete.
+    auto result = ht->findForWrite(key).storedValue;
+    ASSERT_TRUE(result);
+    VBQueueItemCtx ctx;
+    ctx.durability =
+            DurabilityItemCtx{{cb::durability::Level::Majority, {}}, cookie};
+    ASSERT_EQ(MutationStatus::WasDirty,
+              public_processSoftDelete(key, ctx).first);
+
+    // Check postconditions:
+    // 1. Original item should still be the same (when looking up via
+    // findForRead):
+    auto* readView = ht->findForRead(key).storedValue;
+    ASSERT_TRUE(readView);
+    EXPECT_FALSE(readView->isDeleted());
+    EXPECT_EQ(committed->getValue(), readView->getValue());
+
+    // 2. Pending delete should be visible via findForWrite:
+    auto* writeView = ht->findForWrite(key).storedValue;
+    ASSERT_TRUE(writeView);
+    EXPECT_TRUE(writeView->isDeleted());
+    EXPECT_EQ(CommittedState::Pending, writeView->getCommitted());
+    EXPECT_NE(*readView, *writeView);
+
+    // Should currently have 2 items:
+    EXPECT_EQ(2, ht->getNumItems());
+}
+
+// Positive test - check that an item can have a pending delete added
+// (SyncDelete).
+TEST_P(VBucketDurabilityTest, SyncDeletePending) {
+    // Perform a regular mutation (so we have something to delete).
+    auto key = makeStoredDocKey("key");
+    setupPendingDelete(key);
+}
+
+// Negative test - check that if a key has a pending SyncDelete it cannot
+// otherwise be modified.
+TEST_P(VBucketDurabilityTest, PendingSyncWriteToPendingDeleteFails) {
+    auto key = makeStoredDocKey("key");
+    setupPendingDelete(key);
+
+    // Test - attempt to mutate a key which has a pending SyncDelete against it
+    // with a pending SyncWrite.
+    auto pending = makePendingItem(key, "pending"s);
+    ASSERT_EQ(MutationStatus::IsPendingSyncWrite, ht->set(*pending));
+}
+
+// Negative test - check that if a key has a pending SyncDelete it cannot
+// otherwise be modified.
+TEST_P(VBucketDurabilityTest, PendingSyncDeleteToPendingDeleteFails) {
+    auto key = makeStoredDocKey("key");
+    setupPendingDelete(key);
+
+    // Test - attempt to mutate a key which has a pending SyncDelete against it
+    // with a pending SyncDelete.
+    auto result = ht->findForWrite(key).storedValue;
+    ASSERT_TRUE(result);
+
+    VBQueueItemCtx ctx;
+    ctx.durability =
+            DurabilityItemCtx{{cb::durability::Level::Majority, {}}, cookie};
+    ASSERT_EQ(MutationStatus::IsPendingSyncWrite,
+              public_processSoftDelete(key, ctx).first);
+}
+
 void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
                                                       Resolution res) {
     const std::vector<SyncWriteSpec>& writes{1, 2, 3}; // seqnos

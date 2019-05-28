@@ -34,22 +34,6 @@ public:
           key("key", CollectionID::Default) {
     }
 
-    /// Put a pending SyncDelete into the HashTable.
-    void setupPendingDelete(StoredDocKey key) {
-        auto committed = makeCommittedItem(key, "value"s);
-        ASSERT_EQ(MutationStatus::WasClean, ht.set(*committed));
-        { // locking scope.
-            auto result = ht.findForWrite(key);
-            ASSERT_TRUE(result.storedValue);
-            auto deleted = ht.unlocked_softDelete(result.lock,
-                                                  *result.storedValue,
-                                                  /*onlyMarkDeleted*/ false,
-                                                  DeleteSource::Explicit,
-                                                  HashTable::SyncDelete::Yes);
-            ASSERT_EQ(DeletionStatus::Success, deleted.status);
-        }
-    }
-
     HashTable ht;
     StoredDocKey key;
 };
@@ -160,78 +144,6 @@ TEST_F(HashTablePerspectiveTest, DenyReplacePendingWithPending) {
     // Attempt setting the item again with a committed value.
     auto pending2 = makePendingItem(key, "pending2"s);
     ASSERT_EQ(MutationStatus::IsPendingSyncWrite, ht.set(*pending2));
-}
-
-
-// Positive test - check that an item can have a pending delete added
-// (SyncDelete).
-TEST_F(HashTablePerspectiveTest, SyncDeletePending) {
-    // Perform a regular mutation (so we have something to delete).
-    auto committed = makeCommittedItem(key, "committed"s);
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(*committed));
-    ASSERT_EQ(1, ht.getNumItems());
-
-    // Test: Now delete it via a SyncDelete.
-    { // locking scope.
-        auto result = ht.findForWrite(key);
-        ASSERT_TRUE(result.storedValue);
-        EXPECT_EQ(DeletionStatus::Success,
-                  ht.unlocked_softDelete(result.lock,
-                                         *result.storedValue,
-                                         /*onlyMarkDeleted*/ false,
-                                         DeleteSource::Explicit,
-                                         HashTable::SyncDelete::Yes)
-                          .status);
-    }
-
-    // Check postconditions:
-    // 1. Original item should still be the same (when looking up via
-    // findForRead):
-    auto* readView = ht.findForRead(key).storedValue;
-    ASSERT_TRUE(readView);
-    EXPECT_FALSE(readView->isDeleted());
-    EXPECT_EQ(committed->getValue(), readView->getValue());
-
-    // 2. Pending delete should be visible via findForWrite:
-    auto* writeView = ht.findForWrite(key).storedValue;
-    ASSERT_TRUE(writeView);
-    EXPECT_TRUE(writeView->isDeleted());
-    EXPECT_EQ(CommittedState::Pending, writeView->getCommitted());
-    EXPECT_NE(*readView, *writeView);
-
-    // Should currently have 2 items:
-    EXPECT_EQ(2, ht.getNumItems());
-}
-
-// Negative test - check that if a key has a pending SyncDelete it cannot
-// otherwise be modified.
-TEST_F(HashTablePerspectiveTest, PendingSyncWriteToPendingDeleteFails) {
-    setupPendingDelete(key);
-
-    // Test - attempt to mutate a key which has a pending SyncDelete against it
-    // with a pending SyncWrite.
-    auto pending = makePendingItem(key, "pending"s);
-    ASSERT_EQ(MutationStatus::IsPendingSyncWrite, ht.set(*pending));
-}
-
-// Negative test - check that if a key has a pending SyncDelete it cannot
-// otherwise be modified.
-TEST_F(HashTablePerspectiveTest, PendingSyncDeleteToPendingDeleteFails) {
-    setupPendingDelete(key);
-
-    // Test - attempt to mutate a key which has a pending SyncDelete against it
-    // with a pending SyncDelete.
-    { // locking scope.
-        auto result = ht.findForWrite(key);
-
-        ASSERT_EQ(DeletionStatus::IsPendingSyncWrite,
-                  ht.unlocked_softDelete(result.lock,
-                                         *result.storedValue,
-                                         /*onlyMarkDeleted*/ false,
-                                         DeleteSource::Explicit,
-                                         HashTable::SyncDelete::Yes)
-                          .status);
-    }
 }
 
 // Check that if a pending SyncWrite is added _before_ a Committed one (to the
