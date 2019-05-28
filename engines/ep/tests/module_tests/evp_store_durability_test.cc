@@ -502,9 +502,8 @@ TEST_P(DurabilityBucketTest, SyncWriteDelete) {
     //       deduplicated at Flush.
     flushVBucketToDiskIfPersistent(vbid, 2);
 
-    // prepare SyncDelete and commit.
+    // Perform regular delete.
     uint64_t cas = 0;
-    using namespace cb::durability;
     mutation_descr_t delInfo;
 
     ASSERT_EQ(1, vb.getNumItems());

@@ -515,10 +515,10 @@ private:
     std::atomic<int64_t> bySeqno;
 
     // @todo: Try to avoid this, as it increases mem_usage of 8 bytes per Item.
-    // This is added for Durability items Commit and Abort, which both carry
-    // 2 seqnos:
-    // 1) the seqno of this (Commit/Abort) Item (encoded in bySeqno)
-    // 2) the seqno of the Committed/Aborted Prepare
+    // This is added for Durability items Commit and Abort, for which need the
+    // associated Prepare's seqno at persistence for writing the correct High
+    // Completed Seqno (HCS) to disk. Note that the HCS is the seqno of the
+    // last Committed or Aborted Prepare.
     cb::uint48_t prepareSeqno;
 
     uint32_t queuedTime;

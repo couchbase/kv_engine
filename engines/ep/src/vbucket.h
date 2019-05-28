@@ -28,6 +28,8 @@
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_fwd.h"
 
+#include "boost/variant.hpp"
+
 #include <folly/Synchronized.h>
 #include <memcached/engine.h>
 #include <nlohmann/json.hpp>
@@ -78,8 +80,13 @@ struct VBNotifyCtx {
  * has Durability requirements.
  */
 struct DurabilityItemCtx {
-    /// The durability requirements for this item.
-    cb::durability::Requirements requirements;
+    /**
+     * Stores:
+     * - the Durability Requirements, if we queue a Prepare
+     * - the prepared-seqno, if we queue a Commit
+     */
+    boost::variant<cb::durability::Requirements, int64_t>
+            requirementsOrPreparedSeqno;
     /**
      * The client cookie associated with the Durability operation. If non-null
      * then notifyIOComplete will be called on it when operation is committed.
@@ -1813,6 +1820,7 @@ protected:
      *
      * @param hbl The lock to the HashTable-bucket containing the StoredValue
      * @param v The StoredValue of the Pending being aborted.
+     * @param prepareSeqno The seqno of the Prepare being aborted
      * @param ctx The VBQueueItemCtx. Holds info needed to enqueue the item,
      *     look at the structure for details.
      * @return the notification context used for notifying the Flusher and

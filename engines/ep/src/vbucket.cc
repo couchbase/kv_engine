@@ -823,6 +823,9 @@ ENGINE_ERROR_CODE VBucket::commit(
     // it may have been set explicitly.
     queueItmCtx.genCas = GenerateCas::No;
 
+    queueItmCtx.durability =
+            DurabilityItemCtx{res.pending->getBySeqno(), nullptr /*cookie*/};
+
     auto notify = commitStoredValue(res, queueItmCtx, commitSeqno);
 
     notifyNewSeqno(notify);
@@ -1170,16 +1173,25 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
         setMaxCasAndTrackDrift(v.getCas());
     }
 
-    // If we are queuing a SyncWrite StoredValue; extract the durability
+    // If we are queueing a SyncWrite StoredValue; extract the durability
     // requirements to use to create the Item.
     boost::optional<cb::durability::Requirements> durabilityReqs;
-    if (ctx.durability) {
-        durabilityReqs = ctx.durability->requirements;
+    if (v.isPending()) {
+        Expects(ctx.durability.is_initialized());
+        durabilityReqs = boost::get<cb::durability::Requirements>(
+                ctx.durability->requirementsOrPreparedSeqno);
     }
+
     queued_item qi(v.toItem(getId(),
                             StoredValue::HideLockedCas::No,
                             StoredValue::IncludeValue::Yes,
                             durabilityReqs));
+
+    if (qi->isCommitSyncWrite()) {
+        Expects(ctx.durability.is_initialized());
+        qi->setPrepareSeqno(boost::get<int64_t>(
+                ctx.durability->requirementsOrPreparedSeqno));
+    }
 
     // MB-27457: Timestamp deletes only when they don't already have a timestamp
     // assigned. This is here to ensure all deleted items have a timestamp which
@@ -3165,11 +3177,12 @@ VBucket::processSoftDelete(const HashTable::HashBucketLock& hbl,
         } else {
             auto deletedPrepare =
                     ht.unlocked_createSyncDeletePrepare(hbl, v, deleteSource);
-            auto itm = deletedPrepare->toItem(
-                    getId(),
-                    StoredValue::HideLockedCas::No,
-                    StoredValue::IncludeValue::Yes,
-                    queueItmCtx.durability->requirements);
+            auto requirements = boost::get<cb::durability::Requirements>(
+                    queueItmCtx.durability->requirementsOrPreparedSeqno);
+            auto itm = deletedPrepare->toItem(getId(),
+                                              StoredValue::HideLockedCas::No,
+                                              StoredValue::IncludeValue::Yes,
+                                              requirements);
             std::tie(newSv, notifyCtx) = addNewStoredValue(
                     hbl, *itm, queueItmCtx, GenerateRevSeqno::No);
             delStatus = DeletionStatus::Success;
