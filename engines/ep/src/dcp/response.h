@@ -507,6 +507,7 @@ public:
     static const uint32_t deletionV2BaseMsgBytes = 45;
     static const uint32_t expirationBaseMsgBytes = 44;
     static const uint32_t prepareBaseMsgBytes = 57;
+    static const uint32_t abortBaseMsgBytes = 40;
 
 protected:
     /// Return the size of the header for this message.

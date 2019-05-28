@@ -20,7 +20,6 @@
 #include "checkpoint_utils.h"
 #include "dcp/response.h"
 #include "dcp_utils.h"
-#include "durability/active_durability_monitor.h"
 #include "durability/durability_monitor.h"
 #include "test_helpers.h"
 
@@ -33,11 +32,9 @@ void DurabilityActiveStreamTest::SetUp() {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
-            {{"topology", nlohmann::json::array({{active, replica}})}});
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
 
-    // Enable SyncReplication and flow-control (Producer BufferLog)
-    setupProducer({{"enable_synchronous_replication", "true"},
-                   {"connection_buffer_size", "52428800"}});
+    setupProducer({{"enable_synchronous_replication", "true"}});
     ASSERT_TRUE(stream->public_supportSyncReplication());
 }
 
@@ -52,7 +49,7 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
     ckptMgr.clear(*vb, 0 /*seqno*/);
 
     const auto key = makeStoredDocKey("key");
-    const std::string value = "value";
+    const auto& value = "value";
     auto item = makePendingItem(
             key,
             value,
@@ -61,16 +58,8 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
     VBQueueItemCtx ctx;
     ctx.durability =
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
-    {
-        auto cHandle = vb->lockCollections(item->getKey());
-        EXPECT_EQ(ENGINE_EWOULDBLOCK,
-                  vb->set(*item, cookie, *engine, {}, cHandle));
-    }
 
-    // We don't account Prepares in VB stats
-    EXPECT_EQ(0, vb->getNumItems());
-    // We do in HT stats
-    EXPECT_EQ(1, vb->ht.getNumItems());
+    EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
 
     auto prepareSeqno = 1;
     uint64_t cas;
@@ -82,6 +71,10 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
         cas = sv.storedValue->getCas();
     }
 
+    // We don't account Prepares in VB stats
+    EXPECT_EQ(0, vb->getNumItems());
+    // We do in HT stats
+    EXPECT_EQ(1, vb->ht.getNumItems());
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     ckptMgr);
@@ -112,25 +105,12 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
     ASSERT_EQ(0, stream->public_readyQSize());
     // Push items into the Stream::readyQ
     stream->public_processItems(outItems);
-
-    // No message processed, BufferLog empty
-    ASSERT_EQ(0, producer->getBytesOutstanding());
-
-    // readyQ must contain a SnapshotMarker (+ a Prepare)
+    // Stream::readyQ must contain SnapshotMarker + DCP_PREPARE
     ASSERT_EQ(2, stream->public_readyQSize());
-    auto resp = stream->public_nextQueuedItem();
+    auto resp = stream->public_popFromReadyQ();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
-
-    // Simulate the Replica ack'ing the SnapshotMarker's bytes
-    auto bytesOutstanding = producer->getBytesOutstanding();
-    ASSERT_GT(bytesOutstanding, 0);
-    producer->ackBytesOutstanding(bytesOutstanding);
-    ASSERT_EQ(0, producer->getBytesOutstanding());
-
-    // readyQ must contain a DCP_PREPARE
-    ASSERT_EQ(1, stream->public_readyQSize());
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_popFromReadyQ();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
     EXPECT_EQ(prepareSeqno, *resp->getBySeqno());
@@ -138,21 +118,8 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
     EXPECT_EQ(key, prepare.getItem()->getKey());
     EXPECT_EQ(value, prepare.getItem()->getValue()->to_s());
     EXPECT_EQ(cas, prepare.getItem()->getCas());
-
-    // The expected size of a DCP_PREPARE is 57 + key-size + value-size.
-    // Note that the base-size=57 is similar to the one of a DCP_MUTATION
-    // (55), + 1 for delete-flag, + 3 for durability-requirements, - 2 for
-    // missing optional-extra-length.
-    bytesOutstanding =
-            57 + key.makeDocKeyWithoutCollectionID().size() + value.size();
-    ASSERT_EQ(bytesOutstanding, producer->getBytesOutstanding());
-    // Simulate the Replica ack'ing the Prepare's bytes
-    producer->ackBytesOutstanding(bytesOutstanding);
-    ASSERT_EQ(0, producer->getBytesOutstanding());
-
-    // readyQ empty now
     ASSERT_EQ(0, stream->public_readyQSize());
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_popFromReadyQ();
     ASSERT_FALSE(resp);
 }
 
@@ -160,69 +127,38 @@ TEST_P(DurabilityActiveStreamTest, SendDcpPrepare) {
     testSendDcpPrepare();
 }
 
-void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
+/*
+ * This test checks that the ActiveStream::readyQ contains the right DCP
+ * messages during the journey of an Aborted sync-write.
+ */
+TEST_P(DurabilityActiveStreamTest, SendDcpAbort) {
     // First, we need to enqueue a Prepare.
     testSendDcpPrepare();
     auto vb = engine->getVBucket(vbid);
     const auto key = makeStoredDocKey("key");
     const uint64_t prepareSeqno = 1;
     {
-        ASSERT_FALSE(vb->ht.findForRead(key).storedValue);
         const auto sv = vb->ht.findForWrite(key);
         ASSERT_TRUE(sv.storedValue);
         ASSERT_EQ(CommittedState::Pending, sv.storedValue->getCommitted());
         ASSERT_EQ(prepareSeqno, sv.storedValue->getBySeqno());
     }
 
-    // Now we proceed with testing the Commit/Abort of that Prepare
+    // Now we proceed with testing the Abort of that Prepare
     auto& ckptMgr = *vb->checkpointManager;
 
-    // The seqno of the Committed/Aborted item
-    const auto completedSeqno = prepareSeqno + 1;
+    // Simulate timeout, indirectly calls VBucket::abort
+    vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
+                                 std::chrono::milliseconds(1000));
 
-    switch (res) {
-    case Resolution::Commit: {
-        // FirstChain on Active has been set to {active, replica}. Given that
-        // active has already implicitly ack'ed (as we have queued a Level
-        // Majority Prepare), simulating a SeqnoAck received from replica
-        // satisfies Durability Requirements and triggers Commit. So, the
-        // following indirectly calls VBucket::commit
-        vb->seqnoAcknowledged(replica, prepareSeqno);
-        // Note: At FE we have an exact item count only at persistence.
-        auto evictionType = std::get<1>(GetParam());
-        if (evictionType == "value_only") {
-            EXPECT_EQ(1, vb->getNumItems());
-        } else {
-            EXPECT_EQ(0, vb->getNumItems());
-        }
-        // We must have converted the Prepare into a Committed item
-        EXPECT_EQ(1, vb->ht.getNumItems());
-        ASSERT_TRUE(vb->ht.findForWrite(key).storedValue);
-        const auto sv = vb->ht.findForRead(key);
-        ASSERT_TRUE(sv.storedValue);
-        ASSERT_EQ(CommittedState::CommittedViaPrepare,
-                  sv.storedValue->getCommitted());
-        ASSERT_EQ(completedSeqno, sv.storedValue->getBySeqno());
-        break;
-    }
-    case Resolution::Abort: {
-        // Simulate timeout, indirectly calls VBucket::abort
-        vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
-                                     std::chrono::milliseconds(1000));
-        // We must have removed the Prepare from the HashTable and we don't have
-        // any "abort" StoredValue
-        EXPECT_EQ(0, vb->getNumItems());
-        EXPECT_EQ(0, vb->ht.getNumItems());
-        break;
-    }
-    }
-
-    // Note: We avoid de-duplication of durability-items (Prepare/Commit/Abort)
-    // by:
-    // (1) closing the open checkpoint (the one that contains the Prepare)
-    // (2) creating a new open checkpoint
-    // (3) queueing the Commit/Abort in the new open checkpoint
-    // So we must have 2 checkpoints now.
+    // We don't account Abort in VB stats
+    EXPECT_EQ(0, vb->getNumItems());
+    // We must have removed the Prepare from the HashTable and we don't have
+    // any "abort" StoredValue
+    EXPECT_EQ(0, vb->ht.getNumItems());
+    // Note: We don't de-duplicate Prepare and Abort, so we have closed the open
+    //     ckpt (the one containing the Prepare), created a new open ckpt and
+    //     queued the Abort in the latter. So we must have 2 checkpoints now.
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     ckptMgr);
@@ -238,97 +174,35 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
     it++;
     ASSERT_EQ(1, ckpt->getNumMetaItems());
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
-    // 1 non-metaitem is Commit/Abort and doesn't carry any value
+    // 1 non-metaitem is Abort and doesn't carry any value
     it++;
     ASSERT_EQ(1, ckpt->getNumItems());
-    switch (res) {
-    case Resolution::Commit: {
-        EXPECT_EQ(queue_op::commit_sync_write, (*it)->getOperation());
-        EXPECT_TRUE((*it)->getValue());
-        break;
-    }
-    case Resolution::Abort: {
-        EXPECT_EQ(queue_op::abort_sync_write, (*it)->getOperation());
-        EXPECT_FALSE((*it)->getValue());
-        break;
-    }
-    }
+    EXPECT_EQ(queue_op::abort_sync_write, (*it)->getOperation());
+    EXPECT_FALSE((*it)->getValue());
 
-    // We must have ckpt-start + Commit/Abort
+    // We must have ckpt-start + Abort
     auto outItems = stream->public_getOutstandingItems(*vb);
     ASSERT_EQ(2, outItems.size());
     ASSERT_EQ(queue_op::checkpoint_start, outItems.at(0)->getOperation());
-    ASSERT_EQ(res == Resolution::Commit ? queue_op::commit_sync_write
-                                        : queue_op::abort_sync_write,
-              outItems.at(1)->getOperation());
-
-    // readyQ still empty
+    ASSERT_EQ(queue_op::abort_sync_write, outItems.at(1)->getOperation());
+    // Stream::readyQ still empty
     ASSERT_EQ(0, stream->public_readyQSize());
-
-    // Push items into readyQ
+    // Push items into the Stream::readyQ
     stream->public_processItems(outItems);
-
-    // No message processed, BufferLog empty
-    ASSERT_EQ(0, producer->getBytesOutstanding());
-
-    // readyQ must contain SnapshotMarker
+    // Stream::readyQ must contain SnapshotMarker + DCP_ABORT
     ASSERT_EQ(2, stream->public_readyQSize());
-    auto resp = stream->public_nextQueuedItem();
+    auto resp = stream->public_popFromReadyQ();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
-
-    // Simulate the Replica ack'ing the SnapshotMarker's bytes
-    auto bytesOutstanding = producer->getBytesOutstanding();
-    ASSERT_GT(bytesOutstanding, 0);
-    producer->ackBytesOutstanding(bytesOutstanding);
-    ASSERT_EQ(0, producer->getBytesOutstanding());
-
-    // readyQ must contain DCP_COMMIT/DCP_ABORT
-    resp = stream->public_nextQueuedItem();
-    ASSERT_TRUE(resp);
-    switch (res) {
-    case Resolution::Commit: {
-        EXPECT_EQ(DcpResponse::Event::Commit, resp->getEvent());
-        const auto& commit = dynamic_cast<CommitSyncWrite&>(*resp);
-        EXPECT_EQ(key, commit.getKey());
-        EXPECT_EQ(completedSeqno, *commit.getBySeqno());
-        break;
-    }
-    case Resolution::Abort: {
-        EXPECT_EQ(DcpResponse::Event::Abort, resp->getEvent());
-        const auto& abort = dynamic_cast<AbortSyncWrite&>(*resp);
-        EXPECT_EQ(key, abort.getKey());
-        EXPECT_EQ(completedSeqno, *abort.getBySeqno());
-        break;
-    }
-    }
-
-    // The expected size of a DCP_COMMT / DCP_ABORT is:
-    // + 24 (header)
-    // + 8 (Commit/Abort seqno)
-    // + key size
-    EXPECT_EQ(32 + key.size(), producer->getBytesOutstanding());
-
-    // readyQ empty now
-    EXPECT_EQ(0, stream->public_readyQSize());
     resp = stream->public_popFromReadyQ();
-    EXPECT_FALSE(resp);
-}
-
-/*
- * This test checks that the ActiveStream::readyQ contains the right DCP
- * messages during the journey of a Committed sync-write.
- */
-TEST_P(DurabilityActiveStreamTest, SendDcpCommit) {
-    testSendCompleteSyncWrite(Resolution::Commit);
-}
-
-/*
- * This test checks that the ActiveStream::readyQ contains the right DCP
- * messages during the journey of an Aborted sync-write.
- */
-TEST_P(DurabilityActiveStreamTest, SendDcpAbort) {
-    testSendCompleteSyncWrite(Resolution::Abort);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Abort, resp->getEvent());
+    const auto& abort = static_cast<AbortSyncWrite&>(*resp);
+    EXPECT_EQ(key, abort.getKey());
+    EXPECT_EQ(2, *abort.getBySeqno());
+    ASSERT_EQ(0, stream->public_readyQSize());
+    resp = stream->public_popFromReadyQ();
+    ASSERT_FALSE(resp);
 }
 
 void DurabilityPassiveStreamTest::SetUp() {
