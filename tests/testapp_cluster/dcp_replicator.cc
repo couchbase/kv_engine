@@ -137,8 +137,8 @@ void DcpReplicatorImpl::create(const Cluster& cluster,
         auto connection = cluster.getConnection(node);
         connection->authenticate("@admin", "password", "PLAIN");
         connection->selectBucket(bucket.getName());
-        std::string name("DcpReplicatorImpl_" + std::to_string(me) + "_" +
-                         std::to_string(node));
+        std::string name("n_" + std::to_string(node) + "->n_" +
+                         std::to_string(me));
         connection->setFeatures(name, features);
 
         // Create and send a DCP open
@@ -156,8 +156,9 @@ void DcpReplicatorImpl::create(const Cluster& cluster,
         mine->authenticate("@admin", "password", "PLAIN");
         mine->selectBucket(bucket.getName());
         mine->setFeatures(name, features);
-
-        rsp = mine->execute(BinprotDcpOpenCommand{name});
+        BinprotDcpOpenCommand consumerOpenCommand{name};
+        consumerOpenCommand.setConsumerName("n_" + std::to_string(me));
+        rsp = mine->execute(consumerOpenCommand);
         if (!rsp.isSuccess()) {
             throw std::runtime_error(
                     "DcpReplicatorImpl::start: Failed to set up "

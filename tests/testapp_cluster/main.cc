@@ -22,6 +22,7 @@
 #include <platform/dirutils.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
+#include <protocol/connection/frameinfo.h>
 #include <csignal>
 #include <cstdlib>
 #include <string>
@@ -56,6 +57,26 @@ TEST_F(BasicClusterTest, GetReplica) {
         } while (rsp.getStatus() == cb::mcbp::Status::KeyEnoent);
         EXPECT_TRUE(rsp.isSuccess());
     }
+}
+
+TEST_F(BasicClusterTest, StoreWitDurability) {
+    auto bucket = cluster->getBucket("default");
+    auto conn = bucket->getConnection(Vbid(0));
+    conn->authenticate("@admin", "password", "PLAIN");
+    conn->selectBucket(bucket->getName());
+
+    auto info = conn->store(
+            "StoreWitDurability",
+            Vbid(0),
+            "value",
+            cb::mcbp::Datatype::Raw,
+            []() -> FrameInfoVector {
+                FrameInfoVector ret;
+                ret.emplace_back(std::make_unique<DurabilityFrameInfo>(
+                        cb::durability::Level::Majority));
+                return ret;
+            });
+    EXPECT_NE(0, info.cas);
 }
 
 char isasl_env_var[1024];

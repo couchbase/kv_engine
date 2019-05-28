@@ -121,6 +121,13 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
             auto connection = nodes[node_idx]->getConnection();
             connection->connect();
             connection->authenticate("@admin", "password", "plain");
+            connection->setFeatures("cluster_testapp",
+                                    {{cb::mcbp::Feature::MUTATION_SEQNO,
+                                      cb::mcbp::Feature::XATTR,
+                                      cb::mcbp::Feature::XERROR,
+                                      cb::mcbp::Feature::SELECT_BUCKET,
+                                      cb::mcbp::Feature::JSON,
+                                      cb::mcbp::Feature::SNAPPY}});
             std::string fname = nodes[node_idx]->directory + "/" + name;
             cb::io::sanitizePath(fname);
             json["dbname"] = fname;
@@ -144,14 +151,25 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
             // define the vbuckets
             for (std::size_t vbucket = 0; vbucket < vbucketmap.size();
                  ++vbucket) {
+                std::vector<std::string> chain;
+                for (int ii : vbucketmap[vbucket]) {
+                    chain.emplace_back("n_" + std::to_string(ii));
+                }
+                nlohmann::json topology = {
+                        {"topology", nlohmann::json::array({chain})}};
                 for (std::size_t ii = 0; ii < vbucketmap[vbucket].size();
                      ++ii) {
                     if (vbucketmap[vbucket][ii] == int(node_idx)) {
                         // This is me
-                        connection->setVbucket(Vbid{uint16_t(vbucket)},
-                                               ii == 0 ? vbucket_state_active
-                                                       : vbucket_state_replica,
-                                               {});
+                        if (ii == 0) {
+                            connection->setVbucket(Vbid{uint16_t(vbucket)},
+                                                   vbucket_state_active,
+                                                   topology);
+                        } else {
+                            connection->setVbucket(Vbid{uint16_t(vbucket)},
+                                                   vbucket_state_replica,
+                                                   {});
+                        }
                     }
                 }
             }

@@ -285,6 +285,8 @@ bool NodeImpl::isRunning() const {
 std::unique_ptr<MemcachedConnection> NodeImpl::getConnection() {
     auto ret = connectionMap.getConnection().clone();
     ret->setAutoRetryTmpfail(true);
+    ret->setFeature(cb::mcbp::Feature::XERROR, true);
+    ret->setFeature(cb::mcbp::Feature::JSON, true);
     return ret;
 }
 
