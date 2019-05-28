@@ -1367,6 +1367,26 @@ void MemcachedConnection::backoff_execute(std::function<bool()> executor,
             std::to_string(timeout.count()) + " seconds");
 }
 
+void MemcachedConnection::evict(const std::string& key,
+                                Vbid vbucket,
+                                GetFrameInfoFunction getFrameInfo) {
+    backoff_execute([this, &key, &vbucket]() -> bool {
+        BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::EvictKey, key);
+        cmd.setVBucket(vbucket);
+        const auto rsp = execute(cmd);
+        if (rsp.isSuccess()) {
+            // Evicted
+            return true;
+        }
+        if (rsp.getStatus() == cb::mcbp::Status::KeyEexists) {
+            return false;
+        }
+
+        throw ConnectionError("evict: Failed to evict key \"" + key + "\"",
+                              rsp.getStatus());
+    });
+}
+
 void MemcachedConnection::setVbucket(Vbid vbid,
                                      vbucket_state_t state,
                                      const nlohmann::json& payload,

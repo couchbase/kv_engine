@@ -721,6 +721,17 @@ public:
             GetFrameInfoFunction getFrameInfo = {});
 
     /**
+     * Evict the provided key
+     *
+     * @param key The key to evict
+     * @param vbucket The vbucket the key belongs to
+     * @param getFrameInfo  Optional frame ids
+     */
+    void evict(const std::string& key,
+               Vbid vbucket,
+               GetFrameInfoFunction getFrameInfo = {});
+
+    /**
      * Observe Seqno command - retrieve the persistence status of the given
      * vBucket and UUID.
      */
