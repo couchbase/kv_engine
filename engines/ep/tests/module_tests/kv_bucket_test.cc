@@ -1252,6 +1252,50 @@ TEST_P(KVBucketParamTest, MB31495_GetRandomKey) {
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
 }
 
+// Test that expiring a compressed xattr doesn't trigger any errors
+TEST_P(KVBucketParamTest, MB_34346) {
+    // Create an XTTR value with only a large system xattr, and compress the lot
+    // Note the large xattr should be highly compressible to make it easier to
+    // trigger the MB.
+    cb::xattr::Blob blob;
+    blob.set("_sync",
+             R"({"fffff":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})");
+    auto xattr = blob.finalize();
+    cb::compression::Buffer output;
+    cb::compression::deflate(cb::compression::Algorithm::Snappy,
+                             {xattr.data(), xattr.size()},
+                             output);
+    EXPECT_LT(output.size(), xattr.size())
+            << "Expected the compressed buffer to be smaller than the input";
+
+    auto key = makeStoredDocKey("key_1");
+    store_item(
+            vbid,
+            key,
+            {output.data(), output.size()},
+            ep_abs_time(ep_current_time() + 10),
+            {cb::engine_errc::success},
+            PROTOCOL_BINARY_DATATYPE_XATTR | PROTOCOL_BINARY_DATATYPE_SNAPPY);
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    EXPECT_EQ(1, engine->getVBucket(vbid)->getNumItems())
+            << "Should have 1 item after calling store()";
+
+    TimeTraveller docBrown(15);
+
+    get_options_t options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    GetValue gv2 = store->get(key, vbid, cookie, options);
+    EXPECT_TRUE(gv2.item->isDeleted());
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    EXPECT_EQ(0, engine->getVBucket(vbid)->getNumItems())
+            << "Should still have 0 items after time-travelling/expiry";
+}
+
 class StoreIfTest : public KVBucketTest {
 public:
     void SetUp() override {
