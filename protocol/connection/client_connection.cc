@@ -16,6 +16,7 @@
  */
 #include "client_connection.h"
 #include "client_mcbp_commands.h"
+#include "frameinfo.h"
 
 #include <cbsasl/client.h>
 #include <mcbp/mcbp.h>
@@ -813,8 +814,10 @@ std::string MemcachedConnection::to_string() {
     return ret;
 }
 
-std::vector<std::string> MemcachedConnection::listBuckets() {
+std::vector<std::string> MemcachedConnection::listBuckets(
+        GetFrameInfoFunction getFrameInfo) {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::ListBuckets);
+    applyFrameInfos(command, getFrameInfo);
     const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("List bucket failed", response);
@@ -831,10 +834,14 @@ std::vector<std::string> MemcachedConnection::listBuckets() {
     return ret;
 }
 
-Document MemcachedConnection::get(const std::string& id, Vbid vbucket) {
+Document MemcachedConnection::get(
+        const std::string& id,
+        Vbid vbucket,
+        std::function<std::vector<std::unique_ptr<FrameInfo>>()> getFrameInfo) {
     BinprotGetCommand command;
     command.setKey(id);
     command.setVBucket(vbucket);
+    applyFrameInfos(command, getFrameInfo);
 
     const auto response = BinprotGetResponse(execute(command));
     if (!response.isSuccess()) {
@@ -860,12 +867,15 @@ Frame MemcachedConnection::encodeCmdGet(const std::string& id, Vbid vbucket) {
 MutationInfo MemcachedConnection::mutate(const DocumentInfo& info,
                                          Vbid vbucket,
                                          cb::const_byte_buffer value,
-                                         MutationType type) {
+                                         MutationType type,
+                                         GetFrameInfoFunction getFrameInfo) {
     BinprotMutationCommand command;
     command.setDocumentInfo(info);
     command.addValueBuffer(value);
     command.setVBucket(vbucket);
     command.setMutationType(type);
+    applyFrameInfos(command, getFrameInfo);
+
     const auto response = BinprotMutationResponse(execute(command));
     if (!response.isSuccess()) {
         throw ConnectionError("Failed to store " + info.id,
@@ -878,12 +888,13 @@ MutationInfo MemcachedConnection::mutate(const DocumentInfo& info,
 MutationInfo MemcachedConnection::store(const std::string& id,
                                         Vbid vbucket,
                                         std::string value,
-                                        cb::mcbp::Datatype datatype) {
+                                        cb::mcbp::Datatype datatype,
+                                        GetFrameInfoFunction getFrameInfo) {
     Document doc{};
     doc.value = std::move(value);
     doc.info.id = id;
     doc.info.datatype = datatype;
-    return mutate(doc, vbucket, MutationType::Set);
+    return mutate(doc, vbucket, MutationType::Set, getFrameInfo);
 }
 
 void MemcachedConnection::stats(
@@ -956,8 +967,10 @@ void MemcachedConnection::configureEwouldBlockEngine(const EWBEngineMode& mode,
     }
 }
 
-void MemcachedConnection::reloadAuditConfiguration() {
+void MemcachedConnection::reloadAuditConfiguration(
+        GetFrameInfoFunction getFrameInfo) {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::AuditConfigReload);
+    applyFrameInfos(command, getFrameInfo);
     const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("Failed to reload audit configuration", response);
@@ -1050,8 +1063,11 @@ std::string MemcachedConnection::getSaslMechanisms() {
     return response.getDataString();
 }
 
-std::string MemcachedConnection::ioctl_get(const std::string& key) {
+std::string MemcachedConnection::ioctl_get(const std::string& key,
+                                           GetFrameInfoFunction getFrameInfo) {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::IoctlGet, key);
+    applyFrameInfos(command, getFrameInfo);
+
     const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("ioctl_get '" + key + "' failed", response);
@@ -1060,8 +1076,10 @@ std::string MemcachedConnection::ioctl_get(const std::string& key) {
 }
 
 void MemcachedConnection::ioctl_set(const std::string& key,
-                                    const std::string& value) {
+                                    const std::string& value,
+                                    GetFrameInfoFunction getFrameInfo) {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::IoctlSet, key, value);
+    applyFrameInfos(command, getFrameInfo);
     const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("ioctl_set '" + key + "' failed", response);
@@ -1072,26 +1090,30 @@ uint64_t MemcachedConnection::increment(const std::string& key,
                                         uint64_t delta,
                                         uint64_t initial,
                                         rel_time_t exptime,
-                                        MutationInfo* info) {
+                                        MutationInfo* info,
+                                        GetFrameInfoFunction getFrameInfo) {
     return incr_decr(cb::mcbp::ClientOpcode::Increment,
                      key,
                      delta,
                      initial,
                      exptime,
-                     info);
+                     info,
+                     getFrameInfo);
 }
 
 uint64_t MemcachedConnection::decrement(const std::string& key,
                                         uint64_t delta,
                                         uint64_t initial,
                                         rel_time_t exptime,
-                                        MutationInfo* info) {
+                                        MutationInfo* info,
+                                        GetFrameInfoFunction getFrameInfo) {
     return incr_decr(cb::mcbp::ClientOpcode::Decrement,
                      key,
                      delta,
                      initial,
                      exptime,
-                     info);
+                     info,
+                     getFrameInfo);
 }
 
 uint64_t MemcachedConnection::incr_decr(cb::mcbp::ClientOpcode opcode,
@@ -1099,13 +1121,15 @@ uint64_t MemcachedConnection::incr_decr(cb::mcbp::ClientOpcode opcode,
                                         uint64_t delta,
                                         uint64_t initial,
                                         rel_time_t exptime,
-                                        MutationInfo* info) {
+                                        MutationInfo* info,
+                                        GetFrameInfoFunction getFrameInfo) {
     const char* opcode_name =
             (opcode == cb::mcbp::ClientOpcode::Increment) ? "incr" : "decr";
 
     BinprotIncrDecrCommand command;
     command.setOp(opcode).setKey(key);
     command.setDelta(delta).setInitialValue(initial).setExpiry(exptime);
+    applyFrameInfos(command, getFrameInfo);
 
     const auto response = BinprotIncrDecrResponse(execute(command));
     if (!response.isSuccess()) {
@@ -1129,11 +1153,14 @@ uint64_t MemcachedConnection::incr_decr(cb::mcbp::ClientOpcode opcode,
 
 MutationInfo MemcachedConnection::remove(const std::string& key,
                                          Vbid vbucket,
-                                         uint64_t cas) {
+                                         uint64_t cas,
+                                         GetFrameInfoFunction getFrameInfo) {
     BinprotRemoveCommand command;
     command.setKey(key).setVBucket(vbucket);
     command.setVBucket(vbucket);
     command.setCas(cas);
+    applyFrameInfos(command, getFrameInfo);
+
     const auto response = BinprotRemoveResponse(execute(command));
 
     if (!response.isSuccess()) {
@@ -1145,11 +1172,14 @@ MutationInfo MemcachedConnection::remove(const std::string& key,
 
 Document MemcachedConnection::get_and_lock(const std::string& id,
                                            Vbid vbucket,
-                                           uint32_t lock_timeout) {
+                                           uint32_t lock_timeout,
+                                           GetFrameInfoFunction getFrameInfo) {
     BinprotGetAndLockCommand command;
     command.setKey(id);
     command.setVBucket(vbucket);
     command.setLockTimeout(lock_timeout);
+    applyFrameInfos(command, getFrameInfo);
+
     const auto response = BinprotGetAndLockResponse(execute(command));
 
     if (!response.isSuccess()) {
@@ -1165,28 +1195,37 @@ Document MemcachedConnection::get_and_lock(const std::string& id,
     return ret;
 }
 
-BinprotResponse MemcachedConnection::getFailoverLog(Vbid vbucket) {
+BinprotResponse MemcachedConnection::getFailoverLog(
+        Vbid vbucket, GetFrameInfoFunction getFrameInfo) {
     BinprotGetFailoverLogCommand command;
     command.setVBucket(vbucket);
+    applyFrameInfos(command, getFrameInfo);
+
     return execute(command);
 }
 
 void MemcachedConnection::unlock(const std::string& id,
                                  Vbid vbucket,
-                                 uint64_t cas) {
+                                 uint64_t cas,
+                                 GetFrameInfoFunction getFrameInfo) {
     BinprotUnlockCommand command;
     command.setKey(id);
     command.setVBucket(vbucket);
     command.setCas(cas);
+    applyFrameInfos(command, getFrameInfo);
+
     const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("unlock(): " + id, response.getStatus());
     }
 }
 
-void MemcachedConnection::dropPrivilege(cb::rbac::Privilege privilege) {
+void MemcachedConnection::dropPrivilege(cb::rbac::Privilege privilege,
+                                        GetFrameInfoFunction getFrameInfo) {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::DropPrivilege,
                                   cb::rbac::to_string(privilege));
+    applyFrameInfos(command, getFrameInfo);
+
     const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("dropPrivilege \"" +
@@ -1202,9 +1241,12 @@ MutationInfo MemcachedConnection::mutateWithMeta(
         uint64_t cas,
         uint64_t seqno,
         uint32_t metaOption,
-        std::vector<uint8_t> metaExtras) {
+        std::vector<uint8_t> metaExtras,
+        GetFrameInfoFunction getFrameInfo) {
     BinprotSetWithMetaCommand swm(
             doc, vbucket, cas, seqno, metaOption, metaExtras);
+    applyFrameInfos(swm, getFrameInfo);
+
     const auto response = BinprotMutationResponse(execute(swm));
     if (!response.isSuccess()) {
         throw ConnectionError("Failed to mutateWithMeta " + doc.info.id,
@@ -1214,8 +1256,11 @@ MutationInfo MemcachedConnection::mutateWithMeta(
     return response.getMutationInfo();
 }
 
-ObserveInfo MemcachedConnection::observeSeqno(Vbid vbid, uint64_t uuid) {
+ObserveInfo MemcachedConnection::observeSeqno(
+        Vbid vbid, uint64_t uuid, GetFrameInfoFunction getFrameInfo) {
     BinprotObserveSeqnoCommand observe(vbid, uuid);
+    applyFrameInfos(observe, getFrameInfo);
+
     const auto response = BinprotObserveSeqnoResponse(execute(observe));
     if (!response.isSuccess()) {
         throw ConnectionError(std::string("Failed to observeSeqno for ") +
@@ -1226,8 +1271,10 @@ ObserveInfo MemcachedConnection::observeSeqno(Vbid vbid, uint64_t uuid) {
     return response.info;
 }
 
-void MemcachedConnection::enablePersistence() {
+void MemcachedConnection::enablePersistence(GetFrameInfoFunction getFrameInfo) {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::StartPersistence);
+    applyFrameInfos(command, getFrameInfo);
+
     const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("Failed to enablePersistence ",
@@ -1235,8 +1282,10 @@ void MemcachedConnection::enablePersistence() {
     }
 }
 
-void MemcachedConnection::disablePersistence() {
+void MemcachedConnection::disablePersistence(
+        GetFrameInfoFunction getFrameInfo) {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::StopPersistence);
+    applyFrameInfos(command, getFrameInfo);
     const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError("Failed to disablePersistence ",
@@ -1245,11 +1294,15 @@ void MemcachedConnection::disablePersistence() {
 }
 
 std::pair<cb::mcbp::Status, GetMetaResponse> MemcachedConnection::getMeta(
-        const std::string& key, Vbid vbucket, GetMetaVersion version) {
+        const std::string& key,
+        Vbid vbucket,
+        GetMetaVersion version,
+        GetFrameInfoFunction getFrameInfo) {
     BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetMeta, key};
     cmd.setVBucket(vbucket);
     const std::vector<uint8_t> extras = {uint8_t(version)};
     cmd.setExtras(extras);
+    applyFrameInfos(cmd, getFrameInfo);
 
     auto resp = execute(cmd);
 
@@ -1316,11 +1369,25 @@ void MemcachedConnection::backoff_execute(std::function<bool()> executor,
 
 void MemcachedConnection::setVbucket(Vbid vbid,
                                      vbucket_state_t state,
-                                     const nlohmann::json& payload) {
-    auto rsp = execute(BinprotSetVbucketCommand{vbid, state, payload});
+                                     const nlohmann::json& payload,
+                                     GetFrameInfoFunction getFrameInfo) {
+    BinprotSetVbucketCommand command{vbid, state, payload};
+    applyFrameInfos(command, getFrameInfo);
+
+    auto rsp = execute(command);
     if (!rsp.isSuccess()) {
         throw ConnectionError("setVbucket: Faled to set state",
                               rsp.getStatus());
+    }
+}
+
+void MemcachedConnection::applyFrameInfos(BinprotCommand& command,
+                                          GetFrameInfoFunction& getFrameInfo) {
+    if (getFrameInfo) {
+        auto frame_info = getFrameInfo();
+        for (const auto& fi : frame_info) {
+            command.addFrameInfo(*fi);
+        }
     }
 }
 

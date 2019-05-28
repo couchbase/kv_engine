@@ -22,6 +22,9 @@
 #include <nlohmann/json.hpp>
 #include <platform/sized_buffer.h>
 #include <unordered_set>
+
+class FrameInfo;
+
 /**
  * This is the base class used for binary protocol commands. You probably
  * want to use one of the subclasses. Do not subclass this class directly,
@@ -50,6 +53,14 @@ public:
     BinprotCommand& setOp(cb::mcbp::ClientOpcode cmd_);
 
     BinprotCommand& setVBucket(Vbid vbid);
+
+    /// Add a frame info object to the stream
+    BinprotCommand& addFrameInfo(const FrameInfo& fi);
+
+    /// Add something you want to put into the frame info section of the
+    /// packet (in the case you want to create illegal frame encodings
+    /// to make sure that the server handle them correctly)
+    BinprotCommand& addFrameInfo(cb::const_byte_buffer section);
 
     /**
      * Encode the command to a buffer.
@@ -122,6 +133,9 @@ protected:
     std::string key;
     uint64_t cas = 0;
     Vbid vbucket = Vbid(0);
+
+    /// The frame info sections to inject into the packet
+    std::vector<uint8_t> frame_info;
 
 private:
     /**
@@ -761,6 +775,8 @@ public:
                                    uint32_t seqno_ = 0,
                                    uint32_t flags_ = 0);
 
+    void setConsumerName(std::string name);
+
     /**
      * Make this a producer stream
      *
@@ -803,6 +819,7 @@ public:
 private:
     uint32_t seqno;
     uint32_t flags;
+    nlohmann::json payload;
 };
 
 class BinprotDcpStreamRequestCommand : public BinprotGenericCommand {

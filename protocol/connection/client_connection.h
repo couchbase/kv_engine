@@ -38,6 +38,11 @@
 #include <utility>
 #include <vector>
 
+class FrameInfo;
+
+using FrameInfoVector = std::vector<std::unique_ptr<FrameInfo>>;
+using GetFrameInfoFunction = std::function<FrameInfoVector()>;
+
 /**
  * The Frame class is used to represent all of the data included in the
  * protocol unit going over the wire.
@@ -374,7 +379,8 @@ public:
      *
      * @return a vector containing all of the buckets
      */
-    std::vector<std::string> listBuckets();
+    std::vector<std::string> listBuckets(
+            GetFrameInfoFunction getFrameInfo = {});
 
     /**
      * Fetch a document from the server
@@ -384,7 +390,9 @@ public:
      * @return a document object containg the information about the
      *         document.
      */
-    Document get(const std::string& id, Vbid vbucket);
+    Document get(const std::string& id,
+                 Vbid vbucket,
+                 GetFrameInfoFunction getFrameInfo = {});
 
     /**
      * Fetch and lock a document from the server
@@ -398,7 +406,8 @@ public:
      */
     Document get_and_lock(const std::string& id,
                           Vbid vbucket,
-                          uint32_t lock_timeout);
+                          uint32_t lock_timeout,
+                          GetFrameInfoFunction getFrameInfo = {});
 
     /**
      * Get the Failover Log for a given VBucket
@@ -406,7 +415,8 @@ public:
      * @param vbucket
      * @return the raw BinprotResponse
      */
-    BinprotResponse getFailoverLog(Vbid vbucket);
+    BinprotResponse getFailoverLog(Vbid vbucket,
+                                   GetFrameInfoFunction getFrameInfo = {});
 
     /**
      * Unlock a locked document
@@ -415,22 +425,30 @@ public:
      * @param vbucket the vbucket the document resides in
      * @param cas the cas identifier of the locked document
      */
-    void unlock(const std::string& id, Vbid vbucket, uint64_t cas);
+    void unlock(const std::string& id,
+                Vbid vbucket,
+                uint64_t cas,
+                GetFrameInfoFunction getFrameInfo = {});
 
-    void dropPrivilege(cb::rbac::Privilege privilege);
+    void dropPrivilege(cb::rbac::Privilege privilege,
+                       GetFrameInfoFunction getFrameInfo = {});
 
     /*
      * Form a Frame representing a CMD_GET
      */
     static Frame encodeCmdGet(const std::string& id, Vbid vbucket);
 
-    MutationInfo mutate(const Document& doc, Vbid vbucket, MutationType type) {
+    MutationInfo mutate(const Document& doc,
+                        Vbid vbucket,
+                        MutationType type,
+                        GetFrameInfoFunction getFrameInfo = {}) {
         return mutate(doc.info,
                       vbucket,
                       cb::const_byte_buffer(reinterpret_cast<const uint8_t*>(
                                                     doc.value.data()),
                                             doc.value.size()),
-                      type);
+                      type,
+                      getFrameInfo);
     }
 
     /**
@@ -447,7 +465,8 @@ public:
     MutationInfo mutate(const DocumentInfo& info,
                         Vbid vbucket,
                         cb::const_byte_buffer value,
-                        MutationType type);
+                        MutationType type,
+                        GetFrameInfoFunction getFrameInfo = {});
 
     /**
      * Convenience method to store (aka "upsert") an item.
@@ -459,7 +478,8 @@ public:
     MutationInfo store(const std::string& id,
                        Vbid vbucket,
                        std::string value,
-                       cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw);
+                       cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw,
+                       GetFrameInfoFunction getFrameInfo = {});
 
     /**
      * Get statistics from the server, and fire a callback with the key and
@@ -484,7 +504,7 @@ public:
     /**
      * Instruct the audit daemon to reload the configuration
      */
-    void reloadAuditConfiguration();
+    void reloadAuditConfiguration(GetFrameInfoFunction getFrameInfo = {});
 
     /**
      * Sent the given frame over this connection
@@ -573,7 +593,8 @@ public:
      * @param key the IOCTL to request
      * @return A textual representation of the key
      */
-    std::string ioctl_get(const std::string& key);
+    std::string ioctl_get(const std::string& key,
+                          GetFrameInfoFunction getFrameInfo = {});
 
     /**
      * Perform an IOCTL on the server
@@ -581,7 +602,9 @@ public:
      * @param key the IOCTL to set
      * @param value the value to specify for the given key
      */
-    void ioctl_set(const std::string& key, const std::string& value);
+    void ioctl_set(const std::string& key,
+                   const std::string& value,
+                   GetFrameInfoFunction getFrameInfo = {});
 
     /**
      * Perform an arithmetic operation on a document (increment or decrement)
@@ -603,12 +626,18 @@ public:
                         int64_t delta,
                         uint64_t initial = 0,
                         rel_time_t exptime = 0,
-                        MutationInfo* info = nullptr) {
+                        MutationInfo* info = nullptr,
+                        GetFrameInfoFunction getFrameInfo = {}) {
         if (delta < 0) {
-            return decrement(key, uint64_t(std::abs(delta)), initial,
-                             exptime, info);
+            return decrement(key,
+                             uint64_t(std::abs(delta)),
+                             initial,
+                             exptime,
+                             info,
+                             getFrameInfo);
         } else {
-            return increment(key, uint64_t(delta), initial, exptime, info);
+            return increment(
+                    key, uint64_t(delta), initial, exptime, info, getFrameInfo);
         }
     }
 
@@ -630,7 +659,8 @@ public:
                        uint64_t delta,
                        uint64_t initial = 0,
                        rel_time_t exptime = 0,
-                       MutationInfo* info = nullptr);
+                       MutationInfo* info = nullptr,
+                       GetFrameInfoFunction getFrameInfo = {});
 
     /**
      * Perform an decrement operation on a document
@@ -647,7 +677,8 @@ public:
                        uint64_t delta,
                        uint64_t initial = 0,
                        rel_time_t exptime = 0,
-                       MutationInfo* info = nullptr);
+                       MutationInfo* info = nullptr,
+                       GetFrameInfoFunction getFrameInfo = {});
 
     /**
      * Remove the named document
@@ -657,7 +688,10 @@ public:
      * @param cas the specific version of the document or 0 for "any"
      * @return Details about the detion
      */
-    MutationInfo remove(const std::string& key, Vbid vbucket, uint64_t cas = 0);
+    MutationInfo remove(const std::string& key,
+                        Vbid vbucket,
+                        uint64_t cas = 0,
+                        GetFrameInfoFunction getFrameInfo = {});
 
     /**
      * Mutate with meta - stores doc into the bucket using all the metadata
@@ -677,22 +711,28 @@ public:
                                 uint64_t cas,
                                 uint64_t seqno,
                                 uint32_t metaOption,
-                                std::vector<uint8_t> metaExtras = {});
+                                std::vector<uint8_t> metaExtras = {},
+                                GetFrameInfoFunction getFrameInfo = {});
 
     std::pair<cb::mcbp::Status, GetMetaResponse> getMeta(
-            const std::string& key, Vbid vbucket, GetMetaVersion version);
+            const std::string& key,
+            Vbid vbucket,
+            GetMetaVersion version,
+            GetFrameInfoFunction getFrameInfo = {});
 
     /**
      * Observe Seqno command - retrieve the persistence status of the given
      * vBucket and UUID.
      */
-    ObserveInfo observeSeqno(Vbid vbid, uint64_t uuid);
+    ObserveInfo observeSeqno(Vbid vbid,
+                             uint64_t uuid,
+                             GetFrameInfoFunction getFrameInfo = {});
 
     /// Enable persistence for the connected bucket.
-    void enablePersistence();
+    void enablePersistence(GetFrameInfoFunction getFrameInfo = {});
 
     /// Disable persistence for the connected bucket.
-    void disablePersistence();
+    void disablePersistence(GetFrameInfoFunction getFrameInfo = {});
 
     bool hasFeature(cb::mcbp::Feature feature) const {
         return effective_features.find(uint16_t(feature)) !=
@@ -748,7 +788,8 @@ public:
 
     void setVbucket(Vbid vbid,
                     vbucket_state_t state,
-                    const nlohmann::json& payload);
+                    const nlohmann::json& payload,
+                    GetFrameInfoFunction getFrameInfo = {});
 
     /// should the client automatically retry operations which fail
     /// with a tmpfail or not (note that this is only possible when
@@ -785,6 +826,8 @@ protected:
 
     void sendBufferSsl(cb::const_byte_buffer buf);
     void sendBufferSsl(const std::vector<iovec>& list);
+
+    void applyFrameInfos(BinprotCommand& command, GetFrameInfoFunction& fi);
 
     /**
      * Keep on calling the executor function until it returns true.
@@ -823,7 +866,8 @@ protected:
                        uint64_t delta,
                        uint64_t initial,
                        rel_time_t exptime,
-                       MutationInfo* info);
+                       MutationInfo* info,
+                       GetFrameInfoFunction getFrameInfo = {});
 
     /**
      * Set the features on the server by using the MCBP hello command

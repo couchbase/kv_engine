@@ -15,10 +15,11 @@
  *   limitations under the License.
  */
 #include "client_mcbp_commands.h"
+#include "frameinfo.h"
+#include "tracing/tracer.h"
 #include <mcbp/mcbp.h>
 #include <array>
 #include <gsl/gsl>
-#include "tracing/tracer.h"
 
 /**
  * Append a 16 bit integer to the buffer in network byte order
@@ -59,11 +60,15 @@ void BinprotCommand::fillHeader(cb::mcbp::Request& header,
                                 size_t extlen) const {
     header.setMagic(cb::mcbp::Magic::ClientRequest);
     header.setOpcode(opcode);
-    header.setKeylen(gsl::narrow<uint16_t>(key.size()));
+    // The server refuse to use a key > 0xff so just narrow it here to make
+    // sure that we don't use the frame extras field if we want to inject
+    // that at a later time
+    header.setKeylen(gsl::narrow<uint8_t>(key.size()));
     header.setExtlen(gsl::narrow<uint8_t>(extlen));
     header.setDatatype(cb::mcbp::Datatype::Raw);
     header.setVBucket(vbucket);
-    header.setBodylen(gsl::narrow<uint32_t>(key.size() + extlen + payload_len));
+    header.setBodylen(gsl::narrow<uint32_t>(key.size() + extlen + payload_len +
+                                            frame_info.size()));
     header.setOpaque(0xdeadbeef);
     // @todo fix this to use the setter. There is still some dependency
     // in other tests which use expects this to be in the same byte order
@@ -77,6 +82,14 @@ void BinprotCommand::writeHeader(std::vector<uint8_t>& buf,
     buf.resize(sizeof(cb::mcbp::Request));
     auto& hdr = *reinterpret_cast<cb::mcbp::Request*>(buf.data());
     fillHeader(hdr, payload_len, extlen);
+
+    if (!frame_info.empty()) {
+        hdr.setMagic(cb::mcbp::Magic::AltClientRequest);
+        hdr.setFramingExtraslen(gsl::narrow<uint8_t>(frame_info.size()));
+        std::copy(frame_info.cbegin(),
+                  frame_info.cend(),
+                  std::back_inserter(buf));
+    }
 }
 
 BinprotCommand& BinprotCommand::setKey(std::string key_) {
@@ -115,6 +128,16 @@ cb::mcbp::ClientOpcode BinprotCommand::getOp() const {
 
 BinprotCommand& BinprotCommand::setVBucket(Vbid vbid) {
     vbucket = vbid;
+    return *this;
+}
+
+BinprotCommand& BinprotCommand::addFrameInfo(const FrameInfo& fi) {
+    auto encoded = fi.encode();
+    return addFrameInfo({encoded.data(), encoded.size()});
+}
+
+BinprotCommand& BinprotCommand::addFrameInfo(cb::const_byte_buffer section) {
+    std::copy(section.cbegin(), section.cend(), std::back_inserter(frame_info));
     return *this;
 }
 
@@ -1274,11 +1297,27 @@ void append(std::vector<uint8_t>& buf, uint64_t value) {
 }
 
 void BinprotDcpOpenCommand::encode(std::vector<uint8_t>& buf) const {
-    writeHeader(buf, 0, 8);
-    append(buf, seqno);
-    append(buf, flags);
-    buf.insert(buf.end(), key.begin(), key.end());
+    if (payload.empty()) {
+        writeHeader(buf, 0, 8);
+        append(buf, seqno);
+        append(buf, flags);
+        buf.insert(buf.end(), key.begin(), key.end());
+    } else {
+        const auto json = payload.dump();
+        writeHeader(buf, json.size(), 8);
+        append(buf, seqno);
+        append(buf, flags);
+        buf.insert(buf.end(), key.begin(), key.end());
+        buf.insert(buf.end(), json.cbegin(), json.cend());
+        auto& req = *reinterpret_cast<cb::mcbp::Request*>(buf.data());
+        req.setDatatype(cb::mcbp::Datatype::JSON);
+    }
 }
+
+void BinprotDcpOpenCommand::setConsumerName(std::string name) {
+    payload["consumer_name"] = name;
+}
+
 BinprotDcpOpenCommand::BinprotDcpOpenCommand(const std::string& name,
                                              uint32_t seqno_,
                                              uint32_t flags_)
