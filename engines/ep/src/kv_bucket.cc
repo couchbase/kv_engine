@@ -1196,6 +1196,12 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_active_queue_fill", active.getQueueFill());
     DO_STAT("vb_active_queue_drain", active.getQueueDrain());
     DO_STAT("vb_active_rollback_item_count", active.getRollbackItemCount());
+    DO_STAT("vb_active_sync_write_accepted_count",
+            active.getSyncWriteAcceptedCount());
+    DO_STAT("vb_active_sync_write_committed_count",
+            active.getSyncWriteCommittedCount());
+    DO_STAT("vb_active_sync_write_aborted_count",
+            active.getSyncWriteAbortedCount());
 
     // Replica vBuckets:
     DO_STAT("vb_replica_backfill_queue_size", replica.getBackfillQueueSize());
@@ -1229,6 +1235,12 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_replica_queue_fill", replica.getQueueFill());
     DO_STAT("vb_replica_queue_drain", replica.getQueueDrain());
     DO_STAT("vb_replica_rollback_item_count", replica.getRollbackItemCount());
+    DO_STAT("vb_replica_sync_write_accepted_count",
+            replica.getSyncWriteAcceptedCount());
+    DO_STAT("vb_replica_sync_write_committed_count",
+            replica.getSyncWriteCommittedCount());
+    DO_STAT("vb_replica_sync_write_aborted_count",
+            replica.getSyncWriteAbortedCount());
 
     // Pending vBuckets:
     DO_STAT("vb_pending_backfill_queue_size", pending.getBackfillQueueSize());

@@ -101,15 +101,27 @@ void PassiveDurabilityMonitor::addSyncWrite(queued_item item) {
     // checked just above the requirements have a non-default value,
     // just pass dummy value here.
     std::chrono::milliseconds dummy{};
-    state.wlock()->trackedWrites.emplace_back(nullptr /*cookie*/,
-                                              std::move(item),
-                                              dummy,
-                                              nullptr /*firstChain*/,
-                                              nullptr /*secondChain*/);
+    auto s = state.wlock();
+    s->trackedWrites.emplace_back(nullptr /*cookie*/,
+                                  std::move(item),
+                                  dummy,
+                                  nullptr /*firstChain*/,
+                                  nullptr /*secondChain*/);
+    s->totalAccepted++;
 }
 
 size_t PassiveDurabilityMonitor::getNumTracked() const {
     return state.rlock()->trackedWrites.size();
+}
+
+size_t PassiveDurabilityMonitor::getNumAccepted() const {
+    return state.rlock()->totalAccepted;
+}
+size_t PassiveDurabilityMonitor::getNumCommitted() const {
+    return state.rlock()->totalCommitted;
+}
+size_t PassiveDurabilityMonitor::getNumAborted() const {
+    return state.rlock()->totalAborted;
 }
 
 void PassiveDurabilityMonitor::notifySnapshotEndReceived(uint64_t snapEnd) {
@@ -203,6 +215,16 @@ void PassiveDurabilityMonitor::completeSyncWrite(const StoredDocKey& key,
 
     // HCS has moved, which could make some Prepare eligible for removal.
     s->checkForAndRemovePrepares();
+
+    switch (res) {
+    case Resolution::Commit:
+        s->totalCommitted++;
+        return;
+    case Resolution::Abort:
+        s->totalAborted++;
+        return;
+    }
+    folly::assume_unreachable();
 }
 
 void PassiveDurabilityMonitor::toOStream(std::ostream& os) const {

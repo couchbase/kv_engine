@@ -290,6 +290,16 @@ size_t ActiveDurabilityMonitor::getNumTracked() const {
     return state.rlock()->trackedWrites.size();
 }
 
+size_t ActiveDurabilityMonitor::getNumAccepted() const {
+    return state.rlock()->totalAccepted;
+}
+size_t ActiveDurabilityMonitor::getNumCommitted() const {
+    return state.rlock()->totalCommitted;
+}
+size_t ActiveDurabilityMonitor::getNumAborted() const {
+    return state.rlock()->totalAborted;
+}
+
 uint8_t ActiveDurabilityMonitor::getFirstChainSize() const {
     const auto s = state.rlock();
     return s->firstChain ? s->firstChain->positions.size() : 0;
@@ -555,6 +565,7 @@ void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
     {
         auto s = state.wlock();
         s->lastCommittedSeqno = sw.getBySeqno();
+        s->totalCommitted++;
         // Note:
         // - Level Majority locally-satisfied first at Active by-logic
         // - Level MajorityAndPersistOnMaster and PersistToMajority must always
@@ -576,7 +587,9 @@ void ActiveDurabilityMonitor::abort(const SyncWrite& sw) {
                 "status:" +
                 std::to_string(result));
     }
-    state.wlock()->lastAbortedSeqno = sw.getBySeqno();
+    auto s = state.wlock();
+    s->lastAbortedSeqno = sw.getBySeqno();
+    s->totalAborted++;
 }
 
 std::vector<const void*>
@@ -747,6 +760,7 @@ void ActiveDurabilityMonitor::State::addSyncWrite(const void* cookie,
                                firstChain.get(),
                                secondChain.get());
     lastTrackedSeqno = seqno;
+    totalAccepted++;
 }
 
 void ActiveDurabilityMonitor::State::removeExpired(

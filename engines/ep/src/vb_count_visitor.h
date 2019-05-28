@@ -65,7 +65,10 @@ public:
           rollbackItemCount(0),
           numHpVBReqs(0),
           totalAbsHLCDrift(),
-          totalHLCDriftExceptionCounters() {
+          totalHLCDriftExceptionCounters(),
+          syncWriteAcceptedCount(0),
+          syncWriteCommittedCount(0),
+          syncWriteAbortedCount(0) {
     }
 
     void visitBucket(const VBucketPtr& vb) override;
@@ -201,6 +204,18 @@ public:
         return totalHLCDriftExceptionCounters;
     }
 
+    size_t getSyncWriteAcceptedCount() {
+        return syncWriteAcceptedCount;
+    }
+
+    size_t getSyncWriteCommittedCount() {
+        return syncWriteCommittedCount;
+    }
+
+    size_t getSyncWriteAbortedCount() {
+        return syncWriteAbortedCount;
+    }
+
 protected:
     vbucket_state_t desired_state;
 
@@ -240,6 +255,9 @@ private:
     size_t numHpVBReqs;
     HLC::DriftStats totalAbsHLCDrift;
     HLC::DriftExceptions totalHLCDriftExceptionCounters;
+    size_t syncWriteAcceptedCount;
+    size_t syncWriteCommittedCount;
+    size_t syncWriteAbortedCount;
 };
 
 /**

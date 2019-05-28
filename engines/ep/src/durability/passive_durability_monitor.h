@@ -81,6 +81,10 @@ public:
 
     size_t getNumTracked() const override;
 
+    size_t getNumAccepted() const override;
+    size_t getNumCommitted() const override;
+    size_t getNumAborted() const override;
+
     /**
      * Notify this PDM that the snapshot-end mutation has been received for the
      * owning VBucket.
@@ -176,6 +180,13 @@ protected:
         // Used for implementing the correct move-logic of High Prepared Seqno.
         // Must be set at snapshot-end received on PassiveStream.
         Monotonic<uint64_t, ThrowExceptionPolicy> snapshotEnd{0};
+
+        // Cumulative count of accepted (tracked) SyncWrites.
+        size_t totalAccepted = 0;
+        // Cumulative count of Committed SyncWrites.
+        size_t totalCommitted = 0;
+        // Cumulative count of Aborted SyncWrites.
+        size_t totalAborted = 0;
 
         // Points to the last Prepare that has been completed (Committed or
         // Aborted). Together with the HPS Position, it is used for implementing

@@ -6764,6 +6764,9 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "vb_0:queue_size",
               "vb_0:backfill_queue_size",
               "vb_0:rollback_item_count",
+              "vb_0:sync_write_accepted_count",
+              "vb_0:sync_write_committed_count",
+              "vb_0:sync_write_aborted_count",
               "vb_0:hp_vb_req_size",
               "vb_0:topology",
               "vb_0:total_abs_drift",
@@ -7285,6 +7288,9 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "vb_active_queue_pending",
               "vb_active_queue_size",
               "vb_active_rollback_item_count",
+              "vb_active_sync_write_accepted_count",
+              "vb_active_sync_write_committed_count",
+              "vb_active_sync_write_aborted_count",
               "vb_dead_num",
               "vb_pending_backfill_queue_size",
               "vb_pending_curr_items",
@@ -7341,7 +7347,10 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "vb_replica_queue_memory",
               "vb_replica_queue_pending",
               "vb_replica_queue_size",
-              "vb_replica_rollback_item_count"}}};
+              "vb_replica_rollback_item_count",
+              "vb_replica_sync_write_accepted_count",
+              "vb_replica_sync_write_committed_count",
+              "vb_replica_sync_write_aborted_count"}}};
 
     if (isWarmupEnabled(h)) {
         // Add stats which are only available if warmup is enabled:

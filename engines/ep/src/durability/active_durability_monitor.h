@@ -139,6 +139,10 @@ public:
 
     size_t getNumTracked() const override;
 
+    size_t getNumAccepted() const override;
+    size_t getNumCommitted() const override;
+    size_t getNumAborted() const override;
+
     /**
      * @return the size of FirstChain
      */
@@ -418,6 +422,13 @@ protected:
 
         // Stores the last aborted seqno.
         Monotonic<int64_t> lastAbortedSeqno = 0;
+
+        // Cumulative count of accepted (tracked) SyncWrites.
+        size_t totalAccepted = 0;
+        // Cumulative count of Committed SyncWrites.
+        size_t totalCommitted = 0;
+        // Cumulative count of Aborted SyncWrites.
+        size_t totalAborted = 0;
 
         // The durability timeout value to use for SyncWrites which haven't
         // specified an explicit timeout.

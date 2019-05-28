@@ -300,6 +300,30 @@ size_t VBucket::getChkMgrMemUsageOverhead() const {
     return checkpointManager->getMemoryOverhead();
 }
 
+size_t VBucket::getSyncWriteAcceptedCount() const {
+    folly::SharedMutex::ReadHolder lh(stateLock);
+    if (!durabilityMonitor) {
+        return 0;
+    }
+    return durabilityMonitor->getNumAccepted();
+}
+
+size_t VBucket::getSyncWriteCommittedCount() const {
+    folly::SharedMutex::ReadHolder lh(stateLock);
+    if (!durabilityMonitor) {
+        return 0;
+    }
+    return durabilityMonitor->getNumCommitted();
+}
+
+size_t VBucket::getSyncWriteAbortedCount() const {
+    folly::SharedMutex::ReadHolder lh(stateLock);
+    if (!durabilityMonitor) {
+        return 0;
+    }
+    return durabilityMonitor->getNumAborted();
+}
+
 void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
                          ENGINE_ERROR_CODE code) {
     std::unique_lock<std::mutex> lh(pendingOpLock);
@@ -2845,6 +2869,18 @@ void VBucket::_addStats(bool details,
         addStat("max_deleted_revid", ht.getMaxDeletedRevSeqno(), add_stat, c);
         addStat("topology", getReplicationTopology().dump(), add_stat, c);
         addStat("high_prepared_seqno", getHighPreparedSeqno(), add_stat, c);
+        addStat("sync_write_accepted_count",
+                getSyncWriteAcceptedCount(),
+                add_stat,
+                c);
+        addStat("sync_write_committed_count",
+                getSyncWriteCommittedCount(),
+                add_stat,
+                c);
+        addStat("sync_write_aborted_count",
+                getSyncWriteAbortedCount(),
+                add_stat,
+                c);
 
         hlc.addStats(statPrefix, add_stat, c);
     }

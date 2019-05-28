@@ -328,6 +328,24 @@ public:
         hlc.setEpochSeqno(seqno);
     }
 
+    /**
+     * @returns the cumulative number of SyncWrite operations accepted
+     * (registered with DurabilityMonitor) for this vbucket.
+     */
+    size_t getSyncWriteAcceptedCount() const;
+
+    /**
+     * @returns the cumulative number of SyncWrite operations Committed
+     * (successfully completed) for this vbucket.
+     */
+    size_t getSyncWriteCommittedCount() const;
+
+    /**
+     * @returns the cumulative number of SyncWrite operations Aborted
+     * (did not successfully complete) for this vbucket.
+     */
+    size_t getSyncWriteAbortedCount() const;
+
     bool isTakeoverBackedUp() {
         return takeover_backed_up.load();
     }

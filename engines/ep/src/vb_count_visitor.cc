@@ -77,6 +77,10 @@ void VBucketCountVisitor::visitBucket(const VBucketPtr& vb) {
         for (uint8_t ii = 0; ii < datatypeCounts.size(); ++ii) {
             datatypeCounts[ii] += vbDatatypeCounts[ii];
         }
+
+        syncWriteAcceptedCount += vb->getSyncWriteAcceptedCount();
+        syncWriteCommittedCount += vb->getSyncWriteCommittedCount();
+        syncWriteAbortedCount += vb->getSyncWriteAbortedCount();
     }
 }
 

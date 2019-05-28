@@ -456,6 +456,9 @@ The following ratios are encoded as 4-digit integers, e.g.:
 | vb_active_queue_fill                     | Total enqueued items                       |
 | vb_active_queue_drain                    | Total drained items                        |
 | vb_active_rollback_item_count            | Num of items rolled back                   |
+| vb_active_sync_write_accepted_count      | Number of SyncWrites accepted              |
+| vb_active_sync_write_committed_count     | Number of SyncWrites committed             |
+| vb_active_sync_write_aborted_count       | Number of SyncWrites aborted               |
 | vb_active_hp_vb_req_size                 | Num of async high priority requests        |
 
 *** Replica vBucket stats
@@ -489,6 +492,9 @@ The following ratios are encoded as 4-digit integers, e.g.:
 | vb_replica_queue_fill                     | Total enqueued items                        |
 | vb_replica_queue_drain                    | Total drained items                         |
 | vb_replica_rollback_item_count            | Num of items rolled back                    |
+| vb_replica_sync_write_accepted_count      | Number of SyncWrites accepted               |
+| vb_replica_sync_write_committed_count     | Number of SyncWrites committed              |
+| vb_replica_sync_write_aborted_count       | Number of SyncWrites aborted                |
 | vb_replica_hp_vb_req_size                 | Num of async high priority requests         |
 
 *** Pending vBucket stats

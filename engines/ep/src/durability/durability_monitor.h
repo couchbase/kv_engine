@@ -47,6 +47,24 @@ public:
     virtual size_t getNumTracked() const = 0;
 
     /**
+     * @returns the cumulative number of SyncWrite(s) which have been
+     * accepted (tracked).
+     */
+    virtual size_t getNumAccepted() const = 0;
+
+    /**
+     * @returns the cumulative number of SyncWrite(s) which have been
+     * committed.
+     */
+    virtual size_t getNumCommitted() const = 0;
+
+    /**
+     * @returns the cumulative number of SyncWrite(s) which have been
+     * aborted.
+     */
+    virtual size_t getNumAborted() const = 0;
+
+    /**
      * Inform the DurabilityMonitor that the Flusher has run.
      * Expected to be called by the Flusher after a flush-batch (that contains
      * pending Prepares) has been committed to the storage.
