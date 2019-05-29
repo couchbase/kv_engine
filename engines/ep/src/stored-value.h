@@ -540,7 +540,7 @@ public:
      * @return true if the item is locked
      */
     bool isLocked(rel_time_t curtime) const {
-        if (isDeleted()) {
+        if (isDeleted() || isCompleted()) {
             // Deleted items cannot be locked.
             return false;
         }
@@ -826,6 +826,21 @@ public:
     bool isCommitted() const {
         return !isPending();
     }
+
+    /**
+     * Returns true if the stored value is Completed (by Abort or Commit).
+     */
+    bool isCompleted() const {
+        return (getCommitted() == CommittedState::PrepareAborted) ||
+               (getCommitted() == CommittedState::PrepareCommitted);
+    }
+
+    /**
+     * Set the time the item was completed or deleted at to the specified time.
+     *
+     * Only applicable for an OSV so we do nothing for a normal SV.
+     */
+    void setCompletedOrDeletedTime(rel_time_t time);
 
 protected:
     /**

@@ -130,6 +130,9 @@ protected:
      */
     void testHTSyncDeleteCommit();
 
+    void doSyncWriteAndCommit();
+    void doSyncDelete();
+
     // All owned by VBucket
     HashTable* ht;
     MockCheckpointManager* ckptMgr;

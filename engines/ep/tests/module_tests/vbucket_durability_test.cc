@@ -228,8 +228,9 @@ TEST_P(VBucketDurabilityTest, CommitSyncWriteThenWriteToSameKey) {
 
     // And another prepare
     ctx.durability = DurabilityItemCtx{reqs, cookie};
-    EXPECT_EQ(MutationStatus::WasClean,
-              public_processSet(*pending, 0 /*cas*/, ctx));
+    auto status = getVbType() == VBType::Persistent ? MutationStatus::WasClean
+                                                    : MutationStatus::WasDirty;
+    EXPECT_EQ(status, public_processSet(*pending, 0 /*cas*/, ctx));
 }
 
 TEST_P(VBucketDurabilityTest, CommitSyncWriteLoop) {
@@ -240,18 +241,23 @@ TEST_P(VBucketDurabilityTest, CommitSyncWriteLoop) {
     auto reqs = Requirements{Level::Majority, Timeout::Infinity()};
     pending->setPendingSyncWrite(reqs);
 
-    // Do 3 iterations. Why? The 1st and second iterations take different paths
+    // Do 3 iterations. Why? The 1st and 2nd iterations take different paths
     // (add vs update) so we want to verify everything is correct with the 3rd.
     for (int i = 0; i < 3; i++) {
         VBQueueItemCtx ctx;
         ctx.durability = DurabilityItemCtx{reqs, cookie};
 
-        ASSERT_EQ(MutationStatus::WasClean,
+        // Do the prepare (should be clean/dirty)
+        ASSERT_NE(MutationStatus::IsPendingSyncWrite,
                   public_processSet(*pending, 0 /*cas*/, ctx));
         auto item = makeCommittedItem(key, "value" + std::to_string(i));
+
+        // Check that we block normal set
         ctx.durability = {};
         ASSERT_EQ(MutationStatus::IsPendingSyncWrite,
                   public_processSet(*item, 0 /*cas*/, ctx));
+
+        // And commit
         ASSERT_EQ(ENGINE_SUCCESS,
                   vbucket->commit(
                           key, {}, vbucket->lockCollections(key), cookie));
@@ -885,6 +891,9 @@ TEST_P(VBucketDurabilityTest, Commit) {
 }
 
 void VBucketDurabilityTest::testHTCommitExisting() {
+    ht->clear(false);
+    ckptMgr->clear(*vbucket, 0);
+
     auto key = makeStoredDocKey("key");
     auto committed = makeCommittedItem(key, "valueA"s);
     ASSERT_EQ(MutationStatus::WasClean, public_processSet(*committed, 0, {}));
@@ -913,29 +922,29 @@ void VBucketDurabilityTest::testHTCommitExisting() {
     EXPECT_TRUE(writeView);
     EXPECT_EQ(*readView, *writeView);
 
-    EXPECT_EQ(1, ht->getNumItems());
-
     // Should be CommittedViaPrepare
     EXPECT_EQ(CommittedState::CommittedViaPrepare, readView->getCommitted());
 }
 
 TEST_P(EPVBucketDurabilityTest, CommitExisting) {
     testHTCommitExisting();
+    EXPECT_EQ(1, ht->getNumItems());
 }
 
 TEST_P(EphemeralVBucketDurabilityTest, CommitExisting) {
     testHTCommitExisting();
+
+    // Prepare still exists in the hash table
+    EXPECT_EQ(2, ht->getNumItems());
+    auto key = makeStoredDocKey("key");
+    auto res = ht->findForCommit(key);
+    EXPECT_TRUE(res.pending->isCompleted());
+
     // Check that we have the expected items in the seqList.
-    // 1 stale prepare
     // 2 items total (prepare + commit)
     auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
-    EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
-    EXPECT_EQ(2, mockEphVb->public_getNumListItems());
-
-    // Do a purge of the stale items and check result
-    EXPECT_EQ(1, mockEphVb->purgeStaleItems());
     EXPECT_EQ(0, mockEphVb->public_getNumStaleItems());
-    EXPECT_EQ(1, mockEphVb->public_getNumListItems());
+    EXPECT_EQ(2, mockEphVb->public_getNumListItems());
 }
 
 TEST_P(EphemeralVBucketDurabilityTest, CommitExisting_RangeRead) {
@@ -952,7 +961,7 @@ TEST_P(EphemeralVBucketDurabilityTest, CommitExisting_RangeRead) {
     ctx.durability = DurabilityItemCtx{pending->getDurabilityReqs(), cookie};
     ASSERT_EQ(MutationStatus::WasClean, public_processSet(*pending, 0, ctx));
 
-    // 1 stale (old prepare), 2 non-stale (commit + new prepare)
+    // 1 stale prepare, 2 non-stale (commit + new prepare)
     EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
     EXPECT_EQ(3, mockEphVb->public_getNumListItems());
     EXPECT_EQ(1, mockEphVb->purgeStaleItems());
@@ -960,21 +969,21 @@ TEST_P(EphemeralVBucketDurabilityTest, CommitExisting_RangeRead) {
     // Prepare would exist outside the range read so we would not hit the append
     // case if we just committed now. Grab another range read to cover the
     // prepare so that we can test commit under range read.
-    mockEphVb->registerFakeReadRange(1000, 2000);
+    mockEphVb->registerFakeReadRange(0, 1000);
     ASSERT_EQ(ENGINE_SUCCESS,
               vbucket->commit(key, {}, vbucket->lockCollections(key)));
 
     // Check that we have the expected items in the seqList.
     // 1 stale commit (because of the range read)
-    // 1 stale prepare
+    // 1 completed prepare
     // 1 commit via prepare
-    EXPECT_EQ(2, mockEphVb->public_getNumStaleItems());
+    EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
     EXPECT_EQ(3, mockEphVb->public_getNumListItems());
 
     // Do a purge of the stale items and check result
-    EXPECT_EQ(2, mockEphVb->purgeStaleItems());
+    EXPECT_EQ(1, mockEphVb->purgeStaleItems());
     EXPECT_EQ(0, mockEphVb->public_getNumStaleItems());
-    EXPECT_EQ(1, mockEphVb->public_getNumListItems());
+    EXPECT_EQ(2, mockEphVb->public_getNumListItems());
 }
 
 // The test case doesn't really test anything new, it just demonstrates how
@@ -996,19 +1005,12 @@ TEST_P(EphemeralVBucketDurabilityTest, PrepareOnCommitted) {
               vbucket->commit(key, {}, vbucket->lockCollections(key)));
 
     auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
-    EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
+    EXPECT_EQ(0, mockEphVb->public_getNumStaleItems());
     EXPECT_EQ(2, mockEphVb->public_getNumListItems());
 
-    ASSERT_EQ(MutationStatus::WasClean,
+    ASSERT_EQ(MutationStatus::WasDirty,
               public_processSet(*item, 0 /*cas*/, ctx));
 
-    // We have 1 stale item (the old prepare)
-    // 2 non-stale items (committed + new prepare)
-    EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
-    EXPECT_EQ(3, mockEphVb->public_getNumListItems());
-
-    // Do a purge of the stale items and check result
-    EXPECT_EQ(1, mockEphVb->purgeStaleItems());
     EXPECT_EQ(0, mockEphVb->public_getNumStaleItems());
     EXPECT_EQ(2, mockEphVb->public_getNumListItems());
 }
@@ -1067,30 +1069,27 @@ void VBucketDurabilityTest::testHTSyncDeleteCommit() {
     EXPECT_FALSE(readView->getValue());
 
     EXPECT_EQ(CommittedState::CommittedViaPrepare, readView->getCommitted());
-
-    // Should currently have 1 item:
-    EXPECT_EQ(1, ht->getNumItems());
 }
 
 TEST_P(EPVBucketDurabilityTest, SyncDeleteCommit) {
     testHTSyncDeleteCommit();
+
+    // Should just have commit
+    EXPECT_EQ(1, ht->getNumItems());
 }
 
 TEST_P(EphemeralVBucketDurabilityTest, SyncDeleteCommit) {
     testHTSyncDeleteCommit();
 
-    // Check that we have the expected items in the seqList.
-    // 1 stale prepare
-    // 1 value
-    auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
-    EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
-    EXPECT_EQ(2, mockEphVb->public_getNumListItems());
+    // Should have completed prepare and commit
+    EXPECT_EQ(2, ht->getNumItems());
 
-    // Do a purge of the stale items and check result. Can't delete last item so
-    // no change
-    EXPECT_EQ(1, mockEphVb->purgeStaleItems());
+    // Check that we have the expected items in the seqList.
+    // 1 completed prepare
+    // 1 commit
+    auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
     EXPECT_EQ(0, mockEphVb->public_getNumStaleItems());
-    EXPECT_EQ(1, mockEphVb->public_getNumListItems());
+    EXPECT_EQ(2, mockEphVb->public_getNumListItems());
 }
 
 TEST_P(EphemeralVBucketDurabilityTest, SyncDeleteCommit_RangeRead) {
@@ -1120,16 +1119,16 @@ TEST_P(EphemeralVBucketDurabilityTest, SyncDeleteCommit_RangeRead) {
 
     // Check that we have the expected items in the seqList.
     // 1 stale value
-    // 1 stale prepare
+    // 1 completed prepare
     // 1 value (committed)
-    EXPECT_EQ(2, mockEphVb->public_getNumStaleItems());
+    EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
     EXPECT_EQ(3, mockEphVb->public_getNumListItems());
 
     // Do a purge of the stale items and check result. Can't remove everything
     // from the seqList
-    EXPECT_EQ(2, mockEphVb->purgeStaleItems());
+    EXPECT_EQ(1, mockEphVb->purgeStaleItems());
     EXPECT_EQ(0, mockEphVb->public_getNumStaleItems());
-    EXPECT_EQ(1, mockEphVb->public_getNumListItems());
+    EXPECT_EQ(2, mockEphVb->public_getNumListItems());
 }
 
 // Negative test - check it is not possible to commit a non-pending item.
@@ -1183,28 +1182,35 @@ TEST_P(VBucketDurabilityTest, MutationAfterCommit) {
     EXPECT_EQ(CommittedState::CommittedViaMutation, readView->getCommitted());
 }
 
-/// Store a prepared SyncWrite, commit it and check counts.
-TEST_P(VBucketDurabilityTest, StatsCommittedSyncWrite) {
-    // Setup
+void VBucketDurabilityTest::doSyncWriteAndCommit() {
     auto key = makeStoredDocKey("key");
     auto prepared = makePendingItem(key, "valueB"s);
     VBQueueItemCtx ctx;
     ctx.durability = DurabilityItemCtx{prepared->getDurabilityReqs(), cookie};
     ASSERT_EQ(MutationStatus::WasClean, public_processSet(*prepared, 0, ctx));
+    ASSERT_EQ(1, ht->getNumPreparedSyncWrites());
 
     auto result = ht->findForWrite(key).storedValue;
     ASSERT_TRUE(result);
     ASSERT_EQ(ENGINE_SUCCESS,
               vbucket->commit(key, {}, vbucket->lockCollections(key)));
-
-    // Test
-    EXPECT_EQ(0, ht->getNumPreparedSyncWrites());
-    EXPECT_EQ(1, ht->getNumItems());
-    EXPECT_EQ(1, ht->getDatatypeCounts()[prepared->getDataType()]);
 }
 
-/// Store a prepared SyncDelete, commit it and check counts.
-TEST_P(VBucketDurabilityTest, StatsCommittedSyncDelete) {
+TEST_P(EPVBucketDurabilityTest, StatsCommittedSyncWrite) {
+    doSyncWriteAndCommit();
+
+    EXPECT_EQ(0, ht->getNumPreparedSyncWrites());
+    EXPECT_EQ(1, ht->getNumItems());
+}
+
+TEST_P(EphemeralVBucketDurabilityTest, StatsCommittedSyncWrite) {
+    doSyncWriteAndCommit();
+
+    EXPECT_EQ(1, ht->getNumPreparedSyncWrites());
+    EXPECT_EQ(2, ht->getNumItems());
+}
+
+void VBucketDurabilityTest::doSyncDelete() {
     // Setup
     auto key = makeStoredDocKey("key");
     auto prepared = makePendingItem(key, "prepared");
@@ -1217,14 +1223,22 @@ TEST_P(VBucketDurabilityTest, StatsCommittedSyncDelete) {
     ASSERT_TRUE(result);
     ASSERT_EQ(ENGINE_SUCCESS,
               vbucket->commit(key, {}, vbucket->lockCollections(key)));
+}
 
-    // Test
+TEST_P(EPVBucketDurabilityTest, StatsCommittedSyncDelete) {
+    doSyncDelete();
+
     EXPECT_EQ(0, ht->getNumPreparedSyncWrites());
     EXPECT_EQ(1, ht->getNumItems());
     EXPECT_EQ(1, ht->getNumDeletedItems());
-    for (const auto& count : ht->getDatatypeCounts()) {
-        EXPECT_EQ(0, count);
-    }
+}
+
+TEST_P(EphemeralVBucketDurabilityTest, StatsCommittedSyncDelete) {
+    doSyncDelete();
+
+    EXPECT_EQ(1, ht->getNumPreparedSyncWrites());
+    EXPECT_EQ(2, ht->getNumItems());
+    EXPECT_EQ(1, ht->getNumDeletedItems());
 }
 
 // Test case for doing a sync write on top of a pre-existing item.
@@ -1232,33 +1246,34 @@ TEST_P(VBucketDurabilityTest, StatsCommittedSyncDelete) {
 // 1) Pre-existing item created (no item -> committed item)
 // 2) Pending sync write created (no pending sw for item -> pending sw for item)
 // 3) Commit sync write (committed item -> [removed] + pending sw -> committed)
-TEST_P(VBucketDurabilityTest, StatsCommittedSyncWritePreExisting) {
+TEST_P(EPVBucketDurabilityTest, StatsCommittedSyncWritePreExisting) {
     // Setup - set a pre-existing item
     auto key = makeStoredDocKey("key");
     StoredDocKey existing = makeStoredDocKey("existing");
     auto item = makeCommittedItem(key, "value");
     ASSERT_EQ(MutationStatus::WasClean, public_processSet(*item, 0, {}));
 
-    ASSERT_EQ(0, ht->getNumPreparedSyncWrites());
-
-    // Setup - prepare a sync write
-    auto prepared = makePendingItem(key, "prepared");
-    VBQueueItemCtx ctx;
-    ctx.durability = DurabilityItemCtx{prepared->getDurabilityReqs(), cookie};
-    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*prepared, 0, ctx));
-    ASSERT_EQ(1, ht->getNumPreparedSyncWrites());
-
-    // Commit the sync write
-    auto result = ht->findForWrite(key).storedValue;
-    ASSERT_TRUE(result);
-
-    // We should not throw due to underflow (if assertions are turned on)
-    EXPECT_EQ(ENGINE_SUCCESS,
-              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+    doSyncWriteAndCommit();
 
     // We should no longer have the prepared sync write (will only fail if
     // assertions are turned off)
     EXPECT_EQ(0, ht->getNumPreparedSyncWrites());
+    EXPECT_EQ(1, ht->getNumItems());
+}
+
+TEST_P(EphemeralVBucketDurabilityTest, StatsCommittedSyncWritePreExisting) {
+    // Setup - set a pre-existing item
+    auto key = makeStoredDocKey("key");
+    StoredDocKey existing = makeStoredDocKey("existing");
+    auto item = makeCommittedItem(key, "value");
+    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*item, 0, {}));
+
+    doSyncWriteAndCommit();
+
+    // We should no longer have the prepared sync write (will only fail if
+    // assertions are turned off)
+    EXPECT_EQ(1, ht->getNumPreparedSyncWrites());
+    EXPECT_EQ(2, ht->getNumItems());
 }
 
 void VBucketDurabilityTest::testConvertPassiveDMToActiveDM(

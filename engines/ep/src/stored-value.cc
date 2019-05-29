@@ -233,6 +233,8 @@ std::unique_ptr<Item> StoredValue::toItem(
     switch (getCommitted()) {
     case CommittedState::Pending:
     case CommittedState::PreparedMaybeVisible:
+    case CommittedState::PrepareAborted:
+    case CommittedState::PrepareCommitted:
         if (!durabilityReqs) {
             throw std::logic_error(
                     "StoredValue::toItemImpl: attempted to create Item from "
@@ -248,13 +250,6 @@ std::unique_ptr<Item> StoredValue::toItem(
         break;
     case CommittedState::CommittedViaMutation:
         // nothing do to.
-        break;
-    case CommittedState::PrepareAborted:
-    case CommittedState::PrepareCommitted:
-        // We shouldn't be trying to create Item's out of these (for now)
-        throw std::logic_error(
-                "StoredValue::toItemImpl: attempt to create"
-                "Item from completed prepare");
         break;
     }
 
@@ -471,6 +466,15 @@ void StoredValue::incrementAge() {
     }
 }
 
+void StoredValue::setCompletedOrDeletedTime(rel_time_t time) {
+    if (isOrdered()) {
+        return static_cast<OrderedStoredValue*>(this)
+                ->setCompletedOrDeletedTime(time);
+    } else {
+        // Do nothing, only applicable to OSV
+    }
+}
+
 std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
 
     // type, address
@@ -600,7 +604,7 @@ void OrderedStoredValue::setValueImpl(const Item& itm) {
 }
 
 void OrderedStoredValue::setCompletedOrDeletedTime(rel_time_t time) {
-    if (!isDeleted() && !isPending()) {
+    if (!(isDeleted() || isCompleted())) {
         throw std::logic_error(
                 "OrderedStoredValue::setCompletedOrDeletedTime: Called on "
                 "Alive item");

@@ -188,8 +188,9 @@ void VBucketTestBase::verifyValue(StoredDocKey& key,
 }
 
 std::pair<HashTable::HashBucketLock, StoredValue*> VBucketTestBase::lockAndFind(
-        const StoredDocKey& key) {
-    auto htRes = vbucket->ht.findForWrite(key);
+        const StoredDocKey& key, const VBQueueItemCtx& ctx) {
+    auto htRes = ctx.durability ? vbucket->ht.findForSyncWrite(key)
+                                : vbucket->ht.findForWrite(key);
     return {std::move(htRes.lock), htRes.storedValue};
 }
 
@@ -198,7 +199,7 @@ MutationStatus VBucketTestBase::public_processSet(Item& itm,
                                                   const VBQueueItemCtx& ctx) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(itm.getKey());
-    auto hbl_sv = lockAndFind(itm.getKey());
+    auto hbl_sv = lockAndFind(itm.getKey(), ctx);
     return vbucket
             ->processSet(hbl_sv.first,
                          hbl_sv.second,
@@ -230,7 +231,8 @@ VBucketTestBase::public_processSoftDelete(const DocKey& key,
         VBQueueItemCtx ctx) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(key);
-    auto res = vbucket->ht.findForWrite(key, WantsDeleted::Yes);
+    auto res = ctx.durability ? vbucket->ht.findForSyncWrite(key)
+                              : vbucket->ht.findForWrite(key);
     if (!res.storedValue) {
         return {MutationStatus::NotFound, nullptr};
     }

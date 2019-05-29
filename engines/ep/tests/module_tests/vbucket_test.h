@@ -100,7 +100,7 @@ protected:
                      WantsDeleted wantDeleted);
 
     std::pair<HashTable::HashBucketLock, StoredValue*> lockAndFind(
-            const StoredDocKey& key);
+            const StoredDocKey& key, const VBQueueItemCtx& ctx = {});
 
     MutationStatus public_processSet(Item& itm,
                                      const uint64_t cas,

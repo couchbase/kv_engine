@@ -449,7 +449,12 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     mutation_descr_t delInfo;
 
     ASSERT_EQ(1, vb.getNumItems());
-    EXPECT_EQ(0, vb.ht.getNumPreparedSyncWrites());
+    // Ephemeral keeps the completed prepare
+    if (persistent()) {
+        EXPECT_EQ(0, vb.ht.getNumPreparedSyncWrites());
+    } else {
+        EXPECT_EQ(1, vb.ht.getNumPreparedSyncWrites());
+    }
     ASSERT_EQ(
             ENGINE_EWOULDBLOCK,
             store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
@@ -507,14 +512,15 @@ TEST_P(DurabilityBucketTest, SyncWriteDelete) {
     mutation_descr_t delInfo;
 
     ASSERT_EQ(1, vb.getNumItems());
-    EXPECT_EQ(0, vb.ht.getNumPreparedSyncWrites());
+    auto expectedNumPrepares = persistent() ? 0 : 1;
+    EXPECT_EQ(expectedNumPrepares, vb.ht.getNumPreparedSyncWrites());
     ASSERT_EQ(ENGINE_SUCCESS,
               store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     EXPECT_EQ(0, vb.getNumItems());
-    EXPECT_EQ(0, vb.ht.getNumPreparedSyncWrites());
+    EXPECT_EQ(expectedNumPrepares, vb.ht.getNumPreparedSyncWrites());
 
     ASSERT_EQ(3, ckptList.size());
     ASSERT_EQ(1, ckptList.back()->getNumItems());

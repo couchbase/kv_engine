@@ -714,9 +714,7 @@ public:
             value->setBySeqno(newSeqno);
         }
 
-        void setCommitted(CommittedState state) {
-            value->setCommitted(state);
-        }
+        void setCommitted(CommittedState state);
 
     private:
         HashBucketLock lock;
@@ -746,8 +744,9 @@ public:
      * change shouldn't affect the (old) reference count; the reference count
      * will get updated later part of actually changing the item.
      *
-     * Returns the Prepare StoredValue for the key if one exists, otherwise
-     * returns the Committed StoredValue, or nullptr neither exist.
+     * Returns the Prepare StoredValue for the key if one exists that has not
+     * been completed, otherwise returns the Committed StoredValue, or nullptr
+     * if neither exist.
      *
      * @param key The key of the item to find
      * @param wantsDeleted whether a deleted value should be returned
@@ -769,6 +768,28 @@ public:
             StoredValueProxy::RetSVPTag,
             const DocKey& key,
             WantsDeleted wantsDeleted = WantsDeleted::Yes);
+
+    /**
+     * Find an item with the specified key for write access.
+     *
+     * Does not modify referenced status, as typically the lookup of a SV to
+     * change shouldn't affect the (old) reference count; the reference count
+     * will get updated later part of actually changing the item.
+     *
+     * Returns the Prepare StoredValue for the key if one exists, otherwise
+     * returns the Committed StoredValue, or nullptr neither exist. Will return
+     * completed prepares.
+     *
+     * @param key The key of the item to find
+     * @return A FindResult consisting of:
+     *         - a pointer to a StoredValue -- NULL if not found
+     *         - a (locked) HashBucketLock for the key's hash bucket. Note
+     *         this always returns a locked object; even if the requested key
+     *           doesn't exist. This is to facilitate use-cases where the caller
+     *         subsequently needs to insert a StoredValue for this key, to
+     *         avoid unlocking and re-locking the mutex.
+     */
+    FindResult findForSyncWrite(const DocKey& key);
 
     /**
      * @return A pair of StoredValues (pending and prepare) so that we can

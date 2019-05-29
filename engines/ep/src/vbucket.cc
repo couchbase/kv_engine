@@ -1412,7 +1412,8 @@ ENGINE_ERROR_CODE VBucket::set(
     bool cas_op = (itm.getCas() != 0);
 
     { // HashBucketLock scope
-        auto htRes = ht.findForWrite(itm.getKey());
+        auto htRes = itm.isPending() ? ht.findForSyncWrite(itm.getKey())
+                                     : ht.findForWrite(itm.getKey());
         auto* v = htRes.storedValue;
         auto& hbl = htRes.lock;
 
@@ -1535,7 +1536,8 @@ ENGINE_ERROR_CODE VBucket::replace(
     }
 
     { // HashBucketLock scope
-        auto htRes = ht.findForWrite(itm.getKey());
+        auto htRes = itm.isPending() ? ht.findForSyncWrite(itm.getKey())
+                                     : ht.findForWrite(itm.getKey());
         auto* v = htRes.storedValue;
         auto& hbl = htRes.lock;
 
@@ -1883,7 +1885,8 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
     ENGINE_ERROR_CODE ret = durability ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
 
     { // HashBucketLock scope
-        auto htRes = ht.findForWrite(cHandle.getKey());
+        auto htRes = durability ? ht.findForSyncWrite(cHandle.getKey())
+                                : ht.findForWrite(cHandle.getKey());
         auto* v = htRes.storedValue;
         auto& hbl = htRes.lock;
 
@@ -2274,7 +2277,8 @@ ENGINE_ERROR_CODE VBucket::add(
     }
 
     { // HashBucketLock scope
-        auto htRes = ht.findForWrite(itm.getKey());
+        auto htRes = itm.isPending() ? ht.findForSyncWrite(itm.getKey())
+                                     : ht.findForWrite(itm.getKey());
         auto* v = htRes.storedValue;
         auto& hbl = htRes.lock;
 
@@ -3171,29 +3175,47 @@ VBucket::processSoftDelete(const HashTable::HashBucketLock& hbl,
     // SyncDeletes are special cases. We actually want to add a new prepare.
     if (queueItmCtx.durability) {
         if (v.isPending()) {
-            delStatus = DeletionStatus::IsPendingSyncWrite;
-        } else {
-            auto deletedPrepare =
-                    ht.unlocked_createSyncDeletePrepare(hbl, v, deleteSource);
-            auto requirements = boost::get<cb::durability::Requirements>(
-                    queueItmCtx.durability->requirementsOrPreparedSeqno);
-            auto itm = deletedPrepare->toItem(getId(),
-                                              StoredValue::HideLockedCas::No,
-                                              StoredValue::IncludeValue::Yes,
-                                              requirements);
-            std::tie(newSv, notifyCtx) = addNewStoredValue(
-                    hbl, *itm, queueItmCtx, GenerateRevSeqno::No);
-            delStatus = DeletionStatus::Success;
+            return std::make_tuple(
+                    MutationStatus::IsPendingSyncWrite, &v, empty);
         }
-    } else {
-        std::tie(newSv, delStatus, notifyCtx) =
-                softDeleteStoredValue(hbl,
-                                      v,
-                                      /*onlyMarkDeleted*/ false,
-                                      queueItmCtx,
-                                      bySeqno,
-                                      deleteSource);
+
+        auto requirements = boost::get<cb::durability::Requirements>(
+                queueItmCtx.durability->requirementsOrPreparedSeqno);
+
+        // @TODO potentially inefficient to recreate the item in the below
+        // update/add cases. Could rework ht.unlocked_softDeleteStoredValue
+        // to only mark CommittedViaPrepares as CommittedViaMutation and use
+        // softDeletedStoredValue instead.
+        if (v.isCompleted()) {
+            auto itm = v.toItem(getId(),
+                                StoredValue::HideLockedCas::No,
+                                StoredValue::IncludeValue::Yes,
+                                requirements);
+            itm->setDeleted(DeleteSource::Explicit);
+            std::tie(newSv, std::ignore, notifyCtx) =
+                    updateStoredValue(hbl, v, *itm, queueItmCtx);
+            return std::make_tuple(rv, newSv, notifyCtx);
+        }
+
+        auto deletedPrepare =
+                ht.unlocked_createSyncDeletePrepare(hbl, v, deleteSource);
+        auto itm = deletedPrepare->toItem(getId(),
+                                          StoredValue::HideLockedCas::No,
+                                          StoredValue::IncludeValue::Yes,
+                                          requirements);
+        std::tie(newSv, notifyCtx) =
+                addNewStoredValue(hbl, *itm, queueItmCtx, GenerateRevSeqno::No);
+        return std::make_tuple(rv, newSv, notifyCtx);
     }
+
+    std::tie(newSv, delStatus, notifyCtx) =
+            softDeleteStoredValue(hbl,
+                                  v,
+                                  /*onlyMarkDeleted*/ false,
+                                  queueItmCtx,
+                                  bySeqno,
+                                  deleteSource);
+
     switch (delStatus) {
     case DeletionStatus::Success:
         ht.updateMaxDeletedRevSeqno(metadata.revSeqno);

@@ -17,6 +17,7 @@
 
 #include "hash_table.h"
 
+#include "ep_time.h"
 #include "item.h"
 #include "stats.h"
 #include "stored_value_factories.h"
@@ -96,6 +97,11 @@ HashTable::StoredValueProxy::StoredValueProxy(HashBucketLock&& hbl,
 
 HashTable::StoredValueProxy::~StoredValueProxy() {
     valueStats.epilogue(pre, value);
+}
+
+void HashTable::StoredValueProxy::setCommitted(CommittedState state) {
+    value->setCommitted(state);
+    value->setCompletedOrDeletedTime(ep_current_time());
 }
 
 HashTable::HashTable(EPStats& st,
@@ -286,7 +292,7 @@ HashTable::FindInnerResult HashTable::findInner(const DocKey& key) {
     for (StoredValue* v = values[hbl.getBucketNum()].get().get(); v;
          v = v->getNext().get().get()) {
         if (v->hasKey(key)) {
-            if (v->isPending()) {
+            if (v->isPending() || v->isCompleted()) {
                 Expects(!foundPend);
                 foundPend = v;
             } else {
@@ -340,42 +346,33 @@ HashTable::UpdateResult HashTable::unlocked_updateStoredValue(
                 "call on a non-active HT object");
     }
 
-    switch (v.getCommitted()) {
-    case CommittedState::Pending:
-    case CommittedState::PreparedMaybeVisible:
-        // Cannot update a SV if it's a Pending item.
+    if (v.isPending()) {
         return {MutationStatus::IsPendingSyncWrite, nullptr};
-    case CommittedState::PrepareAborted:
-    case CommittedState::PrepareCommitted:
-        // We shouldn't be trying to use PrepareCompleted states yet
-        throw std::logic_error(
-                "HashTable::unlocked_updateStoredValue"
-                " attempting to update a completed prepare");
-    case CommittedState::CommittedViaMutation:
-    case CommittedState::CommittedViaPrepare:
-        // Logically /can/ update a non-Pending StoredValue with a Pending Item;
-        // however internally this is implemented as a separate (new)
-        // StoredValue object for the Pending item.
-        if (itm.isPending()) {
-            auto* sv = HashTable::unlocked_addNewStoredValue(hbl, itm);
-            return {MutationStatus::WasClean, sv};
-        }
-
-        // item is not Pending; can directly replace the existing SV.
-        MutationStatus status = v.isDirty() ? MutationStatus::WasDirty
-                                            : MutationStatus::WasClean;
-
-        const auto preProps = valueStats.prologue(&v);
-
-        /* setValue() will mark v as undeleted if required */
-        v.setValue(itm);
-        updateFreqCounter(v);
-
-        valueStats.epilogue(preProps, &v);
-
-        return {status, &v};
     }
-    folly::assume_unreachable();
+
+    // Logically /can/ update a non-Pending StoredValue with a Pending Item;
+    // however internally this is implemented as a separate (new)
+    // StoredValue object for the Pending item. We can replace a completed
+    // prepare with a new prepare though (so just drop through and update
+    // normally).
+    if (itm.isPending() && !v.isCompleted()) {
+        auto* sv = HashTable::unlocked_addNewStoredValue(hbl, itm);
+        return {MutationStatus::WasClean, sv};
+    }
+
+    // Can directly replace the existing SV.
+    MutationStatus status =
+            v.isDirty() ? MutationStatus::WasDirty : MutationStatus::WasClean;
+
+    const auto preProps = valueStats.prologue(&v);
+
+    /* setValue() will mark v as undeleted if required */
+    v.setValue(itm);
+    updateFreqCounter(v);
+
+    valueStats.epilogue(preProps, &v);
+
+    return {status, &v};
 }
 
 StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
@@ -420,7 +417,7 @@ HashTable::Statistics::StoredValueProperties::StoredValueProperties(
     isDeleted = sv->isDeleted();
     isTempItem = sv->isTempItem();
     isSystemItem = sv->getKey().getCollectionID().isSystem();
-    isPreparedSyncWrite = sv->isPending();
+    isPreparedSyncWrite = sv->isPending() || sv->isCompleted();
 }
 
 HashTable::Statistics::StoredValueProperties HashTable::Statistics::prologue(
@@ -634,28 +631,53 @@ HashTable::FindResult HashTable::findForWrite(const DocKey& key,
                                               WantsDeleted wantsDeleted) {
     auto result = findInner(key);
 
-    /// Writing using the Pending StoredValue (if found), else committed.
-    auto* sv = result.pendingSV ? result.pendingSV : result.committedSV;
+    // We found a prepare. It may have been completed (Ephemeral) though. If it
+    // has been completed we will return the committed StoredValue.
+    if (result.pendingSV && !result.pendingSV->isCompleted()) {
+        // Early return if we found a prepare. We should always return prepares
+        // regardless of whether or not they are deleted or the caller has asked
+        // for deleted SVs. For example, consider searching for a SyncDelete, we
+        // should always return the deleted prepare.
+        return {result.pendingSV, std::move(result.lock)};
+    }
 
-    if (!sv) {
+    /// Writing using the Pending StoredValue (if found), else committed.
+    if (!result.committedSV) {
         // No item found - return null.
         return {nullptr, std::move(result.lock)};
     }
 
-    // Early return if we found a prepare. We should always return prepares
-    // regardless of whether or not they are deleted or the caller has asked for
-    // deleted SVs. For example, consider searching for a SyncDelete, we should
-    // always return the deleted prepare.
-    if (result.pendingSV) {
-        return {sv, std::move(result.lock)};
-    }
-
-    if (sv->isDeleted() && wantsDeleted == WantsDeleted::No) {
+    if (result.committedSV->isDeleted() && wantsDeleted == WantsDeleted::No) {
         // Deleted items should only be returned if caller asked for them -
         // otherwise return null.
         return {nullptr, std::move(result.lock)};
     }
-    return {sv, std::move(result.lock)};
+    return {result.committedSV, std::move(result.lock)};
+}
+
+HashTable::FindResult HashTable::findForSyncWrite(const DocKey& key) {
+    auto result = findInner(key);
+
+    if (result.pendingSV) {
+        // Early return if we found a prepare. We should always return
+        // prepares regardless of whether or not they are deleted or the caller
+        // has asked for deleted SVs. For example, consider searching for a
+        // SyncDelete, we should always return the deleted prepare. Also,
+        // we always return completed prepares.
+        return {result.pendingSV, std::move(result.lock)};
+    }
+
+    if (!result.committedSV) {
+        // No item found - return null.
+        return {nullptr, std::move(result.lock)};
+    }
+
+    if (result.committedSV->isDeleted()) {
+        // Deleted items should only be returned if caller asked for them -
+        // otherwise return null.
+        return {nullptr, std::move(result.lock)};
+    }
+    return {result.committedSV, std::move(result.lock)};
 }
 
 HashTable::StoredValueProxy HashTable::findForWrite(StoredValueProxy::RetSVPTag,

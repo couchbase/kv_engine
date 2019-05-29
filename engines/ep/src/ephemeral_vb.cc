@@ -392,8 +392,11 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
                                     const Item& itm,
                                     const VBQueueItemCtx& queueItmCtx,
                                     bool justTouch) {
-    // Don't make any update if we know that this is a pending sync write. We
-    // need to abort before we make any modification to the seqList.
+    // Don't make any update if we know that this is a pending sync write that
+    // has not yet been completed. We need to return early before we make any
+    // modification to the seqList. This is typically handled in the EP case by
+    // the HashTable functions, but for ephemeral we update the seqList first so
+    // we need an earlier check.
     if (v.isPending()) {
         return std::make_tuple(
                 nullptr, MutationStatus::IsPendingSyncWrite, VBNotifyCtx{});
@@ -403,14 +406,10 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
     StoredValue* newSv = nullptr;
     MutationStatus status(MutationStatus::WasClean);
 
-    // If this is a new SyncWrite then we don't actually want to update an
-    // existing StoredValue, we just want to add the new pending. What about
-    // if we already have an existing (committed) pending I hear you ask? It
-    // should be stale and the StaleItemDeleter should remove it when it next
-    // runs. It has no affect on operations so we can ignore it. Do this before
-    // we take any locks as addNewStoredValue will attempt to acquire the same
-    // locks.
-    if (itm.isPending()) {
+    // If this is a new SyncWrite then we should just add a new prepare. If we
+    // have a prepare already (that has been completed) we can replace the
+    // existing one.
+    if (itm.isPending() && !v.isCompleted()) {
         std::tie(newSv, notifyCtx) =
                 addNewStoredValue(hbl, itm, queueItmCtx, GenerateRevSeqno::No);
         return {newSv, status, notifyCtx};
@@ -669,11 +668,9 @@ VBNotifyCtx EphemeralVBucket::commitStoredValue(
     // 1a. If an existing Committed exists, update that with the data from
     //     the Prepare.
     // 1b. If no existing Committed OSV, then create a new Committed and
-    // populate
+    //     populate
     //     with data from the Prepare.
-    // 2. Mark the Prepare as stale in the seqList and remove it from the
-    //    HashTable - this means that the key is no longer locked against
-    //    mutations (ESYNC_WRITE_IN_PROGRESS).
+    // 2. Mark the prepare as completed
 
     // Look for an existing Committed OSV under this key.
     StoredValue* newCommitted;
@@ -712,20 +709,7 @@ VBNotifyCtx EphemeralVBucket::commitStoredValue(
                                   GenerateRevSeqno::No);
     }
 
-    // Set the OSV to stale so that we can:
-    // a) Allow the StaleItemPurger to delete the item
-    // b) Ensure that we delete the OSV on destruction of the seqList as it does
-    //    not exist in the HashTable
-    std::lock_guard<std::mutex> listWriteLg(seqList->getListWriteLock());
-    // Remove the prepare from the hash table so that we can now allow mutations
-    // against the same key
-    auto release = ht.unlocked_release(values.pending.getHBL(),
-                                       values.pending.getSV());
-    seqList->markItemStale(listWriteLg, std::move(release), nullptr);
-    // Manually release this ptr (not reset) as we don't want to destruct the
-    // item in the seqList.
-    release.release();
-
+    values.pending.setCommitted(CommittedState::PrepareCommitted);
     return notifyCtx;
 }
 

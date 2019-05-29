@@ -1394,7 +1394,8 @@ void SingleThreadedActiveStreamTest::setupProducer(
 
 MutationStatus SingleThreadedActiveStreamTest::public_processSet(
         VBucket& vb, Item& item, const VBQueueItemCtx& ctx) {
-    auto htRes = vb.ht.findForWrite(item.getKey());
+    auto htRes = ctx.durability ? vb.ht.findForSyncWrite(item.getKey())
+                                : vb.ht.findForWrite(item.getKey());
     return vb
             .processSet(htRes.lock,
                         htRes.storedValue,

@@ -704,7 +704,14 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpCommit) {
               stream->messageReceived(std::make_unique<CommitSyncWrite>(
                       opaque, vbid, commitSeqno, key)));
 
-    EXPECT_EQ(1, vb->ht.getNumItems());
+    // Ephemeral keeps the prepare in the hash table whilst ep modifies the
+    // existing prepare
+    if (persistent()) {
+        EXPECT_EQ(1, vb->ht.getNumItems());
+    } else {
+        EXPECT_EQ(2, vb->ht.getNumItems());
+    }
+
     {
         const auto sv = vb->ht.findForWrite(key).storedValue;
         EXPECT_TRUE(sv);
