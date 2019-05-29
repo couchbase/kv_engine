@@ -1898,7 +1898,8 @@ TEST_P(STParameterizedBucketTest, MB_27457) {
         auto* sv = ro.storedValue;
         ASSERT_NE(nullptr, sv);
         deleted = sv->isDeleted();
-        tombstoneTime = uint64_t(sv->toOrderedStoredValue()->getDeletedTime());
+        tombstoneTime = uint64_t(
+                sv->toOrderedStoredValue()->getCompletedOrDeletedTime());
     }
 
     EXPECT_EQ(1, deleted);
@@ -1935,8 +1936,8 @@ TEST_P(STParameterizedBucketTest, MB_27457) {
         auto* sv = ro.storedValue;
         ASSERT_NE(nullptr, sv);
         deleted = sv->isDeleted();
-        tombstoneTime =
-                ep_abs_time((sv->toOrderedStoredValue()->getDeletedTime()));
+        tombstoneTime = ep_abs_time(
+                (sv->toOrderedStoredValue()->getCompletedOrDeletedTime()));
     }
     EXPECT_EQ(1, deleted);
     EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, datatype);

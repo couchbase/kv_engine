@@ -618,7 +618,7 @@ EphemeralVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
             // The deleted time is relative and the replicated tombstone time is
             // absolute and held in the expiry field, convert the abs to rel
             // using ep_reltime
-            newSv->toOrderedStoredValue()->setDeletedTime(
+            newSv->toOrderedStoredValue()->setCompletedOrDeletedTime(
                     ep_reltime(newSv->getExptime()));
         }
 

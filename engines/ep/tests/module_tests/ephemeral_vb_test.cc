@@ -762,7 +762,7 @@ TEST_F(EphTombstoneTest, DoubleDeleteTimeCorrect) {
     auto key = keys.at(0);
     softDeleteOne(key, MutationStatus::WasDirty);
     auto* delOSV = findValue(key)->toOrderedStoredValue();
-    auto initialDelTime = delOSV->getDeletedTime();
+    auto initialDelTime = delOSV->getCompletedOrDeletedTime();
     ASSERT_EQ(2, delOSV->getRevSeqno()) << "Should be initial set + 1";
 
     // Advance to non-zero time.
@@ -780,7 +780,7 @@ TEST_F(EphTombstoneTest, DoubleDeleteTimeCorrect) {
     ASSERT_EQ(MutationStatus::WasDirty, public_processSet(item, item.getCas()));
     ASSERT_EQ(3, delOSV->getRevSeqno()) << "Should be initial set + 2";
 
-    auto secondDelTime = delOSV->getDeletedTime();
+    auto secondDelTime = delOSV->getCompletedOrDeletedTime();
     EXPECT_GE(secondDelTime, initialDelTime + timeJump);
 }
 

@@ -1040,7 +1040,7 @@ TEST_F(HashTableTest, LockAfterDelete) {
 
     // Sanity check - deleted time should be set.
     auto* osv = sv->toOrderedStoredValue();
-    ASSERT_GE(osv->getDeletedTime(), 1985);
+    ASSERT_GE(osv->getCompletedOrDeletedTime(), 1985);
 
     // Now re-create the same key (as alive).
     Item i(key, 0, 0, key.data(), key.size());

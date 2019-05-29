@@ -38,7 +38,7 @@ StoredValue::StoredValue(const Item& itm,
       chain_next_or_replacement(std::move(n)),
       cas(itm.getCas()),
       bySeqno(itm.getBySeqno()),
-      lock_expiry_or_delete_time(0),
+      lock_expiry_or_delete_or_complete_time(0),
       exptime(itm.getExptime()),
       flags(itm.getFlags()),
       revSeqno(itm.getRevSeqno()),
@@ -86,7 +86,8 @@ StoredValue::StoredValue(const StoredValue& other, UniquePtr n, EPStats& stats)
       chain_next_or_replacement(std::move(n)),
       cas(other.cas),
       bySeqno(other.bySeqno),
-      lock_expiry_or_delete_time(other.lock_expiry_or_delete_time),
+      lock_expiry_or_delete_or_complete_time(
+              other.lock_expiry_or_delete_or_complete_time),
       exptime(other.exptime),
       flags(other.flags),
       revSeqno(other.revSeqno),
@@ -292,7 +293,8 @@ const OrderedStoredValue* StoredValue::toOrderedStoredValue() const {
 bool StoredValue::operator==(const StoredValue& other) const {
     return (cas == other.cas && revSeqno == other.revSeqno &&
             bySeqno == other.bySeqno &&
-            lock_expiry_or_delete_time == other.lock_expiry_or_delete_time &&
+            lock_expiry_or_delete_or_complete_time ==
+                    other.lock_expiry_or_delete_or_complete_time &&
             exptime == other.exptime && flags == other.flags &&
             isDirty() == other.isDirty() && isDeleted() == other.isDeleted() &&
             // Note: deletionCause is only checked if the item is deleted
@@ -368,7 +370,7 @@ void StoredValue::setValueImpl(const Item& itm) {
     datatype = itm.getDataType();
     bySeqno = itm.getBySeqno();
     cas = itm.getCas();
-    lock_expiry_or_delete_time = 0;
+    lock_expiry_or_delete_or_complete_time = 0;
     exptime = itm.getExptime();
     revSeqno = itm.getRevSeqno();
 
@@ -518,7 +520,7 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     os << " cas:" << sv.getCas();
     os << " key:\"" << sv.getKey() << "\"";
     if (sv.isOrdered() && sv.isDeleted()) {
-        os << " del_time:" << sv.lock_expiry_or_delete_time;
+        os << " del_time:" << sv.lock_expiry_or_delete_or_complete_time;
     } else {
         os << " exp:" << sv.getExptime();
     }
@@ -552,11 +554,12 @@ size_t OrderedStoredValue::getRequiredStorage(const DocKey& key) {
 }
 
 /**
- * Return the time the item was deleted. Only valid for deleted items.
+ * Return the time the item was deleted. Only valid for completed or deleted
+ * items.
  */
-rel_time_t OrderedStoredValue::getDeletedTime() const {
-    if (isDeleted()) {
-        return lock_expiry_or_delete_time;
+rel_time_t OrderedStoredValue::getCompletedOrDeletedTime() const {
+    if (isDeleted() || isPending()) {
+        return lock_expiry_or_delete_or_complete_time;
     } else {
         throw std::logic_error(
                 "OrderedStoredValue::getDeletedItem: Called on Alive item");
@@ -567,7 +570,7 @@ bool OrderedStoredValue::deleteImpl(DeleteSource delSource) {
     if (StoredValue::deleteImpl(delSource)) {
         // Need to record the time when an item is deleted for subsequent
         //purging (ephemeral_metadata_purge_age).
-        setDeletedTime(ep_current_time());
+        setCompletedOrDeletedTime(ep_current_time());
         return true;
     }
     return false;
@@ -579,14 +582,15 @@ void OrderedStoredValue::setValueImpl(const Item& itm) {
     // Update the deleted time (note - even if it was already deleted we should
     // refresh this).
     if (isDeleted()) {
-        setDeletedTime(ep_current_time());
+        setCompletedOrDeletedTime(ep_current_time());
     }
 }
 
-void OrderedStoredValue::setDeletedTime(rel_time_t time) {
-    if (!isDeleted()) {
+void OrderedStoredValue::setCompletedOrDeletedTime(rel_time_t time) {
+    if (!isDeleted() && !isPending()) {
         throw std::logic_error(
-                "OrderedStoredValue::setDeletedTime: Called on Alive item");
+                "OrderedStoredValue::setCompletedOrDeletedTime: Called on "
+                "Alive item");
     }
-    lock_expiry_or_delete_time = time;
+    lock_expiry_or_delete_or_complete_time = time;
 }
