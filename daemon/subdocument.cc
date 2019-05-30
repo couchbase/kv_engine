@@ -1313,6 +1313,9 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         if (new_op == OPERATION_ADD &&
             context.mutationSemantics == MutationSemantics::Set) {
             ret = ENGINE_KEY_EEXISTS;
+        } else {
+            // Otherwise ENGINE_NOT_STORED is terminal - return to client.
+            cookie.sendResponse(cb::engine_errc(ret));
         }
         break;
 

@@ -647,14 +647,14 @@ TEST_P(SubdocTestappTest, SubdocDictUpsert_CasCompressed) {
                              cb::mcbp::ClientOpcode::SubdocDictUpsert);
 }
 
+// Check that if an item is set by another client after the fetch but
+// before the store then we return NotStored.
+// (MB-34393)
 TEST_P(SubdocTestappTest, SubdocAddFlag_BucketStoreCas) {
-    // Check that if an item is set by another client after the fetch but
-    // before the store then we return EEXISTS.
-
     // Setup ewouldblock_engine - first two calls succeed, 3rd (engine->store)
-    // fails. Any further calls should return EEXISTS.
+    // fails with NOT_STORED (key already exists).
     ewouldblock_engine_configure(
-            ENGINE_KEY_EEXISTS,
+            ENGINE_NOT_STORED,
             EWBEngineMode::Sequence,
             0xfffffffc /* <3 MSBytes all-ones>, 0b11,111,100 */);
     EXPECT_SD_ERR(BinprotSubdocCommand(cb::mcbp::ClientOpcode::SubdocDictUpsert,
@@ -664,7 +664,7 @@ TEST_P(SubdocTestappTest, SubdocAddFlag_BucketStoreCas) {
                                        SUBDOC_FLAG_NONE,
                                        mcbp::subdoc::doc_flag::Add,
                                        0),
-                  cb::mcbp::Status::KeyEexists);
+                  cb::mcbp::Status::NotStored);
 }
 
 void SubdocTestappTest::test_subdoc_dict_add_upsert_deep(
