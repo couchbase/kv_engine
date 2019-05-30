@@ -1252,27 +1252,30 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     uint64_t new_cas;
     mutation_descr_t mdt;
     auto new_op = context.needs_new_doc ? OPERATION_ADD : OPERATION_CAS;
-    if (context.do_delete_doc && context.no_sys_xattrs) {
-        new_cas = context.in_cas;
-        auto docKey = connection.makeDocKey(key);
-        ret = bucket_remove(cookie,
-                            docKey,
-                            new_cas,
-                            vbucket,
-                            cookie.getRequest(Cookie::PacketContent::Full)
-                                    .getDurabilityRequirements(),
-                            mdt);
-    } else {
-        ret = bucket_store(cookie,
-                           context.out_doc.get(),
-                           new_cas,
-                           new_op,
-                           cookie.getRequest(Cookie::PacketContent::Full)
-                                   .getDurabilityRequirements(),
-                           context.do_delete_doc ? DocumentState::Deleted
-                                                 : context.in_document_state);
+    if (ret == ENGINE_SUCCESS) {
+        if (context.do_delete_doc && context.no_sys_xattrs) {
+            new_cas = context.in_cas;
+            auto docKey = connection.makeDocKey(key);
+            ret = bucket_remove(cookie,
+                                docKey,
+                                new_cas,
+                                vbucket,
+                                cookie.getRequest(Cookie::PacketContent::Full)
+                                        .getDurabilityRequirements(),
+                                mdt);
+        } else {
+            ret = bucket_store(cookie,
+                               context.out_doc.get(),
+                               new_cas,
+                               new_op,
+                               cookie.getRequest(Cookie::PacketContent::Full)
+                                       .getDurabilityRequirements(),
+                               context.do_delete_doc
+                                       ? DocumentState::Deleted
+                                       : context.in_document_state);
+        }
+        ret = connection.remapErrorCode(ret);
     }
-    ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
         // Record the UUID / Seqno if MUTATION_SEQNO feature is enabled so

@@ -2097,6 +2097,28 @@ TEST_P(SubdocTestappTest, MB_30278_SubdocBacktickDictAdd) {
     validate_json_document("doc", R"({"key`":"value","key2`":"value2"})");
 }
 
+// MB-34367: If a multi-mutation with durability requirements times out,
+// ensure the status is reported correctly.
+TEST_P(SubdocTestappTest, SubdocDurabilityTimeout) {
+    /// Need XERORR given we are using sync_write_ambiguous
+    set_xerror_feature(true);
+
+    // Setup ewouldblock_engine to simulate a timeout - first 3 calls should
+    // succeed, bucket_store should return ewouldblock and 'pending' IO return
+    // sync_write_ambiguous.
+    ewouldblock_engine_configure({cb::engine_errc(-1),
+                                  cb::engine_errc(-1),
+                                  cb::engine_errc::would_block,
+                                  cb::engine_errc::sync_write_ambiguous});
+    EXPECT_SD_ERR(BinprotSubdocCommand(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                                       "durability_timeout",
+                                       "element",
+                                       "4",
+                                       SUBDOC_FLAG_NONE,
+                                       mcbp::subdoc::doc_flag::Mkdoc),
+                  cb::mcbp::Status::SyncWriteAmbiguous);
+}
+
 INSTANTIATE_TEST_CASE_P(
         Subdoc,
         SubdocTestappTest,

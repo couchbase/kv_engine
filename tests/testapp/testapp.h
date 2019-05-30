@@ -435,6 +435,9 @@ void set_json_feature(bool enable);
 // Enables / disables the MUTATION_SEQNO feature.
 void set_mutation_seqno_feature(bool enable);
 
+// Enables / disables the XERROR feature.
+void set_xerror_feature(bool enable);
+
 /* Send the specified buffer+len to memcached. */
 void safe_send(const void* buf, size_t len, bool hickup);
 

@@ -968,6 +968,10 @@ void set_mutation_seqno_feature(bool enable) {
     set_feature(cb::mcbp::Feature::MUTATION_SEQNO, enable);
 }
 
+void set_xerror_feature(bool enable) {
+    set_feature(cb::mcbp::Feature::XERROR, enable);
+}
+
 void TestappTest::waitForShutdown(bool killed) {
 #ifdef WIN32
     ASSERT_EQ(WAIT_OBJECT_0,
