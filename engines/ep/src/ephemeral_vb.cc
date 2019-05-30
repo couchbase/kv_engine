@@ -726,8 +726,7 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
 
     // Aborting an item in an Ephemeral VBucket consists of:
     // 1. Updating the OSV in the seqList
-    // 2. Removing the prepare from the hash table
-    // 3. Marking the prepare as stale
+    // 2. Mark the prepare as aborted
 
     // This function is similar to softDeleteStoredValue, but implemented
     // separately as we would have to special case a few things for prepares
@@ -758,15 +757,7 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
         }
 
         // Set the specified seqno and queue using queueAbort. A normal deletion
-        // would use queueDirty. Typically, we would also perform the required
-        // HashTable operation before calling queueDirty/Abort. We do not do
-        // this here because queueDirty /could/ throw an exception (and does in
-        // some tests). As we wish to remove the prepare from the HashTable
-        // (we call unlocked_release) this would have the unfortunately awful
-        // to debug side effect of causing the destruction of the returned
-        // StoredValue::UniquePtr to destruct with the pointer still intact
-        // which breaks a seqList invariant and aborts the program. So, just
-        // call it first.
+        // would use queueDirty.
         if (abortSeqno) {
             queueItmCtx.genBySeqno = GenerateBySeqno::No;
             newSv->setBySeqno(*abortSeqno);
@@ -779,12 +770,15 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
         if (!abortSeqno) {
             newSv->setBySeqno(notifyCtx.bySeqno);
         }
-        // 2) Instead of deleting the prepare, actually remove it from the
-        // HashTable so that we allow subsequent SyncWrites.
-        auto ownedSv = ht.unlocked_release(hbl, newSv);
+
+        // 2) We need to modify the SV to mark it as an abort (not a delete)
+        ht.unlocked_abortPrepare(hbl, *newSv);
+
+        seqList->updateNumDeletedItems(oldSv ? oldSv->isDeleted() : false,
+                                       newSv->isDeleted());
 
         /* Update the high seqno in the sequential storage */
-        auto& osv = *(ownedSv->toOrderedStoredValue());
+        auto& osv = *(newSv->toOrderedStoredValue());
         seqList->updateHighSeqno(listWriteLg, osv);
 
         // If we did an append we still need to mark the un-updated StoredValue
@@ -792,10 +786,6 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
         if (res == SequenceList::UpdateStatus::Append) {
             seqList->markItemStale(listWriteLg, std::move(oldSv), newSv);
         }
-
-        // 3) Make the prepare as stale
-        seqList->markItemStale(listWriteLg, std::move(ownedSv), nullptr);
-        ownedSv.release();
     }
 
     return notifyCtx;

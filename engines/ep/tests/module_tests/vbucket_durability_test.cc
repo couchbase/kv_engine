@@ -264,6 +264,37 @@ TEST_P(VBucketDurabilityTest, CommitSyncWriteLoop) {
     }
 }
 
+TEST_P(VBucketDurabilityTest, AbortSyncWriteLoop) {
+    ht->clear();
+    ckptMgr->clear(*vbucket, 0);
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "valueB");
+
+    using namespace cb::durability;
+    auto reqs = Requirements{Level::Majority, Timeout::Infinity()};
+    pending->setPendingSyncWrite(reqs);
+
+    for (int i = 0; i < 10; i++) {
+        VBQueueItemCtx ctx;
+        ctx.durability = DurabilityItemCtx{reqs, cookie};
+
+        // Do the prepare (should be clean/dirty)
+        ASSERT_NE(MutationStatus::IsPendingSyncWrite,
+                  public_processSet(*pending, 0 /*cas*/, ctx));
+        auto item = makeCommittedItem(key, "value" + std::to_string(i));
+
+        // Check that we block normal set
+        ctx.durability = {};
+        ASSERT_EQ(MutationStatus::IsPendingSyncWrite,
+                  public_processSet(*item, 0 /*cas*/, ctx));
+
+        // And commit
+        ASSERT_EQ(
+                ENGINE_SUCCESS,
+                vbucket->abort(key, {}, vbucket->lockCollections(key), cookie));
+    }
+}
+
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(
         AllVBTypesAllEvictionModes,
@@ -757,7 +788,12 @@ TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
               swCompleteTrace);
 
     // StoredValue has gone
-    EXPECT_EQ(0, ht->getNumItems());
+    // Ephemeral keeps completed prepare in HashTable
+    if (getVbType() == VBType::Persistent) {
+        EXPECT_EQ(0, ht->getNumItems());
+    } else {
+        EXPECT_EQ(1, ht->getNumItems());
+    }
     EXPECT_FALSE(ht->findForRead(key).storedValue);
     EXPECT_FALSE(ht->findForWrite(key).storedValue);
 
@@ -1551,16 +1587,10 @@ TEST_P(EphemeralVBucketDurabilityTest, Replica_Abort) {
     testCompleteSWInPassiveDM(vbucket_state_replica, Resolution::Abort);
 
     // Check that we have the expected items in the seqList.
-    // 3 stale prepare
+    // 3 prepare
     auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
-    EXPECT_EQ(3, mockEphVb->public_getNumStaleItems());
+    EXPECT_EQ(0, mockEphVb->public_getNumStaleItems());
     EXPECT_EQ(3, mockEphVb->public_getNumListItems());
-
-    // Do a purge of the stale items and check result. We always keep the last
-    // item so it is not expected that we purge everything
-    EXPECT_EQ(2, mockEphVb->purgeStaleItems());
-    EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
-    EXPECT_EQ(1, mockEphVb->public_getNumListItems());
 }
 
 TEST_P(EphemeralVBucketDurabilityTest, Replica_Abort_RangeRead) {
@@ -1571,13 +1601,13 @@ TEST_P(EphemeralVBucketDurabilityTest, Replica_Abort_RangeRead) {
     testCompleteSWInPassiveDM(vbucket_state_replica, Resolution::Abort);
 
     // Check that we have the expected items in the seqList.
-    // 6 stale prepare. We append to the seqList because of the range read.
-    EXPECT_EQ(6, mockEphVb->public_getNumStaleItems());
+    // 3 stale prepare. We append to the seqList because of the range read.
+    EXPECT_EQ(3, mockEphVb->public_getNumStaleItems());
     EXPECT_EQ(6, mockEphVb->public_getNumListItems());
 
     // Do a purge of the stale items and check result. We always keep the last
     // item so it is not expected that we purge everything
-    EXPECT_EQ(5, mockEphVb->purgeStaleItems());
-    EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
-    EXPECT_EQ(1, mockEphVb->public_getNumListItems());
+    EXPECT_EQ(3, mockEphVb->purgeStaleItems());
+    EXPECT_EQ(0, mockEphVb->public_getNumStaleItems());
+    EXPECT_EQ(3, mockEphVb->public_getNumListItems());
 }

@@ -203,6 +203,7 @@ void BasicLinkedList::updateHighSeqno(std::lock_guard<std::mutex>& listWriteLg,
     }
     highSeqno = v.getBySeqno();
 }
+
 void BasicLinkedList::updateHighestDedupedSeqno(
         std::lock_guard<std::mutex>& listWriteLg, const OrderedStoredValue& v) {
     if (v.getBySeqno() < 1) {

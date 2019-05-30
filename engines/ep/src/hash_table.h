@@ -791,6 +791,10 @@ public:
      */
     FindResult findForSyncWrite(const DocKey& key);
 
+    /// @return Same as findForSyncWrite but only returns completed prepare if
+    ///         a committed StoredValue exists.
+    FindResult findForSyncReplace(const DocKey& key);
+
     /**
      * @return A pair of StoredValues (pending and prepare) so that we can
      *         update accordingly when committing a SyncWrite.
@@ -981,6 +985,18 @@ public:
                                      StoredValue& v,
                                      bool onlyMarkDeleted,
                                      DeleteSource delSource);
+
+    /**
+     * Logically mark the given prepare as aborted
+     * Assumes that HT bucket lock is grabbed.
+     * Also assumes that v is in the hash table.
+     *
+     * @param hbl Hash table bucket lock that must be held.
+     * @param v Reference to the StoredValue to be aborted
+     * @return the outcome of the deletion attempt.
+     */
+    DeleteResult unlocked_abortPrepare(const HashBucketLock& hbl,
+                                       StoredValue& v);
 
     /**
      * Create a new StoredValue from an existing one and modify it to be a

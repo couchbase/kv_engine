@@ -1536,7 +1536,7 @@ ENGINE_ERROR_CODE VBucket::replace(
     }
 
     { // HashBucketLock scope
-        auto htRes = itm.isPending() ? ht.findForSyncWrite(itm.getKey())
+        auto htRes = itm.isPending() ? ht.findForSyncReplace(itm.getKey())
                                      : ht.findForWrite(itm.getKey());
         auto* v = htRes.storedValue;
         auto& hbl = htRes.lock;

@@ -579,6 +579,18 @@ HashTable::DeleteResult HashTable::unlocked_softDelete(
     folly::assume_unreachable();
 }
 
+HashTable::DeleteResult HashTable::unlocked_abortPrepare(
+        const HashTable::HashBucketLock& hbl, StoredValue& v) {
+    const auto preProps = valueStats.prologue(&v);
+    // We consider a prepare that is non-resident to be a completed abort.
+    v.setCommitted(CommittedState::PrepareAborted);
+
+    // Set the completed time so we don't prematurely purge the SV
+    v.setCompletedOrDeletedTime(ep_current_time());
+    valueStats.epilogue(preProps, &v);
+    return {DeletionStatus::Success, &v};
+}
+
 StoredValue::UniquePtr HashTable::unlocked_createSyncDeletePrepare(
         const HashTable::HashBucketLock& hbl,
         const StoredValue& v,
@@ -664,6 +676,37 @@ HashTable::FindResult HashTable::findForSyncWrite(const DocKey& key) {
         // has asked for deleted SVs. For example, consider searching for a
         // SyncDelete, we should always return the deleted prepare. Also,
         // we always return completed prepares.
+        return {result.pendingSV, std::move(result.lock)};
+    }
+
+    if (!result.committedSV) {
+        // No item found - return null.
+        return {nullptr, std::move(result.lock)};
+    }
+
+    if (result.committedSV->isDeleted()) {
+        // Deleted items should only be returned if caller asked for them -
+        // otherwise return null.
+        return {nullptr, std::move(result.lock)};
+    }
+    return {result.committedSV, std::move(result.lock)};
+}
+
+HashTable::FindResult HashTable::findForSyncReplace(const DocKey& key) {
+    auto result = findInner(key);
+
+    if (result.pendingSV) {
+        // For the replace case, we should return ENGINE_KEY_ENOENT if no
+        // document exists for the given key. For the case where we abort a
+        // SyncWrite then attempt to do another we would find the AbortedPrepare
+        // (in the Ephemeral case) which we would then use to do another
+        // SyncWrite if we called the findForSyncWrite function. So, if we find
+        // a completed SyncWrite but the committed StoredValue does not exist,
+        // then return nullptr as logically a replace is not possible.
+        if (result.pendingSV->isCompleted() && !result.committedSV) {
+            return {nullptr, std::move(result.lock)};
+        }
+        // Otherwise, return the prepare so that we can re-use it.
         return {result.pendingSV, std::move(result.lock)};
     }
 

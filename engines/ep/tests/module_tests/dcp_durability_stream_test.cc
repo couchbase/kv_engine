@@ -154,9 +154,14 @@ TEST_P(DurabilityActiveStreamTest, SendDcpAbort) {
 
     // We don't account Abort in VB stats
     EXPECT_EQ(0, vb->getNumItems());
-    // We must have removed the Prepare from the HashTable and we don't have
-    // any "abort" StoredValue
-    EXPECT_EQ(0, vb->ht.getNumItems());
+    if (persistent()) {
+        // We must have removed the Prepare from the HashTable and we don't have
+        // any "abort" StoredValue
+        EXPECT_EQ(0, vb->ht.getNumItems());
+    } else {
+        // Ephemeral allows completed prepares in the HashTable
+        EXPECT_EQ(1, vb->ht.getNumItems());
+    }
     // Note: We don't de-duplicate Prepare and Abort, so we have closed the open
     //     ckpt (the one containing the Prepare), created a new open ckpt and
     //     queued the Abort in the latter. So we must have 2 checkpoints now.
@@ -812,7 +817,12 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbort) {
     ASSERT_EQ(ENGINE_SUCCESS, abortReceived(abortSeqno));
 
     EXPECT_EQ(0, vb->getNumItems());
-    EXPECT_EQ(0, vb->ht.getNumItems());
+    // Ephemeral keeps the completed prepare in the HashTable
+    if (persistent()) {
+        EXPECT_EQ(0, vb->ht.getNumItems());
+    } else {
+        EXPECT_EQ(1, vb->ht.getNumItems());
+    }
     {
         const auto sv = vb->ht.findForWrite(key);
         ASSERT_FALSE(sv.storedValue);
