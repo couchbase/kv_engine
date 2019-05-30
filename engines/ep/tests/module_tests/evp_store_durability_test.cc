@@ -790,6 +790,47 @@ TEST_P(DurabilityBucketTest, TakeoverSendsDurabilityAmbiguous) {
     EXPECT_EQ(ENGINE_SYNC_WRITE_AMBIGUOUS, mockCookie->status);
 }
 
+// Test that if a SyncWrite times out, then a subsequent SyncWrite which
+// _should_ fail does indeed fail.
+// (Regression test for part of MB-34367 - after using notify_IO_complete
+// to report the SyncWrite was timed out with status eambiguous, the outstanding
+// cookie context was not correctly cleared.
+TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // Setup: make pending item and store it; then abort it (at VBucket) level.
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "value");
+    uint64_t cas;
+    ASSERT_EQ(ENGINE_EWOULDBLOCK,
+              engine->store(cookie,
+                            pending.get(),
+                            cas,
+                            OPERATION_SET,
+                            pending->getDurabilityReqs(),
+                            DocumentState::Alive));
+    ASSERT_TRUE(engine->getEngineSpecific(cookie))
+            << "Expected engine specific to be set for cookie after "
+               "EWOULDBLOCK";
+
+    auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb.abort(key, {}, vb.lockCollections(key), cookie));
+
+    // Test: Attempt another SyncWrite, which _should_ fail (in this case just
+    // use replace against the same non-existent key).
+    ASSERT_EQ(ENGINE_KEY_ENOENT,
+              engine->store(cookie,
+                            pending.get(),
+                            cas,
+                            OPERATION_REPLACE,
+                            pending->getDurabilityReqs(),
+                            DocumentState::Alive));
+}
+
 // Test cases which run against all persistent storage backends.
 INSTANTIATE_TEST_CASE_P(
         AllBackends,

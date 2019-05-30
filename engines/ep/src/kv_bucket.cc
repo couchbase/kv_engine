@@ -2506,6 +2506,13 @@ uint16_t KVBucket::getNumOfVBucketsInState(vbucket_state_t state) const {
 SyncWriteCompleteCallback KVBucket::makeSyncWriteCompleteCB() {
     auto& engine = this->engine;
     return [&engine](const void* cookie, ENGINE_ERROR_CODE status) {
+        if (status != ENGINE_SUCCESS) {
+            // For non-success status codes clear the cookie's engine_specific;
+            // as the operation is now complete. This ensures that any
+            // subsequent call by the same cookie to store() is treated as a new
+            // operation (and not the completion of the previous one).
+            engine.storeEngineSpecific(cookie, nullptr);
+        }
         engine.notifyIOComplete(cookie, status);
     };
 }
