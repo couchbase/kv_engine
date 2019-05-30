@@ -69,9 +69,9 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
 
     // Test visitor which pages out our key
     struct Visitor : public HashTableVisitor {
-        Visitor(VBucket& vb, StoredDocKey key)
-            : vb(vb), key(key), readHandle(vb.lockCollections()) {
+        Visitor(VBucket& vb, StoredDocKey key) : vb(vb), key(key) {
         }
+
         bool visit(const HashTable::HashBucketLock& lh,
                    StoredValue& v) override {
             if (v.getKey() == key) {
@@ -80,6 +80,16 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
             }
             return true;
         }
+
+        void setUpHashBucketVisit() override {
+            // Need to lock collections before we visit each SV.
+            readHandle = vb.lockCollections();
+        }
+
+        void tearDownHashBucketVisit() override {
+            readHandle.unlock();
+        }
+
         VBucket& vb;
         StoredDocKey key;
         Collections::VB::Manifest::ReadHandle readHandle;
