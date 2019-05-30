@@ -2433,14 +2433,17 @@ BaseTestCase testsuite_testcases[] = {
                  // still find a key after deleting the DB file and evicting
                  // the key in the internal MemTable (which is also used as
                  // read-cache).
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 // TODO magma: uses couchstore specific functions
+                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
                  cleanup),
         TestCase("vbucket deletion doesn't affect new data",
                  test_bug7023,
                  test_setup,
                  teardown,
                  NULL,
-                 prepare,
+                 // TODO RDB: implement getItemCount. Needs the
+                 // 'ep_warmup_value_count' stat.
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("non-resident decrementers",
                  test_mb3169,

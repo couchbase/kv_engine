@@ -304,6 +304,15 @@ $<SEMICOLON>dbname=./${name}.ephemeral.comp_active.db")
         SET_TESTS_PROPERTIES(${name}.value_eviction.rocksdb PROPERTIES TIMEOUT ${timeout})
         SET_TESTS_PROPERTIES(${name}.full_eviction.rocksdb PROPERTIES TIMEOUT ${timeout})
     ENDIF (EP_USE_ROCKSDB)
+
+    IF (EP_USE_MAGMA)
+        ADD_TEST(NAME ${name}.value_eviction.magma
+                COMMAND ${_cmdline} -v -e "dbname=./${name}.value_eviction.magma$<SEMICOLON>backend=magma")
+        ADD_TEST(NAME ${name}.full_eviction.magma
+                COMMAND ${_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./${name}.full_eviction.magma$<SEMICOLON>backend=magma")
+        SET_TESTS_PROPERTIES(${name}.value_eviction.magma PROPERTIES TIMEOUT ${timeout})
+        SET_TESTS_PROPERTIES(${name}.full_eviction.magma PROPERTIES TIMEOUT ${timeout})
+    ENDIF (EP_USE_MAGMA)
 ENDFUNCTION()
 
 ADD_TESTSUITE(ep_testsuite 1800)

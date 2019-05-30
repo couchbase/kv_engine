@@ -8043,7 +8043,8 @@ BaseTestCase testsuite_testcases[] = {
                  // TODO RDB: Cannot store any item (ENGINE_ENOMEM).
                  // Needs to resize 'max_size' to consider RocksDB
                  // pre-allocations.
-                 prepare_skip_broken_under_rocks,
+                 // TODO magma: Need to recalc for magma
+                 prepare_skip_broken_under_rocks_and_magma,
                  cleanup),
         TestCase("test dcp cursor dropping (replication)",
                  test_dcp_cursor_dropping_replication,
@@ -8068,7 +8069,8 @@ BaseTestCase testsuite_testcases[] = {
                  // TODO RDB: Cannot store any item (ENGINE_ENOMEM).
                  // Needs to resize 'max_size' to consider RocksDB
                  // pre-allocations.
-                 prepare_skip_broken_under_rocks,
+                 // TODO magma: Need to recalc for magma
+                 prepare_skip_broken_under_rocks_and_magma,
                  cleanup),
         TestCase("test dcp cursor dropping backfill",
                  test_dcp_cursor_dropping_backfill,
@@ -8144,7 +8146,8 @@ BaseTestCase testsuite_testcases[] = {
                  "dcp_flow_control_policy=none;dcp_enable_noop=false",
                  // TODO RDB: implement getItemCount.
                  // Needs the 'curr_items_tot' stat.
-                 prepare_skip_broken_under_rocks,
+                 // TODO magma: requires collections
+                 prepare_skip_broken_under_rocks_and_magma,
                  cleanup),
         TestCase("test full rollback on consumer",
                  test_fullrollback_for_consumer,
@@ -8154,7 +8157,8 @@ BaseTestCase testsuite_testcases[] = {
                  // TODO RDB: Intermittently failing with SegFault.
                  // Probably we have to implement getItemCount. Needs the
                  // 'vb_replica_curr_items' stat.
-                 prepare_skip_broken_under_rocks,
+                 // TODO: magma needs collections support
+                 prepare_skip_broken_under_rocks_and_magma,
                  cleanup),
         TestCase("test partial rollback on consumer",
                  test_partialrollback_for_consumer,
@@ -8163,7 +8167,8 @@ BaseTestCase testsuite_testcases[] = {
                  "dcp_enable_noop=false",
                  // TODO RDB: implement getItemCount.
                  // Needs the 'vb_replica_curr_items' stat.
-                 prepare_skip_broken_under_rocks,
+                 // TODO: magma needs collections support
+                 prepare_skip_broken_under_rocks_and_magma,
                  cleanup),
         TestCase("test change dcp buffer log size", test_dcp_buffer_log_size,
                 test_setup, teardown, NULL, prepare, cleanup),

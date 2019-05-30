@@ -2395,10 +2395,12 @@ static enum test_result test_bg_meta_stats(EngineIface* h) {
 
     check(get_meta(h, "k2"), "Get meta failed");
     checkeq(1, get_int_stat(h, "ep_bg_fetched"), "Expected bg_fetched to be 1");
-    checkeq(1,
-            get_int_stat(h, "ep_bg_meta_fetched"),
-            "Expected bg_meta_fetched to remain at 1");
 
+    int expected_ep_bg_meta_fetched =
+            get_bool_stat(h, "ep_bfilter_enabled") ? 1 : 2;
+    checkeq(expected_ep_bg_meta_fetched,
+            get_int_stat(h, "ep_bg_meta_fetched"),
+            "bg_meta_fetched");
     return SUCCESS;
 }
 
@@ -8065,7 +8067,8 @@ BaseTestCase testsuite_testcases[] = {
                  // For this specific test, the problem is that the memory
                  // usage never goes below the 'ep_mem_high_wat'. Needs
                  // to resize 'max_size' to consider RocksDB pre-allocations.
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 // TODO magma: similar issue for magma
+                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
                  cleanup),
         TestCase("test memory condition",
                  test_memory_condition,
@@ -8077,7 +8080,8 @@ BaseTestCase testsuite_testcases[] = {
                  // opened, in a way we do not fully control yet.
                  // That makes this test to fail depending on the size of the
                  // pre-allocation.
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 // TODO magma: similar issue for magma
+                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
                  cleanup),
         TestCase("warmup conf", test_warmup_conf, test_setup,
                  teardown, NULL, prepare, cleanup),
@@ -8088,8 +8092,10 @@ BaseTestCase testsuite_testcases[] = {
                  NULL,
                  prepare,
                  cleanup),
+        // magma turns off bloom filters
         TestCase("bloomfilter conf", test_bloomfilter_conf, test_setup,
-                 teardown, NULL, prepare, cleanup),
+                 teardown, NULL, prepare_skip_broken_under_magma, cleanup),
+        // magma turns off bloom filters
         TestCase("test bloomfilters",
                  test_bloomfilters,
                  test_setup,
@@ -8097,17 +8103,19 @@ BaseTestCase testsuite_testcases[] = {
                  NULL,
                  // TODO RDB: Fails in full eviction. Rockdb does not report
                  // the correct 'ep_bg_num_samples' stat
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
                  cleanup),
+        // magma turns off bloom filters
         TestCase("test bloomfilters with store apis",
                  test_bloomfilters_with_store_apis, test_setup,
-                 teardown, NULL, prepare_ep_bucket, cleanup),
+                 teardown, NULL, prepare_ep_bucket_skip_broken_under_magma, cleanup),
+        // magma turns off bloom filters
         TestCase("test bloomfilters's in a delete+set scenario",
                  test_bloomfilter_delete_plus_set_scenario,
                  test_setup,
                  teardown,
                  NULL,
-                 prepare_ep_bucket,
+                 prepare_ep_bucket_skip_broken_under_magma,
                  cleanup),
         TestCase("test datatype", test_datatype, test_setup,
                  teardown, NULL, prepare, cleanup),
@@ -8136,7 +8144,8 @@ BaseTestCase testsuite_testcases[] = {
                  // 'vb_active_perc_mem_resident' stat never goes below the
                  // threshold we expect. Needs to resize 'max_size' to consider
                  // RocksDB pre-allocations.
-                 prepare_skip_broken_under_rocks,
+                 // TODO magma: similar issue with magma
+                 prepare_skip_broken_under_rocks_and_magma,
                  cleanup),
         TestCase("test set_param message", test_set_param_message, test_setup,
                  teardown, "chk_remover_stime=1;max_size=6291456", prepare, cleanup),
@@ -8168,10 +8177,12 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  NULL,
                  /* TODO RDB: Needs stat:ep_db_data_size */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 // magma does not support ep_db_data_size
+                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
                  cleanup),
         TestCase("file stats post warmup", test_vb_file_stats_after_warmup,
-                 test_setup, teardown, NULL, prepare, cleanup),
+                 // magma does not support getFileStats
+                 test_setup, teardown, NULL, prepare_skip_broken_under_magma, cleanup),
         TestCase("bg stats",
                  test_bg_stats,
                  test_setup,
@@ -8228,7 +8239,8 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  NULL,
                  /* TODO RDB: DB file size is not reported correctly */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 // magma does not support data or file size
+                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
                  cleanup),
         TestCase("stats curr_items ADD SET",
                  test_curr_items_add_set,
@@ -8484,7 +8496,8 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  NULL,
                  // TODO RDB: Implement RocksDBKVStore::getNumPersistedDeletes
-                 prepare_skip_broken_under_rocks,
+                 // TODO magma: need to add support for persisted deletes
+                 prepare_skip_broken_under_rocks_and_magma,
                  cleanup),
 
         // stats uuid
@@ -8613,7 +8626,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 prepare,
+                 // magma has no support for upgrades
+                 prepare_skip_broken_under_magma,
                  cleanup),
 
         TestCase("test_MB-19687_fixed",
@@ -8622,7 +8636,8 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  NULL,
                  // TODO RDB: Needs to fix some missing/unexpected stats
-                 prepare_skip_broken_under_rocks,
+                 // magma has no support for upgrades
+                 prepare_skip_broken_under_rocks_and_magma,
                  cleanup),
 
         TestCase("test_MB-19687_variable", test_mb19687_variable, test_setup, teardown, NULL,
@@ -8645,7 +8660,9 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  NULL,
                  // TODO RDB: Needs the 'ep_item_commit_failed' stat
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 // TODO magma: Need to add magma functionality similar
+                 // to couchstore specific functionality used by test
+                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
                  cleanup),
         TestCase("test_MB-test_mb20943_remove_pending_ops_on_vbucket_delete",
                  test_mb20943_complete_pending_ops_on_vbucket_delete,
@@ -8656,7 +8673,9 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  NULL,
                  // TODO RDB: Needs the 'vb_active_ops_reject' stat
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 // TODO magma: Need to add magma functionality similar
+                 // to couchstore specific functionality used by test
+                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
                  cleanup),
 
         TestCase("test_MB-23640_get_document_of_any_state", test_mb23640,
@@ -8674,7 +8693,9 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 // TODO magma: Need to add magma functionality similar
+                 // to couchstore specific functionality used by test
+                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
                  cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)};

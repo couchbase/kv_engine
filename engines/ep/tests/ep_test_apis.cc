@@ -1295,11 +1295,12 @@ void compact_db(EngineIface* h,
 
     const auto backend = get_str_stat(h, "ep_backend");
 
-    if (backend == "couchdb") {
+    if (backend == "couchdb" || backend == "magma") {
         if (ret == ENGINE_ENOTSUP) {
-            // Ephemeral buckets return ENGINE_ENOTSUP, and this method is
-            // called from a lot of the test cases we run on all bucket
-            // types. Lets remap the error code to success
+            // Ephemeral, couchdb and magma (but not rocksdb) buckets can
+            // return ENGINE_ENOTSUP.  This method is called from a lot
+            // of test cases we run. Lets remap the error code to success.
+            // Note: Ephemeral buckets use couchdb as backend.
             ret = ENGINE_SUCCESS;
         }
         checkeq(ENGINE_SUCCESS, ret, "Failed to request compact vbucket");
