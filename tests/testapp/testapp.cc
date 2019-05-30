@@ -24,6 +24,7 @@
 
 #include <include/memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
+#include <protocol/mcbp/ewb_encode.h>
 #include <utilities/json_utilities.h>
 #include <atomic>
 #include <chrono>
@@ -1265,6 +1266,14 @@ void TestappTest::ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
             *reinterpret_cast<cb::mcbp::Response*>(buffer.data()),
             cb::mcbp::ClientOpcode::EwouldblockCtl,
             cb::mcbp::Status::Success);
+}
+
+void TestappTest::ewouldblock_engine_configure(
+        std::vector<cb::engine_errc> sequence) {
+    ewouldblock_engine_configure(ENGINE_SUCCESS,
+                                 EWBEngineMode::Sequence,
+                                 0,
+                                 ewb::encodeSequence(sequence));
 }
 
 void TestappTest::ewouldblock_engine_disable() {

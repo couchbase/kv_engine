@@ -217,6 +217,13 @@ protected:
                                              uint32_t value,
                                              const std::string& key = "");
 
+    /**
+     * Configure the ewouldblock error-injecting engine for the given
+     * sequence of status codes (EWBEngineMode::Sequence2).
+     */
+    static void ewouldblock_engine_configure(
+            std::vector<cb::engine_errc> sequence);
+
     /* Disable the ewouldblock_engine. */
     static void ewouldblock_engine_disable();
 

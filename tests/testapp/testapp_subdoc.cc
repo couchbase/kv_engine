@@ -28,6 +28,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
 #include <platform/socket.h>
+#include <protocol/mcbp/ewb_encode.h>
 
 /*
  * testapp testcases for sub-document API - single path.
@@ -596,8 +597,12 @@ void SubdocTestappTest::test_subdoc_dict_add_cas(bool compress,
     // Configure the ewouldblock_engine to inject fake CAS failure for the
     // 3rd call (i.e. the 1st engine->store() attempt). We only expect 6 calls
     // total, so also make anything after that fail.
-    ewouldblock_engine_configure(ENGINE_KEY_EEXISTS, EWBEngineMode::Sequence,
-                                 0xffffffc4 /* <3 MSBytes all-ones>, 0b11,000,100 */);
+    ewouldblock_engine_configure({ewb::Passthrough,
+                                  ewb::Passthrough,
+                                  cb::engine_errc::key_already_exists,
+                                  ewb::Passthrough,
+                                  ewb::Passthrough,
+                                  ewb::Passthrough});
 
     // .. Yet a client request should succeed, as internal CAS failure should
     // be retried.
@@ -613,8 +618,9 @@ void SubdocTestappTest::test_subdoc_dict_add_cas(bool compress,
 
     // Setup ewouldblock_engine - first two calls succeed, 3rd (engine->store)
     // fails. Do not expect more than 3 calls so make any further calls error.
-    ewouldblock_engine_configure(ENGINE_KEY_EEXISTS, EWBEngineMode::Sequence,
-                                 0xfffffffc /* <3 MSBytes all-ones>, 0b11,111,100 */);
+    ewouldblock_engine_configure({ewb::Passthrough,
+                                  ewb::Passthrough,
+                                  cb::engine_errc::key_already_exists});
 
     EXPECT_SD_ERR(BinprotSubdocCommand(cmd,
                                        "dict",
@@ -653,10 +659,10 @@ TEST_P(SubdocTestappTest, SubdocDictUpsert_CasCompressed) {
 TEST_P(SubdocTestappTest, SubdocAddFlag_BucketStoreCas) {
     // Setup ewouldblock_engine - first two calls succeed, 3rd (engine->store)
     // fails with NOT_STORED (key already exists).
-    ewouldblock_engine_configure(
-            ENGINE_NOT_STORED,
-            EWBEngineMode::Sequence,
-            0xfffffffc /* <3 MSBytes all-ones>, 0b11,111,100 */);
+    ewouldblock_engine_configure({ewb::Passthrough,
+                                  ewb::Passthrough,
+                                  cb::engine_errc::not_stored});
+
     EXPECT_SD_ERR(BinprotSubdocCommand(cb::mcbp::ClientOpcode::SubdocDictUpsert,
                                        "AddCasTest",
                                        "element",
@@ -1751,8 +1757,12 @@ TEST_P(SubdocTestappTest, SubdocArrayPushLast_NotMyVbucket) {
     // Configure the ewouldblock_engine to inject fake NOT-MY-VBUCKET failure
     // for the 3rd call (i.e. the 1st engine->store() attempt). We only expect 6 calls
     // total, so also make anything after that fail.
-    ewouldblock_engine_configure(ENGINE_NOT_MY_VBUCKET, EWBEngineMode::Sequence,
-                                 0xffffffc4 /* <3 MSBytes all-ones>, 0b11,000,100 */);
+    ewouldblock_engine_configure({ewb::Passthrough,
+                                  ewb::Passthrough,
+                                  cb::engine_errc::not_my_vbucket,
+                                  ewb::Passthrough,
+                                  ewb::Passthrough,
+                                  ewb::Passthrough});
 
     // Should fail with NOT-MY-VBUCKET, and a non-zero length body including the
     // cluster config.

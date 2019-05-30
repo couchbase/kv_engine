@@ -270,18 +270,23 @@ public:
         }
 
         const bool inject = iter->second.second->should_inject_error(cmd, err);
-        const bool add_to_pending_io_ops = iter->second.second->add_to_pending_io_ops();
 
         if (inject) {
             LOG_DEBUG("EWB_Engine: injecting error:{} for cmd:{}",
                       err,
                       to_string(cmd));
 
-            if (err == ENGINE_EWOULDBLOCK && add_to_pending_io_ops) {
-                // The server expects that if EWOULDBLOCK is returned then the
-                // server should be notified in the future when the operation is
-                // ready - so add this op to the pending IO queue.
-                schedule_notification(iter->second.first);
+            if (err == ENGINE_EWOULDBLOCK) {
+                const auto add_to_pending_io_ops =
+                        iter->second.second->add_to_pending_io_ops();
+                if (add_to_pending_io_ops) {
+                    // The server expects that if EWOULDBLOCK is returned then
+                    // the server should be notified in the future when the
+                    // operation is ready - so add this op to the pending IO
+                    // queue.
+                    schedule_notification(iter->second.first,
+                                          *add_to_pending_io_ops);
+                }
             }
         }
 
@@ -582,9 +587,19 @@ public:
                     new_mode = std::make_shared<ErrOnFirst>(injected_error);
                     break;
 
-                case EWBEngineMode::Sequence:
-                    new_mode = std::make_shared<ErrSequence>(injected_error, value);
+                case EWBEngineMode::Sequence: {
+                    std::vector<cb::engine_errc> decoded;
+                    for (unsigned int ii = 0;
+                         ii < key.size() / sizeof(cb::engine_errc);
+                         ii++) {
+                        auto status = *reinterpret_cast<const uint32_t*>(
+                                key.data() + (ii * sizeof(cb::engine_errc)));
+                        status = ntohl(status);
+                        decoded.emplace_back(cb::engine_errc(status));
+                    }
+                    new_mode = std::make_shared<ErrSequence>(decoded);
                     break;
+                }
 
                 case EWBEngineMode::No_Notify:
                     new_mode = std::make_shared<ErrOnNoNotify>(injected_error);
@@ -1023,7 +1038,11 @@ private:
     // thread processing pending io ops.
     std::mutex mutex;
     std::condition_variable condvar;
-    std::queue<const void*> pending_io_ops;
+    struct PendingIO {
+        const void* cookie;
+        ENGINE_ERROR_CODE status;
+    };
+    std::queue<PendingIO> pending_io_ops;
 
     std::atomic<bool> stop_notification_thread;
 
@@ -1034,9 +1053,14 @@ private:
         FaultInjectMode(ENGINE_ERROR_CODE injected_error_)
           : injected_error(injected_error_) {}
 
-        virtual bool add_to_pending_io_ops() {
-            return true;
+        // In the event of injecting an EWOULDBLOCK error, should the connection
+        // be added to the pending_io_ops (and subsequently notified)?
+        // @returns empty if shouldn't be added, otherwise contains the
+        // status code to notify with.
+        virtual boost::optional<ENGINE_ERROR_CODE> add_to_pending_io_ops() {
+            return ENGINE_SUCCESS;
         }
+
         virtual bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) = 0;
 
         virtual std::string to_string() const = 0;
@@ -1130,36 +1154,88 @@ private:
         uint32_t percentage_to_err;
     };
 
+    /**
+     * Injects a sequence of error codes for each call to should_inject_error().
+     * If the end of the given sequence is reached, then throws
+     * std::logic_error.
+     *
+     * cb::mcbp::Status::ReservedUserStart can be used to specify that the
+     * no error is injected (the original status code is returned unchanged).
+     */
     class ErrSequence : public FaultInjectMode {
     public:
+        /**
+         * Construct with a sequence of the specified error, or the 'normal'
+         * status code.
+         */
         ErrSequence(ENGINE_ERROR_CODE injected_error_, uint32_t sequence_)
-            : FaultInjectMode(injected_error_),
+            : FaultInjectMode(injected_error_) {
+            for (int ii = 0; ii < 32; ii++) {
+                if ((sequence_ & (1 << ii)) != 0) {
+                    sequence.push_back(cb::engine_errc(injected_error_));
+                } else {
+                    sequence.push_back(cb::engine_errc(-1));
+                }
+            }
+            pos = sequence.begin();
+        }
+
+        /**
+         * Construct with a specific sequence of (potentially different) status
+         * codes encoded as vector of cb::engine_errc elements in the
+         * request value.
+         */
+        ErrSequence(std::vector<cb::engine_errc> sequence_)
+            : FaultInjectMode(ENGINE_SUCCESS),
               sequence(sequence_),
-              pos(0) {}
+              pos(sequence.begin()) {
+        }
 
         bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) {
+            if (pos == sequence.end()) {
+                throw std::logic_error(
+                        "ErrSequence::should_inject_error() Reached end of "
+                        "sequence");
+            }
             bool inject = false;
-            if (pos < 32) {
-                inject = (sequence & (1 << pos)) != 0;
-                pos++;
+            if (*pos != cb::engine_errc(-1)) {
+                inject = true;
+                err = ENGINE_ERROR_CODE(*pos);
             }
-            if (inject) {
-                err = injected_error;
-            }
+            pos++;
             return inject;
+        }
+
+        virtual boost::optional<ENGINE_ERROR_CODE> add_to_pending_io_ops() {
+            // If this function has been called, should_inject_error() must
+            // have returned true. Return the next status code in the sequnce
+            // as the result of the pending IO.
+            if (pos == sequence.end()) {
+                throw std::logic_error(
+                        "ErrSequence::add_to_pending_io_ops() Reached end of "
+                        "sequence");
+            }
+
+            return ENGINE_ERROR_CODE(*pos++);
         }
 
         std::string to_string() const {
             std::stringstream ss;
-            ss << "ErrSequence inject_error=" << injected_error
-               << " sequence=0x" << std::hex << sequence
-               << " pos=" << pos;
+            ss << "ErrSequence sequence=[";
+            for (const auto& err : sequence) {
+                if (err == cb::engine_errc(-1)) {
+                    ss << "'<passthrough>',";
+                } else {
+                    ss << "'" << err << "',";
+                }
+            }
+            ss << "] pos=" << pos - sequence.begin();
             return ss.str();
         }
 
     private:
-        uint32_t sequence;
-        uint32_t pos;
+        std::vector<cb::engine_errc> sequence;
+        std::vector<cb::engine_errc>::const_iterator pos;
     };
 
     class ErrOnNoNotify : public FaultInjectMode {
@@ -1168,7 +1244,10 @@ private:
               : FaultInjectMode(injected_error_),
                 issued_return_error(false) {}
 
-            bool add_to_pending_io_ops() {return false;}
+            boost::optional<ENGINE_ERROR_CODE> add_to_pending_io_ops() {
+                return {};
+            }
+
             bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) {
                 if (!issued_return_error) {
                     issued_return_error = true;
@@ -1282,8 +1361,7 @@ private:
             suspended_map.erase(iter);
         }
 
-
-        schedule_notification(cookie);
+        schedule_notification(cookie, ENGINE_SUCCESS);
         return true;
     }
 
@@ -1304,10 +1382,10 @@ private:
         return false;
     }
 
-    void schedule_notification(const void* cookie) {
+    void schedule_notification(const void* cookie, ENGINE_ERROR_CODE status) {
         {
             std::lock_guard<std::mutex> guard(mutex);
-            pending_io_ops.push(cookie);
+            pending_io_ops.push({cookie, status});
         }
         LOG_DEBUG("EWB_Engine: connection {} should be resumed for engine {}",
                   (void*)cookie,
@@ -1840,11 +1918,11 @@ void EWB_Engine::process_notifications() {
             return (pending_io_ops.size() > 0) || stop_notification_thread;
         });
         while (!pending_io_ops.empty()) {
-            const void* cookie = pending_io_ops.front();
+            const auto op = pending_io_ops.front();
             pending_io_ops.pop();
             lk.unlock();
-            LOG_DEBUG("EWB_Engine: notify {}", cookie);
-            server->cookie->notify_io_complete(cookie, ENGINE_SUCCESS);
+            LOG_DEBUG("EWB_Engine: notify {} status:{}", op.cookie, op.status);
+            server->cookie->notify_io_complete(op.cookie, op.status);
             lk.lock();
         }
     }

@@ -19,6 +19,7 @@
 #include "testapp_client_test.h"
 
 #include <platform/compress.h>
+#include <protocol/mcbp/ewb_encode.h>
 #include <algorithm>
 
 class RegressionTest : public TestappClientTest {};
@@ -111,10 +112,19 @@ TEST_P(RegressionTest, MB_26828_SetIsFixed) {
 
     // Configure the ewouldblock_engine to inject fake NOT STORED
     // failure for the 3rd call (i.e. the 1st engine->store() attempt).
-    conn.configureEwouldBlockEngine(
-            EWBEngineMode::Sequence,
-            ENGINE_NOT_STORED,
-            0xffffffc4 /* <3 MSBytes all-ones>, 0b11,000,100 */);
+    auto sequence = ewb::encodeSequence({
+            ewb::Passthrough,
+            ewb::Passthrough,
+            cb::engine_errc::not_stored,
+            ewb::Passthrough,
+            ewb::Passthrough,
+            ewb::Passthrough,
+    });
+    conn.configureEwouldBlockEngine(EWBEngineMode::Sequence,
+                                    /*unused*/ {},
+                                    /*unused*/ {},
+                                    sequence);
+
     cmd.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
 
     cmd.addMutation(

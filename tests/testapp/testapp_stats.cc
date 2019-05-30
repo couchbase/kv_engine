@@ -16,6 +16,7 @@
  */
 
 #include "testapp_client_test.h"
+#include <protocol/mcbp/ewb_encode.h>
 #include <gsl/gsl>
 
 class StatsTest : public TestappClientTest {
@@ -158,9 +159,16 @@ TEST_P(StatsTest, Test_MB_17815) {
     auto stats = conn.stats("");
     EXPECT_EQ(0, stats["cmd_set"].get<size_t>());
 
+    auto sequence = ewb::encodeSequence({cb::engine_errc::would_block,
+                                         cb::engine_errc::success,
+                                         ewb::Passthrough,
+                                         cb::engine_errc::would_block,
+                                         cb::engine_errc::success,
+                                         ewb::Passthrough});
     conn.configureEwouldBlockEngine(EWBEngineMode::Sequence,
-                                    ENGINE_EWOULDBLOCK,
-                                    0xfffffffd);
+                                    /*unused*/ {},
+                                    /*unused*/ {},
+                                    sequence);
 
     Document doc;
     doc.info.cas = mcbp::cas::Wildcard;
@@ -169,6 +177,9 @@ TEST_P(StatsTest, Test_MB_17815) {
     doc.value = memcached_cfg.dump();
 
     conn.mutate(doc, Vbid(0), MutationType::Add);
+
+    conn.disableEwouldBlockEngine();
+
     stats = conn.stats("");
     EXPECT_EQ(1, stats["cmd_set"].get<size_t>());
 }
@@ -188,11 +199,7 @@ TEST_P(StatsTest, Test_MB_17815_Append) {
     EXPECT_EQ(0, stats["cmd_set"].get<size_t>());
 
     // Allow first SET to succeed and then return EWOULDBLOCK for
-    // the Append (2nd op). Set all other operations to fail too since we
-    // do not expect any further operations.
-    conn.configureEwouldBlockEngine(EWBEngineMode::Sequence,
-                                    ENGINE_EWOULDBLOCK,
-                                    0xfffffffe /* Set to 0b11 111 110 */);
+    // the Append (2nd op).
 
     // Set a document
     Document doc;
@@ -202,8 +209,25 @@ TEST_P(StatsTest, Test_MB_17815_Append) {
     doc.value = memcached_cfg.dump();
     conn.mutate(doc, Vbid(0), MutationType::Set);
 
+    // bucket_get -> Passthrough,
+    // bucket_allocate -> Passthrough,
+    // bucket_CAS -> EWOULDBLOCK (success)
+    // bucket_CAS (retry) -> Passthrough
+    auto sequence = ewb::encodeSequence({ewb::Passthrough,
+                                         ewb::Passthrough,
+                                         cb::engine_errc::would_block,
+                                         cb::engine_errc::success,
+                                         ewb::Passthrough});
+    conn.configureEwouldBlockEngine(EWBEngineMode::Sequence,
+                                    /*unused*/ {},
+                                    /*unused*/ {},
+                                    sequence);
+
     // Now append to the same doc
     conn.mutate(doc, Vbid(0), MutationType::Append);
+
+    conn.disableEwouldBlockEngine();
+
     stats = conn.stats("");
     EXPECT_EQ(2, stats["cmd_set"].get<size_t>());
 }

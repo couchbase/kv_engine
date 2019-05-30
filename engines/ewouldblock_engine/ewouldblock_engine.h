@@ -43,8 +43,13 @@ enum class EWBEngineMode : uint32_t {
     // previous function was not this one.
     First = 2,
 
-    // Make the next N calls return a sequence of either their normal value or
-    // the injected error code. The sequence can be up to 32 elements long.
+    // Make the next N calls return the specified status code (or their normal
+    // value if -1 is specified).
+    // The sequence is encoded in the request key (given it is of variable
+    // length) as an array of cb::engine_errc codes (uint32_t).
+    // If cb::engine_errc::wouldblock is specified, then the following element
+    // in the array specifies the status code that notify_io_complete() should
+    // return.
     Sequence = 3,
 
     // Simulate CAS mismatch - make the next N store operations return

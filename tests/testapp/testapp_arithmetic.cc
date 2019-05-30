@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 #include "testapp_client_test.h"
+#include <protocol/mcbp/ewb_encode.h>
 #include <cctype>
 #include <limits>
 #include <thread>
@@ -256,12 +257,18 @@ TEST_P(ArithmeticTest, MB33813) {
     // Make the 3rd request send to the engine return ENGINE_NOT_STORED
     // In this case this will be the store that happens as a result of
     // a call to ArithmeticCommandContext::storeNewItem()
-    // We also set all the higher bits after the 6th. So that if the sequence
-    // of engine accesses change this test will fail.
-    connection.configureEwouldBlockEngine(
-            EWBEngineMode::Sequence,
-            ENGINE_NOT_STORED,
-            /* 0b11111111111111111111111111000100 */ 0xffffffc4);
+    auto sequence = ewb::encodeSequence({
+            ewb::Passthrough,
+            ewb::Passthrough,
+            cb::engine_errc::not_stored,
+            ewb::Passthrough,
+            ewb::Passthrough,
+            ewb::Passthrough,
+    });
+    connection.configureEwouldBlockEngine(EWBEngineMode::Sequence,
+                                          /*unused*/ {},
+                                          /*unused*/ {},
+                                          sequence);
 
     EXPECT_EQ(1, connection.increment(key, 0, 1));
 
@@ -278,15 +285,10 @@ TEST_P(ArithmeticTest, MB33813) {
 
     // Sanity check do the same thing but with a decrement
     key = name + "_dec";
-    // Make the 3rd request send to the engine return ENGINE_NOT_STORED
-    // In this case this will be the store that happens as a result of
-    // a call to ArithmeticCommandContext::storeNewItem()
-    // We also set all the higher bits after the 6th. So that if the sequence
-    // of engine accesses change this test will fail.
-    connection.configureEwouldBlockEngine(
-            EWBEngineMode::Sequence,
-            ENGINE_NOT_STORED,
-            /* 0b11111111111111111111111111000100 */ 0xffffffc4);
+    connection.configureEwouldBlockEngine(EWBEngineMode::Sequence,
+                                          /*unused*/ {},
+                                          /*unused*/ {},
+                                          sequence);
 
     EXPECT_EQ(2, connection.decrement(key, 0, 2));
 
