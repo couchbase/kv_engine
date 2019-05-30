@@ -2875,6 +2875,11 @@ void CouchKVStore::unlinkCouchFile(Vbid vbucket, uint64_t fRev) {
     std::string fname = dbname + "/" + std::to_string(vbucket.get()) +
                         ".couch." + std::to_string(fRev);
     cb::io::sanitizePath(fname);
+    logger.info("CouchKVStore::unlinkCouchFile: {}, revision:{}, fname:{}",
+                vbucket,
+                fRev,
+                fname);
+
     if (remove(fname.c_str()) == -1) {
         logger.warn(
                 "CouchKVStore::unlinkCouchFile: remove error:{}, "

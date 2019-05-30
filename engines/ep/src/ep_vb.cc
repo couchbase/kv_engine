@@ -716,8 +716,12 @@ GetValue EPVBucket::getInternalNonResident(const DocKey& key,
 
 void EPVBucket::setupDeferredDeletion(const void* cookie) {
     setDeferredDeletionCookie(cookie);
-    deferredDeletionFileRevision.store(
-            getShard()->getRWUnderlying()->prepareToDelete(getId()));
+    auto revision = getShard()->getRWUnderlying()->prepareToDelete(getId());
+    EP_LOG_INFO("EPVBucket::setupDeferredDeletion({}) {}, revision:{}",
+                cookie,
+                getId(),
+                revision);
+    deferredDeletionFileRevision.store(revision);
     setDeferredDeletion(true);
 }
 

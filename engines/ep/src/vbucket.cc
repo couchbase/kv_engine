@@ -254,6 +254,8 @@ VBucket::VBucket(Vbid i,
 }
 
 VBucket::~VBucket() {
+    EP_LOG_INFO("~VBucket(): {}", id);
+
     if (!pendingOps.empty()) {
         EP_LOG_WARN("~VBucket(): {} has {} pending ops", id, pendingOps.size());
     }
@@ -267,7 +269,6 @@ VBucket::~VBucket() {
     stats.coreLocal.get()->memOverhead.fetch_sub(
             sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
 
-    EP_LOG_INFO("Destroying {}", id);
 }
 
 int64_t VBucket::getHighSeqno() const {
