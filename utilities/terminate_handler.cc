@@ -29,6 +29,12 @@ static std::terminate_handler default_terminate_handler = nullptr;
 // Logs details on the handled exception. Attempts to log to
 // `terminate_logger` if non-null; otherwise prints to stderr.
 static void log_handled_exception() {
+#ifdef WIN32
+    // Windows doesn't like us re-throwing the exception in the handler (and
+    // seems to result in immediate process termination). As such skip logging
+    // the exception here.
+    return;
+#endif
     // Attempt to get the exception's what() message.
     try {
         static int tried_throw = 0;
