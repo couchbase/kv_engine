@@ -253,6 +253,24 @@ FUNCTION(ADD_TESTSUITE name timeout)
             ${Memcached_BINARY_DIR}/engine_testapp
             -E $<TARGET_FILE:ep>
             -T $<TARGET_FILE:${name}>)
+
+    # MB-34445: To attempt to identify the cause of the intermittent timeouts in
+    # the ephemeral testsuites, use the 'timeout' program to signal ep_testsuite
+    # with SIGABRT when we timeout; to allow a core dump to be generated of
+    # where the process is stuck. Use the 'timeout' program if applicable. If
+    # not, we just pass the timeout value into the CTest timeout feature.
+    find_program (TIMEOUT_EXE timeout)
+    IF (TIMEOUT_EXE AND NOT WIN32)
+        SET(_cmdline ${TIMEOUT_EXE} --preserve-status --signal=ABRT
+                     ${timeout}s ${_cmdline})
+        # Ideally, we would just not set the TIMEOUT property if we can use
+        # the 'timeout' program, however, it defaults to the value 1500 if we
+        # don't set it which may be smaller than the timeout that we pass into
+        # this function. So, just double the TIMEOUT value that we set so that
+        # it won't interfere with the 'timeout' programs actual timeout.
+        MATH(EXPR timeout "${timeout}*2")
+    ENDIF()
+
     ADD_TEST(NAME ${name}.value_eviction.comp_passive
             COMMAND ${_cmdline} -v -e "compression_mode=passive$<SEMICOLON>dbname=./${name}.value_eviction.comp_passive.db")
     ADD_TEST(NAME ${name}.value_eviction.comp_active
@@ -267,7 +285,6 @@ $<SEMICOLON>dbname=./${name}.full_eviction.comp_active.db")
     SET_TESTS_PROPERTIES(${name}.value_eviction.comp_active PROPERTIES TIMEOUT ${timeout})
     SET_TESTS_PROPERTIES(${name}.full_eviction.comp_passive PROPERTIES TIMEOUT ${timeout})
     SET_TESTS_PROPERTIES(${name}.full_eviction.comp_active PROPERTIES TIMEOUT ${timeout})
-
     IF (NOT arg_SKIP_EPHEMERAL)
         ADD_TEST(NAME ${name}.ephemeral.comp_passive
                 COMMAND ${_cmdline} -v -e "compression_mode=passive$<SEMICOLON>bucket_type=ephemeral\
