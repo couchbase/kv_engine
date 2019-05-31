@@ -23,11 +23,11 @@
 
 #include <gsl/gsl>
 
-bool document_pre_expiry(item_info& itm_info) {
+std::string document_pre_expiry(const item_info& itm_info) {
     if (!mcbp::datatype::is_xattr(itm_info.datatype)) {
         // The object does not contain any XATTRs so we should remove
         // the entire content
-        return false;
+        return {};
     }
 
     cb::char_buffer payload{static_cast<char*>(itm_info.value[0].iov_base),
@@ -36,32 +36,11 @@ bool document_pre_expiry(item_info& itm_info) {
     cb::xattr::Blob blob(payload, mcbp::datatype::is_snappy(itm_info.datatype));
     blob.prune_user_keys();
     auto pruned = blob.finalize();
-    if (pruned.len == 0) {
+    if (pruned.size() == 0) {
         // The old payload only contained user xattrs and
         // we removed everything
-        return false;
+        return {};
     }
 
-    // Pruning the user keys should just repack the data internally
-    // without any allocations, but to be on the safe side we should
-    // just check to verify, and if it happened to have done any
-    // reallocations we could copy the data into our buffer if it fits.
-    // (or we could throw an exception here, but I'd hate to get that
-    // 2AM call if we can avoid that with a simple fallback check)
-    if (pruned.buf != payload.buf) {
-        if (pruned.len > payload.len) {
-           throw std::logic_error("pre_expiry_document: the pruned object "
-                                  "won't fit!");
-        }
-
-        std::copy(pruned.buf, pruned.buf + pruned.len, payload.buf);
-    }
-
-    // Update the length field of the item
-    itm_info.nbytes = gsl::narrow<uint32_t>(pruned.len);
-    itm_info.value[0].iov_len = pruned.len;
-    // Clear all other datatype flags (we've stripped off everything)
-    itm_info.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
-
-    return true;
+    return {pruned.data(), pruned.size()};
 }
