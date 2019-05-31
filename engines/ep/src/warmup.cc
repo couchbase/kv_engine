@@ -1168,6 +1168,9 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
     for (const auto vbid : shardVbIds[shardId]) {
         const auto start = std::chrono::steady_clock::now();
         auto vb = store.getVBucket(vbid);
+        if (!vb) {
+            continue;
+        }
         auto& epVb = dynamic_cast<EPVBucket&>(*vb);
 
         auto storageCB = std::make_shared<LoadSyncWrites>(epVb);
