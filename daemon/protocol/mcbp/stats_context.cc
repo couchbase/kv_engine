@@ -744,7 +744,6 @@ ENGINE_ERROR_CODE StatsCommandContext::commandComplete() {
         // We just want to record this once rather than for each packet sent
         ++connection.getBucket()
                   .responseCounters[int(cb::mcbp::Status::Success)];
-        connection.setState(StateMachine::State::send_data);
         break;
     case ENGINE_EWOULDBLOCK:
         /* If the stats call returns ENGINE_EWOULDBLOCK then set the

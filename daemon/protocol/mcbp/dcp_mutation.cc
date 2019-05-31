@@ -79,7 +79,6 @@ void dcp_mutation_executor(Cookie& cookie) {
     ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        connection.setState(StateMachine::State::new_cmd);
         break;
 
     case ENGINE_DISCONNECT:

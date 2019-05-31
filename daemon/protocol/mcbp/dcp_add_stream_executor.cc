@@ -39,7 +39,6 @@ void dcp_add_stream_executor(Cookie& cookie) {
     ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        connection.setState(StateMachine::State::ship_log);
         break;
     case ENGINE_DISCONNECT:
         connection.shutdown();

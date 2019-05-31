@@ -1547,7 +1547,6 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
             }
         }
     }
-    connection.setState(StateMachine::State::send_data);
 }
 
 /* Construct and send a response to a multi-path lookup back to the client.
@@ -1633,8 +1632,6 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
             }
         }
     }
-
-    connection.setState(StateMachine::State::send_data);
 }
 
 // Respond back to the user as appropriate to the specific command.

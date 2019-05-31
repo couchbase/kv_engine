@@ -181,8 +181,6 @@ ADD_LIBRARY(memcached_daemon STATIC
             ssl_utils.h
             start_sasl_auth_task.cc
             start_sasl_auth_task.h
-            statemachine.cc
-            statemachine.h
             stats.h
             stats_tasks.cc
             stats_tasks.h

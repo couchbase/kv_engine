@@ -80,7 +80,6 @@ void dcp_stream_req_executor(Cookie& cookie) {
     ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        connection.setState(StateMachine::State::send_data);
         break;
 
     case ENGINE_ROLLBACK:

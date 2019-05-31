@@ -119,7 +119,6 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
             info.datatype,
             std::move(sendbuffer));
 
-    connection.setState(StateMachine::State::send_data);
     cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
 
     STATS_HIT(&connection, get);
@@ -137,7 +136,6 @@ ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
     if (cookie.getRequest().isQuiet()) {
         ++connection.getBucket()
                   .responseCounters[int(cb::mcbp::Status::KeyEnoent)];
-        connection.setState(StateMachine::State::new_cmd);
     } else {
         if (shouldSendKey()) {
             cookie.sendResponse(

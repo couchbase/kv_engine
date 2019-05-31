@@ -31,7 +31,6 @@ void collections_get_manifest_executor(Cookie& cookie) {
     ret = cookie.getConnection().remapErrorCode(ret);
     switch (ret) {
     case cb::engine_errc::success:
-        connection.setState(StateMachine::State::send_data);
         break;
     case cb::engine_errc::disconnect:
         connection.shutdown();

@@ -114,7 +114,6 @@ ENGINE_ERROR_CODE GetLockedCommandContext::sendResponse() {
             payload,
             datatype,
             std::move(sendbuffer));
-    connection.setState(StateMachine::State::send_data);
 
     STATS_INCR(&connection, cmd_lock);
     update_topkeys(cookie);

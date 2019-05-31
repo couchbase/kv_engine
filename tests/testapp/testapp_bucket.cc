@@ -274,123 +274,6 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
     resume.join();
 }
 
-// Strictly speaking this test /should/ work on Windows, however the
-// issue we hit is that the memcached connection send buffer on
-// Windows is huge (256MB in my testing) and so we timeout long before
-// we manage to fill the buffer with the tiny DCP packets we use (they
-// have to be small so we totally fill it).
-// Therefore disabling this test for now.
-
-// The following test is also used for MB24971, which was causing a hang due
-// to being stuck in conn_send_data state.
-#if !defined(WIN32)
-TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
-    auto& conn = getAdminConnection();
-
-    auto second_conn = conn.clone();
-    second_conn->authenticate("@admin", "password", "PLAIN");
-    auto* mcbp_conn = second_conn.get();
-
-    conn.createBucket("bucket", "default_engine.so", BucketType::EWouldBlock);
-    second_conn->selectBucket("bucket");
-
-    // We need to get into the `conn_ship_log` state, and then fill up the
-    // connections' write (send) buffer.
-
-    BinprotDcpOpenCommand dcp_open_command(
-            "ewb_internal", 0, cb::mcbp::request::DcpOpenPayload::Producer);
-    mcbp_conn->sendCommand(dcp_open_command);
-
-    BinprotDcpStreamRequestCommand dcp_stream_request_command;
-    mcbp_conn->sendCommand(dcp_stream_request_command);
-
-    // Now need to wait for the for the write (send) buffer of
-    // second_conn to fill in memcached. There's no direct way to
-    // check this from second_conn itself; and even if we examine the
-    // connections' state via a `connections` stats call there isn't
-    // any explicit state we can measure - basically the "kernel sendQ
-    // full" state is indistinguishable from "we have /some/ amount of
-    // data outstanding". We also can't get access to the current
-    // sendQ size in any portable way. Therefore we 'infer' the sendQ
-    // is full by sampling the "total_send" statistic and when it
-    // stops changing we assume the buffer is full.
-
-    // This isn't foolproof (a really slow machine would might look
-    // like it's full), but it is the best I can think of :/
-
-    // Assume that we'll see traffic at least every 500ms.
-    for (int previous_total_send = -1;
-         ;
-         std::this_thread::sleep_for(std::chrono::milliseconds(500))) {
-        // Get stats for all connections, then locate this connection
-        // - should be the one with dcp:true.
-        auto all_stats = conn.stats("connections");
-        boost::optional<nlohmann::json> my_conn_stats;
-
-        for (const auto& conn_stats : all_stats) {
-            auto dcp_flag = conn_stats.find("dcp");
-            if (dcp_flag != conn_stats.end() && dcp_flag->get<bool>() == true) {
-                my_conn_stats = conn_stats;
-            }
-        }
-
-        if (!my_conn_stats) {
-            // Connection isn't in DCP state yet (we are racing here with
-            // processing messages on second_conn). Retry on next iteration.
-            continue;
-        }
-
-        // Check how many bytes have been sent and see if it is
-        // unchanged from the previous sample.
-        auto total_send = my_conn_stats->find("total_send");
-
-        ASSERT_NE(my_conn_stats->end(), total_send)
-                << "Missing 'total_send' field in connection stats";
-
-        auto total_send_value = total_send->get<int>();
-        if (total_send_value == previous_total_send) {
-            // Unchanged - assume sendQ is now full.
-            break;
-        }
-
-        previous_total_send = total_send_value;
-    };
-
-    // Once we call deleteBucket below, it will hang forever (if the bug is
-    // present), so we need a watchdog thread which will close the connection
-    // if the bucket was not deleted.
-    std::mutex cv_m;
-    std::condition_variable cv;
-    std::atomic<bool> bucket_deleted{false};
-    std::atomic<bool> watchdog_fired{false};
-    std::thread watchdog{
-        [&second_conn, &cv_m, &cv, &bucket_deleted,
-         &watchdog_fired]() {
-            std::unique_lock<std::mutex> lock(cv_m);
-            cv.wait_for(lock, std::chrono::seconds(5),
-                        [&bucket_deleted](){return bucket_deleted == true;});
-
-            if (!bucket_deleted) {
-                watchdog_fired = true;
-                second_conn->close();
-            }
-        }
-    };
-
-    conn.deleteBucket("bucket");
-
-    // Check that the watchdog didn't fire.
-    EXPECT_FALSE(watchdog_fired)
-        << "Bucket deletion (with connected client in conn_ship_log and full "
-           "sendQ) only completed after watchdog fired";
-
-    // Cleanup - stop the watchdog (if it hasn't already fired).
-    bucket_deleted = true;
-    cv.notify_one();
-    watchdog.join();
-}
-#endif
-
 intptr_t getConnectionId(MemcachedConnection& conn) {
     const std::string agent_name{"getConnectionId 1.0"};
     conn.hello("getConnectionId", "1.0", "test connections test");
@@ -488,20 +371,16 @@ TEST_P(BucketTest, MB29639TestDeleteWhileSendDataAndFullWriteBuffer) {
     do {
         // Is the server currently blocked?
         auto json = getConnectionStats(*second_conn, id);
-        if (json["state"].get<std::string>() == "drain_send_buffer") {
-            int64_t totalSend = getTotalSent(json);
+        int64_t totalSend = getTotalSent(json);
 
-            // We're in the drain_send_buffer state, but we might not be blocked
-            // yet.. take a quick pause and check that we're still in
-            // drain_send_buffer and that we haven't sent any data!
-            std::this_thread::sleep_for(std::chrono::microseconds(100));
+        // We're in the drain_send_buffer state, but we might not be blocked
+        // yet.. take a quick pause and check that we're still in
+        // drain_send_buffer and that we haven't sent any data!
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
 
-            json = getConnectionStats(*second_conn, id);
-            if (json["state"].get<std::string>() == "drain_send_buffer") {
-                if (totalSend == getTotalSent(json)) {
-                    blocked.store(true);
-                }
-            }
+        json = getConnectionStats(*second_conn, id);
+        if (totalSend == getTotalSent(json)) {
+            blocked.store(true);
         }
     } while (!blocked);
 

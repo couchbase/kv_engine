@@ -33,9 +33,6 @@ void destroy_connections();
 /* Run through all the connections and close them */
 void close_all_connections();
 
-/* Run the connection event loop; until an event handler returns false. */
-void run_event_loop(Connection& c);
-
 /**
  * Cerate a new client connection
  *
@@ -49,6 +46,13 @@ Connection* conn_new(SOCKET sfd,
                      const ListeningPort& interface,
                      struct event_base* base,
                      FrontEndThread& thread);
+
+/**
+ * Destroy the connection
+ *
+ * @param c the connection object to destroy
+ */
+void conn_destroy(Connection* c);
 
 /**
  * Signal all of the idle clients in the system.

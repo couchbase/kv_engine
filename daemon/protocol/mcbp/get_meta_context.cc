@@ -88,7 +88,6 @@ ENGINE_ERROR_CODE GetMetaCommandContext::noSuchItem() {
     if (cookie.getRequest().isQuiet()) {
         auto& bucket = connection.getBucket();
         bucket.responseCounters[int(cb::mcbp::Status::KeyEnoent)]++;
-        connection.setState(StateMachine::State::new_cmd);
     } else {
         auto& req = cookie.getRequest();
         if (req.getClientOpcode() != cb::mcbp::ClientOpcode::GetqMeta) {

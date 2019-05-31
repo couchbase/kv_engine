@@ -67,6 +67,11 @@ public:
      */
     void initialize(const cb::mcbp::Header& packet, bool tracing_enabled);
 
+    /// Is this object initialized or not..
+    bool empty() const {
+        return !packet;
+    }
+
     /**
      * Validates the packet content, and (possibly) set the error
      * state and reason.
@@ -208,8 +213,6 @@ public:
      * @throws std::logic_error if the packet isn't available
      */
     cb::const_byte_buffer getPacket() const;
-
-    void clearPacket();
 
     /**
      * Preserve the input packet by allocating memory and copy the
@@ -472,7 +475,26 @@ public:
         authorized = true;
     }
 
+    /**
+     * Mark this cookie as a barrier. A barrier command cannot be executed in
+     * parallel with other commands. For more information see
+     * docs/UnorderedExecution.md
+     */
+    void setBarrier() {
+        reorder = false;
+    }
+
+    /// May the execution of this command be reordered with another command
+    /// in the same pipeline?
+    bool mayReorder() const {
+        return reorder;
+    }
+
 protected:
+    bool validated = false;
+
+    bool reorder = false;
+
     /// The tracing context provided by the client to use as the
     /// parent span
     std::string openTracingContext;
@@ -491,8 +513,6 @@ protected:
      * transferred to the client.
      */
     std::string json_message;
-
-    bool validated = false;
 
     /**
      * The input packet used in this command context

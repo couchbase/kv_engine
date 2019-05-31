@@ -164,6 +164,7 @@ TEST_P(ClusterConfigTest, CccpPushNotification) {
 
     auto second = conn.clone();
 
+    second->setFeature(cb::mcbp::Feature::UnorderedExecution, true);
     second->setDuplexSupport(true);
     second->setClustermapChangeNotification(true);
 

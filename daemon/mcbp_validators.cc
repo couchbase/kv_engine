@@ -231,6 +231,8 @@ Status McbpValidator::verify_header(Cookie& cookie,
                     status = Status::Einval;
                     // terminate parsing
                     return false;
+                } else {
+                    cookie.setBarrier();
                 }
                 return true;
             case cb::mcbp::request::FrameInfoId::DurabilityRequirement:

@@ -23,6 +23,7 @@
 #include "mcaudit.h"
 #include "mcbp.h"
 #include "mcbp_executors.h"
+#include "memcached.h"
 #include "protocol/mcbp/engine_errc_2_mcbp.h"
 #include "sendbuffer.h"
 #include "settings.h"
@@ -116,6 +117,10 @@ const std::string& Cookie::getErrorJson() {
 }
 
 bool Cookie::execute() {
+    if (!validated) {
+        throw std::runtime_error("Cookie::execute: validate() not called");
+    }
+
     // Reset ewouldblock state!
     setEwouldblock(false);
     const auto& header = getHeader();
@@ -127,7 +132,12 @@ bool Cookie::execute() {
         execute_request_packet(*this, header.getRequest());
     }
 
-    return !isEwouldblock();
+    if (isEwouldblock()) {
+        return false;
+    }
+
+    mcbp_collect_timings(*this);
+    return true;
 }
 
 void Cookie::setPacket(const cb::mcbp::Header& header, bool copy) {
@@ -143,27 +153,10 @@ void Cookie::setPacket(const cb::mcbp::Header& header, bool copy) {
 
 cb::const_byte_buffer Cookie::getPacket() const {
     if (packet == nullptr) {
-        throw std::logic_error("Cookie::getPacket(): packet not available");
+        return {};
     }
 
     return packet->getFrame();
-}
-
-void Cookie::clearPacket() {
-    if (frame_copy) {
-        frame_copy.reset();
-    } else {
-        // We don't have a copy of the packet, so we need to consume it
-        // from libevent
-        auto* ev = connection.bev.get();
-        if (evbuffer_drain(bufferevent_get_input(ev),
-                           sizeof(*packet) + packet->getBodylen()) == -1) {
-            throw std::runtime_error(
-                    "Cookie::clearPacket: Failed to drain input packet");
-        }
-    }
-
-    packet = nullptr;
 }
 
 const cb::mcbp::Header& Cookie::getHeader() const {
@@ -217,7 +210,6 @@ void Cookie::sendNotMyVBucket() {
                                 {},
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 {});
-        connection.setState(StateMachine::State::send_data);
         return;
     }
 
@@ -229,7 +221,6 @@ void Cookie::sendNotMyVBucket() {
                             {pair.second->data(), pair.second->size()},
                             PROTOCOL_BINARY_DATATYPE_JSON,
                             {});
-    connection.setState(StateMachine::State::send_data);
     connection.setClustermapRevno(pair.first);
 }
 
@@ -243,13 +234,11 @@ void Cookie::sendResponse(cb::mcbp::Status status) {
             // normally updates the responseCounters).
             auto& bucket = connection.getBucket();
             ++bucket.responseCounters[int(cb::mcbp::Status::Success)];
-            connection.setState(StateMachine::State::new_cmd);
             return;
         }
 
         connection.sendResponse(
                 *this, status, {}, {}, {}, PROTOCOL_BINARY_RAW_BYTES, {});
-        connection.setState(StateMachine::State::send_data);
         return;
     }
 
@@ -298,8 +287,6 @@ void Cookie::sendResponse(cb::mcbp::Status status,
                             connection.getEnabledDatatypes(
                                     protocol_binary_datatype_t(datatype)),
                             {});
-
-    connection.setState(StateMachine::State::send_data);
 }
 
 const DocKey Cookie::getRequestKey() const {
@@ -471,8 +458,14 @@ cb::mcbp::Status Cookie::validate() {
             audit_invalid_packet(connection, getPacket());
             throw std::runtime_error("Received a server command");
         }
+
+        // Add a barrier to the command if we don't support reordering it!
+        if (reorder && !is_reorder_supported(request.getClientOpcode())) {
+            setBarrier();
+        }
     } // We don't currently have any validators for response packets
 
+    validated = true;
     return cb::mcbp::Status::Success;
 }
 
@@ -488,6 +481,7 @@ void Cookie::reset() {
     ewouldblock = false;
     openTracingContext.clear();
     authorized = false;
+    reorder = connection.allowUnorderedExecution();
 }
 
 void Cookie::setOpenTracingContext(cb::const_byte_buffer context) {

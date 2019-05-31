@@ -17,7 +17,7 @@
 #pragma once
 
 #include "datatype.h"
-#include "statemachine.h"
+#include "sendbuffer.h"
 #include "stats.h"
 #include "task.h"
 
@@ -36,10 +36,10 @@
 
 #include <array>
 #include <chrono>
+#include <deque>
 #include <memory>
 #include <queue>
 #include <string>
-#include <vector>
 
 class Bucket;
 class Cookie;
@@ -356,34 +356,6 @@ public:
      */
     void enqueueServerEvent(std::unique_ptr<ServerEvent> event);
 
-    /**
-     * Close the connection. If there is any references to the connection
-     * or the cookies we'll enter the "pending close" state to wait for
-     * these operations to complete before changing state to immediate
-     * close.
-     *
-     * @return true if the state machinery could be continued, false if
-     *              we'd need external input in order to continue to drive
-     *              the state machinery
-     */
-    bool close();
-
-    /**
-     * fire ON_DISCONNECT for all of the cookie objects (in case the
-     * underlying engine keeps track of any of them)
-     */
-    void propagateDisconnect() const;
-
-    void setState(StateMachine::State next_state);
-
-    StateMachine::State getState() const {
-        return stateMachine.getCurrentState();
-    }
-
-    const char* getStateName() const {
-        return stateMachine.getCurrentStateName();
-    }
-
     bool isDCP() const {
         return dcp;
     }
@@ -562,14 +534,6 @@ public:
      */
     bool tryAuthFromSslCert(const std::string& userName);
 
-    bool shouldDelete();
-
-    void runEventLoop();
-
-    Cookie& getCookieObject() {
-        return *cookies.front();
-    }
-
     /**
      * Get the number of cookies currently bound to this connection
      */
@@ -623,9 +587,7 @@ public:
     bool selectedBucketIsXattrEnabled() const;
 
     /// Initiate shutdown of the connection
-    void shutdown() {
-        setState(StateMachine::State::closing);
-    }
+    void shutdown();
 
     /**
      * Try to process some of the server events. This may _ONLY_ be performed
@@ -659,15 +621,6 @@ public:
      * @param uuid the uuid to use
      */
     void setConnectionId(cb::const_char_buffer uuid);
-
-    /**
-     * Check to see if it is time to back off the CPU to let other
-     * connections perform operations. If it is time to back off the
-     * CPU reschedule execution by setting a callback in libevent
-     *
-     * @return true if it is time yield, false otherwise
-     */
-    bool maybeYield();
 
     /**
      * Add a header, extras and key to the output socket
@@ -845,13 +798,25 @@ protected:
     explicit Connection(FrontEndThread& thr);
 
     /**
+     * Close the connection. If there is any references to the connection
+     * or the cookies we'll enter the "pending close" state to wait for
+     * these operations to complete before changing state to immediate
+     * close.
+     */
+    void close();
+
+    /**
+     * fire ON_DISCONNECT for all of the cookie objects (in case the
+     * underlying engine keeps track of any of them)
+     */
+    void propagateDisconnect() const;
+
+    /**
      * Update the description string for the connection. This
      * method should be called every time the authentication data
      * (or the sockname/peername) changes
      */
     void updateDescription();
-
-    void runStateMachinery();
 
     // Shared DCP_DELETION write function for the v1/v2 commands.
     ENGINE_ERROR_CODE deletionInner(const item_info& info,
@@ -994,10 +959,22 @@ protected:
      */
     std::array<char, MaxSavedConnectionId> connectionId{};
 
-    /**
-     * The state machine we're currently using
-     */
-    StateMachine stateMachine;
+    /// A class representing the states the connection may be in
+    enum class State : int8_t {
+        /// The client is running and may accept new commands
+        running,
+        /// Initiating shutdown of the connection. Depending of the number
+        /// of external references to the connection we may go to pending_close
+        /// or immediate close
+        closing,
+        /// Waiting for all of the references to the connections to be released
+        pending_close,
+        /// NO external references to the connection; may go ahead and kill it
+        immediate_close
+    };
+
+    /// The current state we're in
+    State state{State::running};
 
     /** Is this connection used by a DCP connection? */
     bool dcp = false;
@@ -1028,17 +1005,8 @@ protected:
         void operator()(bufferevent* ev);
     };
 
-public:
-    /**
-     * The bufferevent is currently public while we're figuring out the need
-     * for it. It'll be refactored to be made private in one of the following
-     * commits
-     *
-     * @todo make sure this is protected
-     */
     std::unique_ptr<bufferevent, EventDeleter> bev;
 
-protected:
     /**
      * If the client enabled the mutation seqno feature each mutation
      * command will return the vbucket UUID and sequence number for the
@@ -1052,14 +1020,19 @@ protected:
     size_t totalSend = 0;
 
     /**
-     * The list of commands currently being processed. Currently we
-     * only use a single entry in this vector (and always reuse that
-     * object for all commands), but when the client tries to
-     * enable unordered execution we may operate with multiple
-     * commands at the same time and they're all stored in this
-     * vector)
+     * The "list" of commands currently being processed. We ALWAYS keep the
+     * the first entry in the list (and try to reuse that) due to how DCP
+     * works. The engine keeps a reference to the DCP consumer based on
+     * the address of the provided cookie. Connections registered for
+     * DCP will _ONLY_ use the first entry in the list (and never use OoO)
+     *
+     * Given that we want to be able to put them in an ordered sequence
+     * (we may receive a command we cannot reorder) we want to use a
+     * datastructure where we can easily remove an item in the middle
+     * (without having to move the rest of the elements as it could be
+     * that we want to get rid of more elements as we traverse).
      */
-    std::vector<std::unique_ptr<Cookie>> cookies;
+    std::deque<std::unique_ptr<Cookie>> cookies;
 
     Datatype datatype;
 
@@ -1086,27 +1059,61 @@ protected:
         bool term{false};
     } sendQueueInfo;
 
-public:
     /**
      * Given that we "ack" the writing once we drain the write buffer in
      * memcached we need an extra state variable to make sure that we don't
      * kill the connection object before the data is sent over the wire
      * (in the case where we want to send an error and shut down the connection)
      *
-     * @todo This state variable is temporary and will be eliminated in
-     * the following patch series when we stop using our internal read
-     * and write buffer.
+     * @return true if there is more data to be sent over the wire
      */
     bool havePendingData() const;
 
-    /**
-     * Get the number of bytes stuck in the send queue
-     *
-     * @return
-     */
+    /// Get the number of bytes stuck in the send queue
     size_t getSendQueueSize() const;
 
-protected:
+    /**
+     * Shutdown the connection if the send queue is stuck  (no data transmitted
+     * drained from the send queue for a certain period of time).
+     *
+     * If the send queue is considered to be stuck we'll initiate shutdown
+     * of the connection.
+     *
+     * @param now the current time (to avoid reading the clock)
+     */
+    void shutdownIfSendQueueStuck(std::chrono::steady_clock::time_point now);
+
+    /**
+     * Iterate over all of the existing cookies (commands) and try to call
+     * execute() on all of the cookies which isn't blocked in the engine.
+     *
+     * @return true if there is any blocked commands, false otherwise
+     */
+    bool processAllReadyCookies();
+
+    /**
+     * Execute commands in the pipeline.
+     *
+     * Continue to execute the commands already started, and if we may start
+     * the execution of the next command (out of order execution enabled by
+     * the user, _AND_ the next commands allows for reordering) start the
+     * execution
+     */
+    void executeCommandPipeline();
+
+    /**
+     * bufferevents calls rw_callback if there is a read or write event
+     * for the connection, and event_callback for other events (error ect).
+     *
+     * The logic for our connection is however the same, so we can use the
+     * same callback method for both of them (and make this a member
+     * method on the instance rather a static function)
+     *
+     * @return true if the connection is still being used, false if it
+     *              should be deleted
+     */
+    bool executeCommandsCallback();
+
     /**
      * The callback method called from bufferevent for read/write callbacks
      *

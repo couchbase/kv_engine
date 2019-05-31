@@ -131,7 +131,6 @@ static void process_bin_unknown_packet(Cookie& cookie) {
     ret = cookie.getConnection().remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS: {
-        connection.setState(StateMachine::State::send_data);
         update_topkeys(cookie);
         break;
     }
@@ -150,7 +149,7 @@ static void process_bin_unknown_packet(Cookie& cookie) {
  * We received a noop response.. just ignore it
  */
 static void process_bin_noop_response(Cookie& cookie) {
-    cookie.getConnection().setState(StateMachine::State::new_cmd);
+    // do nothing
 }
 
 static void add_set_replace_executor(Cookie& cookie,
@@ -619,8 +618,6 @@ static void process_bin_dcp_response(Cookie& cookie) {
                     c.getDescription());
         }
         c.shutdown();
-    } else {
-        c.setState(StateMachine::State::ship_log);
     }
 }
 
@@ -935,8 +932,6 @@ static void execute_client_response_packet(Cookie& cookie,
 static void execute_server_response_packet(Cookie& cookie,
                                            const cb::mcbp::Response& response) {
     auto& c = cookie.getConnection();
-    c.setState(StateMachine::State::new_cmd);
-
     const auto opcode = response.getServerOpcode();
     switch (opcode) {
     case cb::mcbp::ServerOpcode::ClustermapChangeNotification:
