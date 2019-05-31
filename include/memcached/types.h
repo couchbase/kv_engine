@@ -181,8 +181,8 @@ std::string to_string(DeleteSource deleteSource);
 /**
  * The committed state of the Item.
  *
- * Consists of four states: CommittedViaMutation, CommittedViaPrepare
- * Pending and PreparedMaybeVisible.
+ * Consists of six states: CommittedViaMutation, CommittedViaPrepare
+ * Pending, PreparedMaybeVisible, PrepareAborted, and PrepareCommitted.
  * The first two are generally considered as the same 'Committed' state
  * by external observers, but internally we need to differentiate between
  * them to write to disk / send over DCP hence having two different states.
@@ -191,6 +191,10 @@ std::string to_string(DeleteSource deleteSource);
  * but after warmup or failover SyncWrites which _may_ already have been
  * Committed (but haven't yet been Committed locally) are marked as
  * PreparedMaybeVisible.
+ *
+ * PrepareAborted and PrepareCommitted are used to identify prepares that exist
+ * in the HashTable after they have been completed which is required for
+ * Ephemeral.
  *
  * Used in a bitfield in StoredValue hence explicit values for enums required.
  */
