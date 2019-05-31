@@ -26,6 +26,9 @@
 #include <memcached/durability_spec.h>
 #include <memcached/limits.h>
 #include <tracing/trace_helpers.h>
+#include <utilities/logtags.h>
+
+using namespace std::string_literals;
 
 ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie,
                                          const AddResponseFn& response) {
@@ -61,6 +64,9 @@ bool bucket_get_item_info(Connection& c,
                           gsl::not_null<const item*> item_,
                           gsl::not_null<item_info*> item_info_) {
     auto ret = c.getBucketEngine()->get_item_info(item_, item_info_);
+
+    LOG_TRACE("bucket_get_item_info() item:{} -> {}", item_.get(), ret);
+
     if (!ret) {
         LOG_INFO("{}: {} bucket_get_item_info failed",
                  c.getId(),
@@ -94,6 +100,13 @@ ENGINE_ERROR_CODE bucket_store(
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->store(
             &cookie, item_, cas, operation, durability, document_state);
+
+    LOG_TRACE("bucket_store() item:{} cas:{} op:{} -> {}",
+              item_.get(),
+              cas,
+              operation,
+              ret);
+
     if (ret == ENGINE_SUCCESS) {
         using namespace cb::audit::document;
         add(cookie,
@@ -283,6 +296,16 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
 
     auto& c = cookie.getConnection();
     try {
+        LOG_TRACE(
+                "bucket_allocate_ex() key:{} nbytes:{} flags:{} exptime:{} "
+                "datatype:{} vbucket:{}",
+                cb::UserDataView(cb::const_char_buffer(key)),
+                nbytes,
+                flags,
+                exptime,
+                datatype,
+                vbucket);
+
         return c.getBucketEngine()->allocate_ex(&cookie,
                                                 key,
                                                 nbytes,
