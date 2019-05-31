@@ -54,15 +54,15 @@ struct ServerDocumentIface {
 
     /**
      * This callback is called from the underlying engine right before
-     * a particular document expires. The callback is responsible for
-     * modifying the contents of the itm_info passed in. The updated
-     * total size is available in itm_info.nbytes.
+     * a particular document expires. The callback is responsible examining
+     * the value and possibly returning a new and modified value.
      *
      * @param itm_info info pertaining to the item that is to be expired.
-     * @return true indicating that the info has been modified in itm_info.
-     *         false indicating that there is no data available in itm_info.
+     * @return std::string empty if the value required no modification, not
+     *         empty then the string contains the modified value. When not empty
+     *         the datatype of the new value is datatype xattr only.
+     *
      * @throws std::bad_alloc in case of memory allocation failure
-     * @throws std::logic_error if the data has grown
      */
-    virtual bool pre_expiry(item_info& itm_info) = 0;
+    virtual std::string pre_expiry(const item_info& itm_info) = 0;
 };

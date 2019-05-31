@@ -24,7 +24,7 @@
 
 TEST(PreExpiry, EmptyDocument) {
     item_info info{};
-    EXPECT_FALSE(document_pre_expiry(info));
+    EXPECT_TRUE(document_pre_expiry(info).empty());
 }
 
 TEST(PreExpiry, DocumentWithoutXattr) {
@@ -33,8 +33,8 @@ TEST(PreExpiry, DocumentWithoutXattr) {
     info.value[0].iov_base = static_cast<void*>(blob);
     info.value[0].iov_len = sizeof(blob);
     info.nbytes = sizeof(blob);
-    EXPECT_FALSE(document_pre_expiry(info));
-    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, info.datatype);
+    auto rv = document_pre_expiry(info);
+    EXPECT_TRUE(rv.empty());
 }
 
 TEST(PreExpiry, DocumentWithUserXAttrOnly) {
@@ -46,8 +46,8 @@ TEST(PreExpiry, DocumentWithUserXAttrOnly) {
     info.value[0].iov_len = body.size();
     info.nbytes = gsl::narrow<uint32_t>(body.size());
     info.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
-    EXPECT_FALSE(document_pre_expiry(info));
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, info.datatype);
+    auto rv = document_pre_expiry(info);
+    EXPECT_TRUE(rv.empty());
 }
 
 TEST(PreExpiry, DocumentWithSystemXattrOnly) {
@@ -59,8 +59,8 @@ TEST(PreExpiry, DocumentWithSystemXattrOnly) {
     info.value[0].iov_len = body.size();
     info.nbytes = gsl::narrow<uint32_t>(body.size());
     info.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
-    EXPECT_TRUE(document_pre_expiry(info));
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, info.datatype);
+    auto rv = document_pre_expiry(info);
+    EXPECT_FALSE(rv.empty());
 }
 
 TEST(PreExpiry, DocumentWithUserAndSystemXattr) {
@@ -73,11 +73,9 @@ TEST(PreExpiry, DocumentWithUserAndSystemXattr) {
     info.value[0].iov_len = body.size();
     info.nbytes = gsl::narrow<uint32_t>(body.size());
     info.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
-    EXPECT_TRUE(document_pre_expiry(info));
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, info.datatype);
-
-    // The body should have been modified (shrinked by stripping off user attr)
-    EXPECT_GT(body.size(), info.datatype);
+    auto rv = document_pre_expiry(info);
+    EXPECT_FALSE(rv.empty());
+    EXPECT_LT(rv.size(), body.size());
 }
 
 TEST(PreExpiry, DocumentWithJsonBodyAndXattrs) {
@@ -95,10 +93,7 @@ TEST(PreExpiry, DocumentWithJsonBodyAndXattrs) {
     info.nbytes = gsl::narrow<uint32_t>(body.size());
     info.datatype =
             PROTOCOL_BINARY_DATATYPE_XATTR | PROTOCOL_BINARY_DATATYPE_JSON;
-    EXPECT_TRUE(document_pre_expiry(info));
-    // The JSON datatype should be stripped off
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, info.datatype);
-
-    // The body should have been modified (shrinked by stripping off user attr)
-    EXPECT_GT(body.size(), info.datatype);
+    auto rv = document_pre_expiry(info);
+    EXPECT_FALSE(rv.empty());
+    EXPECT_LT(rv.size(), body.size());
 }

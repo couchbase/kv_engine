@@ -218,7 +218,7 @@ struct MockServerDocumentApi : public ServerDocumentIface {
         return ENGINE_SUCCESS;
     }
 
-    bool pre_expiry(item_info& itm_info) override {
+    std::string pre_expiry(const item_info& itm_info) override {
         return document_pre_expiry(itm_info);
     }
 };

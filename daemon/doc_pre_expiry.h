@@ -23,4 +23,4 @@
  * Implementation of the pre_expiry hook in the `SERVER_DOCUMENT_API`. Check
  * the server API documentation for more information.
  */
-bool document_pre_expiry(item_info& itm_info);
+std::string document_pre_expiry(const item_info& itm_info);
