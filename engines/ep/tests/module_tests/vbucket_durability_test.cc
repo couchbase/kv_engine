@@ -491,7 +491,7 @@ TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     *ckptMgr);
 
-    auto checkPending = [this, &key, &ckptList, preparedSeqno]() -> void {
+    auto checkPending = [this, &key, &ckptList]() -> void {
         EXPECT_EQ(nullptr, ht->findForRead(key).storedValue);
         const auto sv = ht->findForWrite(key).storedValue;
         ASSERT_NE(nullptr, sv);
@@ -501,13 +501,11 @@ TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
         for (const auto& qi : *ckptList.front()) {
             if (!qi->isCheckPointMetaItem()) {
                 EXPECT_EQ(queue_op::pending_sync_write, qi->getOperation());
-                EXPECT_EQ(preparedSeqno, qi->getBySeqno());
-                EXPECT_EQ("value", qi->getValue()->to_s());
             }
         }
     };
 
-    auto checkCommitted = [this, &key, &ckptList, preparedSeqno]() -> void {
+    auto checkCommitted = [this, &key, &ckptList]() -> void {
         const auto sv = ht->findForRead(key).storedValue;
         ASSERT_NE(nullptr, sv);
         EXPECT_NE(nullptr, ht->findForWrite(key).storedValue);
@@ -517,9 +515,6 @@ TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
         for (const auto& qi : *ckptList.front()) {
             if (!qi->isCheckPointMetaItem()) {
                 EXPECT_EQ(queue_op::commit_sync_write, qi->getOperation());
-                EXPECT_GT(qi->getBySeqno() /*commitSeqno*/, preparedSeqno);
-                EXPECT_EQ(preparedSeqno, qi->getPrepareSeqno());
-                EXPECT_EQ("value", qi->getValue()->to_s());
             }
         }
     };
@@ -684,8 +679,7 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbort) {
  * 3) the abort_sync_write is not added to the DurabilityMonitor
  */
 TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
-    const int64_t preparedSeqno = 1;
-    storeSyncWrites({preparedSeqno});
+    storeSyncWrites({1} /*seqno*/);
     ASSERT_EQ(1,
               VBucketTestIntrospector::public_getActiveDM(*vbucket)
                       .getNumTracked());
@@ -701,9 +695,9 @@ TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
         // Visible at write
         auto storedItem = ht->findForWrite(key);
         ASSERT_TRUE(storedItem.storedValue);
+        // item pending
         EXPECT_EQ(CommittedState::Pending,
                   storedItem.storedValue->getCommitted());
-        EXPECT_EQ(preparedSeqno, storedItem.storedValue->getBySeqno());
     }
 
     const auto& ckptList =
@@ -725,7 +719,6 @@ TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
     it++;
     ASSERT_EQ(1, ckpt->getNumItems());
     EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
-    EXPECT_EQ(preparedSeqno, (*it)->getBySeqno());
     EXPECT_EQ("value", (*it)->getValue()->to_s());
 
     // The Pending is tracked by the DurabilityMonitor
@@ -772,8 +765,6 @@ TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
     EXPECT_EQ(queue_op::abort_sync_write, (*it)->getOperation());
     EXPECT_TRUE((*it)->isDeleted());
     EXPECT_FALSE((*it)->getValue());
-    EXPECT_GT((*it)->getBySeqno(), preparedSeqno);
-    EXPECT_EQ(preparedSeqno, (*it)->getPrepareSeqno());
 
     // The Aborted item is not added for tracking.
     // Note: The Pending has not been removed as we are testing at VBucket
@@ -1035,9 +1026,8 @@ void VBucketDurabilityTest::testHTSyncDeleteCommit() {
     auto* writeView = ht->findForWrite(key).storedValue;
     ASSERT_TRUE(writeView);
     VBQueueItemCtx ctx;
-    ctx.durability = DurabilityItemCtx{
-            cb::durability::Requirements{cb::durability::Level::Majority, {}},
-            cookie};
+    ctx.durability =
+            DurabilityItemCtx{{cb::durability::Level::Majority, {}}, cookie};
     ASSERT_EQ(MutationStatus::WasDirty,
               public_processSoftDelete(key, ctx).first);
 
@@ -1472,28 +1462,14 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     *ckptMgr);
-    // 1 checkpoint
     ASSERT_EQ(1, ckptList.size());
-    // empty-item
-    const auto& ckpt = *ckptList.front();
-    auto it = ckpt.begin();
-    ASSERT_EQ(queue_op::empty, (*it)->getOperation());
-    // 1 metaitem (checkpoint-start)
-    it++;
-    ASSERT_EQ(1, ckpt.getNumMetaItems());
-    EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
-    // 3 non-metaitem are Committed or Aborted
-    ASSERT_EQ(writes.size(), ckpt.getNumItems());
+    EXPECT_EQ(writes.size(), ckptList.front()->getNumItems());
     const auto expectedOp =
             (res == Resolution::Commit ? queue_op::commit_sync_write
                                        : queue_op::abort_sync_write);
-    for (const auto& prepare : writes) {
-        it++;
-        EXPECT_EQ(expectedOp, (*it)->getOperation());
-        EXPECT_GT((*it)->getBySeqno() /*commitSeqno*/, prepare.seqno);
-        EXPECT_EQ(prepare.seqno, (*it)->getPrepareSeqno());
-        if (expectedOp == queue_op::commit_sync_write) {
-            EXPECT_EQ("value", (*it)->getValue()->to_s());
+    for (const auto& qi : *ckptList.front()) {
+        if (!qi->isCheckPointMetaItem()) {
+            EXPECT_EQ(expectedOp, qi->getOperation());
         }
     }
 
