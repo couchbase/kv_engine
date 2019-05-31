@@ -1032,8 +1032,8 @@ protected:
 
     /// If the stored value is deleted, this stores the source of its deletion.
     uint8_t deletionSource : 1;
-    /// 2-bit value which encodes the CommittedState of the StoredValue
-    uint8_t committed : 2;
+    /// 3-bit value which encodes the CommittedState of the StoredValue
+    uint8_t committed : 3;
 
     friend std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
 };

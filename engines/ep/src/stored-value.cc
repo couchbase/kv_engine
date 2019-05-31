@@ -249,6 +249,13 @@ std::unique_ptr<Item> StoredValue::toItem(
     case CommittedState::CommittedViaMutation:
         // nothing do to.
         break;
+    case CommittedState::PrepareAborted:
+    case CommittedState::PrepareCommitted:
+        // We shouldn't be trying to create Item's out of these (for now)
+        throw std::logic_error(
+                "StoredValue::toItemImpl: attempt to create"
+                "Item from completed prepare");
+        break;
     }
 
     return item;
@@ -493,6 +500,12 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
         break;
     case CommittedState::PreparedMaybeVisible:
         os << "Pv";
+        break;
+    case CommittedState::PrepareAborted:
+        os << "Pa";
+        break;
+    case CommittedState::PrepareCommitted:
+        os << "Pc";
         break;
     }
 

@@ -210,4 +210,13 @@ enum class CommittedState : char {
     /// Same semantics as 'Pending, with the addition of blocking reads to any
     /// existing value.
     PreparedMaybeVisible = 3,
+    /// Item is prepared but has been aborted. This is required mainly for
+    /// Ephemeral where we need to keep completed prepares in the HashTable and
+    /// need to be able to distinguish if a prepare is in-flight or completed.
+    /// We also need to be able to distinguish between aborted and committed
+    /// items for DCP backfill.
+    PrepareAborted = 4,
+    /// Item is prepared but has been committed. See also comment for
+    /// PrepareAborted.
+    PrepareCommitted = 5,
 };

@@ -345,7 +345,12 @@ HashTable::UpdateResult HashTable::unlocked_updateStoredValue(
     case CommittedState::PreparedMaybeVisible:
         // Cannot update a SV if it's a Pending item.
         return {MutationStatus::IsPendingSyncWrite, nullptr};
-
+    case CommittedState::PrepareAborted:
+    case CommittedState::PrepareCommitted:
+        // We shouldn't be trying to use PrepareCompleted states yet
+        throw std::logic_error(
+                "HashTable::unlocked_updateStoredValue"
+                " attempting to update a completed prepare");
     case CommittedState::CommittedViaMutation:
     case CommittedState::CommittedViaPrepare:
         // Logically /can/ update a non-Pending StoredValue with a Pending Item;
@@ -550,7 +555,12 @@ HashTable::DeleteResult HashTable::unlocked_softDelete(
     case CommittedState::PreparedMaybeVisible:
         // Cannot update a SV if it's a Pending item.
         return {DeletionStatus::IsPendingSyncWrite, nullptr};
-
+    case CommittedState::PrepareAborted:
+    case CommittedState::PrepareCommitted:
+        // We shouldn't be trying to use PrepareCompleted states yet
+        throw std::logic_error(
+                "HashTable::unlocked_softDelete attempting"
+                " to delete a completed prepare");
     case CommittedState::CommittedViaMutation:
     case CommittedState::CommittedViaPrepare:
         const auto preProps = valueStats.prologue(&v);
