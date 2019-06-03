@@ -575,7 +575,7 @@ size_t OrderedStoredValue::getRequiredStorage(const DocKey& key) {
  * items.
  */
 rel_time_t OrderedStoredValue::getCompletedOrDeletedTime() const {
-    if (isDeleted() || isPending()) {
+    if (isDeleted() || isCompleted()) {
         return lock_expiry_or_delete_or_complete_time;
     } else {
         throw std::logic_error(

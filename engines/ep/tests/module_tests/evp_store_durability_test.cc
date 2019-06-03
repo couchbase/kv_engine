@@ -20,6 +20,7 @@
 #include "checkpoint_utils.h"
 #include "test_helpers.h"
 
+#include <engines/ep/src/ephemeral_tombstone_purger.h>
 #include <programs/engine_testapp/mock_server.h>
 
 class DurabilityEPBucketTest : public STParameterizedBucketTest {
@@ -66,6 +67,12 @@ class DurabilityBucketTest : public STParameterizedBucketTest {
 protected:
     template <typename F>
     void testDurabilityInvalidLevel(F& func);
+};
+
+class DurabilityEphemeralBucketTest : public STParameterizedBucketTest {
+protected:
+    template <typename F>
+    void testPurgeCompletedPrepare(F& func);
 };
 
 void DurabilityEPBucketTest::testPersistPrepare(DocumentState docState) {
@@ -837,12 +844,59 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
                             DocumentState::Alive));
 }
 
+template <typename F>
+void DurabilityEphemeralBucketTest::testPurgeCompletedPrepare(F& func) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    auto& vb = *store->getVBucket(vbid);
+
+    // prepare SyncWrite and commit.
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "value");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+
+    EXPECT_EQ(ENGINE_SUCCESS, func(vb, key));
+
+    EXPECT_EQ(1, vb.ht.getNumPreparedSyncWrites());
+
+    TimeTraveller avenger(10000000);
+
+    EphemeralVBucket::HTTombstonePurger purger(0);
+    EphemeralVBucket& evb = dynamic_cast<EphemeralVBucket&>(vb);
+    purger.setCurrentVBucket(evb);
+    evb.ht.visit(purger);
+
+    EXPECT_EQ(0, vb.ht.getNumPreparedSyncWrites());
+}
+
+TEST_P(DurabilityEphemeralBucketTest, PurgeCompletedPrepare) {
+    auto op = [this](VBucket& vb, StoredDocKey key) -> ENGINE_ERROR_CODE {
+        return vb.commit(key, {} /*commitSeqno*/, vb.lockCollections(key));
+    };
+    testPurgeCompletedPrepare(op);
+}
+
+TEST_P(DurabilityEphemeralBucketTest, PurgeCompletedAbort) {
+    auto op = [this](VBucket& vb, StoredDocKey key) -> ENGINE_ERROR_CODE {
+        return vb.abort(key, {} /*abortSeqno*/, vb.lockCollections(key));
+    };
+    testPurgeCompletedPrepare(op);
+}
+
 // Test cases which run against all persistent storage backends.
 INSTANTIATE_TEST_CASE_P(
         AllBackends,
         DurabilityEPBucketTest,
         STParameterizedBucketTest::persistentAllBackendsConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
+
+// Test cases which run against all ephemeral.
+INSTANTIATE_TEST_CASE_P(AllBackends,
+                        DurabilityEphemeralBucketTest,
+                        STParameterizedBucketTest::ephConfigValues(),
+                        STParameterizedBucketTest::PrintToStringParamName);
 
 // Test cases which run against all configurations.
 INSTANTIATE_TEST_CASE_P(AllBackends,

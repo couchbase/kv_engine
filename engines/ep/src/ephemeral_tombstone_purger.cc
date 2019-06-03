@@ -48,11 +48,14 @@ bool EphemeralVBucket::HTTombstonePurger::visit(
     // that we do not get a -ve value when we check if the time difference
     // is >= purgeAge. This is preferable to updating the task start time for
     // every visit and has little impact as this task runs frequently.
-    if (osv->isDeleted() && (now >= osv->getCompletedOrDeletedTime()) &&
+    if ((osv->isDeleted() || osv->isCompleted()) &&
+        (now >= osv->getCompletedOrDeletedTime()) &&
         (now - osv->getCompletedOrDeletedTime() >= purgeAge)) {
         // This item should be purged. Remove from the HashTable and move over
-        // to being owned by the sequence list.
-        auto ownedSV = vbucket->ht.unlocked_release(hbl, v.getKey());
+        // to being owned by the sequence list. Remove by pointer (not by key)
+        // so that we do not remove any committed/prepared StoredValues for
+        // which there may be two with the same key.
+        auto ownedSV = vbucket->ht.unlocked_release(hbl, osv);
         {
             std::lock_guard<std::mutex> listWriteLg(
                     vbucket->seqList->getListWriteLock());
