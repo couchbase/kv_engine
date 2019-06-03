@@ -427,29 +427,39 @@ void DcpConnMap::notifyVBConnections(Vbid vbid, uint64_t bySeqno) {
 }
 
 void DcpConnMap::seqnoAckVBPassiveStream(Vbid vbid, int64_t seqno) {
-    size_t index = vbid.get() % vbConnLockNum;
-    std::lock_guard<std::mutex> lg(vbConnLocks[index]);
+    std::shared_ptr<DcpConsumer> conn;
+    { // Locking scope for vbConnsLocks[index]
+        size_t index = vbid.get() % vbConnLockNum;
+        std::lock_guard<std::mutex> lg(vbConnLocks[index]);
 
-    // Note: logically we can have only one Consumer per VBucket, but I keep
-    // using the existing vbConns mapping for now (originally added for tracking
-    // only Producers).
-    // @todo-durability: not clear yet if for Consumers we can simplify by
-    //     keeping a 1-to-1 VB-to-Consumer mapping
-    for (auto& weakPtr : vbConns[vbid.get()]) {
-        auto connection = weakPtr.lock();
-        if (!connection) {
-            continue;
-        }
-        auto* consumer = dynamic_cast<DcpConsumer*>(connection.get());
-        if (consumer) {
-            // Note: Sync Repl enabled at Consumer only if Producer supports it.
-            //     This is to prevent that 6.5 Consumers send DCP_SEQNO_ACK to
-            //     pre-6.5 Producers (e.g., topology change in a 6.5 cluster
-            //     where a new pre-6.5 Active is elected).
-            if (consumer->isSyncReplicationEnabled()) {
-                consumer->seqnoAckStream(vbid, seqno);
+        // Note: logically we can have only one Consumer per VBucket, but I keep
+        // using the existing vbConns mapping for now (originally added for
+        // tracking only Producers).
+        for (auto& weakPtr : vbConns[vbid.get()]) {
+            auto connection = weakPtr.lock();
+            if (!connection) {
+                continue;
+            }
+            auto consumer = dynamic_pointer_cast<DcpConsumer>(connection);
+            if (consumer) {
+                // MB-34437
+                // We should only have one consumer per vb (and we only care
+                // about consumers in this function) so we can now unlock the
+                // vbConnsLock to prevent a lock order inversion with
+                // PassiveStreamMap RWLock as ownership of the actual object is
+                // maintained by the shared_ptr.
+                conn = consumer;
+                break;
             }
         }
+    }
+
+    // Note: Sync Repl enabled at Consumer only if Producer supports it.
+    //     This is to prevent that 6.5 Consumers send DCP_SEQNO_ACK to
+    //     pre-6.5 Producers (e.g., topology change in a 6.5 cluster
+    //     where a new pre-6.5 Active is elected).
+    if (conn && conn->isSyncReplicationEnabled()) {
+        conn->seqnoAckStream(vbid, seqno);
     }
 }
 
