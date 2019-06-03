@@ -1130,6 +1130,9 @@ uint32_t ActiveStream::setDead(end_stream_status_t status) {
     // (owned by a backfill) and clear a seqno ack from a new ActiveStream.
     if (supportSyncReplication()) {
         auto vb = engine->getVBucket(vb_);
+        if (!vb) {
+            return 0;
+        }
         // Take the vb state lock so that we don't change the state of
         // this vb
         folly::SharedMutex::ReadHolder vbStateLh(vb->getStateLock());
