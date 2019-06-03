@@ -767,21 +767,19 @@ void VBucket::handlePreExpiry(const HashTable::HashBucketLock& hbl,
         EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
         itm_info =
                 itm->toItemInfo(failovers->getLatestUUID(), getHLCEpochSeqno());
-        value_t new_val(Blob::Copy(*value));
-        itm->replaceValue(new_val.get());
-        itm->setDataType(v.getDatatype());
 
         SERVER_HANDLE_V1* sapi = engine->getServerApi();
         /* TODO: In order to minimize allocations, the callback needs to
          * allocate an item whose value size will be exactly the size of the
          * value after pre-expiry is performed.
          */
-        if (sapi->document->pre_expiry(itm_info)) {
+        auto result = sapi->document->pre_expiry(itm_info);
+        if (!result.empty()) {
             Item new_item(v.getKey(),
                           v.getFlags(),
                           v.getExptime(),
-                          itm_info.value[0].iov_base,
-                          itm_info.value[0].iov_len,
+                          result.data(),
+                          result.size(),
                           itm_info.datatype,
                           v.getCas(),
                           v.getBySeqno(),

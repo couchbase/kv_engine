@@ -554,11 +554,12 @@ void KVBucket::runPreExpiryHook(VBucket& vb, Item& it) {
     it.decompressValue(); // A no-op for already decompressed items
     auto info =
             it.toItemInfo(vb.failovers->getLatestUUID(), vb.getHLCEpochSeqno());
-    if (engine.getServerApi()->document->pre_expiry(info)) {
-        // The payload is modified and contains data we should use
-        it.replaceValue(Blob::New(static_cast<char*>(info.value[0].iov_base),
-                                  info.value[0].iov_len));
-        it.setDataType(info.datatype);
+    auto result = engine.getServerApi()->document->pre_expiry(info);
+    if (!result.empty()) {
+        // A modified value was returned, use it
+        it.replaceValue(Blob::New(result.data(), result.size()));
+        // The API states only uncompressed xattr values are returned
+        it.setDataType(PROTOCOL_BINARY_DATATYPE_XATTR);
     } else {
         // Make the document empty and raw
         it.replaceValue(Blob::New(0));
