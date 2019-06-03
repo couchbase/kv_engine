@@ -146,11 +146,40 @@ bool DurabilityMonitor::SyncWrite::isExpired(
     return expiryTime < asOf;
 }
 
+uint8_t DurabilityMonitor::SyncWrite::getAckCountForNewChain(
+        const ReplicationChain& chain) {
+    auto ackCount = 0;
+    for (const auto& pos : chain.positions) {
+        if (pos.first == chain.active) {
+            // Skip the active as we deal with it when we move the HPS
+            continue;
+        }
+        // We only bump the ackCount if this SyncWrite was acked in either the
+        // first or second chain in the old topology (if they exist).
+        if (((this->firstChain &&
+              this->firstChain.chainPtr->hasAcked(pos.first, getBySeqno())) ||
+             (this->secondChain &&
+              this->secondChain.chainPtr->hasAcked(pos.first, getBySeqno())))) {
+            ackCount++;
+        }
+    }
+
+    return ackCount;
+}
+
 void DurabilityMonitor::SyncWrite::resetTopology(
         const ReplicationChain& firstChain,
         const ReplicationChain* secondChain) {
-    this->firstChain.reset(&firstChain);
-    this->secondChain.reset(secondChain);
+    // We need to calculate our new ack counts for each chain before resetting
+    // any topology so store these values first.
+    auto ackedFirstChain = getAckCountForNewChain(firstChain);
+    auto ackedSecondChain = 0;
+    if (secondChain) {
+        ackedSecondChain = getAckCountForNewChain(*secondChain);
+    }
+
+    this->firstChain.reset(&firstChain, ackedFirstChain);
+    this->secondChain.reset(secondChain, ackedSecondChain);
 
     // We can call resetTopology in one of two cases:
     // a) for a new SyncWrite
@@ -251,5 +280,12 @@ std::string to_string(DurabilityMonitor::ReplicationChainName name) {
 
 bool DurabilityMonitor::ReplicationChain::hasAcked(const std::string& node,
                                                    int64_t bySeqno) const {
-    return positions.at(node).lastWriteSeqno >= bySeqno;
+    auto itr = positions.find(node);
+
+    // Replica has not acked for this chain if we do not know about it.
+    if (itr == positions.end()) {
+        return false;
+    }
+
+    return itr->second.lastWriteSeqno >= bySeqno;
 }

@@ -729,6 +729,11 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
     ActiveDurabilityMonitor::validateChain(
             fChain, DurabilityMonitor::ReplicationChainName::First);
 
+    // We need to temporarily hold on to the previous chain so that we can
+    // calculate the new ackCount for each SyncWrite. Create the new chain in a
+    // temporary variable to do this.
+    std::unique_ptr<ReplicationChain> newSecondChain;
+
     // Check if we should have a second replication chain.
     if (topology.size() > 1) {
         if (topology.size() > 2) {
@@ -741,13 +746,16 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
         auto& sChain = topology.at(1);
         ActiveDurabilityMonitor::validateChain(
                 sChain, DurabilityMonitor::ReplicationChainName::Second);
-        secondChain = makeChain(DurabilityMonitor::ReplicationChainName::Second,
-                                sChain);
+        newSecondChain = makeChain(
+                DurabilityMonitor::ReplicationChainName::Second, sChain);
     }
 
     // Only set the firstChain after validating (and setting) the second so that
-    // we throw and abort a state change before setting anything.
-    firstChain =
+    // we throw and abort a state change before setting anything. We need to
+    // temporarily hold on to the previous chain so that we can calculate the
+    // new ackCount for each SyncWrite. Create the new chain in a
+    // temporary variable to do this.
+    auto newFirstChain =
             makeChain(DurabilityMonitor::ReplicationChainName::First, fChain);
 
     // @TODO we must check before calling write.resetTopology if durability is
@@ -756,8 +764,13 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
 
     // Apply the new topology to all in-flight SyncWrites
     for (auto& write : trackedWrites) {
-        write.resetTopology(*firstChain, secondChain.get());
+        write.resetTopology(*newFirstChain, newSecondChain.get());
     }
+
+    // We have now reset all the topology for SyncWrites so we can dispose of
+    // the old chain (by overwriting it with the new one).
+    firstChain = std::move(newFirstChain);
+    secondChain = std::move(newSecondChain);
 
     // Manually ack any nodes that did not previously exist in either chain
     performQueuedAckForChain(*firstChain);

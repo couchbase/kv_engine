@@ -97,6 +97,15 @@ public:
                        const ReplicationChain* secondChain);
 
 private:
+    /**
+     * Calculate the ackCount for this SyncWrite using the given chain.
+     *
+     * @param chain ReplicationChain to iterate on
+     * @return The ackCount that we have for the given chain. Does not count the
+     *         active
+     */
+    uint8_t getAckCountForNewChain(const ReplicationChain& chain);
+
     // Client cookie associated with this SyncWrite request, to be notified
     // when the SyncWrite completes.
     const void* cookie;
@@ -118,8 +127,8 @@ private:
             return chainPtr;
         }
 
-        void reset(const ReplicationChain* chainPtr) {
-            ackCount.reset(0);
+        void reset(const ReplicationChain* chainPtr, uint8_t ackCount) {
+            this->ackCount.reset(ackCount);
             this->chainPtr = chainPtr;
         }
 

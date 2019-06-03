@@ -2410,6 +2410,120 @@ TEST_P(ActiveDurabilityMonitorTest, BothChainNodeAckBeforeTopologySet) {
                          1 /*expectedHCS*/);
 }
 
+TEST_P(ActiveDurabilityMonitorTest, MaintainSyncWriteAckCount) {
+    getActiveDM().setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2, replica3}}));
+    addSyncWrite(1);
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    testSeqnoAckReceived(replica1,
+                         1 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         1 /*expectedLastAckSeqno*/,
+                         1 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         0 /*expectedHCS*/);
+
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // Add the secondChain with the new node
+    getActiveDM().setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2, replica3},
+                                   {active, replica1, replica2, nullptr}}));
+
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    {
+        SCOPED_TRACE("");
+        // Should commit on replica2 ack as this should satisfy both chains
+        testSeqnoAckReceived(replica2,
+                             1 /*ackSeqno*/,
+                             1 /*expectedLastWriteSeqno*/,
+                             1 /*expectedLastAckSeqno*/,
+                             0 /*expectedNumTracked*/,
+                             1 /*expectedHPS*/,
+                             1 /*expectedHCS*/);
+    }
+
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(0, 1, 1);
+    }
+}
+
+TEST_P(ActiveDurabilityMonitorTest, MaintainSyncWriteAckCount_SecondChain) {
+    // Add the secondChain with the new node
+    getActiveDM().setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2, replica3},
+                                   {active, replica1, replica2, replica4}}));
+    addSyncWrite(1);
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    testSeqnoAckReceived(replica4,
+                         1 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         1 /*expectedLastAckSeqno*/,
+                         1 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         0 /*expectedHCS*/);
+
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // Add the secondChain with the new node
+    getActiveDM().setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2, replica3},
+                                   {active, replica1, replica2, nullptr}}));
+
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    {
+        // Replica1 ack should not commit (neither chain satisfied)
+        SCOPED_TRACE("");
+        testSeqnoAckReceived(replica1,
+                             1 /*ackSeqno*/,
+                             1 /*expectedLastWriteSeqno*/,
+                             1 /*expectedLastAckSeqno*/,
+                             1 /*expectedNumTracked*/,
+                             1 /*expectedHPS*/,
+                             0 /*expectedHCS*/);
+    }
+
+    {
+        SCOPED_TRACE("");
+        // Should commit on replica2 ack as this should satisfy both chains
+        testSeqnoAckReceived(replica2,
+                             1 /*ackSeqno*/,
+                             1 /*expectedLastWriteSeqno*/,
+                             1 /*expectedLastAckSeqno*/,
+                             0 /*expectedNumTracked*/,
+                             1 /*expectedHPS*/,
+                             1 /*expectedHCS*/);
+    }
+
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(0, 1, 1);
+    }
+}
+
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         ActiveDurabilityMonitorTest,
                         STParameterizedBucketTest::allConfigValues(),
