@@ -1178,21 +1178,6 @@ static ENGINE_ERROR_CODE processUnknownCommand(EventuallyPersistentEngine* h,
         return h->getRandomKey(cookie, response);
     case cb::mcbp::ClientOpcode::GetKeys:
         return h->getAllKeys(cookie, request, response);
-        // MB-21143: Remove adjusted time/drift API, but return NOT_SUPPORTED
-    case cb::mcbp::ClientOpcode::GetAdjustedTime:
-    case cb::mcbp::ClientOpcode::SetDriftCounterState: {
-        return sendResponse(response,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status::NotSupported,
-                            0,
-                            cookie);
-    }
     default:
         res = cb::mcbp::Status::UnknownCommand;
     }

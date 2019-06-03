@@ -800,6 +800,9 @@ void initialize_mbcp_lookup_map() {
 
     setup_handler(cb::mcbp::ClientOpcode::AdjustTimeofday,
                   adjust_timeofday_executor);
+    setup_handler(cb::mcbp::ClientOpcode::GetAdjustedTime, no_support_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SetDriftCounterState,
+                  no_support_executor);
 }
 
 void execute_client_request_packet(Cookie& cookie,
