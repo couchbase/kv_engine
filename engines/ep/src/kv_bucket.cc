@@ -229,10 +229,10 @@ public:
                                  VBucketPtr& vb,
                                  std::vector<const void*> cookies)
         : GlobalTask(&e, TaskId::RespondAmbiguousNotification, 0, false),
-          vbucket(vb),
+          weakVb(vb),
           cookies(cookies),
           description("Notify clients of Sync Write Ambiguous " +
-                      vbucket->getId().to_string()) {
+                      vb->getId().to_string()) {
         for (const auto* cookie : cookies) {
             if (!cookie) {
                 throw std::invalid_argument(
@@ -252,19 +252,26 @@ public:
     }
 
     bool run(void) {
+        auto vbucket = weakVb.lock();
+        if (!vbucket) {
+            return false;
+        }
+
         TRACE_EVENT1("ep-engine/task",
                      "RespondAmbiguousNotification",
                      "vb",
                      (vbucket->getId()).get());
+
         for (const auto* cookie : cookies) {
             vbucket->notifyClientOfSyncWriteComplete(
                     cookie, ENGINE_SYNC_WRITE_AMBIGUOUS);
         }
+
         return false;
     }
 
 private:
-    VBucketPtr vbucket;
+    std::weak_ptr<VBucket> weakVb;
     std::vector<const void*> cookies;
     const std::string description;
 };

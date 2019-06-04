@@ -75,6 +75,17 @@ protected:
     void testPurgeCompletedPrepare(F& func);
 };
 
+/// Note - not single-threaded
+class DurabilityRespondAmbiguousTest : public KVBucketTest {
+protected:
+    void SetUp() override {
+        // The test should do the SetUp
+    }
+    void TearDown() override {
+            // The test should do the TearDown
+    };
+};
+
 void DurabilityEPBucketTest::testPersistPrepare(DocumentState docState) {
     setVBucketStateAndRunPersistTask(
             vbid,
@@ -838,6 +849,62 @@ TEST_P(DurabilityBucketTest, TakeoverSendsDurabilityAmbiguous) {
 
     // We should have told client the SyncWrite is ambiguous
     EXPECT_EQ(ENGINE_SYNC_WRITE_AMBIGUOUS, mockCookie->status);
+}
+
+TEST_F(DurabilityRespondAmbiguousTest, RespondAmbiguousNotificationDeadLock) {
+    // Anecdotally this takes between 0.5 and 1s to run on my dev machine
+    // (MB Pro 2017 - PCIe SSD). The test typically hits the issue on the 1st
+    // run but sometimes takes up to 5. I didn't want to increase the number
+    // of iterations as the test will obviously take far longer to run. If
+    // this test ever causes a timeout - a deadlock issue (probably in the
+    // RespondAmbiguousNotification task) is present.
+    for (int i = 0; i < 100; i++) {
+        KVBucketTest::SetUp();
+
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  store->setVBucketState(
+                          vbid,
+                          vbucket_state_active,
+                          {{"topology",
+                            nlohmann::json::array({{"active", "replica"}})}}));
+
+        auto key = makeStoredDocKey("key");
+        using namespace cb::durability;
+        auto pending = makePendingItem(key, "value");
+
+        // Store it
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+
+        // We don't send EWOULDBLOCK to clients
+        auto mockCookie = cookie_to_mock_object(cookie);
+        EXPECT_EQ(ENGINE_SUCCESS, mockCookie->status);
+
+        // Set state to dead - this will schedule the task
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  store->setVBucketState(vbid, vbucket_state_dead));
+
+        // Deleting the vBucket will set the deferred deletion flag that
+        // causes deadlock when the RespondAmbiguousNotification task is
+        // destroyed as part of shutdown but is the last owner of the vBucket
+        // (attempts to schedule destruction and tries to recursively lock a
+        // mutex)
+        {
+            auto ptr = store->getVBucket(vbid);
+            store->deleteVBucket(vbid, nullptr);
+        }
+
+        destroy_mock_event_callbacks();
+        engine->getDcpConnMap().manageConnections();
+
+        // Should deadlock here in ~SynchronousEPEngine
+        engine.reset();
+
+        // The RespondAmbiguousNotification task requires our cookie to still be
+        // valid so delete it only after it has been destroyed
+        destroy_mock_cookie(cookie);
+
+        ExecutorPool::shutdown();
+    }
 }
 
 // Test that if a SyncWrite times out, then a subsequent SyncWrite which
