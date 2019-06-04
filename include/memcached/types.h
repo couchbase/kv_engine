@@ -101,42 +101,32 @@ enum class DocStateFilter : uint8_t {
 };
 
 struct item_info {
-    item_info()
-        : cas(0),
-          vbucket_uuid(0),
-          seqno(0),
-          exptime(0),
-          nbytes(0),
-          flags(0),
-          datatype(0),
-          document_state(DocumentState::Deleted),
-          value{},
-          cas_is_hlc(false) {
-    }
-    uint64_t cas;
-    uint64_t vbucket_uuid;
-    uint64_t seqno;
-    time_t exptime; /**< When the item will expire (absolute time) */
-    uint32_t nbytes; /**< The total size of the data (in bytes) */
-    uint32_t flags; /**< Flags associated with the item (in network byte order)*/
-    uint8_t datatype;
+    uint64_t cas{0};
+    uint64_t vbucket_uuid{0};
+    uint64_t seqno{0};
+    uint64_t revid{0};
+    time_t exptime{0}; /**< When the item will expire (absolute time) */
+    uint32_t nbytes{0}; /**< The total size of the data (in bytes) */
+    /// Flags associated with the item (in network byte order)
+    uint32_t flags{0};
+    uint8_t datatype{0};
 
     /**
      * The current state of the document (Deleted or Alive).
      */
-    DocumentState document_state;
+    DocumentState document_state{DocumentState::Deleted};
 
     /**
      * If the xattr bit is set in datatype the first uint32_t contains
      * the size of the extended attributes which follows next, and
      * finally the actual document payload.
      */
-    struct iovec value[1];
+    struct iovec value[1]{};
 
     /**
      * True if the CAS is a HLC timestamp
      */
-    bool cas_is_hlc;
+    bool cas_is_hlc{false};
 
     /**
      * Item's DocKey

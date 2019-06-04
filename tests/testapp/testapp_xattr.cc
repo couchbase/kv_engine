@@ -873,6 +873,7 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
     EXPECT_TRUE(json["CAS"].is_string());
     EXPECT_TRUE(json["vbucket_uuid"].is_string());
     EXPECT_TRUE(json["seqno"].is_string());
+    EXPECT_TRUE(json["revid"].is_string());
     EXPECT_TRUE(json["exptime"].is_number());
     EXPECT_TRUE(json["value_bytes"].is_number());
     EXPECT_TRUE(json["deleted"].is_boolean());

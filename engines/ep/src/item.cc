@@ -350,6 +350,7 @@ item_info Item::toItemInfo(uint64_t vb_uuid, int64_t hlcEpoch) const {
     info.cas = getCas();
     info.vbucket_uuid = vb_uuid;
     info.seqno = getBySeqno();
+    info.revid = getRevSeqno();
     info.exptime = getExptime();
     info.nbytes = getNBytes();
     info.flags = getFlags();

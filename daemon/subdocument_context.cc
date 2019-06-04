@@ -230,6 +230,7 @@ cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
         doc["CAS"] = cb::to_hex(input_item_info.cas);
         doc["vbucket_uuid"] = cb::to_hex(input_item_info.vbucket_uuid);
         doc["seqno"] = cb::to_hex(input_item_info.seqno);
+        doc["revid"] = std::to_string(input_item_info.revid);
         doc["exptime"] = input_item_info.exptime;
 
         // The flags are kept internally in network byte order...
