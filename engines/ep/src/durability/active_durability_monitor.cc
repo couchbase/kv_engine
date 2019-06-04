@@ -604,7 +604,10 @@ ActiveDurabilityMonitor::getCookiesForInFlightSyncWrites() {
     auto s = state.wlock();
     auto vec = std::vector<const void*>();
     for (auto write : s->trackedWrites) {
-        vec.push_back(write.getCookie());
+        auto* cookie = write.getCookie();
+        if (cookie) {
+            vec.push_back(cookie);
+        }
     }
     return vec;
 }

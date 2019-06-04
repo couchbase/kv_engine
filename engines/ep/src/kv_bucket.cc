@@ -233,6 +233,13 @@ public:
           cookies(cookies),
           description("Notify clients of Sync Write Ambiguous " +
                       vbucket->getId().to_string()) {
+        for (const auto* cookie : cookies) {
+            if (!cookie) {
+                throw std::invalid_argument(
+                        "RespondAmbiguousNotification: Null cookie specified "
+                        "for notification");
+            }
+        }
     }
 
     std::string getDescription() {

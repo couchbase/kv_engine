@@ -786,6 +786,30 @@ TEST_P(DurabilityWarmupTest, HCSPersistedAndLoadedIntoVBState_Abort) {
     testHCSPersistedAndLoadedIntoVBState(Resolution::Abort);
 }
 
+// Test that when setting a vbucket to dead after warmup, when at least one
+// Prepared SyncWrite is still pending, that notification ignores the null
+// cookie from a warmed up SyncWrite.
+TEST_P(DurabilityWarmupTest, SetStateDeadWithWarmedUpPrepare) {
+    // Setup: Store a pending SyncWrite/Delete (without committing) and then
+    // restart.
+    auto key = makeStoredDocKey("key");
+    auto item = makePendingItem(key, "pending_value");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+    flush_vbucket_to_disk(vbid);
+    resetEngineAndWarmup();
+
+    // Sanity check - should have the SyncWrite after warmup and not committed.
+    auto vb = engine->getVBucket(vbid);
+    auto gv = store->get(key, vbid, cookie, {});
+    ASSERT_EQ(ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS, gv.getStatus());
+
+    // Test: Set state to dead. Should skip notification for the warmed-up
+    // Prepare (as it has no cookie) when task is run.
+    EXPECT_EQ(ENGINE_SUCCESS, store->setVBucketState(vbid, vbucket_state_dead));
+    runNextTask(*task_executor->getLpTaskQ()[NONIO_TASK_IDX],
+                "Notify clients of Sync Write Ambiguous vb:0");
+}
+
 INSTANTIATE_TEST_CASE_P(
         FullOrValue,
         DurabilityWarmupTest,
