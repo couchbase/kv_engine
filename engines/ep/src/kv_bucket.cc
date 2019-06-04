@@ -228,7 +228,7 @@ public:
     RespondAmbiguousNotification(EventuallyPersistentEngine& e,
                                  VBucketPtr& vb,
                                  std::vector<const void*> cookies)
-        : GlobalTask(&e, TaskId::PendingOpsNotification, 0, false),
+        : GlobalTask(&e, TaskId::RespondAmbiguousNotification, 0, false),
           vbucket(vb),
           cookies(cookies),
           description("Notify clients of Sync Write Ambiguous " +
