@@ -1434,6 +1434,40 @@ void VBucketDurabilityTest::setupPendingDelete(StoredDocKey key) {
     EXPECT_EQ(2, ht->getNumItems());
 }
 
+// Test that we cannot do a normal set on top of a pending SyncWrite
+TEST_P(VBucketDurabilityTest, DenyReplacePendingWithCommitted) {
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "pending"s);
+    VBQueueItemCtx ctx;
+    ctx.durability = DurabilityItemCtx{
+            cb::durability::Requirements{cb::durability::Level::Majority, {}},
+            cookie};
+    ASSERT_EQ(MutationStatus::WasClean,
+              public_processSet(*pending, 0 /*cas*/, ctx));
+
+    // Attempt setting the item again with a committed value.
+    auto committed = makeCommittedItem(key, "committed"s);
+    ASSERT_EQ(MutationStatus::IsPendingSyncWrite,
+              public_processSet(*committed, 0 /*cas*/, ctx));
+}
+
+// Test that we cannot do a pending SyncWrite on top of a pending SyncWrite
+TEST_P(VBucketDurabilityTest, DenyReplacePendingWithPending) {
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "pending"s);
+    VBQueueItemCtx ctx;
+    ctx.durability = DurabilityItemCtx{
+            cb::durability::Requirements{cb::durability::Level::Majority, {}},
+            cookie};
+    ASSERT_EQ(MutationStatus::WasClean,
+              public_processSet(*pending, 0 /*cas*/, ctx));
+
+    // Attempt setting the item again with a committed value.
+    auto pending2 = makePendingItem(key, "pending2"s);
+    ASSERT_EQ(MutationStatus::IsPendingSyncWrite,
+              public_processSet(*pending2, 0 /*cas*/, ctx));
+}
+
 // Positive test - check that an item can have a pending delete added
 // (SyncDelete).
 TEST_P(VBucketDurabilityTest, SyncDeletePending) {
@@ -1444,14 +1478,37 @@ TEST_P(VBucketDurabilityTest, SyncDeletePending) {
 
 // Negative test - check that if a key has a pending SyncDelete it cannot
 // otherwise be modified.
-TEST_P(VBucketDurabilityTest, PendingSyncWriteToPendingDeleteFails) {
+TEST_P(VBucketDurabilityTest, PendingSyncDeleteToPendingWriteFails) {
     auto key = makeStoredDocKey("key");
     setupPendingDelete(key);
 
     // Test - attempt to mutate a key which has a pending SyncDelete against it
     // with a pending SyncWrite.
     auto pending = makePendingItem(key, "pending"s);
-    ASSERT_EQ(MutationStatus::IsPendingSyncWrite, ht->set(*pending));
+    VBQueueItemCtx ctx;
+    ctx.genBySeqno = GenerateBySeqno::No;
+    ctx.durability = DurabilityItemCtx{pending->getDurabilityReqs(), cookie};
+    ASSERT_EQ(MutationStatus::IsPendingSyncWrite,
+              public_processSet(*pending, 0 /*cas*/, ctx));
+}
+
+// Negative test - check that if a key has a pending SyncWrite it cannot
+// be SyncDeleted
+TEST_P(VBucketDurabilityTest, PendingSyncWriteToPendingDeleteFails) {
+    auto key = makeStoredDocKey("key");
+
+    // Test - attempt to mutate a key which has a pending SyncWrite against it
+    // with a pending SyncDelete.
+    auto pending = makePendingItem(key, "pending"s);
+    VBQueueItemCtx ctx;
+    ctx.durability = DurabilityItemCtx{
+            cb::durability::Requirements{cb::durability::Level::Majority, {}},
+            cookie};
+    ASSERT_EQ(MutationStatus::WasClean,
+              public_processSet(*pending, 0 /*cas*/, ctx));
+
+    ASSERT_EQ(MutationStatus::IsPendingSyncWrite,
+              public_processSoftDelete(key, ctx).first);
 }
 
 // Negative test - check that if a key has a pending SyncDelete it cannot

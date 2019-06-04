@@ -392,16 +392,6 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
                                     const Item& itm,
                                     const VBQueueItemCtx& queueItmCtx,
                                     bool justTouch) {
-    // Don't make any update if we know that this is a pending sync write that
-    // has not yet been completed. We need to return early before we make any
-    // modification to the seqList. This is typically handled in the EP case by
-    // the HashTable functions, but for ephemeral we update the seqList first so
-    // we need an earlier check.
-    if (v.isPending()) {
-        return std::make_tuple(
-                nullptr, MutationStatus::IsPendingSyncWrite, VBNotifyCtx{});
-    }
-
     VBNotifyCtx notifyCtx;
     StoredValue* newSv = nullptr;
     MutationStatus status(MutationStatus::WasClean);

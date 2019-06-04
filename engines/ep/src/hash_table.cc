@@ -346,10 +346,6 @@ HashTable::UpdateResult HashTable::unlocked_updateStoredValue(
                 "call on a non-active HT object");
     }
 
-    if (v.isPending()) {
-        return {MutationStatus::IsPendingSyncWrite, nullptr};
-    }
-
     // Logically /can/ update a non-Pending StoredValue with a Pending Item;
     // however internally this is implemented as a separate (new)
     // StoredValue object for the Pending item. We can replace a completed
@@ -548,16 +544,14 @@ HashTable::DeleteResult HashTable::unlocked_softDelete(
         bool onlyMarkDeleted,
         DeleteSource delSource) {
     switch (v.getCommitted()) {
-    case CommittedState::Pending:
-    case CommittedState::PreparedMaybeVisible:
-        // Cannot update a SV if it's a Pending item.
-        return {DeletionStatus::IsPendingSyncWrite, nullptr};
     case CommittedState::PrepareAborted:
     case CommittedState::PrepareCommitted:
         // We shouldn't be trying to use PrepareCompleted states yet
         throw std::logic_error(
                 "HashTable::unlocked_softDelete attempting"
                 " to delete a completed prepare");
+    case CommittedState::Pending:
+    case CommittedState::PreparedMaybeVisible:
     case CommittedState::CommittedViaMutation:
     case CommittedState::CommittedViaPrepare:
         const auto preProps = valueStats.prologue(&v);

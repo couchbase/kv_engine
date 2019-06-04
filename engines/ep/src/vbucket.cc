@@ -2956,6 +2956,10 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
                 getId().to_string());
     }
 
+    if (v && v->isPending()) {
+        return {MutationStatus::IsPendingSyncWrite, {}};
+    }
+
     if (!hasMemoryForStoredValue(stats, itm)) {
         return {MutationStatus::NoMem, {}};
     }
@@ -3140,6 +3144,10 @@ VBucket::processSoftDelete(const HashTable::HashBucketLock& hbl,
                            uint64_t bySeqno,
                            DeleteSource deleteSource) {
     boost::optional<VBNotifyCtx> empty;
+    if (v.isPending()) {
+        return {MutationStatus::IsPendingSyncWrite, &v, empty};
+    }
+
     if (v.isTempInitialItem() && eviction == EvictionPolicy::Full) {
         return std::make_tuple(MutationStatus::NeedBgFetch, &v, empty);
     }
@@ -3174,11 +3182,6 @@ VBucket::processSoftDelete(const HashTable::HashBucketLock& hbl,
 
     // SyncDeletes are special cases. We actually want to add a new prepare.
     if (queueItmCtx.durability) {
-        if (v.isPending()) {
-            return std::make_tuple(
-                    MutationStatus::IsPendingSyncWrite, &v, empty);
-        }
-
         auto requirements = boost::get<cb::durability::Requirements>(
                 queueItmCtx.durability->requirementsOrPreparedSeqno);
 

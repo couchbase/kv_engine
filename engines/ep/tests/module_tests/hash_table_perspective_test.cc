@@ -126,28 +126,6 @@ TEST_P(HashTablePerspectiveTest, CorrectItemForEachPersisective) {
     del(ht, key);
 }
 
-// Test that the normal set() method cannot be used to change a pending item
-// to committed - commit() must be used.
-TEST_P(HashTablePerspectiveTest, DenyReplacePendingWithCommitted) {
-    auto pending = makePendingItem(key, "pending"s);
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(*pending));
-
-    // Attempt setting the item again with a committed value.
-    auto committed = makeCommittedItem(key, "committed"s);
-    ASSERT_EQ(MutationStatus::IsPendingSyncWrite, ht.set(*committed));
-}
-
-// Test that the normal set() method cannot be used to change a pending item
-// to another pending - commit() must be used.
-TEST_P(HashTablePerspectiveTest, DenyReplacePendingWithPending) {
-    auto pending = makePendingItem(key, "pending"s);
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(*pending));
-
-    // Attempt setting the item again with a committed value.
-    auto pending2 = makePendingItem(key, "pending2"s);
-    ASSERT_EQ(MutationStatus::IsPendingSyncWrite, ht.set(*pending2));
-}
-
 // Check that if a pending SyncWrite is added _before_ a Committed one (to the
 // same key), then findforWrite finds the pending one.
 // (While normally pending is added _after_ the existing Committed; during
