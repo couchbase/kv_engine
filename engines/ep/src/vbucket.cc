@@ -1754,6 +1754,29 @@ void VBucket::dumpDurabilityMonitor(std::ostream& os) const {
     os << *durabilityMonitor;
 }
 
+ENGINE_ERROR_CODE VBucket::prepare(
+        Item& itm,
+        uint64_t cas,
+        uint64_t* seqno,
+        const void* cookie,
+        EventuallyPersistentEngine& engine,
+        CheckConflicts checkConflicts,
+        bool allowExisting,
+        GenerateBySeqno genBySeqno,
+        GenerateCas genCas,
+        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+    return setWithMeta(itm,
+                       cas,
+                       seqno,
+                       cookie,
+                       engine,
+                       checkConflicts,
+                       allowExisting,
+                       genBySeqno,
+                       genCas,
+                       cHandle);
+}
+
 ENGINE_ERROR_CODE VBucket::setWithMeta(
         Item& itm,
         uint64_t cas,

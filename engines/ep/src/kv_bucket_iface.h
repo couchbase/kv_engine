@@ -219,6 +219,15 @@ public:
             ExtendedMetaData* emd = NULL) = 0;
 
     /**
+     * Add a prepare to the store
+     * @param item the prepare to set
+     * @param cookie the cookie representing the client to store the item
+     *
+     * @return the result of the store operation
+     */
+    ENGINE_ERROR_CODE prepare(Item& item, const void* cookie);
+
+    /**
      * Retrieve a value, but update its TTL first
      *
      * @param key the key to fetch

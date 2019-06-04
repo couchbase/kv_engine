@@ -1612,6 +1612,57 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
     return rv;
 }
 
+ENGINE_ERROR_CODE KVBucket::prepare(Item& itm, const void* cookie) {
+    VBucketPtr vb = getVBucket(itm.getVBucketId());
+    if (!vb) {
+        ++stats.numNotMyVBuckets;
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    PermittedVBStates permittedVBStates = {vbucket_state_replica,
+                                           vbucket_state_pending};
+    if (!permittedVBStates.test(vb->getState())) {
+        ++stats.numNotMyVBuckets;
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    // check for the incoming item's CAS validity
+    if (!Item::isValidCas(itm.getCas())) {
+        return ENGINE_KEY_EEXISTS;
+    }
+
+    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
+    { // hold collections read lock for duration of prepare
+
+        auto cHandle = vb->lockCollections(itm.getKey());
+        if (!cHandle.valid()) {
+            engine.setErrorJsonExtras(
+                    cookie,
+                    Collections::getUnknownCollectionErrorContext(
+                            cHandle.getManifestUid()));
+            rv = ENGINE_UNKNOWN_COLLECTION;
+        } else {
+            cHandle.processExpiryTime(itm, getMaxTtl());
+            rv = vb->prepare(itm,
+                             0,
+                             NULL,
+                             cookie,
+                             engine,
+                             CheckConflicts::No,
+                             true /*allowExisting*/,
+                             GenerateBySeqno::No,
+                             GenerateCas::No,
+                             cHandle);
+        }
+    }
+
+    if (rv == ENGINE_SUCCESS) {
+        checkAndMaybeFreeMemory();
+    }
+    return rv;
+}
+
 GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
                                    Vbid vbucket,
                                    const void* cookie,

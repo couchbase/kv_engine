@@ -160,6 +160,8 @@ public:
             GenerateCas genCas = GenerateCas::No,
             ExtendedMetaData* emd = NULL) override;
 
+    ENGINE_ERROR_CODE prepare(Item& item, const void* cookie);
+
     GetValue getAndUpdateTtl(const DocKey& key,
                              Vbid vbucket,
                              const void* cookie,

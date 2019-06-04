@@ -1130,6 +1130,18 @@ public:
             GenerateCas genCas,
             const Collections::VB::Manifest::CachingReadHandle& cHandle);
 
+    ENGINE_ERROR_CODE prepare(
+            Item& itm,
+            uint64_t cas,
+            uint64_t* seqno,
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            CheckConflicts checkConflicts,
+            bool allowExisting,
+            GenerateBySeqno genBySeqno,
+            GenerateCas genCas,
+            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+
     /**
      * Delete an item in the vbucket
      *

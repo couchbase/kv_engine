@@ -555,9 +555,6 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
     bool switchComplete = false;
     switch (messageType) {
     case MessageType::Mutation:
-    case MessageType::Prepare:
-        // @todo-durability: This should be handled specifically as a prepare
-        // not just via SET_WITH_META.
         if (vb->isBackfillPhase()) {
             ret = engine->getKVBucket()->addBackfillItem(
                     *message->getItem(), message->getExtMetaData());
@@ -575,16 +572,21 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
                                                      GenerateCas::No,
                                                      message->getExtMetaData());
         }
-        switchComplete = true;
 
+        switchComplete = true;
+        break;
+    case MessageType::Prepare:
+        ret = engine->getKVBucket()->prepare(*message->getItem(),
+                                             consumer->getCookie());
         // If the the stream has received and successfully processed a pending
         // SyncWrite, then we have to flag that the Replica must notify the
         // DurabilityMonitor at snapshot-end received for the DM to move the
         // HighPreparedSeqno.
-        if (messageType == MessageType::Prepare && ret == ENGINE_SUCCESS) {
+        if (ret == ENGINE_SUCCESS) {
             cur_snapshot_prepare.store(true);
         }
 
+        switchComplete = true;
         break;
     case MessageType::Expiration:
         deleteSource = DeleteSource::TTL;
