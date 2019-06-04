@@ -92,11 +92,11 @@ HashTable::StoredValueProxy::StoredValueProxy(HashBucketLock&& hbl,
     : lock(std::move(hbl)),
       value(sv),
       valueStats(stats),
-      pre(valueStats.prologue(sv)) {
+      pre(valueStats.get().prologue(sv)) {
 }
 
 HashTable::StoredValueProxy::~StoredValueProxy() {
-    valueStats.epilogue(pre, value);
+    valueStats.get().epilogue(pre, value);
 }
 
 void HashTable::StoredValueProxy::setCommitted(CommittedState state) {

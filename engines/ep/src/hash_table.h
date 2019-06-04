@@ -398,7 +398,15 @@ public:
             : bucketNum(other.bucketNum), htLock(std::move(other.htLock)) {
         }
 
+        // Cannot copy HashBucketLock.
         HashBucketLock(const HashBucketLock& other) = delete;
+        HashBucketLock& operator=(const HashBucketLock& other) = delete;
+
+        HashBucketLock& operator=(HashBucketLock&& other) {
+            bucketNum = other.bucketNum;
+            htLock = std::move(other.htLock);
+            return *this;
+        }
 
         int getBucketNum() const {
             return bucketNum;
@@ -719,7 +727,8 @@ public:
     private:
         HashBucketLock lock;
         StoredValue* value;
-        Statistics& valueStats;
+        // Using ref wrapper to support move.
+        std::reference_wrapper<Statistics> valueStats;
         Statistics::StoredValueProperties pre;
     };
 
