@@ -53,8 +53,6 @@ CheckpointManager::CheckpointManager(EPStats& st,
         // Register the persistence cursor
         pCursor = registerCursorBySeqno_UNLOCKED(lh, pCursorName, lastBySeqno)
                           .cursor;
-        EP_LOG_INFO("CheckpointManager::registering persistence cursor for {}",
-                    vbucketId);
         persistenceCursor = pCursor.lock().get();
     }
 }
