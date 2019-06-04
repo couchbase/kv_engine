@@ -18,10 +18,10 @@
 
 #include <event2/bufferevent.h>
 #include <platform/socket.h>
+#include <array>
 #include <atomic>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <vector>
 
 namespace cb {
@@ -36,6 +36,7 @@ public:
     DcpPipe(event_base* base,
             SOCKET psd,
             SOCKET csd,
+            std::array<SOCKET, 2> notification_pipe,
             std::function<void()> replication_running_callback);
     ~DcpPipe();
 
@@ -59,11 +60,13 @@ protected:
 
     SOCKET psd;
     SOCKET csd;
+    std::array<SOCKET, 2> notification_pipe;
     std::size_t awaiting;
+    std::atomic_bool shutdown{false};
     std::unique_ptr<bufferevent, EventDeleter> producer;
     std::unique_ptr<bufferevent, EventDeleter> consumer;
+    std::unique_ptr<bufferevent, EventDeleter> notification;
     std::function<void()> replication_running_callback;
-    std::mutex mutex;
 };
 
 } // namespace test

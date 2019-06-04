@@ -23,10 +23,15 @@
 #include <event2/event.h>
 #include <mcbp/mcbp.h>
 #include <memcached/vbucket.h>
+#include <platform/strerror.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <atomic>
 #include <thread>
+
+#ifndef WIN32
+#include <netinet/tcp.h> // For TCP_NODELAY etc
+#endif
 
 namespace cb {
 
@@ -104,6 +109,31 @@ void DcpReplicatorImpl::run() {
     event_base_loop(base.get(), 0);
 }
 
+std::array<SOCKET, 2> createNotificationPipe() {
+    std::array<SOCKET, 2> ret{};
+    if (cb::net::socketpair(SOCKETPAIR_AF, SOCK_STREAM, 0, ret.data()) ==
+        SOCKET_ERROR) {
+        throw std::runtime_error("Can't create notify pipe: " +
+                                 cb_strerror(cb::net::get_socket_error()));
+    }
+
+    for (auto sock : ret) {
+        int flags = 1;
+        const auto* flag_ptr = reinterpret_cast<const void*>(&flags);
+        cb::net::setsockopt(
+                sock, IPPROTO_TCP, TCP_NODELAY, flag_ptr, sizeof(flags));
+        cb::net::setsockopt(
+                sock, SOL_SOCKET, SO_REUSEADDR, flag_ptr, sizeof(flags));
+
+        if (evutil_make_socket_nonblocking(sock) == -1) {
+            throw std::runtime_error("Failed to enable non-blocking: " +
+                                     cb_strerror(cb::net::get_socket_error()));
+        }
+    }
+
+    return ret;
+}
+
 void DcpReplicatorImpl::create(const Cluster& cluster,
                                Bucket& bucket,
                                size_t me) {
@@ -170,6 +200,7 @@ void DcpReplicatorImpl::create(const Cluster& cluster,
                 std::make_unique<DcpPipe>(base.get(),
                                           connection->releaseSocket(),
                                           mine->releaseSocket(),
+                                          createNotificationPipe(),
                                           [this]() { this->num_ready++; }));
         pipelines.back()->addStreams(vbids[node]);
     }

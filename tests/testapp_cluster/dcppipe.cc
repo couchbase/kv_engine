@@ -31,9 +31,11 @@ namespace test {
 DcpPipe::DcpPipe(event_base* base,
                  SOCKET psd,
                  SOCKET csd,
+                 std::array<SOCKET, 2> notification_pipe,
                  std::function<void()> replication_running_callback)
     : psd(psd),
       csd(csd),
+      notification_pipe(notification_pipe),
       replication_running_callback(std::move(replication_running_callback)) {
     evutil_make_socket_nonblocking(psd);
     evutil_make_socket_nonblocking(csd);
@@ -52,6 +54,14 @@ DcpPipe::DcpPipe(event_base* base,
                       nullptr,
                       DcpPipe::event_callback,
                       static_cast<void*>(this));
+
+    notification.reset(bufferevent_socket_new(base, notification_pipe[1], 0));
+    bufferevent_setcb(consumer.get(),
+                      DcpPipe::read_callback,
+                      nullptr,
+                      DcpPipe::event_callback,
+                      static_cast<void*>(this));
+
     bufferevent_enable(producer.get(), EV_READ);
     bufferevent_enable(consumer.get(), EV_READ);
 }
@@ -102,8 +112,7 @@ const cb::mcbp::Header* DcpPipe::getFrame(bufferevent* bev) {
 }
 
 void DcpPipe::read_callback(bufferevent* bev) {
-    std::lock_guard<std::mutex> guard(mutex);
-    if (psd == INVALID_SOCKET) {
+    if (shutdown) {
         event_base_loopbreak(bufferevent_get_base(bev));
         return;
     }
@@ -142,8 +151,7 @@ void DcpPipe::read_callback(bufferevent* bev) {
 }
 
 void DcpPipe::event_callback(bufferevent* bev, short event) {
-    std::lock_guard<std::mutex> guard(mutex);
-    if (psd == INVALID_SOCKET) {
+    if (shutdown) {
         event_base_loopbreak(bufferevent_get_base(bev));
         return;
     }
@@ -162,17 +170,18 @@ void DcpPipe::event_callback(bufferevent* bev, short event, void* ctx) {
     instance->event_callback(bev, event);
 }
 void DcpPipe::close() {
-    std::lock_guard<std::mutex> guard(mutex);
-    if (psd != INVALID_SOCKET) {
-        cb::net::closesocket(psd);
-        cb::net::closesocket(csd);
-        psd = INVALID_SOCKET;
-        csd = INVALID_SOCKET;
-    }
+    shutdown = true;
+    // write to the notification pipe so that there is something to
+    // read in the other end to trigger that it does something
+    cb::net::send(notification_pipe[0], this, sizeof(this), 0);
 }
 
 DcpPipe::~DcpPipe() {
-    close();
+    cb::net::closesocket(psd);
+    cb::net::closesocket(csd);
+    for (auto& sock : notification_pipe) {
+        cb::net::closesocket(sock);
+    }
 }
 
 void DcpPipe::EventDeleter::operator()(bufferevent* ev) {
