@@ -2524,6 +2524,38 @@ TEST_P(ActiveDurabilityMonitorTest, MaintainSyncWriteAckCount_SecondChain) {
     }
 }
 
+TEST_P(ActiveDurabilityMonitorTest, HPSResetOnTopologyChange) {
+    // To start, we have 1 chain with active and replica1
+    addSyncWrite(1);
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // Should commit on replica1 ack.
+    testSeqnoAckReceived(replica1,
+                         1 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         1 /*expectedLastAckSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         1 /*expectedHCS*/);
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(0, 1, 1);
+    }
+
+    // Add the secondChain with the new node
+    EXPECT_NO_THROW(getActiveDM().setReplicationTopology(
+            nlohmann::json::array({{active, replica1}, {active, replica2}})));
+
+    // HPS should still be 1.
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(0, 1, 1);
+    }
+}
+
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         ActiveDurabilityMonitorTest,
                         STParameterizedBucketTest::allConfigValues(),

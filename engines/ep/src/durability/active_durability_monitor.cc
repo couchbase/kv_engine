@@ -720,7 +720,48 @@ ActiveDurabilityMonitor::State::makeChain(
         }
     }
 
-    return std::make_unique<ReplicationChain>(name, nodes, trackedWrites.end());
+    auto ptr = std::make_unique<ReplicationChain>(
+            name, nodes, trackedWrites.end());
+
+    // MB-34318
+    // The HighPreparedSeqno is the lastWriteSeqno of the active node in the
+    // firstChain. This is typically set when we call
+    // ADM::State::updateHighPreparedSeqno(). However, it relies on there being
+    // trackedWrites to update it. To keep the correct HPS post topology change
+    // when there are no trackedWrites (no SyncWrites in flight) we need to
+    // manually set the lastWriteSeqno of the active node in the new chain.
+    if (name == ReplicationChainName::First) {
+        if (!firstChain) {
+            return ptr;
+        }
+
+        auto firstChainItr = firstChain->positions.find(firstChain->active);
+        if (firstChainItr == firstChain->positions.end()) {
+            // Sanity - we should never make a chain in this state
+            throw std::logic_error(
+                    "ADM::State::makeChain did not find the "
+                    "active node for the first chain in the "
+                    "first chain.");
+        }
+
+        auto newChainItr = ptr->positions.find(ptr->active);
+        if (newChainItr == ptr->positions.end()) {
+            // Sanity - we should never make a chain in this state
+            throw std::logic_error(
+                    "ADM::State::makeChain did not find the "
+                    "active node for the first chain in the "
+                    "new chain.");
+        }
+
+        // We set the lastWriteSeqno (HPS) on the new chain regardless of
+        // whether not the firstChain active has changed. If it does, this is
+        // ns_server renaming us. Any other change would involve a change of
+        // the vBucket state.
+        newChainItr->second.lastWriteSeqno =
+                firstChainItr->second.lastWriteSeqno;
+    }
+
+    return ptr;
 }
 
 void ActiveDurabilityMonitor::State::setReplicationTopology(
