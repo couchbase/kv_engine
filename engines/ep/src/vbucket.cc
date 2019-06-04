@@ -811,7 +811,7 @@ ENGINE_ERROR_CODE VBucket::commit(
     auto res = ht.findForCommit(key);
     if (!res.pending) {
         // If we are committing we /should/ always find the pending item.
-        EP_LOG_WARN(
+        EP_LOG_ERR(
                 "VBucket::commit ({}) failed as no HashTable item found with "
                 "key:{}",
                 id,

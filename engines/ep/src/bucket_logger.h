@@ -262,6 +262,8 @@ extern std::shared_ptr<BucketLogger> globalBucketLogger;
 #define EP_LOG_WARN(...) \
     EP_LOG_FMT(spdlog::level::level_enum::warn, __VA_ARGS__)
 
+#define EP_LOG_ERR(...) EP_LOG_FMT(spdlog::level::level_enum::err, __VA_ARGS__)
+
 #define EP_LOG_CRITICAL(...) \
     EP_LOG_FMT(spdlog::level::level_enum::critical, __VA_ARGS__)
 
