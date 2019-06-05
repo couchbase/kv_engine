@@ -21,6 +21,7 @@
 #include "checkpoint.h"
 #include "ep_time.h"
 #include "pre_link_document_context.h"
+#include "stats.h"
 #include "statwriter.h"
 #include "vbucket.h"
 

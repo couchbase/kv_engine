@@ -16,10 +16,10 @@
  */
 #pragma once
 
+#include <platform/socket.h>
 #include <relaxed_atomic.h>
 
-#include "stats.h"
-
+class EPStats;
 class Configuration;
 
 /**

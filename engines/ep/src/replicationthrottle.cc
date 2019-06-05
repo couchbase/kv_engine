@@ -15,8 +15,9 @@
  *   limitations under the License.
  */
 
-#include "configuration.h"
 #include "replicationthrottle.h"
+#include "configuration.h"
+#include "stats.h"
 
 ReplicationThrottle::ReplicationThrottle(const Configuration& config,
                                          EPStats& s)

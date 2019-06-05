@@ -22,7 +22,6 @@
 #include "ep_types.h"
 #include "item.h"
 #include "monotonic.h"
-#include "stats.h"
 
 #include <folly/Synchronized.h>
 #include <platform/non_negative_counter.h>
@@ -88,6 +87,7 @@ class Checkpoint;
 class CheckpointManager;
 class CheckpointConfig;
 class Cursor;
+class EPStats;
 class PreLinkDocumentContext;
 class VBucket;
 
@@ -535,7 +535,7 @@ public:
     CheckpointQueue expelItems(CheckpointCursor& expelUpToAndIncluding);
 
 private:
-    EPStats                       &stats;
+    EPStats& stats;
     uint64_t                       checkpointId;
     uint64_t                       snapStartSeqno;
     uint64_t                       snapEndSeqno;

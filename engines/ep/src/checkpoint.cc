@@ -25,6 +25,7 @@
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "ep_time.h"
+#include "stats.h"
 
 const char* to_string(enum checkpoint_state s) {
     switch (s) {

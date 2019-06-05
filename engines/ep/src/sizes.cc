@@ -30,6 +30,7 @@
 #include "kvstore_priv.h"
 #include "persistence_callback.h"
 #include "probabilistic_counter.h"
+#include "stats.h"
 #include "stored-value.h"
 #include "vbucket.h"
 #include "vbucketmap.h"

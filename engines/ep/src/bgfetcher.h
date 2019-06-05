@@ -20,10 +20,10 @@
 #include <set>
 #include <string>
 
-#include "stats.h"
 #include "vbucket.h"
 
 // Forward declarations.
+class EPStats;
 class KVBucket;
 class KVShard;
 class GlobalTask;
