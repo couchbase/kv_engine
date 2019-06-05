@@ -50,19 +50,13 @@ void PersistenceCallback::operator()(
                 // value match
                 v->markClean();
             }
-            if (v->isNewCacheItem()) {
-                if (mutationResult == KVStore::MutationSetResultState::Insert) {
-                    // Insert in value-only or full eviction mode.
-                    ++vbucket.opsCreate;
-                    vbucket.incrNumTotalItems();
-                    vbucket.incrMetaDataDisk(*queuedItem);
-                } else {
-                    // Update for non-resident item in full eviction mode.
-                    ++vbucket.opsUpdate;
-                }
-
-                v->setNewCacheItem(false);
-            } else { // Update in value-only or full eviction mode.
+            if (mutationResult == KVStore::MutationSetResultState::Insert) {
+                // Insert in value-only or full eviction mode.
+                ++vbucket.opsCreate;
+                vbucket.incrNumTotalItems();
+                vbucket.incrMetaDataDisk(*queuedItem);
+            } else {
+                // Update in value-only or full eviction mode.
                 ++vbucket.opsUpdate;
             }
         }

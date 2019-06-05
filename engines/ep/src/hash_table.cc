@@ -830,7 +830,6 @@ MutationStatus HashTable::insertFromWarmup(const Item& itm,
             v->markNotResident();
             valueStats.epilogue(preProps, v);
         }
-        v->setNewCacheItem(false);
     } else {
         if (keyMetaDataOnly) {
             // We don't have a better error code ;)
@@ -1098,12 +1097,6 @@ bool HashTable::unlocked_restoreValue(
     }
 
     const auto preProps = valueStats.prologue(&v);
-
-    if (v.isTempItem()) {
-        /* set it back to false as we created a temp item by setting it to true
-           when bg fetch is scheduled (full eviction mode). */
-        v.setNewCacheItem(false);
-    }
 
     v.restoreValue(itm);
 

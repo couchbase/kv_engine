@@ -287,6 +287,10 @@ public:
         return std::get<0>(GetParam()).find("persistent") != std::string::npos;
     }
 
+    bool fullEviction() const {
+        return persistent() && std::get<1>(GetParam()) == "full_eviction";
+    }
+
     /// @returns a string representing this tests' parameters.
     static std::string PrintToStringParamName(
             const ::testing::TestParamInfo<ParamType>& info);

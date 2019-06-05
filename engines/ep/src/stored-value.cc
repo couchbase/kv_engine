@@ -47,7 +47,6 @@ StoredValue::StoredValue(const Item& itm,
       committed(static_cast<uint8_t>(CommittedState::CommittedViaMutation)) {
     // Initialise bit fields
     setDeletedPriv(itm.isDeleted());
-    setNewCacheItem(true);
     setOrdered(isOrdered);
     setNru(itm.getNRUValue());
     setResident(!isTempItem());
@@ -94,7 +93,6 @@ StoredValue::StoredValue(const StoredValue& other, UniquePtr n, EPStats& stats)
       datatype(other.datatype) {
     setDirty(other.isDirty());
     setDeletedPriv(other.isDeleted());
-    setNewCacheItem(other.isNewCacheItem());
     setOrdered(other.isOrdered());
     setNru(other.getNru());
     setResident(other.isResident());
@@ -186,9 +184,6 @@ void StoredValue::restoreMeta(const Item& itm) {
         setTempDeleted();
     } else { /* Regular item with the full eviction */
         bySeqno = itm.getBySeqno();
-        /* set it back to false as we created a temp item by setting it to true
-           when bg fetch is scheduled (full eviction mode). */
-        setNewCacheItem(false);
     }
     if (getNru() == MAX_NRU_VALUE) {
         setNru(INITIAL_NRU_VALUE);
@@ -302,7 +297,6 @@ bool StoredValue::operator==(const StoredValue& other) const {
             // Note: deletionCause is only checked if the item is deleted
             ((deletionSource && isDeleted()) ==
              (other.isDeleted() && other.deletionSource)) &&
-            isNewCacheItem() == other.isNewCacheItem() &&
             isOrdered() == other.isOrdered() && getNru() == other.getNru() &&
             isResident() == other.isResident() && getKey() == other.getKey() &&
             getCommitted() == other.getCommitted());
@@ -356,13 +350,6 @@ std::unique_ptr<Item> StoredValue::toItemBase(Vbid vbid,
 }
 
 void StoredValue::setValueImpl(const Item& itm) {
-    if (isDeleted() && !itm.isDeleted()) {
-        // Transitioning from deleted -> alive - this should be considered
-        // a new cache item as it is increasing the number of (alive) items
-        // in the vBucket.
-        setNewCacheItem(true);
-    }
-
     setDeletedPriv(itm.isDeleted());
     if (itm.isDeleted()) {
         setDeletionSource(itm.deletionSource());
@@ -489,7 +476,6 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     // dirty (Written), deleted, new, locked
     os << (sv.isDirty() ? 'W' : '.');
     os << (sv.isDeleted() ? 'D' : '.');
-    os << (sv.isNewCacheItem() ? 'N' : '.');
     os << (sv.isResident() ? 'R' : '.');
     os << (sv.isLocked(ep_current_time()) ? 'L' : '.');
     switch (sv.getCommitted()) {

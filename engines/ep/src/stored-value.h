@@ -624,20 +624,6 @@ public:
     }
 
     /**
-     * Return true if this is a new cache item.
-     */
-    bool isNewCacheItem() const {
-        return bits.test(newCacheItemIndex);
-    }
-
-    /**
-     * Set / reset a new cache item flag.
-     */
-    void setNewCacheItem(bool newitem) {
-        bits.set(newCacheItemIndex, newitem);
-    }
-
-    /**
      * Generate a new Item out of this StoredValue.
      *
      * @param vbid The vbucket containing the new item
@@ -1025,7 +1011,8 @@ protected:
      */
     static constexpr size_t dirtyIndex = 0;
     static constexpr size_t deletedIndex = 1;
-    static constexpr size_t newCacheItemIndex = 2;
+    // Bit 2 of bits is currently unused and may be used for new purposes.
+    // static constexpr size_t unused = 2;
     // ordered := true if this is an instance of OrderedStoredValue
     static constexpr size_t orderedIndex = 3;
     // 2 bit nru managed via setNru/getNru
