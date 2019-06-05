@@ -59,14 +59,14 @@ TEST_F(BasicClusterTest, GetReplica) {
     }
 }
 
-TEST_F(BasicClusterTest, StoreWitDurability) {
+TEST_F(BasicClusterTest, StoreWithDurability) {
     auto bucket = cluster->getBucket("default");
     auto conn = bucket->getConnection(Vbid(0));
     conn->authenticate("@admin", "password", "PLAIN");
     conn->selectBucket(bucket->getName());
 
     auto info = conn->store(
-            "StoreWitDurability",
+            "StoreWithDurability",
             Vbid(0),
             "value",
             cb::mcbp::Datatype::Raw,
