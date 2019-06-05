@@ -677,6 +677,7 @@ ENGINE_ERROR_CODE PassiveStream::processCommit(const CommitSyncWrite& commit) {
     }
 
     auto rv = vb->commit(commit.getKey(),
+                         commit.getPreparedSeqno(),
                          *commit.getBySeqno(),
                          vb->lockCollections(commit.getKey()));
     if (rv != ENGINE_SUCCESS) {

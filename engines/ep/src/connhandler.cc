@@ -269,6 +269,7 @@ ENGINE_ERROR_CODE ConnHandler::prepare(
 ENGINE_ERROR_CODE ConnHandler::commit(uint32_t opaque,
                                       Vbid vbucket,
                                       const DocKey& key,
+                                      uint64_t prepare_seqno,
                                       uint64_t commit_seqno) {
     logger->warn(
             "Disconnecting - This connection doesn't support the dcp commit "

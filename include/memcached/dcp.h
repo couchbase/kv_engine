@@ -333,12 +333,14 @@ struct dcp_message_producers {
      * @param opaque
      * @param vbucket the vbucket the event applies to
      * @param key The key of the committed mutation.
+     * @param prepare_seqno The seqno of the prepare that we are committing.
      * @param commit_seqno The sequence number to commit this mutation at.
      * @return
      */
     virtual ENGINE_ERROR_CODE commit(uint32_t opaque,
                                      Vbid vbucket,
                                      const DocKey& key,
+                                     uint64_t prepare_seqno,
                                      uint64_t commit_seqno) = 0;
     /**
      * Send an abort message:
@@ -734,6 +736,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
                                      uint32_t opaque,
                                      Vbid vbucket,
                                      const DocKey& key,
+                                     uint64_t prepared_seqno,
                                      uint64_t commit_seqno) = 0;
     /**
      * Called by the core when it receives a DCP ABORT message over the

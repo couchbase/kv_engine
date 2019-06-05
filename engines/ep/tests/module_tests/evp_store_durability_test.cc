@@ -111,6 +111,7 @@ protected:
      * check the on disk item count afterwards.
      * @param vb vbucket to perform the commit to
      * @param key StoredDockKey that we should be committing
+     * @param prepareSeqno the prepare seqno of the commit
      * @param expectedDiskCount expected number of items on disk after the
      * commit
      * @param expectedCollectedCount expected number of items in the default
@@ -118,6 +119,7 @@ protected:
      */
     void performCommitForKey(VBucket& vb,
                              StoredDocKey key,
+                             uint64_t prepareSeqno,
                              uint64_t expectedDiskCount,
                              uint64_t expectedCollectedCount);
 
@@ -496,6 +498,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.commit(key,
+                        pending->getBySeqno(),
                         {} /*commitSeqno*/,
                         vb.lockCollections(key)));
 
@@ -530,6 +533,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
 
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.commit(key,
+                        delInfo.seqno,
                         {} /*commitSeqno*/,
                         vb.lockCollections(key)));
 
@@ -562,7 +566,10 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     auto pending = makePendingItem(key, "value");
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
     ASSERT_EQ(ENGINE_SUCCESS,
-              vb.commit(key, {} /*commitSeqno*/, vb.lockCollections(key)));
+              vb.commit(key,
+                        pending->getBySeqno(),
+                        {} /*commitSeqno*/,
+                        vb.lockCollections(key)));
 
     // We do not deduplicate Prepare and Commit in CheckpointManager (achieved
     // by inserting them into different checkpoints)
@@ -616,7 +623,10 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     ASSERT_EQ(ENGINE_SUCCESS,
-              vb.commit(key, {} /*commitSeqno*/, vb.lockCollections(key)));
+              vb.commit(key,
+                        3 /*prepareSeqno*/,
+                        {} /*commitSeqno*/,
+                        vb.lockCollections(key)));
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -646,7 +656,10 @@ TEST_P(DurabilityBucketTest, SyncWriteDelete) {
     auto pending = makePendingItem(key, "value");
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
     ASSERT_EQ(ENGINE_SUCCESS,
-              vb.commit(key, {} /*commitSeqno*/, vb.lockCollections(key)));
+              vb.commit(key,
+                        pending->getBySeqno(),
+                        {} /*commitSeqno*/,
+                        vb.lockCollections(key)));
 
     // We do not deduplicate Prepare and Commit in CheckpointManager (achieved
     // by inserting them into different checkpoints)
@@ -768,10 +781,14 @@ void DurabilityEPBucketTest::performPrepareSyncDelete(
 void DurabilityEPBucketTest::performCommitForKey(
         VBucket& vb,
         StoredDocKey key,
+        uint64_t prepareSeqno,
         uint64_t expectedDiskCount,
         uint64_t expectedCollectedCount) {
     ASSERT_EQ(ENGINE_SUCCESS,
-              vb.commit(key, {} /*commitSeqno*/, vb.lockCollections(key)));
+              vb.commit(key,
+                        prepareSeqno,
+                        {} /*commitSeqno*/,
+                        vb.lockCollections(key)));
     verifyOnDiskItemCount(vb, expectedDiskCount);
     verifyCollectionItemCount(
             vb, key.getCollectionID(), expectedCollectedCount);
@@ -793,7 +810,9 @@ void DurabilityEPBucketTest::testCommittedSyncWriteFlushAfterCommit(
 
     performPrepareSyncWrite(
             vb, pending, initOnDiskCount, currentCollectionCount);
-    performCommitForKey(vb, key, initOnDiskCount, currentCollectionCount);
+    auto prepareSeqno = vb.getHighSeqno();
+    performCommitForKey(
+            vb, key, prepareSeqno, initOnDiskCount, currentCollectionCount);
 
     const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
     const auto& ckptList =
@@ -826,7 +845,9 @@ void DurabilityEPBucketTest::testSyncDeleteFlushAfterCommit(
     }
 
     performPrepareSyncDelete(vb, key, initOnDiskCount, currentCollectionCount);
-    performCommitForKey(vb, key, initOnDiskCount, currentCollectionCount);
+    auto prepareSeqno = vb.getHighSeqno();
+    performCommitForKey(
+            vb, key, prepareSeqno, initOnDiskCount, currentCollectionCount);
 
     const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
     const auto& ckptList =
@@ -870,6 +891,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncWriteSyncDelete) {
     // prepare SyncDelete and commit.
     auto key = makeStoredDocKey("key");
     performPrepareSyncDelete(vb, key, 2, 1);
+    auto prepareSeqno = vb.getHighSeqno();
 
     const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
     const auto& ckptList =
@@ -884,7 +906,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncWriteSyncDelete) {
     verifyOnDiskItemCount(vb, 2);
     verifyCollectionItemCount(vb, key.getCollectionID(), 1);
 
-    performCommitForKey(vb, key, 2, 1);
+    performCommitForKey(vb, key, prepareSeqno, 2, 1);
 
     ASSERT_EQ(6, ckptList.size());
     ASSERT_EQ(1, ckptList.back()->getNumItems());
@@ -972,7 +994,8 @@ TEST_P(DurabilityEPBucketTest,
 
     // First prepare SyncWrite and commit for test_doc.
     performPrepareSyncWrite(vb, pending, 0, 0);
-    performCommitForKey(vb, key, 0, 0);
+    auto prepareSeqno = vb.getHighSeqno();
+    performCommitForKey(vb, key, prepareSeqno, 0, 0);
 
     // check the value is correctly set on disk
     auto gv = kvstore->get(DiskDocKey(key), Vbid(0));
@@ -980,7 +1003,8 @@ TEST_P(DurabilityEPBucketTest,
 
     // First prepare SyncDelete and commit.
     performPrepareSyncDelete(vb, key, 0, 0);
-    performCommitForKey(vb, key, 0, 0);
+    prepareSeqno = vb.getHighSeqno();
+    performCommitForKey(vb, key, prepareSeqno, 0, 0);
 
     // check the value is correctly deleted on disk
     gv = kvstore->get(DiskDocKey(key), Vbid(0));
@@ -989,7 +1013,8 @@ TEST_P(DurabilityEPBucketTest,
     // Second prepare SyncWrite and commit.
     pending = makePendingItem(key, "{ \"run\": 2 }");
     performPrepareSyncWrite(vb, pending, 0, 0);
-    performCommitForKey(vb, key, 0, 0);
+    prepareSeqno = vb.getHighSeqno();
+    performCommitForKey(vb, key, prepareSeqno, 0, 0);
 
     // check the value is correctly set on disk
     gv = kvstore->get(DiskDocKey(key), Vbid(0));
@@ -997,7 +1022,8 @@ TEST_P(DurabilityEPBucketTest,
 
     // Second prepare SyncDelete and commit.
     performPrepareSyncDelete(vb, key, 0, 0);
-    performCommitForKey(vb, key, 0, 0);
+    prepareSeqno = vb.getHighSeqno();
+    performCommitForKey(vb, key, prepareSeqno, 0, 0);
 
     // flush the prepare and commit mutations to disk
     flushVBucketToDiskIfPersistent(vbid, 2);
@@ -1037,12 +1063,13 @@ TEST_P(DurabilityEPBucketTest,
 
     // First prepare SyncWrite and commit for test_doc.
     performPrepareSyncWrite(vb, pending, 0, 0);
+    auto prepareSeqno = vb.getHighSeqno();
 
     flushVBucketToDiskIfPersistent(vbid, 1);
     verifyOnDiskItemCount(vb, 1);
     verifyCollectionItemCount(vb, keyCollectionID, 0);
 
-    performCommitForKey(vb, key, 1, 0);
+    performCommitForKey(vb, key, prepareSeqno, 1, 0);
 
     flushVBucketToDiskIfPersistent(vbid, 1);
     verifyOnDiskItemCount(vb, 2);
@@ -1053,12 +1080,13 @@ TEST_P(DurabilityEPBucketTest,
 
     // First prepare SyncDelete and commit.
     performPrepareSyncDelete(vb, key, 2, 1);
+    prepareSeqno = vb.getHighSeqno();
 
     flushVBucketToDiskIfPersistent(vbid, 1);
     verifyOnDiskItemCount(vb, 2);
     verifyCollectionItemCount(vb, keyCollectionID, 1);
 
-    performCommitForKey(vb, key, 2, 1);
+    performCommitForKey(vb, key, prepareSeqno, 2, 1);
 
     flushVBucketToDiskIfPersistent(vbid, 1);
     verifyOnDiskItemCount(vb, 1);
@@ -1070,12 +1098,13 @@ TEST_P(DurabilityEPBucketTest,
     // Second prepare SyncWrite and commit.
     pending = makePendingItem(key, "{ \"run\": 2 }");
     performPrepareSyncWrite(vb, pending, 1, 0);
+    prepareSeqno = vb.getHighSeqno();
 
     flushVBucketToDiskIfPersistent(vbid, 1);
     verifyOnDiskItemCount(vb, 1);
     verifyCollectionItemCount(vb, keyCollectionID, 0);
 
-    performCommitForKey(vb, key, 1, 0);
+    performCommitForKey(vb, key, prepareSeqno, 1, 0);
 
     flushVBucketToDiskIfPersistent(vbid, 1);
     verifyOnDiskItemCount(vb, 2);
@@ -1086,12 +1115,13 @@ TEST_P(DurabilityEPBucketTest,
 
     // Second prepare SyncDelete and commit.
     performPrepareSyncDelete(vb, key, 2, 1);
+    prepareSeqno = vb.getHighSeqno();
 
     flushVBucketToDiskIfPersistent(vbid, 1);
     verifyOnDiskItemCount(vb, 2);
     verifyCollectionItemCount(vb, keyCollectionID, 1);
 
-    performCommitForKey(vb, key, 2, 1);
+    performCommitForKey(vb, key, prepareSeqno, 2, 1);
 
     flushVBucketToDiskIfPersistent(vbid, 1);
     verifyOnDiskItemCount(vb, 1);
@@ -1603,7 +1633,10 @@ void DurabilityEphemeralBucketTest::testPurgeCompletedPrepare(F& func) {
 
 TEST_P(DurabilityEphemeralBucketTest, PurgeCompletedPrepare) {
     auto op = [this](VBucket& vb, StoredDocKey key) -> ENGINE_ERROR_CODE {
-        return vb.commit(key, {} /*commitSeqno*/, vb.lockCollections(key));
+        return vb.commit(key,
+                         2 /*prepareSeqno*/,
+                         {} /*commitSeqno*/,
+                         vb.lockCollections(key));
     };
     testPurgeCompletedPrepare(op);
 }

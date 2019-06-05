@@ -2354,9 +2354,9 @@ ENGINE_ERROR_CODE Connection::seqno_acknowledged(uint32_t opaque,
 ENGINE_ERROR_CODE Connection::commit(uint32_t opaque,
                                      Vbid vbucket,
                                      const DocKey& key_,
+                                     uint64_t prepare_seqno,
                                      uint64_t commit_seqno) {
-    cb::mcbp::request::DcpCommitPayload extras(commit_seqno);
-    // @todo-durability: Don't send the key
+    cb::mcbp::request::DcpCommitPayload extras(prepare_seqno, commit_seqno);
     auto key = key_;
     if (!isCollectionsSupported()) {
         // The client doesn't support collections, don't send an encoded key

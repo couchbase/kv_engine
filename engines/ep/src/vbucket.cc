@@ -811,6 +811,7 @@ void VBucket::handlePreExpiry(const HashTable::HashBucketLock& hbl,
 
 ENGINE_ERROR_CODE VBucket::commit(
         const DocKey& key,
+        uint64_t prepareSeqno,
         boost::optional<int64_t> commitSeqno,
         const Collections::VB::Manifest::CachingReadHandle& cHandle,
         const void* cookie) {
@@ -824,6 +825,8 @@ ENGINE_ERROR_CODE VBucket::commit(
                 cb::UserDataView(cb::const_char_buffer(key)));
         return ENGINE_KEY_ENOENT;
     }
+
+    Expects(prepareSeqno);
 
     // Remove from the allowed duplicate prepare set (if it exists)
     allowedDuplicatePrepareSeqnos.erase(res.pending->getBySeqno());
@@ -842,7 +845,8 @@ ENGINE_ERROR_CODE VBucket::commit(
     queueItmCtx.durability =
             DurabilityItemCtx{res.pending->getBySeqno(), nullptr /*cookie*/};
 
-    auto notify = commitStoredValue(res, queueItmCtx, commitSeqno);
+    auto notify =
+            commitStoredValue(res, prepareSeqno, queueItmCtx, commitSeqno);
 
     notifyNewSeqno(notify);
     doCollectionsStats(cHandle, notify);

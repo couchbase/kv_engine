@@ -653,7 +653,8 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             ret = producers->commit(csr->getOpaque(),
                                     csr->getVbucket(),
                                     csr->getKey(),
-                                    *csr->getBySeqno());
+                                    csr->getPreparedSeqno(),
+                                    csr->getCommitSeqno());
             break;
         }
 

@@ -529,7 +529,7 @@ void DurabilityWarmupTest::testCommittedSyncWrite(vbucket_state_t vbState,
 
     { // scoping vb - is invalid once resetEngineAndWarmup() is called.
         auto vb = engine->getVBucket(vbid);
-        vb->commit(key, {}, vb->lockCollections(key));
+        vb->commit(key, item->getBySeqno(), {}, vb->lockCollections(key));
 
         flush_vbucket_to_disk(vbid, 1);
     }
@@ -756,9 +756,11 @@ void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState(
     ASSERT_TRUE(vb);
     switch (res) {
     case Resolution::Commit:
-        ASSERT_EQ(
-                ENGINE_SUCCESS,
-                vb->commit(key, {} /*commitSeqno*/, vb->lockCollections(key)));
+        ASSERT_EQ(ENGINE_SUCCESS,
+                  vb->commit(key,
+                             preparedSeqno /*prepareSeqno*/,
+                             {} /*commitSeqno*/,
+                             vb->lockCollections(key)));
         sv = vb->ht.findForRead(key).storedValue;
         ASSERT_TRUE(sv);
         ASSERT_TRUE(sv->isCommitted());

@@ -280,7 +280,10 @@ TEST_P(DurabilityActiveStreamTest, BackfillCommit) {
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
     EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
     EXPECT_EQ(ENGINE_SUCCESS,
-              vb->commit(key, {} /*abortSeqno*/, vb->lockCollections(key)));
+              vb->commit(key,
+                         item->getBySeqno(),
+                         {} /*abortSeqno*/,
+                         vb->lockCollections(key)));
 
     flushVBucketToDiskIfPersistent(vbid, 2);
 
@@ -442,7 +445,7 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForReconnectWindow) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Seqno 2 - Followed by a commit (the consumer does not get this)
-    vb->commit(key, {}, vb->lockCollections(key));
+    vb->commit(key, item->getBySeqno(), {}, vb->lockCollections(key));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto mutationResult =
@@ -453,7 +456,7 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForReconnectWindow) {
 
     // Seqno 4 - A commit that the consumer would receive when reconnecting with
     // seqno 1
-    vb->commit(key, {}, vb->lockCollections(key));
+    vb->commit(key, item->getBySeqno(), {}, vb->lockCollections(key));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Seqno 5 - A prepare to dedupe the prepare at seqno 3.
@@ -601,6 +604,7 @@ TEST_P(DurabilityPassiveStreamTest,
     // We should now be able to do a sync write to a different key
     key = makeStoredDocKey("newkey");
     makeAndReceiveDcpPrepare(key, cas, 10);
+    prepareSeqno = vb->getHighSeqno();
     marker = SnapshotMarker(
             opaque,
             vbid,
@@ -609,7 +613,8 @@ TEST_P(DurabilityPassiveStreamTest,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*streamId*/);
     stream->processMarker(&marker);
-    EXPECT_EQ(ENGINE_SUCCESS, vb->commit(key, {}, vb->lockCollections(key)));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb->commit(key, prepareSeqno, {}, vb->lockCollections(key)));
     EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
 }
 
@@ -1029,7 +1034,7 @@ void DurabilityPassiveStreamTest::testReceiveDuplicateDcpPrepare(
 
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<CommitSyncWrite>(
-                      opaque, vbid, commitSeqno, key)));
+                      opaque, vbid, prepareSeqno, commitSeqno, key)));
 }
 
 TEST_P(DurabilityPassiveStreamTest, ReceiveDuplicateDcpPrepare) {
@@ -1230,7 +1235,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepareCommit() {
     // Now simulate the Consumer receiving Commit for that Prepare
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<CommitSyncWrite>(
-                      opaque, vbid, commitSeqno, key)));
+                      opaque, vbid, prepareSeqno, commitSeqno, key)));
 
     // Ephemeral keeps the prepare in the hash table whilst ep modifies the
     // existing prepare
@@ -1542,10 +1547,11 @@ TEST_P(DurabilityPassiveStreamTest, HandleSnapshotEndOnCommit) {
     auto key = makeStoredDocKey("key1");
 
     // Commit the original prepare
-    auto commitSeqno = 3;
+    auto prepareSeqno = 2;
+    auto commitSeqno = prepareSeqno + 1;
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<CommitSyncWrite>(
-                      opaque, vbid, commitSeqno, key)));
+                      opaque, vbid, prepareSeqno, commitSeqno, key)));
 
     // We should have unset (acked the second prepare) the bool flag if we
     // handled the snapshot end
@@ -1641,7 +1647,7 @@ TEST_P(DurabilityPassiveStreamTest,
     auto commitSeqno = pending->getBySeqno() + 1;
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<CommitSyncWrite>(
-                      opaque, vbid, commitSeqno, key)));
+                      opaque, vbid, pending->getBySeqno(), commitSeqno, key)));
 
     // 5) Send next in memory snapshot
     marker = SnapshotMarker(
@@ -1670,7 +1676,7 @@ TEST_P(DurabilityPassiveStreamTest,
     commitSeqno = pending->getBySeqno() + 1;
     try {
         stream->messageReceived(std::make_unique<CommitSyncWrite>(
-                opaque, vbid, commitSeqno, key));
+                opaque, vbid, pending->getBySeqno(), commitSeqno, key));
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find("duplicate item") !=
                     std::string::npos);

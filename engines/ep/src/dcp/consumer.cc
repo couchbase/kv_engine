@@ -1735,6 +1735,7 @@ ENGINE_ERROR_CODE DcpConsumer::prepare(
 ENGINE_ERROR_CODE DcpConsumer::commit(uint32_t opaque,
                                       Vbid vbucket,
                                       const DocKey& key,
+                                      uint64_t prepare_seqno,
                                       uint64_t commit_seqno) {
     lastMessageTime = ep_current_time();
     const size_t msgBytes = CommitSyncWrite::commitBaseMsgBytes + key.size();
@@ -1753,11 +1754,8 @@ ENGINE_ERROR_CODE DcpConsumer::commit(uint32_t opaque,
     auto stream = findStream(vbucket);
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
         try {
-            err = stream->messageReceived(
-                    std::make_unique<CommitSyncWrite>(opaque,
-                                                      vbucket,
-                                                      commit_seqno,
-                                                      key));
+            err = stream->messageReceived(std::make_unique<CommitSyncWrite>(
+                    opaque, vbucket, prepare_seqno, commit_seqno, key));
         } catch (const std::bad_alloc&) {
             return ENGINE_ENOMEM;
         }

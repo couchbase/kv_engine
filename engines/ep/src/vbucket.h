@@ -1406,6 +1406,8 @@ public:
      * Perform a commit against the given pending Sync Write.
      *
      * @param key Key to commit
+     * @param prepareSeqno The sequence number of the existing pending
+     *                      SyncWrite
      * @param commitSeqno Optional commit sequence number to use for the commit.
      *                    If omitted then a sequence number will be generated
      *                    by the CheckpointManager.
@@ -1414,6 +1416,7 @@ public:
      */
     ENGINE_ERROR_CODE commit(
             const DocKey& key,
+            uint64_t prepareSeqno,
             boost::optional<int64_t> commitSeqno,
             const Collections::VB::Manifest::CachingReadHandle& cHandle,
             const void* cookie = nullptr);
@@ -2153,6 +2156,7 @@ private:
      * the same key from in-memory structures.
      * @param values Reference to the struct containing StoredValueProxies to
      *               the pending and committed items.
+     * @param prepareSeqno The seqno of the prepare that we are committing
      * @param queueItmCtx Options on how the item should be queued.
      * @param commitSeqno Optional seqno to use for the committed item. If
      *                    omitted then CheckpointManager will generate one.
@@ -2160,6 +2164,7 @@ private:
      */
     virtual VBNotifyCtx commitStoredValue(
             HashTable::FindCommitResult& values,
+            uint64_t prepareSeqno,
             const VBQueueItemCtx& queueItmCtx,
             boost::optional<int64_t> commitSeqno) = 0;
 

@@ -220,7 +220,11 @@ TEST_P(VBucketDurabilityTest, CommitSyncWriteThenWriteToSameKey) {
               public_processSet(*item, 0 /*cas*/, ctx));
 
     ASSERT_EQ(ENGINE_SUCCESS,
-              vbucket->commit(key, {}, vbucket->lockCollections(key), cookie));
+              vbucket->commit(key,
+                              pending->getBySeqno(),
+                              {},
+                              vbucket->lockCollections(key),
+                              cookie));
 
     // Do a normal mutation
     EXPECT_EQ(MutationStatus::WasDirty,
@@ -259,8 +263,11 @@ TEST_P(VBucketDurabilityTest, CommitSyncWriteLoop) {
 
         // And commit
         ASSERT_EQ(ENGINE_SUCCESS,
-                  vbucket->commit(
-                          key, {}, vbucket->lockCollections(key), cookie));
+                  vbucket->commit(key,
+                                  pending->getBySeqno(),
+                                  {},
+                                  vbucket->lockCollections(key),
+                                  cookie));
     }
 }
 
@@ -921,7 +928,10 @@ TEST_P(VBucketDurabilityTest, Commit) {
 
     // Test
     ASSERT_EQ(ENGINE_SUCCESS,
-              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+              vbucket->commit(key,
+                              result->getBySeqno(),
+                              {},
+                              vbucket->lockCollections(key)));
 
     // Check postconditions - should only have one item for that key.
     auto readView = ht->findForRead(key).storedValue;
@@ -955,7 +965,10 @@ void VBucketDurabilityTest::testHTCommitExisting() {
 
     // Test
     ASSERT_EQ(ENGINE_SUCCESS,
-              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+              vbucket->commit(key,
+                              result->getBySeqno(),
+                              {},
+                              vbucket->lockCollections(key)));
 
     // Check postconditions - should only have one item for that key.
     auto readView = ht->findForRead(key).storedValue;
@@ -1013,7 +1026,10 @@ TEST_P(EphemeralVBucketDurabilityTest, CommitExisting_RangeRead) {
     // prepare so that we can test commit under range read.
     mockEphVb->registerFakeReadRange(0, 1000);
     ASSERT_EQ(ENGINE_SUCCESS,
-              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+              vbucket->commit(key,
+                              pending->getBySeqno(),
+                              {},
+                              vbucket->lockCollections(key)));
 
     // Check that we have the expected items in the seqList.
     // 1 stale commit (because of the range read)
@@ -1044,7 +1060,10 @@ TEST_P(EphemeralVBucketDurabilityTest, PrepareOnCommitted) {
 
     // Test
     ASSERT_EQ(ENGINE_SUCCESS,
-              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+              vbucket->commit(key,
+                              result->getBySeqno(),
+                              {},
+                              vbucket->lockCollections(key)));
 
     auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
     EXPECT_EQ(0, mockEphVb->public_getNumStaleItems());
@@ -1096,7 +1115,10 @@ void VBucketDurabilityTest::testHTSyncDeleteCommit() {
 
     ASSERT_EQ(CommittedState::Pending, writeView->getCommitted());
     ASSERT_EQ(ENGINE_SUCCESS,
-              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+              vbucket->commit(key,
+                              writeView->getBySeqno(),
+                              {},
+                              vbucket->lockCollections(key)));
 
     // Check postconditions:
     // 1. Upon commit, both read and write view should show same deleted item.
@@ -1157,7 +1179,10 @@ TEST_P(EphemeralVBucketDurabilityTest, SyncDeleteCommit_RangeRead) {
     // Do the SyncDelete Commit in a range read
     mockEphVb->registerFakeReadRange(0, 1000);
     ASSERT_EQ(ENGINE_SUCCESS,
-              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+              vbucket->commit(key,
+                              4 /*prepareSeqno*/,
+                              {},
+                              vbucket->lockCollections(key)));
 
     // Check that we have the expected items in the seqList.
     // 1 stale value
@@ -1186,7 +1211,10 @@ TEST_P(VBucketDurabilityTest, CommitNonPendingFails) {
 
     // Test
     EXPECT_EQ(ENGINE_KEY_ENOENT,
-              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+              vbucket->commit(key,
+                              result->getBySeqno(),
+                              {},
+                              vbucket->lockCollections(key)));
 }
 
 // Test that a normal set after a Committed SyncWrite is allowed and handled
@@ -1202,7 +1230,10 @@ TEST_P(VBucketDurabilityTest, MutationAfterCommit) {
     ASSERT_TRUE(result);
     ASSERT_EQ(CommittedState::Pending, result->getCommitted());
     ASSERT_EQ(ENGINE_SUCCESS,
-              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+              vbucket->commit(key,
+                              result->getBySeqno(),
+                              {},
+                              vbucket->lockCollections(key)));
 
     auto readView = ht->findForRead(key).storedValue;
     ASSERT_TRUE(readView);
@@ -1235,7 +1266,10 @@ void VBucketDurabilityTest::doSyncWriteAndCommit() {
     auto result = ht->findForWrite(key).storedValue;
     ASSERT_TRUE(result);
     ASSERT_EQ(ENGINE_SUCCESS,
-              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+              vbucket->commit(key,
+                              prepared->getBySeqno(),
+                              {},
+                              vbucket->lockCollections(key)));
 }
 
 TEST_P(EPVBucketDurabilityTest, StatsCommittedSyncWrite) {
@@ -1264,7 +1298,10 @@ void VBucketDurabilityTest::doSyncDelete() {
     auto result = ht->findForWrite(key).storedValue;
     ASSERT_TRUE(result);
     ASSERT_EQ(ENGINE_SUCCESS,
-              vbucket->commit(key, {}, vbucket->lockCollections(key)));
+              vbucket->commit(key,
+                              prepared->getBySeqno(),
+                              {},
+                              vbucket->lockCollections(key)));
 }
 
 TEST_P(EPVBucketDurabilityTest, StatsCommittedSyncDelete) {
@@ -1558,6 +1595,7 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
         case Resolution::Commit: {
             EXPECT_EQ(ENGINE_SUCCESS,
                       vbucket->commit(key,
+                                      prepare.seqno,
                                       prepare.seqno + 10 /*commitSeqno*/,
                                       vbucket->lockCollections(key)));
 

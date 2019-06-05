@@ -153,10 +153,11 @@ public:
                                    Vbid vbucket,
                                    uint64_t prepared_seqno));
 
-    MOCK_METHOD4(commit,
+    MOCK_METHOD5(commit,
                  ENGINE_ERROR_CODE(uint32_t opaque,
                                    Vbid vbucket,
                                    const DocKey& key,
+                                   uint64_t prepare_seqno,
                                    uint64_t commit_seqno));
 
     MOCK_METHOD5(abort,

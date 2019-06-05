@@ -230,9 +230,10 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::seqno_acknowledged(
 ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::commit(uint32_t opaque,
                                                      Vbid vbucket,
                                                      const DocKey& key,
+                                                     uint64_t prepare_seqno,
                                                      uint64_t commit_seqno) {
     NonBucketAllocationGuard guard;
-    return guarded.commit(opaque, vbucket, key, commit_seqno);
+    return guarded.commit(opaque, vbucket, key, prepare_seqno, commit_seqno);
 }
 ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::abort(uint32_t opaque,
                                                     Vbid vbucket,

@@ -1071,7 +1071,10 @@ void RollbackDcpTest::doPrepareAndCommit() {
     stream->processMarker(&marker);
 
     ASSERT_EQ(ENGINE_SUCCESS,
-              vb->commit(key, {commitSeqno}, vb->lockCollections(key)));
+              vb->commit(key,
+                         prepareSeqno,
+                         {commitSeqno},
+                         vb->lockCollections(key)));
 
     flush_vbucket_to_disk(vbid, 1);
 

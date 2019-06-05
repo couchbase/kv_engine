@@ -600,6 +600,7 @@ EPVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
 }
 
 VBNotifyCtx EPVBucket::commitStoredValue(HashTable::FindCommitResult& values,
+                                         uint64_t prepareSeqno,
                                          const VBQueueItemCtx& queueItmCtx,
                                          boost::optional<int64_t> commitSeqno) {
     // Remove a previously committed SV if one exists

@@ -768,6 +768,7 @@ ActiveDurabilityMonitor::State::removeSyncWrite(Container::iterator it) {
 void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
     const auto& key = sw.getKey();
     auto result = vb.commit(key,
+                            sw.getBySeqno() /*prepareSeqno*/,
                             {} /*commitSeqno*/,
                             vb.lockCollections(key),
                             sw.getCookie());

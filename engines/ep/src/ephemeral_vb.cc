@@ -637,6 +637,7 @@ EphemeralVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
 
 VBNotifyCtx EphemeralVBucket::commitStoredValue(
         HashTable::FindCommitResult& values,
+        uint64_t prepareSeqno,
         const VBQueueItemCtx& queueItmCtx,
         boost::optional<int64_t> commitSeqno) {
     if (!values.pending) {

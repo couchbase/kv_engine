@@ -287,6 +287,7 @@ private:
 
     VBNotifyCtx commitStoredValue(
             HashTable::FindCommitResult& values,
+            uint64_t prepareSeqno,
             const VBQueueItemCtx& queueItmCtx,
             boost::optional<int64_t> commitSeqno) override;
 

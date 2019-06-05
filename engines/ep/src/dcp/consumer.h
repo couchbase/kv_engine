@@ -220,6 +220,7 @@ public:
     ENGINE_ERROR_CODE commit(uint32_t opaque,
                              Vbid vbucket,
                              const DocKey& key,
+                             uint64_t prepare_seqno,
                              uint64_t commit_seqno) override;
 
     ENGINE_ERROR_CODE abort(uint32_t opaque,

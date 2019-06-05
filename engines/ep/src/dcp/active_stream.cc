@@ -908,6 +908,7 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
          static_cast<uint64_t>(item->getPrepareSeqno()) > start_seqno_)) {
         return std::make_unique<CommitSyncWrite>(opaque_,
                                                  item->getVBucketId(),
+                                                 item->getPrepareSeqno(),
                                                  item->getBySeqno(),
                                                  item->getKey());
     }

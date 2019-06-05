@@ -934,6 +934,7 @@ public:
                              uint32_t opaque,
                              Vbid vbucket,
                              const DocKey& key,
+                             uint64_t prepared_seqno,
                              uint64_t commit_seqno) override;
     ENGINE_ERROR_CODE abort(gsl::not_null<const void*> cookie,
                             uint32_t opaque,
@@ -1836,12 +1837,13 @@ ENGINE_ERROR_CODE EWB_Engine::commit(gsl::not_null<const void*> cookie,
                                      uint32_t opaque,
                                      Vbid vbucket,
                                      const DocKey& key,
+                                     uint64_t prepared_seqno,
                                      uint64_t commit_seqno) {
     if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
         return real_engine_dcp->commit(
-                cookie, opaque, vbucket, key, commit_seqno);
+                cookie, opaque, vbucket, key, prepared_seqno, commit_seqno);
     }
 }
 
