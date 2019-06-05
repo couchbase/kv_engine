@@ -1077,16 +1077,10 @@ void CheckpointManager::createSnapshot(uint64_t snapStartSeqno,
 void CheckpointManager::resetSnapshotRange() {
     LockHolder lh(queueLock);
 
-    auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
-
-    // Update snapStart and snapEnd only if the open checkpoint has no items,
-    // just set (snapEnd = lastBySeqno) otherwise.
-    if (openCkpt.getNumItems() == 0) {
-        openCkpt.setSnapshotStartSeqno(static_cast<uint64_t>(lastBySeqno + 1));
-        openCkpt.setSnapshotEndSeqno(static_cast<uint64_t>(lastBySeqno + 1));
-    } else {
-        openCkpt.setSnapshotEndSeqno(static_cast<uint64_t>(lastBySeqno));
-    }
+    checkpointList.back()->setSnapshotStartSeqno(
+            static_cast<uint64_t>(lastBySeqno));
+    checkpointList.back()->setSnapshotEndSeqno(
+            static_cast<uint64_t>(lastBySeqno));
 }
 
 void CheckpointManager::updateCurrentSnapshotEnd(uint64_t snapEnd) {
