@@ -687,7 +687,8 @@ ENGINE_ERROR_CODE PassiveStream::processAbort(const AbortSyncWrite& abort) {
     }
 
     return vb->abort(abort.getKey(),
-                     abort.getBySeqno(),
+                     abort.getPreparedSeqno(),
+                     abort.getAbortSeqno(),
                      vb->lockCollections(abort.getKey()));
 }
 

@@ -616,7 +616,8 @@ void DurabilityWarmupTest::testCommittedAndPendingSyncWrite(
     // is present, readable and the same it was before warmup.
     {
         auto handle = vb->lockCollections(item->getKey());
-        ASSERT_EQ(ENGINE_SUCCESS, vb->abort(key, {}, handle));
+        ASSERT_EQ(ENGINE_SUCCESS,
+                  vb->abort(key, item->getBySeqno(), {}, handle));
     }
     gv = store->get(key, vbid, cookie, {});
     ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
@@ -656,7 +657,7 @@ TEST_P(DurabilityWarmupTest, AbortedSyncWritePrepareIsNotLoaded) {
 
     { // scoping vb - is invalid once resetEngineAndWarmup() is called.
         auto vb = engine->getVBucket(vbid);
-        vb->abort(key, {}, vb->lockCollections(key));
+        vb->abort(key, item->getBySeqno(), {}, vb->lockCollections(key));
 
         flush_vbucket_to_disk(vbid, 1);
     }
@@ -765,7 +766,10 @@ void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState(
         break;
     case Resolution::Abort:
         ASSERT_EQ(ENGINE_SUCCESS,
-                  vb->abort(key, {} /*abortSeqno*/, vb->lockCollections(key)));
+                  vb->abort(key,
+                            preparedSeqno,
+                            {} /*abortSeqno*/,
+                            vb->lockCollections(key)));
         break;
     }
 

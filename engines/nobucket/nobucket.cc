@@ -398,6 +398,7 @@ public:
                             uint32_t opaque,
                             Vbid vbucket,
                             const DocKey& key,
+                            uint64_t prepared_seqno,
                             uint64_t abort_seqno) override {
         return ENGINE_EINVAL;
     }

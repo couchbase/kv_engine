@@ -589,6 +589,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareAbort(DocumentState docState) {
             docState, "1", "X", {Level::MajorityAndPersistOnMaster, {}});
     ASSERT_EQ(ENGINE_SUCCESS,
               vb0->abort(prepared->getKey(),
+                         prepared->getBySeqno(),
                          {},
                          vb0->lockCollections(prepared->getKey())));
     removeCheckpoint(2);

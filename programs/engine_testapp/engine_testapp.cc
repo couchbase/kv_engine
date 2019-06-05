@@ -297,6 +297,7 @@ struct mock_engine : public EngineIface, public DcpIface {
                             uint32_t opaque,
                             Vbid vbucket,
                             const DocKey& key,
+                            uint64_t prepared_seqno,
                             uint64_t abort_seqno) override;
 
     EngineIface* the_engine{};
@@ -944,8 +945,10 @@ ENGINE_ERROR_CODE mock_engine::abort(gsl::not_null<const void*> cookie,
                                      uint32_t opaque,
                                      Vbid vbucket,
                                      const DocKey& key,
+                                     uint64_t prepared_seqno,
                                      uint64_t abort_seqno) {
-    return the_engine_dcp->abort(cookie, opaque, vbucket, key, abort_seqno);
+    return the_engine_dcp->abort(
+            cookie, opaque, vbucket, key, prepared_seqno, abort_seqno);
 }
 
 static void usage() {

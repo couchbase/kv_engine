@@ -310,6 +310,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbort(DocumentState docState) {
 
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.abort(key,
+                       1 /*prepareSeqno*/,
                        {} /*abortSeqno*/,
                        vb.lockCollections(key)));
 
@@ -364,6 +365,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbortPrepare(
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.abort(key,
+                       pending->getBySeqno(),
                        {} /*abortSeqno*/,
                        vb.lockCollections(key)));
 
@@ -423,6 +425,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbortX2(DocumentState docState) {
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.abort(key,
+                       pending->getBySeqno(),
                        {} /*abortSeqno*/,
                        vb.lockCollections(key)));
 
@@ -434,6 +437,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbortX2(DocumentState docState) {
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending2, cookie));
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.abort(key,
+                       pending2->getBySeqno(),
                        {} /*abortSeqno*/,
                        vb.lockCollections(key)));
 
@@ -1531,7 +1535,11 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
 
     auto& vb = *store->getVBucket(vbid);
     ASSERT_EQ(ENGINE_SUCCESS,
-              vb.abort(key, {}, vb.lockCollections(key), cookie));
+              vb.abort(key,
+                       pending->getBySeqno(),
+                       {},
+                       vb.lockCollections(key),
+                       cookie));
 
     // Test: Attempt another SyncWrite, which _should_ fail (in this case just
     // use replace against the same non-existent key).
@@ -1580,7 +1588,10 @@ TEST_P(DurabilityEphemeralBucketTest, PurgeCompletedPrepare) {
 
 TEST_P(DurabilityEphemeralBucketTest, PurgeCompletedAbort) {
     auto op = [this](VBucket& vb, StoredDocKey key) -> ENGINE_ERROR_CODE {
-        return vb.abort(key, {} /*abortSeqno*/, vb.lockCollections(key));
+        return vb.abort(key,
+                        1 /*prepareSeqno*/,
+                        {} /*abortSeqno*/,
+                        vb.lockCollections(key));
     };
     testPurgeCompletedPrepare(op);
 }

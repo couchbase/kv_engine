@@ -846,6 +846,7 @@ ENGINE_ERROR_CODE VBucket::commit(
 
 ENGINE_ERROR_CODE VBucket::abort(
         const DocKey& key,
+        uint64_t prepareSeqno,
         boost::optional<int64_t> abortSeqno,
         const Collections::VB::Manifest::CachingReadHandle& cHandle,
         const void* cookie) {
@@ -873,10 +874,11 @@ ENGINE_ERROR_CODE VBucket::abort(
         return ENGINE_EINVAL;
     }
 
-    auto notify = abortStoredValue(htRes.lock,
-                                   *htRes.storedValue,
-                                   htRes.storedValue->getBySeqno(),
-                                   abortSeqno);
+    Expects(prepareSeqno ==
+            static_cast<uint64_t>(htRes.storedValue->getBySeqno()));
+
+    auto notify = abortStoredValue(
+            htRes.lock, *htRes.storedValue, prepareSeqno, abortSeqno);
 
     notifyNewSeqno(notify);
     doCollectionsStats(cHandle, notify);

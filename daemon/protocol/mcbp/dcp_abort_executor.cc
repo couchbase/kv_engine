@@ -33,6 +33,7 @@ void dcp_abort_executor(Cookie& cookie) {
                        req.getOpaque(),
                        req.getVBucket(),
                        cookie.getConnection().makeDocKey(req.getKey()),
+                       extras.getPreparedSeqno(),
                        extras.getAbortSeqno());
     }
 

@@ -205,7 +205,8 @@ TEST_P(DurabilityActiveStreamTest, SendDcpAbort) {
     EXPECT_EQ(DcpResponse::Event::Abort, resp->getEvent());
     const auto& abort = static_cast<AbortSyncWrite&>(*resp);
     EXPECT_EQ(key, abort.getKey());
-    EXPECT_EQ(2, *abort.getBySeqno());
+    EXPECT_EQ(prepareSeqno, abort.getPreparedSeqno());
+    EXPECT_EQ(2, abort.getAbortSeqno());
     ASSERT_EQ(0, stream->public_readyQSize());
     resp = stream->public_popFromReadyQ();
     ASSERT_FALSE(resp);
@@ -811,15 +812,16 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbort) {
     // First, simulate the Consumer receiving a Prepare
     testReceiveDcpPrepare();
     auto vb = engine->getVBucket(vbid);
-    const uint64_t prepareSeqno = 1;
+    uint64_t prepareSeqno = 1;
     const auto key = makeStoredDocKey("key");
 
     // Now simulate the Consumer receiving Abort for that Prepare
     uint32_t opaque = 0;
-    auto abortReceived =
-            [this, opaque, &key](uint64_t abortSeqno) -> ENGINE_ERROR_CODE {
+    auto abortReceived = [this, opaque, &key](
+                                 uint64_t prepareSeqno,
+                                 uint64_t abortSeqno) -> ENGINE_ERROR_CODE {
         return stream->messageReceived(std::make_unique<AbortSyncWrite>(
-                opaque, vbid, key, abortSeqno));
+                opaque, vbid, key, prepareSeqno, abortSeqno));
     };
 
     // Check a negative first: at Replica we don't expect multiple Durable
@@ -828,7 +830,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbort) {
     uint64_t abortSeqno = prepareSeqno + 1;
     auto thrown{false};
     try {
-        abortReceived(abortSeqno);
+        abortReceived(prepareSeqno, abortSeqno);
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find("duplicate item") !=
                     std::string::npos);
@@ -867,7 +869,8 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbort) {
     //     PassiveStream::last_seqno has been incremented, so we need to
     //     abortSeqno to bypass ENGINE_ERANGE checks.
     abortSeqno++;
-    ASSERT_EQ(ENGINE_SUCCESS, abortReceived(abortSeqno));
+    prepareSeqno++;
+    ASSERT_EQ(ENGINE_SUCCESS, abortReceived(prepareSeqno, abortSeqno));
 
     EXPECT_EQ(0, vb->getNumItems());
     // Ephemeral keeps the completed prepare in the HashTable

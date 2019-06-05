@@ -1366,7 +1366,16 @@ static_assert(sizeof(DcpCommitPayload) == 8, "Unexpected struct size");
 
 class DcpAbortPayload {
 public:
-    DcpAbortPayload(uint64_t aborted) : abort_seqno(htonll(aborted)) {
+    DcpAbortPayload(uint64_t prepared, uint64_t aborted)
+        : prepared_seqno(htonll(prepared)), abort_seqno(htonll(aborted)) {
+    }
+
+    uint64_t getPreparedSeqno() const {
+        return ntohll(prepared_seqno);
+    }
+
+    void setPreparedSeqno(uint64_t seqno) {
+        prepared_seqno = htonll(seqno);
     }
 
     uint64_t getAbortSeqno() const {
@@ -1382,9 +1391,10 @@ public:
     }
 
 protected:
+    uint64_t prepared_seqno = 0;
     uint64_t abort_seqno = 0;
 };
-static_assert(sizeof(DcpAbortPayload) == 8, "Unexpected struct size");
+static_assert(sizeof(DcpAbortPayload) == 16, "Unexpected struct size");
 
 class SetParamPayload {
 public:

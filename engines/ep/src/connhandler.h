@@ -229,6 +229,7 @@ public:
     virtual ENGINE_ERROR_CODE abort(uint32_t opaque,
                                     Vbid vbucket,
                                     const DocKey& key,
+                                    uint64_t prepareSeqno,
                                     uint64_t abortSeqno);
 
     /// Receive a seqno_acknowledged message.

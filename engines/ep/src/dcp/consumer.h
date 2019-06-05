@@ -225,6 +225,7 @@ public:
     ENGINE_ERROR_CODE abort(uint32_t opaque,
                             Vbid vbucket,
                             const DocKey& key,
+                            uint64_t prepareSeqno,
                             uint64_t abortSeqno) override;
 
     bool doRollback(uint32_t opaque, Vbid vbid, uint64_t rollbackSeqno);

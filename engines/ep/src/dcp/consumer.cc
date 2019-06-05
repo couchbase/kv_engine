@@ -1775,6 +1775,7 @@ ENGINE_ERROR_CODE DcpConsumer::commit(uint32_t opaque,
 ENGINE_ERROR_CODE DcpConsumer::abort(uint32_t opaque,
                                      Vbid vbucket,
                                      const DocKey& key,
+                                     uint64_t prepareSeqno,
                                      uint64_t abortSeqno) {
     lastMessageTime = ep_current_time();
     UpdateFlowControl ufc(*this,
@@ -1782,6 +1783,12 @@ ENGINE_ERROR_CODE DcpConsumer::abort(uint32_t opaque,
 
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
+    }
+
+    if (!prepareSeqno) {
+        logger->warn("({}) DcpConsumer::abort: Invalid prepare-seqno (0)",
+                     vbucket);
+        return ENGINE_EINVAL;
     }
 
     if (!abortSeqno) {
@@ -1794,7 +1801,7 @@ ENGINE_ERROR_CODE DcpConsumer::abort(uint32_t opaque,
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
         try {
             err = stream->messageReceived(std::make_unique<AbortSyncWrite>(
-                    opaque, vbucket, key, abortSeqno));
+                    opaque, vbucket, key, prepareSeqno, abortSeqno));
         } catch (const std::bad_alloc&) {
             return ENGINE_ENOMEM;
         }
