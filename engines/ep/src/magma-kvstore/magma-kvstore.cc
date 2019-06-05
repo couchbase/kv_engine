@@ -27,6 +27,14 @@
 #include <algorithm>
 #include <limits>
 
+// Unfortunately, turning on logging for the tests is limited to debug
+// mode. While we are in the midst of dropping in magma, this provides
+// a simple way to change all the logging->trace calls to logging->debug
+// by changing trace to debug..
+// Once magma has been completed, we can remove this #define and change
+// all the logging calls back to trace.
+#define TRACE trace
+
 using namespace magma;
 using namespace std::chrono_literals;
 
@@ -229,7 +237,7 @@ public:
      *
      * @param item Item instance to be persisted
      * @param callback Persistence Callback
-     * @param logger Used for trace logging
+     * @param logger Used for logging
      */
     MagmaRequest(const Item& item,
                  MutationRequestCallback callback,
@@ -237,8 +245,8 @@ public:
         : IORequest(item.getVBucketId(), std::move(callback), DiskDocKey{item}),
           docMeta(magmakv::MetaData(item)),
           docBody(item.getValue()) {
-        if (logger->should_log(spdlog::level::trace)) {
-            logger->trace("Request:{}", to_string());
+        if (logger->should_log(spdlog::level::TRACE)) {
+            logger->TRACE("Request:{}", to_string());
         }
     }
 
@@ -581,7 +589,7 @@ bool MagmaKVStore::commit(Collections::VB::Flush& collectionsFlush) {
     }
 
     pendingReqs->clear();
-    logger->trace("MagmaKVStore::commit success:{}", success);
+    logger->TRACE("MagmaKVStore::commit success:{}", success);
 
     return success;
 }
@@ -618,7 +626,7 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
                 st.delTimeHisto.add(req.getDelta());
             }
 
-            logger->trace("commitCallback {} errCode:{} getDelCallback rv:{}",
+            logger->TRACE("commitCallback {} errCode:{} getDelCallback rv:{}",
                           pendingReqs->front().getVbID(),
                           errCode,
                           to_string(rv));
@@ -643,7 +651,7 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
             }
             req.getSetCallback()(*transactionCtx, mutationSetStatus);
 
-            logger->trace(
+            logger->TRACE(
                     "commitCallback {} errCode:{} getSetCallback rv:{} "
                     "insertion:{}",
                     pendingReqs->front().getVbID(),
@@ -938,10 +946,10 @@ int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
             continue;
         }
 
-        if (logger->should_log(spdlog::level::debug)) {
+        if (logger->should_log(spdlog::level::TRACE)) {
             std::string hex, ascii;
             hexdump(key.Data(), key.Len(), hex, ascii);
-            logger->debug(
+            logger->TRACE(
                     "MagmaKVStore::saveDocs {} key:{} {} seqno:{} delete:{} "
                     "found:{} "
                     "tombstone:{}",
@@ -1094,9 +1102,9 @@ vbucket_state* MagmaKVStore::getVBucketState(Vbid vbid) {
         vbstate = cachedVBStates[vbid.get()].get();
     }
 
-    if (logger->should_log(spdlog::level::trace)) {
+    if (logger->should_log(spdlog::level::TRACE)) {
         auto j = encodeVBState(*vbstate, getMagmaInfo(vbid));
-        logger->trace("getVBucketState {} vbstate:{}", vbid, j.dump());
+        logger->TRACE("getVBucketState {} vbstate:{}", vbid, j.dump());
     }
     return vbstate;
 }
@@ -1129,7 +1137,7 @@ magma::Status MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
     }
 
     vbucket_state vbstate = j;
-    logger->trace("readVBStateFromDisk {} vbstate:{}", vbid, j.dump());
+    logger->TRACE("readVBStateFromDisk {} vbstate:{}", vbid, j.dump());
 
     auto vbs = std::make_unique<vbucket_state>(vbstate);
     cachedVBStates[vbid.get()] = std::move(vbs);
@@ -1158,7 +1166,7 @@ magma::Status MagmaKVStore::writeVBStateToDisk(
     }
 
     auto jstr = encodeVBState(*vbs, *minfo).dump();
-    logger->trace("writeVBStateToDisk {} vbstate:{}", vbid, jstr);
+    logger->TRACE("writeVBStateToDisk {} vbstate:{}", vbid, jstr);
     return setLocalDoc(commitBatch, vbstateKey, jstr, false);
 }
 
@@ -1220,7 +1228,7 @@ std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
                              vbid,
                              keySlice.ToString());
             } else {
-                logger->trace("MagmaKVStore::readLocalDoc({} key:{})",
+                logger->TRACE("MagmaKVStore::readLocalDoc({} key:{})",
                               vbid,
                               keySlice.ToString());
             }
@@ -1240,7 +1248,7 @@ Status MagmaKVStore::setLocalDoc(Magma::CommitBatch& commitBatch,
     // Store in localDB
     Slice valSlice = {valString.c_str(), valString.size()};
 
-    logger->trace("MagmaKVStore::setLocalDoc({} key:{})",
+    logger->TRACE("MagmaKVStore::setLocalDoc({} key:{})",
                   commitBatch.GetkvID(),
                   const_cast<Slice&>(keySlice).ToString());
 
