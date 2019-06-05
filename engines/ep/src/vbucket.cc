@@ -852,13 +852,35 @@ ENGINE_ERROR_CODE VBucket::abort(
         const void* cookie) {
     auto htRes = ht.findForWrite(key);
     if (!htRes.storedValue) {
-        // If we are aborting we /should/ always find the pending item.
-        EP_LOG_WARN(
-                "VBucket::abort ({}) failed as no HashTable item found with "
-                "key:{}",
-                id,
-                cb::UserDataView(cb::const_char_buffer(key)));
-        return ENGINE_KEY_ENOENT;
+        // Active - If we are aborting we /should/ always find the pending item.
+        if (!abortSeqno) {
+            EP_LOG_WARN(
+                    "VBucket::abort ({}) - active - failed as no HashTable"
+                    "item found with key:{}",
+                    id,
+                    cb::UserDataView(cb::const_char_buffer(key)));
+            return ENGINE_KEY_ENOENT;
+        }
+
+        Expects(getState() != vbucket_state_active);
+
+        if (!(static_cast<uint64_t>(getHighSeqno()) < prepareSeqno &&
+              prepareSeqno < duplicateAbortHighPrepareSeqno)) {
+            EP_LOG_WARN(
+                    "VBucket::abort ({}) - replica - failed as we received "
+                    "an abort for a prepare that does not exist and we are "
+                    "not in the window highSeqno:{} <= prepareSeqno:{} < "
+                    "duplicateAbortHighPrepareSeqno:{}",
+                    id,
+                    getHighSeqno(),
+                    prepareSeqno,
+                    duplicateAbortHighPrepareSeqno);
+            return ENGINE_EINVAL;
+        }
+
+        // We have an abort for a prepare we do not know about that is in a
+        // valid range for which this can occur (replica) - do nothing
+        return ENGINE_SUCCESS;
     }
 
     if (!htRes.storedValue->isPending()) {
@@ -3603,4 +3625,8 @@ ENGINE_ERROR_CODE VBucket::checkDurabilityRequirements(const Item& item) {
 
 void VBucket::removeQueuedAckFromDM(const std::string& node) {
     getActiveDM().removedQueuedAck(node);
+}
+
+void VBucket::setDuplicateSyncWriteWindow(uint64_t highSeqno) {
+    duplicateAbortHighPrepareSeqno = highSeqno;
 }

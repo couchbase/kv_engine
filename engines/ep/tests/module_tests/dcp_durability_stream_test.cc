@@ -804,11 +804,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpPrepareCommitPrepare) {
             << "Should have one Committed and one Prepared items in HashTable";
 }
 
-/*
- * This test checks that a DCP Consumer receives and processes correctly a
- * DCP_ABORT message.
- */
-TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbort) {
+void DurabilityPassiveStreamTest::testReceiveDcpAbort() {
     // First, simulate the Consumer receiving a Prepare
     testReceiveDcpPrepare();
     auto vb = engine->getVBucket(vbid);
@@ -900,6 +896,96 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbort) {
     EXPECT_EQ(abortSeqno, (*it)->getBySeqno());
 
     EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
+}
+
+TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbort) {
+    testReceiveDcpAbort();
+}
+
+void DurabilityPassiveStreamTest::testReceiveDuplicateDcpAbort(
+        const std::string& key,
+        uint64_t prepareSeqno,
+        ENGINE_ERROR_CODE expectedResult) {
+    testReceiveDcpAbort();
+    auto vb = engine->getVBucket(vbid);
+
+    const uint64_t abortSeqno = 5;
+    const auto docKey = makeStoredDocKey(key);
+    uint32_t opaque = 0;
+
+    // Fake disconnect and reconnect, importantly, this sets up the valid window
+    // for ignoring DCPAborts.
+    consumer->closeAllStreams();
+    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    stream->acceptStream(cb::mcbp::Status::Success, opaque);
+
+    SnapshotMarker marker(
+            opaque,
+            vbid,
+            abortSeqno /*snapStart*/,
+            abortSeqno /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // 2 checkpoints
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *vb->checkpointManager);
+    ASSERT_EQ(3, ckptList.size());
+    auto* ckpt = ckptList.front().get();
+    ASSERT_EQ(checkpoint_state::CHECKPOINT_CLOSED, ckpt->getState());
+    ckpt = ckptList.back().get();
+    ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
+    ASSERT_EQ(0, ckpt->getNumItems());
+
+    EXPECT_EQ(expectedResult,
+              stream->messageReceived(std::make_unique<AbortSyncWrite>(
+                      opaque, vbid, docKey, prepareSeqno, abortSeqno)));
+
+    EXPECT_EQ(0, vb->getNumItems());
+
+    // Ephemeral keeps the completed prepare in the HashTable
+    if (persistent()) {
+        EXPECT_EQ(0, vb->ht.getNumItems());
+    } else {
+        EXPECT_EQ(1, vb->ht.getNumItems());
+    }
+    {
+        const auto sv = vb->ht.findForWrite(docKey);
+        ASSERT_FALSE(sv.storedValue);
+    }
+
+    // empty-item
+    auto it = ckpt->begin();
+    ASSERT_EQ(queue_op::empty, (*it)->getOperation());
+    // 1 metaitem (checkpoint-start)
+    it++;
+    ASSERT_EQ(1, ckpt->getNumMetaItems());
+    EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
+    // 1 non-metaitem is Abort and carries no value
+    it++;
+    ASSERT_EQ(0, ckpt->getNumItems());
+
+    EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
+}
+
+TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbortIgnoreDeDuped) {
+    testReceiveDuplicateDcpAbort("key", 4, ENGINE_SUCCESS);
+}
+
+TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbortDuplicate) {
+    testReceiveDuplicateDcpAbort("key", 3, ENGINE_EINVAL);
+}
+
+TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbortDeDupedPrepareSeqnoTooHigh) {
+    testReceiveDuplicateDcpAbort("key", 5, ENGINE_EINVAL);
+}
+
+TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbortIgnoreDeDupedNewKey) {
+    testReceiveDuplicateDcpAbort("newkey", 4, ENGINE_SUCCESS);
 }
 
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,

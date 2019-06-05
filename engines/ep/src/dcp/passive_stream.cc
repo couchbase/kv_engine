@@ -805,6 +805,11 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                     : Snapshot::Memory);
 
     if (getState() == StreamState::AwaitingFirstSnapshotMarker) {
+        // A replica could receive multiple DCP Abort/Commit/Prepare due to
+        // de-duplication for a small window at stream reconnection. Set the
+        // window in the vBucket object so that we can selectively allow these
+        // only for the given window.
+        vb->setDuplicateSyncWriteWindow(cur_snapshot_start);
         transitionState(StreamState::Reading);
     }
 

@@ -1647,6 +1647,13 @@ public:
      */
     void removeQueuedAckFromDM(const std::string& node);
 
+    /**
+     * Set the window for which a duplicate abort/prepare may be valid.
+     *
+     * @param highSeqno high seqno of this window (for abort)
+     */
+    void setDuplicateSyncWriteWindow(uint64_t highSeqno);
+
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 
@@ -2364,6 +2371,9 @@ private:
     static cb::AtomicDuration chkFlushTimeout;
 
     static double mutationMemThreshold;
+
+    // The highest prepare seqno that we may see for a duplicate abort message
+    uint64_t duplicateAbortHighPrepareSeqno = 0;
 
     friend class DurabilityMonitorTest;
     friend class SingleThreadedActiveStreamTest;
