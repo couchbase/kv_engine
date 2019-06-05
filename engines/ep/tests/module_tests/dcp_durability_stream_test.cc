@@ -669,6 +669,232 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpPrepare) {
     testReceiveDcpPrepare();
 }
 
+void DurabilityPassiveStreamTest::testReceiveDuplicateDcpPrepare(
+        uint64_t prepareSeqno) {
+    // Consumer receives [1, 1] snapshot with just a prepare
+    testReceiveDcpPrepare();
+
+    // The consumer now "disconnects" then "re-connects" and misses a commit for
+    // the given key at seqno 2. It instead receives the following snapshot
+    // [3, 3] for the same key containing a prepare, followed by a second
+    // snapshot [4, 4] with the corresponding commit.
+    uint32_t opaque = 0;
+
+    // Fake disconnect and reconnect, importantly, this sets up the valid window
+    // for replacing the old prepare.
+    consumer->closeAllStreams();
+    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    stream->acceptStream(cb::mcbp::Status::Success, opaque);
+
+    ASSERT_TRUE(stream->isActive());
+    // At Replica we don't expect multiple Durability items (for the same key)
+    // within the same snapshot. That is because the Active prevents that for
+    // avoiding de-duplication.
+    // So, we need to simulate a Producer sending another SnapshotMarker with
+    // the MARKER_FLAG_CHK set before the Consumer receives the Commit. That
+    // will force the Consumer closing the open checkpoint (which Contains the
+    // Prepare) and creating a new open one for queueing the Commit.
+    SnapshotMarker marker(
+            opaque,
+            vbid,
+            prepareSeqno /*snapStart*/,
+            prepareSeqno /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    const std::string value("value");
+    auto key = makeStoredDocKey("key");
+    using namespace cb::durability;
+
+    const uint64_t cas = 999;
+    queued_item qi(new Item(key,
+                            0 /*flags*/,
+                            0 /*expiry*/,
+                            value.c_str(),
+                            value.size(),
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            cas /*cas*/,
+                            prepareSeqno,
+                            vbid));
+    qi->setPendingSyncWrite(Requirements(Level::Majority, Timeout::Infinity()));
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      std::move(qi),
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    auto commitSeqno = prepareSeqno + 1;
+    marker = SnapshotMarker(
+            opaque,
+            vbid,
+            commitSeqno /*snapStart*/,
+            commitSeqno /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<CommitSyncWrite>(
+                      opaque, vbid, commitSeqno, key)));
+}
+
+TEST_P(DurabilityPassiveStreamTest, ReceiveDuplicateDcpPrepare) {
+    testReceiveDuplicateDcpPrepare(3);
+}
+
+TEST_P(DurabilityPassiveStreamTest, ReceiveDuplicateDcpPrepareRemoveFromSet) {
+    testReceiveDuplicateDcpPrepare(3);
+
+    const std::string value("value");
+    auto key = makeStoredDocKey("key");
+    const uint64_t cas = 999;
+    queued_item qi(new Item(key,
+                            0 /*flags*/,
+                            0 /*expiry*/,
+                            value.c_str(),
+                            value.size(),
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            cas /*cas*/,
+                            3,
+                            vbid));
+    using namespace cb::durability;
+    qi->setPendingSyncWrite(Requirements(Level::Majority, Timeout::Infinity()));
+
+    uint32_t opaque = 0;
+    ASSERT_EQ(ENGINE_ERANGE,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      std::move(qi),
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+}
+
+TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
+    testReceiveDcpPrepare();
+
+    // Send another prepare for our second sequential prepare to overwrite.
+    auto key = makeStoredDocKey("key1");
+    const uint64_t cas = 999;
+    uint64_t prepareSeqno = 2;
+    makeAndReceiveDcpPrepare(key, cas, prepareSeqno);
+
+    // The consumer now "disconnects" then "re-connects" and misses a commit for
+    // the given key at seqno 3.
+    uint32_t opaque = 0;
+
+    // Fake disconnect and reconnect, importantly, this sets up the valid window
+    // for replacing the old prepare.
+    consumer->closeAllStreams();
+    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    stream->acceptStream(cb::mcbp::Status::Success, opaque);
+    ASSERT_TRUE(stream->isActive());
+
+    // Receive a snapshot marker [4, 4] for what would be a sequential prepare
+    // on the same key This should set the valid sequential prepare window for
+    // the vBucket (just seqno 4).
+    // At Replica we don't expect multiple Durability items (for the same key)
+    // within the same snapshot. That is because the Active prevents that for
+    // avoiding de-duplication.
+    // So, we need to simulate a Producer sending another SnapshotMarker with
+    // the MARKER_FLAG_CHK set before the Consumer receives the Commit. That
+    // will force the Consumer closing the open checkpoint (which Contains the
+    // Prepare) and creating a new open one for queueing the Commit.
+    SnapshotMarker marker(
+            opaque,
+            vbid,
+            5 /*snapStart*/,
+            5 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // Now disconnect again.
+    consumer->closeAllStreams();
+    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    stream->acceptStream(cb::mcbp::Status::Success, opaque);
+    ASSERT_TRUE(stream->isActive());
+
+    // We should now expand the previously existing sequential prepare window to
+    // seqno 4 and 5.
+    marker = SnapshotMarker(
+            opaque,
+            vbid,
+            5 /*snapStart*/,
+            6 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // We should now successfully overwrite the existing prepares at seqno 1
+    // and seqno 2 with new prepares that exist at seqno 4 and seqno 5.
+    key = makeStoredDocKey("key");
+    const std::string value("value");
+    using namespace cb::durability;
+    prepareSeqno = 5;
+    queued_item qi(new Item(key,
+                            0 /*flags*/,
+                            0 /*expiry*/,
+                            value.c_str(),
+                            value.size(),
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            cas /*cas*/,
+                            prepareSeqno,
+                            vbid));
+    qi->setPendingSyncWrite(Requirements(Level::Majority, Timeout::Infinity()));
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      std::move(qi),
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    key = makeStoredDocKey("key1");
+    prepareSeqno = 6;
+    qi = queued_item(new Item(key,
+                              0 /*flags*/,
+                              0 /*expiry*/,
+                              value.c_str(),
+                              value.size(),
+                              PROTOCOL_BINARY_RAW_BYTES,
+                              cas /*cas*/,
+                              prepareSeqno,
+                              vbid));
+    qi->setPendingSyncWrite(Requirements(Level::Majority, Timeout::Infinity()));
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      std::move(qi),
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+}
+
 void DurabilityPassiveStreamTest::testReceiveDcpPrepareCommit() {
     // First, simulate the Consumer receiving a Prepare
     testReceiveDcpPrepare();

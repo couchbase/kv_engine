@@ -59,6 +59,12 @@ protected:
     void testReceiveDcpPrepare();
 
     /**
+     * Simulates a Replica received a DCP_PREPARE followed by another after
+     * disconnecting and re-connecting.
+     */
+    void testReceiveDuplicateDcpPrepare(uint64_t prepareSeqno);
+
+    /**
      * Simulates a Replica receiving a DCP_PREPARE followed by DCP_COMMIT and
      * checks they are queued correctly for persistence.
      */

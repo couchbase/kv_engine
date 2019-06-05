@@ -817,6 +817,9 @@ ENGINE_ERROR_CODE VBucket::commit(
         return ENGINE_KEY_ENOENT;
     }
 
+    // Remove from the allowed duplicate prepare set (if it exists)
+    allowedDuplicatePrepareSeqnos.erase(res.pending->getBySeqno());
+
     // Value for Pending must never be ejected
     Expects(res.pending->isResident());
 
@@ -895,6 +898,9 @@ ENGINE_ERROR_CODE VBucket::abort(
                 cb::UserData(ss.str()));
         return ENGINE_EINVAL;
     }
+
+    // Remove from the allowed duplicate prepare set (if it exists)
+    allowedDuplicatePrepareSeqnos.erase(htRes.storedValue->getBySeqno());
 
     Expects(prepareSeqno ==
             static_cast<uint64_t>(htRes.storedValue->getBySeqno()));
@@ -1765,16 +1771,99 @@ ENGINE_ERROR_CODE VBucket::prepare(
         GenerateBySeqno genBySeqno,
         GenerateCas genCas,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    return setWithMeta(itm,
-                       cas,
-                       seqno,
-                       cookie,
-                       engine,
-                       checkConflicts,
-                       allowExisting,
-                       genBySeqno,
-                       genCas,
-                       cHandle);
+    auto htRes = ht.findOnlyPrepared(itm.getKey());
+    auto* v = htRes.storedValue;
+    auto& hbl = htRes.lock;
+    bool maybeKeyExists = true;
+    MutationStatus status;
+    boost::optional<VBNotifyCtx> notifyCtx;
+    VBQueueItemCtx queueItmCtx{
+            genBySeqno,
+            genCas,
+            GenerateDeleteTime::No,
+            TrackCasDrift::Yes,
+            /*isBackfillItem*/ false,
+            DurabilityItemCtx{itm.getDurabilityReqs(), cookie},
+            nullptr /* No pre link step needed */};
+
+    auto itr = allowedDuplicatePrepareSeqnos.end();
+    if (v && (itr = allowedDuplicatePrepareSeqnos.find(v->getBySeqno())) !=
+                     allowedDuplicatePrepareSeqnos.end()) {
+        // Valid duplicate prepare - call processSetInner and skip the
+        // SyncWrite checks.
+        std::tie(status, notifyCtx) = processSetInner(hbl,
+                                                      v,
+                                                      itm,
+                                                      cas,
+                                                      allowExisting,
+                                                      true,
+                                                      queueItmCtx,
+                                                      {/*no predicate*/},
+                                                      maybeKeyExists);
+
+        // We should not see this seqno again so remove from the set.
+        allowedDuplicatePrepareSeqnos.erase(itr);
+    } else {
+        // Not a valid duplicate prepare, call processSet and hit the SyncWrite
+        // checks.
+        std::tie(status, notifyCtx) = processSet(hbl,
+                                                 v,
+                                                 itm,
+                                                 cas,
+                                                 allowExisting,
+                                                 true,
+                                                 queueItmCtx,
+                                                 {},
+                                                 maybeKeyExists);
+    }
+
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    switch (status) {
+    case MutationStatus::NoMem:
+        ret = ENGINE_ENOMEM;
+        break;
+    case MutationStatus::InvalidCas:
+        ret = ENGINE_KEY_EEXISTS;
+        break;
+    case MutationStatus::IsLocked:
+        ret = ENGINE_LOCKED;
+        break;
+    case MutationStatus::WasDirty:
+    case MutationStatus::WasClean: {
+        if (v == nullptr) {
+            // Scan build thinks v could be nullptr - check to suppress warning
+            throw std::logic_error(
+                    "VBucket::prepare: "
+                    "StoredValue should not be null if status WasClean");
+        }
+        if (seqno) {
+            *seqno = static_cast<uint64_t>(v->getBySeqno());
+        }
+        // we unlock ht lock here because we want to avoid potential lock
+        // inversions arising from notifyNewSeqno() call
+        hbl.getHTLock().unlock();
+        notifyNewSeqno(*notifyCtx);
+        doCollectionsStats(cHandle, *notifyCtx);
+    } break;
+    case MutationStatus::NotFound:
+        ret = ENGINE_KEY_ENOENT;
+        break;
+    case MutationStatus::NeedBgFetch: { // CAS operation with non-resident item
+        // + full eviction.
+        if (v) { // temp item is already created. Simply schedule a
+            hbl.getHTLock().unlock(); // bg fetch job.
+            bgFetch(itm.getKey(), cookie, engine, true);
+            return ENGINE_EWOULDBLOCK;
+        }
+        ret = addTempItemAndBGFetch(hbl, itm.getKey(), cookie, engine, true);
+        break;
+    }
+    case MutationStatus::IsPendingSyncWrite:
+        ret = ENGINE_SYNC_WRITE_IN_PROGRESS;
+        break;
+    }
+
+    return ret;
 }
 
 ENGINE_ERROR_CODE VBucket::setWithMeta(
@@ -3020,6 +3109,27 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
         }
     }
 
+    return processSetInner(hbl,
+                           v,
+                           itm,
+                           cas,
+                           allowExisting,
+                           hasMetaData,
+                           queueItmCtx,
+                           storeIfStatus,
+                           maybeKeyExists);
+}
+
+std::pair<MutationStatus, boost::optional<VBNotifyCtx>>
+VBucket::processSetInner(const HashTable::HashBucketLock& hbl,
+                         StoredValue*& v,
+                         Item& itm,
+                         uint64_t cas,
+                         bool allowExisting,
+                         bool hasMetaData,
+                         const VBQueueItemCtx& queueItmCtx,
+                         cb::StoreIfStatus storeIfStatus,
+                         bool maybeKeyExists) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "VBucket::processSet: htLock not held for " +
@@ -3652,4 +3762,24 @@ void VBucket::removeQueuedAckFromDM(const std::string& node) {
 
 void VBucket::setDuplicateSyncWriteWindow(uint64_t highSeqno) {
     duplicateAbortHighPrepareSeqno = highSeqno;
+    setUpAllowedDuplicatePrepareWindow();
+}
+
+void VBucket::setUpAllowedDuplicatePrepareWindow() {
+    auto& dm = getDurabilityMonitor();
+    auto hcs = dm.getHighCompletedSeqno();
+    auto hps = dm.getHighPreparedSeqno();
+
+    // If allowedDuplicatePrepares is empty then we just set it to the set of
+    // seqnos between HCS and HPS. If it is not, we take the union of the
+    // existing set and the new set. We could just do insert, but in the general
+    // case we should only do this once and the set may be large so a move will
+    // be faster.
+    std::unordered_set<int64_t> newDuplicates{hcs + 1, hps};
+    if (allowedDuplicatePrepareSeqnos.empty()) {
+        allowedDuplicatePrepareSeqnos = std::move(newDuplicates);
+    } else {
+        allowedDuplicatePrepareSeqnos.insert(newDuplicates.begin(),
+                                             newDuplicates.end());
+    }
 }

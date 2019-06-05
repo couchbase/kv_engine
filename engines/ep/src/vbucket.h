@@ -1666,6 +1666,12 @@ public:
      */
     void setDuplicateSyncWriteWindow(uint64_t highSeqno);
 
+    /**
+     * Set the allowed duplicate prepared seqnos to the range
+     * (HighCompletedSeqno and HighPreparedSeqno].
+     */
+    void setUpAllowedDuplicatePrepareWindow();
+
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 
@@ -1721,6 +1727,9 @@ protected:
      * rules before setting an item into other in-memory structure like HT,
      * and checkpoint mgr. This function assumes that HT bucket lock is grabbed.
      *
+     * Prevents operations on in-flight SyncWrites.
+     * Redirects the addition of new prepares to addNewStoredValue.
+     *
      * @param hbl Hash table bucket lock that must be held
      * @param v Reference to the ptr of StoredValue. This can be changed if a
      *          new StoredValue is added or just its contents is changed if the
@@ -1740,6 +1749,20 @@ protected:
      *                info (if operation was successful).
      */
     std::pair<MutationStatus, boost::optional<VBNotifyCtx>> processSet(
+            const HashTable::HashBucketLock& hbl,
+            StoredValue*& v,
+            Item& itm,
+            uint64_t cas,
+            bool allowExisting,
+            bool hasMetaData,
+            const VBQueueItemCtx& queueItmCtx,
+            cb::StoreIfStatus storeIfStatus,
+            bool maybeKeyExists = true);
+
+    /**
+     * Inner function for processSet. Allows overwriting of in-flight prepares.
+     */
+    std::pair<MutationStatus, boost::optional<VBNotifyCtx>> processSetInner(
             const HashTable::HashBucketLock& hbl,
             StoredValue*& v,
             Item& itm,
@@ -2386,6 +2409,9 @@ private:
 
     // The highest prepare seqno that we may see for a duplicate abort message
     uint64_t duplicateAbortHighPrepareSeqno = 0;
+
+    // The set of prepare seqnos that we may have to overwrite.
+    std::unordered_set<int64_t> allowedDuplicatePrepareSeqnos;
 
     friend class DurabilityMonitorTest;
     friend class SingleThreadedActiveStreamTest;
