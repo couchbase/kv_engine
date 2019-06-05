@@ -396,15 +396,6 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
     StoredValue* newSv = nullptr;
     MutationStatus status(MutationStatus::WasClean);
 
-    // If this is a new SyncWrite then we should just add a new prepare. If we
-    // have a prepare already (that has been completed) we can replace the
-    // existing one.
-    if (itm.isPending() && !v.isCompleted()) {
-        std::tie(newSv, notifyCtx) =
-                addNewStoredValue(hbl, itm, queueItmCtx, GenerateRevSeqno::No);
-        return {newSv, status, notifyCtx};
-    }
-
     std::lock_guard<std::mutex> lh(sequenceLock);
 
     const bool wasTemp = v.isTempItem();

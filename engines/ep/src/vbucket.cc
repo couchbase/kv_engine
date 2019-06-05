@@ -2955,14 +2955,28 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
         const VBQueueItemCtx& queueItmCtx,
         cb::StoreIfStatus storeIfStatus,
         bool maybeKeyExists) {
+    if (v) {
+        if (v->isPending()) {
+            return {MutationStatus::IsPendingSyncWrite, {}};
+        }
+
+        // This is a new SyncWrite, we just want to add a new prepare unless we
+        // still have a completed prepare (Ephemeral) which we should replace
+        // instead.
+        if (!v->isCompleted() && itm.isPending()) {
+            VBNotifyCtx notifyCtx;
+            // We have to modify the StoredValue pointer passed in or we do not
+            // return the correct cas to the client.
+            std::tie(v, notifyCtx) = addNewStoredValue(
+                    hbl, itm, queueItmCtx, GenerateRevSeqno::No);
+            return {MutationStatus::WasClean, notifyCtx};
+        }
+    }
+
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "VBucket::processSet: htLock not held for " +
                 getId().to_string());
-    }
-
-    if (v && v->isPending()) {
-        return {MutationStatus::IsPendingSyncWrite, {}};
     }
 
     if (!hasMemoryForStoredValue(stats, itm)) {

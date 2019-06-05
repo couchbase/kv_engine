@@ -346,16 +346,6 @@ HashTable::UpdateResult HashTable::unlocked_updateStoredValue(
                 "call on a non-active HT object");
     }
 
-    // Logically /can/ update a non-Pending StoredValue with a Pending Item;
-    // however internally this is implemented as a separate (new)
-    // StoredValue object for the Pending item. We can replace a completed
-    // prepare with a new prepare though (so just drop through and update
-    // normally).
-    if (itm.isPending() && !v.isCompleted()) {
-        auto* sv = HashTable::unlocked_addNewStoredValue(hbl, itm);
-        return {MutationStatus::WasClean, sv};
-    }
-
     // Can directly replace the existing SV.
     MutationStatus status =
             v.isDirty() ? MutationStatus::WasDirty : MutationStatus::WasClean;

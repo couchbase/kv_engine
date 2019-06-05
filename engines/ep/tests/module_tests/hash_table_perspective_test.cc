@@ -97,14 +97,19 @@ TEST_P(HashTablePerspectiveTest, CommittedItem) {
 
 // Test that when both a pending and committed item exist; then Pending
 // perspective returns the pending one and Committed the committed one.
-TEST_P(HashTablePerspectiveTest, CorrectItemForEachPersisective) {
+TEST_P(HashTablePerspectiveTest, CorrectItemForEachPerspective) {
     // Setup -create both committed and pending items.
     // Attempt setting the item again with a committed value.
     auto committed = makeCommittedItem(key, "committed"s);
     ASSERT_EQ(MutationStatus::WasClean, ht.set(*committed));
 
     auto pending = makePendingItem(key, "pending"s);
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(*pending));
+    {
+        // Calling ht.set will overwrite the committed SV so we have to manually
+        // add our prepare
+        auto lock = ht.getLockedBucket(key);
+        ht.unlocked_addNewStoredValue(lock, *pending);
+    }
 
     // Test - check both perspectives find the correct item.
     {
@@ -164,7 +169,12 @@ TEST_P(HashTablePerspectiveTest, findOnlyCommitted) {
     auto committed = makeCommittedItem(key, "committed"s);
     ASSERT_EQ(MutationStatus::WasClean, ht.set(*committed));
     auto prepared = makePendingItem(key, "pending"s);
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(*prepared));
+    {
+        // Calling ht.set will overwrite the committed SV so we have to manually
+        // add our prepare
+        auto lock = ht.getLockedBucket(key);
+        ht.unlocked_addNewStoredValue(lock, *prepared);
+    }
 
     auto pendingKey = StoredDocKey("pending", CollectionID::Default);
     auto pending2 = makePendingItem(pendingKey, "pending2"s);
@@ -202,7 +212,12 @@ TEST_P(HashTablePerspectiveTest, findOnlyPrepared) {
     auto committed = makeCommittedItem(key, "committed"s);
     ASSERT_EQ(MutationStatus::WasClean, ht.set(*committed));
     auto prepared = makePendingItem(key, "pending"s);
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(*prepared));
+    {
+        // Calling ht.set will overwrite the committed SV so we have to manually
+        // add our prepare
+        auto lock = ht.getLockedBucket(key);
+        ht.unlocked_addNewStoredValue(lock, *prepared);
+    }
 
     auto committedKey = StoredDocKey("committed", CollectionID::Default);
     auto committed2 = makeCommittedItem(committedKey, "committed2"s);
