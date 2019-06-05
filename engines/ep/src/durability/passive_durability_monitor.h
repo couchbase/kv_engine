@@ -17,6 +17,7 @@
 #pragma once
 
 #include "durability_monitor.h"
+#include "durability_monitor_impl.h"
 #include "item.h"
 
 #include <folly/Synchronized.h>

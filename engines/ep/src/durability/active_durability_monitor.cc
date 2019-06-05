@@ -16,8 +16,8 @@
  */
 
 #include "active_durability_monitor.h"
-
 #include "bucket_logger.h"
+#include "durability_monitor_impl.h"
 #include "item.h"
 #include "passive_durability_monitor.h"
 #include "statwriter.h"
@@ -25,8 +25,210 @@
 
 #include <gsl.h>
 
+/*
+ * This class embeds the state of an ADM. It has been designed for being
+ * wrapped by a folly::Synchronized<T>, which manages the read/write
+ * concurrent access to the T instance.
+ * Note: all members are public as accessed directly only by ADM, this is
+ * a protected struct. Avoiding direct access by ADM would require
+ * re-implementing most of the ADM functions into ADM::State and exposing
+ * them on the ADM::State public interface.
+ */
+struct ActiveDurabilityMonitor::State {
+    /**
+     * @param adm The owning ActiveDurabilityMonitor
+     */
+    State(const ActiveDurabilityMonitor& adm) : adm(adm) {
+    }
+
+    /**
+     * Create a replication chain. Not static as we require an iterator from
+     * trackedWrites.
+     *
+     * @param name Name of chain (used for stats and exception logging)
+     * @param chain Unique ptr to the chain
+     */
+    std::unique_ptr<ReplicationChain> makeChain(
+            const DurabilityMonitor::ReplicationChainName name,
+            const nlohmann::json& chain);
+
+    void setReplicationTopology(const nlohmann::json& topology);
+
+    void addSyncWrite(const void* cookie, queued_item item);
+
+    /**
+     * Returns the next position for a node iterator.
+     *
+     * @param node
+     * @return the iterator to the next position for the given node. Returns
+     *         trackedWrites.end() if the node is not found.
+     */
+    Container::iterator getNodeNext(const std::string& node);
+
+    /**
+     * Advance a node tracking to the next Position in the tracked
+     * Container. Note that a Position tracks a node in terms of both:
+     * - iterator to a SyncWrite in the tracked Container
+     * - seqno of the last SyncWrite ack'ed by the node
+     *
+     * @param node the node to advance
+     * @return an iterator to the new position (tracked SyncWrite) of the
+     *         given node.
+     * @throws std::logic_error if the node is not found
+     */
+    Container::iterator advanceNodePosition(const std::string& node);
+
+    /**
+     * This function updates the tracking with the last seqno ack'ed by
+     * node.
+     *
+     * Does nothing if the node is not found. This may be the case
+     * during a rebalance when a new replica is acking sync writes but we do
+     * not yet have a second chain because ns_server is waiting for
+     * persistence to allow sync writes to be transferred the the replica
+     * asynchronously. When the new replica catches up to the active,
+     * ns_server will give us a second chain.
+     *
+     * @param node
+     * @param seqno New ack seqno
+     */
+    void updateNodeAck(const std::string& node, int64_t seqno);
+
+    /**
+     * Updates a node memory/disk tracking as driven by the new ack-seqno.
+     *
+     * @param node The node that ack'ed the given seqno
+     * @param ackSeqno
+     * @param [out] toCommit
+     */
+    void processSeqnoAck(const std::string& node,
+                         int64_t ackSeqno,
+                         Container& toCommit);
+
+    /**
+     * Removes all the expired Prepares from tracking.
+     *
+     * @param asOf The time to be compared with tracked-SWs' expiry-time
+     * @param [out] the list of the expired Prepares
+     */
+    void removeExpired(std::chrono::steady_clock::time_point asOf,
+                       Container& expired);
+
+    const std::string& getActive() const;
+
+    int64_t getNodeWriteSeqno(const std::string& node) const;
+
+    int64_t getNodeAckSeqno(const std::string& node) const;
+
+    /**
+     * Remove the given SyncWrte from tracking.
+     *
+     * @param it The iterator to the SyncWrite to be removed
+     * @return single-element list of the removed SyncWrite.
+     */
+    Container removeSyncWrite(Container::iterator it);
+
+    /**
+     * Logically 'moves' forward the High Prepared Seqno to the last
+     * locally-satisfied Prepare. In other terms, the function moves the HPS
+     * to before the current durability-fence.
+     *
+     * Details.
+     *
+     * In terms of Durability Requirements, Prepares at Active can be
+     * locally-satisfied:
+     * (1) as soon as the they are queued into the PDM, if Level Majority
+     * (2) when they are persisted, if Level PersistToMajority or
+     *     MajorityAndPersistOnMaster
+     *
+     * We call the first non-satisfied PersistToMajority or
+     * MajorityAndPersistOnMaster Prepare the "durability-fence".
+     * All Prepares /before/ the durability-fence are locally-satisfied.
+     *
+     * This functions's internal logic performs (2) first by moving the HPS
+     * up to the latest persisted Prepare (i.e., the durability-fence) and
+     * then (1) by moving to the HPS to the last Prepare /before/ the new
+     * durability-fence (note that after step (2) the durability-fence has
+     * implicitly moved as well).
+     *
+     * Note that in the ActiveDM the HPS is implemented as the Active
+     * tracking in FirstChain. So, differently from the PassiveDM, here we
+     * do not have a dedicated HPS iterator.
+     *
+     * @return the Prepares satisfied (ready for commit) by the HPS update
+     */
+    Container updateHighPreparedSeqno();
+
+    /**
+     * Perform the manual ack (from the map of queuedSeqnoAcks) that is
+     * required at rebalance for the given chain
+     *
+     * @param chain Chain for which we should manually ack nodes
+     */
+    void performQueuedAckForChain(const ReplicationChain& chain);
+
+private:
+    /**
+     * Advance the current Position (iterator and seqno).
+     *
+     * @param pos the current Position of the node
+     * @param node the node to advance (used to update the SyncWrite if
+     *        acking)
+     * @param shouldAck should we call SyncWrite->ack() on this node?
+     *        Optional as we want to avoid acking a SyncWrite twice if a
+     *        node exists in both the first and second chain.
+     */
+    void advanceAndAckForPosition(Position& pos,
+                                  const std::string& node,
+                                  bool shouldAck);
+
+public:
+    /// The container of pending Prepares.
+    Container trackedWrites;
+
+    /**
+     * @TODO Soon firstChain will be optional for warmup - update comment
+     * Our replication topology. firstChain is a requirement, secondChain is
+     * optional and only required for rebalance. It will be a nullptr if we
+     * do not have a second replication chain.
+     */
+    std::unique_ptr<ReplicationChain> firstChain;
+    std::unique_ptr<ReplicationChain> secondChain;
+
+    // Always stores the seqno of the last SyncWrite added for tracking.
+    // Useful for sanity checks, necessary because the tracked container
+    // can by emptied by Commit/Abort.
+    Monotonic<int64_t, ThrowExceptionPolicy> lastTrackedSeqno;
+
+    // Stores the last committed seqno.
+    Monotonic<int64_t> lastCommittedSeqno = 0;
+
+    // Stores the last aborted seqno.
+    Monotonic<int64_t> lastAbortedSeqno = 0;
+
+    // Cumulative count of accepted (tracked) SyncWrites.
+    size_t totalAccepted = 0;
+    // Cumulative count of Committed SyncWrites.
+    size_t totalCommitted = 0;
+    // Cumulative count of Aborted SyncWrites.
+    size_t totalAborted = 0;
+
+    // The durability timeout value to use for SyncWrites which haven't
+    // specified an explicit timeout.
+    // @todo-durability: Allow this to be configurable.
+    std::chrono::milliseconds defaultTimeout = std::chrono::seconds(30);
+
+    const ActiveDurabilityMonitor& adm;
+
+    // Map of node to seqno value for seqno acks that we have seen but
+    // do not exist in the current replication topology. They may be
+    // required to manually ack for a new node if we receive an ack before
+    // ns_server sends us a new replication topology.
+    std::unordered_map<std::string, Monotonic<int64_t>> queuedSeqnoAcks;
+};
+
 ActiveDurabilityMonitor::ActiveDurabilityMonitor(VBucket& vb)
-    : vb(vb), state(*this) {
+    : vb(vb), state(std::make_unique<State>(*this)) {
 }
 
 ActiveDurabilityMonitor::ActiveDurabilityMonitor(
