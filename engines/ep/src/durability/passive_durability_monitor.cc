@@ -28,7 +28,7 @@
 #include <unordered_map>
 
 PassiveDurabilityMonitor::PassiveDurabilityMonitor(VBucket& vb)
-    : vb(vb), state(*this) {
+    : vb(vb), state(std::make_unique<State>(*this)) {
     // By design, instances of Container::Position can never be invalid
     auto s = state.wlock();
     s->highPreparedSeqno = Position(s->trackedWrites.end());

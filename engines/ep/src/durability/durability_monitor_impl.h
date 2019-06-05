@@ -25,9 +25,12 @@
 #include "durability_monitor.h"
 #include "item.h"
 #include "monotonic.h"
+#include "passive_durability_monitor.h"
 
 #include <chrono>
 #include <unordered_map>
+
+class PassiveDurabilityMonitor;
 
 // An empty string is used to indicate an undefined node in a replication
 // topology.
@@ -229,4 +232,102 @@ struct DurabilityMonitor::ReplicationChain {
     const DurabilityMonitor::ReplicationChainName name;
 };
 
-std::string to_string(DurabilityMonitor::ReplicationChainName name);
+/*
+ * This class embeds the state of a PDM. It has been designed for being
+ * wrapped by a folly::Synchronized<T>, which manages the read/write
+ * concurrent access to the T instance.
+ * Note: all members are public as accessed directly only by PDM, this is
+ * a protected struct. Avoiding direct access by PDM would require
+ * re-implementing most of the PDM functions into PDM::State and exposing
+ * them on the PDM::State public interface.
+ *
+ * This resides in this file (and not passive_durability_monitor.cc as one might
+ * expect) because the ActiveDM ctor implemenation needs access to it be able
+ * to construct an ActiveDM from the PassiveDM's state.
+ */
+struct PassiveDurabilityMonitor::State {
+    /**
+     * @param pdm The owning PassiveDurabilityMonitor
+     */
+    State(const PassiveDurabilityMonitor& pdm) : pdm(pdm) {
+    }
+
+    /**
+     * Returns the next position for a given Container::iterator.
+     *
+     * @param it The iterator
+     * @return the next position in Container
+     */
+    Container::iterator getIteratorNext(const Container::iterator& it);
+
+    /**
+     * Logically 'moves' forward the High Prepared Seqno to the last
+     * locally-satisfied Prepare. In other terms, the function moves the HPS
+     * to before the current durability-fence.
+     *
+     * Details.
+     *
+     * In terms of Durability Requirements, Prepares at Replica can be
+     * locally-satisfied:
+     * (1) as soon as the they are queued into the PDM, if Level Majority or
+     *     MajorityAndPersistOnMaster
+     * (2) when they are persisted, if Level PersistToMajority
+     *
+     * We call the first non-satisfied PersistToMajority Prepare the
+     * "durability-fence". All Prepares /before/ the durability-fence are
+     * locally-satisfied and can be ack'ed back to the Active.
+     *
+     * This functions's internal logic performs (2) first by moving the HPS
+     * up to the latest persisted Prepare (i.e., the durability-fence) and
+     * then (1) by moving to the HPS to the last Prepare /before/ the new
+     * durability-fence (note that after step (2) the durability-fence has
+     * implicitly moved as well).
+     */
+    void updateHighPreparedSeqno();
+
+    /**
+     * Check if there are Prepares eligible for removal, and remove them if
+     * any. A Prepare is eligible for removal if:
+     *
+     * 1) it is completed (Committed or Aborted)
+     * 2) it is locally-satisfied
+     *
+     * In terms of PassiveDM internal structures, the above means that a
+     * Prepare is eligible for removal if both the HighCompletedSeqno and
+     * the HighPreparedSeqno have covered it.
+     *
+     * Thus, this function is called every time the HCS and the HPS are
+     * updated.
+     */
+    void checkForAndRemovePrepares();
+
+    /// The container of pending Prepares.
+    Container trackedWrites;
+
+    // The seqno of the last Prepare satisfied locally. I.e.:
+    //     - the Prepare has been queued into the PDM, if Level Majority
+    //         or MajorityAndPersistToMaster
+    //     - the Prepare has been persisted locally, if Level
+    //         PersistToMajority
+    Position highPreparedSeqno;
+
+    // The last snapshot-end mutation received for the (owning)
+    // replica/pending VBucket.
+    // Used for implementing the correct move-logic of High Prepared Seqno.
+    // Must be set at snapshot-end received on PassiveStream.
+    Monotonic<uint64_t, ThrowExceptionPolicy> snapshotEnd{0};
+
+    // Cumulative count of accepted (tracked) SyncWrites.
+    size_t totalAccepted = 0;
+    // Cumulative count of Committed SyncWrites.
+    size_t totalCommitted = 0;
+    // Cumulative count of Aborted SyncWrites.
+    size_t totalAborted = 0;
+
+    // Points to the last Prepare that has been completed (Committed or
+    // Aborted). Together with the HPS Position, it is used for implementing
+    // the correct Prepare remove-logic in PassiveDM.
+    Position highCompletedSeqno;
+
+    const PassiveDurabilityMonitor& pdm;
+};

@@ -89,3 +89,5 @@ protected:
 
     friend std::ostream& operator<<(std::ostream&, const SyncWrite&);
 };
+
+std::string to_string(DurabilityMonitor::ReplicationChainName name);
