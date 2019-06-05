@@ -15,6 +15,7 @@ if not port:
 
 client = mc_bin_client.MemcachedClient(host=host, port=port)
 client.enable_xerror()
+client.enable_mutation_seqno()
 client.hello("set_durable")
 client.sasl_auth_plain(user=sys.argv[2], password=sys.argv[3])
 client.bucket_select(sys.argv[4])

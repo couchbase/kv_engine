@@ -32,6 +32,7 @@
 #include "failover-table.h"
 #include "flusher.h"
 #include "hash_table.h"
+#include "hash_table_stat_visitor.h"
 #include "kvstore.h"
 #include "pre_link_document_context.h"
 #include "statwriter.h"
@@ -374,6 +375,12 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine) {
 
 std::vector<const void*> VBucket::getCookiesForInFlightSyncWrites() {
     return getActiveDM().getCookiesForInFlightSyncWrites();
+}
+
+size_t VBucket::size() {
+    HashTableDepthStatVisitor v;
+    ht.visitDepth(v);
+    return v.size;
 }
 
 VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {

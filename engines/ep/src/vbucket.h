@@ -528,11 +528,7 @@ public:
      */
     std::vector<const void*> getCookiesForInFlightSyncWrites();
 
-    size_t size(void) {
-        HashTableDepthStatVisitor v;
-        ht.visitDepth(v);
-        return v.size;
-    }
+    size_t size();
 
     size_t getBackfillSize() {
         return backfill.rlock()->items.size();

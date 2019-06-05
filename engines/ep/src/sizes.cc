@@ -25,6 +25,7 @@
 #include "couch-kvstore/couch-kvstore.h"
 #include "dcp/response.h"
 #include "dcp/stream.h"
+#include "hash_table_stat_visitor.h"
 #include "item.h"
 #include "kvstore_priv.h"
 #include "persistence_callback.h"

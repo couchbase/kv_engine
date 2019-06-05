@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 #include "hash_table_test.h"
+#include "hash_table_stat_visitor.h"
 #include "item.h"
 #include "item_freq_decayer_visitor.h"
 #include "kv_bucket.h"

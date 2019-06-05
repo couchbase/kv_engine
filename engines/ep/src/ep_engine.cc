@@ -35,6 +35,7 @@
 #include "ext_meta_parser.h"
 #include "failover-table.h"
 #include "flusher.h"
+#include "hash_table_stat_visitor.h"
 #include "htresizer.h"
 #include "memory_tracker.h"
 #include "replicationthrottle.h"

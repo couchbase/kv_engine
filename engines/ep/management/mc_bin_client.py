@@ -713,6 +713,9 @@ class MemcachedClient(object):
     def enable_collections(self):
         self.req_features.add(memcacheConstants.FEATURE_COLLECTIONS)
 
+    def enable_mutation_seqno(self):
+        self.req_features.add(memcacheConstants.FEATURE_MUTATION_SEQNO)
+
     def is_xerror_supported(self):
         return memcacheConstants.FEATURE_XERROR in self.features
 

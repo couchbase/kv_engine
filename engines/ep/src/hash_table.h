@@ -22,7 +22,6 @@
 #include "storeddockey.h"
 
 #include <platform/non_negative_counter.h>
-#include <utilities/hdrhistogram.h>
 
 #include <array>
 #include <functional>
@@ -1484,32 +1483,6 @@ public:
      * @param mem counted memory used by this hash table
      */
     virtual void visit(int bucket, int depth, size_t mem) = 0;
-};
-
-/**
- * Hash table visitor that finds the min and max bucket depths.
- */
-class HashTableDepthStatVisitor : public HashTableDepthVisitor {
-public:
-    HashTableDepthStatVisitor() : size(0), memUsed(0), min(-1), max(0) {
-    }
-
-    void visit(int bucket, int depth, size_t mem) {
-        (void)bucket;
-        // -1 is a special case for min.  If there's a value other than
-        // -1, we prefer that.
-        min = std::min(min == -1 ? depth : min, depth);
-        max = std::max(max, depth);
-        depthHisto.add(depth);
-        size += depth;
-        memUsed += mem;
-    }
-
-    Hdr1sfInt32Histogram depthHisto;
-    size_t                  size;
-    size_t                  memUsed;
-    int                     min;
-    int                     max;
 };
 
 /**
