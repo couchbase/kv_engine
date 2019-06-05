@@ -224,7 +224,7 @@ void cb::logger::registerSpdLogger(std::shared_ptr<spdlog::logger> l) {
     try {
         file_logger->debug("Registering logger {}", l->name());
         spdlog::register_logger(l);
-    } catch (spdlog::spdlog_ex e) {
+    } catch (spdlog::spdlog_ex& e) {
         file_logger->warn(
                 "Exception caught when attempting to register the "
                 "logger {} in the spdlog registry. The verbosity of "
@@ -257,11 +257,11 @@ void cb::logger::setLogLevels(spdlog::level::level_enum level) {
     spdlog::apply_all([&](std::shared_ptr<spdlog::logger> l) {
         try {
             l->set_level(level);
-        } catch (spdlog::spdlog_ex e) {
+        } catch (spdlog::spdlog_ex& e) {
             l->warn("Exception caught when attempting to change the verbosity "
                     "of logger {} to spdlog level {}. e.what()={}",
                     l->name(),
-                    level,
+                    to_c_str(level),
                     e.what());
         }
     });

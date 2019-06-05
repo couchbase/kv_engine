@@ -310,7 +310,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
         (vb->getState() != vbucket_state_active)) {
         logger->info(
                 "({}) Stream request failed because "
-                "the vbucket is in state, only active vbuckets were "
+                "the vbucket is in state:{}, only active vbuckets were "
                 "requested",
                 vbucket,
                 vb->toString(vb->getState()));
@@ -932,9 +932,9 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
             } else {
                 logger->warn(
                         "The ctrl parameter "
-                        "set_noop_interval is being set to seconds."
+                        "set_noop_interval:{} is being set to seconds."
                         "This is not a multiple of the "
-                        "connectionManagerInterval "
+                        "connectionManagerInterval:{} "
                         "of seconds, and so is not supported.",
                         noopInterval,
                         engine_.getConfiguration()

@@ -175,7 +175,7 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
             EP_LOG_WARN(
                     "BasicLinkedList::rangeRead(): "
                     "({}) ENOMEM while trying to copy "
-                    "item with seqno {}before streaming it",
+                    "item with seqno {} before streaming it",
                     vbid,
                     currSeqno);
             return std::make_tuple(

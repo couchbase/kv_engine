@@ -431,7 +431,7 @@ static void recalculate_max_connections() {
 
         if (newmax > settings.getSystemConnections()) {
             LOG_WARNING(
-                    "system_connections > max_connections. Reduce "
+                    "system_connections:{} > max_connections:{}. Reduce "
                     "system_connections to {}",
                     settings.getSystemConnections(),
                     newmax,
@@ -1220,7 +1220,7 @@ static bool server_socket(const std::string& tag,
                         static_cast<socklen_t>(next->ai_addrlen));
                 LOG_WARNING(
                         "Failed to look up the assigned port for the ephemeral "
-                        "port: {}",
+                        "port: {} error: {}",
                         name,
                         cb_strerror(error));
                 safe_close(sfd);

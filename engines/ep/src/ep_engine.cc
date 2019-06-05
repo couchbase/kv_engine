@@ -1048,7 +1048,7 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
         return ENGINE_TMPFAIL;
     default:
         --stats.pendingCompactions;
-        EP_LOG_WARN("Compaction of db file id: {} failed: ",
+        EP_LOG_WARN("Compaction of db file id: {} failed: {}",
                     compactionConfig.db_file_id.get(),
                     cb::to_string(cb::engine_errc(err)));
         e->setErrorContext(cookie,

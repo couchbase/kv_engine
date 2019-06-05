@@ -28,7 +28,6 @@
 #include <platform/dirutils.h>
 #include <platform/platform_time.h>
 
-#include <iostream>
 #include <memory>
 #include <numeric>
 
@@ -54,9 +53,7 @@ public:
         setVBucketFilter(VBucketFilter(
                 _store.getVBuckets().getShard(sh)->getVBuckets()));
         name = conf.getAlogPath();
-        std::stringstream s;
-        s << shardID;
-        name = name + "." + s.str();
+        name = name + "." + std::to_string(shardID);
         prev = name + ".old";
         next = name + ".next";
 

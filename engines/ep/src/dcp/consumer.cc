@@ -384,7 +384,7 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque,
     }
 
     if (stream->getOpaque() != opaque) {
-        logger->warn("({}) End stream received with opaque but expected {}",
+        logger->warn("({}) End stream received with opaque {} but expected {}",
                      vbucket,
                      opaque,
                      stream->getOpaque());
