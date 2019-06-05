@@ -15,9 +15,10 @@
  *   limitations under the License.
  */
 
-#include "common.h"
 #include "couch-kvstore/couch-fs-stats.h"
+#include "common.h"
 #include "kvstore.h"
+#include <platform/histogram.h>
 
 std::unique_ptr<FileOpsInterface> getCouchstoreStatsOps(
     FileStats& stats, FileOpsInterface& base_ops) {

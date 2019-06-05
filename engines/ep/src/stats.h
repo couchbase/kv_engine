@@ -27,6 +27,7 @@
 #include <platform/platform_time.h>
 #include <relaxed_atomic.h>
 
+#include <platform/histogram.h>
 #include <algorithm>
 #include <atomic>
 

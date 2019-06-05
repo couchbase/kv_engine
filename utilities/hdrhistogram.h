@@ -19,7 +19,6 @@
 
 #include <boost/optional/optional_fwd.hpp>
 #include <nlohmann/json_fwd.hpp>
-#include <platform/histogram.h>
 #include <chrono>
 #include <memory>
 #include <utility>
@@ -34,6 +33,11 @@
 #ifdef WIN32
 #pragma warning(pop)
 #endif
+
+template <typename HISTOGRAM, uint64_t THRESHOLD_MS>
+class GenericBlockTimer;
+template <typename T>
+class MicrosecondStopwatch;
 
 /**
  * A container for the c hdr_histogram data structure.
