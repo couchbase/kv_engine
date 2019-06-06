@@ -395,6 +395,34 @@ public:
                  GetFrameInfoFunction getFrameInfo = {});
 
     /**
+     * Fetch multiple documents
+     *
+     * Send a pipeline of (quiet) get commands to the server and fire
+     * the documentCallback with the documents found in the server.
+     *
+     * If the server returns with an error the provided error callback
+     * will be called. (note that you won't receive a callback for
+     * documents that don't exist on the server as we're using the
+     * quiet commands.
+     *
+     * Use the getFrameInfo method if you'd like the server to perform
+     * out of order requests (note: the connection must be set to
+     * allow unordered execution).
+     *
+     * @param id The key and the vbucket the document resides in
+     * @param documentCallback the callback with the document for an
+     *                         operation
+     * @param errorCallback the callback if the server returns an error
+     * @param getFrameInfo Optional FrameInfo to inject to the commands
+     * @return A vector containing all of the found documents
+     */
+    void mget(const std::vector<std::pair<const std::string, Vbid>>& id,
+              std::function<void(std::unique_ptr<Document>&)> documentCallback,
+              std::function<void(const std::string&, const cb::mcbp::Response&)>
+                      errorCallback = {},
+              GetFrameInfoFunction getFrameInfo = {});
+
+    /**
      * Fetch and lock a document from the server
      *
      * @param id the name of the document

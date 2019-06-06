@@ -865,6 +865,81 @@ Document MemcachedConnection::get(
     return ret;
 }
 
+void MemcachedConnection::mget(
+        const std::vector<std::pair<const std::string, Vbid>>& id,
+        std::function<void(std::unique_ptr<Document>&)> documentCallback,
+        std::function<void(const std::string&, const cb::mcbp::Response&)>
+                errorCallback,
+        GetFrameInfoFunction getFrameInfo) {
+    using cb::mcbp::ClientOpcode;
+
+    // One of the motivations for this method is to be able to test a
+    // pipeline of commands (to get them reordered on the server if OoO
+    // is enabled). Sending each command as an individual packet may
+    // cause the server to completely execute the command before it goes
+    // back into the read state and sees the next command.
+    std::vector<uint8_t> pipeline;
+
+    int ii = 0;
+    for (const auto& doc : id) {
+        BinprotGetCommand command;
+        command.setOp(ClientOpcode::Getq); // Use the quiet one
+        command.setKey(doc.first);
+        command.setVBucket(doc.second);
+        command.setOpaque(ii++);
+        applyFrameInfos(command, getFrameInfo);
+
+        std::vector<uint8_t> cmd;
+        command.encode(cmd);
+        std::copy(cmd.begin(), cmd.end(), std::back_inserter(pipeline));
+    }
+
+    // Add a noop command to terminate the sequence
+    {
+        BinprotGenericCommand command{ClientOpcode::Noop};
+        std::vector<uint8_t> cmd;
+        command.encode(cmd);
+        std::copy(cmd.begin(), cmd.end(), std::back_inserter(pipeline));
+    }
+
+    // Now send the pipeline to the other end!
+    sendBuffer(cb::const_byte_buffer{pipeline.data(), pipeline.size()});
+
+    // read until I see the noop response
+    auto done = false;
+    do {
+        BinprotResponse rsp;
+        recvResponse(rsp);
+        auto opcode = rsp.getOp();
+        if (opcode == ClientOpcode::Noop) {
+            done = true;
+        } else if (opcode != ClientOpcode::Getq) {
+            throw std::runtime_error(
+                    "MemcachedConnection::mget: Received unexpected opcode");
+        } else {
+            BinprotGetResponse getResponse(std::move(rsp));
+            auto opaque = getResponse.getResponse().getOpaque();
+            if (opaque >= id.size()) {
+                throw std::runtime_error(
+                        "MemcachedConnection::mget: Invalid opaque received");
+            }
+            const auto& key = id[opaque].first;
+
+            if (getResponse.isSuccess()) {
+                auto doc = std::make_unique<Document>();
+                doc->info.flags = getResponse.getDocumentFlags();
+                doc->info.cas = getResponse.getCas();
+                doc->info.id = key;
+                doc->info.datatype = getResponse.getResponse().getDatatype();
+                doc->value = getResponse.getDataString();
+                documentCallback(doc);
+            } else if (errorCallback) {
+                errorCallback(key, getResponse.getResponse());
+            }
+        }
+    } while (!done);
+}
+
 Frame MemcachedConnection::encodeCmdGet(const std::string& id, Vbid vbucket) {
     BinprotGetCommand command;
     command.setKey(id);

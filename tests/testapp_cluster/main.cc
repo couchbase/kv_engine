@@ -79,6 +79,40 @@ TEST_F(BasicClusterTest, StoreWithDurability) {
     EXPECT_NE(0, info.cas);
 }
 
+TEST_F(BasicClusterTest, MultiGet) {
+    auto bucket = cluster->getBucket("default");
+    auto conn = bucket->getConnection(Vbid(0));
+    conn->authenticate("@admin", "password", "PLAIN");
+    conn->selectBucket(bucket->getName());
+
+    std::vector<std::pair<const std::string, Vbid>> keys;
+    for (int ii = 0; ii < 10; ++ii) {
+        keys.emplace_back(std::make_pair("key_" + std::to_string(ii), Vbid(0)));
+        if ((ii & 1) == 1) {
+            conn->store(keys.back().first,
+                        keys.back().second,
+                        "value",
+                        cb::mcbp::Datatype::Raw);
+        }
+    }
+
+    // and I want a not my vbucket!
+    keys.emplace_back(std::make_pair("NotMyVbucket", Vbid(1)));
+    bool nmvb = false;
+    int nfound = 0;
+    conn->mget(keys,
+               [&nfound](std::unique_ptr<Document>&) -> void { ++nfound; },
+               [&nmvb](const std::string& key,
+                       const cb::mcbp::Response& rsp) -> void {
+                   EXPECT_EQ("NotMyVbucket", key);
+                   EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, rsp.getStatus());
+                   nmvb = true;
+               });
+
+    EXPECT_TRUE(nmvb) << "Did not get the NotMyVbucket callback";
+    EXPECT_EQ(5, nfound);
+}
+
 char isasl_env_var[1024];
 int main(int argc, char** argv) {
     cb_initialize_sockets();
