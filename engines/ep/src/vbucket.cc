@@ -1741,7 +1741,8 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
         GenerateBySeqno genBySeqno,
         GenerateCas genCas,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    auto htRes = ht.findForWrite(itm.getKey());
+    auto htRes = itm.isPending() ? ht.findForSyncWrite(itm.getKey())
+                                 : ht.findForWrite(itm.getKey());
     auto* v = htRes.storedValue;
     auto& hbl = htRes.lock;
     bool maybeKeyExists = true;

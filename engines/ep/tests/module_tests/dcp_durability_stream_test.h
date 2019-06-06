@@ -43,11 +43,26 @@ public:
     void TearDown() override;
 
 protected:
+    /**
+     * Creates a DCP_PREPARE message (with a preceeding SNAPSHOT_MARKER), and
+     * processes it on the DCP stream.
+     * Returns the SyncWrite prepare item.
+     */
+    queued_item makeAndReceiveDcpPrepare(const StoredDocKey& key,
+                                         uint64_t cas,
+                                         uint64_t seqno);
+
     /*
      * Simulates a Replica receiving a DCP_PREPARE and checks that it is
      * queued correctly for persistence.
      */
     void testReceiveDcpPrepare();
+
+    /**
+     * Simulates a Replica receiving a DCP_PREPARE followed by DCP_COMMIT and
+     * checks they are queued correctly for persistence.
+     */
+    void testReceiveDcpPrepareCommit();
 };
 
 /**

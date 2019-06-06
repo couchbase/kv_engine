@@ -568,34 +568,27 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
     checkSeqnoAckInReadyQ(8 /*HPS*/);
 }
 
-void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
-    auto vb = engine->getVBucket(vbid);
-    auto& ckptMgr = *vb->checkpointManager;
-    // Get rid of set_vb_state and any other queue_op we are not interested in
-    ckptMgr.clear(*vb, 0 /*seqno*/);
-
-    // The consumer receives snapshot-marker [1, 1]
-    uint32_t opaque = 0;
-    SnapshotMarker marker(opaque,
-                          vbid,
-                          1 /*snapStart*/,
-                          1 /*snapEnd*/,
-                          dcp_marker_flag_t::MARKER_FLAG_MEMORY,
-                          {} /*streamId*/);
-    stream->processMarker(&marker);
-
-    // The consumer receives s:1 durable
-    const auto key = makeStoredDocKey("key");
-    const uint64_t prepareSeqno = 1;
+queued_item DurabilityPassiveStreamTest::makeAndReceiveDcpPrepare(
+        const StoredDocKey& key, uint64_t cas, uint64_t seqno) {
     using namespace cb::durability;
 
-    const uint64_t cas = 999;
+    // The consumer receives snapshot-marker [seqno, seqno]
+    uint32_t opaque = 0;
+    SnapshotMarker marker(
+            opaque,
+            vbid,
+            seqno,
+            seqno,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
     queued_item qi = makePendingItem(
             key, "value", Requirements(Level::Majority, Timeout::Infinity()));
-    qi->setBySeqno(prepareSeqno);
+    qi->setBySeqno(seqno);
     qi->setCas(cas);
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       qi,
                       opaque,
@@ -605,6 +598,19 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
+    return qi;
+}
+
+void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
+    auto vb = engine->getVBucket(vbid);
+    auto& ckptMgr = *vb->checkpointManager;
+    // Get rid of set_vb_state and any other queue_op we are not interested in
+    ckptMgr.clear(*vb, 0 /*seqno*/);
+
+    const auto key = makeStoredDocKey("key");
+    const uint64_t cas = 999;
+    const uint64_t prepareSeqno = 1;
+    auto qi = makeAndReceiveDcpPrepare(key, cas, prepareSeqno);
 
     EXPECT_EQ(0, vb->getNumItems());
     EXPECT_EQ(1, vb->ht.getNumItems());
@@ -643,13 +649,10 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpPrepare) {
     testReceiveDcpPrepare();
 }
 
-/*
- * This test checks that a DCP Consumer receives and processes correctly a
- * DCP_COMMIT message.
- */
-TEST_P(DurabilityPassiveStreamTest, ReceiveDcpCommit) {
+void DurabilityPassiveStreamTest::testReceiveDcpPrepareCommit() {
     // First, simulate the Consumer receiving a Prepare
     testReceiveDcpPrepare();
+
     auto vb = engine->getVBucket(vbid);
     const uint64_t prepareSeqno = 1;
 
@@ -731,6 +734,54 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpCommit) {
     EXPECT_EQ(cas, (*it)->getCas());
 
     EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
+}
+
+/*
+ * This test checks that a DCP Consumer receives and processes correctly a
+ * DCP_PREPARE followed by a DCP_COMMIT message.
+ */
+TEST_P(DurabilityPassiveStreamTest, ReceiveDcpCommit) {
+    testReceiveDcpPrepareCommit();
+}
+
+/*
+ * This test checks that a DCP Consumer receives and processes correctly the
+ * following sequence (to the same key):
+ * - DCP_PREPARE
+ * - DCP_COMMIT
+ * - DCP_PREPARE
+ */
+TEST_P(DurabilityPassiveStreamTest, ReceiveDcpPrepareCommitPrepare) {
+    // First setup the first DCP_PREPARE and DCP_COMMIT.
+    testReceiveDcpPrepareCommit();
+
+    // Process the 2nd Prepare.
+    auto key = makeStoredDocKey("key");
+    const uint64_t cas = 1234;
+    const uint64_t prepare2ndSeqno = 3;
+    makeAndReceiveDcpPrepare(key, cas, prepare2ndSeqno);
+
+    // 3 checkpoints
+    auto vb = engine->getVBucket(vbid);
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *vb->checkpointManager);
+    ASSERT_EQ(3, ckptList.size());
+    auto ckptIt = ckptList.begin();
+    ASSERT_EQ(checkpoint_state::CHECKPOINT_CLOSED, (*ckptIt)->getState());
+    ASSERT_EQ(1, (*ckptIt)->getNumItems());
+
+    ckptIt++;
+    ASSERT_EQ(checkpoint_state::CHECKPOINT_CLOSED, (*ckptIt)->getState());
+    ASSERT_EQ(1, (*ckptIt)->getNumItems());
+
+    ckptIt++;
+    ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, (*ckptIt)->getState());
+    ASSERT_EQ(1, (*ckptIt)->getNumItems());
+
+    // 2 Items in HashTable.
+    EXPECT_EQ(2, vb->ht.getNumItems())
+            << "Should have one Committed and one Prepared items in HashTable";
 }
 
 /*
