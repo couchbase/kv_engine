@@ -26,7 +26,7 @@ namespace cb {
 namespace mcbp {
 namespace lldb {
 
-std::vector<uint8_t> parseDump(cb::byte_buffer blob) {
+std::vector<uint8_t> parseDump(cb::const_byte_buffer blob) {
     std::vector<uint8_t> ret;
 
     const uint8_t* end = blob.data() + blob.size();

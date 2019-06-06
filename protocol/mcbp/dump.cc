@@ -34,7 +34,7 @@
 namespace cb {
 namespace mcbp {
 
-void dumpBytes(cb::byte_buffer buffer, std::ostream& out, size_t offset) {
+void dumpBytes(cb::const_byte_buffer buffer, std::ostream& out, size_t offset) {
     out << std::hex;
     size_t nbytes = 0;
     while (nbytes < buffer.size()) {
@@ -578,7 +578,7 @@ void cb::mcbp::dump(const uint8_t* packet, std::ostream& out) {
     dump(*reinterpret_cast<const cb::mcbp::Header*>(packet), out);
 }
 
-void cb::mcbp::dumpStream(cb::byte_buffer buffer, std::ostream& out) {
+void cb::mcbp::dumpStream(cb::const_byte_buffer buffer, std::ostream& out) {
     size_t offset = 0;
 
     while ((offset + sizeof(Header)) <= buffer.len) {

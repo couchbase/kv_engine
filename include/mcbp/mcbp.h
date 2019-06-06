@@ -55,8 +55,7 @@ void dump(const Header& header, std::ostream& out);
  * @param buffer the buffer containing the data
  * @param out Where to dump the data
  */
-void dumpStream(cb::byte_buffer buffer, std::ostream& out);
-
+void dumpStream(cb::const_byte_buffer buffer, std::ostream& out);
 
 /**
  * Print a byte dump of a buffer in the following format:
@@ -69,8 +68,9 @@ void dumpStream(cb::byte_buffer buffer, std::ostream& out);
  *               specified in the buffer, and this is may be used if the
  *               buffer to display is a small segment of a larger blob)
  */
-void dumpBytes(cb::byte_buffer buffer, std::ostream& out, size_t offset = 0);
-
+void dumpBytes(cb::const_byte_buffer buffer,
+               std::ostream& out,
+               size_t offset = 0);
 
 namespace gdb {
 /**
@@ -81,7 +81,7 @@ namespace gdb {
  * 0x7f43387d7e82: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
  * 0x7f43387d7e8a: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
  */
-std::vector<uint8_t> parseDump(cb::byte_buffer blob);
+std::vector<uint8_t> parseDump(cb::const_byte_buffer blob);
 } // namespace gdb
 
 namespace lldb {
@@ -92,7 +92,7 @@ namespace lldb {
  * 0xaddr: 81 0d 00 01 04 00 00 00 00 00 00 06 00 00 00 06  ................
  * 0xaddr: 14 bf f4 26 8a e0 00 00 00 00 00 00 61 61 81 0a  .��&.�......aa..
  */
-std::vector<uint8_t> parseDump(cb::byte_buffer blob);
+std::vector<uint8_t> parseDump(cb::const_byte_buffer blob);
 }
 
 namespace sla {
