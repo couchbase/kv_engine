@@ -69,7 +69,7 @@ void BinprotCommand::fillHeader(cb::mcbp::Request& header,
     header.setVBucket(vbucket);
     header.setBodylen(gsl::narrow<uint32_t>(key.size() + extlen + payload_len +
                                             frame_info.size()));
-    header.setOpaque(0xdeadbeef);
+    header.setOpaque(opaque);
     // @todo fix this to use the setter. There is still some dependency
     // in other tests which use expects this to be in the same byte order
     // as the server sent it..
@@ -128,6 +128,11 @@ cb::mcbp::ClientOpcode BinprotCommand::getOp() const {
 
 BinprotCommand& BinprotCommand::setVBucket(Vbid vbid) {
     vbucket = vbid;
+    return *this;
+}
+
+BinprotCommand& BinprotCommand::setOpaque(uint32_t opaq) {
+    opaque = opaq;
     return *this;
 }
 

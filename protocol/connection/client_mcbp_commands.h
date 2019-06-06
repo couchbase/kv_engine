@@ -54,6 +54,8 @@ public:
 
     BinprotCommand& setVBucket(Vbid vbid);
 
+    BinprotCommand& setOpaque(uint32_t opaq);
+
     /// Add a frame info object to the stream
     BinprotCommand& addFrameInfo(const FrameInfo& fi);
 
@@ -133,6 +135,7 @@ protected:
     std::string key;
     uint64_t cas = 0;
     Vbid vbucket = Vbid(0);
+    uint32_t opaque{0xdeadbeef};
 
     /// The frame info sections to inject into the packet
     std::vector<uint8_t> frame_info;
