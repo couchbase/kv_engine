@@ -1289,6 +1289,15 @@ TEST_P(KVBucketParamTest, MB_34346) {
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
     GetValue gv2 = store->get(key, vbid, cookie, options);
     EXPECT_TRUE(gv2.item->isDeleted());
+    // Check that the datatype does not include SNAPPY
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, gv2.item->getDataType());
+    // Check the returned blob is what we initially set
+    cb::xattr::Blob returnedBlob(
+            {const_cast<char*>(gv2.item->getData()), gv2.item->getNBytes()},
+            false);
+    EXPECT_STREQ(
+            "{\"fffff\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+            reinterpret_cast<char*>(returnedBlob.get("_sync").data()));
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 
