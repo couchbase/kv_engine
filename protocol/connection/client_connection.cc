@@ -524,14 +524,7 @@ void MemcachedConnection::readPlain(Frame& frame, size_t bytes) {
 }
 
 void MemcachedConnection::sendFrame(const Frame& frame) {
-    if (ssl) {
-        sendFrameSsl(frame);
-    } else {
-        sendFramePlain(frame);
-    }
-    if (packet_dump) {
-        cb::mcbp::dump(frame.payload.data(), std::cerr);
-    }
+    sendBuffer({frame.payload.data(), frame.payload.size()});
 }
 
 void MemcachedConnection::sendBuffer(const std::vector<iovec>& list) {
@@ -552,6 +545,21 @@ void MemcachedConnection::sendBuffer(const std::vector<iovec>& list) {
         sendBufferSsl(list);
     } else {
         sendBufferPlain(list);
+    }
+}
+
+void MemcachedConnection::sendBuffer(cb::const_byte_buffer buf) {
+    if (packet_dump) {
+        try {
+            cb::mcbp::dumpStream(buf, std::cerr);
+        } catch (const std::exception&) {
+            // ignore..
+        }
+    }
+    if (ssl) {
+        sendBufferSsl(buf);
+    } else {
+        sendBufferPlain(buf);
     }
 }
 

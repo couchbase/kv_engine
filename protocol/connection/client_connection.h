@@ -820,17 +820,8 @@ protected:
 
     void readSsl(Frame& frame, size_t bytes);
 
-    void sendFramePlain(const Frame& frame) {
-        sendBufferPlain(cb::const_byte_buffer(frame.payload.data(),
-                                              frame.payload.size()));
-    }
-
-    void sendFrameSsl(const Frame& frame) {
-        sendBufferSsl(cb::const_byte_buffer(frame.payload.data(),
-                                             frame.payload.size()));
-    }
-
     void sendBuffer(const std::vector<iovec>& buf);
+    void sendBuffer(cb::const_byte_buffer buf);
 
     void sendBufferPlain(cb::const_byte_buffer buf);
     void sendBufferPlain(const std::vector<iovec>& list);
