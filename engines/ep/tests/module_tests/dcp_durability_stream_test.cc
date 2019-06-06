@@ -585,26 +585,19 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
     stream->processMarker(&marker);
 
     // The consumer receives s:1 durable
-    const std::string value("value");
+    const auto key = makeStoredDocKey("key");
     const uint64_t prepareSeqno = 1;
     using namespace cb::durability;
 
     const uint64_t cas = 999;
-    queued_item qi(
-            new Item(makeStoredDocKey("key_" + std::to_string(prepareSeqno)),
-                     0 /*flags*/,
-                     0 /*expiry*/,
-                     value.c_str(),
-                     value.size(),
-                     PROTOCOL_BINARY_RAW_BYTES,
-                     cas /*cas*/,
-                     prepareSeqno,
-                     vbid));
-    qi->setPendingSyncWrite(Requirements(Level::Majority, Timeout::Infinity()));
+    queued_item qi = makePendingItem(
+            key, "value", Requirements(Level::Majority, Timeout::Infinity()));
+    qi->setBySeqno(prepareSeqno);
+    qi->setCas(cas);
 
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
-                      std::move(qi),
+                      qi,
                       opaque,
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
@@ -615,7 +608,6 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
 
     EXPECT_EQ(0, vb->getNumItems());
     EXPECT_EQ(1, vb->ht.getNumItems());
-    const auto key = makeStoredDocKey("key_" + std::to_string(prepareSeqno));
     {
         const auto sv = vb->ht.findForWrite(key);
         ASSERT_TRUE(sv.storedValue);
@@ -637,15 +629,10 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
     it++;
     ASSERT_EQ(1, ckpt->getNumMetaItems());
     EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
-    // 1 non-metaitem is pending and contains the expected value
+    // 1 non-metaitem is pending and contains the expected prepared item.
     it++;
     ASSERT_EQ(1, ckpt->getNumItems());
-    EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
-    EXPECT_EQ(key, (*it)->getKey());
-    EXPECT_TRUE((*it)->getValue());
-    EXPECT_EQ(value, (*it)->getValue()->to_s());
-    EXPECT_EQ(1, (*it)->getBySeqno());
-    EXPECT_EQ(cas, (*it)->getCas());
+    EXPECT_EQ(*qi, **it) << "Item in Checkpoint doesn't match queued_item";
 
     EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
     // Level:Majority + snap-end received -> HPS has moved
@@ -665,8 +652,10 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpCommit) {
     testReceiveDcpPrepare();
     auto vb = engine->getVBucket(vbid);
     const uint64_t prepareSeqno = 1;
+
+    // Record CAS for comparison with the later Commit.
     uint64_t cas;
-    auto key = makeStoredDocKey("key_" + std::to_string(prepareSeqno));
+    auto key = makeStoredDocKey("key");
     {
         const auto sv = vb->ht.findForWrite(key);
         ASSERT_TRUE(sv.storedValue);
@@ -683,11 +672,12 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpCommit) {
     // will force the Consumer closing the open checkpoint (which Contains the
     // Prepare) and creating a new open one for queueing the Commit.
     uint32_t opaque = 0;
+    auto commitSeqno = prepareSeqno + 1;
     SnapshotMarker marker(
             opaque,
             vbid,
-            2 /*snapStart*/,
-            2 /*snapEnd*/,
+            commitSeqno,
+            commitSeqno,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*streamId*/);
     stream->processMarker(&marker);
@@ -704,7 +694,6 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpCommit) {
     ASSERT_EQ(0, ckpt->getNumItems());
 
     // Now simulate the Consumer receiving Commit for that Prepare
-    auto commitSeqno = prepareSeqno + 1;
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<CommitSyncWrite>(
                       opaque, vbid, commitSeqno, key)));
@@ -753,13 +742,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbort) {
     testReceiveDcpPrepare();
     auto vb = engine->getVBucket(vbid);
     const uint64_t prepareSeqno = 1;
-    const auto key = makeStoredDocKey("key_" + std::to_string(prepareSeqno));
-    {
-        const auto sv = vb->ht.findForWrite(key);
-        ASSERT_TRUE(sv.storedValue);
-        ASSERT_EQ(CommittedState::Pending, sv.storedValue->getCommitted());
-        ASSERT_EQ(prepareSeqno, sv.storedValue->getBySeqno());
-    }
+    const auto key = makeStoredDocKey("key");
 
     // Now simulate the Consumer receiving Abort for that Prepare
     uint32_t opaque = 0;
