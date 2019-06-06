@@ -417,16 +417,8 @@ public:
           enableExpiryOutput(enableExpiryOut) {
     }
 
-    queued_item& getItem() {
-        return item_;
-    }
-
     const queued_item& getItem() const {
         return item_;
-    }
-
-    std::unique_ptr<Item> getItemCopy() {
-        return std::make_unique<Item>(*item_);
     }
 
     Vbid getVBucket() {
@@ -515,7 +507,7 @@ protected:
 
     uint32_t getDeleteLength() const;
 
-    queued_item item_;
+    const queued_item item_;
 
     // Whether the response should contain the value
     IncludeValue includeValue;
