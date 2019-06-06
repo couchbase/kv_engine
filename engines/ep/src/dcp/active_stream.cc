@@ -163,6 +163,7 @@ std::unique_ptr<DcpResponse> ActiveStream::next(
     case StreamState::TakeoverWait:
         response = takeoverWaitPhase();
         break;
+    case StreamState::AwaitingFirstSnapshotMarker:
     case StreamState::Reading:
         // Not valid for an active stream.
         {
@@ -170,10 +171,9 @@ std::unique_ptr<DcpResponse> ActiveStream::next(
             std::string connHeader =
                     producer ? producer->logHeader()
                              : "DCP (Producer): **Deleted conn**";
-            throw std::logic_error(
-                    "ActiveStream::next: Invalid state "
-                    "StreamReading for stream " +
-                    connHeader + " " + logPrefix);
+            throw std::logic_error("ActiveStream::next: Invalid state " +
+                                   to_string(state_.load()) + " for stream " +
+                                   connHeader + " " + logPrefix);
         }
         break;
     case StreamState::Dead:
@@ -1443,6 +1443,7 @@ bool ActiveStream::handleSlowStream() {
         /* To be handled later if needed */
         return false;
     case StreamState::Pending:
+    case StreamState::AwaitingFirstSnapshotMarker:
     case StreamState::Reading: {
         auto producer = producerPtr.lock();
         std::string connHeader = producer ? producer->logHeader()
@@ -1533,8 +1534,9 @@ void ActiveStream::transitionState(StreamState newState) {
             validTransition = true;
         }
         break;
+    case StreamState::AwaitingFirstSnapshotMarker:
     case StreamState::Reading:
-        // Active stream should never be in READING state.
+        // Active stream should never be in this state.
         validTransition = false;
         break;
     case StreamState::Dead:
@@ -1587,6 +1589,7 @@ void ActiveStream::transitionState(StreamState newState) {
     case StreamState::TakeoverWait:
     case StreamState::Pending:
         break;
+    case StreamState::AwaitingFirstSnapshotMarker:
     case StreamState::Reading:
         throw std::logic_error(
                 "ActiveStream::transitionState:"

@@ -367,6 +367,7 @@ private:
     std::atomic<size_t> itemsFromMemoryPhase;
 
     //! Whether or not this is the first snapshot marker sent
+    // @TODO - update to be part of the state machine.
     bool firstMarkerSent;
 
     /**

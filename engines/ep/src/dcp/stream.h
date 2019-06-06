@@ -132,14 +132,15 @@ public:
 protected:
     // The StreamState is protected as it needs to be accessed by sub-classes
     enum class StreamState {
-          Pending,
-          Backfilling,
-          InMemory,
-          TakeoverSend,
-          TakeoverWait,
-          Reading,
-          Dead
-      };
+        Pending,
+        AwaitingFirstSnapshotMarker,
+        Backfilling,
+        InMemory,
+        TakeoverSend,
+        TakeoverWait,
+        Reading,
+        Dead
+    };
 
     static const std::string to_string(Stream::StreamState type);
 

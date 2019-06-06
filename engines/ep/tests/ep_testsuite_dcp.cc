@@ -4839,7 +4839,9 @@ static enum test_result test_dcp_close_stream(EngineIface* h) {
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
     std::string state =
             get_str_stat(h, "eq_dcpq:unittest:stream_0_state", "dcp");
-    checkeq(0, state.compare("reading"), "Expected stream in reading state");
+    checkeq(0,
+            state.compare("awaiting-first-snapshot-marker"),
+            "Expected stream in reading state");
 
     checkeq(ENGINE_SUCCESS,
             dcp->close_stream(cookie, stream_opaque, Vbid(0), {}),
@@ -4872,7 +4874,9 @@ static enum test_result test_dcp_consumer_end_stream(EngineIface* h) {
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
     std::string state =
             get_str_stat(h, "eq_dcpq:unittest:stream_0_state", "dcp");
-    checkeq(0, state.compare("reading"), "Expected stream in reading state");
+    checkeq(0,
+            state.compare("awaiting-first-snapshot-marker"),
+            "Expected stream in reading state");
 
     checkeq(ENGINE_SUCCESS,
             dcp->stream_end(cookie, stream_opaque, vbucket, end_flag),

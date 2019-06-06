@@ -162,7 +162,7 @@ void PassiveStream::acceptStream(cb::mcbp::Status status, uint32_t add_opaque) {
     std::unique_lock<std::mutex> lh(streamMutex);
     if (isPending()) {
         if (status == cb::mcbp::Status::Success) {
-            transitionState(StreamState::Reading);
+            transitionState(StreamState::AwaitingFirstSnapshotMarker);
         } else {
             transitionState(StreamState::Dead);
         }
@@ -804,6 +804,10 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                     ? Snapshot::Disk
                                     : Snapshot::Memory);
 
+    if (getState() == StreamState::AwaitingFirstSnapshotMarker) {
+        transitionState(StreamState::Reading);
+    }
+
     if (vb) {
         auto& ckptMgr = *vb->checkpointManager;
         if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
@@ -1022,11 +1026,16 @@ bool PassiveStream::transitionState(StreamState newState) {
     bool validTransition = false;
     switch (state_.load()) {
     case StreamState::Pending:
+        if (newState == StreamState::AwaitingFirstSnapshotMarker ||
+            newState == StreamState::Dead) {
+            validTransition = true;
+        }
+        break;
+    case StreamState::AwaitingFirstSnapshotMarker:
         if (newState == StreamState::Reading || newState == StreamState::Dead) {
             validTransition = true;
         }
         break;
-
     case StreamState::Backfilling:
     case StreamState::InMemory:
     case StreamState::TakeoverSend:

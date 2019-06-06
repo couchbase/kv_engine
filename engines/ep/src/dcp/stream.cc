@@ -83,6 +83,8 @@ const std::string Stream::to_string(Stream::StreamState st) {
         return "takeover-wait";
     case StreamState::Reading:
         return "reading";
+    case StreamState::AwaitingFirstSnapshotMarker:
+        return "awaiting-first-snapshot-marker";
     case StreamState::Dead:
         return "dead";
     }

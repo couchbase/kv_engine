@@ -123,12 +123,12 @@ void NotifierStream::transitionState(StreamState newState) {
             validTransition = true;
         }
         break;
-
     case StreamState::Backfilling:
     case StreamState::InMemory:
     case StreamState::TakeoverSend:
     case StreamState::TakeoverWait:
     case StreamState::Reading:
+    case StreamState::AwaitingFirstSnapshotMarker:
     case StreamState::Dead:
         // No other state transitions are valid for a notifier stream.
         break;
