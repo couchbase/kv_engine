@@ -106,6 +106,11 @@ public:
 
     void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) override;
 
+    void getRange(Vbid vb,
+                  const DiskDocKey& startKey,
+                  const DiskDocKey& endKey,
+                  const GetRangeCb& cb) override;
+
     void del(const Item& itm, KVStore::DeleteCallback cb) override;
 
     void delVBucket(Vbid vbucket, uint64_t fileRev) override;
@@ -354,13 +359,15 @@ private:
     std::vector<Vbid> discoverVBuckets();
 
     std::unique_ptr<Item> makeItem(Vbid vb,
-                                   const DiskDocKey& key,
-                                   const std::string& value,
+                                   const magma::Slice& keySlice,
+                                   const magma::Slice& metaSlice,
+                                   const magma::Slice& valueSlice,
                                    GetMetaOnly getMetaOnly);
 
     GetValue makeGetValue(Vbid vb,
-                          const DiskDocKey& key,
-                          const std::string& value,
+                          const magma::Slice& keySlice,
+                          const magma::Slice& metaSlice,
+                          const magma::Slice& valueSlice,
                           GetMetaOnly getMetaOnly = GetMetaOnly::No);
 
     int saveDocs(Collections::VB::Flush& collectionsFlush, kvstats_ctx& kvctx);

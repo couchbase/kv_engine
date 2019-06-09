@@ -129,6 +129,20 @@ public:
         return static_cast<cb::durability::Level>(durabilityLevel);
     }
 
+    static std::string to_string(Operation op) {
+        switch (op) {
+        case Operation::Mutation:
+            return "Mutation";
+        case Operation::PreparedSyncWrite:
+            return "PreparedSyncWrite";
+        case Operation::CommittedSyncWrite:
+            return "CommittedSyncWrite";
+        case Operation::Abort:
+            return "Abort";
+        }
+        return "Unknown";
+    }
+
     std::string to_string() const {
         std::stringstream ss;
         int vers = metaDataVersion;
@@ -178,20 +192,6 @@ private:
                     "magma::MetaData::toOperation: Unsupported op " +
                     std::to_string(static_cast<uint8_t>(op)));
         }
-    }
-
-    static std::string to_string(Operation op) {
-        switch (op) {
-        case Operation::Mutation:
-            return "Mutation";
-        case Operation::PreparedSyncWrite:
-            return "PreparedSyncWrite";
-        case Operation::CommittedSyncWrite:
-            return "CommittedSyncWrite";
-        case Operation::Abort:
-            return "Abort";
-        }
-        return "Unknonw";
     }
 };
 #pragma pack()
@@ -701,50 +701,171 @@ GetValue MagmaKVStore::get(const DiskDocKey& key, Vbid vb) {
 
 GetValue MagmaKVStore::getWithHeader(void* dbHandle,
                                      const DiskDocKey& key,
-                                     Vbid vb,
+                                     Vbid vbid,
                                      GetMetaOnly getMetaOnly) {
-    void* value = nullptr;
-    int valueLen = 0;
-    KVMagma db(vb, magmaPath);
-    int status = db.Get(key, &value, &valueLen);
-    if (status < 0) {
-        logger->warn(
-                "MagmaKVStore::getWithHeader: magma::DB::Lookup error:{}, "
-                "vb:{}",
-                status,
-                vb);
+    auto start = std::chrono::steady_clock::now();
+    Slice keySlice = {reinterpret_cast<const char*>(key.data()), key.size()};
+    Slice metaSlice;
+    Slice valueSlice;
+    Magma::FetchBuffer idxBuf;
+    Magma::FetchBuffer seqBuf;
+    bool found;
+    Status status = magma->Get(
+            vbid.get(), keySlice, idxBuf, seqBuf, metaSlice, valueSlice, found);
+
+    if (logger->should_log(spdlog::level::TRACE)) {
+        std::string hex, ascii;
+        hexdump(keySlice.Data(), keySlice.Len(), hex, ascii);
+        logger->TRACE(
+                "getWithHeader {} key:{} {} status:{} found:{} deleted:{}",
+                vbid,
+                ascii,
+                hex,
+                status.String(),
+                found,
+                found ? isDeleted(metaSlice) : false);
     }
-    std::string valStr(reinterpret_cast<char*>(value), valueLen);
-    return makeGetValue(vb, key, valStr, getMetaOnly);
+
+    if (!status) {
+        logger->warn("MagmaKVStore::getWithHeader {} error:{}",
+                     vbid,
+                     status.ErrorCode());
+        return GetValue{NULL, magmaErr2EngineErr(status.ErrorCode(), true)};
+    }
+
+    if (!found) {
+        return GetValue{NULL, ENGINE_KEY_ENOENT};
+    }
+
+    // record stats
+    st.readTimeHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - start));
+    st.readSizeHisto.add(keySlice.Len() + metaSlice.Len() + valueSlice.Len());
+
+    return makeGetValue(vbid, keySlice, metaSlice, valueSlice, getMetaOnly);
 }
 
-void MagmaKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
-    KVMagma db(vb, magmaPath);
+void MagmaKVStore::getMulti(Vbid vbid, vb_bgfetch_queue_t& itms) {
     for (auto& it : itms) {
         auto& key = it.first;
-        void* value = nullptr;
-        int valueLen = 0;
-        int status = db.Get(key, &value, &valueLen);
-        if (status < 0) {
-            logger->warn(
-                    "MagmaKVStore::getMulti: magma::DB::Lookup error:{}, "
-                    "vb:{}",
-                    status,
-                    vb);
-            for (auto& fetch : it.second.bgfetched_list) {
-                fetch->value->setStatus(ENGINE_KEY_ENOENT);
-            }
-            continue;
+        Slice keySlice = {reinterpret_cast<const char*>(key.data()),
+                          key.size()};
+        Slice metaSlice;
+        Slice valueSlice;
+        Magma::FetchBuffer idxBuf;
+        Magma::FetchBuffer seqBuf;
+        bool found;
+
+        Status status = magma->Get(vbid.get(),
+                                   keySlice,
+                                   idxBuf,
+                                   seqBuf,
+                                   metaSlice,
+                                   valueSlice,
+                                   found);
+
+        if (logger->should_log(spdlog::level::TRACE)) {
+            std::string hex, ascii;
+            hexdump(keySlice.Data(), keySlice.Len(), hex, ascii);
+            logger->TRACE("getMulti {} key:{} {} status:{} found:{}",
+                          vbid,
+                          ascii,
+                          hex,
+                          status.String(),
+                          found);
         }
-        std::string valStr(reinterpret_cast<char*>(value), valueLen);
-        it.second.value = makeGetValue(vb, key, valStr, it.second.isMetaOnly);
-        GetValue* rv = &it.second.value;
-        for (auto& fetch : it.second.bgfetched_list) {
-            fetch->value = rv;
+
+        auto errCode = magmaErr2EngineErr(status.ErrorCode(), found);
+        vb_bgfetch_item_ctx_t& bg_itm_ctx = it.second;
+        bg_itm_ctx.value.setStatus(errCode);
+
+        if (found) {
+            it.second.value = makeGetValue(vbid,
+                                           keySlice,
+                                           metaSlice,
+                                           valueSlice,
+                                           it.second.isMetaOnly);
+            GetValue* rv = &it.second.value;
+
+            for (auto& fetch : bg_itm_ctx.bgfetched_list) {
+                fetch->value = rv;
+                st.readTimeHisto.add(
+                        std::chrono::duration_cast<std::chrono::microseconds>(
+                                std::chrono::steady_clock::now() -
+                                fetch->initTime));
+                st.readSizeHisto.add(bg_itm_ctx.value.item->getKey().size() +
+                                     bg_itm_ctx.value.item->getNBytes());
+            }
+        } else {
+            if (!status) {
+                logger->critical("MagmaKVStore::getMulti: {} error:{}, ",
+                                 vbid,
+                                 status.ErrorCode());
+                st.numGetFailure++;
+            }
+            for (auto& fetch : bg_itm_ctx.bgfetched_list) {
+                fetch->value->setStatus(errCode);
+            }
         }
     }
 }
 
+void MagmaKVStore::getRange(Vbid vbid,
+                            const DiskDocKey& startKey,
+                            const DiskDocKey& endKey,
+                            const GetRangeCb& cb) {
+    Slice startKeySlice = {reinterpret_cast<const char*>(startKey.data()),
+                           startKey.size()};
+    Slice endKeySlice = {reinterpret_cast<const char*>(endKey.data()),
+                         endKey.size()};
+
+    auto callback = [&](Slice& keySlice, Slice& metaSlice, Slice& valueSlice) {
+        if (logger->should_log(spdlog::level::TRACE)) {
+            std::string hex, ascii;
+            hexdump(keySlice.Data(), keySlice.Len(), hex, ascii);
+            logger->TRACE(
+                    "MagmaKVStore::getRange callback (key:{} {} seqno:{} "
+                    "deleted:{}",
+                    ascii,
+                    hex,
+                    getSeqNum(metaSlice),
+                    isDeleted(metaSlice));
+        }
+
+        if (isDeleted(metaSlice)) {
+            return;
+        }
+        auto rv = makeGetValue(vbid, keySlice, metaSlice, valueSlice);
+        cb(std::move(rv));
+    };
+
+    if (logger->should_log(spdlog::level::TRACE)) {
+        std::string sak, shk, eak, ehk;
+        hexdump(startKeySlice.Data(), startKeySlice.Len(), sak, shk);
+        hexdump(endKeySlice.Data(), endKeySlice.Len(), eak, ehk);
+        logger->TRACE("MagmaKVStore::getRange(start:{} {} end:{} {}",
+                      sak,
+                      shk,
+                      eak,
+                      ehk);
+    }
+
+    auto status = magma->GetRange(
+            vbid.get(), startKeySlice, endKeySlice, callback, true);
+    if (!status) {
+        std::string sak, shk, eak, ehk;
+        hexdump(startKeySlice.Data(), startKeySlice.Len(), sak, shk);
+        hexdump(endKeySlice.Data(), endKeySlice.Len(), eak, ehk);
+        logger->critical(
+                "MagmaKVStore::getRange {} (start:{} {} end:{} {}) error:{}",
+                vbid,
+                sak,
+                shk,
+                eak,
+                ehk,
+                status.String());
+    }
+}
 void MagmaKVStore::reset(Vbid vbucketId) {
     // TODO storage-team 2018-10-9 need to implement
 }
@@ -864,43 +985,63 @@ size_t MagmaKVStore::getNumShards() const {
 }
 
 std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
-                                             const DiskDocKey& key,
-                                             const std::string& value,
+                                             const Slice& keySlice,
+                                             const Slice& metaSlice,
+                                             const Slice& valueSlice,
                                              GetMetaOnly getMetaOnly) {
-    Expects(value.size() >= sizeof(magmakv::MetaData));
-
-    const char* data = value.c_str();
-
-    magmakv::MetaData meta;
-    std::memcpy(&meta, data, sizeof(meta));
-    data += sizeof(meta);
+    auto key = makeDiskDocKey(keySlice);
+    auto& meta = *reinterpret_cast<const magmakv::MetaData*>(metaSlice.Data());
 
     bool includeValue = getMetaOnly == GetMetaOnly::No && meta.valueSize;
 
-    auto item = std::make_unique<Item>(key.getDocKey(),
-                                       meta.flags,
-                                       meta.exptime,
-                                       includeValue ? data : nullptr,
-                                       includeValue ? meta.valueSize : 0,
-                                       meta.datatype,
-                                       meta.cas,
-                                       meta.bySeqno,
-                                       vb,
-                                       meta.revSeqno);
+    auto item =
+            std::make_unique<Item>(key.getDocKey(),
+                                   meta.flags,
+                                   meta.exptime,
+                                   includeValue ? valueSlice.Data() : nullptr,
+                                   includeValue ? meta.valueSize : 0,
+                                   meta.datatype,
+                                   meta.cas,
+                                   meta.bySeqno,
+                                   vb,
+                                   meta.revSeqno);
 
     if (meta.deleted) {
-        item->setDeleted();
+        item->setDeleted(static_cast<DeleteSource>(meta.deleteSource));
     }
 
-    return item;
+    switch (meta.getOperation()) {
+    case magmakv::MetaData::Operation::Mutation:
+        // Item already defaults to Mutation - nothing else to do.
+        return item;
+    case magmakv::MetaData::Operation::PreparedSyncWrite:
+        // From disk we return a zero (infinite) timeout; as this could
+        // refer to an already-committed SyncWrite and hence timeout
+        // must be ignored.
+        item->setPendingSyncWrite({meta.getDurabilityLevel(),
+                                   cb::durability::Timeout::Infinity()});
+        return item;
+    case magmakv::MetaData::Operation::CommittedSyncWrite:
+        item->setCommittedviaPrepareSyncWrite();
+        return item;
+    case magmakv::MetaData::Operation::Abort:
+        item->setAbortSyncWrite();
+        return item;
+    }
+
+    throw std::logic_error("MagmaKVStore::makeItem unexpected operation:" +
+                           meta.to_string(meta.getOperation()));
 }
 
 GetValue MagmaKVStore::makeGetValue(Vbid vb,
-                                    const DiskDocKey& key,
-                                    const std::string& value,
+                                    const Slice& keySlice,
+                                    const Slice& metaSlice,
+                                    const Slice& valueSlice,
                                     GetMetaOnly getMetaOnly) {
-    return GetValue(
-            makeItem(vb, key, value, getMetaOnly), ENGINE_SUCCESS, -1, 0);
+    return GetValue(makeItem(vb, keySlice, metaSlice, valueSlice, getMetaOnly),
+                    ENGINE_SUCCESS,
+                    -1,
+                    0);
 }
 
 int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
