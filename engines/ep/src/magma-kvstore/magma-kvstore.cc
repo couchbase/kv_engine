@@ -129,7 +129,7 @@ public:
         return static_cast<cb::durability::Level>(durabilityLevel);
     }
 
-    static std::string to_string(Operation op) {
+    std::string to_string(Operation op) const {
         switch (op) {
         case Operation::Mutation:
             return "Mutation";
@@ -140,22 +140,23 @@ public:
         case Operation::Abort:
             return "Abort";
         }
-        return "Unknown";
+        return std::string{"Unknown:" +
+                           std::to_string(static_cast<uint8_t>(op))};
     }
 
     std::string to_string() const {
         std::stringstream ss;
         int vers = metaDataVersion;
         int dt = datatype;
-        auto op = to_string(static_cast<Operation>(operation));
-        cb::durability::Requirements req(getDurabilityLevel(), 0);
+        cb::durability::Requirements req(getDurabilityLevel(), {});
         ss << "bySeqno:" << bySeqno << " cas:" << cas << " exptime:" << exptime
            << " revSeqno:" << revSeqno << " flags:" << flags
            << " valueSize:" << valueSize << " vbid:" << vbid
            << " deleted:" << (deleted == 0 ? "false" : "true")
            << " deleteSource:"
            << (deleted == 0 ? " " : deleteSource == 0 ? "Explicit" : "TTL")
-           << " version:" << vers << " datatype:" << dt << " operation:" << op
+           << " version:" << vers << " datatype:" << dt
+           << " operation:" << to_string(getOperation())
            << " durabilityLevel:" << cb::durability::to_string(req);
         return ss.str();
     }
@@ -357,30 +358,8 @@ static DiskDocKey makeDiskDocKey(const Slice& key) {
     return DiskDocKey{key.Data(), key.Len()};
 }
 
-class KVMagma {
-public:
-    KVMagma(const Vbid vb, const std::string path) : vbid(vb.get()) {
-        // open magma
-    }
-
-    int SetOrDel(const MagmaRequest* req) {
-        if (req->isDelete()) {
-            ; // TODO should we have a merge delta ops for old value?
-        }
-        return 0;
-    }
-
-    int Get(const DiskDocKey& key, void** value, int* valueLen) {
-        return 0;
-    }
-
-    Vbid vbid;
-    int magmaHandleId;
-};
-
 MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     : KVStore(configuration),
-      vbDB(configuration.getMaxVBuckets()),
       pendingReqs(std::make_unique<PendingRequestQueue>()),
       in_transaction(false),
       magmaPath(configuration.getDBName() + "/magma." +
@@ -872,6 +851,7 @@ void MagmaKVStore::getRange(Vbid vbid,
                 status.String());
     }
 }
+
 void MagmaKVStore::reset(Vbid vbucketId) {
     // TODO storage-team 2018-10-9 need to implement
 }
@@ -886,12 +866,7 @@ void MagmaKVStore::del(const Item& item, KVStore::DeleteCallback cb) {
 }
 
 void MagmaKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
-    std::lock_guard<std::mutex> lg(writeLock);
-    // TODO: check if needs lock on `openDBMutex`.
-    vbDB[vbid.get()].reset();
-    // Just destroy the DB in the sub-folder for vbid
-    auto dbname = getVBDBSubdir(vbid);
-    // DESTROY DB...
+    logger->warn("MagmaKVStore::delVBucket not implemented yet");
 }
 
 // Note: It is assumed this can only be called from bg flusher thread or

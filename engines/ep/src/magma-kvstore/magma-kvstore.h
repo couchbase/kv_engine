@@ -38,7 +38,6 @@ class Status;
 
 class MagmaRequest;
 class MagmaKVStoreConfig;
-class KVMagma;
 struct kvstats_ctx;
 struct vbucket_state;
 
@@ -324,24 +323,6 @@ private:
      */
     using PendingRequestQueue = std::deque<MagmaRequest>;
 
-    // This is used for synchonization in `openDB` to avoid that we open two
-    // instances on the same DB (e.g., this would be possible
-    // when we `Flush` and `Warmup` run in parallel).
-    std::mutex openDBMutex;
-    // Thus, we put an entry in this vector at position `vbid` when we `openDB`
-    // for a VBucket for the first time. Then, further calls to `openDB(vbid)`
-    // return the pointer stored in this vector. An entry is removed only when
-    // `delVBucket(vbid)`.
-    std::vector<std::unique_ptr<KVMagma>> vbDB;
-
-    /*
-     * This function returns an instance of `KVMagma` for the given `vbid`.
-     * The DB for `vbid` is created if it does not exist.
-     *
-     * @param vbid vbucket id for the vbucket DB to open
-     */
-    const KVMagma& openDB(Vbid vbid);
-
     /*
      * The DB for each VBucket is created in a separated subfolder of
      * `configuration.getDBName()`. This function returns the path of the DB
@@ -373,8 +354,6 @@ private:
     int saveDocs(Collections::VB::Flush& collectionsFlush, kvstats_ctx& kvctx);
 
     void commitCallback(int status, kvstats_ctx& kvctx);
-
-    int64_t readHighSeqnoFromDisk(const KVMagma& db);
 
     static ENGINE_ERROR_CODE magmaErr2EngineErr(magma::Status::Code err,
                                                 bool found);
