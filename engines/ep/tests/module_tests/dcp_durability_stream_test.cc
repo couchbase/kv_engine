@@ -318,60 +318,6 @@ TEST_P(DurabilityActiveStreamTest, RemoveUnknownSeqnoAckAtDestruction) {
     }
 }
 
-TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForReconnectWindow) {
-    testSendDcpPrepare();
-
-    auto vb = engine->getVBucket(vbid);
-    const auto key = makeStoredDocKey("key");
-    vb->commit(key, {}, vb->lockCollections(key));
-
-    if (persistent()) {
-        EXPECT_EQ(1, vb->ht.getNumItems());
-    } else {
-        // Ephemeral allows completed prepares in the HashTable
-        EXPECT_EQ(2, vb->ht.getNumItems());
-    }
-
-    // Disconnect and resume from our prepare
-    stream = std::make_shared<MockActiveStream>(engine.get(),
-                                                producer,
-                                                0 /*flags*/,
-                                                0 /*opaque*/,
-                                                *vb,
-                                                1 /*st_seqno*/,
-                                                ~0 /*en_seqno*/,
-                                                0x0 /*vb_uuid*/,
-                                                1 /*snap_start_seqno*/,
-                                                ~1 /*snap_end_seqno*/);
-
-    producer->createCheckpointProcessorTask();
-    stream->setActive();
-
-    // We must have ckpt-start + commit
-    auto outItems = stream->public_getOutstandingItems(*vb);
-    ASSERT_EQ(2, outItems.size());
-    ASSERT_EQ(queue_op::checkpoint_start, outItems.at(0)->getOperation());
-    ASSERT_EQ(queue_op::commit_sync_write, outItems.at(1)->getOperation());
-
-    // Stream::readyQ still empty
-    ASSERT_EQ(0, stream->public_readyQSize());
-    // Push items into the Stream::readyQ
-    stream->public_processItems(outItems);
-    // Stream::readyQ must contain SnapshotMarker + Mutation
-    ASSERT_EQ(2, stream->public_readyQSize());
-    auto resp = stream->public_popFromReadyQ();
-    ASSERT_TRUE(resp);
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
-    resp = stream->public_popFromReadyQ();
-    ASSERT_TRUE(resp);
-    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
-    const auto& set = static_cast<MutationResponse&>(*resp);
-    EXPECT_EQ(key, set.getItem()->getKey());
-    ASSERT_EQ(0, stream->public_readyQSize());
-    resp = stream->public_popFromReadyQ();
-    ASSERT_FALSE(resp);
-}
-
 void DurabilityPassiveStreamTest::SetUp() {
     SingleThreadedPassiveStreamTest::SetUp();
     consumer->enableSyncReplication();
