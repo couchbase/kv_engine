@@ -152,12 +152,37 @@ nlohmann::json Connection::toJSON() const {
         }
     }
 
-    ret["nodelay"] = nodelay;
     ret["refcount"] = refcount;
 
-    nlohmann::json features;
-    features["mutation_extras"] = isSupportsMutationExtras();
-    features["xerror"] = isXerrorSupport();
+    nlohmann::json features = nlohmann::json::array();
+    if (isSupportsMutationExtras()) {
+        features.push_back("mutation extras");
+    }
+    if (isXerrorSupport()) {
+        features.push_back("xerror");
+    }
+    if (nodelay) {
+        features.push_back("tcp nodelay");
+    }
+    if (allowUnorderedExecution()) {
+        features.push_back("unordered execution");
+    }
+    if (tracingEnabled) {
+        features.push_back("tracing");
+    }
+
+    if (isCollectionsSupported()) {
+        features.push_back("collections");
+    }
+
+    if (isDuplexSupported()) {
+        features.push_back("duplex");
+    }
+
+    if (isClustermapChangeNotificationSupported()) {
+        features.push_back("CCN");
+    }
+
     ret["features"] = features;
 
     ret["thread"] = getThread().index;
@@ -186,7 +211,6 @@ nlohmann::json Connection::toJSON() const {
         ret["connection_id"] = std::string(connectionId.data());
     }
 
-    ret["tracing"] = tracingEnabled;
     ret["sasl_enabled"] = saslAuthEnabled;
     ret["dcp"] = isDCP();
     ret["dcp_xattr_aware"] = isDcpXattrAware();
@@ -230,7 +254,6 @@ nlohmann::json Connection::toJSON() const {
     talloc["size"] = temp_alloc.size();
     ret["temp_alloc_list"] = talloc;
 
-    /* @todo we should decode the binary header */
     ret["ssl"] = ssl.toJSON();
     ret["total_recv"] = totalRecv;
     ret["total_send"] = totalSend;
