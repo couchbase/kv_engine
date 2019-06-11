@@ -227,6 +227,39 @@ void PassiveDurabilityMonitor::completeSyncWrite(const StoredDocKey& key,
     folly::assume_unreachable();
 }
 
+void PassiveDurabilityMonitor::postProcessRollback(
+        uint64_t newHighSeqno,
+        uint64_t newHighCompletedSeqno,
+        uint64_t newHighPreparedSeqno) {
+    // Sanity check that new HCS <= new HPS <= new high seqno
+    Expects(newHighCompletedSeqno <= newHighPreparedSeqno);
+    Expects(newHighPreparedSeqno <= newHighSeqno);
+
+    auto s = state.wlock();
+
+    // Remove everything with seqno > rollback point from trackedWrites
+    auto itr = std::find_if(
+            s->trackedWrites.begin(),
+            s->trackedWrites.end(),
+            [newHighSeqno](const auto& write) {
+                return static_cast<uint64_t>(write.getBySeqno()) > newHighSeqno;
+            });
+    s->trackedWrites.erase(itr, s->trackedWrites.end());
+
+    // Post-rollback we should not have any prepares in the PDM that have not
+    // been completed.
+    s->highCompletedSeqno.it = s->trackedWrites.end();
+    s->highCompletedSeqno.lastWriteSeqno.reset(newHighCompletedSeqno);
+
+    // The highPreparedSeqno should always point at the last item in
+    // trackedWrites. Every in-flight prepare should be satisfied locally as it
+    // will be on disk.
+    if (!s->trackedWrites.empty()) {
+        s->highPreparedSeqno.it = --s->trackedWrites.end();
+    }
+    s->highPreparedSeqno.lastWriteSeqno.reset(newHighPreparedSeqno);
+}
+
 void PassiveDurabilityMonitor::toOStream(std::ostream& os) const {
     os << "PassiveDurabilityMonitor[" << this << "]"
        << " high_prepared_seqno:" << getHighPreparedSeqno();

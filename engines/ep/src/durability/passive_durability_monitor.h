@@ -95,6 +95,17 @@ public:
 
     void notifyLocalPersistence() override;
 
+    /**
+     * Remove all in-flight prepares after the new high seqno
+     *
+     * @param newHighSeqno The high seqno after which we should discard prepares
+     * @param newHighCompletedSeqno The HCS that we should have post-rollback
+     * @param newHighPreparedSeqno The HPS that we should have post-rollback
+     */
+    void postProcessRollback(uint64_t newHighSeqno,
+                             uint64_t newHighCompletedSeqno,
+                             uint64_t newHighPreparedSeqno);
+
 protected:
     void toOStream(std::ostream& os) const override;
 

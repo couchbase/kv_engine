@@ -26,6 +26,7 @@
 #include "dcp/response.h"
 #include "dcp/stream.h"
 #include "dcp_utils.h"
+#include "durability/passive_durability_monitor.h"
 #include "evp_store_single_threaded_test.h"
 #include "evp_store_test.h"
 #include "failover-table.h"
@@ -68,7 +69,7 @@ class RollbackTest : public SingleThreadedEPBucketTest,
         // Therefore create 10 dummy items which we don't otherwise care
         // about (most of the Rollback test only work with a couple of
         // "active" items.
-        const auto dummy_elements = size_t{5};
+        const auto dummy_elements = size_t{10};
         for (size_t ii = 1; ii <= dummy_elements; ii++) {
             auto res = store_item(vbid,
                                   makeStoredDocKey("dummy" + std::to_string(ii)),
@@ -872,6 +873,28 @@ public:
         runNextTask(lpWriteQ);
     }
 
+    /**
+     * Writes six (the minimum for all tests that currently call this function)
+     * items on which we will rollback (we can only roll back half of our items
+     * or we rollback to zero)
+     */
+    void writeBaseItems();
+
+    /**
+     * Receive and flush a DCP prepare
+     */
+    void doPrepare();
+
+    /**
+     * Receive and flush a DCP prepare followed by a DCP commit
+     */
+    void doPrepareAndCommit();
+
+    /**
+     * Receive and flush a DCP prepare followed by a DCP abort
+     */
+    void doPrepareAndAbort();
+
     std::shared_ptr<MockDcpConsumer> consumer;
     DcpProducers producers;
     VBucketPtr vb;
@@ -989,6 +1012,241 @@ TEST_P(RollbackDcpTest, test_rollback_nonzero) {
                          vb->failovers->getLatestEntry().vb_uuid);
     EXPECT_EQ(rollbackPoint, vb->getHighSeqno()) << "VB hasn't rolled back to "
                                                  << rollbackPoint;
+}
+
+void RollbackDcpTest::writeBaseItems() {
+    const int items = 6;
+    const int flushes = 1;
+    createItems(items, flushes);
+
+    addStream(items);
+    auto stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    ASSERT_TRUE(stream);
+}
+
+void RollbackDcpTest::doPrepare() {
+    auto stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    auto startSeqno = vb->getHighSeqno();
+    auto prepareSeqno = startSeqno + 1;
+    SnapshotMarker marker(
+            0 /*opaque*/,
+            vbid,
+            prepareSeqno /*snapStart*/,
+            prepareSeqno /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    auto key = makeStoredDocKey("key");
+    auto prepare = makePendingItem(key, "value");
+
+    // The producer would normally do this for us
+    prepare->setCas(999);
+    prepare->setBySeqno(prepareSeqno);
+    using namespace cb::durability;
+    prepare->setPendingSyncWrite(
+            Requirements{Level::Majority, Timeout::Infinity()});
+
+    ASSERT_EQ(ENGINE_SUCCESS, store->prepare(*prepare, cookie));
+    flush_vbucket_to_disk(vbid, 1);
+}
+
+void RollbackDcpTest::doPrepareAndCommit() {
+    doPrepare();
+    auto stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+
+    auto prepareSeqno = vb->getHighSeqno();
+    auto commitSeqno = prepareSeqno + 1;
+    auto key = makeStoredDocKey("key");
+    SnapshotMarker marker(
+            0 /*opaque*/,
+            vbid,
+            commitSeqno /*snapStart*/,
+            commitSeqno /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb->commit(key, {commitSeqno}, vb->lockCollections(key)));
+
+    flush_vbucket_to_disk(vbid, 1);
+
+    auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+
+    // To set the HPS we need to receive the snapshot end - just hit the PDM
+    // function to simulate this
+    const_cast<PassiveDurabilityMonitor&>(passiveDm).notifySnapshotEndReceived(
+            commitSeqno);
+    ASSERT_EQ(0, passiveDm.getNumTracked());
+    ASSERT_EQ(prepareSeqno, passiveDm.getHighPreparedSeqno());
+    ASSERT_EQ(prepareSeqno, passiveDm.getHighCompletedSeqno());
+}
+
+void RollbackDcpTest::doPrepareAndAbort() {
+    doPrepare();
+    auto stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+
+    auto prepareSeqno = vb->getHighSeqno();
+    auto abortSeqno = prepareSeqno + 1;
+    auto key = makeStoredDocKey("key");
+    SnapshotMarker marker(
+            0 /*opaque*/,
+            vbid,
+            abortSeqno /*snapStart*/,
+            abortSeqno /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamID*/);
+    stream->processMarker(&marker);
+
+    ASSERT_EQ(
+            ENGINE_SUCCESS,
+            vb->abort(
+                    key, prepareSeqno, {abortSeqno}, vb->lockCollections(key)));
+    flush_vbucket_to_disk(vbid, 1);
+
+    auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+
+    // To set teh HPS we need to receive the snapshot end - just hit the PDM
+    // function to simulate this
+    const_cast<PassiveDurabilityMonitor&>(passiveDm).notifySnapshotEndReceived(
+            abortSeqno);
+    ASSERT_EQ(0, passiveDm.getNumTracked());
+    ASSERT_EQ(prepareSeqno, passiveDm.getHighPreparedSeqno());
+    ASSERT_EQ(prepareSeqno, passiveDm.getHighCompletedSeqno());
+}
+
+TEST_P(RollbackDcpTest, RollbackPrepare) {
+    writeBaseItems();
+    auto rollbackSeqno = vb->getHighSeqno();
+    doPrepare();
+
+    store->setVBucketState(vbid, vbStateAtRollback);
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+    EXPECT_EQ(rollbackSeqno, store->getVBucket(vbid)->getHighSeqno());
+
+    auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+    EXPECT_EQ(0, passiveDm.getNumTracked());
+    EXPECT_EQ(0, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
+}
+
+TEST_P(RollbackDcpTest, RollbackPrepareOnTopOfSyncWrite) {
+    writeBaseItems();
+    auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
+    doPrepareAndCommit();
+    auto rollbackSeqno = vb->getHighSeqno();
+    doPrepare();
+
+    store->setVBucketState(vbid, vbStateAtRollback);
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+    EXPECT_EQ(rollbackSeqno, store->getVBucket(vbid)->getHighSeqno());
+
+    auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+    EXPECT_EQ(0, passiveDm.getNumTracked());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncWrite) {
+    writeBaseItems();
+    auto rollbackSeqno = vb->getHighSeqno();
+    doPrepareAndCommit();
+
+    store->setVBucketState(vbid, vbStateAtRollback);
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+    EXPECT_EQ(rollbackSeqno, store->getVBucket(vbid)->getHighSeqno());
+
+    auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+    EXPECT_EQ(0, passiveDm.getNumTracked());
+    EXPECT_EQ(0, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
+}
+
+TEST_P(RollbackDcpTest, RollbackAbortedSyncWrite) {
+    writeBaseItems();
+    auto rollbackSeqno = vb->getHighSeqno();
+    doPrepareAndAbort();
+
+    store->setVBucketState(vbid, vbStateAtRollback);
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+    EXPECT_EQ(rollbackSeqno, store->getVBucket(vbid)->getHighSeqno());
+
+    auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+    EXPECT_EQ(0, passiveDm.getNumTracked());
+    EXPECT_EQ(0, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncWriteOnTopOfSyncWrite) {
+    writeBaseItems();
+    auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
+    doPrepareAndCommit();
+    auto rollbackSeqno = vb->getHighSeqno();
+    doPrepareAndCommit();
+
+    store->setVBucketState(vbid, vbStateAtRollback);
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+    EXPECT_EQ(rollbackSeqno, store->getVBucket(vbid)->getHighSeqno());
+
+    auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+    EXPECT_EQ(0, passiveDm.getNumTracked());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncWriteOnTopOfAbortedSyncWrite) {
+    writeBaseItems();
+    auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
+    doPrepareAndAbort();
+    auto rollbackSeqno = vb->getHighSeqno();
+    doPrepareAndCommit();
+
+    store->setVBucketState(vbid, vbStateAtRollback);
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+    EXPECT_EQ(rollbackSeqno, store->getVBucket(vbid)->getHighSeqno());
+
+    auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+    EXPECT_EQ(0, passiveDm.getNumTracked());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+}
+
+TEST_P(RollbackDcpTest, RollbackToZeroWithSyncWrite) {
+    writeBaseItems();
+    auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
+    doPrepareAndCommit();
+
+    // Rollback everything (because the rollback seqno is > seqno / 2)
+    store->setVBucketState(vbid, vbStateAtRollback);
+    auto rollbackSeqno = 1;
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+    EXPECT_EQ(0, store->getVBucket(vbid)->getHighSeqno());
+
+    auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+    EXPECT_EQ(0, passiveDm.getNumTracked());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+
+    auto newVb = store->getVBucket(vbid);
+    auto& newPassiveDm = static_cast<const PassiveDurabilityMonitor&>(
+            newVb->getDurabilityMonitor());
+    EXPECT_EQ(0, newPassiveDm.getNumTracked());
+    EXPECT_EQ(0, newPassiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(0, newPassiveDm.getHighCompletedSeqno());
 }
 
 class ReplicaRollbackDcpTest : public SingleThreadedEPBucketTest {
