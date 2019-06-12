@@ -19,9 +19,11 @@
 
 #include <daemon/connection.h>
 
+struct FrontEndThread;
+
 /// A mock connection which doesn't own a socket and isn't bound to libevent
 class MockConnection : public Connection {
 public:
-    MockConnection() : Connection() {
+    MockConnection(struct FrontEndThread& thr) : Connection(thr) {
     }
 };

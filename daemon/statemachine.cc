@@ -548,22 +548,11 @@ bool StateMachine::conn_immediate_close() {
     disassociate_bucket(connection);
 
     // Do the final cleanup of the connection:
-    auto thread = connection.getThread();
-    if (thread == nullptr) {
-        // There isn't any point of throwing an exception here, as it would
-        // just put us back in the "closing path" of the connection.
-        // Instead just log it
-        LOG_WARNING(
-                "{}: conn_immediate_close: unable to obtain non-NULL thread "
-                "from connection: {}",
-                connection.getId(),
-                connection.toJSON().dump());
-    } else {
-        thread->notification.remove(&connection);
-        // remove from pending-io list
-        std::lock_guard<std::mutex> lock(thread->pending_io.mutex);
-        thread->pending_io.map.erase(&connection);
-    }
+    auto& thread = connection.getThread();
+    thread.notification.remove(&connection);
+    // remove from pending-io list
+    std::lock_guard<std::mutex> lock(thread.pending_io.mutex);
+    thread.pending_io.map.erase(&connection);
 
     // Set the connection to the sentinal state destroyed and return
     // false to break out of the event loop (and have the the framework

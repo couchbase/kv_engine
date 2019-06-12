@@ -17,6 +17,7 @@
 #include "tests/mcbp/mock_connection.h"
 #include "tracing/trace_helpers.h"
 
+#include <daemon/front_end_thread.h>
 #include <folly/portability/GTest.h>
 #include <tracing/tracer.h>
 #include <unistd.h>
@@ -25,6 +26,8 @@
 #include <iostream>
 #include <string>
 #include <thread>
+
+FrontEndThread thread;
 
 class TracingTest : public ::testing::Test {
 public:
@@ -77,7 +80,7 @@ TEST_F(TracingTest, ErrorRate) {
 /// Text fixture for session tracing associated with a Cookie object.
 class TracingCookieTest : public ::testing::Test {
 protected:
-    TracingCookieTest() : cookie(connection) {
+    TracingCookieTest() : connection(thread), cookie(connection) {
         cookie.setTracingEnabled(true);
     }
 

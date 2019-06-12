@@ -368,9 +368,9 @@ static void stats_init() {
 }
 
 struct thread_stats* get_thread_stats(Connection* c) {
-    cb_assert(c->getThread()->index < (settings.getNumWorkerThreads() + 1));
+    cb_assert(c->getThread().index < (settings.getNumWorkerThreads() + 1));
     auto& independent_stats = all_buckets[c->getBucketIndex()].stats;
-    return &independent_stats.at(c->getThread()->index);
+    return &independent_stats.at(c->getThread().index);
 }
 
 void stats_reset(Cookie& cookie) {
@@ -805,45 +805,38 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
         return;
     }
 
-    auto *thr = c->getThread();
-    if (thr == nullptr) {
-        LOG_WARNING(
-                "Internal error - connection without a thread found. - "
-                "ignored");
-        return;
-    }
+    auto& thr = c->getThread();
 
     // Remove the list from the list of pending io's (in case the
     // object was scheduled to run in the dispatcher before the
     // callback for the worker thread is executed.
     //
     {
-        std::lock_guard<std::mutex> lock(thr->pending_io.mutex);
-        auto iter = thr->pending_io.map.find(c);
-        if (iter != thr->pending_io.map.end()) {
+        std::lock_guard<std::mutex> lock(thr.pending_io.mutex);
+        auto iter = thr.pending_io.map.find(c);
+        if (iter != thr.pending_io.map.end()) {
             for (const auto& pair : iter->second) {
                 if (pair.first) {
                     pair.first->setAiostat(pair.second);
                     pair.first->setEwouldblock(false);
                 }
             }
-            thr->pending_io.map.erase(iter);
+            thr.pending_io.map.erase(iter);
         }
     }
 
     // Remove the connection from the notification list if it's there
-    thr->notification.remove(c);
+    thr.notification.remove(c);
 
-    TRACE_LOCKGUARD_TIMED(thr->mutex,
+    TRACE_LOCKGUARD_TIMED(thr.mutex,
                           "mutex",
                           "event_handler::threadLock",
                           SlowMutexThreshold);
 
     if (memcached_shutdown) {
         // Someone requested memcached to shut down.
-        if (signal_idle_clients(*thr) == 0) {
-            cb_assert(thr != nullptr);
-            LOG_INFO("Stopping worker thread {}", thr->index);
+        if (signal_idle_clients(thr) == 0) {
+            LOG_INFO("Stopping worker thread {}", thr.index);
             c->eventBaseLoopbreak();
             return;
         }
@@ -857,14 +850,14 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     if (memcached_shutdown) {
         // Someone requested memcached to shut down. If we don't have
         // any connections bound to this thread we can just shut down
-        int connected = signal_idle_clients(*thr);
+        int connected = signal_idle_clients(thr);
         if (connected == 0) {
-            LOG_INFO("Stopping worker thread {}", thr->index);
-            event_base_loopbreak(thr->base);
+            LOG_INFO("Stopping worker thread {}", thr.index);
+            event_base_loopbreak(thr.base);
         } else {
             LOG_INFO("Waiting for {} connected clients on worker thread {}",
                      connected,
-                     thr->index);
+                     thr.index);
         }
     }
 }
@@ -1593,29 +1586,24 @@ struct ServerCookieApi : public ServerCookieIface {
         auto& cookie = getCookie(void_cookie);
         auto& connection = cookie.getConnection();
         int notify;
-        auto* thr = connection.getThread();
+        auto& thr = connection.getThread();
 
-        if (thr == nullptr) {
-            throw std::runtime_error(
-                    R"(ServerCookieApi::release: connection is not bound to a thread)");
-        } else {
-            TRACE_LOCKGUARD_TIMED(thr->mutex,
-                                  "mutex",
-                                  "release_cookie::threadLock",
-                                  SlowMutexThreshold);
+        TRACE_LOCKGUARD_TIMED(thr.mutex,
+                              "mutex",
+                              "release_cookie::threadLock",
+                              SlowMutexThreshold);
 
-            // Releasing the reference to the object may cause it to change
-            // state. (NOTE: the release call shall never be called from the
-            // worker threads), so put the connection in the pool of pending
-            // IO and have the system retry the operation for the connection
-            cookie.decrementRefcount();
-            notify = add_conn_to_pending_io_list(
-                    &connection, nullptr, ENGINE_SUCCESS);
-        }
+        // Releasing the reference to the object may cause it to change
+        // state. (NOTE: the release call shall never be called from the
+        // worker threads), so put the connection in the pool of pending
+        // IO and have the system retry the operation for the connection
+        cookie.decrementRefcount();
+        notify = add_conn_to_pending_io_list(
+                &connection, nullptr, ENGINE_SUCCESS);
 
         // kick the thread in the butt
         if (notify) {
-            notify_thread(*thr);
+            notify_thread(thr);
         }
 
         return ENGINE_SUCCESS;

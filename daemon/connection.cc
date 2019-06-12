@@ -160,7 +160,7 @@ nlohmann::json Connection::toJSON() const {
     features["xerror"] = isXerrorSupport();
     ret["features"] = features;
 
-    ret["thread"] = cb::to_hex(uint64_t(getThread()));
+    ret["thread"] = getThread().index;
     ret["priority"] = to_string(priority);
 
     if (clustermap_revno == -2) {
@@ -1236,10 +1236,11 @@ bool Connection::enableSSL(const std::string& cert, const std::string& pkey) {
     return false;
 }
 
-Connection::Connection()
+Connection::Connection(FrontEndThread& thr)
     : socketDescriptor(INVALID_SOCKET),
       connectedToSystemPort(false),
       base(nullptr),
+      thread(thr),
       peername("unknown"),
       sockname("unknown"),
       stateMachine(*this),
@@ -1250,10 +1251,14 @@ Connection::Connection()
     setConnectionId(peername.c_str());
 }
 
-Connection::Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc)
+Connection::Connection(SOCKET sfd,
+                       event_base* b,
+                       const ListeningPort& ifc,
+                       FrontEndThread& thr)
     : socketDescriptor(sfd),
       connectedToSystemPort(ifc.system),
       base(b),
+      thread(thr),
       parent_port(ifc.port),
       peername(cb::net::getpeername(socketDescriptor)),
       sockname(cb::net::getsockname(socketDescriptor)),
@@ -1516,9 +1521,8 @@ bool Connection::signalIfIdle() {
     }
 
     if (stateMachine.isIdleState()) {
-        auto* thr = getThread();
-        thr->notification.push(this);
-        notify_thread(*thr);
+        thread.notification.push(this);
+        notify_thread(thread);
         return true;
     }
 

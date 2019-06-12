@@ -72,7 +72,7 @@ void conn_return_buffers(Connection* c);
 Connection* conn_new(SOCKET sfd,
                      const ListeningPort& interface,
                      struct event_base* base,
-                     FrontEndThread* thread);
+                     FrontEndThread& thread);
 
 /**
  * Signal all of the idle clients in the system.

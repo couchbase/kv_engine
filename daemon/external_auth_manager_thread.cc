@@ -247,7 +247,7 @@ void ExternalAuthManagerThread::pushActiveUsers() {
         // Lock the authentication provider (we're holding a
         // reference counter to the provider, so it can't go away while we're
         // doing this).
-        std::lock_guard<std::mutex> guard(provider->getThread()->mutex);
+        std::lock_guard<std::mutex> guard(provider->getThread().mutex);
         provider->enqueueServerEvent(
                 std::make_unique<ActiveExternalUsersServerEvent>(payload));
         provider->signalIfIdle();
@@ -313,7 +313,7 @@ void ExternalAuthManagerThread::processRequestQueue() {
     // reference counter to the provider, so it can't go away while we're
     // doing this).
     {
-        std::lock_guard<std::mutex> guard(provider->getThread()->mutex);
+        std::lock_guard<std::mutex> guard(provider->getThread().mutex);
         // The provider is locked, so I can move all of the server events
         // over to the providers connection
         for (auto& ev : events) {
@@ -376,7 +376,7 @@ void ExternalAuthManagerThread::purgePendingDeadConnections() {
         // Notify the thread so that it may complete it's shutdown logic
         mutex.unlock();
         {
-            std::lock_guard<std::mutex> guard(connection->getThread()->mutex);
+            std::lock_guard<std::mutex> guard(connection->getThread().mutex);
             connection->decrementRefcount();
             connection->signalIfIdle();
         }

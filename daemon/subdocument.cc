@@ -554,7 +554,7 @@ static cb::mcbp::Status subdoc_operate_one_path(
         SubdocCmdContext::OperationSpec& spec,
         const cb::const_char_buffer& in_doc) {
     // Prepare the specified sub-document command.
-    auto& op = context.connection.getThread()->subdoc_op;
+    auto& op = context.connection.getThread().subdoc_op;
     op.clear();
     op.set_result_buf(&spec.result);
     op.set_code(spec.traits.subdocCommand);

@@ -248,7 +248,7 @@ static void dispatch_new_connections(FrontEndThread& me) {
     me.new_conn_queue.swap(connections);
 
     for (const auto& entry : connections) {
-        if (conn_new(entry.first, *entry.second, me.base, &me) == nullptr) {
+        if (conn_new(entry.first, *entry.second, me.base, me) == nullptr) {
             LOG_WARNING("Failed to dispatch event for socket {}",
                         long(entry.first));
             if (entry.second->system) {
@@ -366,25 +366,14 @@ void notify_io_complete(gsl::not_null<const void*> void_cookie,
     auto* ccookie = reinterpret_cast<const Cookie*>(void_cookie.get());
     auto& cookie = const_cast<Cookie&>(*ccookie);
 
-    auto* thr = cookie.getConnection().getThread();
-    if (thr == nullptr) {
-        auto json = cookie.getConnection().toJSON().dump();
-        LOG_ERROR(
-                "notify_io_complete: got a notification on a cookie which "
-                "isn't bound to a thread: {}",
-                json);
-        throw std::runtime_error(
-                "notify_io_complete: connection should be bound to a thread: " +
-                json);
-    }
-
+    auto& thr = cookie.getConnection().getThread();
     LOG_DEBUG("notify_io_complete: Got notify from {}, status {}",
               cookie.getConnection().getId(),
               status);
 
     /* kick the thread in the butt */
     if (add_conn_to_pending_io_list(&cookie.getConnection(), &cookie, status)) {
-        notify_thread(*thr);
+        notify_thread(thr);
     }
 }
 
@@ -522,12 +511,12 @@ void notify_thread(FrontEndThread& thread) {
 int add_conn_to_pending_io_list(Connection* c,
                                 Cookie* cookie,
                                 ENGINE_ERROR_CODE status) {
-    auto* thread = c->getThread();
+    auto& thread = c->getThread();
 
-    std::lock_guard<std::mutex> lock(thread->pending_io.mutex);
-    auto iter = thread->pending_io.map.find(c);
-    if (iter == thread->pending_io.map.end()) {
-        thread->pending_io.map.emplace(
+    std::lock_guard<std::mutex> lock(thread.pending_io.mutex);
+    auto iter = thread.pending_io.map.find(c);
+    if (iter == thread.pending_io.map.end()) {
+        thread.pending_io.map.emplace(
                 c,
                 std::vector<std::pair<Cookie*, ENGINE_ERROR_CODE>>{
                         {cookie, status}});

@@ -61,7 +61,8 @@ static void maybe_return_single_buffer(Connection& c,
 static void conn_destructor(Connection* c);
 static Connection* allocate_connection(SOCKET sfd,
                                        event_base* base,
-                                       const ListeningPort& interface);
+                                       const ListeningPort& interface,
+                                       FrontEndThread& thread);
 
 static void release_connection(Connection* c);
 
@@ -88,7 +89,7 @@ void iterate_thread_connections(FrontEndThread* thread,
     // over it
     std::lock_guard<std::mutex> lock(connections.mutex);
     for (auto* c : connections.conns) {
-        if (c->getThread() == thread) {
+        if (&c->getThread() == thread) {
             callback(*c);
         }
     }
@@ -150,11 +151,7 @@ void run_event_loop(Connection* c, short which) {
     using namespace std::chrono;
     const auto ns = duration_cast<nanoseconds>(stop - start);
     c->addCpuTime(ns);
-
-    auto* thread = c->getThread();
-    if (thread != nullptr) {
-        scheduler_info[thread->index].add(duration_cast<microseconds>(ns));
-    }
+    scheduler_info[c->getThread().index].add(duration_cast<microseconds>(ns));
 
     if (c->shouldDelete()) {
         release_connection(c);
@@ -164,8 +161,8 @@ void run_event_loop(Connection* c, short which) {
 Connection* conn_new(SOCKET sfd,
                      const ListeningPort& interface,
                      struct event_base* base,
-                     FrontEndThread* thread) {
-    auto* c = allocate_connection(sfd, base, interface);
+                     FrontEndThread& thread) {
+    auto* c = allocate_connection(sfd, base, interface, thread);
     if (c == nullptr) {
         return nullptr;
     }
@@ -183,8 +180,6 @@ Connection* conn_new(SOCKET sfd,
                  bucket.name);
     }
 
-    c->setThread(thread);
-
     if (settings.getVerbose() > 1) {
         LOG_DEBUG("<{} new client connection", sfd);
     }
@@ -198,7 +193,7 @@ void conn_loan_buffers(Connection* c) {
     }
 
     auto* ts = get_thread_stats(c);
-    switch (loan_single_buffer(*c, c->getThread()->read, c->read)) {
+    switch (loan_single_buffer(*c, c->getThread().read, c->read)) {
     case BufferLoan::Existing:
         ts->rbufs_existing++;
         break;
@@ -210,7 +205,7 @@ void conn_loan_buffers(Connection* c) {
         break;
     }
 
-    switch (loan_single_buffer(*c, c->getThread()->write, c->write)) {
+    switch (loan_single_buffer(*c, c->getThread().write, c->write)) {
     case BufferLoan::Existing:
         ts->wbufs_existing++;
         break;
@@ -228,20 +223,13 @@ void conn_return_buffers(Connection* c) {
         return;
     }
 
-    auto thread = c->getThread();
-
-    if (thread == nullptr) {
-        // Connection already cleaned up - nothing to do.
-        return;
-    }
-
     if (c->isDCP()) {
         // DCP work differently - let them keep their buffers once allocated.
         return;
     }
 
-    maybe_return_single_buffer(*c, thread->read, c->read);
-    maybe_return_single_buffer(*c, thread->write, c->write);
+    maybe_return_single_buffer(*c, c->getThread().read, c->read);
+    maybe_return_single_buffer(*c, c->getThread().write, c->write);
 }
 
 /** Internal functions *******************************************************/
@@ -260,11 +248,12 @@ static void conn_destructor(Connection* c) {
  */
 static Connection* allocate_connection(SOCKET sfd,
                                        event_base* base,
-                                       const ListeningPort& interface) {
+                                       const ListeningPort& interface,
+                                       FrontEndThread& thread) {
     Connection* ret = nullptr;
 
     try {
-        ret = new Connection(sfd, base, interface);
+        ret = new Connection(sfd, base, interface, thread);
         std::lock_guard<std::mutex> lock(connections.mutex);
         connections.conns.push_back(ret);
         stats.conn_structs++;

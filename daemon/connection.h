@@ -92,7 +92,10 @@ public:
 
     Connection(const Connection&) = delete;
 
-    Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc);
+    Connection(SOCKET sfd,
+               event_base* b,
+               const ListeningPort& ifc,
+               FrontEndThread& thr);
 
     ~Connection() override;
 
@@ -241,13 +244,8 @@ public:
         --refcount;
     }
 
-    FrontEndThread* getThread() const {
-        return thread.load(std::memory_order_relaxed);
-    }
-
-    void setThread(FrontEndThread* thread) {
-        Connection::thread.store(thread,
-                                 std::memory_order::memory_order_relaxed);
+    FrontEndThread& getThread() const {
+        return thread;
     }
 
     in_port_t getParentPort() const {
@@ -951,7 +949,7 @@ protected:
     /**
      * Protected constructor so that it may only be used by MockSubclasses
      */
-    Connection();
+    explicit Connection(FrontEndThread& thr);
 
     /**
      * Update the description string for the connection. This
@@ -1084,7 +1082,7 @@ protected:
     uint8_t refcount{0};
 
     /** Pointer to the thread object serving this connection */
-    std::atomic<FrontEndThread*> thread{nullptr};
+    FrontEndThread& thread;
 
     /** Listening port that creates this connection instance */
     const in_port_t parent_port{0};

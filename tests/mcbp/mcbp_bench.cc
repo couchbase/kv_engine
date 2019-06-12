@@ -18,10 +18,12 @@
 #include "mock_connection.h"
 #include <benchmark/benchmark.h>
 #include <daemon/cookie.h>
+#include <daemon/front_end_thread.h>
 #include <daemon/mcbp_validators.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/protocol_binary.h>
 
+FrontEndThread thread;
 /**
  * Test the performance of the command validators for the some of the most
  * frequent commands.
@@ -32,6 +34,9 @@ public:
         memset(request.bytes, 0, sizeof(request));
         request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
         request.message.header.request.setDatatype(cb::mcbp::Datatype::Raw);
+    }
+
+    McbpValidatorBench() : connection(thread) {
     }
 
 protected:

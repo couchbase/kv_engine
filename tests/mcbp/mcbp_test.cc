@@ -17,6 +17,7 @@
 #include "mcbp_test.h"
 
 #include <daemon/cookie.h>
+#include <daemon/front_end_thread.h>
 #include <daemon/settings.h>
 #include <event2/event.h>
 #include <mcbp/protocol/framebuilder.h>
@@ -33,8 +34,11 @@
 namespace mcbp {
 namespace test {
 
+static FrontEndThread thread;
+
 ValidatorTest::ValidatorTest(bool collectionsEnabled)
-    : request(*reinterpret_cast<protocol_binary_request_no_extras*>(blob)),
+    : connection(thread),
+      request(*reinterpret_cast<protocol_binary_request_no_extras*>(blob)),
       collectionsEnabled(collectionsEnabled) {
 }
 
