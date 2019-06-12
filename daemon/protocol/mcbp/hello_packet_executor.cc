@@ -232,7 +232,7 @@ void process_hello_packet_executor(Cookie& cookie) {
         case cb::mcbp::Feature::Invalid2:
         case cb::mcbp::Feature::TLS:
             // Not implemented
-            LOG_INFO("{}: {} requested unupported feature {}",
+            LOG_INFO("{}: {} requested unsupported feature {}",
                      connection.getId(),
                      connection.getDescription(),
                      to_string(feature));
