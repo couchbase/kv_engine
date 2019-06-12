@@ -1195,7 +1195,13 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
                 store.getEPEngine().getCompressionMode());
         auto* scanCtx = kvStore->initScanContext(
                 storageCB, cacheCB, vbid, startSeqno, docFilter, valFilter);
-        Expects(scanCtx);
+
+        // storage problems can lead to a null context, kvstore logs details
+        if (!scanCtx) {
+            EP_LOG_CRITICAL(
+                    "Warmup::loadPreparedSyncWrites: scanCtx is null for {}", vbid);
+            continue;
+        }
 
         auto scanResult = kvStore->scan(scanCtx);
         Expects(scanResult == scan_success);
