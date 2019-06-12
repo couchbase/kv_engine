@@ -487,13 +487,15 @@ void VBucket::handlePreExpiry(const std::unique_lock<std::mutex>& hbl,
          * value after pre-expiry is performed.
          */
         auto result = sapi->document->pre_expiry(itm_info);
+        // The API states only uncompressed xattr values are returned
+        auto datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
         if (!result.empty()) {
             Item new_item(v.getKey(),
                           v.getFlags(),
                           v.getExptime(),
                           result.data(),
                           result.size(),
-                          itm_info.datatype,
+                          datatype,
                           v.getCas(),
                           v.getBySeqno(),
                           id,
