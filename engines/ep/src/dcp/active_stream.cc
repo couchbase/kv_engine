@@ -896,9 +896,16 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
     // sent over the DCP connection.
 
     // If this Stream supports SyncReplication then send commit_sync_write
-    // as a Commit message - otherwise it's just sent as a Mutation.
+    // as a Commit message - otherwise it's just sent as a Mutation. In the case
+    // where this stream does support SyncReplication and it is in the window
+    // in which a resuming replica may need to overwrite prepares or receives
+    // two commits in a row then we should send a Mutation instead so that the
+    // replica has the information required. This window is any commit with a
+    // prepare seqno less than or equal to the actual stream start seqno.
     if ((item->getOperation() == queue_op::commit_sync_write) &&
-        (syncReplication == SyncReplication::Yes)) {
+        (syncReplication == SyncReplication::Yes) &&
+        (start_seqno_ == 0 ||
+         static_cast<uint64_t>(item->getPrepareSeqno()) > start_seqno_)) {
         return std::make_unique<CommitSyncWrite>(opaque_,
                                                  item->getVBucketId(),
                                                  item->getBySeqno(),

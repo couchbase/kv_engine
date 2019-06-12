@@ -423,6 +423,103 @@ TEST_P(DurabilityActiveStreamTest, RemoveUnknownSeqnoAckAtDestruction) {
     }
 }
 
+TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForReconnectWindow) {
+    auto vb = engine->getVBucket(vbid);
+
+    const auto key = makeStoredDocKey("key");
+    const auto& value = "value";
+    auto item = makePendingItem(
+            key,
+            value,
+            cb::durability::Requirements(cb::durability::Level::Majority,
+                                         1 /*timeout*/));
+    VBQueueItemCtx ctx;
+    ctx.durability =
+            DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
+
+    // Seqno 1 - First prepare (the consumer streams this)
+    EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Seqno 2 - Followed by a commit (the consumer does not get this)
+    vb->commit(key, {}, vb->lockCollections(key));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto mutationResult =
+            persistent() ? MutationStatus::WasClean : MutationStatus::WasDirty;
+    // Seqno 3 - A prepare that is deduped
+    EXPECT_EQ(mutationResult, public_processSet(*vb, *item, ctx));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Seqno 4 - A commit that the consumer would receive when reconnecting with
+    // seqno 1
+    vb->commit(key, {}, vb->lockCollections(key));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Seqno 5 - A prepare to dedupe the prepare at seqno 3.
+    EXPECT_EQ(mutationResult, public_processSet(*vb, *item, ctx));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    EXPECT_EQ(2, vb->ht.getNumItems());
+
+    // Drop the stream cursor so that we can drop the closed checkpoints
+    EXPECT_TRUE(stream->handleSlowStream());
+    auto& mockCkptMgr =
+            *(static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
+    auto expectedCursors = persistent() ? 1 : 0;
+    ASSERT_EQ(expectedCursors, mockCkptMgr.getNumOfCursors());
+
+    // Disconnect and resume from our prepare
+    stream = std::make_shared<MockActiveStream>(engine.get(),
+                                                producer,
+                                                0 /*flags*/,
+                                                0 /*opaque*/,
+                                                *vb,
+                                                1 /*st_seqno*/,
+                                                ~0 /*en_seqno*/,
+                                                0x0 /*vb_uuid*/,
+                                                1 /*snap_start_seqno*/,
+                                                ~1 /*snap_end_seqno*/);
+
+    // Need to close the previously existing checkpoints so that we can backfill
+    // from disk
+    bool newCkpt = false;
+    auto size =
+            mockCkptMgr.removeClosedUnrefCheckpoints(*vb, newCkpt, 4 /*limit*/);
+    ASSERT_FALSE(newCkpt);
+    ASSERT_EQ(4, size);
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+    auto& bfm = producer->getBFM();
+    bfm.backfill();
+    // First backfill only sets adds the SnapshotMarker so repeat
+    bfm.backfill();
+
+    // Stream::readyQ must contain SnapshotMarker
+    ASSERT_EQ(3, stream->public_readyQSize());
+    auto resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+
+    // Followed by a mutation instead of a commit
+    resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    const auto& set = static_cast<MutationResponse&>(*resp);
+    EXPECT_EQ(key, set.getItem()->getKey());
+    EXPECT_EQ(4, set.getItem()->getBySeqno());
+
+    // Followed by a prepare
+    resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+    const auto& prepare = static_cast<MutationResponse&>(*resp);
+    EXPECT_EQ(key, prepare.getItem()->getKey());
+    EXPECT_TRUE(prepare.getItem()->isPending());
+    EXPECT_EQ(5, prepare.getItem()->getBySeqno());
+}
+
 void DurabilityPassiveStreamTest::SetUp() {
     SingleThreadedPassiveStreamTest::SetUp();
     consumer->enableSyncReplication();
@@ -431,6 +528,70 @@ void DurabilityPassiveStreamTest::SetUp() {
 
 void DurabilityPassiveStreamTest::TearDown() {
     SingleThreadedPassiveStreamTest::TearDown();
+}
+
+TEST_P(DurabilityPassiveStreamTest,
+       ReceiveSetInsteadOfCommitForReconnectWindowWithPrepareLast) {
+    // 1) Receive DCP Prepare
+    auto key = makeStoredDocKey("key");
+    uint64_t prepareSeqno = 1;
+    uint64_t cas = 0;
+    makeAndReceiveDcpPrepare(key, cas, prepareSeqno);
+
+    // 2) Fake disconnect and reconnect, importantly, this sets up the valid
+    // window for ignoring DCPAborts.
+    consumer->closeAllStreams();
+    uint32_t opaque = 0;
+    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    stream->acceptStream(cb::mcbp::Status::Success, opaque);
+
+    // 3) Receive overwriting set instead of commit
+    uint64_t streamStartSeqno = 4;
+    SnapshotMarker marker(
+            opaque,
+            vbid,
+            streamStartSeqno /*snapStart*/,
+            streamStartSeqno /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    const std::string value = "overwritingValue";
+    queued_item qi(new Item(key,
+                            0 /*flags*/,
+                            0 /*expiry*/,
+                            value.c_str(),
+                            value.size(),
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            0 /*cas*/,
+                            streamStartSeqno,
+                            vbid));
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      std::move(qi),
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    // 5) Verify doc state
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    // findForCommit will return both pending and committed perspectives
+    auto res = vb->ht.findForCommit(key);
+    EXPECT_FALSE(res.pending);
+    ASSERT_TRUE(res.committed);
+    EXPECT_EQ(4, res.committed->getBySeqno());
+    EXPECT_EQ(CommittedState::CommittedViaMutation,
+              res.committed->getCommitted());
+    EXPECT_TRUE(res.committed->getValue());
+    EXPECT_EQ(value, res.committed->getValue()->to_s());
 }
 
 TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSnapshotEndReceived) {

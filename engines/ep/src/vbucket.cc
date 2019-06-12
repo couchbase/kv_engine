@@ -870,16 +870,16 @@ ENGINE_ERROR_CODE VBucket::abort(
         Expects(getState() != vbucket_state_active);
 
         if (!(static_cast<uint64_t>(getHighSeqno()) < prepareSeqno &&
-              prepareSeqno < duplicateAbortHighPrepareSeqno)) {
+              prepareSeqno < duplicateAbortOrPrepareOverwriteSeqno)) {
             EP_LOG_WARN(
                     "VBucket::abort ({}) - replica - failed as we received "
                     "an abort for a prepare that does not exist and we are "
                     "not in the window highSeqno:{} <= prepareSeqno:{} < "
-                    "duplicateAbortHighPrepareSeqno:{}",
+                    "duplicateAbortOrPrepareOverwriteSeqno:{}",
                     id,
                     getHighSeqno(),
                     prepareSeqno,
-                    duplicateAbortHighPrepareSeqno);
+                    duplicateAbortOrPrepareOverwriteSeqno);
             return ENGINE_EINVAL;
         }
 
@@ -3099,7 +3099,10 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
         bool maybeKeyExists) {
     if (v) {
         if (v->isPending()) {
-            return {MutationStatus::IsPendingSyncWrite, {}};
+            if (!(static_cast<uint64_t>(itm.getBySeqno()) <=
+                  duplicateAbortOrPrepareOverwriteSeqno)) {
+                return {MutationStatus::IsPendingSyncWrite, {}};
+            }
         }
 
         // This is a new SyncWrite, we just want to add a new prepare unless we
@@ -3767,7 +3770,7 @@ void VBucket::removeQueuedAckFromDM(const std::string& node) {
 }
 
 void VBucket::setDuplicateSyncWriteWindow(uint64_t highSeqno) {
-    duplicateAbortHighPrepareSeqno = highSeqno;
+    duplicateAbortOrPrepareOverwriteSeqno = highSeqno;
     setUpAllowedDuplicatePrepareWindow();
 }
 

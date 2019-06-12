@@ -1387,8 +1387,6 @@ void SingleThreadedActiveStreamTest::setupProducer(
                                                 0 /*snap_start_seqno*/,
                                                 ~0 /*snap_end_seqno*/);
 
-    stream->public_registerCursor(
-            *vb->checkpointManager, "test_active_stream", 0 /*seqno*/);
     stream->setActive();
 }
 
