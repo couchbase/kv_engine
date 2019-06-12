@@ -1424,6 +1424,81 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveBackfilledDcpAbort) {
     EXPECT_EQ(ENGINE_SUCCESS, consumer->abort(opaque, vbid, key, 0, 2));
 }
 
+TEST_P(DurabilityPassiveStreamTest,
+       AllowsDupePrepareNamespaceInInitialDiskSnapshot) {
+    uint32_t opaque = 0;
+
+    // 1) Send disk snapshot marker
+    SnapshotMarker marker(opaque,
+                          vbid,
+                          1 /*snapStart*/,
+                          2 /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_DISK,
+                          {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // 2) Send prepare
+    auto key = makeStoredDocKey("key");
+    using namespace cb::durability;
+    auto pending = makePendingItem(
+            key, "value", Requirements(Level::Majority, Timeout::Infinity()));
+    pending->setBySeqno(1);
+    pending->setCas(1);
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      pending,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    // 3) Send commit - should not throw
+    auto commitSeqno = pending->getBySeqno() + 1;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<CommitSyncWrite>(
+                      opaque, vbid, commitSeqno, key)));
+
+    // 5) Send next in memory snapshot
+    marker = SnapshotMarker(
+            opaque,
+            vbid,
+            3 /*snapStart*/,
+            4 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamID*/);
+    stream->processMarker(&marker);
+
+    // 6) Send prepare
+    pending->setBySeqno(commitSeqno + 1);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      pending,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    // 7) Send commit - now we throw
+    commitSeqno = pending->getBySeqno() + 1;
+    try {
+        stream->messageReceived(std::make_unique<CommitSyncWrite>(
+                opaque, vbid, commitSeqno, key));
+    } catch (const std::logic_error& e) {
+        EXPECT_TRUE(std::string(e.what()).find("duplicate item") !=
+                    std::string::npos);
+        return;
+    }
+
+    FAIL();
+}
+
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         DurabilityActiveStreamTest,
                         STParameterizedBucketTest::allConfigValues(),
