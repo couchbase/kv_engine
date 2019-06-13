@@ -257,6 +257,111 @@ TEST_P(DurabilityActiveStreamEphemeralTest, BackfillDurabilityLevel) {
     EXPECT_TRUE(respItem->getDurabilityReqs().getTimeout().isInfinite());
 }
 
+TEST_P(DurabilityActiveStreamTest, BackfillCommit) {
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+
+    auto vb = engine->getVBucket(vbid);
+
+    auto& ckptMgr = *vb->checkpointManager;
+
+    // Get rid of set_vb_state and any other queue_op we are not interested in
+    ckptMgr.clear(*vb, 0 /*seqno*/);
+
+    const auto key = makeStoredDocKey("key");
+    const auto& value = "value";
+    auto item = makePendingItem(
+            key,
+            value,
+            cb::durability::Requirements(cb::durability::Level::Majority,
+                                         1 /*timeout*/));
+    VBQueueItemCtx ctx;
+    ctx.durability =
+            DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
+    EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb->commit(key, {} /*abortSeqno*/, vb->lockCollections(key)));
+
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+
+    auto& bfm = producer->getBFM();
+    bfm.backfill();
+    bfm.backfill();
+    const auto& readyQ = stream->public_readyQ();
+    EXPECT_EQ(3, readyQ.size());
+
+    // First item is a snapshot marker so just skip it
+    auto resp = stream->public_popFromReadyQ();
+    resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+    const auto& prepare = static_cast<MutationConsumerMessage&>(*resp);
+    EXPECT_EQ(key, prepare.getItem()->getKey());
+    EXPECT_EQ(value, prepare.getItem()->getValue()->to_s());
+    resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::Commit, resp->getEvent());
+    const auto& cmmt = static_cast<CommitSyncWrite&>(*resp);
+    ASSERT_TRUE(cmmt.getBySeqno());
+    EXPECT_EQ(2, *cmmt.getBySeqno());
+
+    producer->cancelCheckpointCreatorTask();
+}
+
+TEST_P(DurabilityActiveStreamTest, BackfillAbort) {
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+
+    auto vb = engine->getVBucket(vbid);
+
+    auto& ckptMgr = *vb->checkpointManager;
+
+    // Get rid of set_vb_state and any other queue_op we are not interested in
+    ckptMgr.clear(*vb, 0 /*seqno*/);
+
+    const auto key = makeStoredDocKey("key");
+    const auto& value = "value";
+    auto item = makePendingItem(
+            key,
+            value,
+            cb::durability::Requirements(cb::durability::Level::Majority,
+                                         1 /*timeout*/));
+    VBQueueItemCtx ctx;
+    ctx.durability =
+            DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
+    EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb->abort(key,
+                        vb->getHighSeqno(),
+                        {} /*abortSeqno*/,
+                        vb->lockCollections(key)));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+
+    auto& bfm = producer->getBFM();
+    bfm.backfill();
+    bfm.backfill();
+    const auto& readyQ = stream->public_readyQ();
+    EXPECT_EQ(2, readyQ.size());
+
+    // First item is a snapshot marker so just skip it
+    auto resp = stream->public_popFromReadyQ();
+    resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Abort, resp->getEvent());
+    const auto& abrt = static_cast<AbortSyncWrite&>(*resp);
+    ASSERT_TRUE(abrt.getBySeqno());
+    EXPECT_EQ(2, *abrt.getBySeqno());
+    EXPECT_EQ(0, abrt.getPreparedSeqno());
+
+    producer->cancelCheckpointCreatorTask();
+}
+
 TEST_P(DurabilityActiveStreamTest, RemoveUnknownSeqnoAckAtDestruction) {
     auto vb = engine->getVBucket(vbid);
 

@@ -228,7 +228,6 @@ std::unique_ptr<Item> StoredValue::toItem(
     switch (getCommitted()) {
     case CommittedState::Pending:
     case CommittedState::PreparedMaybeVisible:
-    case CommittedState::PrepareAborted:
     case CommittedState::PrepareCommitted:
         if (!durabilityReqs) {
             throw std::logic_error(
@@ -245,6 +244,9 @@ std::unique_ptr<Item> StoredValue::toItem(
         break;
     case CommittedState::CommittedViaMutation:
         // nothing do to.
+        break;
+    case CommittedState::PrepareAborted:
+        item->setAbortSyncWrite();
         break;
     }
 
