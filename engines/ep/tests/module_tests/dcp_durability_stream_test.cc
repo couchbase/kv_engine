@@ -1214,6 +1214,75 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbortIgnoreDeDupedNewKey) {
     testReceiveDuplicateDcpAbort("newkey", 4, ENGINE_SUCCESS);
 }
 
+void DurabilityPassiveStreamTest::setUpHandleSnapshotEndTest() {
+    auto key1 = makeStoredDocKey("key1");
+    uint64_t cas = 1;
+    uint64_t prepareSeqno = 1;
+    makeAndReceiveDcpPrepare(key1, cas, prepareSeqno);
+
+    uint32_t opaque = 0;
+    SnapshotMarker marker(
+            opaque,
+            vbid,
+            prepareSeqno + 1 /*snapStart*/,
+            prepareSeqno + 2 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    auto key2 = makeStoredDocKey("key2");
+    using namespace cb::durability;
+    auto pending = makePendingItem(
+            key2, "value2", Requirements(Level::Majority, Timeout::Infinity()));
+    pending->setCas(1);
+    pending->setBySeqno(2);
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      pending,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    ASSERT_EQ(true, stream->getCurSnapshotPrepare());
+}
+
+TEST_P(DurabilityPassiveStreamTest, HandleSnapshotEndOnCommit) {
+    setUpHandleSnapshotEndTest();
+    uint32_t opaque;
+    auto key = makeStoredDocKey("key1");
+
+    // Commit the original prepare
+    auto commitSeqno = 3;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<CommitSyncWrite>(
+                      opaque, vbid, commitSeqno, key)));
+
+    // We should have unset (acked the second prepare) the bool flag if we
+    // handled the snapshot end
+    EXPECT_EQ(false, stream->getCurSnapshotPrepare());
+}
+
+TEST_P(DurabilityPassiveStreamTest, HandleSnapshotEndOnAbort) {
+    setUpHandleSnapshotEndTest();
+    uint32_t opaque;
+    auto key = makeStoredDocKey("key1");
+
+    // Abort the original prepare
+    auto abortSeqno = 3;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<AbortSyncWrite>(
+                      opaque, vbid, key, 1 /*prepareSeqno*/, abortSeqno)));
+
+    // We should have unset (acked the second prepare) the bool flag if we
+    // handled the snapshot end
+    EXPECT_EQ(false, stream->getCurSnapshotPrepare());
+}
+
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         DurabilityActiveStreamTest,
                         STParameterizedBucketTest::allConfigValues(),

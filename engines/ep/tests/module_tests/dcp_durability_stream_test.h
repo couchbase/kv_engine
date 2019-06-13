@@ -84,6 +84,8 @@ protected:
     void testReceiveDuplicateDcpAbort(const std::string& key,
                                       uint64_t prepareSeqno,
                                       ENGINE_ERROR_CODE expectedResult);
+
+    void setUpHandleSnapshotEndTest();
 };
 
 /**

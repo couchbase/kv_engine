@@ -676,9 +676,20 @@ ENGINE_ERROR_CODE PassiveStream::processCommit(const CommitSyncWrite& commit) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    return vb->commit(commit.getKey(),
-                      *commit.getBySeqno(),
-                      vb->lockCollections(commit.getKey()));
+    auto rv = vb->commit(commit.getKey(),
+                         *commit.getBySeqno(),
+                         vb->lockCollections(commit.getKey()));
+    if (rv != ENGINE_SUCCESS) {
+        log(spdlog::level::level_enum::warn,
+            "PassiveStream::processCommit: {} Got error '{}' while trying to "
+            "process commit",
+            vb_,
+            cb::to_string(cb::to_engine_errc(rv)));
+    } else {
+        handleSnapshotEnd(vb, *commit.getBySeqno());
+    }
+
+    return rv;
 }
 
 ENGINE_ERROR_CODE PassiveStream::processAbort(const AbortSyncWrite& abort) {
@@ -688,10 +699,22 @@ ENGINE_ERROR_CODE PassiveStream::processAbort(const AbortSyncWrite& abort) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    return vb->abort(abort.getKey(),
-                     abort.getPreparedSeqno(),
-                     abort.getAbortSeqno(),
-                     vb->lockCollections(abort.getKey()));
+    auto rv = vb->abort(abort.getKey(),
+                        abort.getPreparedSeqno(),
+                        abort.getAbortSeqno(),
+                        vb->lockCollections(abort.getKey()));
+
+    if (rv != ENGINE_SUCCESS) {
+        log(spdlog::level::level_enum::warn,
+            "PassiveStream::processAbort: {} Got error '{}' while trying to "
+            "process abort",
+            vb_,
+            cb::to_string(cb::to_engine_errc(rv)));
+    } else {
+        handleSnapshotEnd(vb, *abort.getBySeqno());
+    }
+
+    return rv;
 }
 
 ENGINE_ERROR_CODE PassiveStream::processSystemEvent(
