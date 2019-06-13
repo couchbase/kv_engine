@@ -72,6 +72,9 @@ NodeImpl::NodeImpl(std::string directory, std::string id)
     cb::io::sanitizePath(log_filename);
     std::string portnumber_file = NodeImpl::directory + "/memcached.ports.json";
     cb::io::sanitizePath(portnumber_file);
+    std::string minidump_dir = NodeImpl::directory + "/crash";
+    cb::io::sanitizePath(minidump_dir);
+    cb::io::mkdirp(minidump_dir);
 
     config = {
             {"max_connections", 1000},
@@ -92,6 +95,10 @@ NodeImpl::NodeImpl(std::string directory, std::string id)
              {{"unit_test", true},
               {"console", false},
               {"filename", log_filename}}},
+            {"breakpad",
+             {{"enabled", true},
+              {"minidump_dir", minidump_dir},
+              {"content", "default"}}},
             {"portnumber_file", portnumber_file},
 #ifdef WIN32
             {"parent_identifier",

@@ -208,9 +208,20 @@ size_t ClusterImpl::size() const {
 }
 ClusterImpl::~ClusterImpl() {
     buckets.clear();
+    bool cleanup = true;
+
+    for (auto& n : nodes) {
+        std::string minidump_dir = n->directory + "/crash";
+        cb::io::sanitizePath(minidump_dir);
+        if (cb::io::isDirectory(minidump_dir)) {
+            auto files = cb::io::findFilesWithPrefix(minidump_dir, "");
+            cleanup &= files.empty();
+        }
+    }
+
     nodes.clear();
     // @todo I should make this configurable?
-    if (cb::io::isDirectory(directory)) {
+    if (cleanup && cb::io::isDirectory(directory)) {
         cb::io::rmrf(directory);
     }
 }
