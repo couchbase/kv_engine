@@ -1113,9 +1113,10 @@ bool DcpConsumer::doRollback(uint32_t opaque,
 void DcpConsumer::seqnoAckStream(Vbid vbid, int64_t seqno) {
     auto stream = findStream(vbid);
     if (!stream) {
-        throw std::logic_error(
-                "DcpConsumer::seqnoAckStream: Stream not found for " +
-                vbid.to_string());
+        logger->warn("{} Could not ack seqno {} because stream was not found",
+                     vbid,
+                     seqno);
+        return;
     }
     stream->seqnoAck(seqno);
 }
