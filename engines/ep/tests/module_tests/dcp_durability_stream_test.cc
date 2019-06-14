@@ -1388,6 +1388,42 @@ TEST_P(DurabilityPassiveStreamTest, HandleSnapshotEndOnAbort) {
     EXPECT_EQ(false, stream->getCurSnapshotPrepare());
 }
 
+TEST_P(DurabilityPassiveStreamTest, ReceiveBackfilledDcpAbort) {
+    // Need to use actual opaque of the stream as we hit the consumer level
+    // function.
+    uint32_t opaque = 1;
+
+    SnapshotMarker marker(opaque,
+                          vbid,
+                          1 /*snapStart*/,
+                          2 /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_DISK,
+                          {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    auto key = makeStoredDocKey("key");
+    using namespace cb::durability;
+    auto prepare = makePendingItem(
+            key, "value", Requirements(Level::Majority, Timeout::Infinity()));
+    prepare->setBySeqno(1);
+    prepare->setCas(999);
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      prepare,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    // Hit the consumer level function (not the stream level) for additional
+    // error checking.
+    EXPECT_EQ(ENGINE_SUCCESS, consumer->abort(opaque, vbid, key, 0, 2));
+}
+
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         DurabilityActiveStreamTest,
                         STParameterizedBucketTest::allConfigValues(),

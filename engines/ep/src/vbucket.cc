@@ -904,8 +904,12 @@ ENGINE_ERROR_CODE VBucket::abort(
     // Remove from the allowed duplicate prepare set (if it exists)
     allowedDuplicatePrepareSeqnos.erase(htRes.storedValue->getBySeqno());
 
-    Expects(prepareSeqno ==
-            static_cast<uint64_t>(htRes.storedValue->getBySeqno()));
+    if (prepareSeqno == 0) {
+        Expects(isReceivingInitialDiskSnapshot() || isBackfillPhase());
+    } else {
+        Expects(prepareSeqno ==
+                static_cast<uint64_t>(htRes.storedValue->getBySeqno()));
+    }
 
     auto notify = abortStoredValue(
             htRes.lock, *htRes.storedValue, prepareSeqno, abortSeqno);

@@ -1786,12 +1786,6 @@ ENGINE_ERROR_CODE DcpConsumer::abort(uint32_t opaque,
         return ENGINE_DISCONNECT;
     }
 
-    if (!prepareSeqno) {
-        logger->warn("({}) DcpConsumer::abort: Invalid prepare-seqno (0)",
-                     vbucket);
-        return ENGINE_EINVAL;
-    }
-
     if (!abortSeqno) {
         logger->warn("({}) Invalid abort-seqno (0)", vbucket);
         return ENGINE_EINVAL;
