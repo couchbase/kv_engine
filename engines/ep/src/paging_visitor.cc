@@ -76,6 +76,12 @@ PagingVisitor::PagingVisitor(KVBucket& s,
 }
 
 bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
+    // The ItemPager should never touch a prepare as we should only allow
+    // ttl from the point at which a prepare is committed.
+    if (v.isPending()) {
+        return true;
+    }
+
     // Delete expired items for an active vbucket.
     bool isExpired = (currentBucket->getState() == vbucket_state_active) &&
                      v.isExpired(startTime) && !v.isDeleted();
