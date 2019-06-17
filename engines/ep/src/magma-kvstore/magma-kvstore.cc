@@ -421,9 +421,9 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     }
 
     // Set up thread and memory tracking.
-    configuration.magmaCfg.SetupThreadContext = []() {
-        ObjectRegistry::onSwitchThread(ObjectRegistry::getCurrentEngine(),
-                                       false);
+    auto currEngine = ObjectRegistry::getCurrentEngine();
+    configuration.magmaCfg.SetupThreadContext = [currEngine]() {
+        ObjectRegistry::onSwitchThread(currEngine, false);
     };
 
     // This allows magma writeCache to include its memory in the memory
