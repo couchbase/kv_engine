@@ -3912,6 +3912,51 @@ TEST_P(STParameterizedBucketTest, produce_delete_times) {
     producer.reset();
 }
 
+// Test simulates a simplified set of steps that demonstrate MB-34380, that is
+// in a no traffic situation and some state changes we can end up with no
+// vbucket file on disk.
+TEST_P(STParameterizedBucketTest, MB_34380) {
+    if (!persistent()) {
+        return;
+    }
+    // 1) Create replica VB and simulate the replica connecting to it's active
+    // and having the failover table replaced (via stream_request response)
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(vbid, vbucket_state_replica, {}));
+
+    // 1.1) force the failover to a specific value
+    std::string failover = R"([{"id":101,"seq":0}])";
+    {
+        auto vb = engine->getKVBucket()->getVBucket(vbid);
+        vb->failovers = std::make_unique<FailoverTable>(failover, 5, 0);
+
+        // 2) Now flush so the vbstate cache is updated and the file is created
+        flushVBucketToDiskIfPersistent(vbid, 0);
+
+        // 2.1) We should be able to call this method with no exception.
+        EXPECT_NO_THROW(vb->getShard()->getRWUnderlying()->getDbFileInfo(vbid));
+    }
+    // 3) Delete the vbucket, the cached vbstate will remain untouched
+    EXPECT_EQ(ENGINE_SUCCESS, store->deleteVBucket(vbid));
+
+    // 4) Re-create the vbucket, and again simulate the connection to active,
+    // forcing the failover table to the specific value.
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(vbid, vbucket_state_replica, {}));
+
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    vb->failovers = std::make_unique<FailoverTable>(failover, 5, 0);
+
+    // The bug...
+    // 5) Flush the state change, without the fix the flush is skipped because
+    // the cached vbstate matches the current state
+    flushVBucketToDiskIfPersistent(vbid, 0);
+
+    // Now simulate the bug, do something which requires the file, with the bug
+    // this will throw.
+    EXPECT_NO_THROW(vb->getShard()->getRWUnderlying()->getDbFileInfo(vbid));
+}
+
 INSTANTIATE_TEST_CASE_P(XattrSystemUserTest,
                         XattrSystemUserTest,
                         ::testing::Bool(), );

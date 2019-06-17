@@ -228,7 +228,7 @@ public:
         // TODO storage-team 2018-10-9 need to implement
     }
 
-    uint64_t prepareToDelete(Vbid vbid) override {
+    uint64_t prepareToDeleteImpl(Vbid vbid) override {
         // TODO storage-team 2018-10-9 need to implement
         return 0;
     }

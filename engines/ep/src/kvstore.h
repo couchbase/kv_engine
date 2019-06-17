@@ -908,7 +908,7 @@ public:
      * @param vbid ID of the vbucket being deleted
      * @return the revision ID to delete (via ::delVBucket)
      */
-    virtual uint64_t prepareToDelete(Vbid vbid) = 0;
+    uint64_t prepareToDelete(Vbid vbid);
 
     /**
      * Set a system event into the KVStore.
@@ -950,6 +950,14 @@ public:
     getDroppedCollections(Vbid vbid) = 0;
 
 protected:
+    /**
+     * Prepare for delete of the vbucket file - Implementation specific method
+     * that is called by prepareToDelete
+     *
+     * @param vbid ID of the vbucket being deleted
+     * @return the revision ID to delete (via ::delVBucket)
+     */
+    virtual uint64_t prepareToDeleteImpl(Vbid vbid) = 0;
 
     /* all stats */
     KVStoreStats st;

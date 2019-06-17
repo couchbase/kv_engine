@@ -2957,7 +2957,7 @@ void CouchKVStore::incrementRevision(Vbid vbid) {
     (*dbFileRevMap)[vbid.get()]++;
 }
 
-uint64_t CouchKVStore::prepareToDelete(Vbid vbid) {
+uint64_t CouchKVStore::prepareToDeleteImpl(Vbid vbid) {
     // Clear the stats so it looks empty (real deletion of the disk data occurs
     // later)
     cachedDocCount[vbid.get()] = 0;

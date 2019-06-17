@@ -319,7 +319,7 @@ public:
         // TODO DJR 2017-05-19 implement this.
     }
 
-    uint64_t prepareToDelete(Vbid vbid) override {
+    uint64_t prepareToDeleteImpl(Vbid vbid) override {
         // TODO DJR 2017-05-19 implement this.
         return 0;
     }

@@ -419,7 +419,7 @@ public:
      * @param vbid ID of the vbucket being deleted
      * @return the revision ID to delete (via ::delVBucket)
      */
-    uint64_t prepareToDelete(Vbid vbid) override;
+    uint64_t prepareToDeleteImpl(Vbid vbid) override;
 
     /**
      * CouchKVStore implements this method as a read of 3 _local documents
