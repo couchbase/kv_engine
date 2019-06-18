@@ -359,7 +359,25 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             rwUnderlying->optimizeWrites(items);
 
             Item *prev = NULL;
-            auto vbstate = vb->getVBucketState();
+
+            // Read the vbucket_state from disk as many values from the
+            // in-memory vbucket_state may be ahead of what we are flushing.
+            const auto* persistedVbState =
+                    rwUnderlying->getVBucketState(vb->getId());
+            vbucket_state vbstate;
+            // The first flush we do populates the cachedVBStates of the KVStore
+            // so we may not (if this is the first flush) have a state returned
+            // from the KVStore.
+            if (persistedVbState) {
+                // Copies, we don't actually modify the value at the pointer.
+                vbstate = *persistedVbState;
+            }
+            // We need to set a few values from the in-memory state.
+            auto inMemoryVbState = vb->getVBucketState();
+            vbstate.replicationTopology = inMemoryVbState.replicationTopology;
+            vbstate.failovers = inMemoryVbState.failovers;
+            vbstate.state = inMemoryVbState.state;
+
             uint64_t maxSeqno = 0;
             auto minSeqno = std::numeric_limits<uint64_t>::max();
 
