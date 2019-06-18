@@ -141,6 +141,7 @@ bool KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
             vbState->failovers = newState.failovers;
             vbState->replicationTopology = newState.replicationTopology;
             vbState->highCompletedSeqno = newState.highCompletedSeqno;
+            vbState->highPreparedSeqno = newState.highPreparedSeqno;
         } else {
             state_change_detected = false;
         }

@@ -390,6 +390,9 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             // HCS is optional because we have to update it on disk only if some
             // Commit/Abort SyncWrite is found in the flush-batch
             boost::optional<int64_t> hcs;
+            // HPS is optional because we have to update it on disk only if a
+            // prepare is found in the flush-batch
+            boost::optional<int64_t> hps;
 
             // Iterate through items, checking if we (a) can skip persisting,
             // (b) can de-duplicate as the previous key was the same, or (c)
@@ -411,6 +414,10 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 if (op == queue_op::commit_sync_write ||
                     op == queue_op::abort_sync_write) {
                     hcs = {item->getPrepareSeqno()};
+                }
+
+                if (op == queue_op::pending_sync_write) {
+                    hps = {item->getBySeqno()};
                 }
 
                 if (op == queue_op::set_vbucket_state) {
@@ -496,6 +503,11 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 if (hcs) {
                     Expects(hcs > vbstate.highCompletedSeqno);
                     vbstate.highCompletedSeqno = *hcs;
+                }
+
+                if (hps) {
+                    Expects(hps > vbstate.highPreparedSeqno);
+                    vbstate.highPreparedSeqno = *hps;
                 }
 
                 if (rwUnderlying->snapshotVBucket(vb->getId(), vbstate,

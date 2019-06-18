@@ -54,7 +54,8 @@ struct vbucket_state {
      * v2: 5.5.4-MP, 6.0.2 and Mad-Hatter (pre GA), added with MB-34173.
      *     Indicates snapshot start/end are sanitized with respect to
      *     high_seqno.
-     * v3: Mad-Hatter (pre GA). high_completed_seqno added.
+     * v3: Mad-Hatter (pre GA). high_completed_seqno and high_prepared_seqno
+     *     added.
      */
     static constexpr int CurrentVersion = 3;
 
@@ -128,6 +129,12 @@ struct vbucket_state {
      * Added for SyncReplication in 6.5.
      */
     int64_t highCompletedSeqno = 0;
+
+    /**
+     * Stores the seqno of the last prepare (Pending SyncWrite). Added for
+     * SyncReplication in 6.5.
+     */
+    int64_t highPreparedSeqno = 0;
 };
 
 /// Method to allow nlohmann::json to convert vbucket_state to JSON.

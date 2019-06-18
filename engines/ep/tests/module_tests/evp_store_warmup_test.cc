@@ -775,6 +775,8 @@ void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState(
 
     // Persist the Commit/Abort and vbstate.
     flush_vbucket_to_disk(vbid);
+    checkHCS(preparedSeqno);
+
     vb.reset();
     resetEngineAndWarmup();
 
@@ -788,6 +790,48 @@ TEST_P(DurabilityWarmupTest, HCSPersistedAndLoadedIntoVBState_Commit) {
 
 TEST_P(DurabilityWarmupTest, HCSPersistedAndLoadedIntoVBState_Abort) {
     testHCSPersistedAndLoadedIntoVBState(Resolution::Abort);
+}
+
+TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
+    // Queue a Prepare
+    auto key = makeStoredDocKey("key");
+    auto prepare = makePendingItem(key, "value");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*prepare, cookie));
+
+    auto checkHPS = [this](int64_t hps) -> void {
+        auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
+        auto vbstate = *kvstore->getVBucketState(vbid);
+        ASSERT_EQ(hps, vbstate.highPreparedSeqno);
+    };
+
+    // Not flushed yet
+    checkHPS(0);
+
+    // Check the Prepared
+    const int64_t preparedSeqno = 1;
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    const auto* sv = vb->ht.findForWrite(key).storedValue;
+    ASSERT_TRUE(sv);
+    ASSERT_TRUE(sv->isPending());
+    ASSERT_EQ(preparedSeqno, sv->getBySeqno());
+
+    // Persist the Prepare and vbstate.
+    flush_vbucket_to_disk(vbid);
+
+    // HPS incremented
+    {
+        SCOPED_TRACE("");
+        checkHPS(preparedSeqno);
+    }
+
+    // Warmup
+    vb.reset();
+    resetEngineAndWarmup();
+    {
+        SCOPED_TRACE("");
+        checkHPS(preparedSeqno);
+    }
 }
 
 // Test that when setting a vbucket to dead after warmup, when at least one
