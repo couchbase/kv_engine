@@ -2443,6 +2443,13 @@ ENGINE_ERROR_CODE VBucket::add(
         auto* v = htRes.storedValue;
         auto& hbl = htRes.lock;
 
+        if (v && v->isPending()) {
+            // If an existing item was found and it is prepared, then cannot
+            // (yet) perform an Add (Add would only succeed if prepared
+            // SyncWrite was subsequently aborted).
+            return ENGINE_SYNC_WRITE_IN_PROGRESS;
+        }
+
         bool maybeKeyExists = true;
         if ((v == nullptr || v->isTempInitialItem()) &&
             (eviction == EvictionPolicy::Full)) {
@@ -2478,6 +2485,9 @@ ENGINE_ERROR_CODE VBucket::add(
             return ENGINE_EWOULDBLOCK;
         case AddStatus::Success:
         case AddStatus::UnDel:
+            Expects(v &&
+                    "VBucket::add: Expect a non-null StoredValue upon Success "
+                    "or Undel result");
             notifyNewSeqno(*notifyCtx);
             doCollectionsStats(cHandle, *notifyCtx);
             itm.setBySeqno(v->getBySeqno());
@@ -3345,6 +3355,7 @@ std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
     if (v->isTempItem()) {
         v->setNRUValue(MAX_NRU_VALUE);
     }
+
     return rv;
 }
 

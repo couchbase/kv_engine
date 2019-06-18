@@ -166,6 +166,10 @@ protected:
                                    uint64_t expectedValue);
 };
 
+/**
+ * Test fixture for Durability-related tests applicable to ephemeral and
+ * persistent buckets with either eviction modes.
+ */
 class DurabilityBucketTest : public STParameterizedBucketTest {
 protected:
     template <typename F>
@@ -1418,6 +1422,24 @@ TEST_P(DurabilityBucketTest, DeleteDurabilityInvalidLevel) {
     } else {
         EXPECT_EQ(ENGINE_DURABILITY_INVALID_LEVEL, del(durabilityRequirements));
     }
+}
+
+/// MB_34012: Test that add() returns DurabilityImpossible if there's already a
+/// SyncWrite in progress against a key, instead of returning EEXISTS as add()
+/// would normally if it found an existing item. (Until the first SyncWrite
+/// completes there's no user-visible value for the key.
+TEST_P(DurabilityEPBucketTest, AddIfAlreadyExistsSyncWriteInProgress) {
+    // Setup: Add the first prepared SyncWrite.
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "value");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->add(*pending, cookie));
+
+    // Test: Attempt to add a second prepared SyncWrite (different cookie i.e.
+    // client).
+    MockCookie secondClient;
+    auto pending2 = makePendingItem(key, "value2");
+    EXPECT_EQ(ENGINE_SYNC_WRITE_IN_PROGRESS,
+              store->add(*pending2, &secondClient));
 }
 
 TEST_P(DurabilityBucketTest, TakeoverSendsDurabilityAmbiguous) {
