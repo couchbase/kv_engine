@@ -2685,13 +2685,13 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
                     "name:{}",
                     couchstore_strerror(errCode),
                     dbFileName.str());
-            return RollbackResult(false, 0, 0, 0);
+            return RollbackResult(false);
         }
     } else {
         logger.warn("CouchKVStore::rollback: openDB error:{}, name:{}",
                     couchstore_strerror(errCode),
                     dbFileName.str());
-        return RollbackResult(false, 0, 0, 0);
+        return RollbackResult(false);
     }
     uint64_t latestSeqno = info.last_sequence;
 
@@ -2710,7 +2710,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
                 cb_strerror(),
                 vbid,
                 db.getFileRev());
-        return RollbackResult(false, 0, 0, 0);
+        return RollbackResult(false);
     }
 
     // Open the vBucket file again; and search for a header which is
@@ -2721,7 +2721,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
         logger.warn("CouchKVStore::rollback: openDB#2 error:{}, name:{}",
                     couchstore_strerror(errCode),
                     dbFileName.str());
-        return RollbackResult(false, 0, 0, 0);
+        return RollbackResult(false);
     }
 
     while (info.last_sequence > rollbackSeqno) {
@@ -2740,7 +2740,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
                     rollbackSeqno);
             //Reset the vbucket and send the entire snapshot,
             //as a previous header wasn't found.
-            return RollbackResult(false, 0, 0, 0);
+            return RollbackResult(false);
         }
         errCode = couchstore_db_info(newdb, &info);
         if (errCode != COUCHSTORE_SUCCESS) {
@@ -2749,7 +2749,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
                     "name:{}",
                     couchstore_strerror(errCode),
                     dbFileName.str());
-            return RollbackResult(false, 0, 0, 0);
+            return RollbackResult(false);
         }
     }
 
@@ -2770,12 +2770,12 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
                 cb_strerror(),
                 vbid,
                 db.getFileRev());
-        return RollbackResult(false, 0, 0, 0);
+        return RollbackResult(false);
     }
     if ((totSeqCount / 2) <= rollbackSeqCount) {
         //doresetVbucket flag set or rollback is greater than 50%,
         //reset the vbucket and send the entire snapshot
-        return RollbackResult(false, 0, 0, 0);
+        return RollbackResult(false);
     }
 
     // We have decided to perform a rollback to the Rollback Header.
@@ -2797,11 +2797,11 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
     destroyScanContext(ctx);
 
     if (error != scan_success) {
-        return RollbackResult(false, 0, 0, 0);
+        return RollbackResult(false);
     }
 
     if (readVBState(newdb, vbid) != ReadVBStateStatus::Success) {
-        return RollbackResult(false, 0, 0, 0);
+        return RollbackResult(false);
     }
     cachedDeleteCount[vbid.get()] = info.deleted_count;
     cachedDocCount[vbid.get()] = info.doc_count;
@@ -2810,12 +2810,16 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
     errCode = couchstore_commit(newdb);
 
     if (errCode != COUCHSTORE_SUCCESS) {
-        return RollbackResult(false, 0, 0, 0);
+        return RollbackResult(false);
     }
 
     vbucket_state* vb_state = getVBucketState(vbid);
-    return RollbackResult(true, vb_state->highSeqno,
-                          vb_state->lastSnapStart, vb_state->lastSnapEnd);
+    return RollbackResult(true,
+                          vb_state->highSeqno,
+                          vb_state->lastSnapStart,
+                          vb_state->lastSnapEnd,
+                          vb_state->highCompletedSeqno,
+                          vb_state->highPreparedSeqno);
 }
 
 int populateAllKeys(Db *db, DocInfo *docinfo, void *ctx) {

@@ -177,7 +177,7 @@ public:
                             uint64_t rollbackSeqno,
                             std::shared_ptr<RollbackCB> cb) override {
         // TODO storage-team 2018-10-9 need to implement
-        return RollbackResult(false, 0, 0, 0);
+        return RollbackResult(false);
     }
 
     void pendingTasks() override {

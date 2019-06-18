@@ -266,7 +266,7 @@ public:
         // NOTE vmx 2016-10-29: For LevelDB/RocksDB it will probably
         // always be a full rollback as it doesn't support Couchstore
         // like rollback semantics
-        return RollbackResult(false, 0, 0, 0);
+        return RollbackResult(/* not a success */ false);
     }
 
     void pendingTasks() override {

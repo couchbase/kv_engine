@@ -232,10 +232,8 @@ void EphemeralBucket::completeStatsVKey(const void* cookie,
 
 RollbackResult EphemeralBucket::doRollback(Vbid vbid, uint64_t rollbackSeqno) {
     /* For now we always rollback to zero */
-    return RollbackResult(/* not a success as we would rather reset vb */ false,
-                          /* highSeqno */ 0,
-                          /* snapStartSeqno */ 0,
-                          /* snapEndSeqno */ 0);
+    return RollbackResult(
+            /* not a success as we would rather reset vb */ false);
 }
 
 void EphemeralBucket::enableTombstonePurgerTask() {
