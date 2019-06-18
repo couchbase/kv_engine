@@ -25,6 +25,7 @@
 #pragma once
 
 #include "collections/collections_types.h"
+#include <flatbuffers/flatbuffers.h>
 #include <vector>
 
 class DiskDocKey;
@@ -149,6 +150,65 @@ struct CommitMetaData {
      */
     bool needsCommit{false};
 };
+
+/**
+ * Decode the buffers from the local doc store into the collections
+ * data structures.
+ * @param manifest buffer containing manifest meta data
+ * @param collections buffer containing open collections
+ * @param scopes buffer containing open scopes
+ * @param dropped buffer containing dropped collections
+ */
+Manifest decodeManifest(cb::const_byte_buffer manifest,
+                        cb::const_byte_buffer collections,
+                        cb::const_byte_buffer scopes,
+                        cb::const_byte_buffer dropped);
+
+/**
+ * Decode the local doc buffer into the dropped collections data structure.
+ * @param dc buffer containing dropped collections
+ */
+std::vector<Collections::KVStore::DroppedCollection> decodeDroppedCollections(
+        cb::const_byte_buffer dc);
+
+/**
+ * Encode the manifest commit meta data into a flatbuffer
+ * @param meta manifest commit meta data
+ */
+flatbuffers::DetachedBuffer encodeManifestUid(
+        Collections::KVStore::CommitMetaData& meta);
+
+/**
+ * Encode the open collections list into a flatbuffer. Includes merging
+ * with what was read off disk.
+ * @param droppedCollections dropped collections list
+ * @param collectionsMeta manifest commit meta data
+ * @param collections collections buffer from local data store
+ */
+flatbuffers::DetachedBuffer encodeOpenCollections(
+        std::vector<Collections::KVStore::DroppedCollection>&
+                droppedCollections,
+        Collections::KVStore::CommitMetaData& collectionsMeta,
+        cb::const_byte_buffer collections);
+
+/**
+ * Encode the dropped collection list into a flatbuffer.
+ * @param collectionsMeta manifest commit meta data
+ * @param dropped dropped collections list
+ */
+flatbuffers::DetachedBuffer encodeDroppedCollections(
+        Collections::KVStore::CommitMetaData& collectionsMeta,
+        boost::optional<std::vector<Collections::KVStore::DroppedCollection>>
+                dropped);
+
+/**
+ * Encode open scopes list into flat buffer.
+ * @param collectionsMeta manifest commit meta data
+ * @param scopes open scopes list
+ */
+flatbuffers::DetachedBuffer encodeScopes(
+        Collections::KVStore::CommitMetaData& collectionsMeta,
+        cb::const_byte_buffer scopes);
 
 /// callback to inform KV-engine that KVStore dropped key@seqno
 using DroppedCb = std::function<void(const DiskDocKey&, int64_t)>;
