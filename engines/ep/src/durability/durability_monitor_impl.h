@@ -29,6 +29,7 @@
 
 #include <chrono>
 #include <unordered_map>
+#include <unordered_set>
 
 class PassiveDurabilityMonitor;
 
@@ -99,6 +100,12 @@ public:
      */
     void resetTopology(const ReplicationChain& firstChain,
                        const ReplicationChain* secondChain);
+
+    /**
+     * Return the names of all nodes which have ack'ed this SyncWrite
+     *
+     */
+    std::unordered_set<std::string> getAckedNodes() const;
 
 private:
     /**

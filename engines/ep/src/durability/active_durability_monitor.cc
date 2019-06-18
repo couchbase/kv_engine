@@ -23,6 +23,8 @@
 #include "statwriter.h"
 #include "vbucket.h"
 
+#include <boost/algorithm/string/join.hpp>
+
 #include <gsl.h>
 
 /*
@@ -781,6 +783,14 @@ void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
         //     include the Active for being globally satisfied
         const auto hps = s->getNodeWriteSeqno(s->getActive());
         Ensures(s->lastCommittedSeqno <= hps);
+    }
+
+    if (globalBucketLogger->should_log(spdlog::level::debug)) {
+        std::stringstream ss;
+        ss << "SyncWrite commit \"" << key << "\": ack'ed by {"
+           << boost::join(sw.getAckedNodes(), ", ") << "}";
+
+        EP_LOG_DEBUG(ss.str());
     }
 }
 
