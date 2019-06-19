@@ -120,7 +120,10 @@ public:
     /**
      * Take a snapshot of the stats in the main DB.
      */
-    bool snapshotStats(const std::map<std::string, std::string>& m);
+    bool snapshotStats(const std::map<std::string, std::string>& m) {
+        // TODO
+        return false;
+    }
 
     /**
      * Take a snapshot of the vbucket states in the main DB.
@@ -129,10 +132,6 @@ public:
                          const vbucket_state& vbstate,
                          VBStatePersist options) override;
 
-    void destroyInvalidVBuckets(bool);
-
-    size_t getNumShards() const;
-
     bool compactDB(compaction_ctx*) override {
         // Explicit compaction is not needed.
         // Compaction is continuously occurring in separate threads
@@ -140,24 +139,21 @@ public:
         return true;
     }
 
-    Vbid getDBFileId(const cb::mcbp::Request&) override {
-        // Not needed if there is no explicit compaction
-        return Vbid(0);
-    }
+    Vbid getDBFileId(const cb::mcbp::Request&) override;
 
     size_t getNumPersistedDeletes(Vbid vbid) override {
-        // TODO storage-team 2018-10-9 - need to implement
+        // TODO
         return 0;
     }
 
     DBFileInfo getDbFileInfo(Vbid vbid) override {
-        // TODO how will magma implement this
+        // Magma does not support DBFileInfo
         DBFileInfo vbinfo;
         return vbinfo;
     }
 
     DBFileInfo getAggrDbFileInfo() override {
-        // TODO storage-team 2018-10-9 - need to implement
+        // Magma does not support DBFileInfo
         DBFileInfo vbinfo;
         return vbinfo;
     }
@@ -169,12 +165,12 @@ public:
     RollbackResult rollback(Vbid vbid,
                             uint64_t rollbackSeqno,
                             std::shared_ptr<RollbackCB> cb) override {
-        // TODO storage-team 2018-10-9 need to implement
+        // TODO
         return RollbackResult(false);
     }
 
     void pendingTasks() override {
-        // TODO storage-team 2018-10-9 need to implement
+        // Magma does not use pendingTasks
     }
 
     ENGINE_ERROR_CODE getAllKeys(
@@ -182,7 +178,7 @@ public:
             const DiskDocKey& start_key,
             uint32_t count,
             std::shared_ptr<Callback<const DiskDocKey&>> cb) override {
-        // TODO 2018-10-9 need to implement
+        // TODO
         return ENGINE_SUCCESS;
     }
 
@@ -205,35 +201,35 @@ public:
     }
 
     void freeFileHandle(KVFileHandle* kvFileHandle) const override {
-        // TODO: magma file transfer handle
+        // TODO
         delete kvFileHandle;
     }
 
     Collections::VB::PersistedStats getCollectionStats(
             const KVFileHandle& kvFileHandle,
             CollectionID collection) override {
-        // TODO magma collection item count implementation
+        // TODO
         return {};
     }
 
     void incrementRevision(Vbid vbid) override {
-        // TODO storage-team 2018-10-9 need to implement
+        // magma does not use file revisions
     }
 
     uint64_t prepareToDeleteImpl(Vbid vbid) override {
-        // TODO storage-team 2018-10-9 need to implement
+        // magma does not use prepareToDelete
         return 0;
     }
 
     Collections::KVStore::Manifest getCollectionsManifest(Vbid vbid) override {
-        // TODO: magma has no collections support, return default manifest
+        // TODO
         return Collections::KVStore::Manifest{
                 Collections::KVStore::Manifest::Default{}};
     }
 
     std::vector<Collections::KVStore::DroppedCollection> getDroppedCollections(
             Vbid vbid) override {
-        // TODO: magma has no collections support, return empty
+        // TODO
         return {};
     }
 
@@ -324,13 +320,6 @@ private:
      * @param vbid vbucket id for the vbucket DB subfolder to return
      */
     std::string getVBDBSubdir(Vbid vbid);
-
-    /*
-     * This function returns a vector of Vbucket IDs that already exist on
-     * disk. The function considers only the Vbuckets managed by the current
-     * Shard.
-     */
-    std::vector<Vbid> discoverVBuckets();
 
     std::unique_ptr<Item> makeItem(Vbid vb,
                                    const magma::Slice& keySlice,

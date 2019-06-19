@@ -23,6 +23,7 @@
 #include "vbucket.h"
 #include "vbucket_state.h"
 
+#include <mcbp/protocol/request.h>
 #include <utilities/logtags.h>
 
 #include <string.h>
@@ -495,23 +496,6 @@ std::string MagmaKVStore::getVBDBSubdir(Vbid vbid) {
     return magmaPath + std::to_string(vbid.get());
 }
 
-std::vector<Vbid> MagmaKVStore::discoverVBuckets() {
-    std::vector<Vbid> vbids;
-    auto vbDirs = cb::io::findFilesContaining(magmaPath, "");
-    for (const auto& dir : vbDirs) {
-        size_t lastDotIndex = dir.rfind(".");
-        size_t vbidLength = dir.size() - lastDotIndex - 1;
-        std::string vbidStr = dir.substr(lastDotIndex + 1, vbidLength);
-        Vbid vbid(std::stoi(vbidStr.c_str()));
-        // Take in account only VBuckets managed by this Shard
-        if ((vbid.get() % configuration.getMaxShards()) ==
-            configuration.getShardId()) {
-            vbids.push_back(vbid);
-        }
-    }
-    return vbids;
-}
-
 bool MagmaKVStore::begin(std::unique_ptr<TransactionContext> txCtx) {
     in_transaction = true;
     transactionCtx = std::move(txCtx);
@@ -919,18 +903,6 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbucketId,
     return true;
 }
 
-bool MagmaKVStore::snapshotStats(const std::map<std::string, std::string>&) {
-    // TODO storage-team 2018-10-9 need to implement
-    return true;
-}
-
-void MagmaKVStore::destroyInvalidVBuckets(bool) {
-    // TODO storage-team 2018-10-9 need to implement
-}
-
-size_t MagmaKVStore::getNumShards() const {
-    return configuration.getMaxShards();
-}
 
 std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
                                              const Slice& keySlice,
@@ -1552,4 +1524,8 @@ ENGINE_ERROR_CODE MagmaKVStore::magmaErr2EngineErr(Status::Code err,
     default:
         return ENGINE_TMPFAIL;
     }
+}
+
+Vbid MagmaKVStore::getDBFileId(const cb::mcbp::Request& req) {
+    return req.getVBucket();
 }
