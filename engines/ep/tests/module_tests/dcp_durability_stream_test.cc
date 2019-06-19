@@ -583,15 +583,34 @@ TEST_P(DurabilityPassiveStreamTest,
     // 5) Verify doc state
     auto vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb);
-    // findForCommit will return both pending and committed perspectives
-    auto res = vb->ht.findForCommit(key);
-    EXPECT_FALSE(res.pending);
-    ASSERT_TRUE(res.committed);
-    EXPECT_EQ(4, res.committed->getBySeqno());
-    EXPECT_EQ(CommittedState::CommittedViaMutation,
-              res.committed->getCommitted());
-    EXPECT_TRUE(res.committed->getValue());
-    EXPECT_EQ(value, res.committed->getValue()->to_s());
+    {
+        // findForCommit will return both pending and committed perspectives
+        auto res = vb->ht.findForCommit(key);
+        EXPECT_FALSE(res.pending);
+        ASSERT_TRUE(res.committed);
+        EXPECT_EQ(4, res.committed->getBySeqno());
+        EXPECT_EQ(CommittedState::CommittedViaMutation,
+                  res.committed->getCommitted());
+        EXPECT_TRUE(res.committed->getValue());
+        EXPECT_EQ(value, res.committed->getValue()->to_s());
+    }
+
+    // Should have removed all sync writes
+    EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
+
+    // We should now be able to do a sync write to a different key
+    key = makeStoredDocKey("newkey");
+    makeAndReceiveDcpPrepare(key, cas, 10);
+    marker = SnapshotMarker(
+            opaque,
+            vbid,
+            streamStartSeqno + 2 /*snapStart*/,
+            streamStartSeqno + 2 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+    EXPECT_EQ(ENGINE_SUCCESS, vb->commit(key, {}, vb->lockCollections(key)));
+    EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
 }
 
 TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSnapshotEndReceived) {
