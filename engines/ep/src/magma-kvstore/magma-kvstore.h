@@ -132,9 +132,6 @@ public:
 
     size_t getNumShards() const;
 
-    void optimizeWrites(std::vector<queued_item>&) {
-    }
-
     uint16_t getNumVbsPerFile() override {
         // TODO Adapt this if this changes.
         return 1024;

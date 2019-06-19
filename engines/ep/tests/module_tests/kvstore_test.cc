@@ -2494,6 +2494,32 @@ TEST_P(KVStoreParamTest, Durability_PersistAbort) {
     EXPECT_TRUE(gv.item->isDeleted());
 }
 
+TEST_P(KVStoreParamTest, OptimizeWrites) {
+    std::vector<queued_item> items;
+    std::vector<StoredDocKey> keys;
+    keys.resize(3);
+
+    for (int i = 2; i >= 0; i--) {
+        std::string key("foo" + std::to_string(i));
+        auto itm = new Item(makeStoredDocKey(key),
+                            0,
+                            0,
+                            "value",
+                            5,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            0);
+        keys[i] = itm->getKey();
+        items.push_back(queued_item(itm));
+    }
+
+    // sort the items
+    kvstore->optimizeWrites(items);
+
+    for (int i = 0; i < 3; i++) {
+        EXPECT_EQ(0, keys[i].compare(items[i]->getKey()));
+    }
+}
+
 static std::string kvstoreTestParams[] = {
 #ifdef EP_USE_ROCKSDB
         "rocksdb",
