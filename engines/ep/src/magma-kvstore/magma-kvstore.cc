@@ -23,6 +23,8 @@
 #include "vbucket.h"
 #include "vbucket_state.h"
 
+#include <utilities/logtags.h>
+
 #include <string.h>
 #include <algorithm>
 #include <limits>
@@ -208,30 +210,6 @@ static_assert(sizeof(MetaData) == 47,
 static const Slice vbstateKey = {"_vbstate", strlen("_vbstate")};
 
 /**
- * Simple routine used as part of logger to convert a key into hex and ascii
- */
-static void hexdump(const char* buf,
-                    const int len,
-                    std::string& hex,
-                    std::string& ascii) {
-    char tmp[10];
-
-    hex.resize(0);
-    ascii.resize(0);
-
-    for (int i = 0; i < len; i++) {
-        if (isprint(buf[i])) {
-            ascii.append(&buf[i], 1);
-        } else {
-            ascii.append(" ", 1);
-        }
-
-        snprintf(tmp, sizeof(tmp), "%02x", static_cast<uint8_t>(buf[i]));
-        hex.append(tmp, 2);
-    }
-}
-
-/**
  * Class representing a document to be persisted in Magma.
  */
 class MagmaRequest : public IORequest {
@@ -250,7 +228,7 @@ public:
           docMeta(magmakv::MetaData(item)),
           docBody(item.getValue()) {
         if (logger->should_log(spdlog::level::TRACE)) {
-            logger->TRACE("Request:{}", to_string());
+            logger->TRACE("MagmaRequest:{}", to_string());
         }
     }
 
@@ -307,11 +285,8 @@ public:
     }
 
     std::string to_string() {
-        std::string hex, ascii;
-        hexdump(getKey(), getKeyLen(), hex, ascii);
         std::stringstream ss;
-        ss << "Key:" << ascii << " " << hex
-           << " docMeta:" << docMeta.to_string()
+        ss << "Key:" << key.to_string() << " docMeta:" << docMeta.to_string()
            << " itemOldExists:" << (itemOldExists ? "true" : "false")
            << " itemOldIsDelete:" << (itemOldIsDelete ? "true" : "false")
            << " reqFailed:" << (reqFailed ? "true" : "false");
@@ -494,7 +469,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     magma = std::make_unique<Magma>(configuration.magmaCfg);
     auto status = magma->Open();
     if (!status) {
-        std::string err = "Magma open failed. Error:" + status.String();
+        std::string err =
+                "MagmaKVStore Magma open failed. Status:" + status.String();
         logger->critical(err);
         throw std::logic_error(err);
     }
@@ -559,15 +535,15 @@ bool MagmaKVStore::commit(Collections::VB::Flush& collectionsFlush) {
     bool success = true;
 
     // Flush all documents to disk
-    auto status = saveDocs(collectionsFlush, kvctx);
-    if (status) {
-        logger->warn("MagmaKVStore::commit: saveDocs {} error:{}",
+    auto errCode = saveDocs(collectionsFlush, kvctx);
+    if (errCode != ENGINE_SUCCESS) {
+        logger->warn("MagmaKVStore::commit: saveDocs {} errCode:{}",
                      pendingReqs->front().getVbID(),
-                     status);
+                     errCode);
         success = false;
     }
 
-    commitCallback(status, kvctx);
+    commitCallback(errCode, kvctx);
 
     // This behaviour is to replicate the one in Couchstore.
     // Set `in_transanction = false` only if `commit` is successful.
@@ -614,10 +590,11 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
                 st.delTimeHisto.add(req.getDelta());
             }
 
-            logger->TRACE("commitCallback {} errCode:{} getDelCallback rv:{}",
-                          pendingReqs->front().getVbID(),
-                          errCode,
-                          to_string(rv));
+            logger->TRACE(
+                    "MagmaKVStore::commitCallback(Del) {} errCode:{} rv:{}",
+                    pendingReqs->front().getVbID(),
+                    errCode,
+                    to_string(rv));
 
             req.getDelCallback()(*transactionCtx, rv);
         } else {
@@ -640,7 +617,7 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
             req.getSetCallback()(*transactionCtx, mutationSetStatus);
 
             logger->TRACE(
-                    "commitCallback {} errCode:{} getSetCallback rv:{} "
+                    "MagmaKVStore::commitCallback(Set) {} errCode:{} rv:{} "
                     "insertion:{}",
                     pendingReqs->front().getVbID(),
                     errCode,
@@ -702,22 +679,21 @@ GetValue MagmaKVStore::getWithHeader(void* dbHandle,
             vbid.get(), keySlice, idxBuf, seqBuf, metaSlice, valueSlice, found);
 
     if (logger->should_log(spdlog::level::TRACE)) {
-        std::string hex, ascii;
-        hexdump(keySlice.Data(), keySlice.Len(), hex, ascii);
         logger->TRACE(
-                "getWithHeader {} key:{} {} status:{} found:{} deleted:{}",
+                "MagmaKVStore::getWithHeader {} key:{} status:{} found:{} "
+                "deleted:{}",
                 vbid,
-                ascii,
-                hex,
+                key.to_string(),
                 status.String(),
                 found,
                 found ? isDeleted(metaSlice) : false);
     }
 
     if (!status) {
-        logger->warn("MagmaKVStore::getWithHeader {} error:{}",
+        logger->warn("MagmaKVStore::getWithHeader {} key:{} status:{}",
                      vbid,
-                     status.ErrorCode());
+                     cb::UserData{makeDiskDocKey(keySlice).to_string()},
+                     status.String());
         return GetValue{NULL, magmaErr2EngineErr(status.ErrorCode(), true)};
     }
 
@@ -753,12 +729,9 @@ void MagmaKVStore::getMulti(Vbid vbid, vb_bgfetch_queue_t& itms) {
                                    found);
 
         if (logger->should_log(spdlog::level::TRACE)) {
-            std::string hex, ascii;
-            hexdump(keySlice.Data(), keySlice.Len(), hex, ascii);
-            logger->TRACE("getMulti {} key:{} {} status:{} found:{}",
+            logger->TRACE("MagmaKVStore::getMulti {} key:{} status:{} found:{}",
                           vbid,
-                          ascii,
-                          hex,
+                          makeDiskDocKey(keySlice).to_string(),
                           status.String(),
                           found);
         }
@@ -786,9 +759,11 @@ void MagmaKVStore::getMulti(Vbid vbid, vb_bgfetch_queue_t& itms) {
             }
         } else {
             if (!status) {
-                logger->critical("MagmaKVStore::getMulti: {} error:{}, ",
-                                 vbid,
-                                 status.ErrorCode());
+                logger->critical(
+                        "MagmaKVStore::getMulti: {} key:{} status:{}, ",
+                        vbid,
+                        cb::UserData{makeDiskDocKey(keySlice).to_string()},
+                        status.String());
                 st.numGetFailure++;
             }
             for (auto& fetch : bg_itm_ctx.bgfetched_list) {
@@ -809,13 +784,11 @@ void MagmaKVStore::getRange(Vbid vbid,
 
     auto callback = [&](Slice& keySlice, Slice& metaSlice, Slice& valueSlice) {
         if (logger->should_log(spdlog::level::TRACE)) {
-            std::string hex, ascii;
-            hexdump(keySlice.Data(), keySlice.Len(), hex, ascii);
             logger->TRACE(
-                    "MagmaKVStore::getRange callback (key:{} {} seqno:{} "
+                    "MagmaKVStore::getRange callback {} key:{} seqno:{} "
                     "deleted:{}",
-                    ascii,
-                    hex,
+                    vbid,
+                    makeDiskDocKey(keySlice).to_string(),
                     getSeqNum(metaSlice),
                     isDeleted(metaSlice));
         }
@@ -828,29 +801,20 @@ void MagmaKVStore::getRange(Vbid vbid,
     };
 
     if (logger->should_log(spdlog::level::TRACE)) {
-        std::string sak, shk, eak, ehk;
-        hexdump(startKeySlice.Data(), startKeySlice.Len(), sak, shk);
-        hexdump(endKeySlice.Data(), endKeySlice.Len(), eak, ehk);
-        logger->TRACE("MagmaKVStore::getRange(start:{} {} end:{} {}",
-                      sak,
-                      shk,
-                      eak,
-                      ehk);
+        logger->TRACE("MagmaKVStore::getRange {} start:{} end:{}",
+                      vbid,
+                      makeDiskDocKey(startKeySlice).to_string(),
+                      makeDiskDocKey(endKeySlice).to_string());
     }
 
     auto status = magma->GetRange(
             vbid.get(), startKeySlice, endKeySlice, callback, true);
     if (!status) {
-        std::string sak, shk, eak, ehk;
-        hexdump(startKeySlice.Data(), startKeySlice.Len(), sak, shk);
-        hexdump(endKeySlice.Data(), endKeySlice.Len(), eak, ehk);
         logger->critical(
-                "MagmaKVStore::getRange {} (start:{} {} end:{} {}) error:{}",
+                "MagmaKVStore::getRange {} start:{} end:{} status:{}",
                 vbid,
-                sak,
-                shk,
-                eak,
-                ehk,
+                cb::UserData{makeDiskDocKey(startKeySlice).to_string()},
+                cb::UserData{makeDiskDocKey(endKeySlice).to_string()},
                 status.String());
     }
 }
@@ -921,7 +885,7 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbucketId,
             logger->critical(
                     "MagmaKVStore::snapshotVBucket failed creating "
                     "commitBatch for "
-                    "{} err:{}",
+                    "{} status:{}",
                     vbucketId,
                     status.String());
             return false;
@@ -932,7 +896,7 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbucketId,
             logger->critical(
                     "MagmaKVStore::snapshotVBucket: "
                     "magma::ExecuteCommitBatch "
-                    "{} error:{}",
+                    "{} status:{}",
                     vbucketId,
                     status.String());
             return false;
@@ -942,7 +906,7 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbucketId,
             logger->critical(
                     "MagmaKVStore::snapshotVBucket: "
                     "magma::SyncCommitBatches {} "
-                    "error:{}",
+                    "status:{}",
                     vbucketId,
                     status.String());
             return false;
@@ -1043,9 +1007,10 @@ int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
     std::unique_ptr<Magma::CommitBatch> batch;
     Status status = magma->NewCommitBatch(vbid.get(), batch);
     if (!status) {
-        logger->warn("MagmaKVStore::saveDocs NewCommitBatch failed {} err:{}",
-                     vbid,
-                     status.String());
+        logger->warn(
+                "MagmaKVStore::saveDocs NewCommitBatch failed {} status:{}",
+                vbid,
+                status.String());
         return status.ErrorCode();
     }
 
@@ -1066,7 +1031,7 @@ int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
         bool tombstone{false};
         status = batch->Set(key, meta, value, &found, &tombstone);
         if (!status) {
-            logger->warn("MagmaKVStore::saveDocs: Set {} error {}",
+            logger->warn("MagmaKVStore::saveDocs: Set {} status:{}",
                          vbid,
                          status.String());
             req.markRequestFailed();
@@ -1074,15 +1039,12 @@ int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
         }
 
         if (logger->should_log(spdlog::level::TRACE)) {
-            std::string hex, ascii;
-            hexdump(key.Data(), key.Len(), hex, ascii);
             logger->TRACE(
-                    "MagmaKVStore::saveDocs {} key:{} {} seqno:{} delete:{} "
+                    "MagmaKVStore::saveDocs {} key:{} seqno:{} delete:{} "
                     "found:{} "
                     "tombstone:{}",
                     vbid,
-                    ascii,
-                    hex,
+                    makeDiskDocKey(key).to_string(),
                     req.getDocMeta().bySeqno,
                     req.isDelete(),
                     found,
@@ -1141,9 +1103,9 @@ int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
     // a snapshot so that documents can not be read.
     status = magma->ExecuteCommitBatch(std::move(batch));
     if (!status) {
-        logger->warn("MagmaKVStore::saveDocs: ExecuteCommitBatch {} error {}",
+        logger->warn("MagmaKVStore::saveDocs: ExecuteCommitBatch {} status:{}",
                      vbid,
-                     status.ErrorCode());
+                     status.String());
     } else {
         // Flush the WAL to disk.
         // If the shard writeCache is full, this will trigger all the
@@ -1151,9 +1113,9 @@ int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
         status = magma->SyncCommitBatches(commitPointEveryBatch);
         if (!status) {
             logger->warn(
-                    "MagmaKVStore::saveDocs: SyncCommitBatches {} error {}",
+                    "MagmaKVStore::saveDocs: SyncCommitBatches {} status:{}",
                     vbid,
-                    status.ErrorCode());
+                    status.String());
         }
     }
 
@@ -1181,7 +1143,7 @@ ScanContext* MagmaKVStore::initScanContext(
     auto magmaInfo = getMagmaInfo(vbid);
     auto collectionsManifest = getDroppedCollections(vbid);
 
-    if (logger->should_log(spdlog::level::debug)) {
+    if (logger->should_log(spdlog::level::info)) {
         std::string docFilter;
         switch (options) {
         case DocumentFilter::ALL_ITEMS:
@@ -1218,7 +1180,7 @@ ScanContext* MagmaKVStore::initScanContext(
                     std::to_string(static_cast<int>(valOptions)));
         }
 
-        logger->debug(
+        logger->info(
                 "initScanContext {} seqno:{} endSeqno:{}"
                 " purgeSeqno:{} docCount:{} docFilter:{} valFilter:{}",
                 vbid,
@@ -1253,7 +1215,7 @@ scan_error_t MagmaKVStore::scan(ScanContext* ctx) {
     }
 
     if (ctx->lastReadSeqno == ctx->maxSeqno) {
-        logger->trace("scan {} lastReadSeqno:{} == maxSeqno:{}",
+        logger->TRACE("MagmaKVStore::scan {} lastReadSeqno:{} == maxSeqno:{}",
                       ctx->vbid,
                       ctx->lastReadSeqno,
                       ctx->maxSeqno);
@@ -1285,21 +1247,18 @@ scan_error_t MagmaKVStore::scan(ScanContext* ctx) {
                     std::to_string(std::numeric_limits<uint16_t>::max()));
         }
 
-        std::string hex, ascii;
-        if (logger->should_log(spdlog::level::debug)) {
-            hexdump((char*)keySlice.Data(), keySlice.Len(), hex, ascii);
-        }
+        auto diskKey = makeDiskDocKey(keySlice);
 
         if (isDeleted(metaSlice) &&
             ctx->docFilter == DocumentFilter::NO_DELETES) {
-            logger->trace("scan SKIPPED(Deleted) key:{} {} seqno:{}",
-                          ascii,
-                          hex,
-                          seqno);
+            logger->TRACE(
+                    "MagmaKVStore::scan SKIPPED(Deleted) {} key:{} seqno:{}",
+                    ctx->vbid,
+                    diskKey.to_string(),
+                    seqno);
             continue;
         }
 
-        auto diskKey = makeDiskDocKey(keySlice);
         auto docKey = diskKey.getDocKey();
 
         // Determine if the key is logically deleted, if it is we skip the key
@@ -1310,11 +1269,12 @@ scan_error_t MagmaKVStore::scan(ScanContext* ctx) {
                 DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
                 if (ctx->collectionsContext.isLogicallyDeleted(docKey, seqno)) {
                     ctx->lastReadSeqno = seqno;
-                    logger->trace(
-                            "scan SKIPPED(Collection Deleted) key:{} {} "
+                    logger->TRACE(
+                            "MagmaKVStore::scan SKIPPED(Collection Deleted) {} "
+                            "key:{} "
                             "seqno:{}",
-                            ascii,
-                            hex,
+                            ctx->vbid,
+                            diskKey.to_string(),
                             seqno);
                     continue;
                 }
@@ -1325,10 +1285,11 @@ scan_error_t MagmaKVStore::scan(ScanContext* ctx) {
             ctx->lookup->callback(lookup);
             if (ctx->lookup->getStatus() == ENGINE_KEY_EEXISTS) {
                 ctx->lastReadSeqno = seqno;
-                logger->trace(
-                        "scan SKIPPED(ENGINE_KEY_EEXISTS) key:{} {} seqno:{}",
-                        ascii,
-                        hex,
+                logger->TRACE(
+                        "MagmaKVStore::scan SKIPPED(ENGINE_KEY_EEXISTS) {} "
+                        "key:{} seqno:{}",
+                        ctx->vbid,
+                        diskKey.to_string(),
                         seqno);
                 continue;
             } else if (ctx->lookup->getStatus() == ENGINE_ENOMEM) {
@@ -1336,15 +1297,16 @@ scan_error_t MagmaKVStore::scan(ScanContext* ctx) {
                         "MagmaKVStore::scan lookup->callback {} "
                         "key:{} returned ENGINE_ENOMEM",
                         ctx->vbid,
-                        diskKey.to_string());
+                        cb::UserData{diskKey.to_string()});
                 return scan_again;
             }
         }
 
-        logger->trace(
-                "scan key:{} {} seqno:{} deleted:{} expiry:{} compressed:{}",
-                ascii,
-                hex,
+        logger->TRACE(
+                "MagmaKVStore::scan {} key:{} seqno:{} deleted:{} expiry:{} "
+                "compressed:{}",
+                ctx->vbid,
+                diskKey.to_string(),
                 seqno,
                 isDeleted(metaSlice),
                 getExpiryTime(metaSlice),
@@ -1359,10 +1321,11 @@ scan_error_t MagmaKVStore::scan(ScanContext* ctx) {
             !isCompressed(metaSlice)) {
             if (!itm->compressValue(true)) {
                 logger->warn(
-                        "MagmaKVStore::scan failed to compress value - key:{} "
-                        "{} seqno:{}",
-                        ascii,
-                        hex,
+                        "MagmaKVStore::scan failed to compress value - {} "
+                        "key:{} "
+                        "seqno:{}",
+                        ctx->vbid,
+                        cb::UserData{diskKey.to_string()},
                         seqno);
                 continue;
             }
@@ -1376,7 +1339,7 @@ scan_error_t MagmaKVStore::scan(ScanContext* ctx) {
                     "MagmaKVStore::scan callback {} "
                     "key:{} returned ENGINE_ENOMEM",
                     ctx->vbid,
-                    diskKey.to_string());
+                    cb::UserData{diskKey.to_string()});
             return scan_again;
         }
         ctx->lastReadSeqno = seqno;
@@ -1397,7 +1360,7 @@ vbucket_state* MagmaKVStore::getVBucketState(Vbid vbid) {
     if (!vbstate) {
         auto status = readVBStateFromDisk(vbid);
         if (!status) {
-            logger->warn("MagmaKVStore::getVBucketState failed - error:{}",
+            logger->warn("MagmaKVStore::getVBucketState failed - status:{}",
                          status.String());
             return nullptr;
         }
@@ -1407,7 +1370,8 @@ vbucket_state* MagmaKVStore::getVBucketState(Vbid vbid) {
 
     if (logger->should_log(spdlog::level::TRACE)) {
         auto j = encodeVBState(*vbstate, getMagmaInfo(vbid));
-        logger->TRACE("getVBucketState {} vbstate:{}", vbid, j.dump());
+        logger->TRACE(
+                "MagmaKVStore::getVBucketState {} vbstate:{}", vbid, j.dump());
     }
     return vbstate;
 }
@@ -1440,7 +1404,8 @@ magma::Status MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
     }
 
     vbucket_state vbstate = j;
-    logger->TRACE("readVBStateFromDisk {} vbstate:{}", vbid, j.dump());
+    logger->TRACE(
+            "MagmaKVStore::readVBStateFromDisk {} vbstate:{}", vbid, j.dump());
 
     auto vbs = std::make_unique<vbucket_state>(vbstate);
     cachedVBStates[vbid.get()] = std::move(vbs);
@@ -1469,7 +1434,7 @@ magma::Status MagmaKVStore::writeVBStateToDisk(
     }
 
     auto jstr = encodeVBState(*vbs, *minfo).dump();
-    logger->TRACE("writeVBStateToDisk {} vbstate:{}", vbid, jstr);
+    logger->TRACE("MagmaKVStore::writeVBStateToDisk {} vbstate:{}", vbid, jstr);
     return setLocalDoc(commitBatch, vbstateKey, jstr, false);
 }
 
@@ -1527,13 +1492,17 @@ std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
                         magma::Status::Code::NotFound,
                         "MagmaKVStore::readLocalDoc(vbid:" + vbid.to_string() +
                                 " key:" + keySlice.ToString() + " deleted.");
-                logger->warn("MagmaKVStore::readLocalDoc({} key:{}) deleted",
-                             vbid,
-                             keySlice.ToString());
+                if (logger->should_log(spdlog::level::TRACE)) {
+                    logger->warn("MagmaKVStore::readLocalDoc {} key:{} deleted",
+                                 vbid,
+                                 makeDiskDocKey(keySlice).to_string());
+                }
             } else {
-                logger->TRACE("MagmaKVStore::readLocalDoc({} key:{})",
-                              vbid,
-                              keySlice.ToString());
+                if (logger->should_log(spdlog::level::TRACE)) {
+                    logger->TRACE("MagmaKVStore::readLocalDoc {} key:{}",
+                                  vbid,
+                                  makeDiskDocKey(keySlice).to_string());
+                }
             }
         }
     }
@@ -1551,9 +1520,11 @@ Status MagmaKVStore::setLocalDoc(Magma::CommitBatch& commitBatch,
     // Store in localDB
     Slice valSlice = {valString.c_str(), valString.size()};
 
-    logger->TRACE("MagmaKVStore::setLocalDoc({} key:{})",
-                  commitBatch.GetkvID(),
-                  const_cast<Slice&>(keySlice).ToString());
+    if (logger->should_log(spdlog::level::TRACE)) {
+        logger->TRACE("MagmaKVStore::setLocalDoc {} key:{}",
+                      commitBatch.GetkvID(),
+                      makeDiskDocKey(keySlice).to_string());
+    }
 
     return commitBatch.SetLocal(keySlice, valSlice);
 }
