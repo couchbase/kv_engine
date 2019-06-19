@@ -1652,6 +1652,13 @@ public:
     const DurabilityMonitor& getDurabilityMonitor() const;
 
     /**
+     * Rollback callback function to add a new pending SyncWrite
+     *
+     * @param item the prepare to add
+     */
+    void addSyncWriteForRollback(const Item& item);
+
+    /**
      * Remove any queued acks for the given node from the Durability Monitor.
      * (should be Active)
      *

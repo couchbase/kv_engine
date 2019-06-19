@@ -1249,6 +1249,243 @@ TEST_P(RollbackDcpTest, RollbackToZeroWithSyncWrite) {
     EXPECT_EQ(0, newPassiveDm.getHighCompletedSeqno());
 }
 
+/**
+ * Checks the state of the HashTable and PassiveDM post-rollback
+ *
+ * Pre-rollback our sequence of events should be:
+ *  - 6 base items
+ *  - 1 prepare
+ *  - 1 commit
+ *
+ * Post-rollback our sequence of events should be:
+ *  - 6 base items
+ *  - 1 prepare
+ */
+TEST_P(RollbackDcpTest, RollbackCommit) {
+    writeBaseItems();
+    // Rollback only the commit
+    auto rollbackSeqno = vb->getHighSeqno() + 1;
+    doPrepareAndCommit();
+
+    store->setVBucketState(vbid, vbStateAtRollback);
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+    EXPECT_EQ(rollbackSeqno, store->getVBucket(vbid)->getHighSeqno());
+
+    auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+    EXPECT_EQ(1, passiveDm.getNumTracked());
+    EXPECT_EQ(rollbackSeqno, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
+
+    auto key = makeStoredDocKey("key");
+    auto htRes = vb->ht.findForCommit(key);
+    EXPECT_FALSE(htRes.committed);
+    ASSERT_TRUE(htRes.pending);
+    EXPECT_EQ(rollbackSeqno, htRes.pending->getBySeqno());
+}
+
+/**
+ * Checks the state of the HashTable and PassiveDM post-rollback
+ *
+ * Pre-rollback our sequence of events should be:
+ *  - 6 base items
+ *  - 1 prepare
+ *  - 1 commit
+ *  - 1 prepare
+ *  - 1 commit
+ *
+ * Post-rollback our sequence of events should be:
+ *  - 6 base items
+ *  - 1 prepare
+ *  - 1 commit
+ *  - 1 prepare
+ */
+TEST_P(RollbackDcpTest, RollbackCommitOnTopOfCommit) {
+    writeBaseItems();
+    auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
+    doPrepareAndCommit();
+    auto postRollbackCommitSeqno = vb->getHighSeqno();
+    // Rollback only the commit
+    auto rollbackSeqno = vb->getHighSeqno() + 1;
+    doPrepareAndCommit();
+
+    store->setVBucketState(vbid, vbStateAtRollback);
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+    EXPECT_EQ(rollbackSeqno, store->getVBucket(vbid)->getHighSeqno());
+
+    auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+    EXPECT_EQ(1, passiveDm.getNumTracked());
+    EXPECT_EQ(rollbackSeqno, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+
+    auto key = makeStoredDocKey("key");
+    auto htRes = vb->ht.findForCommit(key);
+    ASSERT_TRUE(htRes.committed);
+    EXPECT_EQ(postRollbackCommitSeqno, htRes.committed->getBySeqno());
+    ASSERT_TRUE(htRes.pending);
+    EXPECT_EQ(rollbackSeqno, htRes.pending->getBySeqno());
+}
+
+/**
+ * Checks the state of the HashTable and PassiveDM post-rollback
+ *
+ * Pre-rollback our sequence of events should be:
+ *  - 6 base items
+ *  - 1 prepare
+ *  - 1 abort
+ *  - 1 prepare
+ *  - 1 commit
+ *
+ * Post-rollback our sequence of events should be:
+ *  - 6 base items
+ *  - 1 prepare
+ *  - 1 abort
+ *  - 1 prepare
+ */
+TEST_P(RollbackDcpTest, RollbackCommitOnTopOfAbort) {
+    writeBaseItems();
+    auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
+    doPrepareAndAbort();
+    // Rollback only the commit
+    auto rollbackSeqno = vb->getHighSeqno() + 1;
+    doPrepareAndCommit();
+
+    store->setVBucketState(vbid, vbStateAtRollback);
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+    EXPECT_EQ(rollbackSeqno, store->getVBucket(vbid)->getHighSeqno());
+
+    auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+    EXPECT_EQ(1, passiveDm.getNumTracked());
+    EXPECT_EQ(rollbackSeqno, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+
+    auto key = makeStoredDocKey("key");
+    auto htRes = vb->ht.findForCommit(key);
+    EXPECT_FALSE(htRes.committed);
+    ASSERT_TRUE(htRes.pending);
+    EXPECT_EQ(rollbackSeqno, htRes.pending->getBySeqno());
+}
+
+/**
+ * Checks the state of the HashTable and PassiveDM post-rollback
+ *
+ * Pre-rollback our sequence of events should be:
+ *  - 6 base items
+ *  - 1 prepare
+ *  - 1 abort
+ *
+ * Post-rollback our sequence of events should be:
+ *  - 6 base items
+ *  - 1 prepare
+ */
+TEST_P(RollbackDcpTest, RollbackAbort) {
+    writeBaseItems();
+    // Rollback only the abort
+    auto rollbackSeqno = vb->getHighSeqno() + 1;
+    doPrepareAndAbort();
+
+    store->setVBucketState(vbid, vbStateAtRollback);
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+
+    auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+    EXPECT_EQ(1, passiveDm.getNumTracked());
+    EXPECT_EQ(rollbackSeqno, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
+
+    auto key = makeStoredDocKey("key");
+    auto htRes = vb->ht.findForCommit(key);
+    EXPECT_FALSE(htRes.committed);
+    ASSERT_TRUE(htRes.pending);
+    EXPECT_EQ(rollbackSeqno, htRes.pending->getBySeqno());
+}
+
+/**
+ * Checks the state of the HashTable and PassiveDM post-rollback
+ *
+ * Pre-rollback our sequence of events should be:
+ *  - 6 base items
+ *  - 1 prepare
+ *  - 1 commit
+ *  - 1 prepare
+ *  - 1 abort
+ *
+ * Post-rollback our sequence of events should be:
+ *  - 6 base items
+ *  - 1 prepare
+ *  - 1 commit
+ *  - 1 prepare
+ */
+TEST_P(RollbackDcpTest, RollbackAbortOnTopOfCommit) {
+    writeBaseItems();
+    auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
+    doPrepareAndCommit();
+    auto postRollbackCommitSeqno = vb->getHighSeqno();
+    // Rollback only the abort
+    auto rollbackSeqno = vb->getHighSeqno() + 1;
+    doPrepareAndAbort();
+
+    store->setVBucketState(vbid, vbStateAtRollback);
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+    EXPECT_EQ(rollbackSeqno, store->getVBucket(vbid)->getHighSeqno());
+
+    auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+    EXPECT_EQ(1, passiveDm.getNumTracked());
+    EXPECT_EQ(rollbackSeqno, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+
+    auto key = makeStoredDocKey("key");
+    auto htRes = vb->ht.findForCommit(key);
+    ASSERT_TRUE(htRes.committed);
+    EXPECT_EQ(postRollbackCommitSeqno, htRes.committed->getBySeqno());
+    ASSERT_TRUE(htRes.pending);
+    EXPECT_EQ(rollbackSeqno, htRes.pending->getBySeqno());
+}
+
+/**
+ * Checks the state of the HashTable and PassiveDM post-rollback
+ *
+ * Pre-rollback our sequence of events should be:
+ *  - 6 base items
+ *  - 1 prepare
+ *  - 1 abort
+ *  - 1 prepare
+ *  - 1 abort
+ *
+ * Post-rollback our sequence of events should be:
+ *  - 6 base items
+ *  - 1 prepare
+ *  - 1 abort
+ *  - 1 prepare
+ */
+TEST_P(RollbackDcpTest, RollbackAbortOnTopOfAbort) {
+    writeBaseItems();
+    auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
+    doPrepareAndAbort();
+    // Rollback only the abort
+    auto rollbackSeqno = vb->getHighSeqno() + 1;
+    doPrepareAndAbort();
+
+    store->setVBucketState(vbid, vbStateAtRollback);
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+    EXPECT_EQ(rollbackSeqno, store->getVBucket(vbid)->getHighSeqno());
+
+    auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+    EXPECT_EQ(1, passiveDm.getNumTracked());
+    EXPECT_EQ(rollbackSeqno, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+
+    auto key = makeStoredDocKey("key");
+    auto htRes = vb->ht.findForCommit(key);
+    EXPECT_FALSE(htRes.committed);
+    ASSERT_TRUE(htRes.pending);
+    EXPECT_EQ(rollbackSeqno, htRes.pending->getBySeqno());
+}
+
 class ReplicaRollbackDcpTest : public SingleThreadedEPBucketTest {
 public:
     ReplicaRollbackDcpTest() {

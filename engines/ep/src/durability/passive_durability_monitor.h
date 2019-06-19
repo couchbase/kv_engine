@@ -21,6 +21,7 @@
 #include <folly/SynchronizedPtr.h>
 #include <vector>
 
+class RollbackResult;
 class VBucket;
 class StoredDocKey;
 
@@ -96,15 +97,12 @@ public:
     void notifyLocalPersistence() override;
 
     /**
-     * Remove all in-flight prepares after the new high seqno
+     * Remove all in-flight prepares after the new high seqno and add any new
+     * prepares for completions that we may be rolling back.
      *
-     * @param newHighSeqno The high seqno after which we should discard prepares
-     * @param newHighCompletedSeqno The HCS that we should have post-rollback
-     * @param newHighPreparedSeqno The HPS that we should have post-rollback
+     * @param rollbackResult the information required to rollback
      */
-    void postProcessRollback(uint64_t newHighSeqno,
-                             uint64_t newHighCompletedSeqno,
-                             uint64_t newHighPreparedSeqno);
+    void postProcessRollback(const RollbackResult& rollbackResult);
 
 protected:
     void toOStream(std::ostream& os) const override;

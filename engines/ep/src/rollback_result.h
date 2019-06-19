@@ -17,6 +17,9 @@
 
 #pragma once
 
+#include "ep_types.h"
+#include "item.h"
+
 #include <cstdint>
 
 /**
@@ -46,4 +49,7 @@ public:
     uint64_t snapEndSeqno;
     uint64_t highCompletedSeqno;
     uint64_t highPreparedSeqno;
+
+    // Container of prepares that need to be added back to the Passive DM
+    std::vector<queued_item> preparesToAdd;
 };

@@ -1416,6 +1416,11 @@ void VBucket::incExpirationStat(const ExpireBy source) {
 }
 
 MutationStatus VBucket::setFromInternal(Item& itm) {
+    // Should not be used to rollback any SyncWrites
+    if (!itm.isCommitted()) {
+        return MutationStatus::IsPendingSyncWrite;
+    }
+
     if (!hasMemoryForStoredValue(stats, itm, UseActiveVBMemThreshold::Yes)) {
         return MutationStatus::NoMem;
     }
@@ -2937,9 +2942,7 @@ void VBucket::postProcessRollback(const RollbackResult& rollbackResult,
     incrRollbackItemCount(prevHighSeqno - rollbackResult.highSeqno);
     checkpointManager->setOpenCheckpointId(1);
     setReceivingInitialDiskSnapshot(false);
-    getPassiveDM().postProcessRollback(rollbackResult.highSeqno,
-                                       rollbackResult.highCompletedSeqno,
-                                       rollbackResult.highPreparedSeqno);
+    getPassiveDM().postProcessRollback(rollbackResult);
 }
 
 void VBucket::collectionsRolledBack(KVStore& kvstore) {
@@ -3817,4 +3820,11 @@ void VBucket::setUpAllowedDuplicatePrepareWindow() {
         allowedDuplicatePrepareSeqnos.insert(newDuplicates.begin(),
                                              newDuplicates.end());
     }
+}
+
+void VBucket::addSyncWriteForRollback(const Item& item) {
+    // Search the HashTable for an existing prepare, it should not exist.
+    auto htRes = ht.findOnlyPrepared(item.getKey());
+    Expects(!htRes.storedValue);
+    ht.unlocked_addNewStoredValue(htRes.lock, item);
 }

@@ -1213,14 +1213,47 @@ public:
                             .lock(preRbSeqnoItem->getKey())
                             .incrementDiskCount();
                 }
+
+                if (postRbSeqnoItem->isCommitSyncWrite() ||
+                    postRbSeqnoItem->isAbort()) {
+                    rollbackSyncWrite(*vb, *postRbSeqnoItem);
+                }
             }
         } else if (preRbSeqnoGetValue.getStatus() == ENGINE_KEY_ENOENT) {
             // If the item did not exist before we should delete it now
             removeDeletedDoc(*vb, *postRbSeqnoItem);
+
+            // If we are rolling back a commit that did not exist on disk
+            // before then we need to requeue a prepare
+            if (postRbSeqnoItem->isCommitSyncWrite()) {
+                rollbackSyncWrite(*vb, *postRbSeqnoItem);
+            }
         } else {
             EP_LOG_WARN(
                     "EPDiskRollbackCB::callback:Unexpected Error Status: {}",
                     preRbSeqnoGetValue.getStatus());
+        }
+    }
+
+    void rollbackSyncWrite(VBucket& vb, const Item& postRbSeqnoItem) {
+        // Search for prepare in the pre-rollback header
+        GetValue preRbSeqnoPrepare =
+                engine.getKVBucket()
+                        ->getROUnderlying(postRbSeqnoItem.getVBucketId())
+                        ->getWithHeader(dbHandle,
+                                        DiskDocKey(postRbSeqnoItem.getKey(),
+                                                   true /*prepare*/),
+                                        postRbSeqnoItem.getVBucketId(),
+                                        GetMetaOnly::No);
+        if (preRbSeqnoPrepare.getStatus() == ENGINE_SUCCESS &&
+            !preRbSeqnoPrepare.item->isDeleted()) {
+            // Exists before so we are rolling back to prepare
+            vb.addSyncWriteForRollback(*preRbSeqnoPrepare.item);
+
+            // Store the prepare we need to add back in to the Passive DM for
+            // post-rollback processing.
+            queued_item qi(std::make_unique<Item>(*preRbSeqnoPrepare.item));
+            preparesToAdd.push_back(qi);
         }
     }
 
@@ -1242,6 +1275,10 @@ public:
         }
     }
 
+    // Prepares that need to be added to the Passive DM post rollback. Will be
+    // added to as each callback is made.
+    std::vector<queued_item> preparesToAdd;
+
 private:
     EventuallyPersistentEngine& engine;
 };
@@ -1249,7 +1286,9 @@ private:
 RollbackResult EPBucket::doRollback(Vbid vbid, uint64_t rollbackSeqno) {
     auto cb = std::make_shared<EPDiskRollbackCB>(engine);
     KVStore* rwUnderlying = vbMap.getShardByVbId(vbid)->getRWUnderlying();
-    return rwUnderlying->rollback(vbid, rollbackSeqno, cb);
+    auto result = rwUnderlying->rollback(vbid, rollbackSeqno, cb);
+    result.preparesToAdd = cb->preparesToAdd;
+    return result;
 }
 
 void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
