@@ -2129,6 +2129,12 @@ void KVStoreParamTest::SetUp() {
                 std::make_unique<RocksDBKVStoreConfig>(config, 0 /*shardId*/);
     }
 #endif
+#ifdef EP_USE_MAGMA
+    else if (config.getBackend() == "magma") {
+        kvstoreConfig =
+                std::make_unique<MagmaKVStoreConfig>(config, 0 /*shardId*/);
+    }
+#endif
     kvstore = setup_kv_store(*kvstoreConfig);
 }
 
@@ -2146,11 +2152,18 @@ public:
     }
 };
 
+class KVStoreParamTestSkipRocks : public KVStoreParamTest {
+public:
+    KVStoreParamTestSkipRocks() : KVStoreParamTest() {
+    }
+};
+
 // Test basic set / get of a document
 TEST_P(KVStoreParamTest, BasicTest) {
     kvstore->begin(std::make_unique<TransactionContext>());
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", 5);
+    item.setBySeqno(1);
     WriteCallback wc;
     kvstore->set(item, wc);
 
@@ -2170,6 +2183,7 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
 
     auto key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", 5);
+    item.setBySeqno(1);
     kvstore->set(item, std::ref(mpc));
 
     // Expect that the SET callback will be called once after `commit`
@@ -2178,15 +2192,13 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
     EXPECT_TRUE(kvstore->commit(flush));
 }
 
-TEST_P(KVStoreParamTest, TestPersistenceCallbacksForDel) {
-    // This test does not work under RocksDB because we assume that every
-    // deletion is to an item that does not exist
-    if (kvstoreConfig->getBackend() == "rocksdb") {
-        return;
-    }
+// This test does not work under RocksDB because we assume that every
+// deletion is to an item that does not exist
+TEST_P(KVStoreParamTestSkipRocks, TestPersistenceCallbacksForDel) {
     // Store an item
     auto key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", 5);
+    item.setBySeqno(1);
     // Use NiceMock to suppress the GMock warning that the `set` callback is
     // called but not considered in any EXCPECT_CALL (GMock warning is
     // "Uninteresting mock function call".)
@@ -2201,6 +2213,7 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForDel) {
     EXPECT_CALL(mpc, callback(_, status)).Times(0);
 
     item.setDeleted();
+    item.setBySeqno(2);
     kvstore->del(item, std::ref(mpc));
 
     // Expect that the DEL callback will be called once after `commit`
@@ -2216,8 +2229,10 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
     uint64_t seqno = 1000;
 
     // For this test we need to initialize both VBucket 0 and VBucket 1.
-    // In the case of RocksDB we need to release the DB already opened in 'kvstore'
-    if (kvstoreConfig->getBackend() == "rocksdb") {
+    // In the case of RocksDB and magma we need to release the DB
+    // already opened in 'kvstore'
+    if (kvstoreConfig->getBackend() == "rocksdb" ||
+        kvstoreConfig->getBackend() == "magma") {
         kvstore.reset();
     }
     kvstore = setup_kv_store(*kvstoreConfig, vbids);
@@ -2254,7 +2269,7 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
 
 // Verify thread-safeness for 'delVBucket' concurrent operations.
 // Expect ThreadSanitizer to pick this.
-TEST_P(KVStoreParamTest, DelVBucketConcurrentOperationsTest) {
+TEST_P(KVStoreParamTestSkipMagma, DelVBucketConcurrentOperationsTest) {
     WriteCallback wc;
     uint64_t seqno = 1000;
     Item item(makeStoredDocKey("key"),
@@ -2388,9 +2403,11 @@ TEST_P(KVStoreParamTest, GetRangeBasic) {
     // Setup: store 5 keys, a, b, c, d, e (with matching values)
     kvstore->begin(std::make_unique<TransactionContext>());
     WriteCallback dummyCb;
+    int64_t seqno = 1;
     for (char k = 'a'; k < 'f'; k++) {
         auto item = makeCommittedItem(makeStoredDocKey({k}),
                                       "value_"s + std::string{k});
+        item->setBySeqno(seqno++);
         kvstore->set(*item, dummyCb);
     }
     kvstore->commit(flush);
@@ -2415,9 +2432,11 @@ TEST_P(KVStoreParamTest, GetRangeDeleted) {
     //        2) delete 3 of them (b, d, f)
     kvstore->begin(std::make_unique<TransactionContext>());
     WriteCallback dummyCb;
+    int64_t seqno = 1;
     for (char k = 'a'; k < 'h'; k++) {
         auto item = makeCommittedItem(makeStoredDocKey({k}),
                                       "value_"s + std::string{k});
+        item->setBySeqno(seqno++);
         kvstore->set(*item, dummyCb);
     }
     kvstore->commit(flush);
@@ -2428,6 +2447,7 @@ TEST_P(KVStoreParamTest, GetRangeDeleted) {
         auto item = makeCommittedItem(makeStoredDocKey({k}),
                                       "value_"s + std::string{k});
         item->setDeleted(DeleteSource::Explicit);
+        item->setBySeqno(seqno++);
         kvstore->del(*item, dummyDelCb);
     }
     kvstore->commit(flush);
@@ -2457,6 +2477,7 @@ TEST_P(KVStoreParamTest, Durability_PersistPrepare) {
               0 /*cas*/);
     using namespace cb::durability;
     item.setPendingSyncWrite(Requirements());
+    item.setBySeqno(1);
 
     WriteCallback wc;
     kvstore->begin(std::make_unique<TransactionContext>());
@@ -2529,6 +2550,9 @@ TEST_P(KVStoreParamTest, OptimizeWrites) {
 }
 
 static std::string kvstoreTestParams[] = {
+#ifdef EP_USE_MAGMA
+        "magma",
+#endif
 #ifdef EP_USE_ROCKSDB
         "rocksdb",
 #endif
@@ -2537,6 +2561,32 @@ static std::string kvstoreTestParams[] = {
 INSTANTIATE_TEST_CASE_P(KVStoreParam,
                         KVStoreParamTest,
                         ::testing::ValuesIn(kvstoreTestParams),
+                        [](const ::testing::TestParamInfo<std::string>& info) {
+                            return info.param;
+                        });
+
+static std::string kvstoreTestParamsSkipMagma[] = {
+#ifdef EP_USE_ROCKSDB
+        "rocksdb",
+#endif
+        "couchdb"};
+
+INSTANTIATE_TEST_CASE_P(KVStoreParam,
+                        KVStoreParamTestSkipMagma,
+                        ::testing::ValuesIn(kvstoreTestParamsSkipMagma),
+                        [](const ::testing::TestParamInfo<std::string>& info) {
+                            return info.param;
+                        });
+
+static std::string kvstoreTestParamsSkipRocks[] = {
+#ifdef EP_USE_MAGMA
+        "magma",
+#endif
+        "couchdb"};
+
+INSTANTIATE_TEST_CASE_P(KVStoreParam,
+                        KVStoreParamTestSkipRocks,
+                        ::testing::ValuesIn(kvstoreTestParamsSkipRocks),
                         [](const ::testing::TestParamInfo<std::string>& info) {
                             return info.param;
                         });
@@ -2637,39 +2687,3 @@ TEST_F(RocksDBKVStoreTest, StatisticsOptionWrongValueTest) {
     kvstore = setup_kv_store(*kvstoreConfig);
 }
 #endif
-
-#ifdef EP_USE_MAGMA
-// Test fixture for tests which run only on Magma.
-class MagmaKVStoreTest : public KVStoreTest {
-protected:
-    void SetUp() override {
-        KVStoreTest::SetUp();
-        Configuration config;
-        config.setDbname(data_dir);
-        config.setBackend("magma");
-        kvstoreConfig =
-                std::make_unique<MagmaKVStoreConfig>(config, 0 /*shardId*/);
-        kvstore = setup_kv_store(*kvstoreConfig);
-    }
-
-    void TearDown() override {
-        kvstore.reset();
-        KVStoreTest::TearDown();
-    }
-
-    std::unique_ptr<KVStoreConfig> kvstoreConfig;
-    std::unique_ptr<KVStore> kvstore;
-};
-
-// Simple sanity test to verify magma
-TEST_F(MagmaKVStoreTest, Sanity) {
-    vbucket_state vbstate;
-    vbstate.reset();
-    vbstate.highSeqno = 1234;
-    kvstore->snapshotVBucket(
-            Vbid(0), vbstate, VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT);
-
-    auto vbs = kvstore->getVBucketState(Vbid(0));
-    ASSERT_EQ(vbstate.highSeqno, vbs->highSeqno);
-}
-#endif // EP_USE_MAGMA

@@ -1127,7 +1127,7 @@ int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
         vbstate->highSeqno = lastSeqno;
     }
 
-    auto magmaInfo = getMagmaInfo(vbid);
+    auto& magmaInfo = getMagmaInfo(vbid);
     magmaInfo.docCount += ninserts - ndeletes;
     magmaInfo.persistedDeletes += ndeletes;
 
