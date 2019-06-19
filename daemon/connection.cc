@@ -1431,7 +1431,7 @@ void Connection::runEventLoop(short which) {
                         }
                     }
                 }
-                LOG_WARNING(
+                LOG_ERROR(
                         R"({}: exception occurred in runloop during packet execution. Cookie info: {} - closing connection ({}): {})",
                         getId(),
                         array.dump(),
@@ -1445,7 +1445,7 @@ void Connection::runEventLoop(short which) {
 
         if (!logged) {
             try {
-                LOG_WARNING(
+                LOG_ERROR(
                         R"({}: exception occurred in runloop (state: "{}") - closing connection ({}): {})",
                         getId(),
                         getStateName(),
@@ -1467,7 +1467,7 @@ void Connection::runEventLoop(short which) {
             runStateMachinery();
         } catch (const std::exception& e) {
             try {
-                LOG_WARNING(
+                LOG_ERROR(
                         R"({}: exception occurred in runloop whilst attempting to close connection ({}): {})",
                         getId(),
                         getDescription(),
