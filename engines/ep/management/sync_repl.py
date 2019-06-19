@@ -3,6 +3,7 @@
 """ Simple CLI for basic SyncWrite operations."""
 
 import mc_bin_client
+import memcacheConstants
 import sys
 
 if len(sys.argv) < 7:
@@ -24,6 +25,7 @@ op = sys.argv[5]
 key = sys.argv[6]
 if len(sys.argv) > 7:
     value = sys.argv[7]
+level = memcacheConstants.DURABILITY_LEVEL_MAJORITY
 
 if op == "get":
     print (client.get(key))
@@ -41,6 +43,9 @@ elif op == "setD":
     print (client.setDurable(key, 0, 0, value, level=level, timeout=timeout))
 elif op == "bulk_setD":
     count = int(sys.argv[8])
+    if len(sys.argv) > 9:
+        level = int(sys.argv[9])
+
     for i in range(count):
         client.setDurable(key + "_" + str(i), 0, 0, value)
 elif op == "loop_setD":

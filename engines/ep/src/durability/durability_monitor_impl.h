@@ -70,6 +70,8 @@ public:
 
     const void* getCookie() const;
 
+    std::chrono::steady_clock::time_point getStartTime() const;
+
     /**
      * Notify this SyncWrite that it has been ack'ed by node.
      *
@@ -159,6 +161,10 @@ private:
     // Used for enforcing the Durability Requirements Timeout. It is set
     // when this SyncWrite is added for tracking into the DurabilityMonitor.
     const boost::optional<std::chrono::steady_clock::time_point> expiryTime;
+
+    /// The time point the SyncWrite was added to the DurabilityMonitor.
+    /// Used for statistics (track how long SyncWrites take to complete).
+    const std::chrono::steady_clock::time_point startTime;
 
     friend std::ostream& operator<<(std::ostream&, const SyncWrite&);
 };

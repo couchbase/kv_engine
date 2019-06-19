@@ -629,12 +629,12 @@ void VBucket::setupSyncReplication(const nlohmann::json& topology) {
             // an ActiveDM from the PassiveDM, maintaining any in-flight
             // SyncWrites.
             durabilityMonitor = std::make_unique<ActiveDurabilityMonitor>(
-                    std::move(*currentPassiveDM));
+                    stats, std::move(*currentPassiveDM));
         } else if (!durabilityMonitor) {
             // Change to Active from no previous DurabilityMonitor - create
             // one.
             durabilityMonitor =
-                    std::make_unique<ActiveDurabilityMonitor>(*this);
+                    std::make_unique<ActiveDurabilityMonitor>(stats, *this);
         } else {
             // Already have an (active?) DurabilityMonitor and just changing
             // topology.

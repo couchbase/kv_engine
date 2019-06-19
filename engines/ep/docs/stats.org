@@ -847,6 +847,9 @@ form to describe when time was spent doing various things:
 |                                 | persistence cursor from checkpoint queues      |
 | dcp_cursors_get_all_items       | Time spent in fetching all items by all dcp    |
 |                                 | cursors from checkpoint queues                 |
+| sync_write_commit_majority      | Commit duration for level=majority SyncWrites  |
+| sync_write_commit_majority_and_persist_on_master | Commit duration for level=majorityPersistActive SyncWrites |
+| sync_write_commit_persist_to_majority | Commit duration for level=persistMajority SyncWrites |
 
 The following histograms are available from "eviction" and provide a histogram
 of execution frequencies and eviction thresholds.  Note, these statstics are

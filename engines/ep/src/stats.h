@@ -21,6 +21,7 @@
 #include "objectregistry.h"
 
 #include <folly/CachelinePadded.h>
+#include <memcached/durability_spec.h>
 #include <memcached/types.h>
 #include <platform/corestore.h>
 #include <platform/non_negative_counter.h>
@@ -29,6 +30,7 @@
 
 #include <platform/histogram.h>
 #include <algorithm>
+#include <array>
 #include <atomic>
 
 class CoreLocalStats;
@@ -493,6 +495,14 @@ public:
     //! Checkpoint Cursor histograms
     Hdr1sfMicroSecHistogram persistenceCursorGetItemsHisto;
     Hdr1sfMicroSecHistogram dcpCursorsGetItemsHisto;
+
+    /// Histogram of the durations of SyncWrite commits; measured from when
+    /// the SyncWrite is added to the durability monitor up to when it is
+    /// committed.
+    /// One histogram per durability level.
+    std::array<Hdr1sfMicroSecHistogram,
+               size_t(cb::durability::Level::PersistToMajority)>
+            syncWriteCommitTimes;
 
     //! Reset all stats to reasonable values.
     void reset();

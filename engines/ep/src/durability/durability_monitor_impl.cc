@@ -44,7 +44,8 @@ DurabilityMonitor::SyncWrite::SyncWrite(
     : cookie(cookie),
       item(item),
       expiryTime(expiryFromDurabiltyReqs(item->getDurabilityReqs(),
-                                         defaultTimeout)) {
+                                         defaultTimeout)),
+      startTime(std::chrono::steady_clock::now()) {
     // We should always have a first chain if we have a second
     if (secondChain) {
         Expects(firstChain);
@@ -70,6 +71,11 @@ cb::durability::Requirements DurabilityMonitor::SyncWrite::getDurabilityReqs()
 
 const void* DurabilityMonitor::SyncWrite::getCookie() const {
     return cookie;
+}
+
+std::chrono::steady_clock::time_point
+DurabilityMonitor::SyncWrite::getStartTime() const {
+    return startTime;
 }
 
 void DurabilityMonitor::SyncWrite::ack(const std::string& node) {

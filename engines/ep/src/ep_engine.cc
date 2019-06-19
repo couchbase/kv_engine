@@ -3862,6 +3862,20 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(
                     stats.dcpCursorsGetItemsHisto,
                     add_stat, cookie);
 
+    // SyncWrite stats
+    add_casted_stat("sync_write_commit_majority",
+                    stats.syncWriteCommitTimes.at(0),
+                    add_stat,
+                    cookie);
+    add_casted_stat("sync_write_commit_majority_and_persist_on_master",
+                    stats.syncWriteCommitTimes.at(1),
+                    add_stat,
+                    cookie);
+    add_casted_stat("sync_write_commit_persist_to_majority",
+                    stats.syncWriteCommitTimes.at(2),
+                    add_stat,
+                    cookie);
+
     return ENGINE_SUCCESS;
 }
 

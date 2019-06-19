@@ -348,6 +348,9 @@ void EPStats::reset() {
     replicaFrequencyValuesEvictedHisto.reset();
     activeOrPendingFrequencyValuesSnapshotHisto.reset();
     replicaFrequencyValuesSnapshotHisto.reset();
+    for (auto& hist : syncWriteCommitTimes) {
+        hist.reset();
+    }
 }
 
 size_t EPStats::getMemFootPrint() const {

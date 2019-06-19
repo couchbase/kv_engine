@@ -762,7 +762,7 @@ void EPVBucket::restoreOutstandingPreparesFromWarmup(
     switch (getState()) {
     case vbucket_state_active: {
         durabilityMonitor = std::make_unique<ActiveDurabilityMonitor>(
-                *this, std::move(outstandingPrepares));
+                stats, *this, std::move(outstandingPrepares));
         auto topology = getReplicationTopology();
         if (!topology.is_null()) {
             dynamic_cast<ActiveDurabilityMonitor*>(durabilityMonitor.get())

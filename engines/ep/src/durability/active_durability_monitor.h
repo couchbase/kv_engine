@@ -25,6 +25,7 @@
 
 #include <unordered_set>
 
+class EPStats;
 class PassiveDurabilityMonitor;
 class VBucket;
 
@@ -40,7 +41,7 @@ class ActiveDurabilityMonitor : public DurabilityMonitor {
 public:
     // Note: constructor and destructor implementation in the .cc file to allow
     // the forward declaration of ReplicationChain in the header
-    ActiveDurabilityMonitor(VBucket& vb);
+    ActiveDurabilityMonitor(EPStats& stats, VBucket& vb);
 
     /**
      * Construct an ActiveDM for the given vBucket, with the specified
@@ -52,16 +53,18 @@ public:
      *        These must be ordered by ascending seqno, otherwise
      *        std::invalid_argument will be thrown.
      */
-    ActiveDurabilityMonitor(VBucket& vb,
+    ActiveDurabilityMonitor(EPStats& stats,
+                            VBucket& vb,
                             std::vector<queued_item>&& outstandingPrepares);
 
     /**
      * Construct an ActiveDM by converting the given PassiveDM.
      * All the (in-flight) tracked Prepares in the old PassiveDM are retained.
      *
+     * @param stats EPStats object for the associated Bucket.
      * @param pdm The PassiveDM to be converted
      */
-    ActiveDurabilityMonitor(PassiveDurabilityMonitor&& pdm);
+    ActiveDurabilityMonitor(EPStats& stats, PassiveDurabilityMonitor&& pdm);
 
     ~ActiveDurabilityMonitor();
 
@@ -260,6 +263,9 @@ protected:
     void addStatsForChain(const AddStatFn& addStat,
                           const void* cookie,
                           const ReplicationChain& chain) const;
+
+    // The stats object for the owning Bucket
+    EPStats& stats;
 
     // The VBucket owning this DurabilityMonitor instance
     VBucket& vb;

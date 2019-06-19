@@ -20,6 +20,7 @@
 #include "durability_monitor_impl.h"
 #include "item.h"
 #include "passive_durability_monitor.h"
+#include "stats.h"
 #include "statwriter.h"
 #include "vbucket.h"
 
@@ -229,13 +230,15 @@ public:
     std::unordered_map<std::string, Monotonic<int64_t>> queuedSeqnoAcks;
 };
 
-ActiveDurabilityMonitor::ActiveDurabilityMonitor(VBucket& vb)
-    : vb(vb), state(std::make_unique<State>(*this)) {
+ActiveDurabilityMonitor::ActiveDurabilityMonitor(EPStats& stats, VBucket& vb)
+    : stats(stats), vb(vb), state(std::make_unique<State>(*this)) {
 }
 
 ActiveDurabilityMonitor::ActiveDurabilityMonitor(
-        VBucket& vb, std::vector<queued_item>&& outstandingPrepares)
-    : ActiveDurabilityMonitor(vb) {
+        EPStats& stats,
+        VBucket& vb,
+        std::vector<queued_item>&& outstandingPrepares)
+    : ActiveDurabilityMonitor(stats, vb) {
     auto s = state.wlock();
     for (auto& prepare : outstandingPrepares) {
         auto seqno = prepare->getBySeqno();
@@ -251,8 +254,9 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(
     }
 }
 
-ActiveDurabilityMonitor::ActiveDurabilityMonitor(PassiveDurabilityMonitor&& pdm)
-    : ActiveDurabilityMonitor(pdm.vb) {
+ActiveDurabilityMonitor::ActiveDurabilityMonitor(EPStats& stats,
+                                                 PassiveDurabilityMonitor&& pdm)
+    : ActiveDurabilityMonitor(stats, pdm.vb) {
     auto s = state.wlock();
     s->trackedWrites.swap(pdm.state.wlock()->trackedWrites);
     if (!s->trackedWrites.empty()) {
@@ -773,6 +777,14 @@ void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
                 "status:" +
                 std::to_string(result));
     }
+
+    // Record the duration of the SyncWrite in histogram.
+    const auto index = size_t(sw.getDurabilityReqs().getLevel()) - 1;
+    const auto commitDuration =
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - sw.getStartTime());
+    stats.syncWriteCommitTimes.at(index).add(commitDuration);
+
     {
         auto s = state.wlock();
         s->lastCommittedSeqno = sw.getBySeqno();
