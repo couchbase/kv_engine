@@ -859,7 +859,7 @@ ENGINE_ERROR_CODE VBucket::abort(
     if (!htRes.storedValue) {
         // Active - If we are aborting we /should/ always find the pending item.
         if (!abortSeqno) {
-            EP_LOG_WARN(
+            EP_LOG_ERR(
                     "VBucket::abort ({}) - active - failed as no HashTable"
                     "item found with key:{}",
                     id,
@@ -871,7 +871,7 @@ ENGINE_ERROR_CODE VBucket::abort(
 
         if (!(static_cast<uint64_t>(getHighSeqno()) < prepareSeqno &&
               prepareSeqno < duplicateAbortOrPrepareOverwriteSeqno)) {
-            EP_LOG_WARN(
+            EP_LOG_ERR(
                     "VBucket::abort ({}) - replica - failed as we received "
                     "an abort for a prepare that does not exist and we are "
                     "not in the window highSeqno:{} <= prepareSeqno:{} < "
@@ -893,7 +893,7 @@ ENGINE_ERROR_CODE VBucket::abort(
         // this is a logic error...
         std::stringstream ss;
         ss << *htRes.storedValue;
-        EP_LOG_WARN(
+        EP_LOG_ERR(
                 "VBucket::abort ({}) failed as HashTable value is not "
                 "CommittedState::Pending - {}",
                 id,
