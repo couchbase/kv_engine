@@ -177,10 +177,7 @@ public:
             Vbid vbid,
             const DiskDocKey& start_key,
             uint32_t count,
-            std::shared_ptr<Callback<const DiskDocKey&>> cb) override {
-        // TODO
-        return ENGINE_SUCCESS;
-    }
+            std::shared_ptr<Callback<const DiskDocKey&>> cb) override;
 
     ScanContext* initScanContext(
             std::shared_ptr<StatusCallback<GetValue>> cb,

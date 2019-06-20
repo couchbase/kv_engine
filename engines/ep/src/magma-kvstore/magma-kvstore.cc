@@ -1676,3 +1676,63 @@ std::unique_lock<std::shared_timed_mutex> MagmaKVStore::getExclusiveKVHandle(
     }
     return lock;
 }
+
+ENGINE_ERROR_CODE MagmaKVStore::getAllKeys(
+        Vbid vbid,
+        const DiskDocKey& startKey,
+        uint32_t count,
+        std::shared_ptr<Callback<const DiskDocKey&>> cb) {
+    auto kvHandle = getMagmaKVHandle(vbid);
+
+    Slice startKeySlice = {reinterpret_cast<const char*>(startKey.data()),
+                           startKey.size()};
+
+    // The magma GetRange API takes a start and end key. getAllKeys only
+    // supplies a start key and count of the number of keys it wants.
+    // When endKeySlice is uninitialized (as it is here), the
+    // endKeySlice.Len() will be 0 which tells GetRange to ignore it.
+    Slice endKeySlice;
+
+    uint32_t processed = 0;
+
+    auto callback = [&](Slice& keySlice, Slice& metaSlice, Slice& valueSlice) {
+        if (logger->should_log(spdlog::level::TRACE)) {
+            logger->TRACE(
+                    "MagmaKVStore::getAllKeys callback {} key:{} seqno:{} "
+                    "deleted:{}",
+                    vbid,
+                    makeDiskDocKey(keySlice).to_string(),
+                    getSeqNum(metaSlice),
+                    isDeleted(metaSlice));
+        }
+
+        if (isDeleted(metaSlice)) {
+            return;
+        }
+        auto retKey = makeDiskDocKey(keySlice);
+        cb->callback(retKey);
+        processed++;
+    };
+
+    if (logger->should_log(spdlog::level::TRACE)) {
+        logger->TRACE("MagmaKVStore::getAllKeys {} start:{} count:{})",
+                      vbid,
+                      startKey.to_string(),
+                      count);
+    }
+
+    auto status = magma->GetRange(
+            vbid.get(), startKeySlice, endKeySlice, callback, false, count);
+    if (!status) {
+        logger->critical("MagmaKVStore::getAllKeys {} startKey:{} status:{}",
+                         vbid,
+                         startKey.to_string(),
+                         status.String());
+    }
+
+    if (!status) {
+        return magmaErr2EngineErr(status.ErrorCode(), true);
+    }
+
+    return ENGINE_SUCCESS;
+}

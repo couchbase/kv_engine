@@ -151,10 +151,18 @@ public:
 
     void callback(RV&...result) {
         cb(std::forward<RV>(result)...);
+        processed++;
+    }
+
+    uint32_t getProcessedCount() {
+        return processed;
     }
 
 protected:
     std::function<void(RV...)> cb;
+
+private:
+    uint32_t processed = 0;
 };
 
 /**
@@ -2605,6 +2613,30 @@ TEST_P(KVStoreParamTest, OptimizeWrites) {
     for (int i = 0; i < 3; i++) {
         EXPECT_EQ(0, keys[i].compare(items[i]->getKey()));
     }
+}
+
+TEST_P(KVStoreParamTestSkipRocks, GetAllKeysSanity) {
+    kvstore->begin(std::make_unique<TransactionContext>());
+    WriteCallback wc;
+    int keys = 20;
+    for (int i = 0; i < keys; i++) {
+        std::string key("key" + std::to_string(i));
+        Item item(makeStoredDocKey(key),
+                  0,
+                  0,
+                  "value",
+                  5,
+                  PROTOCOL_BINARY_RAW_BYTES,
+                  0,
+                  i + 1);
+        kvstore->set(item, wc);
+    }
+
+    kvstore->commit(flush);
+    auto cb(std::make_shared<CustomCallback<const DiskDocKey&>>());
+    DiskDocKey start(nullptr, 0);
+    kvstore->getAllKeys(Vbid(0), start, 20, cb);
+    EXPECT_EQ(keys, int(cb->getProcessedCount()));
 }
 
 static std::string kvstoreTestParams[] = {
