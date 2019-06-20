@@ -357,7 +357,7 @@ TEST_P(DurabilityActiveStreamTest, BackfillAbort) {
     const auto& abrt = static_cast<AbortSyncWrite&>(*resp);
     ASSERT_TRUE(abrt.getBySeqno());
     EXPECT_EQ(2, *abrt.getBySeqno());
-    EXPECT_EQ(0, abrt.getPreparedSeqno());
+    EXPECT_EQ(1, abrt.getPreparedSeqno());
 
     producer->cancelCheckpointCreatorTask();
 }

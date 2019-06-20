@@ -85,7 +85,8 @@ public:
           flags(it.getFlags()),
           valueSize(it.getNBytes()),
           vbid(it.getVBucketId().get()),
-          datatype(it.getDataType()) {
+          datatype(it.getDataType()),
+          prepareSeqno(it.getPrepareSeqno()) {
         if (it.isDeleted()) {
             deleted = 1;
             deleteSource = static_cast<uint8_t>(it.deletionSource());
@@ -111,7 +112,8 @@ public:
           vbid(vbid.get()),
           datatype(0),
           operation(0),
-          durabilityLevel(0) {
+          durabilityLevel(0),
+          prepareSeqno(0) {
         if (isDeleted) {
             deleted = 1;
             deleteSource = static_cast<uint8_t>(DeleteSource::Explicit);
@@ -174,6 +176,7 @@ public:
     uint8_t deleteSource : 1;
     uint8_t operation : 2;
     uint8_t durabilityLevel : 2;
+    cb::uint48_t prepareSeqno;
 
 private:
     static Operation toOperation(queue_op op) {
@@ -197,7 +200,7 @@ private:
 };
 #pragma pack()
 
-static_assert(sizeof(MetaData) == 41,
+static_assert(sizeof(MetaData) == 47,
               "magmakv::MetaData is not the expected size.");
 } // namespace magmakv
 
@@ -1004,9 +1007,11 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
         return item;
     case magmakv::MetaData::Operation::CommittedSyncWrite:
         item->setCommittedviaPrepareSyncWrite();
+        item->setPrepareSeqno(meta.prepareSeqno);
         return item;
     case magmakv::MetaData::Operation::Abort:
         item->setAbortSyncWrite();
+        item->setPrepareSeqno(meta.prepareSeqno);
         return item;
     }
 

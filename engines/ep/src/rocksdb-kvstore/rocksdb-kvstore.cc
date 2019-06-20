@@ -102,7 +102,8 @@ public:
              uint64_t revSeqno,
              int64_t bySeqno,
              queue_op operation,
-             cb::durability::Level durabilityLevel)
+             cb::durability::Level durabilityLevel,
+             int64_t prepareSeqno)
         : deleted(deleted),
           deleteSource(deleteSource),
           version(version),
@@ -114,7 +115,8 @@ public:
           exptime(exptime),
           cas(cas),
           revSeqno(revSeqno),
-          bySeqno(bySeqno){};
+          bySeqno(bySeqno),
+          prepareSeqno(prepareSeqno){};
 
     Operation getOperation() const {
         return static_cast<Operation>(operation);
@@ -146,6 +148,9 @@ public:
     cb::uint48_t revSeqno;
     cb::uint48_t bySeqno;
 
+    // @TODO only required for committed and aborted SyncWrites, move out.
+    cb::uint48_t prepareSeqno;
+
 private:
     static Operation toOperation(queue_op op) {
         switch (op) {
@@ -168,7 +173,7 @@ private:
 };
 #pragma pack()
 
-static_assert(sizeof(MetaData) == 39,
+static_assert(sizeof(MetaData) == 45,
               "rocksdb::MetaData is not the expected size.");
 
 } // namespace rockskv
@@ -201,7 +206,8 @@ public:
                 item.getRevSeqno(),
                 item.getBySeqno(),
                 item.getOperation(),
-                item.getDurabilityReqs().getLevel());
+                item.getDurabilityReqs().getLevel(),
+                item.getPrepareSeqno());
     }
 
     const rockskv::MetaData& getDocMeta() const {
@@ -1063,9 +1069,11 @@ std::unique_ptr<Item> RocksDBKVStore::makeItem(Vbid vb,
         return item;
     case rockskv::MetaData::Operation::CommittedSyncWrite:
         item->setCommittedviaPrepareSyncWrite();
+        item->setPrepareSeqno(meta.prepareSeqno);
         return item;
     case rockskv::MetaData::Operation::Abort:
         item->setAbortSyncWrite();
+        item->setPrepareSeqno(meta.prepareSeqno);
         return item;
     }
 

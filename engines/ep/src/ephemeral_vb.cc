@@ -690,6 +690,9 @@ VBNotifyCtx EphemeralVBucket::commitStoredValue(
                                   GenerateRevSeqno::No);
     }
 
+    // @TODO set the prepare seqno of the committed OSV so that we can backfill
+    // it from the seqList.
+
     values.pending.setCommitted(CommittedState::PrepareCommitted);
     return notifyCtx;
 }
@@ -761,6 +764,10 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
         /* Update the high seqno in the sequential storage */
         auto& osv = *(newSv->toOrderedStoredValue());
         seqList->updateHighSeqno(listWriteLg, osv);
+
+        // Manually set the prepareSeqno on the OSV so that it is stored in the
+        // seqList
+        osv.setPrepareSeqno(prepareSeqno);
 
         // If we did an append we still need to mark the un-updated StoredValue
         // as stale.

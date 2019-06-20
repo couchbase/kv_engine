@@ -1853,7 +1853,7 @@ TEST_F(CouchKVStoreMetaData, basic) {
     EXPECT_EQ(16, MetaData::getMetaDataSize(MetaData::Version::V0));
     EXPECT_EQ(16 + 2, MetaData::getMetaDataSize(MetaData::Version::V1));
     EXPECT_EQ(16 + 2 + 1, MetaData::getMetaDataSize(MetaData::Version::V2));
-    EXPECT_EQ(16 + 2 + 2, MetaData::getMetaDataSize(MetaData::Version::V3));
+    EXPECT_EQ(16 + 2 + 7, MetaData::getMetaDataSize(MetaData::Version::V3));
 }
 
 TEST_F(CouchKVStoreMetaData, overlay) {
@@ -1878,7 +1878,7 @@ TEST_F(CouchKVStoreMetaData, overlay) {
     EXPECT_EQ(MetaData::Version::V1, metadata->getVersionInitialisedFrom());
 
     // Increase to size of V3; should create V3.
-    data.resize(16 + 2 + 2);
+    data.resize(16 + 2 + 7);
     meta.buf = data.data();
     meta.size = data.size();
     metadata = MetaDataFactory::createMetaData(meta);
@@ -1935,7 +1935,7 @@ TEST_F(CouchKVStoreMetaData, overlayExpands2) {
 }
 
 TEST_F(CouchKVStoreMetaData, overlayExpands3) {
-    std::vector<char> data(16 + 2 + 2);
+    std::vector<char> data(16 + 2 + 7);
     sized_buf meta;
     sized_buf out;
     meta.buf = data.data();
@@ -1975,8 +1975,8 @@ TEST_F(CouchKVStoreMetaData, writeToOverlay) {
     metadata->setDeleteSource(deleteSource);
     metadata->setDataType(PROTOCOL_BINARY_DATATYPE_JSON);
     constexpr auto level = cb::durability::Level::Majority;
-    metadata->setPrepareProperties(level, /*isSyncDelete*/ false);
     metadata->setDurabilityOp(queue_op::pending_sync_write);
+    metadata->setPrepareProperties(level, /*isSyncDelete*/ false);
 
     // Check they all read back
     EXPECT_EQ(cas, metadata->getCas());
@@ -1987,6 +1987,11 @@ TEST_F(CouchKVStoreMetaData, writeToOverlay) {
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, metadata->getDataType());
     EXPECT_EQ(level, metadata->getDurabilityLevel());
     EXPECT_EQ(queue_op::pending_sync_write, metadata->getDurabilityOp());
+
+    metadata->setDurabilityOp(queue_op::commit_sync_write);
+    metadata->setCompletedProperties(1234);
+    EXPECT_EQ(queue_op::commit_sync_write, metadata->getDurabilityOp());
+    EXPECT_EQ(1234, metadata->getPrepareSeqno());
 
     // Now we move the metadata out, this will give back a V1 structure
     out.size = MetaData::getMetaDataSize(MetaData::Version::V1);
@@ -2478,6 +2483,7 @@ TEST_P(KVStoreParamTest, Durability_PersistAbort) {
     using namespace cb::durability;
     item.setAbortSyncWrite();
     item.setDeleted();
+    item.setPrepareSeqno(999);
 
     DeleteCallback dc;
     kvstore->begin(std::make_unique<TransactionContext>());
@@ -2493,6 +2499,7 @@ TEST_P(KVStoreParamTest, Durability_PersistAbort) {
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
     EXPECT_TRUE(gv.item->isAbort());
     EXPECT_TRUE(gv.item->isDeleted());
+    EXPECT_EQ(999, gv.item->getPrepareSeqno());
 }
 
 TEST_P(KVStoreParamTest, OptimizeWrites) {

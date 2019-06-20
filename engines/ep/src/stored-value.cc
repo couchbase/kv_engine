@@ -250,6 +250,11 @@ std::unique_ptr<Item> StoredValue::toItem(
         break;
     }
 
+    if (isOrdered()) {
+        item->setPrepareSeqno(
+                static_cast<const OrderedStoredValue*>(this)->prepareSeqno);
+    }
+
     return item;
 }
 

@@ -188,9 +188,11 @@ static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
             break;
         case queue_op::commit_sync_write:
             item->setCommittedviaPrepareSyncWrite();
+            item->setPrepareSeqno(metadata.getPrepareSeqno());
             break;
         case queue_op::abort_sync_write:
             item->setAbortSyncWrite();
+            item->setPrepareSeqno(metadata.getPrepareSeqno());
             break;
         default:
             throw std::logic_error("makeItemFromDocInfo: Invalid queue_op:" +
@@ -272,6 +274,10 @@ CouchRequest::CouchRequest(const Item& it, MutationRequestCallback cb)
         // (or sit in pending forever).
         const auto level = it.getDurabilityReqs().getLevel();
         meta.setPrepareProperties(level, it.isDeleted());
+    }
+
+    if (it.isCommitSyncWrite() || it.isAbort()) {
+        meta.setCompletedProperties(it.getPrepareSeqno());
     }
 
     dbDocInfo.db_seq = it.getBySeqno();

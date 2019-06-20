@@ -445,7 +445,7 @@ TEST_F(OrderedStoredValueTest, expectedSize) {
 #ifdef CB_MEMORY_INEFFICIENT_TAGGED_PTR
     const long expected_size = 80;
 #else
-    const long expected_size = 72;
+    const long expected_size = 80;
 #endif
 
     EXPECT_EQ(expected_size, sizeof(OrderedStoredValue))

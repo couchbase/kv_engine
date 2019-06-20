@@ -20,10 +20,12 @@
 #include "queue_op.h"
 
 #include <folly/lang/Assume.h>
+#include <folly/lang/Bits.h>
 #include <libcouchstore/couch_common.h>
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
+#include <platform/n_byte_integer.h>
 
 #include <memory>
 #include <type_traits>
@@ -247,12 +249,14 @@ protected:
 
         void initialise(const char* raw) {
             operation = Operation(raw[0]);
-            pending.raw = uint8_t(raw[1]);
+            uint64_t buf;
+            std::memcpy(&buf, &raw[1], sizeof(cb::uint48_t));
+            details.raw = cb::uint48_t(buf).ntoh();
         };
 
         void copyToBuf(char* raw) const {
             raw[0] = char(operation);
-            raw[1] = char(pending.raw);
+            std::memcpy(&raw[1], &details.raw, sizeof(cb::uint48_t));
         }
 
         void setDurabilityOp(queue_op op) {
@@ -289,19 +293,39 @@ protected:
         }
 
         cb::durability::Level getDurabilityLevel() const {
-            return static_cast<cb::durability::Level>(pending.bits.level);
+            Expects(operation == Operation::Pending);
+            return static_cast<cb::durability::Level>(details.pending.level);
         }
 
         void setDurabilityLevel(cb::durability::Level level_) {
-            pending.bits.level = static_cast<char>(level_);
+            Expects(operation == Operation::Pending);
+            details.pending.level = static_cast<char>(level_);
         }
 
         bool isPreparedDelete() const {
-            return pending.bits.isDelete == 1;
+            Expects(operation == Operation::Pending);
+            return details.pending.isDelete == 1;
         }
 
         void setPreparedDelete(bool isPreparedSyncDelete) {
-            pending.bits.isDelete = isPreparedSyncDelete;
+            Expects(operation == Operation::Pending);
+            details.pending.isDelete = isPreparedSyncDelete;
+        }
+
+        cb::uint48_t getPrepareSeqno() const {
+            Expects(operation == Operation::Commit ||
+                    operation == Operation::Abort);
+            return details.completed.prepareSeqno;
+        }
+
+        void setPrepareSeqno(cb::uint48_t prepareSeqno) {
+            Expects(operation == Operation::Commit ||
+                    operation == Operation::Abort);
+            details.completed.prepareSeqno = prepareSeqno;
+        }
+
+        void prepareForPersistence() {
+            details.raw = details.raw.hton();
         }
 
     private:
@@ -311,18 +335,26 @@ protected:
 
         // [[if Pending]] Properties of the pending SyncWrite.
         // Currently using 3 bits out of the available 8 in this byte.
-        union {
+        union detailsUnion {
+            // Need to supply a default constructor or the compiler will
+            // complain about cb::uint48_t
+            detailsUnion() : raw(0){};
             struct {
                 // 0:pendingSyncWrite, 1:pendingSyncDelete.
                 uint8_t isDelete : 1;
                 // cb::durability::Level
                 uint8_t level : 2;
-            } bits;
-            uint8_t raw;
-        } pending;
+            } pending;
+            struct completedDetails {
+                // prepareSeqno of the completed Sync Write
+                cb::uint48_t prepareSeqno;
+            } completed;
+
+            cb::uint48_t raw;
+        } details;
     };
 
-    static_assert(sizeof(MetaDataV3) == 2,
+    static_assert(sizeof(MetaDataV3) == 7,
                   "MetaDataV3 is not the expected size.");
 
 public:
@@ -410,6 +442,7 @@ public:
      */
     char* prepareAndGetForPersistence() {
         allMeta.v0.prepareForPersistence();
+        allMeta.v3.prepareForPersistence();
         return reinterpret_cast<char*>(&allMeta);
     }
 
@@ -482,12 +515,20 @@ public:
         allMeta.v3.setPreparedDelete(isSyncDelete);
     }
 
+    void setCompletedProperties(cb::uint48_t prepareSeqno) {
+        allMeta.v3.setPrepareSeqno(prepareSeqno);
+    }
+
     cb::durability::Level getDurabilityLevel() const {
         return allMeta.v3.getDurabilityLevel();
     }
 
     bool isPreparedSyncDelete() const {
         return allMeta.v3.isPreparedDelete();
+    }
+
+    cb::uint48_t getPrepareSeqno() const {
+        return allMeta.v3.getPrepareSeqno();
     }
 
     Version getVersionInitialisedFrom() const {

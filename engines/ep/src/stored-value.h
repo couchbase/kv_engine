@@ -1132,6 +1132,10 @@ public:
      */
     void setCompletedOrDeletedTime(rel_time_t time);
 
+    void setPrepareSeqno(int64_t prepareSeqno) {
+        this->prepareSeqno = prepareSeqno;
+    }
+
 protected:
     SerialisedDocKey* key() {
         return reinterpret_cast<SerialisedDocKey*>(this + 1);
@@ -1170,6 +1174,11 @@ private:
                        EPStats& stats)
         : StoredValue(other, std::move(n), stats) {
     }
+
+    // Prepare seqno of a commit or abort StoredValue.
+    // @TODO perf. We should only store this for commits and aborts, not all
+    // OrderedStoredValues
+    cb::uint48_t prepareSeqno;
 
 public:
     // Intrusive linked-list for sequence number ordering.
