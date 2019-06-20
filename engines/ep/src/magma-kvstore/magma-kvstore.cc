@@ -30,6 +30,8 @@
 #include <algorithm>
 #include <limits>
 
+class Snapshot;
+
 // Unfortunately, turning on logging for the tests is limited to debug
 // mode. While we are in the midst of dropping in magma, this provides
 // a simple way to change all the logging->trace calls to logging->debug
@@ -1970,4 +1972,112 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
     }
 
     return true;
+}
+
+std::unique_ptr<KVFileHandle, KVFileHandleDeleter> MagmaKVStore::makeFileHandle(
+        Vbid vbid) {
+    std::unique_ptr<MagmaKVFileHandle, KVFileHandleDeleter> kvfh(
+            new MagmaKVFileHandle(*this, vbid));
+    return std::move(kvfh);
+}
+
+RollbackResult MagmaKVStore::rollback(Vbid vbid,
+                                      uint64_t rollbackSeqno,
+                                      std::shared_ptr<RollbackCB> cb) {
+    logger->info("MagmaKVStore::rollback {} seqno:{}", vbid, rollbackSeqno);
+
+    auto kvHandle = getMagmaKVHandle(vbid);
+
+    Magma::FetchBuffer idxBuf;
+    Magma::FetchBuffer seqBuf;
+    auto cacheLookup = std::make_shared<NoLookupCallback>();
+    auto fh = makeFileHandle(vbid);
+    cb->setDbHeader(reinterpret_cast<void*>(fh.get()));
+
+    auto keyCallback = [&](const Slice& keySlice,
+                           const uint64_t seqno,
+                           std::shared_ptr<magma::Snapshot>& keySS,
+                           std::shared_ptr<magma::Snapshot>& seqSS) {
+        auto docKey = makeDiskDocKey(keySlice);
+        CacheLookup lookup(docKey, seqno, vbid);
+        cacheLookup->callback(lookup);
+        if (cacheLookup->getStatus() == ENGINE_KEY_EEXISTS) {
+            return;
+        }
+        Slice metaSlice;
+        Slice valueSlice;
+        bool found;
+        Status status = magma->Get(vbid.get(),
+                                   keySlice,
+                                   keySS,
+                                   seqSS,
+                                   idxBuf,
+                                   seqBuf,
+                                   metaSlice,
+                                   valueSlice,
+                                   found);
+
+        if (!status) {
+            logger->warn("MagmaKVStore::Rollback Get {} key:{} status:{}",
+                         vbid,
+                         docKey.to_string(),
+                         status.String());
+            return;
+        }
+
+        if (logger->should_log(spdlog::level::TRACE)) {
+            logger->TRACE(
+                    "MagmaKVStore::Rollback Get {} key:{} seqno:{} "
+                    "found:{}",
+                    vbid,
+                    docKey.to_string(),
+                    seqno,
+                    found);
+        }
+
+        // If we don't find the item or its not the latest,
+        // we are not interested.
+        if (!found || getSeqNum(metaSlice) != seqno) {
+            return;
+        }
+
+        auto rv = makeGetValue(
+                vbid, keySlice, metaSlice, valueSlice, GetMetaOnly::Yes);
+        cb->callback(rv);
+    };
+
+    auto status = magma->Rollback(vbid.get(), rollbackSeqno, keyCallback);
+    if (!status) {
+        logger->critical("MagmaKVStore::rollback Rollback {} status:{}",
+                         vbid,
+                         status.String());
+        return RollbackResult(false);
+    }
+
+    // No need to worry about locks cause no one can be
+    // using this vbucket since its in the middle of rollback.
+
+    cachedVBStates[vbid.get()].reset();
+    cachedMagmaInfo[vbid.get()].reset();
+    status = readVBStateFromDisk(vbid);
+    if (!status) {
+        logger->critical(
+                "MagmaKVStore::rollback {} readVBStateFromDisk status:{}",
+                vbid,
+                status.String());
+        return RollbackResult(false);
+    }
+    auto vbstate = cachedVBStates[vbid.get()].get();
+    if (!vbstate) {
+        logger->critical(
+                "MagmaKVStore::rollback getVBState {} vbstate not found", vbid);
+        return RollbackResult(false);
+    }
+
+    return RollbackResult(true,
+                          vbstate->highSeqno,
+                          vbstate->lastSnapStart,
+                          vbstate->lastSnapEnd,
+                          vbstate->highCompletedSeqno,
+                          vbstate->highPreparedSeqno);
 }

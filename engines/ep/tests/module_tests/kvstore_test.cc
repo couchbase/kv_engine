@@ -2777,3 +2777,96 @@ TEST_F(RocksDBKVStoreTest, StatisticsOptionWrongValueTest) {
     kvstore = setup_kv_store(*kvstoreConfig);
 }
 #endif
+
+#ifdef EP_USE_MAGMA
+// Test fixture for tests which run only on Magma.
+class MagmaKVStoreTest : public KVStoreTest {
+protected:
+    void SetUp() override {
+        KVStoreTest::SetUp();
+        Configuration config;
+        config.setDbname(data_dir);
+        config.setBackend("magma");
+        // need to set this for Rollback test
+        config.setMagmaCommitPointEveryBatch(true);
+        config.setMagmaCommitPointInterval(0);
+        kvstoreConfig =
+                std::make_unique<MagmaKVStoreConfig>(config, 0 /*shardId*/);
+        kvstore = setup_kv_store(*kvstoreConfig);
+    }
+
+    void TearDown() override {
+        kvstore.reset();
+        KVStoreTest::TearDown();
+    }
+
+    std::unique_ptr<KVStoreConfig> kvstoreConfig;
+    std::unique_ptr<KVStore> kvstore;
+};
+
+TEST_F(MagmaKVStoreTest, Rollback) {
+    WriteCallback wc;
+    uint64_t seqno = 1;
+
+    for (int i = 0; i < 2; i++) {
+        kvstore->begin(std::make_unique<TransactionContext>());
+        for (int j = 0; j < 5; j++) {
+            Item item(makeStoredDocKey("key" + std::to_string(seqno)),
+                      0,
+                      0,
+                      "value",
+                      5);
+            item.setBySeqno(seqno++);
+            kvstore->set(item, wc);
+        }
+        kvstore->commit(flush);
+    }
+
+    auto rv = kvstore->get(makeDiskDocKey("key5"), Vbid(0));
+    EXPECT_EQ(rv.getStatus(), ENGINE_SUCCESS);
+    rv = kvstore->get(makeDiskDocKey("key6"), Vbid(0));
+    EXPECT_EQ(rv.getStatus(), ENGINE_SUCCESS);
+
+    auto rcb(std::make_shared<CustomRBCallback>());
+    kvstore->rollback(Vbid(0), 5, rcb);
+
+    rv = kvstore->get(makeDiskDocKey("key1"), Vbid(0));
+    EXPECT_EQ(rv.getStatus(), ENGINE_SUCCESS);
+    rv = kvstore->get(makeDiskDocKey("key5"), Vbid(0));
+    EXPECT_EQ(rv.getStatus(), ENGINE_SUCCESS);
+    rv = kvstore->get(makeDiskDocKey("key6"), Vbid(0));
+    EXPECT_EQ(rv.getStatus(), ENGINE_KEY_ENOENT);
+    rv = kvstore->get(makeDiskDocKey("key10"), Vbid(0));
+    EXPECT_EQ(rv.getStatus(), ENGINE_KEY_ENOENT);
+
+    auto vbs = kvstore->getVBucketState(Vbid(0));
+    ASSERT_EQ(uint64_t(5), vbs->highSeqno);
+    ASSERT_EQ(size_t(5), kvstore->getItemCount(Vbid(0)));
+}
+
+TEST_F(MagmaKVStoreTest, RollbackNoValidCommitPoint) {
+    WriteCallback wc;
+    uint64_t seqno = 1;
+
+    auto cfg = reinterpret_cast<MagmaKVStoreConfig*>(kvstoreConfig.get());
+    auto maxCommitPoints = cfg->getMagmaMaxCommitPoints();
+
+    for (int i = 0; i < int(maxCommitPoints) + 1; i++) {
+        kvstore->begin(std::make_unique<TransactionContext>());
+        for (int j = 0; j < 5; j++) {
+            Item item(makeStoredDocKey("key" + std::to_string(seqno)),
+                      0,
+                      0,
+                      "value",
+                      5);
+            item.setBySeqno(seqno++);
+            kvstore->set(item, wc);
+        }
+        kvstore->commit(flush);
+    }
+
+    auto rcb(std::make_shared<CustomRBCallback>());
+    auto rollbackResult = kvstore->rollback(Vbid(0), 5, rcb);
+    ASSERT_FALSE(rollbackResult.success);
+}
+#endif

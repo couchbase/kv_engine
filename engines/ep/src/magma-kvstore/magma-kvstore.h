@@ -197,10 +197,7 @@ public:
 
     RollbackResult rollback(Vbid vbid,
                             uint64_t rollbackSeqno,
-                            std::shared_ptr<RollbackCB> cb) override {
-        // TODO
-        return RollbackResult(false);
-    }
+                            std::shared_ptr<RollbackCB> cb) override;
 
     void pendingTasks() override {
         // Magma does not use pendingTasks
@@ -224,14 +221,18 @@ public:
 
     void destroyScanContext(ScanContext* ctx) override;
 
+    class MagmaKVFileHandle : public ::KVFileHandle {
+    public:
+        MagmaKVFileHandle(MagmaKVStore& kvstore, Vbid vbid)
+            : ::KVFileHandle(kvstore), vbid(vbid) {
+        }
+        Vbid vbid;
+    };
+
     std::unique_ptr<KVFileHandle, KVFileHandleDeleter> makeFileHandle(
-            Vbid vbid) override {
-        return std::unique_ptr<KVFileHandle, KVFileHandleDeleter>{
-                new KVFileHandle(*this)};
-    }
+            Vbid vbid) override;
 
     void freeFileHandle(KVFileHandle* kvFileHandle) const override {
-        // TODO
         delete kvFileHandle;
     }
 
