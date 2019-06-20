@@ -133,11 +133,6 @@ public:
 
     size_t getNumShards() const;
 
-    uint16_t getNumVbsPerFile() override {
-        // TODO Adapt this if this changes.
-        return 1024;
-    }
-
     bool compactDB(compaction_ctx*) override {
         // Explicit compaction is not needed.
         // Compaction is continuously occurring in separate threads

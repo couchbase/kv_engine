@@ -677,13 +677,6 @@ public:
     }
 
     /**
-     * Get the number of vbuckets in a single database file
-     *
-     * returns - the number of vbuckets in the file
-     */
-    virtual uint16_t getNumVbsPerFile(void) = 0;
-
-    /**
      * Delete an item from the kv store.
      *
      * @param item The item to delete

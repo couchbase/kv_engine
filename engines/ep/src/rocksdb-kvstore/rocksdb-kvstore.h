@@ -220,11 +220,6 @@ public:
     void optimizeWrites(std::vector<queued_item>&) {
     }
 
-    uint16_t getNumVbsPerFile(void) override {
-        // TODO vmx 2016-10-29: return the actual value
-        return 1024;
-    }
-
     bool compactDB(compaction_ctx*) override {
         // Explicit compaction is not needed.
         // Compaction is continuously occurring in separate threads

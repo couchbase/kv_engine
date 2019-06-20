@@ -228,15 +228,6 @@ public:
                   const DiskDocKey& endKey,
                   const KVStore::GetRangeCb& cb) override;
 
-    /**
-     * Get the number of vbuckets in a single database file
-     *
-     * returns - the number of vbuckets in a database file
-     */
-    uint16_t getNumVbsPerFile(void) override {
-        return 1;
-    }
-
     void del(const Item& itm, DeleteCallback) override;
 
     /**
