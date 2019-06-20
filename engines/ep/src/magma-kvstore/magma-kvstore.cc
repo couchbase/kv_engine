@@ -337,8 +337,131 @@ static const bool isCompressed(const Slice& metaSlice) {
     return mcbp::datatype::is_snappy(docMeta->datatype);
 }
 
+static const Vbid getVbid(const Slice& metaSlice) {
+    magmakv::MetaData* docMeta = reinterpret_cast<magmakv::MetaData*>(
+            const_cast<char*>(metaSlice.Data()));
+    return Vbid(docMeta->vbid);
+}
+
+static const magmakv::MetaData& getDocMeta(const Slice& metaSlice) {
+    magmakv::MetaData* docMeta = reinterpret_cast<magmakv::MetaData*>(
+            const_cast<char*>(metaSlice.Data()));
+    return *docMeta;
+}
+
 static DiskDocKey makeDiskDocKey(const Slice& key) {
     return DiskDocKey{key.Data(), key.Len()};
+}
+
+MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(MagmaKVStore& magmaKVStore)
+    : magmaKVStore(magmaKVStore) {
+    magmaKVStore.logger->TRACE("MagmaCompactionCB constructor");
+    initialized = false;
+}
+
+MagmaKVStore::MagmaCompactionCB::~MagmaCompactionCB() {
+    magmaKVStore.logger->debug("MagmaCompactionCB destructor");
+}
+
+bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
+                                      const magma::Slice& keySlice,
+                                      const magma::Slice& metaSlice,
+                                      const magma::Slice& valueSlice) {
+    std::stringstream itemString;
+    if (logger->should_log(spdlog::level::TRACE)) {
+        itemString << "key:" << makeDiskDocKey(keySlice).to_string();
+        itemString << " ";
+        itemString << getDocMeta(metaSlice).to_string();
+        logger->TRACE("MagmaCompactionCB {}", itemString.str());
+    }
+
+    cbCtx.vbid = getVbid(metaSlice);
+
+    if (!cbCtx.initialized) {
+        // If we have a compaction_ctx, that means we are doing an
+        // explicit compaction triggered by the kv_engine.
+        {
+            std::lock_guard<std::mutex> lock(compactionCtxMutex);
+            if (compaction_ctxList[cbCtx.vbid.get()]) {
+                cbCtx.ctx = compaction_ctxList[cbCtx.vbid.get()]->ctx;
+                cbCtx.kvHandle = compaction_ctxList[cbCtx.vbid.get()]->kvHandle;
+            }
+        }
+        if (!cbCtx.ctx) {
+            cbCtx.kvHandle = getMagmaKVHandle(cbCtx.vbid);
+            // TODO: we don't have a callback function to kv_engine
+            // to grab the compaction_ctx when the compaction is
+            // triggered by magma (Level, Expiry).
+        }
+        cbCtx.initialized = true;
+    }
+
+    if (cbCtx.ctx) {
+        auto seqno = getSeqNum(metaSlice);
+        auto exptime = getExpiryTime(metaSlice);
+        Status status;
+
+        if (isDeleted(metaSlice)) {
+            uint64_t maxSeqno;
+            status = magma->GetMaxSeqno(cbCtx.vbid.get(), maxSeqno);
+            if (!status) {
+                throw std::runtime_error("MagmaCompactionCallback Failed : " +
+                                         status.String());
+            }
+
+            if (seqno != maxSeqno) {
+                if (cbCtx.ctx->compactConfig.drop_deletes) {
+                    logger->TRACE("MagmaCompactionCB DROP drop_deletes {}",
+                                  itemString.str());
+                    cbCtx.ctx->stats.tombstonesPurged++;
+                    if (seqno > cbCtx.ctx->max_purged_seq) {
+                        cbCtx.ctx->max_purged_seq = seqno;
+                    }
+                    return true;
+                }
+
+                if (exptime < cbCtx.ctx->compactConfig.purge_before_ts &&
+                    (exptime ||
+                     !cbCtx.ctx->compactConfig.retain_erroneous_tombstones) &&
+                    (!cbCtx.ctx->compactConfig.purge_before_seq ||
+                     seqno <= cbCtx.ctx->compactConfig.purge_before_seq)) {
+                    logger->TRACE("MagmaCompactionCB DROP expired tombstone {}",
+                                  itemString.str());
+                    cbCtx.ctx->stats.tombstonesPurged++;
+                    if (seqno > cbCtx.ctx->max_purged_seq) {
+                        cbCtx.ctx->max_purged_seq = seqno;
+                    }
+                    return true;
+                }
+            }
+        } else {
+            time_t currTime = ep_real_time();
+            if (exptime && exptime < currTime) {
+                auto docMeta = getDocMeta(metaSlice);
+                auto itm = std::make_unique<Item>(
+                        makeDiskDocKey(keySlice).getDocKey(),
+                        docMeta.flags,
+                        docMeta.exptime,
+                        valueSlice.Data(),
+                        valueSlice.Len(),
+                        docMeta.datatype,
+                        docMeta.cas,
+                        docMeta.bySeqno,
+                        cbCtx.vbid,
+                        docMeta.revSeqno);
+                if (isCompressed(metaSlice)) {
+                    itm->decompressValue();
+                }
+                itm->setDeleted(DeleteSource::TTL);
+                cbCtx.ctx->expiryCallback->callback(*(itm.get()), currTime);
+                logger->TRACE("MagmaCompactionCB expiry callback {}",
+                              itemString.str());
+            }
+        }
+    }
+
+    logger->TRACE("MagmaCompactionCB KEEP {}", itemString.str());
+    return false;
 }
 
 MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
@@ -347,7 +470,9 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
       in_transaction(false),
       magmaPath(configuration.getDBName() + "/magma." +
                 std::to_string(configuration.getShardId())),
-      scanCounter(0) {
+      scanCounter(0),
+      cachedMagmaInfo(configuration.getMaxVBuckets()),
+      compaction_ctxList(configuration.getMaxVBuckets()) {
     const size_t memtablesQuota = configuration.getBucketQuota() /
                                   configuration.getMaxShards() *
                                   configuration.getMagmaMemQuotaRatio();
@@ -390,7 +515,6 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     configuration.magmaCfg.IsTombstone = isDeleted;
 
     cachedVBStates.resize(configuration.getMaxVBuckets());
-    cachedMagmaInfo.resize(configuration.getMaxVBuckets());
 
     commitPointEveryBatch = configuration.getMagmaCommitPointEveryBatch();
     useUpsertForSet = configuration.getMagmaEnableUpsert();
@@ -424,6 +548,10 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     for (int i = 0; i < configuration.getMaxVBuckets(); i++) {
         magmaKVHandles[i].first = std::make_shared<MagmaKVHandleStruct>();
     }
+
+    configuration.magmaCfg.MakeCompactionCallback = [&]() {
+        return std::make_unique<MagmaKVStore::MagmaCompactionCB>(*this);
+    };
 
     // Create the data directory.
     createDataDir(configuration.magmaCfg.Path);
@@ -637,12 +765,15 @@ void MagmaKVStore::rollback() {
     }
 }
 
+// Magma does allow compactions to run concurrent with writes.
+// What it does not do is allow the update of vbstate info outside
+// of the bg_writer thread.
 StorageProperties MagmaKVStore::getStorageProperties() {
     StorageProperties rv(StorageProperties::EfficientVBDump::Yes,
                          StorageProperties::EfficientVBDeletion::Yes,
                          StorageProperties::PersistedDeletion::No,
                          StorageProperties::EfficientGet::Yes,
-                         StorageProperties::ConcurrentWriteCompact::Yes);
+                         StorageProperties::ConcurrentWriteCompact::No);
     return rv;
 }
 
@@ -1527,6 +1658,7 @@ magma::Status MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
     minfo->docCount = std::stoull(j.at("doc_count").get<std::string>());
     minfo->persistedDeletes =
             std::stoull(j.at("persisted_deletes").get<std::string>());
+    minfo->purgeSeqno = std::stoull(j.at("purge_seqno").get<std::string>());
     cachedMagmaInfo[vbid.get()] = std::move(minfo);
     return status;
 }
@@ -1637,6 +1769,8 @@ nlohmann::json MagmaKVStore::encodeVBState(const vbucket_state& vbstate,
     j["doc_count"] = std::to_string(static_cast<uint64_t>(magmaInfo.docCount));
     j["persisted_deletes"] =
             std::to_string(static_cast<uint64_t>(magmaInfo.persistedDeletes));
+    j["purge_seqno"] =
+            std::to_string(static_cast<uint64_t>(magmaInfo.purgeSeqno));
     return j;
 }
 
@@ -1735,4 +1869,105 @@ ENGINE_ERROR_CODE MagmaKVStore::getAllKeys(
     }
 
     return ENGINE_SUCCESS;
+}
+
+bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
+    std::chrono::steady_clock::time_point start =
+            std::chrono::steady_clock::now();
+
+    logger->info(
+            "compactDB {} purge_before_ts:{} purge_before_seq:{}"
+            " drop_deletes:{} purgeSeq:{} retain_erroneous_tombstones:{}",
+            ctx->compactConfig.db_file_id,
+            ctx->compactConfig.purge_before_ts,
+            ctx->compactConfig.purge_before_seq,
+            ctx->compactConfig.drop_deletes,
+            ctx->compactConfig.purgeSeq,
+            ctx->compactConfig.retain_erroneous_tombstones);
+
+    Vbid vbid = ctx->compactConfig.db_file_id;
+
+    auto kvHandle = getMagmaKVHandle(vbid);
+
+    auto status = magma->Sync();
+    if (!status) {
+        logger->warn("MagmaKVStore::compactDB Sync failed. {}",
+                     ctx->compactConfig.db_file_id);
+        return false;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(compactionCtxMutex);
+        compaction_ctxList[vbid.get()] =
+                std::make_unique<MagmaCompactionCtx>(ctx, kvHandle);
+    }
+
+    // Perform synchronous compaction.
+    status = magma->CompactKVStore(vbid.get(), Magma::StoreType::Key);
+    if (!status) {
+        logger->warn("MagmaKVStore::compactDB Sync failed. vbucket {} ", vbid);
+        return false;
+    }
+
+    // Need to save off new vbstate and possibly collections manifest.
+    // Start a new CommitBatch
+    std::unique_ptr<Magma::CommitBatch> batch;
+    status = magma->NewCommitBatch(vbid.get(), batch);
+    if (!status) {
+        logger->warn(
+                "MagmaKVStore::compactDB failed creating batch for {} "
+                "status:{}",
+                vbid,
+                status.String());
+        return false;
+    }
+
+    vbucket_state vbs;
+    MagmaInfo minfo;
+    {
+        std::lock_guard<std::shared_timed_mutex> lock(kvHandle->vbstateMutex);
+        cachedMagmaInfo[vbid.get()]->purgeSeqno = ctx->max_purged_seq;
+        vbs = *cachedVBStates[vbid.get()].get();
+        minfo = *cachedMagmaInfo[vbid.get()].get();
+    }
+    writeVBStateToDisk(vbid, *(batch.get()), vbs, minfo);
+
+    // Write & Sync the CommitBatch
+    status = magma->ExecuteCommitBatch(std::move(batch));
+    if (!status) {
+        logger->warn(
+                "MagmaKVStore::saveDocs: magma::ExecuteCommitBatch "
+                "{} status:{}",
+                vbid,
+                status.String());
+    } else {
+        status = magma->SyncCommitBatches(true);
+        if (!status) {
+            logger->warn(
+                    "MagmaKVStore::saveDocs: magma::SyncCommitBatches {} "
+                    "status:{}",
+                    vbid,
+                    status.String());
+        }
+    }
+
+    st.compactHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - start));
+
+    logger->TRACE(
+            "MagmaKVStore::compactDB max_purged_seq:{}"
+            " collectionsItemsPurged:{}"
+            " collectionsDeletedItemsPurged:{}"
+            " tombstonesPurged:{}",
+            ctx->max_purged_seq,
+            ctx->stats.collectionsItemsPurged,
+            ctx->stats.collectionsDeletedItemsPurged,
+            ctx->stats.tombstonesPurged);
+
+    {
+        std::lock_guard<std::mutex> lock(compactionCtxMutex);
+        compaction_ctxList[vbid.get()].reset();
+    }
+
+    return true;
 }

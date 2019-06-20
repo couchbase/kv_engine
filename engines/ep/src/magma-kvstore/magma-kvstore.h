@@ -40,6 +40,7 @@ class Status;
 
 class MagmaRequest;
 class MagmaKVStoreConfig;
+class MagmaCompactionCB;
 struct kvstats_ctx;
 struct vbucket_state;
 
@@ -54,9 +55,11 @@ public:
     void reset() {
         docCount = 0;
         persistedDeletes = 0;
+        purgeSeqno = 0;
     }
     cb::NonNegativeCounter<uint64_t> docCount{0};
     cb::NonNegativeCounter<uint64_t> persistedDeletes{0};
+    cb::NonNegativeCounter<uint64_t> purgeSeqno{0};
 };
 
 /**
@@ -134,12 +137,42 @@ public:
                          const vbucket_state& vbstate,
                          VBStatePersist options) override;
 
-    bool compactDB(compaction_ctx*) override {
-        // Explicit compaction is not needed.
-        // Compaction is continuously occurring in separate threads
-        // under Magma's control
-        return true;
-    }
+    // Compaction in magma is asynchronous. Its triggered by 3 conditions:
+    //  - Level compaction
+    //  - Expiry compaction
+    //    In magma, a histogram of when items will expire is maintained.
+    //    Periodically, magma will trigger a compaction to visit those
+    //    sstables which have expired items to have them removed.
+    //  - Dropped collections removal
+    //    At the end of the flusher loop in kv_engine, a call to magma will be
+    //    made to trigger asynchronous PurgeRange scans to purge the store
+    //    of any dropped collections. For each collectionID, 2 scans will be
+    //    triggered, [Default+CollectionID] and
+    //    [DurabilityPrepare+CollectionID].
+    //    While a purge scan will identify the sstables containing the scan
+    //    key ex.[Default+CollectionID], all items for that CollectionID will
+    //    be removed ie. both Default & DurabilityPrepare. This guarantees that
+    //    the data from each sstable containing the collectionID is visited
+    //    once.
+    //    Also during this call from the bg flusher, any completed compaction
+    //    data will be picked up. The max_purged_seq will update the vbstate
+    //    and any dropped collections will trigger 2 scans (same as above) to
+    //    determine if a collection has been removed and if so, the collection
+    //    manifest is updated.
+    //
+    //    Regardless of which type of compaction is running, all compactions
+    //    required a kv_engine callback to pick up compaction_ctx and all
+    //    compactions can remove expired items or dropped collection items.
+    //
+    //    Synchronous compaction is supported for testing. Normally, kv_engine
+    //    with magma store should never call compactDB. But for testing, we
+    //    need to support a synchronous call. When compactDB is called, it will
+    //    save the compaction_ctx passed in to compactDB and will use it
+    //    to perform compaction.
+    //
+    // For DP, we will support only Level and Sychronous compaction. This
+    // alleviates the need for a callback to pick up compaction_ctx.
+    bool compactDB(compaction_ctx*) override;
 
     Vbid getDBFileId(const cb::mcbp::Request&) override;
 
@@ -315,6 +348,10 @@ public:
         return magmaKVHandles[vbid.get()].first;
     }
 
+    // Magma uses a unique logger with a prefix of magma so that all logging
+    // calls from the wrapper thru magma will be prefixed with magma.
+    std::shared_ptr<BucketLogger> logger;
+
 private:
     /**
      * Mamga instance for a shard
@@ -383,10 +420,6 @@ private:
 
     std::atomic<size_t> scanCounter; // atomic counter for generating scan id
 
-    // Magma uses a unique logger with a prefix of magma so that all logging
-    // calls from the wrapper thru magma will be prefixed with magma.
-    std::shared_ptr<BucketLogger> logger;
-
     // Magma does not keep track of docCount, # of persistedDeletes or
     // revFile internal so we need a mechanism to do that. We use magmaInfo
     // as the structure to store that and we save magmaInfo with the vbstate.
@@ -403,4 +436,39 @@ private:
     // Get lock on KVHandle and wait for all threads to exit before
     // returning the lock to the caller.
     std::unique_lock<std::shared_timed_mutex> getExclusiveKVHandle(Vbid vbid);
+
+    struct MagmaCompactionCtx {
+        MagmaCompactionCtx(compaction_ctx* ctx, MagmaKVHandle kvHandle)
+            : ctx(ctx), kvHandle(kvHandle){};
+        compaction_ctx* ctx;
+        MagmaKVHandle kvHandle;
+    };
+    std::vector<std::unique_ptr<MagmaCompactionCtx>> compaction_ctxList;
+    std::mutex compactionCtxMutex;
+
+    class MagmaCompactionCB : public magma::Magma::CompactionCallback {
+    public:
+        MagmaCompactionCB(MagmaKVStore& magmaKVStore);
+        ~MagmaCompactionCB();
+        bool operator()(const magma::Slice& keySlice,
+                        const magma::Slice& metaSlice,
+                        const magma::Slice& valueSlice) {
+            return magmaKVStore.compactionCallBack(
+                    *this, keySlice, metaSlice, valueSlice);
+        }
+        MagmaKVStore& magmaKVStore;
+        bool initialized = false;
+        compaction_ctx* ctx = nullptr;
+        MagmaKVStore::MagmaKVHandle kvHandle;
+        Vbid vbid;
+        // TODO add code for collections to keep track of # of deletes.
+        // Requires code in ~MagmaCompactionCB() to update magmaInfo docCount
+    };
+
+    bool compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
+                            const magma::Slice& keySlice,
+                            const magma::Slice& metaSlice,
+                            const magma::Slice& valueSlice);
+
+    friend class MagmaCompactionCB;
 };
