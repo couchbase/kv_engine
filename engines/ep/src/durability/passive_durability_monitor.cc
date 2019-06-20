@@ -199,8 +199,10 @@ std::string PassiveDurabilityMonitor::to_string(Resolution res) {
     folly::assume_unreachable();
 }
 
-void PassiveDurabilityMonitor::completeSyncWrite(const StoredDocKey& key,
-                                                 Resolution res) {
+void PassiveDurabilityMonitor::completeSyncWrite(
+        const StoredDocKey& key,
+        Resolution res,
+        boost::optional<uint64_t> prepareSeqno) {
     auto s = state.wlock();
 
     if (s->trackedWrites.empty()) {
@@ -210,7 +212,24 @@ void PassiveDurabilityMonitor::completeSyncWrite(const StoredDocKey& key,
                         cb::tagUserData(key.to_string()));
     }
 
-    const auto next = s->getIteratorNext(s->highCompletedSeqno.it);
+    // If we are receiving a disk snapshot, we need to relax a few checks
+    // to account for deduplication. E.g., commits may appear to be out
+    // of order
+    bool enforceOrderedCompletion = !vb.isReceivingDiskSnapshot();
+
+    // If we can complete out of order, we have to check from the start of
+    // tracked writes as the HCS may have advanced past a prepare we have not
+    // seen a completion for
+    auto next = enforceOrderedCompletion
+                        ? s->getIteratorNext(s->highCompletedSeqno.it)
+                        : s->trackedWrites.begin();
+
+    if (!enforceOrderedCompletion) {
+        // Advance the iterator to the right item, it might not be the first
+        while (next != s->trackedWrites.end() && next->getKey() != key) {
+            next = s->getIteratorNext(next);
+        }
+    }
 
     if (next == s->trackedWrites.end()) {
         throwException<std::logic_error>(
@@ -220,7 +239,7 @@ void PassiveDurabilityMonitor::completeSyncWrite(const StoredDocKey& key,
                         cb::tagUserData(key.to_string()));
     }
 
-    // Sanity check for In-Order Commit
+    // Sanity checks for In-Order Commit
     if (next->getKey() != key) {
         std::stringstream ss;
         ss << "Pending resolution for '" << *next
@@ -229,10 +248,24 @@ void PassiveDurabilityMonitor::completeSyncWrite(const StoredDocKey& key,
         throwException<std::logic_error>(__func__, "" + ss.str());
     }
 
-    // Note: Update last-write-seqno first to enforce monotonicity and
-    //     avoid any state-change if monotonicity checks fail
-    s->highCompletedSeqno.lastWriteSeqno = next->getBySeqno();
-    s->highCompletedSeqno.it = next;
+    if (prepareSeqno && next->getBySeqno() != static_cast<int64_t>(*prepareSeqno)) {
+        std::stringstream ss;
+        ss << "Pending resolution for '" << *next
+           << "', but received unexpected " + to_string(res) + " for key "
+           << key;
+        throwException<std::logic_error>(__func__, "" + ss.str());
+    }
+
+    if (enforceOrderedCompletion ||
+        next->getBySeqno() > s->highCompletedSeqno.lastWriteSeqno) {
+        // Note: Update last-write-seqno first to enforce monotonicity and
+        //     avoid any state-change if monotonicity checks fail
+        // Do *not* update hcs if this is a commit for a prepare with seqno <=
+        // hcs from disk backfill (can be seen due to a deduped commit) as that
+        // would move us *backwards* and the monotonic would throw
+        s->highCompletedSeqno.lastWriteSeqno = next->getBySeqno();
+        s->highCompletedSeqno.it = next;
+    }
 
     // HCS has moved, which could make some Prepare eligible for removal.
     s->checkForAndRemovePrepares();

@@ -104,8 +104,12 @@ public:
      *
      * @param key The key of the Prepare to be removed
      * @param res The type of resolution, Commit/Abort
+     * @param prepareSeqno The seqno of the prepare that should be removed (if
+     * known)
      */
-    void completeSyncWrite(const StoredDocKey& key, Resolution res);
+    void completeSyncWrite(const StoredDocKey& key,
+                           Resolution res,
+                           boost::optional<uint64_t> prepareSeqno);
 
     static std::string to_string(Resolution res);
 

@@ -1236,11 +1236,15 @@ VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
         if (item->isPending()) {
             pdm.addSyncWrite(item);
         } else if (item->isCommitSyncWrite()) {
-            pdm.completeSyncWrite(item->getKey(),
-                                  PassiveDurabilityMonitor::Resolution::Commit);
+            pdm.completeSyncWrite(
+                    item->getKey(),
+                    PassiveDurabilityMonitor::Resolution::Commit,
+                    boost::get<int64_t>(
+                            ctx.durability->requirementsOrPreparedSeqno));
         } else if (item->isAbort()) {
             pdm.completeSyncWrite(item->getKey(),
-                                  PassiveDurabilityMonitor::Resolution::Abort);
+                                  PassiveDurabilityMonitor::Resolution::Abort,
+                                  {} /* no prepareSeqno*/);
         }
         break;
     }
@@ -1845,7 +1849,8 @@ ENGINE_ERROR_CODE VBucket::prepare(
             // Remove old, earlier prepare from PassiveDM
             getPassiveDM().completeSyncWrite(
                     itm.getKey(),
-                    PassiveDurabilityMonitor::Resolution::CompletionWasDeduped);
+                    PassiveDurabilityMonitor::Resolution::CompletionWasDeduped,
+                    *itr /* prepareSeqno */);
             // We should not see this seqno again so remove from the set.
             allowedDuplicatePrepareSeqnos.erase(itr);
             break;
@@ -3158,7 +3163,9 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
 
             Expects(itm.isCommitted());
             getPassiveDM().completeSyncWrite(
-                    itm.getKey(), PassiveDurabilityMonitor::Resolution::Commit);
+                    itm.getKey(),
+                    PassiveDurabilityMonitor::Resolution::Commit,
+                    v->getBySeqno() /* prepareSeqno */);
 
             // Deal with the already existing prepare
             processImplicitlyCompletedPrepare(htRes.pending);
@@ -3414,7 +3421,8 @@ VBucket::processSoftDelete(HashTable::FindCommitResult& htRes,
 
         getPassiveDM().completeSyncWrite(
                 StoredDocKey(v.getKey()),
-                PassiveDurabilityMonitor::Resolution::Commit);
+                PassiveDurabilityMonitor::Resolution::Commit,
+                v.getBySeqno() /* prepareSeqno */);
 
         // Sanity - We should never delete a prepare in this way, and if we are
         // hitting this delete path then we should have the committed SV.

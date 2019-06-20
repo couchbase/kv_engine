@@ -357,6 +357,15 @@ protected:
     void testResolvePrepare(PassiveDurabilityMonitor::Resolution res);
 
     /**
+     * Simulate and verify that:
+     * 1) The PDM can resolve Prepares in a different order than they
+     *    were received IF they are received from a disk snapshot
+     *
+     * @param res The type of resolution, Commit/Abort
+     */
+    void testResolvePrepareOutOfOrder(PassiveDurabilityMonitor::Resolution res);
+
+    /**
      * Notify the DM that the snapshot-end mutation has been received on the
      * PassiveStream and check that High Prepared Seqno  and the High Completed
      * Seqno have been updated as expected.

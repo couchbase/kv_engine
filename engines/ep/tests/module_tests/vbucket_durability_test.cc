@@ -1441,8 +1441,8 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDMNoPrepares(
 
     // Tell the PDM to commit the prepare
     auto& nonConstPdm = const_cast<PassiveDurabilityMonitor&>(pdm);
-    nonConstPdm.completeSyncWrite(key,
-                                  PassiveDurabilityMonitor::Resolution::Commit);
+    nonConstPdm.completeSyncWrite(
+            key, PassiveDurabilityMonitor::Resolution::Commit, 1);
     // Won't remove from trackedWrites until snap end
     nonConstPdm.notifySnapshotEndReceived(2);
     ASSERT_EQ(0, pdm.getNumTracked());

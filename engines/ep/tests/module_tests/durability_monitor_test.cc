@@ -1745,7 +1745,7 @@ void PassiveDurabilityMonitorTest::testResolvePrepare(
     auto& pdm = getPassiveDM();
     auto thrown{false};
     try {
-        pdm.completeSyncWrite(makeStoredDocKey("akey"), res);
+        pdm.completeSyncWrite(makeStoredDocKey("akey"), res, 1);
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find(
                             "No tracked, but received " +
@@ -1770,7 +1770,7 @@ void PassiveDurabilityMonitorTest::testResolvePrepare(
     // Replica expects a commit for s:1 at this point.
     thrown = false;
     try {
-        pdm.completeSyncWrite(makeStoredDocKey("key2"), res);
+        pdm.completeSyncWrite(makeStoredDocKey("key2"), res, 1);
     } catch (const std::logic_error& e) {
         EXPECT_TRUE(std::string(e.what()).find(
                             "received unexpected " +
@@ -1785,10 +1785,95 @@ void PassiveDurabilityMonitorTest::testResolvePrepare(
     // Commit all Prepares now
     uint8_t numTracked = monitor->getNumTracked();
     for (const auto s : seqnos) {
-        pdm.completeSyncWrite(makeStoredDocKey("key" + std::to_string(s)), res);
+        pdm.completeSyncWrite(
+                makeStoredDocKey("key" + std::to_string(s)), res, s);
         EXPECT_EQ(--numTracked, monitor->getNumTracked());
     }
     EXPECT_EQ(0, monitor->getNumTracked());
+}
+
+void PassiveDurabilityMonitorTest::testResolvePrepareOutOfOrder(
+        PassiveDurabilityMonitor::Resolution res) {
+    assertNumTrackedAndHPSAndHCS(0, 0, 0 /*expectedHCS*/);
+
+    vb->checkpointManager->createSnapshot(1, 7, CheckpointType::Disk);
+
+    // PassiveDM doesn't track anything yet, no commit expected
+    auto& pdm = getPassiveDM();
+
+    auto thrown{false};
+    try {
+        pdm.completeSyncWrite(makeStoredDocKey("akey"), res, 1);
+    } catch (const std::logic_error& e) {
+        EXPECT_TRUE(std::string(e.what()).find(
+                            "No tracked, but received " +
+                            PassiveDurabilityMonitor::to_string(res) +
+                            " for key") != std::string::npos);
+        thrown = true;
+    }
+    if (!thrown) {
+        FAIL();
+    }
+
+    auto key1 = makeStoredDocKey("key1");
+    auto key2 = makeStoredDocKey("key2");
+    auto key3 = makeStoredDocKey("key3");
+    auto req = cb::durability::Requirements{cb::durability::Level::Majority,
+                                            cb::durability::Timeout{10}};
+
+    vb->checkpointManager->createSnapshot(1, 6, CheckpointType::Disk);
+
+    for (uint64_t seqno = 1; seqno < 4; seqno++) {
+        auto item = Item(makeStoredDocKey("key" + std::to_string(seqno)),
+                         0 /*flags*/,
+                         0 /*exp*/,
+                         "value",
+                         5 /*valueSize*/,
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         0 /*cas*/,
+                         seqno);
+        using namespace cb::durability;
+        item.setPendingSyncWrite(req);
+
+        processSet(item);
+    }
+
+    assertNumTrackedAndHPSAndHCS(3, 0, 0);
+
+    // We must enforce In-Order Commit at Active, but Passive can accept
+    // out of order Commits
+    // All the prepares should still be tracked as the HPS should not advance
+    // until snapend
+    pdm.completeSyncWrite(key2, res, 2);
+    assertNumTrackedAndHPSAndHCS(3, 0, 2);
+
+    // Check key1 is still in the hashtable, was not affected by completing key2
+    // OOO
+    auto vb = engine->getVBucket(vbid);
+    {
+        auto findResult = vb->ht.findOnlyPrepared(key1);
+        auto* sv = findResult.storedValue;
+        EXPECT_TRUE(sv);
+    }
+
+    // complete prepare for key3
+    pdm.completeSyncWrite(key3, res, 3);
+    assertNumTrackedAndHPSAndHCS(3, 0, 3);
+
+    // complete prepare for key1
+    pdm.completeSyncWrite(key1, res, 1);
+    assertNumTrackedAndHPSAndHCS(3, 0, 3);
+
+    notifySnapEndReceived(6 /*snapEnd*/, 0 /*expectedHPS*/, 3 /*expectedHCS*/);
+
+    ASSERT_EQ(3, pdm.getNumTracked());
+
+    // Snapshot-end persisted: HPS moves, now we can remove all Prepares
+    // the HPS will advance to the snapshotEnd
+    notifyPersistence(
+            6 /*persistedSeqno*/, 6 /*expectedHPS*/, 3 /*expectedHCS*/);
+
+    ASSERT_EQ(0, pdm.getNumTracked());
 }
 
 TEST_P(PassiveDurabilityMonitorTest, Commit) {
@@ -1797,6 +1882,14 @@ TEST_P(PassiveDurabilityMonitorTest, Commit) {
 
 TEST_P(PassiveDurabilityMonitorTest, Abort) {
     testResolvePrepare(PassiveDurabilityMonitor::Resolution::Abort);
+}
+
+TEST_P(PassiveDurabilityMonitorPersistentTest, CommitOutOfOrder) {
+    testResolvePrepareOutOfOrder(PassiveDurabilityMonitor::Resolution::Commit);
+}
+
+TEST_P(PassiveDurabilityMonitorPersistentTest, AbortOutOfOrder) {
+    testResolvePrepareOutOfOrder(PassiveDurabilityMonitor::Resolution::Abort);
 }
 
 void PassiveDurabilityMonitorTest::testRemoveCompletedOnlyIfLocallySatisfied(
@@ -1823,7 +1916,7 @@ void PassiveDurabilityMonitorTest::testRemoveCompletedOnlyIfLocallySatisfied(
     ASSERT_EQ(1, pdm.getNumTracked());
 
     // Commit: HCP moves -> we can remove the Prepare from tracking
-    getPassiveDM().completeSyncWrite(makeStoredDocKey("key1"), res);
+    getPassiveDM().completeSyncWrite(makeStoredDocKey("key1"), res, 1);
     ASSERT_EQ(1, pdm.getHighPreparedSeqno());
     ASSERT_EQ(1, pdm.getHighCompletedSeqno());
     ASSERT_EQ(0, pdm.getNumTracked());
@@ -1857,11 +1950,11 @@ void PassiveDurabilityMonitorTest::testRemoveCompletedOnlyIfLocallySatisfied(
 
     // Commit all, still 2 tracked as the Prepares are completed before the HPS
     // moves
-    getPassiveDM().completeSyncWrite(makeStoredDocKey("key2"), res);
+    getPassiveDM().completeSyncWrite(makeStoredDocKey("key2"), res, 2);
     ASSERT_EQ(1, pdm.getHighPreparedSeqno());
     ASSERT_EQ(2, pdm.getHighCompletedSeqno());
     ASSERT_EQ(2, pdm.getNumTracked());
-    getPassiveDM().completeSyncWrite(makeStoredDocKey("key3"), res);
+    getPassiveDM().completeSyncWrite(makeStoredDocKey("key3"), res, 3);
     ASSERT_EQ(1, pdm.getHighPreparedSeqno());
     ASSERT_EQ(3, pdm.getHighCompletedSeqno());
     ASSERT_EQ(2, pdm.getNumTracked());
@@ -1956,7 +2049,8 @@ TEST_P(PassiveDurabilityMonitorPersistentTest, AckLatestPersistedSnapshot) {
 
     for (uint64_t seqno = 1; seqno < 10; seqno++) {
         pdm.completeSyncWrite(makeStoredDocKey("key" + std::to_string(seqno)),
-                              PassiveDurabilityMonitor::Resolution::Commit);
+                              PassiveDurabilityMonitor::Resolution::Commit,
+                              seqno);
     }
 
     EXPECT_EQ(0, pdm.getNumTracked());
@@ -2012,7 +2106,8 @@ TEST_P(PassiveDurabilityMonitorPersistentTest,
 
     for (uint64_t seqno = 1; seqno < 4; seqno++) {
         pdm.completeSyncWrite(makeStoredDocKey("key" + std::to_string(seqno)),
-                              PassiveDurabilityMonitor::Resolution::Commit);
+                              PassiveDurabilityMonitor::Resolution::Commit,
+                              seqno);
     }
 
     EXPECT_EQ(0, pdm.getNumTracked());
@@ -2065,7 +2160,8 @@ TEST_P(PassiveDurabilityMonitorPersistentTest,
     seqnoAcks.pop();
 
     pdm.completeSyncWrite(makeStoredDocKey("key1"),
-                          PassiveDurabilityMonitor::Resolution::Commit);
+                          PassiveDurabilityMonitor::Resolution::Commit,
+                          1);
 
     EXPECT_EQ(0, pdm.getNumTracked());
 }
