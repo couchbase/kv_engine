@@ -1057,7 +1057,7 @@ ENGINE_ERROR_CODE KVBucket::deleteVBucket(Vbid vbid, const void* c) {
 
 ENGINE_ERROR_CODE KVBucket::checkForDBExistence(Vbid db_file_id) {
     std::string backend = engine.getConfiguration().getBackend();
-    if (backend.compare("couchdb") == 0) {
+    if (backend.compare("couchdb") == 0 || backend.compare("magma") == 0) {
         VBucketPtr vb = vbMap.getBucket(db_file_id);
         if (!vb) {
             return ENGINE_NOT_MY_VBUCKET;

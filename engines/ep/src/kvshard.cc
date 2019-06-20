@@ -42,6 +42,9 @@ KVShard::KVShard(uint16_t id, Configuration& config)
     }
 #ifdef EP_USE_MAGMA
     else if (backend == "magma") {
+        // magma has its own bloom filters and should not use
+        // kv_engine's bloom filters. Should save some memory.
+        config.setBfilterEnabled(false);
         kvConfig = std::make_unique<MagmaKVStoreConfig>(config, id);
         auto stores = KVStoreFactory::create(*kvConfig);
         rwStore = std::move(stores.rw);

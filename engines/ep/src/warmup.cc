@@ -1806,7 +1806,8 @@ uint16_t Warmup::getNumKVStores()
     Configuration& config = store.getEPEngine().getConfiguration();
     if (config.getBackend().compare("couchdb") == 0) {
         return 1;
-    } else if (config.getBackend().compare("rocksdb") == 0) {
+    } else if (config.getBackend().compare("rocksdb") == 0 ||
+               config.getBackend().compare("magma") == 0) {
         return store.vbMap.getNumShards();
     }
     return 0;
