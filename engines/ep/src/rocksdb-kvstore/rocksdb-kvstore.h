@@ -25,6 +25,7 @@
 
 #include "../objectregistry.h"
 #include "collections/collection_persisted_stats.h"
+#include "rollback_result.h"
 #include "vbucket_bgfetch_item.h"
 
 #include <platform/dirutils.h>

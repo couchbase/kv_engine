@@ -32,6 +32,7 @@
 #include "magma-kvstore/magma-kvstore_config.h"
 #endif
 #include "src/internal.h"
+#include "src/rollback_result.h"
 #include "test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/test_fileops.h"

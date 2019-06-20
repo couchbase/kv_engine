@@ -25,6 +25,7 @@
 #include "ephemeral_vb_count_visitor.h"
 #include "failover-table.h"
 #include "replicationthrottle.h"
+#include "rollback_result.h"
 #include "statwriter.h"
 
 #include <platform/sized_buffer.h>

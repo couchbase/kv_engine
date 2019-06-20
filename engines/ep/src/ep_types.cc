@@ -19,18 +19,7 @@
 
 #include <boost/optional.hpp>
 #include <folly/lang/Assume.h>
-#include <gsl.h>
 #include <ostream>
-
-RollbackResult::RollbackResult(bool success)
-    : success(success),
-      highSeqno(0),
-      snapStartSeqno(0),
-      snapEndSeqno(0),
-      highCompletedSeqno(0),
-      highPreparedSeqno(0) {
-    Expects(!success);
-}
 
 GenerateBySeqno getGenerateBySeqno(const OptionalSeqno& seqno) {
     return seqno ? GenerateBySeqno::No : GenerateBySeqno::Yes;

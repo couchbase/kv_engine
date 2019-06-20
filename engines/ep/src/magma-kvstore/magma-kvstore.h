@@ -22,6 +22,7 @@
 #include "kvstore.h"
 #include "kvstore_priv.h"
 #include "libmagma/magma.h"
+#include "rollback_result.h"
 #include "vbucket_bgfetch_item.h"
 
 #include <platform/dirutils.h>

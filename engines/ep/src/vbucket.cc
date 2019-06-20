@@ -35,6 +35,7 @@
 #include "hash_table_stat_visitor.h"
 #include "kvstore.h"
 #include "pre_link_document_context.h"
+#include "rollback_result.h"
 #include "statwriter.h"
 #include "stored_value_factories.h"
 #include "vb_filter.h"

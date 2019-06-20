@@ -128,42 +128,6 @@ using OptionalSeqno = boost::optional<int64_t>;
 GenerateBySeqno getGenerateBySeqno(const OptionalSeqno& seqno);
 
 /**
- * Captures the result of a rollback request.
- * Contains if the rollback was successful, highSeqno of the vBucket after
- * rollback, and the last snaspshot range in the vb after rollback. Also
- * contains the high completed and high prepared seqnos.
- */
-class RollbackResult {
-public:
-    /**
-     * Constructor only to be used for unsuccessful rollback. Takes a single
-     * bool to indicate success. Must be false or an assertion will fire.
-     */
-    RollbackResult(bool success);
-
-    RollbackResult(bool success,
-                   uint64_t highSeqno,
-                   uint64_t snapStartSeqno,
-                   uint64_t snapEndSeqno,
-                   uint64_t highCompletedSeqno,
-                   uint64_t highPreparedSeqno)
-        : success(success),
-          highSeqno(highSeqno),
-          snapStartSeqno(snapStartSeqno),
-          snapEndSeqno(snapEndSeqno),
-          highCompletedSeqno(highCompletedSeqno),
-          highPreparedSeqno(highPreparedSeqno) {
-    }
-
-    bool success;
-    uint64_t highSeqno;
-    uint64_t snapStartSeqno;
-    uint64_t snapEndSeqno;
-    uint64_t highCompletedSeqno;
-    uint64_t highPreparedSeqno;
-};
-
-/**
  * Indicates the type of the HighPriorityVB request causing the notify
  */
 enum class HighPriorityVBNotify { Seqno, ChkPersistence };

@@ -55,6 +55,7 @@
 #include "locks.h"
 #include "mutation_log.h"
 #include "replicationthrottle.h"
+#include "rollback_result.h"
 #include "statwriter.h"
 #include "tasks.h"
 #include "trace_helpers.h"

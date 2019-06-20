@@ -31,6 +31,7 @@
 #include "item.h"
 #include "persistence_callback.h"
 #include "replicationthrottle.h"
+#include "rollback_result.h"
 #include "statwriter.h"
 #include "tasks.h"
 #include "vb_visitors.h"

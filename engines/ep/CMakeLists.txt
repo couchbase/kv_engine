@@ -270,6 +270,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/progress_tracker.cc
             src/replicationthrottle.cc
             src/linked_list.cc
+            src/rollback_result.cc
             src/seqlist.cc
             src/stats.cc
             src/string_utils.cc
