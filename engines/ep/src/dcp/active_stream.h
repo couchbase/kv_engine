@@ -370,6 +370,11 @@ private:
     // @TODO - update to be part of the state machine.
     bool firstMarkerSent;
 
+    // First seqno sent by this stream. Used to determine if we should send a
+    // mutation instead of a commit (because the replica may have missed a
+    // prepare).
+    uint64_t firstSeqnoSent;
+
     /**
      * Indicates if the stream is currently waiting for a snapshot to be
      * acknowledged by the peer. Incremented when forming SnapshotMarkers in

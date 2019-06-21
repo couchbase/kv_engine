@@ -691,8 +691,12 @@ VBNotifyCtx EphemeralVBucket::commitStoredValue(
                                   GenerateRevSeqno::No);
     }
 
-    // @TODO set the prepare seqno of the committed OSV so that we can backfill
-    // it from the seqList.
+    // Manually set the prepareSeqno on the OSV so that it is stored in the
+    // seqList. This is required to provide the correct prepare seqno when
+    // backfilling from the seqList. The consumer always expects a non-zero
+    // prepare seqno to perform some additional error checking.
+    auto& osv = *(newCommitted->toOrderedStoredValue());
+    osv.setPrepareSeqno(prepareSeqno);
 
     values.pending.setCommitted(CommittedState::PrepareCommitted);
     return notifyCtx;

@@ -32,6 +32,8 @@ protected:
      * message has been queued into the ActiveStream::readyQ.
      */
     void testSendDcpPrepare();
+
+    void setUpSendSetInsteadOfCommitTest();
 };
 
 /*

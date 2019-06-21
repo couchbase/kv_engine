@@ -59,6 +59,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       takeoverState(vbucket_state_pending),
       itemsFromMemoryPhase(0),
       firstMarkerSent(false),
+      firstSeqnoSent(0),
       waitForSnapshot(0),
       engine(e),
       producerPtr(p),
@@ -895,17 +896,43 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
     // Note: This function is hot - it is called for every item to be
     // sent over the DCP connection.
 
-    // If this Stream supports SyncReplication then send commit_sync_write
-    // as a Commit message - otherwise it's just sent as a Mutation. In the case
-    // where this stream does support SyncReplication and it is in the window
-    // in which a resuming replica may need to overwrite prepares or receives
-    // two commits in a row then we should send a Mutation instead so that the
-    // replica has the information required. This window is any commit with a
-    // prepare seqno less than or equal to the actual stream start seqno.
+    // If this Stream supports SyncReplication then we may send a
+    // CommitSyncWrite. If this Stream does not support SyncReplication then we
+    // will only send Mutation messages.
+    //
+    // There are cases for SyncReplication streams in which the consumer may not
+    // have the corresponding Prepare for this Commit. If the consumer were to
+    // receive this Commit then it would not have the required information (the
+    // value) to commit. In these cases, we must send a Mutation message instead
+    // of a CommitSyncWrite.
+    //
+    // - New Stream (from 0):
+    //
+    // A new stream will backfill from disk. In this case, the first item we see
+    // may be a Commit (if there is an in-flight Prepare that has been
+    // persisted). We must send a Mutation in this case as the consumer will
+    // not have a corresponding Prepare at all. This is covered by the condition
+    // testing if the prepare seqno is less than the first seqno sent.
+    //
+    // - Resuming Stream (from x):
+    //
+    // A resuming stream may backfill from disk. In this case, the consumer
+    // may have no corresponding Prepare (same as above case when streaming from
+    // 0) or a Prepare that is out of date. In the case where the Prepare may be
+    // out of date, we want to send the Mutation if the prepare seqno is less
+    // than first seqno sent AND greater than the requested stream start seqno
+    // (if it were less then the replica already has the corresponding prepare).
+    if (firstSeqnoSent == 0) {
+        firstSeqnoSent = item->getBySeqno();
+    }
+    bool prepareSeqnoGEFirstSeqno =
+            static_cast<uint64_t>(item->getPrepareSeqno()) >= firstSeqnoSent;
+    bool prepareSeqnoGTRequestedStart =
+            start_seqno_ < static_cast<uint64_t>(item->getPrepareSeqno());
+
     if ((item->getOperation() == queue_op::commit_sync_write) &&
         (syncReplication == SyncReplication::Yes) &&
-        (start_seqno_ == 0 ||
-         static_cast<uint64_t>(item->getPrepareSeqno()) > start_seqno_)) {
+        (prepareSeqnoGEFirstSeqno || !prepareSeqnoGTRequestedStart)) {
         return std::make_unique<CommitSyncWrite>(opaque_,
                                                  item->getVBucketId(),
                                                  item->getPrepareSeqno(),

@@ -279,10 +279,11 @@ TEST_P(DurabilityActiveStreamTest, BackfillCommit) {
     ctx.durability =
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
     EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
+    auto prepareSeqno = vb->getHighSeqno();
     EXPECT_EQ(ENGINE_SUCCESS,
               vb->commit(key,
-                         item->getBySeqno(),
-                         {} /*abortSeqno*/,
+                         prepareSeqno,
+                         {} /*commitSeqno*/,
                          vb->lockCollections(key)));
 
     flushVBucketToDiskIfPersistent(vbid, 2);
@@ -426,7 +427,7 @@ TEST_P(DurabilityActiveStreamTest, RemoveUnknownSeqnoAckAtDestruction) {
     }
 }
 
-TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForReconnectWindow) {
+void DurabilityActiveStreamTest::setUpSendSetInsteadOfCommitTest() {
     auto vb = engine->getVBucket(vbid);
 
     const auto key = makeStoredDocKey("key");
@@ -445,7 +446,7 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForReconnectWindow) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Seqno 2 - Followed by a commit (the consumer does not get this)
-    vb->commit(key, item->getBySeqno(), {}, vb->lockCollections(key));
+    vb->commit(key, vb->getHighSeqno(), {}, vb->lockCollections(key));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto mutationResult =
@@ -456,7 +457,7 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForReconnectWindow) {
 
     // Seqno 4 - A commit that the consumer would receive when reconnecting with
     // seqno 1
-    vb->commit(key, item->getBySeqno(), {}, vb->lockCollections(key));
+    vb->commit(key, vb->getHighSeqno(), {}, vb->lockCollections(key));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Seqno 5 - A prepare to dedupe the prepare at seqno 3.
@@ -472,6 +473,21 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForReconnectWindow) {
     auto expectedCursors = persistent() ? 1 : 0;
     ASSERT_EQ(expectedCursors, mockCkptMgr.getNumOfCursors());
 
+    // Need to close the previously existing checkpoints so that we can backfill
+    // from disk
+    bool newCkpt = false;
+    auto size =
+            mockCkptMgr.removeClosedUnrefCheckpoints(*vb, newCkpt, 5 /*limit*/);
+    ASSERT_FALSE(newCkpt);
+    ASSERT_EQ(4, size);
+}
+
+TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForReconnectWindow) {
+    setUpSendSetInsteadOfCommitTest();
+
+    auto vb = engine->getVBucket(vbid);
+    const auto key = makeStoredDocKey("key");
+
     // Disconnect and resume from our prepare
     stream = std::make_shared<MockActiveStream>(engine.get(),
                                                 producer,
@@ -484,19 +500,11 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForReconnectWindow) {
                                                 1 /*snap_start_seqno*/,
                                                 ~1 /*snap_end_seqno*/);
 
-    // Need to close the previously existing checkpoints so that we can backfill
-    // from disk
-    bool newCkpt = false;
-    auto size =
-            mockCkptMgr.removeClosedUnrefCheckpoints(*vb, newCkpt, 4 /*limit*/);
-    ASSERT_FALSE(newCkpt);
-    ASSERT_EQ(4, size);
-
     stream->transitionStateToBackfilling();
     ASSERT_TRUE(stream->isBackfilling());
     auto& bfm = producer->getBFM();
     bfm.backfill();
-    // First backfill only sets adds the SnapshotMarker so repeat
+    // First backfill only sends the SnapshotMarker so repeat
     bfm.backfill();
 
     // Stream::readyQ must contain SnapshotMarker
@@ -512,6 +520,107 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForReconnectWindow) {
     const auto& set = static_cast<MutationResponse&>(*resp);
     EXPECT_EQ(key, set.getItem()->getKey());
     EXPECT_EQ(4, set.getItem()->getBySeqno());
+
+    // Followed by a prepare
+    resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+    const auto& prepare = static_cast<MutationResponse&>(*resp);
+    EXPECT_EQ(key, prepare.getItem()->getKey());
+    EXPECT_TRUE(prepare.getItem()->isPending());
+    EXPECT_EQ(5, prepare.getItem()->getBySeqno());
+}
+
+TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForNewVB) {
+    setUpSendSetInsteadOfCommitTest();
+
+    auto vb = engine->getVBucket(vbid);
+    const auto key = makeStoredDocKey("key");
+
+    // Disconnect and resume from our prepare
+    stream = std::make_shared<MockActiveStream>(engine.get(),
+                                                producer,
+                                                0 /*flags*/,
+                                                0 /*opaque*/,
+                                                *vb,
+                                                0 /*st_seqno*/,
+                                                ~0 /*en_seqno*/,
+                                                0x0 /*vb_uuid*/,
+                                                0 /*snap_start_seqno*/,
+                                                ~0 /*snap_end_seqno*/);
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+    auto& bfm = producer->getBFM();
+    bfm.backfill();
+    // First backfill only sends the SnapshotMarker so repeat
+    bfm.backfill();
+
+    // Stream::readyQ must contain SnapshotMarker
+    ASSERT_EQ(3, stream->public_readyQSize());
+    auto resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+
+    // Followed by a mutation instead of a commit
+    resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    const auto& set = static_cast<MutationResponse&>(*resp);
+    EXPECT_EQ(key, set.getItem()->getKey());
+    EXPECT_EQ(4, set.getItem()->getBySeqno());
+
+    // Followed by a prepare
+    resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+    const auto& prepare = static_cast<MutationResponse&>(*resp);
+    EXPECT_EQ(key, prepare.getItem()->getKey());
+    EXPECT_TRUE(prepare.getItem()->isPending());
+    EXPECT_EQ(5, prepare.getItem()->getBySeqno());
+}
+
+TEST_P(DurabilityActiveStreamTest, SendCommitForResumeIfPrepareReceived) {
+    setUpSendSetInsteadOfCommitTest();
+
+    auto vb = engine->getVBucket(vbid);
+    const auto key = makeStoredDocKey("key");
+
+    // Disconnect and resume from our prepare. We resume from prepare 3 in this
+    // case so that the producers data will just be [4: Commit, 5:Prepare].
+    stream = std::make_shared<MockActiveStream>(engine.get(),
+                                                producer,
+                                                0 /*flags*/,
+                                                0 /*opaque*/,
+                                                *vb,
+                                                3 /*st_seqno*/,
+                                                ~0 /*en_seqno*/,
+                                                0x0 /*vb_uuid*/,
+                                                3 /*snap_start_seqno*/,
+                                                ~3 /*snap_end_seqno*/);
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+    auto& bfm = producer->getBFM();
+    bfm.backfill();
+    // First backfill only sends the SnapshotMarker so repeat
+    bfm.backfill();
+
+    // Stream::readyQ must contain SnapshotMarker
+    ASSERT_EQ(3, stream->public_readyQSize());
+    auto resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+
+    // Followed by a commit because the producer knows we are not missing a
+    // prepare.
+    resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::Commit, resp->getEvent());
+    const auto& commit = static_cast<CommitSyncWrite&>(*resp);
+    EXPECT_EQ(key, commit.getKey());
+    EXPECT_EQ(4, *commit.getBySeqno());
+    EXPECT_EQ(3, commit.getPreparedSeqno());
 
     // Followed by a prepare
     resp = stream->public_popFromReadyQ();
