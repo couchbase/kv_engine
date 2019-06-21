@@ -338,7 +338,7 @@ private:
     void commitCallback(int status, kvstats_ctx& kvctx);
 
     static ENGINE_ERROR_CODE magmaErr2EngineErr(magma::Status::Code err,
-                                                bool found);
+                                                bool found = true);
 
     // Used for queueing mutation requests (in `set` and `del`) and flushing
     // them to disk (in `commit`).

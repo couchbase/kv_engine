@@ -678,7 +678,7 @@ GetValue MagmaKVStore::getWithHeader(void* dbHandle,
                      vbid,
                      cb::UserData{makeDiskDocKey(keySlice).to_string()},
                      status.String());
-        return GetValue{NULL, magmaErr2EngineErr(status.ErrorCode(), true)};
+        return GetValue{NULL, magmaErr2EngineErr(status.ErrorCode())};
     }
 
     if (!found) {
@@ -1518,12 +1518,10 @@ ENGINE_ERROR_CODE MagmaKVStore::magmaErr2EngineErr(Status::Code err,
     // This routine is intended to mimic couchErr2EngineErr.
     // Since magma doesn't have a memory allocation error, all magma errors
     // get translated into ENGINE_TMPFAIL.
-    switch (err) {
-    case Status::Code::Ok:
+    if (err == Status::Code::Ok) {
         return ENGINE_SUCCESS;
-    default:
-        return ENGINE_TMPFAIL;
     }
+    return ENGINE_TMPFAIL;
 }
 
 Vbid MagmaKVStore::getDBFileId(const cb::mcbp::Request& req) {
