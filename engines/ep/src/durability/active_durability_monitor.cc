@@ -628,6 +628,23 @@ void ActiveDurabilityMonitor::State::advanceAndAckForPosition(
     if (shouldAck) {
         pos.it->ack(node);
     }
+
+    // Add a trace event for the ACK from this node (assuming we have a cookie
+    // // for it).
+    // ActiveDM has no visibility of when a replica was sent the prepare
+    // (that's managed by CheckpointManager which doesn't know the client
+    // cookie) so just make the start+end the same.
+    auto* cookie = pos.it->getCookie();
+    if (cookie) {
+        const auto ackTime = std::chrono::steady_clock::now();
+        const auto event =
+                (node == getActive())
+                        ? cb::tracing::TraceCode::SYNC_WRITE_ACK_LOCAL
+                        : cb::tracing::TraceCode::SYNC_WRITE_ACK_REMOTE;
+        TracerStopwatch ackTimer(cookie, event);
+        ackTimer.start(ackTime);
+        ackTimer.stop(ackTime);
+    }
 }
 
 void ActiveDurabilityMonitor::State::updateNodeAck(const std::string& node,
@@ -767,6 +784,20 @@ ActiveDurabilityMonitor::State::removeSyncWrite(Container::iterator it) {
 
 void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
     const auto& key = sw.getKey();
+
+    const auto prepareEnd = std::chrono::steady_clock::now();
+    auto* cookie = sw.getCookie();
+    if (cookie) {
+        // Record a Span for the prepare phase duration. We do this before
+        // actually calling VBucket::commit() as we want to add a TraceSpan to
+        // the cookie before the response to the client is actually sent (and we
+        // report the end of the request), which is done within
+        // VBucket::commit().
+        TracerStopwatch prepareDuration(
+                cookie, cb::tracing::TraceCode::SYNC_WRITE_PREPARE);
+        prepareDuration.start(sw.getStartTime());
+        prepareDuration.stop(prepareEnd);
+    }
     auto result = vb.commit(key,
                             sw.getBySeqno() /*prepareSeqno*/,
                             {} /*commitSeqno*/,
@@ -783,7 +814,7 @@ void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
     const auto index = size_t(sw.getDurabilityReqs().getLevel()) - 1;
     const auto commitDuration =
             std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::steady_clock::now() - sw.getStartTime());
+                    prepareEnd - sw.getStartTime());
     stats.syncWriteCommitTimes.at(index).add(commitDuration);
 
     {

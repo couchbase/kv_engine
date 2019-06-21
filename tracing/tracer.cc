@@ -31,10 +31,6 @@ std::chrono::microseconds to_micros(
 namespace cb {
 namespace tracing {
 
-Tracer::SpanId Tracer::invalidSpanId() {
-    return std::numeric_limits<SpanId>::max();
-}
-
 Tracer::SpanId Tracer::begin(const TraceCode tracecode,
                              std::chrono::steady_clock::time_point startTime) {
     vecSpans.emplace_back(tracecode, startTime);
@@ -155,6 +151,12 @@ MEMCACHED_PUBLIC_API std::string to_string(
         return "set.with.meta";
     case TraceCode::STORE:
         return "store";
+    case TraceCode::SYNC_WRITE_PREPARE:
+        return "sync_write.prepare";
+    case TraceCode::SYNC_WRITE_ACK_LOCAL:
+        return "sync_write.ack_local";
+    case TraceCode::SYNC_WRITE_ACK_REMOTE:
+        return "sync_write.ack_remote";
     }
     return "unknown tracecode";
 }

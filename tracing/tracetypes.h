@@ -35,6 +35,12 @@ enum class TraceCode : uint8_t {
     GETSTATS,
     SETWITHMETA,
     STORE,
+    /// Time spent by a SyncWrite in Prepared state before being completed.
+    SYNC_WRITE_PREPARE,
+    /// Time when a SyncWrite local ACK is received by the Active.
+    SYNC_WRITE_ACK_LOCAL,
+    /// Time when a SyncWrite replica ACK is received by the Active.
+    SYNC_WRITE_ACK_REMOTE,
 };
 } // namespace tracing
 } // namespace cb

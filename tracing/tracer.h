@@ -62,8 +62,6 @@ class MEMCACHED_PUBLIC_CLASS Tracer {
 public:
     using SpanId = std::size_t;
 
-    static SpanId invalidSpanId();
-
     /// Begin a Span starting from the specified time point (defaults to now)
     SpanId begin(const TraceCode tracecode,
                  std::chrono::steady_clock::time_point startTime =
