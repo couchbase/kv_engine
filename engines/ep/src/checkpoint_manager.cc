@@ -720,7 +720,7 @@ bool CheckpointManager::queueDirty(
                 // We shouldn't see this for non-active vBuckets; given the
                 // original (active) vBucket on some other node should not have
                 // put duplicate mutations in the same Checkpoint.
-                throw std::logic_error("CheckpointManager::queueDirty(vb:" +
+                throw std::logic_error("CheckpointManager::queueDirty(" +
                                        vbucketId.to_string() +
                                        ") - got Ckpt::queueDirty() status:" +
                                        to_string(result) +
