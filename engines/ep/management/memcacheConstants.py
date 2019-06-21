@@ -114,6 +114,7 @@ FEATURE_TCPDELAY = 0x05
 FEATURE_XATTR = 0x06
 FEATURE_XERROR = 0x07
 FEATURE_SELECT_BUCKET = 0x08
+FEATURE_TRACING = 0x0f
 FEATURE_COLLECTIONS = 0x12
 
 # Flags, expiration
@@ -153,11 +154,14 @@ MAGIC_BYTE = 0x80
 REQ_MAGIC_BYTE = 0x80
 ALT_REQ_MAGIC_BYTE=0x08
 RES_MAGIC_BYTE = 0x81
+ALT_RES_MAGIC_BYTE=0x18
 
 # magic, opcode, keylen, extralen, datatype, vbucket, bodylen, opaque, cas
 REQ_PKT_FMT=">BBHBBHIIQ"
 # magic, opcode, keylen, extralen, datatype, status, bodylen, opaque, cas
 RES_PKT_FMT=">BBHBBHIIQ"
+# magic, opcode, frame_extra_len, keylen, extralen, datatype, status, bodylen, opaque, cas
+ALT_RES_PKT_FMT=">BBBBBBHIIQ"
 # magic, opcode, frame_extra_len, keylen, extralen, datatype, vbucket, bodylen, opaque, cas
 ALT_REQ_PKT_FMT=">BBBBBBHIIQ"
 

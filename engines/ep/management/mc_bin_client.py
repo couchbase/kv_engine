@@ -16,8 +16,8 @@ import struct
 import sys
 import time
 
-from memcacheConstants import REQ_MAGIC_BYTE, RES_MAGIC_BYTE, ALT_REQ_MAGIC_BYTE
-from memcacheConstants import REQ_PKT_FMT, RES_PKT_FMT, ALT_REQ_PKT_FMT, MIN_RECV_PACKET
+from memcacheConstants import REQ_MAGIC_BYTE, RES_MAGIC_BYTE, ALT_REQ_MAGIC_BYTE, ALT_RES_MAGIC_BYTE
+from memcacheConstants import REQ_PKT_FMT, RES_PKT_FMT, ALT_REQ_PKT_FMT, ALT_RES_PKT_FMT, MIN_RECV_PACKET
 from memcacheConstants import SET_PKT_FMT, DEL_PKT_FMT, INCRDECR_RES_FMT
 from memcacheConstants import TOUCH_PKT_FMT, GAT_PKT_FMT, GETL_PKT_FMT
 from memcacheConstants import COMPACT_DB_PKT_FMT
@@ -240,8 +240,17 @@ class MemcachedClient(object):
                 raise EOFError("Got empty data (remote died?).")
             response += data
         assert len(response) == MIN_RECV_PACKET
-        magic, cmd, keylen, extralen, dtype, errcode, remaining, opaque, cas = \
-            struct.unpack(RES_PKT_FMT, response)
+
+        (magic, ) = struct.unpack(">B", response[0:1])
+        assert magic in (RES_MAGIC_BYTE, ALT_RES_MAGIC_BYTE), "Got magic: {:#x}".format(magic)
+
+        if magic == RES_MAGIC_BYTE:
+            (_, cmd, keylen, extralen, dtype, errcode, remaining, opaque,
+             cas) = struct.unpack(RES_PKT_FMT, response)
+            framing_extras_len = 0
+        elif magic == ALT_RES_MAGIC_BYTE:
+            (_, cmd, framing_extras_len, keylen, extralen, dtype, errcode,
+             remaining, opaque, cas) = struct.unpack(ALT_RES_PKT_FMT, response)
 
         rv = b''
         while remaining > 0:
@@ -251,7 +260,9 @@ class MemcachedClient(object):
             rv += data
             remaining -= len(data)
 
-        assert (magic in (RES_MAGIC_BYTE, REQ_MAGIC_BYTE)), "Got magic: %d" % magic
+        # TODO: Skip flex framing extras in response for now
+        rv = rv[framing_extras_len:]
+
         return cmd, errcode, opaque, cas, keylen, extralen, rv
 
     def _handleKeyedResponse(self, myopaque):
@@ -715,6 +726,9 @@ class MemcachedClient(object):
 
     def enable_mutation_seqno(self):
         self.req_features.add(memcacheConstants.FEATURE_MUTATION_SEQNO)
+
+    def enable_tracing(self):
+        self.req_features.add(memcacheConstants.FEATURE_TRACING)
 
     def is_xerror_supported(self):
         return memcacheConstants.FEATURE_XERROR in self.features
