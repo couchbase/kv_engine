@@ -1601,7 +1601,8 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveBackfilledDcpAbort) {
 
     // Hit the consumer level function (not the stream level) for additional
     // error checking.
-    EXPECT_EQ(ENGINE_SUCCESS, consumer->abort(opaque, vbid, key, 0, 2));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->abort(opaque, vbid, key, prepare->getBySeqno(), 2));
 }
 
 TEST_P(DurabilityPassiveStreamTest,
