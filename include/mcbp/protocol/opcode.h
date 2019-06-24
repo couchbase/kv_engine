@@ -417,6 +417,9 @@ bool is_valid_opcode(ServerOpcode opcode);
 /// Does the provided opcode support durability or not
 bool is_durability_supported(ClientOpcode opcode);
 
+/// Does the provided opcode support reordering
+bool is_reorder_supported(ClientOpcode opcode);
+
 } // namespace mcbp
 } // namespace cb
 

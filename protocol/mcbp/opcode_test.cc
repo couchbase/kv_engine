@@ -288,6 +288,27 @@ TEST(ClientOpcode, is_durability_supported) {
                    "durability");
 }
 
+TEST(ClientOpcode, is_reorder_supported) {
+    using cb::mcbp::ClientOpcode;
+
+    testAllOpcodes(cb::mcbp::is_reorder_supported,
+                   {{ClientOpcode::Get,        ClientOpcode::Getq,
+                     ClientOpcode::Getk,       ClientOpcode::Getkq,
+                     ClientOpcode::GetLocked,  ClientOpcode::UnlockKey,
+                     ClientOpcode::Touch,      ClientOpcode::Gat,
+                     ClientOpcode::Gatq,       ClientOpcode::Delete,
+                     ClientOpcode::Deleteq,    ClientOpcode::Increment,
+                     ClientOpcode::Incrementq, ClientOpcode::Decrement,
+                     ClientOpcode::Decrementq, ClientOpcode::EvictKey,
+                     ClientOpcode::GetReplica, ClientOpcode::Add,
+                     ClientOpcode::Addq,       ClientOpcode::Set,
+                     ClientOpcode::Setq,       ClientOpcode::Replace,
+                     ClientOpcode::Replaceq,   ClientOpcode::Append,
+                     ClientOpcode::Appendq,    ClientOpcode::Prepend,
+                     ClientOpcode::Prependq}},
+                   "reorder");
+}
+
 const std::map<cb::mcbp::ServerOpcode, std::string> server_blueprint = {
         {{ServerOpcode::ClustermapChangeNotification,
           "ClustermapChangeNotification"},

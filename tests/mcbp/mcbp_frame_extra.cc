@@ -68,7 +68,7 @@ protected:
 TEST_F(FrameExtrasValidatorTests, Reorder) {
     auto fe = encodeFrameInfo(FrameInfoId::Reorder, {});
     builder.setFramingExtras({fe.data(), fe.size()});
-    EXPECT_EQ(Status::NotSupported, validate(ClientOpcode::Set, blob));
+    EXPECT_EQ(Status::Success, validate(ClientOpcode::Set, blob));
 }
 
 TEST_F(FrameExtrasValidatorTests, ReorderInvalidSize) {

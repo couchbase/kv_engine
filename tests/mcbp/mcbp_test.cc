@@ -69,6 +69,7 @@ cb::mcbp::Status ValidatorTest::validate(cb::mcbp::ClientOpcode opcode,
     connection.enableDatatype(cb::mcbp::Feature::JSON);
     connection.enableDatatype(cb::mcbp::Feature::XATTR);
     connection.enableDatatype(cb::mcbp::Feature::SNAPPY);
+    connection.setAllowUnorderedExecution(true);
 
     const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);
     const size_t size = sizeof(req) + req.getBodylen();

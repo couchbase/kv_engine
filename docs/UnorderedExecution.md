@@ -37,3 +37,20 @@ mode.
 
 The client may use the opaque field in the request to identify the
 which request the response belongs to.
+
+## Commands to be supported in the server (initially)
+
+The following is a list of commands the client may use
+with the reorder flag set and if something weird happens
+it should be considered an ERROR in the server and a bug
+report should be filed.
+
+* Get (including quiet versions with and without key)
+* Get Replica
+* Get locked
+* Get and touch
+* Touch
+* Unlock
+* Incr / decr (including quiet versions)
+* Delete (including quiet version)
+* Add, Set, Replace, append, prepend (including quiet versions)
