@@ -19,7 +19,6 @@
 
 #include <cbsasl/logging.h>
 #include <cbsasl/util.h>
-#include <nlohmann/json.hpp>
 #include <utilities/logtags.h>
 #include <iterator>
 
@@ -39,8 +38,7 @@ static const std::string::size_type PASSWORD_SIZE = 36;
 Error check_password(Context* context,
                      const cb::sasl::pwdb::User& user,
                      const std::string& password) {
-    const auto& meta = user.getPassword(Mechanism::PLAIN);
-    const auto storedPassword = meta.getPassword();
+    const auto storedPassword = user.getPassword(Mechanism::PLAIN).getPassword();
     const auto size = storedPassword.size();
     if (size != PASSWORD_SIZE) {
         std::string message{
@@ -80,19 +78,6 @@ Error check_password(Context* context,
     if (same) {
         return Error::OK;
     }
-
-    if (user.getUsername().getRawValue() == "@ns_server") {
-        std::string message{
-                "MB-34675: Login failed for @ns_server with provided password "
-                "<ud>\"" +
-                password + "\"</ud> in memory entry <ud>\"" +
-                meta.to_json().dump() + "\"</ud>"};
-        if (user.isDummy()) {
-            message.append(" dummy user");
-        }
-        logging::log(context, logging::Level::Error, message);
-    }
-
     return Error::PASSWORD_ERROR;
 }
 
