@@ -414,6 +414,9 @@ enum class ServerOpcode {
 bool is_valid_opcode(ClientOpcode opcode);
 bool is_valid_opcode(ServerOpcode opcode);
 
+/// Does the provided opcode support durability or not
+bool is_durability_supported(ClientOpcode opcode);
+
 } // namespace mcbp
 } // namespace cb
 

@@ -18,6 +18,7 @@
 #include <folly/portability/GTest.h>
 #include <mcbp/protocol/opcode.h>
 #include <memcached/protocol_binary.h>
+#include <platform/string_hex.h>
 #include <algorithm>
 #include <cctype>
 #include <map>
@@ -231,6 +232,60 @@ TEST(ClientOpcode_to_opcode, SpaceMayBeUsed) {
         std::replace(input.begin(), input.end(), '_', ' ');
         EXPECT_EQ(entry.first, to_opcode(input));
     }
+}
+
+static void testAllOpcodes(std::function<bool(ClientOpcode)> function,
+                           const std::vector<ClientOpcode>& blueprint,
+                           const std::string feature) {
+    using cb::mcbp::ClientOpcode;
+    using cb::mcbp::is_durability_supported;
+
+    for (int ii = 0; ii < 0x100; ++ii) {
+        const auto opcode = ClientOpcode(ii);
+        if (is_valid_opcode(opcode)) {
+            if (std::find(blueprint.begin(), blueprint.end(), opcode) !=
+                blueprint.end()) {
+                EXPECT_TRUE(function(opcode))
+                        << to_string(opcode) << " should support " << feature;
+            } else {
+                EXPECT_FALSE(function(opcode))
+                        << to_string(opcode) << " should not support "
+                        << feature;
+            }
+        } else {
+            EXPECT_THROW(function(opcode), std::runtime_error)
+                    << "checking for " << feature
+                    << " did not throw an exception for invalid opcode: "
+                    << cb::to_hex(uint8_t(opcode));
+        }
+    }
+}
+
+TEST(ClientOpcode, is_durability_supported) {
+    using cb::mcbp::ClientOpcode;
+
+    testAllOpcodes(cb::mcbp::is_durability_supported,
+                   {{ClientOpcode::Set,
+                     ClientOpcode::Add,
+                     ClientOpcode::Replace,
+                     ClientOpcode::Delete,
+                     ClientOpcode::Increment,
+                     ClientOpcode::Decrement,
+                     ClientOpcode::Append,
+                     ClientOpcode::Prepend,
+                     ClientOpcode::Touch,
+                     ClientOpcode::Gat,
+                     ClientOpcode::SubdocDictAdd,
+                     ClientOpcode::SubdocDictUpsert,
+                     ClientOpcode::SubdocDelete,
+                     ClientOpcode::SubdocReplace,
+                     ClientOpcode::SubdocArrayPushLast,
+                     ClientOpcode::SubdocArrayPushFirst,
+                     ClientOpcode::SubdocArrayInsert,
+                     ClientOpcode::SubdocArrayAddUnique,
+                     ClientOpcode::SubdocCounter,
+                     ClientOpcode::SubdocMultiMutation}},
+                   "durability");
 }
 
 const std::map<cb::mcbp::ServerOpcode, std::string> server_blueprint = {
