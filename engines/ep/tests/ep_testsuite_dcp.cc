@@ -7230,6 +7230,138 @@ static enum test_result test_set_dcp_param(EngineIface* h) {
     return SUCCESS;
 }
 
+// Test checks that if a backfill sends a prepare(k1), commit(k1) that the
+// vbucket can successfully become active and produce data. MB-34634 meant that
+// with these steps a crash occurred in a producer because the commit(k1) was
+// effectively sent when a consumer indicated by stream-request they already
+// had it (the crash was an exception inside KV-engine.)
+static enum test_result test_MB_34634(EngineIface* h) {
+    const void* cookie = testHarness->create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t seqno = 0;
+    const std::string conn_name("test_MB_34634");
+    auto dcp = requireDcpIface(h);
+
+    Vbid vb(0);
+
+    // 1) Begin with our victim vbucket in pending state
+    check(set_vbucket_state(h, vb, vbucket_state_pending),
+          "Failed to set vbucket to pending");
+
+    // 2) Create a DCP Consumer and add a stream so we can send DCP traffic to
+    //    the victim
+    checkeq(ENGINE_SUCCESS,
+            dcp->open(cookie, opaque, seqno, 0, conn_name),
+            "Failed to open a DCP Consumer");
+
+    opaque = add_stream_for_consumer(
+            h, cookie, opaque, vb, 0, cb::mcbp::Status::Success);
+
+    // 3) Send a single 'disk' snapshot with two items.
+    //    a) prepare(key)
+    //    b) commit(key)
+    // The commit must be the high-seqno, i.e. last item of the snapshot
+    checkeq(ENGINE_SUCCESS,
+            dcp->snapshot_marker(cookie,
+                                 opaque,
+                                 vb,
+                                 0, // start-seq
+                                 2, // end-seq
+                                 MARKER_FLAG_DISK),
+            "snapshot_marker returned an error");
+    const DocKey docKey1{"syncw", DocKeyEncodesCollectionId::No};
+    checkeq(ENGINE_SUCCESS,
+            dcp->prepare(cookie,
+                         opaque,
+                         docKey1,
+                         {/*empty value*/},
+                         0, // priv bytes
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         10000, // cas
+                         vb,
+                         0, // flags
+                         1, // by-seqno
+                         1, // rev-seqno
+                         0, // expiry
+                         0, // lock-time
+                         INITIAL_NRU_VALUE,
+                         DocumentState::Alive,
+                         cb::durability::Requirements(
+                                 cb::durability::Level::Majority, 10000)),
+            "DCP consumer failed the prepare");
+
+    checkeq(ENGINE_SUCCESS,
+            dcp->commit(cookie, opaque, vb, docKey1, 1, 2),
+            "DCP consumer failed the commit");
+
+    wait_for_flusher_to_settle(h);
+
+    MockDcpMessageProducers producers(h);
+
+    // 4) Close the stream and proceed to takeover, resulting in an active VB
+    checkeq(ENGINE_SUCCESS,
+            dcp->close_stream(cookie, opaque, vb, {}),
+            "DCP consumer failed the close_stream request");
+
+    // 4.1) takeover stream, switch pending -> active
+    opaque = 0xDDDD0000;
+    checkeq(ENGINE_SUCCESS,
+            dcp->add_stream(cookie, opaque, vb, DCP_ADD_STREAM_FLAG_TAKEOVER),
+            "Add stream request failed");
+
+    dcp_step(h, cookie, producers);
+    opaque = producers.last_opaque;
+    checkeq(cb::mcbp::ClientOpcode::DcpStreamReq,
+            producers.last_op,
+            "Unexpected last_op");
+
+    checkeq(ENGINE_SUCCESS,
+            dcp->set_vbucket_state(cookie, opaque, vb, vbucket_state_active),
+            "Add stream request failed");
+
+    checkeq(ENGINE_SUCCESS,
+            dcp->close_stream(cookie, opaque, vb, {}),
+            "Expected success");
+
+    // 5) Set the topology
+    {
+        char vbState = static_cast<char>(vbucket_state_active);
+        const char* topology = R"({"topology":[["active"]]})";
+        auto request = createPacket(cb::mcbp::ClientOpcode::SetVbucket,
+                                    vb,
+                                    0,
+                                    {&vbState, 1},
+                                    {/*no key*/},
+                                    {topology, strlen(topology)});
+
+        checkeq(ENGINE_SUCCESS,
+                h->unknown_command(nullptr, *request, add_response),
+                "Calling set vb state failed");
+    }
+
+    // 6) Create a producer and request a stream. If the MB is not fixed, an
+    // exception is generated from a background DCP task, otherwise we should
+    // be able to write and receive 1 extra item
+    const void* cookie2 = testHarness->create_cookie();
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    ctx.seqno = {2, 0xfffffffffffff};
+    ctx.snapshot = {2, 2};
+
+    TestDcpConsumer tdc("test_MB_34634_producer", cookie2, h);
+    tdc.addStreamCtx(ctx);
+    tdc.openConnection();
+    tdc.openStreams();
+
+    write_items(h, 1);
+    dcp_stream_from_producer_conn(h, cookie2, opaque, 3, 3, 0, tdc.producers);
+
+    testHarness->destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie2);
+
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char *default_dbname = "./ep_testsuite_dcp";
@@ -7773,5 +7905,13 @@ BaseTestCase testsuite_testcases[] = {
                  cleanup),
         TestCase("test noop mandatory",test_dcp_noop_mandatory,
                  test_setup, teardown, NULL, prepare, cleanup),
+
+        TestCase("test_MB_34634",
+                 test_MB_34634,
+                 test_setup,
+                 teardown,
+                 NULL,
+                 prepare,
+                 cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)};
