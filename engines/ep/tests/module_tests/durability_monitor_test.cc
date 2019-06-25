@@ -116,8 +116,7 @@ void DurabilityMonitorTest::addSyncDelete(int64_t seqno,
         auto key = makeStoredDocKey("key");
         store_item(vbid, key, "value");
     }
-    // Note: need to go through VBucket::set make sure we call
-    // ADM::checkForCommit
+
     mutation_descr_t mutation_descr;
     auto cHandle = vb->lockCollections(item.getKey());
     ASSERT_EQ(ENGINE_EWOULDBLOCK,
@@ -128,6 +127,7 @@ void DurabilityMonitorTest::addSyncDelete(int64_t seqno,
                              nullptr,
                              mutation_descr,
                              cHandle));
+    vb->notifyActiveDMOfLocalSyncWrite();
 }
 
 size_t ActiveDurabilityMonitorTest::addSyncWrites(
@@ -171,8 +171,10 @@ MutationStatus DurabilityMonitorTest::processSet(Item& item) {
 }
 
 ENGINE_ERROR_CODE DurabilityMonitorTest::set(Item& item) {
-    auto cHandle = vb->lockCollections(item.getKey());
-    return vb->set(item, cookie, *engine, {}, cHandle);
+    auto result = vb->set(
+            item, cookie, *engine, {}, vb->lockCollections(item.getKey()));
+    vb->notifyActiveDMOfLocalSyncWrite();
+    return result;
 }
 
 void ActiveDurabilityMonitorTest::assertNodeTracking(

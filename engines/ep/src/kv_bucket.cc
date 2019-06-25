@@ -671,6 +671,7 @@ ENGINE_ERROR_CODE KVBucket::set(Item& itm,
         return ENGINE_TMPFAIL;
     }
 
+    ENGINE_ERROR_CODE result;
     { // collections read-lock scope
         auto cHandle = vb->lockCollections(itm.getKey());
         if (!cHandle.valid()) {
@@ -684,8 +685,14 @@ ENGINE_ERROR_CODE KVBucket::set(Item& itm,
         // maybe need to adjust expiry of item
         cHandle.processExpiryTime(itm, getMaxTtl());
 
-        return vb->set(itm, cookie, engine, predicate, cHandle);
+        result = vb->set(itm, cookie, engine, predicate, cHandle);
     }
+
+    if (itm.isPending()) {
+        vb->notifyActiveDMOfLocalSyncWrite();
+    }
+
+    return result;
 }
 
 ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
@@ -720,6 +727,7 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
         return ENGINE_NOT_STORED;
     }
 
+    ENGINE_ERROR_CODE result;
     { // collections read-lock scope
         auto cHandle = vb->lockCollections(itm.getKey());
         if (!cHandle.valid()) {
@@ -732,8 +740,14 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
 
         // maybe need to adjust expiry of item
         cHandle.processExpiryTime(itm, getMaxTtl());
-        return vb->add(itm, cookie, engine, cHandle);
+        result = vb->add(itm, cookie, engine, cHandle);
     }
+
+    if (itm.isPending()) {
+        vb->notifyActiveDMOfLocalSyncWrite();
+    }
+
+    return result;
 }
 
 ENGINE_ERROR_CODE KVBucket::replace(Item& itm,
@@ -758,6 +772,7 @@ ENGINE_ERROR_CODE KVBucket::replace(Item& itm,
         }
     }
 
+    ENGINE_ERROR_CODE result;
     { // collections read-lock scope
         auto cHandle = vb->lockCollections(itm.getKey());
         if (!cHandle.valid()) {
@@ -770,8 +785,14 @@ ENGINE_ERROR_CODE KVBucket::replace(Item& itm,
 
         // maybe need to adjust expiry of item
         cHandle.processExpiryTime(itm, getMaxTtl());
-        return vb->replace(itm, cookie, engine, predicate, cHandle);
+        result = vb->replace(itm, cookie, engine, predicate, cHandle);
     }
+
+    if (itm.isPending()) {
+        vb->notifyActiveDMOfLocalSyncWrite();
+    }
+
+    return result;
 }
 
 ENGINE_ERROR_CODE KVBucket::addBackfillItem(Item& itm,
@@ -1869,6 +1890,8 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(
                 vb->getId());
         return ENGINE_TMPFAIL;
     }
+
+    ENGINE_ERROR_CODE result;
     { // collections read scope
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
@@ -1880,9 +1903,15 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(
             return ENGINE_UNKNOWN_COLLECTION;
         }
 
-        return vb->deleteItem(
+        result = vb->deleteItem(
                 cas, cookie, engine, durability, itemMeta, mutInfo, cHandle);
     }
+
+    if (durability) {
+        vb->notifyActiveDMOfLocalSyncWrite();
+    }
+
+    return result;
 }
 
 ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,

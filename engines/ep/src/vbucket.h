@@ -1452,6 +1452,29 @@ public:
             const void* cookie = nullptr);
 
     /**
+     * Notify the ActiveDurabilityMonitor that a SyncWrite has been locally
+     * accepted into memory, and if that SyncWrite has met durability
+     * requirements then Commit it.
+     *
+     * Expected to be called after VBucket SyncWrite mutation methods
+     * (VBucket::set, add, replace...) once the Prepare has been successfully
+     * added to the VBucket.
+     *
+     * The following locks should *not* be held during this call or it may
+     * result in deadlock (lock order inversion):
+     * - the Collections Manifest lock (exclusive or shared)
+     * - Any HashBucketLock.
+     *
+     * This allows us to do "durable" sets in the case where we have no
+     * replicas (i.e. every set should be Committed immediately).
+     * We can't do this when we add the SyncWrite because the general use case
+     * is to commit on replica ack, which requires doing a find against the
+     * HashTable (requires locking the HashBucket) which would result in a
+     * lock-order inversion if we did it inside the addSyncWrite call.
+     */
+    void notifyActiveDMOfLocalSyncWrite();
+
+    /**
      * Notify a client connection that the processing of a SyncWrite has been
      * completed.
      *

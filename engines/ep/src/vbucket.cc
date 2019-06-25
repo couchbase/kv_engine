@@ -931,6 +931,10 @@ ENGINE_ERROR_CODE VBucket::abort(
     return ENGINE_SUCCESS;
 }
 
+void VBucket::notifyActiveDMOfLocalSyncWrite() {
+    getActiveDM().checkForCommit();
+}
+
 void VBucket::notifyClientOfSyncWriteComplete(const void* cookie,
                                               ENGINE_ERROR_CODE result) {
     EP_LOG_DEBUG(
@@ -1566,15 +1570,6 @@ ENGINE_ERROR_CODE VBucket::set(
         }
     }
 
-    // Commit if possible. This allows us to do "durable" sets in the case where
-    // we have no replicas (i.e. every set should be completed immediately).
-    // We can't do this when we add the SyncWrite because the general use case
-    // is to commit on replica ack. This requires doing a find against the
-    // HashTable (requires locking the HashBucket) which would result in a
-    // deadlock if we did it inside the addSyncWrite call. To keep things
-    // simple, just commit after doing the set.
-    getActiveDM().checkForCommit();
-
     return ret;
 }
 
@@ -1681,14 +1676,6 @@ ENGINE_ERROR_CODE VBucket::replace(
             }
         }
     }
-    // Commit if possible. This allows us to do "durable" sets in the case where
-    // we have no replicas (i.e. every set should be completed immediately).
-    // We can't do this when we add the SyncWrite because the general use case
-    // is to commit on replica ack. This requires doing a find against the
-    // HashTable (requires locking the HashBucket) which would result in a
-    // deadlock if we did it inside the addSyncWrite call. To keep things
-    // simple, just commit after doing the set.
-    getActiveDM().checkForCommit();
 
     return ret;
 }
@@ -2167,15 +2154,6 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         }
     }
 
-    // Commit if possible. This allows us to do "durable" sets in the case where
-    // we have no replicas (i.e. every set should be completed immediately).
-    // We can't do this when we add the SyncWrite because the general use case
-    // is to commit on replica ack. This requires doing a find against the
-    // HashTable (requires locking the HashBucket) which would result in a
-    // deadlock if we did it inside the addSyncWrite call. To keep things
-    // simple, just commit after doing the set.
-    getActiveDM().checkForCommit();
-
     return ret;
 }
 
@@ -2495,14 +2473,6 @@ ENGINE_ERROR_CODE VBucket::add(
             break;
         }
     }
-    // Commit if possible. This allows us to do "durable" sets in the case where
-    // we have no replicas (i.e. every set should be completed immediately).
-    // We can't do this when we add the SyncWrite because the general use case
-    // is to commit on replica ack. This requires doing a find against the
-    // HashTable (requires locking the HashBucket) which would result in a
-    // deadlock if we did it inside the addSyncWrite call. To keep things
-    // simple, just commit after doing the set.
-    getActiveDM().checkForCommit();
 
     // For pending SyncWrites we initially return EWOULDBLOCK; will notify
     // client when request is committed / aborted later.
