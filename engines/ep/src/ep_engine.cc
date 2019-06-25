@@ -1014,20 +1014,20 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
     case ENGINE_NOT_MY_VBUCKET:
         --stats.pendingCompactions;
         EP_LOG_WARN(
-                "Compaction of db file id: {} failed "
+                "Compaction of {} failed "
                 "because the db file doesn't exist!!!",
-                compactionConfig.db_file_id.get());
+                compactionConfig.db_file_id);
         return ENGINE_NOT_MY_VBUCKET;
     case ENGINE_EINVAL:
         --stats.pendingCompactions;
         EP_LOG_WARN(
-                "Compaction of db file id: {} failed "
+                "Compaction of {} failed "
                 "because of an invalid argument",
-                compactionConfig.db_file_id.get());
+                compactionConfig.db_file_id);
         return ENGINE_EINVAL;
     case ENGINE_EWOULDBLOCK:
         EP_LOG_INFO(
-                "Compaction of db file id: {}, purge_before_ts:{}"
+                "Compaction of {}, purge_before_ts:{}"
                 ", purge_before_seq:{}"
                 ", drop_deletes:{} scheduled "
                 "(awaiting completion).",
@@ -1041,15 +1041,15 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
         return ENGINE_EWOULDBLOCK;
     case ENGINE_TMPFAIL:
         EP_LOG_WARN(
-                "Request to compact db file id: {} hit"
+                "Request to compact {} hit"
                 " a temporary failure and may need to be retried",
-                compactionConfig.db_file_id.get());
+                compactionConfig.db_file_id);
         e->setErrorContext(cookie, "Temporary failure in compacting db file.");
         return ENGINE_TMPFAIL;
     default:
         --stats.pendingCompactions;
-        EP_LOG_WARN("Compaction of db file id: {} failed: {}",
-                    compactionConfig.db_file_id.get(),
+        EP_LOG_WARN("Compaction of {} failed: {}",
+                    compactionConfig.db_file_id,
                     cb::to_string(cb::engine_errc(err)));
         e->setErrorContext(cookie,
                            "Failed to compact db file: " +

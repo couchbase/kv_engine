@@ -762,10 +762,10 @@ ENGINE_ERROR_CODE EPBucket::scheduleCompaction(Vbid vbid,
     ExecutorPool::get()->schedule(task);
 
     EP_LOG_DEBUG(
-            "Scheduled compaction task {} on db {},"
+            "Scheduled compaction task {} on {},"
             "purge_before_ts = {}, purge_before_seq = {}, dropdeletes = {}",
             uint64_t(task->getId()),
-            c.db_file_id.get(),
+            c.db_file_id,
             c.purge_before_ts,
             c.purge_before_seq,
             c.drop_deletes);
@@ -907,12 +907,12 @@ void EPBucket::compactInternal(const CompactionConfig& config,
     }
 
     EP_LOG_INFO(
-            "Compaction of db file id: {} completed ({}). "
+            "Compaction of {} completed ({}). "
             "tombstones_purged:{}, "
             "collection_items_erased:alive:{},deleted:{}, "
             "pre{{size:{}, items:{}, deleted_items:{}, purge_seqno:{}}}, "
             "post{{size:{}, items:{}, deleted_items:{}, purge_seqno:{}}}",
-            config.db_file_id.get(),
+            config.db_file_id,
             result ? "ok" : "failed",
             ctx.stats.tombstonesPurged,
             ctx.stats.collectionsItemsPurged,
