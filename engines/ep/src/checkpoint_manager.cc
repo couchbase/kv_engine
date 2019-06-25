@@ -715,20 +715,14 @@ bool CheckpointManager::queueDirty(
         // Could not queue into the current checkpoint as it already has a
         // duplicate item (and not permitted to de-dupe this item).
         if (vb.getState() != vbucket_state_active) {
-            if (!(vb.isReceivingInitialDiskSnapshot() ||
-                  vb.isBackfillPhase())) {
-                // We shouldn't see this for non-active vBuckets; given the
-                // original (active) vBucket on some other node should not have
-                // put duplicate mutations in the same Checkpoint.
-                throw std::logic_error("CheckpointManager::queueDirty(" +
-                                       vbucketId.to_string() +
-                                       ") - got Ckpt::queueDirty() status:" +
-                                       to_string(result) +
-                                       " when vbstate is non-active:" +
-                                       std::to_string(vb.getState()));
-            }
-
-            lastBySeqno = newLastBySeqno;
+            // We shouldn't see this for non-active vBuckets; given the
+            // original (active) vBucket on some other node should not have
+            // put duplicate mutations in the same Checkpoint.
+            throw std::logic_error(
+                    "CheckpointManager::queueDirty(" + vbucketId.to_string() +
+                    ") - got Ckpt::queueDirty() status:" + to_string(result) +
+                    " when vbstate is non-active:" +
+                    std::to_string(vb.getState()));
         }
 
         // To process this item, create a new (empty) checkpoint which we can
@@ -746,10 +740,7 @@ bool CheckpointManager::queueDirty(
         }
     }
 
-    if (lastBySeqno != newLastBySeqno) {
-        lastBySeqno = newLastBySeqno;
-    }
-
+    lastBySeqno = newLastBySeqno;
     if (GenerateBySeqno::Yes == generateBySeqno) {
         // Now the item has been queued, update snapshotEndSeqno.
         openCkpt->setSnapshotEndSeqno(lastBySeqno);

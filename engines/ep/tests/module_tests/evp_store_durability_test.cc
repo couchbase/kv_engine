@@ -218,8 +218,8 @@ void DurabilityEPBucketTest::testPersistPrepare(DocumentState docState) {
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     ckptMgr);
-    // Committed and Pending will be split into two checkpoints:
-    ASSERT_EQ(2, ckptList.size());
+    // Committed and Pending will be split in one checkpoint
+    ASSERT_EQ(1, ckptList.size());
 
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(1, stats.diskQueueSize);
@@ -502,14 +502,14 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
                         {} /*commitSeqno*/,
                         vb.lockCollections(key)));
 
-    // We do not deduplicate Prepare and Commit in CheckpointManager (achieved
-    // by inserting them into different checkpoints)
+    // We do not deduplicate Prepare and Commit in CheckpointManager but they
+    // can exist in a single checkpoint
     const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     ckptMgr);
-    ASSERT_EQ(2, ckptList.size());
-    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    ASSERT_EQ(1, ckptList.size());
+    ASSERT_EQ(2, ckptList.back()->getNumItems());
     EXPECT_EQ(2, ckptMgr.getNumItemsForPersistence());
 
     // Note: Prepare and Commit are not in the same key-space and hence are not
@@ -525,7 +525,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
             ENGINE_EWOULDBLOCK,
             store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
 
-    ASSERT_EQ(3, ckptList.size());
+    ASSERT_EQ(2, ckptList.size());
     ASSERT_EQ(1, ckptList.back()->getNumItems());
     EXPECT_EQ(1, ckptMgr.getNumItemsForPersistence());
 
@@ -537,8 +537,8 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
                         {} /*commitSeqno*/,
                         vb.lockCollections(key)));
 
-    ASSERT_EQ(4, ckptList.size());
-    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(2, ckptList.back()->getNumItems());
     EXPECT_EQ(1, ckptMgr.getNumItemsForPersistence());
 
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -577,8 +577,8 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     ckptMgr);
-    ASSERT_EQ(2, ckptList.size());
-    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    ASSERT_EQ(1, ckptList.size());
+    ASSERT_EQ(2, ckptList.back()->getNumItems());
 
     // Note: Prepare and Commit are not in the same key-space and hence are not
     //       deduplicated at Flush.
@@ -617,7 +617,7 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     }
     EXPECT_EQ(1, vb.ht.getNumPreparedSyncWrites());
 
-    ASSERT_EQ(3, ckptList.size());
+    ASSERT_EQ(2, ckptList.size());
     ASSERT_EQ(1, ckptList.back()->getNumItems());
 
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -638,8 +638,8 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
         EXPECT_EQ(0, vb.getNumItems());
     }
 
-    ASSERT_EQ(4, ckptList.size());
-    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(2, ckptList.back()->getNumItems());
 }
 
 /// Test delete on top of SyncWrite
@@ -667,8 +667,8 @@ TEST_P(DurabilityBucketTest, SyncWriteDelete) {
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     ckptMgr);
-    ASSERT_EQ(2, ckptList.size());
-    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    ASSERT_EQ(1, ckptList.size());
+    ASSERT_EQ(2, ckptList.back()->getNumItems());
 
     // Note: Prepare and Commit are not in the same key-space and hence are not
     //       deduplicated at Flush.
@@ -701,7 +701,7 @@ TEST_P(DurabilityBucketTest, SyncWriteDelete) {
     }
     EXPECT_EQ(expectedNumPrepares, vb.ht.getNumPreparedSyncWrites());
 
-    ASSERT_EQ(3, ckptList.size());
+    ASSERT_EQ(2, ckptList.size());
     ASSERT_EQ(1, ckptList.back()->getNumItems());
 }
 
@@ -814,16 +814,6 @@ void DurabilityEPBucketTest::testCommittedSyncWriteFlushAfterCommit(
     performCommitForKey(
             vb, key, prepareSeqno, initOnDiskCount, currentCollectionCount);
 
-    const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
-    const auto& ckptList =
-            CheckpointManagerTestIntrospector::public_getCheckpointList(
-                    ckptMgr);
-
-    // We do not deduplicate Prepare and Commit in CheckpointManager (achieved
-    // by inserting them into different checkpoints)
-    ASSERT_EQ(1, ckptList.back()->getNumItems());
-    ASSERT_EQ(2, ckptMgr.getNumItemsForPersistence());
-
     // Note: Prepare and Commit are not in the same key-space and hence are not
     //       deduplicated at Flush.
     flushVBucketToDiskIfPersistent(vbid, 2);
@@ -848,16 +838,6 @@ void DurabilityEPBucketTest::testSyncDeleteFlushAfterCommit(
     auto prepareSeqno = vb.getHighSeqno();
     performCommitForKey(
             vb, key, prepareSeqno, initOnDiskCount, currentCollectionCount);
-
-    const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
-    const auto& ckptList =
-            CheckpointManagerTestIntrospector::public_getCheckpointList(
-                    ckptMgr);
-
-    // We do not deduplicate Prepare and Commit in CheckpointManager (achieved
-    // by inserting them into different checkpoints)
-    ASSERT_EQ(1, ckptList.back()->getNumItems());
-    ASSERT_EQ(2, ckptMgr.getNumItemsForPersistence());
 
     // flush the prepare and commit mutations to disk
     flushVBucketToDiskIfPersistent(vbid, 2);
@@ -893,24 +873,11 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncWriteSyncDelete) {
     performPrepareSyncDelete(vb, key, 2, 1);
     auto prepareSeqno = vb.getHighSeqno();
 
-    const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
-    const auto& ckptList =
-            CheckpointManagerTestIntrospector::public_getCheckpointList(
-                    ckptMgr);
-
-    ASSERT_EQ(5, ckptList.size());
-    ASSERT_EQ(1, ckptList.back()->getNumItems());
-    EXPECT_EQ(1, ckptMgr.getNumItemsForPersistence());
-
     flushVBucketToDiskIfPersistent(vbid, 1);
     verifyOnDiskItemCount(vb, 2);
     verifyCollectionItemCount(vb, key.getCollectionID(), 1);
 
     performCommitForKey(vb, key, prepareSeqno, 2, 1);
-
-    ASSERT_EQ(6, ckptList.size());
-    ASSERT_EQ(1, ckptList.back()->getNumItems());
-    EXPECT_EQ(1, ckptMgr.getNumItemsForPersistence());
 
     flushVBucketToDiskIfPersistent(vbid, 1);
     verifyOnDiskItemCount(vb, 1);
@@ -1264,28 +1231,21 @@ TEST_P(DurabilityEPBucketTest, ActiveLocalNotifyPersistedSeqno) {
     //
     // - the Flusher notifies the local DurabilityMonitor
     // - seqno:1 is satisfied, so it is committed
-    // - the open checkpoint containes the seqno:1:prepare, so it is closed and
-    //     seqno:1:committed is enqueued in a new open checkpoint (that is how
-    //     we avoid SyncWrite de-duplication currently)
     // - the next committed seqnos are enqueued into the same open checkpoint
-    //
-    // So after Flush we have 2 checkpoints: the first (closed) containing only
-    // pending SWs and the second (open) containing only committed SWs
-    ASSERT_EQ(2, ckptList.size());
-
-    // Remove the closed checkpoint (that makes the check on Committed easier)
-    bool newOpenCkptCreated{false};
-    vb->checkpointManager->removeClosedUnrefCheckpoints(*vb,
-                                                        newOpenCkptCreated);
-    ASSERT_FALSE(newOpenCkptCreated);
-
-    // Durability Requirements satisfied, all committed
     ASSERT_EQ(1, ckptList.size());
     const auto& ckpt = *ckptList.front();
-    EXPECT_EQ(3, ckpt.getNumItems());
+    EXPECT_EQ(6, ckpt.getNumItems());
     for (const auto& qi : ckpt) {
         if (!qi->isCheckPointMetaItem()) {
-            EXPECT_EQ(queue_op::commit_sync_write, qi->getOperation());
+            queue_op op;
+            if (qi->getBySeqno() / 4 == 0) {
+                // The first three non-meta items/seqnos are prepares
+                op = queue_op::pending_sync_write;
+            } else {
+                // The rest (last 3) are commits
+                op = queue_op::commit_sync_write;
+            }
+            EXPECT_EQ(op, qi->getOperation());
         }
     }
 }

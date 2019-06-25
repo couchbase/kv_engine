@@ -1446,7 +1446,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpAbort() {
     };
 
     // Check a negative first: at Replica we don't expect multiple Durable
-    // items within the same checkpoint. That is to avoid Durable items de-dup
+    // items within the same checkpoint. That is to avoid Durable items de-dupe
     // at Producer.
     uint64_t abortSeqno = prepareSeqno + 1;
     auto thrown{false};
@@ -1683,7 +1683,7 @@ TEST_P(DurabilityPassiveStreamTest, HandleSnapshotEndOnAbort) {
     EXPECT_EQ(false, stream->getCurSnapshotPrepare());
 }
 
-TEST_P(DurabilityPassiveStreamTest, ReceiveBackfilledDcpAbort) {
+TEST_P(DurabilityPassiveStreamTest, ReceiveBackfilledDcpCommit) {
     // Need to use actual opaque of the stream as we hit the consumer level
     // function.
     uint32_t opaque = 1;
@@ -1717,11 +1717,10 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveBackfilledDcpAbort) {
     // Hit the consumer level function (not the stream level) for additional
     // error checking.
     EXPECT_EQ(ENGINE_SUCCESS,
-              consumer->abort(opaque, vbid, key, prepare->getBySeqno(), 2));
+              consumer->commit(opaque, vbid, key, prepare->getBySeqno(), 2));
 }
 
-TEST_P(DurabilityPassiveStreamTest,
-       AllowsDupePrepareNamespaceInInitialDiskSnapshot) {
+TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
     uint32_t opaque = 0;
 
     // 1) Send disk snapshot marker
@@ -1781,18 +1780,12 @@ TEST_P(DurabilityPassiveStreamTest,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
 
-    // 7) Send commit - now we throw
+    // 7) Send commit - allowed to exist in same checkpoint
     commitSeqno = pending->getBySeqno() + 1;
-    try {
-        stream->messageReceived(std::make_unique<CommitSyncWrite>(
-                opaque, vbid, pending->getBySeqno(), commitSeqno, key));
-    } catch (const std::logic_error& e) {
-        EXPECT_TRUE(std::string(e.what()).find("duplicate item") !=
-                    std::string::npos);
-        return;
-    }
 
-    FAIL();
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<CommitSyncWrite>(
+                      opaque, vbid, pending->getBySeqno(), commitSeqno, key)));
 }
 
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,

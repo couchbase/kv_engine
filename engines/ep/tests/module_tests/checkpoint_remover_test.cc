@@ -111,7 +111,7 @@ TEST_F(CheckpointRemoverEPTest, CheckpointManagerMemoryUsage) {
     checkpoint_index::allocator_type memoryTrackingAllocator;
     // Emulate the Checkpoint metaKeyIndex so we can determine the number
     // of bytes that should be allocated during its use.
-    checkpoint_index metaKeyIndex(memoryTrackingAllocator);
+    meta_checkpoint_index metaKeyIndex(memoryTrackingAllocator);
     // Emulate the Checkpoint keyIndex so we can determine the number
     // of bytes that should be allocated during its use.
     checkpoint_index keyIndex(memoryTrackingAllocator);
@@ -159,7 +159,12 @@ TEST_F(CheckpointRemoverEPTest, CheckpointManagerMemoryUsage) {
     // Add the size of adding to the queue
     new_expected_size += perElementOverhead;
     // Add to the keyIndex
-    keyIndex.emplace(item.getKey(), entry);
+    keyIndex.emplace(
+            CheckpointIndexKey(item.getKey(),
+                               item.isCommitted()
+                                       ? CheckpointIndexKeyNamespace::Committed
+                                       : CheckpointIndexKeyNamespace::Prepared),
+            entry);
 
     // As the metaKeyIndex and keyIndex share the same allocator, retrieving
     // the bytes allocated for the keyIndex, will also include the bytes
@@ -264,6 +269,10 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
     index_entry entry{iterator, 0};
 
     auto expectedFreedMemoryFromItems = initialSize;
+    // The initial setVBucketState is a meta item and will be dropped when we
+    // drop the first checkpoint. It is slightly smaller than an item enqueued
+    // in the keyIndex as it does not include the CheckpointIndexKeyNamespace
+    expectedFreedMemoryFromItems -= sizeof(CheckpointIndexKeyNamespace);
     for (size_t i = 0; i < getMaxCheckpointItems(*vb); i++) {
         std::string doc_key = "key_" + std::to_string(i);
         Item item = store_item(vbid, makeStoredDocKey(doc_key), "value");
@@ -271,7 +280,13 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
         // Add the size of adding to the queue
         expectedFreedMemoryFromItems += perElementOverhead;
         // Add to the emulated keyIndex
-        keyIndex.emplace(item.getKey(), entry);
+        keyIndex.emplace(
+                CheckpointIndexKey(
+                        item.getKey(),
+                        item.isCommitted()
+                                ? CheckpointIndexKeyNamespace::Committed
+                                : CheckpointIndexKeyNamespace::Prepared),
+                entry);
     }
 
     ASSERT_EQ(1, checkpointManager->getNumCheckpoints());
@@ -295,13 +310,22 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
     // Needed to calculate the size of a checkpoint_end queued_item
     StoredDocKey key("checkpoint_end", CollectionID::System);
     queued_item chkptEnd(new Item(key, vbid, queue_op::checkpoint_end, 0, 0));
+    // checkpoint_end is a meta item and has slightly smaller size than an item
+    // enqueued in the keyIndex as it does not include the
+    // CheckpointIndexKeyNamespace
+    expectedFreedMemoryFromItems -= sizeof(CheckpointIndexKeyNamespace);
 
     // Add the size of the checkpoint end
     expectedFreedMemoryFromItems += chkptEnd->size();
     // Add the size of adding to the queue
     expectedFreedMemoryFromItems += perElementOverhead;
     // Add to the emulated keyIndex
-    keyIndex.emplace(key, entry);
+    keyIndex.emplace(
+            CheckpointIndexKey(chkptEnd->getKey(),
+                               chkptEnd->isCommitted()
+                                       ? CheckpointIndexKeyNamespace::Committed
+                                       : CheckpointIndexKeyNamespace::Prepared),
+            entry);
 
     const auto keyIndexSize = *(keyIndex.get_allocator().getBytesAllocated());
     expectedFreedMemoryFromItems += (keyIndexSize - initialKeyIndexSize);

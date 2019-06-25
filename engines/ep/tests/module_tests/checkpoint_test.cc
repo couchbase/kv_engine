@@ -1512,7 +1512,12 @@ TYPED_TEST(CheckpointTest, checkpointMemoryTest) {
     // Add the size of adding to the queue
     expectedSize += perElementOverhead;
     // Add to the emulated keyIndex
-    keyIndex.emplace(qiSmall->getKey(), entry);
+    keyIndex.emplace(
+            CheckpointIndexKey(qiSmall->getKey(),
+                               qiSmall->isCommitted()
+                                       ? CheckpointIndexKeyNamespace::Committed
+                                       : CheckpointIndexKeyNamespace::Prepared),
+            entry);
 
     auto keyIndexSize = *(keyIndex.get_allocator().getBytesAllocated());
     expectedSize += (keyIndexSize - initialKeyIndexSize);
@@ -1546,7 +1551,12 @@ TYPED_TEST(CheckpointTest, checkpointMemoryTest) {
     // Add the size of adding to the queue
     expectedSize += perElementOverhead;
     // Add to the keyIndex
-    keyIndex.emplace(qiBig->getKey(), entry);
+    keyIndex.emplace(
+            CheckpointIndexKey(qiBig->getKey(),
+                               qiBig->isCommitted()
+                                       ? CheckpointIndexKeyNamespace::Committed
+                                       : CheckpointIndexKeyNamespace::Prepared),
+            entry);
 
     keyIndexSize = *(keyIndex.get_allocator().getBytesAllocated());
     expectedSize += (keyIndexSize - initialKeyIndexSize);
@@ -1630,7 +1640,12 @@ TYPED_TEST(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
     // Three pointers - forward, backward and pointer to item
     const auto perElementListOverhead = sizeof(uintptr_t) * 3;
     // Add entry into keyIndex
-    keyIndex.emplace(qiSmall->getKey(), entry);
+    keyIndex.emplace(
+            CheckpointIndexKey(qiSmall->getKey(),
+                               qiSmall->isCommitted()
+                                       ? CheckpointIndexKeyNamespace::Committed
+                                       : CheckpointIndexKeyNamespace::Prepared),
+            entry);
 
     const auto keyIndexSize = *(keyIndex.get_allocator().getBytesAllocated());
     EXPECT_EQ(perElementListOverhead + (keyIndexSize - initialKeyIndexSize),

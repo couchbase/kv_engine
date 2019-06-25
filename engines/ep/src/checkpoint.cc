@@ -138,7 +138,10 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
         rv = QueueDirtyStatus::SuccessNewItem;
         addItemToCheckpoint(qi);
     } else {
-        checkpoint_index::iterator it = keyIndex.find(qi->getKey());
+        checkpoint_index::iterator it = keyIndex.find(
+                {qi->getKey(),
+                 qi->isCommitted() ? CheckpointIndexKeyNamespace::Committed
+                                   : CheckpointIndexKeyNamespace::Prepared});
         // Check if this checkpoint already has an item for the same key
         // and the item has not been expelled.
         if (it != keyIndex.end() &&
@@ -156,29 +159,10 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
             // the "left" of the cursor (i.e. has already been processed).
             for (auto& cursor : checkpointManager->connCursors) {
                 if ((*(cursor.second->currentCheckpoint)).get() == this) {
-                    queued_item& cursor_item = *(cursor.second->currentPos);
-
-                    auto& index =
-                            cursor_item->isCheckPointMetaItem() ? metaKeyIndex
-                                                                : keyIndex;
-
-                    auto cursor_item_idx = index.find(cursor_item->getKey());
-                    if (cursor_item_idx == index.end()) {
-                        throw std::logic_error(
-                                "Checkpoint::queueDirty: Unable "
-                                "to find key with"
-                                " op:" +
-                                to_string(cursor_item->getOperation()) +
-                                " seqno:" +
-                                std::to_string(cursor_item->getBySeqno()) +
-                                "for cursor:" + cursor.second->name +
-                                " in current checkpoint.");
-                    }
-
                     if (cursor.second->name == CheckpointManager::pCursorName) {
-                        int64_t cursor_mutation_id{
-                                cursor_item_idx->second.mutation_id};
-
+                        int64_t cursor_mutation_id =
+                                getMutationId(*cursor.second);
+                        queued_item& cursor_item = *(cursor.second->currentPos);
                         // If the cursor item is non-meta, then we need to
                         // return persist again if the existing item is
                         // either before or on the cursor - as the cursor
@@ -237,7 +221,13 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
             }
         } else {
             // Insert the new entry into the keyIndex
-            auto result = keyIndex.emplace(qi->getKey(), entry);
+            auto result = keyIndex.emplace(
+                    CheckpointIndexKey(
+                            qi->getKey(),
+                            qi->isCommitted()
+                                    ? CheckpointIndexKeyNamespace::Committed
+                                    : CheckpointIndexKeyNamespace::Prepared),
+                    entry);
             if (!result.second) {
                 // Did not manage to insert - so update the value directly
                 result.first->second = entry;
@@ -246,6 +236,9 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
 
         if (rv == QueueDirtyStatus::SuccessNewItem) {
             auto indexKeyUsage = qi->getKey().size() + sizeof(index_entry);
+            if (!qi->isCheckPointMetaItem()) {
+                indexKeyUsage += sizeof(CheckpointIndexKeyNamespace);
+            }
             /**
              * Calculate as best we can the memory overhead of adding the new
              * item to the queue (toWrite).  This is approximated to the
@@ -343,6 +336,38 @@ CheckpointQueue Checkpoint::expelItems(
 
     // Return the items that have been expelled in a separate queue.
     return expelledItems;
+}
+
+int64_t Checkpoint::getMutationId(const CheckpointCursor& cursor) const {
+    if ((*cursor.currentPos)->isCheckPointMetaItem()) {
+        auto cursor_item_idx =
+                metaKeyIndex.find((*cursor.currentPos)->getKey());
+        if (cursor_item_idx == metaKeyIndex.end()) {
+            throw std::logic_error(
+                    "Checkpoint::queueDirty: Unable "
+                    "to find key in metaKeyIndex with op:" +
+                    to_string((*cursor.currentPos)->getOperation()) +
+                    " seqno:" +
+                    std::to_string((*cursor.currentPos)->getBySeqno()) +
+                    "for cursor:" + cursor.name + " in current checkpoint.");
+        }
+        return cursor_item_idx->second.mutation_id;
+    }
+
+    auto cursor_item_idx =
+            keyIndex.find({(*cursor.currentPos)->getKey(),
+                           (*cursor.currentPos)->isCommitted()
+                                   ? CheckpointIndexKeyNamespace::Committed
+                                   : CheckpointIndexKeyNamespace::Prepared});
+    if (cursor_item_idx == keyIndex.end()) {
+        throw std::logic_error(
+                "Checkpoint::queueDirty: Unable "
+                "to find key in keyIndex with op:" +
+                to_string((*cursor.currentPos)->getOperation()) +
+                " seqno:" + std::to_string((*cursor.currentPos)->getBySeqno()) +
+                "for cursor:" + cursor.name + " in current checkpoint.");
+    }
+    return cursor_item_idx->second.mutation_id;
 }
 
 std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {

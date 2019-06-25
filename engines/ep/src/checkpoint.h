@@ -73,10 +73,48 @@ struct index_entry {
     int64_t mutation_id;
 };
 
+enum class CheckpointIndexKeyNamespace {
+    Committed = 0,
+    Prepared,
+};
+
+/**
+ * We want to allow prepares and commits to exist in the same checkpoint as this
+ * simplifies replica code. This is because disk based snapshots can contain
+ * both a prepare and a committed item against the same key. For consistency,
+ * in memory snapshots should be able to do the same.
+ * To do this, CheckpointManager uses a key with the namespace for determining
+ * uniqueness in a Checkpoint. Currently an abort exists in the same namespace
+ * as a prepare so we will mimic that here and not allow prepares and aborts
+ * in the same checkpoint.
+ */
+using CheckpointIndexKey = std::pair<StoredDocKey, CheckpointIndexKeyNamespace>;
+namespace std {
+template <>
+struct hash<CheckpointIndexKey> {
+public:
+    std::size_t operator()(const CheckpointIndexKey& k) const {
+        return std::hash<StoredDocKey>{}(k.first);
+    }
+};
+} // namespace std
+
 /**
  * The checkpoint index maps a key to a checkpoint index_entry.
  */
 using checkpoint_index = std::unordered_map<
+        CheckpointIndexKey,
+        index_entry,
+        std::hash<CheckpointIndexKey>,
+        std::equal_to<CheckpointIndexKey>,
+        MemoryTrackingAllocator<
+                std::pair<const CheckpointIndexKey, index_entry>>>;
+
+/**
+ * The meta_checkpoint_index does not hold items that care about durability so
+ * we do not need to store the Prepare/Committed namespace.
+ */
+using meta_checkpoint_index = std::unordered_map<
         StoredDocKey,
         index_entry,
         std::hash<StoredDocKey>,
@@ -535,6 +573,17 @@ public:
     CheckpointQueue expelItems(CheckpointCursor& expelUpToAndIncluding);
 
 private:
+    /**
+     * When checking if the existing item has already been processed by the
+     * persistence cursor we use the mutation_id field in the index_entry (the
+     * value that we map to in keyIndex and metaKeyIndex) to determine if we
+     * need to persist the item again.
+     *
+     * @param item CheckpointCursor pointing to the existing item.
+     * @return the index_entry.mutation_id for the item at the CheckpointCursor.
+     */
+    int64_t getMutationId(const CheckpointCursor& item) const;
+
     EPStats& stats;
     uint64_t                       checkpointId;
     uint64_t                       snapStartSeqno;
@@ -559,7 +608,7 @@ private:
     CheckpointQueue toWrite;
     checkpoint_index               keyIndex;
     /* Index for meta keys like "dummy_key" */
-    checkpoint_index               metaKeyIndex;
+    meta_checkpoint_index metaKeyIndex;
 
     // Record the memory overhead of maintaining the keyIndex and metaKeyIndex.
     // This includes each item's key size and sizeof(index_entry).

@@ -68,11 +68,6 @@ void CheckpointDurabilityTest<V>::test_AvoidDeDuplication(
                                     GenerateCas::Yes,
                                     /*preLinkDocCtx*/ nullptr));
 
-    // Verify: Should not have de-duplicated; should have both first and second
-    // and Committed in separate checkpoints.
-    EXPECT_EQ(2, ckptMgr->getNumCheckpoints())
-            << "Should have created 2nd checkpoint to avoid de-duplication";
-
     ckptMgr->getAllItemsForPersistence(items);
 }
 
@@ -92,9 +87,11 @@ TYPED_TEST(CheckpointDurabilityTest,
             items,
             testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
                                  HasOperation(queue_op::pending_sync_write),
-                                 HasOperation(queue_op::checkpoint_end),
-                                 HasOperation(queue_op::checkpoint_start),
                                  HasOperation(queue_op::commit_sync_write)));
+
+    auto* ckptMgr = static_cast<MockCheckpointManager*>(this->manager.get());
+    EXPECT_EQ(1, ckptMgr->getNumCheckpoints());
+    EXPECT_EQ(2, ckptMgr->getNumOpenChkItems());
 }
 
 // Check that an existing Committed SyncWrite is not de-duplicated when a
@@ -111,9 +108,12 @@ TYPED_TEST(CheckpointDurabilityTest,
             items,
             testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
                                  HasOperation(queue_op::commit_sync_write),
-                                 HasOperation(queue_op::checkpoint_end),
-                                 HasOperation(queue_op::checkpoint_start),
                                  HasOperation(queue_op::pending_sync_write)));
+
+    // Verify: Should not have de-duplicated, should be in one checkpoint
+    auto* ckptMgr = static_cast<MockCheckpointManager*>(this->manager.get());
+    EXPECT_EQ(1, ckptMgr->getNumCheckpoints());
+    EXPECT_EQ(2, ckptMgr->getNumOpenChkItems());
 }
 
 // Check that an existing Committed SyncWrite is not de-duplicated when a
@@ -132,6 +132,10 @@ TYPED_TEST(CheckpointDurabilityTest,
                                      HasOperation(queue_op::checkpoint_end),
                                      HasOperation(queue_op::checkpoint_start),
                                      HasOperation(queue_op::mutation)));
+    // Verify: Should not have de-duplicated, should be in two checkpoints
+    auto* ckptMgr = static_cast<MockCheckpointManager*>(this->manager.get());
+    EXPECT_EQ(2, ckptMgr->getNumCheckpoints());
+    EXPECT_EQ(1, ckptMgr->getNumOpenChkItems());
 }
 
 // Check that an existing Committed non-SyncWrite is not de-duplicated when a
@@ -147,7 +151,10 @@ TYPED_TEST(CheckpointDurabilityTest,
             items,
             testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
                                  HasOperation(queue_op::mutation),
-                                 HasOperation(queue_op::checkpoint_end),
-                                 HasOperation(queue_op::checkpoint_start),
                                  HasOperation(queue_op::pending_sync_write)));
+
+    // Verify: Should not have de-duplicated, should be in one checkpoint
+    auto* ckptMgr = static_cast<MockCheckpointManager*>(this->manager.get());
+    EXPECT_EQ(1, ckptMgr->getNumCheckpoints());
+    EXPECT_EQ(2, ckptMgr->getNumOpenChkItems());
 }
