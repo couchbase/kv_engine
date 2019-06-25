@@ -22,7 +22,9 @@
 #include "dcp/response.h"
 #include "dcp_utils.h"
 #include "durability/durability_monitor.h"
+#include "durability/passive_durability_monitor.h"
 #include "test_helpers.h"
+#include "vbucket_utils.h"
 
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_stream.h"
@@ -1223,6 +1225,15 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDuplicateDcpPrepareRemoveFromSet) {
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
+}
+
+TEST_P(DurabilityPassiveStreamTest, ReceiveDuplicateDcpPrepareRemoveFromPDM) {
+    testReceiveDuplicateDcpPrepare(3);
+
+    auto vb = engine->getVBucket(vbid);
+    const auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vb);
+
+    ASSERT_EQ(0, pdm.getNumTracked());
 }
 
 TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {

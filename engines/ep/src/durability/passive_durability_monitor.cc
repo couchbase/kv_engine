@@ -176,6 +176,8 @@ std::string PassiveDurabilityMonitor::to_string(Resolution res) {
         return "commit";
     case Resolution::Abort:
         return "abort";
+    case Resolution::CompletionWasDeduped:
+        return "completionWasDeduped";
     }
     folly::assume_unreachable();
 }
@@ -224,6 +226,8 @@ void PassiveDurabilityMonitor::completeSyncWrite(const StoredDocKey& key,
         return;
     case Resolution::Abort:
         s->totalAborted++;
+        return;
+    case Resolution::CompletionWasDeduped:
         return;
     }
     folly::assume_unreachable();

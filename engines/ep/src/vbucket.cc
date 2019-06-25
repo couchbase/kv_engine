@@ -1804,9 +1804,29 @@ ENGINE_ERROR_CODE VBucket::prepare(
                                                       queueItmCtx,
                                                       {/*no predicate*/},
                                                       maybeKeyExists);
-
-        // We should not see this seqno again so remove from the set.
-        allowedDuplicatePrepareSeqnos.erase(itr);
+        switch (status) {
+        case MutationStatus::WasClean:
+        case MutationStatus::WasDirty:
+            // Set succeeded, any old prepare will have been replaced in
+            // the hash table
+            // Remove old, earlier prepare from PassiveDM
+            getPassiveDM().completeSyncWrite(
+                    itm.getKey(),
+                    PassiveDurabilityMonitor::Resolution::CompletionWasDeduped);
+            // We should not see this seqno again so remove from the set.
+            allowedDuplicatePrepareSeqnos.erase(itr);
+            break;
+        case MutationStatus::NotFound:
+        case MutationStatus::InvalidCas:
+        case MutationStatus::IsLocked:
+        case MutationStatus::NoMem:
+        case MutationStatus::NeedBgFetch:
+        case MutationStatus::IsPendingSyncWrite:
+            // The old prepare is still in the hashtable, keep tracking
+            // it in the PDM. Also. if we (e.g.) retry after NoMem we want
+            // to treat the duplicate as "allowed" still.
+            break;
+        }
     } else {
         // Not a valid duplicate prepare, call processSet and hit the SyncWrite
         // checks.
