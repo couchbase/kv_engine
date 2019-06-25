@@ -643,6 +643,51 @@ void DurabilityPassiveStreamTest::TearDown() {
 }
 
 TEST_P(DurabilityPassiveStreamTest,
+       ReceiveSetInsteadOfCommitWhenStreamingFromDisk) {
+    uint32_t opaque = 1;
+
+    SnapshotMarker marker(opaque,
+                          vbid,
+                          1 /*snapStart*/,
+                          3 /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_DISK,
+                          {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    auto key = makeStoredDocKey("key");
+    using namespace cb::durability;
+    auto item = makePendingItem(
+            key, "value", Requirements(Level::Majority, Timeout::Infinity()));
+    item->setBySeqno(1);
+    item->setCas(999);
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      item,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    item = makeCommittedItem(key, "committed");
+    item->setBySeqno(3);
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      std::move(item),
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+}
+
+TEST_P(DurabilityPassiveStreamTest,
        ReceiveSetInsteadOfCommitForReconnectWindowWithPrepareLast) {
     // 1) Receive DCP Prepare
     auto key = makeStoredDocKey("key");
@@ -661,13 +706,12 @@ TEST_P(DurabilityPassiveStreamTest,
 
     // 3) Receive overwriting set instead of commit
     uint64_t streamStartSeqno = 4;
-    SnapshotMarker marker(
-            opaque,
-            vbid,
-            streamStartSeqno /*snapStart*/,
-            streamStartSeqno /*snapEnd*/,
-            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
-            {} /*streamId*/);
+    SnapshotMarker marker(opaque,
+                          vbid,
+                          streamStartSeqno /*snapStart*/,
+                          streamStartSeqno /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_DISK,
+                          {} /*streamId*/);
     stream->processMarker(&marker);
 
     const std::string value = "overwritingValue";

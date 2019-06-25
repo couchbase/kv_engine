@@ -848,6 +848,8 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
     }
 
     if (vb) {
+        vb->setReceivingDiskSnapshot(marker->getFlags() & MARKER_FLAG_DISK);
+
         auto& ckptMgr = *vb->checkpointManager;
         if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
             if (engine->getConfiguration().isDiskBackfillQueue()) {

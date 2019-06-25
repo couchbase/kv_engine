@@ -3121,25 +3121,20 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
         bool maybeKeyExists) {
     if (v) {
         if (v->isPending()) {
-            // We may be receiving a mutation that has been sent instead of a
-            // commit. In this case, we may have a prepare currently in the
-            // HashTable that we need to overwrite. If this is the case then we
-            // will have set the duplicateAbortOrPrepareOverwriteSeqno so that
-            // we can skip the return of IsPendingSyncWrite and overwrite the
-            // prepare with a new committed item. This is only valid for a small
-            // window around DCP stream reconnect.
-            if (static_cast<uint64_t>(itm.getBySeqno()) >
-                duplicateAbortOrPrepareOverwriteSeqno) {
+            // It is not valid for an active vBucket to attempt to overwrite an
+            // in flight SyncWrite. If this vBucket is not active, we are
+            // allowed to overwrite an in flight SyncWrite iff we are receiving
+            // a disk snapshot. This is due to disk based de-dupe that allows
+            // only 1 value per key. In this case, the active node may send a
+            // mutation instead of a commit if it knows that this replica may be
+            // missing a prepare. This code allows this mutation to be accepted
+            // and overwrites the existing prepare.
+            if (getState() == vbucket_state_active ||
+                !isReceivingDiskSnapshot()) {
                 return {MutationStatus::IsPendingSyncWrite, {}};
             }
-            // We should only have set the duplicateAbortOrPrepareOverwriteSeqno
-            // if we are replica. If we are hitting this code then we are about
-            // to overwrite a prepare with a mutation so we need to remove the
-            // original prepare from the Passive DM.
+
             Expects(itm.isCommitted());
-            Expects(getState() == vbucket_state_replica ||
-                    getState() == vbucket_state_pending);
-            Expects(duplicateAbortOrPrepareOverwriteSeqno != 0);
             getPassiveDM().completeSyncWrite(
                     itm.getKey(), PassiveDurabilityMonitor::Resolution::Commit);
         }
