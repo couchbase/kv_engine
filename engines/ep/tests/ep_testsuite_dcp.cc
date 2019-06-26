@@ -7359,6 +7359,87 @@ static enum test_result test_MB_34634(EngineIface* h) {
     testHarness->destroy_cookie(cookie);
     testHarness->destroy_cookie(cookie2);
 
+  return SUCCESS;
+}
+
+// Test reproduces the situation which caused the snapshot range exception
+// seen in MB-34664. The test streams items to a consumer, followed by a
+// snapshot marker (and no more items), switching to active and with no fix the
+// snapshot_range structure detects an inconsistency (start > end)
+static enum test_result test_MB_34664(EngineIface* h) {
+    // Load up vb0 with num_items
+    int num_items = 2;
+
+    const void* cookie = testHarness->create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    std::string name = "unittest";
+    // Switch to replica
+    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    // Open consumer connection
+    auto dcp = requireDcpIface(h);
+    checkeq(dcp->open(cookie, opaque, 0, flags, name),
+            ENGINE_SUCCESS,
+            "Failed dcp Consumer open connection.");
+
+    add_stream_for_consumer(
+            h, cookie, opaque++, Vbid(0), 0, cb::mcbp::Status::Success);
+
+    uint32_t stream_opaque =
+            get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
+
+    checkeq(dcp->snapshot_marker(
+                    cookie, stream_opaque, Vbid(0), 1, 1000, MARKER_FLAG_CHK),
+            ENGINE_SUCCESS,
+            "Failed to send snapshot marker");
+
+    for (int i = 1; i <= num_items; i++) {
+        const std::string key("key-" + std::to_string(i));
+        const DocKey docKey(key, DocKeyEncodesCollectionId::No);
+        checkeq(ENGINE_SUCCESS,
+                dcp->mutation(cookie,
+                              stream_opaque,
+                              docKey,
+                              {(const uint8_t*)"value", 5},
+                              0, // privileged bytes
+                              PROTOCOL_BINARY_RAW_BYTES,
+                              i * 3, // cas
+                              Vbid(0),
+                              0, // flags
+                              i, // by_seqno
+                              i + num_items, // rev_seqno
+                              0, // expiration
+                              0, // lock_time
+                              {}, // meta
+                              INITIAL_NRU_VALUE),
+                "Failed to send dcp mutation");
+    }
+
+    wait_for_flusher_to_settle(h);
+
+    checkeq(ENGINE_SUCCESS,
+            dcp->snapshot_marker(cookie,
+                                 stream_opaque,
+                                 Vbid(0),
+                                 num_items + 1,
+                                 num_items + 1,
+                                 MARKER_FLAG_CHK),
+            "Failed to send second snapshot marker");
+
+    wait_for_flusher_to_settle(h);
+
+    // Close and switch to active
+    checkeq(ENGINE_SUCCESS,
+            dcp->close_stream(cookie, opaque, Vbid(0), {}),
+            "DCP consumer failed the close_stream request");
+
+    check(set_vbucket_state(h, Vbid(0), vbucket_state_active),
+          "Failed to set vbucket to active");
+
+    wait_for_flusher_to_settle(h);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -7908,6 +7989,14 @@ BaseTestCase testsuite_testcases[] = {
 
         TestCase("test_MB_34634",
                  test_MB_34634,
+                 test_setup,
+                 teardown,
+                 NULL,
+                 prepare,
+                 cleanup),
+
+        TestCase("test MB-34664",
+                 test_MB_34664,
                  test_setup,
                  teardown,
                  NULL,

@@ -485,9 +485,13 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 // Update VBstate based on the changes we have just made,
                 // then tell the rwUnderlying the 'new' state
                 // (which will persisted as part of the commit() below).
-                vbstate.lastSnapStart = range.getStart();
-                vbstate.lastSnapEnd = range.getEnd();
 
+                // only update the snapshot range if items were flushed, i.e.
+                // don't appear to be in a snapshot when you have no data for it
+                if (items_flushed) {
+                    vbstate.lastSnapStart = range.getStart();
+                    vbstate.lastSnapEnd = range.getEnd();
+                }
                 // Track the lowest seqno written in spock and record it as
                 // the HLC epoch, a seqno which we can be sure the value has a
                 // HLC CAS.
@@ -543,7 +547,11 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             }
 
             if (vb->rejectQueue.empty()) {
-                vb->setPersistedSnapshot(range.getStart(), range.getEnd());
+                // only update the snapshot range if items were flushed, i.e.
+                // don't appear to be in a snapshot when you have no data for it
+                if (items_flushed) {
+                    vb->setPersistedSnapshot(range.getStart(), range.getEnd());
+                }
                 uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);
                 if (highSeqno > 0 && highSeqno != vb->getPersistenceSeqno()) {
                     vb->setPersistenceSeqno(highSeqno);
