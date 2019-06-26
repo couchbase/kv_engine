@@ -2445,11 +2445,6 @@ private:
 
     static double mutationMemThreshold;
 
-    // Valid only for replicas.
-    // The highest prepare seqno that we may see for a duplicate abort message
-    // or a set that is allowed to overwite a prepare.
-    uint64_t duplicateAbortOrPrepareOverwriteSeqno = 0;
-
     // The set of prepare seqnos that we may have to overwrite.
     std::unordered_set<int64_t> allowedDuplicatePrepareSeqnos;
 

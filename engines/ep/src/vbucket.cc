@@ -620,11 +620,6 @@ void VBucket::setupSyncReplication(const nlohmann::json& topology) {
         *replicationTopology.wlock() = {};
     }
 
-    // Reset the seqno used to determine if it is okay to overwrite prepares or
-    // receive duplicate aborts so that we do not overwrite anything post state
-    // change.
-    duplicateAbortOrPrepareOverwriteSeqno = 0;
-
     // Then, initialize the DM and propagate the new topology if necessary
     auto* currentPassiveDM =
             dynamic_cast<PassiveDurabilityMonitor*>(durabilityMonitor.get());
@@ -3815,7 +3810,6 @@ void VBucket::removeQueuedAckFromDM(const std::string& node) {
 }
 
 void VBucket::setDuplicateSyncWriteWindow(uint64_t highSeqno) {
-    duplicateAbortOrPrepareOverwriteSeqno = highSeqno;
     setUpAllowedDuplicatePrepareWindow();
 }
 
