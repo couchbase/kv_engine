@@ -277,6 +277,12 @@ protected:
             const std::string& nodeToAck,
             const std::vector<std::string>& unchangedNodes);
 
+    /**
+     * Set the seqnoAckReceivedPostProcessHook function within the ActiveDM to
+     * the given function.
+     */
+    void setSeqnoAckReceivedPostProcessHook(std::function<void()> func);
+
     const std::string active = "active";
     const std::string replica1 = "replica1";
     const std::string replica2 = "replica2";

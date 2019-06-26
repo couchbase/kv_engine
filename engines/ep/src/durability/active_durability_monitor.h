@@ -240,6 +240,12 @@ protected:
     size_t wipeTracked();
 
     /**
+     * Test only: Hook which if non-empty is called from seqnoAckReceived()
+     * after calling State::processSeqnoAck.
+     */
+    std::function<void()> seqnoAckReceivedPostProcessHook;
+
+    /**
      * Validate the given json replication chain checking if it's an array, not
      * too large etc.
      *
@@ -264,16 +270,46 @@ protected:
                           const void* cookie,
                           const ReplicationChain& chain) const;
 
+    /**
+     * For all items in the completedSWQueue, call VBucket::commit /
+     * VBucket::abort as appropriate, then remove the item from the queue.
+     */
+    void processCompletedSyncWriteQueue();
+
     // The stats object for the owning Bucket
     EPStats& stats;
 
     // The VBucket owning this DurabilityMonitor instance
     VBucket& vb;
 
-    /// ActiveDM state. Guarded by folly::Synchronized to manage concurrent
-    /// access. Uses unique_ptr for pimpl.
+    /// Bulk of ActiveDM state. Guarded by folly::Synchronized to manage
+    /// concurrent access. Uses unique_ptr for pimpl.
     struct State;
     folly::SynchronizedPtr<std::unique_ptr<State>> state;
+
+    /**
+     * The queue of SyncWrites which have been completed (Committed or
+     * Aborted) by the Durability Monitor and hence need to be applied to the
+     * VBucket.
+     *
+     * Stored separately from State to avoid a potential lock-order-inversion -
+     * when SyncWrites are added to State (via addSyncWrite()) the HTLock is
+     * acquired before the State lock; however when committing
+     * (via seqnoAckReceived()) the State lock must be acquired _before_ HTLock,
+     * to be able to determine what actually needs committting. (Similar
+     * ordering happens for processTimeout().)
+     * Therefore we place the completed SyncWrites in this queue (while also
+     * holding State lock) during seqAckReceived() / processTimeout(); then
+     * release the State lock and consume the queue in-order. This ensures
+     * that items are removed from this queue (and committed/ aborted) in FIFO
+     * order.
+     *
+     * Uses unique_ptr for pimpl.
+     * @todo-perf: Consider performing the processing of the queue in a
+     * background task, moving the work from the "frontend" DCP thread.
+     */
+    class CompletedQueue;
+    std::unique_ptr<CompletedQueue> completedQueue;
 
     static const size_t maxReplicas = 3;
 

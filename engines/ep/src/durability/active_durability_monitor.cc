@@ -25,6 +25,7 @@
 #include "vbucket.h"
 
 #include <boost/algorithm/string/join.hpp>
+#include <folly/concurrency/UnboundedQueue.h>
 
 #include <gsl.h>
 
@@ -102,11 +103,12 @@ struct ActiveDurabilityMonitor::State {
      *
      * @param node The node that ack'ed the given seqno
      * @param ackSeqno
-     * @param [out] toCommit
+     * @param [out] toCommit Container which has all SyncWrites to be Commited
+     * appended to it.
      */
     void processSeqnoAck(const std::string& node,
                          int64_t ackSeqno,
-                         Container& toCommit);
+                         CompletedQueue& toCommit);
 
     /**
      * Removes all the expired Prepares from tracking.
@@ -115,7 +117,7 @@ struct ActiveDurabilityMonitor::State {
      * @param [out] the list of the expired Prepares
      */
     void removeExpired(std::chrono::steady_clock::time_point asOf,
-                       Container& expired);
+                       CompletedQueue& expired);
 
     const std::string& getActive() const;
 
@@ -127,9 +129,9 @@ struct ActiveDurabilityMonitor::State {
      * Remove the given SyncWrte from tracking.
      *
      * @param it The iterator to the SyncWrite to be removed
-     * @return single-element list of the removed SyncWrite.
+     * @return the removed SyncWrite.
      */
-    Container removeSyncWrite(Container::iterator it);
+    SyncWrite removeSyncWrite(Container::iterator it);
 
     /**
      * Logically 'moves' forward the High Prepared Seqno to the last
@@ -158,9 +160,10 @@ struct ActiveDurabilityMonitor::State {
      * tracking in FirstChain. So, differently from the PassiveDM, here we
      * do not have a dedicated HPS iterator.
      *
-     * @return the Prepares satisfied (ready for commit) by the HPS update
+     * @param completed The CompletedQueue to enqueue all prepares satisfied
+     *        (ready for commit) by the HPS update
      */
-    Container updateHighPreparedSeqno();
+    void updateHighPreparedSeqno(CompletedQueue& completed);
 
     /**
      * Perform the manual ack (from the map of queuedSeqnoAcks) that is
@@ -230,8 +233,78 @@ public:
     std::unordered_map<std::string, Monotonic<int64_t>> queuedSeqnoAcks;
 };
 
+/**
+ * Single-Producer / Single-Consumer Queue of completed SyncWrites.
+ *
+ * When a SyncWrite has been completed (Committed / Aborted) it is and moved
+ * from ActiveDM::State::trackedWrites to this class (enqueued).
+ *
+ * SyncWrites must be completed (produced) in the same order they were tracked,
+ * hence there is a single producer, which is enforced by needing to acquire the
+ * State::lock when moving items from trackedWrites to the CompletedQueue.
+ *
+ * SyncWrites must also be committed/aborted (consumed) in-order, as we must
+ * enqueue them into the CheckpointManager (where seqnos are assigned) in the
+ * same order they were removed from the trackedWrites . This is enforced by
+ * a 'consumer' mutex which must be acquired to consume items.
+ */
+class ActiveDurabilityMonitor::CompletedQueue {
+public:
+    /// Lock which must be acquired to consume (dequeue) items from the queue.
+    using ConsumerLock = std::mutex;
+
+    /**
+     * Enqueue a (completed) SyncWrite onto the queue.
+     *
+     * @param state ActiveDM state from which the SyncWrite is being moved from.
+     *        Required to enforce a single producer; by virtue of having the
+     *        State locked.
+     * @param sw SyncWrite which has been completed.
+     */
+    void enqueue(const ActiveDurabilityMonitor::State& state, SyncWrite&& sw) {
+        queue.enqueue(sw);
+    }
+
+    /**
+     * Attempt to dequeue (consume) a SyncWrite from the queue. Returns a valid
+     * optional if there is an item available to dequeue, otherwise returns
+     * an empty optional.
+     *
+     * @param clg Consumer lock guard which must be acquired to attempt
+     *            consumuption (to enforce single consumer).
+     * @return The oldest item on the queue if the queue is non-empty, else
+     *         an empty optional.
+     */
+    folly::Optional<SyncWrite> try_dequeue(
+            const std::lock_guard<ConsumerLock>& clg) {
+        return queue.try_dequeue();
+    }
+
+    /// @returns a reference to the consumer lock (required to dequeue items).
+    ConsumerLock& getConsumerLock() {
+        return consumerLock;
+    }
+
+    /// @returns true if the queue is currently empty.
+    bool empty() const {
+        return queue.empty();
+    }
+
+private:
+    // Unbounded, Single-producer, single-consumer Queue of SyncWrite objects,
+    // non-blocking variant.
+    using Queue = folly::USPSCQueue<DurabilityMonitor::SyncWrite, false>;
+    Queue queue;
+
+    /// The lock guarding consumption of items.
+    ConsumerLock consumerLock;
+};
+
 ActiveDurabilityMonitor::ActiveDurabilityMonitor(EPStats& stats, VBucket& vb)
-    : stats(stats), vb(vb), state(std::make_unique<State>(*this)) {
+    : stats(stats),
+      vb(vb),
+      state(std::make_unique<State>(*this)),
+      completedQueue(std::make_unique<CompletedQueue>()) {
 }
 
 ActiveDurabilityMonitor::ActiveDurabilityMonitor(
@@ -289,22 +362,20 @@ void ActiveDurabilityMonitor::setReplicationTopology(
     // Active, then some Prepares could be immediately satisfied and ready for
     // commit.
     //
-    // Note: We must release the lock to state before calling back to VBucket
-    // (in commit()) to avoid a lock inversion with HashBucketLock (same issue
-    // as at seqnoAckReceived(), details in there).
+    // Note: We must release the lock to state before calling back to
+    // VBucket::commit() (via processCompletedSyncWriteQueue) to avoid a lock
+    // inversion with HashBucketLock (same issue as at seqnoAckReceived(),
+    // details in there).
     //
     // Note: setReplicationTopology + updateHighPreparedSeqno must be a single
     // atomic operation. We could commit out-of-seqno-order Prepares otherwise.
-    Container toCommit;
     {
         auto s = state.wlock();
         s->setReplicationTopology(topology);
-        toCommit = s->updateHighPreparedSeqno();
+        s->updateHighPreparedSeqno(*completedQueue);
     }
 
-    for (const auto& sw : toCommit) {
-        commit(sw);
-    }
+    processCompletedSyncWriteQueue();
 }
 
 int64_t ActiveDurabilityMonitor::getHighPreparedSeqno() const {
@@ -352,40 +423,42 @@ void ActiveDurabilityMonitor::addSyncWrite(const void* cookie,
 
 ENGINE_ERROR_CODE ActiveDurabilityMonitor::seqnoAckReceived(
         const std::string& replica, int64_t preparedSeqno) {
-    // Note:
-    // TSan spotted that in the execution path to DM::addSyncWrites we acquire
-    // HashBucketLock first and then a lock to DM::state, while here we
-    // acquire first the lock to DM::state and then HashBucketLock.
-    // This could cause a deadlock by lock inversion (note that the 2 execution
-    // paths are expected to execute in 2 different threads).
-    // Given that the HashBucketLock here is acquired in the sub-call to
-    // VBucket::commit, then to fix I need to release the lock to DM::state
-    // before executing DM::commit.
-    //
     // By logic the correct order of processing for every verified SyncWrite
     // would be:
     // 1) check if DurabilityRequirements are satisfied
     // 2) if they are, then commit
     // 3) remove the committed SyncWrite from tracking
     //
-    // But, we are in the situation where steps 1 and 3 must execute under lock
-    // to m, while step 2 must not.
+    // But, we are in the situation where steps 1 and 3 must execute under the
+    // State lock, while step 2 must not to avoid lock-order inversion:
+    // Step 2 requires we acquire the appropriate HashBucketLock inside
+    // VBucket::commit(), however in ActiveDM::addSyncWrite() it is called
+    // with HashBucketLock already acquired and *then* we acquire State lock.
+    // As such we cannot acquire the locks in the opposite order here.
     //
-    // For now as quick fix I solve by inverting the order of steps 2 and 3:
-    // 1) check if DurabilityRequirements are satisfied
-    // 2) if they are, remove the verified SyncWrite from tracking
-    // 3) commit the removed (and verified) SyncWrite
+    // To address this, we implement the above sequence as:
+    // 1) and 3) Move satisfied SyncWrites from State::trackedWrites to
+    //           completedQueue (while State and completedQueue are both
+    //           locked).
+    // 2) Lock completedQueue, then commit each item and remove from queue.
+    //
+    // This breaks the potential lock order inversion cycle, as we never acquire
+    // both HashBucketLock and State lock together in this function.
     //
     // I don't manage the scenario where step 3 fails yet (note that DM::commit
     // just throws if an error occurs in the current implementation), so this
     // is a @todo.
-    Container toCommit;
-    state.wlock()->processSeqnoAck(replica, preparedSeqno, toCommit);
 
-    // Commit the verified SyncWrites
-    for (const auto& sw : toCommit) {
-        commit(sw);
+    // Identify all SyncWrites which are committed by this seqnoAck,
+    // transferring them into the completedQueue (under the correct locks).
+    state.wlock()->processSeqnoAck(replica, preparedSeqno, *completedQueue);
+
+    if (seqnoAckReceivedPostProcessHook) {
+        seqnoAckReceivedPostProcessHook();
     }
+
+    // Process the Completed Queue, committing all items and removing them.
+    processCompletedSyncWriteQueue();
 
     return ENGINE_SUCCESS;
 }
@@ -399,23 +472,16 @@ void ActiveDurabilityMonitor::processTimeout(
                                VBucket::toString(vb.getState()));
     }
 
-    Container toAbort;
-    state.wlock()->removeExpired(asOf, toAbort);
+    // Identify all SyncWrites which are timed out as of this time point and
+    // should be aborted, transferring them into the completedQeuue (under the
+    // correct locks).
+    state.wlock()->removeExpired(asOf, *completedQueue);
 
-    for (const auto& entry : toAbort) {
-        abort(entry);
-    }
+    processCompletedSyncWriteQueue();
 }
 
 void ActiveDurabilityMonitor::notifyLocalPersistence() {
-    // We must release the lock to state before calling back to VBucket (in
-    // commit()) to avoid a lock inversion with HashBucketLock (same issue as
-    // at seqnoAckReceived(), details in there).
-    Container toCommit = state.wlock()->updateHighPreparedSeqno();
-
-    for (const auto& sw : toCommit) {
-        commit(sw);
-    }
+    checkForCommit();
 }
 
 void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
@@ -492,6 +558,18 @@ void ActiveDurabilityMonitor::addStatsForChain(
                          node);
         add_casted_stat(buf, pos.lastAckSeqno, addStat, cookie);
     }
+}
+
+void ActiveDurabilityMonitor::processCompletedSyncWriteQueue() {
+    std::lock_guard<CompletedQueue::ConsumerLock> lock(
+            completedQueue->getConsumerLock());
+    while (folly::Optional<SyncWrite> sw = completedQueue->try_dequeue(lock)) {
+        if (sw->isSatisfied()) {
+            commit(*sw);
+        } else {
+            abort(*sw);
+        }
+    };
 }
 
 size_t ActiveDurabilityMonitor::getNumTracked() const {
@@ -736,8 +814,8 @@ int64_t ActiveDurabilityMonitor::State::getNodeAckSeqno(
             node + " not found");
 }
 
-ActiveDurabilityMonitor::Container
-ActiveDurabilityMonitor::State::removeSyncWrite(Container::iterator it) {
+DurabilityMonitor::SyncWrite ActiveDurabilityMonitor::State::removeSyncWrite(
+        Container::iterator it) {
     if (it == trackedWrites.end()) {
         throw std::logic_error(
                 "ActiveDurabilityMonitor::commit: Position points to end");
@@ -778,8 +856,7 @@ ActiveDurabilityMonitor::State::removeSyncWrite(Container::iterator it) {
 
     Container removed;
     removed.splice(removed.end(), trackedWrites, it);
-
-    return removed;
+    return std::move(removed.front());
 }
 
 void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
@@ -871,7 +948,7 @@ ActiveDurabilityMonitor::getCookiesForInFlightSyncWrites() {
 
 void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
                                                      int64_t seqno,
-                                                     Container& toCommit) {
+                                                     CompletedQueue& toCommit) {
     if (!firstChain) {
         throw std::logic_error(
                 "ActiveDurabilityMonitor::processSeqnoAck: FirstChain not "
@@ -896,8 +973,7 @@ void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
 
         // Check if Durability Requirements satisfied now, and add for commit
         if (posIt->isSatisfied()) {
-            auto removed = removeSyncWrite(posIt);
-            toCommit.splice(toCommit.end(), removed);
+            toCommit.enqueue(*this, removeSyncWrite(posIt));
         }
     }
 
@@ -923,7 +999,8 @@ size_t ActiveDurabilityMonitor::wipeTracked() {
     while (it != s->trackedWrites.end()) {
         // Note: 'it' will be invalidated, so it will need to be reset
         const auto next = std::next(it);
-        removed += s->removeSyncWrite(it).size();
+        s->removeSyncWrite(it);
+        removed++;
         it = next;
     }
     return removed;
@@ -1086,7 +1163,7 @@ void ActiveDurabilityMonitor::State::performQueuedAckForChain(
     for (const auto& node : chain.positions) {
         auto existingAck = queuedSeqnoAcks.find(node.first);
         if (existingAck != queuedSeqnoAcks.end()) {
-            Container toCommit;
+            CompletedQueue toCommit;
             processSeqnoAck(existingAck->first, existingAck->second, toCommit);
             // ======================= FIRST CHAIN =============================
             // @TODO MB-34318 this should no longer be true and we will need
@@ -1132,15 +1209,14 @@ void ActiveDurabilityMonitor::State::addSyncWrite(const void* cookie,
 }
 
 void ActiveDurabilityMonitor::State::removeExpired(
-        std::chrono::steady_clock::time_point asOf, Container& expired) {
+        std::chrono::steady_clock::time_point asOf, CompletedQueue& expired) {
     Container::iterator it = trackedWrites.begin();
     while (it != trackedWrites.end()) {
         if (it->isExpired(asOf)) {
             // Note: 'it' will be invalidated, so it will need to be reset
             const auto next = std::next(it);
 
-            auto removed = removeSyncWrite(it);
-            expired.splice(expired.end(), removed);
+            expired.enqueue(*this, removeSyncWrite(it));
 
             it = next;
         } else {
@@ -1149,27 +1225,25 @@ void ActiveDurabilityMonitor::State::removeExpired(
     }
 }
 
-DurabilityMonitor::Container
-ActiveDurabilityMonitor::State::updateHighPreparedSeqno() {
+void ActiveDurabilityMonitor::State::updateHighPreparedSeqno(
+        CompletedQueue& completed) {
     // Note: All the logic below relies on the fact that HPS for Active is
     //     implicitly the tracked position for Active in FirstChain
 
     if (trackedWrites.empty()) {
-        return {};
+        return;
     }
 
     const auto& active = getActive();
-    DurabilityMonitor::Container toCommit;
     // Check if Durability Requirements are satisfied for the Prepare currently
     // tracked for Active, and add for commit in case.
     auto removeForCommitIfSatisfied =
-            [this, &active, &toCommit]() mutable -> void {
+            [this, &active, &completed]() mutable -> void {
         Expects(firstChain.get());
         const auto& pos = firstChain->positions.at(active);
         Expects(pos.it != trackedWrites.end());
         if (pos.it->isSatisfied()) {
-            auto removed = removeSyncWrite(pos.it);
-            toCommit.splice(toCommit.end(), removed);
+            completed.enqueue(*this, removeSyncWrite(pos.it));
         }
     };
 
@@ -1207,17 +1281,16 @@ ActiveDurabilityMonitor::State::updateHighPreparedSeqno() {
 
     // Note: For Consistency with the HPS at Replica, I don't update the
     //     Position::lastAckSeqno for the local (Active) tracking.
-
-    return toCommit;
 }
 
 void ActiveDurabilityMonitor::checkForCommit() {
-    Container toCommit = state.wlock()->updateHighPreparedSeqno();
+    // Identify all SyncWrites which are now committed, transferring them into
+    // the completedQueue (under the correct locks).
+    state.wlock()->updateHighPreparedSeqno(*completedQueue);
 
     // @todo: Consider to commit in a dedicated function for minimizing
     //     contention on front-end threads, as this function is supposed to
     //     execute under VBucket-level lock.
-    for (const auto& sw : toCommit) {
-        commit(sw);
-    }
+
+    processCompletedSyncWriteQueue();
 }

@@ -453,6 +453,11 @@ void ActiveDurabilityMonitorTest::testSeqnoAckUnknownNode(
     EXPECT_EQ(1, monitor->getNumTracked());
 }
 
+void ActiveDurabilityMonitorTest::setSeqnoAckReceivedPostProcessHook(
+        std::function<void()> func) {
+    getActiveDM().seqnoAckReceivedPostProcessHook = func;
+}
+
 TEST_P(ActiveDurabilityMonitorTest, AddSyncWrite) {
     EXPECT_EQ(3, addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/));
 }
@@ -789,6 +794,55 @@ TEST_P(ActiveDurabilityMonitorTest,
                          0 /*expectedNumTracked*/,
                          5 /*expectedHPS*/,
                          5 /*expectedHCS*/);
+}
+
+// MB-34628: Test that if two seqnoAckReceived calls are made concurrently
+// (from different Replicas) and if each one results in one item being
+// Committed, then we correctly order the VB::commit() calls.
+// Original bug was while the toCommit list updates were correctly serialised,
+// the calls to VBucket::commit() were not, which could result in items being
+// added to CheckpointManager in a different order to which they actually
+// occurred.
+TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceivedConcurrentDataRace) {
+    // Setup: Prepare topology and prepared SyncWrites such that there are 2
+    // Prepares in flight.
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2}}));
+    DurabilityMonitorTest::addSyncWrites({1, 2} /*seqnos*/);
+
+    // Setup: Register a cursor at end of checkpoint to be able to validate
+    // subsequent commits.
+    auto* ckptMgr = vb->checkpointManager.get();
+    auto cursor = ckptMgr->registerCursorBySeqno("test", vb->getHighSeqno());
+
+    // Test: the first seqnoAckRecieved(1) (from replica A) commits
+    // SyncWrite(1), and the second seqnoAckReceived(2) from replica B commits
+    // the second. Use hooks in seqnoAckReceived to control the precise
+    // ordering.
+    int callCount = 0;
+    setSeqnoAckReceivedPostProcessHook([this, &adm, &callCount]() {
+        callCount++;
+        if (callCount == 1) {
+            // Trigger the seqnoAckReceived in the middle of the first one to
+            // trigger the race.
+            adm.seqnoAckReceived(replica2, 2);
+        }
+    });
+    adm.seqnoAckReceived(replica1, 1);
+
+    // Check: Should be zero tracked after the two (concurrent)
+    // seqnoAckReceived() calls.
+    assertNumTrackedAndHPSAndHCS(0, 2, 2);
+
+    // Check: Commits in checkpoint should be in same order as prepares.
+    std::vector<queued_item> items;
+    ckptMgr->getAllItemsForCursor(cursor.cursor.lock().get(), items);
+    ASSERT_EQ(2, items.size());
+    EXPECT_TRUE(items[0]->isCommitted());
+    EXPECT_EQ(makeStoredDocKey("key1"), items[0]->getKey());
+    EXPECT_TRUE(items[1]->isCommitted());
+    EXPECT_EQ(makeStoredDocKey("key2"), items[1]->getKey());
 }
 
 // @todo: Refactor test suite and expand test cases
