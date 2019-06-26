@@ -1692,90 +1692,77 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbort) {
     testReceiveDcpAbort();
 }
 
-void DurabilityPassiveStreamTest::testReceiveDuplicateDcpAbort(
-        const std::string& key,
-        uint64_t prepareSeqno,
-        ENGINE_ERROR_CODE expectedResult) {
-    testReceiveDcpAbort();
-    auto vb = engine->getVBucket(vbid);
-
-    const uint64_t abortSeqno = 5;
-    const auto docKey = makeStoredDocKey(key);
+/**
+ * Test that we do not accept an abort without a corresponding prepare if we
+ * are receiving an in-memory snapshot.
+ */
+TEST_P(DurabilityPassiveStreamTest, ReceiveAbortWithoutPrepare) {
     uint32_t opaque = 0;
-
-    // Fake disconnect and reconnect, importantly, this sets up the valid window
-    // for ignoring DCPAborts.
-    consumer->closeAllStreams();
-    consumer->addStream(opaque, vbid, 0 /*flags*/);
-    stream = static_cast<MockPassiveStream*>(
-            (consumer->getVbucketStream(vbid)).get());
-    stream->acceptStream(cb::mcbp::Status::Success, opaque);
 
     SnapshotMarker marker(
             opaque,
             vbid,
-            abortSeqno /*snapStart*/,
-            abortSeqno /*snapEnd*/,
+            2 /*snapStart*/,
+            2 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
-    // 2 checkpoints
-    const auto& ckptList =
-            CheckpointManagerTestIntrospector::public_getCheckpointList(
-                    *vb->checkpointManager);
-    ASSERT_EQ(3, ckptList.size());
-    auto* ckpt = ckptList.front().get();
-    ASSERT_EQ(checkpoint_state::CHECKPOINT_CLOSED, ckpt->getState());
-    ckpt = ckptList.back().get();
-    ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
-    ASSERT_EQ(0, ckpt->getNumItems());
-
-    EXPECT_EQ(expectedResult,
+    auto key = makeStoredDocKey("key1");
+    auto prepareSeqno = 1;
+    auto abortSeqno = 2;
+    EXPECT_EQ(ENGINE_EINVAL,
               stream->messageReceived(std::make_unique<AbortSyncWrite>(
-                      opaque, vbid, docKey, prepareSeqno, abortSeqno)));
-
-    EXPECT_EQ(0, vb->getNumItems());
-
-    // Ephemeral keeps the completed prepare in the HashTable
-    if (persistent()) {
-        EXPECT_EQ(0, vb->ht.getNumItems());
-    } else {
-        EXPECT_EQ(1, vb->ht.getNumItems());
-    }
-    {
-        const auto sv = vb->ht.findForWrite(docKey);
-        ASSERT_FALSE(sv.storedValue);
-    }
-
-    // empty-item
-    auto it = ckpt->begin();
-    ASSERT_EQ(queue_op::empty, (*it)->getOperation());
-    // 1 metaitem (checkpoint-start)
-    it++;
-    ASSERT_EQ(1, ckpt->getNumMetaItems());
-    EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
-    // 1 non-metaitem is Abort and carries no value
-    it++;
-    ASSERT_EQ(0, ckpt->getNumItems());
-
-    EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
+                      opaque, vbid, key, prepareSeqno, abortSeqno)));
 }
 
-TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbortIgnoreDeDuped) {
-    testReceiveDuplicateDcpAbort("key", 4, ENGINE_SUCCESS);
+/**
+ * Test that we can accept an abort without a correponding prepare if we
+ * are receiving a disk snapshot and the prepare seqno is greater than or
+ * equal to the snapshot start seqno.
+ */
+TEST_P(DurabilityPassiveStreamTest, ReceiveAbortWithoutPrepareFromDisk) {
+    uint32_t opaque = 0;
+
+    SnapshotMarker marker(opaque,
+                          vbid,
+                          3 /*snapStart*/,
+                          4 /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_DISK,
+                          {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    auto key = makeStoredDocKey("key1");
+    auto prepareSeqno = 3;
+    auto abortSeqno = 4;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<AbortSyncWrite>(
+                      opaque, vbid, key, prepareSeqno, abortSeqno)));
 }
 
-TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbortDuplicate) {
-    testReceiveDuplicateDcpAbort("key", 3, ENGINE_EINVAL);
-}
+/**
+ * Test that we do not accept an abort without a correponding prepare if we
+ * are receiving a disk snapshot and the prepare seqno is less than the current
+ * snapshot start.
+ */
+TEST_P(DurabilityPassiveStreamTest,
+       ReceiveAbortWithoutPrepareFromDiskInvalidPrepareSeqno) {
+    uint32_t opaque = 0;
 
-TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbortDeDupedPrepareSeqnoTooHigh) {
-    testReceiveDuplicateDcpAbort("key", 5, ENGINE_EINVAL);
-}
+    SnapshotMarker marker(opaque,
+                          vbid,
+                          3 /*snapStart*/,
+                          4 /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_DISK,
+                          {} /*streamId*/);
+    stream->processMarker(&marker);
 
-TEST_P(DurabilityPassiveStreamTest, ReceiveDcpAbortIgnoreDeDupedNewKey) {
-    testReceiveDuplicateDcpAbort("newkey", 4, ENGINE_SUCCESS);
+    auto key = makeStoredDocKey("key1");
+    auto prepareSeqno = 2;
+    auto abortSeqno = 4;
+    EXPECT_EQ(ENGINE_EINVAL,
+              stream->messageReceived(std::make_unique<AbortSyncWrite>(
+                      opaque, vbid, key, prepareSeqno, abortSeqno)));
 }
 
 void DurabilityPassiveStreamTest::setUpHandleSnapshotEndTest() {

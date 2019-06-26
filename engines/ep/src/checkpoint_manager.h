@@ -338,6 +338,8 @@ public:
 
     snapshot_info_t getSnapshotInfo();
 
+    uint64_t getLatestSnapshotStartSeqno() const;
+
     bool incrCursor(CheckpointCursor &cursor);
 
     void notifyFlusher();

@@ -879,17 +879,19 @@ ENGINE_ERROR_CODE VBucket::abort(
 
         Expects(getState() != vbucket_state_active);
 
-        if (!(static_cast<uint64_t>(getHighSeqno()) < prepareSeqno &&
-              prepareSeqno < duplicateAbortOrPrepareOverwriteSeqno)) {
+        // If we did not find the corresponding prepare for this abort then the
+        // prepare seqno of the abort must be greater than or equal to the
+        // snapshot start seqno and we must be receiving a disk snapshot.
+        if (!isReceivingDiskSnapshot() ||
+            static_cast<uint64_t>(prepareSeqno) <
+                    checkpointManager->getLatestSnapshotStartSeqno()) {
             EP_LOG_ERR(
                     "VBucket::abort ({}) - replica - failed as we received "
-                    "an abort for a prepare that does not exist and we are "
-                    "not in the window highSeqno:{} <= prepareSeqno:{} < "
-                    "duplicateAbortOrPrepareOverwriteSeqno:{}",
+                    "an abort for a prepare that does not exist and we cannot "
+                    "ignore it. Disk snapshot:{}, prepare seqno: {}",
                     id,
-                    getHighSeqno(),
-                    prepareSeqno,
-                    duplicateAbortOrPrepareOverwriteSeqno);
+                    isReceivingDiskSnapshot(),
+                    prepareSeqno);
             return ENGINE_EINVAL;
         }
 

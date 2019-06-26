@@ -91,15 +91,6 @@ protected:
      */
     void testReceiveDcpAbort();
 
-    /*
-     * Test that a replica can receive and correctly process a DCPAbort for a
-     * prepare that it knows nothing about when in reconnecting in a specific
-     * window (highSeqno <= prepareSeqno < streamStart).
-     */
-    void testReceiveDuplicateDcpAbort(const std::string& key,
-                                      uint64_t prepareSeqno,
-                                      ENGINE_ERROR_CODE expectedResult);
-
     void setUpHandleSnapshotEndTest();
 };
 
