@@ -21,8 +21,8 @@
 #include <platform/sized_buffer.h>
 #include <array>
 
-#include <mutex>
 #include <list>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -36,11 +36,12 @@
 
 struct topkey_item_t {
     topkey_item_t(rel_time_t create_time)
-        : ti_ctime(create_time),
-          ti_access_count(0) { }
+        : ti_ctime(create_time), ti_access_count(0) {
+    }
 
     rel_time_t ti_ctime; /* Time this item was created */
-    int ti_access_count; /* Int count for number of times key has been accessed */
+    int ti_access_count; /* Int count for number of times key has been accessed
+                          */
 };
 
 /* Class to track the "top" keys in a bucket.
@@ -101,7 +102,6 @@ private:
     // Responsible for tracking the top {mkeys} within it's keyspace.
     class Shard {
     public:
-
         void setMaxKeys(int mkeys) {
             max_keys = mkeys;
             storage.reserve(max_keys);
@@ -121,14 +121,13 @@ private:
 
         typedef void (*iterfunc_t)(const std::string& key,
                                    const topkey_item_t& it,
-                                   void *arg);
+                                   void* arg);
 
         /* For each key in this shard, invoke the given callback function.
          */
         void accept_visitor(iterfunc_t visitor_func, void* visitor_ctx);
 
     private:
-
         struct KeyId {
             size_t hash;
             std::string key;
@@ -153,8 +152,8 @@ private:
         // mutex to serial access to this shard.
         std::mutex mutex;
 
-        // list of keys, ordered from most-recently used (front) to least recently
-        // used (back).
+        // list of keys, ordered from most-recently used (front) to least
+        // recently used (back).
         key_history_t list;
 
         // Underlying topkey storage.

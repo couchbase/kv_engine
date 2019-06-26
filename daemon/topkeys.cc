@@ -87,7 +87,6 @@
  * is updated to move the updated element to the head of the list.
  */
 
-
 TopKeys::TopKeys(int mkeys) {
     for (auto& shard : shards) {
         shard.setMaxKeys(mkeys);
@@ -131,15 +130,13 @@ TopKeys::Shard& TopKeys::getShard(size_t key_hash) {
     return shards[key_hash & 0x7];
 }
 
-TopKeys::Shard::topkey_t*
-TopKeys::Shard::searchForKey(size_t key_hash,
-                             const cb::const_char_buffer& key) {
-
+TopKeys::Shard::topkey_t* TopKeys::Shard::searchForKey(
+        size_t key_hash, const cb::const_char_buffer& key) {
     for (auto& topkey : storage) {
         if (topkey.first.hash == key_hash) {
             // Double-check with full compare
-            if (topkey.first.key.compare(0, topkey.first.key.size(),
-                                         key.buf, key.len) == 0) {
+            if (topkey.first.key.compare(
+                        0, topkey.first.key.size(), key.buf, key.len) == 0) {
                 // Match found.
                 return &topkey;
             }
@@ -172,10 +169,9 @@ bool TopKeys::Shard::updateKey(const cb::const_char_buffer& key,
             } else {
                 // add a new element to the storage array.
 
-                storage.emplace_back(
-                    std::make_pair(KeyId{key_hash,
-                                         std::string(key.buf, key.len)},
-                                   topkey_item_t(ct)));
+                storage.emplace_back(std::make_pair(
+                        KeyId{key_hash, std::string(key.buf, key.len)},
+                        topkey_item_t(ct)));
                 found_key = &storage.back();
 
                 // Insert the new item to the front of the list
@@ -183,8 +179,7 @@ bool TopKeys::Shard::updateKey(const cb::const_char_buffer& key,
             }
         } else {
             // Found - shuffle to the front.
-            auto it = std::find(list.begin(), list.end(),
-                                found_key);
+            auto it = std::find(list.begin(), list.end(), found_key);
             list.splice(list.begin(), list, it);
         }
 
@@ -208,7 +203,7 @@ void TopKeys::doUpdateKey(const void* key,
 
     try {
         cb::const_char_buffer key_buf(static_cast<const char*>(key), nkey);
-        std::hash<cb::const_char_buffer > hash_fn;
+        std::hash<cb::const_char_buffer> hash_fn;
         const size_t key_hash = hash_fn(key_buf);
 
         getShard(key_hash).updateKey(key_buf, key_hash, operation_time);
@@ -226,29 +221,34 @@ struct tk_context {
         // empty
     }
 
-    const void *cookie;
+    const void* cookie;
     AddStatFn add_stat;
     rel_time_t current_time;
     nlohmann::json* array;
 };
 
-static void tk_iterfunc(const std::string& key, const topkey_item_t& it,
-                        void *arg) {
-    struct tk_context *c = (struct tk_context*)arg;
+static void tk_iterfunc(const std::string& key,
+                        const topkey_item_t& it,
+                        void* arg) {
+    struct tk_context* c = (struct tk_context*)arg;
     char val_str[500];
     /* Note we use accessed time for both 'atime' and 'ctime' below. They have
      * had the same value since the topkeys code was added; but given that
      * clients may expect separate values we print both.
      */
     rel_time_t created_time = c->current_time - it.ti_ctime;
-    int vlen = snprintf(val_str, sizeof(val_str) - 1, "get_hits=%d,"
+    int vlen = snprintf(val_str,
+                        sizeof(val_str) - 1,
+                        "get_hits=%d,"
                         "get_misses=0,cmd_set=0,incr_hits=0,incr_misses=0,"
                         "decr_hits=0,decr_misses=0,delete_hits=0,"
                         "delete_misses=0,evictions=0,cas_hits=0,cas_badval=0,"
                         "cas_misses=0,get_replica=0,evict=0,getl=0,unlock=0,"
                         "get_meta=0,set_meta=0,del_meta=0,ctime=%" PRIu32
-                        ",atime=%" PRIu32, it.ti_access_count,
-                        created_time, created_time);
+                        ",atime=%" PRIu32,
+                        it.ti_access_count,
+                        created_time,
+                        created_time);
     if (vlen > 0 && vlen < int(sizeof(val_str) - 1)) {
         c->add_stat(key.c_str(),
                     gsl::narrow<uint16_t>(key.size()),
@@ -268,9 +268,10 @@ static void tk_iterfunc(const std::string& key, const topkey_item_t& it,
  *    "atime": aaa
  * }
  */
-static void tk_jsonfunc(const std::string& key, const topkey_item_t& it,
+static void tk_jsonfunc(const std::string& key,
+                        const topkey_item_t& it,
                         void* arg) {
-    struct tk_context *c = (struct tk_context*)arg;
+    struct tk_context* c = (struct tk_context*)arg;
     if (c->array == nullptr) {
         throw std::invalid_argument("tk_jsonfunc: c->array can't be nullptr");
     }
