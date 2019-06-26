@@ -314,13 +314,14 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
                         *static_cast<SystemEventMessage*>(dcpResponse.get()));
                 break;
             }
-            default:
-                log(spdlog::level::level_enum::warn,
-                    "({}) Unknown event:{}, opaque:{}",
-                    vb_,
-                    int(dcpResponse->getEvent()),
-                    opaque_);
-                return ENGINE_DISCONNECT;
+            case DcpResponse::Event::StreamReq:
+            case DcpResponse::Event::AddStream:
+            case DcpResponse::Event::SeqnoAcknowledgement:
+                // These are invalid events for this path, they are handled by
+                // the DcpConsumer class
+                throw std::invalid_argument(
+                        "PassiveStream::messageReceived invalid event type:" +
+                        std::string(dcpResponse->to_string()));
             }
 
             if (ret == ENGINE_ENOMEM) {
@@ -407,6 +408,12 @@ process_items_error_t PassiveStream::processBufferedMessages(
             ret = processPrepare(
                     static_cast<MutationConsumerMessage*>(response.get()));
             break;
+        case DcpResponse::Event::Commit:
+            ret = processCommit(static_cast<CommitSyncWrite&>(*response));
+            break;
+        case DcpResponse::Event::Abort:
+            ret = processAbort(dynamic_cast<AbortSyncWrite&>(*response));
+            break;
         case DcpResponse::Event::SnapshotMarker:
             processMarker(static_cast<SnapshotMarker*>(response.get()));
             break;
@@ -423,14 +430,15 @@ process_items_error_t PassiveStream::processBufferedMessages(
                     *static_cast<SystemEventMessage*>(response.get()));
             break;
         }
-        default:
-            log(spdlog::level::level_enum::warn,
-                "PassiveStream::processBufferedMessages:"
-                "({}) PassiveStream ignoring "
-                "unknown message type {}",
-                vb_,
-                response->to_string());
-            continue;
+        case DcpResponse::Event::StreamReq:
+        case DcpResponse::Event::AddStream:
+        case DcpResponse::Event::SeqnoAcknowledgement:
+            // These are invalid events for this path, they are handled by the
+            // DcpConsumer class
+            throw std::invalid_argument(
+                    "PassiveStream::processBufferedMessages invalid event "
+                    "type:" +
+                    std::string(response->to_string()));
         }
 
         if (ret == ENGINE_TMPFAIL || ret == ENGINE_ENOMEM) {
