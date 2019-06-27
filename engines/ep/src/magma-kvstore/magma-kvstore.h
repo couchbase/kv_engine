@@ -29,6 +29,7 @@
 #include <platform/non_negative_counter.h>
 
 #include <map>
+#include <shared_mutex>
 #include <string>
 #include <vector>
 
@@ -49,6 +50,7 @@ struct vbucket_state;
 class MagmaInfo {
 public:
     MagmaInfo() = default;
+
     void reset() {
         docCount = 0;
         persistedDeletes = 0;
@@ -158,9 +160,7 @@ public:
         return vbinfo;
     }
 
-    size_t getItemCount(Vbid vbid) override {
-        return getMagmaInfo(vbid).docCount;
-    }
+    size_t getItemCount(Vbid vbid) override;
 
     RollbackResult rollback(Vbid vbid,
                             uint64_t rollbackSeqno,
@@ -268,7 +268,7 @@ public:
     /**
      * Encode the cached vbucket_state and magmaInfo into a nlohmann json struct
      */
-    nlohmann::json encodeVBState(vbucket_state& vbstate,
+    nlohmann::json encodeVBState(const vbucket_state& vbstate,
                                  MagmaInfo& magmaInfo) const;
 
     /**
@@ -281,7 +281,9 @@ public:
      * with the new vbstate as well as write to disk.
      */
     magma::Status writeVBStateToDisk(Vbid vbid,
-                                     magma::Magma::CommitBatch& commitBatch);
+                                     magma::Magma::CommitBatch& commitBatch,
+                                     vbucket_state& vbs,
+                                     MagmaInfo& minfo);
 
     /**
      * Get vbstate from cache. If cache not populated, read it from disk
@@ -294,9 +296,27 @@ public:
     vbucket_state* getVBucketState(Vbid vbucketId) override;
 
     /**
-     * Get the MagmaInfo from the cache
+     * The magmaKVHandle protects magma from a kvstore being dropped
+     * while an API operation is active. This is required because
+     * unlike couchstore which just unlinks the data file, magma
+     * must wait for all threads to exit and then block subsequent
+     * threads from proceeding while the kvstore is being dropped.
+     * Inside the handle is the vbstateMutex. This mutex is used
+     * to protect the vbstate from race conditions when its updated.
      */
-    MagmaInfo& getMagmaInfo(Vbid vbid);
+    struct MagmaKVHandleStruct {
+        std::shared_timed_mutex vbstateMutex;
+    };
+    using MagmaKVHandle = std::shared_ptr<MagmaKVHandleStruct>;
+
+    std::vector<std::pair<MagmaKVHandle, std::shared_timed_mutex>>
+            magmaKVHandles;
+
+    const MagmaKVHandle getMagmaKVHandle(Vbid vbid) {
+        std::lock_guard<std::shared_timed_mutex> lock(
+                magmaKVHandles[vbid.get()].second);
+        return magmaKVHandles[vbid.get()].first;
+    }
 
 private:
     /**
@@ -333,7 +353,9 @@ private:
                           const magma::Slice& valueSlice,
                           GetMetaOnly getMetaOnly = GetMetaOnly::No);
 
-    int saveDocs(Collections::VB::Flush& collectionsFlush, kvstats_ctx& kvctx);
+    int saveDocs(Collections::VB::Flush& collectionsFlush,
+                 kvstats_ctx& kvctx,
+                 const MagmaKVHandle& kvHandle);
 
     void commitCallback(int status, kvstats_ctx& kvctx);
 
@@ -380,4 +402,8 @@ private:
     // Using upsert for Set means we can't keep accurate document totals.
     // This is used for testing only!
     bool useUpsertForSet{false};
+
+    // Get lock on KVHandle and wait for all threads to exit before
+    // returning the lock to the caller.
+    std::unique_lock<std::shared_timed_mutex> getExclusiveKVHandle(Vbid vbid);
 };

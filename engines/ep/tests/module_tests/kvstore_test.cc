@@ -221,6 +221,13 @@ KVStoreTest::KVStoreTest() : flush(manifest) {
 void KVStoreTest::SetUp() {
     auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
     data_dir = std::string(info->test_case_name()) + "_" + info->name() + ".db";
+    if (cb::io::isDirectory(data_dir)) {
+        try {
+            cb::io::rmrf(data_dir);
+        } catch (std::system_error& e) {
+            throw e;
+        }
+    }
 }
 
 void KVStoreTest::TearDown() {
@@ -2269,46 +2276,97 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
 
 // Verify thread-safeness for 'delVBucket' concurrent operations.
 // Expect ThreadSanitizer to pick this.
-TEST_P(KVStoreParamTestSkipMagma, DelVBucketConcurrentOperationsTest) {
+// Rocks has race condition issues
+TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
     WriteCallback wc;
-    uint64_t seqno = 1000;
-    Item item(makeStoredDocKey("key"),
-              0 /*flags*/,
-              0 /*exptime*/,
-              "value",
-              5 /*nb*/,
-              PROTOCOL_BINARY_RAW_BYTES,
-              0 /*cas*/,
-              seqno++ /*bySeqno*/,
-              Vbid(0));
+    std::atomic<bool> stop{false};
+    std::atomic<uint32_t> deletes{0};
+    uint32_t minNumDeletes = 25;
+    std::mutex delMutex;
+    std::condition_variable delWait;
+    std::mutex testMutex;
+    std::condition_variable testWait;
+
+    ThreadGate tg(3);
+
     auto set = [&] {
-        for (int i = 0; i < 10; i++) {
+        int64_t seqno = 1;
+        Item item(makeStoredDocKey("key"), 0, 0, "value", 5);
+        while (!stop.load()) {
             kvstore->begin(std::make_unique<TransactionContext>());
+            item.setBySeqno(seqno++);
             kvstore->set(item, wc);
-            kvstore->commit(flush);
-        }
-    };
-    auto delVBucket = [&] {
-        for (int i = 0; i < 10; i++) {
-            kvstore->delVBucket(Vbid(0), 0 /*fileRev*/);
-        }
-    };
-    auto getStat = [&] {
-        size_t value;
-        for (int i = 0; i < 10; i++) {
-            kvstore->getStat("kMemTableTotal", value);
+            auto ok = kvstore->commit(flush);
+
+            // Everytime we get a successful commit, that
+            // means we have a vbucket we can drop.
+            if (ok) {
+                std::lock_guard<std::mutex> lock(delMutex);
+                delWait.notify_one();
+            }
         }
     };
 
-    // We cannot control how tasks are scheduled, but starting the threads
-    // in the following order allows ThreadSanitizer to catch data races
-    // (expected data race set-delVBucket or getStat-delVBucket)
+    auto delVBucket = [&] {
+        tg.threadUp();
+        while (!stop.load()) {
+            {
+                std::unique_lock<std::mutex> lock(delMutex);
+                delWait.wait(lock);
+            }
+            kvstore->delVBucket(Vbid(0), 0);
+            if (deletes++ > minNumDeletes) {
+                testWait.notify_one();
+            }
+        }
+    };
+
+    auto get = [&] {
+        tg.threadUp();
+        auto key = makeDiskDocKey("key");
+        while (!stop.load()) {
+            kvstore->get(key, Vbid(0));
+        }
+    };
+
+    auto initScan = [&] {
+        tg.threadUp();
+        while (!stop.load()) {
+            auto cb = std::make_shared<GetCallback>(true);
+            auto cl = std::make_shared<KVStoreTestCacheCallback>(1, 5, Vbid(0));
+            ScanContext* scanCtx = nullptr;
+            scanCtx = kvstore->initScanContext(cb,
+                                               cl,
+                                               Vbid(0),
+                                               1,
+                                               DocumentFilter::ALL_ITEMS,
+                                               ValueFilter::VALUES_COMPRESSED);
+            if (scanCtx) {
+                kvstore->destroyScanContext(scanCtx);
+            }
+        }
+    };
+
     std::thread t1(set);
     std::thread t2(delVBucket);
-    std::thread t3(getStat);
+    std::thread t3(get);
+    std::thread t4(initScan);
+
+    {
+        // This is not a 30s test. The 30s is just a timeout in
+        // case something goes horribly wrong. The test ends when
+        // there have been minNumDeletes(25) successful vbucket
+        // drops.
+        std::unique_lock<std::mutex> lock(testMutex);
+        testWait.wait_for(lock, std::chrono::seconds(30));
+    }
+
+    stop = true;
     t1.join();
     t2.join();
     t3.join();
+    t4.join();
+    EXPECT_LT(minNumDeletes, deletes);
 }
 
 // MB-27963 identified that compaction and scan are racing with respect to
