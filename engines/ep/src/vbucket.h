@@ -2453,6 +2453,7 @@ private:
     friend class VBucketTestBase;
     friend class VBucketTestIntrospector;
     friend class VBucketDurabilityTest;
+    friend class DurabilityEPBucketTest;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };

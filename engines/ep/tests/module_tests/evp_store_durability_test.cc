@@ -1653,6 +1653,72 @@ TEST_P(DurabilityBucketTest,
             cb::durability::Level::PersistToMajority);
 }
 
+class FailOnExpiryCallback : public Callback<Item&, time_t&> {
+public:
+    void callback(Item& item, time_t& time) override {
+        FAIL() << "Item was expired, nothing should be eligible for expiry";
+    }
+};
+
+TEST_P(DurabilityEPBucketTest, DoNotExpirePendingItem) {
+    /* MB-34768: the expiry time field of deletes has two uses - expiry time,
+     * and deletion time (for use by the tombstone purger). This is true for
+     * SyncDelete Prepares do too - BUT SyncDelete Prepares are not treated
+     * as deleted (they are not tombstones yet) but are ALSO not eligible
+     * for expiry, despite the expiry time field being set. Check that
+     * compaction does not misinterpret the state of the prepare and try to
+     * expire it.
+     */
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    using namespace cb::durability;
+
+    auto key1 = makeStoredDocKey("key1");
+    auto req = Requirements(Level::Majority, Timeout(1000));
+
+    auto key = makeStoredDocKey("key");
+    // Store item normally
+    queued_item qi{new Item(key, 0, 0, "value", 5)};
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(*qi, cookie));
+
+    // attempt to sync delete it
+    auto pending = makePendingItem(key, "value", req);
+    pending->setDeleted(DeleteSource::Explicit);
+    // expiry time is set *now*
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    CompactionConfig config;
+    compaction_ctx cctx(config, 0);
+    cctx.curr_time = 0; // not used??
+
+    cctx.expiryCallback = std::make_shared<FailOnExpiryCallback>();
+
+    // Jump slightly forward, to ensure the new current time
+    // is > expiry time of the delete
+    TimeTraveller tt(1);
+
+    auto* kvstore = store->getOneRWUnderlying();
+
+    // Compact. Nothing should be expired
+    EXPECT_TRUE(kvstore->compactDB(&cctx));
+
+    // Check the committed item on disk.
+    auto gv = kvstore->get(DiskDocKey(key), Vbid(0));
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(*qi, *gv.item);
+
+    // Check the Prepare on disk
+    DiskDocKey prefixedKey(key, true /*prepare*/);
+    gv = kvstore->get(prefixedKey, Vbid(0));
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_TRUE(gv.item->isPending());
+    EXPECT_TRUE(gv.item->isDeleted());
+}
+
 template <typename F>
 void DurabilityEphemeralBucketTest::testPurgeCompletedPrepare(F& func) {
     setVBucketStateAndRunPersistTask(

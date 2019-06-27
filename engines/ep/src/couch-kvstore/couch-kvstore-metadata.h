@@ -328,6 +328,10 @@ protected:
             details.raw = details.raw.hton();
         }
 
+        bool isCommit() const {
+            return operation == Operation::Commit;
+        }
+
     private:
         // Assigning a whole byte to this (see MetaDataV3 class comment)
         // although only currently need 2 bits.
@@ -525,6 +529,11 @@ public:
 
     bool isPreparedSyncDelete() const {
         return allMeta.v3.isPreparedDelete();
+    }
+
+    bool isCommit() const {
+        return getVersionInitialisedFrom() != MetaData::Version::V3 ||
+               allMeta.v3.isCommit();
     }
 
     cb::uint48_t getPrepareSeqno() const {

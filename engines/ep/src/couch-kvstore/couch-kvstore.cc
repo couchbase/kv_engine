@@ -953,7 +953,7 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
             }
         } else {
             time_t currtime = ep_real_time();
-            if (exptime && exptime < currtime) {
+            if (exptime && exptime < currtime && metadata->isCommit()) {
                 int ret;
                 metadata->setDeleteSource(DeleteSource::TTL);
                 try {
