@@ -162,6 +162,11 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         ::testing::Values(TransportProtocols::McbpPlain),
                         ::testing::PrintToStringParamName());
 
+TEST_P(ExternalAuthTest, OnlyPlainShouldBeAdvertised) {
+    auto& conn = getConnection();
+    EXPECT_EQ("PLAIN", conn.getSaslMechanisms());
+}
+
 TEST_P(ExternalAuthTest, TestExternalAuthWithNoExternalProvider) {
     // Drop the provider
     provider.reset();
