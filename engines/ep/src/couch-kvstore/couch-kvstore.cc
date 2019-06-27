@@ -962,6 +962,9 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
                 } catch (const std::bad_alloc&) {
                     EP_LOG_WARN("time_purge_hook: memory allocation failed");
                     return COUCHSTORE_ERROR_ALLOC_FAIL;
+                } catch (const std::exception& ex) {
+                    EP_LOG_WARN("time_purge_hook: exception: {}", ex.what());
+                    return COUCHSTORE_ERROR_INVALID_ARGUMENTS;
                 }
 
                 if (ret != COUCHSTORE_SUCCESS) {
