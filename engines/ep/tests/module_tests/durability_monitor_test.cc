@@ -88,7 +88,7 @@ void PassiveDurabilityMonitorTest::addSyncWrite(
     using namespace cb::durability;
     item.setPendingSyncWrite(req);
     // Note: necessary for non-auto-generated seqno
-    vb->checkpointManager->createSnapshot(seqno, seqno);
+    vb->checkpointManager->createSnapshot(seqno, seqno, CheckpointType::Memory);
     processSet(item);
 }
 

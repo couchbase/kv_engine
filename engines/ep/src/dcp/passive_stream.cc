@@ -848,7 +848,9 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
     }
 
     if (vb) {
-        vb->setReceivingDiskSnapshot(marker->getFlags() & MARKER_FLAG_DISK);
+        auto checkpointType = marker->getFlags() & MARKER_FLAG_DISK
+                                      ? CheckpointType::Disk
+                                      : CheckpointType::Memory;
 
         auto& ckptMgr = *vb->checkpointManager;
         if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
@@ -861,15 +863,21 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                 // Treat initial disk snapshot like all others
                 vb->setReceivingInitialDiskSnapshot(true);
                 ckptMgr.createSnapshot(cur_snapshot_start.load(),
-                                       cur_snapshot_end.load());
+                                       cur_snapshot_end.load(),
+                                       checkpointType);
             }
         } else {
             if (marker->getFlags() & MARKER_FLAG_CHK ||
                 vb->checkpointManager->getOpenCheckpointId() == 0) {
                 ckptMgr.createSnapshot(cur_snapshot_start.load(),
-                                       cur_snapshot_end.load());
+                                       cur_snapshot_end.load(),
+                                       checkpointType);
             } else {
-                ckptMgr.updateCurrentSnapshotEnd(cur_snapshot_end.load());
+                // If we are reconnecting then we need to update the snap end
+                // and potentially the checkpoint type as We do not send the
+                // CHK snapshot marker flag for disk snapshots.
+                ckptMgr.updateCurrentSnapshot(cur_snapshot_end.load(),
+                                              checkpointType);
             }
             vb->setBackfillPhase(false);
         }

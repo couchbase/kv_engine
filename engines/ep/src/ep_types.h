@@ -44,6 +44,7 @@ enum class WantsDeleted : char { No, Yes };
 enum class TrackReference : char { No, Yes };
 enum class QueueExpired : char { No, Yes };
 enum class CheckConflicts : char { No, Yes };
+enum class CheckpointType : char { Disk, Memory };
 
 /**
  * Used by setVBucketState - indicates that the vbucket is transferred

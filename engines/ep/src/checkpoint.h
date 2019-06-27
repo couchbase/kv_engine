@@ -262,7 +262,9 @@ std::string to_string(QueueDirtyStatus value);
  * logically immutable). A checkpoint begins life as an Open checkpoint, will
  * have items added to it (including de-duplication if a key is added which
  * already exists), and then once large/old enough it will be marked as Closed,
- * and a new Open checkpoint created for new items.
+ * and a new Open checkpoint created for new items. A Checkpoint may have a type
+ * of Disk if it is created by a non-active vBucket when it receives a DCP Disk
+ * snapshot; otherwise the Checkpoint has a type of Memory.
  *
  * Consumers read items from Checkpoints by creating a CheckpointCursor
  * (similar to an STL iterator), which they use to mark how far along the
@@ -389,7 +391,8 @@ public:
                uint64_t id,
                uint64_t snapStart,
                uint64_t snapEnd,
-               Vbid vbid);
+               Vbid vbid,
+               CheckpointType checkpointType);
 
     ~Checkpoint();
 
@@ -509,6 +512,10 @@ public:
         snapEndSeqno = seqno;
     }
 
+    void setCheckpointType(CheckpointType type) {
+        checkpointType = type;
+    }
+
     /**
      * Returns an iterator pointing to the beginning of the CheckpointQueue,
      * toWrite.
@@ -572,6 +579,11 @@ public:
      */
     CheckpointQueue expelItems(CheckpointCursor& expelUpToAndIncluding);
 
+    /// @return true if this is a disk checkpoint (replica streaming from disk)
+    bool isDiskCheckpoint() {
+        return checkpointType == CheckpointType::Disk;
+    }
+
 private:
     /**
      * When checking if the existing item has already been processed by the
@@ -616,6 +628,9 @@ private:
     // Records the memory consumption of all items in the checkpoint.
     // This includes each item's key, metadata and the blob.
     cb::NonNegativeCounter<size_t> queuedItemsMemUsage;
+
+    // Is this a checkpoint created by a replica from a received disk snapshot?
+    CheckpointType checkpointType;
 
     friend std::ostream& operator <<(std::ostream& os, const Checkpoint& m);
 };

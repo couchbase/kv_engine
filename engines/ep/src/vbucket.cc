@@ -3804,3 +3804,7 @@ void VBucket::addSyncWriteForRollback(const Item& item) {
     Expects(!htRes.storedValue);
     ht.unlocked_addNewStoredValue(htRes.lock, item);
 }
+
+bool VBucket::isReceivingDiskSnapshot() const {
+    return checkpointManager->isOpenCheckpointDisk();
+}

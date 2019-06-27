@@ -592,15 +592,8 @@ public:
         receivingInitialDiskSnapshot.store(receivingDiskSnapshot);
     }
 
-    bool isReceivingDiskSnapshot() const {
-        return receivingDiskSnapshot.load();
-    }
-
-    void setReceivingDiskSnapshot(bool receivingDiskSnapshot) {
-        Expects(getState() == vbucket_state_replica ||
-                getState() == vbucket_state_pending);
-        this->receivingDiskSnapshot.store(receivingDiskSnapshot);
-    }
+    /// @return true if we are a replica receiving a disk based snapshot
+    bool isReceivingDiskSnapshot() const;
 
     /**
      * Returns the map of bgfetch items for this vbucket, clearing the
@@ -2393,14 +2386,6 @@ private:
      * receive the full disk snapshot, it deletes the vbucket files.
      */
     std::atomic<bool> receivingInitialDiskSnapshot;
-
-    /**
-     * When a vbucket is streaming from an active, disk de-dupe can cause the
-     * consumer to receive [1:Prepare, 3: Mutation] for the logical series of
-     * events [1:Prepare, 2:Commit, 3:Mutation]. If this is the case we must
-     * allow the overwriting of the original prepare.
-     */
-    std::atomic<bool> receivingDiskSnapshot;
 
     std::mutex bfMutex;
     std::unique_ptr<BloomFilter> bFilter;

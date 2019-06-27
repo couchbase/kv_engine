@@ -90,7 +90,8 @@ Checkpoint::Checkpoint(EPStats& st,
                        uint64_t id,
                        uint64_t snapStart,
                        uint64_t snapEnd,
-                       Vbid vbid)
+                       Vbid vbid,
+                       CheckpointType checkpointType)
     : stats(st),
       checkpointId(id),
       snapStartSeqno(snapStart),
@@ -104,7 +105,8 @@ Checkpoint::Checkpoint(EPStats& st,
       keyIndex(keyIndexTrackingAllocator),
       metaKeyIndex(keyIndexTrackingAllocator),
       keyIndexMemUsage(0),
-      queuedItemsMemUsage(0) {
+      queuedItemsMemUsage(0),
+      checkpointType(checkpointType) {
     stats.coreLocal.get()->memOverhead.fetch_add(sizeof(Checkpoint));
 }
 

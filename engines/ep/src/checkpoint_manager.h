@@ -328,11 +328,13 @@ public:
 
     void setBackfillPhase(uint64_t start, uint64_t end);
 
-    void createSnapshot(uint64_t snapStartSeqno, uint64_t snapEndSeqno);
+    void createSnapshot(uint64_t snapStartSeqno,
+                        uint64_t snapEndSeqno,
+                        CheckpointType checkpointType);
 
     void resetSnapshotRange();
 
-    void updateCurrentSnapshotEnd(uint64_t snapEnd);
+    void updateCurrentSnapshot(uint64_t snapEnd, CheckpointType checkpointType);
 
     snapshot_info_t getSnapshotInfo();
 
@@ -359,6 +361,9 @@ public:
      * @param other the manager we are taking cursors from
      */
     void takeAndResetCursors(CheckpointManager& other);
+
+    /// @return true if the current open checkpoint is a DiskCheckpoint
+    bool isOpenCheckpointDisk();
 
 protected:
     uint64_t getOpenCheckpointId_UNLOCKED(const LockHolder& lh);
@@ -406,10 +411,13 @@ protected:
      * @param id for the new checkpoint
      * @param snapStartSeqno for the new checkpoint
      * @param snapEndSeqno for the new checkpoint
+     * @param checkpointType is the checkpoint created from a replica receiving
+     *                       a disk snapshot?
      */
     void addNewCheckpoint_UNLOCKED(uint64_t id,
                                    uint64_t snapStartSeqno,
-                                   uint64_t snapEndSeqno);
+                                   uint64_t snapEndSeqno,
+                                   CheckpointType checkpointType);
 
     /*
      * Closes the current open checkpoint and adds a new open checkpoint to
@@ -427,8 +435,13 @@ protected:
      * @param id for the new checkpoint
      * @param snapStartSeqno for the new checkpoint
      * @param snapEndSeqno for the new checkpoint
+     * @param checkpointType is the checkpoint created from a replica receiving
+     *                       a disk snapshot?
      */
-    void addOpenCheckpoint(uint64_t id, uint64_t snapStart, uint64_t snapEnd);
+    void addOpenCheckpoint(uint64_t id,
+                           uint64_t snapStart,
+                           uint64_t snapEnd,
+                           CheckpointType checkpointType);
 
     bool moveCursorToNextCheckpoint(CheckpointCursor &cursor);
 
