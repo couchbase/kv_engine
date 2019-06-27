@@ -232,13 +232,7 @@ void DurabilityEPBucketTest::testPersistPrepare(DocumentState docState) {
     EXPECT_EQ(0, stats.diskQueueSize);
 
     // The item count must not increase when flushing Pending SyncWrites
-    if (fullEviction()) {
-        // @TODO Durability (MB-34092): getNumItems should always be 1 here,
-        //  not 2 in full-eviction
-        EXPECT_EQ(2, vb.getNumItems());
-    } else {
-        EXPECT_EQ(1, vb.getNumItems());
-    }
+    EXPECT_EQ(1, vb.getNumItems());
 
     // @TODO RocksDB
     // @TODO Durability
@@ -590,13 +584,7 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     auto reqs = Requirements(Level::Majority, {});
     mutation_descr_t delInfo;
 
-    if (fullEviction()) {
-        // @TODO Durability (MB-34092): getNumItems should always be 1 here,
-        //  not 2 in full-eviction
-        EXPECT_EQ(2, vb.getNumItems());
-    } else {
-        EXPECT_EQ(1, vb.getNumItems());
-    }
+    EXPECT_EQ(1, vb.getNumItems());
 
     // Ephemeral keeps the completed prepare
     if (persistent()) {
@@ -608,13 +596,7 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
             ENGINE_EWOULDBLOCK,
             store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
 
-    if (fullEviction()) {
-        // @TODO Durability (MB-34092): getNumItems should always be 1 here,
-        //  not 2 in full-eviction
-        EXPECT_EQ(2, vb.getNumItems());
-    } else {
-        EXPECT_EQ(1, vb.getNumItems());
-    }
+    EXPECT_EQ(1, vb.getNumItems());
     EXPECT_EQ(1, vb.ht.getNumPreparedSyncWrites());
 
     ASSERT_EQ(2, ckptList.size());
@@ -630,13 +612,7 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    if (fullEviction()) {
-        // @TODO Durability (MB-34092): getNumItems should always be 0 here,
-        //  not 1 in full-eviction
-        EXPECT_EQ(1, vb.getNumItems());
-    } else {
-        EXPECT_EQ(0, vb.getNumItems());
-    }
+    EXPECT_EQ(0, vb.getNumItems());
 
     ASSERT_EQ(2, ckptList.size());
     ASSERT_EQ(2, ckptList.back()->getNumItems());
@@ -678,13 +654,8 @@ TEST_P(DurabilityBucketTest, SyncWriteDelete) {
     uint64_t cas = 0;
     mutation_descr_t delInfo;
 
-    if (fullEviction()) {
-        // @TODO Durability (MB-34092): getNumItems should always be 1 here,
-        //  not 2 in full-eviction
-        EXPECT_EQ(2, vb.getNumItems());
-    } else {
-        EXPECT_EQ(1, vb.getNumItems());
-    }
+    EXPECT_EQ(1, vb.getNumItems());
+
     auto expectedNumPrepares = persistent() ? 0 : 1;
     EXPECT_EQ(expectedNumPrepares, vb.ht.getNumPreparedSyncWrites());
     ASSERT_EQ(ENGINE_SUCCESS,
@@ -692,13 +663,7 @@ TEST_P(DurabilityBucketTest, SyncWriteDelete) {
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    if (fullEviction()) {
-        // @TODO Durability (MB-34092): getNumItems should always be 0 here,
-        //  not 0 in full-eviction
-        EXPECT_EQ(1, vb.getNumItems());
-    } else {
-        EXPECT_EQ(0, vb.getNumItems());
-    }
+    EXPECT_EQ(0, vb.getNumItems());
     EXPECT_EQ(expectedNumPrepares, vb.ht.getNumPreparedSyncWrites());
 
     ASSERT_EQ(2, ckptList.size());
@@ -860,27 +825,27 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncWriteSyncDelete) {
 
     // prepare SyncWrite and commit.
     testCommittedSyncWriteFlushAfterCommit(vb, "key", "value");
-    verifyOnDiskItemCount(vb, 2);
+    verifyOnDiskItemCount(vb, 1);
     verifyCollectionItemCount(vb, 0, 1);
 
     // Second prepare SyncWrite and commit.
     testCommittedSyncWriteFlushAfterCommit(vb, "key", "value2");
-    verifyOnDiskItemCount(vb, 2);
+    verifyOnDiskItemCount(vb, 1);
     verifyCollectionItemCount(vb, 0, 1);
 
     // prepare SyncDelete and commit.
     auto key = makeStoredDocKey("key");
-    performPrepareSyncDelete(vb, key, 2, 1);
+    performPrepareSyncDelete(vb, key, 1, 1);
     auto prepareSeqno = vb.getHighSeqno();
 
     flushVBucketToDiskIfPersistent(vbid, 1);
-    verifyOnDiskItemCount(vb, 2);
+    verifyOnDiskItemCount(vb, 1);
     verifyCollectionItemCount(vb, key.getCollectionID(), 1);
 
-    performCommitForKey(vb, key, prepareSeqno, 2, 1);
+    performCommitForKey(vb, key, prepareSeqno, 1, 1);
 
     flushVBucketToDiskIfPersistent(vbid, 1);
-    verifyOnDiskItemCount(vb, 1);
+    verifyOnDiskItemCount(vb, 0);
     verifyCollectionItemCount(vb, key.getCollectionID(), 0);
 
     // At persist-dedup, the 2nd Prepare and Commit survive.
@@ -911,22 +876,22 @@ TEST_P(DurabilityEPBucketTest,
 
     // First prepare SyncWrite and commit for test_doc.
     testCommittedSyncWriteFlushAfterCommit(vb, "test_doc", "{ \"run\": 1 }");
-    verifyOnDiskItemCount(vb, 2);
+    verifyOnDiskItemCount(vb, 1);
     verifyCollectionItemCount(vb, 0, 1);
 
     // First prepare SyncDelete and commit.
     testSyncDeleteFlushAfterCommit(vb, "test_doc");
-    verifyOnDiskItemCount(vb, 1);
+    verifyOnDiskItemCount(vb, 0);
     verifyCollectionItemCount(vb, 0, 0);
 
     // Second prepare SyncWrite and commit.
     testCommittedSyncWriteFlushAfterCommit(vb, "test_doc", "{ \"run\": 2 }");
-    verifyOnDiskItemCount(vb, 2);
+    verifyOnDiskItemCount(vb, 1);
     verifyCollectionItemCount(vb, 0, 1);
 
     // Second prepare SyncDelete and commit.
     testSyncDeleteFlushAfterCommit(vb, "test_doc");
-    verifyOnDiskItemCount(vb, 1);
+    verifyOnDiskItemCount(vb, 0);
     verifyCollectionItemCount(vb, 0, 0);
 }
 
@@ -994,7 +959,7 @@ TEST_P(DurabilityEPBucketTest,
 
     // flush the prepare and commit mutations to disk
     flushVBucketToDiskIfPersistent(vbid, 2);
-    verifyOnDiskItemCount(vb, 1);
+    verifyOnDiskItemCount(vb, 0);
     verifyCollectionItemCount(vb, keyCollectionID, 0);
 
     // check the value is correctly deleted on disk
@@ -1033,30 +998,30 @@ TEST_P(DurabilityEPBucketTest,
     auto prepareSeqno = vb.getHighSeqno();
 
     flushVBucketToDiskIfPersistent(vbid, 1);
-    verifyOnDiskItemCount(vb, 1);
+    verifyOnDiskItemCount(vb, 0);
     verifyCollectionItemCount(vb, keyCollectionID, 0);
 
-    performCommitForKey(vb, key, prepareSeqno, 1, 0);
+    performCommitForKey(vb, key, prepareSeqno, 0, 0);
 
     flushVBucketToDiskIfPersistent(vbid, 1);
-    verifyOnDiskItemCount(vb, 2);
+    verifyOnDiskItemCount(vb, 1);
     verifyCollectionItemCount(vb, keyCollectionID, 1);
 
     // check the value is correctly set on disk
     verifyDocumentIsStored(vb, key);
 
     // First prepare SyncDelete and commit.
-    performPrepareSyncDelete(vb, key, 2, 1);
+    performPrepareSyncDelete(vb, key, 1, 1);
     prepareSeqno = vb.getHighSeqno();
 
     flushVBucketToDiskIfPersistent(vbid, 1);
-    verifyOnDiskItemCount(vb, 2);
+    verifyOnDiskItemCount(vb, 1);
     verifyCollectionItemCount(vb, keyCollectionID, 1);
 
-    performCommitForKey(vb, key, prepareSeqno, 2, 1);
+    performCommitForKey(vb, key, prepareSeqno, 1, 1);
 
     flushVBucketToDiskIfPersistent(vbid, 1);
-    verifyOnDiskItemCount(vb, 1);
+    verifyOnDiskItemCount(vb, 0);
     verifyCollectionItemCount(vb, keyCollectionID, 0);
 
     // check the value is correctly deleted on disk
@@ -1064,34 +1029,34 @@ TEST_P(DurabilityEPBucketTest,
 
     // Second prepare SyncWrite and commit.
     pending = makePendingItem(key, "{ \"run\": 2 }");
-    performPrepareSyncWrite(vb, pending, 1, 0);
+    performPrepareSyncWrite(vb, pending, 0, 0);
     prepareSeqno = vb.getHighSeqno();
 
     flushVBucketToDiskIfPersistent(vbid, 1);
-    verifyOnDiskItemCount(vb, 1);
+    verifyOnDiskItemCount(vb, 0);
     verifyCollectionItemCount(vb, keyCollectionID, 0);
 
-    performCommitForKey(vb, key, prepareSeqno, 1, 0);
+    performCommitForKey(vb, key, prepareSeqno, 0, 0);
 
     flushVBucketToDiskIfPersistent(vbid, 1);
-    verifyOnDiskItemCount(vb, 2);
+    verifyOnDiskItemCount(vb, 1);
     verifyCollectionItemCount(vb, keyCollectionID, 1);
 
     // check the value is correctly set on disk
     verifyDocumentIsStored(vb, key);
 
     // Second prepare SyncDelete and commit.
-    performPrepareSyncDelete(vb, key, 2, 1);
+    performPrepareSyncDelete(vb, key, 1, 1);
     prepareSeqno = vb.getHighSeqno();
 
     flushVBucketToDiskIfPersistent(vbid, 1);
-    verifyOnDiskItemCount(vb, 2);
+    verifyOnDiskItemCount(vb, 1);
     verifyCollectionItemCount(vb, keyCollectionID, 1);
 
-    performCommitForKey(vb, key, prepareSeqno, 2, 1);
+    performCommitForKey(vb, key, prepareSeqno, 1, 1);
 
     flushVBucketToDiskIfPersistent(vbid, 1);
-    verifyOnDiskItemCount(vb, 1);
+    verifyOnDiskItemCount(vb, 0);
     verifyCollectionItemCount(vb, keyCollectionID, 0);
 
     // check the value is correctly deleted on disk
@@ -1122,7 +1087,6 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDeleteTenDocs3Times) {
 
     const uint32_t numberOfRuns = 3;
     const uint32_t numberOfDocks = 10;
-    uint32_t numberOfPrepsOnDisk = 0;
 
     // Perform multiple runs of the creating and deletion of documents named
     // "test_doc-{0..9}".
@@ -1134,15 +1098,12 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDeleteTenDocs3Times) {
                     vb,
                     keyName + std::to_string(i),
                     "{ \"run\":" + std::to_string(j) + " }");
-            if (numberOfPrepsOnDisk < numberOfDocks) {
-                numberOfPrepsOnDisk++;
-            }
-            verifyOnDiskItemCount(vb, numberOfPrepsOnDisk + 1);
+            verifyOnDiskItemCount(vb, 1);
             verifyCollectionItemCount(vb, 0, 1);
 
             // prepare SyncDelete and commit.
             testSyncDeleteFlushAfterCommit(vb, keyName + std::to_string(i));
-            verifyOnDiskItemCount(vb, numberOfPrepsOnDisk);
+            verifyOnDiskItemCount(vb, 0);
             verifyCollectionItemCount(vb, 0, 0);
         }
     }
@@ -1168,17 +1129,22 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWrite20SyncDelete20) {
         testCommittedSyncWriteFlushAfterCommit(
                 vb, keyName + std::to_string(i), "{ \"Hello\": \"World\" }");
 
-        verifyOnDiskItemCount(vb, i * 2 + 2);
-        verifyCollectionItemCount(vb, 0, i + 1);
+        {
+            SCOPED_TRACE("flush sync write: " + std::to_string(i));
+            verifyOnDiskItemCount(vb, i + 1);
+            verifyCollectionItemCount(vb, 0, i + 1);
+        }
     }
     // SyncDelete Docs
     for (uint32_t i = 0; i < numberOfDocks; i++) {
         testSyncDeleteFlushAfterCommit(vb, keyName + std::to_string(i));
-
-        verifyOnDiskItemCount(vb, numberOfDocks * 2 - i - 1);
-        verifyCollectionItemCount(vb, 0, numberOfDocks - i - 1);
+        {
+            SCOPED_TRACE("flush sync delete: " + std::to_string(i));
+            verifyOnDiskItemCount(vb, numberOfDocks - i - 1);
+            verifyCollectionItemCount(vb, 0, numberOfDocks - i - 1);
+        }
     }
-    verifyOnDiskItemCount(vb, numberOfDocks);
+    verifyOnDiskItemCount(vb, 0);
     verifyCollectionItemCount(vb, 0, 0);
 }
 

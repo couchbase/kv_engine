@@ -593,7 +593,7 @@ void DurabilityWarmupTest::testCommittedAndPendingSyncWrite(
     // Check the original committed value is inaccessible due to the pending
     // needing to be re-committed.
     auto vb = engine->getVBucket(vbid);
-    // @TODO Durability (MB-34092): Check that number of items == 1 post warmup
+    EXPECT_EQ(1, vb->getNumTotalItems());
     EXPECT_EQ(1, vb->ht.getNumPreparedSyncWrites());
 
     auto gv = store->get(key, vbid, cookie, {});
@@ -657,9 +657,11 @@ TEST_P(DurabilityWarmupTest, AbortedSyncWritePrepareIsNotLoaded) {
 
     { // scoping vb - is invalid once resetEngineAndWarmup() is called.
         auto vb = engine->getVBucket(vbid);
+        EXPECT_EQ(1, vb->getNumItems());
         vb->abort(key, item->getBySeqno(), {}, vb->lockCollections(key));
 
         flush_vbucket_to_disk(vbid, 1);
+        EXPECT_EQ(1, vb->getNumItems());
     }
     resetEngineAndWarmup();
 

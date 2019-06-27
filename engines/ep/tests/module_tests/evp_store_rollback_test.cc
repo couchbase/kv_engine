@@ -1127,6 +1127,7 @@ void RollbackDcpTest::doPrepareAndAbort() {
 
 TEST_P(RollbackDcpTest, RollbackPrepare) {
     writeBaseItems();
+    auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno();
     doPrepare();
 
@@ -1139,12 +1140,14 @@ TEST_P(RollbackDcpTest, RollbackPrepare) {
     EXPECT_EQ(0, passiveDm.getNumTracked());
     EXPECT_EQ(0, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(baseItems, vb->getNumTotalItems());
 }
 
 TEST_P(RollbackDcpTest, RollbackPrepareOnTopOfSyncWrite) {
     writeBaseItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
     doPrepareAndCommit();
+    auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno();
     doPrepare();
 
@@ -1157,10 +1160,12 @@ TEST_P(RollbackDcpTest, RollbackPrepareOnTopOfSyncWrite) {
     EXPECT_EQ(0, passiveDm.getNumTracked());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(baseItems, vb->getNumTotalItems());
 }
 
 TEST_P(RollbackDcpTest, RollbackSyncWrite) {
     writeBaseItems();
+    auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno();
     doPrepareAndCommit();
 
@@ -1173,10 +1178,12 @@ TEST_P(RollbackDcpTest, RollbackSyncWrite) {
     EXPECT_EQ(0, passiveDm.getNumTracked());
     EXPECT_EQ(0, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(baseItems, vb->getNumTotalItems());
 }
 
 TEST_P(RollbackDcpTest, RollbackAbortedSyncWrite) {
     writeBaseItems();
+    auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno();
     doPrepareAndAbort();
 
@@ -1189,12 +1196,14 @@ TEST_P(RollbackDcpTest, RollbackAbortedSyncWrite) {
     EXPECT_EQ(0, passiveDm.getNumTracked());
     EXPECT_EQ(0, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(baseItems, vb->getNumTotalItems());
 }
 
 TEST_P(RollbackDcpTest, RollbackSyncWriteOnTopOfSyncWrite) {
     writeBaseItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
     doPrepareAndCommit();
+    auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno();
     doPrepareAndCommit();
 
@@ -1207,10 +1216,12 @@ TEST_P(RollbackDcpTest, RollbackSyncWriteOnTopOfSyncWrite) {
     EXPECT_EQ(0, passiveDm.getNumTracked());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(baseItems, vb->getNumTotalItems());
 }
 
 TEST_P(RollbackDcpTest, RollbackSyncWriteOnTopOfAbortedSyncWrite) {
     writeBaseItems();
+    auto baseItems = vb->getNumTotalItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
     doPrepareAndAbort();
     auto rollbackSeqno = vb->getHighSeqno();
@@ -1225,6 +1236,7 @@ TEST_P(RollbackDcpTest, RollbackSyncWriteOnTopOfAbortedSyncWrite) {
     EXPECT_EQ(0, passiveDm.getNumTracked());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(baseItems, vb->getNumTotalItems());
 }
 
 TEST_P(RollbackDcpTest, RollbackToZeroWithSyncWrite) {
@@ -1245,6 +1257,7 @@ TEST_P(RollbackDcpTest, RollbackToZeroWithSyncWrite) {
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
 
     auto newVb = store->getVBucket(vbid);
+    EXPECT_EQ(0, newVb->getNumTotalItems());
     auto& newPassiveDm = static_cast<const PassiveDurabilityMonitor&>(
             newVb->getDurabilityMonitor());
     EXPECT_EQ(0, newPassiveDm.getNumTracked());
@@ -1267,6 +1280,7 @@ TEST_P(RollbackDcpTest, RollbackToZeroWithSyncWrite) {
 TEST_P(RollbackDcpTest, RollbackCommit) {
     writeBaseItems();
     // Rollback only the commit
+    auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno() + 1;
     doPrepareAndCommit();
 
@@ -1285,6 +1299,7 @@ TEST_P(RollbackDcpTest, RollbackCommit) {
     EXPECT_FALSE(htRes.committed);
     ASSERT_TRUE(htRes.pending);
     EXPECT_EQ(rollbackSeqno, htRes.pending->getBySeqno());
+    EXPECT_EQ(baseItems, vb->getNumTotalItems());
 }
 
 /**
@@ -1309,6 +1324,7 @@ TEST_P(RollbackDcpTest, RollbackCommitOnTopOfCommit) {
     doPrepareAndCommit();
     auto postRollbackCommitSeqno = vb->getHighSeqno();
     // Rollback only the commit
+    auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno() + 1;
     doPrepareAndCommit();
 
@@ -1328,6 +1344,7 @@ TEST_P(RollbackDcpTest, RollbackCommitOnTopOfCommit) {
     EXPECT_EQ(postRollbackCommitSeqno, htRes.committed->getBySeqno());
     ASSERT_TRUE(htRes.pending);
     EXPECT_EQ(rollbackSeqno, htRes.pending->getBySeqno());
+    EXPECT_EQ(baseItems, vb->getNumTotalItems());
 }
 
 /**
@@ -1348,6 +1365,7 @@ TEST_P(RollbackDcpTest, RollbackCommitOnTopOfCommit) {
  */
 TEST_P(RollbackDcpTest, RollbackCommitOnTopOfAbort) {
     writeBaseItems();
+    auto baseItems = vb->getNumTotalItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
     doPrepareAndAbort();
     // Rollback only the commit
@@ -1369,6 +1387,7 @@ TEST_P(RollbackDcpTest, RollbackCommitOnTopOfAbort) {
     EXPECT_FALSE(htRes.committed);
     ASSERT_TRUE(htRes.pending);
     EXPECT_EQ(rollbackSeqno, htRes.pending->getBySeqno());
+    EXPECT_EQ(baseItems, vb->getNumTotalItems());
 }
 
 /**
@@ -1386,6 +1405,7 @@ TEST_P(RollbackDcpTest, RollbackCommitOnTopOfAbort) {
 TEST_P(RollbackDcpTest, RollbackAbort) {
     writeBaseItems();
     // Rollback only the abort
+    auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno() + 1;
     doPrepareAndAbort();
 
@@ -1403,6 +1423,7 @@ TEST_P(RollbackDcpTest, RollbackAbort) {
     EXPECT_FALSE(htRes.committed);
     ASSERT_TRUE(htRes.pending);
     EXPECT_EQ(rollbackSeqno, htRes.pending->getBySeqno());
+    EXPECT_EQ(baseItems, vb->getNumTotalItems());
 }
 
 /**
@@ -1427,6 +1448,7 @@ TEST_P(RollbackDcpTest, RollbackAbortOnTopOfCommit) {
     doPrepareAndCommit();
     auto postRollbackCommitSeqno = vb->getHighSeqno();
     // Rollback only the abort
+    auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno() + 1;
     doPrepareAndAbort();
 
@@ -1446,6 +1468,7 @@ TEST_P(RollbackDcpTest, RollbackAbortOnTopOfCommit) {
     EXPECT_EQ(postRollbackCommitSeqno, htRes.committed->getBySeqno());
     ASSERT_TRUE(htRes.pending);
     EXPECT_EQ(rollbackSeqno, htRes.pending->getBySeqno());
+    EXPECT_EQ(baseItems, vb->getNumTotalItems());
 }
 
 /**
@@ -1466,6 +1489,7 @@ TEST_P(RollbackDcpTest, RollbackAbortOnTopOfCommit) {
  */
 TEST_P(RollbackDcpTest, RollbackAbortOnTopOfAbort) {
     writeBaseItems();
+    auto baseItems = vb->getNumTotalItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
     doPrepareAndAbort();
     // Rollback only the abort
@@ -1487,6 +1511,7 @@ TEST_P(RollbackDcpTest, RollbackAbortOnTopOfAbort) {
     EXPECT_FALSE(htRes.committed);
     ASSERT_TRUE(htRes.pending);
     EXPECT_EQ(rollbackSeqno, htRes.pending->getBySeqno());
+    EXPECT_EQ(baseItems, vb->getNumTotalItems());
 }
 
 class ReplicaRollbackDcpTest : public SingleThreadedEPBucketTest {

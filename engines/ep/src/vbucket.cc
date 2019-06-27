@@ -2912,11 +2912,12 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
         ++opsDelete;
 
         /**
-         * MB-30137: Decrement the total number of on-disk items. This needs to be
-         * done to ensure that the item count is accurate in the case of full
-         * eviction
+         * MB-30137: Decrement the total number of on-disk items. This needs to
+         * be done to ensure that the item count is accurate in the case of full
+         * eviction. We should only decrement the counter for committed (via
+         * mutation or commit) items as we only increment for these.
          */
-        if (v) {
+        if (v && queuedItem.isCommitted()) {
             decrNumTotalItems();
         }
     }

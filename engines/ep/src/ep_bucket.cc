@@ -1215,7 +1215,8 @@ public:
                 // our disk counts. We need to increment the vBucket disk
                 // count here too because we're not going to flush this item
                 // later
-                if (postRbSeqnoItem->isDeleted()) {
+                if (postRbSeqnoItem->isDeleted() &&
+                    postRbSeqnoItem->isCommitted()) {
                     vb->incrNumTotalItems();
                     vb->getManifest()
                             .lock(preRbSeqnoItem->getKey())
@@ -1275,7 +1276,7 @@ public:
             setStatus(ENGINE_KEY_ENOENT);
         }
 
-        if (!item.isDeleted()) {
+        if (!item.isDeleted() && item.isCommitted()) {
             // Irrespective of if the in-memory delete succeeded; the document
             // doesn't exist on disk; so decrement the item count.
             vb.decrNumTotalItems();

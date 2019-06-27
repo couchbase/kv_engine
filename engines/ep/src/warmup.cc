@@ -1100,6 +1100,15 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId)
     for (const auto vbid : shardVbIds[shardId]) {
         size_t vbItemCount = store.getROUnderlyingByShard(shardId)->
                                                         getItemCount(vbid);
+        const auto* vbState =
+                store.getROUnderlyingByShard(shardId)->getVBucketState(vbid);
+        Expects(vbState);
+
+        // We don't want to include the number of prepares on disk in the number
+        // of items in the vBucket/Bucket that is displayed to the user so
+        // subtract the number of prepares from the number of on disk items.
+        vbItemCount -= vbState->onDiskPrepares;
+
         VBucketPtr vb = store.getVBucket(vbid);
         if (vb) {
             vb->setNumTotalItems(vbItemCount);
