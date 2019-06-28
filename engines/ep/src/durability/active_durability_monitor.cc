@@ -1234,6 +1234,16 @@ void ActiveDurabilityMonitor::State::updateHighPreparedSeqno(
         return;
     }
 
+    if (!firstChain) {
+        // An ActiveDM _may_ legitimately have no topology information, if
+        // for example it has just been created from a PassiveDM during takeover
+        // and ns_server has not yet updated the VBucket's topology.
+        // In this case it's not yet possible update HPS; so simply skip.
+        // Note: when topology *is* set via setReplicationTopology() then this
+        // function is called again to update HPS as appropriate.
+        return;
+    }
+
     const auto& active = getActive();
     // Check if Durability Requirements are satisfied for the Prepare currently
     // tracked for Active, and add for commit in case.

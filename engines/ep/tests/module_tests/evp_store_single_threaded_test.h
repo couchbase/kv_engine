@@ -118,11 +118,13 @@ protected:
      * @param vbid
      * @param newState
      * @param meta Optional meta information to apply alongside the state
-     *
+     * @param transfer Should vBucket be transferred without adding failover
+     *                 table entry (i.e. takeover)?
      */
     void setVBucketStateAndRunPersistTask(Vbid vbid,
                                           vbucket_state_t newState,
-                                          const nlohmann::json& meta = {});
+                                          const nlohmann::json& meta = {},
+                                          TransferVB transfer = TransferVB::No);
 
     /*
      * Set the stats isShutdown and attempt to drive all tasks to cancel for

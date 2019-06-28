@@ -18,6 +18,7 @@
 #include "evp_store_durability_test.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_utils.h"
+#include "durability/durability_monitor.h"
 #include "test_helpers.h"
 
 #include <engines/ep/src/ephemeral_tombstone_purger.h>
@@ -176,6 +177,17 @@ class DurabilityBucketTest : public STParameterizedBucketTest {
 protected:
     template <typename F>
     void testDurabilityInvalidLevel(F& func);
+
+    /**
+     * MB-34770: Test that a Pending -> Active takeover (which has in-flight
+     * prepared SyncWrites) is handled correctly when there isn't yet a
+     * replication toplogy.
+     * This is the case during takeover where the setvbstate(active) is sent
+     * from the old active which doesn't know what the topology will be and
+     * hence is null.
+     */
+    void testTakeoverDestinationHandlesPreparedSyncWrites(
+            cb::durability::Level level);
 };
 
 class DurabilityEphemeralBucketTest : public STParameterizedBucketTest {
@@ -1324,6 +1336,50 @@ void DurabilityBucketTest::testDurabilityInvalidLevel(F& func) {
     }
 }
 
+void DurabilityBucketTest::testTakeoverDestinationHandlesPreparedSyncWrites(
+        cb::durability::Level level) {
+    // Setup: VBucket into pending state with one Prepared SyncWrite.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_pending);
+
+    auto& vb = *store->getVBucket(vbid);
+    vb.checkpointManager->createSnapshot(1, 1, CheckpointType::Memory);
+    using namespace cb::durability;
+    auto requirements = Requirements(level, Timeout::Infinity());
+    auto pending =
+            makePendingItem(makeStoredDocKey("key"), "value", requirements);
+    pending->setCas(1);
+    pending->setBySeqno(1);
+    ASSERT_EQ(ENGINE_SUCCESS, store->prepare(*pending, nullptr));
+    ASSERT_EQ(1, vb.getDurabilityMonitor().getNumTracked());
+
+    // Test: Change to active via takeover (null topology),
+    // then persist (including the prepared item above). This will trigger
+    // the flusher to call back into ActiveDM telling it high prepared seqno
+    // has advanced.
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(
+                      vbid, vbucket_state_active, {}, TransferVB::Yes));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    EXPECT_EQ(1, vb.getDurabilityMonitor().getNumTracked())
+            << "Should have 1 prepared SyncWrite if active+null topology";
+
+    // Test: Set the topology (as ns_server does), by specifying just
+    // a single node in topology should now be able to commit the prepare.
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(
+                      vbid,
+                      vbucket_state_active,
+                      {{"topology", nlohmann::json::array({{"active"}})}}));
+    // Given the prepare was already persisted to disk above when we first
+    // changed to active, once a valid topology is set then SyncWrite should
+    // be committed immediately irrespective of level.
+    EXPECT_EQ(0, vb.getDurabilityMonitor().getNumTracked())
+            << "Should have committed the SyncWrite if active+valid topology";
+    // Should be able to flush Commit to disk.
+    flushVBucketToDiskIfPersistent(vbid, 1);
+}
+
 TEST_P(DurabilityBucketTest, SetDurabilityInvalidLevel) {
     auto op = [this](queued_item pending,
                      const void* cookie) -> ENGINE_ERROR_CODE {
@@ -1528,6 +1584,18 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
                             OPERATION_REPLACE,
                             pending->getDurabilityReqs(),
                             DocumentState::Alive));
+}
+
+TEST_P(DurabilityBucketTest,
+       TakeoverDestinationHandlesPreparedSyncWriteMajority) {
+    testTakeoverDestinationHandlesPreparedSyncWrites(
+            cb::durability::Level::Majority);
+}
+
+TEST_P(DurabilityBucketTest,
+       TakeoverDestinationHandlesPreparedyncWritePersistToMajority) {
+    testTakeoverDestinationHandlesPreparedSyncWrites(
+            cb::durability::Level::PersistToMajority);
 }
 
 template <typename F>
