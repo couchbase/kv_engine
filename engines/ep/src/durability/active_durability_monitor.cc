@@ -119,6 +119,7 @@ struct ActiveDurabilityMonitor::State {
     void removeExpired(std::chrono::steady_clock::time_point asOf,
                        CompletedQueue& expired);
 
+    /// @returns the name of the active node. Assumes the first chain is valid.
     const std::string& getActive() const;
 
     int64_t getNodeWriteSeqno(const std::string& node) const;
@@ -500,8 +501,13 @@ void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
         add_casted_stat(buf, s->trackedWrites.size(), addStat, cookie);
 
         checked_snprintf(buf, sizeof(buf), "vb_%d:high_prepared_seqno", vbid);
-        add_casted_stat(
-                buf, s->getNodeWriteSeqno(s->getActive()), addStat, cookie);
+
+        // Do not have a valid HPS unless the first chain has been set.
+        int64_t highPreparedSeqno = 0;
+        if (s->firstChain) {
+            highPreparedSeqno = s->getNodeWriteSeqno(s->getActive());
+        }
+        add_casted_stat(buf, highPreparedSeqno, addStat, cookie);
 
         checked_snprintf(buf, sizeof(buf), "vb_%d:last_tracked_seqno", vbid);
         add_casted_stat(buf, s->lastTrackedSeqno, addStat, cookie);
