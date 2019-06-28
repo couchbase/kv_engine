@@ -879,19 +879,30 @@ ENGINE_ERROR_CODE VBucket::abort(
 
         Expects(getState() != vbucket_state_active);
 
-        // If we did not find the corresponding prepare for this abort then the
-        // prepare seqno of the abort must be greater than or equal to the
-        // snapshot start seqno and we must be receiving a disk snapshot.
-        if (!isReceivingDiskSnapshot() ||
-            static_cast<uint64_t>(prepareSeqno) <
-                    checkpointManager->getLatestSnapshotStartSeqno()) {
+        // If we did not find the corresponding prepare for this abort then we
+        // must be receiving a disk snapshot.
+        if (!isReceivingDiskSnapshot()) {
             EP_LOG_ERR(
                     "VBucket::abort ({}) - replica - failed as we received "
-                    "an abort for a prepare that does not exist and we cannot "
-                    "ignore it. Disk snapshot:{}, prepare seqno: {}",
+                    "an abort for a prepare that does not exist and we are not "
+                    "currently receiving a disk snapshot. Prepare seqno: {}",
                     id,
-                    isReceivingDiskSnapshot(),
                     prepareSeqno);
+            return ENGINE_EINVAL;
+        }
+
+        // If we did not find the corresponding prepare for this abort then the
+        // prepare seqno of the abort must be greater than or equal to the
+        // snapshot start seqno.
+        if (static_cast<uint64_t>(prepareSeqno) <
+            checkpointManager->getOpenSnapshotStartSeqno()) {
+            EP_LOG_ERR(
+                    "VBucket::abort ({}) - replica - failed as we received "
+                    "an abort for a prepare that does not exist and the "
+                    "prepare seqno is less than the current snapshot start: {}",
+                    id,
+                    prepareSeqno,
+                    checkpointManager->getOpenSnapshotStartSeqno());
             return ENGINE_EINVAL;
         }
 
@@ -916,8 +927,14 @@ ENGINE_ERROR_CODE VBucket::abort(
     // Remove from the allowed duplicate prepare set (if it exists)
     allowedDuplicatePrepareSeqnos.erase(htRes.storedValue->getBySeqno());
 
-    Expects(prepareSeqno ==
-            static_cast<uint64_t>(htRes.storedValue->getBySeqno()));
+    // If prepare seqno is not the same as our stored seqno then we should be
+    // a replica and have missed a completion and a prepare due to de-dupe.
+    if (prepareSeqno !=
+        static_cast<uint64_t>(htRes.storedValue->getBySeqno())) {
+        Expects(getState() != vbucket_state_active);
+        Expects(isReceivingDiskSnapshot());
+        Expects(prepareSeqno >= checkpointManager->getOpenSnapshotStartSeqno());
+    }
 
     auto notify = abortStoredValue(
             htRes.lock, *htRes.storedValue, prepareSeqno, abortSeqno);

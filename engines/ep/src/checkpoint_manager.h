@@ -338,7 +338,7 @@ public:
 
     snapshot_info_t getSnapshotInfo();
 
-    uint64_t getLatestSnapshotStartSeqno() const;
+    uint64_t getOpenSnapshotStartSeqno() const;
 
     bool incrCursor(CheckpointCursor &cursor);
 

@@ -1124,7 +1124,7 @@ snapshot_info_t CheckpointManager::getSnapshotInfo() {
     return info;
 }
 
-uint64_t CheckpointManager::getLatestSnapshotStartSeqno() const {
+uint64_t CheckpointManager::getOpenSnapshotStartSeqno() const {
     LockHolder lh(queueLock);
     const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
 
