@@ -50,6 +50,7 @@ void vbucket_state::reset() {
     version = CurrentVersion;
     highCompletedSeqno = 0;
     highPreparedSeqno = 0;
+    onDiskPrepares = 0;
 }
 
 void to_json(nlohmann::json& json, const vbucket_state& vbs) {
@@ -73,7 +74,8 @@ void to_json(nlohmann::json& json, const vbucket_state& vbs) {
             {"namespaces_supported", vbs.supportsNamespaces},
             {"version", vbs.version},
             {"high_completed_seqno", std::to_string(vbs.highCompletedSeqno)},
-            {"high_prepared_seqno", std::to_string(vbs.highPreparedSeqno)}};
+            {"high_prepared_seqno", std::to_string(vbs.highPreparedSeqno)},
+            {"on_disk_prepares", std::to_string(vbs.onDiskPrepares)}};
 
     // Insert optional fields.
     if (!vbs.failovers.empty()) {
@@ -133,4 +135,7 @@ void from_json(const nlohmann::json& j, vbucket_state& vbs) {
     } else {
         vbs.highPreparedSeqno = 0;
     }
+
+    // Note: We don't track on disk prepares pre-6.5
+    vbs.onDiskPrepares = std::stoll(j.value("on_disk_prepares", "0"));
 }

@@ -55,7 +55,7 @@ struct vbucket_state {
      *     Indicates snapshot start/end are sanitized with respect to
      *     high_seqno.
      * v3: Mad-Hatter (pre GA). high_completed_seqno and high_prepared_seqno
-     *     added.
+     *     added along with counter for number of prepares on disk.
      */
     static constexpr int CurrentVersion = 3;
 
@@ -135,6 +135,13 @@ struct vbucket_state {
      * SyncReplication in 6.5.
      */
     int64_t highPreparedSeqno = 0;
+
+    /**
+     * Number of on disk prepares (Pending SyncWrites). Required to correct the
+     * vBucket level on disk document counts (for Full Eviction). Added for
+     * SyncReplication in 6.5.
+     */
+    uint64_t onDiskPrepares = 0;
 };
 
 /// Method to allow nlohmann::json to convert vbucket_state to JSON.

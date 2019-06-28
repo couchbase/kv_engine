@@ -800,14 +800,11 @@ TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
     auto prepare = makePendingItem(key, "value");
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*prepare, cookie));
 
-    auto checkHPS = [this](int64_t hps) -> void {
-        auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
-        auto vbstate = *kvstore->getVBucketState(vbid);
-        ASSERT_EQ(hps, vbstate.highPreparedSeqno);
-    };
-
     // Not flushed yet
-    checkHPS(0);
+    auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
+    auto vbstate = *kvstore->getVBucketState(vbid);
+    ASSERT_EQ(0, vbstate.highPreparedSeqno);
+    ASSERT_EQ(0, vbstate.onDiskPrepares);
 
     // Check the Prepared
     const int64_t preparedSeqno = 1;
@@ -821,19 +818,19 @@ TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
     // Persist the Prepare and vbstate.
     flush_vbucket_to_disk(vbid);
 
-    // HPS incremented
-    {
-        SCOPED_TRACE("");
-        checkHPS(preparedSeqno);
-    }
+    // HPS and prepare counter incremented
+    vbstate = *kvstore->getVBucketState(vbid);
+    EXPECT_EQ(preparedSeqno, vbstate.highPreparedSeqno);
+    EXPECT_EQ(1, vbstate.onDiskPrepares);
 
     // Warmup
     vb.reset();
     resetEngineAndWarmup();
-    {
-        SCOPED_TRACE("");
-        checkHPS(preparedSeqno);
-    }
+
+    kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
+    vbstate = *kvstore->getVBucketState(vbid);
+    EXPECT_EQ(preparedSeqno, vbstate.highPreparedSeqno);
+    EXPECT_EQ(1, vbstate.onDiskPrepares);
 }
 
 // Test that when setting a vbucket to dead after warmup, when at least one
