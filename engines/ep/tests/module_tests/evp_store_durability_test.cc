@@ -630,6 +630,61 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     ASSERT_EQ(2, ckptList.back()->getNumItems());
 }
 
+// Test SyncDelete followed by a SyncWrite, where persistence of
+// SyncDelete's Commit is delayed until SyncWrite prepare in HashTable (checking
+// correct HashTable item is removed)
+// Regression test for MB-34810.
+TEST_P(DurabilityBucketTest, SyncDeleteSyncWriteDelayedPersistence) {
+    // Setup: Add an initial value (so we can SyncDelete it).
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto& vb = *store->getVBucket(vbid);
+    auto key = makeStoredDocKey("key");
+    auto committed = makeCommittedItem(key, "valueA");
+    ASSERT_EQ(ENGINE_SUCCESS, store->set(*committed, cookie));
+
+    // Setup: prepare SyncDelete
+    uint64_t cas = 0;
+    using namespace cb::durability;
+    auto reqs = Requirements(Level::Majority, {});
+    mutation_descr_t delInfo;
+    ASSERT_EQ(
+            ENGINE_EWOULDBLOCK,
+            store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
+
+    // Setup: Persist SyncDelete prepare.
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Setup: commit SyncDelete (but no flush yet).
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb.commit(key,
+                        3 /*prepareSeqno*/,
+                        {} /*commitSeqno*/,
+                        vb.lockCollections(key)));
+
+    // Setuo: Prepare SyncWrite
+    auto pending = makePendingItem(key, "value");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+
+    // Test: flush items to disk. The flush of the Committed SyncDelete will
+    // attempt to remove that item from the HashTable; check the correct item
+    // is removed (Committed SyncDelete, not prepared SyncWrite).
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    EXPECT_EQ(1, vb.ht.getNumPreparedSyncWrites())
+            << "SyncWrite prepare should still exist";
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb.commit(key,
+                        5 /*prepareSeqno*/,
+                        {} /*commitSeqno*/,
+                        vb.lockCollections(key)))
+            << "SyncWrite commit should be possible";
+}
+
 /// Test delete on top of SyncWrite
 TEST_P(DurabilityBucketTest, SyncWriteDelete) {
     setVBucketStateAndRunPersistTask(
