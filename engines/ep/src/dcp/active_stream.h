@@ -211,10 +211,19 @@ protected:
     std::unique_ptr<DcpResponse> nextQueuedItem();
 
     /**
+     * Create a DcpResponse message to send to the replica from the given item.
+     *
+     * @param item The item to turn into a DcpResponse
+     * @param sendCommitSyncWriteAs Should we send a mutation instead of a
+     *                                    commit? This should be the case if we
+     *                                    are backfilling.
      * @return a DcpResponse to represent the item. This will be either a
-     *         MutationResponse or SystemEventProducerMessage.
+     *         MutationResponse, SystemEventProducerMessage, CommitSyncWrite or
+     *         AbortSyncWrite.
      */
-    std::unique_ptr<DcpResponse> makeResponseFromItem(const queued_item& item);
+    std::unique_ptr<DcpResponse> makeResponseFromItem(
+            const queued_item& item,
+            SendCommitSyncWriteAs sendCommitSyncWriteAs);
 
     /* The transitionState function is protected (as opposed to private) for
      * testing purposes.
@@ -369,11 +378,6 @@ private:
     //! Whether or not this is the first snapshot marker sent
     // @TODO - update to be part of the state machine.
     bool firstMarkerSent;
-
-    // First seqno sent by this stream. Used to determine if we should send a
-    // mutation instead of a commit (because the replica may have missed a
-    // prepare).
-    uint64_t firstSeqnoSent;
 
     /**
      * Indicates if the stream is currently waiting for a snapshot to be

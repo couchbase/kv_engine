@@ -553,15 +553,17 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(DocumentState docState) {
     verifyDcpPrepare(*prepared, *item);
 
     item = stream->public_nextQueuedItem();
-    EXPECT_EQ(DcpResponse::Event::Commit, item->getEvent());
-    auto& dcpCommit = dynamic_cast<CommitSyncWrite&>(*item);
-    EXPECT_EQ(makeStoredDocKey("1"), dcpCommit.getKey());
-#if 0
-    // @todo-durability: Once we move away from identifying commit by key,
-    // the prepared seqno should be used (and should match).
-    EXPECT_EQ(prepared->getBySeqno(), dcpCommit.getPreparedSeqno());
-#endif
-    EXPECT_EQ(prepared->getBySeqno() + 1, dcpCommit.getBySeqno());
+    // In general, a backfill from disk will send a mutation instead of a
+    // commit as we may have de-duped the preceding prepare. The only case where
+    // a backfill from disk will send a commit message is when the prepare seqno
+    // is less than or equal to the requested stream start.
+    auto expectedEvent = docState == DocumentState::Alive
+                                 ? DcpResponse::Event::Mutation
+                                 : DcpResponse::Event::Deletion;
+    EXPECT_EQ(expectedEvent, item->getEvent());
+    auto& mutation = dynamic_cast<MutationResponse&>(*item);
+    EXPECT_EQ(makeStoredDocKey("1"), mutation.getItem()->getKey());
+    EXPECT_EQ(prepared->getBySeqno() + 1, mutation.getItem()->getBySeqno());
 }
 
 TEST_P(DcpStreamSyncReplTest, BackfillPrepareWriteCommit) {

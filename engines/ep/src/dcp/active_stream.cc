@@ -59,7 +59,6 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       takeoverState(vbucket_state_pending),
       itemsFromMemoryPhase(0),
       firstMarkerSent(false),
-      firstSeqnoSent(0),
       waitForSnapshot(0),
       engine(e),
       producerPtr(p),
@@ -317,7 +316,11 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
     std::unique_lock<std::mutex> lh(streamMutex);
     if (isBackfilling() && filter.checkAndUpdate(*itm)) {
         queued_item qi(std::move(itm));
-        std::unique_ptr<DcpResponse> resp(makeResponseFromItem(qi));
+        // We need to send a mutation instead of a commit if this Item is a
+        // commit as we may have de-duped the preceding prepare and the replica
+        // needs to know what to commit.
+        std::unique_ptr<DcpResponse> resp(
+                makeResponseFromItem(qi, SendCommitSyncWriteAs::Mutation));
         auto producer = producerPtr.lock();
         if (!producer || !producer->recordBackfillManagerBytesRead(
                                  resp->getApproximateSize(), force)) {
@@ -892,7 +895,7 @@ static bool shouldModifyItem(const queued_item& item,
 }
 
 std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
-        const queued_item& item) {
+        const queued_item& item, SendCommitSyncWriteAs sendCommitSyncWriteAs) {
     // Note: This function is hot - it is called for every item to be
     // sent over the DCP connection.
 
@@ -919,20 +922,16 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
     // A resuming stream may backfill from disk. In this case, the consumer
     // may have no corresponding Prepare (same as above case when streaming from
     // 0) or a Prepare that is out of date. In the case where the Prepare may be
-    // out of date, we want to send the Mutation if the prepare seqno is less
-    // than first seqno sent AND greater than the requested stream start seqno
-    // (if it were less then the replica already has the corresponding prepare).
-    if (firstSeqnoSent == 0) {
-        firstSeqnoSent = item->getBySeqno();
-    }
-    bool prepareSeqnoGEFirstSeqno =
-            static_cast<uint64_t>(item->getPrepareSeqno()) >= firstSeqnoSent;
+    // out of date, we want to send the Mutation if the prepare seqno is greater
+    // than the requested stream start seqno (if it were less then the replica
+    // already has the corresponding prepare so we can send a Commit).
     bool prepareSeqnoGTRequestedStart =
             start_seqno_ < static_cast<uint64_t>(item->getPrepareSeqno());
 
     if ((item->getOperation() == queue_op::commit_sync_write) &&
         (syncReplication == SyncReplication::Yes) &&
-        (prepareSeqnoGEFirstSeqno || !prepareSeqnoGTRequestedStart)) {
+        (!prepareSeqnoGTRequestedStart ||
+         sendCommitSyncWriteAs == SendCommitSyncWriteAs::Commit)) {
         return std::make_unique<CommitSyncWrite>(opaque_,
                                                  item->getVBucketId(),
                                                  item->getPrepareSeqno(),
@@ -1045,7 +1044,8 @@ void ActiveStream::processItems(std::vector<queued_item>& items,
                 // Check if the item is allowed on the stream, note the filter
                 // updates itself for collection deletion events
                 if (filter.checkAndUpdate(*qi)) {
-                    mutations.push_back(makeResponseFromItem(qi));
+                    mutations.push_back(makeResponseFromItem(
+                            qi, SendCommitSyncWriteAs::Commit));
                 }
 
             } else if (qi->getOperation() == queue_op::checkpoint_start) {

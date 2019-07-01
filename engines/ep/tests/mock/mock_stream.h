@@ -114,7 +114,9 @@ public:
         return backfillRemaining;
     }
 
-    std::unique_ptr<DcpResponse> public_makeResponseFromItem(queued_item& item);
+    std::unique_ptr<DcpResponse> public_makeResponseFromItem(
+            queued_item& item,
+            SendCommitSyncWriteAs sendMutationInsteadOfCommit);
 
     /**
      * Consumes numItems from the stream readyQ

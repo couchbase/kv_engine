@@ -469,7 +469,8 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
      */
     queued_item qi(std::move(item1));
     std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
+            stream->public_makeResponseFromItem(qi,
+                                                SendCommitSyncWriteAs::Commit);
     auto mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
     ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
     if (isXattr()) {
@@ -512,7 +513,8 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
      */
     uint32_t keyAndValueMessageSize = getItemSize(*item2);
     qi.reset(std::move(item2));
-    dcpResponse = stream->public_makeResponseFromItem(qi);
+    dcpResponse = stream->public_makeResponseFromItem(
+            qi, SendCommitSyncWriteAs::Commit);
     mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
 
     // A new pruned item will always be generated
@@ -581,7 +583,8 @@ TEST_P(CompressionStreamTest, connection_snappy_enabled) {
      */
     auto keyAndSnappyValueMessageSize = getItemSize(*item);
     queued_item qi = std::move(item);
-    auto dcpResponse = stream->public_makeResponseFromItem(qi);
+    auto dcpResponse = stream->public_makeResponseFromItem(
+            qi, SendCommitSyncWriteAs::Commit);
     auto* mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
     std::string value;
     if (!isXattr()) {
@@ -646,7 +649,8 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
      */
     auto keyAndValueMessageSize = getItemSize(*item);
     queued_item qi = std::move(item);
-    auto dcpResponse = stream->public_makeResponseFromItem(qi);
+    auto dcpResponse = stream->public_makeResponseFromItem(
+            qi, SendCommitSyncWriteAs::Commit);
     auto* mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
     ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
     EXPECT_LT(dcpResponse->getMessageSize(), keyAndValueMessageSize);

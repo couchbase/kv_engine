@@ -296,7 +296,8 @@ TEST_P(StreamTest, test_keyOnlyMessageSize) {
 
     setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
     std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
+            stream->public_makeResponseFromItem(qi,
+                                                SendCommitSyncWriteAs::Commit);
 
     /**
      * Create a DCP response and check that a new item is created
@@ -323,7 +324,8 @@ TEST_P(StreamTest, test_keyOnlyMessageSizeUnderlyingDatatype) {
     setup_dcp_stream(
             0, IncludeValue::NoWithUnderlyingDatatype, IncludeXattrs::No);
     std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
+            stream->public_makeResponseFromItem(qi,
+                                                SendCommitSyncWriteAs::Commit);
 
     /**
      * Create a DCP response and check that a new item is created
@@ -350,7 +352,8 @@ TEST_P(StreamTest, test_keyValueAndXattrsMessageSize) {
 
     setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::Yes);
     std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
+            stream->public_makeResponseFromItem(qi,
+                                                SendCommitSyncWriteAs::Commit);
 
     /**
      * Create a DCP response and check that a new item is not created
@@ -376,7 +379,8 @@ TEST_P(StreamTest, test_keyAndValueMessageSize) {
 
     setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::Yes);
     std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
+            stream->public_makeResponseFromItem(qi,
+                                                SendCommitSyncWriteAs::Commit);
 
     /**
      * Create a DCP response and check that a new item is not created
@@ -406,7 +410,8 @@ TEST_P(StreamTest, test_keyAndValueExcludingXattrsMessageSize) {
 
     setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::No);
     std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
+            stream->public_makeResponseFromItem(qi,
+                                                SendCommitSyncWriteAs::Commit);
 
     /**
      * Create a DCP response and check that a new item is created
@@ -433,7 +438,8 @@ TEST_P(StreamTest,
 
     setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::No);
     std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
+            stream->public_makeResponseFromItem(qi,
+                                                SendCommitSyncWriteAs::Commit);
     /**
      * Create a DCP response and check that a new item is not created
      */
@@ -461,7 +467,8 @@ TEST_P(StreamTest, test_keyAndValueExcludingValueDataMessageSize) {
 
     setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::Yes);
     std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
+            stream->public_makeResponseFromItem(qi,
+                                                SendCommitSyncWriteAs::Commit);
 
     /**
      * Create a DCP response and check that a new item is created
@@ -492,7 +499,8 @@ TEST_P(StreamTest, test_keyAndValueExcludingValueWithDatatype) {
     setup_dcp_stream(
             0, IncludeValue::NoWithUnderlyingDatatype, IncludeXattrs::Yes);
     std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
+            stream->public_makeResponseFromItem(qi,
+                                                SendCommitSyncWriteAs::Commit);
 
     /**
      * Create a DCP response and check that a new item is created
@@ -522,7 +530,8 @@ TEST_P(StreamTest, test_keyAndValueWithoutXattrExcludingValueWithDatatype) {
     setup_dcp_stream(
             0, IncludeValue::NoWithUnderlyingDatatype, IncludeXattrs::Yes);
     std::unique_ptr<DcpResponse> dcpResponse =
-            stream->public_makeResponseFromItem(qi);
+            stream->public_makeResponseFromItem(qi,
+                                                SendCommitSyncWriteAs::Commit);
 
     /**
      * Create a DCP response and check that a new item is created

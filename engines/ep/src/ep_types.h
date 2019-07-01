@@ -47,6 +47,13 @@ enum class CheckConflicts : char { No, Yes };
 enum class CheckpointType : char { Disk, Memory };
 
 /**
+ * We need to send SyncWrite Commits as Mutations when backfilling from disk as
+ * the preceding prepare may have been de-duped and the replica needs to know
+ * what to commit.
+ */
+enum class SendCommitSyncWriteAs : char { Commit, Mutation };
+
+/**
  * Used by setVBucketState - indicates that the vbucket is transferred
  * to the active post a failover and/or rebalance.
  */

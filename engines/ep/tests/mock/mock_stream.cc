@@ -67,8 +67,8 @@ std::unique_ptr<DcpResponse> MockActiveStream::public_nextQueuedItem() {
 }
 
 std::unique_ptr<DcpResponse> MockActiveStream::public_makeResponseFromItem(
-        queued_item& item) {
-    return makeResponseFromItem(item);
+        queued_item& item, SendCommitSyncWriteAs sendMutationInsteadOfCommit) {
+    return makeResponseFromItem(item, sendMutationInsteadOfCommit);
 }
 
 void MockActiveStream::consumeBackfillItems(int numItems) {
