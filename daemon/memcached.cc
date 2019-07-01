@@ -2039,28 +2039,27 @@ void DestroyBucketThread::destroy() {
             // drop the lock and notify the worker threads
             guard.unlock();
 
-            nlohmann::json json;
-            iterate_all_connections([&bucket, &json](Connection& conn) {
+            nlohmann::json current;
+            iterate_all_connections([&bucket, &current](Connection& conn) {
                 if (&conn.getBucket() == &bucket) {
                     conn.signalIfIdle();
-                    json[std::to_string(conn.getId())] = conn.toJSON();
+                    current[std::to_string(conn.getId())] = conn.toJSON();
                 }
             });
+            auto diff = current;
 
             // remove all connections which didn't change
             for (auto it = prevDump.begin(); it != prevDump.end(); ++it) {
-                auto entry = json.find(it.key());
-                if (entry != json.end()) {
-                    auto old = it.value().dump();
-                    auto current = entry->dump();
-                    if (old == current) {
-                        json.erase(entry);
+                auto entry = diff.find(it.key());
+                if (entry != diff.end()) {
+                    if (it.value().dump() == entry->dump()) {
+                        diff.erase(entry);
                     }
                 }
             }
 
-            prevDump = std::move(json);
-            if (prevDump.empty()) {
+            prevDump = std::move(current);
+            if (diff.empty()) {
                 LOG_INFO(
                         R"({} Delete bucket [{}]. Still waiting: {} clients connected (state is unchanged).)",
                         connection_id,
@@ -2072,7 +2071,7 @@ void DestroyBucketThread::destroy() {
                         connection_id,
                         name,
                         bucket.clients,
-                        prevDump.dump());
+                        diff.dump());
             }
 
             guard.lock();
