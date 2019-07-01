@@ -892,7 +892,8 @@ TEST_F(HashTableTest, ReleaseItem) {
     {
         // Locking scope.
         auto vToRelease1 = ht.findForWrite(releaseKey1, WantsDeleted::Yes);
-        auto releasedSv1 = ht.unlocked_release(vToRelease1.lock, releaseKey1);
+        auto releasedSv1 =
+                ht.unlocked_release(vToRelease1.lock, vToRelease1.storedValue);
 
         /* Validate the copied contents */
         EXPECT_EQ(*vToRelease1.storedValue, *(releasedSv1).get());
@@ -910,7 +911,8 @@ TEST_F(HashTableTest, ReleaseItem) {
             makeStoredDocKey(std::string("key" + std::to_string(numItems - 1)));
 
     auto vToRelease2 = ht.findForWrite(releaseKey2);
-    auto releasedSv2 = ht.unlocked_release(vToRelease2.lock, releaseKey2);
+    auto releasedSv2 =
+            ht.unlocked_release(vToRelease2.lock, vToRelease2.storedValue);
 
     /* Validate the copied contents */
     EXPECT_EQ(*vToRelease2.storedValue, *(releasedSv2).get());

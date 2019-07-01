@@ -133,17 +133,16 @@ protected:
                   /*bySeqno*/ seqno);
         EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
-        auto* sv = ht.findForWrite(sKey).storedValue->toOrderedStoredValue();
+        auto res = ht.findForWrite(sKey);
+        ASSERT_TRUE(res.storedValue);
+        auto* sv = res.storedValue->toOrderedStoredValue();
         std::lock_guard<std::mutex> listWriteLg(basicLL->getListWriteLock());
         basicLL->appendToList(lg, listWriteLg, *sv);
         basicLL->updateHighSeqno(listWriteLg, *sv);
 
         /* Mark stale */
-        {
-            auto hbl = ht.getLockedBucket(item.getKey());
-            auto ownedSV = ht.unlocked_release(hbl, item.getKey());
-            basicLL->markItemStale(listWriteLg, std::move(ownedSV), nullptr);
-        }
+        auto ownedSV = ht.unlocked_release(res.lock, res.storedValue);
+        basicLL->markItemStale(listWriteLg, std::move(ownedSV), nullptr);
     }
 
     /**
@@ -177,20 +176,20 @@ protected:
         std::mutex fakeSeqLock;
         std::lock_guard<std::mutex> lg(fakeSeqLock);
 
-        auto* osv = ht.findForWrite(makeStoredDocKey(key))
-                            .storedValue->toOrderedStoredValue();
+        auto docKey = makeStoredDocKey(key);
+        auto res = ht.findForWrite(docKey);
+        EXPECT_TRUE(res.storedValue);
+        auto* osv = res.storedValue->toOrderedStoredValue();
 
         std::lock_guard<std::mutex> listWriteLg(basicLL->getListWriteLock());
         EXPECT_EQ(SequenceList::UpdateStatus::Append,
                   basicLL->updateListElem(lg, listWriteLg, *osv));
 
         /* Release the current sv from the HT */
-        StoredDocKey sKey = makeStoredDocKey(key);
-        auto hbl = ht.getLockedBucket(sKey);
-        auto ownedSv = ht.unlocked_release(hbl, osv->getKey());
+        auto ownedSv = ht.unlocked_release(res.lock, res.storedValue);
 
         /* Add a new storedvalue for the append */
-        Item itm(sKey,
+        Item itm(docKey,
                  0,
                  0,
                  val.data(),
@@ -198,7 +197,7 @@ protected:
                  PROTOCOL_BINARY_RAW_BYTES,
                  /*theCas*/ 0,
                  /*bySeqno*/ highSeqno + 1);
-        auto* newSv = ht.unlocked_addNewStoredValue(hbl, itm);
+        auto* newSv = ht.unlocked_addNewStoredValue(res.lock, itm);
         basicLL->markItemStale(listWriteLg, std::move(ownedSv), newSv);
 
         basicLL->appendToList(
@@ -228,8 +227,9 @@ protected:
      * Release a StoredValue with 'key' from the hash table
      */
     StoredValue::UniquePtr releaseFromHashTable(const std::string& key) {
-        auto hbl = ht.getLockedBucket(makeStoredDocKey(key));
-        return ht.unlocked_release(hbl, makeStoredDocKey(key));
+        auto res = ht.findForWrite(makeStoredDocKey(key));
+        EXPECT_TRUE(res.storedValue);
+        return ht.unlocked_release(res.lock, res.storedValue);
     }
 
     /**

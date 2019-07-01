@@ -873,7 +873,7 @@ void EphemeralVBucket::dropKey(
         // The found key is the correct one to remove from the HT, we only
         // release but do not free at this point, the staleItem remover will
         // now proceed to erase the element from the seq list and free the SV
-        ht.unlocked_release(res.lock, key).release();
+        ht.unlocked_release(res.lock, res.storedValue).release();
     }
     return;
 }

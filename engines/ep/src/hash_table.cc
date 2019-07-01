@@ -500,7 +500,7 @@ void HashTable::Statistics::reset() {
 
 std::pair<StoredValue*, StoredValue::UniquePtr>
 HashTable::unlocked_replaceByCopy(const HashBucketLock& hbl,
-                                  const StoredValue& vToCopy) {
+                                  StoredValue& vToCopy) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "HashTable::unlocked_replaceByCopy: htLock "
@@ -514,7 +514,7 @@ HashTable::unlocked_replaceByCopy(const HashBucketLock& hbl,
     }
 
     /* Release (remove) the StoredValue from the hash table */
-    auto releasedSv = unlocked_release(hbl, vToCopy.getKey());
+    auto releasedSv = unlocked_release(hbl, &vToCopy);
 
     /* Copy the StoredValue and link it into the head of the bucket chain. */
     auto newSv = valFact->copyStoredValue(
@@ -738,28 +738,8 @@ void HashTable::unlocked_del(const HashBucketLock& hbl, StoredValue* value) {
 }
 
 StoredValue::UniquePtr HashTable::unlocked_release(
-        const HashBucketLock& hbl, const DocKey& key) {
-    // Remove the first (should only be one) StoredValue with the given key.
-    auto releasePredicate = [&key](const StoredValue* v) {
-        return v->hasKey(key);
-    };
-    return unlocked_release_inner(hbl, releasePredicate);
-}
-
-StoredValue::UniquePtr HashTable::unlocked_release(
         const HashBucketLock& hbl,
         StoredValue* valueToRelease) {
-    // Remove the first (should only be one) StoredValue matching the given
-    // pointer
-    auto releasePredicate = [&valueToRelease](const StoredValue* v) {
-        return v == valueToRelease;
-    };
-    return unlocked_release_inner(hbl, releasePredicate);
-}
-
-template <typename Pred>
-StoredValue::UniquePtr HashTable::unlocked_release_inner(
-        const HashBucketLock& hbl, Pred& releasePredicate) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "HashTable::unlocked_release_base: htLock not held");
@@ -770,11 +750,12 @@ StoredValue::UniquePtr HashTable::unlocked_release_inner(
                 "HashTable::unlocked_release_base: Cannot call on a "
                 "non-active object");
     }
-
-    // Remove the first (should only be one) StoredValue that matches the given
-    // releasePredicate
+    // Remove the first (should only be one) StoredValue matching the given
+    // pointer
     auto released = hashChainRemoveFirst(
-            values[hbl.getBucketNum()], releasePredicate);
+            values[hbl.getBucketNum()], [valueToRelease](const StoredValue* v) {
+                return v == valueToRelease;
+            });
 
     if (!released) {
         /* We shouldn't reach here, we must delete the StoredValue in the
