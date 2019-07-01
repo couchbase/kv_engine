@@ -800,7 +800,7 @@ void EPVBucket::dropKey(int64_t bySeqno,
     auto res = fetchValidValue(
             WantsDeleted::No, TrackReference::No, QueueExpired::No, cHandle);
     if (res.storedValue && res.storedValue->getBySeqno() == bySeqno) {
-        ht.unlocked_del(res.lock, res.storedValue->getKey());
+        ht.unlocked_del(res.lock, res.storedValue);
     }
 }
 

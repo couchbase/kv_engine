@@ -245,7 +245,7 @@ BENCHMARK_DEFINE_F(HashTableBench, Delete)(benchmark::State& state) {
         {
             auto result = ht.findForWrite(key);
             ASSERT_TRUE(result.storedValue);
-            ht.unlocked_del(result.lock, key);
+            ht.unlocked_del(result.lock, result.storedValue);
         }
     }
 

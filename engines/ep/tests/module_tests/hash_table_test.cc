@@ -119,7 +119,7 @@ bool HashTableTest::del(HashTable& ht, const DocKey& key) {
     if (!htRes.storedValue) {
         return false;
     }
-    ht.unlocked_del(htRes.lock, key);
+    ht.unlocked_del(htRes.lock, htRes.storedValue);
     return true;
 }
 
@@ -568,7 +568,7 @@ TEST_P(HashTableStatsTest, TempDeletedRestore) {
         auto item = ht.findForWrite(key);
         ASSERT_NE(nullptr, item.storedValue);
         item.storedValue->markClean();
-        ht.unlocked_del(item.lock, key);
+        ht.unlocked_del(item.lock, item.storedValue);
     }
 
     // Restore as temporary initial item (simulating bg_fetch).

@@ -136,7 +136,7 @@ HashTable::~HashTable() {
 void HashTable::cleanupIfTemporaryItem(const HashBucketLock& hbl,
                                        StoredValue& v) {
     if (v.isTempDeletedItem() || v.isTempNonExistentItem()) {
-        unlocked_del(hbl, v.getKey());
+        unlocked_del(hbl, &v);
     }
 }
 
@@ -731,10 +731,6 @@ HashTable::FindResult HashTable::findOnlyCommitted(const DocKey& key) {
 HashTable::FindResult HashTable::findOnlyPrepared(const DocKey& key) {
     auto result = findInner(key);
     return {result.pendingSV, std::move(result.lock)};
-}
-
-void HashTable::unlocked_del(const HashBucketLock& hbl, const DocKey& key) {
-    unlocked_release(hbl, key).reset();
 }
 
 void HashTable::unlocked_del(const HashBucketLock& hbl, StoredValue* value) {

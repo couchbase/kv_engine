@@ -1036,24 +1036,13 @@ public:
     }
 
     /**
-     * Delete a key from the cache without trying to lock the cache first
-     * (Please note that you <b>MUST</b> acquire the mutex before calling
-     * this function!!!
+     * Erase an item from the HashTable.
+     * Item will be removed from the HashTable and deleted.
      *
      * @param hbl HashBucketLock that must be held
-     * @param key the key to delete
+     * @param value The StoredValue to erase
      */
-    void unlocked_del(
-            const HashBucketLock& hbl,
-            const DocKey& key);
-
-    /**
-     * Same as above overload but takes a StoredValue pointer instead of key to
-     * compare
-     */
-    void unlocked_del(
-            const HashBucketLock& hbl,
-            StoredValue* value);
+    void unlocked_del(const HashBucketLock& hbl, StoredValue* value);
 
     /**
      * Visit all items within this hashtable.
