@@ -143,7 +143,7 @@ void ExecutorThread::run() {
             updateTaskStart();
 
             const auto curTaskDescr = currentTask->getDescription();
-            EP_LOG_DEBUG("{}: Run task \"{}\" id {}",
+            EP_LOG_TRACE("{}: Run task \"{}\" id {}",
                          getName(),
                          curTaskDescr,
                          currentTask->getId());
@@ -185,7 +185,7 @@ void ExecutorThread::run() {
                 if (new_waketime < getWaketime()) {
                     setWaketime(new_waketime);
                 }
-                EP_LOG_DEBUG(
+                EP_LOG_TRACE(
                         "{}: Reschedule a task"
                         " \"{}\" id {}[{} {} |{}]",
                         name,

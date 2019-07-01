@@ -261,7 +261,7 @@ void ExecutorPool::startWork(task_type_t taskType) {
                 std::to_string(taskType) + "}");
     } else {
         ++curWorkers[taskType];
-        EP_LOG_DEBUG(
+        EP_LOG_TRACE(
                 "Taking up work in task "
                 "type:{{{}}} "
                 "current:{{{}}}, max:{{{}}}",
@@ -279,7 +279,7 @@ void ExecutorPool::doneWork(task_type_t taskType) {
     } else {
         --curWorkers[taskType];
         // Record that a thread is done working on a particular queue type
-        EP_LOG_DEBUG("Done with task type:{{{}}} capacity:{{{}}}",
+        EP_LOG_TRACE("Done with task type:{{{}}} capacity:{{{}}}",
                      taskType,
                      numWorkers[taskType].load());
     }
@@ -294,7 +294,7 @@ bool ExecutorPool::_cancel(size_t taskId, bool eraseTask) {
     }
 
     ExTask task = itr->second.first;
-    EP_LOG_DEBUG("Cancel task {} id {} on bucket {} {}",
+    EP_LOG_TRACE("Cancel task {} id {} on bucket {} {}",
                  task->getDescription(),
                  task->getId(),
                  task->getTaskable().getName(),

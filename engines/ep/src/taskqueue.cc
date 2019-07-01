@@ -226,7 +226,7 @@ void TaskQueue::_schedule(ExTask &task) {
 
         futureQueue.push(task);
 
-        EP_LOG_DEBUG("{}: Schedule a task \"{}\" id {}",
+        EP_LOG_TRACE("{}: Schedule a task \"{}\" id {}",
                      name,
                      task->getDescription(),
                      task->getId());
