@@ -291,7 +291,12 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
             startSeqno,
             endSeqno);
         pushToReadyQ(std::make_unique<SnapshotMarker>(
-                opaque_, vb_, startSeqno, endSeqno, MARKER_FLAG_DISK, sid));
+                opaque_,
+                vb_,
+                startSeqno,
+                endSeqno,
+                MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                sid));
         lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 
         if (!(flags_ & DCP_ADD_STREAM_FLAG_DISKONLY)) {

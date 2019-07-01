@@ -1444,6 +1444,43 @@ void SingleThreadedPassiveStreamTest::TearDown() {
     STParameterizedBucketTest::TearDown();
 }
 
+TEST_P(SingleThreadedActiveStreamTest, DiskSnapshotSendsChkMarker) {
+    auto vb = engine->getVBucket(vbid);
+    auto& ckptMgr = *vb->checkpointManager;
+    // Get rid of set_vb_state and any other queue_op we are not interested in
+    ckptMgr.clear(*vb, 0 /*seqno*/);
+
+    stream->markDiskSnapshot(1, 1);
+
+    const auto key = makeStoredDocKey("key");
+    const std::string value = "value";
+    auto item = make_item(vbid, key, value);
+
+    EXPECT_EQ(MutationStatus::WasClean,
+              public_processSet(*vb, item, VBQueueItemCtx()));
+
+    // We must have ckpt-start
+    auto outItems = stream->public_getOutstandingItems(*vb);
+    ASSERT_EQ(2, outItems.size());
+    ASSERT_EQ(queue_op::checkpoint_start, outItems.at(0)->getOperation());
+    // Stream::readyQ still empty
+    ASSERT_EQ(0, stream->public_readyQSize());
+    // Push items into the Stream::readyQ
+    stream->public_processItems(outItems);
+
+    // No message processed, BufferLog empty
+    ASSERT_EQ(0, producer->getBytesOutstanding());
+
+    // readyQ must contain a SnapshotMarker
+    ASSERT_EQ(2, stream->public_readyQSize());
+    auto resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+
+    auto& marker = dynamic_cast<SnapshotMarker&>(*resp);
+    ASSERT_TRUE(marker.getFlags() & MARKER_FLAG_CHK);
+}
+
 /*
  * MB-31410: In this test I simulate a DcpConsumer that receives messages
  * while previous messages have been buffered. This simulates the system
@@ -1831,6 +1868,12 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_33773_oom) {
 TEST_P(SingleThreadedPassiveStreamTest, MB_33773_oom_close) {
     mb_33773(mb_33773Mode::noMemoryAndClosed);
 }
+
+INSTANTIATE_TEST_CASE_P(
+        AllBucketTypes,
+        SingleThreadedActiveStreamTest,
+        STParameterizedBucketTest::persistentAllBackendsConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_CASE_P(
         AllBucketTypes,
