@@ -754,8 +754,9 @@ void DurabilityPassiveStreamTest::TearDown() {
     SingleThreadedPassiveStreamTest::TearDown();
 }
 
-TEST_P(DurabilityPassiveStreamTest,
-       ReceiveSetInsteadOfCommitWhenStreamingFromDisk) {
+void DurabilityPassiveStreamTest::
+        testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
+                DocumentState docState) {
     uint32_t opaque = 1;
 
     SnapshotMarker marker(opaque,
@@ -773,6 +774,7 @@ TEST_P(DurabilityPassiveStreamTest,
     item->setBySeqno(1);
     item->setCas(999);
 
+    // Send the prepare
     EXPECT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       item,
@@ -787,6 +789,12 @@ TEST_P(DurabilityPassiveStreamTest,
     item = makeCommittedItem(key, "committed");
     item->setBySeqno(3);
 
+    if (docState == DocumentState::Deleted) {
+        item->setDeleted(DeleteSource::Explicit);
+        item->replaceValue(nullptr);
+    }
+
+    // Send the logical commit
     EXPECT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       std::move(item),
@@ -800,7 +808,20 @@ TEST_P(DurabilityPassiveStreamTest,
 }
 
 TEST_P(DurabilityPassiveStreamTest,
-       ReceiveSetInsteadOfCommitForReconnectWindowWithPrepareLast) {
+       ReceiveMutationInsteadOfCommitWhenStreamingFromDisk) {
+    testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
+            DocumentState::Alive);
+}
+
+TEST_P(DurabilityPassiveStreamTest,
+       ReceiveDeletionInsteadOfCommitWhenStreamingFromDisk) {
+    testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
+            DocumentState::Deleted);
+}
+
+void DurabilityPassiveStreamTest::
+        testReceiveMutationOrDeletionInsteadOfCommitForReconnectWindowWithPrepareLast(
+                DocumentState docState) {
     // 1) Receive DCP Prepare
     auto key = makeStoredDocKey("key");
     uint64_t prepareSeqno = 1;
@@ -827,19 +848,17 @@ TEST_P(DurabilityPassiveStreamTest,
     stream->processMarker(&marker);
 
     const std::string value = "overwritingValue";
-    queued_item qi(new Item(key,
-                            0 /*flags*/,
-                            0 /*expiry*/,
-                            value.c_str(),
-                            value.size(),
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            0 /*cas*/,
-                            streamStartSeqno,
-                            vbid));
+    auto item = makeCommittedItem(key, value);
+    item->setBySeqno(streamStartSeqno);
+
+    if (docState == DocumentState::Deleted) {
+        item->setDeleted(DeleteSource::Explicit);
+        item->replaceValue(nullptr);
+    }
 
     EXPECT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
-                      std::move(qi),
+                      std::move(item),
                       opaque,
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
@@ -848,7 +867,7 @@ TEST_P(DurabilityPassiveStreamTest,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
 
-    // 5) Verify doc state
+    // 4) Verify doc state
     auto vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb);
     {
@@ -859,8 +878,10 @@ TEST_P(DurabilityPassiveStreamTest,
         EXPECT_EQ(4, res.committed->getBySeqno());
         EXPECT_EQ(CommittedState::CommittedViaMutation,
                   res.committed->getCommitted());
-        EXPECT_TRUE(res.committed->getValue());
-        EXPECT_EQ(value, res.committed->getValue()->to_s());
+        if (docState == DocumentState::Alive) {
+            ASSERT_TRUE(res.committed->getValue());
+            EXPECT_EQ(value, res.committed->getValue()->to_s());
+        }
     }
 
     // Should have removed all sync writes
@@ -881,6 +902,18 @@ TEST_P(DurabilityPassiveStreamTest,
     EXPECT_EQ(ENGINE_SUCCESS,
               vb->commit(key, prepareSeqno, {}, vb->lockCollections(key)));
     EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
+}
+
+TEST_P(DurabilityPassiveStreamTest,
+       ReceiveMutationInsteadOfCommitForReconnectWindowWithPrepareLast) {
+    testReceiveMutationOrDeletionInsteadOfCommitForReconnectWindowWithPrepareLast(
+            DocumentState::Alive);
+}
+
+TEST_P(DurabilityPassiveStreamTest,
+       ReceiveDeletionInsteadOfCommitForReconnectWindowWithPrepareLast) {
+    testReceiveMutationOrDeletionInsteadOfCommitForReconnectWindowWithPrepareLast(
+            DocumentState::Deleted);
 }
 
 TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSnapshotEndReceived) {

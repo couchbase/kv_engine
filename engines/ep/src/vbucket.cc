@@ -3370,7 +3370,21 @@ VBucket::processSoftDelete(const HashTable::HashBucketLock& hbl,
                            DeleteSource deleteSource) {
     boost::optional<VBNotifyCtx> empty;
     if (v.isPending()) {
-        return {MutationStatus::IsPendingSyncWrite, &v, empty};
+        // It is not valid for an active vBucket to attempt to overwrite an
+        // in flight SyncWrite. If this vBucket is not active, we are
+        // allowed to overwrite an in flight SyncWrite iff we are receiving
+        // a disk snapshot. This is due to disk based de-dupe that allows
+        // only 1 value per key. In this case, the active node may send a
+        // mutation instead of a commit if it knows that this replica may be
+        // missing a prepare. This code allows this mutation to be accepted
+        // and overwrites the existing prepare.
+        if (getState() == vbucket_state_active || !isReceivingDiskSnapshot()) {
+            return {MutationStatus::IsPendingSyncWrite, &v, empty};
+        }
+
+        getPassiveDM().completeSyncWrite(
+                StoredDocKey(v.getKey()),
+                PassiveDurabilityMonitor::Resolution::Commit);
     }
 
     if (v.isTempInitialItem() && eviction == EvictionPolicy::Full) {

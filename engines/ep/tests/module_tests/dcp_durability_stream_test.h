@@ -91,6 +91,26 @@ protected:
      */
     void testReceiveDcpAbort();
 
+    /**
+     * Test that a mutation or deletion sent instead of a commit is accepted by
+     * the replica when backfilling from disk
+     *
+     * @param docState Should we send a mutation or a deletion?
+     */
+    void testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
+            DocumentState docState);
+
+    /**
+     * Test that a mutaiton or deletion sent instead of a commit is accepted by
+     * the replica when in the reconnect window for which a prepare may be
+     * de-duped and that the state of the replica is correct afterwards.
+     *
+     * @param docState Should we send a mutation or a deletion?
+     */
+    void
+    testReceiveMutationOrDeletionInsteadOfCommitForReconnectWindowWithPrepareLast(
+            DocumentState docState);
+
     void setUpHandleSnapshotEndTest();
 };
 
