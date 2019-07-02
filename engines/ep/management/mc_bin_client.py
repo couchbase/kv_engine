@@ -789,6 +789,6 @@ class MemcachedClient(object):
         # 2nd byte: level
         # Optional 3rd and 4th bytes: Timeout.
         if timeout:
-            return struct.pack("BBH", ((1<<4) | 3), level, timeout)
+            return struct.pack(">BBH", ((1<<4) | 3), level, timeout)
         else:
-            return struct.pack("BB", ((1<<4) | 1), level)
+            return struct.pack(">BB", ((1<<4) | 1), level)
