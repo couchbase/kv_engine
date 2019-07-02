@@ -22,6 +22,7 @@
 #include "bucket_logger_test.h"
 
 #include "bucket_logger.h"
+#include "thread_gate.h"
 
 #include <programs/engine_testapp/mock_server.h>
 
@@ -178,4 +179,61 @@ TEST_F(BucketLoggerTest, CriticalRawMacro) {
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
     EXPECT_EQ(1, countInFile(files.front(), "CRITICAL (No Engine) rawtext"));
+}
+
+/**
+ * Test class with ThreadGates that allows us to test the destruction of a
+ * BucketLogger when it is owned solely by the background flushing thread.
+ */
+class FlushRaceLogger : public BucketLogger {
+public:
+    FlushRaceLogger(const std::string& name, ThreadGate& tg1, ThreadGate& tg2)
+        : BucketLogger(name), tg1(tg1), tg2(tg2) {
+    }
+
+protected:
+    void flush_() override {
+        // Shared_ptr should still be owned in our test code block
+        tg1.threadUp();
+
+        // Wait until our test code block releases it's ownership of the
+        // shared_ptr so that we can destruct this FlushRaceLogger from
+        // spdlog::registry::flush_all
+        tg2.threadUp();
+    }
+    ThreadGate& tg1;
+    ThreadGate& tg2;
+};
+
+TEST_F(BucketLoggerTest, RaceInFlushDueToPtrOwnership) {
+    // We need the async logger for this test, shutdown the existing one and
+    // create it.
+    cb::logger::shutdown();
+    RemoveFiles();
+    config.unit_test = false;
+    setUpLogger();
+
+    ThreadGate tg1(2);
+    ThreadGate tg2(2);
+    {
+        auto sharedLogger =
+                std::make_shared<FlushRaceLogger>("flushRaceLogger", tg1, tg2);
+        // We hit the normal constructor of the BucketLogger via the
+        // FlushRaceLogger so we need to manually register our logger
+        cb::logger::registerSpdLogger(sharedLogger);
+
+        // Wait for the background flushing thread to enter our FlushRaceLoggers
+        // flush_ function.
+        tg1.threadUp();
+    }
+
+    // We've just released our ownership of the shared pointer, signal the
+    // FlushRaceLogger to continue and exit the flush_ function. This will then
+    // trigger destruction of the FlushRaceLogger which will unregister the
+    // logger via ~BucketLogger.
+    tg2.threadUp();
+
+    // Shutdown of the logger will keep the ThreadGates in scope until the flush
+    // has finished as it locks on the logger_map_mutex_ in spdlog::registry
+    cb::logger::shutdown();
 }
