@@ -25,7 +25,9 @@
 /// Policy class for handling non-monotonic updates by simply ignoring them.
 template <class T>
 struct IgnorePolicy {
-    void nonMonotonic(const T& curValue, const T& newValue) {
+    void nonMonotonic(const std::string& label,
+                      const T& curValue,
+                      const T& newValue) {
         // Ignore the update.
     }
 };
@@ -33,12 +35,14 @@ struct IgnorePolicy {
 /// Policy class for handling non-monotonic updates by throwing std::logic_error
 template <class T>
 struct ThrowExceptionPolicy {
-    void nonMonotonic(const T& curValue, const T& newValue) {
-        throw std::logic_error(std::string("Monotonic<") + typeid(T).name() +
-                               "> invariant failed: new value (" +
-                               std::to_string(newValue) +
-                               ") breaks invariant on current value (" +
-                               std::to_string(curValue) + ")");
+    void nonMonotonic(const std::string& label,
+                      const T& curValue,
+                      const T& newValue) {
+        throw std::logic_error(
+                std::string("Monotonic<") + typeid(T).name() + "> (" + label +
+                ") invariant failed: new value (" + std::to_string(newValue) +
+                ") breaks invariant on current value (" +
+                std::to_string(curValue) + ")");
     }
 };
 
@@ -97,26 +101,19 @@ template <typename T,
           template <class> class Invariant = cb::greater>
 class Monotonic : public OrderReversedPolicy<T> {
 public:
+    using value_type = T;
+
     Monotonic(const T val = std::numeric_limits<T>::min()) : val(val) {
     }
 
-    Monotonic(const Monotonic<T>& other) : val(other.val) {
-    }
-
-    Monotonic& operator=(const Monotonic<T>& other) {
-        if (Invariant<T>()(other.val, val)) {
-            val = other.val;
-        } else {
-            OrderReversedPolicy<T>::nonMonotonic(val, other);
-        }
-        return *this;
+    Monotonic(const Monotonic<T>& other) : val(other.val), label(other.label) {
     }
 
     Monotonic& operator=(const T& v) {
         if (Invariant<T>()(v, val)) {
             val = v;
         } else {
-            OrderReversedPolicy<T>::nonMonotonic(val, v);
+            OrderReversedPolicy<T>::nonMonotonic(label, val, v);
         }
         return *this;
     }
@@ -145,8 +142,19 @@ public:
         val = desired;
     }
 
+    void setLabel(std::string label_) {
+        label = label_;
+    }
+
 private:
     T val;
+
+    /**
+     * Label to give this monotonic value. Passed to
+     * OrderReversedPolicy::nonMonotonic() in the event of invariant being
+     * broken, to aid in debugging.
+     */
+    std::string label{"unlabelled"};
 };
 
 /**
@@ -186,7 +194,7 @@ public:
                     break;
                 }
             } else {
-                OrderReversedPolicy<T>::nonMonotonic(current, desired);
+                OrderReversedPolicy<T>::nonMonotonic(label, current, desired);
                 break;
             }
         }
@@ -225,8 +233,19 @@ public:
         val.store(desired, memoryOrder);
     }
 
+    void setLabel(std::string label_) {
+        label = label_;
+    }
+
 private:
     std::atomic<T> val;
+
+    /**
+     * Label to give this monotonic value. Passed to
+     * OrderReversedPolicy::nonMonotonic() in the event of invariant being
+     * broken, to aid in debugging.
+     */
+    std::string label{"unlabeled"};
 };
 
 /**

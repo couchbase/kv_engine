@@ -60,8 +60,11 @@ struct ManifestUidNetworkOrder {
     ManifestUid to_host() const {
         return ntohll(uid);
     }
-    ManifestUid uid;
+    ManifestUid::value_type uid;
 };
+static_assert(sizeof(ManifestUidNetworkOrder) == 8,
+              "ManifestUidNetworkOrder must have fixed size of 8 bytes as "
+              "written to disk.");
 
 /**
  * Return a ManifestUid from a C-string.
