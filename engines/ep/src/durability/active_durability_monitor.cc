@@ -111,10 +111,11 @@ struct ActiveDurabilityMonitor::State {
                          CompletedQueue& toCommit);
 
     /**
-     * Removes all the expired Prepares from tracking.
+     * Removes expired Prepares from tracking which are eligable to be timed
+     * out (and Aborted).
      *
      * @param asOf The time to be compared with tracked-SWs' expiry-time
-     * @param [out] the list of the expired Prepares
+     * @param [out] the CompletedQueue to enqueue the expired Prepares onto.
      */
     void removeExpired(std::chrono::steady_clock::time_point asOf,
                        CompletedQueue& expired);
@@ -242,7 +243,8 @@ public:
  *
  * SyncWrites must be completed (produced) in the same order they were tracked,
  * hence there is a single producer, which is enforced by needing to acquire the
- * State::lock when moving items from trackedWrites to the CompletedQueue.
+ * State::lock when moving items from trackedWrites to the CompletedQueue;
+ * and by recording the highEnqueuedSeqno which must never decrement.
  *
  * SyncWrites must also be committed/aborted (consumed) in-order, as we must
  * enqueue them into the CheckpointManager (where seqnos are assigned) in the
@@ -263,6 +265,7 @@ public:
      * @param sw SyncWrite which has been completed.
      */
     void enqueue(const ActiveDurabilityMonitor::State& state, SyncWrite&& sw) {
+        highEnqueuedSeqno = sw.getBySeqno();
         queue.enqueue(sw);
     }
 
@@ -296,6 +299,8 @@ private:
     // non-blocking variant.
     using Queue = folly::USPSCQueue<DurabilityMonitor::SyncWrite, false>;
     Queue queue;
+    // Track the highest Enqueued Seqno to enforce enqueue ordering.
+    Monotonic<int64_t> highEnqueuedSeqno = {0};
 
     /// The lock guarding consumption of items.
     ConsumerLock consumerLock;
@@ -473,9 +478,9 @@ void ActiveDurabilityMonitor::processTimeout(
                                VBucket::toString(vb.getState()));
     }
 
-    // Identify all SyncWrites which are timed out as of this time point and
-    // should be aborted, transferring them into the completedQeuue (under the
-    // correct locks).
+    // Identify SyncWrites which can be timed out as of this time point
+    // and should be aborted, transferring them into the completedQeuue (under
+    // the correct locks).
     state.wlock()->removeExpired(asOf, *completedQueue);
 
     processCompletedSyncWriteQueue();
@@ -1216,6 +1221,9 @@ void ActiveDurabilityMonitor::State::addSyncWrite(const void* cookie,
 
 void ActiveDurabilityMonitor::State::removeExpired(
         std::chrono::steady_clock::time_point asOf, CompletedQueue& expired) {
+    // Given SyncWrites must complete In-Order, iterate from the beginning
+    // of trackedWrites only as long as we find expired items; if we encounter
+    // any unexpired items then must stop.
     Container::iterator it = trackedWrites.begin();
     while (it != trackedWrites.end()) {
         if (it->isExpired(asOf)) {
@@ -1226,7 +1234,8 @@ void ActiveDurabilityMonitor::State::removeExpired(
 
             it = next;
         } else {
-            ++it;
+            // Encountered an unexpired item - must stop.
+            break;
         }
     }
 }

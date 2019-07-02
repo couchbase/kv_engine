@@ -1198,7 +1198,7 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
                        std::chrono::milliseconds(10000));
 
     EXPECT_EQ(1, monitor->getNumTracked());
-    const auto tracked = adm.getTrackedSeqnos();
+    auto tracked = adm.getTrackedSeqnos();
     EXPECT_TRUE(tracked.find(201) == tracked.end());
     EXPECT_TRUE(tracked.find(202) == tracked.end());
     EXPECT_TRUE(tracked.find(203) != tracked.end());
@@ -1217,6 +1217,36 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
         assertNodeTracking(active, 203 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
+
+    /*
+     * Multiple SyncWrites, in reverse timeout order.
+     * Note that we must complete SyncWrites in order, thus even if a later
+     * SyncWrite has timed out we must wait for the earlier one to complete.
+     */
+    addSyncWrite(301 /*seqno*/, {level, 20000 /*timeout*/});
+    addSyncWrite(302 /*seqno*/, {level, 10000});
+    addSyncWrite(303 /*seqno*/, {level, 1});
+    ASSERT_EQ(3, monitor->getNumTracked());
+    {
+        SCOPED_TRACE("");
+        assertNodeTracking(active, 303 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+
+    adm.processTimeout(std::chrono::steady_clock::now() +
+                       std::chrono::milliseconds(5000));
+    EXPECT_EQ(3, monitor->getNumTracked());
+
+    // A second processTimeout (now up to 15s later). Still shouldn't time
+    // anything out as would break In-Order completion.
+    adm.processTimeout(std::chrono::steady_clock::now() +
+                       std::chrono::milliseconds(15000));
+    EXPECT_EQ(3, monitor->getNumTracked());
+
+    // Only when the first item reaches it's timeout can we process all of them.
+    adm.processTimeout(std::chrono::steady_clock::now() +
+                       std::chrono::milliseconds(30000));
+    EXPECT_EQ(0, monitor->getNumTracked());
 }
 
 TEST_P(ActiveDurabilityMonitorPersistentTest, MajorityAndPersistOnMaster) {
