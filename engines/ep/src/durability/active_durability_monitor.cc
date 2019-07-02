@@ -43,6 +43,10 @@ struct ActiveDurabilityMonitor::State {
      * @param adm The owning ActiveDurabilityMonitor
      */
     State(const ActiveDurabilityMonitor& adm) : adm(adm) {
+        const auto prefix =
+                "ActiveDM(" + adm.vb.getId().to_string() + ")::State::";
+        lastCommittedSeqno.setLabel(prefix + "lastCommittedSeqno");
+        lastAbortedSeqno.setLabel(prefix + "lastAbortedSeqno");
     }
 
     /**
@@ -266,6 +270,11 @@ public:
     /// Lock which must be acquired to consume (dequeue) items from the queue.
     using ConsumerLock = std::mutex;
 
+    CompletedQueue(Vbid vbid) {
+        highEnqueuedSeqno.setLabel("ActiveDM::CompletedQueue[" +
+                                   vbid.to_string() + "]");
+    }
+
     /**
      * Enqueue a (completed) SyncWrite onto the queue.
      *
@@ -320,7 +329,7 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(EPStats& stats, VBucket& vb)
     : stats(stats),
       vb(vb),
       state(std::make_unique<State>(*this)),
-      completedQueue(std::make_unique<CompletedQueue>()) {
+      completedQueue(std::make_unique<CompletedQueue>(vb.getId())) {
 }
 
 ActiveDurabilityMonitor::ActiveDurabilityMonitor(
@@ -1194,7 +1203,7 @@ void ActiveDurabilityMonitor::State::performQueuedAckForChain(
     for (const auto& node : chain.positions) {
         auto existingAck = queuedSeqnoAcks.find(node.first);
         if (existingAck != queuedSeqnoAcks.end()) {
-            CompletedQueue toCommit;
+            CompletedQueue toCommit(adm.vb.getId());
             processSeqnoAck(existingAck->first, existingAck->second, toCommit);
             // ======================= FIRST CHAIN =============================
             // @TODO MB-34318 this should no longer be true and we will need

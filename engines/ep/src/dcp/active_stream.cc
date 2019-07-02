@@ -101,6 +101,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
         name_ += sid.to_string();
         logPrefix += " (" + sid.to_string() + ")";
     }
+    lastReadSeqno.setLabel("ActiveStream(" + vbucket.getId().to_string() +
+                           ")::lastReadSeqno");
 
     log(spdlog::level::info,
         "{} Creating {}stream with start seqno {} and end seqno {}; "
