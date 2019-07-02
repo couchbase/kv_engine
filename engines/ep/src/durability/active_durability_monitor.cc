@@ -56,7 +56,17 @@ struct ActiveDurabilityMonitor::State {
             const DurabilityMonitor::ReplicationChainName name,
             const nlohmann::json& chain);
 
-    void setReplicationTopology(const nlohmann::json& topology);
+    /**
+     * Set the replication topology from the given json. If the new topology
+     * makes durability impossible then this function will abort any in-flight
+     * SyncWrites by enqueuing them in the CompletedQueue toAbort.
+     *
+     * @param topology Json topology
+     * @param toAbort Reference to the completedQueue so that we can abort any
+     *                SyncWrites for which durability is no longer possible.
+     */
+    void setReplicationTopology(const nlohmann::json& topology,
+                                CompletedQueue& toAbort);
 
     void addSyncWrite(const void* cookie, queued_item item);
 
@@ -377,7 +387,7 @@ void ActiveDurabilityMonitor::setReplicationTopology(
     // atomic operation. We could commit out-of-seqno-order Prepares otherwise.
     {
         auto s = state.wlock();
-        s->setReplicationTopology(topology);
+        s->setReplicationTopology(topology, *completedQueue);
         s->updateHighPreparedSeqno(*completedQueue);
     }
 
@@ -1113,7 +1123,7 @@ ActiveDurabilityMonitor::State::makeChain(
 }
 
 void ActiveDurabilityMonitor::State::setReplicationTopology(
-        const nlohmann::json& topology) {
+        const nlohmann::json& topology, CompletedQueue& toAbort) {
     auto& fChain = topology.at(0);
     ActiveDurabilityMonitor::validateChain(
             fChain, DurabilityMonitor::ReplicationChainName::First);
@@ -1147,13 +1157,23 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
     auto newFirstChain =
             makeChain(DurabilityMonitor::ReplicationChainName::First, fChain);
 
-    // @TODO we must check before calling write.resetTopology if durability is
-    // possible for the new topology. If it is now, we should abort the in
-    // flight sync writes.
-
     // Apply the new topology to all in-flight SyncWrites
     for (auto& write : trackedWrites) {
         write.resetTopology(*newFirstChain, newSecondChain.get());
+    }
+
+    // If durability is not possible for the new chains, then we should abort
+    // the in-flight SyncWrites so that the client can decide what to do. We
+    // have already reset the topology of the in flight SyncWrites so that they
+    // do not contain any invalid pointers post topology change.
+    if (!(newFirstChain && newFirstChain->isDurabilityPossible() &&
+          (!newSecondChain || newSecondChain->isDurabilityPossible()))) {
+        // We can't use a for loop with iterators here because they will be
+        // modified to point to invalid memory as we use std::list.splice in
+        // removeSyncWrite.
+        while (!trackedWrites.empty()) {
+            toAbort.enqueue(*this, removeSyncWrite(trackedWrites.begin()));
+        }
     }
 
     // We have now reset all the topology for SyncWrites so we can dispose of

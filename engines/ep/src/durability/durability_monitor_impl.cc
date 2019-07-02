@@ -52,7 +52,7 @@ DurabilityMonitor::SyncWrite::SyncWrite(
     }
 
     if (firstChain) {
-        resetTopology(*firstChain, secondChain);
+        checkDurabilityPossibleAndResetTopology(*firstChain, secondChain);
     }
 }
 
@@ -186,20 +186,28 @@ void DurabilityMonitor::SyncWrite::resetTopology(
 
     this->firstChain.reset(&firstChain, ackedFirstChain);
     this->secondChain.reset(secondChain, ackedSecondChain);
+}
 
-    // We can call resetTopology in one of two cases:
+void DurabilityMonitor::SyncWrite::checkDurabilityPossibleAndResetTopology(
+        const DurabilityMonitor::ReplicationChain& firstChain,
+        const DurabilityMonitor::ReplicationChain* secondChain) {
+    // We can reset the topology in one of two cases:
     // a) for a new SyncWrite
     // b) for a topology change
     // In both cases, creating a SyncWrite is only valid if durability is
     // possible for each chain in the given topology.
     // This condition should be checked and dealt with by the caller but
-    // we will enforce it here to defend from any races in the setting of a new
-    // topology.
+    // we will enforce it here to defend from any races in the setting of a
+    // new topology. Check these conditions before setting the topology of
+    // the SyncWrite to ensure we don't end up with any bad
+    // pointers/references.
     Expects(firstChain.isDurabilityPossible());
 
     if (secondChain) {
         Expects(secondChain->isDurabilityPossible());
     }
+
+    resetTopology(firstChain, secondChain);
 }
 
 std::unordered_set<std::string> DurabilityMonitor::SyncWrite::getAckedNodes()

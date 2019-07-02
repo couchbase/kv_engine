@@ -95,13 +95,25 @@ public:
 
     /**
      * Reset the ack-state for this SyncWrite and set it up for the new
-     * given topology.
+     * given topology. In general, checkDurabilityPossibleAndResetTopology
+     * should be used to reset the topology for a SyncWrite.
      *
-     * @param firstChain
-     * @param secondChain
+     * @param firstChain Reference to first chain
+     * @param secondChain Pointer (may be null) to second chain
      */
     void resetTopology(const ReplicationChain& firstChain,
                        const ReplicationChain* secondChain);
+
+    /**
+     * Reset the ack-state for this SyncWrite and set it up for the new given
+     * topology if durability is possible for the new chains.
+     *
+     * @param firstChain Reference to first chain
+     * @param secondChain Pointer (may be null) to second chain
+     */
+    void checkDurabilityPossibleAndResetTopology(
+            const ReplicationChain& firstChain,
+            const ReplicationChain* secondChain);
 
     /**
      * Return the names of all nodes which have ack'ed this SyncWrite

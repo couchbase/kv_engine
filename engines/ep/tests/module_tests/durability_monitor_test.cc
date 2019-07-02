@@ -2642,6 +2642,34 @@ TEST_P(ActiveDurabilityMonitorTest, HPSResetOnTopologyChange) {
     }
 }
 
+/**
+ * Failover scenario:
+ *
+ * We have 1 replica that we failover. Topology is changed from
+ * {{active, replica1}} to {{active, undefined}}. In this case we should abort
+ * any in-flight SyncWrites and not throw assertions.
+ */
+TEST_P(ActiveDurabilityMonitorTest,
+       DurabilityImpossibleTopologyChangeAbortsInFlightSyncWrites) {
+    // To start, we have 1 chain with active and replica1
+    addSyncWrite(1);
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // Failover
+    EXPECT_NO_THROW(getActiveDM().setReplicationTopology(
+            nlohmann::json::array({{active, nullptr}})));
+
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(0, 1, 1);
+    }
+    EXPECT_EQ(0, getActiveDM().getNumCommitted());
+    EXPECT_EQ(1, getActiveDM().getNumAborted());
+}
+
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         ActiveDurabilityMonitorTest,
                         STParameterizedBucketTest::allConfigValues(),
