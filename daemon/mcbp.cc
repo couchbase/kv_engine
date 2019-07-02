@@ -119,7 +119,7 @@ void mcbp_add_header(Cookie& cookie,
         try {
             LOG_TRACE("<{} Sending: {}",
                       connection.getId(),
-                      header->toJSON().dump());
+                      header->toJSON(true).dump());
         } catch (const std::exception&) {
             // Failed.. do a raw dump instead
             LOG_TRACE("<{} Sending: {}",

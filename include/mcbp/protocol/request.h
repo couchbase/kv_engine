@@ -217,7 +217,17 @@ public:
      */
     bool isQuiet() const;
 
-    nlohmann::json toJSON() const;
+    /**
+     * Create a JSON dump of the provided object.
+     *
+     * If the object is validated the dump includes stuff present outside
+     * the header object, otherwise we'll only touch the header fields (
+     * as we can't trust all of the offsets etc).
+     *
+     * @param validated If the request is validated or not
+     * @return A JSON representation of the packet
+     */
+    nlohmann::json toJSON(bool validated) const;
 
     /**
      * Validate that the header is "sane" (correct magic, and extlen+keylen

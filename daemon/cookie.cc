@@ -43,7 +43,7 @@ nlohmann::json Cookie::toJSON() const {
         ret["packet"] = nlohmann::json();
     } else {
         const auto& header = getHeader();
-        ret["packet"] = header.toJSON();
+        ret["packet"] = header.toJSON(validated);
     }
 
     if (!event_id.empty()) {
@@ -529,6 +529,7 @@ void Cookie::reset() {
     error_context.clear();
     json_message.clear();
     packet = {};
+    validated = false;
     cas = 0;
     commandContext.reset();
     dynamicBuffer.clear();

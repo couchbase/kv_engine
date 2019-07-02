@@ -24,8 +24,8 @@
 namespace cb {
 namespace mcbp {
 
-nlohmann::json Response::toJSON() const {
-    if (!isValid()) {
+nlohmann::json Response::toJSON(bool validated) const {
+    if (!validated && !isValid()) {
         throw std::logic_error("Response::toJSON(): Invalid packet");
     }
 

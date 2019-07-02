@@ -512,6 +512,14 @@ public:
      */
     CookieTraceContext extractTraceContext();
 
+    /**
+     * Set if the packet is validated or not (if the packet is validated
+     * the JSON dump of the value contains more information).
+     */
+    void setValidated(bool value) {
+        validated = value;
+    }
+
 protected:
     bool enableTracing = false;
     cb::tracing::Tracer tracer;
@@ -534,6 +542,8 @@ protected:
      * transferred to the client.
      */
     std::string json_message;
+
+    bool validated = false;
 
     /**
      * The input packet used in this command context

@@ -372,7 +372,7 @@ bool StateMachine::conn_validate() {
                         connection.getId(),
                         to_string(opcode),
                         to_string(result),
-                        request.toJSON().dump(),
+                        request.toJSON(false).dump(),
                         cookie.getErrorContext());
                 audit_invalid_packet(cookie.getConnection(),
                                      cookie.getPacket());
@@ -383,6 +383,7 @@ bool StateMachine::conn_validate() {
                 connection.setWriteAndGo(StateMachine::State::closing);
                 return true;
             }
+            cookie.setValidated(true);
         } else {
             // We should not be receiving a server command.
             // Audit and log

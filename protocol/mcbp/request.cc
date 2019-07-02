@@ -304,8 +304,24 @@ Request::getDurabilityRequirements() const {
     return {};
 }
 
-nlohmann::json Request::toJSON() const {
-    if (!isValid()) {
+std::string printableString(cb::const_byte_buffer buffer) {
+    std::string ret;
+    ret.reserve(buffer.size() + 9);
+    ret.append("<ud>");
+    std::copy(buffer.begin(), buffer.end(), std::back_inserter(ret));
+    ret.append("</ud>");
+
+    for (auto& ii : ret) {
+        if (!std::isgraph(ii)) {
+            ii = '.';
+        }
+    }
+
+    return ret;
+}
+
+nlohmann::json Request::toJSON(bool validated) const {
+    if (!validated && !isValid()) {
         throw std::logic_error("Request::toJSON(): Invalid packet");
     }
 
@@ -315,8 +331,40 @@ nlohmann::json Request::toJSON() const {
 
     if (is_client_magic(m)) {
         ret["opcode"] = ::to_string(getClientOpcode());
+
+        if (validated && m == Magic::AltClientRequest) {
+            nlohmann::json frameid;
+            parseFrameExtras([&frameid](cb::mcbp::request::FrameInfoId id,
+                                        cb::const_byte_buffer buffer) -> bool {
+                switch (id) {
+                case request::FrameInfoId::Reorder:
+                    frameid["reorder"] = true;
+                    break;
+                case request::FrameInfoId::DurabilityRequirement:
+                    frameid["durability"] =
+                            cb::durability::Requirements(buffer).to_json();
+                    break;
+                case request::FrameInfoId::DcpStreamId:
+                    frameid["dcp stream id"] = ntohs(
+                            *reinterpret_cast<const uint16_t*>(buffer.data()));
+                    break;
+                case request::FrameInfoId::OpenTracingContext:
+                    frameid["OpenTracing context"] = printableString(buffer);
+                    break;
+                }
+
+                return true;
+            });
+            if (!frameid.empty()) {
+                ret["frameid"] = frameid;
+            }
+        }
     } else {
         ret["opcode"] = ::to_string(getServerOpcode());
+    }
+
+    if (validated) {
+        ret["key"] = printableString(getKey());
     }
 
     ret["keylen"] = getKeylen();

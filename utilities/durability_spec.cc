@@ -16,6 +16,7 @@
  */
 
 #include <memcached/durability_spec.h>
+#include <nlohmann/json.hpp>
 
 #include <string>
 #ifdef WIN32
@@ -81,6 +82,35 @@ Requirements::Requirements(cb::const_byte_buffer buffer) {
                 "Requirements(): Content represents an invalid requirement "
                 "specification");
     }
+}
+
+nlohmann::json Requirements::to_json() const {
+    nlohmann::json obj;
+    switch (getLevel()) {
+    case durability::Level::None:
+        obj["level"] = "None";
+        break;
+    case durability::Level::Majority:
+        obj["level"] = "Majority";
+        break;
+    case durability::Level::MajorityAndPersistOnMaster:
+        obj["level"] = "MajorityAndPersistOnMaster";
+        break;
+    case durability::Level::PersistToMajority:
+        obj["level"] = "PersistToMajority";
+        break;
+    }
+    auto tmo = getTimeout();
+    if (tmo.isDefault()) {
+        obj["timeout"] = "Default";
+        ;
+    } else if (tmo.isInfinite()) {
+        obj["timeout"] = "Infinite";
+    } else {
+        obj["timeout"] = tmo.get();
+    }
+
+    return obj;
 }
 
 } // namespace durability

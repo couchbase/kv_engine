@@ -973,7 +973,9 @@ void try_read_mcbp_command(Cookie& cookie) {
 
     if (settings.getVerbose() > 1) {
         try {
-            LOG_TRACE(">{} Read command {}", c.getId(), header.toJSON().dump());
+            LOG_TRACE(">{} Read command {}",
+                      c.getId(),
+                      header.toJSON(false).dump());
         } catch (const std::exception&) {
             // Failed to decode the header.. do a raw dump instead
             LOG_TRACE(">{} Read command {}",

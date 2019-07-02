@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <nlohmann/json_fwd.hpp>
 #include <platform/sized_buffer.h>
 #include <cstdint>
 #include <stdexcept>
@@ -177,6 +178,8 @@ public:
         }
         return false;
     }
+
+    nlohmann::json to_json() const;
 
 protected:
     Level level{Level::Majority};

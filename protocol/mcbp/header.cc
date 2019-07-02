@@ -34,13 +34,13 @@ bool Header::isValid() const {
     return false;
 }
 
-nlohmann::json Header::toJSON() const {
+nlohmann::json Header::toJSON(bool validated) const {
     if (isRequest()) {
-        return getRequest().toJSON();
+        return getRequest().toJSON(validated);
     }
 
     if (isResponse()) {
-        return getResponse().toJSON();
+        return getResponse().toJSON(validated);
     }
 
     throw std::logic_error("Header::toJSON(): Invalid packet");

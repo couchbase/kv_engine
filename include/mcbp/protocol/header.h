@@ -206,7 +206,7 @@ public:
     /**
      * Create a JSON representation of the header
      */
-    nlohmann::json toJSON() const;
+    nlohmann::json toJSON(bool validated) const;
 
 protected:
     /*
