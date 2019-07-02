@@ -42,13 +42,14 @@ struct ThrowExceptionPolicy {
     }
 };
 
-// Default Monotonic OrdereReveredPolocy - use IgnorePolicy for Release builds,
-// and ThrowExceptionPolicy for Debug builds.
+// Default Monotonic OrderReversedPolicy (if user doesn't explicitly
+// specify otherwise) use IgnorePolicy for Release builds,
+// and ThrowExceptionPolicy for Pre-Release builds.
 template <class T>
-#if NDEBUG
-using DefaultOrderReversedPolicy = IgnorePolicy<T>;
-#else
+#if CB_DEVELOPMENT_ASSERTS
 using DefaultOrderReversedPolicy = ThrowExceptionPolicy<T>;
+#else
+using DefaultOrderReversedPolicy = IgnorePolicy<T>;
 #endif
 
 namespace cb {
