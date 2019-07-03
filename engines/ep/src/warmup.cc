@@ -194,6 +194,41 @@ private:
     const std::string _description;
 };
 
+class WarmupLoadingCollectionCounts : public GlobalTask {
+public:
+    WarmupLoadingCollectionCounts(EPBucket& st, uint16_t sh, Warmup& w)
+        : GlobalTask(&st.getEPEngine(),
+                     TaskId::WarmupLoadingCollectionCounts,
+                     0,
+                     false),
+          shardId(sh),
+          warmup(w) {
+        warmup.addToTaskSet(uid);
+    }
+
+    std::string getDescription() override {
+        return "Warmup - loading collection counts: shard " +
+               std::to_string(shardId);
+    }
+
+    std::chrono::microseconds maxExpectedDuration() override {
+        // This task has to open each VB's data-file and (certainly for
+        // couchstore) read a small document per defined collection
+        return std::chrono::seconds(10);
+    }
+
+    bool run() override {
+        TRACE_EVENT0("ep-engine/task", "WarmupLoadingCollectionCounts");
+        warmup.loadCollectionStatsForShard(shardId);
+        warmup.removeFromTaskSet(uid);
+        return false;
+    }
+
+private:
+    uint16_t shardId;
+    Warmup& warmup;
+};
+
 class WarmupEstimateDatabaseItemCount : public GlobalTask {
 public:
     WarmupEstimateDatabaseItemCount(EPBucket& st, uint16_t sh, Warmup* w)
@@ -450,41 +485,6 @@ private:
     const std::string _description;
 };
 
-class WarmupLoadingCollectionCounts : public GlobalTask {
-public:
-    WarmupLoadingCollectionCounts(EPBucket& st, uint16_t sh, Warmup& w)
-        : GlobalTask(&st.getEPEngine(),
-                     TaskId::WarmupLoadingCollectionCounts,
-                     0,
-                     false),
-          shardId(sh),
-          warmup(w) {
-        warmup.addToTaskSet(uid);
-    }
-
-    std::string getDescription() override {
-        return "Warmup - loading collection counts: shard " +
-               std::to_string(shardId);
-    }
-
-    std::chrono::microseconds maxExpectedDuration() override {
-        // This task has to open each VB's data-file and (certainly for
-        // couchstore) read a small document per defined collection
-        return std::chrono::seconds(10);
-    }
-
-    bool run() override {
-        TRACE_EVENT0("ep-engine/task", "WarmupLoadingCollectionCounts");
-        warmup.loadCollectionStatsForShard(shardId);
-        warmup.removeFromTaskSet(uid);
-        return false;
-    }
-
-private:
-    uint16_t shardId;
-    Warmup& warmup;
-};
-
 class WarmupCompletion : public GlobalTask {
 public:
     WarmupCompletion(EPBucket& st, Warmup* w)
@@ -587,6 +587,8 @@ const char* WarmupState::getStateDescription(State st) const {
         return "initialize";
     case State::CreateVBuckets:
         return "creating vbuckets";
+    case State::LoadingCollectionCounts:
+        return "loading collection counts";
     case State::EstimateDatabaseItemCount:
         return "estimating database item count";
     case State::LoadPreparedSyncWrites:
@@ -601,8 +603,6 @@ const char* WarmupState::getStateDescription(State st) const {
         return "loading k/v pairs";
     case State::LoadingData:
         return "loading data";
-    case State::LoadingCollectionCounts:
-        return "loading collection counts";
     case State::Done:
         return "done";
     }
@@ -631,6 +631,8 @@ bool WarmupState::legalTransition(State to) const {
     case State::CreateVBuckets:
         return (to == State::EstimateDatabaseItemCount ||
                 to == State::LoadingCollectionCounts);
+    case State::LoadingCollectionCounts:
+        return (to == State::EstimateDatabaseItemCount);
     case State::EstimateDatabaseItemCount:
         return (to == State::LoadPreparedSyncWrites);
     case State::LoadPreparedSyncWrites:
@@ -648,9 +650,8 @@ bool WarmupState::legalTransition(State to) const {
         return (to == State::Done);
     case State::Done:
         return false;
-    case State::LoadingCollectionCounts:
-        return (to == State::EstimateDatabaseItemCount);
     }
+
     return false;
 }
 
@@ -1078,6 +1079,46 @@ bool Warmup::shouldSetVBStateBlock(const void* cookie) {
         return true;
     }
     return false;
+}
+
+void Warmup::scheduleLoadingCollectionCounts() {
+    threadtask_count = 0;
+    for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
+        ExTask task = std::make_shared<WarmupLoadingCollectionCounts>(
+                store, i, *this);
+        ExecutorPool::get()->schedule(task);
+    }
+}
+
+void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
+    // get each VB in the shard and iterate its collections manifest
+    // load the _local doc count value
+
+    KVStore* kvstore = store.getROUnderlyingByShard(shardId);
+    // Iterate the VBs in the shard
+    for (const auto vbid : shardVbIds[shardId]) {
+        auto vb = store.getVBucket(vbid);
+        if (!vb) {
+            continue;
+        }
+
+        auto wh = vb->getManifest().wlock();
+        auto kvstoreContext = kvstore->makeFileHandle(vbid);
+        // For each collection in the VB, get its stats
+        for (auto& collection : wh) {
+            auto stats = kvstore->getCollectionStats(*kvstoreContext,
+                                                     collection.first);
+            collection.second.setDiskCount(stats.itemCount);
+            collection.second.setPersistedHighSeqno(stats.highSeqno);
+            // Set the in memory high seqno - might be 0 in the case of the
+            // default collection so we have to reset the monotonic value
+            collection.second.resetHighSeqno(stats.highSeqno);
+        }
+    }
+
+    if (++threadtask_count == store.vbMap.getNumShards()) {
+        transition(WarmupState::State::EstimateDatabaseItemCount);
+    }
 }
 
 void Warmup::scheduleEstimateDatabaseItemCount()
@@ -1509,15 +1550,6 @@ void Warmup::scheduleLoadingData()
     }
 }
 
-void Warmup::scheduleLoadingCollectionCounts() {
-    threadtask_count = 0;
-    for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
-        ExTask task = std::make_shared<WarmupLoadingCollectionCounts>(
-                store, i, *this);
-        ExecutorPool::get()->schedule(task);
-    }
-}
-
 void Warmup::loadDataforShard(uint16_t shardId)
 {
     scan_error_t errorCode = scan_success;
@@ -1550,37 +1582,6 @@ void Warmup::loadDataforShard(uint16_t shardId)
     }
 }
 
-void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
-    // get each VB in the shard and iterate its collections manifest
-    // load the _local doc count value
-
-    KVStore* kvstore = store.getROUnderlyingByShard(shardId);
-    // Iterate the VBs in the shard
-    for (const auto vbid : shardVbIds[shardId]) {
-        auto vb = store.getVBucket(vbid);
-        if (!vb) {
-            continue;
-        }
-
-        auto wh = vb->getManifest().wlock();
-        auto kvstoreContext = kvstore->makeFileHandle(vbid);
-        // For each collection in the VB, get its stats
-        for (auto& collection : wh) {
-            auto stats = kvstore->getCollectionStats(*kvstoreContext,
-                                                     collection.first);
-            collection.second.setDiskCount(stats.itemCount);
-            collection.second.setPersistedHighSeqno(stats.highSeqno);
-            // Set the in memory high seqno - might be 0 in the case of the
-            // default collection so we have to reset the monotonic value
-            collection.second.resetHighSeqno(stats.highSeqno);
-        }
-    }
-
-    if (++threadtask_count == store.vbMap.getNumShards()) {
-        transition(WarmupState::State::EstimateDatabaseItemCount);
-    }
-}
-
 void Warmup::scheduleCompletion() {
     ExTask task = std::make_shared<WarmupCompletion>(store, this);
     ExecutorPool::get()->schedule(task);
@@ -1603,6 +1604,9 @@ void Warmup::step() {
     case WarmupState::State::CreateVBuckets:
         scheduleCreateVBuckets();
         return;
+    case WarmupState::State::LoadingCollectionCounts:
+        scheduleLoadingCollectionCounts();
+        return;
     case WarmupState::State::EstimateDatabaseItemCount:
         scheduleEstimateDatabaseItemCount();
         return;
@@ -1623,9 +1627,6 @@ void Warmup::step() {
         return;
     case WarmupState::State::LoadingData:
         scheduleLoadingData();
-        return;
-    case WarmupState::State::LoadingCollectionCounts:
-        scheduleLoadingCollectionCounts();
         return;
     case WarmupState::State::Done:
         scheduleCompletion();

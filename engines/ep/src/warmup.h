@@ -60,6 +60,7 @@ public:
     enum class State {
         Initialize,
         CreateVBuckets,
+        LoadingCollectionCounts,
         EstimateDatabaseItemCount,
         LoadPreparedSyncWrites,
         KeyDump,
@@ -67,7 +68,6 @@ public:
         CheckForAccessLog,
         LoadingKVPairs,
         LoadingData,
-        LoadingCollectionCounts,
         Done
     };
 
@@ -324,6 +324,7 @@ private:
 
     void scheduleInitialize();
     void scheduleCreateVBuckets();
+    void scheduleLoadingCollectionCounts();
     void scheduleEstimateDatabaseItemCount();
     void scheduleLoadPreparedSyncWrites();
     void scheduleKeyDump();
@@ -332,7 +333,6 @@ private:
     void scheduleLoadingKVPairs();
     void scheduleLoadingData();
     void scheduleCompletion();
-    void scheduleLoadingCollectionCounts();
 
     void transition(WarmupState::State to, bool force = false);
 
@@ -386,6 +386,7 @@ private:
     // to the various Tasks which run the stages of warmup.
     friend class WarmupInitialize;
     friend class WarmupCreateVBuckets;
+    friend class WarmupLoadingCollectionCounts;
     friend class WarmupEstimateDatabaseItemCount;
     friend class WarmupLoadPreparedSyncWrites;
     friend class WarmupKeyDump;
@@ -393,6 +394,5 @@ private:
     friend class WarmupLoadAccessLog;
     friend class WarmupLoadingKVPairs;
     friend class WarmupLoadingData;
-    friend class WarmupLoadingCollectionCounts;
     friend class WarmupCompletion;
 };
