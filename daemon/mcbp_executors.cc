@@ -885,16 +885,19 @@ void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {
 
 static void execute_client_response_packet(Cookie& cookie,
                                            const cb::mcbp::Response& response) {
-    const auto opcode = uint8_t(response.getClientOpcode());
-    auto handler = response_handlers[opcode];
+    const auto opcode = response.getClientOpcode();
+    auto handler = response_handlers[uint8_t(opcode)];
     if (handler) {
         handler(cookie);
     } else {
         auto& c = cookie.getConnection();
         LOG_WARNING(
-                "{}: Unsupported response packet received with opcode: {:x}",
+                "{}: Unsupported response packet received with opcode: {:#x} "
+                "({})",
                 c.getId(),
-                uint32_t(opcode));
+                uint32_t(opcode),
+                is_valid_opcode(opcode) ? to_string(opcode)
+                                        : "<invalid opcode>");
         c.setState(StateMachine::State::closing);
     }
 }
@@ -904,7 +907,8 @@ static void execute_server_response_packet(Cookie& cookie,
     auto& c = cookie.getConnection();
     c.setState(StateMachine::State::new_cmd);
 
-    switch (response.getServerOpcode()) {
+    const auto opcode = response.getServerOpcode();
+    switch (opcode) {
     case cb::mcbp::ServerOpcode::ClustermapChangeNotification:
     case cb::mcbp::ServerOpcode::ActiveExternalUsers:
         // ignore
@@ -916,9 +920,10 @@ static void execute_server_response_packet(Cookie& cookie,
 
     LOG_INFO(
             "{}: Ignoring unsupported server response packet received with "
-            "opcode: {:x}",
+            "opcode: {:#x} ({})",
             c.getId(),
-            uint32_t(response.getServerOpcode()));
+            uint32_t(opcode),
+            is_valid_opcode(opcode) ? to_string(opcode) : "<invalid opcode>");
 }
 
 /**
@@ -962,7 +967,7 @@ void try_read_mcbp_command(Cookie& cookie) {
     const auto& header = cookie.getHeader();
     if (!header.isValid()) {
         LOG_WARNING(
-                "{}: Invalid packet format detected (magic: {:x}), closing "
+                "{}: Invalid packet format detected (magic: {:#x}), closing "
                 "connection",
                 c.getId(),
                 header.getMagic());
