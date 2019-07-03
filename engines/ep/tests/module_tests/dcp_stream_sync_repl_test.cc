@@ -117,21 +117,29 @@ protected:
     void testMutationAndPending2SnapshotsWithSyncReplica(
             DocumentState docState);
 
-    /// Test that backfill of a prepared Write / Delete is handled correctly.
-    void testBackfillPrepare(DocumentState docState);
+    /**
+     * Test that backfill of a prepared Write / Delete with the given level is
+     * handled correctly.
+     */
+    void testBackfillPrepare(DocumentState docState,
+                             cb::durability::Level level);
 
     /**
-     * Test that backfill of a prepared (Write or Delete) followed by a
-     * committed item is handled correctly.
+     * Test that backfill of a prepared (Write or Delete) with the given level
+     * followed by a committed item is handled correctly.
      */
-    void testBackfillPrepareCommit(DocumentState docState);
+    void testBackfillPrepareCommit(DocumentState docState,
+                                   cb::durability::Level level);
 
     /**
-     * Test that backfill of a prepared (Write or Delete) followed by a
-     * aborted item is handled correctly.
+     * Test that backfill of a prepared (Write or Delete) with the given level
+     * followed by an aborted item is handled correctly.
      */
-    void testBackfillPrepareAbort(DocumentState docState);
+    void testBackfillPrepareAbort(DocumentState docState,
+                                  cb::durability::Level level);
 };
+
+class DcpStreamSyncReplPersistentTest : public DcpStreamSyncReplTest {};
 
 void DcpStreamSyncReplTest::testNoPendingWithoutSyncReplica(
         DocumentState docState) {
@@ -451,20 +459,11 @@ TEST_P(DcpStreamSyncReplTest, MutationAndPendingDelete2SSWithSyncReplica) {
     testMutationAndPending2SnapshotsWithSyncReplica(DocumentState::Deleted);
 }
 
-void DcpStreamSyncReplTest::testBackfillPrepare(DocumentState docState) {
-    if (GetParam() == "ephemeral") {
-        // @todo-durability: This test currently fails under ephmeral as
-        // in-memory backfill doesn't fill in the durability requirements:
-        //     std::logic_error: StoredValue::toItemImpl: attempted to create
-        //     Item from Pending StoredValue without supplying durabilityReqs
-        std::cerr << "NOTE: Skipped under Ephemeral\n";
-        return;
-    }
-
+void DcpStreamSyncReplTest::testBackfillPrepare(DocumentState docState,
+                                                cb::durability::Level level) {
     // Store a pending item then remove the checkpoint to force backfill.
     using cb::durability::Level;
-    auto prepared = storePending(
-            docState, "1", "X", {Level::MajorityAndPersistOnMaster, {}});
+    auto prepared = storePending(docState, "1", "X", {level, {}});
     removeCheckpoint(1);
 
     // Create sync repl DCP stream
@@ -495,29 +494,50 @@ void DcpStreamSyncReplTest::testBackfillPrepare(DocumentState docState) {
     verifyDcpPrepare(*prepared, *item);
 }
 
-TEST_P(DcpStreamSyncReplTest, BackfillPrepareWrite) {
-    testBackfillPrepare(DocumentState::Alive);
+TEST_P(DcpStreamSyncReplTest, BackfillMajorityPrepareWrite) {
+    using cb::durability::Level;
+    testBackfillPrepare(DocumentState::Alive, Level::Majority);
 }
 
-TEST_P(DcpStreamSyncReplTest, BackfillPrepareDelete) {
-    testBackfillPrepare(DocumentState::Deleted);
+/// Ephemeral does not support this durability level
+TEST_P(DcpStreamSyncReplPersistentTest,
+       BackfillMajorityAndPersistPrepareWrite) {
+    using cb::durability::Level;
+    testBackfillPrepare(DocumentState::Alive,
+                        Level::MajorityAndPersistOnMaster);
 }
 
-void DcpStreamSyncReplTest::testBackfillPrepareCommit(DocumentState docState) {
-    if (GetParam() == "ephemeral") {
-        // @todo-durability: This test currently fails under ephmeral as
-        // in-memory backfill doesn't fill in the durability requirements:
-        //     std::logic_error: StoredValue::toItemImpl: attempted to create
-        //     Item from Pending StoredValue without supplying durabilityReqs
-        std::cerr << "NOTE: Skipped under Ephemeral\n";
-        return;
-    }
+/// Ephemeral does not support this durability level
+TEST_P(DcpStreamSyncReplPersistentTest, BackfillPersistMajorityPrepareWrite) {
+    using cb::durability::Level;
+    testBackfillPrepare(DocumentState::Alive, Level::PersistToMajority);
+}
 
+TEST_P(DcpStreamSyncReplTest, BackfillMajorityPrepareDelete) {
+    using cb::durability::Level;
+    testBackfillPrepare(DocumentState::Deleted, Level::Majority);
+}
+
+/// Ephemeral does not support this durability level
+TEST_P(DcpStreamSyncReplPersistentTest,
+       BackfillMajorityAndPersistPrepareDelete) {
+    using cb::durability::Level;
+    testBackfillPrepare(DocumentState::Deleted,
+                        Level::MajorityAndPersistOnMaster);
+}
+
+/// Ephemeral does not support this durability level
+TEST_P(DcpStreamSyncReplPersistentTest, BackfillPersistMajorityPrepareDelete) {
+    using cb::durability::Level;
+    testBackfillPrepare(DocumentState::Deleted, Level::PersistToMajority);
+}
+
+void DcpStreamSyncReplTest::testBackfillPrepareCommit(
+        DocumentState docState, cb::durability::Level level) {
     // Store a pending item, commit it and then remove the checkpoint to force
     // backfill.
     using cb::durability::Level;
-    auto prepared = storePending(
-            docState, "1", "X", {Level::MajorityAndPersistOnMaster, {}});
+    auto prepared = storePending(docState, "1", "X", {level, {}});
     ASSERT_EQ(ENGINE_SUCCESS,
               vb0->commit(prepared->getKey(),
                           prepared->getBySeqno(),
@@ -566,30 +586,52 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(DocumentState docState) {
     EXPECT_EQ(prepared->getBySeqno() + 1, mutation.getItem()->getBySeqno());
 }
 
-TEST_P(DcpStreamSyncReplTest, BackfillPrepareWriteCommit) {
-    testBackfillPrepareCommit(DocumentState::Alive);
+TEST_P(DcpStreamSyncReplTest, BackfillMajorityPrepareWriteCommit) {
+    using cb::durability::Level;
+    testBackfillPrepareCommit(DocumentState::Alive, Level::Majority);
 }
 
-TEST_P(DcpStreamSyncReplTest, BackfillPrepareDeleteCommit) {
-    testBackfillPrepareCommit(DocumentState::Deleted);
+// Ephemeral does not support this durability level
+TEST_P(DcpStreamSyncReplPersistentTest,
+       BackfillMajorityAndPersistPrepareWriteCommit) {
+    using cb::durability::Level;
+    testBackfillPrepareCommit(DocumentState::Alive,
+                              Level::MajorityAndPersistOnMaster);
 }
 
-void DcpStreamSyncReplTest::testBackfillPrepareAbort(DocumentState docState) {
-    if (GetParam() == "ephemeral") {
-        // @todo-durability: This test currently fails under ephmeral as
-        // in-memory backfill doesn't fill in the durability requirements:
-        //     std::logic_error: StoredValue::toItemImpl: attempted to
-        //     create Item from Pending StoredValue without supplying
-        //     durabilityReqs
-        std::cerr << "NOTE: Skipped under Ephemeral\n";
-        return;
-    }
+// Ephemeral does not support this durability level
+TEST_P(DcpStreamSyncReplPersistentTest,
+       BackfillPersistMajorityPrepareWriteCommit) {
+    using cb::durability::Level;
+    testBackfillPrepareCommit(DocumentState::Alive, Level::PersistToMajority);
+}
 
+TEST_P(DcpStreamSyncReplTest, BackfillMajorityPrepareDeleteCommit) {
+    using cb::durability::Level;
+    testBackfillPrepareCommit(DocumentState::Deleted, Level::Majority);
+}
+
+// Ephemeral does not support this durability level
+TEST_P(DcpStreamSyncReplPersistentTest,
+       BackfillMajorityAndPersistPrepareDeleteCommit) {
+    using cb::durability::Level;
+    testBackfillPrepareCommit(DocumentState::Deleted,
+                              Level::MajorityAndPersistOnMaster);
+}
+
+// Ephemeral does not support this durability level
+TEST_P(DcpStreamSyncReplPersistentTest,
+       BackfillPersistMajorityPrepareDeleteCommit) {
+    using cb::durability::Level;
+    testBackfillPrepareCommit(DocumentState::Deleted, Level::PersistToMajority);
+}
+
+void DcpStreamSyncReplTest::testBackfillPrepareAbort(
+        DocumentState docState, cb::durability::Level level) {
     // Store a pending item, commit it and then remove the checkpoint to force
     // backfill.
     using cb::durability::Level;
-    auto prepared = storePending(
-            docState, "1", "X", {Level::MajorityAndPersistOnMaster, {}});
+    auto prepared = storePending(docState, "1", "X", {level, {}});
     ASSERT_EQ(ENGINE_SUCCESS,
               vb0->abort(prepared->getKey(),
                          prepared->getBySeqno(),
@@ -623,28 +665,63 @@ void DcpStreamSyncReplTest::testBackfillPrepareAbort(DocumentState docState) {
 
     item = stream->public_nextQueuedItem();
     EXPECT_EQ(DcpResponse::Event::Abort, item->getEvent());
-    auto& dcpCommit = dynamic_cast<AbortSyncWrite&>(*item);
-    EXPECT_EQ(makeStoredDocKey("1"), dcpCommit.getKey());
-#if 0
-    // @todo-durability: Once we move away from identifying abort by key,
-    // the prepared seqno should be used (and should match).
-    EXPECT_EQ(prepared->getBySeqno(), dcpCommit.getPreparedSeqno());
-#endif
-    EXPECT_EQ(prepared->getBySeqno() + 1, dcpCommit.getBySeqno());
+    auto& dcpAbort = dynamic_cast<AbortSyncWrite&>(*item);
+    EXPECT_EQ(makeStoredDocKey("1"), dcpAbort.getKey());
+    EXPECT_EQ(prepared->getBySeqno(), dcpAbort.getPreparedSeqno());
+    EXPECT_EQ(prepared->getBySeqno() + 1, dcpAbort.getBySeqno());
 }
 
-TEST_P(DcpStreamSyncReplTest, BackfillPrepareWriteAbort) {
-    testBackfillPrepareAbort(DocumentState::Alive);
+TEST_P(DcpStreamSyncReplTest, BackfillMajorityPrepareWriteAbort) {
+    using cb::durability::Level;
+    testBackfillPrepareAbort(DocumentState::Alive, Level::Majority);
 }
 
-TEST_P(DcpStreamSyncReplTest, BackfillPrepareDeleteAbort) {
-    testBackfillPrepareAbort(DocumentState::Deleted);
+// Ephemeral does not support this durability level
+TEST_P(DcpStreamSyncReplPersistentTest,
+       BackfillMajorityAndPersistPrepareWriteAbort) {
+    using cb::durability::Level;
+    testBackfillPrepareAbort(DocumentState::Alive,
+                             Level::MajorityAndPersistOnMaster);
+}
+
+// Ephemeral does not support this durability level
+TEST_P(DcpStreamSyncReplPersistentTest,
+       BackfillPersistMajorityPrepareWriteAbort) {
+    using cb::durability::Level;
+    testBackfillPrepareAbort(DocumentState::Alive, Level::PersistToMajority);
+}
+
+TEST_P(DcpStreamSyncReplTest, BackfillMajorityPrepareDeleteAbort) {
+    using cb::durability::Level;
+    testBackfillPrepareAbort(DocumentState::Deleted, Level::Majority);
+}
+
+// Ephemeral does not support this durability level
+TEST_P(DcpStreamSyncReplPersistentTest,
+       BackfillMajorityAndPersistPrepareDeleteAbort) {
+    using cb::durability::Level;
+    testBackfillPrepareAbort(DocumentState::Deleted,
+                             Level::MajorityAndPersistOnMaster);
+}
+
+// Ephemeral does not support this durability level
+TEST_P(DcpStreamSyncReplPersistentTest,
+       BackfillPersistMajorityPrepareDeleteAbort) {
+    using cb::durability::Level;
+    testBackfillPrepareAbort(DocumentState::Deleted, Level::PersistToMajority);
 }
 
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
                         DcpStreamSyncReplTest,
                         ::testing::Values("persistent", "ephemeral"),
+                        [](const ::testing::TestParamInfo<std::string>& info) {
+                            return info.param;
+                        });
+
+INSTANTIATE_TEST_CASE_P(Persistent,
+                        DcpStreamSyncReplPersistentTest,
+                        ::testing::Values("persistent"),
                         [](const ::testing::TestParamInfo<std::string>& info) {
                             return info.param;
                         });
