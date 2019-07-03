@@ -309,6 +309,45 @@ private:
     const std::string description;
 };
 
+/**
+ * Warmup task which moves all warmed-up VBuckets into the bucket's vbMap
+ */
+class WarmupPopulateVBucketMap : public GlobalTask {
+public:
+    WarmupPopulateVBucketMap(EPBucket& st, uint16_t shard, Warmup& warmup)
+        : GlobalTask(&st.getEPEngine(),
+                     TaskId::WarmupPopulateVBucketMap,
+                     0,
+                     false),
+          shardId(shard),
+          warmup(warmup),
+          description("Warmup - populate VB Map: shard " +
+                      std::to_string(shardId)){};
+
+    std::string getDescription() override {
+        return description;
+    }
+
+    std::chrono::microseconds maxExpectedDuration() override {
+        // Runtime is expected to be quick, we're just adding pointers to a map
+        // with some locking
+        return std::chrono::milliseconds(1);
+    }
+
+    bool run() override {
+        TRACE_EVENT1(
+                "ep-engine/task", "WarmupPopulateVBucketMap", "shard", shardId);
+        warmup.populateVBucketMap(shardId);
+        warmup.removeFromTaskSet(uid);
+        return false;
+    }
+
+private:
+    uint16_t shardId;
+    Warmup& warmup;
+    const std::string description;
+};
+
 class WarmupKeyDump : public GlobalTask {
 public:
     WarmupKeyDump(EPBucket& st, uint16_t sh, Warmup* w)
@@ -593,6 +632,8 @@ const char* WarmupState::getStateDescription(State st) const {
         return "estimating database item count";
     case State::LoadPreparedSyncWrites:
         return "loading prepared SyncWrites";
+    case State::PopulateVBucketMap:
+        return "populating vbucket map";
     case State::KeyDump:
         return "loading keys";
     case State::CheckForAccessLog:
@@ -635,6 +676,8 @@ bool WarmupState::legalTransition(State to) const {
     case State::EstimateDatabaseItemCount:
         return (to == State::LoadPreparedSyncWrites);
     case State::LoadPreparedSyncWrites:
+        return (to == State::PopulateVBucketMap);
+    case State::PopulateVBucketMap:
         return (to == State::KeyDump || to == State::CheckForAccessLog);
     case State::KeyDump:
         return (to == State::LoadingKVPairs || to == State::CheckForAccessLog);
@@ -880,7 +923,8 @@ Warmup::Warmup(EPBucket& st, Configuration& config_)
     : store(st),
       config(config_),
       shardVbStates(store.vbMap.getNumShards()),
-      shardVbIds(store.vbMap.getNumShards()) {
+      shardVbIds(store.vbMap.getNumShards()),
+      warmedUpVbuckets(config.getMaxVbuckets()) {
 }
 
 Warmup::~Warmup() = default;
@@ -1033,7 +1077,10 @@ void Warmup::createVBuckets(uint16_t shardId) {
             vb->setFreqSaturatedCallback(
                     [bucket]() { bucket->wakeItemFreqDecayerTask(); });
 
-            store.vbMap.addBucket(vb);
+            // Add the new vbucket to our local map, it will later be added
+            // to the bucket's vbMap once the vbuckets are fully initialised
+            // from KVStore data
+            warmedUpVbuckets.insert(std::make_pair(vbid.get(), vb));
         }
 
         // Pass the open checkpoint Id for each vbucket.
@@ -1048,7 +1095,6 @@ void Warmup::createVBuckets(uint16_t shardId) {
     }
 
     if (++threadtask_count == store.vbMap.getNumShards()) {
-        processCreateVBucketsComplete();
         transition(WarmupState::State::LoadingCollectionCounts);
     }
 }
@@ -1096,12 +1142,12 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
     KVStore* kvstore = store.getROUnderlyingByShard(shardId);
     // Iterate the VBs in the shard
     for (const auto vbid : shardVbIds[shardId]) {
-        auto vb = store.getVBucket(vbid);
-        if (!vb) {
+        auto itr = warmedUpVbuckets.find(vbid.get());
+        if (itr == warmedUpVbuckets.end()) {
             continue;
         }
 
-        auto wh = vb->getManifest().wlock();
+        auto wh = itr->second->getManifest().wlock();
         auto kvstoreContext = kvstore->makeFileHandle(vbid);
         // For each collection in the VB, get its stats
         for (auto& collection : wh) {
@@ -1149,9 +1195,9 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId)
         // subtract the number of prepares from the number of on disk items.
         vbItemCount -= vbState->onDiskPrepares;
 
-        VBucketPtr vb = store.getVBucket(vbid);
-        if (vb) {
-            vb->setNumTotalItems(vbItemCount);
+        auto itr = warmedUpVbuckets.find(vbid.get());
+        if (itr != warmedUpVbuckets.end()) {
+            itr->second->setNumTotalItems(vbItemCount);
         }
         item_count += vbItemCount;
     }
@@ -1216,11 +1262,11 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
 
     for (const auto vbid : shardVbIds[shardId]) {
         const auto start = std::chrono::steady_clock::now();
-        auto vb = store.getVBucket(vbid);
-        if (!vb) {
+        auto itr = warmedUpVbuckets.find(vbid.get());
+        if (itr == warmedUpVbuckets.end()) {
             continue;
         }
-        auto& epVb = dynamic_cast<EPVBucket&>(*vb);
+        auto& epVb = dynamic_cast<EPVBucket&>(*(itr->second));
 
         auto storageCB = std::make_shared<LoadSyncWrites>(epVb);
 
@@ -1280,6 +1326,31 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
     }
 
     if (++threadtask_count == store.vbMap.getNumShards()) {
+        transition(WarmupState::State::PopulateVBucketMap);
+    }
+}
+
+void Warmup::schedulePopulateVBucketMap() {
+    threadtask_count = 0;
+    for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
+        ExTask task =
+                std::make_shared<WarmupPopulateVBucketMap>(store, i, *this);
+        ExecutorPool::get()->schedule(task);
+    }
+}
+
+void Warmup::populateVBucketMap(uint16_t shardId) {
+    for (const auto vbid : shardVbIds[shardId]) {
+        auto itr = warmedUpVbuckets.find(vbid.get());
+        if (itr != warmedUpVbuckets.end()) {
+            store.vbMap.addBucket(itr->second);
+        }
+    }
+
+    if (++threadtask_count == store.vbMap.getNumShards()) {
+        warmedUpVbuckets.clear();
+        // Once we have populated the VBMap we can allow setVB state changes
+        processCreateVBucketsComplete();
         if (store.getItemEvictionPolicy() == EvictionPolicy::Value) {
             transition(WarmupState::State::KeyDump);
         } else {
@@ -1608,6 +1679,9 @@ void Warmup::step() {
         return;
     case WarmupState::State::EstimateDatabaseItemCount:
         scheduleEstimateDatabaseItemCount();
+        return;
+    case WarmupState::State::PopulateVBucketMap:
+        schedulePopulateVBucketMap();
         return;
     case WarmupState::State::LoadPreparedSyncWrites:
         scheduleLoadPreparedSyncWrites();

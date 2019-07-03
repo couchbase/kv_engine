@@ -864,3 +864,100 @@ INSTANTIATE_TEST_CASE_P(
         DurabilityWarmupTest,
         STParameterizedBucketTest::persistentAllBackendsConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
+
+class MB_34718_WarmupTest : public STParameterizedBucketTest {};
+
+// In MB-34718 a GET arrived during warmup on a full-eviction bucket. The GET
+// was processed and found an item which had expired. The expiry path queued
+// a delete which was flushed. In the document count callbacks, we processed
+// the delete and subtracted 1 from the collection count. All of this happened
+// before warmup had read the collection counts from disk, so the counter goes
+// negative and throws an exception. The test performs those steps seen in the
+// MB and demonstrates how changes in warmup prevent this situation, the VB
+// is not visible until it is fully initialised by warmup.
+TEST_P(MB_34718_WarmupTest, getTest) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active, {});
+
+    // Store a key and trigger a warmup
+    auto key = makeStoredDocKey("key");
+    get_options_t options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+    store_item(vbid, key, "meh", ep_real_time() + 3600);
+    flush_vbucket_to_disk(vbid);
+    resetEngineAndEnableWarmup();
+
+    // Now run the reader tasks to the stage of interest, we will run the test
+    // once we have ran the new warmup stage which puts the fully initialised VB
+    // into the vbMap, before warmup has reached that stage we expect the GET to
+    // faile with NMVB.
+    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    bool keepRunningReaderTasks = true;
+    while (keepRunningReaderTasks) {
+        runNextTask(readerQueue);
+        CheckedExecutor executor(task_executor, readerQueue);
+        keepRunningReaderTasks = executor.getCurrentTask()->getTaskId() !=
+                                 TaskId::WarmupPopulateVBucketMap;
+
+        auto gv = store->get(key, vbid, cookie, options);
+        ASSERT_EQ(ENGINE_NOT_MY_VBUCKET, gv.getStatus());
+
+        executor.runCurrentTask();
+        executor.completeCurrentTask();
+    }
+
+    auto vb = engine->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionID::Default));
+
+    // - Full eviction a get is allowed and it can expire documents during the
+    //   final stages of warmup.
+    // - Value eviction will fail until all K/V are loaded and warmup completes
+    if (fullEviction()) {
+        // FE can read the item count before loading items
+        EXPECT_EQ(1, vb->getNumItems());
+        TimeTraveller rick(4800);
+        auto gv = store->get(key, vbid, cookie, options);
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+        runBGFetcherTask();
+
+        // Expect expired (key_noent)
+        gv = store->get(key, vbid, cookie, options);
+        EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+        // Prior to the MB being resolved, this would trigger a negative counter
+        // exception as we tried to decrement the collection counter which is
+        // 0 because warmup hadn't loaded the counts
+        flush_vbucket_to_disk(vbid);
+
+        // Finish warmup so we don't hang TearDown
+        runReadersUntilWarmedUp();
+    } else {
+        // Value eviction, expect no key whilst warming up
+        auto gv = store->get(key, vbid, cookie, options);
+        EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+        runReadersUntilWarmedUp();
+
+        // VE: Can only read the item count once items are loaded
+        EXPECT_EQ(1, vb->getNumItems());
+
+        gv = store->get(key, vbid, cookie, options);
+
+        EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+        TimeTraveller morty(4800);
+
+        // And expired
+        gv = store->get(key, vbid, cookie, options);
+        EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+        flush_vbucket_to_disk(vbid);
+    }
+    EXPECT_EQ(0, vb->lockCollections().getItemCount(CollectionID::Default));
+    EXPECT_EQ(0, vb->getNumItems());
+}
+
+INSTANTIATE_TEST_CASE_P(FullOrValue,
+                        MB_34718_WarmupTest,
+                        STParameterizedBucketTest::persistentConfigValues(),
+                        STParameterizedBucketTest::PrintToStringParamName);

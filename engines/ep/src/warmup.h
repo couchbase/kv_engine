@@ -18,7 +18,9 @@
 #pragma once
 
 #include "utility.h"
+#include "vbucket_fwd.h"
 
+#include <folly/AtomicHashMap.h>
 #include <memcached/engine_common.h>
 #include <platform/atomic_duration.h>
 
@@ -63,6 +65,7 @@ public:
         LoadingCollectionCounts,
         EstimateDatabaseItemCount,
         LoadPreparedSyncWrites,
+        PopulateVBucketMap,
         KeyDump,
         LoadingAccessLog,
         CheckForAccessLog,
@@ -131,6 +134,9 @@ private:
  *                     V
  *          [LoadPreparedSyncWrites]
  *                     |
+ *                     V
+ *            [PopulateVBucketMap]
+ *                     |
  *                Eviction mode?
  *               /           \
  *            Value          Full
@@ -161,6 +167,55 @@ private:
  *                           |
  *                           V
  *                        [Done]
+ *
+ * KV-engine has the following behaviour as warmup runs.
+ *
+ * Whilst the following phases are incomplete:
+ *
+ *    Initialise
+ *    CreateVBuckets
+ *    LoadingCollectionCounts
+ *    EstimateDatabaseItemCount
+ *    LoadPreparedSyncWrites
+ *    PopulateVBucketMap
+ *
+ *  1) setVBucket requests are queued (using the EWOULDBLOCK mechanism)
+ *  2) The VBucket map is empty. No operation can find a VBucket object to
+ *     operate on. For CRUD operations externally clients will see
+ *     'temporary_failure' instead of 'not_my_vbucket'.
+ *  3) DCP Consumers cannot be created.
+ *  4) DCP Producers can be created, but stream-request will fail with
+ *     'not_my_vbucket'.
+ *
+ * On completion of PopulateVBucketMap:
+ *
+ *  1) All queued setVBucket requests are notified and all new setVBucket
+ *     requests can be processed.
+ *  2) The VBucket map is populated and operations can now find VBucket objects.
+ *     * DCP producer stream-requests can now be processed.
+ *     * Value Eviction buckets all CRUD operations will return
+ *       'temporary_failure'.
+ *     * Full Eviction buckets:
+ *       a) Create and update operations return 'temporary_failure'.
+ *       b) Read operations are processed. Note that read of a non-existent key
+ *          results in a return code of 'temporary_failure' (MB-34909)
+ *       c) Delete operations are processed,  Note that delete of a
+ *          non-existent key results in a return code of 'temporary_failure'
+ *          (MB-34909)
+ *
+ * At this point the above behaviour remains in place until warmup is considered
+ * complete. Warmup completing happens in a number of the tasks.
+ *
+ *    KeyDump
+ *    LoadingAccessLog
+ *    LoadingKVPairs
+ *    Done
+ *
+ * Note that once warmup is complete (Warmup::isComplete() returns true) the
+ * warmup will conclude the phase and short-cut to Done.
+ * When Warmup::isComplete() returns true:
+ *  1) all CRUD operations are fully processed.
+ *  2) DCP consumers can be created.
  */
 class Warmup {
 public:
@@ -277,6 +332,15 @@ private:
     void loadPreparedSyncWrites(uint16_t shardId);
 
     /**
+     * Adds all warmed up vbuckets (for the shard) to the bucket's VBMap, once
+     * added to the VBMap the rest of the system will be able to locate and
+     * operate on the VBucket, so this phase must only run once each vbucket is
+     * completely initialised.
+     * @param shardId The shard for which population should occur
+     */
+    void populateVBucketMap(uint16_t shardId);
+
+    /**
      * [Value-eviction only]
      * Loads all keys into memory for each vBucket in the given shard.
      */
@@ -327,6 +391,7 @@ private:
     void scheduleLoadingCollectionCounts();
     void scheduleEstimateDatabaseItemCount();
     void scheduleLoadPreparedSyncWrites();
+    void schedulePopulateVBucketMap();
     void scheduleKeyDump();
     void scheduleCheckForAccessLog();
     void scheduleLoadingAccessLog();
@@ -380,6 +445,12 @@ private:
     /// A mutex which gives safe access to the cookies and state flag
     std::mutex pendingSetVBStateCookiesMutex;
 
+    /**
+     * Any vbucket found in the CreateVBuckets phase are added here and then
+     * removed at the PopulateVBucketMap phase
+     */
+    folly::AtomicHashMap<uint16_t, VBucketPtr> warmedUpVbuckets;
+
     DISALLOW_COPY_AND_ASSIGN(Warmup);
 
     // To avoid making a number of methods on Warmup public; grant friendship
@@ -389,6 +460,7 @@ private:
     friend class WarmupLoadingCollectionCounts;
     friend class WarmupEstimateDatabaseItemCount;
     friend class WarmupLoadPreparedSyncWrites;
+    friend class WarmupPopulateVBucketMap;
     friend class WarmupKeyDump;
     friend class WarmupCheckforAccessLog;
     friend class WarmupLoadAccessLog;
