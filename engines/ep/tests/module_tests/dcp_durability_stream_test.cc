@@ -859,6 +859,47 @@ TEST_P(DurabilityPassiveStreamTest,
             DocumentState::Deleted);
 }
 
+TEST_P(DurabilityPassiveStreamTest,
+       ReceiveAbortOnTopOfCommittedDueToDedupedPrepare) {
+    uint32_t opaque = 0;
+    SnapshotMarker marker(
+            opaque,
+            vbid,
+            1 /*snapStart*/,
+            1 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    auto key = makeStoredDocKey("key");
+    const std::string value = "overwritingValue";
+    auto item = makeCommittedItem(key, value);
+    item->setBySeqno(1);
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      std::move(item),
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    marker = SnapshotMarker(opaque,
+                            vbid,
+                            1 /*snapStart*/,
+                            ~1 /*snapEnd*/,
+                            dcp_marker_flag_t::MARKER_FLAG_DISK,
+                            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    EXPECT_EQ(
+            ENGINE_SUCCESS,
+            stream->messageReceived(std::make_unique<AbortSyncWrite>(
+                    opaque, vbid, key, 3 /*prepareSeqno*/, 4 /*abortSeqno*/)));
+}
+
 TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSnapshotEndReceived) {
     // The consumer receives mutations {s:1, s:2, s:3}, with only s:2 durable
     // with Level:Majority. We have to check that we do send a SeqnoAck, but

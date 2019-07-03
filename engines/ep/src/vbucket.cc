@@ -907,6 +907,15 @@ ENGINE_ERROR_CODE VBucket::abort(
     }
 
     if (!htRes.storedValue->isPending()) {
+        // We may find a non-pending StoredValue if the Abort is received from
+        // backfill as a previous prepare may have been deduped. If this is the
+        // case then just ignore this abort but we can verify that we have
+        // de-duped the prepare as it must be within the disk snapshot.
+        if (isReceivingDiskSnapshot()) {
+            Expects(prepareSeqno >
+                    checkpointManager->getOpenSnapshotStartSeqno());
+            return ENGINE_SUCCESS;
+        }
         // We should always find a pending item when aborting; if not
         // this is a logic error...
         std::stringstream ss;
