@@ -629,8 +629,7 @@ bool WarmupState::legalTransition(State to) const {
     case State::Initialize:
         return (to == State::CreateVBuckets);
     case State::CreateVBuckets:
-        return (to == State::EstimateDatabaseItemCount ||
-                to == State::LoadingCollectionCounts);
+        return (to == State::LoadingCollectionCounts);
     case State::LoadingCollectionCounts:
         return (to == State::EstimateDatabaseItemCount);
     case State::EstimateDatabaseItemCount:
