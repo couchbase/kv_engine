@@ -1426,6 +1426,49 @@ TEST_P(VBucketDurabilityTest, Replica_ConvertPassiveDMToActiveDM) {
 TEST_P(VBucketDurabilityTest, Pending_ConvertPassiveDMToActiveDM) {
     testConvertPassiveDMToActiveDM(vbucket_state_pending);
 }
+void VBucketDurabilityTest::testConvertPassiveDMToActiveDMNoPrepares(
+        vbucket_state_t initialState) {
+    ASSERT_TRUE(vbucket);
+    vbucket->setState(initialState);
+
+    // Create 1 prepare
+    const auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+    ASSERT_EQ(0, pdm.getNumTracked());
+    const std::vector<SyncWriteSpec> seqnos{1};
+    testAddPrepare(seqnos);
+    ASSERT_EQ(1, pdm.getNumTracked());
+    auto key = makeStoredDocKey("key1");
+
+    // Tell the PDM to commit the prepare
+    auto& nonConstPdm = const_cast<PassiveDurabilityMonitor&>(pdm);
+    nonConstPdm.completeSyncWrite(key,
+                                  PassiveDurabilityMonitor::Resolution::Commit);
+    // Won't remove from trackedWrites until snap end
+    nonConstPdm.notifySnapshotEndReceived(2);
+    ASSERT_EQ(0, pdm.getNumTracked());
+
+    // VBState transitions from Replica to Active
+    const nlohmann::json topology(
+            {{"topology", nlohmann::json::array({{active, replica1}})}});
+    vbucket->setState(vbucket_state_active, topology);
+    // The old PDM is an instance of ADM now. All Prepares are retained.
+    auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
+    EXPECT_EQ(0, adm.getNumTracked());
+
+    // The seqno ack for some other replica should not throw due to acked seqno
+    // being greater than lastTrackedSeqno.
+    EXPECT_NO_THROW(adm.seqnoAckReceived(replica1, 1));
+}
+
+TEST_P(VBucketDurabilityTest,
+       Replica_ConvertPassiveDMToActiveDMEmptyTrackedWrites) {
+    testConvertPassiveDMToActiveDMNoPrepares(vbucket_state_replica);
+}
+
+TEST_P(VBucketDurabilityTest,
+       Pending_ConvertPassiveDMToActiveDMEmptyTrackedWrites) {
+    testConvertPassiveDMToActiveDMNoPrepares(vbucket_state_replica);
+}
 
 TEST_P(VBucketDurabilityTest, IgnoreAckAtTakeoverDead) {
     // Queue some Prepares into the PDM

@@ -96,11 +96,21 @@ protected:
 
     /**
      * Tests that the PassiveDM is correctly converted to ActiveDM when a
-     * VBucket in the provided initial state transitions to vbstate-active.
+     * VBucket in the provided initial state transitions to vbstate-active when
+     * there are in-flight SyncWrites.
      *
      * @param initialState The initial state for VBucket
      */
     void testConvertPassiveDMToActiveDM(vbucket_state_t initialState);
+
+    /**
+     * Test that the PassiveDM is correctly converted to ActiveDM when a
+     * VBucket in the provided initial state transitions to vbstate-active when
+     * there are no in-flight SyncWrites.
+     *
+     * @param initialState The initial state for VBucket
+     */
+    void testConvertPassiveDMToActiveDMNoPrepares(vbucket_state_t initialState);
 
     enum class Resolution { Commit, Abort };
 

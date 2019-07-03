@@ -220,7 +220,7 @@ public:
     // Always stores the seqno of the last SyncWrite added for tracking.
     // Useful for sanity checks, necessary because the tracked container
     // can by emptied by Commit/Abort.
-    Monotonic<int64_t, ThrowExceptionPolicy> lastTrackedSeqno;
+    Monotonic<int64_t, ThrowExceptionPolicy> lastTrackedSeqno = 0;
 
     // Stores the last committed seqno.
     Monotonic<int64_t> lastCommittedSeqno = 0;
@@ -359,6 +359,11 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(EPStats& stats,
     s->trackedWrites.swap(pdm.state.wlock()->trackedWrites);
     if (!s->trackedWrites.empty()) {
         s->lastTrackedSeqno = s->trackedWrites.back().getBySeqno();
+    } else {
+        // If we have no tracked writes then the last tracked should be the last
+        // completed. Reset in case we had no SyncWrites (0 -> 0).
+        s->lastTrackedSeqno.reset(
+                pdm.state.wlock()->highCompletedSeqno.lastWriteSeqno);
     }
 }
 
@@ -988,7 +993,7 @@ void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
         throw std::invalid_argument(
                 "ActiveDurabilityMonitor::processSeqnoAck: seqno(" +
                 std::to_string(seqno) + ") is greater than lastTrackedSeqno(" +
-                std::to_string(lastTrackedSeqno) + "\"");
+                std::to_string(lastTrackedSeqno) + ")");
     }
 
     // We should never ack for the active
