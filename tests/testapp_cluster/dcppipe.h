@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "dcp_packet_filter.h"
+
 #include <event2/bufferevent.h>
 #include <platform/socket.h>
 #include <array>
@@ -34,6 +36,10 @@ namespace test {
 class DcpPipe {
 public:
     DcpPipe(event_base* base,
+            DcpPacketFilter& packet_filter,
+            std::string producer_name,
+            std::string consumer_name,
+
             SOCKET psd,
             SOCKET csd,
             std::array<SOCKET, 2> notification_pipe,
@@ -45,7 +51,7 @@ public:
     void close();
 
 protected:
-    const cb::mcbp::Header* getFrame(bufferevent* bev);
+    std::vector<uint8_t> getFrame(bufferevent* bev);
 
     void read_callback(bufferevent* bev);
     void event_callback(bufferevent* bev, short event);
@@ -67,6 +73,9 @@ protected:
     std::unique_ptr<bufferevent, EventDeleter> consumer;
     std::unique_ptr<bufferevent, EventDeleter> notification;
     std::function<void()> replication_running_callback;
+    DcpPacketFilter& packet_filter;
+    std::string producer_name;
+    std::string consumer_name;
 };
 
 } // namespace test

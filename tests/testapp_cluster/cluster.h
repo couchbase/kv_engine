@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "dcp_packet_filter.h"
+
 #include <memcached/vbucket.h>
 #include <nlohmann/json_fwd.hpp>
 #include <memory>
@@ -44,10 +46,19 @@ public:
      * @param name The name of the bucket to create
      * @param attributes A JSON object containing properties for the
      *                   bucket.
+     * @param packet_filter An optional packet filter which is called for
+     *                      with all of the packets going over the replication
+     *                      streams for the bucket _before_ it is passed to
+     *                      the other side. It is the content of the vector
+     *                      which is put on the stream to the other end,
+     *                      so the callback is free to inspect, modify or drop
+     *                      the entire packet.
      * @return a bucket object representing the bucket
      */
     virtual std::shared_ptr<Bucket> createBucket(
-            const std::string& name, const nlohmann::json& attributes) = 0;
+            const std::string& name,
+            const nlohmann::json& attributes,
+            DcpPacketFilter packet_filter = {}) = 0;
 
     /**
      * Delete the named bucket
@@ -66,7 +77,7 @@ public:
             const std::string& name) const = 0;
 
     /**
-     * Get a connetion to the specified node (note that node index starts
+     * Get a connection to the specified node (note that node index starts
      * at 0)
      *
      * @param node the node number

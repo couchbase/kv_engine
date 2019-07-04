@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "dcp_packet_filter.h"
+
 #include <memcached/vbucket.h>
 #include <memory>
 #include <string>
@@ -45,11 +47,19 @@ public:
      * @param name The name of the bucket
      * @param vbuckets The number of vbuckets
      * @param replicas The number of replicas
+     * @param packet_filter An optional packet filter which is called for
+     *                      with all of the packets going over the replication
+     *                      streams for the bucket _before_ it is passed to
+     *                      the other side. It is the content of the vector
+     *                      which is put on the stream to the other end,
+     *                      so the callback is free to inspect, modify or drop
+     *                      the entire packet.
      */
     Bucket(const Cluster& cluster,
            std::string name,
            size_t vbuckets,
-           size_t replicas);
+           size_t replicas,
+           DcpPacketFilter packet_filter);
 
     virtual ~Bucket();
 
@@ -109,6 +119,7 @@ protected:
 
     std::vector<std::vector<int>> vbucketmap;
     std::unique_ptr<DcpReplicator> replicators;
+    DcpPacketFilter packet_filter;
 };
 
 } // namespace test

@@ -24,7 +24,6 @@
 #include <mcbp/mcbp.h>
 #include <memcached/vbucket.h>
 #include <platform/strerror.h>
-#include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <atomic>
 #include <thread>
@@ -41,7 +40,8 @@ DcpReplicator::~DcpReplicator() = default;
 
 class DcpReplicatorImpl : public DcpReplicator {
 public:
-    DcpReplicatorImpl() : base(event_base_new()) {
+    explicit DcpReplicatorImpl(DcpPacketFilter& packet_filter)
+        : base(event_base_new()), packet_filter(packet_filter) {
     }
 
     ~DcpReplicatorImpl() override;
@@ -67,6 +67,7 @@ protected:
     std::unique_ptr<event_base, BaseDeleter> base;
     std::vector<std::unique_ptr<DcpPipe>> pipelines;
     std::unique_ptr<std::thread> thread;
+    DcpPacketFilter& packet_filter;
 };
 
 DcpReplicatorImpl::~DcpReplicatorImpl() {
@@ -198,6 +199,9 @@ void DcpReplicatorImpl::create(const Cluster& cluster,
 
         pipelines.emplace_back(
                 std::make_unique<DcpPipe>(base.get(),
+                                          packet_filter,
+                                          "n_" + std::to_string(node),
+                                          "n_" + std::to_string(me),
                                           connection->releaseSocket(),
                                           mine->releaseSocket(),
                                           createNotificationPipe(),
@@ -206,9 +210,11 @@ void DcpReplicatorImpl::create(const Cluster& cluster,
     }
 }
 
-std::unique_ptr<DcpReplicator> DcpReplicator::create(const Cluster& cluster,
-                                                     Bucket& bucket) {
-    auto ret = std::make_unique<DcpReplicatorImpl>();
+std::unique_ptr<DcpReplicator> DcpReplicator::create(
+        const Cluster& cluster,
+        Bucket& bucket,
+        DcpPacketFilter& packet_filter) {
+    auto ret = std::make_unique<DcpReplicatorImpl>(packet_filter);
     ret->createPipes(cluster, bucket);
     ret->start();
     return ret;

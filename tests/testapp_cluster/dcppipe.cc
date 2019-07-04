@@ -29,6 +29,9 @@ namespace cb {
 namespace test {
 
 DcpPipe::DcpPipe(event_base* base,
+                 DcpPacketFilter& packet_filter,
+                 std::string producer_name,
+                 std::string consumer_name,
                  SOCKET psd,
                  SOCKET csd,
                  std::array<SOCKET, 2> notification_pipe,
@@ -36,7 +39,10 @@ DcpPipe::DcpPipe(event_base* base,
     : psd(psd),
       csd(csd),
       notification_pipe(notification_pipe),
-      replication_running_callback(std::move(replication_running_callback)) {
+      replication_running_callback(std::move(replication_running_callback)),
+      packet_filter(packet_filter),
+      producer_name(std::move(producer_name)),
+      consumer_name(std::move(consumer_name)) {
     evutil_make_socket_nonblocking(psd);
     evutil_make_socket_nonblocking(csd);
 
@@ -77,13 +83,13 @@ void DcpPipe::addStreams(const std::vector<size_t>& vbuckets) {
     awaiting = vbuckets.size();
 }
 
-const cb::mcbp::Header* DcpPipe::getFrame(bufferevent* bev) {
+std::vector<uint8_t> DcpPipe::getFrame(bufferevent* bev) {
     const cb::mcbp::Header* header;
 
     auto* in = bufferevent_get_input(bev);
     const auto size = evbuffer_get_length(in);
     if (size < sizeof(*header)) {
-        return nullptr;
+        return {};
     }
 
     auto* ptr = evbuffer_pullup(in, sizeof(cb::mcbp::Header));
@@ -105,10 +111,16 @@ const cb::mcbp::Header* DcpPipe::getFrame(bufferevent* bev) {
             throw std::bad_alloc();
         }
 
-        return reinterpret_cast<const cb::mcbp::Header*>(ptr);
+        std::vector<uint8_t> ret;
+        std::copy(ptr, ptr + framesize, std::back_inserter(ret));
+        // Consume the data from the input pipe
+        if (evbuffer_drain(in, framesize) == -1) {
+            throw std::runtime_error("Failed to drain buffer");
+        }
+        return ret;
     }
 
-    return nullptr;
+    return {};
 }
 
 void DcpPipe::read_callback(bufferevent* bev) {
@@ -117,16 +129,26 @@ void DcpPipe::read_callback(bufferevent* bev) {
         return;
     }
 
-    const cb::mcbp::Header* next;
-    while ((next = getFrame(bev)) != nullptr) {
-        // @todo I could call a filter
-        const size_t size = sizeof(*next) + next->getBodylen();
+    std::vector<uint8_t> frame;
+    while (!(frame = getFrame(bev)).empty()) {
+        if (packet_filter) {
+            if (bev == producer.get()) {
+                packet_filter(producer_name, consumer_name, frame);
+            } else {
+                packet_filter(consumer_name, producer_name, frame);
+            }
 
-        // cb::mcbp::dumpStream({(uint8_t*)(next), size}, std::cout);
+            if (frame.empty()) {
+                // frame dropped.. look at the next one
+                continue;
+            }
+        }
 
-        if (next->getOpcode() ==
+        const auto* header =
+                reinterpret_cast<const cb::mcbp::Header*>(frame.data());
+        if (header->getOpcode() ==
             uint8_t(cb::mcbp::ClientOpcode::DcpAddStream)) {
-            if (!cb::mcbp::is_response(cb::mcbp::Magic(next->getMagic()))) {
+            if (!cb::mcbp::is_response(cb::mcbp::Magic(header->getMagic()))) {
                 throw std::runtime_error("Invalid magic for dcp add stream");
             }
             --awaiting;
@@ -136,16 +158,11 @@ void DcpPipe::read_callback(bufferevent* bev) {
         } else {
             if (bev == producer.get()) {
                 // From producer to consumer
-                bufferevent_write(consumer.get(), next, size);
+                bufferevent_write(consumer.get(), frame.data(), frame.size());
             } else {
                 // From consumer to producer
-                bufferevent_write(producer.get(), next, size);
+                bufferevent_write(producer.get(), frame.data(), frame.size());
             }
-        }
-
-        // Consume the data from the input pipe
-        if (evbuffer_drain(bufferevent_get_input(bev), size) == -1) {
-            throw std::runtime_error("Failed to drain buffer");
         }
     }
 }

@@ -39,7 +39,9 @@ public:
     ~ClusterImpl() override;
 
     std::shared_ptr<Bucket> createBucket(
-            const std::string& name, const nlohmann::json& attributes) override;
+            const std::string& name,
+            const nlohmann::json& attributes,
+            DcpPacketFilter packet_filter) override;
 
     void deleteBucket(const std::shared_ptr<Bucket>& bucket) override {
         throw std::runtime_error("Not implemented");
@@ -73,7 +75,9 @@ protected:
 };
 
 std::shared_ptr<Bucket> ClusterImpl::createBucket(
-        const std::string& name, const nlohmann::json& attributes) {
+        const std::string& name,
+        const nlohmann::json& attributes,
+        DcpPacketFilter packet_filter) {
     size_t vbuckets = 1024;
     size_t replicas = std::min<size_t>(nodes.size() - 1, 3);
 
@@ -111,7 +115,8 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
         }
     }
 
-    auto bucket = std::make_shared<Bucket>(*this, name, vbuckets, replicas);
+    auto bucket = std::make_shared<Bucket>(
+            *this, name, vbuckets, replicas, packet_filter);
     const auto& vbucketmap = bucket->getVbucketMap();
     json["uuid"] = bucket->getUuid();
 

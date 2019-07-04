@@ -28,10 +28,12 @@ namespace test {
 Bucket::Bucket(const Cluster& cluster,
                std::string name,
                size_t vbuckets,
-               size_t replicas)
+               size_t replicas,
+               DcpPacketFilter packet_filter)
     : cluster(cluster),
       name(std::move(name)),
-      uuid(::to_string(cb::uuid::random())) {
+      uuid(::to_string(cb::uuid::random())),
+      packet_filter(packet_filter) {
     auto nodes = cluster.size();
     vbucketmap.resize(vbuckets);
     int ii = 0;
@@ -46,7 +48,7 @@ Bucket::Bucket(const Cluster& cluster,
 Bucket::~Bucket() = default;
 
 void Bucket::setupReplication() {
-    replicators = DcpReplicator::create(cluster, *this);
+    replicators = DcpReplicator::create(cluster, *this, packet_filter);
 }
 
 std::unique_ptr<MemcachedConnection> Bucket::getConnection(

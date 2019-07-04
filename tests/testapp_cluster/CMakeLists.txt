@@ -3,6 +3,7 @@ add_library(cluster_framework STATIC
             cluster.cc cluster.h
             clustertest.cc clustertest.h
             dcppipe.cc dcppipe.h
+            dcp_packet_filter.h
             dcp_replicator.cc dcp_replicator.h
             node.cc node.h)
 target_include_directories(cluster_framework PRIVATE SYSTEM

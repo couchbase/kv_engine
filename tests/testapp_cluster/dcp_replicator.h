@@ -16,7 +16,10 @@
 
 #pragma once
 
+#include "dcp_packet_filter.h"
+
 #include <memory>
+#include <vector>
 
 namespace cb {
 namespace test {
@@ -37,10 +40,19 @@ public:
      *
      * @param cluster The cluster the bucket belongs to
      * @param bucket The bucket to create the replication streams for
+     * @param packet_filter An optional packet filter which is called for
+     *                      with all of the packets going over the replication
+     *                      streams for the bucket _before_ it is passed to
+     *                      the other side. It is the content of the vector
+     *                      which is put on the stream to the other end,
+     *                      so the callback is free to inspect, modify or drop
+     *                      the entire packet.
      * @return A new DCP replication object (which manages its own thread)
      */
-    static std::unique_ptr<DcpReplicator> create(const Cluster& cluster,
-                                                 Bucket& bucket);
+    static std::unique_ptr<DcpReplicator> create(
+            const Cluster& cluster,
+            Bucket& bucket,
+            DcpPacketFilter& packet_filter);
 };
 
 } // namespace test
