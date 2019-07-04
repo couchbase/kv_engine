@@ -528,19 +528,24 @@ void KVBucket::wakeUpFlusher() {
 cb::mcbp::Status KVBucket::evictKey(const DocKey& key,
                                     Vbid vbucket,
                                     const char** msg) {
-    VBucketPtr vb = getVBucket(vbucket);
-    if (!vb || (vb->getState() != vbucket_state_active)) {
+    auto vb = getVBucket(vbucket);
+    if (!vb) {
+        ++stats.numNotMyVBuckets;
         return cb::mcbp::Status::NotMyVbucket;
     }
 
-    { // collections read-lock scope
-        auto cHandle = vb->lockCollections(key);
-        if (!cHandle.valid()) {
-            return cb::mcbp::Status::UnknownCollection;
-        } // now hold collections read access for the duration of the evict
-
-        return vb->evictKey(msg, cHandle);
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    if (vb->getState() != vbucket_state_active) {
+        return cb::mcbp::Status::NotMyVbucket;
     }
+
+    // collections read-lock scope
+    auto cHandle = vb->lockCollections(key);
+    if (!cHandle.valid()) {
+        return cb::mcbp::Status::UnknownCollection;
+    } // now hold collections read access for the duration of the evict
+
+    return vb->evictKey(msg, cHandle);
 }
 
 void KVBucket::getValue(Item& it) {
@@ -1509,10 +1514,13 @@ GetValue KVBucket::getRandomKey() {
 
     while (itm == NULL) {
         VBucketPtr vb = getVBucket(Vbid(curr++));
-        if (vb && vb->getState() == vbucket_state_active &&
+        if (vb) {
+            folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+            if (vb->getState() == vbucket_state_active &&
                 (itm = vb->ht.getRandomKey(getRandom()))) {
-            GetValue rv(std::move(itm), ENGINE_SUCCESS);
-            return rv;
+                GetValue rv(std::move(itm), ENGINE_SUCCESS);
+                return rv;
+            }
         }
 
         if (curr == max) {
@@ -1731,24 +1739,27 @@ GetValue KVBucket::getLocked(const DocKey& key,
                              rel_time_t currentTime,
                              uint32_t lockTimeout,
                              const void* cookie) {
-    VBucketPtr vb = getVBucket(vbucket);
-    if (!vb || vb->getState() != vbucket_state_active) {
+    auto vb = getVBucket(vbucket);
+    if (!vb) {
         ++stats.numNotMyVBuckets;
-        return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
+        return GetValue(nullptr, ENGINE_NOT_MY_VBUCKET);
     }
 
-    { // collections read scope
-        auto cHandle = vb->lockCollections(key);
-        if (!cHandle.valid()) {
-            engine.setErrorJsonExtras(
-                    cookie,
-                    Collections::getUnknownCollectionErrorContext(
-                            cHandle.getManifestUid()));
-            return GetValue(NULL, ENGINE_UNKNOWN_COLLECTION);
-        }
-
-        return vb->getLocked(currentTime, lockTimeout, cookie, engine, cHandle);
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    if (vb->getState() != vbucket_state_active) {
+        ++stats.numNotMyVBuckets;
+        return GetValue(nullptr, ENGINE_NOT_MY_VBUCKET);
     }
+
+    auto cHandle = vb->lockCollections(key);
+    if (!cHandle.valid()) {
+        engine.setErrorJsonExtras(cookie,
+                                  Collections::getUnknownCollectionErrorContext(
+                                          cHandle.getManifestUid()));
+        return GetValue(NULL, ENGINE_UNKNOWN_COLLECTION);
+    }
+
+    return vb->getLocked(currentTime, lockTimeout, cookie, engine, cHandle);
 }
 
 ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
@@ -1756,8 +1767,14 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
                                       uint64_t cas,
                                       rel_time_t currentTime,
                                       const void* cookie) {
-    VBucketPtr vb = getVBucket(vbucket);
-    if (!vb || vb->getState() != vbucket_state_active) {
+    auto vb = getVBucket(vbucket);
+    if (!vb) {
+        ++stats.numNotMyVBuckets;
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    if (vb->getState() != vbucket_state_active) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     }
@@ -1811,23 +1828,22 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
                                         const void* cookie,
                                         struct key_stats& kstats,
                                         WantsDeleted wantsDeleted) {
-    VBucketPtr vb = getVBucket(vbucket);
+    auto vb = getVBucket(vbucket);
     if (!vb) {
+        ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    { // collections read scope
-        auto cHandle = vb->lockCollections(key);
-        if (!cHandle.valid()) {
-            engine.setErrorJsonExtras(
-                    cookie,
-                    Collections::getUnknownCollectionErrorContext(
-                            cHandle.getManifestUid()));
-            return ENGINE_UNKNOWN_COLLECTION;
-        }
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    auto cHandle = vb->lockCollections(key);
+    if (!cHandle.valid()) {
+        engine.setErrorJsonExtras(cookie,
+                                  Collections::getUnknownCollectionErrorContext(
+                                          cHandle.getManifestUid()));
+        return ENGINE_UNKNOWN_COLLECTION;
+    }
 
-        return vb->getKeyStats(cookie, engine, kstats, wantsDeleted, cHandle);
-}
+    return vb->getKeyStats(cookie, engine, kstats, wantsDeleted, cHandle);
 }
 
 std::string KVBucket::validateKey(const DocKey& key,
@@ -1871,8 +1887,14 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(
         boost::optional<cb::durability::Requirements> durability,
         ItemMetaData* itemMeta,
         mutation_descr_t& mutInfo) {
-    VBucketPtr vb = getVBucket(vbucket);
-    if (!vb || vb->getState() == vbucket_state_dead) {
+    auto vb = getVBucket(vbucket);
+    if (!vb) {
+        ++stats.numNotMyVBuckets;
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    if (vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     } else if (vb->getState() == vbucket_state_replica) {
