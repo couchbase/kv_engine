@@ -65,7 +65,7 @@ public:
      *
      * @param name the bucket to delete
      */
-    virtual void deleteBucket(const std::shared_ptr<Bucket>& bucket) = 0;
+    virtual void deleteBucket(const std::string& name) = 0;
 
     /**
      * Lookup the named bucket

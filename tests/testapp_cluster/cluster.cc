@@ -43,9 +43,7 @@ public:
             const nlohmann::json& attributes,
             DcpPacketFilter packet_filter) override;
 
-    void deleteBucket(const std::shared_ptr<Bucket>& bucket) override {
-        throw std::runtime_error("Not implemented");
-    }
+    void deleteBucket(const std::string& name) override;
 
     std::shared_ptr<Bucket> getBucket(const std::string& name) const override {
         for (auto& bucket : buckets) {
@@ -206,6 +204,27 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
     }
 
     return {};
+}
+
+void ClusterImpl::deleteBucket(const std::string& name) {
+    for (auto iter = buckets.begin(); iter != buckets.end(); ++iter) {
+        if ((*iter)->getName() == name) {
+            // The DCP replicators throws an exception if they get a
+            // read error (in the case of others holding a reference
+            // to the bucket class)...
+            (*iter)->shutdownReplication();
+            buckets.erase(iter);
+            break;
+        }
+    }
+
+    // I should wait for the bucket being closed on all nodes..
+    for (auto& n : nodes) {
+        auto connection = n->getConnection();
+        connection->connect();
+        connection->authenticate("@admin", "password", "plain");
+        connection->deleteBucket(name);
+    }
 }
 
 size_t ClusterImpl::size() const {

@@ -112,6 +112,8 @@ public:
      */
     void setupReplication();
 
+    void shutdownReplication();
+
 protected:
     const Cluster& cluster;
     const std::string name;

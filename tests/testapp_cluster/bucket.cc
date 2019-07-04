@@ -51,6 +51,10 @@ void Bucket::setupReplication() {
     replicators = DcpReplicator::create(cluster, *this, packet_filter);
 }
 
+void Bucket::shutdownReplication() {
+    replicators.reset();
+}
+
 std::unique_ptr<MemcachedConnection> Bucket::getConnection(
         Vbid vbucket, vbucket_state_t state, size_t replica_number) {
     if (vbucket.get() > vbucketmap.size()) {
