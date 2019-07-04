@@ -611,7 +611,6 @@ void KVBucket::deleteExpiredItem(Item& it,
 
 void KVBucket::deleteExpiredItems(
         std::list<Item>& itms, ExpireBy source) {
-    std::list<std::pair<uint16_t, std::string> >::iterator it;
     time_t startTime = ep_real_time();
     for (auto& it : itms) {
         deleteExpiredItem(it, startTime, source);
