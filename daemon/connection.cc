@@ -2381,7 +2381,6 @@ ENGINE_ERROR_CODE Connection::abort(uint32_t opaque,
                                     uint64_t prepared_seqno,
                                     uint64_t abort_seqno) {
     cb::mcbp::request::DcpAbortPayload extras(prepared_seqno, abort_seqno);
-    // @todo-durability: Don't send the key
     auto key = key_;
     if (!isCollectionsSupported()) {
         // The client doesn't support collections, don't send an encoded key

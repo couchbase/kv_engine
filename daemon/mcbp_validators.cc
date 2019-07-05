@@ -843,8 +843,6 @@ static Status dcp_seqno_acknowledged_validator(Cookie& cookie) {
 
 static Status dcp_commit_validator(Cookie& cookie) {
     using cb::mcbp::request::DcpCommitPayload;
-    // @todo-durability: Change ExpectedKeyLen back to ZeroKeyLen once we are
-    //  using prepared_seqno to identify mutation instead of key.
     auto status = McbpValidator::verify_header(cookie,
                                                sizeof(DcpCommitPayload),
                                                ExpectedKeyLen::NonZero,
