@@ -401,6 +401,8 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
         size_t numCheckpointsRemoved = 0;
         // Iterate through the current checkpoints (from oldest to newest),
         // checking if the checkpoint can be removed.
+        // `it` is set to the first checkpoint we want to keep - all earlier
+        // ones are removed.
         auto it = checkpointList.begin();
         // Note terminating condition - we stop at one before the last
         // checkpoint - we must leave at least one checkpoint in existence.
@@ -420,6 +422,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
                 ++numCheckpointsRemoved;
 
                 if (numCheckpointsRemoved >= limit) {
+                    ++it;
                     break;
                 }
 

@@ -314,7 +314,8 @@ BENCHMARK_DEFINE_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
                             /*preLinkDocCtx*/ nullptr);
     }
 
-    // Simulate the Flusher, this makes all checkpoints eligible for removing
+    // Simulate the Flusher, this makes all but the current checkpoint eligible
+    // for removing (cannot remove checkpoint flusher is in).
     std::vector<queued_item> items;
     ckptMgr->getAllItemsForPersistence(items);
     ckptMgr->itemsPersisted();
@@ -342,7 +343,9 @@ BENCHMARK_DEFINE_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
             numUnrefItems += removed;
             numCkptRemoverRuns++;
 
-            if (numUnrefItems >= numCheckpoints) {
+            // Once all but the last item (in last checkpoint) is removed,
+            // break.
+            if (numUnrefItems >= numCheckpoints - 1) {
                 break;
             }
         }
@@ -404,6 +407,7 @@ static void FlushArguments(benchmark::internal::Benchmark* b) {
 BENCHMARK_REGISTER_F(MemTrackingVBucketBench, FlushVBucket)
         ->Apply(FlushArguments);
 
+// Arguments: numCheckpoints, numCkptToRemovePerIteration
 BENCHMARK_REGISTER_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
         ->Args({1000000, 1000})
         ->Iterations(1);

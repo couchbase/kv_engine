@@ -374,7 +374,8 @@ int64_t Checkpoint::getMutationId(const CheckpointCursor& cursor) const {
 
 std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
     os << "Checkpoint[" << &c << "] with"
-       << " seqno:{" << c.getLowSeqno() << "," << c.getHighSeqno() << "}"
+       << " id:" << c.checkpointId << " seqno:{" << c.getLowSeqno() << ","
+       << c.getHighSeqno() << "}"
        << " snap:{" << c.getSnapshotStartSeqno() << ","
        << c.getSnapshotEndSeqno() << "}"
        << " state:" << to_string(c.getState()) << " items:[" << std::endl;
