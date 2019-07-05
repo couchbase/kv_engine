@@ -261,6 +261,23 @@ struct DurabilityMonitor::ReplicationChain {
     const DurabilityMonitor::ReplicationChainName name;
 };
 
+// Used to track information necessary for the PassiveDM to correctly ACK
+// at the end of snapshots
+struct SnapshotEndInfo {
+    int64_t seqno;
+    CheckpointType type;
+};
+
+/**
+ * Compares two SnapshotEndInfos by seqno.
+ *
+ * Only provides a partial ordering; SnapshotEndInfos with the same seqno
+ * but different checkpoint type would be arbitrarily ordered if using this
+ * comparator
+ */
+bool operator>(const SnapshotEndInfo& a, const SnapshotEndInfo& b);
+std::string to_string(const SnapshotEndInfo& snapshotEndInfo);
+
 /*
  * This class embeds the state of a PDM. It has been designed for being
  * wrapped by a folly::Synchronized<T>, which manages the read/write
@@ -340,11 +357,11 @@ struct PassiveDurabilityMonitor::State {
     //         PersistToMajority
     Position highPreparedSeqno;
 
-    // Queue of snapEndSeqnos for snapshots which have been received entirely
-    // by the (owning) replica/pending VBucket.
+    // Queue of SnapshotEndInfos for snapshots which have been received entirely
+    // by the (owning) replica/pending VBucket, and the type of the checkpoint.
     // Used for implementing the correct move-logic of High Prepared Seqno.
     // Must be pushed to at snapshot-end received on PassiveStream.
-    MonotonicQueue<uint64_t> receivedSnapshotEndSeqnos;
+    MonotonicQueue<SnapshotEndInfo> receivedSnapshotEnds;
 
     // Cumulative count of accepted (tracked) SyncWrites.
     size_t totalAccepted = 0;

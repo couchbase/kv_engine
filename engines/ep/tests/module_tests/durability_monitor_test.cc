@@ -1891,13 +1891,15 @@ TEST_P(PassiveDurabilityMonitorPersistentTest, AckLatestPersistedSnapshot) {
      * persistence might never pass the lastest snapshotEnd.
      */
 
+    auto& pdm = getPassiveDM();
+
     // Tracking the actual seqnoAcks is a bit "belt and braces" because the HPS
     // is enough information, but it seems worth explicitly confirming we are
     // acking at the point we expect.
     std::queue<uint64_t> seqnoAcks{};
 
     DurabilityMonitorTest::replaceSeqnoAckCB(
-            [&](Vbid vbid, int64_t seqno) { seqnoAcks.push(seqno); });
+            [&seqnoAcks](Vbid vbid, int64_t seqno) { seqnoAcks.push(seqno); });
 
     assertNumTrackedAndHPSAndHCS(0, 0, 0 /*expectedHCS*/);
 
@@ -1910,6 +1912,7 @@ TEST_P(PassiveDurabilityMonitorPersistentTest, AckLatestPersistedSnapshot) {
 
     // End snapshot, but not yet persisted
     notifySnapEndReceived(3 /*snapEnd*/, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
+    EXPECT_EQ(3, pdm.getNumTracked());
 
     // SNAP 2
     DurabilityMonitorTest::addSyncWrite(
@@ -1920,11 +1923,13 @@ TEST_P(PassiveDurabilityMonitorPersistentTest, AckLatestPersistedSnapshot) {
 
     // New snapshot received, first snapshot *still* not persisted
     notifySnapEndReceived(6 /*snapEnd*/, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
+    EXPECT_EQ(6, pdm.getNumTracked());
 
     // Persist first snapshot
     notifyPersistence(
             3 /*persistedSeqno*/, 3 /*expectedHPS*/, 0 /*expectedHCS*/);
 
+    EXPECT_EQ(6, pdm.getNumTracked());
     EXPECT_EQ(3, seqnoAcks.front());
     seqnoAcks.pop();
 
@@ -1936,6 +1941,7 @@ TEST_P(PassiveDurabilityMonitorPersistentTest, AckLatestPersistedSnapshot) {
 
     notifySnapEndReceived(9 /*snapEnd*/, 3 /*expectedHPS*/, 0 /*expectedHCS*/);
 
+    EXPECT_EQ(9, pdm.getNumTracked());
     EXPECT_TRUE(seqnoAcks.empty());
     notifyPersistence(
             6 /*persistedSeqno*/, 9 /*expectedHPS*/, 0 /*expectedHCS*/);
@@ -1943,6 +1949,167 @@ TEST_P(PassiveDurabilityMonitorPersistentTest, AckLatestPersistedSnapshot) {
     // As snap 3 contains only Majority level, once the snap 2 is persisted
     // snap 3 end can be acked because snap 3 is entirely satisfied in memory
     EXPECT_EQ(9, seqnoAcks.front());
+    seqnoAcks.pop();
+
+    // nothing has been completed
+    EXPECT_EQ(9, pdm.getNumTracked());
+
+    for (uint64_t seqno = 1; seqno < 10; seqno++) {
+        pdm.completeSyncWrite(makeStoredDocKey("key" + std::to_string(seqno)),
+                              PassiveDurabilityMonitor::Resolution::Commit);
+    }
+
+    EXPECT_EQ(0, pdm.getNumTracked());
+}
+
+TEST_P(PassiveDurabilityMonitorPersistentTest,
+       DiskSnapshotsAreAckedOnlyAtSnapEnd) {
+    /* Prepares received as part of disk snapshots should not be seqnoAcked
+     * until the entire snapshot has been received -  Majority/PersistToMaster
+     * level might have deduped PersistToMajority Prepares so they cannot be
+     * acked until we have a consistent state.
+     */
+
+    auto& pdm = getPassiveDM();
+
+    std::queue<uint64_t> seqnoAcks{};
+
+    DurabilityMonitorTest::replaceSeqnoAckCB(
+            [&seqnoAcks](Vbid vbid, int64_t seqno) { seqnoAcks.push(seqno); });
+
+    assertNumTrackedAndHPSAndHCS(0, 0, 0 /*expectedHCS*/);
+
+    DurabilityMonitorTest::addSyncWrite({1, 2, 3} /*seqnos*/,
+                                        cb::durability::Level::Majority,
+                                        0 /*expectedHPS*/,
+                                        0 /*expectedHCS*/);
+
+    // End snapshot, but not yet persisted
+    vb->checkpointManager->createSnapshot(1, 3, CheckpointType::Disk);
+    notifySnapEndReceived(3 /*snapEnd*/, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
+    EXPECT_EQ(3, pdm.getNumTracked());
+
+    EXPECT_TRUE(seqnoAcks.empty());
+
+    // Partially persist snapshot
+    notifyPersistence(
+            2 /*persistedSeqno*/, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
+    EXPECT_EQ(3, pdm.getNumTracked());
+
+    // Shouldn't ack yet
+    EXPECT_TRUE(seqnoAcks.empty());
+
+    // Persist full snapshot
+    notifyPersistence(
+            3 /*persistedSeqno*/, 3 /*expectedHPS*/, 0 /*expectedHCS*/);
+
+    // nothing has been completed, track everything still
+    EXPECT_EQ(3, pdm.getNumTracked());
+
+    // Should have acked
+    EXPECT_EQ(3, seqnoAcks.front());
+    seqnoAcks.pop();
+
+    for (uint64_t seqno = 1; seqno < 4; seqno++) {
+        pdm.completeSyncWrite(makeStoredDocKey("key" + std::to_string(seqno)),
+                              PassiveDurabilityMonitor::Resolution::Commit);
+    }
+
+    EXPECT_EQ(0, pdm.getNumTracked());
+}
+
+TEST_P(PassiveDurabilityMonitorPersistentTest,
+       DiskSnapshotsAckSnapEndSeqnoPrepares) {
+    /* Disk snapshots may be deduped, in some cases the replica might not
+     * receive a prepare in the snapshot (deduping + commits sent as mutations)
+     * BUT the PDM must still ack *in case* there are prepares it did not see
+     */
+
+    auto& pdm = getPassiveDM();
+
+    std::queue<uint64_t> seqnoAcks{};
+
+    DurabilityMonitorTest::replaceSeqnoAckCB(
+            [&seqnoAcks](Vbid vbid, int64_t seqno) { seqnoAcks.push(seqno); });
+
+    assertNumTrackedAndHPSAndHCS(0, 0, 0 /*expectedHCS*/);
+
+    DurabilityMonitorTest::addSyncWrite({1} /*seqnos*/,
+                                        cb::durability::Level::Majority,
+                                        0 /*expectedHPS*/,
+                                        0 /*expectedHCS*/);
+
+    // End disk snapshot, but not yet persisted, no prepares tracked
+    vb->checkpointManager->createSnapshot(1, 3, CheckpointType::Disk);
+    notifySnapEndReceived(3 /*snapEnd*/, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
+    EXPECT_EQ(1, pdm.getNumTracked());
+
+    EXPECT_TRUE(seqnoAcks.empty());
+
+    // Partially persist snapshot
+    notifyPersistence(
+            2 /*persistedSeqno*/, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
+
+    // Shouldn't ack yet
+    EXPECT_TRUE(seqnoAcks.empty());
+
+    // Persist full snapshot
+    notifyPersistence(
+            3 /*persistedSeqno*/, 3 /*expectedHPS*/, 0 /*expectedHCS*/);
+
+    // nothing has been completed, track everything still
+    EXPECT_EQ(1, pdm.getNumTracked());
+
+    // Should have acked
+    EXPECT_EQ(3, seqnoAcks.front());
+    seqnoAcks.pop();
+
+    pdm.completeSyncWrite(makeStoredDocKey("key1"),
+                          PassiveDurabilityMonitor::Resolution::Commit);
+
+    EXPECT_EQ(0, pdm.getNumTracked());
+}
+
+TEST_P(PassiveDurabilityMonitorPersistentTest,
+       DiskSnapshotsAckSnapEndSeqnoNoPrepares) {
+    /* Disk snapshots may be deduped, in some cases the replica might not
+     * receive a prepare in the snapshot (deduping + commits sent as mutations)
+     * BUT the PDM must still ack *in case* there are prepares it did not see.
+     *
+     * Check that old pre
+     */
+
+    auto& pdm = getPassiveDM();
+
+    std::queue<uint64_t> seqnoAcks{};
+
+    DurabilityMonitorTest::replaceSeqnoAckCB(
+            [&seqnoAcks](Vbid vbid, int64_t seqno) { seqnoAcks.push(seqno); });
+
+    assertNumTrackedAndHPSAndHCS(0, 0, 0 /*expectedHCS*/);
+
+    // NOT adding any prepares
+
+    // End disk snapshot, but not yet persisted, no prepares tracked
+    vb->checkpointManager->createSnapshot(1, 3, CheckpointType::Disk);
+    notifySnapEndReceived(3 /*snapEnd*/, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
+    EXPECT_EQ(0, pdm.getNumTracked());
+
+    EXPECT_TRUE(seqnoAcks.empty());
+
+    // Partially persist snapshot
+    notifyPersistence(
+            2 /*persistedSeqno*/, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
+
+    // Shouldn't ack yet
+    EXPECT_TRUE(seqnoAcks.empty());
+
+    // Persist full snapshot
+    notifyPersistence(
+            3 /*persistedSeqno*/, 3 /*expectedHPS*/, 0 /*expectedHCS*/);
+
+    // Should have acked
+    EXPECT_EQ(3, seqnoAcks.front());
     seqnoAcks.pop();
 }
 

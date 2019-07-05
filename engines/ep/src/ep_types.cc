@@ -67,6 +67,16 @@ std::string to_string(TrackCasDrift trackCasDrift) {
             std::to_string(static_cast<TrackCasDriftUType>(trackCasDrift)));
 }
 
+std::string to_string(CheckpointType checkpointType) {
+    switch (checkpointType) {
+    case CheckpointType::Disk:
+        return "Disk";
+    case CheckpointType::Memory:
+        return "Memory";
+    }
+    folly::assume_unreachable();
+}
+
 std::string to_string(HighPriorityVBNotify hpNotifyType) {
     using HighPriorityVBNotifyUType =
             std::underlying_type<HighPriorityVBNotify>::type;

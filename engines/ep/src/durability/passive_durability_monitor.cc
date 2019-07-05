@@ -131,7 +131,10 @@ void PassiveDurabilityMonitor::notifySnapshotEndReceived(uint64_t snapEnd) {
     int64_t hps{0};
     {
         auto s = state.wlock();
-        s->receivedSnapshotEndSeqnos.push(snapEnd);
+        s->receivedSnapshotEnds.push({int64_t(snapEnd),
+                                      vb.isReceivingDiskSnapshot()
+                                              ? CheckpointType::Disk
+                                              : CheckpointType::Memory});
         // Maybe the new tracked Prepare is already satisfied and could be
         // ack'ed back to the Active.
         prevHps = s->highPreparedSeqno.lastWriteSeqno;
@@ -307,6 +310,7 @@ void PassiveDurabilityMonitor::State::updateHighPreparedSeqno() {
     // at PDM under the following constraints:
     //
     // (1) Nothing is ack'ed before the complete snapshot is received
+    //     (I.e., do nothing if receivedSnapshotEnds is empty)
     //
     // (2) Majority and MajorityAndPersistOnMaster Prepares (which don't need to
     //     be persisted for being locally satisfied) may be satisfied as soon as
@@ -318,6 +322,12 @@ void PassiveDurabilityMonitor::State::updateHighPreparedSeqno() {
     //
     // (4) The durability-fence can move (ie, PersistToMajority Prepares are
     //     locally-satisfied) only when the complete snapshot is persisted.
+    //
+    // (5) Once a disk snapshot is fully persisted, the HPS is advanced to the
+    //     snapshot end - even if no prepares were seen during the snapshot
+    //     or if trackedWrites is empty. This accounts for deduping; there may
+    //     have been prepares we have not seen, but they are definitely
+    //     satisfied (they are persisted) and should be acked.
     //
     // This function implements all the logic necessary for moving the HPS by
     // enforcing the rules above. The function is called:
@@ -334,16 +344,6 @@ void PassiveDurabilityMonitor::State::updateHighPreparedSeqno() {
     //     durability-fence. As already mentioned, we can move the
     //     durability-fence only if the complete snapshot is persisted.
 
-    if (trackedWrites.empty()) {
-        return;
-    }
-
-    if (receivedSnapshotEndSeqnos.empty()) {
-        // We have not received a full snapshot, we cannot advance the hps at
-        // all
-        return;
-    }
-
     const auto prevHPS = highPreparedSeqno.lastWriteSeqno;
 
     // Helper to keep conditions short and meaningful
@@ -355,49 +355,87 @@ void PassiveDurabilityMonitor::State::updateHighPreparedSeqno() {
                        snapshotEndSeqno;
     };
 
-    while (!receivedSnapshotEndSeqnos.empty() && !trackedWrites.empty()) {
-        uint64_t snapshotEndSeqno = receivedSnapshotEndSeqnos.front();
+    while (!receivedSnapshotEnds.empty()) {
+        const auto snapshotEnd = receivedSnapshotEnds.front();
 
-        // ** If pdm.vb.getPersistenceSeqno() >= snapshotEndSeqno
-        // we have received and persisted an entire snapshot
-        // All prepares from this snapshot are satisfied and the state
-        // is consistent at snap end. The HPS can advance over Prepares of
-        // PersistToMajority or lower (i.e., everything currently)
+        const bool snapshotFullyPersisted =
+                static_cast<int64_t>(pdm.vb.getPersistenceSeqno()) >=
+                snapshotEnd.seqno;
 
-        // ** if pdm.vb.getPersistenceSeqno() < snapshotEndSeqno
-        // we have received but NOT persisted an entire snapshot
-        //  We *may* be able to advance the HPS part way
-        // into this snapshot - The HPS can be advanced over all Prepares of
-        // MajorityAndPersistOnMaster level or lower, to the last Prepare
-        // immediately preceding an *unpersisted* Prepare with Level ==
-        // PersistToMajority. We cannot move the HPS past this Prepare until
-        // it *is* persisted.
+        const bool isDiskSnapshot = snapshotEnd.type == CheckpointType::Disk;
 
-        const cb::durability::Level maxLevelCanAdvanceOver =
-                (pdm.vb.getPersistenceSeqno() >= snapshotEndSeqno)
-                        ? cb::durability::Level::PersistToMajority
-                        : cb::durability::Level::MajorityAndPersistOnMaster;
+        using namespace cb::durability;
 
-        for (auto next = getIteratorNext(highPreparedSeqno.it);
-             inSnapshot(snapshotEndSeqno, next) &&
-             next->getDurabilityReqs().getLevel() <= maxLevelCanAdvanceOver;
-             next = getIteratorNext(highPreparedSeqno.it)) {
-            // Note: Update last-write-seqno first to enforce monotonicity and
-            //     avoid any state-change if monotonicity checks fail
-            highPreparedSeqno.lastWriteSeqno = next->getBySeqno();
-            highPreparedSeqno.it = next;
+        Level maxLevelCanAdvanceOver{};
+
+        if (snapshotFullyPersisted) {
+            // we have received and persisted an entire snapshot
+            // All prepares from this snapshot are satisfied and the state
+            // is consistent at snap end. The HPS can advance over Prepares of
+            // PersistToMajority or lower (i.e., everything currently)
+            maxLevelCanAdvanceOver = Level::PersistToMajority;
+        } else if (!isDiskSnapshot) {
+            // we have received but NOT persisted an entire snapshot
+            //  We *may* be able to advance the HPS part way
+            // into this snapshot - The HPS can be advanced over all Prepares of
+            // MajorityAndPersistOnMaster level or lower, to the last Prepare
+            // immediately preceding an *unpersisted* Prepare with Level ==
+            // PersistToMajority. We cannot move the HPS past this Prepare until
+            // it *is* persisted.
+            maxLevelCanAdvanceOver = Level::MajorityAndPersistOnMaster;
+        } else {
+            // we have received but NOT persisted an entire *DISK* snapshot
+            // we cannot ack anything until the entire snapshot has been
+            // persisted because PersistToMajority level Prepares may have been
+            // deduped by lower level prepares.
+            // Therefore, the HPS cannot advance over *any* prepares.
+            maxLevelCanAdvanceOver = Level::None;
         }
-            // Check if we finished an entire snapshot, and might be able to
-            // continue checking the next one.
-            if (inSnapshot(snapshotEndSeqno,
-                           getIteratorNext(highPreparedSeqno.it))) {
-                // we stopped advancing the HPS before the end of a snapshot
-                // because we reached a PersistToMajority Prepare
-                // HPS now points to the last Prepare before any
-                // PersistToMajority
-                break;
+
+        // Advance the HPS, respecting maxLevelCanAdvanceOver
+        if (!trackedWrites.empty()) {
+            for (auto next = getIteratorNext(highPreparedSeqno.it);
+                 inSnapshot(snapshotEnd.seqno, next) &&
+                 next->getDurabilityReqs().getLevel() <= maxLevelCanAdvanceOver;
+                 next = getIteratorNext(highPreparedSeqno.it)) {
+                // Note: Update last-write-seqno first to enforce monotonicity
+                // and avoid any state-change if monotonicity checks fail
+                highPreparedSeqno.lastWriteSeqno = next->getBySeqno();
+                highPreparedSeqno.it = next;
             }
-        receivedSnapshotEndSeqnos.pop();
+        }
+
+        if (isDiskSnapshot && snapshotFullyPersisted) {
+            // Special case - prepares in disk snapshots may have been
+            // deduplicated.
+            // PRE(persistMajority), CMT, PRE(), ABORT, SET
+            // may, after the abort has been purged be sent as:
+            // SET
+            // We would have no prepare for this op, but we still need to
+            // seqno ack something. To resolve this, advance the HPS seqno to
+            // the snapshotEndSeqno. There may not be an associated prepare.
+            // NB: lastWriteSeqno is NOT guaranteed to match
+            // highPreparedSeqno.it->getBySeqno()
+            // because of this case
+            highPreparedSeqno.lastWriteSeqno = snapshotEnd.seqno;
+        }
+
+        // Check if we could have acked everything within the snapshot and
+        // might be able to continue checking the next one.
+        if ((isDiskSnapshot && !snapshotFullyPersisted) ||
+            inSnapshot(snapshotEnd.seqno,
+                       getIteratorNext(highPreparedSeqno.it))) {
+            // Either we have not fully persisted a disk snapshot and
+            // the HPS is left <= the start of this snapshot
+            // OR
+            // we stopped advancing the HPS before the end of a memory
+            // snapshot because we reached a PersistToMajority Prepare
+            // HPS now points to the last Prepare before any
+            // PersistToMajority
+            break;
+        }
+
+        receivedSnapshotEnds.pop();
     }
 
     // We have now acked all the complete, persisted snapshots we received,

@@ -323,3 +323,11 @@ bool DurabilityMonitor::ReplicationChain::hasAcked(const std::string& node,
 
     return itr->second.lastWriteSeqno >= bySeqno;
 }
+
+bool operator>(const SnapshotEndInfo& a, const SnapshotEndInfo& b) {
+    return a.seqno > b.seqno;
+}
+std::string to_string(const SnapshotEndInfo& snapshotEndInfo) {
+    return std::to_string(snapshotEndInfo.seqno) + "{" +
+           to_string(snapshotEndInfo.type) + "}";
+}

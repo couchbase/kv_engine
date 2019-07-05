@@ -3829,6 +3829,8 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
                 "Failed to send dcp mutation");
     }
 
+    wait_for_flusher_to_settle(h);
+
     dcp->snapshot_marker(cookie, stream_opaque, Vbid(0), 6, 10, 10);
     for (int i = 6; i <= 10; i++) {
         const std::string key{"key" + std::to_string(i)};
@@ -3852,6 +3854,8 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
                 "Failed to send dcp mutation");
     }
 
+    wait_for_flusher_to_settle(h);
+
     wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
     dcp_step(h, cookie, producers);
@@ -3860,7 +3864,19 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
     cb_assert(producers.last_opaque != opaque);
 
     dcp_step(h, cookie, producers);
+    cb_assert(producers.last_op ==
+              cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged);
+    cb_assert(producers.last_status == cb::mcbp::Status::Success);
+    cb_assert(producers.last_opaque != opaque);
+
+    dcp_step(h, cookie, producers);
     cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    cb_assert(producers.last_status == cb::mcbp::Status::Success);
+    cb_assert(producers.last_opaque != opaque);
+
+    dcp_step(h, cookie, producers);
+    cb_assert(producers.last_op ==
+              cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged);
     cb_assert(producers.last_status == cb::mcbp::Status::Success);
     cb_assert(producers.last_opaque != opaque);
 

@@ -868,6 +868,11 @@ void DurabilityPassiveStreamTest::
     // 4) Verify doc state
     auto vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb);
+
+    // tell the DM that this snapshot was persisted
+    vb->setPersistenceSeqno(streamStartSeqno);
+    vb->notifyPersistenceToDurabilityMonitor();
+
     {
         // findForCommit will return both pending and committed perspectives
         auto res = vb->ht.findForCommit(key);

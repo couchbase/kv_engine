@@ -63,6 +63,7 @@ std::ostream& operator<<(std::ostream&, TransferVB transfer);
 std::string to_string(GenerateBySeqno generateBySeqno);
 std::string to_string(GenerateCas generateCas);
 std::string to_string(TrackCasDrift trackCasDrift);
+std::string to_string(CheckpointType checkpointType);
 
 struct snapshot_range_t {
     snapshot_range_t(uint64_t start, uint64_t end) : start(start), end(end) {

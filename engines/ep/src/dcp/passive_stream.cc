@@ -948,17 +948,23 @@ void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
             notifyStreamReady();
             cur_snapshot_ack = false;
         }
-        cur_snapshot_type.store(Snapshot::None);
 
         // Notify the PassiveDM that the snapshot-end mutation has been
         // received on PassiveStream, if the snapshot contains at least one
         // Prepare. That is necessary for unblocking the High Prepared Seqno
         // in PassiveDM. Note that the HPS is what the PassiveDM acks back to
         // the Active. See comments in PassiveDM for details.
-        if (cur_snapshot_prepare) {
+
+        // Disk snapshots are subject to deduplication, and may be missing
+        // purged aborts. We must notify the PDM even if we have not seen a
+        // prepare, to account for possible unseen prepares.
+        if (cur_snapshot_prepare ||
+            cur_snapshot_type.load() == Snapshot::Disk) {
             vb->notifyPassiveDMOfSnapEndReceived(byseqno);
             cur_snapshot_prepare.store(false);
         }
+
+        cur_snapshot_type.store(Snapshot::None);
     }
 }
 
