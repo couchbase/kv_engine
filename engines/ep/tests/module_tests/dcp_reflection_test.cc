@@ -20,6 +20,7 @@
  */
 
 #include <memcached/protocol_binary.h>
+#include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <tests/mock/mock_checkpoint_manager.h>
 #include <tests/mock/mock_dcp_consumer.h>
@@ -40,6 +41,22 @@ class DCPLoopbackStreamTest : public SingleThreadedKVBucketTest {
 protected:
     void SetUp() override {
         SingleThreadedKVBucketTest::SetUp();
+
+        // Paranoia - remove any previous replica disk files.
+        try {
+            cb::io::rmrf(std::string(test_dbname) + "-replica");
+        } catch (std::system_error& e) {
+            if (e.code() != std::error_code(ENOENT, std::system_category())) {
+                throw e;
+            }
+        }
+
+        ASSERT_EQ(ENGINE_SUCCESS,
+                  engine->getKVBucket()->setVBucketState(
+                          vbid,
+                          vbucket_state_active,
+                          {{"topology",
+                            nlohmann::json::array({{"active", "replica"}})}}));
     }
 
     ENGINE_ERROR_CODE getInternalHelper(const DocKey& key) {
@@ -51,38 +68,15 @@ protected:
                 .getStatus();
     }
 
-    void setupProducer(EnableExpiryOutput enableExpiryOutput,
-                       uint32_t exp_time = 0) {
-        // Setup the source (active) Bucket.
-        EXPECT_EQ(ENGINE_SUCCESS,
-                  engine->getKVBucket()->setVBucketState(vbid,
-                                                         vbucket_state_active));
-
-        // Add some items to the source Bucket.
-        auto key1 = makeStoredDocKey("key1");
-        auto key2 = makeStoredDocKey("key2");
-        auto key3 = makeStoredDocKey("key3");
-        store_item(vbid, key1, "value", exp_time);
-        store_item(vbid, key2, "value", exp_time);
-        store_item(vbid, key3, "value", exp_time);
-
+    void setupProducer(EnableExpiryOutput enableExpiryOutput) {
         // Create the Dcp producer.
         producer = SingleThreadedKVBucketTest::createDcpProducer(
                 cookie,
                 IncludeDeleteTime::No);
         producer->scheduleCheckpointProcessorTask();
-
-        // Setup conditions for expirations
-        auto expectedGetOutcome = ENGINE_SUCCESS;
         if (enableExpiryOutput == EnableExpiryOutput::Yes) {
             producer->setDCPExpiry(true);
-            expectedGetOutcome = ENGINE_KEY_ENOENT;
         }
-        TimeTraveller t(1080);
-        // Trigger expiries on a get, or just check that the key exists
-        EXPECT_EQ(expectedGetOutcome, getInternalHelper(key1));
-        EXPECT_EQ(expectedGetOutcome, getInternalHelper(key2));
-        EXPECT_EQ(expectedGetOutcome, getInternalHelper(key3));
 
         auto& sourceVb = *engine->getVBucket(vbid);
         producer->mockActiveStreamRequest(consumerStream->getFlags(),
@@ -96,12 +90,12 @@ protected:
         producerStream = dynamic_cast<MockActiveStream*>(
                 producer->findStream(vbid).get());
 
-        ASSERT_EQ(2, static_cast<MockCheckpointManager*>(
-                sourceVb.checkpointManager.get())
-                ->getNumOfCursors())
+        ASSERT_EQ(2,
+                  static_cast<MockCheckpointManager*>(
+                          sourceVb.checkpointManager.get())
+                          ->getNumOfCursors())
                 << "Should have both persistence and DCP producer cursor on "
-                   "source "
-                   "VB";
+                   "source VB";
 
         // Creating a producer will schedule one
         // ActiveStreamCheckpointProcessorTask
@@ -174,6 +168,17 @@ protected:
                        "nextCheckpointItemTask()";
             return getNextProducerMsg(stream);
         }
+
+        // Cannot pass mutation/deletion directly to the consumer as the object
+        // is different
+        if (producerMsg->getEvent() == DcpResponse::Event::Mutation ||
+            producerMsg->getEvent() == DcpResponse::Event::Deletion ||
+            producerMsg->getEvent() == DcpResponse::Event::Expiration ||
+            producerMsg->getEvent() == DcpResponse::Event::Prepare) {
+            producerMsg = std::make_unique<MutationConsumerMessage>(
+                    *static_cast<MutationResponse*>(producerMsg.get()));
+        }
+
         return producerMsg;
     }
 
@@ -230,13 +235,33 @@ void DCPLoopbackStreamTest::takeoverTest(
         exp_time = time(NULL) + 256;
     }
 
+    // Add some items to the source Bucket.
+    std::vector<StoredDocKey> keys;
+    keys.push_back(makeStoredDocKey("key1"));
+    keys.push_back(makeStoredDocKey("key2"));
+    keys.push_back(makeStoredDocKey("key3"));
+    for (const auto& key : keys) {
+        store_item(vbid, key, "value", exp_time);
+    }
+
+    // Setup conditions for expirations
+    auto expectedGetOutcome = ENGINE_SUCCESS;
+    if (enableExpiryOutput == EnableExpiryOutput::Yes) {
+        expectedGetOutcome = ENGINE_KEY_ENOENT;
+    }
+    TimeTraveller t(1080);
+    // Trigger expiries on a get, or just check that the key exists
+    for (const auto& key : keys) {
+        EXPECT_EQ(expectedGetOutcome, getInternalHelper(key));
+    }
+
     // Note: the order matters.
     //     First, we setup the Consumer with the given flags and we discard the
     //     StreamRequest message from the Consumer::readyQ.
     //     Then, we simulate the Producer receiving the StreamRequest just
     //     by creating the Producer with the Consumer's flags
     setupConsumer(DCP_ADD_STREAM_FLAG_TAKEOVER);
-    setupProducer(enableExpiryOutput, exp_time);
+    setupProducer(enableExpiryOutput);
 
     // Both streams created. Check state is as expected.
     ASSERT_TRUE(producerStream->isTakeoverSend())
@@ -246,15 +271,6 @@ void DCPLoopbackStreamTest::takeoverTest(
     while (true) {
         auto producerMsg = getNextProducerMsg(producerStream);
         ASSERT_TRUE(producerMsg);
-
-        // Cannot pass mutation/deletion directly to the consumer as the object
-        // is different
-        if (producerMsg->getEvent() == DcpResponse::Event::Mutation ||
-            producerMsg->getEvent() == DcpResponse::Event::Deletion ||
-            producerMsg->getEvent() == DcpResponse::Event::Expiration) {
-            producerMsg = std::make_unique<MutationConsumerMessage>(
-                    *static_cast<MutationResponse*>(producerMsg.get()));
-        }
 
         // Pass the message onto the consumer.
         EXPECT_EQ(ENGINE_SUCCESS,
