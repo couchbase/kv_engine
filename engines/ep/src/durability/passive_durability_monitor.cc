@@ -131,7 +131,7 @@ void PassiveDurabilityMonitor::notifySnapshotEndReceived(uint64_t snapEnd) {
     int64_t hps{0};
     {
         auto s = state.wlock();
-        s->snapshotEnd = snapEnd;
+        s->receivedSnapshotEndSeqnos.push(snapEnd);
         // Maybe the new tracked Prepare is already satisfied and could be
         // ack'ed back to the Active.
         prevHps = s->highPreparedSeqno.lastWriteSeqno;
@@ -339,55 +339,71 @@ void PassiveDurabilityMonitor::State::updateHighPreparedSeqno() {
         return;
     }
 
-    const auto updateHPS = [this](Container::iterator next) -> void {
-        // Note: Update last-write-seqno first to enforce monotonicity and
-        //     avoid any state-change if monotonicity checks fail
-        highPreparedSeqno.lastWriteSeqno = next->getBySeqno();
-        highPreparedSeqno.it = next;
-    };
+    if (receivedSnapshotEndSeqnos.empty()) {
+        // We have not received a full snapshot, we cannot advance the hps at
+        // all
+        return;
+    }
 
     const auto prevHPS = highPreparedSeqno.lastWriteSeqno;
 
-    Container::iterator next;
+    // Helper to keep conditions short and meaningful
+    const auto inSnapshot = [trackedWritesEnd = trackedWrites.end()](
+                                    uint64_t snapshotEndSeqno,
+                                    auto prepareItr) {
+        return prepareItr != trackedWritesEnd &&
+               static_cast<uint64_t>(prepareItr->getBySeqno()) <=
+                       snapshotEndSeqno;
+    };
 
-    // First, blindly move HPS up to the last persisted snapshot-end.
-    // That ensures that the durability-fence moves only when the complete
-    // snapshot is persisted.
-    // Note that here we don't need to check any Durability Level: persistence
-    // of a complete snapshot makes locally-satisfied all the pending Prepares
-    // in that snapshot.
-    if (pdm.vb.getPersistenceSeqno() >= snapshotEnd) {
-        while ((next = getIteratorNext(highPreparedSeqno.it)) !=
-                       trackedWrites.end() &&
-               static_cast<uint64_t>(next->getBySeqno()) <= snapshotEnd) {
-            updateHPS(next);
+    while (!receivedSnapshotEndSeqnos.empty() && !trackedWrites.empty()) {
+        uint64_t snapshotEndSeqno = receivedSnapshotEndSeqnos.front();
+
+        // ** If pdm.vb.getPersistenceSeqno() >= snapshotEndSeqno
+        // we have received and persisted an entire snapshot
+        // All prepares from this snapshot are satisfied and the state
+        // is consistent at snap end. The HPS can advance over Prepares of
+        // PersistToMajority or lower (i.e., everything currently)
+
+        // ** if pdm.vb.getPersistenceSeqno() < snapshotEndSeqno
+        // we have received but NOT persisted an entire snapshot
+        //  We *may* be able to advance the HPS part way
+        // into this snapshot - The HPS can be advanced over all Prepares of
+        // MajorityAndPersistOnMaster level or lower, to the last Prepare
+        // immediately preceding an *unpersisted* Prepare with Level ==
+        // PersistToMajority. We cannot move the HPS past this Prepare until
+        // it *is* persisted.
+
+        const cb::durability::Level maxLevelCanAdvanceOver =
+                (pdm.vb.getPersistenceSeqno() >= snapshotEndSeqno)
+                        ? cb::durability::Level::PersistToMajority
+                        : cb::durability::Level::MajorityAndPersistOnMaster;
+
+        for (auto next = getIteratorNext(highPreparedSeqno.it);
+             inSnapshot(snapshotEndSeqno, next) &&
+             next->getDurabilityReqs().getLevel() <= maxLevelCanAdvanceOver;
+             next = getIteratorNext(highPreparedSeqno.it)) {
+            // Note: Update last-write-seqno first to enforce monotonicity and
+            //     avoid any state-change if monotonicity checks fail
+            highPreparedSeqno.lastWriteSeqno = next->getBySeqno();
+            highPreparedSeqno.it = next;
         }
+            // Check if we finished an entire snapshot, and might be able to
+            // continue checking the next one.
+            if (inSnapshot(snapshotEndSeqno,
+                           getIteratorNext(highPreparedSeqno.it))) {
+                // we stopped advancing the HPS before the end of a snapshot
+                // because we reached a PersistToMajority Prepare
+                // HPS now points to the last Prepare before any
+                // PersistToMajority
+                break;
+            }
+        receivedSnapshotEndSeqnos.pop();
     }
 
-    // Then, move the HPS to the last Prepare with Level != PersistToMajority.
-    //
-    // I.e., all the Majority and MajorityAndPersistToMaster Prepares that were
-    // blocked by non-locally-satisfied PersistToMajority Prepares
-    // (durability-fence) maybe implicitly satisfied now (as the previous step
-    // may have moved the durability-fence).
-    //
-    // So, here the HPS moves up to the first non-locally-satisfied
-    // PersistToMajority Prepare.
-    // Again, the HPS moves always at snapshot boundaries (ie, in this case
-    // within the latest complete snapshot *received*).
-    while ((next = getIteratorNext(highPreparedSeqno.it)) !=
-                   trackedWrites.end() &&
-           static_cast<uint64_t>(next->getBySeqno()) <= snapshotEnd) {
-        const auto level = next->getDurabilityReqs().getLevel();
-        Expects(level != cb::durability::Level::None);
-        // Note: We are in the PassiveDM. The first Level::PersistToMajority
-        // SyncWrite is our durability-fence.
-        if (level == cb::durability::Level::PersistToMajority) {
-            break;
-        }
-
-        updateHPS(next);
-    }
+    // We have now acked all the complete, persisted snapshots we received,
+    // and advanced the HPS as far as it can go - cannot advance further into a
+    // partial snapshot or past a PersistToMajority Prepare
 
     if (highPreparedSeqno.lastWriteSeqno != prevHPS) {
         Expects(highPreparedSeqno.lastWriteSeqno > prevHPS);

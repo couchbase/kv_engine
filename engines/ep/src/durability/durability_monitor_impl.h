@@ -25,9 +25,11 @@
 #include "durability_monitor.h"
 #include "item.h"
 #include "monotonic.h"
+#include "monotonic_queue.h"
 #include "passive_durability_monitor.h"
 
 #include <chrono>
+#include <queue>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -336,11 +338,11 @@ struct PassiveDurabilityMonitor::State {
     //         PersistToMajority
     Position highPreparedSeqno;
 
-    // The last snapshot-end mutation received for the (owning)
-    // replica/pending VBucket.
+    // Queue of snapEndSeqnos for snapshots which have been received entirely
+    // by the (owning) replica/pending VBucket.
     // Used for implementing the correct move-logic of High Prepared Seqno.
-    // Must be set at snapshot-end received on PassiveStream.
-    Monotonic<uint64_t, ThrowExceptionPolicy> snapshotEnd{0};
+    // Must be pushed to at snapshot-end received on PassiveStream.
+    MonotonicQueue<uint64_t> receivedSnapshotEndSeqnos;
 
     // Cumulative count of accepted (tracked) SyncWrites.
     size_t totalAccepted = 0;

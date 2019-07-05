@@ -111,6 +111,8 @@ protected:
                            const int64_t expectedHPS,
                            const int64_t expectedHCS);
 
+    void replaceSeqnoAckCB(std::function<void(Vbid vbid, int64_t seqno)>);
+
     // Owned by KVBucket
     VBucket* vb;
 

@@ -1703,6 +1703,11 @@ void DurabilityMonitorTest::notifyPersistence(const int64_t persistedSeqno,
     ASSERT_EQ(expectedHCS, monitor->getHighCompletedSeqno());
 }
 
+void DurabilityMonitorTest::replaceSeqnoAckCB(
+        std::function<void(Vbid vbid, int64_t seqno)> cb) {
+    vb->seqnoAckCb = cb;
+}
+
 TEST_P(PassiveDurabilityMonitorTest, HPS_Majority) {
     assertNumTrackedAndHPSAndHCS(0, 0, 0 /*expectedHCS*/);
 
@@ -1872,6 +1877,70 @@ TEST_P(PassiveDurabilityMonitorTest, RemoveCommittedOnlyIfLocallySatisfied) {
 TEST_P(PassiveDurabilityMonitorTest, RemoveAbortedOnlyIfLocallySatisfied) {
     testRemoveCompletedOnlyIfLocallySatisfied(
             PassiveDurabilityMonitor::Resolution::Abort);
+}
+
+TEST_P(PassiveDurabilityMonitorPersistentTest, AckLatestPersistedSnapshot) {
+    /* Once a full snapshot containing a PersistToMajority Prepare is persisted,
+     * we should seqnoAck at that snapshot's end seqno even if a newer snapshot
+     * has been received since. Simply acking when persistence passes the latest
+     * snapshot end could lead to seqnoAck being delayed indefinitely by new
+     * snapshots "shifting the goalpost". With a constant disk write queue size,
+     * persistence might never pass the lastest snapshotEnd.
+     */
+
+    // Tracking the actual seqnoAcks is a bit "belt and braces" because the HPS
+    // is enough information, but it seems worth explicitly confirming we are
+    // acking at the point we expect.
+    std::queue<uint64_t> seqnoAcks{};
+
+    DurabilityMonitorTest::replaceSeqnoAckCB(
+            [&](Vbid vbid, int64_t seqno) { seqnoAcks.push(seqno); });
+
+    assertNumTrackedAndHPSAndHCS(0, 0, 0 /*expectedHCS*/);
+
+    // SNAP 1
+    DurabilityMonitorTest::addSyncWrite(
+            {1, 2, 3} /*seqnos*/,
+            cb::durability::Level::PersistToMajority,
+            0 /*expectedHPS*/,
+            0 /*expectedHCS*/);
+
+    // End snapshot, but not yet persisted
+    notifySnapEndReceived(3 /*snapEnd*/, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
+
+    // SNAP 2
+    DurabilityMonitorTest::addSyncWrite(
+            {4, 5, 6} /*seqnos*/,
+            cb::durability::Level::PersistToMajority,
+            0 /*expectedHPS*/,
+            0 /*expectedHCS*/);
+
+    // New snapshot received, first snapshot *still* not persisted
+    notifySnapEndReceived(6 /*snapEnd*/, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
+
+    // Persist first snapshot
+    notifyPersistence(
+            3 /*persistedSeqno*/, 3 /*expectedHPS*/, 0 /*expectedHCS*/);
+
+    EXPECT_EQ(3, seqnoAcks.front());
+    seqnoAcks.pop();
+
+    // SNAP 3
+    DurabilityMonitorTest::addSyncWrite({7, 8, 9} /*seqnos*/,
+                                        cb::durability::Level::Majority,
+                                        3 /*expectedHPS*/,
+                                        0 /*expectedHCS*/);
+
+    notifySnapEndReceived(9 /*snapEnd*/, 3 /*expectedHPS*/, 0 /*expectedHCS*/);
+
+    EXPECT_TRUE(seqnoAcks.empty());
+    notifyPersistence(
+            6 /*persistedSeqno*/, 9 /*expectedHPS*/, 0 /*expectedHCS*/);
+
+    // As snap 3 contains only Majority level, once the snap 2 is persisted
+    // snap 3 end can be acked because snap 3 is entirely satisfied in memory
+    EXPECT_EQ(9, seqnoAcks.front());
+    seqnoAcks.pop();
 }
 
 void PassiveDurabilityMonitorTest::notifySnapEndReceived(int64_t snapEnd,
