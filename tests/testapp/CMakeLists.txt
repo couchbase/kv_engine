@@ -65,6 +65,7 @@ set(memcached_testapp_SOURCES
     testapp_subdoc_multipath.cc
     testapp_subdoc_perf.cc
     testapp_tests.cc
+    testapp_topkeys.cc
     testapp_touch.cc
     testapp_tracing.cc
     testapp_tune_mcbp_sla.cc
