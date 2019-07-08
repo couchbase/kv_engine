@@ -1061,7 +1061,7 @@
             "type": "size_t"
         },
         "magma_wal_num_buffers": {
-            "default": "2",
+            "default": "1",
             "dynamic": false,
             "descr": "When batches of items are large in size, magma WAL can take advantage of double buffering to speed up persistence by flushing intermediate batches to disk. Atomicity is maintained through the use of begin/end transaction control records.",
             "type": "size_t"
