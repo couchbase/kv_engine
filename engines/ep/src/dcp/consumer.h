@@ -502,6 +502,16 @@ protected:
         uint32_t bytes;
     };
 
+    /**
+     * Helper method to lookup the correct stream for the given
+     * vbid / opaque pair, and then dispatch the message to that stream.
+     */
+    ENGINE_ERROR_CODE lookupStreamAndDispatchMessage(
+            UpdateFlowControl& ufc,
+            Vbid vbucket,
+            uint32_t opaque,
+            std::unique_ptr<DcpResponse> msg);
+
     /* Reference to the ep engine; need to create the 'Processor' task */
     EventuallyPersistentEngine& engine;
     uint64_t opaqueCounter;

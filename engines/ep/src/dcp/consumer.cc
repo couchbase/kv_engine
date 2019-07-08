@@ -364,9 +364,6 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque,
 
     lastMessageTime = ep_current_time();
     UpdateFlowControl ufc(*this, StreamEndResponse::baseMsgBytes);
-    if (doDisconnect()) {
-        return ENGINE_DISCONNECT;
-    }
 
     auto stream = findStream(vbucket);
     if (!stream) {
@@ -393,25 +390,12 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque,
 
     logger->info("({}) End stream received with reason {}", vbucket, flags);
 
-    ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
-    try {
-        err = stream->messageReceived(std::make_unique<StreamEndResponse>(
-                opaque,
-                static_cast<end_stream_status_t>(flags),
-                vbucket,
-                cb::mcbp::DcpStreamId{}));
-    } catch (const std::bad_alloc&) {
-        return ENGINE_ENOMEM;
-    }
-
-    // The item was buffered and will be processed later
-    if (err == ENGINE_TMPFAIL) {
-        ufc.release();
-        notifyVbucketReady(vbucket);
-        return ENGINE_SUCCESS;
-    }
-
-    return err;
+    auto msg = std::make_unique<StreamEndResponse>(
+            opaque,
+            static_cast<end_stream_status_t>(flags),
+            vbucket,
+            cb::mcbp::DcpStreamId{});
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 
 ENGINE_ERROR_CODE DcpConsumer::processMutationOrPrepare(
@@ -423,45 +407,24 @@ ENGINE_ERROR_CODE DcpConsumer::processMutationOrPrepare(
         size_t msgBytes) {
     UpdateFlowControl ufc(*this, msgBytes);
 
-    if (doDisconnect()) {
-        return ENGINE_DISCONNECT;
-    }
-
-    ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
-    auto stream = findStream(vbucket);
-    if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        std::unique_ptr<ExtendedMetaData> emd;
-        if (meta.size() > 0) {
-            emd = std::make_unique<ExtendedMetaData>(meta.data(), meta.size());
-            if (emd->getStatus() == ENGINE_EINVAL) {
-                return ENGINE_EINVAL;
-            }
-        }
-
-        try {
-            err = stream->messageReceived(
-                    std::make_unique<MutationConsumerMessage>(
-                            item,
-                            opaque,
-                            IncludeValue::Yes,
-                            IncludeXattrs::Yes,
-                            IncludeDeleteTime::No,
-                            key.getEncoding(),
-                            emd.release(),
-                            cb::mcbp::DcpStreamId{}));
-        } catch (const std::bad_alloc&) {
-            return ENGINE_ENOMEM;
-        }
-
-        // The item was buffered and will be processed later
-        if (err == ENGINE_TMPFAIL) {
-            ufc.release();
-            notifyVbucketReady(vbucket);
-            return ENGINE_SUCCESS;
+    std::unique_ptr<ExtendedMetaData> emd;
+    if (meta.size() > 0) {
+        emd = std::make_unique<ExtendedMetaData>(meta.data(), meta.size());
+        if (emd->getStatus() == ENGINE_EINVAL) {
+            return ENGINE_EINVAL;
         }
     }
 
-    return err;
+    auto msg =
+            std::make_unique<MutationConsumerMessage>(item,
+                                                      opaque,
+                                                      IncludeValue::Yes,
+                                                      IncludeXattrs::Yes,
+                                                      IncludeDeleteTime::No,
+                                                      key.getEncoding(),
+                                                      emd.release(),
+                                                      cb::mcbp::DcpStreamId{});
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 
 ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
@@ -743,10 +706,6 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
     lastMessageTime = ep_current_time();
     UpdateFlowControl ufc(*this, SnapshotMarker::baseMsgBytes);
 
-    if (doDisconnect()) {
-        return ENGINE_DISCONNECT;
-    }
-
     if (start_seqno > end_seqno) {
         logger->warn(
                 "({}) Invalid snapshot marker "
@@ -757,31 +716,13 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
         return ENGINE_EINVAL;
     }
 
-    ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
-    auto stream = findStream(vbucket);
-    if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        try {
-            err = stream->messageReceived(
-                    std::make_unique<SnapshotMarker>(opaque,
-                                                     vbucket,
-                                                     start_seqno,
-                                                     end_seqno,
-                                                     flags,
-                                                     cb::mcbp::DcpStreamId{}));
-
-        } catch (const std::bad_alloc&) {
-            return ENGINE_ENOMEM;
-        }
-
-        // The item was buffered and will be processed later
-        if (err == ENGINE_TMPFAIL) {
-            notifyVbucketReady(vbucket);
-            ufc.release();
-            return ENGINE_SUCCESS;
-        }
-    }
-
-    return err;
+    auto msg = std::make_unique<SnapshotMarker>(opaque,
+                                                vbucket,
+                                                start_seqno,
+                                                end_seqno,
+                                                flags,
+                                                cb::mcbp::DcpStreamId{});
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 
 ENGINE_ERROR_CODE DcpConsumer::noop(uint32_t opaque) {
@@ -801,29 +742,10 @@ ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
 
     lastMessageTime = ep_current_time();
     UpdateFlowControl ufc(*this, SetVBucketState::baseMsgBytes);
-    if (doDisconnect()) {
-        return ENGINE_DISCONNECT;
-    }
 
-    ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
-    auto stream = findStream(vbucket);
-    if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        try {
-            err = stream->messageReceived(std::make_unique<SetVBucketState>(
-                    opaque, vbucket, state, cb::mcbp::DcpStreamId{}));
-        } catch (const std::bad_alloc&) {
-            return ENGINE_ENOMEM;
-        }
-
-        // The item was buffered and will be processed later
-        if (err == ENGINE_TMPFAIL) {
-            ufc.release();
-            notifyVbucketReady(vbucket);
-            return ENGINE_SUCCESS;
-        }
-    }
-
-    return err;
+    auto msg = std::make_unique<SetVBucketState>(
+            opaque, vbucket, state, cb::mcbp::DcpStreamId{});
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 
 ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
@@ -1649,35 +1571,13 @@ ENGINE_ERROR_CODE DcpConsumer::systemEvent(uint32_t opaque,
                                            cb::const_byte_buffer key,
                                            cb::const_byte_buffer eventData) {
     lastMessageTime = ep_current_time();
+    UpdateFlowControl ufc(
+            *this,
+            SystemEventMessage::baseMsgBytes + key.size() + eventData.size());
 
-    ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
-    auto stream = findStream(vbucket);
-    if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        try {
-            err = stream->messageReceived(
-                    std::make_unique<SystemEventConsumerMessage>(opaque,
-                                                                 event,
-                                                                 bySeqno,
-                                                                 vbucket,
-                                                                 version,
-                                                                 key,
-                                                                 eventData));
-        } catch (const std::bad_alloc&) {
-            return ENGINE_ENOMEM;
-        }
-
-        // The item was buffered and will be processed later
-        if (err == ENGINE_TMPFAIL) {
-            notifyVbucketReady(vbucket);
-            return ENGINE_SUCCESS;
-        }
-    }
-
-    flowControl.incrFreedBytes(SystemEventMessage::baseMsgBytes + key.size() +
-                               eventData.size());
-    scheduleNotifyIfNecessary();
-
-    return err;
+    auto msg = std::make_unique<SystemEventConsumerMessage>(
+            opaque, event, bySeqno, vbucket, version, key, eventData);
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 
 ENGINE_ERROR_CODE DcpConsumer::prepare(
@@ -1732,6 +1632,46 @@ ENGINE_ERROR_CODE DcpConsumer::prepare(
     return processMutationOrPrepare(vbucket, opaque, key, item, {}, msgBytes);
 }
 
+ENGINE_ERROR_CODE DcpConsumer::lookupStreamAndDispatchMessage(
+        UpdateFlowControl& ufc,
+        Vbid vbucket,
+        uint32_t opaque,
+        std::unique_ptr<DcpResponse> msg) {
+    if (doDisconnect()) {
+        return ENGINE_DISCONNECT;
+    }
+
+    auto stream = findStream(vbucket);
+    if (!stream || stream->getOpaque() != opaque) {
+        // No such stream with the given vbucket / opaque - return KEY_ENOENT
+        // to indicate that back to peer.
+        return ENGINE_KEY_ENOENT;
+    }
+
+    if (!stream->isActive()) {
+        // Stream is not active - also uses KEY_ENOENT to indicate no valid
+        // stream.
+        return ENGINE_KEY_ENOENT;
+    }
+
+    // Pass the message to the associated stream.
+    ENGINE_ERROR_CODE err;
+    try {
+        err = stream->messageReceived(std::move(msg));
+    } catch (const std::bad_alloc&) {
+        return ENGINE_ENOMEM;
+    }
+
+    // The item was buffered and will be processed later
+    if (err == ENGINE_TMPFAIL) {
+        notifyVbucketReady(vbucket);
+        ufc.release();
+        return ENGINE_SUCCESS;
+    }
+
+    return err;
+}
+
 ENGINE_ERROR_CODE DcpConsumer::commit(uint32_t opaque,
                                       Vbid vbucket,
                                       const DocKey& key,
@@ -1741,34 +1681,14 @@ ENGINE_ERROR_CODE DcpConsumer::commit(uint32_t opaque,
     const size_t msgBytes = CommitSyncWrite::commitBaseMsgBytes + key.size();
     UpdateFlowControl ufc(*this, msgBytes);
 
-    if (doDisconnect()) {
-        return ENGINE_DISCONNECT;
-    }
-
     if (commit_seqno == 0) {
         logger->warn("({}) Invalid sequence number(0) for commit!", vbucket);
         return ENGINE_EINVAL;
     }
 
-    ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
-    auto stream = findStream(vbucket);
-    if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        try {
-            err = stream->messageReceived(std::make_unique<CommitSyncWrite>(
-                    opaque, vbucket, prepare_seqno, commit_seqno, key));
-        } catch (const std::bad_alloc&) {
-            return ENGINE_ENOMEM;
-        }
-
-        // The item was buffered and will be processed later
-        if (err == ENGINE_TMPFAIL) {
-            notifyVbucketReady(vbucket);
-            ufc.release();
-            return ENGINE_SUCCESS;
-        }
-    }
-
-    return err;
+    auto msg = std::make_unique<CommitSyncWrite>(
+            opaque, vbucket, prepare_seqno, commit_seqno, key);
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 
 ENGINE_ERROR_CODE DcpConsumer::abort(uint32_t opaque,
@@ -1780,34 +1700,14 @@ ENGINE_ERROR_CODE DcpConsumer::abort(uint32_t opaque,
     UpdateFlowControl ufc(*this,
                           AbortSyncWrite::abortBaseMsgBytes + key.size());
 
-    if (doDisconnect()) {
-        return ENGINE_DISCONNECT;
-    }
-
     if (!abortSeqno) {
         logger->warn("({}) Invalid abort-seqno (0)", vbucket);
         return ENGINE_EINVAL;
     }
 
-    ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
-    auto stream = findStream(vbucket);
-    if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        try {
-            err = stream->messageReceived(std::make_unique<AbortSyncWrite>(
-                    opaque, vbucket, key, prepareSeqno, abortSeqno));
-        } catch (const std::bad_alloc&) {
-            return ENGINE_ENOMEM;
-        }
-
-        // The item was buffered and will be processed later
-        if (err == ENGINE_TMPFAIL) {
-            notifyVbucketReady(vbucket);
-            ufc.release();
-            return ENGINE_SUCCESS;
-        }
-    }
-
-    return err;
+    auto msg = std::make_unique<AbortSyncWrite>(
+            opaque, vbucket, key, prepareSeqno, abortSeqno);
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 
 void DcpConsumer::setDisconnect() {
