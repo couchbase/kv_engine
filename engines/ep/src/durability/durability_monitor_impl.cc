@@ -73,6 +73,10 @@ const void* DurabilityMonitor::SyncWrite::getCookie() const {
     return cookie;
 }
 
+void DurabilityMonitor::SyncWrite::clearCookie() {
+    cookie = nullptr;
+}
+
 std::chrono::steady_clock::time_point
 DurabilityMonitor::SyncWrite::getStartTime() const {
     return startTime;

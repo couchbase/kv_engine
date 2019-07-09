@@ -564,6 +564,7 @@ public:
 
     void handleDisconnect(const void *cookie);
     void initiate_shutdown() override;
+    void cancel_all_operations_in_ewb_state() override;
 
     cb::mcbp::Status stopFlusher(const char** msg, size_t* msg_size);
 

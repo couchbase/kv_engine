@@ -72,6 +72,8 @@ public:
 
     const void* getCookie() const;
 
+    void clearCookie();
+
     std::chrono::steady_clock::time_point getStartTime() const;
 
     /**

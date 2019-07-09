@@ -125,9 +125,11 @@ public:
     void processTimeout(std::chrono::steady_clock::time_point asOf);
 
     /**
-     * Get the non-null cookies for all in-flight SyncWrites.
+     * Get (and clear) the non-null cookies for all in-flight SyncWrites.
      * (Null cookies - for example originating from SyncWrites loaded during
-     *  warmup - are not returned).
+     * warmup - are not returned). The reason for clearing the cookies is
+     * to avoid a double notification on the cookie (which is illegal),
+     * so the caller <u>must</u> notify these cookies.
      */
     std::vector<const void*> getCookiesForInFlightSyncWrites();
 

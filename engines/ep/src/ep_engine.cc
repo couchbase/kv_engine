@@ -5821,6 +5821,11 @@ void EventuallyPersistentEngine::initiate_shutdown() {
     dcpConnMap_->shutdownAllConnections();
 }
 
+void EventuallyPersistentEngine::cancel_all_operations_in_ewb_state() {
+    auto eng = acquireEngine(this);
+    kvBucket->releaseRegisteredSyncWrites();
+}
+
 cb::mcbp::Status EventuallyPersistentEngine::stopFlusher(const char** msg,
                                                          size_t* msg_size) {
     (void)msg_size;

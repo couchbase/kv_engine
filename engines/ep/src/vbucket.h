@@ -524,7 +524,7 @@ public:
     void fireAllOps(EventuallyPersistentEngine &engine);
 
     /**
-     * Get the cookies for all in-flight SyncWrites from the ADM
+     * Get (and clear) the cookies for all in-flight SyncWrites from the ADM
      */
     std::vector<const void*> getCookiesForInFlightSyncWrites();
 

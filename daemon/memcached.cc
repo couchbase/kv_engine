@@ -1967,6 +1967,7 @@ void DestroyBucketThread::destroy() {
     LOG_INFO("{} Delete bucket [{}]. Notifying engine", connection_id, name);
 
     all_buckets[idx].getEngine()->initiate_shutdown();
+    all_buckets[idx].getEngine()->cancel_all_operations_in_ewb_state();
 
     LOG_INFO("{} Delete bucket [{}]. Engine ready for shutdown",
              connection_id,
@@ -2030,6 +2031,7 @@ void DestroyBucketThread::destroy() {
                         connection.signalIfIdle();
                     }
                 });
+                bucket.getEngine()->cancel_all_operations_in_ewb_state();
                 guard.lock();
                 continue;
             }

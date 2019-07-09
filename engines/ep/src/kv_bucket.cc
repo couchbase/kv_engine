@@ -228,10 +228,10 @@ class RespondAmbiguousNotification : public GlobalTask {
 public:
     RespondAmbiguousNotification(EventuallyPersistentEngine& e,
                                  VBucketPtr& vb,
-                                 std::vector<const void*> cookies)
+                                 std::vector<const void*>&& cookies_)
         : GlobalTask(&e, TaskId::RespondAmbiguousNotification, 0, false),
           weakVb(vb),
-          cookies(cookies),
+          cookies(std::move(cookies_)),
           description("Notify clients of Sync Write Ambiguous " +
                       vb->getId().to_string()) {
         for (const auto* cookie : cookies) {
@@ -856,6 +856,29 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,
             vbid, to, meta, transfer, true /*notifyDcp*/, lh);
 }
 
+void KVBucket::releaseRegisteredSyncWrites() {
+    for (size_t vbid = 0; vbid < vbMap.size; ++vbid) {
+        VBucketPtr vb = vbMap.getBucket(Vbid{gsl::narrow<uint16_t>(vbid)});
+        if (!vb) {
+            continue;
+        }
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        if (vb->getState() != vbucket_state_active) {
+            continue;
+        }
+
+        auto cookies = vb->getCookiesForInFlightSyncWrites();
+        if (!cookies.empty()) {
+            EP_LOG_INFO("Cancel {} blocked durability requests in {}",
+                        cookies.size(),
+                        vb);
+            ExTask notifyTask = std::make_shared<RespondAmbiguousNotification>(
+                    engine, vb, std::move(cookies));
+            ExecutorPool::get()->schedule(notifyTask);
+        }
+    }
+}
+
 ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
         Vbid vbid,
         vbucket_state_t to,
@@ -887,7 +910,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
             // Get a list of cookies that we should respond to
             auto connectionsToRespondTo = vb->getCookiesForInFlightSyncWrites();
             ExTask notifyTask = std::make_shared<RespondAmbiguousNotification>(
-                    engine, vb, connectionsToRespondTo);
+                    engine, vb, std::move(connectionsToRespondTo));
             ExecutorPool::get()->schedule(notifyTask);
         }
 

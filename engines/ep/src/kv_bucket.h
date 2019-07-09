@@ -284,6 +284,18 @@ public:
     }
 
     /**
+     * Release all cookies blocked for sync write
+     *
+     * This method is called during bucket shutdown to make sure that
+     * all of the cookies waiting for a durable write is released so that
+     * we can continue bucket deletion. As part of bucket deletion one of
+     * the first things we do is to tear down the DCP streams so that
+     * the durable writes will never be notified and would be stuck
+     * waiting for a timeout if we don't explicitly release them.
+     */
+    void releaseRegisteredSyncWrites();
+
+    /**
      * Sets the vbucket or creates a vbucket with the desired state
      *
      * @param vbid vbucket id

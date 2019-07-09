@@ -198,6 +198,29 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
         // empty
     }
 
+    /**
+     * Request the engine to cancel all of the ongoing requests which
+     * may have cookies in an ewouldblock state.
+     *
+     * This method is to removed in CC when we'll tighten the logic for
+     * bucket deletion to use the following logic:
+     *
+     * 1) Stop any new requests into the engine.
+     * 2) Tell the engine to complete (cancel) anything currently in-flight
+     *    (this notification holds a write lock to the engine so it won't
+     *    race with any front end threads)
+     * 3) wait for in-flight ops (i.e. step B) to finish then delete bucket.
+     *
+     * In Mad-Hatter initiate_shutdown may race with all of the frontend
+     * worker threads, and could lead to operations being added after we've
+     * inspected the vbucket. To work around that problem this new method
+     * was introduced and will be called multiple times during bucket
+     * deletion to work around potential race situations.
+     */
+    virtual void cancel_all_operations_in_ewb_state() {
+        // empty
+    }
+
     /*
      * Item operations.
      */
