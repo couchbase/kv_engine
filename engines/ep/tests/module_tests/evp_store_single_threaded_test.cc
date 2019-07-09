@@ -3821,6 +3821,109 @@ TEST_F(SingleThreadedEPBucketTest, testValidTombstonePurgeOnRetainErroneousTombs
     EXPECT_EQ(2, store->getVBucket(vbid)->getPurgeSeqno());
 }
 
+// MB-34850: Check that a consumer correctly handles (and ignores) stream-level
+// messages (Mutation/Deletion/Prepare/Commit/Abort/...) received after
+// CloseStream response but *before* the Producer sends STREAM_END.
+TEST_F(SingleThreadedEPBucketTest,
+       MB_34850_ConsumerRecvMessagesAfterCloseStream) {
+    // Setup: Create replica VB and create stream for vbid.
+    // Have the consumer receive a snapshot marker(1..10), and then close the
+    // stream .
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "conn");
+    int opaque = 1;
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, vbid, /*flags*/ 0));
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(opaque, vbid, 1, 10, MARKER_FLAG_CHK));
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
+
+    // Test: Have the producer send further messages on the stream (before the
+    // final STREAM_END. These should all be accepted (but discarded) by the
+    // replica.
+    auto testAllStreamLevelMessages = [&consumer, this, opaque](
+                                              ENGINE_ERROR_CODE expected) {
+        auto key = makeStoredDocKey("key");
+        auto dtype = PROTOCOL_BINARY_RAW_BYTES;
+        EXPECT_EQ(expected,
+                  consumer->mutation(opaque,
+                                     key,
+                                     {},
+                                     0,
+                                     dtype,
+                                     {},
+                                     vbid,
+                                     {},
+                                     1,
+                                     {},
+                                     {},
+                                     {},
+                                     {},
+                                     {}));
+
+        EXPECT_EQ(expected,
+                  consumer->deletion(
+                          opaque, key, {}, 0, dtype, {}, vbid, 2, {}, {}));
+
+        EXPECT_EQ(expected,
+                  consumer->deletionV2(
+                          opaque, key, {}, 0, dtype, {}, vbid, 3, {}, {}));
+
+        EXPECT_EQ(expected,
+                  consumer->expiration(
+                          opaque, key, {}, 0, dtype, {}, vbid, 4, {}, {}));
+
+        EXPECT_EQ(
+                expected,
+                consumer->setVBucketState(opaque, vbid, vbucket_state_active));
+        auto vb = engine->getKVBucket()->getVBucket(vbid);
+        EXPECT_EQ(vbucket_state_replica, vb->getState());
+
+        EXPECT_EQ(expected,
+                  consumer->systemEvent(opaque,
+                                        vbid,
+                                        mcbp::systemevent::id::CreateCollection,
+                                        5,
+                                        mcbp::systemevent::version::version1,
+                                        {},
+                                        {}));
+
+        EXPECT_EQ(expected,
+                  consumer->prepare(opaque,
+                                    key,
+                                    {},
+                                    0,
+                                    dtype,
+                                    {},
+                                    vbid,
+                                    {},
+                                    6,
+                                    {},
+                                    {},
+                                    {},
+                                    {},
+                                    {},
+                                    {}));
+
+        EXPECT_EQ(expected, consumer->commit(opaque, vbid, key, 6, 7));
+
+        EXPECT_EQ(expected, consumer->abort(opaque, vbid, key, 6, 7));
+
+        EXPECT_EQ(expected,
+                  consumer->snapshotMarker(
+                          opaque, vbid, 11, 11, MARKER_FLAG_CHK));
+    };
+    testAllStreamLevelMessages(ENGINE_SUCCESS);
+
+    // Setup (phase 2): Receive a STREAM_END message - after which all of the
+    // above stream-level messages should be rejected as ENOENT.
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->streamEnd(opaque, vbid, END_STREAM_CLOSED));
+
+    // Test (phase 2): Have the producer send all the above stream-level
+    // messages to the consumer. Should all be rejected this time.
+    testAllStreamLevelMessages(ENGINE_KEY_ENOENT);
+}
+
 TEST_P(STParameterizedBucketTest, produce_delete_times) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto t1 = ep_real_time();

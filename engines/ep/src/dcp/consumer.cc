@@ -350,7 +350,9 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque,
 
     uint32_t bytesCleared = stream->setDead(END_STREAM_CLOSED);
     flowControl.incrFreedBytes(bytesCleared);
-    removeStream(vbucket);
+    // Note the stream is not yet removed from the `streams` map; as we need to
+    // handle (but ignore) any in-flight messages from the Producer until
+    // STREAM_END is received.
     scheduleNotifyIfNecessary();
 
     return ENGINE_SUCCESS;
@@ -374,12 +376,6 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque,
         return ENGINE_KEY_ENOENT;
     }
 
-    if (!stream->isActive()) {
-        logger->warn("({}) End stream received but stream is not active",
-                     vbucket);
-        return ENGINE_KEY_ENOENT;
-    }
-
     if (stream->getOpaque() != opaque) {
         logger->warn("({}) End stream received with opaque {} but expected {}",
                      vbucket,
@@ -395,7 +391,16 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque,
             static_cast<end_stream_status_t>(flags),
             vbucket,
             cb::mcbp::DcpStreamId{});
-    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
+    auto res = lookupStreamAndDispatchMessage(
+            ufc, vbucket, opaque, std::move(msg));
+
+    if (res == ENGINE_SUCCESS) {
+        // Stream End message successfully passed to stream. Can now remove
+        // the stream from the streams map as it has completed its lifetime.
+        removeStream(vbucket);
+    }
+
+    return res;
 }
 
 ENGINE_ERROR_CODE DcpConsumer::processMutationOrPrepare(
@@ -540,64 +545,66 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
         return ENGINE_EINVAL;
     }
 
-    ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     auto stream = findStream(vbucket);
-    if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        queued_item item(Item::makeDeletedItem(deletionCause,
-                                               key,
-                                               0,
-                                               deleteTime,
-                                               value.data(),
-                                               value.size(),
-                                               datatype,
-                                               cas,
-                                               bySeqno,
-                                               vbucket,
-                                               revSeqno));
+    if (!stream || (stream->getOpaque() != opaque)) {
+        // No stream for this vBucket / opaque - return ENOENT to indicate this.
+        return ENGINE_KEY_ENOENT;
+    }
 
-        // MB-29040: Producer may send deleted doc with value that still has
-        // the user xattrs and the body. Fix up that mistake by running the
-        // expiry hook which will correctly process the document
-        if (value.size()) {
-            if (mcbp::datatype::is_xattr(datatype)) {
-                auto vb = engine_.getVBucket(vbucket);
-                if (vb) {
-                    engine_.getKVBucket()->runPreExpiryHook(*vb, *item);
-                }
-            } else {
-                // MB-31141: Deletes cannot have a value
-                item->replaceValue(Blob::New(0));
-                item->setDataType(PROTOCOL_BINARY_RAW_BYTES);
+    queued_item item(Item::makeDeletedItem(deletionCause,
+                                           key,
+                                           0,
+                                           deleteTime,
+                                           value.data(),
+                                           value.size(),
+                                           datatype,
+                                           cas,
+                                           bySeqno,
+                                           vbucket,
+                                           revSeqno));
+
+    // MB-29040: Producer may send deleted doc with value that still has
+    // the user xattrs and the body. Fix up that mistake by running the
+    // expiry hook which will correctly process the document
+    if (value.size()) {
+        if (mcbp::datatype::is_xattr(datatype)) {
+            auto vb = engine_.getVBucket(vbucket);
+            if (vb) {
+                engine_.getKVBucket()->runPreExpiryHook(*vb, *item);
             }
+        } else {
+            // MB-31141: Deletes cannot have a value
+            item->replaceValue(Blob::New(0));
+            item->setDataType(PROTOCOL_BINARY_RAW_BYTES);
         }
+    }
 
-        std::unique_ptr<ExtendedMetaData> emd;
-        if (meta.size() > 0) {
-            emd = std::make_unique<ExtendedMetaData>(meta.data(), meta.size());
-            if (emd->getStatus() == ENGINE_EINVAL) {
-                err = ENGINE_EINVAL;
-            }
+    ENGINE_ERROR_CODE err;
+    std::unique_ptr<ExtendedMetaData> emd;
+    if (meta.size() > 0) {
+        emd = std::make_unique<ExtendedMetaData>(meta.data(), meta.size());
+        if (emd->getStatus() == ENGINE_EINVAL) {
+            err = ENGINE_EINVAL;
         }
+    }
 
-        try {
-            err = stream->messageReceived(
-                    std::make_unique<MutationConsumerMessage>(
-                            item,
-                            opaque,
-                            IncludeValue::Yes,
-                            IncludeXattrs::Yes,
-                            includeDeleteTime,
-                            key.getEncoding(),
-                            emd.release(),
-                            cb::mcbp::DcpStreamId{}));
-        } catch (const std::bad_alloc&) {
-            err = ENGINE_ENOMEM;
-        }
+    try {
+        err = stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                item,
+                opaque,
+                IncludeValue::Yes,
+                IncludeXattrs::Yes,
+                includeDeleteTime,
+                key.getEncoding(),
+                emd.release(),
+                cb::mcbp::DcpStreamId{}));
+    } catch (const std::bad_alloc&) {
+        err = ENGINE_ENOMEM;
+    }
 
-        // The item was buffered and will be processed later
-        if (err == ENGINE_TMPFAIL) {
-            notifyVbucketReady(vbucket);
-        }
+    // The item was buffered and will be processed later
+    if (err == ENGINE_TMPFAIL) {
+        notifyVbucketReady(vbucket);
     }
 
     return err;
@@ -1645,12 +1652,6 @@ ENGINE_ERROR_CODE DcpConsumer::lookupStreamAndDispatchMessage(
     if (!stream || stream->getOpaque() != opaque) {
         // No such stream with the given vbucket / opaque - return KEY_ENOENT
         // to indicate that back to peer.
-        return ENGINE_KEY_ENOENT;
-    }
-
-    if (!stream->isActive()) {
-        // Stream is not active - also uses KEY_ENOENT to indicate no valid
-        // stream.
         return ENGINE_KEY_ENOENT;
     }
 

@@ -225,7 +225,12 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
     }
 
     if (!isActive()) {
-        return ENGINE_KEY_ENOENT;
+        // If the Stream isn't active, *but* the object is still receiving
+        // messages from the DcpConsumer that means the stream is still
+        // registered in the streams map and hence we should ignore any
+        // messages (until STREAM_END is received and the stream is removed form
+        // the map).
+        return ENGINE_SUCCESS;
     }
 
     auto seqno = dcpResponse->getBySeqno();
