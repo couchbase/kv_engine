@@ -3924,6 +3924,26 @@ TEST_F(SingleThreadedEPBucketTest,
     testAllStreamLevelMessages(ENGINE_KEY_ENOENT);
 }
 
+// MB-34951: Check that a consumer correctly handles (and ignores) a StreamEnd
+// request from the producer if it has already created a new stream (for the
+// same vb) with a different opaque.
+TEST_F(SingleThreadedEPBucketTest,
+       MB_34951_ConsumerRecvStreamEndAfterAddStream) {
+    // Setup: Create replica VB and create stream for vbid, then close it
+    // and add another stream (same vbid).
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "conn");
+    const int opaque1 = 1;
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque1, vbid, {}));
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque1, vbid));
+    const int opaque2 = 2;
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque2, vbid, {}));
+
+    // Test: Have the producer send a StreamEnd with the "old" opaque.
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->streamEnd(opaque1, vbid, END_STREAM_CLOSED));
+}
+
 TEST_P(STParameterizedBucketTest, produce_delete_times) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto t1 = ep_real_time();

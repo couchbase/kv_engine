@@ -370,18 +370,26 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque,
     auto stream = findStream(vbucket);
     if (!stream) {
         logger->warn(
-                "({}) End stream received but no such stream for this "
+                "({}) End stream received with opaque:{} but no such stream "
+                "for this "
                 "vBucket",
-                vbucket);
+                vbucket,
+                opaque);
         return ENGINE_KEY_ENOENT;
     }
 
     if (stream->getOpaque() != opaque) {
-        logger->warn("({}) End stream received with opaque {} but expected {}",
-                     vbucket,
-                     opaque,
-                     stream->getOpaque());
-        return ENGINE_KEY_ENOENT;
+        // MB-34951: By the time the DcpConsumer receives the StreamEnd from
+        // the DcpProducer it is possible that ns_server has already started
+        // a new Stream (with updated opaque) for this vbucket.
+        // In which case just ignore this StreamEnd message, returning SUCCESS.
+        logger->info(
+                "({}) End stream received with opaque {} but current opaque "
+                "for that vb is {} - ignoring",
+                vbucket,
+                opaque,
+                stream->getOpaque());
+        return ENGINE_SUCCESS;
     }
 
     logger->info("({}) End stream received with reason {}", vbucket, flags);
