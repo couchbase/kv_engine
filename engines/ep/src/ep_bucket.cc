@@ -414,19 +414,11 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 const auto op = item->getOperation();
                 if (op == queue_op::commit_sync_write ||
                     op == queue_op::abort_sync_write) {
-                    if (op == queue_op::abort_sync_write) {
-                        // Aborts are tombstones and not counted in the number
-                        // of items stored in the database so we need to
-                        // decrement the number of on disk prepares as we are
-                        // overwriting our prepare with the abort tombstone.
-                        vbstate.onDiskPrepares--;
-                    }
                     hcs = {item->getPrepareSeqno()};
                 }
 
                 if (op == queue_op::pending_sync_write) {
                     hps = {item->getBySeqno()};
-                    vbstate.onDiskPrepares++;
                 }
 
                 if (op == queue_op::set_vbucket_state) {

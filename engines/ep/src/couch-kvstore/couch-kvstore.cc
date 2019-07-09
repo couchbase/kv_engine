@@ -2030,26 +2030,50 @@ static void saveDocsCallback(const DocInfo* oldInfo,
         }
     }
 
-    // Now handle Collection statistics. Note that this only includes Committed
-    // mutations; prepared SyncWrites are ignored.
-    if (!newKey.isCommitted()) {
-        return;
-    }
-    auto docKey = newKey.getDocKey();
-
+    int itemCountDelta = 0;
     if (oldInfo) {
         if (!oldInfo->deleted) {
             if (newInfo->deleted) {
                 // New is deleted, so decrement count
-                cbCtx->collectionsFlush.decrementDiskCount(docKey);
+                itemCountDelta = -1;
             }
         } else if (!newInfo->deleted) {
             // Adding an item
-            cbCtx->collectionsFlush.incrementDiskCount(docKey);
+            itemCountDelta = 1;
         }
     } else if (!newInfo->deleted) {
         // Adding an item
-        cbCtx->collectionsFlush.incrementDiskCount(docKey);
+        itemCountDelta = 1;
+    }
+
+    auto docKey = newKey.getDocKey();
+    switch (itemCountDelta) {
+    case -1:
+        if (newKey.isCommitted()) {
+            cbCtx->collectionsFlush.decrementDiskCount(docKey);
+        } else {
+            cbCtx->onDiskPrepareDelta--;
+        }
+        break;
+    case 1:
+        if (newKey.isCommitted()) {
+            cbCtx->collectionsFlush.incrementDiskCount(docKey);
+        } else {
+            cbCtx->onDiskPrepareDelta++;
+        }
+        break;
+    case 0:
+        break;
+    default:
+        throw std::logic_error(
+                "CouchKVStore::saveDocsCallback: invalid delta {}" +
+                std::to_string(itemCountDelta));
+    }
+
+    // Do not need to update high seqno if we are calling this for a prepare and
+    // it will error if we do so return early.
+    if (!newKey.isCommitted()) {
+        return;
     }
 
     // Set the highest seqno that we are persisting regardless of if it
@@ -2128,6 +2152,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
                           std::placeholders::_1,
                           std::placeholders::_2));
 
+        state->onDiskPrepares += kvctx.onDiskPrepareDelta;
         errCode = saveVBState(db, *state);
         if (errCode != COUCHSTORE_SUCCESS) {
             logger.warn("CouchKVStore::saveDocs: saveVBState error:{} [{}]",

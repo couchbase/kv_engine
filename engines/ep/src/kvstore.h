@@ -139,6 +139,12 @@ struct kvstats_ctx {
     std::unordered_map<DiskDocKey, bool> keyStats;
     /// Collection flusher data for managing manifest changes and item counts
     Collections::VB::Flush& collectionsFlush;
+
+    /**
+     * Delta of onDiskPrepares that we should add to the value tracked in
+     * the persisted VB state before commit
+     */
+    size_t onDiskPrepareDelta = 0;
 };
 
 /**
