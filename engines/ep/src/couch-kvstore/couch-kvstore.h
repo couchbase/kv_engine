@@ -581,16 +581,13 @@ protected:
      * @param docsinfo vector of DocInfo* to be written (non const due to
      *        couchstore API). Entry n corresponds to entry n of docs.
      * @param kvctx a stats context object to update
-     * @param collectionsManifest a pointer to an item which contains the
-     *        manifest update data (can be nullptr)
      *
      * @returns COUCHSTORE_SUCCESS or a failure code (failure paths log)
      */
     couchstore_error_t saveDocs(Vbid vbid,
                                 const std::vector<Doc*>& docs,
                                 std::vector<DocInfo*>& docinfos,
-                                kvstats_ctx& kvctx,
-                                Collections::VB::Flush& collectionsFlush);
+                                kvstats_ctx& kvctx);
 
     void commitCallback(PendingRequestQueue& committedReqs,
                         kvstats_ctx& kvctx,

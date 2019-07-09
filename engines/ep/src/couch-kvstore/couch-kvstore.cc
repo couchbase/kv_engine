@@ -1989,8 +1989,7 @@ bool CouchKVStore::commit2couchstore(Collections::VB::Flush& collectionsFlush) {
     // The docinfo callback needs to know if the CollectionID feature is on
     kvstats_ctx kvctx(collectionsFlush);
     // flush all
-    couchstore_error_t errCode =
-            saveDocs(vbucket2flush, docs, docinfos, kvctx, collectionsFlush);
+    couchstore_error_t errCode = saveDocs(vbucket2flush, docs, docinfos, kvctx);
 
     if (errCode) {
         success = false;
@@ -2059,12 +2058,10 @@ static void saveDocsCallback(const DocInfo* oldInfo,
             docKey, newInfo->db_seq, newInfo->deleted);
 }
 
-couchstore_error_t CouchKVStore::saveDocs(
-        Vbid vbid,
-        const std::vector<Doc*>& docs,
-        std::vector<DocInfo*>& docinfos,
-        kvstats_ctx& kvctx,
-        Collections::VB::Flush& collectionsFlush) {
+couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
+                                          const std::vector<Doc*>& docs,
+                                          std::vector<DocInfo*>& docinfos,
+                                          kvstats_ctx& kvctx) {
     couchstore_error_t errCode;
     DbInfo info;
     DbHolder db(*this);
@@ -2124,7 +2121,7 @@ couchstore_error_t CouchKVStore::saveDocs(
             }
         }
 
-        collectionsFlush.saveCollectionStats(
+        kvctx.collectionsFlush.saveCollectionStats(
                 std::bind(&CouchKVStore::saveCollectionStats,
                           this,
                           std::ref(*db),
@@ -2140,7 +2137,7 @@ couchstore_error_t CouchKVStore::saveDocs(
         }
 
         if (collectionsMeta.needsCommit) {
-            errCode = updateCollectionsMeta(*db, collectionsFlush);
+            errCode = updateCollectionsMeta(*db, kvctx.collectionsFlush);
             if (errCode) {
                 logger.warn(
                         "CouchKVStore::saveDocs: updateCollectionsMeta "
