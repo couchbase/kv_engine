@@ -112,6 +112,7 @@ protected:
 
         visitor.setBlobAgeThreshold(age_threshold);
         visitor.setStoredValueAgeThreshold(age_threshold);
+        visitor.setCurrentVBucket(*vbucket);
 
         // Need to run 10 passes; so we allow the deframenter to defrag at
         // least once (given the age_threshold may be up to 10).
