@@ -101,6 +101,16 @@ protected:
             DocumentState docState);
 
     /**
+     * Test that a mutation or deletion sent instead of a commit is accepted by
+     * the replica when backfilling from disk if it already has a mutation.
+     *
+     * @param docState Shoudl we send a mutation or a deletion?
+     */
+    void
+    receiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDiskMutationFirst(
+            DocumentState docState);
+
+    /**
      * Test that a mutaiton or deletion sent instead of a commit is accepted by
      * the replica when in the reconnect window for which a prepare may be
      * de-duped and that the state of the replica is correct afterwards.

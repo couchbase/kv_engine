@@ -857,3 +857,19 @@ bool EPVBucket::isValidDurabilityLevel(cb::durability::Level level) {
 
     folly::assume_unreachable();
 }
+
+void EPVBucket::processImplicitlyCompletedPrepare(
+        HashTable::StoredValueProxy& v) {
+    // As we have passed a StoredValueProxy to this function (the callers need
+    // a HashTable::FindCommitResult) we need to be careful about our stats
+    // updates. The StoredValueProxy attempts to do a
+    // HashTable::Statistics::epilogue stats update when we destruct it. This is
+    // generally fine, but if we want to use any other HashTable function with
+    // a StoredValueProxy we need a way to skip the StoredValueProxy's stats
+    // update as the other HashTable function will do it's own. In this case,
+    // we can call StoredValueProxy::release to release the ownership of the
+    // pointer in the StoredValueProxy and skip any stats update. This consumes
+    // the StoredValue* and invalidates the StoredValueProxy so it should not be
+    // used after.
+    ht.unlocked_del(v.getHBL(), v.release());
+}

@@ -296,6 +296,9 @@ private:
 
     bool isValidDurabilityLevel(cb::durability::Level level) override;
 
+    void processImplicitlyCompletedPrepare(
+            HashTable::StoredValueProxy& v) override;
+
     /**
      * Total number of alive (non-deleted) items on-disk in this vBucket.
      * Initially populated during warmup as the number of items on disk;

@@ -704,8 +704,8 @@ void DurabilityPassiveStreamTest::
 
     SnapshotMarker marker(opaque,
                           vbid,
-                          1 /*snapStart*/,
-                          3 /*snapEnd*/,
+                          2 /*snapStart*/,
+                          4 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK,
                           {} /*streamId*/);
     stream->processMarker(&marker);
@@ -714,7 +714,7 @@ void DurabilityPassiveStreamTest::
     using namespace cb::durability;
     auto item = makePendingItem(
             key, "value", Requirements(Level::Majority, Timeout::Infinity()));
-    item->setBySeqno(1);
+    item->setBySeqno(2);
     item->setCas(999);
 
     // Send the prepare
@@ -730,7 +730,7 @@ void DurabilityPassiveStreamTest::
                       cb::mcbp::DcpStreamId{})));
 
     item = makeCommittedItem(key, "committed");
-    item->setBySeqno(3);
+    item->setBySeqno(4);
 
     if (docState == DocumentState::Deleted) {
         item->setDeleted(DeleteSource::Explicit);
@@ -748,6 +748,26 @@ void DurabilityPassiveStreamTest::
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    {
+        // findForCommit will return both pending and committed perspectives
+        auto res = vb->ht.findForCommit(key);
+        ASSERT_TRUE(res.committed);
+        EXPECT_EQ(4, res.committed->getBySeqno());
+        if (docState == DocumentState::Alive) {
+            EXPECT_TRUE(res.committed->getValue());
+        }
+        if (persistent()) {
+            EXPECT_FALSE(res.pending);
+        } else {
+            ASSERT_TRUE(res.pending);
+            EXPECT_EQ(2, res.pending->getBySeqno());
+            EXPECT_EQ(CommittedState::PrepareCommitted,
+                      res.pending->getCommitted());
+        }
+    }
 }
 
 TEST_P(DurabilityPassiveStreamTest,
@@ -756,9 +776,44 @@ TEST_P(DurabilityPassiveStreamTest,
             DocumentState::Alive);
 }
 
+void DurabilityPassiveStreamTest::
+        receiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDiskMutationFirst(
+                DocumentState docState) {
+    uint32_t opaque = 1;
+    SnapshotMarker marker(opaque,
+                          vbid,
+                          1 /*snapStart*/,
+                          3 /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_DISK,
+                          {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    auto key = makeStoredDocKey("key");
+    auto item = makeCommittedItem(key, "mutation");
+    item->setBySeqno(1);
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      std::move(item),
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+    testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(docState);
+}
+
 TEST_P(DurabilityPassiveStreamTest,
-       ReceiveDeletionInsteadOfCommitWhenStreamingFromDisk) {
-    testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
+       ReceiveMutationInsteadOfCommitOnTopOfMutation) {
+    receiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDiskMutationFirst(
+            DocumentState::Alive);
+}
+
+TEST_P(DurabilityPassiveStreamTest,
+       ReceiveDeletionInsteadOfCommitOnTopOfMutation) {
+    receiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDiskMutationFirst(
             DocumentState::Deleted);
 }
 
@@ -816,7 +871,14 @@ void DurabilityPassiveStreamTest::
     {
         // findForCommit will return both pending and committed perspectives
         auto res = vb->ht.findForCommit(key);
-        EXPECT_FALSE(res.pending);
+        if (persistent()) {
+            EXPECT_FALSE(res.pending);
+        } else {
+            ASSERT_TRUE(res.pending);
+            EXPECT_EQ(1, res.pending->getBySeqno());
+            EXPECT_EQ(CommittedState::PrepareCommitted,
+                      res.pending->getCommitted());
+        }
         ASSERT_TRUE(res.committed);
         EXPECT_EQ(4, res.committed->getBySeqno());
         EXPECT_EQ(CommittedState::CommittedViaMutation,
@@ -851,12 +913,6 @@ TEST_P(DurabilityPassiveStreamTest,
        ReceiveMutationInsteadOfCommitForReconnectWindowWithPrepareLast) {
     testReceiveMutationOrDeletionInsteadOfCommitForReconnectWindowWithPrepareLast(
             DocumentState::Alive);
-}
-
-TEST_P(DurabilityPassiveStreamTest,
-       ReceiveDeletionInsteadOfCommitForReconnectWindowWithPrepareLast) {
-    testReceiveMutationOrDeletionInsteadOfCommitForReconnectWindowWithPrepareLast(
-            DocumentState::Deleted);
 }
 
 TEST_P(DurabilityPassiveStreamTest,

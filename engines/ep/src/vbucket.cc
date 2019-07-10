@@ -3152,11 +3152,19 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
             getPassiveDM().completeSyncWrite(
                     itm.getKey(), PassiveDurabilityMonitor::Resolution::Commit);
 
-            // @TODO we must remove the prepare and overwrite the mutation if we
-            // are replacing a prepare with a mutation
-            // Release the pending SV from the SVP that is holding it to prevent
-            // a double stat update that would cause a stat underflow exception.
-            htRes.pending.release();
+            // Deal with the already existing prepare
+            processImplicitlyCompletedPrepare(htRes.pending);
+
+            // Add a new or overwrite the existing mutation
+            return processSetInner(htRes.pending.getHBL(),
+                                   htRes.committed,
+                                   itm,
+                                   cas,
+                                   allowExisting,
+                                   hasMetaData,
+                                   queueItmCtx,
+                                   storeIfStatus,
+                                   maybeKeyExists);
         }
 
         // This is a new SyncWrite, we just want to add a new prepare unless we
@@ -3400,11 +3408,24 @@ VBucket::processSoftDelete(HashTable::FindCommitResult& htRes,
                 StoredDocKey(v.getKey()),
                 PassiveDurabilityMonitor::Resolution::Commit);
 
-        // @TODO we must remove the prepare and overwrite the mutation if we
-        // are replacing a prepare with a mutation
-        // Release the pending SV from the SVP that is holding it to prevent
-        // a double stat update that would cause a stat underflow exception.
-        htRes.pending.release();
+        // Sanity - We should never delete a prepare in this way, and if we are
+        // hitting this delete path then we should have the committed SV.
+        if (!htRes.committed) {
+            return {MutationStatus::NotFound, htRes.committed, boost::none};
+        }
+
+        // Deal with the existing prepare
+        processImplicitlyCompletedPrepare(htRes.pending);
+
+        // Delete the existing committed SV.
+        return processSoftDeleteInner(htRes.getHBL(),
+                                      *htRes.committed,
+                                      cas,
+                                      metadata,
+                                      queueItmCtx,
+                                      use_meta,
+                                      bySeqno,
+                                      deleteSource);
     }
 
     return processSoftDeleteInner(htRes.getHBL(),

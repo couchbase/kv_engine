@@ -1876,6 +1876,7 @@ protected:
                            bool use_meta,
                            uint64_t bySeqno,
                            DeleteSource deleteSource);
+
     /**
      * Delete a key (associated StoredValue) from ALL in-memory data structures
      * like HT.
@@ -2364,6 +2365,16 @@ private:
      *     Replica Connections.
      */
     VBNotifyCtx queueItem(queued_item& item, const VBQueueItemCtx& ctx);
+
+    /**
+     * Deal with the prepare in the HashTable in the derived class specific way
+     * as it is to be "replaced" by a mutation. Consumes the StoredValue* in the
+     * StoredValueProxy making it no longer usable.
+     *
+     * @param v StoredValueProxy of the prepare to complete
+     */
+    virtual void processImplicitlyCompletedPrepare(
+            HashTable::StoredValueProxy& v) = 0;
 
     Vbid id;
     std::atomic<vbucket_state_t>    state;

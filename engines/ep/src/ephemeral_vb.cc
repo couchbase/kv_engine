@@ -926,3 +926,8 @@ bool EphemeralVBucket::isValidDurabilityLevel(cb::durability::Level level) {
 
     folly::assume_unreachable();
 }
+
+void EphemeralVBucket::processImplicitlyCompletedPrepare(
+        HashTable::StoredValueProxy& v) {
+    v.setCommitted(CommittedState::PrepareCommitted);
+}
