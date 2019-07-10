@@ -58,10 +58,10 @@ protected:
      * @param more set to true if we should add a trailing comma (more data
      *             follows)
      */
-    void addAttribute(std::ostream& out,
-                      char key,
-                      const std::string& value,
-                      bool more);
+    static void addAttribute(std::ostream& out,
+                             char key,
+                             const std::string& value,
+                             bool more);
 
     /**
      * Add a property to the message list according to
@@ -77,7 +77,7 @@ protected:
      * @param more set to true if we should add a trailing comma (more data
      *             follows)
      */
-    void addAttribute(std::ostream& out, char key, int value, bool more);
+    static void addAttribute(std::ostream& out, char key, int value, bool more);
 
     std::string getServerSignature();
 

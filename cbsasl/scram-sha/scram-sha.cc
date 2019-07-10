@@ -145,12 +145,11 @@ void ScramShaBackend::addAttribute(std::ostream& out,
         break;
 
     case 'r': // client nonce.. printable characters
-        for (auto iter = value.begin(); iter != value.end(); ++iter) {
-            if (*iter == ',' || !isprint(*iter)) {
+        for (const auto& c : value) {
+            if (c == ',' || !isprint(c)) {
                 throw std::invalid_argument(
-                        "ScramShaBackend::addAttribute: "
-                        "Invalid character in client"
-                        " nonce");
+                        "ScramShaBackend::addAttribute: Invalid character in "
+                        "client nonce");
             }
         }
         out << value;
@@ -177,12 +176,11 @@ void ScramShaBackend::addAttribute(std::ostream& out,
         break;
 
     case 'e':
-        for (auto iter = value.begin(); iter != value.end(); ++iter) {
-            if (*iter == ',' || !isprint(*iter)) {
+        for (const auto& c : value) {
+            if (c == ',' || !isprint(c)) {
                 throw std::invalid_argument(
-                        "ScramShaBackend::addAttribute: "
-                        "Invalid character in error"
-                        " message");
+                        "ScramShaBackend::addAttribute: Invalid character in "
+                        "error message");
             }
         }
         out << value;
@@ -276,7 +274,7 @@ std::string ScramShaBackend::getClientProof() {
     proof.resize(clientKey.size());
 
     auto total = proof.size();
-    for (unsigned int ii = 0; ii < total; ++ii) {
+    for (std::size_t ii = 0; ii < total; ++ii) {
         proof[ii] = ck[ii] ^ cs[ii];
     }
 
@@ -293,7 +291,7 @@ ServerBackend::ServerBackend(server::ServerContext& ctx,
     /* Generate a challenge */
     cb::RandomGenerator randomGenerator;
 
-    std::array<char, 8> nonce;
+    std::array<char, 8> nonce{};
     if (!randomGenerator.getBytes(nonce.data(), nonce.size())) {
         logging::log(&context,
                      logging::Level::Error,
@@ -499,7 +497,7 @@ ClientBackend::ClientBackend(client::GetUsernameCallback& user_cb,
       ScramShaBackend(mechanism, algo) {
     cb::RandomGenerator randomGenerator;
 
-    std::array<char, 8> nonce;
+    std::array<char, 8> nonce{};
     if (!randomGenerator.getBytes(nonce.data(), nonce.size())) {
         logging::log(&context,
                      logging::Level::Error,
