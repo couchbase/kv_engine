@@ -786,13 +786,6 @@ public:
                                    uint8_t datatype,
                                    Vbid vbucket);
 
-    /**
-     * class-specific deallocation. Required to ensure engine is
-     * deregisterd from TLS before freeing memory (and invoking delete
-     * hooks).
-     */
-    static void operator delete(void* ptr);
-
     cb::engine::FeatureSet getFeatures() override;
 
 protected:

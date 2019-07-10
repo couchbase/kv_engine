@@ -2191,16 +2191,6 @@ void EventuallyPersistentEngine::destroyInner(bool force) {
     }
 }
 
-void EventuallyPersistentEngine::operator delete(void* ptr) {
-    // Already destructed EventuallyPersistentEngine object; about to
-    // deallocate its memory. As such; it is not valid to update the
-    // memory state inside the now-destroyed EPStats child object of
-    // EventuallyPersistentEngine.  Therefore forcably disassociated
-    // the current thread from this engine before deallocating memory.
-    ObjectRegistry::onSwitchThread(nullptr);
-    ::operator delete(ptr);
-}
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
         item** itm,
         const DocKey& key,
@@ -6553,10 +6543,21 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setVBucketState(
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     if (kvBucket) {
         kvBucket->deinitialize();
+        // Need to reset the kvBucket as we need our ThreadLocal engine ptr to
+        // be valid when destructing Items in CheckpointManagers but we need to
+        // reset it before destructing EPStats.
+        kvBucket.reset();
     }
     EP_LOG_INFO("~EPEngine: Completed deinitialize.");
     delete workload;
     delete checkpointConfig;
+
+    // About to destruct EPStats object, after which it won't be possible
+    // to record memory tracking (as tracking requires a valid EPStats object).
+    // As such, if we haven't already disassociated the current thread from
+    // the engine, we need to now.
+    ObjectRegistry::onSwitchThread(nullptr);
+
     /* Unique_ptr(s) are deleted in the reverse order of the initialization */
 }
 
