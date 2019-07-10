@@ -392,12 +392,12 @@ BENCHMARK_DEFINE_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
     bgThread.join();
 }
 
-// Run with item counts from 1..10,000,000.
+// Run with couchstore backend(0); item counts from 1..10,000,000
 BENCHMARK_REGISTER_F(MemTrackingVBucketBench, QueueDirty)
-        ->Args({1})
-        ->Args({100})
-        ->Args({10000})
-        ->Args({1000000});
+        ->Args({0, 1})
+        ->Args({0, 100})
+        ->Args({0, 10000})
+        ->Args({0, 1000000});
 
 static void FlushArguments(benchmark::internal::Benchmark* b) {
     // Add both couchstore (0) and rocksdb (1) variants for a range of sizes.
