@@ -85,6 +85,17 @@ public:
         return items;
     }
 
+    void addItemToHashTable(const Item& item) {
+        if (item.isPending()) {
+            // Calling ht.set will overwrite the committed SV so we have to
+            // manually add our prepare
+            auto lock = ht.getLockedBucket(item.getKey());
+            ASSERT_TRUE(ht.unlocked_addNewStoredValue(lock, item));
+        } else {
+            ASSERT_EQ(MutationStatus::WasClean, ht.set(item))
+                    << "Expected WasClean for item:" << item;
+        }
+    }
     /**
      * Helper method for executing a function with all threads paused.
      *
@@ -134,7 +145,7 @@ BENCHMARK_DEFINE_F(HashTableBench, FindForRead)(benchmark::State& state) {
         sharedItems = createItems(
                 "Thread" + std::to_string(state.thread_index) + "::", 50);
         for (auto& item : sharedItems) {
-            ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
+            addItemToHashTable(item);
         }
     }
 
@@ -157,7 +168,7 @@ BENCHMARK_DEFINE_F(HashTableBench, FindForWrite)(benchmark::State& state) {
         sharedItems = createItems(
                 "Thread" + std::to_string(state.thread_index) + "::", 50);
         for (auto& item : sharedItems) {
-            ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
+            addItemToHashTable(item);
         }
     }
 
@@ -179,7 +190,7 @@ BENCHMARK_DEFINE_F(HashTableBench, Insert)(benchmark::State& state) {
 
     while (state.KeepRunning()) {
         const auto index = state.iterations() % numItems;
-        ASSERT_EQ(MutationStatus::WasClean, ht.set(items[index]));
+        addItemToHashTable(items[index]);
 
         // Once a thread gets to the end of it's items; pause timing and let
         // the *last* thread clear them all - this is to avoid measuring any
@@ -204,7 +215,7 @@ BENCHMARK_DEFINE_F(HashTableBench, Replace)(benchmark::State& state) {
     auto items =
             createItems("Thread" + std::to_string(state.thread_index) + "::");
     for (auto& item : items) {
-        ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
+        addItemToHashTable(item);
     }
 
     // Benchmark - update them.
@@ -235,7 +246,7 @@ BENCHMARK_DEFINE_F(HashTableBench, Delete)(benchmark::State& state) {
             waitForAllThreadsThenExecuteOnce(state, [this, &items]() {
                 // re-populate HashTable.
                 for (auto& item : items) {
-                    ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
+                    addItemToHashTable(item);
                 }
             });
             state.ResumeTiming();

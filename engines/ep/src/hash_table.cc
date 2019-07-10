@@ -350,7 +350,7 @@ std::unique_ptr<Item> HashTable::getRandomKey(long rnd) {
     return ret;
 }
 
-MutationStatus HashTable::set(Item& val) {
+MutationStatus HashTable::set(const Item& val) {
     auto htRes = findForWrite(val.getKey());
     if (htRes.storedValue) {
         return unlocked_updateStoredValue(htRes.lock, *htRes.storedValue, val)

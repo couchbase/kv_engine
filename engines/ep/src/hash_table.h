@@ -934,7 +934,7 @@ public:
      *
      * @return a result indicating the status of the store
      */
-    MutationStatus set(Item& val);
+    MutationStatus set(const Item& val);
 
     /**
      * Rollback the StoredValue matching Item.key && Item.committed/prepared
