@@ -38,11 +38,12 @@ struct ThrowExceptionPolicy {
     void nonMonotonic(const std::string& label,
                       const T& curValue,
                       const T& newValue) {
+        using std::to_string;
         throw std::logic_error(
                 std::string("Monotonic<") + typeid(T).name() + "> (" + label +
-                ") invariant failed: new value (" + std::to_string(newValue) +
+                ") invariant failed: new value (" + to_string(newValue) +
                 ") breaks invariant on current value (" +
-                std::to_string(curValue) + ")");
+                to_string(curValue) + ")");
     }
 };
 
