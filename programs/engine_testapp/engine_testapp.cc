@@ -283,7 +283,7 @@ struct mock_engine : public EngineIface, public DcpIface {
                               uint32_t lock_time,
                               uint8_t nru,
                               DocumentState document_state,
-                              cb::durability::Requirements durability) override;
+                              cb::durability::Level level) override;
     ENGINE_ERROR_CODE seqno_acknowledged(gsl::not_null<const void*> cookie,
                                          uint32_t opaque,
                                          Vbid vbucket,
@@ -890,23 +890,22 @@ ENGINE_ERROR_CODE mock_engine::system_event(gsl::not_null<const void*> cookie,
             cookie, opaque, vbucket, event, bySeqno, version, key, eventData);
 }
 
-ENGINE_ERROR_CODE mock_engine::prepare(
-        gsl::not_null<const void*> cookie,
-        uint32_t opaque,
-        const DocKey& key,
-        cb::const_byte_buffer value,
-        size_t priv_bytes,
-        uint8_t datatype,
-        uint64_t cas,
-        Vbid vbucket,
-        uint32_t flags,
-        uint64_t by_seqno,
-        uint64_t rev_seqno,
-        uint32_t expiration,
-        uint32_t lock_time,
-        uint8_t nru,
-        DocumentState document_state,
-        cb::durability::Requirements durability) {
+ENGINE_ERROR_CODE mock_engine::prepare(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       const DocKey& key,
+                                       cb::const_byte_buffer value,
+                                       size_t priv_bytes,
+                                       uint8_t datatype,
+                                       uint64_t cas,
+                                       Vbid vbucket,
+                                       uint32_t flags,
+                                       uint64_t by_seqno,
+                                       uint64_t rev_seqno,
+                                       uint32_t expiration,
+                                       uint32_t lock_time,
+                                       uint8_t nru,
+                                       DocumentState document_state,
+                                       cb::durability::Level level) {
     return the_engine_dcp->prepare(cookie,
                                    opaque,
                                    key,
@@ -922,7 +921,7 @@ ENGINE_ERROR_CODE mock_engine::prepare(
                                    lock_time,
                                    nru,
                                    document_state,
-                                   durability);
+                                   level);
 }
 
 ENGINE_ERROR_CODE mock_engine::seqno_acknowledged(

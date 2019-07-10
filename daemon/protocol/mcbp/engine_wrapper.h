@@ -466,7 +466,7 @@ ENGINE_ERROR_CODE dcpPrepare(Cookie& cookie,
                              uint32_t lock_time,
                              uint8_t nru,
                              DocumentState document_state,
-                             cb::durability::Requirements durability);
+                             cb::durability::Level level);
 
 ENGINE_ERROR_CODE dcpSeqnoAcknowledged(Cookie& cookie,
                                        uint32_t opaque,

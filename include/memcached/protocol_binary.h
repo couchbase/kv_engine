@@ -47,6 +47,12 @@
 #include <stdexcept>
 #include <string>
 
+namespace cb {
+namespace durability {
+enum class Level : uint8_t;
+}
+} // namespace cb
+
 /**
  * \addtogroup Protocol
  * @{
@@ -1303,9 +1309,9 @@ public:
         return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
 
-    cb::durability::Requirements getDurability() const;
+    cb::durability::Level getDurabilityLevel() const;
 
-    void setDurability(const cb::durability::Requirements& durability);
+    void setDurabilityLevel(cb::durability::Level level);
 
 protected:
     uint64_t by_seqno = 0;
@@ -1316,11 +1322,10 @@ protected:
     uint8_t nru = 0;
     // set to true if this is a document deletion
     uint8_t deleted = 0;
-    uint16_t durability_timeout = 0;
     uint8_t durability_level = 0;
 };
 
-static_assert(sizeof(DcpPreparePayload) == 33, "Unexpected struct size");
+static_assert(sizeof(DcpPreparePayload) == 31, "Unexpected struct size");
 
 class DcpSeqnoAcknowledgedPayload {
 public:

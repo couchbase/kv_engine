@@ -7299,8 +7299,7 @@ static enum test_result test_MB_34634(EngineIface* h) {
                          0, // lock-time
                          INITIAL_NRU_VALUE,
                          DocumentState::Alive,
-                         cb::durability::Requirements(
-                                 cb::durability::Level::Majority, 10000)),
+                         cb::durability::Level::Majority),
             "DCP consumer failed the prepare");
 
     checkeq(ENGINE_SUCCESS,

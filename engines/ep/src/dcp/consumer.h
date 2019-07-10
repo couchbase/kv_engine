@@ -215,7 +215,7 @@ public:
                               uint32_t lock_time,
                               uint8_t nru,
                               DocumentState document_state,
-                              cb::durability::Requirements durability) override;
+                              cb::durability::Level level) override;
 
     ENGINE_ERROR_CODE commit(uint32_t opaque,
                              Vbid vbucket,

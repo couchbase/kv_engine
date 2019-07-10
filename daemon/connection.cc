@@ -2254,7 +2254,7 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
                                       uint32_t lock_time,
                                       uint8_t nru,
                                       DocumentState document_state,
-                                      cb::durability::Requirements durability) {
+                                      cb::durability::Level level) {
     item_info info;
     if (!bucket_get_item_info(*this, it.get(), &info)) {
         LOG_WARNING("{}: Connection::prepare: Failed to get item info",
@@ -2292,7 +2292,7 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
     if (document_state == DocumentState::Deleted) {
         extras.setDeleted(uint8_t(1));
     }
-    extras.setDurability(durability);
+    extras.setDurabilityLevel(level);
     cb::mcbp::Request req = {};
     req.setMagic(cb::mcbp::Magic::ClientRequest);
     req.setOpcode(cb::mcbp::ClientOpcode::DcpPrepare);

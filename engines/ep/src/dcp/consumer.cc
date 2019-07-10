@@ -1595,22 +1595,21 @@ ENGINE_ERROR_CODE DcpConsumer::systemEvent(uint32_t opaque,
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 
-ENGINE_ERROR_CODE DcpConsumer::prepare(
-        uint32_t opaque,
-        const DocKey& key,
-        cb::const_byte_buffer value,
-        size_t priv_bytes,
-        uint8_t datatype,
-        uint64_t cas,
-        Vbid vbucket,
-        uint32_t flags,
-        uint64_t by_seqno,
-        uint64_t rev_seqno,
-        uint32_t expiration,
-        uint32_t lock_time,
-        uint8_t nru,
-        DocumentState document_state,
-        cb::durability::Requirements durability) {
+ENGINE_ERROR_CODE DcpConsumer::prepare(uint32_t opaque,
+                                       const DocKey& key,
+                                       cb::const_byte_buffer value,
+                                       size_t priv_bytes,
+                                       uint8_t datatype,
+                                       uint64_t cas,
+                                       Vbid vbucket,
+                                       uint32_t flags,
+                                       uint64_t by_seqno,
+                                       uint64_t rev_seqno,
+                                       uint32_t expiration,
+                                       uint32_t lock_time,
+                                       uint8_t nru,
+                                       DocumentState document_state,
+                                       cb::durability::Level level) {
     lastMessageTime = ep_current_time();
 
     if (by_seqno == 0) {
@@ -1630,7 +1629,9 @@ ENGINE_ERROR_CODE DcpConsumer::prepare(
                               rev_seqno,
                               nru,
                               nru /*freqCounter */));
-    item->setPendingSyncWrite(durability);
+    using cb::durability::Requirements;
+    using cb::durability::Timeout;
+    item->setPendingSyncWrite(Requirements{level, Timeout::Infinity()});
     // Any incoming Prepares could have already been make visible by the Active
     // node by the time the replica receives / processes it (assuming the
     // SyncWrite was committed without this node / consumer having to ACK it).

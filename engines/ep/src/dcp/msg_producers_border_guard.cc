@@ -210,7 +210,7 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::prepare(
         uint32_t lock_time,
         uint8_t nru,
         DocumentState document_state,
-        cb::durability::Requirements durability) {
+        cb::durability::Level level) {
     NonBucketAllocationGuard guard;
     return guarded.prepare(opaque,
                            std::move(itm),
@@ -220,7 +220,7 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::prepare(
                            lock_time,
                            nru,
                            document_state,
-                           durability);
+                           level);
 }
 ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::seqno_acknowledged(
         uint32_t opaque, Vbid vbucket, uint64_t prepared_seqno) {

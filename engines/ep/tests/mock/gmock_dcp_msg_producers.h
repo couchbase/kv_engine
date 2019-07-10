@@ -146,7 +146,7 @@ public:
                                    uint32_t lock_time,
                                    uint8_t nru,
                                    DocumentState document_state,
-                                   cb::durability::Requirements durability));
+                                   cb::durability::Level level));
 
     MOCK_METHOD3(seqno_acknowledged,
                  ENGINE_ERROR_CODE(uint32_t opaque,
@@ -251,7 +251,7 @@ public:
                               uint32_t lock_time,
                               uint8_t nru,
                               DocumentState document_state,
-                              cb::durability::Requirements durability) {
+                              cb::durability::Level level) {
         return prepare(opaque,
                        reinterpret_cast<Item*>(itm.get()),
                        vbucket,
@@ -260,6 +260,6 @@ public:
                        lock_time,
                        nru,
                        document_state,
-                       durability);
+                       level);
     }
 };

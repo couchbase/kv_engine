@@ -408,17 +408,12 @@ std::string to_string(cb::mcbp::request::FrameInfoId id) {
                                 std::to_string(int(id)));
 }
 
-cb::durability::Requirements
-cb::mcbp::request::DcpPreparePayload::getDurability() const {
-    cb::durability::Requirements ret;
-    ret.setLevel(cb::durability::Level(durability_level));
-    ret.setTimeout(cb::durability::Timeout::Infinity());
-    return ret;
+cb::durability::Level cb::mcbp::request::DcpPreparePayload::getDurabilityLevel()
+        const {
+    return cb::durability::Level(durability_level);
 }
 
-void cb::mcbp::request::DcpPreparePayload::setDurability(
-        const cb::durability::Requirements& durability) {
-    DcpPreparePayload::durability_timeout =
-            htons(durability.getTimeout().get());
-    DcpPreparePayload::durability_level = uint8_t(durability.getLevel());
+void cb::mcbp::request::DcpPreparePayload::setDurabilityLevel(
+        cb::durability::Level level) {
+    DcpPreparePayload::durability_level = uint8_t(level);
 }

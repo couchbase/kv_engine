@@ -387,16 +387,15 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::system_event(
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE MockDcpMessageProducers::prepare(
-        uint32_t opaque,
-        cb::unique_item_ptr itm,
-        Vbid vbucket,
-        uint64_t by_seqno,
-        uint64_t rev_seqno,
-        uint32_t lock_time,
-        uint8_t nru,
-        DocumentState document_state,
-        cb::durability::Requirements durability) {
+ENGINE_ERROR_CODE MockDcpMessageProducers::prepare(uint32_t opaque,
+                                                   cb::unique_item_ptr itm,
+                                                   Vbid vbucket,
+                                                   uint64_t by_seqno,
+                                                   uint64_t rev_seqno,
+                                                   uint32_t lock_time,
+                                                   uint8_t nru,
+                                                   DocumentState document_state,
+                                                   cb::durability::Level) {
     return handleMutationOrPrepare(cb::mcbp::ClientOpcode::DcpPrepare,
                                    opaque,
                                    std::move(itm),

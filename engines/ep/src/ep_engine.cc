@@ -1587,7 +1587,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::prepare(
         uint32_t lock_time,
         uint8_t nru,
         DocumentState document_state,
-        cb::durability::Requirements durability) {
+        cb::durability::Level level) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
@@ -1605,7 +1605,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::prepare(
                              lock_time,
                              nru,
                              document_state,
-                             durability);
+                             level);
     }
     return ENGINE_DISCONNECT;
 }

@@ -712,7 +712,7 @@ ENGINE_ERROR_CODE dcpPrepare(Cookie& cookie,
                              uint32_t lock_time,
                              uint8_t nru,
                              DocumentState document_state,
-                             cb::durability::Requirements durability) {
+                             cb::durability::Level level) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
     auto ret = dcp->prepare(&cookie,
@@ -730,7 +730,7 @@ ENGINE_ERROR_CODE dcpPrepare(Cookie& cookie,
                             lock_time,
                             nru,
                             document_state,
-                            durability);
+                            level);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.seqno_acknowledged returned ENGINE_DISCONNECT",
                     connection.getId(),

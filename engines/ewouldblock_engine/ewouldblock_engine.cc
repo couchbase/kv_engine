@@ -925,7 +925,7 @@ public:
                               uint32_t lock_time,
                               uint8_t nru,
                               DocumentState document_state,
-                              cb::durability::Requirements durability) override;
+                              cb::durability::Level level) override;
     ENGINE_ERROR_CODE seqno_acknowledged(gsl::not_null<const void*> cookie,
                                          uint32_t opaque,
                                          Vbid vbucket,
@@ -1799,7 +1799,7 @@ ENGINE_ERROR_CODE EWB_Engine::prepare(gsl::not_null<const void*> cookie,
                                       uint32_t lock_time,
                                       uint8_t nru,
                                       DocumentState document_state,
-                                      cb::durability::Requirements durability) {
+                                      cb::durability::Level level) {
     if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
@@ -1818,7 +1818,7 @@ ENGINE_ERROR_CODE EWB_Engine::prepare(gsl::not_null<const void*> cookie,
                                         lock_time,
                                         nru,
                                         document_state,
-                                        durability);
+                                        level);
     }
 }
 ENGINE_ERROR_CODE EWB_Engine::seqno_acknowledged(

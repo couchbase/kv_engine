@@ -64,7 +64,7 @@ void dcp_prepare_executor(Cookie& cookie) {
                              extras.getNru(),
                              extras.getDeleted() ? DocumentState::Deleted
                                                  : DocumentState::Alive,
-                             extras.getDurability());
+                             extras.getDurabilityLevel());
         }
     }
 

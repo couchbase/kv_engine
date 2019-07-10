@@ -217,7 +217,7 @@ public:
                                       uint32_t lock_time,
                                       uint8_t nru,
                                       DocumentState document_state,
-                                      cb::durability::Requirements durability);
+                                      cb::durability::Level level);
 
     /// Receive a commit message.
     virtual ENGINE_ERROR_CODE commit(uint32_t opaque,

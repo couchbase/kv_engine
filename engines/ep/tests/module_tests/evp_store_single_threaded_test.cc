@@ -3902,7 +3902,7 @@ TEST_F(SingleThreadedEPBucketTest,
                                     {},
                                     {},
                                     {},
-                                    {}));
+                                    cb::durability::Level::Majority));
 
         EXPECT_EQ(expected, consumer->commit(opaque, vbid, key, 6, 7));
 

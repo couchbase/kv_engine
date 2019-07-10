@@ -31,6 +31,7 @@ union protocol_binary_response_header;
 namespace cb {
 namespace durability {
 class Requirements;
+enum class Level : uint8_t;
 }
 } // namespace cb
 
@@ -297,16 +298,15 @@ struct dcp_message_producers {
      * @param deleted Are we storing a deletion operation?
      * @param durability the durability specification for this item
      */
-    virtual ENGINE_ERROR_CODE prepare(
-            uint32_t opaque,
-            cb::unique_item_ptr itm,
-            Vbid vbucket,
-            uint64_t by_seqno,
-            uint64_t rev_seqno,
-            uint32_t lock_time,
-            uint8_t nru,
-            DocumentState document_state,
-            cb::durability::Requirements durability) = 0;
+    virtual ENGINE_ERROR_CODE prepare(uint32_t opaque,
+                                      cb::unique_item_ptr itm,
+                                      Vbid vbucket,
+                                      uint64_t by_seqno,
+                                      uint64_t rev_seqno,
+                                      uint32_t lock_time,
+                                      uint8_t nru,
+                                      DocumentState document_state,
+                                      cb::durability::Level level) = 0;
 
     /**
      * Send a seqno ack message
@@ -687,23 +687,22 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param deleted Are we storing a deletion operation?
      * @param durability the durability specification for this item
      */
-    virtual ENGINE_ERROR_CODE prepare(
-            gsl::not_null<const void*> cookie,
-            uint32_t opaque,
-            const DocKey& key,
-            cb::const_byte_buffer value,
-            size_t priv_bytes,
-            uint8_t datatype,
-            uint64_t cas,
-            Vbid vbucket,
-            uint32_t flags,
-            uint64_t by_seqno,
-            uint64_t rev_seqno,
-            uint32_t expiration,
-            uint32_t lock_time,
-            uint8_t nru,
-            DocumentState document_state,
-            cb::durability::Requirements durability) = 0;
+    virtual ENGINE_ERROR_CODE prepare(gsl::not_null<const void*> cookie,
+                                      uint32_t opaque,
+                                      const DocKey& key,
+                                      cb::const_byte_buffer value,
+                                      size_t priv_bytes,
+                                      uint8_t datatype,
+                                      uint64_t cas,
+                                      Vbid vbucket,
+                                      uint32_t flags,
+                                      uint64_t by_seqno,
+                                      uint64_t rev_seqno,
+                                      uint32_t expiration,
+                                      uint32_t lock_time,
+                                      uint8_t nru,
+                                      DocumentState document_state,
+                                      cb::durability::Level level) = 0;
 
     /**
      * Called by the core when it receives a DCP SEQNO ACK message over the

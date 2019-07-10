@@ -784,6 +784,18 @@ static Status dcp_control_validator(Cookie& cookie) {
     return verify_common_dcp_restrictions(cookie);
 }
 
+static bool isValidDurabilityLevel(cb::durability::Level lvl) {
+    switch (lvl) {
+    case cb::durability::Level::None:
+        return false;
+    case cb::durability::Level::Majority:
+    case cb::durability::Level::MajorityAndPersistOnMaster:
+    case cb::durability::Level::PersistToMajority:
+        return true;
+    }
+    return false;
+}
+
 static Status dcp_prepare_validator(Cookie& cookie) {
     using cb::mcbp::request::DcpPreparePayload;
     auto status = McbpValidator::verify_header(cookie,
@@ -817,7 +829,7 @@ static Status dcp_prepare_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if (!payload->getDurability().isValid()) {
+    if (!isValidDurabilityLevel(payload->getDurabilityLevel())) {
         cookie.setErrorContext("Invalid durability specifier");
         return Status::Einval;
     }

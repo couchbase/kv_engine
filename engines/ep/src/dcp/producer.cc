@@ -735,16 +735,17 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             const auto docState = mutationResponse->getItem()->isDeleted()
                                           ? DocumentState::Deleted
                                           : DocumentState::Alive;
-            ret = producers->prepare(
-                    mutationResponse->getOpaque(),
-                    toUniqueItemPtr(std::move(itmCpy)),
-                    mutationResponse->getVBucket(),
-                    *mutationResponse->getBySeqno(),
-                    mutationResponse->getRevSeqno(),
-                    0 /* lock time */,
-                    hotness,
-                    docState,
-                    mutationResponse->getItem()->getDurabilityReqs());
+            ret = producers->prepare(mutationResponse->getOpaque(),
+                                     toUniqueItemPtr(std::move(itmCpy)),
+                                     mutationResponse->getVBucket(),
+                                     *mutationResponse->getBySeqno(),
+                                     mutationResponse->getRevSeqno(),
+                                     0 /* lock time */,
+                                     hotness,
+                                     docState,
+                                     mutationResponse->getItem()
+                                             ->getDurabilityReqs()
+                                             .getLevel());
             break;
         }
         case DcpResponse::Event::Abort: {
