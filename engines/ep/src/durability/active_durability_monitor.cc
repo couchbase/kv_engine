@@ -189,6 +189,8 @@ struct ActiveDurabilityMonitor::State {
      */
     void performQueuedAckForChain(const ReplicationChain& chain);
 
+    void updateHighCompletedSeqno();
+
 private:
     /**
      * Advance the current Position (iterator and seqno).
@@ -227,6 +229,12 @@ public:
 
     // Stores the last aborted seqno.
     Monotonic<int64_t> lastAbortedSeqno = 0;
+
+    // Stores the highPreparedSeqno
+    WeaklyMonotonic<int64_t> highPreparedSeqno = 0;
+
+    // Stores the highCompletedSeqno
+    Monotonic<int64_t> highCompletedSeqno = 0;
 
     // Cumulative count of accepted (tracked) SyncWrites.
     size_t totalAccepted = 0;
@@ -413,12 +421,11 @@ int64_t ActiveDurabilityMonitor::getHighPreparedSeqno() const {
     if (!s->firstChain) {
         return 0;
     }
-    return s->getNodeWriteSeqno(s->getActive());
+    return s->highPreparedSeqno;
 }
 
 int64_t ActiveDurabilityMonitor::getHighCompletedSeqno() const {
-    const auto s = state.rlock();
-    return std::max(s->lastCommittedSeqno, s->lastAbortedSeqno);
+    return state.rlock()->highCompletedSeqno;
 }
 
 bool ActiveDurabilityMonitor::isDurabilityPossible() const {
@@ -932,6 +939,7 @@ void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
     {
         auto s = state.wlock();
         s->lastCommittedSeqno = sw.getBySeqno();
+        s->updateHighCompletedSeqno();
         s->totalCommitted++;
         // Note:
         // - Level Majority locally-satisfied first at Active by-logic
@@ -965,6 +973,7 @@ void ActiveDurabilityMonitor::abort(const SyncWrite& sw) {
     }
     auto s = state.wlock();
     s->lastAbortedSeqno = sw.getBySeqno();
+    s->updateHighCompletedSeqno();
     s->totalAborted++;
 }
 
@@ -1046,6 +1055,8 @@ void ActiveDurabilityMonitor::toOStream(std::ostream& os) const {
     const auto s = state.rlock();
     os << "ActiveDurabilityMonitor[" << this
        << "] #trackedWrites:" << s->trackedWrites.size()
+       << " highPreparedSeqno:" << s->highPreparedSeqno
+       << " highCompletedSeqno:" << s->highCompletedSeqno
        << " lastTrackedSeqno:" << s->lastTrackedSeqno
        << " lastCommittedSeqno:" << s->lastCommittedSeqno
        << " lastAbortedSeqno:" << s->lastAbortedSeqno << "\n";
@@ -1326,6 +1337,7 @@ void ActiveDurabilityMonitor::State::updateHighPreparedSeqno(
     while ((next = getNodeNext(active)) != trackedWrites.end() &&
            static_cast<uint64_t>(next->getBySeqno()) <=
                    adm.vb.getPersistenceSeqno()) {
+        highPreparedSeqno = next->getBySeqno();
         advanceNodePosition(active);
         removeForCommitIfSatisfied();
     }
@@ -1347,12 +1359,17 @@ void ActiveDurabilityMonitor::State::updateHighPreparedSeqno(
             break;
         }
 
+        highPreparedSeqno = next->getBySeqno();
         advanceNodePosition(active);
         removeForCommitIfSatisfied();
     }
 
     // Note: For Consistency with the HPS at Replica, I don't update the
     //     Position::lastAckSeqno for the local (Active) tracking.
+}
+
+void ActiveDurabilityMonitor::State::updateHighCompletedSeqno() {
+    highCompletedSeqno = std::max(lastCommittedSeqno, lastAbortedSeqno);
 }
 
 void ActiveDurabilityMonitor::checkForCommit() {
