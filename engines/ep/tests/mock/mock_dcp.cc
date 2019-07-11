@@ -408,6 +408,15 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::prepare(
                                    nru);
 }
 
+ENGINE_ERROR_CODE MockDcpMessageProducers::seqno_acknowledged(
+        uint32_t opaque, Vbid vbucket, uint64_t prepared_seqno) {
+    last_op = cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged;
+    last_opaque = opaque;
+    last_vbucket = vbucket;
+    last_prepared_seqno = prepared_seqno;
+    return ENGINE_SUCCESS;
+}
+
 ENGINE_ERROR_CODE MockDcpMessageProducers::get_error_map(uint32_t opaque,
                                                          uint16_t version) {
     clear_dcp_data();

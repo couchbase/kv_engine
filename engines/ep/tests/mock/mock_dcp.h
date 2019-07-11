@@ -139,9 +139,7 @@ public:
 
     ENGINE_ERROR_CODE seqno_acknowledged(uint32_t opaque,
                                          Vbid vbucket,
-                                         uint64_t prepared_seqno) override {
-        return ENGINE_ENOTSUP;
-    }
+                                         uint64_t prepared_seqno) override;
     ENGINE_ERROR_CODE commit(uint32_t opaque,
                              Vbid vbucket,
                              const DocKey& key,
@@ -190,6 +188,7 @@ public:
     uint64_t last_collection_manifest_uid;
     cb::mcbp::DcpStreamId last_stream_id;
     std::string last_collection_filter;
+    uint64_t last_prepared_seqno;
 
 protected:
     /// Helper method for deletion / deletion_v2 / expiration
