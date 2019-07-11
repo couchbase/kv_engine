@@ -1011,7 +1011,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
     // objects if they do not already exist.
     for (const auto& itr : shardVbStates[shardId]) {
         Vbid vbid = itr.first;
-        vbucket_state vbs = itr.second;
+        const vbucket_state& vbs = itr.second;
 
         // Collections and sync-repl requires that the VBucket datafiles have
         // 'namespacing' applied to the key space
@@ -1322,7 +1322,17 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
                   [](const auto& a, const auto& b) {
                       return a->getBySeqno() < b->getBySeqno();
                   });
-        epVb.restoreOutstandingPreparesFromWarmup(std::move(prepares));
+
+        // Need the HPS/HCS so the DurabilityMonitor can be fully resumed
+        auto vbState = shardVbStates[shardId].find(vbid);
+        if (vbState == shardVbStates[shardId].end()) {
+            throw std::logic_error(
+                    "Warmup::loadPreparedSyncWrites: processing " +
+                    vbid.to_string() + ", but found no vbucket_state");
+        }
+        const vbucket_state& vbs = vbState->second;
+
+        epVb.restoreOutstandingPreparesFromWarmup(vbs, std::move(prepares));
     }
 
     if (++threadtask_count == store.vbMap.getNumShards()) {

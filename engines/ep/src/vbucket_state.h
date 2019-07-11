@@ -149,3 +149,5 @@ void to_json(nlohmann::json& json, const vbucket_state& vbs);
 
 /// Method to allow nlohmann::json to convert from JSON to vbucket_state.
 void from_json(const nlohmann::json& j, vbucket_state& vbs);
+
+std::ostream& operator<<(std::ostream& os, const vbucket_state& vbs);

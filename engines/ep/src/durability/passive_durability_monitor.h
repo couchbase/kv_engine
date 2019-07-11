@@ -22,6 +22,7 @@
 #include <vector>
 
 class RollbackResult;
+struct vbucket_state;
 class VBucket;
 class StoredDocKey;
 
@@ -39,16 +40,30 @@ public:
     PassiveDurabilityMonitor(VBucket& vb);
 
     /**
+     * Construct a PassiveDM for the given vBucket, with the specified hps/hcs
+     * @param vb VBucket which owns this Durability Monitor.
+     * @param highPreparedSeqno seqno to use as the initial highPreparedSeqno
+     * @param highCompletedSeqno seqno to use as the initial highCompletedSeqno
+     */
+    PassiveDurabilityMonitor(VBucket& vb,
+                             int64_t highPreparedSeqno,
+                             int64_t highCompletedSeqno);
+
+    /**
      * Construct a PassiveDM for the given vBucket, with the specified
      * outstanding prepares as the initial state of the tracked SyncWrites. Used
      * by warmup to restore the state as it was before restart.
      * @param vb VBucket which owns this Durability Monitor.
+     * @param highPreparedSeqno seqno to use as the initial highPreparedSeqno
+     * @param highCompletedSeqno seqno to use as the initial highCompletedSeqno
      * @param outstandingPrepares In-flight prepares which the DM should take
      *        responsibility for.
      *        These must be ordered by ascending seqno, otherwise
      *        std::invalid_argument will be thrown.
      */
     PassiveDurabilityMonitor(VBucket& vb,
+                             int64_t highPreparedSeqno,
+                             int64_t highCompletedSeqno,
                              std::vector<queued_item>&& outstandingPrepares);
 
     ~PassiveDurabilityMonitor();

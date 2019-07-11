@@ -27,6 +27,7 @@
 
 class EPStats;
 class PassiveDurabilityMonitor;
+struct vbucket_state;
 class VBucket;
 
 /*
@@ -47,7 +48,9 @@ public:
      * Construct an ActiveDM for the given vBucket, with the specified
      * outstanding prepares as the initial state of the tracked SyncWrites. Used
      * by warmup to restore the state as it was before restart.
+     * @param stats EPStats object for the associated Bucket.
      * @param vb VBucket which owns this Durability Monitor.
+     * @param vbs reference to the vbucket_state found at warmup
      * @param outstandingPrepares In-flight prepares which the DM should take
      *        responsibility for.
      *        These must be ordered by ascending seqno, otherwise
@@ -55,6 +58,7 @@ public:
      */
     ActiveDurabilityMonitor(EPStats& stats,
                             VBucket& vb,
+                            const vbucket_state& vbs,
                             std::vector<queued_item>&& outstandingPrepares);
 
     /**

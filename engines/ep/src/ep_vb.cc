@@ -31,6 +31,7 @@
 #include "stored_value_factories.h"
 #include "tasks.h"
 #include "vbucket_bgfetch_item.h"
+#include "vbucket_state.h"
 #include "vbucketdeletiontask.h"
 #include <folly/lang/Assume.h>
 
@@ -743,6 +744,7 @@ MutationStatus EPVBucket::insertFromWarmup(Item& itm,
 }
 
 void EPVBucket::restoreOutstandingPreparesFromWarmup(
+        const vbucket_state& vbs,
         std::vector<queued_item>&& outstandingPrepares) {
     // About to change the durabilityMonitor object, which is guarded by
     // stateLock.
@@ -763,19 +765,17 @@ void EPVBucket::restoreOutstandingPreparesFromWarmup(
     switch (getState()) {
     case vbucket_state_active: {
         durabilityMonitor = std::make_unique<ActiveDurabilityMonitor>(
-                stats, *this, std::move(outstandingPrepares));
-        auto topology = getReplicationTopology();
-        if (!topology.is_null()) {
-            dynamic_cast<ActiveDurabilityMonitor*>(durabilityMonitor.get())
-                    ->setReplicationTopology(topology);
-        }
+                stats, *this, vbs, std::move(outstandingPrepares));
         return;
     }
     case vbucket_state_replica:
     case vbucket_state_pending:
     case vbucket_state_dead:
         durabilityMonitor = std::make_unique<PassiveDurabilityMonitor>(
-                *this, std::move(outstandingPrepares));
+                *this,
+                vbs.highPreparedSeqno,
+                vbs.highCompletedSeqno,
+                std::move(outstandingPrepares));
         return;
     }
 }

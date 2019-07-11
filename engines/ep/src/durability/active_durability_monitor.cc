@@ -23,6 +23,7 @@
 #include "stats.h"
 #include "statwriter.h"
 #include "vbucket.h"
+#include "vbucket_state.h"
 
 #include <boost/algorithm/string/join.hpp>
 #include <folly/concurrency/UnboundedQueue.h>
@@ -356,8 +357,12 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(EPStats& stats, VBucket& vb)
 ActiveDurabilityMonitor::ActiveDurabilityMonitor(
         EPStats& stats,
         VBucket& vb,
+        const vbucket_state& vbs,
         std::vector<queued_item>&& outstandingPrepares)
     : ActiveDurabilityMonitor(stats, vb) {
+    if (!vbs.replicationTopology.is_null()) {
+        setReplicationTopology(vbs.replicationTopology);
+    }
     auto s = state.wlock();
     for (auto& prepare : outstandingPrepares) {
         auto seqno = prepare->getBySeqno();
@@ -367,10 +372,18 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(
         s->trackedWrites.emplace_back(nullptr,
                                       std::move(prepare),
                                       std::chrono::milliseconds{},
-                                      nullptr,
-                                      nullptr);
+                                      s->firstChain.get(),
+                                      s->secondChain.get());
         s->lastTrackedSeqno = seqno;
     }
+
+    // If we did load sync writes we should get them at least acked for this
+    // node, which is achieved by attempting to move the HPS
+    s->updateHighPreparedSeqno(*completedQueue);
+
+    s->lastTrackedSeqno.reset(vbs.highPreparedSeqno);
+    s->highPreparedSeqno.reset(vbs.highPreparedSeqno);
+    s->highCompletedSeqno.reset(vbs.highCompletedSeqno);
 }
 
 ActiveDurabilityMonitor::ActiveDurabilityMonitor(EPStats& stats,
@@ -386,6 +399,8 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(EPStats& stats,
         s->lastTrackedSeqno.reset(
                 pdm.state.wlock()->highCompletedSeqno.lastWriteSeqno);
     }
+    s->highPreparedSeqno.reset(pdm.getHighPreparedSeqno());
+    s->highCompletedSeqno.reset(pdm.getHighCompletedSeqno());
 }
 
 ActiveDurabilityMonitor::~ActiveDurabilityMonitor() = default;
@@ -426,11 +441,7 @@ void ActiveDurabilityMonitor::setReplicationTopology(
 }
 
 int64_t ActiveDurabilityMonitor::getHighPreparedSeqno() const {
-    const auto s = state.rlock();
-    if (!s->firstChain) {
-        return 0;
-    }
-    return s->highPreparedSeqno;
+    return state.rlock()->highPreparedSeqno;
 }
 
 int64_t ActiveDurabilityMonitor::getHighCompletedSeqno() const {

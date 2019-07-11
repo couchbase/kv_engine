@@ -139,3 +139,10 @@ void from_json(const nlohmann::json& j, vbucket_state& vbs) {
     // Note: We don't track on disk prepares pre-6.5
     vbs.onDiskPrepares = std::stoll(j.value("on_disk_prepares", "0"));
 }
+
+std::ostream& operator<<(std::ostream& os, const vbucket_state& vbs) {
+    nlohmann::json j;
+    to_json(j, vbs);
+    os << j;
+    return os;
+}

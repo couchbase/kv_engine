@@ -448,11 +448,62 @@ protected:
     /**
      * Test that when we complete a Prepare the correct HCS is persisted into
      * the local document.
-     *
-     * @param res The type of resolution (Commit/Abort)
      */
-    void testHCSPersistedAndLoadedIntoVBState(Resolution res);
+    void testHCSPersistedAndLoadedIntoVBState();
+
+    class PrePostStateChecker {
+    public:
+        PrePostStateChecker(VBucketPtr vb);
+        ~PrePostStateChecker();
+
+        void setVBucket(VBucketPtr vb) {
+            this->vb = vb;
+        }
+
+        // Checker can be disabled if the test is doing something special, e.g.
+        // driving the ADM directly
+        void disable() {
+            disabled = true;
+        }
+
+    private:
+        VBucketPtr vb;
+        bool disabled = false;
+        int64_t preHPS = 0;
+        int64_t preHCS = 0;
+    };
+
+    PrePostStateChecker resetEngineAndWarmup();
 };
+
+DurabilityWarmupTest::PrePostStateChecker::PrePostStateChecker(VBucketPtr vb) {
+    EXPECT_TRUE(vb);
+    preHPS = vb->getHighPreparedSeqno();
+    preHCS = vb->getHighCompletedSeqno();
+}
+
+DurabilityWarmupTest::PrePostStateChecker::~PrePostStateChecker() {
+    if (disabled) {
+        return;
+    }
+
+    EXPECT_TRUE(vb);
+    EXPECT_EQ(preHPS, vb->getHighPreparedSeqno())
+            << "PrePostStateChecker: Found that post warmup the HPS does not "
+               "match the pre-warmup value";
+    EXPECT_EQ(preHCS, vb->getHighCompletedSeqno())
+            << "PrePostStateChecker: Found that post warmup the HCS does not "
+               "match the pre-warmup value";
+    ;
+}
+
+DurabilityWarmupTest::PrePostStateChecker
+DurabilityWarmupTest::resetEngineAndWarmup() {
+    PrePostStateChecker checker(engine->getVBucket(vbid));
+    DurabilityKVBucketTest::resetEngineAndWarmup();
+    checker.setVBucket(engine->getVBucket(vbid));
+    return checker;
+}
 
 GetValue DurabilityWarmupTest::getItemFetchFromDiskIfNeeded(
         const DocKey& key, DocumentState docState) {
@@ -529,7 +580,8 @@ void DurabilityWarmupTest::testCommittedSyncWrite(vbucket_state_t vbState,
 
     { // scoping vb - is invalid once resetEngineAndWarmup() is called.
         auto vb = engine->getVBucket(vbid);
-        vb->commit(key, item->getBySeqno(), {}, vb->lockCollections(key));
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  vb->seqnoAcknowledged("replica", vb->getHighPreparedSeqno()));
 
         flush_vbucket_to_disk(vbid, 1);
     }
@@ -677,7 +729,9 @@ TEST_P(DurabilityWarmupTest, AbortedSyncWritePrepareIsNotLoaded) {
     { // scoping vb - is invalid once resetEngineAndWarmup() is called.
         auto vb = engine->getVBucket(vbid);
         EXPECT_EQ(1, vb->getNumItems());
-        vb->abort(key, item->getBySeqno(), {}, vb->lockCollections(key));
+        // Force an abort
+        vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
+                                     std::chrono::seconds(1000));
 
         flush_vbucket_to_disk(vbid, 1);
         EXPECT_EQ(1, vb->getNumItems());
@@ -743,8 +797,7 @@ TEST_P(DurabilityWarmupTest, ReplicationTopologyLoaded) {
     EXPECT_EQ(topology.dump(), vb->getReplicationTopology().dump());
 }
 
-void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState(
-        Resolution res) {
+void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState() {
     // Queue a Prepare
     auto key = makeStoredDocKey("key");
     auto prepare = makePendingItem(key, "value");
@@ -761,40 +814,31 @@ void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState(
 
     // Persist the Prepare and vbstate.
     flush_vbucket_to_disk(vbid);
+    auto hps1 = engine->getKVBucket()->getVBucket(vbid)->getHighPreparedSeqno();
     vb.reset();
     resetEngineAndWarmup();
 
-    // HCS still 0 in vbstate
+    // Check hps matches the pre-warmup value
+    EXPECT_EQ(hps1,
+              engine->getKVBucket()->getVBucket(vbid)->getHighPreparedSeqno());
+
     auto checkHCS = [this](int64_t hcs) -> void {
         auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
         auto vbstate = *kvstore->getVBucketState(vbid);
         ASSERT_EQ(hcs, vbstate.highCompletedSeqno);
     };
+
+    // HCS still 0 in vbstate
     checkHCS(0);
 
     // Complete the Prepare
     vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb);
-    switch (res) {
-    case Resolution::Commit:
-        ASSERT_EQ(ENGINE_SUCCESS,
-                  vb->commit(key,
-                             preparedSeqno /*prepareSeqno*/,
-                             {} /*commitSeqno*/,
-                             vb->lockCollections(key)));
-        sv = vb->ht.findForRead(key).storedValue;
-        ASSERT_TRUE(sv);
-        ASSERT_TRUE(sv->isCommitted());
-        ASSERT_GT(sv->getBySeqno(), preparedSeqno);
-        break;
-    case Resolution::Abort:
-        ASSERT_EQ(ENGINE_SUCCESS,
-                  vb->abort(key,
-                            preparedSeqno,
-                            {} /*abortSeqno*/,
-                            vb->lockCollections(key)));
-        break;
-    }
+    EXPECT_EQ(ENGINE_SUCCESS, vb->seqnoAcknowledged("replica", preparedSeqno));
+    sv = vb->ht.findForRead(key).storedValue;
+    ASSERT_TRUE(sv);
+    ASSERT_TRUE(sv->isCommitted());
+    ASSERT_GT(sv->getBySeqno(), preparedSeqno);
 
     // Persist the Commit/Abort and vbstate.
     flush_vbucket_to_disk(vbid);
@@ -805,14 +849,14 @@ void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState(
 
     // HCS must have been loaded from vbstate from disk
     checkHCS(preparedSeqno);
+    EXPECT_EQ(preparedSeqno,
+              engine->getKVBucket()->getVBucket(vbid)->getHighCompletedSeqno());
+    EXPECT_EQ(preparedSeqno,
+              engine->getKVBucket()->getVBucket(vbid)->getHighPreparedSeqno());
 }
 
 TEST_P(DurabilityWarmupTest, HCSPersistedAndLoadedIntoVBState_Commit) {
-    testHCSPersistedAndLoadedIntoVBState(Resolution::Commit);
-}
-
-TEST_P(DurabilityWarmupTest, HCSPersistedAndLoadedIntoVBState_Abort) {
-    testHCSPersistedAndLoadedIntoVBState(Resolution::Abort);
+    testHCSPersistedAndLoadedIntoVBState();
 }
 
 TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
@@ -882,6 +926,61 @@ TEST_P(DurabilityWarmupTest, SetStateDeadWithWarmedUpPrepare) {
     EXPECT_EQ(ENGINE_SUCCESS, store->setVBucketState(vbid, vbucket_state_dead));
     runNextTask(*task_executor->getLpTaskQ()[NONIO_TASK_IDX],
                 "Notify clients of Sync Write Ambiguous vb:0");
+}
+
+// Test actually covers an issue seen in MB-34956, the issue was just the lack
+// of more complete warmup support which is added by MB-34910, in this test
+// we check that even after some sync-writes have completed/committed we can
+// still warmup and handle latent seqnoAcks, i.e. 0 prepares on disk but we have
+// non zero HCS/HPS.
+TEST_P(DurabilityWarmupTest, CommittedWithAckAfterWarmup) {
+    auto key = makeStoredDocKey("okey");
+    auto item = makePendingItem(key, "dokey");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+    flush_vbucket_to_disk(vbid);
+    {
+        auto vb = engine->getVBucket(vbid);
+        vb->seqnoAcknowledged("replica", 1);
+        flush_vbucket_to_disk(vbid, 1);
+    }
+    resetEngineAndWarmup();
+    {
+        auto vb = engine->getVBucket(vbid);
+        vb->seqnoAcknowledged("replica", 1);
+    }
+}
+
+// Manipulate a replicaVB as if it is receiving from an active (calling correct
+// replica methods) and test the VB warms up.
+TEST_P(DurabilityWarmupTest, ReplicaVBucket) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    auto key = makeStoredDocKey("okey");
+    auto item = makePendingItem(key, "dokey");
+    item->setCas(1);
+    item->setBySeqno(1);
+    item->setPendingSyncWrite({cb::durability::Level::Majority, 5000});
+
+    auto vb = engine->getVBucket(vbid);
+
+    // Drive a replica just like DCP does
+    // Send two snapshots, 1 prepare and 1 commit
+
+    // snap 1
+    vb->checkpointManager->createSnapshot(1, 1, CheckpointType::Memory);
+    ASSERT_EQ(ENGINE_SUCCESS, store->prepare(*item, cookie));
+    flush_vbucket_to_disk(vbid);
+    vb->notifyPassiveDMOfSnapEndReceived(1);
+
+    // snap 2
+    vb->checkpointManager->createSnapshot(2, 2, CheckpointType::Memory);
+    EXPECT_EQ(ENGINE_SUCCESS, vb->commit(key, 1, 2, vb->lockCollections(key)));
+    flush_vbucket_to_disk(vbid, 1);
+    vb->notifyPassiveDMOfSnapEndReceived(2);
+
+    vb.reset();
+
+    // Warmup and allow the pre/post checker to test the state
+    resetEngineAndWarmup();
 }
 
 INSTANTIATE_TEST_CASE_P(

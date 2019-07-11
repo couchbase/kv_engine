@@ -180,10 +180,12 @@ public:
      * Populates the HashTable and the DurabilityMonitor with the given
      * set of queued_items.
      *
+     * @param vbs The vbucket_state read during warmup
      * @param outstandingPrepares Sequence of prepared_sync_writes, sorted by
      *        seqno in ascending order.
      */
     void restoreOutstandingPreparesFromWarmup(
+            const vbucket_state& vbs,
             std::vector<queued_item>&& outstandingPrepares);
 
     size_t getNumPersistedDeletes() const override;

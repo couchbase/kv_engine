@@ -24,6 +24,7 @@
 #include "statwriter.h"
 #include "stored-value.h"
 #include "vbucket.h"
+#include "vbucket_state.h"
 
 #include <boost/range/adaptor/reversed.hpp>
 #include <gsl.h>
@@ -38,9 +39,21 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(VBucket& vb)
     s->highCompletedSeqno = Position(s->trackedWrites.end());
 }
 
-PassiveDurabilityMonitor::PassiveDurabilityMonitor(
-        VBucket& vb, std::vector<queued_item>&& outstandingPrepares)
+PassiveDurabilityMonitor::PassiveDurabilityMonitor(VBucket& vb,
+                                                   int64_t highPreparedSeqno,
+                                                   int64_t highCompletedSeqno)
     : PassiveDurabilityMonitor(vb) {
+    auto s = state.wlock();
+    s->highPreparedSeqno.lastWriteSeqno.reset(highPreparedSeqno);
+    s->highCompletedSeqno.lastWriteSeqno.reset(highCompletedSeqno);
+}
+
+PassiveDurabilityMonitor::PassiveDurabilityMonitor(
+        VBucket& vb,
+        int64_t highPreparedSeqno,
+        int64_t highCompletedSeqno,
+        std::vector<queued_item>&& outstandingPrepares)
+    : PassiveDurabilityMonitor(vb, highPreparedSeqno, highCompletedSeqno) {
     auto s = state.wlock();
     for (auto& prepare : outstandingPrepares) {
         // Any outstanding prepares "grandfathered" into the DM should have
