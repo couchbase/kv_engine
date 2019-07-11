@@ -2077,10 +2077,9 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
     ENGINE_ERROR_CODE ret = durability ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
 
     { // HashBucketLock scope
-        auto htRes = durability ? ht.findForSyncWrite(cHandle.getKey())
-                                : ht.findForWrite(cHandle.getKey());
-        auto* v = htRes.storedValue;
-        auto& hbl = htRes.lock;
+        auto htRes = ht.findForCommit(cHandle.getKey());
+        auto* v = htRes.selectSVToModify(durability.is_initialized());
+        auto& hbl = htRes.getHBL();
 
         if (!v || v->isDeleted() || v->isTempItem() ||
             cHandle.isLogicallyDeleted(v->getBySeqno())) {
@@ -2135,7 +2134,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
                 queueItmCtx.durability = DurabilityItemCtx{*durability, cookie};
             }
             std::tie(delrv, v, notifyCtx) =
-                    processSoftDelete(hbl,
+                    processSoftDelete(htRes,
                                       *v,
                                       cas,
                                       metadata,
@@ -2215,9 +2214,9 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
         const Collections::VB::Manifest::CachingReadHandle& cHandle,
         DeleteSource deleteSource) {
     const auto& key = cHandle.getKey();
-    auto htRes = ht.findForWrite(key);
-    auto* v = htRes.storedValue;
-    auto& hbl = htRes.lock;
+    auto htRes = ht.findForCommit(key);
+    auto* v = htRes.pending ? htRes.pending.getSV() : htRes.committed;
+    auto& hbl = htRes.pending.getHBL();
 
     if (v && cHandle.isLogicallyDeleted(v->getBySeqno())) {
         return ENGINE_KEY_ENOENT;
@@ -2317,7 +2316,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
             // this is a replication call (i.e. not to an active vbucket),
             // the active has done this and we must just store what we're
             // given.
-            std::tie(delrv, v, notifyCtx) = processSoftDelete(hbl,
+            std::tie(delrv, v, notifyCtx) = processSoftDelete(htRes,
                                                               *v,
                                                               cas,
                                                               itemMeta,
@@ -3376,7 +3375,7 @@ std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
 }
 
 std::tuple<MutationStatus, StoredValue*, boost::optional<VBNotifyCtx>>
-VBucket::processSoftDelete(const HashTable::HashBucketLock& hbl,
+VBucket::processSoftDelete(HashTable::FindCommitResult& htRes,
                            StoredValue& v,
                            uint64_t cas,
                            const ItemMetaData& metadata,
@@ -3384,7 +3383,6 @@ VBucket::processSoftDelete(const HashTable::HashBucketLock& hbl,
                            bool use_meta,
                            uint64_t bySeqno,
                            DeleteSource deleteSource) {
-    boost::optional<VBNotifyCtx> empty;
     if (v.isPending()) {
         // It is not valid for an active vBucket to attempt to overwrite an
         // in flight SyncWrite. If this vBucket is not active, we are
@@ -3395,14 +3393,40 @@ VBucket::processSoftDelete(const HashTable::HashBucketLock& hbl,
         // missing a prepare. This code allows this mutation to be accepted
         // and overwrites the existing prepare.
         if (getState() == vbucket_state_active || !isReceivingDiskSnapshot()) {
-            return {MutationStatus::IsPendingSyncWrite, &v, empty};
+            return {MutationStatus::IsPendingSyncWrite, &v, boost::none};
         }
 
         getPassiveDM().completeSyncWrite(
                 StoredDocKey(v.getKey()),
                 PassiveDurabilityMonitor::Resolution::Commit);
+
+        // @TODO we must remove the prepare and overwrite the mutation if we
+        // are replacing a prepare with a mutation
+        // Release the pending SV from the SVP that is holding it to prevent
+        // a double stat update that would cause a stat underflow exception.
+        htRes.pending.release();
     }
 
+    return processSoftDeleteInner(htRes.getHBL(),
+                                  v,
+                                  cas,
+                                  metadata,
+                                  queueItmCtx,
+                                  use_meta,
+                                  bySeqno,
+                                  deleteSource);
+}
+
+std::tuple<MutationStatus, StoredValue*, boost::optional<VBNotifyCtx>>
+VBucket::processSoftDeleteInner(const HashTable::HashBucketLock& hbl,
+                                StoredValue& v,
+                                uint64_t cas,
+                                const ItemMetaData& metadata,
+                                const VBQueueItemCtx& queueItmCtx,
+                                bool use_meta,
+                                uint64_t bySeqno,
+                                DeleteSource deleteSource) {
+    boost::optional<VBNotifyCtx> empty;
     if (v.isTempInitialItem() && eviction == EvictionPolicy::Full) {
         return std::make_tuple(MutationStatus::NeedBgFetch, &v, empty);
     }

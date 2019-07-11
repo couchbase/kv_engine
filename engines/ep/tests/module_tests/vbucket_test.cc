@@ -228,19 +228,19 @@ VBucketTestBase::public_processSoftDelete(const DocKey& key,
         VBQueueItemCtx ctx) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(key);
-    auto res = ctx.durability ? vbucket->ht.findForSyncWrite(key)
-                              : vbucket->ht.findForWrite(key);
-    if (!res.storedValue) {
+    auto htRes = vbucket->ht.findForCommit(key);
+    auto* v = htRes.selectSVToModify(ctx.durability.is_initialized());
+    if (!v) {
         return {MutationStatus::NotFound, nullptr};
     }
-    if (res.storedValue->isDeleted() && !res.storedValue->isPending()) {
+    if (v->isDeleted() && !v->isPending()) {
         return {MutationStatus::NotFound, nullptr};
     }
-    return public_processSoftDelete(res.lock, *res.storedValue, ctx);
+    return public_processSoftDelete(htRes, *v, ctx);
 }
 
 std::pair<MutationStatus, StoredValue*>
-VBucketTestBase::public_processSoftDelete(const HashTable::HashBucketLock& hbl,
+VBucketTestBase::public_processSoftDelete(HashTable::FindCommitResult& htRes,
                                           StoredValue& v,
                                           VBQueueItemCtx ctx) {
     ItemMetaData metadata;
@@ -248,7 +248,7 @@ VBucketTestBase::public_processSoftDelete(const HashTable::HashBucketLock& hbl,
     MutationStatus status;
     StoredValue* deletedSV;
     std::tie(status, deletedSV, std::ignore) =
-            vbucket->processSoftDelete(hbl,
+            vbucket->processSoftDelete(htRes,
                                        v,
                                        /*cas*/ 0,
                                        metadata,

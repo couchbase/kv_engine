@@ -1838,8 +1838,8 @@ protected:
      * in-memory structure like HT, and checkpoint mgr.
      * Assumes that HT bucket lock is grabbed.
      *
-     * @param hbl Hash table bucket lock that must be held
-     * @param v Reference to the StoredValue to be soft deleted
+     * @param htRes Committed and Pending StoredValues
+     * @param v Reference to the StoredValue to delete (in the general case)
      * @param cas the expected CAS of the item (or 0 to override)
      * @param metadata ref to item meta data
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
@@ -1855,7 +1855,7 @@ protected:
      *         notification info, if status was successful.
      */
     std::tuple<MutationStatus, StoredValue*, boost::optional<VBNotifyCtx>>
-    processSoftDelete(const HashTable::HashBucketLock& hbl,
+    processSoftDelete(HashTable::FindCommitResult& htRes,
                       StoredValue& v,
                       uint64_t cas,
                       const ItemMetaData& metadata,
@@ -1863,7 +1863,19 @@ protected:
                       bool use_meta,
                       uint64_t bySeqno,
                       DeleteSource deleteSource);
-
+    /**
+     * Inner function for processSoftDelete. Allows overwriting of in-flight
+     * prepares.
+     */
+    std::tuple<MutationStatus, StoredValue*, boost::optional<VBNotifyCtx>>
+    processSoftDeleteInner(const HashTable::HashBucketLock& hbl,
+                           StoredValue& v,
+                           uint64_t cas,
+                           const ItemMetaData& metadata,
+                           const VBQueueItemCtx& queueItmCtx,
+                           bool use_meta,
+                           uint64_t bySeqno,
+                           DeleteSource deleteSource);
     /**
      * Delete a key (associated StoredValue) from ALL in-memory data structures
      * like HT.
