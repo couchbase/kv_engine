@@ -766,6 +766,9 @@ void EPVBucket::restoreOutstandingPreparesFromWarmup(
     case vbucket_state_active: {
         durabilityMonitor = std::make_unique<ActiveDurabilityMonitor>(
                 stats, *this, vbs, std::move(outstandingPrepares));
+
+        // Some of the prepares may now be viable for commit
+        getActiveDM().checkForCommit();
         return;
     }
     case vbucket_state_replica:

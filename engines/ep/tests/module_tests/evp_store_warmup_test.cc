@@ -797,6 +797,38 @@ TEST_P(DurabilityWarmupTest, ReplicationTopologyLoaded) {
     EXPECT_EQ(topology.dump(), vb->getReplicationTopology().dump());
 }
 
+// Test that if we 'crashed' whilst committing, that the warmup will re-commit
+TEST_P(DurabilityWarmupTest, WarmupCommit) {
+    // Change the replication topology to a specific value (different from
+    // normal test SetUp method).
+    const auto topology = nlohmann::json::array({{"active"}});
+    setVBucketToActiveWithValidTopology(topology);
+    auto key = makeStoredDocKey("key");
+    auto item = makePendingItem(key, "do");
+    auto vb = store->getVBucket(vbid);
+    { // collections read-lock scope
+        auto cHandle = vb->lockCollections(item->getKey());
+        EXPECT_TRUE(cHandle.valid());
+        // Use vb level set so that the commit doesn't yet happen, we want to
+        // simulate the prepare, but not commit landing on disk
+        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+                  vb->set(*item, cookie, *engine, {}, cHandle));
+    }
+    flush_vbucket_to_disk(vbid, 1);
+    vb.reset();
+
+    // Now warmup, we've stored the prepare but never made it to commit
+    // Because we bypassed KVBucket::set the HPS/HCS will be incorrect and fail
+    // the pre/post warmup checker, so disable the checker for this test.
+    resetEngineAndWarmup().disable();
+
+    vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    auto sv = vb->ht.findForRead(key).storedValue;
+    ASSERT_TRUE(sv);
+    ASSERT_TRUE(sv->isCommitted());
+}
+
 void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState() {
     // Queue a Prepare
     auto key = makeStoredDocKey("key");
