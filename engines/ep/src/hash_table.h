@@ -723,6 +723,15 @@ public:
 
         void setCommitted(CommittedState state);
 
+        /**
+         * Release this handle to the StoredValue* to the caller. This will
+         * allow us to do things such as call a HashTable delete function using
+         * the StoredValueProxy without worrying about double stats calls.
+         *
+         * @return The StoredValue* for value
+         */
+        StoredValue* release();
+
     private:
         HashBucketLock lock;
         StoredValue* value;
@@ -741,6 +750,28 @@ public:
      * returned (in the pending StoredValueProxy).
      */
     struct FindCommitResult {
+        /**
+         * Return the StoredValue that should generally be used based on the
+         * item. Callers of the findForWrite and findForSyncWrite functions
+         * typically choose one or the other based on the item being updated
+         * (itm.isPending() ? findForSyncWrite(...) : findForWrite(...)). This
+         * function allows the caller to do the same with the FindCommitResult.
+         *
+         * @param bool is the current operation a durable one
+         * @return The prepare if the item is pending and the prepare exists,
+         *         otherwise the commit. The prepare if the item is not pending
+         *         and the prepare is not completed, otherwise the commit. If
+         *         neither exist, nullptr is returned.
+         */
+        StoredValue* selectSVToModify(bool durability);
+
+        /// Overload of above selectSVToModify that takes an Item.
+        StoredValue* selectSVToModify(const Item& itm);
+
+        HashBucketLock& getHBL() {
+            return pending.getHBL();
+        }
+
         StoredValueProxy pending;
         StoredValue* committed;
     };

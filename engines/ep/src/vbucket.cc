@@ -1493,10 +1493,9 @@ ENGINE_ERROR_CODE VBucket::set(
     bool cas_op = (itm.getCas() != 0);
 
     { // HashBucketLock scope
-        auto htRes = itm.isPending() ? ht.findForSyncWrite(itm.getKey())
-                                     : ht.findForWrite(itm.getKey());
-        auto* v = htRes.storedValue;
-        auto& hbl = htRes.lock;
+        auto htRes = ht.findForCommit(itm.getKey());
+        auto* v = htRes.selectSVToModify(itm);
+        auto& hbl = htRes.getHBL();
 
         cb::StoreIfStatus storeIfStatus = cb::StoreIfStatus::Continue;
         if (predicate && (storeIfStatus = callPredicate(predicate, v)) ==
@@ -1533,7 +1532,7 @@ ENGINE_ERROR_CODE VBucket::set(
         queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
         MutationStatus status;
         boost::optional<VBNotifyCtx> notifyCtx;
-        std::tie(status, notifyCtx) = processSet(hbl,
+        std::tie(status, notifyCtx) = processSet(htRes,
                                                  v,
                                                  itm,
                                                  itm.getCas(),
@@ -1608,10 +1607,13 @@ ENGINE_ERROR_CODE VBucket::replace(
     }
 
     { // HashBucketLock scope
-        auto htRes = itm.isPending() ? ht.findForSyncReplace(itm.getKey())
-                                     : ht.findForWrite(itm.getKey());
-        auto* v = htRes.storedValue;
-        auto& hbl = htRes.lock;
+        auto htRes = ht.findForCommit(itm.getKey());
+        auto* v = htRes.selectSVToModify(itm);
+        auto& hbl = htRes.getHBL();
+
+        if (v && v->isCompleted()) {
+            v = nullptr;
+        }
 
         cb::StoreIfStatus storeIfStatus = cb::StoreIfStatus::Continue;
         if (predicate && (storeIfStatus = callPredicate(predicate, v)) ==
@@ -1638,7 +1640,7 @@ ENGINE_ERROR_CODE VBucket::replace(
                     queueItmCtx.durability =
                             DurabilityItemCtx{itm.getDurabilityReqs(), cookie};
                 }
-                std::tie(mtype, notifyCtx) = processSet(hbl,
+                std::tie(mtype, notifyCtx) = processSet(htRes,
                                                         v,
                                                         itm,
                                                         0,
@@ -1706,9 +1708,9 @@ ENGINE_ERROR_CODE VBucket::replace(
 ENGINE_ERROR_CODE VBucket::addBackfillItem(
         Item& itm,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    auto htRes = ht.findForWrite(itm.getKey());
-    auto* v = htRes.storedValue;
-    auto& hbl = htRes.lock;
+    auto htRes = ht.findForCommit(itm.getKey());
+    auto* v = htRes.selectSVToModify(itm);
+    auto& hbl = htRes.getHBL();
 
     // Note that this function is only called on replica or pending vbuckets.
     if (v && v->isLocked(ep_current_time())) {
@@ -1725,7 +1727,7 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(
             nullptr /* No pre link should happen */};
     MutationStatus status;
     boost::optional<VBNotifyCtx> notifyCtx;
-    std::tie(status, notifyCtx) = processSet(hbl,
+    std::tie(status, notifyCtx) = processSet(htRes,
                                              v,
                                              itm,
                                              0,
@@ -1798,9 +1800,9 @@ ENGINE_ERROR_CODE VBucket::prepare(
         GenerateBySeqno genBySeqno,
         GenerateCas genCas,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    auto htRes = ht.findOnlyPrepared(itm.getKey());
-    auto* v = htRes.storedValue;
-    auto& hbl = htRes.lock;
+    auto htRes = ht.findForCommit(itm.getKey());
+    auto* v = htRes.pending.getSV();
+    auto& hbl = htRes.getHBL();
     bool maybeKeyExists = true;
     MutationStatus status;
     boost::optional<VBNotifyCtx> notifyCtx;
@@ -1853,7 +1855,7 @@ ENGINE_ERROR_CODE VBucket::prepare(
     } else {
         // Not a valid duplicate prepare, call processSet and hit the SyncWrite
         // checks.
-        std::tie(status, notifyCtx) = processSet(hbl,
+        std::tie(status, notifyCtx) = processSet(htRes,
                                                  v,
                                                  itm,
                                                  cas,
@@ -1924,10 +1926,9 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
         GenerateBySeqno genBySeqno,
         GenerateCas genCas,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    auto htRes = itm.isPending() ? ht.findForSyncWrite(itm.getKey())
-                                 : ht.findForWrite(itm.getKey());
-    auto* v = htRes.storedValue;
-    auto& hbl = htRes.lock;
+    auto htRes = ht.findForCommit(itm.getKey());
+    auto* v = htRes.selectSVToModify(itm);
+    auto& hbl = htRes.getHBL();
     bool maybeKeyExists = true;
 
     // Effectively ignore logically deleted keys, they cannot stop the op
@@ -1994,7 +1995,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
 
     MutationStatus status;
     boost::optional<VBNotifyCtx> notifyCtx;
-    std::tie(status, notifyCtx) = processSet(hbl,
+    std::tie(status, notifyCtx) = processSet(htRes,
                                              v,
                                              itm,
                                              cas,
@@ -3124,7 +3125,7 @@ void VBucket::decrDirtyQueuePendingWrites(size_t decrementBy)
 }
 
 std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
-        const HashTable::HashBucketLock& hbl,
+        HashTable::FindCommitResult& htRes,
         StoredValue*& v,
         Item& itm,
         uint64_t cas,
@@ -3151,6 +3152,12 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
             Expects(itm.isCommitted());
             getPassiveDM().completeSyncWrite(
                     itm.getKey(), PassiveDurabilityMonitor::Resolution::Commit);
+
+            // @TODO we must remove the prepare and overwrite the mutation if we
+            // are replacing a prepare with a mutation
+            // Release the pending SV from the SVP that is holding it to prevent
+            // a double stat update that would cause a stat underflow exception.
+            htRes.pending.release();
         }
 
         // This is a new SyncWrite, we just want to add a new prepare unless we
@@ -3161,12 +3168,12 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
             // We have to modify the StoredValue pointer passed in or we do not
             // return the correct cas to the client.
             std::tie(v, notifyCtx) = addNewStoredValue(
-                    hbl, itm, queueItmCtx, GenerateRevSeqno::No);
+                    htRes.getHBL(), itm, queueItmCtx, GenerateRevSeqno::No);
             return {MutationStatus::WasClean, notifyCtx};
         }
     }
 
-    return processSetInner(hbl,
+    return processSetInner(htRes.getHBL(),
                            v,
                            itm,
                            cas,

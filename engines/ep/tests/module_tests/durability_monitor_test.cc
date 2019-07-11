@@ -153,14 +153,17 @@ void DurabilityMonitorTest::addSyncWrites(const std::vector<int64_t>& seqnos,
 }
 
 MutationStatus DurabilityMonitorTest::processSet(Item& item) {
-    auto htRes = vb->ht.findForWrite(item.getKey());
     VBQueueItemCtx ctx;
     ctx.genBySeqno = GenerateBySeqno::No;
     ctx.durability =
             DurabilityItemCtx{item.getDurabilityReqs(), /*cookie*/ nullptr};
+
+    auto htRes = vb->ht.findForCommit(item.getKey());
+    auto* v = htRes.selectSVToModify(item);
+
     return vb
-            ->processSet(htRes.lock,
-                         htRes.storedValue,
+            ->processSet(htRes,
+                         v,
                          item,
                          item.getCas(),
                          true /*allow_existing*/,

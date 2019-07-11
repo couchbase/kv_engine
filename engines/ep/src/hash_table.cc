@@ -96,12 +96,40 @@ HashTable::StoredValueProxy::StoredValueProxy(HashBucketLock&& hbl,
 }
 
 HashTable::StoredValueProxy::~StoredValueProxy() {
-    valueStats.get().epilogue(pre, value);
+    if (value) {
+        valueStats.get().epilogue(pre, value);
+    }
 }
 
 void HashTable::StoredValueProxy::setCommitted(CommittedState state) {
     value->setCommitted(state);
     value->setCompletedOrDeletedTime(ep_current_time());
+}
+
+StoredValue* HashTable::StoredValueProxy::release() {
+    auto* tmp = value;
+    value = nullptr;
+    return tmp;
+}
+
+StoredValue* HashTable::FindCommitResult::selectSVToModify(bool durability) {
+    if (durability) {
+        if (pending) {
+            return pending.getSV();
+        } else {
+            return committed;
+        }
+    } else {
+        if (pending && !pending->isCompleted()) {
+            return pending.getSV();
+        } else {
+            return committed;
+        }
+    }
+}
+
+StoredValue* HashTable::FindCommitResult::selectSVToModify(const Item& itm) {
+    return selectSVToModify(itm.isPending());
 }
 
 HashTable::HashTable(EPStats& st,

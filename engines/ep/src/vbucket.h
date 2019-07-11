@@ -1766,10 +1766,10 @@ protected:
      * Prevents operations on in-flight SyncWrites.
      * Redirects the addition of new prepares to addNewStoredValue.
      *
-     * @param hbl Hash table bucket lock that must be held
-     * @param v Reference to the ptr of StoredValue. This can be changed if a
-     *          new StoredValue is added or just its contents is changed if the
-     *          exisiting StoredValue is updated
+     * @param htRes Committed and Pending StoredValues, include HBL.
+     * @param v Reference to the ptr of StoredValue to modify. This can be
+     *          changed if a new StoredValue is added or just its contents is
+     *          changes if the existing StoredValue is updated.
      * @param itm Item to be added/updated. On success, its revSeqno is updated
      * @param cas value to match
      * @param allowExisting set to false if you want set to fail if the
@@ -1785,7 +1785,7 @@ protected:
      *                info (if operation was successful).
      */
     std::pair<MutationStatus, boost::optional<VBNotifyCtx>> processSet(
-            const HashTable::HashBucketLock& hbl,
+            HashTable::FindCommitResult& htRes,
             StoredValue*& v,
             Item& itm,
             uint64_t cas,

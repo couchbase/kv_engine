@@ -199,16 +199,13 @@ MutationStatus VBucketTestBase::public_processSet(Item& itm,
                                                   const VBQueueItemCtx& ctx) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(itm.getKey());
-    auto hbl_sv = lockAndFind(itm.getKey(), ctx);
+
+    auto htRes = vbucket->ht.findForCommit(itm.getKey());
+    auto* v = htRes.selectSVToModify(itm);
+
     return vbucket
-            ->processSet(hbl_sv.first,
-                         hbl_sv.second,
-                         itm,
-                         cas,
-                         true,
-                         false,
-                         ctx,
-                         {/*no predicate*/})
+            ->processSet(
+                    htRes, v, itm, cas, true, false, ctx, {/*no predicate*/})
             .first;
 }
 
