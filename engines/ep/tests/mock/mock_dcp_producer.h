@@ -84,6 +84,9 @@ public:
         return enableExpiryOpcode;
     }
 
+    void setSyncReplication(bool value) {
+        supportsSyncReplication = value;
+    }
     /**
      * Create the ActiveStreamCheckpointProcessorTask and assign to
      * checkpointCreator->task

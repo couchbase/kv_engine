@@ -108,6 +108,41 @@ uint32_t MutationResponse::getMessageSize() const {
     return header + body;
 }
 
+MutationConsumerMessage::MutationConsumerMessage(MutationResponse& response)
+    : MutationResponse(response.getItem(),
+                       response.getOpaque(),
+                       response.getIncludeValue(),
+                       response.getIncludeXattrs(),
+                       response.getIncludeDeleteTime(),
+                       response.getDocKeyEncodesCollectionId(),
+                       response.getEnableExpiryOutput(),
+                       response.getStreamId()),
+      emd(nullptr) {
+    // If the item is actually a commit_sync_write which had to be transmitted
+    // as a DCP_MUTATION (i.e. MutationConsumerResponse), we need
+    // to recreate the Item as operation==mutation otherwise the Consumer cannot
+    // handle it.
+    if (item_->getOperation() == queue_op::commit_sync_write) {
+        auto* mutation = new Item(item_->getKey(),
+                                  item_->getFlags(),
+                                  item_->getExptime(),
+                                  item_->getValue()->getData(),
+                                  item_->getValue()->valueSize(),
+                                  item_->getDataType(),
+                                  item_->getCas(),
+                                  item_->getBySeqno(),
+                                  item_->getVBucketId(),
+                                  item_->getRevSeqno(),
+                                  item_->getNRUValue(),
+                                  item_->getNRUValue());
+        // Using const_cast here as item_ is const; alternative would be a
+        // complex initialiser_list with ternaries to move the object
+        // constuction there. Given the object isn't created until after this
+        // method returns, this seems a reasonable compromise.
+        const_cast<queued_item&>(item_).reset(mutation);
+    }
+}
+
 uint32_t MutationConsumerMessage::getMessageSize() const {
     uint32_t body = MutationResponse::getMessageSize();
 

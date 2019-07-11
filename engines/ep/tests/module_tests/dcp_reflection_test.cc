@@ -68,7 +68,9 @@ protected:
                 .getStatus();
     }
 
-    void setupProducer(EnableExpiryOutput enableExpiryOutput) {
+    void setupProducer(
+            EnableExpiryOutput enableExpiryOutput = EnableExpiryOutput::Yes,
+            SyncReplication syncReplication = SyncReplication::Yes) {
         // Create the Dcp producer.
         producer = SingleThreadedKVBucketTest::createDcpProducer(
                 cookie,
@@ -77,6 +79,7 @@ protected:
         if (enableExpiryOutput == EnableExpiryOutput::Yes) {
             producer->setDCPExpiry(true);
         }
+        producer->setSyncReplication(syncReplication == SyncReplication::Yes);
 
         auto& sourceVb = *engine->getVBucket(vbid);
         producer->mockActiveStreamRequest(consumerStream->getFlags(),
@@ -98,12 +101,13 @@ protected:
                    "source VB";
 
         // Creating a producer will schedule one
-        // ActiveStreamCheckpointProcessorTask
-        // that task though sleeps forever, so won't run until woken.
-        ASSERT_EQ(1, getLpAuxQ()->getFutureQueueSize());
+        // ActiveStreamCheckpointProcessorTask, and potentially a Backfill task.
+        // The ActiveStreamCheckpointProcessorTask task though sleeps forever,
+        // so won't run until woken.
+        ASSERT_GE(getLpAuxQ()->getFutureQueueSize(), 1);
     }
 
-    void setupConsumer(uint32_t flags) {
+    void setupConsumer(uint32_t flags = 0) {
         // In addition to the initial engine which is created; we also need
         // to create a second bucket instance for the destination (replica)
         // vBucket.
@@ -118,6 +122,7 @@ protected:
         EXPECT_EQ(ENGINE_SUCCESS,
                   replicaEngine->getKVBucket()->setVBucketState(
                           vbid, vbucket_state_replica));
+        flushReplicaIfPersistent();
 
         // Setup the consumer.
         consumer = std::make_shared<MockDcpConsumer>(
@@ -133,6 +138,34 @@ protected:
             std::unique_ptr<DcpResponse> streamRequest(consumerStream->next());
             EXPECT_NE(nullptr, streamRequest);
             EXPECT_EQ(DcpResponse::Event::StreamReq, streamRequest->getEvent());
+        }
+    }
+
+    ENGINE_ERROR_CODE storePrepare(std::string key) {
+        auto docKey = makeStoredDocKey(key);
+        using namespace cb::durability;
+        auto reqs = Requirements(Level::Majority, Timeout::Infinity());
+        return store->set(*makePendingItem(docKey, {}, reqs), cookie);
+    }
+
+    ENGINE_ERROR_CODE storeCommit(std::string key) {
+        auto docKey = makeStoredDocKey(key);
+        auto vb = engine->getVBucket(vbid);
+        return vb->commit(docKey, 1, {}, vb->lockCollections(docKey));
+    }
+
+    ENGINE_ERROR_CODE storeSet(std::string key) {
+        auto docKey = makeStoredDocKey(key);
+        return store->set(*makeCommittedItem(docKey, {}), cookie);
+    }
+
+    /**
+     * Flush all outstanding items to disk on the replica (if persistent).
+     */
+    void flushReplicaIfPersistent() {
+        if (replicaEngine->getConfiguration().getBucketType() == "persistent") {
+            auto& replicaKVB = *replicaEngine->getKVBucket();
+            dynamic_cast<EPBucket&>(replicaKVB).flushVBucket(vbid);
         }
     }
 
@@ -159,13 +192,18 @@ protected:
     std::unique_ptr<DcpResponse> getNextProducerMsg(MockActiveStream* stream) {
         std::unique_ptr<DcpResponse> producerMsg(stream->next());
         if (!producerMsg) {
-            EXPECT_EQ(1, getLpAuxQ()->getFutureQueueSize())
-                    << "Expected to have ActiveStreamCheckpointProcessorTask "
+            EXPECT_GE(getLpAuxQ()->getFutureQueueSize(), 1)
+                    << "Expected to have at least "
+                       "ActiveStreamCheckpointProcessorTask "
                        "in future queue after null producerMsg";
-            stream->nextCheckpointItemTask();
-            EXPECT_GT(stream->getItemsRemaining(), 0)
-                    << "Expected some items ready after calling "
-                       "nextCheckpointItemTask()";
+
+            // Run the next waiting task to populate the streams' items.
+            CheckedExecutor executor(task_executor, *getLpAuxQ());
+            executor.runCurrentTask();
+            executor.completeCurrentTask();
+            if (!stream->getItemsRemaining()) {
+                return {};
+            }
             return getNextProducerMsg(stream);
         }
 
@@ -186,6 +224,49 @@ protected:
                                               PassiveStream& consumerStream);
 
     void takeoverTest(EnableExpiryOutput enableExpiryOutput);
+
+    /**
+     * Test the behaviour of switching betweeen Disk and Memory phases of a DCP
+     * stream, where Prepared SyncWrites to the same key appear in each of the
+     * Disk and Memory snapshots. This _should_ be permitted, but MB-35001
+     * highlight and issue where there different prepares were put into the same
+     * Checkpoint on the replica, which isn't permitted.
+     *
+     * Consider the following scenario of items on disk and in memory
+     * (checkpoint manager):
+     *
+     *  Disk:
+     *      1:PRE(a), 2:CMT(a), 3:SET(b)
+     *
+     *  Memory:
+     *                          3:CKPT_START
+     *                          3:SET(b),     4:PRE(a), 5:SET(c)
+     *
+     * (items 1..2 were in a removed checkpoint and no longer in-memory.)
+     *
+     * An ep-engine replica attempting to stream all of this (0..infinity) will
+     * result in a backfill of items 1..3, with a checkpoint cursor being placed
+     * at seqno:4. Note this isn't the start of the Checkpoint (which is 3) and
+     * hence not pointing at a checkpoint_start item.
+     *
+     * As such when this is streamed over DCP (up to seqno:4) the consumer will
+     * see:
+     *
+     *     SNAPSHOT_MARKER(start=1, end=3, flags=DISK|CKPT)
+     *     1:PRE(a)
+     *     2:CMT(a)
+     *     3:SET(b)
+     *     SNAPSHOT_MARKER(start=4, end=5, flags=MEM)
+     *     4:PRE(a),
+     *     [[[missing seqno 5]]
+     *
+     * If the consumer puts all of these mutations in the same Checkpoint, then
+     * it will result in duplicate PRE(a) items (which breaks Checkpoint
+     * invariant).
+     *
+     * @param flags Flags to use when creating the ADD_STREAM request.
+     */
+    void testBackfillAndInMemoryDuplicatePrepares(uint32_t flags);
 
     SynchronousEPEngineUniquePtr replicaEngine;
     std::shared_ptr<MockDcpConsumer> consumer;
@@ -320,4 +401,167 @@ TEST_F(DCPLoopbackStreamTest, Takeover) {
 
 TEST_F(DCPLoopbackStreamTest, TakeoverWithExpiry) {
     takeoverTest(EnableExpiryOutput::Yes);
+}
+
+void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
+        uint32_t flags) {
+    // First checkpoint 1..2: PRE(a), CMT(a)
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, storePrepare("a"));
+    EXPECT_EQ(ENGINE_SUCCESS, storeCommit("a"));
+
+    // Second checkpoint 3..5: SET(b), PRE(a), SET(c)
+    auto vb = engine->getVBucket(vbid);
+    vb->checkpointManager->createNewCheckpoint();
+    EXPECT_EQ(ENGINE_SUCCESS, storeSet("b"));
+
+    // Flush up to seqno:3 to disk.
+    flushVBucketToDiskIfPersistent(vbid, 3);
+
+    // Add 4:PRE(a), 5:SET(c)
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, storePrepare("a"));
+    EXPECT_EQ(ENGINE_SUCCESS, storeSet("c"));
+
+    // Remove the first checkpoint (to force a DCP backfill).
+    bool newCkpt = false;
+    ASSERT_EQ(2,
+              vb->checkpointManager->removeClosedUnrefCheckpoints(
+                      *vb, newCkpt, 1));
+    ASSERT_FALSE(newCkpt);
+    /* State is now:
+     *  Disk:
+     *      1:PRE(a), 2:CMT(a), 3:SET(b)
+     *
+     *  Memory:
+     *                          3:CKPT_START
+     *                          3:SET(b),     4:PRE(a), 5:SET(c)
+     */
+
+    // Setup: Create DCP producer and consumer connections.
+    setupConsumer(flags);
+    setupProducer();
+
+    // Test: Transfer 6 messages between Producer and Consumer
+    // (SNAP_MARKER, PRE, CMT, SET), (SNAP_MARKER, PRE), with a flush after the
+    // first 4.
+    for (int i = 0; i < 4; i++) {
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  consumerStream->messageReceived(
+                          getNextProducerMsg(producerStream)));
+    }
+    flushReplicaIfPersistent();
+
+    // Transfer 2 more messages (SNAP_MARKER, PRE)
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumerStream->messageReceived(
+                      getNextProducerMsg(producerStream)));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumerStream->messageReceived(
+                      getNextProducerMsg(producerStream)));
+    flushReplicaIfPersistent();
+}
+
+TEST_F(DCPLoopbackStreamTest, BackfillAndInMemoryDuplicatePrepares) {
+    testBackfillAndInMemoryDuplicatePrepares(0);
+}
+
+TEST_F(DCPLoopbackStreamTest, BackfillAndInMemoryDuplicatePreparesTakeover) {
+    // Variant with takeover stream, which has a different memory-based state.
+    testBackfillAndInMemoryDuplicatePrepares(DCP_ADD_STREAM_FLAG_TAKEOVER);
+}
+
+/*
+ * Test a similar scenario to testBackfillAndInMemoryDuplicatePrepares(), except
+ * here we start in In-Memory and transition to backfilling via cursor dropping.
+ *
+ * The test scenario is such that there is a duplicate Prepare (same key) in
+ * the initial In-Memory and then the Backfill snapshot.
+ */
+TEST_F(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
+    // First checkpoint 1..2:
+    //     1:PRE(a)
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, storePrepare("a"));
+
+    // Setup: Create DCP connections; and stream the first 2 items (SNAP, 1:PRE)
+    setupConsumer();
+    setupProducer();
+    auto msg = getNextProducerMsg(producerStream);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, msg->getEvent());
+    EXPECT_EQ(ENGINE_SUCCESS, consumerStream->messageReceived(std::move(msg)));
+    msg = getNextProducerMsg(producerStream);
+    EXPECT_EQ(DcpResponse::Event::Prepare, msg->getEvent());
+    EXPECT_EQ(ENGINE_SUCCESS, consumerStream->messageReceived(std::move(msg)));
+
+    //     2:CMT(a)
+    EXPECT_EQ(ENGINE_SUCCESS, storeCommit("a"));
+
+    // Create second checkpoint 3..4: 3:SET(b)
+    auto vb = engine->getVBucket(vbid);
+    vb->checkpointManager->createNewCheckpoint();
+    //     3:SET(b)
+    EXPECT_EQ(ENGINE_SUCCESS, storeSet("b"));
+
+    // Flush up to seqno:3 to disk.
+    flushVBucketToDiskIfPersistent(vbid, 3);
+
+    //     4:PRE(a)
+    //     5:SET(c)
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, storePrepare("a"));
+    EXPECT_EQ(ENGINE_SUCCESS, storeSet("c"));
+
+    // Trigger cursor dropping; then remove (now unreferenced) first checkpoint.
+    ASSERT_TRUE(producer->handleSlowStream(
+            vbid, producerStream->getCursor().lock().get()));
+    bool newCkpt = false;
+    ASSERT_EQ(2,
+              vb->checkpointManager->removeClosedUnrefCheckpoints(
+                      *vb, newCkpt, 1));
+    ASSERT_FALSE(newCkpt);
+
+    /* State is now:
+     *  Disk:
+     *      1:PRE(a), 2:CMT(a),   3:SET(b)
+     *
+     *  Memory:
+     *     [1:PRE(a), 2:CMT(a)]  [3:CKPT_START
+     *                            3:SET(b),     4:PRE(a), 5:SET(c)
+     *
+     *                ^
+     *                DCP Cursor
+     */
+
+    // Test: Transfer next 2 messages from Producer to Consumer which
+    // should be from backfill (after cursor dropping):
+    // SNAP_MARKER (disk), 2:CMT
+    msg = getNextProducerMsg(producerStream);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, msg->getEvent());
+    auto* marker = dynamic_cast<SnapshotMarker*>(msg.get());
+    EXPECT_EQ(2, marker->getStartSeqno());
+    EXPECT_EQ(3, marker->getEndSeqno());
+    EXPECT_EQ(ENGINE_SUCCESS, consumerStream->messageReceived(std::move(msg)));
+
+    msg = getNextProducerMsg(producerStream);
+    // Note: This was originally a Commit but because it has come from disk
+    // it's sent as a Mutation (as backfill in general doesn't know if consumer
+    // recieved the prior prepare so must send as Mutation).
+    EXPECT_EQ(DcpResponse::Event::Mutation, msg->getEvent());
+    EXPECT_EQ(ENGINE_SUCCESS, consumerStream->messageReceived(std::move(msg)));
+
+    msg = getNextProducerMsg(producerStream);
+    EXPECT_EQ(DcpResponse::Event::Mutation, msg->getEvent());
+    EXPECT_EQ(ENGINE_SUCCESS, consumerStream->messageReceived(std::move(msg)));
+
+    // Transfer 2 memory messages - should be:
+    // SNAP_MARKER (mem), 4:PRE
+    msg = getNextProducerMsg(producerStream);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, msg->getEvent());
+    marker = dynamic_cast<SnapshotMarker*>(msg.get());
+    EXPECT_EQ(4, marker->getStartSeqno());
+    EXPECT_EQ(5, marker->getEndSeqno());
+    EXPECT_EQ(ENGINE_SUCCESS, consumerStream->messageReceived(std::move(msg)));
+
+    msg = getNextProducerMsg(producerStream);
+    EXPECT_EQ(DcpResponse::Event::Prepare, msg->getEvent());
+    EXPECT_EQ(ENGINE_SUCCESS, consumerStream->messageReceived(std::move(msg)));
+
+    flushReplicaIfPersistent();
 }

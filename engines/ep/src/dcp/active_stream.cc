@@ -1616,11 +1616,23 @@ void ActiveStream::transitionState(StreamState newState) {
             endStream(END_STREAM_OK);
             notifyStreamReady();
         } else {
+            // Starting a new in-memory snapshot which could contain duplicate
+            // keys compared to the previous backfill snapshot. Therefore set
+            // the Checkpoint flag on the next snapshot so the Consumer will
+            // know to create a new Checkpoint.
+            nextSnapshotIsCheckpoint = true;
             nextCheckpointItem();
         }
         break;
     case StreamState::TakeoverSend:
         takeoverStart = ep_current_time();
+
+        // Starting a new in-memory (takeover) snapshot which could contain
+        // duplicate keys compared to the previous Backfill snapshot. Therefore
+        // set the Checkpoint flag on the next snapshot so the Consumer will
+        // know to create a new Checkpoint.
+        nextSnapshotIsCheckpoint = true;
+
         if (!nextCheckpointItem()) {
             notifyStreamReady(true);
         }

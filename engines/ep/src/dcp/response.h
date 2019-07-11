@@ -358,19 +358,19 @@ public:
           flags_(flags) {
     }
 
-    Vbid getVBucket() {
+    Vbid getVBucket() const {
         return vbucket_;
     }
 
-    uint64_t getStartSeqno() {
+    uint64_t getStartSeqno() const {
         return start_seqno_;
     }
 
-    uint64_t getEndSeqno() {
+    uint64_t getEndSeqno() const {
         return end_seqno_;
     }
 
-    uint32_t getFlags() {
+    uint32_t getFlags() const {
         return flags_;
     }
 
@@ -554,18 +554,13 @@ public:
           emd(e) {
     }
 
-    // Used in test code for wiring a producer/consumer directly
-    MutationConsumerMessage(MutationResponse& response)
-        : MutationResponse(response.getItem(),
-                           response.getOpaque(),
-                           response.getIncludeValue(),
-                           response.getIncludeXattrs(),
-                           response.getIncludeDeleteTime(),
-                           response.getDocKeyEncodesCollectionId(),
-                           response.getEnableExpiryOutput(),
-                           response.getStreamId()),
-          emd(nullptr) {
-    }
+    /**
+     * Used in test code for wiring a producer/consumer directly.
+     * @param response MutationResponse (from Producer) to create message from.
+     *        Note this is non-const as the item needs to be modified for some
+     *        Event types.
+     */
+    MutationConsumerMessage(MutationResponse& response);
 
     /**
      * @return size of message on the wire

@@ -1128,10 +1128,25 @@ TEST_P(StreamTest, ProcessItemsSingleCheckpointStart) {
 TEST_P(StreamTest, ProcessItemsCheckpointStartIsLastItem) {
     setup_dcp_stream();
 
+    // Setup - Create and discard the initial in-memory snapshot (it always has
+    // the CKPT flag set, we just want to ignore this first one as are
+    // testing behaviour of subsequent checkpoints).
+    std::vector<queued_item> items;
+    items.emplace_back(new Item(
+            makeStoredDocKey("start"), vbid, queue_op::checkpoint_start, 1, 9));
+    auto dummy = makeCommittedItem(makeStoredDocKey("ignore"), "value");
+    dummy->setBySeqno(9);
+    items.push_back(dummy);
+    items.emplace_back(new Item(
+            makeStoredDocKey("end"), vbid, queue_op::checkpoint_end, 1, 9));
+    stream->public_processItems(items);
+    items.clear();
+    stream->public_popFromReadyQ();
+    stream->public_popFromReadyQ();
+
     // Setup - call ActiveStream::processItems() with the end of one checkpoint
     // and the beginning of the next:
-    //     mutatation, checkpoint_end, checkpoint_start
-    std::vector<queued_item> items;
+    //     muatation, checkpoint_end, checkpoint_start
     auto mutation1 = makeCommittedItem(makeStoredDocKey("M1"), "value");
     mutation1->setBySeqno(10);
     items.push_back(mutation1);
