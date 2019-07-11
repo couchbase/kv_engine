@@ -1178,16 +1178,28 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
     }
 
     // If durability is not possible for the new chains, then we should abort
-    // the in-flight SyncWrites so that the client can decide what to do. We
-    // have already reset the topology of the in flight SyncWrites so that they
-    // do not contain any invalid pointers post topology change.
+    // any in-flight SyncWrites that do not have an infinite timeout so that the
+    // client can decide what to do. We do not abort and infinite timeout
+    // SyncWrites as we MUST complete them as they exist due to a warmup or
+    // Passive->Active transition. We have already reset the topology of the in
+    // flight SyncWrites so that they do not contain any invalid pointers post
+    // topology change.
     if (!(newFirstChain && newFirstChain->isDurabilityPossible() &&
           (!newSecondChain || newSecondChain->isDurabilityPossible()))) {
         // We can't use a for loop with iterators here because they will be
         // modified to point to invalid memory as we use std::list.splice in
         // removeSyncWrite.
-        while (!trackedWrites.empty()) {
-            toAbort.enqueue(*this, removeSyncWrite(trackedWrites.begin()));
+        auto itr = trackedWrites.begin();
+        while (itr != trackedWrites.end()) {
+            if (!itr->getDurabilityReqs().getTimeout().isInfinite()) {
+                // Grab the next itr before we overwrite ours to point to a
+                // different list.
+                auto next = std::next(itr);
+                toAbort.enqueue(*this, removeSyncWrite(trackedWrites.begin()));
+                itr = next;
+            } else {
+                itr++;
+            }
         }
     }
 

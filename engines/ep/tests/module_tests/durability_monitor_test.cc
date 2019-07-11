@@ -2719,7 +2719,7 @@ TEST_P(ActiveDurabilityMonitorTest, HPSResetOnTopologyChange) {
  *
  * We have 1 replica that we failover. Topology is changed from
  * {{active, replica1}} to {{active, undefined}}. In this case we should abort
- * any in-flight SyncWrites and not throw assertions.
+ * any in-flight SyncWrites with a non-infinite and not throw assertions.
  */
 TEST_P(ActiveDurabilityMonitorTest,
        DurabilityImpossibleTopologyChangeAbortsInFlightSyncWrites) {
@@ -2740,6 +2740,37 @@ TEST_P(ActiveDurabilityMonitorTest,
     }
     EXPECT_EQ(0, getActiveDM().getNumCommitted());
     EXPECT_EQ(1, getActiveDM().getNumAborted());
+}
+
+/**
+ * Failover scenario:
+ *
+ * We have 1 replica that we failover. Topology is changed from
+ * {{active, replica1}} to {{active, undefined}}. In this case we should not
+ * abort any in-flight SyncWrites with an infinite timeout as this breaks
+ * durability. We create SyncWrites with an infinite timeout at warmup and at
+ * promotion from replica to active as we MUST commit these SyncWrites.
+ */
+TEST_P(ActiveDurabilityMonitorTest,
+       DurabilityImpossibleTopologyChangeDoesNotAbortsInfiniteTimeoutSyncWrites) {
+    // To start, we have 1 chain with active and replica1
+    using namespace cb::durability;
+    addSyncWrite(1, Requirements{Level::Majority, Timeout::Infinity()});
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+
+    // Failover
+    EXPECT_NO_THROW(getActiveDM().setReplicationTopology(
+            nlohmann::json::array({{active, nullptr}})));
+
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(1, 1, 0);
+    }
+    EXPECT_EQ(0, getActiveDM().getNumCommitted());
+    EXPECT_EQ(0, getActiveDM().getNumAborted());
 }
 
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
