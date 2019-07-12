@@ -2427,9 +2427,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 // TODO RDB: implement getItemCount. Needs the
-                 // 'ep_warmup_value_count' stat.
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("non-resident decrementers",
                  test_mb3169,
