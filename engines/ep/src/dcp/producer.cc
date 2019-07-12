@@ -1487,8 +1487,15 @@ void DcpProducer::setDisconnect() {
     ConnHandler::setDisconnect();
     std::for_each(
             streams.begin(), streams.end(), [](StreamsMap::value_type& vt) {
+                std::vector<std::shared_ptr<Stream>> streamPtrs;
+                // MB-35049: hold StreamContainer rlock while calling setDead
+                // leads to lock inversion - so collect sharedptrs in one pass
+                // then setDead once it is released (itr out of scope).
                 for (auto itr = vt.second->rlock(); !itr.end(); itr.next()) {
-                    itr.get()->setDead(END_STREAM_DISCONNECTED);
+                    streamPtrs.push_back(itr.get());
+                }
+                for (auto stream : streamPtrs) {
+                    stream->setDead(END_STREAM_DISCONNECTED);
                 }
             });
 }
