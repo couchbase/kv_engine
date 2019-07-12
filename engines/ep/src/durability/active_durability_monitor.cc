@@ -206,6 +206,18 @@ private:
                                   const std::string& node,
                                   bool shouldAck);
 
+    /**
+     * throw exception with the following error string:
+     *   "ActiveDurabilityMonitor::State::<thrower>:<error> vb:x"
+     *
+     * @param thrower a string for who is throwing, typically __func__
+     * @param error a string containing the error and any useful data
+     * @throws exception
+     */
+    template <class exception>
+    [[noreturn]] void throwException(const std::string& thrower,
+                                     const std::string& error) const;
+
 public:
     /// The container of pending Prepares.
     Container trackedWrites;
@@ -383,16 +395,12 @@ void ActiveDurabilityMonitor::setReplicationTopology(
     Expects(!topology.is_null());
 
     if (!topology.is_array()) {
-        throw std::invalid_argument(
-                "ActiveDurabilityMonitor::setReplicationTopology: Topology is "
-                "not an "
-                "array");
+        throwException<std::invalid_argument>(__func__,
+                                              "Topology is not an array");
     }
 
     if (topology.size() == 0) {
-        throw std::invalid_argument(
-                "ActiveDurabilityMonitor::setReplicationTopology: Topology is "
-                "empty");
+        throwException<std::invalid_argument>(__func__, "Topology is empty");
     }
 
     // Setting the replication topology also resets the topology in all
@@ -442,8 +450,7 @@ void ActiveDurabilityMonitor::addSyncWrite(const void* cookie,
     auto durReq = item->getDurabilityReqs();
 
     if (durReq.getLevel() == cb::durability::Level::None) {
-        throw std::invalid_argument(
-                "ActiveDurabilityMonitor::addSyncWrite: Level::None");
+        throwException<std::invalid_argument>(__func__, "Level::None");
     }
 
     // The caller must have already checked this and returned a proper error
@@ -451,8 +458,7 @@ void ActiveDurabilityMonitor::addSyncWrite(const void* cookie,
     // unexpected races between VBucket::setState (which sets the replication
     // topology).
     if (!isDurabilityPossible()) {
-        throw std::logic_error(
-                "ActiveDurabilityMonitor::addSyncWrite: Impossible");
+        throwException<std::logic_error>(__func__, "Impossible");
     }
 
     state.wlock()->addSyncWrite(cookie, std::move(item));
@@ -504,9 +510,9 @@ void ActiveDurabilityMonitor::processTimeout(
         std::chrono::steady_clock::time_point asOf) {
     // @todo: Add support for DurabilityMonitor at Replica
     if (vb.getState() != vbucket_state_active) {
-        throw std::logic_error("ActiveDurabilityMonitor::processTimeout: " +
-                               vb.getId().to_string() + " state is: " +
-                               VBucket::toString(vb.getState()));
+        throwException<std::logic_error>(
+                __func__,
+                "state is: " + std::string(VBucket::toString(vb.getState())));
     }
 
     // Identify SyncWrites which can be timed out as of this time point
@@ -688,10 +694,9 @@ ActiveDurabilityMonitor::State::advanceNodePosition(const std::string& node) {
     auto firstChainFound = firstChainItr != firstChain->positions.end();
     if (!firstChainFound && !secondChain) {
         // Attempting to advance for a node we don't know about, panic
-        throw std::logic_error(
-                "ActiveDurabilityMonitor::State::advanceNodePosition: "
-                "Attempting to advance positions for an invalid node " +
-                node);
+        throwException<std::logic_error>(
+                __func__,
+                "Attempting to advance positions for an invalid node " + node);
     }
 
     std::unordered_map<std::string, Position>::iterator secondChainItr;
@@ -700,10 +705,11 @@ ActiveDurabilityMonitor::State::advanceNodePosition(const std::string& node) {
         secondChainItr = secondChain->positions.find(node);
         secondChainFound = secondChainItr != secondChain->positions.end();
         if (!firstChainFound && !secondChainFound) {
-            throw std::logic_error(
-                    "ActiveDurabilityMonitor::State::advanceNodePosition "
+            throwException<std::logic_error>(
+                    __func__,
                     "Attempting to advance positions for an invalid node " +
-                    node + ". Node is not in firstChain or secondChain");
+                            node +
+                            ". Node is not in firstChain or secondChain");
         }
     }
 
@@ -829,10 +835,8 @@ int64_t ActiveDurabilityMonitor::State::getNodeWriteSeqno(
         }
     }
 
-    throw std::invalid_argument(
-            "ActiveDurabilityMonitor::State::getNodeWriteSeqno: "
-            "Node " +
-            node + " not found");
+    throwException<std::invalid_argument>(__func__,
+                                          "Node " + node + " not found");
 }
 
 int64_t ActiveDurabilityMonitor::State::getNodeAckSeqno(
@@ -850,17 +854,14 @@ int64_t ActiveDurabilityMonitor::State::getNodeAckSeqno(
         }
     }
 
-    throw std::invalid_argument(
-            "ActiveDurabilityMonitor::State::getNodeAckSeqno: "
-            "Node " +
-            node + " not found");
+    throwException<std::invalid_argument>(__func__,
+                                          "Node " + node + " not found");
 }
 
 DurabilityMonitor::SyncWrite ActiveDurabilityMonitor::State::removeSyncWrite(
         Container::iterator it) {
     if (it == trackedWrites.end()) {
-        throw std::logic_error(
-                "ActiveDurabilityMonitor::commit: Position points to end");
+        throwException<std::logic_error>(__func__, "Position points to end");
     }
 
     Container::iterator prev;
@@ -923,10 +924,8 @@ void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
                             vb.lockCollections(key),
                             sw.getCookie());
     if (result != ENGINE_SUCCESS) {
-        throw std::logic_error(
-                "ActiveDurabilityMonitor::commit: VBucket::commit failed with "
-                "status:" +
-                std::to_string(result));
+        throwException<std::logic_error>(
+                __func__, "failed with status:" + std::to_string(result));
     }
 
     // Record the duration of the SyncWrite in histogram.
@@ -966,10 +965,8 @@ void ActiveDurabilityMonitor::abort(const SyncWrite& sw) {
                            vb.lockCollections(key),
                            sw.getCookie());
     if (result != ENGINE_SUCCESS) {
-        throw std::logic_error(
-                "ActiveDurabilityMonitor::abort: VBucket::abort failed with "
-                "status:" +
-                std::to_string(result));
+        throwException<std::logic_error>(
+                __func__, "failed with status:" + std::to_string(result));
     }
     auto s = state.wlock();
     s->lastAbortedSeqno = sw.getBySeqno();
@@ -995,15 +992,14 @@ void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
                                                      int64_t seqno,
                                                      CompletedQueue& toCommit) {
     if (!firstChain) {
-        throw std::logic_error(
-                "ActiveDurabilityMonitor::processSeqnoAck: FirstChain not "
-                "set");
+        throwException<std::logic_error>(__func__, "FirstChain not set");
     }
     if (seqno > lastTrackedSeqno) {
-        throw std::invalid_argument(
-                "ActiveDurabilityMonitor::processSeqnoAck: seqno(" +
-                std::to_string(seqno) + ") is greater than lastTrackedSeqno(" +
-                std::to_string(lastTrackedSeqno) + ")");
+        throwException<std::invalid_argument>(
+                __func__,
+                "seqno(" + std::to_string(seqno) +
+                        ") is greater than lastTrackedSeqno(" +
+                        std::to_string(lastTrackedSeqno) + ")");
     }
 
     // We should never ack for the active
@@ -1122,8 +1118,9 @@ ActiveDurabilityMonitor::State::makeChain(
         auto firstChainItr = firstChain->positions.find(firstChain->active);
         if (firstChainItr == firstChain->positions.end()) {
             // Sanity - we should never make a chain in this state
-            throw std::logic_error(
-                    "ADM::State::makeChain did not find the "
+            throwException<std::logic_error>(
+                    __func__,
+                    "did not find the "
                     "active node for the first chain in the "
                     "first chain.");
         }
@@ -1131,8 +1128,9 @@ ActiveDurabilityMonitor::State::makeChain(
         auto newChainItr = ptr->positions.find(ptr->active);
         if (newChainItr == ptr->positions.end()) {
             // Sanity - we should never make a chain in this state
-            throw std::logic_error(
-                    "ADM::State::makeChain did not find the "
+            throwException<std::logic_error>(
+                    __func__,
+                    "did not find the "
                     "active node for the first chain in the "
                     "new chain.");
         }
@@ -1163,9 +1161,8 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
     if (topology.size() > 1) {
         if (topology.size() > 2) {
             // Too many chains specified
-            throw std::invalid_argument(
-                    "ActiveDurabilityMonitor::State::setReplicationTopology: "
-                    "Too many chains specified");
+            throwException<std::invalid_argument>(__func__,
+                                                  "Too many chains specified");
         }
 
         auto& sChain = topology.at(1);
@@ -1382,4 +1379,18 @@ void ActiveDurabilityMonitor::checkForCommit() {
     //     execute under VBucket-level lock.
 
     processCompletedSyncWriteQueue();
+}
+
+template <class exception>
+[[noreturn]] void ActiveDurabilityMonitor::State::throwException(
+        const std::string& thrower, const std::string& error) const {
+    throw exception("ActiveDurabilityMonitor::State::" + thrower + " " +
+                    adm.vb.getId().to_string() + " " + error);
+}
+
+template <class exception>
+[[noreturn]] void ActiveDurabilityMonitor::throwException(
+        const std::string& thrower, const std::string& error) const {
+    throw exception("ActiveDurabilityMonitor::" + thrower + " " +
+                    vb.getId().to_string() + " " + error);
 }

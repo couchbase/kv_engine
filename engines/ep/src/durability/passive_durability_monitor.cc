@@ -90,13 +90,13 @@ void PassiveDurabilityMonitor::addSyncWrite(queued_item item) {
     auto durReq = item->getDurabilityReqs();
 
     if (durReq.getLevel() == cb::durability::Level::None) {
-        throw std::invalid_argument(
-                "PassiveDurabilityMonitor::addSyncWrite: Level::None");
+        throwException<std::invalid_argument>(__func__, "Level::None");
     }
     if (durReq.getTimeout().isDefault()) {
-        throw std::invalid_argument(
-                "PassiveDurabilityMonitor::addSyncWrite: timeout is default "
-                "(explicit value should have been specified by Active node)");
+        throwException<std::invalid_argument>(
+                __func__,
+                "timeout is default (explicit value should have been specified "
+                "by Active node)");
     }
 
     // Need to specify defaultTimeout for SyncWrite ctor, but we've already
@@ -187,19 +187,19 @@ void PassiveDurabilityMonitor::completeSyncWrite(const StoredDocKey& key,
     auto s = state.wlock();
 
     if (s->trackedWrites.empty()) {
-        throw std::logic_error(
-                "PassiveDurabilityMonitor::resolvePrepare: No tracked, but "
-                "received " +
-                to_string(res) + " for key " + key.to_string());
+        throwException<std::logic_error>(__func__,
+                                         "No tracked, but received " +
+                                                 to_string(res) + " for key " +
+                                                 key.to_string());
     }
 
     const auto next = s->getIteratorNext(s->highCompletedSeqno.it);
 
     if (next == s->trackedWrites.end()) {
-        throw std::logic_error(
-                "PassiveDurabilityMonitor::resolvePrepare: No Prepare waiting "
-                "for completion, but received " +
-                to_string(res) + " for key " + key.to_string());
+        throwException<std::logic_error>(
+                __func__,
+                "No Prepare waiting for completion, but received " +
+                        to_string(res) + " for key " + key.to_string());
     }
 
     // Sanity check for In-Order Commit
@@ -208,8 +208,7 @@ void PassiveDurabilityMonitor::completeSyncWrite(const StoredDocKey& key,
         ss << "Pending resolution for '" << *next
            << "', but received unexpected " + to_string(res) + " for key "
            << key;
-        throw std::logic_error("PassiveDurabilityMonitor::resolvePrepare: " +
-                               ss.str());
+        throwException<std::logic_error>(__func__, "" + ss.str());
     }
 
     // Note: Update last-write-seqno first to enforce monotonicity and
@@ -438,4 +437,10 @@ void PassiveDurabilityMonitor::State::checkForAndRemovePrepares() {
         trackedWrites.erase(it);
         it = next;
     }
+}
+
+template <class exception>
+[[noreturn]] void PassiveDurabilityMonitor::throwException(
+        const std::string& thrower, const std::string& error) const {
+    throw exception(thrower + error + vb.getId().to_string());
 }

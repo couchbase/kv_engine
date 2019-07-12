@@ -219,6 +219,18 @@ protected:
     void toOStream(std::ostream& os) const override;
 
     /**
+     * throw exception with the following error string:
+     *   "ActiveDurabilityMonitor::<thrower>:<error> vb:x"
+     *
+     * @param thrower a string for who is throwing, typically __func__
+     * @param error a string containing the error and any useful data
+     * @throws exception
+     */
+    template <class exception>
+    [[noreturn]] void throwException(const std::string& thrower,
+                                     const std::string& error) const;
+
+    /**
      * Commit the given SyncWrite.
      *
      * @param sw The SyncWrite to commit
