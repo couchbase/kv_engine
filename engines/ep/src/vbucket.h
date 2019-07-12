@@ -1728,6 +1728,14 @@ public:
     std::atomic<size_t>  numExpiredItems;
 
     /**
+     * Should SyncWrites be blocked (isDurabilityPossible() return false) if
+     * there are more than N replicas configured?
+     * Workaround for known issue with failover / rollback - see MB-34453 /
+     * MB-34150.
+     */
+    const size_t maxAllowedReplicasForSyncWrites;
+
+    /**
      * A custom delete function for deleting VBucket objects. Any thread could
      * be the last thread to release a VBucketPtr and deleting a VB will
      * eventually hit the I/O sub-system when we unlink the file, to be sure no

@@ -26,6 +26,10 @@
 #include "../mock/mock_synchronous_ep_engine.h"
 
 void ActiveDurabilityMonitorTest::SetUp() {
+    // MB-34453: Change sync_writes_max_allowed_replicas back to total
+    // possible replicas given we want to still test with all replicas.
+    config_string += "sync_writes_max_allowed_replicas=3";
+
     STParameterizedBucketTest::SetUp();
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     vb = store->getVBuckets().getBucket(vbid).get();

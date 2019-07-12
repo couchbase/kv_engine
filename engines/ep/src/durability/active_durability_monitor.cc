@@ -1113,7 +1113,10 @@ ActiveDurabilityMonitor::State::makeChain(
     }
 
     auto ptr = std::make_unique<ReplicationChain>(
-            name, nodes, trackedWrites.end());
+            name,
+            nodes,
+            trackedWrites.end(),
+            adm.vb.maxAllowedReplicasForSyncWrites);
 
     // MB-34318
     // The HighPreparedSeqno is the lastWriteSeqno of the active node in the

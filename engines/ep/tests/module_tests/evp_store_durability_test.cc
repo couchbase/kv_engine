@@ -1653,6 +1653,27 @@ TEST_P(DurabilityBucketTest,
             cb::durability::Level::PersistToMajority);
 }
 
+// MB-34453: Block SyncWrites if there are more than this many replicas in the
+// chain as we cannot guarantee no dataloss in a particular failover+rollback
+// scenario.
+TEST_P(DurabilityBucketTest, BlockSyncWritesIfMoreThan2Replicas) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology",
+              nlohmann::json::array(
+                      {{"active", "replica1", "replica2", "replica3"}})}});
+
+    auto pre1 = makePendingItem(makeStoredDocKey("set"), "value");
+    EXPECT_EQ(ENGINE_DURABILITY_IMPOSSIBLE, store->set(*pre1, cookie));
+
+    auto pre2 = makePendingItem(makeStoredDocKey("add"), "value");
+    EXPECT_EQ(ENGINE_DURABILITY_IMPOSSIBLE, store->add(*pre2, cookie));
+
+    auto pre3 = makePendingItem(makeStoredDocKey("replace"), "value");
+    EXPECT_EQ(ENGINE_DURABILITY_IMPOSSIBLE, store->replace(*pre3, cookie));
+}
+
 class FailOnExpiryCallback : public Callback<Item&, time_t&> {
 public:
     void callback(Item& item, time_t& time) override {

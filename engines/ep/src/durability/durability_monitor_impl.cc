@@ -272,8 +272,12 @@ std::ostream& operator<<(std::ostream& os,
 DurabilityMonitor::ReplicationChain::ReplicationChain(
         const DurabilityMonitor::ReplicationChainName name,
         const std::vector<std::string>& nodes,
-        const Container::iterator& it)
-    : majority(nodes.size() / 2 + 1), active(nodes.at(0)), name(name) {
+        const Container::iterator& it,
+        size_t maxAllowedReplicas)
+    : majority(nodes.size() / 2 + 1),
+      active(nodes.at(0)),
+      maxAllowedReplicas(maxAllowedReplicas),
+      name(name) {
     if (nodes.at(0) == UndefinedNode) {
         throw std::invalid_argument(
                 "ReplicationChain::ReplicationChain: Active node cannot be "
@@ -301,6 +305,13 @@ size_t DurabilityMonitor::ReplicationChain::size() const {
 bool DurabilityMonitor::ReplicationChain::isDurabilityPossible() const {
     Expects(size());
     Expects(majority);
+
+    // MB-34453 / MB-34150: Disallow SyncWrites if the number of configured
+    // replicas exceeds maxAllowedReplicas.
+    if (size() > maxAllowedReplicas + 1) {
+        return false;
+    }
+
     return size() >= majority;
 }
 

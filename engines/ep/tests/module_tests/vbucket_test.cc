@@ -50,6 +50,12 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
     // Used for mem-checks at Replica VBuckets. Default=0 prevents any
     // processSet, returns NoMem. I set a production-like value.
     global_stats.replicationThrottleThreshold = 0.9;
+
+    // MB-34453: Change sync_writes_max_allowed_replicas back to total
+    // possible replicas given we want to still test against all replicas.
+    config.parseConfiguration("sync_writes_max_allowed_replicas=3",
+                              get_mock_server_api());
+
     switch (vbType) {
     case VBType::Persistent:
         vbucket.reset(

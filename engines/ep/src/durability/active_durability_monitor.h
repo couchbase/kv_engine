@@ -329,6 +329,7 @@ protected:
     class CompletedQueue;
     std::unique_ptr<CompletedQueue> completedQueue;
 
+    // Maximum number of replicas which can be specified in topology.
     static const size_t maxReplicas = 3;
 
     // @todo: Try to remove this, currenlty necessary for testing wipeTracked()

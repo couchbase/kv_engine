@@ -235,10 +235,16 @@ struct DurabilityMonitor::ReplicationChain {
      * @param name Name of chain (used for stats and exception logging)
      * @param nodes The names of the nodes in this chain
      * @param initPos The initial position for tracking iterators in chain
+     * @param maxAllowedReplicas Should SyncWrites be blocked
+     *        (isDurabilityPossible() return false) if there are more than N
+     *        replicas configured?
+     *        Workaround for known issue with failover / rollback - see
+     *        MB-34453 / MB-34150.
      */
     ReplicationChain(const DurabilityMonitor::ReplicationChainName name,
                      const std::vector<std::string>& nodes,
-                     const Container::iterator& initPos);
+                     const Container::iterator& initPos,
+                     size_t maxAllowedReplicas);
 
     size_t size() const;
 
@@ -256,6 +262,13 @@ struct DurabilityMonitor::ReplicationChain {
     const uint8_t majority;
 
     const std::string active;
+
+    // Workaround for MB-34150 (tracked via MB-34453): Block SyncWrites if
+    // there are more than this many replicas in the chain as we
+    // cannot guarantee no dataloss in a particular failover+rollback scenario.
+    // (Exposed as a member variable to allow tests to override it so we can
+    // defend the bulk of functionality which does work).
+    const size_t maxAllowedReplicas;
 
     // Name of the chain
     const DurabilityMonitor::ReplicationChainName name;
