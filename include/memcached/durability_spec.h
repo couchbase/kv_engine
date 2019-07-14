@@ -195,6 +195,7 @@ bool operator==(const Requirements& lhs, const Requirements& rhs);
 static constexpr Requirements NoRequirements = {Level::None, Timeout{}};
 
 std::string to_string(Requirements r);
+std::string to_string(Level l);
 
 } // namespace durability
 } // namespace cb

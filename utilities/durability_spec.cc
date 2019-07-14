@@ -48,23 +48,23 @@ bool operator==(const Requirements& lhs, const Requirements& rhs) {
 }
 
 std::string to_string(Requirements r) {
-    std::string desc = "{";
-    switch (r.getLevel()) {
-    case Level::None:
-        desc += "None, ";
-        break;
-    case Level::Majority:
-        desc += "Majority, ";
-        break;
-    case Level::MajorityAndPersistOnMaster:
-        desc += "MajorityAndPersistOnMaster, ";
-        break;
-    case Level::PersistToMajority:
-        desc += "PersistToMajority, ";
-        break;
-    }
+    std::string desc = "{" + to_string(r.getLevel()) + ", ";
     desc += "timeout=" + to_string(r.getTimeout()) + "}";
     return desc;
+}
+
+std::string to_string(Level l) {
+    switch (l) {
+    case Level::None:
+        return "None";
+    case Level::Majority:
+        return "Majority";
+    case Level::MajorityAndPersistOnMaster:
+        return "MajorityAndPersistOnMaster";
+    case Level::PersistToMajority:
+        return "PersistToMajority";
+    }
+    return "<invalid:" + std::to_string(int(l)) + ">";
 }
 
 Requirements::Requirements(cb::const_byte_buffer buffer) {
