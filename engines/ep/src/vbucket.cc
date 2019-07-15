@@ -3892,18 +3892,14 @@ void VBucket::setUpAllowedDuplicatePrepareWindow() {
     auto& dm = getDurabilityMonitor();
     auto hcs = dm.getHighCompletedSeqno();
     auto hps = dm.getHighPreparedSeqno();
+    Expects(hcs <= hps);
 
-    // If allowedDuplicatePrepares is empty then we just set it to the set of
-    // seqnos between HCS and HPS. If it is not, we take the union of the
-    // existing set and the new set. We could just do insert, but in the general
-    // case we should only do this once and the set may be large so a move will
-    // be faster.
-    std::unordered_set<int64_t> newDuplicates{hcs + 1, hps};
-    if (allowedDuplicatePrepareSeqnos.empty()) {
-        allowedDuplicatePrepareSeqnos = std::move(newDuplicates);
-    } else {
-        allowedDuplicatePrepareSeqnos.insert(newDuplicates.begin(),
-                                             newDuplicates.end());
+    int64_t newDuplicateCount = hps - hcs;
+    allowedDuplicatePrepareSeqnos.reserve(allowedDuplicatePrepareSeqnos.size() +
+                                          newDuplicateCount);
+
+    for (int64_t dupSeqno = hcs + 1; dupSeqno <= hps; dupSeqno++) {
+        allowedDuplicatePrepareSeqnos.insert(dupSeqno);
     }
 }
 

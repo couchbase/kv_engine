@@ -1380,8 +1380,97 @@ void DurabilityPassiveStreamTest::testReceiveDuplicateDcpPrepare(
                       opaque, vbid, prepareSeqno, commitSeqno, key)));
 }
 
+void DurabilityPassiveStreamTest::testReceiveMultipleDuplicateDcpPrepares() {
+    // This simulates the state in which the active has:
+    // PRE1 PRE2 PRE3 CMT1 CMT2 CMT3 PRE1 PRE2 PRE3 CMT1 CMT2 CMT3
+    // the replica sees:
+    // PRE1 PRE2 PRE3 ||Disconnect|| PRE1 PRE2 PRE3 CMT1 CMT2 CMT3
+    // All 3 duplicate prepares should be accepted by
+    // allowedDuplicatePrepareSeqnos
+    const uint64_t cas = 999;
+    uint64_t seqno = 1;
+    std::vector<StoredDocKey> keys = {makeStoredDocKey("key1"),
+                                      makeStoredDocKey("key2"),
+                                      makeStoredDocKey("key3")};
+
+    // Do first prepare for each of three keys
+    // PRE1 PRE2 PRE3 CMT1 CMT2 CMT3 PRE1 PRE2 PRE3 CMT1 CMT2 CMT3
+    // ^^^^ ^^^^ ^^^^
+    std::vector<queued_item> queued_items;
+    for (const auto& key : keys) {
+        queued_items.push_back(makeAndReceiveDcpPrepare(key, cas, seqno++));
+    }
+
+    // The consumer now "disconnects" then "re-connects" and misses the commits
+    // at seqnos 4, 5, 6.
+    // PRE1 PRE2 PRE3 CMT1 CMT2 CMT3 PRE1 PRE2 PRE3 CMT1 CMT2 CMT3
+    //                xxxx xxxx xxxx
+    // It instead receives the following snapshot [7, 9] containing prepares
+    // (for the same 3 keys), followed by a second snapshot [10, 12] with the
+    // corresponding commits.
+    uint32_t opaque = 0;
+
+    // Fake disconnect and reconnect, importantly, this sets up the valid window
+    // for replacing the old prepare.
+    consumer->closeAllStreams();
+    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    stream->acceptStream(cb::mcbp::Status::Success, opaque);
+
+    ASSERT_TRUE(stream->isActive());
+    // At Replica we don't expect multiple Durability items (for the same key)
+    // within the same snapshot. That is because the Active prevents that for
+    // avoiding de-duplication.
+    // So, we need to simulate a Producer sending another SnapshotMarker with
+    // the MARKER_FLAG_CHK set before the Consumer receives the Commit. That
+    // will force the Consumer closing the open checkpoint (which Contains the
+    // Prepare) and creating a new open one for queueing the Commit.
+    SnapshotMarker marker(
+            opaque,
+            vbid,
+            7 /*snapStart*/,
+            9 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // Do second prepare for each of three keys
+    // PRE1 PRE2 PRE3 CMT1 CMT2 CMT3 PRE1 PRE2 PRE3 CMT1 CMT2 CMT3
+    //                               ^^^^ ^^^^ ^^^^
+    seqno = 7;
+    for (const auto& key : keys) {
+        queued_items.push_back(makeAndReceiveDcpPrepare(key, cas, seqno++));
+    }
+
+    marker = SnapshotMarker(
+            opaque,
+            vbid,
+            10 /*snapStart*/,
+            12 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // Commit each of the keys
+    // PRE1 PRE2 PRE3 CMT1 CMT2 CMT3 PRE1 PRE2 PRE3 CMT1 CMT2 CMT3
+    //                                              ^^^^ ^^^^ ^^^^
+
+    uint64_t prepareSeqno = 7;
+    seqno = 10;
+    for (const auto& key : keys) {
+        ASSERT_EQ(ENGINE_SUCCESS,
+                  stream->messageReceived(std::make_unique<CommitSyncWrite>(
+                          opaque, vbid, prepareSeqno++, seqno++, key)));
+    }
+}
+
 TEST_P(DurabilityPassiveStreamTest, ReceiveDuplicateDcpPrepare) {
     testReceiveDuplicateDcpPrepare(3);
+}
+
+TEST_P(DurabilityPassiveStreamTest, ReceiveMultipleDuplicateDcpPrepares) {
+    testReceiveMultipleDuplicateDcpPrepares();
 }
 
 TEST_P(DurabilityPassiveStreamTest, ReceiveDuplicateDcpPrepareRemoveFromSet) {

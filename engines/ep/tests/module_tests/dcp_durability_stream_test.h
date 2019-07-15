@@ -80,6 +80,13 @@ protected:
     void testReceiveDuplicateDcpPrepare(uint64_t prepareSeqno);
 
     /**
+     * Simulates a Replica receiving multiple DCP_PREPAREs followed by another
+     * set of DCP_PREPAREs for the same keys after disconnecting and
+     * re-connecting.
+     */
+    void testReceiveMultipleDuplicateDcpPrepares();
+
+    /**
      * Simulates a Replica receiving a DCP_PREPARE followed by DCP_COMMIT and
      * checks they are queued correctly for persistence.
      */
