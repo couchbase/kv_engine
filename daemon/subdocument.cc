@@ -251,7 +251,10 @@ static void create_multi_path_context(SubdocCmdContext& context,
         if (xattr) {
             size_t xattr_keylen;
             is_valid_xattr_key({path.data(), path.size()}, xattr_keylen);
-            context.set_xattr_key({path.data(), xattr_keylen});
+            cb::const_char_buffer key{path.data(), xattr_keylen};
+            if (!cb::xattr::is_vattr(key)) {
+                context.set_xattr_key(key);
+            }
         }
 
         const SubdocCmdContext::Phase phase = xattr ?
@@ -568,7 +571,7 @@ static cb::mcbp::Status subdoc_operate_one_path(
     }
 
     if (context.getCurrentPhase() == SubdocCmdContext::Phase::XATTR &&
-        spec.path.buf[0] == '$') {
+        cb::xattr::is_vattr(spec.path)) {
         if (spec.path.buf[1] == 'd') {
             // This is a call to the "$document" (the validator stopped all of
             // the other ones), so replace the document with
@@ -772,11 +775,9 @@ static bool operate_single_doc(SubdocCmdContext& context,
     return true;
 }
 
-static ENGINE_ERROR_CODE validate_vattr_privilege(SubdocCmdContext& context) {
-    auto key = context.get_xattr_key();
-
+static ENGINE_ERROR_CODE validate_vattr_privilege(
+        SubdocCmdContext& context, const cb::const_char_buffer key) {
     // The $document vattr doesn't require any xattr permissions.
-
     if (key.buf[1] == 'X') {
         // In the xtoc case we want to see which privileges the connection has
         // to determine which XATTRs we tell the user about
@@ -823,13 +824,20 @@ static ENGINE_ERROR_CODE validate_vattr_privilege(SubdocCmdContext& context) {
 }
 
 static ENGINE_ERROR_CODE validate_xattr_privilege(SubdocCmdContext& context) {
+    // Look at all of the operations we've got in there:
+    for (const auto& op :
+         context.getOperations(SubdocCmdContext::Phase::XATTR)) {
+        if (cb::xattr::is_vattr(op.path)) {
+            auto ret = validate_vattr_privilege(context, op.path);
+            if (ret != ENGINE_SUCCESS) {
+                return ret;
+            }
+        }
+    }
+
     auto key = context.get_xattr_key();
     if (key.empty()) {
         return ENGINE_SUCCESS;
-    }
-
-    if (cb::xattr::is_vattr(key)) {
-        return validate_vattr_privilege(context);
     }
 
     cb::rbac::Privilege privilege;

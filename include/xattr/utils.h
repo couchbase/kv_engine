@@ -75,11 +75,12 @@ static inline bool is_system_xattr(cb::const_char_buffer& attr) {
 /**
  * Check if the attribute is a virtual xattr or not
  *
- * @param attr the attribute to check (CAN'T BE EMPTY!)
+ * @param attr the attribute to check
  */
-static inline bool is_vattr(cb::const_char_buffer& attr) {
-    return *attr.data() == '$';
+static inline bool is_vattr(cb::const_char_buffer attr) {
+    return !attr.empty() && *attr.data() == '$';
 }
+
 namespace macros {
 struct macro {
     cb::const_char_buffer name;

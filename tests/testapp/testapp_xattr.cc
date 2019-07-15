@@ -1536,3 +1536,101 @@ TEST_P(XattrTest, MB_28524_TestReplaceWithXattrUncompressed) {
 TEST_P(XattrTest, MB_28524_TestReplaceWithXattrCompressed) {
     doReplaceWithXattrTest(true);
 }
+
+/**
+ * If the client tries to fetch a mix of multiple virtual xattrs it might not
+ * work as expected.  Ex:
+ *
+ * $document
+ * tnx
+ * will work, but
+ *
+ * tnx
+ * $document
+ * will not work. In addition
+ *
+ * $XTOC
+ * tnx
+ * returns "null" for the toc
+ */
+TEST_P(XattrTest, MB35079_virtual_xattr_mix) {
+    // Store the document we want to operate on
+    {
+        BinprotSubdocMultiMutationCommand cmd;
+        cmd.setKey(name);
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                        SUBDOC_FLAG_XATTR_PATH,
+                        "tnx",
+                        "{\"id\":666}");
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                        SUBDOC_FLAG_MKDIR_P,
+                        "value",
+                        R"("value")");
+        auto& conn = getConnection();
+        ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
+    }
+
+    // Problem 1 : The order of the virtual xattr and key matters:
+    {
+        BinprotSubdocMultiLookupCommand cmd;
+        cmd.setKey(name);
+        cmd.addGet("tnx", SUBDOC_FLAG_XATTR_PATH);
+        cmd.addGet("$document.CAS", SUBDOC_FLAG_XATTR_PATH);
+        cmd.addGet("value", SUBDOC_FLAG_NONE);
+
+        auto& conn = getConnection();
+        BinprotSubdocMultiLookupResponse resp{conn.execute(cmd)};
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+        auto& results = resp.getResults();
+        EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
+        EXPECT_EQ(R"({"id":666})", results[0].value);
+        EXPECT_EQ(cb::mcbp::Status::Success, results[1].status);
+        // We can't really check the CAS, but it should be a hex value
+        EXPECT_EQ(0, results[1].value.find("\"0x"));
+        EXPECT_EQ(cb::mcbp::Status::Success, results[2].status);
+        EXPECT_EQ(R"("value")", results[2].value);
+    }
+    // Try it with cas first and then the xattr
+    {
+        BinprotSubdocMultiLookupCommand cmd;
+        cmd.setKey(name);
+        cmd.addGet("$document.CAS", SUBDOC_FLAG_XATTR_PATH);
+        cmd.addGet("tnx", SUBDOC_FLAG_XATTR_PATH);
+        cmd.addGet("value", SUBDOC_FLAG_NONE);
+
+        auto& conn = getConnection();
+        BinprotSubdocMultiLookupResponse resp{conn.execute(cmd)};
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+        auto& results = resp.getResults();
+        EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
+        // We can't really check the CAS, but it should be a hex value
+        EXPECT_EQ(0, results[0].value.find("\"0x"));
+        EXPECT_EQ(cb::mcbp::Status::Success, results[1].status);
+        EXPECT_EQ(R"({"id":666})", results[1].value);
+        EXPECT_EQ(cb::mcbp::Status::Success, results[2].status);
+        EXPECT_EQ(R"("value")", results[2].value);
+    }
+
+    // Problem 2 : Requesting XTOC with another xattr fails to populate XTOC
+    {
+        BinprotSubdocMultiLookupCommand cmd;
+        cmd.setKey(name);
+        cmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
+        cmd.addGet("tnx", SUBDOC_FLAG_XATTR_PATH);
+        cmd.addGet("value", SUBDOC_FLAG_NONE);
+
+        auto& conn = getConnection();
+        BinprotSubdocMultiLookupResponse resp{conn.execute(cmd)};
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+        auto& results = resp.getResults();
+        EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
+        EXPECT_EQ(R"(["tnx"])", results[0].value);
+        EXPECT_EQ(cb::mcbp::Status::Success, results[1].status);
+        EXPECT_EQ(R"({"id":666})", results[1].value);
+        EXPECT_EQ(cb::mcbp::Status::Success, results[2].status);
+        EXPECT_EQ(R"("value")", results[2].value);
+    }
+}
