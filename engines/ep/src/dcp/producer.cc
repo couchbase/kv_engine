@@ -1358,11 +1358,19 @@ bool DcpProducer::setStreamDeadStatus(Vbid vbid,
                                       end_stream_status_t status) {
     auto rv = streams.find(vbid.get());
     if (rv != streams.end()) {
-        for (auto handle = rv->second->rlock(); !handle.end(); handle.next()) {
-            if (handle.get()->compareStreamId(sid)) {
-                handle.get()->setDead(status);
-                return true;
+        std::shared_ptr<Stream> streamPtr;
+        // MB-35073: holding StreamContainer rlock while calling setDead
+        // has been seen to cause lock inversion elsewhere.
+        // Collect sharedptr then setDead once lock is released (itr out of
+        // scope).
+        for (auto itr = rv->second->rlock(); !itr.end(); itr.next()) {
+            if (itr.get()->compareStreamId(sid)) {
+                streamPtr = itr.get();
+                break;
             }
+        }
+        if (streamPtr) {
+            streamPtr->setDead(status);
         }
         return true;
     }
@@ -1378,12 +1386,22 @@ void DcpProducer::closeAllStreams() {
                       streams.end(),
                       [&vbvector](StreamsMap::value_type& vt) {
                           vbvector.push_back((Vbid)vt.first);
-                          auto handle = vt.second->wlock();
-                          while (!handle.end()) {
-                              handle.get()->setDead(END_STREAM_DISCONNECTED);
-                              handle.next();
+                          std::vector<std::shared_ptr<Stream>> streamPtrs;
+                          // MB-35073: holding StreamContainer lock while
+                          // calling setDead leads to lock inversion - so
+                          // collect sharedptrs in one pass then setDead once
+                          // lock is released (itr out of scope).
+                          {
+                              auto handle = vt.second->wlock();
+                              for (; !handle.end(); handle.next()) {
+                                  streamPtrs.push_back(handle.get());
+                              }
+                              handle.clear();
                           }
-                          handle.clear();
+
+                          for (auto streamPtr : streamPtrs) {
+                              streamPtr->setDead(END_STREAM_DISCONNECTED);
+                          }
                       });
     }
     for (const auto vbid: vbvector) {
