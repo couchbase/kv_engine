@@ -1222,7 +1222,10 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
 }
 
 queued_item DurabilityPassiveStreamTest::makeAndReceiveDcpPrepare(
-        const StoredDocKey& key, uint64_t cas, uint64_t seqno) {
+        const StoredDocKey& key,
+        uint64_t cas,
+        uint64_t seqno,
+        cb::durability::Level level) {
     using namespace cb::durability;
 
     // The consumer receives snapshot-marker [seqno, seqno]
@@ -1237,7 +1240,7 @@ queued_item DurabilityPassiveStreamTest::makeAndReceiveDcpPrepare(
     stream->processMarker(&marker);
 
     queued_item qi = makePendingItem(
-            key, "value", Requirements(Level::Majority, Timeout::Infinity()));
+            key, "value", Requirements(level, Timeout::Infinity()));
     qi->setBySeqno(seqno);
     qi->setCas(cas);
 
@@ -1387,19 +1390,39 @@ void DurabilityPassiveStreamTest::testReceiveMultipleDuplicateDcpPrepares() {
     // PRE1 PRE2 PRE3 ||Disconnect|| PRE1 PRE2 PRE3 CMT1 CMT2 CMT3
     // All 3 duplicate prepares should be accepted by
     // allowedDuplicatePrepareSeqnos
+
+    // NB: A mix of prepares levels is used intentionally - they allow
+    // us to test that duplicate prepares are permitted:
+    // - regardless of level of the replaced prepare
+    // - regardless of persistence of the replaced prepare
+    // - regardless of the HPS
+    // They should only be rejected if they would replace a prepare with a seqno
+    // outside the "allowed window". This window is specified as the range
+    // [highCompletedSeqno+1, highSeqno] at the time the snapshot marker
+    // is received.
+    // No prepare with seqno <= highCompletedSeqno should ever be replaced,
+    // because it has already been completed and should not be being tracked any
+    // more No prepare with seqno > highSeqno (latest seqno seen by VB) should
+    // be replaced, because these were received *after* the snapshot marker.
     const uint64_t cas = 999;
     uint64_t seqno = 1;
     std::vector<StoredDocKey> keys = {makeStoredDocKey("key1"),
                                       makeStoredDocKey("key2"),
                                       makeStoredDocKey("key3")};
 
-    // Do first prepare for each of three keys
+    // Send the first prepare for each of three keys
     // PRE1 PRE2 PRE3 CMT1 CMT2 CMT3 PRE1 PRE2 PRE3 CMT1 CMT2 CMT3
     // ^^^^ ^^^^ ^^^^
     std::vector<queued_item> queued_items;
-    for (const auto& key : keys) {
-        queued_items.push_back(makeAndReceiveDcpPrepare(key, cas, seqno++));
-    }
+    queued_items.push_back(makeAndReceiveDcpPrepare(
+            keys[0], cas, seqno++, cb::durability::Level::Majority));
+    queued_items.push_back(makeAndReceiveDcpPrepare(
+            keys[1],
+            cas,
+            seqno++,
+            cb::durability::Level::MajorityAndPersistOnMaster));
+    queued_items.push_back(makeAndReceiveDcpPrepare(
+            keys[2], cas, seqno++, cb::durability::Level::PersistToMajority));
 
     // The consumer now "disconnects" then "re-connects" and misses the commits
     // at seqnos 4, 5, 6.

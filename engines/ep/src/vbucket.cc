@@ -3908,14 +3908,14 @@ void VBucket::setDuplicateSyncWriteWindow(uint64_t highSeqno) {
 void VBucket::setUpAllowedDuplicatePrepareWindow() {
     auto& dm = getDurabilityMonitor();
     auto hcs = dm.getHighCompletedSeqno();
-    auto hps = dm.getHighPreparedSeqno();
-    Expects(hcs <= hps);
+    auto highSeqno = getHighSeqno();
+    Expects(hcs <= highSeqno);
 
-    int64_t newDuplicateCount = hps - hcs;
+    int64_t newDuplicateCount = highSeqno - hcs;
     allowedDuplicatePrepareSeqnos.reserve(allowedDuplicatePrepareSeqnos.size() +
                                           newDuplicateCount);
 
-    for (int64_t dupSeqno = hcs + 1; dupSeqno <= hps; dupSeqno++) {
+    for (int64_t dupSeqno = hcs + 1; dupSeqno <= highSeqno; dupSeqno++) {
         allowedDuplicatePrepareSeqnos.insert(dupSeqno);
     }
 }

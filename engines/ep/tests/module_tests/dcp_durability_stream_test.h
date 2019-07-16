@@ -63,9 +63,11 @@ protected:
      * processes it on the DCP stream.
      * Returns the SyncWrite prepare item.
      */
-    queued_item makeAndReceiveDcpPrepare(const StoredDocKey& key,
-                                         uint64_t cas,
-                                         uint64_t seqno);
+    queued_item makeAndReceiveDcpPrepare(
+            const StoredDocKey& key,
+            uint64_t cas,
+            uint64_t seqno,
+            cb::durability::Level level = cb::durability::Level::Majority);
 
     /*
      * Simulates a Replica receiving a DCP_PREPARE and checks that it is
