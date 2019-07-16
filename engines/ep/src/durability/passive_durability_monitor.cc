@@ -341,7 +341,13 @@ void PassiveDurabilityMonitor::postProcessRollback(
 
 void PassiveDurabilityMonitor::toOStream(std::ostream& os) const {
     os << "PassiveDurabilityMonitor[" << this << "]"
-       << " high_prepared_seqno:" << getHighPreparedSeqno();
+       << " high_prepared_seqno:" << getHighPreparedSeqno()
+       << " trackedWrites:\n";
+    state.withRLock([&os](auto& s) {
+        for (const auto& w : s.trackedWrites) {
+            os << "    " << w << "\n";
+        }
+    });
 }
 
 DurabilityMonitor::Container::iterator
