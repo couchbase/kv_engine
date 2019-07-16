@@ -1420,6 +1420,9 @@ public:
             return;
         }
 
+        EP_LOG_DEBUG("EPDiskRollbackCB: Handling discarded update: {}",
+                     *val.item);
+
         // This is the item in its current state, after the rollback seqno
         // (i.e. the state that we are reverting)
         UniqueItemPtr postRbSeqnoItem(std::move(val.item));
@@ -1523,6 +1526,10 @@ public:
                 }
             }
         } else if (preRbSeqnoGetValue.getStatus() == ENGINE_KEY_ENOENT) {
+            EP_LOG_DEBUG(
+                    "EPDiskRollbackCB: Item did not exist pre-rollback; "
+                    "removing from VB");
+
             // If the item did not exist before we should delete it now
             removeDeletedDoc(*vb, *postRbSeqnoItem);
         } else {
