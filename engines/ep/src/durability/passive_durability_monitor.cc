@@ -528,5 +528,6 @@ void PassiveDurabilityMonitor::State::checkForAndRemovePrepares() {
 template <class exception>
 [[noreturn]] void PassiveDurabilityMonitor::throwException(
         const std::string& thrower, const std::string& error) const {
-    throw exception(thrower + error + vb.getId().to_string());
+    throw exception("PassiveDurabilityMonitor::" + thrower + " " +
+                    vb.getId().to_string() + " " + error);
 }
