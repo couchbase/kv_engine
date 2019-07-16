@@ -1014,6 +1014,37 @@ ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
                   vbucket,
                   prepared_seqno);
 
+    // Confirm that we only receive ack seqnos we have sent
+    auto rv = streams.find(vbucket.get());
+    if (rv == streams.end()) {
+        throw std::logic_error(
+                "Replica acked seqno:" + std::to_string(prepared_seqno) +
+                " for vbucket:" + to_string(vbucket) +
+                " but we don't have a StreamContainer for that vb");
+    }
+
+    uint64_t lastSentSeqno;
+    {
+        auto handle = rv->second->rlock();
+
+        // Producer for replication should only have one stream.
+        Expects(handle.size() == 1);
+
+        auto* s = dynamic_cast<ActiveStream*>(handle.get().get());
+
+        // We should not have received a seqno ack if the stream
+        // is not an ActiveStream
+        Expects(s);
+        lastSentSeqno = s->getLastSentSeqno();
+    }
+
+    if (prepared_seqno > lastSentSeqno) {
+        throw std::logic_error(
+                "Replica acked seqno:" + std::to_string(prepared_seqno) +
+                " greater than last sent seqno:" +
+                std::to_string(lastSentSeqno));
+    }
+
     return vb->seqnoAcknowledged(consumerName, prepared_seqno);
 }
 

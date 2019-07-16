@@ -1006,13 +1006,6 @@ void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
     if (!firstChain) {
         throwException<std::logic_error>(__func__, "FirstChain not set");
     }
-    if (seqno > lastTrackedSeqno) {
-        throwException<std::invalid_argument>(
-                __func__,
-                "seqno(" + std::to_string(seqno) +
-                        ") is greater than lastTrackedSeqno(" +
-                        std::to_string(lastTrackedSeqno) + ")");
-    }
 
     // We should never ack for the active
     Expects(firstChain->active != node);

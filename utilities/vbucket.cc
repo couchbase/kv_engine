@@ -21,3 +21,7 @@
 std::ostream& operator<<(std::ostream& os, const Vbid& d) {
     return os << d.to_string();
 }
+
+std::string to_string(const Vbid& vbucket) {
+    return vbucket.to_string();
+}

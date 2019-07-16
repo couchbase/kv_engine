@@ -120,6 +120,7 @@ protected:
 };
 
 std::ostream& operator<<(std::ostream& os, const Vbid& d);
+std::string to_string(const Vbid& vbucket);
 
 namespace std {
 template <>

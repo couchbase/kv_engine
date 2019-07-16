@@ -711,6 +711,69 @@ TEST_P(DcpStreamSyncReplPersistentTest,
     testBackfillPrepareAbort(DocumentState::Deleted, Level::PersistToMajority);
 }
 
+TEST_P(DcpStreamSyncReplPersistentTest, ProducerAllowsSeqnoAckLEQToLastSent) {
+    setup_dcp_stream();
+
+    stream = producer->mockActiveStreamRequest(0,
+                                               /*opaque*/ 0,
+                                               *vb0,
+                                               /*st_seqno*/ 0,
+                                               /*en_seqno*/ ~0,
+                                               /*vb_uuid*/ 0xabcd,
+                                               /*snap_start_seqno*/ 0,
+                                               /*snap_end_seqno*/ ~0);
+
+    // Setup - put a single checkpoint_start item into a vector to be passed
+    // to ActiveStream::processItems()
+    std::vector<queued_item> items;
+    items.push_back(queued_item(new Item(makeStoredDocKey("start"),
+                                         vbid,
+                                         queue_op::checkpoint_start,
+                                         2,
+                                         1)));
+
+    // Test - call processItems() twice: once with a single checkpoint_start
+    // item, then with a two mutations.
+    stream->public_processItems(items);
+
+    items.clear();
+    for (int64_t seqno : {2, 3}) {
+        auto mutation = makeCommittedItem(
+                makeStoredDocKey("mutation" + std::to_string(seqno)), "value");
+        mutation->setBySeqno(seqno);
+        items.push_back(mutation);
+    }
+
+    stream->public_processItems(items);
+
+    const auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(3, readyQ.size());
+
+    std::unique_ptr<DcpResponse> resp = stream->public_nextQueuedItem();
+
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto& snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, snapMarker.getFlags());
+
+    resp = stream->public_nextQueuedItem();
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    resp = stream->public_nextQueuedItem();
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+
+    EXPECT_NO_THROW(producer->seqno_acknowledged(0, vbid, 3));
+    bool thrown = false;
+    try {
+        producer->seqno_acknowledged(0, vbid, 4);
+    } catch (const std::logic_error& e) {
+        EXPECT_TRUE(std::string(e.what()).find("Replica acked seqno") !=
+                    std::string::npos);
+        thrown = true;
+    }
+    if (!thrown) {
+        FAIL();
+    }
+}
+
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
                         DcpStreamSyncReplTest,
