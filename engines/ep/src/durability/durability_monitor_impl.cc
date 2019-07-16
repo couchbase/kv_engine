@@ -18,6 +18,7 @@
 #include "durability_monitor_impl.h"
 #include <folly/lang/Assume.h>
 #include <gsl.h>
+#include <utilities/logtags.h>
 
 /// Helper function to determine the expiry time for a SyncWrite from the
 /// durability requirements.
@@ -233,7 +234,8 @@ std::unordered_set<std::string> DurabilityMonitor::SyncWrite::getAckedNodes()
 std::ostream& operator<<(std::ostream& os,
                          const DurabilityMonitor::SyncWrite& sw) {
     os << "SW @" << &sw << " "
-       << "cookie:" << sw.cookie << " qi:[key:'" << sw.item->getKey()
+       << "cookie:" << sw.cookie << " qi:[key:'"
+       << cb::tagUserData(sw.item->getKey().to_string())
        << "' seqno:" << sw.item->getBySeqno()
        << " reqs:" << to_string(sw.item->getDurabilityReqs()) << "] maj:"
        << std::to_string(sw.firstChain ? sw.firstChain.chainPtr->majority : 0)

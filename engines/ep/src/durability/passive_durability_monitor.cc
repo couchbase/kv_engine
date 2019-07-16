@@ -27,6 +27,7 @@
 
 #include <boost/range/adaptor/reversed.hpp>
 #include <gsl.h>
+#include <utilities/logtags.h>
 #include <unordered_map>
 
 PassiveDurabilityMonitor::PassiveDurabilityMonitor(VBucket& vb)
@@ -190,10 +191,10 @@ void PassiveDurabilityMonitor::completeSyncWrite(const StoredDocKey& key,
     auto s = state.wlock();
 
     if (s->trackedWrites.empty()) {
-        throwException<std::logic_error>(__func__,
-                                         "No tracked, but received " +
-                                                 to_string(res) + " for key " +
-                                                 key.to_string());
+        throwException<std::logic_error>(
+                __func__,
+                "No tracked, but received " + to_string(res) + " for key " +
+                        cb::tagUserData(key.to_string()));
     }
 
     const auto next = s->getIteratorNext(s->highCompletedSeqno.it);
@@ -202,7 +203,8 @@ void PassiveDurabilityMonitor::completeSyncWrite(const StoredDocKey& key,
         throwException<std::logic_error>(
                 __func__,
                 "No Prepare waiting for completion, but received " +
-                        to_string(res) + " for key " + key.to_string());
+                        to_string(res) + " for key " +
+                        cb::tagUserData(key.to_string()));
     }
 
     // Sanity check for In-Order Commit
@@ -210,7 +212,7 @@ void PassiveDurabilityMonitor::completeSyncWrite(const StoredDocKey& key,
         std::stringstream ss;
         ss << "Pending resolution for '" << *next
            << "', but received unexpected " + to_string(res) + " for key "
-           << key;
+           << cb::tagUserData(key.to_string());
         throwException<std::logic_error>(__func__, "" + ss.str());
     }
 

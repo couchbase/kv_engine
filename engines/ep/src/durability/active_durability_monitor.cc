@@ -28,6 +28,7 @@
 #include <folly/concurrency/UnboundedQueue.h>
 
 #include <gsl.h>
+#include <utilities/logtags.h>
 
 /*
  * This class embeds the state of an ADM. It has been designed for being
@@ -950,8 +951,8 @@ void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
 
     if (globalBucketLogger->should_log(spdlog::level::debug)) {
         std::stringstream ss;
-        ss << "SyncWrite commit \"" << key << "\": ack'ed by {"
-           << boost::join(sw.getAckedNodes(), ", ") << "}";
+        ss << "SyncWrite commit \"" << cb::tagUserData(key.to_string())
+           << "\": ack'ed by {" << boost::join(sw.getAckedNodes(), ", ") << "}";
 
         EP_LOG_DEBUG(ss.str());
     }
