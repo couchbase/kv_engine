@@ -260,7 +260,8 @@ public:
     // The durability timeout value to use for SyncWrites which haven't
     // specified an explicit timeout.
     // @todo-durability: Allow this to be configurable.
-    std::chrono::milliseconds defaultTimeout = std::chrono::seconds(30);
+    static constexpr std::chrono::milliseconds defaultTimeout =
+            std::chrono::seconds(30);
 
     const ActiveDurabilityMonitor& adm;
 
@@ -270,6 +271,9 @@ public:
     // ns_server sends us a new replication topology.
     std::unordered_map<std::string, Monotonic<int64_t>> queuedSeqnoAcks;
 };
+
+constexpr std::chrono::milliseconds
+        ActiveDurabilityMonitor::State::defaultTimeout;
 
 /**
  * Single-Producer / Single-Consumer Queue of completed SyncWrites.
@@ -1049,6 +1053,15 @@ size_t ActiveDurabilityMonitor::wipeTracked() {
         it = next;
     }
     return removed;
+}
+
+std::vector<queued_item> ActiveDurabilityMonitor::getTrackedWrites() const {
+    std::vector<queued_item> items;
+    auto s = state.rlock();
+    for (auto& w : s->trackedWrites) {
+        items.push_back(w.getItem());
+    }
+    return items;
 }
 
 void ActiveDurabilityMonitor::toOStream(std::ostream& os) const {

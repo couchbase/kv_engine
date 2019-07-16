@@ -47,6 +47,21 @@ DurabilityMonitor::SyncWrite::SyncWrite(
       expiryTime(expiryFromDurabiltyReqs(item->getDurabilityReqs(),
                                          defaultTimeout)),
       startTime(std::chrono::steady_clock::now()) {
+    initialiseChains(firstChain, secondChain);
+}
+
+DurabilityMonitor::SyncWrite::SyncWrite(const void* cookie,
+                                        queued_item item,
+                                        const ReplicationChain* firstChain,
+                                        const ReplicationChain* secondChain,
+                                        SyncWrite::InfiniteTimeout)
+    : cookie(cookie), item(item), startTime(std::chrono::steady_clock::now()) {
+    initialiseChains(firstChain, secondChain);
+}
+
+void DurabilityMonitor::SyncWrite::initialiseChains(
+        const ReplicationChain* firstChain,
+        const ReplicationChain* secondChain) {
     // We should always have a first chain if we have a second
     if (secondChain) {
         Expects(firstChain);

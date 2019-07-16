@@ -16,6 +16,7 @@
  */
 
 #include "passive_durability_monitor.h"
+#include "active_durability_monitor.h"
 #include "durability_monitor_impl.h"
 
 #include "bucket_logger.h"
@@ -56,14 +57,12 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(
     : PassiveDurabilityMonitor(vb, highPreparedSeqno, highCompletedSeqno) {
     auto s = state.wlock();
     for (auto& prepare : outstandingPrepares) {
-        // Any outstanding prepares "grandfathered" into the DM should have
-        // already specified a non-default timeout.
-        Expects(!prepare->getDurabilityReqs().getTimeout().isDefault());
+        // Construct the SyncWrites and request an infinite timeout
         s->trackedWrites.emplace_back(nullptr,
                                       std::move(prepare),
-                                      std::chrono::milliseconds{},
                                       nullptr,
-                                      nullptr);
+                                      nullptr,
+                                      SyncWrite::InfiniteTimeout{});
     }
 }
 

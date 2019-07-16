@@ -21,6 +21,7 @@
 #include <folly/SynchronizedPtr.h>
 #include <vector>
 
+class ActiveDurabilityMonitor;
 class RollbackResult;
 struct vbucket_state;
 class VBucket;
@@ -50,9 +51,15 @@ public:
                              int64_t highCompletedSeqno);
 
     /**
-     * Construct a PassiveDM for the given vBucket, with the specified
-     * outstanding prepares as the initial state of the tracked SyncWrites. Used
-     * by warmup to restore the state as it was before restart.
+     * Construct a PassiveDM for the given vBucket using pre-existing state.
+     *
+     * This constructor is used by warmup where the HPS/HCS exist in the vbucket
+     * state and warmup locates all persisted prepares.
+     *
+     * This constructor is used during state changes where an
+     * ActiveDurabilityMonitor must handover any outstanding prepares when an
+     * active switches to replica.
+     *
      * @param vb VBucket which owns this Durability Monitor.
      * @param highPreparedSeqno seqno to use as the initial highPreparedSeqno
      * @param highCompletedSeqno seqno to use as the initial highCompletedSeqno

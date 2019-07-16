@@ -1787,6 +1787,45 @@ TEST_P(DurabilityEphemeralBucketTest, PurgeCompletedAbort) {
     testPurgeCompletedPrepare(op);
 }
 
+// Highlighted in MB-34997 was a situation where a vb state change meant that
+// the new PDM had no knowledge of outstanding prepares that existed before the
+// state change. This is fixed in VBucket by transferring the outstanding
+// prepares from the ADM to the new PDM in such a switch over. This test
+// demonstrates the issue and exercises the fix.
+TEST_P(DurabilityBucketTest, ActiveToReplicaAndCommit) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // seqno:1 A prepare, that does not commit yet.
+    auto key = makeStoredDocKey("crikey");
+    auto pending = makePendingItem(key, "pending");
+
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+
+    flushVBucketToDiskIfPersistent(vbid);
+
+    // Now switch over to being a replica, via dead for realism
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_dead, {});
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica, {});
+    auto& vb = *store->getVBucket(vbid);
+
+    // Now drive the VB as if a passive stream is receiving data.
+    vb.checkpointManager->createSnapshot(1, 3, CheckpointType::Memory);
+
+    // seqno:2 A new prepare
+    auto key1 = makeStoredDocKey("crikey2");
+    auto pending1 = makePendingItem(
+            key1, "pending", {cb::durability::Level::Majority, {5000}});
+    pending1->setCas(1);
+    pending1->setBySeqno(2);
+    EXPECT_EQ(ENGINE_SUCCESS, store->prepare(*pending1, cookie));
+    // seqno:3 the prepare at seqno:1 is committed
+    ASSERT_EQ(ENGINE_SUCCESS, vb.commit(key, 1, 3, vb.lockCollections(key)));
+}
+
 // Test cases which run against all persistent storage backends.
 INSTANTIATE_TEST_CASE_P(
         AllBackends,

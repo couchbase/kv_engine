@@ -219,6 +219,11 @@ public:
      */
     void removedQueuedAck(const std::string& node);
 
+    /**
+     * @return all of the currently tracked writes
+     */
+    std::vector<queued_item> getTrackedWrites() const;
+
 protected:
     void toOStream(std::ostream& os) const override;
 

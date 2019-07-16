@@ -64,6 +64,28 @@ public:
               const ReplicationChain* firstChain,
               const ReplicationChain* secondChain);
 
+    /**
+     * Constructs a SyncWrite with an infinite timeout
+     *
+     * @param (optional) cookie The cookie representing the client connection.
+     *     Necessary at Active for notifying the client at SyncWrite completion.
+     * @param item The pending Prepare being wrapped
+     * @param (optional) firstChain The repl-chain that the write is tracked
+     *     against.  Necessary at Active for verifying the SW Durability
+     *     Requirements.
+     * @param (optional) secondChain The second repl-chain that the write is
+     *     tracked against. Necessary at Active for verifying the SW Durability
+     *     Requirements.
+     * @param InfiniteTimeout struct tag so it's clear from the caller an
+     *        infinite timeout is being used.
+     */
+    struct InfiniteTimeout {};
+    explicit SyncWrite(const void* cookie,
+                       queued_item item,
+                       const ReplicationChain* firstChain,
+                       const ReplicationChain* secondChain,
+                       InfiniteTimeout);
+
     const StoredDocKey& getKey() const;
 
     int64_t getBySeqno() const;
@@ -125,7 +147,18 @@ public:
      */
     std::unordered_set<std::string> getAckedNodes() const;
 
+    const queued_item& getItem() const {
+        return item;
+    }
+
 private:
+    /**
+     * Performs sanity checks and initialise the replication chains
+     * @param firstChain Reference to first chain
+     * @param secondChain Pointer (may be null) to second chain
+     */
+    void initialiseChains(const ReplicationChain* firstChain,
+                          const ReplicationChain* secondChain);
     /**
      * Calculate the ackCount for this SyncWrite using the given chain.
      *
