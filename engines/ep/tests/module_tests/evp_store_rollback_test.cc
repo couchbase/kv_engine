@@ -1125,7 +1125,9 @@ void RollbackDcpTest::doPrepareAndAbort() {
     ASSERT_EQ(prepareSeqno, passiveDm.getHighCompletedSeqno());
 }
 
-TEST_P(RollbackDcpTest, RollbackPrepare) {
+// MB-35060: Rollback when SyncWrites are present currently always rolls back
+// to zero. As such these tests are currently disabled.
+TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackPrepare) {
     writeBaseItems();
     auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno();
@@ -1143,7 +1145,7 @@ TEST_P(RollbackDcpTest, RollbackPrepare) {
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
 }
 
-TEST_P(RollbackDcpTest, RollbackPrepareOnTopOfSyncWrite) {
+TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackPrepareOnTopOfSyncWrite) {
     writeBaseItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
     doPrepareAndCommit();
@@ -1163,7 +1165,7 @@ TEST_P(RollbackDcpTest, RollbackPrepareOnTopOfSyncWrite) {
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
 }
 
-TEST_P(RollbackDcpTest, RollbackSyncWrite) {
+TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackSyncWrite) {
     writeBaseItems();
     auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno();
@@ -1181,7 +1183,7 @@ TEST_P(RollbackDcpTest, RollbackSyncWrite) {
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
 }
 
-TEST_P(RollbackDcpTest, RollbackAbortedSyncWrite) {
+TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackAbortedSyncWrite) {
     writeBaseItems();
     auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno();
@@ -1199,7 +1201,7 @@ TEST_P(RollbackDcpTest, RollbackAbortedSyncWrite) {
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
 }
 
-TEST_P(RollbackDcpTest, RollbackSyncWriteOnTopOfSyncWrite) {
+TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackSyncWriteOnTopOfSyncWrite) {
     writeBaseItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
     doPrepareAndCommit();
@@ -1219,7 +1221,8 @@ TEST_P(RollbackDcpTest, RollbackSyncWriteOnTopOfSyncWrite) {
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
 }
 
-TEST_P(RollbackDcpTest, RollbackSyncWriteOnTopOfAbortedSyncWrite) {
+TEST_P(RollbackDcpTest,
+       DISABLED_MB_35060_RollbackSyncWriteOnTopOfAbortedSyncWrite) {
     writeBaseItems();
     auto baseItems = vb->getNumTotalItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
@@ -1277,7 +1280,7 @@ TEST_P(RollbackDcpTest, RollbackToZeroWithSyncWrite) {
  *  - 6 base items
  *  - 1 prepare
  */
-TEST_P(RollbackDcpTest, RollbackCommit) {
+TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackCommit) {
     writeBaseItems();
     // Rollback only the commit
     auto baseItems = vb->getNumTotalItems();
@@ -1318,7 +1321,7 @@ TEST_P(RollbackDcpTest, RollbackCommit) {
  *  - 1 commit
  *  - 1 prepare
  */
-TEST_P(RollbackDcpTest, RollbackCommitOnTopOfCommit) {
+TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackCommitOnTopOfCommit) {
     writeBaseItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
     doPrepareAndCommit();
@@ -1363,7 +1366,7 @@ TEST_P(RollbackDcpTest, RollbackCommitOnTopOfCommit) {
  *  - 1 abort
  *  - 1 prepare
  */
-TEST_P(RollbackDcpTest, RollbackCommitOnTopOfAbort) {
+TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackCommitOnTopOfAbort) {
     writeBaseItems();
     auto baseItems = vb->getNumTotalItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
@@ -1402,7 +1405,7 @@ TEST_P(RollbackDcpTest, RollbackCommitOnTopOfAbort) {
  *  - 6 base items
  *  - 1 prepare
  */
-TEST_P(RollbackDcpTest, RollbackAbort) {
+TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackAbort) {
     writeBaseItems();
     // Rollback only the abort
     auto baseItems = vb->getNumTotalItems();
@@ -1442,7 +1445,7 @@ TEST_P(RollbackDcpTest, RollbackAbort) {
  *  - 1 commit
  *  - 1 prepare
  */
-TEST_P(RollbackDcpTest, RollbackAbortOnTopOfCommit) {
+TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackAbortOnTopOfCommit) {
     writeBaseItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
     doPrepareAndCommit();
@@ -1487,7 +1490,7 @@ TEST_P(RollbackDcpTest, RollbackAbortOnTopOfCommit) {
  *  - 1 abort
  *  - 1 prepare
  */
-TEST_P(RollbackDcpTest, RollbackAbortOnTopOfAbort) {
+TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackAbortOnTopOfAbort) {
     writeBaseItems();
     auto baseItems = vb->getNumTotalItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
