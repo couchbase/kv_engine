@@ -596,6 +596,11 @@ The stats below are listed for each vbucket.
 |                               | True means that Xattrs were stored to the  |
 |                               | vbucket, note that the flag does not clear |
 |                               | itself if all xattrs were removed.         |
+| high_prepared_seqno           | Durability: The seqno of the highest       |
+|                               | prepared mutation the vbucket is tracking  |
+| high_completed_seqno          | Durability: The seqno of the highest       |
+|                               | durable write that has completed, completed|
+|                               | includes both committed and aborted writes.|
 
 For Ephemeral buckets, the following additional statistics are listed for
 each vbucket:

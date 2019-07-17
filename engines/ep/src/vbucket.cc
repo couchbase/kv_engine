@@ -3056,7 +3056,7 @@ void VBucket::_addStats(bool details,
         addStat("ht_size", ht.getSize(), add_stat, c);
         addStat("num_ejects", ht.getNumEjects(), add_stat, c);
         addStat("ops_create", opsCreate.load(), add_stat, c);
-	addStat("ops_delete", opsDelete.load(), add_stat, c);
+        addStat("ops_delete", opsDelete.load(), add_stat, c);
         addStat("ops_get", opsGet.load(), add_stat, c);
         addStat("ops_reject", opsReject.load(), add_stat, c);
         addStat("ops_update", opsUpdate.load(), add_stat, c);
@@ -3081,6 +3081,7 @@ void VBucket::_addStats(bool details,
         addStat("max_deleted_revid", ht.getMaxDeletedRevSeqno(), add_stat, c);
         addStat("topology", getReplicationTopology().dump(), add_stat, c);
         addStat("high_prepared_seqno", getHighPreparedSeqno(), add_stat, c);
+        addStat("high_completed_seqno", getHighCompletedSeqno(), add_stat, c);
         addStat("sync_write_accepted_count",
                 getSyncWriteAcceptedCount(),
                 add_stat,

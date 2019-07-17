@@ -96,7 +96,8 @@ TEST_F(StatTest, vbucket_seqno_stats_test) {
                         Pair(vbucket + ":purge_seqno", "0"),
                         Pair(vbucket + ":last_persisted_snap_start", "0"),
                         Pair(vbucket + ":last_persisted_snap_end", "0"),
-                        Pair(vbucket + ":high_prepared_seqno", "0")));
+                        Pair(vbucket + ":high_prepared_seqno", "0"),
+                        Pair(vbucket + ":high_completed_seqno", "0")));
 }
 
 // Test that if we request takeover stats for stream that does not exist we
