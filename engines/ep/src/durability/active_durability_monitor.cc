@@ -956,8 +956,7 @@ void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
         // - Level Majority locally-satisfied first at Active by-logic
         // - Level MajorityAndPersistOnMaster and PersistToMajority must always
         //     include the Active for being globally satisfied
-        const auto hps = s->getNodeWriteSeqno(s->getActive());
-        Ensures(s->lastCommittedSeqno <= hps);
+        Ensures(s->lastCommittedSeqno <= s->highPreparedSeqno);
     }
 
     if (globalBucketLogger->should_log(spdlog::level::debug)) {
