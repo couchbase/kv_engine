@@ -17,8 +17,7 @@
 
 #pragma once
 
-#include <platform/rwlock.h>
-
+#include <folly/SharedMutex.h>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
@@ -26,7 +25,7 @@
 class CheckpointCursor;
 
 /**
- * Cursor is the object that clients of CheckointManager use to obtain items
+ * Cursor is the object that clients of CheckpointManager use to obtain items
  *
  * Cursor safely manages the underlying weak_ptr<CheckpointCursor>.
  * For example DCP active_stream stats maybe trying to lock() the weak_ptr
@@ -35,14 +34,9 @@ class CheckpointCursor;
  */
 class Cursor {
 public:
-#if defined(__MACH__) && __clang_major__ > 7 || !defined(__MACH__)
-    using LockType = std::shared_timed_mutex;
-#else
-    using LockType = cb::RWLock;
-#endif
+    using LockType = folly::SharedMutex;
 
-    Cursor() {
-    }
+    Cursor() = default;
 
     Cursor(std::shared_ptr<CheckpointCursor> cursor) : cursor(cursor) {
     }
