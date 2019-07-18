@@ -74,10 +74,10 @@
 
 #pragma once
 
-#include <platform/rwlock.h>
-
 #include <forward_list>
 #include <shared_mutex>
+
+#include <folly/SharedMutex.h>
 
 template <class Element>
 class StreamContainer {
@@ -157,7 +157,7 @@ public:
 
     private:
         bool cycled = false;
-        std::shared_lock<cb::RWLock> sharedLock;
+        std::shared_lock<folly::SharedMutex> sharedLock;
         StreamContainer& container;
         typename container::iterator startPosition;
         typename container::iterator currentPosition;
@@ -222,7 +222,7 @@ public:
         }
 
     private:
-        std::shared_lock<cb::RWLock> readLock;
+        std::shared_lock<folly::SharedMutex> readLock;
         const StreamContainer& container;
     };
 
@@ -261,7 +261,7 @@ public:
         }
 
     private:
-        std::unique_lock<cb::RWLock> writeLock;
+        std::unique_lock<folly::SharedMutex> writeLock;
         StreamContainer& container;
     };
 
@@ -281,26 +281,26 @@ private:
     /**
      * Push an element to the front of the list and reset the resume iterator
      */
-    void push_front(const Element& e, std::unique_lock<cb::RWLock>&) {
+    void push_front(const Element& e, std::unique_lock<folly::SharedMutex>&) {
         c.push_front(e);
         size++;
         resumePosition = c.begin();
     }
 
     void erase_after(const typename container::iterator& before,
-                     std::unique_lock<cb::RWLock>&) {
+                     std::unique_lock<folly::SharedMutex>&) {
         c.erase_after(before);
         size--;
         resumePosition = c.begin();
     }
 
-    void clear(std::unique_lock<cb::RWLock>&) {
+    void clear(std::unique_lock<folly::SharedMutex>&) {
         c.clear();
         size = 0;
         resumePosition = c.begin();
     }
 
-    void next(std::shared_lock<cb::RWLock>&) {
+    void next(std::shared_lock<folly::SharedMutex>&) {
         if (c.empty()) {
             return;
         }
@@ -316,5 +316,5 @@ private:
     // StreamContainer supports 'resumable' iteration (only one resume point)
     // this object stores where to resume from
     typename container::iterator resumePosition{c.end()};
-    mutable cb::RWLock rwlock;
+    mutable folly::SharedMutex rwlock;
 };
