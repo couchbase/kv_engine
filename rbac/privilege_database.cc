@@ -19,7 +19,6 @@
 #include <folly/Synchronized.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
-#include <platform/rwlock.h>
 #include <strings.h>
 #include <utilities/logtags.h>
 #include <atomic>
