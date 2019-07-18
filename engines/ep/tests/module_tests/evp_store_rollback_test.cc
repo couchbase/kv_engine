@@ -62,20 +62,12 @@ class RollbackTest : public SingleThreadedEPBucketTest,
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active);
 
-        // For any rollback tests which actually want to rollback, we need
-        // to ensure that we don't rollback more than 50% of the seqno count
-        // as then the VBucket is just cleared (it'll instead expect a resync
-        // from zero.
-        // Therefore create 10 dummy items which we don't otherwise care
-        // about (most of the Rollback test only work with a couple of
-        // "active" items.
-        const auto dummy_elements = size_t{10};
-        for (size_t ii = 1; ii <= dummy_elements; ii++) {
-            auto res = store_item(vbid,
-                                  makeStoredDocKey("dummy" + std::to_string(ii)),
-                                  "dummy");
-            ASSERT_EQ(ii, res.getBySeqno());
-        }
+        // Write a single item so that we have a valid seqno/key/value to
+        // rollback to. Rollback to 0 is a special case and results in
+        // recreation of a vBucket so.
+        const auto dummy_elements = size_t{1};
+        auto res = store_item(vbid, makeStoredDocKey("dummy1"), "dummy");
+        ASSERT_EQ(1, res.getBySeqno());
         ASSERT_EQ(std::make_pair(false, dummy_elements),
                   getEPBucket().flushVBucket(vbid));
         initial_seqno = dummy_elements;
@@ -387,17 +379,9 @@ protected:
         // create some more checkpoints just to see a few iterations
         // of parts of the rollback function.
 
-        // need to store a certain number of keys because rollback
-        // 'bails' if the rollback is too much.
-        for (int i = 0; i < 7; i++) {
-            store_item(vbid, makeStoredDocKey("key_" + std::to_string(i)), "dontcare");
-        }
-
         // rollbackCollectionCreate==true and the roll back function will
         // rewind disk to here, with dairy collection unknown
         auto seqno1 = store->getVBucket(vbid)->getHighSeqno();
-        ASSERT_EQ(std::make_pair(false, size_t(7)),
-                  getEPBucket().flushVBucket(vbid));
 
         auto vb = store->getVBucket(vbid);
         CollectionsManifest cm;
@@ -510,6 +494,42 @@ protected:
                       store->getVBucket(vbid)->getHighSeqno());
         }
         EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumSystemItems());
+    }
+
+    void rollback_to_zero(int64_t rollbackSeqno) {
+        const auto minItemsToRollbackTo = 11;
+        auto vbHighSeqno = store->getVBucket(vbid)->getHighSeqno();
+
+        // Write some more dummy items so that we have a midpoint to rollback to
+        for (size_t ii = vbHighSeqno + 1; ii <= minItemsToRollbackTo; ii++) {
+            auto res =
+                    store_item(vbid,
+                               makeStoredDocKey("dummy" + std::to_string(ii)),
+                               "dummy");
+            ASSERT_EQ(ii, res.getBySeqno());
+        }
+        ASSERT_EQ(std::make_pair(false,
+                                 size_t(minItemsToRollbackTo - vbHighSeqno)),
+                  getEPBucket().flushVBucket(vbid));
+
+        // Trigger a rollback to zero by rolling back to a seqno just before the
+        // halfway point between start and end (2 in this case)
+        store->setVBucketState(vbid, vbStateAtRollback);
+        ASSERT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+
+        // No items at all
+        auto vbptr = store->getVBucket(vbid);
+        ASSERT_TRUE(vbptr);
+        EXPECT_EQ(0, store->getVBucket(vbid)->getHighSeqno());
+        EXPECT_EQ(0,
+                  store->getVBucket(vbid)->getManifest().lock().getItemCount(
+                          CollectionID::Default));
+        EXPECT_EQ(0,
+                  store->getVBucket(vbid)
+                          ->getManifest()
+                          .lock()
+                          .getPersistedHighSeqno(CollectionID::Default));
+        EXPECT_EQ(0, store->getVBucket(vbid)->getNumItems());
     }
 
 protected:
@@ -630,28 +650,12 @@ TEST_P(RollbackTest, RollbackDeletionAndCreationDocCountsOneFlush) {
     rollback_create_delete_stat_test(false, true, 0);
 }
 
-// Test what happens to the doc counts if we rollback the vBucket completely
-TEST_P(RollbackTest, RollbackFromZeroDocCounts) {
-    // Trigger a rollback to zero by rolling back to a seqno just before the
-    // halfway point between start and end (2 in this case)
-    store->setVBucketState(vbid, vbStateAtRollback);
-    auto docKey = makeStoredDocKey("dummy1");
-    ASSERT_EQ(
-            TaskStatus::Complete,
-            store->rollback(
-                    vbid,
-                    store->get(docKey, vbid, nullptr, {}).item->getBySeqno()));
+TEST_P(RollbackTest, RollbackToZeroExplicitlyDocCounts) {
+    rollback_to_zero(0);
+}
 
-    // No items at all
-    ASSERT_EQ(0, store->getVBucket(vbid)->getHighSeqno());
-    EXPECT_EQ(0,
-              store->getVBucket(vbid)->getManifest().lock().getItemCount(
-                      CollectionID::Default));
-    EXPECT_EQ(
-            0,
-            store->getVBucket(vbid)->getManifest().lock().getPersistedHighSeqno(
-                    CollectionID::Default));
-    EXPECT_EQ(0, store->getVBucket(vbid)->getNumItems());
+TEST_P(RollbackTest, RollbackToZeroLTMidpointDocCounts) {
+    rollback_to_zero(4);
 }
 
 TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {

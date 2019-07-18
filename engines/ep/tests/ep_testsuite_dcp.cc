@@ -4322,7 +4322,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
 }
 
 static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
-    const int num_items = 10;
+    const int num_items = 11;
     write_items(h, num_items);
 
     wait_for_flusher_to_settle(h);
