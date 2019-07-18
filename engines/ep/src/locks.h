@@ -17,7 +17,6 @@
 #pragma once
 
 #include "utility.h"
-#include <platform/rwlock.h>
 #include <mutex>
 #include <vector>
 
@@ -68,39 +67,3 @@ private:
 };
 #define MultiLockHolder(x) \
     static_assert(false, "MultiLockHolder: missing variable name for scoped lock.")
-
-// RAII Reader lock
-// deprecated, prefer std::lock_guard<ReaderLock> rlh(rwLock.reader())
-class ReaderLockHolder {
-public:
-    typedef cb::RWLock mutex_type;
-
-    ReaderLockHolder(cb::RWLock& lock)
-        : lh(lock) {
-    }
-
-private:
-    std::lock_guard<cb::ReaderLock> lh;
-
-    DISALLOW_COPY_AND_ASSIGN(ReaderLockHolder);
-};
-#define ReaderLockHolder(x) \
-    static_assert(false, "ReaderLockHolder: missing variable name for scoped lock.")
-
-// RAII Writer lock
-// deprecated, prefer std::lock_guard<WriterLock> wlh(rwLock.writer())
-class WriterLockHolder {
-public:
-    typedef cb::RWLock mutex_type;
-
-    WriterLockHolder(cb::RWLock& lock)
-        : lh(lock) {
-    }
-
-private:
-    std::lock_guard<cb::WriterLock> lh;
-
-    DISALLOW_COPY_AND_ASSIGN(WriterLockHolder);
-};
-#define WriterLockHolder(x) \
-    static_assert(false, "WriterLockHolder: missing variable name for scoped lock.")

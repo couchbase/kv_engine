@@ -53,7 +53,7 @@ DcpProducer::BufferLog::State DcpProducer::BufferLog::getState_UNLOCKED() {
 }
 
 void DcpProducer::BufferLog::setBufferSize(size_t maxBytes) {
-    WriterLockHolder lh(logLock);
+    std::unique_lock<folly::SharedMutex> wlh(logLock);
     this->maxBytes = maxBytes;
     if (maxBytes == 0) {
         bytesOutstanding = 0;
@@ -62,7 +62,7 @@ void DcpProducer::BufferLog::setBufferSize(size_t maxBytes) {
 }
 
 bool DcpProducer::BufferLog::insert(size_t bytes) {
-    WriterLockHolder wlh(logLock);
+    std::unique_lock<folly::SharedMutex> wlh(logLock);
     bool inserted = false;
     // If the log is not enabled
     // or there is space, allow the insert
@@ -87,7 +87,7 @@ void DcpProducer::BufferLog::release_UNLOCKED(size_t bytes) {
 }
 
 bool DcpProducer::BufferLog::pauseIfFull() {
-    ReaderLockHolder rlh(logLock);
+    std::shared_lock<folly::SharedMutex> rhl(logLock);
     if (getState_UNLOCKED() == Full) {
         producer.pause(PausedReason::BufferLogFull);
         return true;
@@ -96,7 +96,7 @@ bool DcpProducer::BufferLog::pauseIfFull() {
 }
 
 void DcpProducer::BufferLog::unpauseIfSpaceAvailable() {
-    ReaderLockHolder rlh(logLock);
+    std::shared_lock<folly::SharedMutex> rhl(logLock);
     if (getState_UNLOCKED() == Full) {
         EP_LOG_INFO(
                 "{} Unable to notify paused connection because "
@@ -112,7 +112,7 @@ void DcpProducer::BufferLog::unpauseIfSpaceAvailable() {
 }
 
 void DcpProducer::BufferLog::acknowledge(size_t bytes) {
-    WriterLockHolder wlh(logLock);
+    std::unique_lock<folly::SharedMutex> wlh(logLock);
     State state = getState_UNLOCKED();
     if (state != Disabled) {
         release_UNLOCKED(bytes);
@@ -134,7 +134,7 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
 
 void DcpProducer::BufferLog::addStats(const AddStatFn& add_stat,
                                       const void* c) {
-    ReaderLockHolder rlh(logLock);
+    std::shared_lock<folly::SharedMutex> rhl(logLock);
     if (isEnabled_UNLOCKED()) {
         producer.addStat("max_buffer_bytes", maxBytes, add_stat, c);
         producer.addStat("unacked_bytes", bytesOutstanding, add_stat, c);

@@ -25,9 +25,9 @@
 #include "ep_engine.h"
 #include "monotonic.h"
 
-#include <folly/CachelinePadded.h>
-
 #include <folly/AtomicHashMap.h>
+#include <folly/CachelinePadded.h>
+#include <folly/SharedMutex.h>
 
 class BackfillManager;
 class CheckpointCursor;
@@ -293,7 +293,7 @@ public:
 
         State getState_UNLOCKED();
 
-        cb::RWLock logLock;
+        folly::SharedMutex logLock;
         DcpProducer& producer;
 
         /// Capacity of the buffer - maximum number of bytes which can be

@@ -29,19 +29,3 @@ TEST(LockTimerTest, LockHolder) {
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
 }
-
-TEST(LockTimerTest, ReaderLockHolder) {
-    cb::RWLock m;
-    {
-        LockTimer<ReaderLockHolder, 1, 1> rlh(m, "ReaderLockHolder");
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-}
-
-TEST(LockTimerTest, WriterLockHolder) {
-    cb::RWLock m;
-    {
-        LockTimer<WriterLockHolder, 1, 1> wlh(m, "WriterLockHolder");
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-}
