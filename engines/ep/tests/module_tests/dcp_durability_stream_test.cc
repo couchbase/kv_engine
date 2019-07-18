@@ -2130,6 +2130,67 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
                       opaque, vbid, pending->getBySeqno(), commitSeqno, key)));
 }
 
+// Test covers issue seen in MB-35062, we must be able to tolerate a prepare
+// and a delete, the replica must accept both when in a disk snapshot
+TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
+    uint32_t opaque = 0;
+
+    // Send a snapshot which is
+    // seq:1 prepare(key)
+    // seq:3 delete(key)
+    // In this case seq:2 was the commit and is now represented by del seq:3
+
+    // 1) Send disk snapshot marker
+    SnapshotMarker marker(opaque,
+                          vbid,
+                          1 /*snapStart*/,
+                          3 /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_DISK,
+                          {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // 2) Send prepare
+    auto key = makeStoredDocKey("key");
+    using namespace cb::durability;
+    auto pending = makePendingItem(
+            key, "value", Requirements(Level::Majority, Timeout::Infinity()));
+    pending->setBySeqno(1);
+    pending->setCas(1);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      pending,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    // 3) Send delete of the prepared key
+    auto deleted = makeCommittedItem(key, {});
+    deleted->setDeleted(DeleteSource::Explicit);
+    deleted->setBySeqno(3);
+    queued_item qi{deleted};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      deleted,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    // Expect two items in the flush, prepare and delete
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // The vbucket must now be upto seqno 3
+    auto vb = engine->getVBucket(vbid);
+    EXPECT_EQ(3, vb->getHighSeqno());
+}
+
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         DurabilityActiveStreamTest,
                         STParameterizedBucketTest::allConfigValues(),

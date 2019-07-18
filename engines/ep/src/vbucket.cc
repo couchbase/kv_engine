@@ -3408,6 +3408,7 @@ VBucket::processSoftDelete(HashTable::FindCommitResult& htRes,
                            bool use_meta,
                            uint64_t bySeqno,
                            DeleteSource deleteSource) {
+    StoredValue* deleteValue = &v;
     if (v.isPending()) {
         // It is not valid for an active vBucket to attempt to overwrite an
         // in flight SyncWrite. If this vBucket is not active, we are
@@ -3426,28 +3427,23 @@ VBucket::processSoftDelete(HashTable::FindCommitResult& htRes,
                 PassiveDurabilityMonitor::Resolution::Commit,
                 v.getBySeqno() /* prepareSeqno */);
 
-        // Sanity - We should never delete a prepare in this way, and if we are
-        // hitting this delete path then we should have the committed SV.
-        if (!htRes.committed) {
-            return {MutationStatus::NotFound, htRes.committed, boost::none};
+        if (htRes.committed) {
+            // A committed value exists:
+            // Firstly deal with the existing prepare
+            processImplicitlyCompletedPrepare(htRes.pending);
+            // Secondly proceed to delete the committed value
+            deleteValue = htRes.committed;
+        } else if (isReceivingDiskSnapshot()) {
+            // No committed value, but we are processing a disk-snapshot
+            // Must continue to create a delete so that we create an accurate
+            // replica. htRes must no longer own the pending pointer as it's
+            // going to be deleted below
+            htRes.pending.release();
         }
-
-        // Deal with the existing prepare
-        processImplicitlyCompletedPrepare(htRes.pending);
-
-        // Delete the existing committed SV.
-        return processSoftDeleteInner(htRes.getHBL(),
-                                      *htRes.committed,
-                                      cas,
-                                      metadata,
-                                      queueItmCtx,
-                                      use_meta,
-                                      bySeqno,
-                                      deleteSource);
     }
 
     return processSoftDeleteInner(htRes.getHBL(),
-                                  v,
+                                  *deleteValue,
                                   cas,
                                   metadata,
                                   queueItmCtx,
