@@ -361,6 +361,15 @@ MutationStatus HashTable::set(Item& val) {
     }
 }
 
+void HashTable::rollbackItem(const Item& item) {
+    auto htRes = findItem(item);
+    if (htRes.storedValue) {
+        unlocked_updateStoredValue(htRes.lock, *htRes.storedValue, item);
+    } else {
+        unlocked_addNewStoredValue(htRes.lock, item);
+    }
+}
+
 HashTable::UpdateResult HashTable::unlocked_updateStoredValue(
         const HashBucketLock& hbl, StoredValue& v, const Item& itm) {
     if (!hbl.getHTLock()) {
@@ -760,6 +769,13 @@ HashTable::FindResult HashTable::findOnlyCommitted(const DocKey& key) {
 HashTable::FindResult HashTable::findOnlyPrepared(const DocKey& key) {
     auto result = findInner(key);
     return {result.pendingSV, std::move(result.lock)};
+}
+
+HashTable::FindResult HashTable::findItem(const Item& item) {
+    auto result = findInner(item.getKey());
+    auto preparedNamespace = item.isPending() || item.isAbort();
+    return {preparedNamespace ? result.pendingSV : result.committedSV,
+            std::move(result.lock)};
 }
 
 void HashTable::unlocked_del(const HashBucketLock& hbl, StoredValue* value) {

@@ -900,6 +900,21 @@ public:
     FindResult findOnlyPrepared(const DocKey& key);
 
     /**
+     * Find a StoredValue with the same key and status (prepared / committed)
+     * as the given item.
+     *
+     * Will only find the *exact* same type as Item - if item.isPending() is
+     * true but the HashTable only has a committed item with that key, then
+     * this function will return nullptr.
+     *
+     * @param item The item to find
+     * @return A FindResult consisting of:
+     *         - a pointer to a StoredValue -- NULL if not found
+     *         - a (locked) HashBucketLock for the key's hash bucket.
+     */
+    FindResult findItem(const Item& item);
+
+    /**
      * Find a resident item
      *
      * @param rnd a randomization input
@@ -915,6 +930,13 @@ public:
      * @return a result indicating the status of the store
      */
     MutationStatus set(Item& val);
+
+    /**
+     * Rollback the StoredValue matching Item.key && Item.committed/prepared
+     * to the contents of Item.
+     * @param item
+     */
+    void rollbackItem(const Item& item);
 
     /**
      * Store the given compressed buffer as a value in the

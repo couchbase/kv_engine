@@ -37,10 +37,7 @@ void PersistenceCallback::operator()(
     int64_t hashTableSeqno = -1;
 
     { // scope for hashtable lock
-        const auto& key = queuedItem->getKey();
-        auto res = queuedItem->isPending() ? vbucket.ht.findOnlyPrepared(key)
-                                           : vbucket.ht.findOnlyCommitted(key);
-
+        auto res = vbucket.ht.findItem(*queuedItem);
         auto* v = res.storedValue;
         if (v) {
             isInHashTable = true;

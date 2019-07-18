@@ -136,8 +136,10 @@ void DefragmenterTest::fragment(size_t num_docs, size_t& num_remaining) {
                 auto doc_id = kv->second.back();
                 // Use DocKey to minimize heap pollution
                 snprintf(keyScratch, sizeof(keyScratch), keyPattern, doc_id);
-                ASSERT_TRUE(vbucket->deleteKey(
-                        DocKey(keyScratch, DocKeyEncodesCollectionId::No)));
+                auto res = vbucket->ht.findForWrite(
+                        DocKey(keyScratch, DocKeyEncodesCollectionId::No));
+                ASSERT_TRUE(res.storedValue);
+                vbucket->ht.unlocked_del(res.lock, res.storedValue);
                 kv->second.pop_back();
                 num_remaining--;
             }

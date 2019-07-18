@@ -1453,16 +1453,12 @@ void VBucket::incExpirationStat(const ExpireBy source) {
     ++numExpiredItems;
 }
 
-MutationStatus VBucket::setFromInternal(Item& itm) {
-    // Should not be used to rollback any SyncWrites
-    if (!itm.isCommitted()) {
-        return MutationStatus::IsPendingSyncWrite;
-    }
-
+MutationStatus VBucket::setFromInternal(const Item& itm) {
     if (!hasMemoryForStoredValue(stats, itm, UseActiveVBMemThreshold::Yes)) {
         return MutationStatus::NoMem;
     }
-    return ht.set(itm);
+    ht.rollbackItem(itm);
+    return MutationStatus::WasClean;
 }
 
 cb::StoreIfStatus VBucket::callPredicate(cb::StoreIfPredicate predicate,
@@ -2901,9 +2897,7 @@ GetValue VBucket::getLocked(
 }
 
 void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
-    const auto& key = queuedItem.getKey();
-    auto res = queuedItem.isPending() ? ht.findOnlyPrepared(key)
-                                      : ht.findOnlyCommitted(key);
+    auto res = ht.findItem(queuedItem);
     auto* v = res.storedValue;
 
     // Delete the item in the hash table iff:
@@ -2945,8 +2939,8 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
     decrMetaDataDisk(queuedItem);
 }
 
-bool VBucket::deleteKey(const DocKey& key) {
-    auto htRes = ht.findForWrite(key);
+bool VBucket::removeItemFromMemory(const Item& item) {
+    auto htRes = ht.findItem(item);
     if (!htRes.storedValue) {
         return false;
     }
@@ -3899,7 +3893,8 @@ void VBucket::setUpAllowedDuplicatePrepareThreshold() {
 
 void VBucket::addSyncWriteForRollback(const Item& item) {
     // Search the HashTable for an existing prepare, it should not exist.
-    auto htRes = ht.findOnlyPrepared(item.getKey());
+    Expects(item.isPending());
+    auto htRes = ht.findItem(item);
     Expects(!htRes.storedValue);
     ht.unlocked_addNewStoredValue(htRes.lock, item);
 }

@@ -1270,7 +1270,7 @@ public:
 
     /// Remove a deleted-on-disk document from the VBucket's hashtable.
     void removeDeletedDoc(VBucket& vb, const Item& item) {
-        if (vb.deleteKey(item.getKey())) {
+        if (vb.removeItemFromMemory(item)) {
             setStatus(ENGINE_SUCCESS);
         } else {
             // Document didn't exist in memory - may have been deleted in since
@@ -1315,7 +1315,7 @@ void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
             if (gcb.getStatus() == ENGINE_SUCCESS) {
                 vb.setFromInternal(*gcb.item.get());
             } else {
-                vb.deleteKey(item->getKey());
+                vb.removeItemFromMemory(*item);
             }
         }
     }

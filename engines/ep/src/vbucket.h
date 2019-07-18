@@ -1052,7 +1052,7 @@ public:
      *
      * @return Result indicating the status of the operation
      */
-    MutationStatus setFromInternal(Item& itm);
+    MutationStatus setFromInternal(const Item& itm);
 
     /**
      * Set (add new or update) an item in the vbucket.
@@ -1510,13 +1510,13 @@ public:
     void deletedOnDiskCbk(const Item& queuedItem, bool deleted);
 
     /**
-     * Update in memory data structures after a rollback on disk
+     * Remove the given Item from the in memory data structures
+     * (after a rollback on disk).
      *
-     * @param queuedItem item key
-     *
+     * @param item To remove from memory.
      * @return indicates if the operation is succcessful
      */
-    bool deleteKey(const DocKey& key);
+    bool removeItemFromMemory(const Item& item);
 
     /**
      * Creates a DCP backfill object
@@ -1896,7 +1896,9 @@ protected:
     /**
      * Delete a key (associated StoredValue) from ALL in-memory data structures
      * like HT.
-     * Assumes that HT bucket lock is grabbed.
+     * Does NOT queue a mutation to the checkpoint manager, so this deletion
+     * will not be persited to disk / written to replicas.
+     * Expected usage is to reconcile HashTable with current VBucket state.
      *
      * Currently StoredValues form HashTable intrusively. That is, HashTable
      * does not store a reference or a copy of the StoredValue. If any other
