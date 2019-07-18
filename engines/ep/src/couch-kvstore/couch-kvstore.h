@@ -25,6 +25,7 @@
 #include "libcouchstore/couch_db.h"
 #include "monotonic.h"
 
+#include <folly/SharedMutex.h>
 #include <platform/strerror.h>
 #include <relaxed_atomic.h>
 
@@ -776,7 +777,7 @@ protected:
      * fileRev (and the real file) before the scan performs an open.
      * Many opens are allowed in parallel, just compact must block.
      */
-    cb::RWLock openDbMutex;
+    folly::SharedMutex openDbMutex;
 
     uint16_t numDbFiles;
     PendingRequestQueue pendingReqsQ;

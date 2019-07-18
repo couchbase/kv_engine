@@ -35,6 +35,7 @@
 #include <platform/compress.h>
 #include <platform/dirutils.h>
 #include <gsl/gsl>
+#include <shared_mutex>
 
 extern "C" {
     static int recordDbDumpC(Db *db, DocInfo *docinfo, void *ctx)
@@ -1626,7 +1627,7 @@ void CouchKVStore::updateDbFileMap(Vbid vbucketId, uint64_t newFileRev) {
     // MB-27963: obtain write access whilst we update the file map openDB also
     // obtains this mutex to ensure the fileRev it obtains doesn't become stale
     // by the time it hits sys_open.
-    std::lock_guard<cb::WriterLock> lg(openDbMutex);
+    std::unique_lock<folly::SharedMutex> lg(openDbMutex);
 
     (*dbFileRevMap)[vbucketId.get()] = newFileRev;
 }
@@ -1638,7 +1639,7 @@ couchstore_error_t CouchKVStore::openDB(Vbid vbucketId,
     // MB-27963: obtain read access whilst we open the file, updateDbFileMap
     // serialises on this mutex so we can be sure the fileRev we read should
     // still be a valid file once we hit sys_open
-    std::lock_guard<cb::ReaderLock> lg(openDbMutex);
+    std::shared_lock<folly::SharedMutex> lg(openDbMutex);
     uint64_t fileRev = (*dbFileRevMap)[vbucketId.get()];
     return openSpecificDB(vbucketId, fileRev, db, options, ops);
 }
