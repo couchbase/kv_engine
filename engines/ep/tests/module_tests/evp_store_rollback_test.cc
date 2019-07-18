@@ -92,6 +92,18 @@ protected:
         return ENGINE_SUCCESS;
     }
 
+    /**
+     * Returns the json returned from HashTable::dumpStoredValuesAsJson without
+     * the dirty field as this may not be the same post-rollback.
+     */
+    nlohmann::json getHtState() {
+        auto json = store->getVBucket(vbid)->ht.dumpStoredValuesAsJson();
+        for (auto& sv : json) {
+            sv.erase("dirty");
+        }
+        return json;
+    }
+
 public:
     /**
      * Test rollback after deleting an item.
@@ -114,6 +126,8 @@ public:
         ASSERT_EQ(initial_seqno + 1, item_v1.getBySeqno());
         ASSERT_EQ(std::make_pair(false, size_t(1)),
                   getEPBucket().flushVBucket(vbid));
+        // Save the pre-rollback HashTable state for later comparison
+        auto htState = getHtState();
         if (expire_item) {
             // Move time forward and trigger expiry on a get.
             TimeTraveller arron(expiryTime * 2);
@@ -161,6 +175,8 @@ public:
         auto result =
                 getInternal(a, vbid, /*cookie*/ nullptr, vbStateAtRollback, {});
         ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
+
+        EXPECT_EQ(htState.dump(0), getHtState().dump(0));
         EXPECT_EQ(item_v1, *result.item)
                 << "Fetched item after rollback should match item_v1";
 
@@ -180,6 +196,9 @@ public:
         ASSERT_EQ(std::make_pair(false, size_t(1)),
                   getEPBucket().flushVBucket(vbid));
 
+        // Save the pre-rollback HashTable state for later comparison
+        auto htState = getHtState();
+
         auto item2 = store_item(vbid, a, "new");
         ASSERT_EQ(initial_seqno + 2, item2.getBySeqno());
 
@@ -198,6 +217,8 @@ public:
                   store->rollback(vbid, item_v1.getBySeqno()));
         ASSERT_EQ(item_v1.getBySeqno(),
                   store->getVBucket(vbid)->getHighSeqno());
+
+        EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 
         // a should have the value of 'old'
         {
@@ -234,6 +255,9 @@ protected:
     void rollback_after_creation_and_deletion_test(bool deleteLast,
                                                    bool flushOnce) {
         auto rbSeqno = store->getVBucket(vbid)->getHighSeqno();
+
+        // Save the pre-rollback HashTable state for later comparison
+        auto htState = getHtState();
 
         // Setup
         StoredDocKey a = makeStoredDocKey("a");
@@ -276,6 +300,8 @@ protected:
         store->setVBucketState(vbid, vbStateAtRollback);
         ASSERT_EQ(TaskStatus::Complete, store->rollback(vbid, rbSeqno));
         ASSERT_EQ(rbSeqno, store->getVBucket(vbid)->getHighSeqno());
+
+        EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 
         if (std::get<0>(GetParam()) == "value_only") {
             EXPECT_EQ(ENGINE_KEY_ENOENT,
@@ -378,12 +404,24 @@ protected:
         // the roll back function will rewind disk to this collection state
         vb->updateFromManifest({cm.add(CollectionEntry::dairy)});
 
+        nlohmann::json htState;
+        if (rollbackCollectionCreate && !flush_before_rollback) {
+            // Save the pre-rollback HashTable state for later comparison
+            htState = getHtState();
+        }
+
         // rollbackCollectionCreate==false and the roll back function will
         // rewind disk to key7, with dairy collection open
         auto rollback_item =
                 store_item(vbid,
                            makeStoredDocKey("key7", CollectionEntry::dairy),
                            "key7 in the dairy collection");
+
+        if (htState.empty()) {
+            // Save the pre-rollback HashTable state for later comparison
+            htState = getHtState();
+        }
+
         ASSERT_EQ(std::make_pair(false, size_t(2)),
                   getEPBucket().flushVBucket(vbid));
 
@@ -423,6 +461,8 @@ protected:
         // Rollback should succeed, but rollback to 0
         store->setVBucketState(vbid, vbStateAtRollback);
         EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollback));
+
+        EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 
         // These keys should be gone after the rollback
         for (int i = 0; i < 3; i++) {
@@ -628,6 +668,9 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
     auto rollback_item =
             store_item(vbid, makeStoredDocKey("key11"), "rollback pt");
 
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+
     ASSERT_EQ(std::make_pair(false, numItems + 1),
               getEPBucket().flushVBucket(vbid));
 
@@ -643,6 +686,8 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
     /* do rollback */
     store->setVBucketState(vbid, vbStateAtRollback);
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackReqSeqno));
+
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 
     /* confirm that we have rolled back to the disk snapshot */
     EXPECT_EQ(rollback_item.getBySeqno(),
@@ -668,9 +713,15 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
 TEST_P(RollbackTest, MB21784) {
     // Make the vbucket a replica
     store->setVBucketState(vbid, vbucket_state_replica);
+
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+
     // Perform a rollback
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, initial_seqno))
             << "rollback did not return success";
+
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 
     // Assert the checkpointmanager clear function (called during rollback)
     // has set the opencheckpointid to one
@@ -713,16 +764,19 @@ TEST_P(RollbackTest, RollbackOnActive) {
                    "not rolled back");
     }
 
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+
     /* Try to rollback on active (default state) vbucket */
     EXPECT_EQ(TaskStatus::Abort,
               store->rollback(vbid, numItems - 1 /*rollbackReqSeqno*/));
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 
     EXPECT_EQ(TaskStatus::Abort, store->rollback(vbid, 0 /*rollbackReqSeqno*/));
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
 
-class RollbackDcpTest : public SingleThreadedEPBucketTest,
-                        public ::testing::WithParamInterface<
-                                std::tuple<std::string, std::string>> {
+class RollbackDcpTest : public RollbackTest {
 public:
     // Mock implementation of dcp_message_producers which ... TODO
     class DcpProducers;
@@ -819,9 +873,9 @@ public:
         streamRequestData = {};
     }
 
-    void createItems(int items, int flushes) {
+    void createItems(int items, int flushes, int start = 0) {
         // Flush multiple checkpoints of unique keys
-        for (int ii = 0; ii < flushes; ii++) {
+        for (int ii = start; ii < flushes; ii++) {
             std::string key = "anykey_" + std::to_string(ii) + "_";
             EXPECT_TRUE(store_items(items,
                                     vbid,
@@ -915,6 +969,9 @@ TEST_P(RollbackDcpTest, test_rollback_zero) {
     const int nitems = items * flushes;
     const int rollbackPoint = 0; // expect final rollback to be to 0
 
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+
     // Test will create anykey_0_{0..items-1}
     createItems(items, flushes);
 
@@ -931,6 +988,8 @@ TEST_P(RollbackDcpTest, test_rollback_zero) {
     }
 
     responseRollback(rollbackPoint);
+
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 
     // All keys now gone
     for (int ii = 0; ii < items; ii++) {
@@ -966,7 +1025,15 @@ TEST_P(RollbackDcpTest, test_rollback_nonzero) {
     const int rollbackPoint = 3 * items; // rollback to 3/4
 
     // Test will create anykey_{0..flushes-1}_{0..items-1}
-    createItems(items, flushes);
+    createItems(items, 3);
+
+    // Save the pre-rollback HashTable state for later comparison after doing 3
+    // flushes
+    auto htState = getHtState();
+
+    // Flush the final set of items (requires setting vBucket back to active)
+    store->setVBucketState(vbid, vbucket_state_active);
+    createItems(items, flushes, 3 /*startFlush*/);
 
     auto uuid = addStream(nitems);
 
@@ -985,6 +1052,8 @@ TEST_P(RollbackDcpTest, test_rollback_nonzero) {
     }
 
     responseRollback(rollbackPoint);
+
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 
     // 3/4 keys available
     for (int ii = 0; ii < items; ii++) {

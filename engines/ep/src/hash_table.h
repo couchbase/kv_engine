@@ -1234,6 +1234,13 @@ public:
      */
     void dump() const;
 
+    /**
+     * Dump the StoredValues in an nlohmann::json array
+     *
+     * @return nlohmann::json array of StoredValues
+     */
+    nlohmann::json dumpStoredValuesAsJson() const;
+
 private:
     // The container for actually holding the StoredValues.
     using table_type = std::vector<StoredValue::UniquePtr>;
@@ -1322,7 +1329,8 @@ private:
     // in `values`
     std::atomic<size_t> size;
     table_type values;
-    std::vector<std::mutex> mutexes;
+    // Mutable so that we can make dumpStoredValuesAsJson const
+    mutable std::vector<std::mutex> mutexes;
     EPStats&             stats;
     std::unique_ptr<AbstractStoredValueFactory> valFact;
     std::atomic<size_t>       visitors;

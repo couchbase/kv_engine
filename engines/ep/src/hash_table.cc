@@ -27,6 +27,7 @@
 #include <platform/compress.h>
 
 #include <logtags.h>
+#include <nlohmann/json.hpp>
 #include <cstring>
 
 static const ssize_t prime_size_table[] = {
@@ -876,6 +877,23 @@ bool HashTable::reallocateStoredValue(StoredValue&& sv) {
 
 void HashTable::dump() const {
     std::cerr << *this << std::endl;
+}
+
+nlohmann::json HashTable::dumpStoredValuesAsJson() const {
+    MultiLockHolder mlh(mutexes);
+    auto obj = nlohmann::json::object();
+    for (const auto& chain : values) {
+        if (chain) {
+            for (StoredValue* sv = chain.get().get(); sv != nullptr;
+                 sv = sv->getNext().get().get()) {
+                std::stringstream ss;
+                ss << sv->getKey();
+                obj[ss.str()] = *sv;
+            }
+        }
+    }
+
+    return obj;
 }
 
 void HashTable::storeCompressedBuffer(cb::const_char_buffer buf,

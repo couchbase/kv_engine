@@ -1038,8 +1038,10 @@ protected:
     uint8_t committed : 3;
 
     friend std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
+    friend void to_json(nlohmann::json& json, const StoredValue& sv);
 };
 
+void to_json(nlohmann::json& json, const StoredValue& sv);
 std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
 
 /**
@@ -1181,6 +1183,7 @@ private:
     cb::uint48_t prepareSeqno;
 
     friend std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
+    friend void to_json(nlohmann::json& json, const StoredValue& sv);
 
 public:
     // Intrusive linked-list for sequence number ordering.

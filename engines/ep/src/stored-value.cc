@@ -22,8 +22,11 @@
 #include "objectregistry.h"
 #include "stats.h"
 
+#include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
 #include <platform/compress.h>
+
+#include <sstream>
 
 const int64_t StoredValue::state_pending_seqno = -2;
 const int64_t StoredValue::state_deleted_key = -3;
@@ -474,6 +477,33 @@ void StoredValue::setCompletedOrDeletedTime(rel_time_t time) {
     } else {
         // Do nothing, only applicable to OSV
     }
+}
+
+void to_json(nlohmann::json& json, const StoredValue& sv) {
+    // Add any additional OrderedStoredValue data if required.
+    if (sv.isOrdered()) {
+        auto& osv = static_cast<const OrderedStoredValue&>(sv);
+        json["prepareSeqno"] = static_cast<uint64_t>(osv.prepareSeqno);
+    }
+
+    json["cas"] = sv.cas;
+    json["rev"] = static_cast<uint64_t>(sv.revSeqno);
+    json["seqno"] = sv.bySeqno.load();
+    json["l/e/d/c time"] = sv.lock_expiry_or_delete_or_complete_time;
+    json["exp time"] = sv.exptime;
+    json["flags"] = sv.flags;
+    json["dirty"] = sv.isDirty();
+    json["deleted"] = sv.isDeleted();
+    if (sv.isDeleted()) {
+        json["delSource"] = sv.deletionSource;
+    }
+    json["ordered"] = sv.isOrdered();
+    json["nru"] = sv.getNru();
+    json["resident"] = sv.isResident();
+    std::stringstream ss;
+    ss << sv.getKey();
+    json["key"] = ss.str();
+    json["committed"] = sv.getCommitted();
 }
 
 std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
