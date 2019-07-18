@@ -26,6 +26,7 @@
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
 #include <platform/compress.h>
+#include <platform/platform_thread.h>
 #include <condition_variable>
 #include <thread>
 

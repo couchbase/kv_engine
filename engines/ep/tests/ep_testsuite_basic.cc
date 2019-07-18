@@ -25,6 +25,7 @@
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
+#include <platform/platform_thread.h>
 
 #include <array>
 #include <memcached/types.h>

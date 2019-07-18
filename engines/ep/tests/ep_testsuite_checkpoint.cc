@@ -22,6 +22,7 @@
 #include "ep_testsuite_common.h"
 
 #include <platform/cbassert.h>
+#include <platform/platform_thread.h>
 
 // Helper functions ///////////////////////////////////////////////////////////
 

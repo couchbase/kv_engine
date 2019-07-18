@@ -21,6 +21,7 @@
 #include "utility.h"
 
 #include <platform/cbassert.h>
+#include <platform/platform_thread.h>
 
 #include <algorithm>
 #include <iostream>

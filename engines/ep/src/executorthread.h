@@ -23,6 +23,7 @@
 #include <platform/ring_buffer.h>
 #include <relaxed_atomic.h>
 
+#include <platform/platform_thread.h>
 #include <atomic>
 #include <chrono>
 #include <deque>
