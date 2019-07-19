@@ -56,6 +56,7 @@ DurabilityMonitor::SyncWrite::SyncWrite(const void* cookie,
                                         const ReplicationChain* secondChain,
                                         SyncWrite::InfiniteTimeout)
     : cookie(cookie), item(item), startTime(std::chrono::steady_clock::now()) {
+    Expects(getDurabilityReqs().getLevel() != cb::durability::Level::None);
     initialiseChains(firstChain, secondChain);
 }
 
@@ -147,19 +148,14 @@ bool DurabilityMonitor::SyncWrite::isSatisfied() const {
              secondChain.chainPtr->hasAcked(secondChain.chainPtr->active,
                                             this->getBySeqno()));
 
-    switch (getDurabilityReqs().getLevel()) {
-    case cb::durability::Level::Majority:
-        ret = firstChainSatisfied && secondChainSatisfied &&
-              secondChainActiveSatisfied;
-        break;
-    case cb::durability::Level::PersistToMajority:
-    case cb::durability::Level::MajorityAndPersistOnMaster:
-        ret = firstChainSatisfied && firstChainActiveSatisfied &&
-              secondChainSatisfied && secondChainActiveSatisfied;
-        break;
-    case cb::durability::Level::None:
-        throw std::logic_error("SyncWrite::isSatisfied: Level::None");
-    }
+    // MB-35190: A SyncWrite must always be satisfied on the active, even
+    // if it is a majority level prepare.
+    // Though majority prepares are logically satisfied immediately on the
+    // active, we need to make sure they have been acked by the active as
+    // this means the HPS has reached the prepare (i.e., is not waiting
+    // at an earlier durability fence).
+    ret = firstChainSatisfied && firstChainActiveSatisfied &&
+          secondChainSatisfied && secondChainActiveSatisfied;
 
     return ret;
 }

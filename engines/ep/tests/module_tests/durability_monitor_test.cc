@@ -3171,6 +3171,68 @@ TEST_P(ActiveDurabilityMonitorTest,
     EXPECT_EQ(0, getActiveDM().getNumAborted());
 }
 
+// MB-35190: SyncWrites with enough acks for a majority but WITHOUT an ack from
+// the active should not be treated as satisfied
+TEST_P(ActiveDurabilityMonitorPersistentTest,
+       SyncWriteNotSatisfiedWithoutMaster) {
+    getActiveDM().setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2, replica3}}));
+    using namespace cb::durability;
+
+    // Add a PersistToMajority to "block" the active to prevent immediate acking
+    addSyncWrite(1, Requirements(Level::PersistToMajority, 30000));
+
+    // This SW should not be satisfied by just replica acks
+    addSyncWrite(2, Requirements(Level::Majority, 30000));
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(2, 0, 0);
+    }
+
+    // Enough acks to reach majority, but the active has not persisted yet.
+    for (const auto& replica : {replica1, replica2, replica3}) {
+        testSeqnoAckReceived(replica,
+                             2 /*ackSeqno*/,
+                             2 /*expectedLastWriteSeqno*/,
+                             2 /*expectedLastAckSeqno*/,
+                             2 /*expectedNumTracked*/,
+                             0 /*expectedHPS*/,
+                             0 /*expectedHCS*/);
+    }
+
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(2, 0, 0);
+    }
+
+    // Rather than delving into getting the actual SyncWrite and checking if
+    // satisfied, recreate scenario from MB-35190. If a SyncWrite is moved to
+    // the completedQueue because its timeout has passed it should be aborted by
+    // processCompletedSyncWriteQueue. processCompletedSyncWriteQueue dispatches
+    // based on sw->isSatisfied(). If SWs could be satisfied WITHOUT the active
+    // acking, the active could timeout a given syncWrite, and then proceed to
+    // commit it.
+
+    getActiveDM().processTimeout(std::chrono::steady_clock::now() +
+                                 std::chrono::seconds(31));
+
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(0, 0, 2);
+    }
+
+    EXPECT_EQ(getActiveDM().getNumAborted(), 2);
+
+    // Active finally persists, but it is too late
+    vb->setPersistenceSeqno(2);
+    monitor->notifyLocalPersistence();
+
+    {
+        SCOPED_TRACE("");
+        assertNumTrackedAndHPSAndHCS(0, 0, 2);
+    }
+}
+
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         ActiveDurabilityMonitorTest,
                         STParameterizedBucketTest::allConfigValues(),
