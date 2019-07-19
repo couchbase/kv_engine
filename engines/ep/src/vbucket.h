@@ -117,14 +117,16 @@ struct VBQueueItemCtx {
                    TrackCasDrift trackCasDrift,
                    bool isBackfillItem,
                    boost::optional<DurabilityItemCtx> durability,
-                   PreLinkDocumentContext* preLinkDocumentContext_)
+                   PreLinkDocumentContext* preLinkDocumentContext_,
+                   boost::optional<int64_t> overwritingPrepareSeqno)
         : genBySeqno(genBySeqno),
           genCas(genCas),
           generateDeleteTime(generateDeleteTime),
           trackCasDrift(trackCasDrift),
           isBackfillItem(isBackfillItem),
           durability(durability),
-          preLinkDocumentContext(preLinkDocumentContext_) {
+          preLinkDocumentContext(preLinkDocumentContext_),
+          overwritingPrepareSeqno(overwritingPrepareSeqno) {
     }
 
     GenerateBySeqno genBySeqno = GenerateBySeqno::Yes;
@@ -138,6 +140,9 @@ struct VBQueueItemCtx {
     /// Context object that allows running the pre-link callback after the CAS
     /// is assigned but the document is not yet available for reading
     PreLinkDocumentContext* preLinkDocumentContext = nullptr;
+    /// Passed into the durability monitor to instruct it to remove an old
+    /// prepare with the given seqno
+    boost::optional<int64_t> overwritingPrepareSeqno = {};
 };
 
 /**

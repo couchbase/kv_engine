@@ -99,7 +99,8 @@ int64_t PassiveDurabilityMonitor::getHighCompletedSeqno() const {
     return state.rlock()->highCompletedSeqno.lastWriteSeqno;
 }
 
-void PassiveDurabilityMonitor::addSyncWrite(queued_item item) {
+void PassiveDurabilityMonitor::addSyncWrite(
+        queued_item item, boost::optional<int64_t> overwritingPrepareSeqno) {
     auto durReq = item->getDurabilityReqs();
 
     if (durReq.getLevel() == cb::durability::Level::None) {
@@ -112,11 +113,52 @@ void PassiveDurabilityMonitor::addSyncWrite(queued_item item) {
                 "by Active node)");
     }
 
+    auto s = state.wlock();
+    if (overwritingPrepareSeqno) {
+        // Remove any trackedWrites with the same key.
+        auto itr = s->trackedWrites.begin();
+        while (itr != s->trackedWrites.end() &&
+               itr->getKey() != item->getKey()) {
+            itr = s->getIteratorNext(itr);
+        }
+        if (itr != s->trackedWrites.end()) {
+            Expects(itr->getBySeqno() == overwritingPrepareSeqno);
+            // We have found a trackedWrite with the same key to remove. Update
+            // the HCS and HPS iterators and then remove the SyncWrite.
+            if (itr == s->highCompletedSeqno.it) {
+                s->highCompletedSeqno.it = s->trackedWrites.end();
+            }
+            if (itr == s->highPreparedSeqno.it) {
+                s->highPreparedSeqno.it = s->trackedWrites.end();
+            }
+
+            s->trackedWrites.erase(itr);
+        }
+    }
+
+#if CB_DEVELOPMENT_ASSERTS
+    // Additional error checking for dev builds to validate that we don't have
+    // any duplicate SyncWrites in trackedWrites. Only done for dev builds
+    // as this is likely expensive.
+    auto itr = std::find_if(s->trackedWrites.begin(),
+                            s->trackedWrites.end(),
+                            [item](const SyncWrite& write) {
+                                return write.getKey() == item->getKey();
+                            });
+    if (itr != s->trackedWrites.end()) {
+        std::stringstream ss;
+        ss << "Found SyncWrite '" << *itr
+           << "', whilst attempting to add new SyncWrite for key "
+           << cb::tagUserData(item->getKey().to_string())
+           << " with prepare seqno " << item->getBySeqno();
+        throwException<std::logic_error>(__func__, "" + ss.str());
+    }
+#endif
+
     // Need to specify defaultTimeout for SyncWrite ctor, but we've already
     // checked just above the requirements have a non-default value,
     // just pass dummy value here.
     std::chrono::milliseconds dummy{};
-    auto s = state.wlock();
     s->trackedWrites.emplace_back(nullptr /*cookie*/,
                                   std::move(item),
                                   dummy,
@@ -251,7 +293,8 @@ void PassiveDurabilityMonitor::completeSyncWrite(
         std::stringstream ss;
         ss << "Pending resolution for '" << *next
            << "', but received unexpected " + to_string(res) + " for key "
-           << key;
+           << cb::tagUserData(key.to_string())
+           << " different prepare seqno: " << *prepareSeqno;
         throwException<std::logic_error>(__func__, "" + ss.str());
     }
 

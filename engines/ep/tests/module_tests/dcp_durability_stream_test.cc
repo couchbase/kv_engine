@@ -2092,12 +2092,17 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
+    auto vb = engine->getVBucket(vbid);
+    const auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vb);
+    ASSERT_EQ(1, pdm.getNumTracked());
 
     // 3) Send commit - should not throw
     auto commitSeqno = pending->getBySeqno() + 1;
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<CommitSyncWrite>(
                       opaque, vbid, pending->getBySeqno(), commitSeqno, key)));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    ASSERT_EQ(0, pdm.getNumTracked());
 
     // 5) Send next in memory snapshot
     marker = SnapshotMarker(
@@ -2121,6 +2126,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
+    ASSERT_EQ(1, pdm.getNumTracked());
 
     // 7) Send commit - allowed to exist in same checkpoint
     commitSeqno = pending->getBySeqno() + 1;
@@ -2128,6 +2134,141 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
     EXPECT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<CommitSyncWrite>(
                       opaque, vbid, pending->getBySeqno(), commitSeqno, key)));
+    EXPECT_EQ(0, pdm.getNumTracked());
+}
+
+/**
+ * This is a valid scenario that we can get in and must deal with.
+ *
+ * 1) Replica is streaming from the active and receives a partial snapshot:
+ *        [1:PRE(k1), 2:NOT RECEIVED(k2)]
+ *    Importantly, not receiving the item at seqno 2 means that we do not move
+ *    the HPS as we never received the snapshot end so this blocks us from
+ *    removing 1:PRE at step 3a. It does not matter what sort of item we have
+ *    at seqno 2.
+ *
+ * 2) Replica disconnects and reconnects which sets the
+ *    allowedDuplicatePrepareSeqnos window to 1
+ *
+ * 3) Replica receives the following disk snapshot:
+ *        [4:PRE(k1), 5:MUT(k1)]
+ *    We have deduped the initial prepare and the commit at seqno 3.
+ *
+ *    a) 4:PRE(k1)
+ *       We replace 1:PRE in the HashTable with 4:PRE and add 4:PRE to
+ *       trackedWrites in the PDM.
+ *       This prepare logically completes 1:PRE in the PDM but 1:PRE is not
+ *       removed from trackedWrites as the HPS used in the fence to remove the
+ *       SyncWrites is still 0 and won't be moved until the snapshot end.
+ *    b) 5:MUT(k1)
+ *       We find 4:PRE in the HashTable and use this seqno when we attempt to
+ *       complete the SyncWrite in the PDM. The PDM starts searching for the
+ *       SyncWrite to complete at the beginning of trackedWrites as we are
+ *       in a disk snapshot and must allow out of order completion. We then find
+ *       the trackedWrite for 1:PRE that still exists in the PDM.
+ */
+TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
+    using namespace cb::durability;
+
+    // 1) Consumer receives [1, 2] snapshot marker but only 1:PRE.
+    uint32_t opaque = 0;
+    SnapshotMarker marker(
+            opaque,
+            vbid,
+            1 /*snapStart*/,
+            2 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    auto key = makeStoredDocKey("key");
+    std::string value("value1");
+    const uint64_t cas = 999;
+    queued_item qi = makePendingItem(
+            key, value, Requirements(Level::Majority, Timeout::Infinity()));
+    qi->setBySeqno(1);
+    qi->setCas(cas);
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      qi,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    auto vb = engine->getVBucket(vbid);
+    const auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vb);
+    ASSERT_EQ(1, pdm.getNumTracked());
+
+    // 2) Disconnect and reconnect (sets allowedDuplicatePrepareSeqnos to {1}).
+    consumer->closeAllStreams();
+    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    stream->acceptStream(cb::mcbp::Status::Success, opaque);
+
+    // 3a) Receive 4:PRE
+    ASSERT_TRUE(stream->isActive());
+    marker = SnapshotMarker(
+            opaque,
+            vbid,
+            1 /*snapStart*/,
+            5 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    value = "value4";
+    qi = queued_item(new Item(key,
+                              0 /*flags*/,
+                              0 /*expiry*/,
+                              value.c_str(),
+                              value.size(),
+                              PROTOCOL_BINARY_RAW_BYTES,
+                              cas /*cas*/,
+                              4 /*seqno*/,
+                              vbid));
+    qi->setPendingSyncWrite(Requirements(Level::Majority, Timeout::Infinity()));
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      std::move(qi),
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    // We remove the SyncWrite corresponding to 1:PRE when we receive 4:PRE
+    // even though we have not reached the snap end and moved the HPS because
+    // we do not want to keep duplicate keys in trackedWrites.
+    EXPECT_EQ(1, pdm.getNumTracked());
+
+    // 3b) Receive 5:PRE
+    value = "value5";
+    auto item = makeCommittedItem(key, value);
+    item->setBySeqno(5);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      std::move(item),
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    // Persist and notify the PDM as 4:PRE requires persistence to complete due
+    // to possibly deduping a persist level prepare
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    EXPECT_EQ(0, pdm.getNumTracked());
 }
 
 // Test covers issue seen in MB-35062, we must be able to tolerate a prepare

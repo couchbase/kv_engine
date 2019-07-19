@@ -1238,7 +1238,7 @@ VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
     case vbucket_state_dead:
         auto& pdm = getPassiveDM();
         if (item->isPending()) {
-            pdm.addSyncWrite(item);
+            pdm.addSyncWrite(item, ctx.overwritingPrepareSeqno);
         } else if (item->isCommitSyncWrite()) {
             pdm.completeSyncWrite(
                     item->getKey(),
@@ -1740,7 +1740,8 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(
             TrackCasDrift::No,
             /*isBackfillItem*/ true,
             DurabilityItemCtx{itm.getDurabilityReqs(), nullptr},
-            nullptr /* No pre link should happen */};
+            nullptr /* No pre link should happen */,
+            {} /*overwritingPrepareSeqno*/};
     MutationStatus status;
     boost::optional<VBNotifyCtx> notifyCtx;
     std::tie(status, notifyCtx) = processSet(htRes,
@@ -1829,13 +1830,15 @@ ENGINE_ERROR_CODE VBucket::prepare(
             TrackCasDrift::Yes,
             /*isBackfillItem*/ false,
             DurabilityItemCtx{itm.getDurabilityReqs(), cookie},
-            nullptr /* No pre link step needed */};
+            nullptr /* No pre link step needed */,
+            {} /*overwritingPrepareSeqno*/};
 
     auto itr = allowedDuplicatePrepareSeqnos.end();
     if (v && (itr = allowedDuplicatePrepareSeqnos.find(v->getBySeqno())) !=
                      allowedDuplicatePrepareSeqnos.end()) {
         // Valid duplicate prepare - call processSetInner and skip the
         // SyncWrite checks.
+        queueItmCtx.overwritingPrepareSeqno = v->getBySeqno();
         std::tie(status, notifyCtx) = processSetInner(hbl,
                                                       v,
                                                       itm,
@@ -1848,13 +1851,6 @@ ENGINE_ERROR_CODE VBucket::prepare(
         switch (status) {
         case MutationStatus::WasClean:
         case MutationStatus::WasDirty:
-            // Set succeeded, any old prepare will have been replaced in
-            // the hash table
-            // Remove old, earlier prepare from PassiveDM
-            getPassiveDM().completeSyncWrite(
-                    itm.getKey(),
-                    PassiveDurabilityMonitor::Resolution::CompletionWasDeduped,
-                    *itr /* prepareSeqno */);
             // We should not see this seqno again so remove from the set.
             allowedDuplicatePrepareSeqnos.erase(itr);
             break;
@@ -2008,7 +2004,8 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
             TrackCasDrift::Yes,
             /*isBackfillItem*/ false,
             DurabilityItemCtx{itm.getDurabilityReqs(), cookie},
-            nullptr /* No pre link step needed */};
+            nullptr /* No pre link step needed */,
+            {} /*overwritingPrepareSeqno*/};
 
     MutationStatus status;
     boost::optional<VBNotifyCtx> notifyCtx;
@@ -2317,7 +2314,8 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
                                    TrackCasDrift::Yes,
                                    backfill,
                                    {},
-                                   nullptr /* No pre link step needed */};
+                                   nullptr /* No pre link step needed */,
+                                   {} /*overwritingPrepareSeqno*/};
 
         std::unique_ptr<Item> itm;
         if (getState() == vbucket_state_active &&

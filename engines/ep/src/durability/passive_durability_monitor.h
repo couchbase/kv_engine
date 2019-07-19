@@ -18,7 +18,10 @@
 
 #include "durability_monitor.h"
 #include "ep_types.h"
+
+#include <boost/optional.hpp>
 #include <folly/SynchronizedPtr.h>
+
 #include <vector>
 
 class ActiveDurabilityMonitor;
@@ -85,8 +88,11 @@ public:
      * Add a pending Prepare for tracking into the PDM.
      *
      * @param item the queued_item
+     * @param overwritingPrepareSeqno should we overwrite an existing prepare if
+     *                                one exists with this seqno?
      */
-    void addSyncWrite(queued_item item);
+    void addSyncWrite(queued_item item,
+                      boost::optional<int64_t> overwritingPrepareSeqno = {});
 
     /**
      * The reason a SyncWrite has been completed.
