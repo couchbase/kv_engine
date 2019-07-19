@@ -280,6 +280,13 @@ protected:
             const std::vector<std::string>& unchangedNodes);
 
     /**
+     * Check that repeated acks from a replica are tolerated
+     *
+     * Add a single syncWrite then ack twice from the same replica.
+     */
+    void testRepeatedSeqnoAck(int64_t firstAck, int64_t secondAck);
+
+    /**
      * Set the seqnoAckReceivedPostProcessHook function within the ActiveDM to
      * the given function.
      */

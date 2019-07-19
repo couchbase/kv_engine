@@ -799,7 +799,16 @@ void ActiveDurabilityMonitor::State::updateNodeAck(const std::string& node,
     auto firstChainFound = firstChainItr != firstChain->positions.end();
     if (firstChainFound) {
         auto& firstChainPos = const_cast<Position&>(firstChainItr->second);
-        firstChainPos.lastAckSeqno = seqno;
+        if (firstChainPos.lastAckSeqno > seqno) {
+            EP_LOG_WARN(
+                    "Node {} acked seqno:{} lower than previous ack seqno:{} "
+                    "(first chain)",
+                    node,
+                    seqno,
+                    int64_t(firstChainPos.lastAckSeqno));
+        } else {
+            firstChainPos.lastAckSeqno = seqno;
+        }
     }
 
     bool secondChainFound = false;
@@ -809,7 +818,16 @@ void ActiveDurabilityMonitor::State::updateNodeAck(const std::string& node,
             secondChainFound = true;
             auto& secondChainPos =
                     const_cast<Position&>(secondChainItr->second);
-            secondChainPos.lastAckSeqno = seqno;
+            if (secondChainPos.lastAckSeqno > seqno) {
+                EP_LOG_WARN(
+                        "Node {} acked seqno:{} lower than previous ack "
+                        "seqno:{} (second chain)",
+                        node,
+                        seqno,
+                        int64_t(secondChainPos.lastAckSeqno));
+            } else {
+                secondChainPos.lastAckSeqno = seqno;
+            }
         }
     }
 

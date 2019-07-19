@@ -343,14 +343,8 @@ void ActiveDurabilityMonitorTest::testSeqnoAckSmallerThanLastAck() {
                          2 /*expectedHPS*/,
                          1 /*expectedHCS*/);
 
-    try {
-        getActiveDM().seqnoAckReceived(replica1, 0 /*preparedSeqno*/);
-    } catch (const std::logic_error& e) {
-        EXPECT_TRUE(std::string(e.what()).find("Monotonic") !=
-                    std::string::npos);
-        return;
-    }
-    FAIL();
+    // MB-35096: The active needs to be resilient to non-monotonic acking
+    EXPECT_NO_THROW(getActiveDM().seqnoAckReceived(replica1, 0 /*preparedSeqno*/));
 }
 
 void ActiveDurabilityMonitorPersistentTest::testSeqnoAckPersistToMajority(
@@ -458,6 +452,37 @@ void ActiveDurabilityMonitorTest::testSeqnoAckUnknownNode(
         assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
     EXPECT_EQ(1, monitor->getNumTracked());
+}
+
+void ActiveDurabilityMonitorTest::testRepeatedSeqnoAck(int64_t firstAck,
+                                                       int64_t secondAck) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2}}));
+    auto numTracked = addSyncWrites(1 /*seqnoStart*/, 1 /*seqnoEnd*/);
+
+    ASSERT_EQ(1, numTracked);
+    {
+        SCOPED_TRACE("");
+        assertHPSAndHCS(1, 0);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+
+    testSeqnoAckReceived(replica1,
+                         firstAck /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         firstAck /*expectedLastAckSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         1 /*expectedHCS*/);
+
+    testSeqnoAckReceived(replica1,
+                         secondAck /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         std::max(firstAck, secondAck) /*expectedLastAckSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         1 /*expectedHCS*/);
 }
 
 void ActiveDurabilityMonitorTest::setSeqnoAckReceivedPostProcessHook(
@@ -814,36 +839,16 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckWithNoTrackedWrites) {
                          0 /*expectedHCS*/);
 }
 
-TEST_P(ActiveDurabilityMonitorTest, SeqnoAckTwice) {
-    auto& adm = getActiveDM();
-    adm.setReplicationTopology(
-            nlohmann::json::array({{active, replica1, replica2}}));
-    auto numTracked = addSyncWrites(1 /*seqnoStart*/, 1 /*seqnoEnd*/);
+TEST_P(ActiveDurabilityMonitorTest, SeqnoAckTwice_Higher) {
+    testRepeatedSeqnoAck(1, 4);
+}
 
-    ASSERT_EQ(1, numTracked);
-    {
-        SCOPED_TRACE("");
-        assertHPSAndHCS(1, 0);
-        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
-    }
+TEST_P(ActiveDurabilityMonitorTest, SeqnoAckTwice_eq) {
+    testRepeatedSeqnoAck(1, 1);
+}
 
-    testSeqnoAckReceived(replica1,
-                         1 /*ackSeqno*/,
-                         1 /*expectedLastWriteSeqno*/,
-                         1 /*expectedLastAckSeqno*/,
-                         0 /*expectedNumTracked*/,
-                         1 /*expectedHPS*/,
-                         1 /*expectedHCS*/);
-
-    // MB-35096: We now expect the adm to handle seqno acks beyond
-    // the last tracked write seqno
-    testSeqnoAckReceived(replica1,
-                         4 /*ackSeqno*/,
-                         1 /*expectedLastWriteSeqno*/,
-                         4 /*expectedLastAckSeqno*/,
-                         0 /*expectedNumTracked*/,
-                         1 /*expectedHPS*/,
-                         1 /*expectedHCS*/);
+TEST_P(ActiveDurabilityMonitorTest, SeqnoAckTwice_Lower) {
+    testRepeatedSeqnoAck(4, 1);
 }
 
 TEST_P(ActiveDurabilityMonitorTest, SeqnoAckTwiceDoesNotIncreaseAckCountTwice) {
