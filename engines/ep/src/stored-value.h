@@ -1180,6 +1180,8 @@ private:
     // OrderedStoredValues
     cb::uint48_t prepareSeqno;
 
+    friend std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
+
 public:
     // Intrusive linked-list for sequence number ordering.
     // Guarded by the SequenceList's writeLock.

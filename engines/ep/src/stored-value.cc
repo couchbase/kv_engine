@@ -295,6 +295,13 @@ const OrderedStoredValue* StoredValue::toOrderedStoredValue() const {
 }
 
 bool StoredValue::operator==(const StoredValue& other) const {
+    bool orderedEqual = isOrdered() == other.isOrdered();
+    // Actually compare the two OSV members if they are ordered.
+    if (isOrdered() && other.isOrdered()) {
+        auto& osv = static_cast<const OrderedStoredValue&>(*this);
+        auto& otherOsv = static_cast<const OrderedStoredValue&>(other);
+        orderedEqual = osv.prepareSeqno == otherOsv.prepareSeqno;
+    }
     return (cas == other.cas && revSeqno == other.revSeqno &&
             bySeqno == other.bySeqno &&
             lock_expiry_or_delete_or_complete_time ==
@@ -304,9 +311,9 @@ bool StoredValue::operator==(const StoredValue& other) const {
             // Note: deletionCause is only checked if the item is deleted
             ((deletionSource && isDeleted()) ==
              (other.isDeleted() && other.deletionSource)) &&
-            isOrdered() == other.isOrdered() && getNru() == other.getNru() &&
-            isResident() == other.isResident() && getKey() == other.getKey() &&
-            getCommitted() == other.getCommitted());
+            getNru() == other.getNru() && isResident() == other.isResident() &&
+            getKey() == other.getKey() &&
+            getCommitted() == other.getCommitted() && orderedEqual);
 }
 
 bool StoredValue::operator!=(const StoredValue& other) const {
@@ -551,6 +558,11 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
             os << " <cut>";
         }
         os << "\"";
+    }
+
+    if (sv.isOrdered()) {
+        auto& osv = static_cast<const OrderedStoredValue&>(sv);
+        os << " prepareSeqno: " << static_cast<uint64_t>(osv.prepareSeqno);
     }
     return os;
 }
