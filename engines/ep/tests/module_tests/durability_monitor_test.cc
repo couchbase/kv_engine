@@ -687,6 +687,210 @@ TEST_P(ActiveDurabilityMonitorTest,
 }
 
 TEST_P(ActiveDurabilityMonitorTest,
+       SeqnoAckReceivedGreaterThanLastTracked_ContinuousSeqnos) {
+    auto numTracked = addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/);
+    ASSERT_EQ(3, numTracked);
+    {
+        SCOPED_TRACE("");
+        assertHPSAndHCS(3, 0);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+
+    // MB-35096: We now expect the adm to handle seqno acks beyond
+    // the last tracked write seqno
+    testSeqnoAckReceived(replica1,
+                         4 /*ackSeqno*/,
+                         3 /*expectedLastWriteSeqno*/,
+                         4 /*expectedLastAckSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         3 /*expectedHPS*/,
+                         3 /*expectedHCS*/);
+}
+
+TEST_P(ActiveDurabilityMonitorTest,
+       SeqnoAckReceivedGreaterThanLastTracked_ContinuousSeqnosTwoChains) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1}, {active, replica2}}));
+    ASSERT_EQ(2, adm.getFirstChainSize());
+    ASSERT_EQ(2, adm.getSecondChainSize());
+
+    auto numTracked = addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/);
+    ASSERT_EQ(3, numTracked);
+    {
+        SCOPED_TRACE("");
+        assertHPSAndHCS(3, 0);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        assertNodeTracking(replica2, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+
+    testSeqnoAckReceived(replica1,
+                         4 /*ackSeqno*/,
+                         3 /*expectedLastWriteSeqno*/,
+                         4 /*expectedLastAckSeqno*/,
+                         3 /*expectedNumTracked*/,
+                         3 /*expectedHPS*/,
+                         0 /*expectedHCS*/);
+
+    testSeqnoAckReceived(replica2,
+                         5 /*ackSeqno*/,
+                         3 /*expectedLastWriteSeqno*/,
+                         5 /*expectedLastAckSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         3 /*expectedHPS*/,
+                         3 /*expectedHCS*/);
+}
+
+TEST_P(ActiveDurabilityMonitorTest,
+       SeqnoAckReceivedGreaterThanLastTracked_SparseSeqnos) {
+    DurabilityMonitorTest::addSyncWrites({1, 3, 5} /*seqnos*/);
+    auto numTracked = monitor->getNumTracked();
+    ASSERT_EQ(3, numTracked);
+    {
+        SCOPED_TRACE("");
+        assertHPSAndHCS(5, 0);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+
+    testSeqnoAckReceived(replica1,
+                         10 /*ackSeqno*/,
+                         5 /*expectedLastWriteSeqno*/,
+                         10 /*expectedLastAckSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         5 /*expectedHPS*/,
+                         5 /*expectedHCS*/);
+}
+
+TEST_P(ActiveDurabilityMonitorTest,
+       SeqnoAckReceivedGreaterThanLastTracked_SparseSeqnosTwoChains) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1}, {active, replica2}}));
+    ASSERT_EQ(2, adm.getFirstChainSize());
+    ASSERT_EQ(2, adm.getSecondChainSize());
+
+    DurabilityMonitorTest::addSyncWrites({1, 3, 5} /*seqnos*/);
+    auto numTracked = monitor->getNumTracked();
+    ASSERT_EQ(3, numTracked);
+    {
+        SCOPED_TRACE("");
+        assertHPSAndHCS(5, 0);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+        assertNodeTracking(replica2, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+
+    testSeqnoAckReceived(replica1,
+                         10 /*ackSeqno*/,
+                         5 /*expectedLastWriteSeqno*/,
+                         10 /*expectedLastAckSeqno*/,
+                         3 /*expectedNumTracked*/,
+                         5 /*expectedHPS*/,
+                         0 /*expectedHCS*/);
+
+    testSeqnoAckReceived(replica2,
+                         9 /*ackSeqno*/,
+                         5 /*expectedLastWriteSeqno*/,
+                         9 /*expectedLastAckSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         5 /*expectedHPS*/,
+                         5 /*expectedHCS*/);
+}
+
+TEST_P(ActiveDurabilityMonitorTest, SeqnoAckWithNoTrackedWrites) {
+    auto numTracked = monitor->getNumTracked();
+    ASSERT_EQ(0, numTracked);
+    {
+        SCOPED_TRACE("");
+        assertHPSAndHCS(0, 0);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+
+    testSeqnoAckReceived(replica1,
+                         4 /*ackSeqno*/,
+                         0 /*expectedLastWriteSeqno*/,
+                         4 /*expectedLastAckSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         0 /*expectedHPS*/,
+                         0 /*expectedHCS*/);
+}
+
+TEST_P(ActiveDurabilityMonitorTest, SeqnoAckTwice) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2}}));
+    auto numTracked = addSyncWrites(1 /*seqnoStart*/, 1 /*seqnoEnd*/);
+
+    ASSERT_EQ(1, numTracked);
+    {
+        SCOPED_TRACE("");
+        assertHPSAndHCS(1, 0);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+
+    testSeqnoAckReceived(replica1,
+                         1 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         1 /*expectedLastAckSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         1 /*expectedHCS*/);
+
+    // MB-35096: We now expect the adm to handle seqno acks beyond
+    // the last tracked write seqno
+    testSeqnoAckReceived(replica1,
+                         4 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         4 /*expectedLastAckSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         1 /*expectedHCS*/);
+}
+
+TEST_P(ActiveDurabilityMonitorTest, SeqnoAckTwiceDoesNotIncreaseAckCountTwice) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2, replica3}}));
+    auto numTracked = addSyncWrites(1 /*seqnoStart*/, 1 /*seqnoEnd*/);
+
+    ASSERT_EQ(1, numTracked);
+    {
+        SCOPED_TRACE("");
+        assertHPSAndHCS(1, 0);
+        assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
+    }
+
+    // one replica ack + active does not satisfy majority of 4
+    testSeqnoAckReceived(replica1,
+                         1 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         1 /*expectedLastAckSeqno*/,
+                         1 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         0 /*expectedHCS*/);
+
+    // The same replica might ack again at the end of a disk snapshot
+    // Should still be tracking the write as it should *not* be complete.
+    // (majority still not satisfied, we need a *different* replica to ack
+    // for majority to be reached)
+    testSeqnoAckReceived(replica1,
+                         4 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         4 /*expectedLastAckSeqno*/,
+                         1 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         0 /*expectedHCS*/);
+
+    // reach majority
+    testSeqnoAckReceived(replica2,
+                         1 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         1 /*expectedLastAckSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         1 /*expectedHCS*/);
+}
+
+TEST_P(ActiveDurabilityMonitorTest,
        SeqnoAckReceived_PersistToSecondChainNewActive) {
     auto& adm = getActiveDM();
     adm.setReplicationTopology(
