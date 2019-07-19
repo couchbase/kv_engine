@@ -134,7 +134,6 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
             std::string fname = nodes[node_idx]->directory + "/" + name;
             cb::io::sanitizePath(fname);
             json["dbname"] = fname;
-            cb::io::mkdirp(json["dbname"].get<std::string>());
             fname = json["dbname"].get<std::string>() + "/access.log";
             cb::io::sanitizePath(fname);
             json["alog_path"] = fname;
