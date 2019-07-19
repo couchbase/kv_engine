@@ -154,7 +154,7 @@ public:
 private:
     /**
      * Performs sanity checks and initialise the replication chains
-     * @param firstChain Reference to first chain
+     * @param firstChain Pointer (may be null) to the first chain
      * @param secondChain Pointer (may be null) to second chain
      */
     void initialiseChains(const ReplicationChain* firstChain,
