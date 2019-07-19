@@ -47,8 +47,11 @@ struct ActiveDurabilityMonitor::State {
     State(const ActiveDurabilityMonitor& adm) : adm(adm) {
         const auto prefix =
                 "ActiveDM(" + adm.vb.getId().to_string() + ")::State::";
+        lastTrackedSeqno.setLabel(prefix + "lastTrackedSeqno");
         lastCommittedSeqno.setLabel(prefix + "lastCommittedSeqno");
         lastAbortedSeqno.setLabel(prefix + "lastAbortedSeqno");
+        highPreparedSeqno.setLabel(prefix + "highPreparedSeqno");
+        highCompletedSeqno.setLabel(prefix + "highCompletedSeqno");
     }
 
     /**
