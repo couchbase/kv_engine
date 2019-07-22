@@ -5,7 +5,7 @@ The Set VBucket message is used during the VBucket takeover process to hand off 
 The request:
 * Must have extras
 * Must not have key
-* Must not have value
+* May have a value (set-vbucket-state-value.md)
 
 Extra looks like:
 
