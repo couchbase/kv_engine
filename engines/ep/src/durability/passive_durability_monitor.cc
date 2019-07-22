@@ -143,7 +143,9 @@ void PassiveDurabilityMonitor::addSyncWrite(
     auto itr = std::find_if(s->trackedWrites.begin(),
                             s->trackedWrites.end(),
                             [item](const SyncWrite& write) {
-                                return write.getKey() == item->getKey();
+                                // Skip any completed SyncWrites
+                                return !write.isCompleted() &&
+                                       write.getKey() == item->getKey();
                             });
     if (itr != s->trackedWrites.end()) {
         std::stringstream ss;
@@ -307,6 +309,14 @@ void PassiveDurabilityMonitor::completeSyncWrite(
         // would move us *backwards* and the monotonic would throw
         s->highCompletedSeqno.lastWriteSeqno = next->getBySeqno();
         s->highCompletedSeqno.it = next;
+    }
+
+    // Mark this prepare as completed so that we can allow non-completed
+    // duplicates in trackedWrites in case it is not removed because it requires
+    // persistence. This is valid as a disk snapshot may contain both a prepare
+    // and a commit for the same key.
+    if (!enforceOrderedCompletion) {
+        next->setCompleted();
     }
 
     // HCS has moved, which could make some Prepare eligible for removal.

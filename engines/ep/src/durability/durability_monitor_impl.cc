@@ -254,6 +254,7 @@ std::ostream& operator<<(std::ostream& os,
        << "' seqno:" << sw.item->getBySeqno()
        << " reqs:" << to_string(sw.item->getDurabilityReqs()) << "] maj:"
        << std::to_string(sw.firstChain ? sw.firstChain.chainPtr->majority : 0)
+       << " completed:" << sw.isCompleted()
        << " #1stChainAcks:" << std::to_string(sw.firstChain.ackCount)
        << " 1stChainAcks:[";
     std::string acks;

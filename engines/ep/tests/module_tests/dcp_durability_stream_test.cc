@@ -2332,6 +2332,88 @@ TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
     EXPECT_EQ(3, vb->getHighSeqno());
 }
 
+/**
+ * We have to treat all prepares in a disk snapshot as requiring persistence
+ * due to them possibly de-duplicating a PersistToMajority SyncWrite. As this is
+ * the case, we can keep completed SyncWrite objects in the PDM trackedWrites
+ * even after one has been completed (a disk snapshot contains a prepare and a
+ * commit for the same key). These prepares are logically completed and should
+ * not trigger any sanity check exceptions due to having multiple prepares for
+ * the same key in trackedWrites.
+ */
+TEST_P(DurabilityPassiveStreamTest, CompletedPreInIgnoredBySanityChecks) {
+    uint32_t opaque = 0;
+
+    // 1) Receive disk snapshot marker
+    SnapshotMarker marker(opaque,
+                          vbid,
+                          1 /*snapStart*/,
+                          3 /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_DISK,
+                          {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // 2) Receive prepare
+    auto key = makeStoredDocKey("key");
+    using namespace cb::durability;
+    auto pending = makePendingItem(
+            key, "value", Requirements(Level::Majority, Timeout::Infinity()));
+    pending->setBySeqno(1);
+    pending->setCas(1);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      pending,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    // 3) Receive overwriting set instead of commit
+    const std::string value = "commit";
+    auto item = makeCommittedItem(key, value);
+    item->setBySeqno(2);
+    item->setCas(1);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      std::move(item),
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    // 4) Receive memory snapshot marker
+    marker = SnapshotMarker(
+            opaque,
+            vbid,
+            3 /*snapStart*/,
+            3 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // 5) Receive prepare
+    pending = makePendingItem(
+            key, "value", Requirements(Level::Majority, Timeout::Infinity()));
+    pending->setBySeqno(3);
+    pending->setCas(2);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      pending,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+}
+
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         DurabilityActiveStreamTest,
                         STParameterizedBucketTest::allConfigValues(),

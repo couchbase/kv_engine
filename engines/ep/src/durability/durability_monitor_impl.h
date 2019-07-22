@@ -151,6 +151,17 @@ public:
         return item;
     }
 
+    void setCompleted() {
+        completed = true;
+    }
+
+    /**
+     * @return true if this SyncWrite has been logically completed
+     */
+    bool isCompleted() const {
+        return completed;
+    }
+
 private:
     /**
      * Performs sanity checks and initialise the replication chains
@@ -214,6 +225,15 @@ private:
     /// The time point the SyncWrite was added to the DurabilityMonitor.
     /// Used for statistics (track how long SyncWrites take to complete).
     const std::chrono::steady_clock::time_point startTime;
+
+    /**
+     * A replica receiving a disk snapshot or a snapshot with a persist level
+     * prepare may not remove the SyncWrite object from trackedWrites until
+     * it has been persisted. This field exists to distinguish prepares that
+     * have been completed but still exist in trackedWrites from those that have
+     * not yet been completed.
+     */
+    bool completed = false;
 
     friend std::ostream& operator<<(std::ostream&, const SyncWrite&);
 };
