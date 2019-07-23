@@ -5830,6 +5830,10 @@ cb::mcbp::Status EventuallyPersistentEngine::startFlusher(const char** msg,
 ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteVBucket(
         Vbid vbucket, bool waitForCompletion, const void* cookie) {
     ENGINE_ERROR_CODE status = ENGINE_SUCCESS;
+    if (getKVBucket()->maybeWaitForVBucketWarmup(cookie)) {
+        return ENGINE_EWOULDBLOCK;
+    }
+
     void* es = getEngineSpecific(cookie);
     if (waitForCompletion) {
         if (es == nullptr) {

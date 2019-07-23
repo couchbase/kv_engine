@@ -232,6 +232,7 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
     const void* statsCookie1 = create_mock_cookie();
     const void* statsCookie2 = create_mock_cookie();
     const void* statsCookie3 = create_mock_cookie();
+    const void* delVbCookie = create_mock_cookie();
 
     std::unordered_map<const void*, int> notifications;
     notifications[setVBStateCookie] =
@@ -248,6 +249,7 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
             get_number_of_mock_cookie_io_notifications(statsCookie2);
     notifications[statsCookie3] =
             get_number_of_mock_cookie_io_notifications(statsCookie3);
+    notifications[delVbCookie] = get_number_of_mock_cookie_io_notifications(delVbCookie);
 
     auto dummyAddStats = [](const char*,
                             const uint16_t,
@@ -285,6 +287,9 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
                   engine->get_stats(
                           statsCookie3, "vbucket-seqno", dummyAddStats));
 
+        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+                  engine->deleteVBucket(vbid, true, delVbCookie));
+
         executor.runCurrentTask();
     }
 
@@ -317,6 +322,8 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
 
     EXPECT_EQ(ENGINE_SUCCESS,
               engine->get_stats(statsCookie3, "vbucket-seqno", dummyAddStats));
+
+    EXPECT_EQ(ENGINE_SUCCESS, engine->deleteVBucket(vbid, false, delVbCookie));
 
     // finish warmup so the test can exit
     while (engine->getKVBucket()->isWarmingUp()) {
