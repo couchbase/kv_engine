@@ -2369,16 +2369,16 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
 
     // Check if this is a in-progress durable store which has now completed -
     // (see 'case EWOULDBLOCK' at the end of this function where we record
-    // the fact we must block the client until the SycnWrite is durable).
-    if (item.isPending() && getEngineSpecific(cookie) != nullptr) {
-        // Non-null means this is the second call to this function after
-        // the SyncWrite has completed.
-        // Clear the engineSpecific, and return SUCCESS.
-        storeEngineSpecific(cookie, nullptr);
-        // @todo-durability - return correct CAS
-        // @todo-durability - add support for non-sucesss (e.g. Aborted) when
-        // we support non-successful completions of SyncWrites.
-        return {cb::engine_errc::success, 0xdeadbeef};
+    // the fact we must block the client until the SyncWrite is durable).
+    if (item.isPending()) {
+        auto* cas = getEngineSpecific(cookie);
+        if (cas != nullptr) {
+            // Non-null means this is the second call to this function after
+            // the SyncWrite has completed.
+            // Clear the engineSpecific, and return SUCCESS.
+            storeEngineSpecific(cookie, nullptr);
+            return {cb::engine_errc::success, reinterpret_cast<uint64_t>(cas)};
+        }
     }
 
     ENGINE_ERROR_CODE status;
@@ -2437,9 +2437,9 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
             // Record the fact that we are blocking to wait for SyncWrite
             // completion; so the next call to this function should return
             // the result of the SyncWrite (see call to getEngineSpecific at
-            // the head of this function.
-            // (just store non-null value to indicate this).
-            storeEngineSpecific(cookie, reinterpret_cast<void*>(0x1));
+            // the head of this function. Store the cas of the item so that we
+            // can return it to the client later.
+            storeEngineSpecific(cookie, reinterpret_cast<void*>(item.getCas()));
         }
         break;
     default:

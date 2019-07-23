@@ -79,6 +79,7 @@ protected:
         conn.recvResponse(resp);
 
         EXPECT_EQ(expectedStatus, resp.getStatus());
+        EXPECT_NE(0xdeadbeef, ntohll(resp.getCas()));
     }
 
     void executeMutationCommand(ClientOpcode opcode) {
