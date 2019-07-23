@@ -1506,7 +1506,9 @@ TEST_P(DurabilityBucketTest, DeleteDurabilityInvalidLevel) {
 /// SyncWrite in progress against a key, instead of returning EEXISTS as add()
 /// would normally if it found an existing item. (Until the first SyncWrite
 /// completes there's no user-visible value for the key.
-TEST_P(DurabilityEPBucketTest, AddIfAlreadyExistsSyncWriteInProgress) {
+TEST_P(DurabilityBucketTest, AddIfAlreadyExistsSyncWriteInProgress) {
+    setVBucketToActiveWithValidTopology();
+
     // Setup: Add the first prepared SyncWrite.
     auto key = makeStoredDocKey("key");
     auto pending = makePendingItem(key, "value");
@@ -1570,10 +1572,7 @@ TEST_P(DurabilityBucketTest, DeleteIfSyncWriteInProgressSyncWriteInProgress) {
 }
 
 TEST_P(DurabilityBucketTest, TakeoverSendsDurabilityAmbiguous) {
-    setVBucketStateAndRunPersistTask(
-            vbid,
-            vbucket_state_active,
-            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    setVBucketToActiveWithValidTopology();
 
     // Make pending
     auto key = makeStoredDocKey("key");
@@ -1662,10 +1661,7 @@ TEST_F(DurabilityRespondAmbiguousTest, RespondAmbiguousNotificationDeadLock) {
 // to report the SyncWrite was timed out with status eambiguous, the outstanding
 // cookie context was not correctly cleared.
 TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
-    setVBucketStateAndRunPersistTask(
-            vbid,
-            vbucket_state_active,
-            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    setVBucketToActiveWithValidTopology();
 
     // Setup: make pending item and store it; then abort it (at VBucket) level.
     auto key = makeStoredDocKey("key");
@@ -1750,10 +1746,7 @@ TEST_P(DurabilityEPBucketTest, DoNotExpirePendingItem) {
      * compaction does not misinterpret the state of the prepare and try to
      * expire it.
      */
-    setVBucketStateAndRunPersistTask(
-            vbid,
-            vbucket_state_active,
-            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    setVBucketToActiveWithValidTopology();
     using namespace cb::durability;
 
     auto key1 = makeStoredDocKey("key1");
@@ -1853,10 +1846,7 @@ TEST_P(DurabilityEphemeralBucketTest, PurgeCompletedAbort) {
 // prepares from the ADM to the new PDM in such a switch over. This test
 // demonstrates the issue and exercises the fix.
 TEST_P(DurabilityBucketTest, ActiveToReplicaAndCommit) {
-    setVBucketStateAndRunPersistTask(
-            vbid,
-            vbucket_state_active,
-            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    setVBucketToActiveWithValidTopology();
 
     // seqno:1 A prepare, that does not commit yet.
     auto key = makeStoredDocKey("crikey");
