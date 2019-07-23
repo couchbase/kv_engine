@@ -570,7 +570,9 @@ public:
 
     cb::mcbp::Status startFlusher(const char** msg, size_t* msg_size);
 
-    ENGINE_ERROR_CODE deleteVBucket(Vbid vbid, const void* c = NULL);
+    ENGINE_ERROR_CODE deleteVBucket(Vbid vbid,
+                                    bool waitForCompletion,
+                                    const void* cookie = nullptr);
 
     ENGINE_ERROR_CODE compactDB(Vbid vbid,
                                 const CompactionConfig& c,

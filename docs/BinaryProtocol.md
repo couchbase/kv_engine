@@ -2029,19 +2029,40 @@ State may be one of:
 
 ### 0x3f Del VBucket
 
-The `del vbucket` command is used to delete a vbucket
+The `del vbucket` command is used to delete a vbucket.
 
-Reuest:
+The command works synchronously or asynchronously.
+
+When a synchronous delete is requested, the command only returns once the
+vbucket is considered completely deleted by the bucket, e.g. all memory and disk
+artefacts removed.
+
+An asynchronous delete returns quickly and subsequent operations will fail with
+not-my-vbucket, but the vbucket artefacts may still remain in memory and
+on-disk.
+
+Request:
 
 * MUST NOT have extras
 * MUST NOT have key
-* MUST NOT have value
+* MAY have a value
 
 Response:
 
 * MUST NOT have extras
 * MUST NOT have key
 * MUST NOT have value
+
+To request a synchronous vbucket delete the request value must be set to the
+following 7-byte ascii string (the request length set to 7).
+
+      Byte/     0       |
+         /              |
+        |0 1 2 3 4 5 6 7|
+        +---------------+
+       0|a s y n c = 0  |
+        +---------------+
+        Total 7 bytes
 
 ### 0x87 List Buckets
 

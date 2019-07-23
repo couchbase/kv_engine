@@ -881,64 +881,21 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
     auto value = req.getValue();
     bool sync = value.size() == 7 && memcmp(value.data(), "async=0", 7) == 0;
 
-    ENGINE_ERROR_CODE err;
-    void* es = e->getEngineSpecific(cookie);
-    if (sync) {
-        if (es == nullptr) {
-            err = e->deleteVBucket(vbucket, cookie);
-            e->storeEngineSpecific(cookie, e);
-        } else {
-            e->storeEngineSpecific(cookie, nullptr);
-            EP_LOG_DEBUG("Completed sync deletion of {}", vbucket);
-            err = ENGINE_SUCCESS;
-        }
-    } else {
-        err = e->deleteVBucket(vbucket);
-    }
-
-    switch (err) {
-    case ENGINE_SUCCESS:
-        EP_LOG_INFO("Deletion of {} was completed.", vbucket);
+    auto error = e->deleteVBucket(vbucket, sync, cookie);
+    if (error == ENGINE_SUCCESS) {
         return sendResponse(response,
-                            NULL,
+                            nullptr,
                             0,
-                            NULL,
+                            nullptr,
                             0,
-                            NULL,
+                            nullptr,
                             0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             cb::mcbp::Status::Success,
                             req.getCas(),
                             cookie);
-    case ENGINE_NOT_MY_VBUCKET:
-        EP_LOG_WARN(
-                "Deletion of {} failed because the vbucket doesn't exist!!!",
-                vbucket);
-        return ENGINE_NOT_MY_VBUCKET;
-    case ENGINE_EINVAL:
-        EP_LOG_WARN(
-                "Deletion of {} failed "
-                "because the vbucket is not in a dead state",
-                vbucket);
-        e->setErrorContext(
-                cookie,
-                "Failed to delete vbucket.  Must be in the dead state.");
-        return ENGINE_EINVAL;
-    case ENGINE_EWOULDBLOCK:
-        EP_LOG_INFO(
-                "Request for {} deletion is in"
-                " EWOULDBLOCK until the database file is removed from disk",
-                vbucket);
-        // We don't use the actual value in ewouldblock, just the existence
-        // of something there.
-        e->storeEngineSpecific(cookie, static_cast<void*>(e));
-        return ENGINE_EWOULDBLOCK;
-    default:
-        EP_LOG_WARN("Deletion of {} failed because of unknown reasons",
-                    vbucket);
-        e->setErrorContext(cookie, "Failed to delete vbucket.  Unknown reason.");
-        return ENGINE_FAILED;
     }
+    return error;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
@@ -5857,9 +5814,58 @@ cb::mcbp::Status EventuallyPersistentEngine::startFlusher(const char** msg,
     return rv;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteVBucket(Vbid vbid,
-                                                            const void* c) {
-    return kvBucket->deleteVBucket(vbid, c);
+ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteVBucket(
+        Vbid vbucket, bool waitForCompletion, const void* cookie) {
+    ENGINE_ERROR_CODE status = ENGINE_SUCCESS;
+    void* es = getEngineSpecific(cookie);
+    if (waitForCompletion) {
+        if (es == nullptr) {
+            status = kvBucket->deleteVBucket(vbucket, cookie);
+        } else {
+            storeEngineSpecific(cookie, nullptr);
+            EP_LOG_DEBUG("Completed sync deletion of {}", vbucket);
+            status = ENGINE_SUCCESS;
+        }
+    } else {
+        status = kvBucket->deleteVBucket(vbucket);
+    }
+
+    switch (status) {
+    case ENGINE_SUCCESS:
+        EP_LOG_INFO("Deletion of {} was completed.", vbucket);
+        break;
+
+    case ENGINE_NOT_MY_VBUCKET:
+        EP_LOG_WARN(
+                "Deletion of {} failed because the vbucket doesn't exist!!!",
+                vbucket);
+        break;
+    case ENGINE_EINVAL:
+        EP_LOG_WARN(
+                "Deletion of {} failed "
+                "because the vbucket is not in a dead state",
+                vbucket);
+        setErrorContext(
+                cookie,
+                "Failed to delete vbucket.  Must be in the dead state.");
+        break;
+    case ENGINE_EWOULDBLOCK:
+        EP_LOG_INFO(
+                "Request for {} deletion is in"
+                " EWOULDBLOCK until the database file is removed from disk",
+                vbucket);
+        // We don't use the actual value in ewouldblock, just the existence
+        // of something there.
+        storeEngineSpecific(cookie, static_cast<void*>(this));
+        break;
+    default:
+        EP_LOG_WARN("Deletion of {} failed because of unknown reasons",
+                    vbucket);
+        setErrorContext(cookie, "Failed to delete vbucket.  Unknown reason.");
+        status = ENGINE_FAILED;
+        break;
+    }
+    return status;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::compactDB(
