@@ -254,14 +254,15 @@ public:
     }
 
     /**
-     * Method checks with if a setVBState should block. setVBState should be
-     * blocked until warmup has processed any existing vb state and completed
-     * initialisation of the vbMap from disk data.
+     * This method store the given cookie for later notification iff Warmup has
+     * yet to reach and complete the PopulateVBucketMap phase.
      *
-     * @param cookie the callers cookie for later notification.
-     * @return true if setVBState should return EWOULDBLOCK
+     * @param cookie the callers cookie which might be stored for later
+     *        notification (see return value)
+     * @return true if the cookie was stored for later notification, false if
+     *         not.
      */
-    bool shouldSetVBStateBlock(const void* cookie);
+    bool maybeWaitForVBucketWarmup(const void* cookie);
 
     /**
      * Perform any notifications to any pending setVBState operations and mark
@@ -439,11 +440,11 @@ private:
             std::numeric_limits<size_t>::max()};
 
     /// All of the cookies which need notifying when create-vbuckets is done
-    std::deque<const void*> pendingSetVBStateCookies;
+    std::deque<const void*> pendingCookies;
     /// flag to mark once warmup is passed createVbuckets
     bool createVBucketsComplete{false};
     /// A mutex which gives safe access to the cookies and state flag
-    std::mutex pendingSetVBStateCookiesMutex;
+    std::mutex pendingCookiesMutex;
 
     /**
      * Any vbucket found in the CreateVBuckets phase are added here and then

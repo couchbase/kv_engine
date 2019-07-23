@@ -1100,15 +1100,15 @@ void Warmup::createVBuckets(uint16_t shardId) {
 }
 
 void Warmup::processCreateVBucketsComplete() {
-    std::unique_lock<std::mutex> lock(pendingSetVBStateCookiesMutex);
+    std::unique_lock<std::mutex> lock(pendingCookiesMutex);
     createVBucketsComplete = true;
-    if (!pendingSetVBStateCookies.empty()) {
+    if (!pendingCookies.empty()) {
         EP_LOG_INFO(
                 "Warmup::processCreateVBucketsComplete unblocking {} cookie(s)",
-                pendingSetVBStateCookies.size());
-        while (!pendingSetVBStateCookies.empty()) {
-            const void* c = pendingSetVBStateCookies.front();
-            pendingSetVBStateCookies.pop_front();
+                pendingCookies.size());
+        while (!pendingCookies.empty()) {
+            const void* c = pendingCookies.front();
+            pendingCookies.pop_front();
             // drop lock to avoid lock inversion
             lock.unlock();
             store.getEPEngine().notifyIOComplete(c, ENGINE_SUCCESS);
@@ -1117,10 +1117,10 @@ void Warmup::processCreateVBucketsComplete() {
     }
 }
 
-bool Warmup::shouldSetVBStateBlock(const void* cookie) {
-    std::lock_guard<std::mutex> lg(pendingSetVBStateCookiesMutex);
+bool Warmup::maybeWaitForVBucketWarmup(const void* cookie) {
+    std::lock_guard<std::mutex> lg(pendingCookiesMutex);
     if (!createVBucketsComplete) {
-        pendingSetVBStateCookies.push_back(cookie);
+        pendingCookies.push_back(cookie);
         return true;
     }
     return false;

@@ -227,7 +227,7 @@ TEST_F(WarmupTest, MB_25197) {
     auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
     EXPECT_EQ(nullptr, store->getVBuckets().getBucket(vbid));
     auto notifications = get_number_of_mock_cookie_io_notifications(cookie);
-    while (engine->getKVBucket()->shouldSetVBStateBlock(cookie)) {
+    while (engine->getKVBucket()->maybeWaitForVBucketWarmup(cookie)) {
         CheckedExecutor executor(task_executor, readerQueue);
         // Do a setVBState but don't flush it through. This call should be
         // failed ewouldblock whilst warmup has yet to attempt to create VBs.

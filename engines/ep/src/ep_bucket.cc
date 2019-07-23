@@ -1340,9 +1340,9 @@ bool EPBucket::isWarmupOOMFailure() {
     return warmupTask && warmupTask->hasOOMFailure();
 }
 
-bool EPBucket::shouldSetVBStateBlock(const void* cookie) {
+bool EPBucket::maybeWaitForVBucketWarmup(const void* cookie) {
     if (warmupTask) {
-        return warmupTask->shouldSetVBStateBlock(cookie);
+        return warmupTask->maybeWaitForVBucketWarmup(cookie);
     }
     return false;
 }

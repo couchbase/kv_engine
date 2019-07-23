@@ -750,7 +750,7 @@ public:
     /// Check if there were any out-of-memory errors during warmup
     virtual bool isWarmupOOMFailure(void) = 0;
 
-    virtual bool shouldSetVBStateBlock(const void* cookie) = 0;
+    virtual bool maybeWaitForVBucketWarmup(const void* cookie) = 0;
 
     virtual size_t getActiveResidentRatio() const = 0;
 

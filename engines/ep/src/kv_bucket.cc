@@ -839,7 +839,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,
                                             const void* cookie) {
     // MB-25197: we shouldn't process setVBState if warmup hasn't yet loaded
     // the vbucket state data.
-    if (cookie && shouldSetVBStateBlock(cookie)) {
+    if (cookie && maybeWaitForVBucketWarmup(cookie)) {
         EP_LOG_INFO(
                 "KVBucket::setVBucketState blocking {}, to:{}, transfer:{}, "
                 "cookie:{}",
@@ -2071,7 +2071,7 @@ bool KVBucket::isWarmupOOMFailure() {
     return false;
 }
 
-bool KVBucket::shouldSetVBStateBlock(const void* cookie) {
+bool KVBucket::maybeWaitForVBucketWarmup(const void* cookie) {
     return false;
 }
 

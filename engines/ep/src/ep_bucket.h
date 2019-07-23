@@ -158,14 +158,15 @@ public:
     bool isWarmupOOMFailure() override;
 
     /**
-     * Method checks with Warmup if a setVBState should block.
-     * On returning true, Warmup will have saved the cookie ready for
-     * IO notify complete.
-     * If there's no Warmup returns false
-     * @param cookie the callers cookie for later notification.
-     * @return true if setVBState should return EWOULDBLOCK
+     * This method store the given cookie for later notification iff Warmup has
+     * yet to reach and complete the PopulateVBucketMap phase.
+     *
+     * @param cookie the callers cookie which might be stored for later
+     *        notification (see return value)
+     * @return true if the cookie was stored for later notification, false if
+     *         not.
      */
-    bool shouldSetVBStateBlock(const void* cookie) override;
+    bool maybeWaitForVBucketWarmup(const void* cookie) override;
 
     /**
      * Creates a warmup task if the engine configuration has "warmup=true"
