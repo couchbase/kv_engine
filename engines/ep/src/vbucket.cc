@@ -2095,6 +2095,11 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         auto* v = htRes.selectSVToModify(durability.is_initialized());
         auto& hbl = htRes.getHBL();
 
+        if (v && v->isPending()) {
+            // Existing item is an in-flight SyncWrite
+            return ENGINE_SYNC_WRITE_IN_PROGRESS;
+        }
+
         if (!v || v->isDeleted() || v->isTempItem() ||
             cHandle.isLogicallyDeleted(v->getBySeqno())) {
             if (eviction == EvictionPolicy::Value) {

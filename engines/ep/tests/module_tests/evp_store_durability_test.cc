@@ -175,6 +175,13 @@ protected:
  */
 class DurabilityBucketTest : public STParameterizedBucketTest {
 protected:
+    void setVBucketToActiveWithValidTopology(
+            nlohmann::json topology = nlohmann::json::array({{"active",
+                                                              "replica"}})) {
+        setVBucketStateAndRunPersistTask(
+                vbid, vbucket_state_active, {{"topology", topology}});
+    }
+
     template <typename F>
     void testDurabilityInvalidLevel(F& func);
 
@@ -1507,6 +1514,55 @@ TEST_P(DurabilityEPBucketTest, AddIfAlreadyExistsSyncWriteInProgress) {
     auto pending2 = makePendingItem(key, "value2");
     EXPECT_EQ(ENGINE_SYNC_WRITE_IN_PROGRESS,
               store->add(*pending2, &secondClient));
+}
+
+/// MB-35042: Test that SyncDelete returns SYNC_WRITE_IN_PROGRESS if there's
+/// already a SyncDelete in progress against a key, instead of returning
+/// KEY_ENOENT as delete() would normally if it didn't find an existing item.
+TEST_P(DurabilityBucketTest, DeleteIfDeleteInProgressSyncWriteInProgress) {
+    setVBucketToActiveWithValidTopology();
+
+    // Setup: Create a document, then start a SyncDelete.
+    auto key = makeStoredDocKey("key");
+    auto committed = makeCommittedItem(key, "value");
+    ASSERT_EQ(ENGINE_SUCCESS, store->set(*committed, cookie));
+    uint64_t cas = 0;
+    mutation_descr_t mutInfo;
+    cb::durability::Requirements reqs{cb::durability::Level::Majority, {}};
+    ASSERT_EQ(
+            ENGINE_EWOULDBLOCK,
+            store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, mutInfo));
+
+    // Test: Attempt to perform a second SyncDelete (different cookie i.e.
+    // client).
+    MockCookie secondClient;
+    cas = 0;
+    EXPECT_EQ(ENGINE_SYNC_WRITE_IN_PROGRESS,
+              store->deleteItem(
+                      key, cas, vbid, &secondClient, reqs, nullptr, mutInfo));
+}
+
+/// MB-35042: Test that SyncDelete returns SYNC_WRITE_IN_PROGRESS if there's
+/// already a SyncWrite in progress against a key, instead of returning
+/// KEY_ENOENT as delete() would normally if it found a deleted item in the
+/// HashTable.
+TEST_P(DurabilityBucketTest, DeleteIfSyncWriteInProgressSyncWriteInProgress) {
+    setVBucketToActiveWithValidTopology();
+
+    // Setup: start a SyncWrite.
+    auto key = makeStoredDocKey("key");
+    auto committed = makePendingItem(key, "value");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*committed, cookie));
+
+    // Test: Attempt to perform a second SyncDelete (different cookie i.e.
+    // client).
+    MockCookie secondClient;
+    uint64_t cas = 0;
+    mutation_descr_t mutInfo;
+    cb::durability::Requirements reqs{cb::durability::Level::Majority, {}};
+    EXPECT_EQ(ENGINE_SYNC_WRITE_IN_PROGRESS,
+              store->deleteItem(
+                      key, cas, vbid, &secondClient, reqs, nullptr, mutInfo));
 }
 
 TEST_P(DurabilityBucketTest, TakeoverSendsDurabilityAmbiguous) {
