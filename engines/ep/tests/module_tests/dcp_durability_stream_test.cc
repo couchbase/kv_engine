@@ -2341,14 +2341,14 @@ TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
  * not trigger any sanity check exceptions due to having multiple prepares for
  * the same key in trackedWrites.
  */
-TEST_P(DurabilityPassiveStreamTest, CompletedPreInIgnoredBySanityChecks) {
+TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
     uint32_t opaque = 0;
 
     // 1) Receive disk snapshot marker
     SnapshotMarker marker(opaque,
                           vbid,
                           1 /*snapStart*/,
-                          3 /*snapEnd*/,
+                          2 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK,
                           {} /*streamId*/);
     stream->processMarker(&marker);
@@ -2386,6 +2386,73 @@ TEST_P(DurabilityPassiveStreamTest, CompletedPreInIgnoredBySanityChecks) {
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
+
+    // 4) Receive memory snapshot marker
+    marker = SnapshotMarker(
+            opaque,
+            vbid,
+            3 /*snapStart*/,
+            3 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // 5) Receive prepare
+    pending = makePendingItem(
+            key, "value", Requirements(Level::Majority, Timeout::Infinity()));
+    pending->setBySeqno(3);
+    pending->setCas(2);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      pending,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+}
+
+TEST_P(DurabilityPassiveStreamTest,
+       CompletedPersistPreIsIgnoredBySanityChecks) {
+    uint32_t opaque = 0;
+
+    // 1) Receive disk snapshot marker
+    SnapshotMarker marker(
+            opaque,
+            vbid,
+            1 /*snapStart*/,
+            2 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // 2) Receive prepare
+    auto key = makeStoredDocKey("key");
+    using namespace cb::durability;
+    auto pending = makePendingItem(
+            key,
+            "value",
+            Requirements(Level::PersistToMajority, Timeout::Infinity()));
+    pending->setBySeqno(1);
+    pending->setCas(1);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      pending,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    // 3) Receive commit
+    ASSERT_EQ(
+            ENGINE_SUCCESS,
+            stream->messageReceived(std::make_unique<CommitSyncWrite>(
+                    opaque, vbid, 1 /*prepareSeqno*/, 2 /*commitSeqno*/, key)));
 
     // 4) Receive memory snapshot marker
     marker = SnapshotMarker(

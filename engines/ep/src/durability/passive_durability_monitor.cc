@@ -313,11 +313,9 @@ void PassiveDurabilityMonitor::completeSyncWrite(
 
     // Mark this prepare as completed so that we can allow non-completed
     // duplicates in trackedWrites in case it is not removed because it requires
-    // persistence. This is valid as a disk snapshot may contain both a prepare
-    // and a commit for the same key.
-    if (!enforceOrderedCompletion) {
-        next->setCompleted();
-    }
+    // persistence.
+    Expects(!next->isCompleted());
+    next->setCompleted();
 
     // HCS has moved, which could make some Prepare eligible for removal.
     s->checkForAndRemovePrepares();
