@@ -229,6 +229,9 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
     EXPECT_EQ(nullptr, store->getVBuckets().getBucket(vbid));
     const void* setVBStateCookie = create_mock_cookie();
     const void* getFailoverCookie = create_mock_cookie();
+    const void* statsCookie1 = create_mock_cookie();
+    const void* statsCookie2 = create_mock_cookie();
+    const void* statsCookie3 = create_mock_cookie();
 
     std::unordered_map<const void*, int> notifications;
     notifications[setVBStateCookie] =
@@ -237,6 +240,22 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
             get_number_of_mock_cookie_io_notifications(setVBStateCookie);
     notifications[getFailoverCookie] =
             get_number_of_mock_cookie_io_notifications(getFailoverCookie);
+    notifications[getFailoverCookie] =
+            get_number_of_mock_cookie_io_notifications(getFailoverCookie);
+    notifications[statsCookie1] =
+            get_number_of_mock_cookie_io_notifications(statsCookie1);
+    notifications[statsCookie2] =
+            get_number_of_mock_cookie_io_notifications(statsCookie2);
+    notifications[statsCookie3] =
+            get_number_of_mock_cookie_io_notifications(statsCookie3);
+
+    auto dummyAddStats = [](const char*,
+                            const uint16_t,
+                            const char*,
+                            const uint32_t,
+                            gsl::not_null<const void*>) {
+
+    };
 
     while (engine->getKVBucket()->maybeWaitForVBucketWarmup(cookie)) {
         CheckedExecutor executor(task_executor, readerQueue);
@@ -254,6 +273,17 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
                                            1 /*opaque*/,
                                            vbid,
                                            fakeDcpAddFailoverLog));
+
+        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+                  engine->get_stats(statsCookie1, "vbucket", dummyAddStats));
+
+        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+                  engine->get_stats(
+                          statsCookie2, "vbucket-details", dummyAddStats));
+
+        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+                  engine->get_stats(
+                          statsCookie3, "vbucket-seqno", dummyAddStats));
 
         executor.runCurrentTask();
     }
@@ -277,6 +307,16 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
                                        1 /*opaque*/,
                                        vbid,
                                        fakeDcpAddFailoverLog));
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->get_stats(statsCookie1, "vbucket", dummyAddStats));
+
+    EXPECT_EQ(
+            ENGINE_SUCCESS,
+            engine->get_stats(statsCookie2, "vbucket-details", dummyAddStats));
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->get_stats(statsCookie3, "vbucket-seqno", dummyAddStats));
 
     // finish warmup so the test can exit
     while (engine->getKVBucket()->isWarmingUp()) {

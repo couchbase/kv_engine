@@ -3123,6 +3123,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
         bool isDetailsRequested;
     };
 
+    if (getKVBucket()->maybeWaitForVBucketWarmup(cookie)) {
+        return ENGINE_EWOULDBLOCK;
+    }
+
     if (nkey > 16 && strncmp(stat_key, "vbucket-details", 15) == 0) {
         std::string vbid(&stat_key[16], nkey - 16);
         uint16_t vbucket_id(0);
@@ -4062,6 +4066,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(
         const AddStatFn& add_stat,
         const char* stat_key,
         int nkey) {
+    if (getKVBucket()->maybeWaitForVBucketWarmup(cookie)) {
+        return ENGINE_EWOULDBLOCK;
+    }
+
     if (nkey > 14) {
         std::string value(stat_key + 14, nkey - 14);
 
