@@ -81,16 +81,7 @@ protected:
         EXPECT_EQ(expectedStatus, resp.getStatus());
     }
 
-// Temporary macro - current state of Sync Writes in ep-engine is they are
-// accepted but will EWOULBLOCK forever; causing tests to hang. Once further
-// implementation is completed so this isn't the case this can be removed.
-#define TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES                \
-    if (mcd_env->getTestBucket().supportsSyncWrites()) { \
-        return;                                          \
-    }
-
     void executeMutationCommand(ClientOpcode opcode) {
-        TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
         executeCommand(opcode,
                        request::MutationPayload().getBuffer(),
                        "hello",
@@ -98,7 +89,6 @@ protected:
     }
 
     void executeArithmeticOperation(ClientOpcode opcode) {
-        TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
         executeCommand(opcode,
                        request::ArithmeticPayload().getBuffer(),
                        "",
@@ -106,7 +96,6 @@ protected:
     }
 
     void executeAppendPrependCommand(ClientOpcode opcode) {
-        TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
         executeCommand(opcode, {}, "world", getExpectedStatus());
     }
 
@@ -151,7 +140,6 @@ TEST_P(DurabilityTest, ReplaceMaybeSupported) {
 }
 
 TEST_P(DurabilityTest, DeleteMaybeSupported) {
-    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     executeCommand(ClientOpcode::Delete, {}, {}, getExpectedStatus());
 }
 
@@ -225,7 +213,6 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         ::testing::PrintToStringParamName());
 
 TEST_P(SubdocDurabilityTest, SubdocDictAddMaybeSupported) {
-    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocCommand cmd(
             ClientOpcode::SubdocDictAdd, name, "foo", "5", SUBDOC_FLAG_MKDIR_P);
     std::vector<uint8_t> payload;
@@ -234,7 +221,6 @@ TEST_P(SubdocDurabilityTest, SubdocDictAddMaybeSupported) {
 }
 
 TEST_P(SubdocDurabilityTest, SubdocDictUpsertMaybeSupported) {
-    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocCommand cmd(ClientOpcode::SubdocDictUpsert, name, "foo", "5");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
@@ -242,7 +228,6 @@ TEST_P(SubdocDurabilityTest, SubdocDictUpsertMaybeSupported) {
 }
 
 TEST_P(SubdocDurabilityTest, SubdocDeleteMaybeSupported) {
-    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocCommand cmd(ClientOpcode::SubdocDelete, name, "tag");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
@@ -250,7 +235,6 @@ TEST_P(SubdocDurabilityTest, SubdocDeleteMaybeSupported) {
 }
 
 TEST_P(SubdocDurabilityTest, SubdocReplaceMaybeSupported) {
-    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocCommand cmd(ClientOpcode::SubdocReplace, name, "tag", "5");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
@@ -258,7 +242,6 @@ TEST_P(SubdocDurabilityTest, SubdocReplaceMaybeSupported) {
 }
 
 TEST_P(SubdocDurabilityTest, SubdocArrayPushLastMaybeSupported) {
-    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocCommand cmd(
             ClientOpcode::SubdocArrayPushLast, name, "array", "3");
     std::vector<uint8_t> payload;
@@ -267,7 +250,6 @@ TEST_P(SubdocDurabilityTest, SubdocArrayPushLastMaybeSupported) {
 }
 
 TEST_P(SubdocDurabilityTest, SubdocArrayPushFirstMaybeSupported) {
-    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocCommand cmd(
             ClientOpcode::SubdocArrayPushFirst, name, "array", "3");
     std::vector<uint8_t> payload;
@@ -276,7 +258,6 @@ TEST_P(SubdocDurabilityTest, SubdocArrayPushFirstMaybeSupported) {
 }
 
 TEST_P(SubdocDurabilityTest, SubdocArrayInsertMaybeSupported) {
-    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocCommand cmd(
             ClientOpcode::SubdocArrayInsert, name, "array.[3]", "3");
     std::vector<uint8_t> payload;
@@ -285,7 +266,6 @@ TEST_P(SubdocDurabilityTest, SubdocArrayInsertMaybeSupported) {
 }
 
 TEST_P(SubdocDurabilityTest, SubdocArrayAddUniqueMaybeSupported) {
-    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocCommand cmd(
             ClientOpcode::SubdocArrayAddUnique, name, "array", "6");
     std::vector<uint8_t> payload;
@@ -294,7 +274,6 @@ TEST_P(SubdocDurabilityTest, SubdocArrayAddUniqueMaybeSupported) {
 }
 
 TEST_P(SubdocDurabilityTest, SubdocCounterMaybeSupported) {
-    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocCommand cmd(ClientOpcode::SubdocCounter, name, "counter", "1");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
@@ -302,7 +281,6 @@ TEST_P(SubdocDurabilityTest, SubdocCounterMaybeSupported) {
 }
 
 TEST_P(SubdocDurabilityTest, SubdocMultiMutationMaybeSupported) {
-    TEMP_SKIP_IF_SUPPORTS_SYNC_WRITES;
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,

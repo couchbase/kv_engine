@@ -216,11 +216,15 @@ public:
         cmd.clear();
         resp.clear();
 
-        cmd.setOp(cb::mcbp::ClientOpcode::SetVbucket);
-        cmd.setExtrasValue<uint32_t>(htonl(1));
+        // Set the vBucket state. Set a single replica so that any SyncWrites
+        // can be completed.
+        conn.setDatatypeJson(true);
+        nlohmann::json meta;
+        meta["topology"] = nlohmann::json::array({{"active"}});
+        conn.setVbucket(Vbid(0), vbucket_state_active, meta);
 
-        resp = conn.execute(cmd);
-        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        // Clear the JSON data type (just in case)
+        conn.setDatatypeJson(false);
 
         auto auto_retry_tmpfail = conn.getAutoRetryTmpfail();
         conn.setAutoRetryTmpfail(true);
