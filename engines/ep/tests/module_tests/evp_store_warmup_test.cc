@@ -213,20 +213,31 @@ TEST_F(WarmupTest, MB_27162) {
     EXPECT_EQ(3, itemMeta.revSeqno);
 }
 
-TEST_F(WarmupTest, MB_25197) {
+// MB-25197 and MB-34422
+// Some operations must block until warmup has loaded the vbuckets
+TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
-    // Store an item, then make the VB appear old ready for warmup
     store_item(vbid, makeStoredDocKey("key1"), "value");
     flush_vbucket_to_disk(vbid);
 
     resetEngineAndEnableWarmup();
 
     // Manually run the reader queue so that the warmup tasks execute whilst we
-    // perform setVbucketState calls
+    // perform the interlocked operations
     auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
     EXPECT_EQ(nullptr, store->getVBuckets().getBucket(vbid));
-    auto notifications = get_number_of_mock_cookie_io_notifications(cookie);
+    const void* setVBStateCookie = create_mock_cookie();
+    const void* getFailoverCookie = create_mock_cookie();
+
+    std::unordered_map<const void*, int> notifications;
+    notifications[setVBStateCookie] =
+            get_number_of_mock_cookie_io_notifications(setVBStateCookie);
+    notifications[setVBStateCookie] =
+            get_number_of_mock_cookie_io_notifications(setVBStateCookie);
+    notifications[getFailoverCookie] =
+            get_number_of_mock_cookie_io_notifications(getFailoverCookie);
+
     while (engine->getKVBucket()->maybeWaitForVBucketWarmup(cookie)) {
         CheckedExecutor executor(task_executor, readerQueue);
         // Do a setVBState but don't flush it through. This call should be
@@ -236,20 +247,45 @@ TEST_F(WarmupTest, MB_25197) {
                                          vbucket_state_active,
                                          {},
                                          TransferVB::No,
-                                         cookie));
+                                         setVBStateCookie));
+
+        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+                  engine->get_failover_log(getFailoverCookie,
+                                           1 /*opaque*/,
+                                           vbid,
+                                           fakeDcpAddFailoverLog));
+
         executor.runCurrentTask();
     }
 
-    EXPECT_GT(get_number_of_mock_cookie_io_notifications(cookie),
-              notifications);
+    for (const auto& n : notifications) {
+        EXPECT_GT(get_number_of_mock_cookie_io_notifications(n.first),
+                  n.second);
+    }
+
     EXPECT_NE(nullptr, store->getVBuckets().getBucket(vbid));
+
     EXPECT_EQ(ENGINE_SUCCESS,
-              store->setVBucketState(vbid, vbucket_state_active));
+              store->setVBucketState(vbid,
+                                     vbucket_state_active,
+                                     {},
+                                     TransferVB::No,
+                                     setVBStateCookie));
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->get_failover_log(getFailoverCookie,
+                                       1 /*opaque*/,
+                                       vbid,
+                                       fakeDcpAddFailoverLog));
 
     // finish warmup so the test can exit
     while (engine->getKVBucket()->isWarmingUp()) {
         CheckedExecutor executor(task_executor, readerQueue);
         executor.runCurrentTask();
+    }
+
+    for (const auto& n : notifications) {
+        destroy_mock_cookie(n.first);
     }
 }
 

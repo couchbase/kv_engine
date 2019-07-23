@@ -1276,6 +1276,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_failover_log(
     //     It does not require a DCP connection (the client has opened
     //     a regular MCBP connection).
     auto engine = acquireEngine(this);
+
+    if (getKVBucket()->maybeWaitForVBucketWarmup(cookie)) {
+        return ENGINE_EWOULDBLOCK;
+    }
+
     ConnHandler* conn = engine->getConnHandler(cookie);
     // Note: (conn != nullptr) only if conn is a DCP connection
     if (conn) {
