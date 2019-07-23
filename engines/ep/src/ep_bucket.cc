@@ -414,11 +414,11 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 const auto op = item->getOperation();
                 if (op == queue_op::commit_sync_write ||
                     op == queue_op::abort_sync_write) {
-                    hcs = {item->getPrepareSeqno()};
+                    hcs = std::max(hcs.value_or(-1), item->getPrepareSeqno());
                 }
 
                 if (op == queue_op::pending_sync_write) {
-                    hps = {item->getBySeqno()};
+                    hps = std::max(hps.value_or(-1), item->getBySeqno());
                 }
 
                 if (op == queue_op::set_vbucket_state) {

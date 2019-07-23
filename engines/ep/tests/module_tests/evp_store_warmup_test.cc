@@ -982,6 +982,34 @@ TEST_P(DurabilityWarmupTest, CommittedWithAckAfterWarmup) {
     }
 }
 
+// MB-35192: EPBucket::flushVBucket calls rwUnderlying->optimizeWrites(items);
+// Which may reorder the items before they are written to disk.
+// Test to ensure the persisted HPS and HCS are set to the highest
+// value found in the items that are about to be flushed.
+TEST_P(DurabilityWarmupTest, WarmUpHPSAndHCSWithNonSeqnoSortedItems) {
+    auto key = makeStoredDocKey("okey");
+
+    // These items will be sorted by key by optimizeWrites
+    // ordering them a -> b, the opposite order to their seqnos.
+    auto itemB = makePendingItem(makeStoredDocKey("b"), "value");
+    auto itemA = makePendingItem(makeStoredDocKey("a"), "value");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*itemB, cookie));
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*itemA, cookie));
+    SCOPED_TRACE("A");
+    flush_vbucket_to_disk(vbid, 2);
+    {
+        auto vb = engine->getVBucket(vbid);
+        vb->seqnoAcknowledged("replica", 2);
+        flush_vbucket_to_disk(vbid, 2);
+    }
+    SCOPED_TRACE("B");
+    resetEngineAndWarmup();
+    {
+        auto vb = engine->getVBucket(vbid);
+        vb->seqnoAcknowledged("replica", 2);
+    }
+}
+
 // Manipulate a replicaVB as if it is receiving from an active (calling correct
 // replica methods) and test the VB warms up.
 TEST_P(DurabilityWarmupTest, ReplicaVBucket) {
