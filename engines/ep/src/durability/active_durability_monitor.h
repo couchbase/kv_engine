@@ -270,6 +270,12 @@ public:
 protected:
     void toOStream(std::ostream& os) const override;
 
+    /// Helper method for toOstream - prints the given ReplicationChain to
+    // the stream.
+    void chainToOstream(std::ostream& os,
+                        const ReplicationChain& rc,
+                        Container::const_iterator trackedWritesEnd) const;
+
     /**
      * throw exception with the following error string:
      *   "ActiveDurabilityMonitor::<thrower>:<error> vb:x"

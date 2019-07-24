@@ -1097,9 +1097,43 @@ void ActiveDurabilityMonitor::toOStream(std::ostream& os) const {
        << " highCompletedSeqno:" << s->highCompletedSeqno
        << " lastTrackedSeqno:" << s->lastTrackedSeqno
        << " lastCommittedSeqno:" << s->lastCommittedSeqno
-       << " lastAbortedSeqno:" << s->lastAbortedSeqno << "\n";
+       << " lastAbortedSeqno:" << s->lastAbortedSeqno << " trackedWrites:["
+       << "\n";
     for (const auto& w : s->trackedWrites) {
         os << "    " << w << "\n";
+    }
+    os << "]\n";
+    os << "firstChain: ";
+    if (s->firstChain) {
+        chainToOstream(os, *s->firstChain, s->trackedWrites.end());
+    } else {
+        os << "<null>";
+    }
+    os << "\nsecondChain: ";
+    if (s->secondChain) {
+        chainToOstream(os, *s->secondChain, s->trackedWrites.end());
+    } else {
+        os << "<null>";
+    }
+}
+
+void ActiveDurabilityMonitor::chainToOstream(
+        std::ostream& os,
+        const ReplicationChain& rc,
+        Container::const_iterator trackedWritesEnd) const {
+    os << "Chain[" << &rc << "] name:" << to_string(rc.name)
+       << " majority:" << int(rc.majority) << " active:" << rc.active
+       << " maxAllowedReplicas:" << rc.maxAllowedReplicas << " positions:[\n";
+    for (const auto& pos : rc.positions) {
+        os << "    " << pos.first << ": {lastAck:" << pos.second.lastAckSeqno
+           << " lastWrite:" << pos.second.lastWriteSeqno << " it: @"
+           << &*pos.second.it;
+        if (pos.second.it == trackedWritesEnd) {
+            os << " <end>";
+        } else {
+            os << " seqno:" << pos.second.it->getBySeqno();
+        }
+        os << "\n";
     }
     os << "]";
 }
