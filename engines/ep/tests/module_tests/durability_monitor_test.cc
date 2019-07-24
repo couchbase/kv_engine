@@ -2760,8 +2760,8 @@ TEST_P(ActiveDurabilityMonitorTest,
     }
 
     // Add the secondChain with the new node
-    EXPECT_NO_THROW(getActiveDM().setReplicationTopology(
-            nlohmann::json::array({{active, replica1, replica2}})));
+    getActiveDM().setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2}}));
 
     // Should have committed
     {

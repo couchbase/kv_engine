@@ -68,11 +68,11 @@ struct ActiveDurabilityMonitor::State {
      * SyncWrites by enqueuing them in the CompletedQueue toAbort.
      *
      * @param topology Json topology
-     * @param toAbort Reference to the completedQueue so that we can abort any
-     *                SyncWrites for which durability is no longer possible.
+     * @param toComplete Reference to the completedQueue so that we can abort
+     *        any SyncWrites for which durability is no longer possible.
      */
     void setReplicationTopology(const nlohmann::json& topology,
-                                CompletedQueue& toAbort);
+                                CompletedQueue& toComplete);
 
     void addSyncWrite(const void* cookie, queued_item item);
 
@@ -188,8 +188,11 @@ struct ActiveDurabilityMonitor::State {
      * required at rebalance for the given chain
      *
      * @param chain Chain for which we should manually ack nodes
+     * @param[out] toCommit Container which has all SyncWrites to be committed
+     *             appended to it.
      */
-    void performQueuedAckForChain(const ReplicationChain& chain);
+    void performQueuedAckForChain(const ReplicationChain& chain,
+                                  CompletedQueue& toCommit);
 
     void updateHighCompletedSeqno();
 
@@ -438,6 +441,10 @@ void ActiveDurabilityMonitor::setReplicationTopology(
     {
         auto s = state.wlock();
         s->setReplicationTopology(topology, *completedQueue);
+
+        // Note the HPS will already be in the correct place if the previous
+        // topology had a defined active node; however for simplicity we call
+        // this unconditionally; it should be a no-op if HPS already correct.
         s->updateHighPreparedSeqno(*completedQueue);
     }
 
@@ -1185,7 +1192,7 @@ ActiveDurabilityMonitor::State::makeChain(
 }
 
 void ActiveDurabilityMonitor::State::setReplicationTopology(
-        const nlohmann::json& topology, CompletedQueue& toAbort) {
+        const nlohmann::json& topology, CompletedQueue& toComplete) {
     auto& fChain = topology.at(0);
     ActiveDurabilityMonitor::validateChain(
             fChain, DurabilityMonitor::ReplicationChainName::First);
@@ -1218,6 +1225,25 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
     auto newFirstChain =
             makeChain(DurabilityMonitor::ReplicationChainName::First, fChain);
 
+    // Copy over the trackedWrites position for all nodes which still exist in
+    // the new chain.
+    if (firstChain) {
+        for (const auto& node : firstChain->positions) {
+            auto newNode = newFirstChain->positions.find(node.first);
+            if (newNode != newFirstChain->positions.end()) {
+                newNode->second = node.second;
+            }
+        }
+    }
+    if (secondChain && newSecondChain) {
+        for (const auto& node : secondChain->positions) {
+            auto newNode = newSecondChain->positions.find(node.first);
+            if (newNode != newSecondChain->positions.end()) {
+                newNode->second = node.second;
+            }
+        }
+    }
+
     // Apply the new topology to all in-flight SyncWrites
     for (auto& write : trackedWrites) {
         write.resetTopology(*newFirstChain, newSecondChain.get());
@@ -1241,7 +1267,8 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
                 // Grab the next itr before we overwrite ours to point to a
                 // different list.
                 auto next = std::next(itr);
-                toAbort.enqueue(*this, removeSyncWrite(trackedWrites.begin()));
+                toComplete.enqueue(*this,
+                                   removeSyncWrite(trackedWrites.begin()));
                 itr = next;
             } else {
                 itr++;
@@ -1255,42 +1282,20 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
     secondChain = std::move(newSecondChain);
 
     // Manually ack any nodes that did not previously exist in either chain
-    performQueuedAckForChain(*firstChain);
+    performQueuedAckForChain(*firstChain, toComplete);
 
     if (secondChain) {
-        performQueuedAckForChain(*secondChain);
+        performQueuedAckForChain(*secondChain, toComplete);
     }
 }
 
 void ActiveDurabilityMonitor::State::performQueuedAckForChain(
-        const DurabilityMonitor::ReplicationChain& chain) {
+        const DurabilityMonitor::ReplicationChain& chain,
+        CompletedQueue& toCommit) {
     for (const auto& node : chain.positions) {
         auto existingAck = queuedSeqnoAcks.find(node.first);
         if (existingAck != queuedSeqnoAcks.end()) {
-            CompletedQueue toCommit(adm.vb.getId());
             processSeqnoAck(existingAck->first, existingAck->second, toCommit);
-            // ======================= FIRST CHAIN =============================
-            // @TODO MB-34318 this should no longer be true and we will need
-            // to remove the pre-condition check.
-            //
-            // This is a little bit counter-intuitive. We may actually need to
-            // commit something post-topology change, however, because we have
-            // reset the ackCount of all in flight SyncWrites previously we
-            // should never ack here. If we had Replicas=1 then we would have
-            // already committed due to active ack or would require an active
-            // ack (PERSIST levels) to commit. So, if we do commit something as
-            // a result of a topology change it will only be done when we move
-            // the HighPreparedSeqno. The active can never exist in the
-            // queuedSeqnoAcks map so we should also never attempt to ack it
-            // here.
-            // ===================== SECOND CHAIN ==============================
-            // We don't expect any SyncWrite to currently need committing. Why?
-            // We require that a SyncWrite must satisfy both firstChain and
-            // secondChain. The SyncWrite should have already been committed
-            // if the firstChain is satisfied and we are under a vbState lock
-            // which will block seqno acks until this topology change has been
-            // completed.
-            Expects(toCommit.empty());
 
             // Remove the existingAck, we don't need to track it any further as
             // it is in a chain.

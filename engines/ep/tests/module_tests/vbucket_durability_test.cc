@@ -1470,6 +1470,54 @@ TEST_P(VBucketDurabilityTest,
     testConvertPassiveDMToActiveDMNoPrepares(vbucket_state_replica);
 }
 
+// Test that a double set_vb_state with identical state & topology is handled
+// correctly.
+// MB-35189: ns_server can send such set_vb_state messages, and in the
+// aforemented MB the nodes in the replicaiton chains were not correctly
+// positioned.
+TEST_P(VBucketDurabilityTest, ActiveDM_DoubleSetVBState) {
+    // Setup: queue two Prepares into the ADM
+    auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
+    ASSERT_EQ(0, adm.getNumTracked());
+    const std::vector<SyncWriteSpec> seqnos{1, 2};
+    testAddPrepare(seqnos);
+    ASSERT_EQ(seqnos.size(), adm.getNumTracked());
+
+    // Test: (re)set the topology to the same state.
+    const nlohmann::json topology(
+            {{"topology", nlohmann::json::array({{active, replica1}})}});
+    vbucket->setState(vbucket_state_active, topology);
+
+    // Validate: Client never notified yet (still awaiting replica1 ACK).
+    ASSERT_EQ(SWCompleteTrace(0 /*count*/, nullptr, ENGINE_EINVAL),
+              swCompleteTrace);
+
+    // Validate: Check that the SyncWrite journey now proceeds to completion as
+    // expected when replica1 acks.
+    ASSERT_EQ(seqnos.back().seqno, adm.getHighPreparedSeqno());
+    ASSERT_EQ(0, adm.getNodeWriteSeqno(replica1));
+    size_t expectedNumTracked = seqnos.size();
+    for (const auto s : seqnos) {
+        adm.seqnoAckReceived(replica1, s.seqno);
+        EXPECT_EQ(--expectedNumTracked, adm.getNumTracked());
+    }
+    // Client should be notified.
+    EXPECT_EQ(SWCompleteTrace(2 /*count*/, cookie, ENGINE_SUCCESS),
+              swCompleteTrace);
+
+    // After commit() check that the keys are now accessible and appear as
+    // committed.
+    for (const auto& spec : seqnos) {
+        auto key = makeStoredDocKey("key"s + std::to_string(spec.seqno));
+        auto result = vbucket->fetchValidValue(WantsDeleted::No,
+                                               TrackReference::No,
+                                               QueueExpired::No,
+                                               vbucket->lockCollections(key));
+        ASSERT_TRUE(result.storedValue);
+        EXPECT_TRUE(result.storedValue->isCommitted());
+    }
+}
+
 TEST_P(VBucketDurabilityTest, IgnoreAckAtTakeoverDead) {
     // Queue some Prepares into the PDM
     const auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);

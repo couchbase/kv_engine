@@ -37,6 +37,49 @@ class VBucket;
  * SyncWrites requests. To do that, the ADM tracks the pending SyncWrites queued
  * at Active and the ACKs sent by Replicas to verify if the Durability
  * Requirements are satisfied for the tracked mutations.
+ *
+ * Implementation
+ * ==============
+ *
+ * In-flight SyncWrites are held in an ordered container (linked list) of
+ * trackedWrites, with new SyncWrites being appended to the back of
+ * trackedWrites.
+ *
+ * Each node (active and replica) involved in Sync Replication for this vBucket
+ * maintains an iterator (Position) into trackedWrites, to track what seqno that
+ * node has acknowledged up to. Once sufficient nodes have ack'd then
+ * the SyncWrite can be Committed.
+ *
+ * Tracked Writes iterator semantics
+ * =================================
+ *
+ * A node's iterator is either:
+ * a) !end() - Points to last SyncWrite which has been ACK'd by this node.
+ * b) Container::end() - this indicates the iterator is invalid - either
+ *    the node has not ACK'd any seqnos (initial state), or the last SyncWrite
+ *    which was ACK'd has been removed *and* there is no previous SyncWrite
+ *    to point the iterator to.
+ *
+ * Iterator usage:
+ * A) To add a SyncWrite:
+ *     1. Add SyncWrite added to back of trackedWrites. No iterator update
+ *        needed.
+ *
+ * B) To remove a SyncWrite:
+ *     1. For each node iterator:
+ *     2. If iter pointing at the SyncWrite to be removed, then move iter to the
+ *        previous SyncWrite:
+ *        - If iter == begin(); then move iter to end().
+ *        - Else move iter to prev(iter).
+ *
+ *  C) To acknowledge a seqno:
+ *      1. Examine iterator's successor item:
+ *          - If iter == end(), then successor is begin (iterator currently
+ *            invalid).
+ *          - Else successor is next(iter).
+ *      2. If successor is less than or equal to ack'd seqno, then mark `*iter`
+ *         SyncWrite as acknowledged, set iter == successor.
+ *      3. Repeat from step (1).
  */
 class ActiveDurabilityMonitor : public DurabilityMonitor {
 public:

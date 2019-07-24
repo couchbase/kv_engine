@@ -172,10 +172,6 @@ uint8_t DurabilityMonitor::SyncWrite::getAckCountForNewChain(
         const ReplicationChain& chain) {
     auto ackCount = 0;
     for (const auto& pos : chain.positions) {
-        if (pos.first == chain.active) {
-            // Skip the active as we deal with it when we move the HPS
-            continue;
-        }
         // We only bump the ackCount if this SyncWrite was acked in either the
         // first or second chain in the old topology (if they exist).
         if (((this->firstChain &&
