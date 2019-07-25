@@ -21,12 +21,18 @@
 /*
  * ActiveStream tests for Durability. Single-threaded.
  */
-class DurabilityActiveStreamTest : public SingleThreadedActiveStreamTest {
+class DurabilityActiveStreamTest
+    : virtual public SingleThreadedActiveStreamTest {
 public:
     void SetUp() override;
     void TearDown() override;
 
 protected:
+    /**
+     * Does the DurabilityActiveStreamTest specific setup
+     */
+    void setUp(bool startCheckpointProcessorTask);
+
     /*
      * Queues a Prepare and verifies that the corresponding DCP_PREPARE
      * message has been queued into the ActiveStream::readyQ.
@@ -52,7 +58,8 @@ protected:
 /*
  * PassiveStream tests for Durability. Single-threaded.
  */
-class DurabilityPassiveStreamTest : public SingleThreadedPassiveStreamTest {
+class DurabilityPassiveStreamTest
+    : virtual public SingleThreadedPassiveStreamTest {
 public:
     void SetUp() override;
     void TearDown() override;
@@ -144,4 +151,23 @@ class DurabilityPassiveStreamPersistentTest
  * ActiveStream tests for Durability against ephemeral buckets. Single-threaded.
  */
 class DurabilityActiveStreamEphemeralTest : public DurabilityActiveStreamTest {
+};
+
+/**
+ * Test fixture for tests that begin with an active vBucket with Producer and
+ * ActiveStream and end with a replica vBucket with a Consumer and PassiveStream
+ * to test replica promotion scenarios.
+ */
+class DurabilityPromotionStreamTest : public DurabilityActiveStreamTest,
+                                      public DurabilityPassiveStreamTest {
+public:
+    void SetUp() override;
+    void TearDown() override;
+
+protected:
+    /**
+     * Test that Disk checkpoints received on a replica are streamed as Disk
+     * snapshots when promoted to active.
+     */
+    void testDiskCheckpointStreamedAsDiskSnapshot();
 };

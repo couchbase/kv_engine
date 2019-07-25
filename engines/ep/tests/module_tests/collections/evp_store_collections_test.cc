@@ -1238,7 +1238,7 @@ TEST_F(CollectionsTest, collections_expiry_after_drop_collection_compaction) {
     runCompaction();
 
     std::vector<queued_item> items;
-    vb->checkpointManager->getAllItemsForPersistence(items);
+    vb->checkpointManager->getNextItemsForPersistence(items);
 
     // No mutation of the original key is allowed as it would invalidate the
     // ordering of create @x, item @y, drop @z  x < y < z
@@ -1273,7 +1273,7 @@ TEST_P(CollectionsParameterizedTest,
                 "Expired item remover on vb:0");
 
     std::vector<queued_item> items;
-    vb->checkpointManager->getAllItemsForPersistence(items);
+    vb->checkpointManager->getNextItemsForPersistence(items);
 
     // No mutation of the original key is allowed as it would invalidate the
     // ordering of create @x, item @y, drop @z  x < y < z

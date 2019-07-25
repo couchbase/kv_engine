@@ -1387,11 +1387,21 @@ void SingleThreadedActiveStreamTest::TearDown() {
 }
 
 void SingleThreadedActiveStreamTest::setupProducer(
-        const std::vector<std::pair<std::string, std::string>>& controls) {
+        const std::vector<std::pair<std::string, std::string>>& controls,
+        bool startCheckpointProcessorTask) {
     uint32_t flags = 0;
 
+    // We don't set the startTask flag here because we will create the task
+    // manually. We do this because the producer actually creates the task on
+    // StreamRequest which we do not do because we want a MockActiveStream.
     producer = std::make_shared<MockDcpProducer>(
             *engine, cookie, "test_producer", flags, false /*startTask*/);
+
+    if (startCheckpointProcessorTask &&
+        !producer->getCheckpointSnapshotTask()) {
+        producer->createCheckpointProcessorTask();
+        producer->scheduleCheckpointProcessorTask();
+    }
 
     for (const auto& c : controls) {
         EXPECT_EQ(ENGINE_SUCCESS,
@@ -1693,7 +1703,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
             static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
     ASSERT_TRUE(ckptMgr);
     std::vector<queued_item> items;
-    ckptMgr->getAllItemsForPersistence(items);
+    ckptMgr->getNextItemsForPersistence(items);
     // Note: I expect only items (no metaitems) because we have  only 1
     // checkpoint and the cursor was at checkpoint-start before moving
     EXPECT_EQ(1, ckptMgr->getNumCheckpoints());

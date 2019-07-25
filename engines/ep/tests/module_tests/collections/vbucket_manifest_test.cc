@@ -258,7 +258,7 @@ public:
     static void getEventsFromCheckpoint(VBucket& vb,
                                         std::vector<queued_item>& events) {
         std::vector<queued_item> items;
-        vb.checkpointManager->getAllItemsForPersistence(items);
+        vb.checkpointManager->getNextItemsForPersistence(items);
         for (const auto& qi : items) {
             if (qi->getOperation() == queue_op::system_event) {
                 events.push_back(qi);

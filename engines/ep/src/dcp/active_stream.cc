@@ -17,6 +17,7 @@
 
 #include "active_stream_impl.h"
 
+#include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "dcp/producer.h"
 #include "dcp/response.h"
@@ -844,7 +845,7 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
     auto _begin_ = std::chrono::steady_clock::now();
     result.checkpointType =
             vb.checkpointManager
-                    ->getAllItemsForCursor(cursor.lock().get(), result.items)
+                    ->getNextItemsForCursor(cursor.lock().get(), result.items)
                     .checkpointType;
     engine->getEpStats().dcpCursorsGetItemsHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(
@@ -1064,7 +1065,7 @@ void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
                    previous checkpoint and hence we must create a snapshot and
                    put them onto readyQ */
                 if (!mutations.empty()) {
-                    snapshot(mutations);
+                    snapshot(outstandingItemsResult.checkpointType, mutations);
                     /* clear out all the mutations since they are already put
                        onto the readyQ */
                     mutations.clear();
@@ -1075,7 +1076,7 @@ void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
         }
 
         if (!mutations.empty()) {
-            snapshot(mutations);
+            snapshot(outstandingItemsResult.checkpointType, mutations);
         }
     }
 
@@ -1107,7 +1108,8 @@ bool ActiveStream::shouldProcessItem(const Item& item) {
     return true;
 }
 
-void ActiveStream::snapshot(std::deque<std::unique_ptr<DcpResponse>>& items) {
+void ActiveStream::snapshot(CheckpointType checkpointType,
+                            std::deque<std::unique_ptr<DcpResponse>>& items) {
     if (items.empty()) {
         return;
     }
@@ -1116,7 +1118,9 @@ void ActiveStream::snapshot(std::deque<std::unique_ptr<DcpResponse>>& items) {
     lastReadSeqno.store(lastReadSeqnoUnSnapshotted);
 
     if (isCurrentSnapshotCompleted()) {
-        uint32_t flags = MARKER_FLAG_MEMORY;
+        uint32_t flags = checkpointType == CheckpointType::Disk
+                                 ? MARKER_FLAG_DISK
+                                 : MARKER_FLAG_MEMORY;
 
         // Get OptionalSeqnos which for the items list types should have values
         auto seqnoStart = items.front()->getBySeqno();
@@ -1152,8 +1156,9 @@ void ActiveStream::snapshot(std::deque<std::unique_ptr<DcpResponse>>& items) {
         pushToReadyQ(std::make_unique<SnapshotMarker>(
                 opaque_, vb_, snapStart, snapEnd, flags, sid));
         lastSentSnapEndSeqno.store(snapEnd, std::memory_order_relaxed);
-        // Now we have created a SnapshotMarker, clear nextSnapshotIsCheckpoint.
-        nextSnapshotIsCheckpoint = false;
+        // We should always send a CHK marker flag on disk -> memory
+        // snapshot transition. Otherwise, clear nextSnapshotIsCheckpoint.
+        nextSnapshotIsCheckpoint = checkpointType == CheckpointType::Disk;
     }
 
     for (auto& item : items) {

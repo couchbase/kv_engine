@@ -155,32 +155,35 @@ public:
     void queueSetVBState(VBucket& vb);
 
     /**
-     * Add all outstanding items for the given cursor name to the vector.
+     * Add all outstanding items for the given cursor name to the vector. Only
+     * fetches items for contiguous Checkpoints of the same type.
      *
      * @param cursor CheckpointCursor to read items from and advance
      * @param items container which items will be appended to.
      * @return The low/high sequence number added to `items` on success,
      *         or (0,0) if no items were added.
      */
-    CheckpointManager::ItemsForCursor getAllItemsForCursor(
+    CheckpointManager::ItemsForCursor getNextItemsForCursor(
             CheckpointCursor* cursor, std::vector<queued_item>& items);
 
     /**
-     * Add all outstanding items for persistence to the vector
+     * Add all outstanding items for persistence to the vector. Only fetches
+     * items for contiguous Checkpoints of the same type.
      *
      * @param items container which items will be appended to.
      * @return The low/high sequence number added to `items` on success,
      *         or (0,0) if no items were added.
      */
-    CheckpointManager::ItemsForCursor getAllItemsForPersistence(
+    CheckpointManager::ItemsForCursor getNextItemsForPersistence(
             std::vector<queued_item>& items) {
-        return getAllItemsForCursor(persistenceCursor, items);
+        return getNextItemsForCursor(persistenceCursor, items);
     }
 
     /**
      * Add items for the given cursor to the vector, stopping on a checkpoint
      * boundary which is greater or equal to `approxLimit`. The cursor is
-     * advanced to point after the items fetched.
+     * advanced to point after the items fetched. Only fetches items for
+     * contiguous Checkpoints of the same type.
      *
      * Note: It is only valid to fetch complete checkpoints; as such we cannot
      * limit to a precise number of items.
@@ -201,7 +204,8 @@ public:
     /**
      * Add items for persistence to the vector, stopping on a checkpoint
      * boundary which is greater or equal to `approxLimit`. The persistence
-     * cursor is advanced to point after the items fetched.
+     * cursor is advanced to point after the items fetched. Only fetches
+     * items for contiguous Checkpoints of the same type.
      *
      * Note: It is only valid to fetch complete checkpoints; as such we cannot
      * limit to a precise number of items.

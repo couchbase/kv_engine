@@ -33,6 +33,14 @@
 
 void DurabilityActiveStreamTest::SetUp() {
     SingleThreadedActiveStreamTest::SetUp();
+    setUp(false /*startCheckpointProcessorTask*/);
+}
+
+void DurabilityActiveStreamTest::TearDown() {
+    SingleThreadedActiveStreamTest::TearDown();
+}
+
+void DurabilityActiveStreamTest::setUp(bool startCheckpointProcessorTask) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
@@ -40,12 +48,9 @@ void DurabilityActiveStreamTest::SetUp() {
 
     // Enable SyncReplication and flow-control (Producer BufferLog)
     setupProducer({{"enable_synchronous_replication", "true"},
-                   {"connection_buffer_size", "52428800"}});
+                   {"connection_buffer_size", "52428800"}},
+                  startCheckpointProcessorTask);
     ASSERT_TRUE(stream->public_supportSyncReplication());
-}
-
-void DurabilityActiveStreamTest::TearDown() {
-    SingleThreadedActiveStreamTest::TearDown();
 }
 
 void DurabilityActiveStreamTest::testSendDcpPrepare() {
@@ -707,13 +712,18 @@ void DurabilityPassiveStreamTest::TearDown() {
 void DurabilityPassiveStreamTest::
         testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
                 DocumentState docState) {
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    auto& ckptMgr = *vb->checkpointManager;
+    // Get rid of set_vb_state and any other queue_op we are not interested in
+    ckptMgr.clear(*vb, 0 /*seqno*/);
     uint32_t opaque = 1;
 
     SnapshotMarker marker(opaque,
                           vbid,
                           2 /*snapStart*/,
                           4 /*snapEnd*/,
-                          dcp_marker_flag_t::MARKER_FLAG_DISK,
+                          dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -756,8 +766,7 @@ void DurabilityPassiveStreamTest::
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
 
-    auto vb = store->getVBucket(vbid);
-    ASSERT_TRUE(vb);
+    // Test the HashTable state
     {
         // findForCommit will return both pending and committed perspectives
         auto res = vb->ht.findForCommit(key);
@@ -775,6 +784,29 @@ void DurabilityPassiveStreamTest::
                       res.pending->getCommitted());
         }
     }
+
+    // Test the checkpoint manager state
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    ckptMgr);
+
+    const auto* ckpt = ckptList.back().get();
+    EXPECT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
+    // empty-item
+    auto it = ckpt->begin();
+    EXPECT_EQ(queue_op::empty, (*it)->getOperation());
+    // 1 metaitem (checkpoint-start)
+    it++;
+    ASSERT_EQ(1, ckpt->getNumMetaItems());
+    EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
+    it++;
+
+    ASSERT_EQ(2, ckpt->getNumItems());
+    EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
+    it++;
+
+    // The logical commit is a mutation in the checkpoint manager, not a commit.
+    EXPECT_EQ(queue_op::mutation, (*it)->getOperation());
 }
 
 TEST_P(DurabilityPassiveStreamTest,
@@ -2272,8 +2304,9 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
                       cb::mcbp::DcpStreamId{})));
 
     // Persist and notify the PDM as 4:PRE requires persistence to complete due
-    // to possibly deduping a persist level prepare
-    flushVBucketToDiskIfPersistent(vbid, 2);
+    // to possibly deduping a persist level prepare. We flush 3 items because
+    // the two prepares are in different checkpoint types.
+    flushVBucketToDiskIfPersistent(vbid, 3);
 
     EXPECT_EQ(0, pdm.getNumTracked());
 }
@@ -2488,6 +2521,125 @@ TEST_P(DurabilityPassiveStreamTest,
                       cb::mcbp::DcpStreamId{})));
 }
 
+void DurabilityPromotionStreamTest::SetUp() {
+    // Set up as a replica
+    DurabilityPassiveStreamTest::SetUp();
+}
+
+void DurabilityPromotionStreamTest::TearDown() {
+    // Tear down as active
+    DurabilityActiveStreamTest::TearDown();
+}
+
+void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
+    // 1) Receive a prepare followed by a commit in a disk checkpoint as a
+    // replica then flush it
+    DurabilityPassiveStreamTest::
+            testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
+                    DocumentState::Alive);
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Remove the Consumer and PassiveStream
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(0 /*opaque*/, vbid));
+    consumer.reset();
+
+    // 3) Set up the Producer and ActiveStream
+    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/);
+
+    // 4) Write something to a different key. This should be written into a new
+    // checkpoint as we would still be in a Disk checkpoint.
+    auto vb = engine->getVBucket(vbid);
+    const auto key = makeStoredDocKey("differentKey");
+    const std::string value = "value";
+    auto item = makeCommittedItem(key, value);
+    {
+        auto cHandle = vb->lockCollections(item->getKey());
+        EXPECT_EQ(ENGINE_SUCCESS, vb->set(*item, cookie, *engine, {}, cHandle));
+    }
+
+    auto& stream = DurabilityActiveStreamTest::stream;
+    ASSERT_TRUE(stream->public_supportSyncReplication());
+
+    // 5) Test the checkpoint and stream output.
+
+    // We must have ckpt-start + Prepare + Mutation + ckpt-end
+    auto outItems = stream->public_getOutstandingItems(*vb);
+    ASSERT_EQ(4, outItems.items.size());
+    ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
+    ASSERT_EQ(queue_op::pending_sync_write,
+              outItems.items.at(1)->getOperation());
+    ASSERT_EQ(queue_op::mutation, outItems.items.at(2)->getOperation());
+
+    // We create a new checkpoint as a result of the state change
+    ASSERT_EQ(queue_op::checkpoint_end, outItems.items.at(3)->getOperation());
+
+    // Stream::readyQ still empty
+    ASSERT_EQ(0, stream->public_readyQSize());
+    // Push items into the Stream::readyQ
+    stream->public_processItems(outItems);
+
+    // No message processed, BufferLog empty
+    ASSERT_EQ(0, producer->getBytesOutstanding());
+
+    // readyQ must contain a SnapshotMarker + Prepare + Mutation
+    ASSERT_EQ(3, stream->public_readyQSize());
+    auto resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+
+    // Snapshot marker must have the disk flag set, not the memory flag
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    EXPECT_EQ(MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+              static_cast<SnapshotMarker&>(*resp).getFlags());
+
+    // readyQ must contain a DCP_PREPARE
+    ASSERT_EQ(2, stream->public_readyQSize());
+    resp = stream->public_nextQueuedItem();
+    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+    resp = stream->public_nextQueuedItem();
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(0, stream->public_readyQSize());
+
+    // Simulate running the checkpoint processor task again
+    outItems = stream->public_getOutstandingItems(*vb);
+    ASSERT_EQ(2, outItems.items.size());
+    // set_vbucket_state is from changing to active in the middle of this test
+    ASSERT_EQ(queue_op::set_vbucket_state,
+              outItems.items.at(0)->getOperation());
+    ASSERT_EQ(queue_op::mutation, outItems.items.at(1)->getOperation());
+
+    // Stream::readyQ still empty
+    ASSERT_EQ(0, stream->public_readyQSize());
+    // Push items into the Stream::readyQ
+    stream->public_processItems(outItems);
+    // readyQ must contain a SnapshotMarker (+ a Prepare)
+    ASSERT_EQ(2, stream->public_readyQSize());
+    resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+
+    // Snapshot marker should now be memory flag
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+              static_cast<SnapshotMarker&>(*resp).getFlags());
+
+    resp = stream->public_nextQueuedItem();
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    ASSERT_EQ(0, stream->public_readyQSize());
+
+    producer->cancelCheckpointCreatorTask();
+}
+
+TEST_P(DurabilityPromotionStreamTest,
+       DiskCheckpointStreamedAsDiskSnapshotReplica) {
+    // Should already be replica
+    testDiskCheckpointStreamedAsDiskSnapshot();
+}
+
+TEST_P(DurabilityPromotionStreamTest,
+       DiskCheckpointStreamedAsDiskSnapshotPending) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_pending);
+    testDiskCheckpointStreamedAsDiskSnapshot();
+}
+
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         DurabilityActiveStreamTest,
                         STParameterizedBucketTest::allConfigValues(),
@@ -2495,6 +2647,11 @@ INSTANTIATE_TEST_CASE_P(AllBucketTypes,
 
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         DurabilityPassiveStreamTest,
+                        STParameterizedBucketTest::allConfigValues(),
+                        STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_CASE_P(AllBucketTypes,
+                        DurabilityPromotionStreamTest,
                         STParameterizedBucketTest::allConfigValues(),
                         STParameterizedBucketTest::PrintToStringParamName);
 

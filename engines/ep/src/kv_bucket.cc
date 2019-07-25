@@ -929,13 +929,16 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
                                                        closeInboundStreams);
         }
 
+        /**
+         * Expect this to happen for failover
+         */
         if (to == vbucket_state_active && oldstate == vbucket_state_replica) {
             /**
-             * Update snapshot range when vbucket goes from being a replica
-             * to active, to maintain the correct snapshot sequence numbers
-             * even in a failover scenario.
+             * Create a new checkpoint to ensure that we do not now write to a
+             * Disk checkpoint. This updates the snapshot range to maintain the
+             * correct snapshot sequence numbers even in a failover scenario.
              */
-            vb->checkpointManager->resetSnapshotRange();
+            vb->checkpointManager->createNewCheckpoint();
 
             /**
              * Update the manifest of this vBucket from the
@@ -967,6 +970,12 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
 
         if (oldstate == vbucket_state_pending &&
             to == vbucket_state_active) {
+            /**
+             * Create a new checkpoint to ensure that we do not now write to a
+             * Disk checkpoint.
+             */
+            vb->checkpointManager->createNewCheckpoint();
+
             ExTask notifyTask =
                     std::make_shared<PendingOpsNotification>(engine, vb);
             ExecutorPool::get()->schedule(notifyTask);

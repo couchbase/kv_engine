@@ -46,7 +46,8 @@ protected:
     void TearDown() override;
 
     void setupProducer(const std::vector<std::pair<std::string, std::string>>&
-                               controls = {});
+                               controls = {},
+                       bool startCheckpointProcessorTask = false);
 
     MutationStatus public_processSet(VBucket& vb,
                                      Item& item,

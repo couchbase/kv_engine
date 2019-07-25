@@ -117,7 +117,7 @@ static void launch_persistence_thread(void *arg) {
         size_t itemPos;
         std::vector<queued_item> items;
         auto* cursor = args->checkpoint_manager->getPersistenceCursor();
-        args->checkpoint_manager->getAllItemsForCursor(cursor, items);
+        args->checkpoint_manager->getNextItemsForCursor(cursor, items);
         for(itemPos = 0; itemPos < items.size(); ++itemPos) {
             queued_item qi = items.at(itemPos);
             if (qi->getOperation() == queue_op::flush) {
@@ -304,7 +304,7 @@ TYPED_TEST(CheckpointTest, CheckFixture) {
 
     // Check that the items fetched matches the number we were told to expect.
     std::vector<queued_item> items;
-    auto result = this->manager->getAllItemsForPersistence(items);
+    auto result = this->manager->getNextItemsForPersistence(items);
     EXPECT_EQ(0, result.range.getStart());
     EXPECT_EQ(0, result.range.getEnd());
     EXPECT_EQ(1, items.size());
@@ -370,7 +370,7 @@ TYPED_TEST(CheckpointTest, OneOpenCkpt) {
 
     // Check that the items fetched matches the number we were told to expect.
     std::vector<queued_item> items;
-    auto result = this->manager->getAllItemsForPersistence(items);
+    auto result = this->manager->getNextItemsForPersistence(items);
     EXPECT_EQ(0, result.range.getStart());
     EXPECT_EQ(1003, result.range.getEnd());
     EXPECT_EQ(3, items.size());
@@ -402,7 +402,7 @@ TYPED_TEST(CheckpointTest, Delete) {
 
     // Check that the items fetched matches what was enqueued.
     std::vector<queued_item> items;
-    auto result = this->manager->getAllItemsForPersistence(items);
+    auto result = this->manager->getNextItemsForPersistence(items);
 
     EXPECT_EQ(0, result.range.getStart());
     EXPECT_EQ(1001, result.range.getEnd());
@@ -445,7 +445,7 @@ TYPED_TEST(CheckpointTest, OneOpenOneClosed) {
 
     // Check that the items fetched matches the number we were told to expect.
     std::vector<queued_item> items;
-    auto result = this->manager->getAllItemsForPersistence(items);
+    auto result = this->manager->getNextItemsForPersistence(items);
     EXPECT_EQ(0, result.range.getStart());
     EXPECT_EQ(1004, result.range.getEnd());
     EXPECT_EQ(7, items.size());
@@ -510,7 +510,7 @@ TYPED_TEST(CheckpointTest, ItemBasedCheckpointCreation) {
     // allowing a new open checkpoint to be created.
     EXPECT_EQ(1, this->manager->getNumOfCursors());
     std::vector<queued_item> items;
-    auto result = this->manager->getAllItemsForPersistence(items);
+    auto result = this->manager->getNextItemsForPersistence(items);
 
     EXPECT_EQ(0, result.range.getStart());
     EXPECT_EQ(1021, result.range.getEnd());
@@ -630,7 +630,7 @@ TYPED_TEST(CheckpointTest, CursorOffsetOnCheckpointClose) {
     EXPECT_EQ(0, this->manager->getNumItemsForPersistence());
 }
 
-// Test the getAllItemsForCursor()
+// Test the getNextItemsForCursor()
 TYPED_TEST(CheckpointTest, ItemsForCheckpointCursor) {
     /* We want to have items across 2 checkpoints. Size down the default number
        of items to create a new checkpoint and recreate the manager */
@@ -663,7 +663,7 @@ TYPED_TEST(CheckpointTest, ItemsForCheckpointCursor) {
 
     /* Get items for persistence*/
     std::vector<queued_item> items;
-    auto result = this->manager->getAllItemsForPersistence(items);
+    auto result = this->manager->getNextItemsForPersistence(items);
 
     /* We should have got (2 * MIN_CHECKPOINT_ITEMS + 3) items. 3 additional are
        op_ckpt_start, op_ckpt_end and op_ckpt_start */
@@ -673,14 +673,14 @@ TYPED_TEST(CheckpointTest, ItemsForCheckpointCursor) {
 
     /* Get items for DCP replication cursor */
     items.clear();
-    result = this->manager->getAllItemsForCursor(dcpCursor.cursor.lock().get(),
-                                                 items);
+    result = this->manager->getNextItemsForCursor(dcpCursor.cursor.lock().get(),
+                                                  items);
     EXPECT_EQ(2 * MIN_CHECKPOINT_ITEMS + 3, items.size());
     EXPECT_EQ(0, result.range.getStart());
     EXPECT_EQ(1000 + 2 * MIN_CHECKPOINT_ITEMS, result.range.getEnd());
 }
 
-// Test getAllItemsForCursor() when it is limited to fewer items than exist
+// Test getNextItemsForCursor() when it is limited to fewer items than exist
 // in total. Cursor should only advanced to the start of the 2nd checkpoint.
 TYPED_TEST(CheckpointTest, ItemsForCheckpointCursorLimited) {
     /* We want to have items across 2 checkpoints. Size down the default number
@@ -752,7 +752,7 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
 
     /* Get items for persistence cursor */
     std::vector<queued_item> items;
-    auto result = this->manager->getAllItemsForPersistence(items);
+    auto result = this->manager->getNextItemsForPersistence(items);
 
     /* We should have got (MIN_CHECKPOINT_ITEMS + op_ckpt_start) items. */
     EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, items.size());
@@ -761,8 +761,8 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
 
     /* Get items for DCP replication cursor */
     items.clear();
-    result = this->manager->getAllItemsForCursor(dcpCursor.cursor.lock().get(),
-                                                 items);
+    result = this->manager->getNextItemsForCursor(dcpCursor.cursor.lock().get(),
+                                                  items);
     EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, items.size());
     EXPECT_EQ(0, result.range.getStart());
     EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.range.getEnd());
@@ -779,7 +779,7 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
     EXPECT_EQ(0, this->manager->getNumItemsForPersistence())
             << "Expected to have no normal (only meta) items";
     items.clear();
-    result = this->manager->getAllItemsForPersistence(items);
+    result = this->manager->getNextItemsForPersistence(items);
 
     /* We should have got op_ckpt_start item */
     EXPECT_EQ(1, items.size());
@@ -792,7 +792,7 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
     EXPECT_EQ(0, this->manager->getNumItemsForPersistence())
             << "Expected to have no normal (only meta) items";
     items.clear();
-    this->manager->getAllItemsForCursor(dcpCursor.cursor.lock().get(), items);
+    this->manager->getNextItemsForCursor(dcpCursor.cursor.lock().get(), items);
     /* Expecting only 1 op_ckpt_start item */
     EXPECT_EQ(1, items.size());
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
@@ -903,7 +903,7 @@ TYPED_TEST(CheckpointTest, SeqnoAndHLCOrdering) {
     // Now a final check, iterate the checkpoint and also check for increasing
     // HLC.
     std::vector<queued_item> items;
-    this->manager->getAllItemsForPersistence(items);
+    this->manager->getNextItemsForPersistence(items);
 
     /* We should have got (n_threads*n_items + op_ckpt_start) items. */
     EXPECT_EQ(n_threads*n_items + 1, items.size());
@@ -940,7 +940,7 @@ TYPED_TEST(CheckpointTest, CursorUpdateForExistingItemWithMetaItemAtHead) {
 
     // Advance persistence cursor so all items have been consumed.
     std::vector<queued_item> items;
-    this->manager->getAllItemsForPersistence(items);
+    this->manager->getNextItemsForPersistence(items);
     ASSERT_EQ(3, items.size());
     ASSERT_EQ(0, this->manager->getNumItemsForPersistence());
 
@@ -952,7 +952,7 @@ TYPED_TEST(CheckpointTest, CursorUpdateForExistingItemWithMetaItemAtHead) {
 
     // Should have another item to read (new version of 'key')
     items.clear();
-    this->manager->getAllItemsForPersistence(items);
+    this->manager->getNextItemsForPersistence(items);
     EXPECT_EQ(1, items.size());
 }
 
@@ -978,7 +978,7 @@ TYPED_TEST(CheckpointTest, CursorUpdateForExistingItemWithNonMetaItemAtHead) {
 
     // Advance persistence cursor so all items have been consumed.
     std::vector<queued_item> items;
-    this->manager->getAllItemsForPersistence(items);
+    this->manager->getNextItemsForPersistence(items);
     ASSERT_EQ(2, items.size());
     ASSERT_EQ(0, this->manager->getNumItemsForPersistence());
 
@@ -994,7 +994,7 @@ TYPED_TEST(CheckpointTest, CursorUpdateForExistingItemWithNonMetaItemAtHead) {
 
     // Should an item to read (new version of 'key')
     items.clear();
-    this->manager->getAllItemsForPersistence(items);
+    this->manager->getNextItemsForPersistence(items);
     EXPECT_EQ(1, items.size());
     EXPECT_EQ(1002, items.at(0)->getBySeqno());
     EXPECT_EQ(makeStoredDocKey("key"), items.at(0)->getKey());

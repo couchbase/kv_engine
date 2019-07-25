@@ -317,7 +317,8 @@ private:
 
     std::unique_ptr<DcpResponse> deadPhase();
 
-    void snapshot(std::deque<std::unique_ptr<DcpResponse>>& snapshot);
+    void snapshot(CheckpointType checkpointType,
+                  std::deque<std::unique_ptr<DcpResponse>>& snapshot);
 
     void endStream(end_stream_status_t reason);
 

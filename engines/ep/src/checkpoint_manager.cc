@@ -813,7 +813,7 @@ void CheckpointManager::queueSetVBState(VBucket& vb) {
     }
 }
 
-CheckpointManager::ItemsForCursor CheckpointManager::getAllItemsForCursor(
+CheckpointManager::ItemsForCursor CheckpointManager::getNextItemsForCursor(
         CheckpointCursor* cursor, std::vector<queued_item>& items) {
     auto result = getItemsForCursor(
             cursor, items, std::numeric_limits<size_t>::max());
@@ -826,7 +826,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
         size_t approxLimit) {
     LockHolder lh(queueLock);
     if (!cursorPtr) {
-        EP_LOG_WARN("getAllItemsForCursor(): Caller had a null cursor {}",
+        EP_LOG_WARN("getNextItemsForCursor(): Caller had a null cursor {}",
                     vbucketId);
         return {0, 0};
     }
@@ -841,6 +841,16 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
 
     size_t itemCount = 0;
     while ((result.moreAvailable = incrCursor(cursor))) {
+        // We only want to return items from contiguous checkpoints with the
+        // same type. We should not return Memory checkpoint items followed by
+        // Disk checkpoint items or vice versa. This is due to ActiveStream
+        // needing to send Disk checkpoint items as Disk snapshots to the
+        // replica.
+        if ((*cursor.currentCheckpoint)->getCheckpointType() !=
+            result.checkpointType) {
+            break;
+        }
+
         queued_item& qi = *(cursor.currentPos);
         items.push_back(qi);
         itemCount++;
@@ -866,7 +876,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     }
 
     EP_LOG_DEBUG(
-            "CheckpointManager::getAllItemsForCursor() "
+            "CheckpointManager::getNextItemsForCursor() "
             "cursor:{} result:{{#items:{} range:{{{}, {}}} "
             "moreAvailable:{}}}",
             cursor.name,

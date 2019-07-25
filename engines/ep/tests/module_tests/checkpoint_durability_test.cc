@@ -68,7 +68,7 @@ void CheckpointDurabilityTest<V>::test_AvoidDeDuplication(
                                     GenerateCas::Yes,
                                     /*preLinkDocCtx*/ nullptr));
 
-    ckptMgr->getAllItemsForPersistence(items);
+    ckptMgr->getNextItemsForPersistence(items);
 }
 
 TYPED_TEST_CASE(CheckpointDurabilityTest, VBucketTypes);
