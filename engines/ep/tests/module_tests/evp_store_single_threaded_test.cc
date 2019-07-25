@@ -269,11 +269,11 @@ void SingleThreadedKVBucketTest::runCheckpointProcessor(
     // Step which will notify the snapshot task
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer.step(&producers));
 
-    EXPECT_EQ(1, producer.getCheckpointSnapshotTask().queueSize());
+    EXPECT_EQ(1, producer.getCheckpointSnapshotTask()->queueSize());
 
     // Now call run on the snapshot task to move checkpoint into DCP
     // stream
-    producer.getCheckpointSnapshotTask().run();
+    producer.getCheckpointSnapshotTask()->run();
 }
 
 static ENGINE_ERROR_CODE dcpAddFailoverLog(vbucket_failover_t* entry,
@@ -649,14 +649,14 @@ TEST_F(SingleThreadedEPBucketTest,
         // ActiveStreamCheckpointProcessorTask's queue.
         result = stream->next();
         EXPECT_FALSE(result);
-        EXPECT_EQ(id + 1, producer->getCheckpointSnapshotTask().queueSize())
+        EXPECT_EQ(id + 1, producer->getCheckpointSnapshotTask()->queueSize())
                 << "Should have added " << vbid << " to ProcessorTask queue";
     }
 
     // Should now have dcp_producer_snapshot_marker_yield_limit + 1 items
     // in ActiveStreamCheckpointProcessorTask's pending VBs.
     EXPECT_EQ(iterationLimit + 1,
-              producer->getCheckpointSnapshotTask().queueSize())
+              producer->getCheckpointSnapshotTask()->queueSize())
             << "Should have all vBuckets in ProcessorTask queue";
 
     // Use last Stream as the one we're going to drop the cursor on (this is
@@ -737,7 +737,7 @@ TEST_F(SingleThreadedEPBucketTest,
 
     // No items ready, but this should of rescheduled vb10
     EXPECT_EQ(nullptr, stream->next());
-    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize())
+    EXPECT_EQ(1, producer->getCheckpointSnapshotTask()->queueSize())
             << "Should have 1 vBucket in ProcessorTask queue";
 
     // Now run chkptProcessorTask to complete it's queue, this will now be able
@@ -803,7 +803,7 @@ TEST_F(SingleThreadedEPBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
     // Now step the in-memory stream to schedule the checkpoint task
     result = stream->next();
     EXPECT_FALSE(result);
-    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
+    EXPECT_EQ(1, producer->getCheckpointSnapshotTask()->queueSize());
 
     // Now close the stream
     EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(0 /*opaque*/, vbid));

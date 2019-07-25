@@ -278,8 +278,8 @@ void DCPTest::prepareCheckpointItemsForStep(dcp_message_producers& msgProducers,
                                             VBucket& vb) {
     producer.notifySeqnoAvailable(vb.getId(), vb.getHighSeqno());
     ASSERT_EQ(ENGINE_EWOULDBLOCK, producer.step(&msgProducers));
-    ASSERT_EQ(1, producer.getCheckpointSnapshotTask().queueSize());
-    producer.getCheckpointSnapshotTask().run();
+    ASSERT_EQ(1, producer.getCheckpointSnapshotTask()->queueSize());
+    producer.getCheckpointSnapshotTask()->run();
 }
 
 std::unique_ptr<Item> DCPTest::makeItemWithXattrs() {
@@ -2391,7 +2391,7 @@ TEST_F(ActiveStreamChkptProcessorTaskTest, DeleteDeadStreamEntry) {
                       ActiveStreamChkptProcessorTaskTest::fakeDcpAddFailoverLog,
                       {}));
     /* Checkpoint task processor Q will already have any entry for the stream */
-    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
+    EXPECT_EQ(1, producer->getCheckpointSnapshotTask()->queueSize());
 
     /* Close and open the stream without clearing the checkpoint task processor
      Q */

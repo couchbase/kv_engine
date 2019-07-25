@@ -1669,10 +1669,10 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
 
     // Step which will notify the snapshot task
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
-    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
+    EXPECT_EQ(1, producer->getCheckpointSnapshotTask()->queueSize());
 
     // Now call run on the snapshot task to move checkpoint into DCP stream
-    producer->getCheckpointSnapshotTask().run();
+    producer->getCheckpointSnapshotTask()->run();
 
     // snapshot marker
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));

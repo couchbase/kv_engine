@@ -102,7 +102,7 @@ public:
         DcpProducer::scheduleCheckpointProcessorTask();
     }
 
-    ActiveStreamCheckpointProcessorTask& getCheckpointSnapshotTask() const;
+    ActiveStreamCheckpointProcessorTask* getCheckpointSnapshotTask() const;
 
     /**
      * Finds the stream for a given vbucket
