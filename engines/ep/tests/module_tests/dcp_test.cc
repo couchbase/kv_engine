@@ -1798,6 +1798,45 @@ TEST_F(DcpConnMapTest, DeleteConsumerConnOnUncleanDCPConnMapDelete) {
     engine->setDcpConnMap(nullptr);
 }
 
+TEST_F(DcpConnMapTest, TestCorrectConnHandlerRemoved) {
+    auto connMapPtr = std::make_unique<MockDcpConnMap>(*engine);
+    MockDcpConnMap& connMap = *connMapPtr;
+    engine->setDcpConnMap(std::move(connMapPtr));
+
+    const void* cookieA = create_mock_cookie();
+    const void* cookieB = create_mock_cookie();
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              engine->getKVBucket()->setVBucketState(
+                      vbid, vbucket_state_replica, {}, TransferVB::Yes));
+
+    DcpConsumer* consumerA =
+            connMap.newConsumer(cookieA, "test_consumerA", "test_consumerA");
+    EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:test_consumerA"));
+    consumerA->addStream(0xdead, vbid, 0);
+    EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:test_consumerA"));
+    // destroys the first consumer, leaving a weakptr in the vbConn map
+    EXPECT_TRUE(connMap.removeConn(cookieA));
+
+    // Create a new consumer, with a stream for the same VB
+    DcpConsumer* consumerB =
+            connMap.newConsumer(cookieB, "test_consumerB", "test_consumerB");
+    EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:test_consumerB"));
+    consumerB->addStream(0xbeef, vbid, 0);
+    EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:test_consumerB"));
+
+    // Here the ConnHandler added to connMap.vbConns in addStream should be
+    // removed
+    connMap.disconnect(cookieB);
+
+    // Consumer B should not be in the vbConns any more
+    EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:test_consumerB"));
+
+    /* Cleanup the deadConnections */
+    connMap.manageConnections();
+    destroy_mock_cookie(cookieA);
+}
+
 class NotifyTest : public DCPTest {
 protected:
     std::unique_ptr<MockDcpConnMap> connMap;

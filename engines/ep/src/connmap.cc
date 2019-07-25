@@ -170,13 +170,17 @@ void ConnMap::addVBConnByVBId(std::shared_ptr<ConnHandler> conn, Vbid vbid) {
 
 void ConnMap::removeVBConnByVBId_UNLOCKED(const void* connCookie, Vbid vbid) {
     std::list<std::weak_ptr<ConnHandler>>& vb_conns = vbConns[vbid.get()];
-    for (auto itr = vb_conns.begin(); itr != vb_conns.end(); ++itr) {
+    for (auto itr = vb_conns.begin(); itr != vb_conns.end();) {
         auto connection = (*itr).lock();
-        // Erase if we cannot lock, or if the cookie matches
-        if (!connection ||
-            (connection && connCookie == connection->getCookie())) {
+        if (!connection) {
+            // ConnHandler no longer exists, cleanup.
+            itr = vb_conns.erase(itr);
+        } else if (connection->getCookie() == connCookie) {
+            // Found conn with matching cookie, done.
             vb_conns.erase(itr);
             break;
+        } else {
+            ++itr;
         }
     }
 }

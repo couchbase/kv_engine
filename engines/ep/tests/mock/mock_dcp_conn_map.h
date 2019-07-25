@@ -51,6 +51,16 @@ public:
         map_[cookie] = conn;
     }
 
+    bool removeConn(const void* cookie) {
+        LockHolder lh(connsLock);
+        auto itr = map_.find(cookie);
+        if (itr != map_.end()) {
+            map_.erase(itr);
+            return true;
+        }
+        return false;
+    }
+
     /// return if the named handler exists for the vbid in the vbConns structure
     bool doesConnHandlerExist(Vbid vbid, const std::string& name) const {
         const auto& list = vbConns[vbid.get()];
