@@ -725,26 +725,27 @@ TEST_P(DcpStreamSyncReplPersistentTest, ProducerAllowsSeqnoAckLEQToLastSent) {
 
     // Setup - put a single checkpoint_start item into a vector to be passed
     // to ActiveStream::processItems()
-    std::vector<queued_item> items;
-    items.push_back(queued_item(new Item(makeStoredDocKey("start"),
-                                         vbid,
-                                         queue_op::checkpoint_start,
-                                         2,
-                                         1)));
+    ActiveStream::OutstandingItemsResult outstandingItemsResult;
+    outstandingItemsResult.items.push_back(
+            queued_item(new Item(makeStoredDocKey("start"),
+                                 vbid,
+                                 queue_op::checkpoint_start,
+                                 2,
+                                 1)));
 
     // Test - call processItems() twice: once with a single checkpoint_start
     // item, then with a two mutations.
-    stream->public_processItems(items);
+    stream->public_processItems(outstandingItemsResult);
 
-    items.clear();
+    outstandingItemsResult.items.clear();
     for (int64_t seqno : {2, 3}) {
         auto mutation = makeCommittedItem(
                 makeStoredDocKey("mutation" + std::to_string(seqno)), "value");
         mutation->setBySeqno(seqno);
-        items.push_back(mutation);
+        outstandingItemsResult.items.push_back(mutation);
     }
 
-    stream->public_processItems(items);
+    stream->public_processItems(outstandingItemsResult);
 
     const auto& readyQ = stream->public_readyQ();
     ASSERT_EQ(3, readyQ.size());

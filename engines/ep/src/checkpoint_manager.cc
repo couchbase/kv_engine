@@ -813,11 +813,11 @@ void CheckpointManager::queueSetVBState(VBucket& vb) {
     }
 }
 
-snapshot_range_t CheckpointManager::getAllItemsForCursor(
+CheckpointManager::ItemsForCursor CheckpointManager::getAllItemsForCursor(
         CheckpointCursor* cursor, std::vector<queued_item>& items) {
     auto result = getItemsForCursor(
             cursor, items, std::numeric_limits<size_t>::max());
-    return result.range;
+    return result;
 }
 
 CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
@@ -836,7 +836,8 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     // Fetch whole checkpoints; as long as we don't exceed the approx item
     // limit.
     ItemsForCursor result((*cursor.currentCheckpoint)->getSnapshotStartSeqno(),
-                          (*cursor.currentCheckpoint)->getSnapshotEndSeqno());
+                          (*cursor.currentCheckpoint)->getSnapshotEndSeqno(),
+                          (*cursor.currentCheckpoint)->getCheckpointType());
 
     size_t itemCount = 0;
     while ((result.moreAvailable = incrCursor(cursor))) {

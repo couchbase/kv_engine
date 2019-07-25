@@ -46,13 +46,13 @@ public:
                      IncludeXattrs includeXattrs = IncludeXattrs::Yes);
 
     // Expose underlying protected ActiveStream methods as public
-    std::vector<queued_item> public_getOutstandingItems(VBucket& vb) {
+    OutstandingItemsResult public_getOutstandingItems(VBucket& vb) {
         return getOutstandingItems(vb);
     }
 
-    void public_processItems(std::vector<queued_item>& items) {
+    void public_processItems(OutstandingItemsResult& result) {
         LockHolder lh(streamMutex);
-        processItems(items, lh);
+        processItems(result, lh);
     }
 
     bool public_nextCheckpointItem() {
@@ -131,7 +131,7 @@ public:
         state_ = state;
     }
 
-    virtual std::vector<queued_item> getOutstandingItems(VBucket& vb) override {
+    virtual OutstandingItemsResult getOutstandingItems(VBucket& vb) override {
         preGetOutstandingItemsCallback();
         return ActiveStream::getOutstandingItems(vb);
     }

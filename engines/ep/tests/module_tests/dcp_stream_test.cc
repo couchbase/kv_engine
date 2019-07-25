@@ -1090,24 +1090,24 @@ TEST_P(StreamTest, ProcessItemsSingleCheckpointStart) {
 
     // Setup - put a single checkpoint_start item into a vector to be passed
     // to ActiveStream::processItems()
-    std::vector<queued_item> items;
-    items.push_back(queued_item(new Item(makeStoredDocKey("start"),
-                                         vbid,
-                                         queue_op::checkpoint_start,
-                                         2,
-                                         1)));
+    ActiveStream::OutstandingItemsResult result;
+    result.items.push_back(queued_item(new Item(makeStoredDocKey("start"),
+                                                vbid,
+                                                queue_op::checkpoint_start,
+                                                2,
+                                                1)));
 
     // Test - call processItems() twice: once with a single checkpoint_start
     // item, then with a single mutation.
     // (We need the single mutation to actually cause a SnapshotMarker to be
     // generated, as SnapshotMarkers cannot represent an empty snapshot).
-    stream->public_processItems(items);
+    stream->public_processItems(result);
 
-    items.clear();
+    result.items.clear();
     auto mutation = makeCommittedItem(makeStoredDocKey("mutation"), "value");
     mutation->setBySeqno(2);
-    items.push_back(mutation);
-    stream->public_processItems(items);
+    result.items.push_back(mutation);
+    stream->public_processItems(result);
 
     // Validate - check that we have two items in the readyQ (SnapshotMarker &
     // DcpMutation), and that the SnapshotMarker is correctly encoded (should
@@ -1131,16 +1131,16 @@ TEST_P(StreamTest, ProcessItemsCheckpointStartIsLastItem) {
     // Setup - Create and discard the initial in-memory snapshot (it always has
     // the CKPT flag set, we just want to ignore this first one as are
     // testing behaviour of subsequent checkpoints).
-    std::vector<queued_item> items;
-    items.emplace_back(new Item(
+    ActiveStream::OutstandingItemsResult result;
+    result.items.emplace_back(new Item(
             makeStoredDocKey("start"), vbid, queue_op::checkpoint_start, 1, 9));
     auto dummy = makeCommittedItem(makeStoredDocKey("ignore"), "value");
     dummy->setBySeqno(9);
-    items.push_back(dummy);
-    items.emplace_back(new Item(
+    result.items.push_back(dummy);
+    result.items.emplace_back(new Item(
             makeStoredDocKey("end"), vbid, queue_op::checkpoint_end, 1, 9));
-    stream->public_processItems(items);
-    items.clear();
+    stream->public_processItems(result);
+    result.items.clear();
     stream->public_popFromReadyQ();
     stream->public_popFromReadyQ();
 
@@ -1149,27 +1149,27 @@ TEST_P(StreamTest, ProcessItemsCheckpointStartIsLastItem) {
     //     muatation, checkpoint_end, checkpoint_start
     auto mutation1 = makeCommittedItem(makeStoredDocKey("M1"), "value");
     mutation1->setBySeqno(10);
-    items.push_back(mutation1);
-    items.push_back(queued_item(new Item(makeStoredDocKey("end"),
-                                         vbid,
-                                         queue_op::checkpoint_end,
-                                         1,
-                                         /*seqno*/ 10)));
-    items.push_back(queued_item(new Item(makeStoredDocKey("start"),
-                                         vbid,
-                                         queue_op::checkpoint_start,
-                                         2,
-                                         /*seqno*/ 11)));
+    result.items.push_back(mutation1);
+    result.items.push_back(queued_item(new Item(makeStoredDocKey("end"),
+                                                vbid,
+                                                queue_op::checkpoint_end,
+                                                1,
+                                                /*seqno*/ 10)));
+    result.items.push_back(queued_item(new Item(makeStoredDocKey("start"),
+                                                vbid,
+                                                queue_op::checkpoint_start,
+                                                2,
+                                                /*seqno*/ 11)));
 
     // Test - call processItems() twice: once with the items above, then with
     // a single mutation.
-    stream->public_processItems(items);
+    stream->public_processItems(result);
 
-    items.clear();
+    result.items.clear();
     auto mutation2 = makeCommittedItem(makeStoredDocKey("M2"), "value");
     mutation2->setBySeqno(11);
-    items.push_back(mutation2);
-    stream->public_processItems(items);
+    result.items.push_back(mutation2);
+    stream->public_processItems(result);
 
     // Validate - check that we have four items in the readyQ with the correct
     // state:
@@ -1475,13 +1475,14 @@ TEST_P(SingleThreadedActiveStreamTest, DiskSnapshotSendsChkMarker) {
               public_processSet(*vb, item, VBQueueItemCtx()));
 
     // We must have ckpt-start
-    auto outItems = stream->public_getOutstandingItems(*vb);
-    ASSERT_EQ(2, outItems.size());
-    ASSERT_EQ(queue_op::checkpoint_start, outItems.at(0)->getOperation());
+    auto outItemsResult = stream->public_getOutstandingItems(*vb);
+    ASSERT_EQ(2, outItemsResult.items.size());
+    ASSERT_EQ(queue_op::checkpoint_start,
+              outItemsResult.items.at(0)->getOperation());
     // Stream::readyQ still empty
     ASSERT_EQ(0, stream->public_readyQSize());
     // Push items into the Stream::readyQ
-    stream->public_processItems(outItems);
+    stream->public_processItems(outItemsResult);
 
     // No message processed, BufferLog empty
     ASSERT_EQ(0, producer->getBytesOutstanding());

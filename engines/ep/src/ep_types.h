@@ -44,7 +44,19 @@ enum class WantsDeleted : char { No, Yes };
 enum class TrackReference : char { No, Yes };
 enum class QueueExpired : char { No, Yes };
 enum class CheckConflicts : char { No, Yes };
-enum class CheckpointType : char { Disk, Memory };
+
+enum class CheckpointType : char {
+    /**
+     * Disk checkpoints are received from disk snapshots from active nodes but
+     * may exist on an active node due to replica promotion.
+     */
+    Disk,
+
+    /**
+     * Default checkpoint type
+     */
+    Memory,
+};
 
 /**
  * We need to send SyncWrite Commits as Mutations when backfilling from disk as

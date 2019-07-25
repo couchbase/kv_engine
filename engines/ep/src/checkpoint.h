@@ -183,6 +183,9 @@ public:
     /// @returns the id of the current checkpoint the cursor is on
     uint64_t getId() const;
 
+    /// @returns the type of the Checkpoint that the cursor is in
+    CheckpointType getCheckpointType() const;
+
 private:
     /**
      * Move the cursor's iterator back one if it is not currently pointing to
@@ -580,8 +583,12 @@ public:
     CheckpointQueue expelItems(CheckpointCursor& expelUpToAndIncluding);
 
     /// @return true if this is a disk checkpoint (replica streaming from disk)
-    bool isDiskCheckpoint() {
+    bool isDiskCheckpoint() const {
         return checkpointType == CheckpointType::Disk;
+    }
+
+    CheckpointType getCheckpointType() const {
+        return checkpointType;
     }
 
 private:

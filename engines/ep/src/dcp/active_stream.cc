@@ -823,8 +823,8 @@ void ActiveStream::nextCheckpointItemTask(const LockHolder& streamMutex) {
         // MB-29369: only run the task's work if the stream is in an in-memory
         // phase (of which takeover is a variant).
         if (isInMemory() || isTakeoverSend()) {
-            auto items = getOutstandingItems(*vbucket);
-            processItems(items, streamMutex);
+            auto res = getOutstandingItems(*vbucket);
+            processItems(res, streamMutex);
         }
     } else {
         /* The entity deleting the vbucket must set stream to dead,
@@ -835,13 +835,17 @@ void ActiveStream::nextCheckpointItemTask(const LockHolder& streamMutex) {
     }
 }
 
-std::vector<queued_item> ActiveStream::getOutstandingItems(VBucket& vb) {
-    std::vector<queued_item> items;
+ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
+        VBucket& vb) {
+    OutstandingItemsResult result;
     // Commencing item processing - set guard flag.
     chkptItemsExtractionInProgress.store(true);
 
     auto _begin_ = std::chrono::steady_clock::now();
-    vb.checkpointManager->getAllItemsForCursor(cursor.lock().get(), items);
+    result.checkpointType =
+            vb.checkpointManager
+                    ->getAllItemsForCursor(cursor.lock().get(), result.items)
+                    .checkpointType;
     engine->getEpStats().dcpCursorsGetItemsHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::steady_clock::now() - _begin_));
@@ -849,7 +853,7 @@ std::vector<queued_item> ActiveStream::getOutstandingItems(VBucket& vb) {
     if (vb.checkpointManager->hasClosedCheckpointWhichCanBeRemoved()) {
         engine->getKVBucket()->wakeUpCheckpointRemover();
     }
-    return items;
+    return result;
 }
 
 /**
@@ -1013,9 +1017,9 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
     return SystemEventProducerMessage::make(opaque_, item, sid);
 }
 
-void ActiveStream::processItems(std::vector<queued_item>& items,
+void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
                                 const LockHolder& streamMutex) {
-    if (!items.empty()) {
+    if (!outstandingItemsResult.items.empty()) {
         // Transform the sequence of items from the CheckpointManager into
         // a sequence of DCP messages which this stream should receive. There
         // are a couple of sublties to watch out for here:
@@ -1044,7 +1048,7 @@ void ActiveStream::processItems(std::vector<queued_item>& items,
         // SnapshotMarker), we can use nextSnapshotIsCheckpoint to snapshot
         // it correctly.
         std::deque<std::unique_ptr<DcpResponse>> mutations;
-        for (auto& qi : items) {
+        for (auto& qi : outstandingItemsResult.items) {
             if (shouldProcessItem(*qi)) {
                 curChkSeqno = qi->getBySeqno();
                 lastReadSeqnoUnSnapshotted = qi->getBySeqno();

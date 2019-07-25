@@ -187,17 +187,37 @@ public:
         return id == sid;
     }
 
+    /**
+     * Result of the getOutstandingItems function
+     */
+    struct OutstandingItemsResult {
+        /**
+         * The type of Checkpoint that these items belong to. Defaults to Memory
+         * as this results in the most fastidious error checking on the replica
+         */
+        CheckpointType checkpointType = CheckpointType::Memory;
+        std::vector<queued_item> items;
+    };
+
 protected:
     /**
      * @param vb reference to the associated vbucket
      *
-     * @return the outstanding items for the stream's checkpoint cursor.
+     * @return the outstanding items for the stream's checkpoint cursor and
+     *         checkpoint type.
      */
-    virtual std::vector<queued_item> getOutstandingItems(VBucket& vb);
+    virtual ActiveStream::OutstandingItemsResult getOutstandingItems(
+            VBucket& vb);
 
-    // Given a set of queued items, create mutation responses for each item,
-    // and pass onto the producer associated with this stream.
-    void processItems(std::vector<queued_item>& items,
+    /**
+     * Given a set of queued items, create mutation response for each item,
+     * and pass onto the producer associated with this stream.
+     *
+     * @param outstandingItemsResult vector of Items and Checkpoint type from
+     * which they came
+     * @param streamMutex Lock
+     */
+    void processItems(OutstandingItemsResult& outstandingItemsResult,
                       const LockHolder& streamMutex);
 
     /**

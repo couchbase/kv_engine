@@ -108,14 +108,16 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
     EXPECT_EQ(value, (*it)->getValue()->to_s());
 
     // We must have ckpt-start + Prepare
-    auto outItems = stream->public_getOutstandingItems(*vb);
-    ASSERT_EQ(2, outItems.size());
-    ASSERT_EQ(queue_op::checkpoint_start, outItems.at(0)->getOperation());
-    ASSERT_EQ(queue_op::pending_sync_write, outItems.at(1)->getOperation());
+    auto outstandingItemsResult = stream->public_getOutstandingItems(*vb);
+    ASSERT_EQ(2, outstandingItemsResult.items.size());
+    ASSERT_EQ(queue_op::checkpoint_start,
+              outstandingItemsResult.items.at(0)->getOperation());
+    ASSERT_EQ(queue_op::pending_sync_write,
+              outstandingItemsResult.items.at(1)->getOperation());
     // Stream::readyQ still empty
     ASSERT_EQ(0, stream->public_readyQSize());
     // Push items into the Stream::readyQ
-    stream->public_processItems(outItems);
+    stream->public_processItems(outstandingItemsResult);
 
     // No message processed, BufferLog empty
     ASSERT_EQ(0, producer->getBytesOutstanding());
@@ -258,16 +260,21 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
     }
 
     // Fetch items via DCP stream.
-    auto outItems = stream->public_getOutstandingItems(*vb);
+    auto outstandingItemsResult = stream->public_getOutstandingItems(*vb);
     switch (res) {
     case Resolution::Commit:
-        ASSERT_EQ(1, outItems.size()) << "Expected 1 item (Commit)";
-        EXPECT_EQ(queue_op::commit_sync_write, outItems.at(0)->getOperation());
+        ASSERT_EQ(1, outstandingItemsResult.items.size())
+                << "Expected 1 item (Commit)";
+        EXPECT_EQ(queue_op::commit_sync_write,
+                  outstandingItemsResult.items.at(0)->getOperation());
         break;
     case Resolution::Abort:
-        ASSERT_EQ(2, outItems.size()) << "Expected 2 items (CkptStart, Abort)";
-        EXPECT_EQ(queue_op::checkpoint_start, outItems.at(0)->getOperation());
-        EXPECT_EQ(queue_op::abort_sync_write, outItems.at(1)->getOperation());
+        ASSERT_EQ(2, outstandingItemsResult.items.size())
+                << "Expected 2 items (CkptStart, Abort)";
+        EXPECT_EQ(queue_op::checkpoint_start,
+                  outstandingItemsResult.items.at(0)->getOperation());
+        EXPECT_EQ(queue_op::abort_sync_write,
+                  outstandingItemsResult.items.at(1)->getOperation());
         break;
     }
 
@@ -275,7 +282,7 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
     ASSERT_EQ(0, stream->public_readyQSize());
 
     // Push items into readyQ
-    stream->public_processItems(outItems);
+    stream->public_processItems(outstandingItemsResult);
 
     // No message processed, BufferLog empty
     ASSERT_EQ(0, producer->getBytesOutstanding());

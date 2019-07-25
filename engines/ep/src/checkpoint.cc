@@ -77,6 +77,10 @@ size_t CheckpointCursor::getRemainingItemsCount() const {
     return remaining;
 }
 
+CheckpointType CheckpointCursor::getCheckpointType() const {
+    return (*currentCheckpoint)->getCheckpointType();
+}
+
 std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c) {
     os << "CheckpointCursor[" << &c << "] with"
        << " name:" << c.name

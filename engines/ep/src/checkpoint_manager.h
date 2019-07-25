@@ -56,10 +56,14 @@ public:
 
     /// Return type of getItemsForCursor()
     struct ItemsForCursor {
-        ItemsForCursor(uint64_t start, uint64_t end) : range(start, end) {
+        ItemsForCursor(uint64_t start,
+                       uint64_t end,
+                       CheckpointType checkpointType = CheckpointType::Memory)
+            : range(start, end), checkpointType(checkpointType) {
         }
         snapshot_range_t range;
         bool moreAvailable = {false};
+        CheckpointType checkpointType = CheckpointType::Memory;
     };
 
     /// Return type of expelUnreferencedCheckpointItems()
@@ -158,8 +162,8 @@ public:
      * @return The low/high sequence number added to `items` on success,
      *         or (0,0) if no items were added.
      */
-    snapshot_range_t getAllItemsForCursor(CheckpointCursor* cursor,
-                                          std::vector<queued_item>& items);
+    CheckpointManager::ItemsForCursor getAllItemsForCursor(
+            CheckpointCursor* cursor, std::vector<queued_item>& items);
 
     /**
      * Add all outstanding items for persistence to the vector
@@ -168,7 +172,7 @@ public:
      * @return The low/high sequence number added to `items` on success,
      *         or (0,0) if no items were added.
      */
-    snapshot_range_t getAllItemsForPersistence(
+    CheckpointManager::ItemsForCursor getAllItemsForPersistence(
             std::vector<queued_item>& items) {
         return getAllItemsForCursor(persistenceCursor, items);
     }
