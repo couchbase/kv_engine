@@ -37,9 +37,13 @@ protected:
         SyncWriteSpec(int64_t seqno, bool deletion = false)
             : seqno(seqno), deletion(deletion) {
         }
+        SyncWriteSpec(int64_t seqno, bool deletion, cb::durability::Level level)
+            : seqno(seqno), deletion(deletion), level(level) {
+        }
 
         int64_t seqno;
         bool deletion = false;
+        cb::durability::Level level = cb::durability::Level::Majority;
     };
 
     /**
@@ -102,6 +106,85 @@ protected:
      * @param initialState The initial state for VBucket
      */
     void testConvertPassiveDMToActiveDM(vbucket_state_t initialState);
+
+    /**
+     * Tests that the PassiveDM is correctly converted to ActiveDM when a
+     * vBucket in the provided initial state transitions to vbstate-active when
+     * there are in-flight SyncWrites. This test mimics an actual takeover which
+     * will do the following set of state transitions:
+     * replica/pending->active with no topology->active with topology. Persists
+     * up to seqno 2 regardless of the writes passed in.
+     *
+     * @param initialState The initial state for the vBucket
+     * @param writes The prepares to be queued
+     */
+    void testConvertPDMToADMWithNullTopologySetup(
+            vbucket_state_t initialState, std::vector<SyncWriteSpec>& writes);
+
+    /**
+     * Tests that the PassiveDM is correctly converted to ActiveDM when a
+     * vBucket in the provided initial state transitions to vbstate-active when
+     * there are in-flight SyncWrites. This test mimics an actual takeover which
+     * will do the following set of state transitions:
+     * replica/pending->active with no topology->active with topology
+     *
+     * @param initialState The initial state for the vBucket
+     */
+    void testConvertPDMToADMWithNullTopology(vbucket_state_t initialState);
+
+    /**
+     * Tests that the PassiveDM is correctly converted to ActiveDM when a
+     * vBucket in the provided initial state transitions to vbstate-active when
+     * there are in-flight SyncWrites. This test mimics an actual takeover which
+     * will do the following set of state transitions:
+     * replica/pending->active with no topology->active with topology. This test
+     * tests that a PersistToMajority Prepare persisted after the final topology
+     * change is done correctly.
+     *
+     * @param initialState The initial state for the vBucket
+     */
+    void testConvertPDMToADMWithNullTopologyPersistAfterTopologyChange(
+            vbucket_state_t initialState);
+
+    /**
+     * Tests that the PassiveDM is correctly converted to ActiveDM when a
+     * vBucket in the provided initial state transitions to vbstate-active when
+     * there are in-flight SyncWrites. This test mimics an actual takeover which
+     * will do the following set of state transitions:
+     * replica/pending->active with no topology->active with topology. This test
+     * tests that a PersistToMajority Prepare persisted between the null and
+     * final topology change is done correctly.
+     *
+     * @param initialState The initial state for the vBucket
+     */
+    void testConvertPDMToADMWithNullTopologyPersistBeforeTopologyChange(
+            vbucket_state_t initialState);
+
+    /**
+     * Tests that the PassiveDM is correctly converted to ActiveDM when a
+     * vBucket in the provided initial state transitions to vbstate-active when
+     * there are in-flight SyncWrites. This test mimics an actual takeover which
+     * will do the following set of state transitions:
+     * replica/pending->active with no topology->active with topology. This test
+     * tests that a HPS that does not equal anything in trackedWrites is moved
+     * over the the ADM and that a subsequent prepare and commit can be
+     * performed successfully.
+     *
+     * @param initialState The initial state for the vBucket
+     */
+    void testConvertPDMToADMWithNullTopologyPostDiskSnap(
+            vbucket_state_t initialState);
+
+    /**
+     * Tests that the PassiveDM is correctly converted to ActiveDM when a
+     * vBucket in the provided initial state transitions to vbstate-active when
+     * there is an in-flight PersistToMajority SyncWrite that has not yet been
+     * persisted.
+     *
+     * @param initialState The initial state for the vBucket
+     */
+    void testConvertPassiveDMToActiveDMUnpersistedPrepare(
+            vbucket_state_t initialState);
 
     /**
      * Test that the PassiveDM is correctly converted to ActiveDM when a

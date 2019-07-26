@@ -199,6 +199,18 @@ struct ActiveDurabilityMonitor::State {
 
     void updateHighCompletedSeqno();
 
+    /**
+     * A topology change may trigger a commit due to number of replicas
+     * changing. Generally we commit by moving the HPS or receiving a seqno ack
+     * but we cannot call the typical updateHPS function at topology change.
+     * This function iterates on trackedWrites committing anything that
+     * needs commit.
+     *
+     * @param [out] toCommit Container which has all SyncWrites to be committed
+     *              appended to it.
+     */
+    void checkForCommitDueToTopologyChange(CompletedQueue& toCommit);
+
 private:
     /**
      * Advance the current Position (iterator and seqno).
@@ -444,11 +456,6 @@ void ActiveDurabilityMonitor::setReplicationTopology(
     {
         auto s = state.wlock();
         s->setReplicationTopology(topology, *completedQueue);
-
-        // Note the HPS will already be in the correct place if the previous
-        // topology had a defined active node; however for simplicity we call
-        // this unconditionally; it should be a no-op if HPS already correct.
-        s->updateHighPreparedSeqno(*completedQueue);
     }
 
     processCompletedSyncWriteQueue();
@@ -1262,9 +1269,57 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
     auto newFirstChain =
             makeChain(DurabilityMonitor::ReplicationChainName::First, fChain);
 
-    // Copy over the trackedWrites position for all nodes which still exist in
-    // the new chain.
-    if (firstChain) {
+    // Apply the new topology to all in-flight SyncWrites
+    for (auto& write : trackedWrites) {
+        write.resetTopology(*newFirstChain, newSecondChain.get());
+    }
+
+    if (!firstChain && newFirstChain) {
+        // MB-35275. When a replica is promoted to active, the trackedWrites are
+        // moved from the PDM to the ADM. This ADM will have a null topology and
+        // the active node iterator will not exist. When we move from a null
+        // topology to a topology, we need to correct the HPS iterator to ensure
+        // that the HPS is correct post topology change. The HPS iterator is set
+        // to the corresponding SyncWrite in trackedWrites. If we have just
+        // received a Disk snapshot as PDM and highPreparedSeqno is not equal to
+        // anything in trackedWrites then it will be set to the highest seqno
+        // less than the highPreparedSeqno.
+        if (!trackedWrites.empty()) {
+            // We need to manually set the values for the HPS iterator
+            // (newFirstChain->positions.begin()) and "ack" the nodes so that we
+            // can commit if possible by checking if they are satisfied.
+
+            // It may be the case that we had a PersistToMajority prepare in the
+            // PDM before moving to ADM that had not yet been persisted
+            // (trackedWrites.back().getBySeqno() != highPreparedSeqno). If we
+            // have persisted this prepare in between transitioning from PDM
+            // to ADM with null topology and transitioning from ADM with null
+            // topology to ADM with topology then we may need to move our HPS
+            // further than the highPreparedSeqno that we inherited from the PDM
+            // due to persistence.
+            auto fence = std::max(static_cast<uint64_t>(highPreparedSeqno),
+                                  adm.vb.getPersistenceSeqno());
+            auto& activePos =
+                    newFirstChain->positions.find(newFirstChain->active)
+                            ->second;
+            Container::iterator it = trackedWrites.begin();
+            while (it != trackedWrites.end()) {
+                if (it->getBySeqno() <= static_cast<int64_t>(fence)) {
+                    activePos.it = it;
+                    it->ack(newFirstChain->active);
+                    it = std::next(it);
+                } else {
+                    break;
+                }
+            }
+
+            activePos.lastWriteSeqno = fence;
+            highPreparedSeqno = fence;
+        }
+    } else if (firstChain) {
+        // Copy over the trackedWrites position for all nodes which still exist
+        // in the new chain. This ensures that if we manually set the HPS on the
+        // firstChain then the secondChain will also be correctly set.
         for (const auto& node : firstChain->positions) {
             auto newNode = newFirstChain->positions.find(node.first);
             if (newNode != newFirstChain->positions.end()) {
@@ -1272,6 +1327,7 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
             }
         }
     }
+
     if (secondChain && newSecondChain) {
         for (const auto& node : secondChain->positions) {
             auto newNode = newSecondChain->positions.find(node.first);
@@ -1279,11 +1335,6 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
                 newNode->second = node.second;
             }
         }
-    }
-
-    // Apply the new topology to all in-flight SyncWrites
-    for (auto& write : trackedWrites) {
-        write.resetTopology(*newFirstChain, newSecondChain.get());
     }
 
     // If durability is not possible for the new chains, then we should abort
@@ -1324,6 +1375,9 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
     if (secondChain) {
         performQueuedAckForChain(*secondChain, toComplete);
     }
+
+    // Commit if possible
+    checkForCommitDueToTopologyChange(toComplete);
 }
 
 void ActiveDurabilityMonitor::State::performQueuedAckForChain(
@@ -1338,6 +1392,18 @@ void ActiveDurabilityMonitor::State::performQueuedAckForChain(
             // it is in a chain.
             queuedSeqnoAcks.erase(existingAck);
         }
+    }
+}
+
+void ActiveDurabilityMonitor::State::checkForCommitDueToTopologyChange(
+        ActiveDurabilityMonitor::CompletedQueue& toCommit) {
+    Container::iterator it = trackedWrites.begin();
+    while (it != trackedWrites.end() && it->getBySeqno() <= highPreparedSeqno) {
+        const auto next = std::next(it);
+        if (it->isSatisfied()) {
+            toCommit.enqueue(*this, removeSyncWrite(it));
+        }
+        it = next;
     }
 }
 
