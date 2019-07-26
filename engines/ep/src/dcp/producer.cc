@@ -1086,7 +1086,25 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
     } else if (opcode == cb::mcbp::ClientOpcode::DcpMutation ||
                opcode == cb::mcbp::ClientOpcode::DcpDeletion ||
                opcode == cb::mcbp::ClientOpcode::DcpExpiration ||
-               opcode == cb::mcbp::ClientOpcode::DcpStreamEnd) {
+               opcode == cb::mcbp::ClientOpcode::DcpStreamEnd ||
+               opcode == cb::mcbp::ClientOpcode::DcpSystemEvent ||
+               opcode == cb::mcbp::ClientOpcode::DcpCommit ||
+               opcode == cb::mcbp::ClientOpcode::DcpPrepare ||
+               opcode == cb::mcbp::ClientOpcode::DcpAbort) {
+        // The consumer could of closed the stream, enoent is expected, but
+        // any other errors are not expected.
+        if (resp->response.getStatus() == cb::mcbp::Status::KeyEnoent) {
+            logger->info(
+                    "DcpProducer::handleResponse KeyEnoent received "
+                    "response:{}",
+                    resp->response.toJSON(true).dump());
+        } else {
+            logger->warn(
+                    "DcpProducer::handleResponse received unexpected "
+                    "response:{}",
+                    resp->response.toJSON(true).dump());
+        }
+
         // TODO: When nacking is implemented we need to handle these responses
         return true;
     } else if (opcode == cb::mcbp::ClientOpcode::DcpNoop) {
@@ -1096,10 +1114,8 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
         }
     }
 
-    logger->warn(
-            "Trying to handle an unknown response {}, "
-            "disconnecting",
-            opcode);
+    logger->warn("Disconnecting. Trying to handle an unknown response:{}",
+                 resp->response.toJSON(true).dump());
 
     return false;
 }

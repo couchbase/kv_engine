@@ -2454,6 +2454,32 @@ TEST_F(ActiveStreamChkptProcessorTaskTest, DeleteDeadStreamEntry) {
     notifyAndStepToCheckpoint();
 }
 
+// Test handleResponse accepts opcodes that the producer can send
+TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponse) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "ProducerHandleResponse",
+                                                      /*flags*/ 0);
+
+    MockDcpMessageProducers producers(engine.get());
+
+    for (auto op : {cb::mcbp::ClientOpcode::DcpMutation,
+                    cb::mcbp::ClientOpcode::DcpDeletion,
+                    cb::mcbp::ClientOpcode::DcpExpiration,
+                    cb::mcbp::ClientOpcode::DcpStreamEnd,
+                    cb::mcbp::ClientOpcode::DcpSystemEvent,
+                    cb::mcbp::ClientOpcode::DcpCommit,
+                    cb::mcbp::ClientOpcode::DcpPrepare,
+                    cb::mcbp::ClientOpcode::DcpAbort}) {
+        protocol_binary_response_header message;
+        message.response.setMagic(cb::mcbp::Magic::ClientResponse);
+        message.response.setOpcode(op);
+        EXPECT_TRUE(producer->handleResponse(&message));
+    }
+}
+
 struct PrintToStringCombinedNameXattrOnOff {
     std::string operator()(
             const ::testing::TestParamInfo<::testing::tuple<std::string, bool>>&
