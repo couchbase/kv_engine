@@ -382,7 +382,9 @@ std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
        << c.getHighSeqno() << "}"
        << " snap:{" << c.getSnapshotStartSeqno() << ","
        << c.getSnapshotEndSeqno() << "}"
-       << " state:" << to_string(c.getState()) << " items:[" << std::endl;
+       << " state:" << to_string(c.getState())
+       << " type:" << to_string(c.getCheckpointType()) << " items:["
+       << std::endl;
     for (const auto& e : c.toWrite) {
         os << "\t{" << e->getBySeqno() << "," << to_string(e->getOperation());
         e->isDeleted() ? os << "[d]," : os << ",";
