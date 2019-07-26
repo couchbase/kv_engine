@@ -285,10 +285,6 @@ GetValue VBucketTestBase::public_getAndUpdateTtl(const DocKey& key,
     return gv;
 }
 
-void VBucketTestBase::public_incrementBackfillQueueSize() {
-    vbucket->stats.vbBackfillQueueSize++;
-}
-
 bool operator==(const SWCompleteTrace& lhs, const SWCompleteTrace& rhs) {
     return lhs.count == rhs.count && lhs.cookie == rhs.cookie &&
            lhs.status == rhs.status;
@@ -545,16 +541,10 @@ TEST_P(VBucketTest, GetItemsToPersist_Limit) {
     this->vbucket->rejectQueue.push(makeQueuedItem("1"));
     this->vbucket->rejectQueue.push(makeQueuedItem("2"));
 
-    // Add 2 items to backfill queue
-    this->vbucket->backfill.wlock()->items.push(makeQueuedItem("3"));
-    public_incrementBackfillQueueSize();
-    this->vbucket->backfill.wlock()->items.push(makeQueuedItem("4"));
-    public_incrementBackfillQueueSize();
-
     // Add 2 items to checkpoint manager (in addition to initial
     // checkpoint_start).
     const int itemsToGenerate = 2;
-    auto keys = generateKeys(itemsToGenerate, 5);
+    auto keys = generateKeys(itemsToGenerate, 3);
     setMany(keys, MutationStatus::WasClean);
 
     // Test - fetch items in chunks spanning the different item sources.
@@ -567,24 +557,16 @@ TEST_P(VBucketTest, GetItemsToPersist_Limit) {
     EXPECT_EQ(range.getStart(), result.range.getStart());
     EXPECT_EQ(range.getEnd() + itemsToGenerate, result.range.getEnd());
 
-    result = this->vbucket->getItemsToPersist(2);
-    EXPECT_TRUE(result.moreAvailable);
-    EXPECT_EQ(2, result.items.size());
-    EXPECT_STREQ("2", result.items[0]->getKey().c_str());
-    EXPECT_STREQ("3", result.items[1]->getKey().c_str());
-    EXPECT_EQ(range.getStart(), result.range.getStart());
-    EXPECT_EQ(range.getEnd() + itemsToGenerate, result.range.getEnd());
-
-    // Next call should read 1 item from backfill; and *all* items from
+    // Next call should read 1 item from reject queue; and *all* items from
     // checkpoint (even through we only asked for 2 total), as it is not valid
     // to read partial checkpoint contents.
     result = this->vbucket->getItemsToPersist(2);
     EXPECT_FALSE(result.moreAvailable);
     EXPECT_EQ(4, result.items.size());
-    EXPECT_STREQ("4", result.items[0]->getKey().c_str());
+    EXPECT_STREQ("2", result.items[0]->getKey().c_str());
     EXPECT_TRUE(result.items[1]->isCheckPointMetaItem());
-    EXPECT_STREQ("5", result.items[2]->getKey().c_str());
-    EXPECT_STREQ("6", result.items[3]->getKey().c_str());
+    EXPECT_STREQ("3", result.items[2]->getKey().c_str());
+    EXPECT_STREQ("4", result.items[3]->getKey().c_str());
     EXPECT_EQ(range.getStart(), result.range.getStart());
     EXPECT_EQ(range.getEnd() + itemsToGenerate, result.range.getEnd());
 }

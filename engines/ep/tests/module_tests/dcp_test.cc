@@ -1615,10 +1615,6 @@ TEST_P(ConnectionTest, AckCorrectPassiveStream) {
  * second checkpoint.
  */
 TEST_P(ConnectionTest, test_not_using_backfill_queue) {
-    if (engine->getConfiguration().isDiskBackfillQueue()) {
-        engine->getConfiguration().setDiskBackfillQueue(false);
-        ASSERT_FALSE(engine->getConfiguration().isDiskBackfillQueue());
-    }
     // Make vbucket replica so can add passive stream
     ASSERT_EQ(ENGINE_SUCCESS, set_vb_state(vbid, vbucket_state_replica));
 
@@ -1650,8 +1646,6 @@ TEST_P(ConnectionTest, test_not_using_backfill_queue) {
                              /*end_seqno*/ 1,
                              /*flags set to MARKER_FLAG_DISK*/ 0x2);
 
-    // Should not be in backfill phase
-    EXPECT_FALSE(engine->getKVBucket()->getVBucket(vbid)->isBackfillPhase());
     EXPECT_TRUE(engine->getKVBucket()
                         ->getVBucket(vbid)
                         ->isReceivingInitialDiskSnapshot());
@@ -1721,17 +1715,13 @@ TEST_P(ConnectionTest, test_not_using_backfill_queue) {
 }
 
 /*
- * The following tests that once a vbucket has been put into a backfillphase
- * the openCheckpointID is 0.  In addition it checks that a subsequent
- * snapshotMarker results in a new checkpoint being created.
+ * The following test has been adapted following the removal of vbucket DCP
+ * backfill queue. It now demonstrates some of the 'new' behaviour of
+ * DCP snapshot markers  on a replica checkpoint.
+ * When snapshots arrive and no items exist, no new CP is created, only the
+ * existing snapshot is updated
  */
-TEST_P(ConnectionTest, test_mb21784) {
-    // For the test to work it must be configured to use the disk backfill
-    // queue.
-    if (!engine->getConfiguration().isDiskBackfillQueue()) {
-        engine->getConfiguration().setDiskBackfillQueue(true);
-        ASSERT_TRUE(engine->getConfiguration().isDiskBackfillQueue());
-    }
+TEST_P(ConnectionTest, SnapshotsAndNoData) {
     // Make vbucket replica so can add passive stream
     ASSERT_EQ(ENGINE_SUCCESS, set_vb_state(vbid, vbucket_state_replica));
 
@@ -1761,19 +1751,19 @@ TEST_P(ConnectionTest, test_mb21784) {
                              /*end_seqno*/ 0,
                              /*flags set to MARKER_FLAG_DISK*/ 0x2);
 
-    // A side effect of moving the vbucket into a backfill state is that
-    // the openCheckpointId is set to 0
-    EXPECT_EQ(0, manager.getOpenCheckpointId());
+    EXPECT_EQ(2, manager.getOpenCheckpointId());
 
     consumer->snapshotMarker(/*opaque*/ 1,
                              Vbid(0),
-                             /*start_seqno*/ 0,
-                             /*end_seqno*/ 0,
+                             /*start_seqno*/ 1,
+                             /*end_seqno*/ 2,
                              /*flags*/ 0);
 
-    // Check that a new checkpoint was created, which means the
-    // opencheckpointid increases to 1
-    EXPECT_EQ(1, manager.getOpenCheckpointId());
+    EXPECT_EQ(2, manager.getOpenCheckpointId());
+    // Still cp:2 but the snap-end changes
+    auto snapInfo = manager.getSnapshotInfo();
+    EXPECT_EQ(0, snapInfo.range.getStart()); // no data so start is still 0
+    EXPECT_EQ(2, snapInfo.range.getEnd());
 
     // Close stream
     ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/0, vbid));

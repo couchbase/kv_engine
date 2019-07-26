@@ -120,9 +120,6 @@ public:
                               const void* cookie,
                               cb::StoreIfPredicate predicate = {}) override;
 
-    ENGINE_ERROR_CODE addBackfillItem(Item& item,
-                                      ExtendedMetaData* emd) override;
-
     GetValue get(const DocKey& key,
                  Vbid vbucket,
                  const void* cookie,
@@ -184,7 +181,6 @@ public:
                                      PermittedVBStates permittedVBStates,
                                      CheckConflicts checkConflicts,
                                      const ItemMetaData& itemMeta,
-                                     bool backfill,
                                      GenerateBySeqno genBySeqno,
                                      GenerateCas generateCas,
                                      uint64_t bySeqno,

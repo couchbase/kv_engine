@@ -504,24 +504,12 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
             return ENGINE_NOT_MY_VBUCKET;
         }
 
-        if (engine_.getConfiguration().isDiskBackfillQueue()) {
-            // Given being in a backfill state is only a temporary failure
-            // we do all hard errors first.
-            if (vb->checkpointManager->getOpenCheckpointId() == 0) {
-                logger->warn(
-                        "({}) Stream request failed"
-                        "because this vbucket is in backfill state",
-                        vbucket);
-                return ENGINE_TMPFAIL;
-            }
-        } else {
-            if (vb->isReceivingInitialDiskSnapshot()) {
-                logger->info(
-                        "({}) Stream request failed because this vbucket"
-                        "is currently receiving its initial disk snapshot",
-                        vbucket);
-                return ENGINE_TMPFAIL;
-            }
+        if (vb->isReceivingInitialDiskSnapshot()) {
+            logger->info(
+                    "({}) Stream request failed because this vbucket"
+                    "is currently receiving its initial disk snapshot",
+                    vbucket);
+            return ENGINE_TMPFAIL;
         }
 
         if (!notifyOnly) {

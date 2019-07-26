@@ -57,7 +57,6 @@ public:
           queueMemory(0),
           queueFill(0),
           queueDrain(0),
-          backfillQueueSize(0),
           pendingWrites(0),
           chkPersistRemaining(0),
           datatypeCounts{{0}},
@@ -169,9 +168,6 @@ public:
     size_t getQueueDrain() {
         return queueDrain;
     }
-    size_t getBackfillQueueSize() {
-        return backfillQueueSize;
-    }
     uint64_t getAge() {
         return queueAge;
     }
@@ -246,7 +242,6 @@ private:
     size_t queueMemory;
     size_t queueFill;
     size_t queueDrain;
-    size_t backfillQueueSize;
     size_t pendingWrites;
     size_t chkPersistRemaining;
     HashTable::DatatypeCombo datatypeCounts;

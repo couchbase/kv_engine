@@ -33,7 +33,6 @@ EPStats::EPStats()
       warmupNumReadCap(0),
       replicationThrottleWriteQueueCap(0),
       diskQueueSize(0),
-      vbBackfillQueueSize(0),
       flusher_todo(0),
       flusherCommits(0),
       cumulativeFlushTime(0),

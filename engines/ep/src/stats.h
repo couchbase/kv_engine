@@ -153,8 +153,6 @@ public:
 
     //! Amount of items waiting for persistence
     cb::NonNegativeCounter<size_t> diskQueueSize;
-    //! Number of items in vbucket backfill queue
-    cb::NonNegativeCounter<size_t> vbBackfillQueueSize;
     //! Size of the in-process (output) queue.
     Counter flusher_todo;
     //! Number of transaction commits.

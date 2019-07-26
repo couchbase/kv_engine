@@ -53,7 +53,6 @@ void VBucketCountVisitor::visitBucket(const VBucketPtr& vb) {
         queueFill += vb->dirtyQueueFill;
         queueDrain += vb->dirtyQueueDrain;
         queueAge += vb->getQueueAge();
-        backfillQueueSize += vb->getBackfillSize();
         pendingWrites += vb->dirtyQueuePendingWrites;
         rollbackItemCount += vb->getRollbackItemCount();
         numHpVBReqs += vb->getHighPriorityChkSize();

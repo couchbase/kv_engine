@@ -264,7 +264,6 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
                                     {vbucket_state_active},
                                     CheckConflicts::No,
                                     meta,
-                                    false,
                                     GenerateBySeqno::Yes,
                                     GenerateCas::No,
                                     0,

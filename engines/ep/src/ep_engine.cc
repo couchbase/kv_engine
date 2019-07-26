@@ -2554,10 +2554,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
                     epstats.diskQueueSize, add_stat, cookie);
     add_casted_stat("ep_diskqueue_items",
                     epstats.diskQueueSize, add_stat, cookie);
-    add_casted_stat("ep_vb_backfill_queue_size",
-                    epstats.vbBackfillQueueSize,
-                    add_stat,
-                    cookie);
     auto* flusher = kvBucket->getFlusher(EP_PRIMARY_SHARD);
     if (flusher) {
         add_casted_stat("ep_commit_num", epstats.flusherCommits,
@@ -5210,7 +5206,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
                                     permittedVBStates,
                                     checkConflicts,
                                     itemMeta,
-                                    false /*allowExisting*/,
                                     genBySeqno,
                                     genCas,
                                     0 /*bySeqno*/,

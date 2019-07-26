@@ -73,4 +73,8 @@ using VBucketTypes = ::testing::Types<EPVBucket>;
 /*
  * Test fixture for single-threaded Checkpoint tests
  */
-class SingleThreadedCheckpointTest : public SingleThreadedKVBucketTest {};
+class SingleThreadedCheckpointTest : public SingleThreadedKVBucketTest {
+public:
+    void closeReplicaCheckpointOnMemorySnapshotEnd(bool highMem,
+                                                   uint32_t snapshotType);
+};

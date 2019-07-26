@@ -127,14 +127,6 @@ public:
                                       cb::StoreIfPredicate predicate = {}) = 0;
 
     /**
-     * Add a DCP backfill item into its corresponding vbucket
-     * @param item the item to be added
-     * @return the result of the operation
-     */
-    virtual ENGINE_ERROR_CODE addBackfillItem(Item& item,
-                                              ExtendedMetaData* emd = NULL) = 0;
-
-    /**
      * Retrieve a value.
      *
      * @param key     the key to fetch
@@ -319,7 +311,6 @@ public:
             PermittedVBStates permittedVBStates,
             CheckConflicts checkConflicts,
             const ItemMetaData& itemMeta,
-            bool backfill,
             GenerateBySeqno genBySeqno,
             GenerateCas generateCas,
             uint64_t bySeqno,

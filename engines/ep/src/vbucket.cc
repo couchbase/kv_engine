@@ -232,7 +232,6 @@ VBucket::VBucket(Vbid i,
         conflictResolver.reset(new RevisionSeqnoResolution());
     }
 
-    backfill.wlock()->isBackfillPhase = false;
     pendingOpsStart = std::chrono::steady_clock::time_point();
     stats.coreLocal.get()->memOverhead.fetch_add(
             sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
@@ -264,7 +263,6 @@ VBucket::~VBucket() {
     }
 
     stats.diskQueueSize.fetch_sub(dirtyQueueSize.load());
-    stats.vbBackfillQueueSize.fetch_sub(getBackfillSize());
 
     // Clear out the bloomfilter(s)
     clearFilter();
@@ -397,21 +395,6 @@ VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
         rejectQueue.pop();
     }
 
-    // Append any 'backfill' items (mutations added by a DCP stream).
-    size_t num_items = 0;
-    bool backfillEmpty = backfill.withWLock([&num_items, &result, approxLimit](
-                                                    auto& locked) {
-        while (result.items.size() < approxLimit && !locked.items.empty()) {
-            result.items.push_back(locked.items.front());
-            locked.items.pop();
-            num_items++;
-        }
-        return locked.items.empty();
-    });
-    stats.vbBackfillQueueSize.fetch_sub(num_items);
-    stats.coreLocal.get()->memOverhead.fetch_sub(num_items *
-                                                 sizeof(queued_item));
-
     // Append up to approxLimit checkpoint items outstanding for the persistence
     // cursor, if we haven't yet hit the limit.
     // Note that it is only valid to queue a complete checkpoint - this is where
@@ -436,8 +419,7 @@ VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
     }
 
     // Check if there's any more items remaining.
-    result.moreAvailable =
-            !rejectQueue.empty() || !backfillEmpty || ckptItemsAvailable;
+    result.moreAvailable = !rejectQueue.empty() || ckptItemsAvailable;
 
     return result;
 }
@@ -1193,21 +1175,6 @@ VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
     }
 
     VBNotifyCtx notifyCtx;
-    if (ctx.isBackfillItem) {
-        queueBackfillItem(item, ctx.genBySeqno);
-        notifyCtx.notifyFlusher = true;
-
-        // @todo: Check the following for:
-        //     1) being sure that we needed this only for TAP consumers
-        //     2) remove it in case
-        /* During backfill on a TAP receiver we need to update the snapshot
-         range in the checkpoint. Has to be done here because in case of TAP
-         backfill, above, we use vb.queueBackfillItem() instead of
-         vb.checkpointManager->queueDirty() */
-        if (ctx.genBySeqno == GenerateBySeqno::Yes) {
-            checkpointManager->resetSnapshotRange();
-        }
-    } else {
         notifyCtx.notifyFlusher =
                 checkpointManager->queueDirty(*this,
                                               item,
@@ -1215,7 +1182,6 @@ VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
                                               ctx.genCas,
                                               ctx.preLinkDocumentContext);
         notifyCtx.notifyReplication = true;
-    }
     notifyCtx.bySeqno = item->getBySeqno();
 
     // Process Durability items (notify the DurabilityMonitor of
@@ -1295,11 +1261,9 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
     VBNotifyCtx notifyCtx = queueItem(qi, ctx);
 
     // Some StoredValue adjustments now..
-    if (!ctx.isBackfillItem) {
-        if (ctx.genCas == GenerateCas::Yes) {
-            v.setCas(qi->getCas());
+    if (ctx.genCas == GenerateCas::Yes) {
+        v.setCas(qi->getCas());
         }
-    }
     if (ctx.genBySeqno == GenerateBySeqno::Yes) {
         v.setBySeqno(qi->getBySeqno());
     }
@@ -1712,82 +1676,6 @@ ENGINE_ERROR_CODE VBucket::replace(
     return ret;
 }
 
-ENGINE_ERROR_CODE VBucket::addBackfillItem(
-        Item& itm,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    auto htRes = ht.findForCommit(itm.getKey());
-    auto* v = htRes.selectSVToModify(itm);
-    auto& hbl = htRes.getHBL();
-
-    // Note that this function is only called on replica or pending vbuckets.
-    if (v && v->isLocked(ep_current_time())) {
-        v->unlock();
-    }
-
-    VBQueueItemCtx queueItmCtx{
-            GenerateBySeqno::No,
-            GenerateCas::No,
-            GenerateDeleteTime::No,
-            TrackCasDrift::No,
-            /*isBackfillItem*/ true,
-            DurabilityItemCtx{itm.getDurabilityReqs(), nullptr},
-            nullptr /* No pre link should happen */,
-            {} /*overwritingPrepareSeqno*/};
-    MutationStatus status;
-    boost::optional<VBNotifyCtx> notifyCtx;
-    std::tie(status, notifyCtx) = processSet(htRes,
-                                             v,
-                                             itm,
-                                             0,
-                                             /*allowExisting*/ true,
-                                             /*hasMetaData*/ true,
-                                             queueItmCtx,
-                                             {/*no predicate*/});
-
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    switch (status) {
-    case MutationStatus::NoMem:
-        ret = ENGINE_ENOMEM;
-        break;
-    case MutationStatus::InvalidCas:
-    case MutationStatus::IsLocked:
-        ret = ENGINE_KEY_EEXISTS;
-        break;
-    case MutationStatus::WasDirty:
-    // FALLTHROUGH, to ensure the bySeqno for the hashTable item is
-    // set correctly, and also the sequence numbers are ordered correctly.
-    // (MB-14003)
-    case MutationStatus::NotFound:
-    // FALLTHROUGH
-    case MutationStatus::WasClean: {
-        if (v == nullptr) {
-            // Scan build thinks v could be nullptr - check to suppress warning
-            throw std::logic_error(
-                    "VBucket::addBackfillItem: "
-                    "StoredValue should not be null if status WasClean");
-        }
-        setMaxCas(v->getCas());
-        // we unlock ht lock here because we want to avoid potential lock
-        // inversions arising from notifyNewSeqno() call
-        hbl.getHTLock().unlock();
-        notifyNewSeqno(*notifyCtx);
-        doCollectionsStats(cHandle, *notifyCtx);
-    } break;
-    case MutationStatus::NeedBgFetch:
-        throw std::logic_error(
-                "VBucket::addBackfillItem: "
-                "SET on a non-active vbucket should not require a "
-                "bg_metadata_fetch.");
-
-    case MutationStatus::IsPendingSyncWrite:
-        throw std::logic_error(
-                "VBucket::addBackfillItem: SET on a non-active vbucket should "
-                "not encounter a Pending Sync Write");
-    }
-
-    return ret;
-}
-
 void VBucket::addDurabilityMonitorStats(const AddStatFn& addStat,
                                         const void* cookie) const {
     durabilityMonitor->addStats(addStat, cookie);
@@ -1819,7 +1707,6 @@ ENGINE_ERROR_CODE VBucket::prepare(
             genCas,
             GenerateDeleteTime::No,
             TrackCasDrift::Yes,
-            /*isBackfillItem*/ false,
             DurabilityItemCtx{itm.getDurabilityReqs(), cookie},
             nullptr /* No pre link step needed */,
             {} /*overwritingPrepareSeqno*/};
@@ -1974,7 +1861,6 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
             genCas,
             GenerateDeleteTime::No,
             TrackCasDrift::Yes,
-            /*isBackfillItem*/ false,
             DurabilityItemCtx{itm.getDurabilityReqs(), cookie},
             nullptr /* No pre link step needed */,
             {} /*overwritingPrepareSeqno*/};
@@ -2198,7 +2084,6 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
         EventuallyPersistentEngine& engine,
         CheckConflicts checkConflicts,
         const ItemMetaData& itemMeta,
-        bool backfill,
         GenerateBySeqno genBySeqno,
         GenerateCas generateCas,
         uint64_t bySeqno,
@@ -2289,7 +2174,6 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
                                    generateCas,
                                    GenerateDeleteTime::No,
                                    TrackCasDrift::Yes,
-                                   backfill,
                                    {},
                                    nullptr /* No pre link step needed */,
                                    {} /*overwritingPrepareSeqno*/};
@@ -3037,7 +2921,6 @@ void VBucket::_addStats(bool details,
         addStat("ops_reject", opsReject.load(), add_stat, c);
         addStat("ops_update", opsUpdate.load(), add_stat, c);
         addStat("queue_size", dirtyQueueSize.load(), add_stat, c);
-        addStat("backfill_queue_size", getBackfillSize(), add_stat, c);
         addStat("queue_memory", dirtyQueueMem.load(), add_stat, c);
         addStat("queue_fill", dirtyQueueFill.load(), add_stat, c);
         addStat("queue_drain", dirtyQueueDrain.load(), add_stat, c);

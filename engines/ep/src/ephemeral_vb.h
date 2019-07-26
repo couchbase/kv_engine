@@ -191,9 +191,6 @@ public:
                 "EphemeralVBucket::getNumTotalItems not supported");
     }
 
-    void queueBackfillItem(queued_item& qi,
-                           const GenerateBySeqno generateBySeqno) override;
-
     /** Purge any stale items in this VBucket's sequenceList.
      *
      * @param shouldPause Callback function that indicates if tombstone purging

@@ -799,39 +799,6 @@ ENGINE_ERROR_CODE KVBucket::replace(Item& itm,
     return result;
 }
 
-ENGINE_ERROR_CODE KVBucket::addBackfillItem(Item& itm,
-                                            ExtendedMetaData* emd) {
-    VBucketPtr vb = getVBucket(itm.getVBucketId());
-    if (!vb) {
-        ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
-    }
-
-    // Obtain read-lock on VB state to ensure VB state changes are interlocked
-    // with this addBackfillItem
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    if (vb->getState() == vbucket_state_dead ||
-        vb->getState() == vbucket_state_active) {
-        ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
-    }
-
-    //check for the incoming item's CAS validity
-    if (!Item::isValidCas(itm.getCas())) {
-        return ENGINE_KEY_EEXISTS;
-    }
-
-    { // hold collections read lock for duration of addBackfillItem
-        auto readHandle = vb->lockCollections(itm.getKey());
-        if (!readHandle.valid()) {
-            return ENGINE_UNKNOWN_COLLECTION;
-        } // now hold collections read access for the duration of the set
-
-        auto ret = vb->addBackfillItem(itm, readHandle);
-        return ret;
-    }
-}
-
 ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,
                                             vbucket_state_t to,
                                             const nlohmann::json& meta,
@@ -1242,7 +1209,6 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
                     pending.getNumItems());
 
     // Active vBuckets:
-    DO_STAT("vb_active_backfill_queue_size", active.getBackfillQueueSize());
     DO_STAT("vb_active_num", active.getVBucketNumber());
     DO_STAT("vb_active_curr_items", active.getNumItems());
     DO_STAT("vb_active_hp_vb_req_size", active.getNumHpVBReqs());
@@ -1281,7 +1247,6 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
             active.getSyncWriteAbortedCount());
 
     // Replica vBuckets:
-    DO_STAT("vb_replica_backfill_queue_size", replica.getBackfillQueueSize());
     DO_STAT("vb_replica_num", replica.getVBucketNumber());
     DO_STAT("vb_replica_curr_items", replica.getNumItems());
     DO_STAT("vb_replica_hp_vb_req_size", replica.getNumHpVBReqs());
@@ -1320,7 +1285,6 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
             replica.getSyncWriteAbortedCount());
 
     // Pending vBuckets:
-    DO_STAT("vb_pending_backfill_queue_size", pending.getBackfillQueueSize());
     DO_STAT("vb_pending_num", pending.getVBucketNumber());
     DO_STAT("vb_pending_curr_items", pending.getNumItems());
     DO_STAT("vb_pending_hp_vb_req_size", pending.getNumHpVBReqs());
@@ -1979,7 +1943,6 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
                                            PermittedVBStates permittedVBStates,
                                            CheckConflicts checkConflicts,
                                            const ItemMetaData& itemMeta,
-                                           bool backfill,
                                            GenerateBySeqno genBySeqno,
                                            GenerateCas generateCas,
                                            uint64_t bySeqno,
@@ -2031,7 +1994,6 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
                                   engine,
                                   checkConflicts,
                                   itemMeta,
-                                  backfill,
                                   genBySeqno,
                                   generateCas,
                                   bySeqno,

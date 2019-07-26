@@ -95,8 +95,7 @@ struct DurabilityItemCtx {
 };
 
 /**
- * Structure that holds info needed to queue an item in chkpt or vb backfill
- * queue
+ * Structure that holds info needed to queue an item in chkpt
  *
  * GenerateDeleteTime - Only the queueing of items where isDeleted() == true
  * does this parameter have any affect. E.g. an add of an Item with this set to
@@ -115,7 +114,6 @@ struct VBQueueItemCtx {
                    GenerateCas genCas,
                    GenerateDeleteTime generateDeleteTime,
                    TrackCasDrift trackCasDrift,
-                   bool isBackfillItem,
                    boost::optional<DurabilityItemCtx> durability,
                    PreLinkDocumentContext* preLinkDocumentContext_,
                    boost::optional<int64_t> overwritingPrepareSeqno)
@@ -123,7 +121,6 @@ struct VBQueueItemCtx {
           genCas(genCas),
           generateDeleteTime(generateDeleteTime),
           trackCasDrift(trackCasDrift),
-          isBackfillItem(isBackfillItem),
           durability(durability),
           preLinkDocumentContext(preLinkDocumentContext_),
           overwritingPrepareSeqno(overwritingPrepareSeqno) {
@@ -133,8 +130,6 @@ struct VBQueueItemCtx {
     GenerateCas genCas = GenerateCas::Yes;
     GenerateDeleteTime generateDeleteTime = GenerateDeleteTime::Yes;
     TrackCasDrift trackCasDrift = TrackCasDrift::No;
-    /// Whether the item must be enqueued into the backfill-queue or checkpoint
-    bool isBackfillItem = false;
     /// Durability requirements. Only present for SyncWrites.
     boost::optional<DurabilityItemCtx> durability = {};
     /// Context object that allows running the pre-link callback after the CAS
@@ -535,35 +530,6 @@ public:
 
     size_t size();
 
-    size_t getBackfillSize() {
-        return backfill.rlock()->items.size();
-    }
-
-    /**
-     * Process an item from a DCP backfill.
-     * It puts it onto a queue for persistence and/or generates a seqno and
-     * updates stats
-     *
-     * @param qi item to be processed
-     * @param generateBySeqno indicates if a new seqno must generated or the
-     *                        seqno in the item must be used
-     *
-     *
-     */
-    virtual void queueBackfillItem(queued_item& qi,
-                                   const GenerateBySeqno generateBySeqno) = 0;
-
-    /**
-     * Transfer any backfill items to the specified vector, up to the optional
-     * limit.
-     * @param items Destination for items transferred from backfill.
-     * @param limit If non-zero, limit the number of items transferred to the
-     * specified number.
-     * @return true if any more items remain in the backfill set - i.e. if
-     *         limit constrained the number of items.
-     */
-    bool getBackfillItems(std::vector<queued_item>& items, size_t limit = 0);
-
     struct ItemsToFlush {
         std::vector<queued_item> items;
         snapshot_range_t range{0, 0};
@@ -580,14 +546,6 @@ public:
      *         limit was reached).
      */
     ItemsToFlush getItemsToPersist(size_t approxLimit);
-
-    bool isBackfillPhase() {
-        return backfill.rlock()->isBackfillPhase.load();
-    }
-
-    void setBackfillPhase(bool backfillPhase) {
-        backfill.wlock()->isBackfillPhase.store(backfillPhase);
-    }
 
     bool isReceivingInitialDiskSnapshot() {
         return receivingInitialDiskSnapshot.load();
@@ -899,14 +857,6 @@ public:
     /// Manager of this vBucket's checkpoints. unique_ptr for pimpl.
     std::unique_ptr<CheckpointManager> checkpointManager;
 
-    // Struct for managing 'backfill' items - Items which have been added by
-    // an incoming DCP stream and need to be persisted to disk.
-    struct Backfill {
-        std::queue<queued_item> items;
-        std::atomic<bool> isBackfillPhase;
-    };
-    folly::Synchronized<Backfill> backfill;
-
     /**
      * Searches for a 'valid' StoredValue in the VBucket.
      *
@@ -1095,21 +1045,6 @@ public:
             const Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     /**
-     * Add an item directly into its vbucket rather than putting it on a
-     * checkpoint (backfill the item). The can happen during DCP or when a
-     * replica vbucket is receiving backfill items from active vbucket.
-     *
-     * @param itm Item to be added/updated from DCP backfill. Upon
-     *            success, the itm revSeqno is updated
-     * @param cHandle Collections readhandle (caching mode) for this key
-     *
-     * @return the result of the operation
-     */
-    ENGINE_ERROR_CODE addBackfillItem(
-            Item& itm,
-            const Collections::VB::Manifest::CachingReadHandle& readHandle);
-
-    /**
      * Set an item in the store from a non-front end operation (DCP, XDCR)
      *
      * @param item the item to set. Upon success, the itm revSeqno is updated
@@ -1186,8 +1121,6 @@ public:
      * @param engine Reference to ep engine
      * @param checkConflicts should conflict resolution be done?
      * @param itemMeta ref to item meta data
-     * @param backfill indicates if the item must be put onto vb queue or
-     *                 onto checkpoint
      * @param genBySeqno whether or not to generate sequence number
      * @param generateCas whether or not to generate cas
      * @param bySeqno seqno of the key being deleted
@@ -1204,7 +1137,6 @@ public:
             EventuallyPersistentEngine& engine,
             CheckConflicts checkConflicts,
             const ItemMetaData& itemMeta,
-            bool backfill,
             GenerateBySeqno genBySeqno,
             GenerateCas generateCas,
             uint64_t bySeqno,
@@ -1791,8 +1723,7 @@ protected:
      * @param allowExisting set to false if you want set to fail if the
      *                      item exists already
      * @param hasMetaData
-     * @param queueItmCtx holds info needed to queue an item in chkpt or vb
-     *                    backfill queue
+     * @param queueItmCtx holds info needed to queue an item in chkpt
      * @param storeIfStatus the status of any conditional store predicate
      * @param maybeKeyExists true if the key /may/ exist on disk (as an active,
      *                       alive document). Only valid if `v` is null.
@@ -1833,8 +1764,7 @@ protected:
      * @param hbl Hash table bucket lock that must be held
      * @param v[in, out] the stored value to do this operation on
      * @param itm Item to be added/updated. On success, its revSeqno is updated
-     * @param queueItmCtx holds info needed to queue an item in chkpt or vb
-     *                    backfill queue
+     * @param queueItmCtx holds info needed to queue an item in chkpt
      * @param cHandle Collections readhandle (caching mode) for this key
      *
      * @return Result indicating the status of the operation and notification
@@ -1858,8 +1788,7 @@ protected:
      * @param v Reference to the StoredValue to delete (in the general case)
      * @param cas the expected CAS of the item (or 0 to override)
      * @param metadata ref to item meta data
-     * @param queueItmCtx holds info needed to queue an item in chkpt or vb
-     *                    backfill queue
+     * @param queueItmCtx holds info needed to queue an item in chkpt
      * @param use_meta Indicates if v must be updated with the metadata
      * @param bySeqno seqno of the key being deleted
      * @param deleteSource The source of the deletion
@@ -2139,8 +2068,7 @@ private:
      * @param hbl Hash table lock that must be held
      * @param v Reference to the StoredValue to be updated.
      * @param itm Item to be updated.
-     * @param queueItmCtx holds info needed to queue an item in chkpt or vb
-     *                    backfill queue
+     * @param queueItmCtx holds info needed to queue an item in chkpt
      * @param justTouch   To note that this object is an existing item with
      *                    the same value but with few flags changed.
      * @return pointer to the updated StoredValue. It can be same as that of
@@ -2162,8 +2090,7 @@ private:
      *
      * @param hbl Hash table bucket lock that must be held
      * @param itm Item to be added.
-     * @param queueItmCtx holds info needed to queue an item in chkpt or vb
-     *                    backfill queue
+     * @param queueItmCtx holds info needed to queue an item in chkpt
      * @param genRevSeqno whether to generate new revision sequence number
      *                    or not
      *
@@ -2187,8 +2114,7 @@ private:
      * @param v Reference to the StoredValue to be soft deleted
      * @param onlyMarkDeleted indicates if we must reset the StoredValue or
      *                        just mark deleted
-     * @param queueItmCtx holds info needed to queue an item in chkpt or vb
-     *                    backfill queue
+     * @param queueItmCtx holds info needed to queue an item in chkpt
      * @param bySeqno seqno of the key being deleted
      * @param deleteSource The source of the delete (explicit or TTL [expiry])
      *

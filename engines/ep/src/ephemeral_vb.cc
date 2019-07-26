@@ -316,32 +316,6 @@ boost::optional<SequenceList::RangeIterator>
 EphemeralVBucket::makeRangeIterator(bool isBackfill) {
     return seqList->makeRangeIterator(isBackfill);
 }
-
-/* Vb level backfill queue is for items in a huge snapshot (disk backfill
-   snapshots from DCP are typically huge) that could not be fit on a
-   checkpoint. They update all stats, checkpoint seqno, but are not put
-   on checkpoint and are directly persisted from the queue.
-
-   In ephemeral buckets we must not add backfill items from DCP (on
-   replica vbuckets), to the vb backfill queue because we have put them on
-   linkedlist already. Also we do not have the flusher task to drain the
-   items from that queue.
-   (Unlike checkpoints, the items in this queue is not cleaned up
-    in a background cleanup task).
-
-   But we must be careful to update certain stats and checkpoint seqno
-   like in a regular couchbase bucket. */
-void EphemeralVBucket::queueBackfillItem(
-        queued_item& qi, const GenerateBySeqno generateBySeqno) {
-    if (GenerateBySeqno::Yes == generateBySeqno) {
-        qi->setBySeqno(checkpointManager->nextBySeqno());
-    } else {
-        checkpointManager->setBySeqno(qi->getBySeqno());
-    }
-    ++stats.totalEnqueued;
-    stats.coreLocal.get()->memOverhead.fetch_add(sizeof(queued_item));
-}
-
 bool EphemeralVBucket::isKeyLogicallyDeleted(const DocKey& key,
                                              int64_t bySeqno) {
     auto cid = key.getCollectionID();

@@ -480,26 +480,6 @@ bool EPVBucket::eligibleToPageOut(const HashTable::HashBucketLock& lh,
     return v.eligibleForEviction(eviction);
 }
 
-void EPVBucket::queueBackfillItem(queued_item& qi,
-                                  const GenerateBySeqno generateBySeqno) {
-    if (GenerateBySeqno::Yes == generateBySeqno) {
-        qi->setBySeqno(checkpointManager->nextBySeqno());
-    } else {
-        checkpointManager->setBySeqno(qi->getBySeqno());
-    }
-    backfill.withWLock([&qi, this](auto& locked) {
-        locked.items.push(qi);
-        // Must increment vbBackfillQueueSize under lock - if we don't then it
-        // could be decremented _before_ it's incremented (and go negative) in
-        // the consuming function - VBucket::getItemsToPersist().
-        ++stats.vbBackfillQueueSize;
-    });
-    ++stats.diskQueueSize;
-    ++stats.totalEnqueued;
-    doStatsForQueueing(*qi, qi->size());
-    stats.coreLocal.get()->memOverhead.fetch_add(sizeof(queued_item));
-}
-
 size_t EPVBucket::queueBGFetchItem(const DocKey& key,
                                    std::unique_ptr<VBucketBGFetchItem> fetch,
                                    BgFetcher* bgFetcher) {
@@ -821,16 +801,12 @@ int64_t EPVBucket::addSystemEventItem(
         qi->setExpTime(ep_real_time());
     }
 
-    if (isBackfillPhase()) {
-        queueBackfillItem(qi, getGenerateBySeqno(seqno));
-    } else {
         checkpointManager->queueDirty(
                 *this,
                 qi,
                 getGenerateBySeqno(seqno),
                 GenerateCas::Yes,
                 nullptr /* No pre link step as this is for system events */);
-    }
     VBNotifyCtx notifyCtx;
     // If the seqno is initialized, skip replication notification
     notifyCtx.notifyReplication = !seqno.is_initialized();

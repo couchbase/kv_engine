@@ -221,7 +221,7 @@ void Manifest::addCollection(const WriteHandle& wHandle,
             "collections: {} adding collection:[name:{},id:{:x}] to "
             "scope:{:x}, "
             "maxTTL:{} {}, "
-            "replica:{}, backfill:{}, seqno:{}, manifest:{:x}",
+            "replica:{}, seqno:{}, manifest:{:x}",
             vb.getId(),
             cb::to_string(collectionName),
             identifiers.second,
@@ -229,7 +229,6 @@ void Manifest::addCollection(const WriteHandle& wHandle,
             maxTtl.is_initialized(),
             maxTtl ? maxTtl.get().count() : 0,
             optionalSeqno.is_initialized(),
-            vb.isBackfillPhase(),
             seqno,
             manifestUid);
 
@@ -306,12 +305,11 @@ void Manifest::dropCollection(const WriteHandle& wHandle,
 
     EP_LOG_INFO(
             "collections: {} drop of collection:{:x} from scope:{:x}"
-            ", replica:{}, backfill:{}, seqno:{}, manifest:{:x} tombstone:{}",
+            ", replica:{}, seqno:{}, manifest:{:x} tombstone:{}",
             vb.getId(),
             cid,
             itr->second.getScopeID(),
             optionalSeqno.is_initialized(),
-            vb.isBackfillPhase(),
             seqno,
             manifestUid,
             processingTombstone);
@@ -369,12 +367,11 @@ void Manifest::addScope(const WriteHandle& wHandle,
 
     EP_LOG_INFO(
             "collections: {} added scope:name:{},id:{:x} "
-            "replica:{}, backfill:{}, seqno:{}, manifest:{:x}",
+            "replica:{}, seqno:{}, manifest:{:x}",
             vb.getId(),
             cb::to_string(scopeName),
             sid,
             optionalSeqno.is_initialized(),
-            vb.isBackfillPhase(),
             seqno,
             manifestUid);
 }
@@ -425,11 +422,10 @@ void Manifest::dropScope(const WriteHandle& wHandle,
 
     EP_LOG_INFO(
             "collections: {} dropped scope:id:{:x} "
-            "replica:{}, backfill:{}, seqno:{}, manifest:{:x}",
+            "replica:{}, seqno:{}, manifest:{:x}",
             vb.getId(),
             sid,
             optionalSeqno.is_initialized(),
-            vb.isBackfillPhase(),
             seqno,
             manifestUid);
 }

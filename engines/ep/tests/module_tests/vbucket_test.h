@@ -120,8 +120,6 @@ protected:
 
     GetValue public_getAndUpdateTtl(const DocKey& key, time_t exptime);
 
-    void public_incrementBackfillQueueSize();
-
     SWCompleteTrace swCompleteTrace;
 
     // Mock SyncWriteCompleteCallback that helps in testing client-notify for

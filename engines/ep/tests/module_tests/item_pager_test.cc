@@ -956,7 +956,6 @@ TEST_P(STExpiryPagerTest, MB_25671) {
                                     vbstates,
                                     CheckConflicts::No,
                                     metadata,
-                                    false,
                                     GenerateBySeqno::No,
                                     GenerateCas::No,
                                     0,

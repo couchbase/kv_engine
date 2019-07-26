@@ -1716,11 +1716,6 @@ bool wait_for_warmup_complete(EngineIface* h) {
 void wait_for_flusher_to_settle(EngineIface* h) {
     wait_for_stat_to_be(h, "ep_queue_size", 0);
 
-    /* check that vb backfill queue is empty as well */
-    checkeq(0,
-            get_int_stat(h, "ep_vb_backfill_queue_size", 0),
-            "even though disk queue is empty, vb backfill queue is not!!");
-
     if (!isPersistentBucket(h)) {
         // We don't run flusher in non-persistent buckets
         return;

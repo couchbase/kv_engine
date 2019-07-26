@@ -603,10 +603,7 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
     bool switchComplete = false;
     switch (messageType) {
     case MessageType::Mutation:
-        if (vb->isBackfillPhase()) {
-            ret = engine->getKVBucket()->addBackfillItem(
-                    *message->getItem(), message->getExtMetaData());
-        } else {
+
             ret = engine->getKVBucket()->setWithMeta(*message->getItem(),
                                                      0,
                                                      NULL,
@@ -619,7 +616,6 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
                                                      GenerateBySeqno::No,
                                                      GenerateCas::No,
                                                      message->getExtMetaData());
-        }
 
         switchComplete = true;
         break;
@@ -653,7 +649,6 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
                  vbucket_state_pending},
                 CheckConflicts::No,
                 meta,
-                vb->isBackfillPhase(),
                 GenerateBySeqno::No,
                 GenerateCas::No,
                 *message->getBySeqno(),
@@ -898,18 +893,10 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
 
         auto& ckptMgr = *vb->checkpointManager;
         if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
-            if (engine->getConfiguration().isDiskBackfillQueue()) {
-                vb->setBackfillPhase(true);
-                // calling setBackfillPhase sets the openCheckpointId to zero.
-                ckptMgr.setBackfillPhase(cur_snapshot_start.load(),
-                                         cur_snapshot_end.load());
-            } else {
-                // Treat initial disk snapshot like all others
-                vb->setReceivingInitialDiskSnapshot(true);
-                ckptMgr.createSnapshot(cur_snapshot_start.load(),
-                                       cur_snapshot_end.load(),
-                                       checkpointType);
-            }
+            vb->setReceivingInitialDiskSnapshot(true);
+            ckptMgr.createSnapshot(cur_snapshot_start.load(),
+                                   cur_snapshot_end.load(),
+                                   checkpointType);
         } else {
             if (marker->getFlags() & MARKER_FLAG_CHK ||
                 vb->checkpointManager->getOpenCheckpointId() == 0) {
@@ -923,7 +910,6 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                 ckptMgr.updateCurrentSnapshot(cur_snapshot_end.load(),
                                               checkpointType);
             }
-            vb->setBackfillPhase(false);
         }
 
         if (marker->getFlags() & MARKER_FLAG_ACK) {
@@ -947,35 +933,16 @@ void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
     if (byseqno == cur_snapshot_end.load()) {
         auto& ckptMgr = *vb->checkpointManager;
 
-        if (!engine->getConfiguration().isDiskBackfillQueue() &&
-            cur_snapshot_type.load() == Snapshot::Disk) {
+        if (cur_snapshot_type.load() == Snapshot::Disk) {
             vb->setReceivingInitialDiskSnapshot(false);
         }
 
-        if (cur_snapshot_type.load() == Snapshot::Disk &&
-            vb->isBackfillPhase()) {
-            vb->setBackfillPhase(false);
-            // Note: given that for backfill we enqueue mutations into the
-            //     dedicated backfill-queue (not into checkpoint), why do we
-            //     still need to do the following?
-            //     The reason is that we may have a DCP client consuming from
-            //     a replica-vbucket (e.g., View-Engine), and in that case the
-            //     replica-vbucket is the active actor (a Producer).
-            //     We have a check in DcpProducer::streamReq that fails the
-            //     stream-req if (current-checkpoint-id = 0). We have also some
-            //     tests that check that condition.
-            //     The following call sets (current-checkpoint-id  > 0) to mark
-            //     the end of the backfill phase.
+        size_t mem_threshold = engine->getEpStats().mem_high_wat.load();
+        size_t mem_used = engine->getEpStats().getEstimatedTotalMemoryUsed();
+        /* We want to add a new replica checkpoint if the mem usage is above
+           high watermark (85%) */
+        if (mem_threshold < mem_used) {
             ckptMgr.checkAndAddNewCheckpoint();
-        } else {
-            size_t mem_threshold = engine->getEpStats().mem_high_wat.load();
-            size_t mem_used =
-                    engine->getEpStats().getEstimatedTotalMemoryUsed();
-            /* We want to add a new replica checkpoint if the mem usage is above
-               high watermark (85%) */
-            if (mem_threshold < mem_used) {
-                ckptMgr.checkAndAddNewCheckpoint();
-            }
         }
 
         if (cur_snapshot_ack) {

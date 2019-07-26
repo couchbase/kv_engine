@@ -133,9 +133,6 @@ public:
         return getPersistenceSeqno();
     }
 
-    void queueBackfillItem(queued_item& qi,
-                           const GenerateBySeqno generateBySeqno) override;
-
     /**
      * Setup deferred deletion, this is where deletion of the vbucket is
      * deferred and completed by an AUXIO task as it will hit disk for the data
