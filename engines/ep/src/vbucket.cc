@@ -1323,6 +1323,7 @@ VBNotifyCtx VBucket::queueAbort(const HashTable::HashBucketLock& hbl,
 
     queued_item item(v.toItemAbort(getId()));
     item->setPrepareSeqno(prepareSeqno);
+    item->setExpTime(ep_real_time());
 
     Expects(item->isAbort());
     Expects(item->isDeleted());

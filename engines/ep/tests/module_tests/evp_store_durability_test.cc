@@ -359,6 +359,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbort(DocumentState docState) {
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
     EXPECT_TRUE(gv.item->isAbort());
     EXPECT_TRUE(gv.item->isDeleted());
+    EXPECT_NE(0, gv.item->getDeleteTime());
 }
 
 TEST_P(DurabilityEPBucketTest, PersistPrepareWriteAbort) {
