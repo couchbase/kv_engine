@@ -1711,7 +1711,7 @@ public:
      * Set the allowed duplicate prepared seqnos to the range
      * (HighCompletedSeqno and HighPreparedSeqno].
      */
-    void setUpAllowedDuplicatePrepareWindow();
+    void setUpAllowedDuplicatePrepareThreshold();
 
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
@@ -2481,8 +2481,9 @@ private:
 
     static double mutationMemThreshold;
 
-    // The set of prepare seqnos that we may have to overwrite.
-    std::unordered_set<int64_t> allowedDuplicatePrepareSeqnos;
+    // The seqno threshold below which we may replace a prepare with another
+    // prepare (if the associated Commit/Abort may have been deduped)
+    int64_t allowedDuplicatePrepareThreshold = 0;
 
     friend class DurabilityMonitorTest;
     friend class SingleThreadedActiveStreamTest;

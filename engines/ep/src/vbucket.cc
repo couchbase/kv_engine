@@ -835,9 +835,6 @@ ENGINE_ERROR_CODE VBucket::commit(
 
     Expects(prepareSeqno);
 
-    // Remove from the allowed duplicate prepare set (if it exists)
-    allowedDuplicatePrepareSeqnos.erase(res.pending->getBySeqno());
-
     // Value for Pending must never be ejected
     Expects(res.pending->isResident());
 
@@ -939,9 +936,6 @@ ENGINE_ERROR_CODE VBucket::abort(
                 cb::UserData(ss.str()));
         return ENGINE_EINVAL;
     }
-
-    // Remove from the allowed duplicate prepare set (if it exists)
-    allowedDuplicatePrepareSeqnos.erase(htRes.storedValue->getBySeqno());
 
     // If prepare seqno is not the same as our stored seqno then we should be
     // a replica and have missed a completion and a prepare due to de-dupe.
@@ -1834,9 +1828,7 @@ ENGINE_ERROR_CODE VBucket::prepare(
             nullptr /* No pre link step needed */,
             {} /*overwritingPrepareSeqno*/};
 
-    auto itr = allowedDuplicatePrepareSeqnos.end();
-    if (v && (itr = allowedDuplicatePrepareSeqnos.find(v->getBySeqno())) !=
-                     allowedDuplicatePrepareSeqnos.end()) {
+    if (v && v->getBySeqno() <= allowedDuplicatePrepareThreshold) {
         // Valid duplicate prepare - call processSetInner and skip the
         // SyncWrite checks.
         queueItmCtx.overwritingPrepareSeqno = v->getBySeqno();
@@ -1849,23 +1841,6 @@ ENGINE_ERROR_CODE VBucket::prepare(
                                                       queueItmCtx,
                                                       {/*no predicate*/},
                                                       maybeKeyExists);
-        switch (status) {
-        case MutationStatus::WasClean:
-        case MutationStatus::WasDirty:
-            // We should not see this seqno again so remove from the set.
-            allowedDuplicatePrepareSeqnos.erase(itr);
-            break;
-        case MutationStatus::NotFound:
-        case MutationStatus::InvalidCas:
-        case MutationStatus::IsLocked:
-        case MutationStatus::NoMem:
-        case MutationStatus::NeedBgFetch:
-        case MutationStatus::IsPendingSyncWrite:
-            // The old prepare is still in the hashtable, keep tracking
-            // it in the PDM. Also. if we (e.g.) retry after NoMem we want
-            // to treat the duplicate as "allowed" still.
-            break;
-        }
     } else {
         // Not a valid duplicate prepare, call processSet and hit the SyncWrite
         // checks.
@@ -3906,22 +3881,22 @@ void VBucket::removeQueuedAckFromDM(const std::string& node) {
 }
 
 void VBucket::setDuplicateSyncWriteWindow(uint64_t highSeqno) {
-    setUpAllowedDuplicatePrepareWindow();
+    setUpAllowedDuplicatePrepareThreshold();
 }
 
-void VBucket::setUpAllowedDuplicatePrepareWindow() {
-    auto& dm = getDurabilityMonitor();
-    auto hcs = dm.getHighCompletedSeqno();
-    auto highSeqno = getHighSeqno();
-    Expects(hcs <= highSeqno);
-
-    int64_t newDuplicateCount = highSeqno - hcs;
-    allowedDuplicatePrepareSeqnos.reserve(allowedDuplicatePrepareSeqnos.size() +
-                                          newDuplicateCount);
-
-    for (int64_t dupSeqno = hcs + 1; dupSeqno <= highSeqno; dupSeqno++) {
-        allowedDuplicatePrepareSeqnos.insert(dupSeqno);
-    }
+void VBucket::setUpAllowedDuplicatePrepareThreshold() {
+    const auto& pdm = getPassiveDM();
+    // We should only see duplicates for prepares currently in trackedWrites
+    // prepares which are not in trackedWrites are either
+    //  - Completed: A new prepare would be valid anyway, as the item is
+    //  completed
+    //  - New: Added after this setup, and should not be followed by another
+    //  prepare without an intervening Commit/Abort
+    // As a sanity check, store the current highTrackedSeqno and assert that
+    // any prepares attempting to replace an existing prepare have a seqno
+    // less than or equal to this value.
+    // If no SyncWrites are being tracked, nothing can be duplicated
+    allowedDuplicatePrepareThreshold = pdm.getHighestTrackedSeqno();
 }
 
 void VBucket::addSyncWriteForRollback(const Item& item) {

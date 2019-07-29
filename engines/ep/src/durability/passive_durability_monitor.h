@@ -152,6 +152,13 @@ public:
      */
     void postProcessRollback(const RollbackResult& rollbackResult);
 
+    /**
+     * Get the highest seqno for which there is a SyncWrite in trackedWrites.
+     * Returns 0 if trackedWrites is empty.
+     *
+     */
+    int64_t getHighestTrackedSeqno() const;
+
 protected:
     void toOStream(std::ostream& os) const override;
     /**

@@ -389,6 +389,15 @@ void PassiveDurabilityMonitor::postProcessRollback(
     s->highPreparedSeqno.lastWriteSeqno.reset(rollbackResult.highPreparedSeqno);
 }
 
+int64_t PassiveDurabilityMonitor::getHighestTrackedSeqno() const {
+    auto s = state.rlock();
+    if (!s->trackedWrites.empty()) {
+        return s->trackedWrites.back().getBySeqno();
+    } else {
+        return 0;
+    }
+}
+
 void PassiveDurabilityMonitor::toOStream(std::ostream& os) const {
     os << "PassiveDurabilityMonitor[" << this << "]"
        << " high_prepared_seqno:" << getHighPreparedSeqno()
