@@ -1586,32 +1586,32 @@ ENGINE_ERROR_CODE VBucket::replace(
 
     { // HashBucketLock scope
         auto htRes = ht.findForCommit(itm.getKey());
-        auto* v = htRes.selectSVToModify(itm);
         auto& hbl = htRes.getHBL();
 
-        if (v && v->isPending()) {
+        // If a pending SV was found and it's not yet complete, then we cannot
+        // perform another mutation while the first is in progress.
+        if (htRes.pending && !htRes.pending->isCompleted()) {
             return ENGINE_SYNC_WRITE_IN_PROGRESS;
         }
 
-        if (v && v->isCompleted()) {
-            v = nullptr;
-        }
-
         cb::StoreIfStatus storeIfStatus = cb::StoreIfStatus::Continue;
-        if (predicate && (storeIfStatus = callPredicate(predicate, v)) ==
-                                 cb::StoreIfStatus::Fail) {
+        if (predicate &&
+            (storeIfStatus = callPredicate(predicate, htRes.committed)) ==
+                    cb::StoreIfStatus::Fail) {
             return ENGINE_PREDICATE_FAILED;
         }
 
-        if (v) {
-            if (isLogicallyNonExistent(*v, cHandle)) {
-                ht.cleanupIfTemporaryItem(hbl, *v);
+        if (htRes.committed) {
+            if (isLogicallyNonExistent(*htRes.committed, cHandle)) {
+                ht.cleanupIfTemporaryItem(hbl, *htRes.committed);
                 return ENGINE_KEY_ENOENT;
             }
 
+            auto* v = htRes.selectSVToModify(itm);
             MutationStatus mtype;
             boost::optional<VBNotifyCtx> notifyCtx;
-            if (eviction == EvictionPolicy::Full && v->isTempInitialItem()) {
+            if (eviction == EvictionPolicy::Full &&
+                htRes.committed->isTempInitialItem()) {
                 mtype = MutationStatus::NeedBgFetch;
             } else {
                 PreLinkDocumentContext preLinkDocumentContext(
@@ -1961,20 +1961,21 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
 
     { // HashBucketLock scope
         auto htRes = ht.findForCommit(cHandle.getKey());
-        auto* v = htRes.selectSVToModify(durability.is_initialized());
         auto& hbl = htRes.getHBL();
 
-        if (v && v->isPending()) {
+        if (htRes.pending && htRes.pending->isPending()) {
             // Existing item is an in-flight SyncWrite
             return ENGINE_SYNC_WRITE_IN_PROGRESS;
         }
 
-        if (!v || v->isDeleted() || v->isTempItem() ||
-            cHandle.isLogicallyDeleted(v->getBySeqno())) {
+        // When deleting an item, always use the StoredValue which is committed
+        // for the various logic checks.
+        if (!htRes.committed || htRes.committed->isTempInitialItem() ||
+            isLogicallyNonExistent(*htRes.committed, cHandle)) {
             if (eviction == EvictionPolicy::Value) {
                 return ENGINE_KEY_ENOENT;
             } else { // Full eviction.
-                if (!v) { // Item might be evicted from cache.
+                if (!htRes.committed) { // Item might be evicted from cache.
                     if (maybeKeyExistsInFilter(cHandle.getKey())) {
                         return addTempItemAndBGFetch(
                                 hbl, cHandle.getKey(), cookie, engine, true);
@@ -1983,40 +1984,45 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
                         // exist on disk, return ENOENT for deleteItem().
                         return ENGINE_KEY_ENOENT;
                     }
-                } else if (v->isTempInitialItem()) {
+                } else if (htRes.committed->isTempInitialItem()) {
                     hbl.getHTLock().unlock();
                     bgFetch(cHandle.getKey(), cookie, engine, true);
                     return ENGINE_EWOULDBLOCK;
                 } else { // Non-existent or deleted key.
-                    if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
+                    if (htRes.committed->isTempNonExistentItem() ||
+                        htRes.committed->isTempDeletedItem()) {
                         // Delete a temp non-existent item to ensure that
                         // if a delete were issued over an item that doesn't
                         // exist, then we don't preserve a temp item.
-                        deleteStoredValue(hbl, *v);
+                        deleteStoredValue(hbl, *htRes.committed);
                     }
                     return ENGINE_KEY_ENOENT;
                 }
             }
         }
 
-        if (v->isLocked(ep_current_time()) &&
+        if (htRes.committed->isLocked(ep_current_time()) &&
             (getState() == vbucket_state_replica ||
              getState() == vbucket_state_pending)) {
-            v->unlock();
+            htRes.committed->unlock();
         }
 
         if (itemMeta != nullptr) {
-            itemMeta->cas = v->getCas();
+            itemMeta->cas = htRes.committed->getCas();
         }
 
         MutationStatus delrv;
         boost::optional<VBNotifyCtx> notifyCtx;
-        if (v->isExpired(ep_real_time())) {
+
+        // Determine which of committed / prepared SV to modify.
+        auto* v = htRes.selectSVToModify(durability.is_initialized());
+
+        if (htRes.committed->isExpired(ep_real_time())) {
             std::tie(delrv, v, notifyCtx) =
-                    processExpiredItem(hbl, *v, cHandle);
+                    processExpiredItem(hbl, *htRes.committed, cHandle);
         } else {
             ItemMetaData metadata;
-            metadata.revSeqno = v->getRevSeqno() + 1;
+            metadata.revSeqno = htRes.committed->getRevSeqno() + 1;
             VBQueueItemCtx queueItmCtx;
             if (durability) {
                 queueItmCtx.durability = DurabilityItemCtx{*durability, cookie};
@@ -3202,7 +3208,8 @@ std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
                 getId().to_string());
     }
     if (v && !v->isDeleted() && !v->isExpired(ep_real_time()) &&
-        !v->isTempItem() && !cHandle.isLogicallyDeleted(v->getBySeqno())) {
+        !v->isTempItem() && !cHandle.isLogicallyDeleted(v->getBySeqno()) &&
+        !v->isCompleted()) {
         return {AddStatus::Exists, {}};
     }
     if (!hasMemoryForStoredValue(stats, itm)) {
@@ -3375,6 +3382,11 @@ VBucket::processSoftDeleteInner(const HashTable::HashBucketLock& hbl,
                                 StoredValue::IncludeValue::Yes,
                                 requirements);
             itm->setDeleted(DeleteSource::Explicit);
+            // The StoredValue 'v' we are softDeleting could be an aborted
+            // prepare - in which case we need to reset the item created to
+            // be a pending (not aborted) SyncWrite.
+            itm->setPendingSyncWrite(requirements);
+
             std::tie(newSv, std::ignore, notifyCtx) =
                     updateStoredValue(hbl, v, *itm, queueItmCtx);
             return std::make_tuple(rv, newSv, notifyCtx);
@@ -3699,6 +3711,7 @@ std::unique_ptr<Item> VBucket::pruneXattrDocument(
 bool VBucket::isLogicallyNonExistent(
         const StoredValue& v,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+    Expects(v.isCommitted());
     return v.isDeleted() || v.isTempDeletedItem() ||
            v.isTempNonExistentItem() ||
            cHandle.isLogicallyDeleted(v.getBySeqno());

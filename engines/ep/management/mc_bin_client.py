@@ -650,9 +650,10 @@ class MemcachedClient(object):
 
     def deleteDurable(self, key, cas=0,
                       level=memcacheConstants.DURABILITY_LEVEL_MAJORITY,
+                      timeout=None,
                       collection=None):
         """Delete the value for a given key with the given durability requirements"""
-        flex = self._encodeDurabilityFlex(level)
+        flex = self._encodeDurabilityFlex(level, timeout)
         return self._doAltCmd(memcacheConstants.CMD_DELETE, flex, key,
                               '', b'', cas, collection=collection)
 

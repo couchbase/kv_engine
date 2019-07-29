@@ -216,6 +216,41 @@ protected:
                   store->replace(pendingItem, anotherClient, {}));
         destroy_mock_cookie(anotherClient);
     }
+
+    /**
+     * Add a prepared SyncWrite for the given key, then abort it.
+     */
+    void setupAbortedSyncWrite(const StoredDocKey& key) {
+        auto prepared = makePendingItem(key, "value");
+        ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*prepared, cookie));
+        auto& vb = *store->getVBucket(vbid);
+        ASSERT_EQ(ENGINE_SUCCESS,
+                  vb.abort(key,
+                           prepared->getBySeqno(),
+                           {},
+                           vb.lockCollections(key),
+                           cookie));
+    }
+
+    /**
+     * Add a prepared SyncDelete for the given key, then abort it.
+     */
+    void setupAbortedSyncDelete(const StoredDocKey& key) {
+        uint64_t cas = 0;
+        using namespace cb::durability;
+        auto reqs = Requirements(Level::Majority, {});
+        mutation_descr_t delInfo;
+        ASSERT_EQ(ENGINE_EWOULDBLOCK,
+                  store->deleteItem(
+                          key, cas, vbid, cookie, reqs, nullptr, delInfo));
+        auto& vb = *store->getVBucket(vbid);
+        ASSERT_EQ(ENGINE_SUCCESS,
+                  vb.abort(key,
+                           delInfo.seqno,
+                           {},
+                           vb.lockCollections(key),
+                           cookie));
+    }
 };
 
 class DurabilityEphemeralBucketTest : public STParameterizedBucketTest {
@@ -1596,6 +1631,96 @@ TEST_P(DurabilityBucketTest, DeleteIfSyncWriteInProgressSyncWriteInProgress) {
     EXPECT_EQ(ENGINE_SYNC_WRITE_IN_PROGRESS,
               store->deleteItem(
                       key, cas, vbid, &secondClient, reqs, nullptr, mutInfo));
+}
+
+/// MB-35303: Test that after a SyncWrite Prepare is Aborted, a subsequent
+/// SyncAdd succeeds (the abort doesn't block it).
+TEST_P(DurabilityBucketTest, SyncAddAfterAbortedSyncWrite) {
+    setVBucketToActiveWithValidTopology();
+
+    // Setup: start a SyncWrite and then abort it.
+    auto key = makeStoredDocKey("key");
+    setupAbortedSyncWrite(key);
+
+    // Test: Attempt to perform a SyncAdd. Should succeed as initial SyncWrite
+    // was aborted.
+    auto prepared2 = makePendingItem(key, "value2");
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->add(*prepared2, cookie));
+    auto& vb = *store->getVBucket(vbid);
+    EXPECT_EQ(
+            ENGINE_SUCCESS,
+            vb.commit(
+                    key, prepared2->getBySeqno(), {}, vb.lockCollections(key)));
+}
+
+/// MB-35303: Test that after a SyncWrite Prepare is Aborted, a subsequent
+/// SyncReplace fails (the document doesn't exist yet so cannot replace).
+TEST_P(DurabilityBucketTest, SyncReplaceAfterAbortedSyncWrite) {
+    setVBucketToActiveWithValidTopology();
+
+    // Setup: start a SyncWrite and then abort it.
+    auto key = makeStoredDocKey("key");
+    setupAbortedSyncWrite(key);
+
+    // Test: Attempt to perform a SyncReplace. Should fails as initial SyncWrite
+    // was aborted.
+    auto prepared2 = makePendingItem(key, "value2");
+    EXPECT_EQ(ENGINE_KEY_ENOENT, store->replace(*prepared2, cookie));
+}
+
+/// MB-35303: Test that after a SyncDelete Prepare is Aborted, a subsequent
+/// SyncReplace succeeds (the abort doesn't block it).
+TEST_P(DurabilityBucketTest, SyncReplaceAfterAbortedSyncDelete) {
+    setVBucketToActiveWithValidTopology();
+
+    // Setup: Create an item, start a SyncDelete and then abort it.
+    auto key = makeStoredDocKey("key");
+    auto mutation = makeCommittedItem(key, "value");
+    ASSERT_EQ(ENGINE_SUCCESS, store->set(*mutation, cookie));
+    // prepare and then abort a SyncDelete.
+    setupAbortedSyncDelete(key);
+
+    // Test: Attempt to perform a SyncReplace. Should succeed as SyncDelete was
+    // aborted (so item still exists).
+    auto prepared2 = makePendingItem(key, "value2");
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->replace(*prepared2, cookie));
+    auto& vb = *store->getVBucket(vbid);
+    EXPECT_EQ(
+            ENGINE_SUCCESS,
+            vb.commit(
+                    key, prepared2->getBySeqno(), {}, vb.lockCollections(key)));
+}
+
+/// MB-35303: Test that after a SyncDelete Prepare is Aborted, a subsequent
+/// SyncDelete succeeds (the abort doesn't block it).
+TEST_P(DurabilityBucketTest, SyncDeleteAfterAbortedSyncDelete) {
+    setVBucketToActiveWithValidTopology();
+
+    // Setup: Create an item, start a SyncDelete and then abort it.
+    auto key = makeStoredDocKey("key");
+    auto mutation = makeCommittedItem(key, "value");
+    ASSERT_EQ(ENGINE_SUCCESS, store->set(*mutation, cookie));
+    // prepare and then abort a SyncDelete.
+    setupAbortedSyncDelete(key);
+
+    // Test: Attempt to perform another SyncDelete. Should succeed as initial
+    // SyncDelete was aborted.
+    uint64_t cas = 0;
+    using namespace cb::durability;
+    auto reqs = Requirements(Level::Majority, {});
+    mutation_descr_t delInfo;
+    ASSERT_EQ(
+            ENGINE_EWOULDBLOCK,
+            store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
+
+    // Test: Should be able to Commit also.
+    auto& vb = *store->getVBucket(vbid);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb.commit(key, delInfo.seqno, {}, vb.lockCollections(key)));
+
+    // Item should no longer exist.
+    auto gv = store->get(key, vbid, cookie, get_options_t());
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 }
 
 TEST_P(DurabilityBucketTest, TakeoverSendsDurabilityAmbiguous) {

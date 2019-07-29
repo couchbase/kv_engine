@@ -751,8 +751,9 @@ public:
      */
     struct FindCommitResult {
         /**
-         * Return the StoredValue that should generally be used based on the
-         * item. Callers of the findForWrite and findForSyncWrite functions
+         * Return the StoredValue (prepared or committed) that should generally
+         * be used to modify a key.
+         * Callers of the findForWrite and findForSyncWrite functions
          * typically choose one or the other based on the item being updated
          * (itm.isPending() ? findForSyncWrite(...) : findForWrite(...)). This
          * function allows the caller to do the same with the FindCommitResult.
