@@ -398,13 +398,17 @@ void DcpConnMap::removeVBConnections(DcpProducer& prod) {
         size_t lock_num = vbid.get() % vbConnLockNum;
         std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
         auto& vb_conns = vbConns[vbid.get()];
-        for (auto itr = vb_conns.begin(); itr != vb_conns.end(); ++itr) {
+        for (auto itr = vb_conns.begin(); itr != vb_conns.end();) {
             auto connection = (*itr).lock();
-            // Erase if we cannot lock, or if the cookie matches
-            if (!connection ||
-                (connection && prod.getCookie() == connection->getCookie())) {
+            if (!connection) {
+                // ConnHandler no longer exists, cleanup.
+                itr = vb_conns.erase(itr);
+            } else if (prod.getCookie() == connection->getCookie()) {
+                // Found conn with matching cookie, done.
                 vb_conns.erase(itr);
                 break;
+            } else {
+                ++itr;
             }
         }
     }
