@@ -74,6 +74,11 @@ def calc_bin_stats(stats, arena_ID):
                   for x in line.split()]
         c = dict(zip(headers, fields))
 
+        # jemalloc 5.0.0 onwards renames `runs` to `slabs` for small
+        # allocations. Copy back to the old name to allow calculations to work.
+        if 'curslabs' in c:
+            c['curruns'] = c['curslabs']
+
         # Derive some stats from each class, additional ones (see below) need
         # totals...
         try:
@@ -106,6 +111,12 @@ def calc_bin_stats(stats, arena_ID):
                 continue
             fields = [int(x) for x in line.split()]
             c = dict(zip(headers, fields))
+
+            # jemalloc 5.0.0 onwards renames `curruns` to `l(large)extents` for
+            # large allocations. Copy back to the old name to allow
+            # calculations to work.
+            if 'curlextents' in c:
+                c['curruns'] = c['curlextents']
 
             c['bin'] = '-'
             c['regs'] = 1  # Only one region per large allocation

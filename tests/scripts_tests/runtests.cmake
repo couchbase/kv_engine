@@ -10,7 +10,7 @@ IF("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "jemalloc")
         )
 ENDIF()
 
-FOREACH(version 3.6 3.6_cropped 4.3.1 current)
+FOREACH(version 3.6 3.6_cropped 4.3.1 5.1.0 current)
         SET(INPUT_FILE ${CMAKE_CURRENT_BINARY_DIR}/jemalloc_${version}.log)
         SET(OUTPUT_FILE
                 ${CMAKE_CURRENT_BINARY_DIR}/jemalloc_output_${version}.log)
