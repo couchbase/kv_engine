@@ -20,6 +20,8 @@
 #include "dcp/consumer.h"
 #include "mock_stream.h"
 
+#include <boost/optional.hpp>
+
 /*
  * Mock of the DcpConsumer class.  Wraps the real DcpConsumer class
  * and provides get/set access to lastMessageTime.
@@ -121,5 +123,23 @@ public:
      */
     void enableSyncReplication() {
         supportsSyncReplication = true;
+    }
+
+    /**
+     *
+     * Map from the opaque used to create a stream to the internal opaque
+     * as is used by streamEnd
+     *
+     * DcpConsumer maintains an internal opaque map; rather than assuming
+     * the value that will be used for the opaque of a given stream, use this
+     * map to get the correct value.
+     */
+    boost::optional<uint32_t> getStreamOpaque(uint32_t opaque) {
+        for (const auto& pair : opaqueMap_) {
+            if (pair.second.first == opaque) {
+                return pair.first;
+            }
+        }
+        return {};
     }
 };

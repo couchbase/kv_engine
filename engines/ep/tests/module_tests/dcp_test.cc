@@ -1837,6 +1837,85 @@ TEST_F(DcpConnMapTest, TestCorrectConnHandlerRemoved) {
     destroy_mock_cookie(cookieA);
 }
 
+// MB-35061 - Test to ensure the Producer ConnHandler is removed
+// when a producer stream ends, and does not linger and become confused
+// with a later Producer stream.
+TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
+    auto connMapPtr = std::make_unique<MockDcpConnMap>(*engine);
+    MockDcpConnMap& connMap = *connMapPtr;
+    engine->setDcpConnMap(std::move(connMapPtr));
+
+    // create cookies
+    const void* producerCookie = create_mock_cookie();
+    const void* consumerCookie = create_mock_cookie();
+
+    MockDcpMessageProducers producers(engine.get());
+
+    // create a producer (We are currently active)
+    auto producer = engine->getDcpConnMap().newProducer(producerCookie,
+                                                        "producerA",
+                                                        /*flags*/ 0);
+
+    producer->control(0xdead, "send_stream_end_on_client_close_stream", "true");
+
+    uint64_t rollbackSeqno = 0;
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(0, // flags
+                                      0xdead,
+                                      vbid,
+                                      0, // start_seqno
+                                      ~0ull, // end_seqno
+                                      0, // vbucket_uuid,
+                                      0, // snap_start_seqno,
+                                      0, // snap_end_seqno,
+                                      &rollbackSeqno,
+                                      fakeDcpAddFailoverLog,
+                                      {}));
+
+    EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:producerA"));
+
+    // Close the stream. This will not remove the ConnHandler from
+    // ConnMap.vbConns because we are waiting to send streamEnd.
+    ASSERT_EQ(ENGINE_SUCCESS, producer->closeStream(0xdead, vbid));
+    // Step to send the streamEnd, and remove the ConnHandler
+    ASSERT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+
+    // Move to replica
+    ASSERT_EQ(ENGINE_SUCCESS,
+              engine->getKVBucket()->setVBucketState(
+                      vbid, vbucket_state_replica, {}, TransferVB::Yes));
+
+    // confirm the ConnHandler was removed
+    EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:producerA"));
+
+    // Create a consumer (we are now a replica)
+    DcpConsumer* consumer = connMap.newConsumer(
+            consumerCookie, "test_consumerA", "test_consumerA");
+
+    EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:test_consumerA"));
+
+    // add a stream for the same VB as before
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(0xbeef, vbid, 0));
+    EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:test_consumerA"));
+
+    // End the stream. This should remove the Consumer ConnHandler from vbConns
+    auto streamOpaque =
+            static_cast<MockDcpConsumer*>(consumer)->getStreamOpaque(0xbeef);
+    ASSERT_TRUE(streamOpaque);
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->streamEnd(*streamOpaque, vbid, /* flags */ 0));
+
+    // expect neither ConnHandler remains in vbConns
+    EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:producerA"));
+    EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:test_consumerA"));
+
+    /* Cleanup the deadConnections */
+    connMap.manageConnections();
+    destroy_mock_cookie(producerCookie);
+    destroy_mock_cookie(consumerCookie);
+}
+
 class NotifyTest : public DCPTest {
 protected:
     std::unique_ptr<MockDcpConnMap> connMap;

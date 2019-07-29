@@ -635,12 +635,19 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                     mapEndStreamStatus(getCookie(), se->getFlags()),
                     resp->getStreamId());
 
-            if (resp->getStreamId() && sendStreamEndOnClientStreamClose) {
-                if (!closeStreamInner(
-                             se->getVbucket(), resp->getStreamId(), true)
-                             .first) {
+            if (sendStreamEndOnClientStreamClose) {
+                // We did not remove the ConnHandler earlier so we could wait to
+                // send the streamEnd We have done that now, remove it.
+                engine_.getDcpConnMap().removeVBConnByVBId(getCookie(),
+                                                           se->getVbucket());
+                std::shared_ptr<Stream> stream;
+                bool vbFound;
+                std::tie(stream, vbFound) = closeStreamInner(
+                        se->getVbucket(), resp->getStreamId(), true);
+                if (!stream) {
                     throw std::logic_error(
-                            "DcpProducer::step(StreamEnd): no stream was found "
+                            "DcpProducer::step(StreamEnd): no stream was "
+                            "found "
                             "for " +
                             se->getVbucket().to_string() + " " +
                             resp->getStreamId().to_string());
