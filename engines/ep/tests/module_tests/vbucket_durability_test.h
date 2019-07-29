@@ -187,6 +187,48 @@ protected:
             vbucket_state_t initialState);
 
     /**
+     * Tests that the PassiveDM is correctly converted to ActiveDM when a
+     * vBucket in the provided initial state transitions to vbstate-active in
+     * the middle of a snapshot.
+     *
+     * @param initialState The initial state for the vBucket
+     */
+    void testConvertPDMToADMMidSnapSetup(vbucket_state_t initialState);
+
+    /**
+     * Tests that the PassiveDM is correctly converted to ActiveDM when a
+     * vBucket in the provided initial state transitions to vbstate-active in
+     * the middle of a snapshot. Persists items before the topology change so
+     * that the topology change drives the commit.
+     *
+     * @param initialState The initial state for the vBucket
+     */
+    void testConvertPDMToADMMidSnapSetupPersistBeforeChange(
+            vbucket_state_t initialState);
+
+    /**
+     * Tests that the PassiveDM is correctly converted to ActiveDM when a
+     * vBucket in the provided initial state transitions to vbstate-active in
+     * the middle of a snapshot. Persists items after the topology change so
+     * that a call to ADM::checkForCommit drives the commit.
+     *
+     * @param initialState The initial state for the vBucket
+     */
+    void testConvertPDMToADMMidSnapSetupPersistAfterChange(
+            vbucket_state_t initialState);
+
+    /**
+     * Tests that the PassiveDM is correctly converted to ActiveDM when a
+     * vBucket in the provided initial state transitions to vbstate-active in
+     * the middle of a snapshot. Tests that the topology change is successful
+     * when we have completed all prepares in the PDM.
+     *
+     * @param initialState The initial state for the vBucket
+     */
+    void testConvertPDMToADMMidSnapAllPreparesCompleted(
+            vbucket_state_t initialState);
+
+    /**
      * Test that the PassiveDM is correctly converted to ActiveDM when a
      * VBucket in the provided initial state transitions to vbstate-active when
      * there are no in-flight SyncWrites.

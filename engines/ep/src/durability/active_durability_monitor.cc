@@ -204,12 +204,15 @@ struct ActiveDurabilityMonitor::State {
      * changing. Generally we commit by moving the HPS or receiving a seqno ack
      * but we cannot call the typical updateHPS function at topology change.
      * This function iterates on trackedWrites committing anything that
-     * needs commit.
+     * needs commit. We may also have SyncWrites in trackedWrites that were
+     * completed by a previous PDM but are needed to correctly set the HPS when
+     * we receive the replication topology from ns_server; these SyncWrites
+     * should be removed from trackedWrites at this point.
      *
      * @param [out] toCommit Container which has all SyncWrites to be committed
      *              appended to it.
      */
-    void checkForCommitDueToTopologyChange(CompletedQueue& toCommit);
+    void cleanUpTrackedWritesPostTopologyChange(CompletedQueue& toCommit);
 
 private:
     /**
@@ -1382,7 +1385,7 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
     }
 
     // Commit if possible
-    checkForCommitDueToTopologyChange(toComplete);
+    cleanUpTrackedWritesPostTopologyChange(toComplete);
 }
 
 void ActiveDurabilityMonitor::State::performQueuedAckForChain(
@@ -1400,12 +1403,18 @@ void ActiveDurabilityMonitor::State::performQueuedAckForChain(
     }
 }
 
-void ActiveDurabilityMonitor::State::checkForCommitDueToTopologyChange(
+void ActiveDurabilityMonitor::State::cleanUpTrackedWritesPostTopologyChange(
         ActiveDurabilityMonitor::CompletedQueue& toCommit) {
     Container::iterator it = trackedWrites.begin();
-    while (it != trackedWrites.end() && it->getBySeqno() <= highPreparedSeqno) {
+    while (it != trackedWrites.end()) {
         const auto next = std::next(it);
-        if (it->isSatisfied()) {
+        // Remove from trackedWrites anything that is completed. This may happen
+        // if we have been created from a PDM that has not received a full
+        // snapshot. We have to do this after we set the HPS otherwise we could
+        // end up with an ADM with lower HPS than the previous PDM.
+        if (it->isCompleted()) {
+            removeSyncWrite(it);
+        } else if (it->isSatisfied()) {
             toCommit.enqueue(*this, removeSyncWrite(it));
         }
         it = next;

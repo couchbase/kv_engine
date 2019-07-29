@@ -1649,7 +1649,7 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDMUnpersistedPrepare(
     vbucket->setState(initialState);
 
     // Create 1 persist level prepare
-    const auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+    auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
     ASSERT_EQ(0, pdm.getNumTracked());
     std::vector<SyncWriteSpec> writes;
     using namespace cb::durability;
@@ -1657,12 +1657,7 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDMUnpersistedPrepare(
     testAddPrepare(writes);
     ASSERT_EQ(1, pdm.getNumTracked());
 
-    // Tell the PDM to commit the prepare that we have not yet persisted
-    auto key = makeStoredDocKey("key1");
-    auto& nonConstPdm = const_cast<PassiveDurabilityMonitor&>(pdm);
-    nonConstPdm.completeSyncWrite(
-            key, PassiveDurabilityMonitor::Resolution::Commit, 1);
-    nonConstPdm.notifySnapshotEndReceived(2);
+    pdm.notifySnapshotEndReceived(2);
 
     // Still tracking the prepare because we must persist it
     ASSERT_EQ(1, pdm.getNumTracked());
@@ -1677,7 +1672,6 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDMUnpersistedPrepare(
     // Still tracking prepare and HPS as 0 as we have not persisted yet
     EXPECT_EQ(1, adm.getNumTracked());
     EXPECT_EQ(0, adm.getHighPreparedSeqno());
-    EXPECT_EQ(1, adm.getHighCompletedSeqno());
 
     // Fake persistence and check again
     vbucket->setPersistenceSeqno(1);
@@ -1694,6 +1688,156 @@ TEST_P(EPVBucketDurabilityTest,
 TEST_P(EPVBucketDurabilityTest,
        Pending_ConvertPassiveDMToActiveDMWithUnpersistedPrepare) {
     testConvertPassiveDMToActiveDMUnpersistedPrepare(vbucket_state_pending);
+}
+
+void VBucketDurabilityTest::testConvertPDMToADMMidSnapSetup(
+        vbucket_state_t initialState) {
+    ASSERT_TRUE(vbucket);
+    vbucket->setState(initialState);
+
+    // Create 1 prepare
+    const auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+    ASSERT_EQ(0, pdm.getNumTracked());
+    const std::vector<SyncWriteSpec> seqnos{1, 2};
+    testAddPrepare(seqnos);
+    ASSERT_EQ(2, pdm.getNumTracked());
+
+    // Tell the PDM to commit the prepare
+    auto key = makeStoredDocKey("key1");
+    ckptMgr->updateCurrentSnapshot(4, CheckpointType::Memory);
+    vbucket->commit(key,
+                    1 /*prepareSeqno*/,
+                    3 /*commitSeqno*/,
+                    vbucket->lockCollections(key));
+
+    // Skip the receiving of the snap end
+    ASSERT_EQ(2, pdm.getNumTracked());
+    // We can only move HPS on snap end
+    ASSERT_EQ(0, pdm.getHighPreparedSeqno());
+    // We can move HCS before snap end
+    ASSERT_EQ(1, pdm.getHighCompletedSeqno());
+}
+
+void VBucketDurabilityTest::testConvertPDMToADMMidSnapSetupPersistBeforeChange(
+        vbucket_state_t initialState) {
+    testConvertPDMToADMMidSnapSetup(initialState);
+
+    // Persist everything.
+    // @TODO MB-35308: Remove this comment
+    // Note, HPS post topology change will be equal to the high persisted seqno
+    // in this case as we want to advance the HPS when we make a topoology
+    // change if we are awaiting persistence of a prepare.
+    vbucket->setPersistenceSeqno(3);
+
+    // VBState transitions from Replica to Active with a topology that should be
+    // able to commit all in-flight SyncWrites
+    const nlohmann::json topology(
+            {{"topology", nlohmann::json::array({{active}})}});
+    vbucket->setState(vbucket_state_active, topology);
+    // The old PDM is an instance of ADM now. All Prepares are retained.
+    auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
+
+    EXPECT_EQ(0, adm.getNumTracked());
+    EXPECT_EQ(3, adm.getHighPreparedSeqno());
+    EXPECT_EQ(2, adm.getHighCompletedSeqno());
+    EXPECT_EQ(4, vbucket->getHighSeqno());
+}
+
+TEST_P(VBucketDurabilityTest,
+       Replica_ConvertPDMToADMMidSnapPersistBeforeChange) {
+    testConvertPDMToADMMidSnapSetupPersistBeforeChange(vbucket_state_replica);
+}
+
+TEST_P(VBucketDurabilityTest,
+       Pending_ConvertPDMToADMMidSnapPersistBeforeChange) {
+    testConvertPDMToADMMidSnapSetupPersistBeforeChange(vbucket_state_pending);
+}
+
+void VBucketDurabilityTest::testConvertPDMToADMMidSnapSetupPersistAfterChange(
+        vbucket_state_t initialState) {
+    testConvertPDMToADMMidSnapSetup(initialState);
+    // VBState transitions from Replica to Active with a topology that should be
+    // able to commit all in-flight SyncWrites
+    const nlohmann::json topology(
+            {{"topology", nlohmann::json::array({{active}})}});
+    vbucket->setState(vbucket_state_active, topology);
+    // The old PDM is an instance of ADM now. All Prepares are retained.
+    auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
+
+    // Remove completed from trackedWrites at topology change
+    EXPECT_EQ(1, adm.getNumTracked());
+    adm.checkForCommit();
+
+    // HPS is equal to seqno of last prepare
+    EXPECT_EQ(2, adm.getHighPreparedSeqno());
+    EXPECT_EQ(2, adm.getHighCompletedSeqno());
+    EXPECT_EQ(0, adm.getNumTracked());
+    EXPECT_EQ(4, vbucket->getHighSeqno());
+}
+
+TEST_P(EPVBucketDurabilityTest,
+       Replica_ConvertPDMToADMMidSnapPersistAfterChange) {
+    testConvertPDMToADMMidSnapSetupPersistAfterChange(vbucket_state_replica);
+}
+
+TEST_P(EPVBucketDurabilityTest,
+       Pending_ConvertPDMToADMMidSnapPersistAfterChange) {
+    testConvertPDMToADMMidSnapSetupPersistAfterChange(vbucket_state_pending);
+}
+
+void VBucketDurabilityTest::testConvertPDMToADMMidSnapAllPreparesCompleted(
+        vbucket_state_t initialState) {
+    testConvertPDMToADMMidSnapSetup(initialState);
+
+    // Commit the other outstanding preparea
+    ckptMgr->updateCurrentSnapshot(5, CheckpointType::Memory);
+    auto key = makeStoredDocKey("key2");
+    vbucket->commit(key,
+                    2 /*prepareSeqno*/,
+                    4 /*commitSeqno*/,
+                    vbucket->lockCollections(key));
+    const auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+
+    EXPECT_EQ(2, pdm.getNumTracked());
+    EXPECT_EQ(2, pdm.getHighCompletedSeqno());
+
+    vbucket->setPersistenceSeqno(4);
+    // VBState transitions from Replica to Active with a topology that should be
+    // able to commit all in-flight SyncWrites
+    const nlohmann::json topology(
+            {{"topology", nlohmann::json::array({{active}})}});
+    vbucket->setState(vbucket_state_active, topology);
+    auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
+    EXPECT_EQ(4, adm.getHighPreparedSeqno());
+    EXPECT_EQ(2, adm.getHighCompletedSeqno());
+    EXPECT_EQ(0, adm.getNumTracked());
+    EXPECT_EQ(4, vbucket->getHighSeqno());
+
+    key = makeStoredDocKey("newPrepare");
+    auto newPrepare = makePendingItem(key, "value");
+    newPrepare->setBySeqno(5);
+
+    // Adding a SyncWrite does not update the HPS
+    ht->set(*newPrepare.get());
+    adm.addSyncWrite(nullptr /*cookie*/, newPrepare);
+    EXPECT_EQ(4, adm.getHighPreparedSeqno());
+    EXPECT_EQ(2, adm.getHighCompletedSeqno());
+    EXPECT_EQ(1, adm.getNumTracked());
+
+    adm.checkForCommit();
+    EXPECT_EQ(5, adm.getHighPreparedSeqno());
+    EXPECT_EQ(5, adm.getHighCompletedSeqno());
+    EXPECT_EQ(0, adm.getNumTracked());
+}
+
+TEST_P(VBucketDurabilityTest,
+       Replica_ConvertPDMToADMMidSnapPersistAllPreparesCompleted) {
+    testConvertPDMToADMMidSnapAllPreparesCompleted(vbucket_state_replica);
+}
+
+TEST_P(VBucketDurabilityTest,
+       Pending_ConvertPDMToADMMidSnapPersistAllPreparesCompleted) {
+    testConvertPDMToADMMidSnapAllPreparesCompleted(vbucket_state_pending);
 }
 
 void VBucketDurabilityTest::testConvertPassiveDMToActiveDMNoPrepares(
