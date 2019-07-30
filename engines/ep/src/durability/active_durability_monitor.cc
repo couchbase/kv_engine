@@ -601,8 +601,9 @@ void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
         }
     } catch (const std::exception& e) {
         EP_LOG_WARN(
-                "ActiveDurabilityMonitor::State:::addStats: error building "
-                "stats: {}",
+                "({}) ActiveDurabilityMonitor::State:::addStats: error "
+                "building stats: {}",
+                vb.getId(),
                 e.what());
     }
 }
@@ -818,8 +819,10 @@ void ActiveDurabilityMonitor::State::updateNodeAck(const std::string& node,
         auto& firstChainPos = const_cast<Position&>(firstChainItr->second);
         if (firstChainPos.lastAckSeqno > seqno) {
             EP_LOG_WARN(
-                    "Node {} acked seqno:{} lower than previous ack seqno:{} "
+                    "({}) Node {} acked seqno:{} lower than previous ack "
+                    "seqno:{} "
                     "(first chain)",
+                    adm.vb.getId(),
                     node,
                     seqno,
                     int64_t(firstChainPos.lastAckSeqno));
@@ -837,8 +840,9 @@ void ActiveDurabilityMonitor::State::updateNodeAck(const std::string& node,
                     const_cast<Position&>(secondChainItr->second);
             if (secondChainPos.lastAckSeqno > seqno) {
                 EP_LOG_WARN(
-                        "Node {} acked seqno:{} lower than previous ack "
+                        "({}) Node {} acked seqno:{} lower than previous ack "
                         "seqno:{} (second chain)",
+                        adm.vb.getId(),
                         node,
                         seqno,
                         int64_t(secondChainPos.lastAckSeqno));
@@ -1000,8 +1004,9 @@ void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
 
     if (globalBucketLogger->should_log(spdlog::level::debug)) {
         std::stringstream ss;
-        ss << "SyncWrite commit \"" << cb::tagUserData(key.to_string())
-           << "\": ack'ed by {" << boost::join(sw.getAckedNodes(), ", ") << "}";
+        ss << "(" << vb.getId() << ")SyncWrite commit \""
+           << cb::tagUserData(key.to_string()) << "\": ack'ed by {"
+           << boost::join(sw.getAckedNodes(), ", ") << "}";
 
         EP_LOG_DEBUG(ss.str());
     }
