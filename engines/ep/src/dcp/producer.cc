@@ -1348,11 +1348,18 @@ void DcpProducer::addTakeoverStats(const AddStatFn& add_stat,
                     "the expected Active",
                     vb.getId(),
                     stream->getStreamTypeName());
-        } else {
+        } else if (handle.size() > 1) {
             throw std::logic_error(
                     "DcpProducer::addTakeoverStats unexpected size streams:(" +
                     std::to_string(handle.size()) + ") found " +
                     vb.getId().to_string());
+        } else {
+            // Logically, finding a StreamContainer with no stream is similar to
+            // not finding a StreamContainer at all, both should return does_not_exist
+            logger->info(
+                    "({}) "
+                    "DcpProducer::addTakeoverStats empty streams list found",
+                    vb.getId());
         }
     } else {
         logger->info(
