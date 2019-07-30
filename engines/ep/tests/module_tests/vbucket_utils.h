@@ -30,4 +30,8 @@ public:
     static PassiveDurabilityMonitor& public_getPassiveDM(VBucket& vb) {
         return vb.getPassiveDM();
     }
+
+    static void setSeqnoAckCb(VBucket& vb, SeqnoAckCallback func) {
+        vb.seqnoAckCb = func;
+    }
 };

@@ -204,9 +204,7 @@ size_t PassiveDurabilityMonitor::getNumAborted() const {
 }
 
 void PassiveDurabilityMonitor::notifySnapshotEndReceived(uint64_t snapEnd) {
-    int64_t prevHps{0};
-    int64_t hps{0};
-    {
+    { // state locking scope
         auto s = state.wlock();
         s->receivedSnapshotEnds.push({int64_t(snapEnd),
                                       vb.isReceivingDiskSnapshot()
@@ -214,40 +212,49 @@ void PassiveDurabilityMonitor::notifySnapshotEndReceived(uint64_t snapEnd) {
                                               : CheckpointType::Memory});
         // Maybe the new tracked Prepare is already satisfied and could be
         // ack'ed back to the Active.
-        prevHps = s->highPreparedSeqno.lastWriteSeqno;
+        auto prevHps = s->highPreparedSeqno.lastWriteSeqno;
         s->updateHighPreparedSeqno();
-        hps = s->highPreparedSeqno.lastWriteSeqno;
+
+        // Store the seqno ack to send after we drop the state lock
+        storeSeqnoAck(prevHps, s->highPreparedSeqno.lastWriteSeqno);
     }
 
-    // HPS may have not changed (e.g., a locally-non-satisfied PersistToMajority
-    // Prepare has introduced a durability-fence), which would result in
-    // re-acking the same HPS multiple times. Not wrong as HPS is weakly
-    // monotonic at Active, but we want to avoid sending unnecessary messages.
-    if (hps != prevHps) {
-        Expects(hps > prevHps);
-        vb.sendSeqnoAck(hps);
+    if (notifySnapEndSeqnoAckPreProcessHook) {
+        notifySnapEndSeqnoAckPreProcessHook();
     }
+
+    sendSeqnoAck();
 }
 
 void PassiveDurabilityMonitor::notifyLocalPersistence() {
-    int64_t prevHps{0};
-    int64_t hps{0};
-    {
+    { // state locking scope
         auto s = state.wlock();
-        prevHps = s->highPreparedSeqno.lastWriteSeqno;
+        auto prevHps = s->highPreparedSeqno.lastWriteSeqno;
         s->updateHighPreparedSeqno();
-        hps = s->highPreparedSeqno.lastWriteSeqno;
+
+        // Store the seqno ack to send after we drop the state lock
+        storeSeqnoAck(prevHps, s->highPreparedSeqno.lastWriteSeqno);
     }
 
-    // HPS may have not changed (e.g., we have just persisted a Majority Prepare
-    // for which the HPS has been already increased at ADM::addSyncWrite), which
-    // would result in re-acking the same HPS multiple times. Not wrong as HPS
-    // is weakly monotonic at Active, but we want to avoid sending unnecessary
-    // messages.
-    if (hps != prevHps) {
-        Expects(hps > prevHps);
-        vb.sendSeqnoAck(hps);
+    sendSeqnoAck();
+}
+
+void PassiveDurabilityMonitor::storeSeqnoAck(int64_t prevHps, int64_t newHps) {
+    if (prevHps != newHps) {
+        auto seqno = seqnoToAck.wlock();
+        if (*seqno < newHps) {
+            *seqno = newHps;
+        }
     }
+}
+
+void PassiveDurabilityMonitor::sendSeqnoAck() {
+    // Hold the lock throughout to ensure that we do not race with another ack
+    auto seqno = seqnoToAck.wlock();
+    if (*seqno != 0) {
+        vb.sendSeqnoAck(*seqno);
+    }
+    *seqno = 0;
 }
 
 std::string PassiveDurabilityMonitor::to_string(Resolution res) {

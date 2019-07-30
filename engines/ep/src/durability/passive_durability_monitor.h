@@ -142,6 +142,10 @@ public:
      */
     void notifySnapshotEndReceived(uint64_t snapEnd);
 
+    /**
+     * Notify this PDM that some persistence has happened. Attempts to update
+     * the HPS and ack back to the active.
+     */
     void notifyLocalPersistence() override;
 
     /**
@@ -159,7 +163,27 @@ public:
      */
     int64_t getHighestTrackedSeqno() const;
 
+    /**
+     * Test only: Hook which if non-empty is called from
+     * notifySnapshotEndReceived()
+     */
+    std::function<void()> notifySnapEndSeqnoAckPreProcessHook;
+
 protected:
+    /**
+     * Store the seqno ack that we should now send to the consumer. Overwrites
+     * any outstanding ack not yet sent if the new value is greater.
+     *
+     * @param prevHps determines if we should send an ack or not
+     * @param newHps new hps to ack
+     */
+    void storeSeqnoAck(int64_t prevHps, int64_t newHps);
+
+    /**
+     * Send, if we need to, a seqno ack to the active node.
+     */
+    void sendSeqnoAck();
+
     void toOStream(std::ostream& os) const override;
     /**
      * throw exception with the following error string:
@@ -180,6 +204,9 @@ protected:
     /// access. Uses unique_ptr for pimpl.
     struct State;
     folly::SynchronizedPtr<std::unique_ptr<State>> state;
+
+    /// Outstanding seqno ack to send to the active. 0 if no ack outstanding
+    folly::Synchronized<int64_t> seqnoToAck{0};
 
     // Necessary for implementing ADM(PDM&&)
     friend class ActiveDurabilityMonitor;

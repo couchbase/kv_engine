@@ -3233,6 +3233,43 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
     }
 }
 
+TEST_P(PassiveDurabilityMonitorTest, SendSeqnoAckRace) {
+    auto& pdm = getPassiveDM();
+    ASSERT_EQ(0, pdm.getNumTracked());
+
+    Monotonic<int64_t> ackedSeqno = 0;
+
+    // Set up our function hooks
+    pdm.notifySnapEndSeqnoAckPreProcessHook = [this, &pdm]() {
+        // We are outside the state lock at this point but have not yet called
+        // vb->sendSeqnoAck. Simulate this race by notifying persistence which
+        // should attempt to ack 2.
+        vb->setPersistenceSeqno(2);
+        pdm.notifyLocalPersistence();
+    };
+
+    // Test: Assert the monotonicity of the ack that we attempt to send
+    VBucketTestIntrospector::setSeqnoAckCb(
+            *vb, [&ackedSeqno](Vbid vbid, uint64_t hps) { ackedSeqno = hps; });
+
+    // Load two SyncWrites. For this test we want a snapshot end to attempt to
+    // seqno ack with seqno 1 but be "descheduled" before it can and for a
+    // persistence callback to ack with seqno 2 before the seqno ack for seqno 1
+    // completes. This could happen with the following two prepares in a single
+    // snapshot.
+    using namespace cb::durability;
+    addSyncWrite(1 /*seqno*/,
+                 Requirements{Level::Majority, Timeout::Infinity()});
+    addSyncWrite(2 /*seqno*/,
+                 Requirements{Level::PersistToMajority, Timeout::Infinity()});
+    ASSERT_EQ(2, pdm.getNumTracked());
+
+    // Should only be able to ack seqno 1 as we require persistence to ack seqno
+    // 2.
+    pdm.notifySnapshotEndReceived(2);
+    EXPECT_EQ(2, ackedSeqno);
+}
+
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         ActiveDurabilityMonitorTest,
                         STParameterizedBucketTest::allConfigValues(),
