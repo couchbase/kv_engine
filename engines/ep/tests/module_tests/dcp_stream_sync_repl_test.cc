@@ -712,7 +712,11 @@ TEST_P(DcpStreamSyncReplPersistentTest,
 }
 
 TEST_P(DcpStreamSyncReplPersistentTest, ProducerAllowsSeqnoAckLEQToLastSent) {
-    setup_dcp_stream();
+    setup_dcp_stream(0 /*flags*/,
+                     IncludeValue::Yes,
+                     IncludeXattrs::Yes,
+                     {{"enable_synchronous_replication", "true"},
+                      {"consumer_name", "replica1"}});
 
     stream = producer->mockActiveStreamRequest(0,
                                                /*opaque*/ 0,

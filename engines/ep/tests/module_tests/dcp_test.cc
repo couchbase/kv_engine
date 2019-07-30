@@ -1499,6 +1499,55 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     destroy_mock_cookie(cookie);
 }
 
+TEST_P(ConnectionTest, ConsumerWithoutConsumerNameDoesNotEnableSyncRepl) {
+    MockDcpConnMap connMap(*engine);
+    connMap.initialize();
+    const void* cookie = create_mock_cookie();
+    // Create a new Dcp consumer
+    auto& consumer = dynamic_cast<MockDcpConsumer&>(
+            *connMap.newConsumer(cookie, "consumer"));
+    consumer.setPendingAddStream(false);
+    EXPECT_FALSE(consumer.isSyncReplicationEnabled());
+    EXPECT_EQ(DcpConsumer::SyncReplNegotiation::State::Completed,
+              consumer.public_getSyncReplNegotiation().state);
+
+    destroy_mock_cookie(cookie);
+}
+
+TEST_P(ConnectionTest, ConsumerWithConsumerNameEnablesSyncRepl) {
+    MockDcpConnMap connMap(*engine);
+    connMap.initialize();
+    const void* cookie = create_mock_cookie();
+    // Create a new Dcp consumer
+    auto& consumer = dynamic_cast<MockDcpConsumer&>(
+            *connMap.newConsumer(cookie, "consumer", "replica1"));
+    consumer.setPendingAddStream(false);
+    EXPECT_FALSE(consumer.isSyncReplicationEnabled());
+    EXPECT_EQ(DcpConsumer::SyncReplNegotiation::State::PendingRequest,
+              consumer.public_getSyncReplNegotiation().state);
+
+    // Move consumer into paused state (aka EWOULDBLOCK) by stepping through the
+    // DCP_CONTROL logic.
+    MockDcpMessageProducers producers(handle);
+    ENGINE_ERROR_CODE result;
+    do {
+        result = consumer.step(&producers);
+        handleProducerResponseIfStepBlocked(consumer, producers);
+    } while (result == ENGINE_SUCCESS);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, result);
+
+    // SyncReplication negotiation is now completed, SyncReplication is enabled
+    // on this consumer, and we have sent the consumer name to the producer.
+    EXPECT_EQ(DcpConsumer::SyncReplNegotiation::State::Completed,
+              consumer.public_getSyncReplNegotiation().state);
+    EXPECT_TRUE(consumer.isSyncReplicationEnabled());
+
+    // The last thing that we sent was the key
+    EXPECT_EQ("replica1", producers.last_value);
+
+    destroy_mock_cookie(cookie);
+}
+
 /*
  * The following tests that when the disk_backfill_queue configuration is
  * set to false on receiving a snapshot marker it does not move into the

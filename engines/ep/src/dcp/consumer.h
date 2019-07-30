@@ -46,6 +46,19 @@ class DcpConsumer : public ConnHandler,
     typedef std::map<uint32_t, std::pair<uint32_t, Vbid>> opaque_map;
 
 public:
+    struct SyncReplNegotiation {
+        enum class State : uint8_t {
+            PendingRequest,
+            PendingResponse,
+            Completed
+        } state;
+
+        // Sync Replication is enabled via DCP_CONTROL like many other DCP
+        // features. This opaque is used to identify the "enable sync repl"
+        // response at DcpConsumer::handleResponse.
+        uint32_t opaque{0};
+    };
+
     /**
      * Construct a DCP consumer object.
      *
@@ -552,18 +565,7 @@ protected:
     bool pendingEnableExpiryOpcode;
 
     // Maintains the state of the Sync Replication negotiation
-    struct SyncReplNegotiation {
-        enum class State : uint8_t {
-            PendingRequest,
-            PendingResponse,
-            Completed
-        } state;
-
-        // Sync Replication is enabled via DCP_CONTROL like many other DCP
-        // features. This opaque is used to identify the "enable sync repl"
-        // response at DcpConsumer::handleResponse.
-        uint32_t opaque{0};
-    } syncReplNegotiation;
+    SyncReplNegotiation syncReplNegotiation;
 
     // SyncReplication: Producer needs to know the Consumer name to identify
     // the source of received SeqnoAck messages.

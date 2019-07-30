@@ -54,8 +54,7 @@ void handleProducerResponseIfStepBlocked(MockDcpConsumer& consumer,
         protocol_binary_response_header resp{};
         resp.response.setMagic(cb::mcbp::Magic::ClientResponse);
         resp.response.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
-        // @todo: Success
-        resp.response.setStatus(cb::mcbp::Status::Einval);
+        resp.response.setStatus(cb::mcbp::Status::Success);
         resp.response.setOpaque(producers.last_opaque);
         consumer.handleResponse(&resp);
     }

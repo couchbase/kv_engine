@@ -182,9 +182,18 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     pendingSupportCursorDropping = true;
     pendingSupportHifiMFU = true;
     pendingEnableExpiryOpcode = true;
-    syncReplNegotiation.state = SyncReplNegotiation::State::PendingRequest;
-    // If a consumer_name was provided then tell the producer about it.
+
+    // If a consumer_name was provided then tell the producer about it. Having
+    // a consumer name determines if we should support SyncReplication. If we
+    // have not yet received a consumer name then the cluster is in a mixed mode
+    // state and ns_server will not have set the topology on any producer nodes.
+    // We should NOT attempt to enable SyncReplication if this is the case. When
+    // the cluster is fully upgraded to MadHatter+, ns_server will tear down DCP
+    // connections and recreate them with the consumer name.
     pendingSendConsumerName = !consumerName.empty();
+    syncReplNegotiation.state =
+            pendingSendConsumerName ? SyncReplNegotiation::State::PendingRequest
+                                    : SyncReplNegotiation::State::Completed;
 }
 
 DcpConsumer::~DcpConsumer() {
@@ -1490,6 +1499,9 @@ ENGINE_ERROR_CODE DcpConsumer::enableExpiryOpcode(
 
 ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
         dcp_message_producers* producers) {
+    // enable_synchronous_replication and consumer_name are separated into two
+    // different variables as in the future non-replication consumers may wish
+    // to stream prepares and commits.
     switch (syncReplNegotiation.state) {
     case SyncReplNegotiation::State::PendingRequest: {
         uint32_t opaque = ++opaqueCounter;

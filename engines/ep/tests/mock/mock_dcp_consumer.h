@@ -119,6 +119,14 @@ public:
     }
 
     /**
+     * @return the entire SyncReplNegotiation struct used to send DCP_CONTROL
+     *         messages for testing.
+     */
+    SyncReplNegotiation public_getSyncReplNegotiation() const {
+        return syncReplNegotiation;
+    }
+
+    /**
      * Used for simulating a successful Consumer-Producer Sync Repl handshake.
      */
     void enableSyncReplication() {

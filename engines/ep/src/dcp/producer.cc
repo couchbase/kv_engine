@@ -1008,6 +1008,20 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
 ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
                                                   Vbid vbucket,
                                                   uint64_t prepared_seqno) {
+    if (!isSyncReplicationEnabled()) {
+        logger->warn(
+                "({}) seqno_acknowledge failed because SyncReplication is"
+                " not enabled on this Producer");
+        return ENGINE_EINVAL;
+    }
+
+    if (consumerName.empty()) {
+        logger->warn(
+                "({}) seqno_acknowledge failed because this producer does"
+                " not have an associated consumer name");
+        return ENGINE_EINVAL;
+    }
+
     VBucketPtr vb = engine_.getVBucket(vbucket);
     if (!vb) {
         logger->warn(
