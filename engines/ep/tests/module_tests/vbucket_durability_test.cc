@@ -100,7 +100,7 @@ void VBucketDurabilityTest::storeSyncWrites(
 
 void VBucketDurabilityTest::simulateLocalAck(uint64_t seqno) {
     vbucket->setPersistenceSeqno(seqno);
-    vbucket->getActiveDM().notifyLocalPersistence();
+    vbucket->notifyPersistenceToDurabilityMonitor();
 }
 
 void VBucketDurabilityTest::testAddPrepare(
@@ -1894,6 +1894,188 @@ TEST_P(VBucketDurabilityTest,
 TEST_P(VBucketDurabilityTest,
        Pending_ConvertPassiveDMToActiveDMEmptyTrackedWrites) {
     testConvertPassiveDMToActiveDMNoPrepares(vbucket_state_replica);
+}
+
+// Test that conversion from ActiveDM to PassiveDM with in-flight trackedWrites
+// calculated HPS correctly.
+// MB-35332: During rebalance a node may go from being active to replica for
+// a vBucket, resulting in ActiveDM -> PassiveDM conversion. If the ActiveDM
+// had prepares which were already locally ack'd, after PassiveDM conversion
+// the highPreparedSeqno iterator was in the wrong position; resulting in
+// the highPreparedSeqno.lastWriteSeqno going backwards (breaking Monotonic
+// invariant).
+TEST_P(VBucketDurabilityTest, ConvertActiveDMToPassiveDMPreparedSyncWrites) {
+    // Setup: queue two Prepares into the ADM (needs >1 to expose the bug
+    // where HPS.iterator has incorrect position, resulting in attempting to
+    // set HPS.lastWriteSeqno to a lower value then it was (2 -> 1).
+    auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
+    ASSERT_EQ(0, adm.getNumTracked());
+    const std::vector<SyncWriteSpec> seqnos{1, 2};
+    testAddPrepare(seqnos);
+    // checkForCommit will be called after every normal vBucket op and will
+    // set the HPS for us
+    adm.checkForCommit();
+
+    // Test: Convert to PassiveDM (via dead as ns_server can do).
+    vbucket->setState(vbucket_state_dead);
+    vbucket->setState(vbucket_state_replica);
+
+    // Check: seqnos on newly-created PassiveDM.
+    auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+    EXPECT_EQ(2, pdm.getHighPreparedSeqno());
+    EXPECT_EQ(0, pdm.getHighCompletedSeqno());
+
+    // Test(2): Simulate a new snapshot being received (i.e. from a DcpConsumer)
+    // and the snapshot end being reached which triggers
+    // updateHighPreparedSeqno()
+    // - which shouldn't move HPS backwards.
+    auto key = makeStoredDocKey("key3");
+    auto pending = makePendingItem(key, "replica_value"s);
+    VBQueueItemCtx ctx;
+    using namespace cb::durability;
+    ctx.durability = DurabilityItemCtx{
+            Requirements{Level::Majority, Timeout::Infinity()}, cookie};
+    ASSERT_EQ(MutationStatus::WasClean,
+              public_processSet(*pending, 0 /*cas*/, ctx));
+
+    pdm.notifySnapshotEndReceived(3);
+    EXPECT_EQ(3, pdm.getHighPreparedSeqno());
+    EXPECT_EQ(0, pdm.getHighCompletedSeqno());
+
+    // Test(3): Now commit the prepared items.
+    auto resolutionCommit = PassiveDurabilityMonitor::Resolution::Commit;
+    pdm.completeSyncWrite(makeStoredDocKey("key1"), resolutionCommit, 1);
+    EXPECT_EQ(1, pdm.getHighCompletedSeqno());
+    pdm.completeSyncWrite(makeStoredDocKey("key2"), resolutionCommit, 2);
+    EXPECT_EQ(2, pdm.getHighCompletedSeqno());
+    pdm.completeSyncWrite(makeStoredDocKey("key3"), resolutionCommit, 3);
+    EXPECT_EQ(3, pdm.getHighCompletedSeqno());
+}
+
+// Test that conversion from ActiveDM to PassiveDM with in-flight trackedWrites
+// including at least one completed is handled correctly.
+TEST_P(VBucketDurabilityTest, ConvertActiveDMToPassiveDMCompletedSyncWrites) {
+    // Setup: queue three Prepares into the ADM, then complete the seqno:1.
+    // (We want to end up with at least two SyncWrites in PDM - it only
+    // contains uncompleted SyncWrites (i.e. seqno 2 & 3).
+    auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
+    ASSERT_EQ(0, adm.getNumTracked());
+    const std::vector<SyncWriteSpec> seqnos{1, 2, 3};
+    testAddPrepare(seqnos);
+    ASSERT_EQ(seqnos.size(), adm.getNumTracked());
+    // checkForCommit will be called after every normal vBucket op and will
+    // set the HPS for us
+    adm.checkForCommit();
+
+    // Setup: Commit the first Prepare (so we can advance HCS to non-zero and
+    // test it below).
+    adm.seqnoAckReceived(replica1, 1);
+    ASSERT_EQ(2, adm.getNumTracked());
+    ASSERT_EQ(3, adm.getHighPreparedSeqno());
+    ASSERT_EQ(1, adm.getHighCompletedSeqno());
+
+    // Test: Convert to PassiveDM (via dead as ns_server can do).
+    vbucket->setState(vbucket_state_dead);
+    vbucket->setState(vbucket_state_replica);
+
+    // Check: state on newly created PassiveDM.
+    auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+    EXPECT_EQ(2, pdm.getNumTracked());
+    EXPECT_EQ(3, pdm.getHighPreparedSeqno());
+    EXPECT_EQ(1, pdm.getHighCompletedSeqno());
+
+    // Test(2): Commit the remaining outstanding prepares.
+    auto resolutionCommit = PassiveDurabilityMonitor::Resolution::Commit;
+    pdm.completeSyncWrite(makeStoredDocKey("key2"), resolutionCommit, 2);
+    EXPECT_EQ(2, pdm.getHighCompletedSeqno());
+    pdm.completeSyncWrite(makeStoredDocKey("key3"), resolutionCommit, 3);
+    EXPECT_EQ(3, pdm.getHighCompletedSeqno());
+    EXPECT_EQ(0, pdm.getNumTracked());
+}
+
+/**
+ * Check that converting from Replica to Active back to Replica correctly
+ * preserves completed SyncWrites in trackedWrites which cannot yet be removed
+ * (if persistMajority and not locally persisted).
+ *
+ * Scenario:
+ * Replica (PassiveDM):
+ *     1:prepare(persistToMajority)
+ *     2:prepare(majority)
+ *     3:commit(1) -> cannot locally remove 1 as not persisted yet.
+ *     4:commit(2) -> cannot locally remove 2 as seqno:1 not persisted yet
+ *                    (in-order commit).
+ *     -> trackedWrites=[1,2]
+ *        HPS=0
+ *        HCS=2  (want HCS higher than the first element in the trackedWrites)
+ *
+ * Convert to ADM (null topology):
+ *     -> trackedWrites=[1,2]
+ *        HPS=0
+ *        HCS=2
+ *     (i.e. same as previous PassiveDM)
+ *
+ * Convert to PDM:
+ *     State should be same as it was:
+ *     -> trackedWrites=[1,2]
+ *        HPS=0
+ *        HCS=2
+ * notifyLocalPersistence -> can remove 1 and 2:
+ *     -> trackedWrites=[]
+ *        HPS=2
+ *        HCS=2
+ */
+TEST_P(EPVBucketDurabilityTest, ReplicaToActiveToReplica) {
+    // Setup: PassiveDM with
+    // 1:PRE(persistMajority), 2:PRE(majority), 3:COMMIT(1), 4:COMMIT(2)
+    vbucket->setState(vbucket_state_replica);
+    using namespace cb::durability;
+    std::vector<SyncWriteSpec> seqnos{{1, false, Level::PersistToMajority}, 2};
+    testAddPrepare(seqnos);
+    auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+    pdm.completeSyncWrite(makeStoredDocKey("key1"),
+                          PassiveDurabilityMonitor::Resolution::Commit,
+                          1);
+    pdm.completeSyncWrite(makeStoredDocKey("key2"),
+                          PassiveDurabilityMonitor::Resolution::Commit,
+                          2);
+    pdm.notifySnapshotEndReceived(4);
+
+    // Sanity: Check PassiveDM state as expected - HPS is still zero as haven't
+    // locally prepared the persistMajority, but globally that's been
+    // committed (HCS=1).
+    ASSERT_EQ(2, pdm.getNumTracked());
+    ASSERT_EQ(0, pdm.getHighPreparedSeqno());
+    ASSERT_EQ(2, pdm.getHighCompletedSeqno());
+
+    // Setup(2): Convert to ActiveDM (null topology).
+    vbucket->setState(vbucket_state_active);
+    auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
+    EXPECT_EQ(2, adm.getNumTracked());
+    EXPECT_EQ(0, adm.getHighPreparedSeqno());
+    EXPECT_EQ(2, adm.getHighCompletedSeqno());
+
+    // Test: Convert back to PassiveDM.
+    vbucket->setState(vbucket_state_replica);
+    {
+        auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+        EXPECT_EQ(2, pdm.getNumTracked());
+        EXPECT_EQ(0, pdm.getHighPreparedSeqno());
+        EXPECT_EQ(2, pdm.getHighCompletedSeqno());
+
+        // Test(2): Check that notification of local persistence will remove
+        // the completed items and advance HPS.
+
+        // @todo MB-35366: This notifySnapshotEndReceived *shouldn't* be
+        // necessary; calling notifyPersistenceToDurabilityMonitor (via
+        // simulateLocalAck) should be sufficient to prepare.
+        pdm.notifySnapshotEndReceived(4);
+        simulateLocalAck(4);
+
+        EXPECT_EQ(0, pdm.getNumTracked());
+        EXPECT_EQ(2, pdm.getHighPreparedSeqno());
+        EXPECT_EQ(2, pdm.getHighCompletedSeqno());
+    }
 }
 
 // Test that a double set_vb_state with identical state & topology is handled

@@ -1863,8 +1863,12 @@ TEST_P(DurabilityBucketTest, ActiveToReplicaAndCommit) {
     auto pending = makePendingItem(key, "pending");
 
     ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    ASSERT_EQ(
+            ENGINE_EWOULDBLOCK,
+            store->set(*makePendingItem(makeStoredDocKey("crikey2"), "value2"),
+                       cookie));
 
-    flushVBucketToDiskIfPersistent(vbid);
+    flushVBucketToDiskIfPersistent(vbid, 2);
 
     // Now switch over to being a replica, via dead for realism
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_dead, {});
@@ -1875,15 +1879,19 @@ TEST_P(DurabilityBucketTest, ActiveToReplicaAndCommit) {
     // Now drive the VB as if a passive stream is receiving data.
     vb.checkpointManager->createSnapshot(1, 3, CheckpointType::Memory);
 
-    // seqno:2 A new prepare
-    auto key1 = makeStoredDocKey("crikey2");
-    auto pending1 = makePendingItem(
+    // seqno:3 A new prepare
+    auto key1 = makeStoredDocKey("crikey3");
+    auto pending3 = makePendingItem(
             key1, "pending", {cb::durability::Level::Majority, {5000}});
-    pending1->setCas(1);
-    pending1->setBySeqno(2);
-    EXPECT_EQ(ENGINE_SUCCESS, store->prepare(*pending1, cookie));
-    // seqno:3 the prepare at seqno:1 is committed
-    ASSERT_EQ(ENGINE_SUCCESS, vb.commit(key, 1, 3, vb.lockCollections(key)));
+    pending3->setCas(1);
+    pending3->setBySeqno(3);
+    EXPECT_EQ(ENGINE_SUCCESS, store->prepare(*pending3, cookie));
+    // Trigger update of HPS (normally called by PassiveStream).
+    vb.notifyPassiveDMOfSnapEndReceived(3);
+
+    // seqno:4 the prepare at seqno:1 is committed
+    vb.checkpointManager->createSnapshot(4, 4, CheckpointType::Memory);
+    ASSERT_EQ(ENGINE_SUCCESS, vb.commit(key, 1, 4, vb.lockCollections(key)));
 }
 
 // Test cases which run against all persistent storage backends.
