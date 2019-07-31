@@ -1134,6 +1134,7 @@ void ActiveDurabilityMonitor::toOStream(std::ostream& os) const {
     } else {
         os << "<null>";
     }
+    os << "\n";
 }
 
 void ActiveDurabilityMonitor::chainToOstream(
@@ -1144,15 +1145,8 @@ void ActiveDurabilityMonitor::chainToOstream(
        << " majority:" << int(rc.majority) << " active:" << rc.active
        << " maxAllowedReplicas:" << rc.maxAllowedReplicas << " positions:[\n";
     for (const auto& pos : rc.positions) {
-        os << "    " << pos.first << ": {lastAck:" << pos.second.lastAckSeqno
-           << " lastWrite:" << pos.second.lastWriteSeqno << " it: @"
-           << &*pos.second.it;
-        if (pos.second.it == trackedWritesEnd) {
-            os << " <end>";
-        } else {
-            os << " seqno:" << pos.second.it->getBySeqno();
-        }
-        os << "\n";
+        os << "    " << pos.first << ": "
+           << to_string(pos.second, trackedWritesEnd) << "\n";
     }
     os << "]";
 }

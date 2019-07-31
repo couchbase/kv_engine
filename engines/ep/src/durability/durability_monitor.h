@@ -88,6 +88,16 @@ protected:
                                     const DurabilityMonitor& dm);
 
     friend std::ostream& operator<<(std::ostream&, const SyncWrite&);
+
+    /** Return a string representation of the given Position.
+     *
+     * @param pos
+     * @param trackedWritesEnd Iterator pointing at the end() of the
+     *        trackedWrites container this Position references. Used to check
+     *        if Position is at end and print appropiate info.
+     */
+    friend std::string to_string(const DurabilityMonitor::Position& pos,
+                                 Container::const_iterator trackedWritesEnd);
 };
 
 std::string to_string(DurabilityMonitor::ReplicationChainName name);

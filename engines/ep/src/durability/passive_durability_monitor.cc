@@ -36,8 +36,8 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(VBucket& vb)
     : vb(vb), state(std::make_unique<State>(*this)) {
     // By design, instances of Container::Position can never be invalid
     auto s = state.wlock();
-    s->highPreparedSeqno = Position(s->trackedWrites.end());
-    s->highCompletedSeqno = Position(s->trackedWrites.end());
+    s->highPreparedSeqno.it = s->trackedWrites.end();
+    s->highCompletedSeqno.it = s->trackedWrites.end();
 }
 
 PassiveDurabilityMonitor::PassiveDurabilityMonitor(VBucket& vb,
@@ -419,14 +419,21 @@ int64_t PassiveDurabilityMonitor::getHighestTrackedSeqno() const {
 }
 
 void PassiveDurabilityMonitor::toOStream(std::ostream& os) const {
-    os << "PassiveDurabilityMonitor[" << this << "]"
-       << " high_prepared_seqno:" << getHighPreparedSeqno()
-       << " trackedWrites:\n";
-    state.withRLock([&os](auto& s) {
-        for (const auto& w : s.trackedWrites) {
-            os << "    " << w << "\n";
-        }
-    });
+    os << "PassiveDurabilityMonitor[" << this << "] " << *state.rlock();
+}
+
+PassiveDurabilityMonitor::State::State(const PassiveDurabilityMonitor& pdm)
+    : pdm(pdm) {
+    const auto prefix =
+            "PassiveDM(" + pdm.vb.getId().to_string() + ")::State::";
+
+    const auto hpsPrefix = prefix + "highPreparedSeqno";
+    highPreparedSeqno.lastWriteSeqno.setLabel(hpsPrefix + ".lastWriteSeqno");
+    highPreparedSeqno.lastAckSeqno.setLabel(hpsPrefix + ".lastAckSeqno");
+
+    const auto hcsPrefix = prefix + "highCompletedSeqno";
+    highCompletedSeqno.lastWriteSeqno.setLabel(hcsPrefix + ".lastWriteSeqno");
+    highCompletedSeqno.lastAckSeqno.setLabel(hcsPrefix + ".lastAckSeqno");
 }
 
 DurabilityMonitor::Container::iterator
@@ -615,4 +622,18 @@ template <class exception>
         const std::string& thrower, const std::string& error) const {
     throw exception("PassiveDurabilityMonitor::" + thrower + " " +
                     vb.getId().to_string() + " " + error);
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const PassiveDurabilityMonitor::State& state) {
+    os << "State[" << &state << "] highPreparedSeqno:"
+       << to_string(state.highPreparedSeqno, state.trackedWrites.end())
+       << " highCompletedSeqno:"
+       << to_string(state.highCompletedSeqno, state.trackedWrites.end())
+       << "\ntrackedWrites:[\n";
+    for (const auto& w : state.trackedWrites) {
+        os << "    " << w << "\n";
+    }
+    os << "]\n";
+    return os;
 }

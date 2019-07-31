@@ -361,8 +361,7 @@ struct PassiveDurabilityMonitor::State {
     /**
      * @param pdm The owning PassiveDurabilityMonitor
      */
-    State(const PassiveDurabilityMonitor& pdm) : pdm(pdm) {
-    }
+    State(const PassiveDurabilityMonitor& pdm);
 
     /**
      * Returns the next position for a given Container::iterator.

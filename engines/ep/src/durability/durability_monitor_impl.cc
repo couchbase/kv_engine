@@ -298,11 +298,14 @@ DurabilityMonitor::ReplicationChain::ReplicationChain(
             continue;
         }
         // This check ensures that there is no duplicate in the given chain
-        if (!positions.emplace(node, Position(it)).second) {
+        auto result = positions.emplace(node, Position(it));
+        if (!result.second) {
             throw std::invalid_argument(
                     "ReplicationChain::ReplicationChain: Duplicate node: " +
                     node);
         }
+        result.first->second.lastAckSeqno.setLabel(node + "::lastAckSeqno");
+        result.first->second.lastWriteSeqno.setLabel(node + "::lastWriteSeqno");
     }
 }
 
@@ -351,4 +354,21 @@ bool operator>(const SnapshotEndInfo& a, const SnapshotEndInfo& b) {
 std::string to_string(const SnapshotEndInfo& snapshotEndInfo) {
     return std::to_string(snapshotEndInfo.seqno) + "{" +
            to_string(snapshotEndInfo.type) + "}";
+}
+
+std::string to_string(
+        const DurabilityMonitor::Position& pos,
+        std::list<DurabilityMonitor::SyncWrite,
+                  std::allocator<DurabilityMonitor::SyncWrite>>::const_iterator
+                trackedWritesEnd) {
+    std::stringstream ss;
+    ss << "{lastAck:" << pos.lastAckSeqno << " lastWrite:" << pos.lastWriteSeqno
+       << " it: @" << &*pos.it;
+    if (pos.it == trackedWritesEnd) {
+        ss << " <end>";
+    } else {
+        ss << " seqno:" << pos.it->getBySeqno();
+    }
+    ss << "}";
+    return ss.str();
 }

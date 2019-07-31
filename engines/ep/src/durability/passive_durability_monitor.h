@@ -183,4 +183,7 @@ protected:
 
     // Necessary for implementing ADM(PDM&&)
     friend class ActiveDurabilityMonitor;
+
+    friend std::ostream& operator<<(
+            std::ostream& os, const PassiveDurabilityMonitor::State& state);
 };
