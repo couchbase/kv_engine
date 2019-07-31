@@ -198,7 +198,7 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
         // Majority Prepare), simulating a SeqnoAck received from replica
         // satisfies Durability Requirements and triggers Commit. So, the
         // following indirectly calls VBucket::commit
-        vb->seqnoAcknowledged(replica, prepareSeqno);
+        stream->seqnoAck(replica, prepareSeqno);
         // Note: At FE we have an exact item count only at persistence.
         auto evictionType = std::get<1>(GetParam());
         if (evictionType == "value_only" || !persistent()) {
@@ -474,13 +474,20 @@ TEST_P(DurabilityActiveStreamTest, RemoveUnknownSeqnoAckAtDestruction) {
     // Our topology gives replica name as "replica" an our producer/stream has
     // name "test_producer". Simulate a seqno ack by calling the vBucket level
     // function.
-    vb->seqnoAcknowledged("test_producer", 1);
+    stream->seqnoAck("test_producer", 1);
 
     // An unknown seqno ack should not have committed the item
     EXPECT_EQ(0, vb->getNumItems());
 
     // Disconnect the ActiveStream
     stream->setDead(END_STREAM_DISCONNECTED);
+
+    // Attempt to ack the seqno again. The stream is dead so we should not
+    // process the ack although we return SUCCESS to avoid tearing down any
+    // connections. We verify that the seqno ack does not exist in the map
+    // by performing the topology change that would commit the prepare if it
+    // did.
+    EXPECT_EQ(ENGINE_SUCCESS, stream->seqnoAck("test_producer", 1));
 
     // If the seqno ack still existed in the queuedSeqnoAcks map then it would
     // result in a commit on topology change

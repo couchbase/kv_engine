@@ -657,7 +657,10 @@ void DurabilityWarmupTest::testCommittedSyncWrite(vbucket_state_t vbState,
     { // scoping vb - is invalid once resetEngineAndWarmup() is called.
         auto vb = engine->getVBucket(vbid);
         EXPECT_EQ(ENGINE_SUCCESS,
-                  vb->seqnoAcknowledged("replica", vb->getHighPreparedSeqno()));
+                  vb->seqnoAcknowledged(
+                          folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                          "replica",
+                          vb->getHighPreparedSeqno()));
 
         flush_vbucket_to_disk(vbid, 1);
     }
@@ -942,7 +945,11 @@ void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState() {
     // Complete the Prepare
     vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb);
-    EXPECT_EQ(ENGINE_SUCCESS, vb->seqnoAcknowledged("replica", preparedSeqno));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb->seqnoAcknowledged(
+                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      "replica",
+                      preparedSeqno));
     sv = vb->ht.findForRead(key).storedValue;
     ASSERT_TRUE(sv);
     ASSERT_TRUE(sv->isCommitted());
@@ -1048,13 +1055,19 @@ TEST_P(DurabilityWarmupTest, CommittedWithAckAfterWarmup) {
     flush_vbucket_to_disk(vbid);
     {
         auto vb = engine->getVBucket(vbid);
-        vb->seqnoAcknowledged("replica", 1);
+        vb->seqnoAcknowledged(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                "replica",
+                1);
         flush_vbucket_to_disk(vbid, 1);
     }
     resetEngineAndWarmup();
     {
         auto vb = engine->getVBucket(vbid);
-        vb->seqnoAcknowledged("replica", 1);
+        vb->seqnoAcknowledged(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                "replica",
+                1);
     }
 }
 
@@ -1075,14 +1088,20 @@ TEST_P(DurabilityWarmupTest, WarmUpHPSAndHCSWithNonSeqnoSortedItems) {
     flush_vbucket_to_disk(vbid, 2);
     {
         auto vb = engine->getVBucket(vbid);
-        vb->seqnoAcknowledged("replica", 2);
+        vb->seqnoAcknowledged(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                "replica",
+                2);
         flush_vbucket_to_disk(vbid, 2);
     }
     SCOPED_TRACE("B");
     resetEngineAndWarmup();
     {
         auto vb = engine->getVBucket(vbid);
-        vb->seqnoAcknowledged("replica", 2);
+        vb->seqnoAcknowledged(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                "replica",
+                2);
     }
 }
 

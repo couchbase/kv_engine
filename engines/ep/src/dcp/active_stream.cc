@@ -1746,3 +1746,32 @@ bool ActiveStream::removeCheckpointCursor() {
     }
     return false;
 }
+
+ENGINE_ERROR_CODE ActiveStream::seqnoAck(const std::string& consumerName,
+                                         uint64_t preparedSeqno) {
+    VBucketPtr vb = engine->getVBucket(vb_);
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    // Take the vb state lock so that we don't change the state of
+    // this vb. Done before the streamMutex is acquired to prevent a lock order
+    // inversion.
+    {
+        folly::SharedMutex::ReadHolder vbStateLh(vb->getStateLock());
+
+        // Locked with the streamMutex to ensure that we cannot race with a
+        // stream end
+        {
+            LockHolder lh(streamMutex);
+
+            // We cannot ack something on a dead stream.
+            if (!isActive()) {
+                return ENGINE_SUCCESS;
+            }
+
+            return vb->seqnoAcknowledged(
+                    vbStateLh, consumerName, preparedSeqno);
+        } // end stream mutex lock scope
+    } // end vb state lock scope
+}

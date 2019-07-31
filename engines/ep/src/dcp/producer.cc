@@ -1044,29 +1044,25 @@ ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
                 " but we don't have a StreamContainer for that vb");
     }
 
-    uint64_t lastSentSeqno;
+    std::shared_ptr<ActiveStream> stream;
     {
         auto handle = rv->second->rlock();
 
         // Producer for replication should only have one stream.
         Expects(handle.size() == 1);
 
-        auto* s = dynamic_cast<ActiveStream*>(handle.get().get());
-
-        // We should not have received a seqno ack if the stream
-        // is not an ActiveStream
-        Expects(s);
-        lastSentSeqno = s->getLastSentSeqno();
+        stream = dynamic_pointer_cast<ActiveStream>(handle.get());
+        Expects(stream.get());
     }
 
-    if (prepared_seqno > lastSentSeqno) {
+    if (prepared_seqno > stream->getLastSentSeqno()) {
         throw std::logic_error(
                 "Replica acked seqno:" + std::to_string(prepared_seqno) +
                 " greater than last sent seqno:" +
-                std::to_string(lastSentSeqno));
+                std::to_string(stream->getLastSentSeqno()));
     }
 
-    return vb->seqnoAcknowledged(consumerName, prepared_seqno);
+    return stream->seqnoAck(consumerName, prepared_seqno);
 }
 
 bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {

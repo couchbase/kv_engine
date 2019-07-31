@@ -860,6 +860,7 @@ void ActiveDurabilityMonitor::State::updateNodeAck(const std::string& node,
         // track the ack for this node in case we are about to get a topology
         // change in which this node will exist.
         queuedSeqnoAcks[node] = seqno;
+        queuedSeqnoAcks[node].setLabel("queuedSeqnoAck: " + node);
     }
 }
 

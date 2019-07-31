@@ -148,7 +148,10 @@ void VBucketDurabilityTest::testAddPrepareAndCommit(
     ckptMgr->clear(*vbucket, ckptMgr->getHighSeqno());
 
     // Simulate replica and active seqno-ack
-    vbucket->seqnoAcknowledged(replica1, writes.back().seqno);
+    vbucket->seqnoAcknowledged(
+            folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+            replica1,
+            writes.back().seqno);
     simulateLocalAck(writes.back().seqno);
 
     int i = 0;
@@ -582,13 +585,19 @@ TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
     checkPending();
 
     // replica2 acks, Durability Requirements not satisfied yet
-    vbucket->seqnoAcknowledged(replica2, preparedSeqno);
+    vbucket->seqnoAcknowledged(
+            folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+            replica2,
+            preparedSeqno);
     checkPending();
 
     // replica3 acks, Durability Requirements satisfied
     // Note: ensure 1 Ckpt in CM, easier to inspect the CkptList after Commit
     ckptMgr->clear(*vbucket, ckptMgr->getHighSeqno());
-    vbucket->seqnoAcknowledged(replica3, preparedSeqno);
+    vbucket->seqnoAcknowledged(
+            folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+            replica3,
+            preparedSeqno);
     checkCommitted();
 }
 
@@ -666,7 +675,10 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
               swCompleteTrace);
 
     // Simulate replica and active seqno-ack
-    vbucket->seqnoAcknowledged(replica1, preparedSeqno);
+    vbucket->seqnoAcknowledged(
+            folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+            replica1,
+            preparedSeqno);
     simulateLocalAck(preparedSeqno);
 
     // Commit notified
@@ -1947,7 +1959,11 @@ TEST_P(VBucketDurabilityTest, IgnoreAckAtTakeoverDead) {
     // VBState transitions from Replica to Active
     vbucket->setState(vbucket_state_dead, nlohmann::json{});
 
-    EXPECT_EQ(ENGINE_SUCCESS, vbucket->seqnoAcknowledged("replica1", 3));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vbucket->seqnoAcknowledged(
+                      folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+                      "replica1",
+                      3));
     // We won't have crashed and we will have ignored the ack
     EXPECT_EQ(seqnos.size(), adm.getNumTracked());
 }

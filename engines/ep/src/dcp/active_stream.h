@@ -19,6 +19,7 @@
 
 #include "collections/vbucket_filter.h"
 #include "dcp/stream.h"
+#include <memcached/engine_error.h>
 #include <spdlog/common.h>
 
 class CheckpointManager;
@@ -198,6 +199,15 @@ public:
         CheckpointType checkpointType = CheckpointType::Memory;
         std::vector<queued_item> items;
     };
+
+    /**
+     * Process a seqno ack against this stream.
+     *
+     * @param consumerName the name of the consumer acking
+     * @param preparedSeqno the seqno that the consumer is acking
+     */
+    ENGINE_ERROR_CODE seqnoAck(const std::string& consumerName,
+                               uint64_t preparedSeqno);
 
 protected:
     /**

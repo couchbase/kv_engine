@@ -1668,11 +1668,14 @@ public:
      * Inform the vBucket that sequence number(s) have been acknowledged by
      * a replica node.
      *
+     * @param vbStateLock read lock on the vBucket state.
      * @param replicaId The replica node which has acknowledged.
      * @param preparedSeqno The sequence number the replica has prepared up to.
      */
-    ENGINE_ERROR_CODE seqnoAcknowledged(const std::string& replicaId,
-                                        uint64_t preparedSeqno);
+    ENGINE_ERROR_CODE seqnoAcknowledged(
+            const folly::SharedMutex::ReadHolder& vbStateLock,
+            const std::string& replicaId,
+            uint64_t preparedSeqno);
 
     /**
      * Notify the DurabilityMonitor that the Flusher has persisted all the

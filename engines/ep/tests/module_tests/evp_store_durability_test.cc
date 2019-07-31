@@ -1259,7 +1259,10 @@ TEST_P(DurabilityEPBucketTest, ActiveLocalNotifyPersistedSeqno) {
 
     // Replica acks disk-seqno
     EXPECT_EQ(ENGINE_SUCCESS,
-              vb->seqnoAcknowledged("replica", 3 /*preparedSeqno*/));
+              vb->seqnoAcknowledged(
+                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      "replica",
+                      3 /*preparedSeqno*/));
     // Active has not persisted, so Durability Requirements not satisfied yet
     checkPending();
 
