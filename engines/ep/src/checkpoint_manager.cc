@@ -43,6 +43,9 @@ CheckpointManager::CheckpointManager(EPStats& st,
       flusherCB(cb) {
     LockHolder lh(queueLock);
 
+    lastBySeqno.setLabel("CheckpointManager(" + vbucketId.to_string() +
+                         ")::lastBySeqno");
+
     // Note: this is the last moment in the CheckpointManager lifetime
     //     when the checkpointList is empty.
     //     Only in CheckpointManager::clear_UNLOCKED, the checkpointList
