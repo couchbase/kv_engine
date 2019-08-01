@@ -134,6 +134,13 @@ public:
     }
 
     /**
+     * Disable SyncRepl for testing
+     */
+    void disableSyncReplication() {
+        supportsSyncReplication = false;
+    }
+
+    /**
      *
      * Map from the opaque used to create a stream to the internal opaque
      * as is used by streamEnd

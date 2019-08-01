@@ -161,13 +161,28 @@ std::string PassiveStream::getStreamTypeName() const {
 void PassiveStream::acceptStream(cb::mcbp::Status status, uint32_t add_opaque) {
     std::unique_lock<std::mutex> lh(streamMutex);
     if (isPending()) {
+        pushToReadyQ(std::make_unique<AddStreamResponse>(
+                add_opaque, opaque_, status));
         if (status == cb::mcbp::Status::Success) {
+            // Before we receive/process anything else, send a seqno ack if we
+            // are a stream for a pre-existing vBucket to ensure that the
+            // replica can commit any in-flight SyncWrites if no further
+            // SyncWrites are done and no disk snapshots processed by this
+            // replica.
+            {
+                auto consumer = consumerPtr.lock();
+                if (consumer && consumer->isSyncReplicationEnabled()) {
+                    auto vb = engine->getVBucket(vb_);
+                    if (vb && vb->getHighPreparedSeqno() != 0) {
+                        pushToReadyQ(std::make_unique<SeqnoAcknowledgement>(
+                                opaque_, vb_, vb->getHighPreparedSeqno()));
+                    }
+                }
+            }
             transitionState(StreamState::AwaitingFirstSnapshotMarker);
         } else {
             transitionState(StreamState::Dead);
         }
-        pushToReadyQ(std::make_unique<AddStreamResponse>(
-                add_opaque, opaque_, status));
         lh.unlock();
         notifyStreamReady();
     }

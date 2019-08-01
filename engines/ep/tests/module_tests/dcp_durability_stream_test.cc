@@ -716,6 +716,53 @@ void DurabilityPassiveStreamTest::TearDown() {
     SingleThreadedPassiveStreamTest::TearDown();
 }
 
+TEST_P(DurabilityPassiveStreamTest, SendSeqnoAckOnStreamAcceptance) {
+    // 1) Put something in the vBucket as we won't send a seqno ack if there are
+    // no items
+    testReceiveDcpPrepare();
+
+    consumer->closeAllStreams();
+    uint32_t opaque = 0;
+    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    stream->acceptStream(cb::mcbp::Status::Success, opaque);
+
+    EXPECT_EQ(3, stream->public_readyQ().size());
+    auto resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::StreamReq, resp->getEvent());
+    resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::AddStream, resp->getEvent());
+    resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::SeqnoAcknowledgement, resp->getEvent());
+    const auto& ack = static_cast<SeqnoAcknowledgement&>(*resp);
+    EXPECT_EQ(1, ack.getPreparedSeqno());
+}
+
+TEST_P(DurabilityPassiveStreamTest,
+       NoSeqnoAckOnStreamAcceptanceIfNotSupported) {
+    consumer->disableSyncReplication();
+
+    // 1) Put something in the vBucket as we won't send a seqno ack if there are
+    // no items
+    testReceiveDcpPrepare();
+
+    consumer->closeAllStreams();
+    uint32_t opaque = 0;
+    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    stream->acceptStream(cb::mcbp::Status::Success, opaque);
+
+    ASSERT_EQ(2, stream->public_readyQ().size());
+    auto resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::StreamReq, resp->getEvent());
+    resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::AddStream, resp->getEvent());
+    resp = stream->public_popFromReadyQ();
+    EXPECT_FALSE(resp);
+}
+
 void DurabilityPassiveStreamTest::
         testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
                 DocumentState docState) {
