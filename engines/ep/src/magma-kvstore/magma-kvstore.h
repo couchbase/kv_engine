@@ -225,12 +225,38 @@ public:
 
     void destroyScanContext(ScanContext* ctx) override;
 
+    /**
+     * The magmaKVHandle protects magma from a kvstore being dropped
+     * while an API operation is active. This is required because
+     * unlike couchstore which just unlinks the data file, magma
+     * must wait for all threads to exit and then block subsequent
+     * threads from proceeding while the kvstore is being dropped.
+     * Inside the handle is the vbstateMutex. This mutex is used
+     * to protect the vbstate from race conditions when updated.
+     */
+    struct MagmaKVHandleStruct {
+        std::shared_timed_mutex vbstateMutex;
+    };
+    using MagmaKVHandle = std::shared_ptr<MagmaKVHandleStruct>;
+
+    std::vector<std::pair<MagmaKVHandle, std::shared_timed_mutex>>
+            magmaKVHandles;
+
+    const MagmaKVHandle getMagmaKVHandle(Vbid vbid) {
+        std::lock_guard<std::shared_timed_mutex> lock(
+                magmaKVHandles[vbid.get()].second);
+        return magmaKVHandles[vbid.get()].first;
+    }
+
     class MagmaKVFileHandle : public ::KVFileHandle {
     public:
         MagmaKVFileHandle(MagmaKVStore& kvstore, Vbid vbid)
-            : ::KVFileHandle(kvstore), vbid(vbid) {
+            : ::KVFileHandle(kvstore),
+              vbid(vbid),
+              kvHandle(kvstore.getMagmaKVHandle(vbid)) {
         }
         Vbid vbid;
+        MagmaKVHandle kvHandle;
     };
 
     std::unique_ptr<KVFileHandle, KVFileHandleDeleter> makeFileHandle(
@@ -241,11 +267,7 @@ public:
     }
 
     Collections::VB::PersistedStats getCollectionStats(
-            const KVFileHandle& kvFileHandle,
-            CollectionID collection) override {
-        // TODO
-        return {};
-    }
+            const KVFileHandle& kvFileHandle, CollectionID collection) override;
 
     /**
      * Increment the kvstore revision.
@@ -257,17 +279,115 @@ public:
      */
     uint64_t prepareToDeleteImpl(Vbid vbid) override;
 
-    Collections::KVStore::Manifest getCollectionsManifest(Vbid vbid) override {
-        // TODO
-        return Collections::KVStore::Manifest{
-                Collections::KVStore::Manifest::Default{}};
-    }
+    /**
+     * Retrieve the manifest from the local db.
+     * MagmaKVStore implements this method as a read of 3 _local documents
+     * manifest, open collections, open scopes
+     *
+     * @param vbid vbucket id
+     * @return collections manifest
+     */
+    Collections::KVStore::Manifest getCollectionsManifest(Vbid vbid) override;
 
+    /**
+     * read local document to get the vector of dropped collections
+     * @param vbid vbucket id
+     * @return a vector of dropped collections (can be empty)
+     */
     std::vector<Collections::KVStore::DroppedCollection> getDroppedCollections(
-            Vbid vbid) override {
-        // TODO
-        return {};
-    }
+            Vbid vbid) override;
+
+    /**
+     * This function maintains the set of open collections, adding newly opened
+     * collections and removing those which are dropped. To validate the
+     * creation
+     * of new collections, this method must read the dropped collections.
+     *
+     * @param vbid vbucket id
+     * @param commitBatch current magma commit batch
+     * @param collectionsFlush
+     * @return status magma status
+     */
+    magma::Status updateCollectionsMeta(
+            Vbid vbid,
+            magma::Magma::CommitBatch& commitBatch,
+            Collections::VB::Flush& collectionsFlush);
+
+    /**
+     * Maintain the current uid committed
+     *
+     * @param vbid vbucket id
+     * @param commitBatch current magma commit batch
+     * @return status magma status
+     */
+    magma::Status updateManifestUid(magma::Magma::CommitBatch& commitBatch);
+
+    /**
+     * Maintain the list of open collections. The maintenance requires
+     * reading the dropped collections which is passed back to avoid
+     * a reread.
+     *
+     * @param vbid vbucket id
+     * @param commitBatch current magma commit batch
+     * @return pair magma status and dropped collection list
+     */
+    std::pair<magma::Status,
+              std::vector<Collections::KVStore::DroppedCollection>>
+    updateOpenCollections(Vbid vbid, magma::Magma::CommitBatch& commitBatch);
+
+    /**
+     * Maintain the list of dropped collections
+     *
+     * @param vbid vbucket id
+     * @param commitBatch current magma commit batch
+     * @param dropped This method will only read the dropped collections
+     *   from storage if this optional is not initialised
+     * @return status magma status
+     */
+    magma::Status updateDroppedCollections(
+            Vbid vbid,
+            magma::Magma::CommitBatch& commitBatch,
+            boost::optional<
+                    std::vector<Collections::KVStore::DroppedCollection>>
+                    dropped);
+
+    /**
+     * Maintain the list of open scopes
+     *
+     * @param vbid vbucket id
+     * @param commitBatch current magma commit batch
+     * @return status magma status
+     */
+    magma::Status updateScopes(Vbid vbid,
+                               magma::Magma::CommitBatch& commitBatch);
+
+    /**
+     * Given a collection id, return the key used to maintain the
+     * collection stats in the local db.
+     *
+     * @param cid Collection ID
+     */
+    std::string getCollectionsStatsKey(CollectionID cid);
+
+    /**
+     * Save stats for collection cid
+     *
+     * @param commitBatch current magma commit batch
+     * @param cid Collection ID
+     * @param stats The stats that should be persisted
+     */
+    void saveCollectionStats(magma::Magma::CommitBatch& commitBatch,
+                             CollectionID cid,
+                             const Collections::VB::PersistedStats& stats);
+
+    /**
+     * Delete the collection stats for the given collection id
+     *
+     * @param commitBatch current magma commit batch
+     * @param cid Collection ID
+     */
+    magma::Status deleteCollectionStats(magma::Magma::CommitBatch& commitBatch,
+                                        CollectionID cid);
 
     /**
      * Encode a document being stored in the local db by prefixing the
@@ -299,7 +419,7 @@ public:
     magma::Status setLocalDoc(magma::Magma::CommitBatch& commitBatch,
                               const magma::Slice& keySlice,
                               std::string& valBuf,
-                              bool deleted);
+                              bool deleted = false);
 
     /**
      * Encode the cached vbucket_state and magmaInfo into a nlohmann json struct
@@ -330,29 +450,6 @@ public:
      * uninitilized, assume magmaInfo is as well.
      */
     vbucket_state* getVBucketState(Vbid vbucketId) override;
-
-    /**
-     * The magmaKVHandle protects magma from a kvstore being dropped
-     * while an API operation is active. This is required because
-     * unlike couchstore which just unlinks the data file, magma
-     * must wait for all threads to exit and then block subsequent
-     * threads from proceeding while the kvstore is being dropped.
-     * Inside the handle is the vbstateMutex. This mutex is used
-     * to protect the vbstate from race conditions when its updated.
-     */
-    struct MagmaKVHandleStruct {
-        std::shared_timed_mutex vbstateMutex;
-    };
-    using MagmaKVHandle = std::shared_ptr<MagmaKVHandleStruct>;
-
-    std::vector<std::pair<MagmaKVHandle, std::shared_timed_mutex>>
-            magmaKVHandles;
-
-    const MagmaKVHandle getMagmaKVHandle(Vbid vbid) {
-        std::lock_guard<std::shared_timed_mutex> lock(
-                magmaKVHandles[vbid.get()].second);
-        return magmaKVHandles[vbid.get()].first;
-    }
 
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.

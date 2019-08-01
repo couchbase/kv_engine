@@ -40,7 +40,7 @@ struct PersistedStats {
      * @return a LEB 128 encoded version of these stats ready for
      *         persistence
      */
-    std::string getLebEncodedStats();
+    std::string getLebEncodedStats() const;
 
     uint64_t itemCount;
     uint64_t highSeqno;

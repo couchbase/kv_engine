@@ -37,7 +37,7 @@ PersistedStats::PersistedStats(const char* buf, size_t size) {
     }
 }
 
-std::string PersistedStats::getLebEncodedStats() {
+std::string PersistedStats::getLebEncodedStats() const {
     auto leb = cb::mcbp::unsigned_leb128<uint64_t>(itemCount);
     std::string data(leb.begin(), leb.end());
 

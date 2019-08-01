@@ -103,10 +103,10 @@ public:
     static cb::const_byte_buffer getKeyExtra(const DocKey& key,
                                              const char* separator);
 
-private:
     static std::string makeKey(SystemEvent se,
                                const std::string& keyExtra);
 
+private:
     /// helper method for getKeyExtra
     static const cb::const_byte_buffer::iterator findKeyExtra(
             const DocKey& key, const std::string& separator);
