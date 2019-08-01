@@ -91,6 +91,11 @@ std::shared_ptr<Stream> MockDcpProducer::findStream(Vbid vbid) {
     auto rv = streams.find(vbid.get());
     if (rv != streams.end()) {
         auto handle = rv->second->rlock();
+        // An empty StreamContainer for this vbid is allowed
+        if (handle.size() == 0) {
+            return nullptr;
+        }
+
         if (handle.size() != 1) {
             throw std::logic_error(
                     "MockDcpProducer::findStream against producer with many "

@@ -1203,6 +1203,39 @@ TEST_P(StreamTest, ProcessItemsCheckpointStartIsLastItem) {
     EXPECT_EQ(DcpResponse::Event::Mutation, readyQ.front()->getEvent());
 }
 
+TEST_P(StreamTest, ProducerReceivesSeqnoAckForErasedStream) {
+    create_dcp_producer(0, /*flags*/
+                        IncludeValue::Yes,
+                        IncludeXattrs::Yes,
+                        {{"send_stream_end_on_client_close_stream", "true"},
+                         {"enable_synchronous_replication", "true"},
+                         {"consumer_name", "replica1"}});
+
+    // Need to do a stream request to put the stream in the producers map
+    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+
+    // Close the stream to start the removal process
+    EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(0 /*opaque*/, vbid));
+
+    // Stream should still exist, but should be dead
+    auto stream = producer->findStream(vbid);
+    EXPECT_TRUE(stream);
+    EXPECT_FALSE(stream->isActive());
+
+    // Step the stream on, this should remove the stream from the producer's
+    // StreamsMap
+    MockDcpMessageProducers producers(engine);
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
+
+    // Stream should no longer exist in the map
+    EXPECT_FALSE(producer->findStream(vbid));
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->seqno_acknowledged(
+                      0 /*opaque*/, vbid, 1 /*prepareSeqno*/));
+}
+
 class CacheCallbackTest : public StreamTest {
 protected:
     void SetUp() override {

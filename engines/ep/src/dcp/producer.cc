@@ -1044,25 +1044,38 @@ ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
                 " but we don't have a StreamContainer for that vb");
     }
 
-    std::shared_ptr<ActiveStream> stream;
-    {
-        auto handle = rv->second->rlock();
+    // Search for an active stream with the same opaque as the response.
+    // Use find_if2 which will return the matching shared_ptr<Stream>
+    auto stream = find_if2([opaque](const StreamsMap::value_type& s) {
+        auto handle = s.second->rlock();
+        for (; !handle.end(); handle.next()) {
+            auto& stream = handle.get();
+            auto* as = dynamic_cast<ActiveStream*>(stream.get());
+            if (as && opaque == stream->getOpaque()) {
+                return stream; // return matching shared_ptr<Stream>
+            }
+        }
+        return ContainerElement{};
+    });
 
-        // Producer for replication should only have one stream.
-        Expects(handle.size() == 1);
-
-        stream = dynamic_pointer_cast<ActiveStream>(handle.get());
-        Expects(stream.get());
+    if (!stream) {
+        // No stream found, may be the case that we have just ended our
+        // stream and removed the stream from our map but the consumer is
+        // not yet aware and we have received a seqno ack. Just return
+        // success and ignore the ack.
+        return ENGINE_SUCCESS;
     }
 
-    if (prepared_seqno > stream->getLastSentSeqno()) {
+    ActiveStream* as = static_cast<ActiveStream*>(stream.get());
+
+    if (prepared_seqno > as->getLastSentSeqno()) {
         throw std::logic_error(
                 "Replica acked seqno:" + std::to_string(prepared_seqno) +
                 " greater than last sent seqno:" +
-                std::to_string(stream->getLastSentSeqno()));
+                std::to_string(as->getLastSentSeqno()));
     }
 
-    return stream->seqnoAck(consumerName, prepared_seqno);
+    return as->seqnoAck(consumerName, prepared_seqno);
 }
 
 bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
