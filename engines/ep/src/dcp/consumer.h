@@ -478,9 +478,12 @@ protected:
      * Remove a stream from this Consumer and remove the VB-to-Consumer
      * mapping from DcpConnMap.
      *
+     * Returns the removed stream ptr, or an empty shared_ptr if it
+     * was not found
+     *
      * @param vbid The stream to be removed
      */
-    void removeStream(Vbid vbid);
+    std::shared_ptr<PassiveStream> removeStream(Vbid vbid);
 
     /**
      * RAII helper class to update the flowControl object with the number of

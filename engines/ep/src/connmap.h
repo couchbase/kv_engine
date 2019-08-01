@@ -77,6 +77,13 @@ public:
     void removeVBConnByVBId(const void* connCookie, Vbid vbid);
 
     /**
+     * Checks (by pointer comparison) whether a ConnHandler is already
+     * present in vbConns.
+     *
+     */
+    bool vbConnectionExists(ConnHandler* conn, Vbid vbid);
+
+    /**
      * Notifies the front-end synchronously on this thread that this paused
      * connection should be re-considered for work.
      *

@@ -291,7 +291,7 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
                          vbucket);
             return ENGINE_KEY_EEXISTS;
         } else {
-            streams.erase(vbucket);
+            removeStream(vbucket);
         }
     }
 
@@ -1340,12 +1340,11 @@ void DcpConsumer::closeAllStreams() {
 
 void DcpConsumer::closeStreamDueToVbStateChange(Vbid vbucket,
                                                 vbucket_state_t state) {
-    auto it = streams.erase(vbucket);
-    if (it.second) {
+    auto stream = removeStream(vbucket);
+    if (stream) {
         logger->debug("({}) State changed to {}, closing passive stream!",
                       vbucket,
                       VBucket::toString(state));
-        auto& stream = it.first;
         uint32_t bytesCleared = stream->setDead(END_STREAM_STATE);
         flowControl.incrFreedBytes(bytesCleared);
         scheduleNotifyIfNecessary();
@@ -1743,10 +1742,15 @@ void DcpConsumer::setDisconnect() {
 void DcpConsumer::registerStream(std::shared_ptr<PassiveStream> stream) {
     auto vbid = stream->getVBucket();
     streams.insert({vbid, stream});
-    engine_.getDcpConnMap().addVBConnByVBId(shared_from_this(), vbid);
+    auto& connMap = engine_.getDcpConnMap();
+
+    Expects(!connMap.vbConnectionExists(this, vbid));
+
+    connMap.addVBConnByVBId(shared_from_this(), vbid);
 }
 
-void DcpConsumer::removeStream(Vbid vbid) {
-    streams.erase(vbid);
+std::shared_ptr<PassiveStream> DcpConsumer::removeStream(Vbid vbid) {
+    auto eraseResult = streams.erase(vbid).first;
     engine_.getDcpConnMap().removeVBConnByVBId(getCookie(), vbid);
+    return eraseResult;
 }

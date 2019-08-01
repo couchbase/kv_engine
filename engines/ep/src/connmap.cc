@@ -190,3 +190,19 @@ void ConnMap::removeVBConnByVBId(const void* connCookie, Vbid vbid) {
     std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
     removeVBConnByVBId_UNLOCKED(connCookie, vbid);
 }
+
+bool ConnMap::vbConnectionExists(ConnHandler* conn, Vbid vbid) {
+    size_t lock_num = vbid.get() % vbConnLockNum;
+    std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
+    auto& connsForVb = vbConns[vbid.get()];
+
+    // Check whether the connhandler already exists in vbConns for the
+    // provided vbid
+    for (const auto& existingConn : connsForVb) {
+        if (conn == existingConn.lock().get()) {
+            return true;
+        }
+    }
+
+    return false;
+}
