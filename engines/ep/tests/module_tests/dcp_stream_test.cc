@@ -40,6 +40,7 @@
 #include "../mock/mock_stream.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 
+#include "engines/ep/tests/mock/mock_dcp_conn_map.h"
 #include <programs/engine_testapp/mock_server.h>
 #include <xattr/utils.h>
 #include <thread>
@@ -1915,6 +1916,42 @@ void SingleThreadedPassiveStreamTest::mb_33773(
         // and all items now gone
         EXPECT_EQ(0, passiveStream->getNumBufferItems());
     }
+}
+
+// MB-35061 - Check that closing a stream and opening a new one does not leave
+// multiple entries for the same consumer in vbConns for a particular vb.
+TEST_P(SingleThreadedPassiveStreamTest,
+       ConsumerRemovedFromVBConnsWhenStreamReplaced) {
+    auto& connMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    std::string streamName = "test_consumer";
+    // consumer and stream created in SetUp
+    ASSERT_TRUE(connMap.doesConnHandlerExist(vbid, streamName));
+
+    // close stream
+    EXPECT_EQ(ENGINE_SUCCESS, consumer->closeStream(0, vbid));
+
+    EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, streamName));
+
+    // add new stream
+    uint32_t opaque = 999;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(opaque /*opaque*/, vbid, 0 /*flags*/));
+    stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+
+    ASSERT_TRUE(stream);
+    EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, streamName));
+
+    // end the second stream
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->streamEnd(stream->getOpaque(), vbid, /* flags */ 0));
+
+    // expect the consumer is no longer in vbconns
+    EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, streamName));
+
+    // re-add stream for teardown to close
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(opaque /*opaque*/, vbid, 0 /*flags*/));
 }
 
 // Do mb33773 with the close stream interleaved into the processBufferedMessages

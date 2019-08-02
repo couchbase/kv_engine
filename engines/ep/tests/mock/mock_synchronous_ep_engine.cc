@@ -21,6 +21,7 @@
 #include "checkpoint_remover.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/flow-control-manager.h"
+#include "mock_dcp_conn_map.h"
 #include "mock_ep_bucket.h"
 #include "mock_ephemeral_bucket.h"
 #include "replicationthrottle.h"
@@ -49,7 +50,7 @@ SynchronousEPEngine::SynchronousEPEngine(std::string extra_config)
     workload = new WorkLoadPolicy(/*workers*/ 1, /*shards*/ 1);
 
     // dcpConnMap_ is needed by EPStore's constructor.
-    dcpConnMap_ = std::make_unique<DcpConnMap>(*this);
+    dcpConnMap_ = std::make_unique<MockDcpConnMap>(*this);
 
     // checkpointConfig is needed by CheckpointManager (via EPStore).
     checkpointConfig = new CheckpointConfig(*this);
