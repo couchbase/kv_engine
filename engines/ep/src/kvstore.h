@@ -910,6 +910,13 @@ public:
     uint64_t prepareToDelete(Vbid vbid);
 
     /**
+     * Call reset on the cached vbucket_state for the given vbucket (if any is
+     * cached)
+     * @param vbid ID of the vbucket to reset
+     */
+    void resetCachedVBState(Vbid vbid);
+
+    /**
      * Set a system event into the KVStore.
      * Collection system events will be used to maintain extra meta-data before
      * writing to disk.

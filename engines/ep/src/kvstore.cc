@@ -491,11 +491,15 @@ uint64_t KVStore::getLastPersistedSeqno(Vbid vbid) {
 
 uint64_t KVStore::prepareToDelete(Vbid vbid) {
     // MB-34380: We must clear the cached state
+    resetCachedVBState(vbid);
+    return prepareToDeleteImpl(vbid);
+}
+
+void KVStore::resetCachedVBState(Vbid vbid) {
     vbucket_state* state = getVBucketState(vbid);
     if (state) {
         state->reset();
     }
-    return prepareToDeleteImpl(vbid);
 }
 
 void KVStore::setSystemEvent(const Item& item, SetCallback cb) {

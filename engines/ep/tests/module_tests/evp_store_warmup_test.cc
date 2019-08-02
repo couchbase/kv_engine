@@ -1243,6 +1243,37 @@ TEST_P(MB_34718_WarmupTest, getTest) {
     EXPECT_EQ(0, vb->getNumItems());
 }
 
+// Perform the sequence of operations which lead to MB-35326, a snapshot range
+// exception. When the issue is fixed this test will pass
+TEST_F(WarmupTest, MB_35326) {
+    // 1) Write an item to an active vbucket and flush it.
+    //    vb state on disk will have a range of {1,1}
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value");
+    flush_vbucket_to_disk(vbid);
+
+    // 2) Mark the vbucket as dead and persist the state
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_dead);
+
+    // 3) Warmup - the dead vbucket will be skipped by warmup but KVStore has
+    //    loaded the state into cachedVBStates
+    resetEngineAndWarmup();
+
+    EXPECT_FALSE(engine->getVBucket(vbid)) << "Dead vbuckets shouldn't warmup";
+
+    // 4) Now active creation, this results in a new VBucket object with default
+    //    state, for this issue the snapshot range of {0,0}
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // 5) Store an item and flush, this would crash because we combine the in
+    //    memory range {0,0} with the on disk range {1,1}, the crash occurs
+    //    as the new range is {1, 0} and start:1 cannot be greater than end:0.
+    store_item(vbid, key, "value");
+
+    flush_vbucket_to_disk(vbid);
+}
+
 INSTANTIATE_TEST_CASE_P(FullOrValue,
                         MB_34718_WarmupTest,
                         STParameterizedBucketTest::persistentConfigValues(),

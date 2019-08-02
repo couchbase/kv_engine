@@ -1012,6 +1012,10 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
         // Before adding the VB to the map increment the revision
         getRWUnderlying(vbid)->incrementRevision(vbid);
 
+        // Wipe out any cached vbucket state
+        getRWUnderlying(vbid)->resetCachedVBState(vbid);
+        getROUnderlying(vbid)->resetCachedVBState(vbid);
+
         // If active, update the VB from the bucket's collection state.
         // Note: Must be done /before/ adding the new VBucket to vbMap so that
         // it has the correct collections state when it is exposed to operations
