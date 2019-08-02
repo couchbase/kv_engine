@@ -78,11 +78,11 @@ struct ActiveDurabilityMonitor::State {
                                 CompletedQueue& toComplete);
 
     /**
-     * Copy the Positions from the old chain to the new
+     * Add a new SyncWrite
+     *
+     * @param cookie Connection to notify on completion
+     * @param item The prepare
      */
-    void copyChainPositions(ReplicationChain& oldChain,
-                            ReplicationChain& newChain);
-
     void addSyncWrite(const void* cookie, queued_item item);
 
     /**
@@ -192,6 +192,72 @@ struct ActiveDurabilityMonitor::State {
      */
     void updateHighPreparedSeqno(CompletedQueue& completed);
 
+    void updateHighCompletedSeqno();
+
+protected:
+    /**
+     * Set up the newFirstChain correctly if we previously had no topology.
+     *
+     * When a replica is promoted to active, the trackedWrites are moved from
+     * the PDM to the ADM. This ADM will have a null topology and the active
+     * node iterator will not exist. When we move from a null topology to a
+     * topology, we need to correct the HPS iterator to ensure that the HPS is
+     * correct post topology change. The HPS iterator is set to the
+     * corresponding SyncWrite in trackedWrites. If we have just received a Disk
+     * snapshot as PDM and highPreparedSeqno is not equal to anything in
+     * trackedWrites then it will be set to the highest seqno less than the
+     * highPreparedSeqno.
+     *
+     * @param newFirstChain our new firstChain
+     */
+    void transitionFromNullTopology(ReplicationChain& newFirstChain);
+
+    /**
+     * Move the Positions (iterators and write/ack seqnos) from the old chains
+     * to the new chains. Copies between two chains too so that a node that
+     * previously existed int he second chain and now only exists in the first
+     * will have the correct iterators and seqnos (this is a normal swap
+     * rebalance scenario).
+     *
+     * @param firstChain old first chain
+     * @param newFirstChain new first chain
+     * @param secondChain old second chain
+     * @param newSecondChain new second chain
+     */
+    void copyChainPositions(ReplicationChain* firstChain,
+                            ReplicationChain& newFirstChain,
+                            ReplicationChain* secondChain,
+                            ReplicationChain* newSecondChain);
+
+    /**
+     * Copy the Positions from the given old chain to the given new chain.
+     */
+    void copyChainPositionsInner(ReplicationChain& oldChain,
+                                 ReplicationChain& newChain);
+
+    /**
+     * A topology change may make durable writes impossible in the case of a
+     * failover. We abort the in-flight SyncWrites to allow the client to retry
+     * them to provide an earlier response. This retry would then be met with a
+     * durability impossible error if the cluster had not yet been healed.
+     *
+     * Note, we cannot abort any in-flight SyncWrites with an infinite
+     * timeout as these must be committed. They will eventually be committed
+     * when the cluster is healed or the number of replicas is dropped such that
+     * they are satisfied. These SyncWrites may exist due to either warmup or
+     * a Passive->Active transition.
+     *
+     * @param newFirstChain Chain against which we check if durability is
+     *        possible
+     * @param newSecondChain Chain against which we check if durability is
+     *        possible
+     * @param[out] toAbort Container which has all SyncWrites to abort appended
+     *             to it
+     */
+    void abortNoLongerPossibleSyncWrites(ReplicationChain& newFirstChain,
+                                         ReplicationChain* newSecondChain,
+                                         CompletedQueue& toAbort);
+
     /**
      * Perform the manual ack (from the map of queuedSeqnoAcks) that is
      * required at rebalance for the given chain
@@ -202,8 +268,6 @@ struct ActiveDurabilityMonitor::State {
      */
     void performQueuedAckForChain(const ReplicationChain& chain,
                                   CompletedQueue& toCommit);
-
-    void updateHighCompletedSeqno();
 
     /**
      * A topology change may trigger a commit due to number of replicas
@@ -1278,100 +1342,30 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
     auto newFirstChain =
             makeChain(DurabilityMonitor::ReplicationChainName::First, fChain);
 
-    // Apply the new topology to all in-flight SyncWrites
+    // Apply the new topology to all in-flight SyncWrites.
     for (auto& write : trackedWrites) {
         write.resetTopology(*newFirstChain, newSecondChain.get());
     }
 
-    if (!firstChain && newFirstChain) {
-        // MB-35275. When a replica is promoted to active, the trackedWrites are
-        // moved from the PDM to the ADM. This ADM will have a null topology and
-        // the active node iterator will not exist. When we move from a null
-        // topology to a topology, we need to correct the HPS iterator to ensure
-        // that the HPS is correct post topology change. The HPS iterator is set
-        // to the corresponding SyncWrite in trackedWrites. If we have just
-        // received a Disk snapshot as PDM and highPreparedSeqno is not equal to
-        // anything in trackedWrites then it will be set to the highest seqno
-        // less than the highPreparedSeqno.
-        if (!trackedWrites.empty()) {
-            // We need to manually set the values for the HPS iterator
-            // (newFirstChain->positions.begin()) and "ack" the nodes so that we
-            // can commit if possible by checking if they are satisfied.
-
-            // It may be the case that we had a PersistToMajority prepare in the
-            // PDM before moving to ADM that had not yet been persisted
-            // (trackedWrites.back().getBySeqno() != highPreparedSeqno). If we
-            // have persisted this prepare in between transitioning from PDM
-            // to ADM with null topology and transitioning from ADM with null
-            // topology to ADM with topology then we may need to move our HPS
-            // further than the highPreparedSeqno that we inherited from the PDM
-            // due to persistence.
-            auto fence = std::max(static_cast<uint64_t>(highPreparedSeqno),
-                                  adm.vb.getPersistenceSeqno());
-            auto& activePos =
-                    newFirstChain->positions.find(newFirstChain->active)
-                            ->second;
-            Container::iterator it = trackedWrites.begin();
-            while (it != trackedWrites.end()) {
-                if (it->getBySeqno() <= static_cast<int64_t>(fence)) {
-                    activePos.it = it;
-                    it->ack(newFirstChain->active);
-                    it = std::next(it);
-                } else {
-                    break;
-                }
-            }
-
-            activePos.lastWriteSeqno = fence;
-            highPreparedSeqno = fence;
-        }
-    } else if (firstChain) {
-        // Copy over the trackedWrites position for all nodes which still exist
-        // in the new chain. This ensures that if we manually set the HPS on the
-        // firstChain then the secondChain will also be correctly set.
-        copyChainPositions(*firstChain, *newFirstChain);
-        if (newSecondChain) {
-            // This stage should never matter because we will find the node in
-            // the firstChain and return early from processSeqnoAck. Added for
-            // the sake of completeness.
-            // @TODO make iterators optional and remove this
-            copyChainPositions(*firstChain, *newSecondChain);
-        }
+    // Set the HPS correctly if we are transitioning from a null topology (may
+    // be in-flight SyncWrites from a PDM that we use to do this). Must be done
+    // after we have have set the topology of the SyncWrites or they will have
+    // no chain.
+    if (!firstChain) {
+        transitionFromNullTopology(*newFirstChain);
     }
 
-    if (secondChain) {
-        copyChainPositions(*secondChain, *newFirstChain);
-        if (newSecondChain) {
-            copyChainPositions(*secondChain, *newSecondChain);
-        }
-    }
+    // Copy the iterators from the old chains to the new chains.
+    copyChainPositions(firstChain.get(),
+                       *newFirstChain,
+                       secondChain.get(),
+                       newSecondChain.get());
 
-    // If durability is not possible for the new chains, then we should abort
-    // any in-flight SyncWrites that do not have an infinite timeout so that the
-    // client can decide what to do. We do not abort and infinite timeout
-    // SyncWrites as we MUST complete them as they exist due to a warmup or
-    // Passive->Active transition. We have already reset the topology of the in
-    // flight SyncWrites so that they do not contain any invalid pointers post
+    // We have already reset the topology of the in flight SyncWrites so that
+    // they do not contain any invalid pointers to ReplicationChains post
     // topology change.
-    if (!(newFirstChain && newFirstChain->isDurabilityPossible() &&
-          (!newSecondChain || newSecondChain->isDurabilityPossible()))) {
-        // We can't use a for loop with iterators here because they will be
-        // modified to point to invalid memory as we use std::list.splice in
-        // removeSyncWrite.
-        auto itr = trackedWrites.begin();
-        while (itr != trackedWrites.end()) {
-            if (!itr->getDurabilityReqs().getTimeout().isInfinite()) {
-                // Grab the next itr before we overwrite ours to point to a
-                // different list.
-                auto next = std::next(itr);
-                toComplete.enqueue(*this,
-                                   removeSyncWrite(trackedWrites.begin()));
-                itr = next;
-            } else {
-                itr++;
-            }
-        }
-    }
+    abortNoLongerPossibleSyncWrites(
+            *newFirstChain, newSecondChain.get(), toComplete);
 
     // We have now reset all the topology for SyncWrites so we can dispose of
     // the old chain (by overwriting it with the new one).
@@ -1389,12 +1383,105 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
     cleanUpTrackedWritesPostTopologyChange(toComplete);
 }
 
+void ActiveDurabilityMonitor::State::transitionFromNullTopology(
+        ReplicationChain& newFirstChain) {
+    if (!trackedWrites.empty()) {
+        // We need to manually set the values for the HPS iterator
+        // (newFirstChain->positions.begin()) and "ack" the nodes so that we
+        // can commit if possible by checking if they are satisfied.
+
+        // It may be the case that we had a PersistToMajority prepare in the
+        // PDM before moving to ADM that had not yet been persisted
+        // (trackedWrites.back().getBySeqno() != highPreparedSeqno). If we
+        // have persisted this prepare in between transitioning from PDM
+        // to ADM with null topology and transitioning from ADM with null
+        // topology to ADM with topology then we may need to move our HPS
+        // further than the highPreparedSeqno that we inherited from the PDM
+        // due to persistence.
+        auto fence = std::max(static_cast<uint64_t>(highPreparedSeqno),
+                              adm.vb.getPersistenceSeqno());
+        auto& activePos =
+                newFirstChain.positions.find(newFirstChain.active)->second;
+        Container::iterator it = trackedWrites.begin();
+        while (it != trackedWrites.end()) {
+            if (it->getBySeqno() <= static_cast<int64_t>(fence)) {
+                activePos.it = it;
+                it->ack(newFirstChain.active);
+                it = std::next(it);
+            } else {
+                break;
+            }
+        }
+
+        activePos.lastWriteSeqno = fence;
+        highPreparedSeqno = fence;
+    }
+}
+
 void ActiveDurabilityMonitor::State::copyChainPositions(
+        ReplicationChain* firstChain,
+        ReplicationChain& newFirstChain,
+        ReplicationChain* secondChain,
+        ReplicationChain* newSecondChain) {
+    if (firstChain) {
+        // Copy over the trackedWrites position for all nodes which still exist
+        // in the new chain. This ensures that if we manually set the HPS on the
+        // firstChain then the secondChain will also be correctly set.
+        copyChainPositionsInner(*firstChain, newFirstChain);
+        if (newSecondChain) {
+            // This stage should never matter because we will find the node in
+            // the firstChain and return early from processSeqnoAck. Added for
+            // the sake of completeness.
+            // @TODO make iterators optional and remove this
+            copyChainPositionsInner(*firstChain, *newSecondChain);
+        }
+    }
+
+    if (secondChain) {
+        copyChainPositionsInner(*secondChain, newFirstChain);
+        if (newSecondChain) {
+            copyChainPositionsInner(*secondChain, *newSecondChain);
+        }
+    }
+}
+
+void ActiveDurabilityMonitor::State::copyChainPositionsInner(
         ReplicationChain& oldChain, ReplicationChain& newChain) {
     for (const auto& node : oldChain.positions) {
         auto newNode = newChain.positions.find(node.first);
         if (newNode != newChain.positions.end()) {
             newNode->second = node.second;
+        }
+    }
+}
+
+void ActiveDurabilityMonitor::State::abortNoLongerPossibleSyncWrites(
+        ReplicationChain& newFirstChain,
+        ReplicationChain* newSecondChain,
+        CompletedQueue& toAbort) {
+    // If durability is not possible for the new chains, then we should abort
+    // any in-flight SyncWrites that do not have an infinite timeout so that the
+    // client can decide what to do. We do not abort and infinite timeout
+    // SyncWrites as we MUST complete them as they exist due to a warmup or
+    // Passive->Active transition. We have already reset the topology of the in
+    // flight SyncWrites so that they do not contain any invalid pointers post
+    // topology change.
+    if (!(newFirstChain.isDurabilityPossible() &&
+          (!newSecondChain || newSecondChain->isDurabilityPossible()))) {
+        // We can't use a for loop with iterators here because they will be
+        // modified to point to invalid memory as we use std::list.splice in
+        // removeSyncWrite.
+        auto itr = trackedWrites.begin();
+        while (itr != trackedWrites.end()) {
+            if (!itr->getDurabilityReqs().getTimeout().isInfinite()) {
+                // Grab the next itr before we overwrite ours to point to a
+                // different list.
+                auto next = std::next(itr);
+                toAbort.enqueue(*this, removeSyncWrite(trackedWrites.begin()));
+                itr = next;
+            } else {
+                itr++;
+            }
         }
     }
 }
