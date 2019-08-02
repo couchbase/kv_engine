@@ -1488,8 +1488,9 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopology(
     testConvertPDMToADMWithNullTopologySetup(initialState, writes);
 
     // ns_server then sets the topology
-    vbucket->setState(vbucket_state_active,
-                      {{"topology", nlohmann::json::array({{active}})}});
+    vbucket->setState(
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{active}, {active}})}});
 
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
 
@@ -2113,6 +2114,71 @@ TEST_P(VBucketDurabilityTest, ActiveDM_DoubleSetVBState) {
         adm.seqnoAckReceived(replica1, s.seqno);
         EXPECT_EQ(--expectedNumTracked, adm.getNumTracked());
     }
+    // Client should be notified.
+    EXPECT_EQ(SWCompleteTrace(2 /*count*/, cookie, ENGINE_SUCCESS),
+              swCompleteTrace);
+
+    // After commit() check that the keys are now accessible and appear as
+    // committed.
+    for (const auto& spec : seqnos) {
+        auto key = makeStoredDocKey("key"s + std::to_string(spec.seqno));
+        auto result = vbucket->fetchValidValue(WantsDeleted::No,
+                                               TrackReference::No,
+                                               QueueExpired::No,
+                                               vbucket->lockCollections(key));
+        ASSERT_TRUE(result.storedValue);
+        EXPECT_TRUE(result.storedValue->isCommitted());
+    }
+}
+
+TEST_P(EPVBucketDurabilityTest,
+       ActiveDM_SecondChainNodeWriteSeqnoMaintainedOntopologyChange) {
+    // Set a topology with 2 chains - i.e. approaching the end of a replica swap
+    // rebalance
+    nlohmann::json topology({{"topology",
+                              nlohmann::json::array({{active, replica1},
+                                                     {active, replica2}})}});
+    vbucket->setState(vbucket_state_active, topology);
+
+    // Setup: queue two Prepares into the ADM
+    auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
+    ASSERT_EQ(0, adm.getNumTracked());
+    using namespace cb::durability;
+    const std::vector<SyncWriteSpec> seqnos{
+            {1, false, Level::PersistToMajority}, 2};
+    testAddPrepare(seqnos);
+    ASSERT_EQ(seqnos.size(), adm.getNumTracked());
+    // checkForCommit will be called after every normal vBucket op and will
+    // set the HPS for us
+    adm.checkForCommit();
+
+    // Prepare at seqno 1 requires persistence so we have not moved HPS
+    ASSERT_EQ(0, adm.getHighPreparedSeqno());
+    ASSERT_EQ(2, adm.getNumTracked());
+
+    // We have acked replica2
+    adm.seqnoAckReceived(replica2, 2);
+    ASSERT_EQ(2, adm.getNodeWriteSeqno(replica2));
+    ASSERT_EQ(2, adm.getNumTracked());
+
+    // Complete the "rebalance" by settings the topology to a single chain with
+    // the new replica
+    topology = nlohmann::json(
+            {{"topology", nlohmann::json::array({{active, replica2}})}});
+    vbucket->setState(vbucket_state_active, topology);
+
+    // Nothing has yet been committed because the active must persist
+    EXPECT_EQ(2, adm.getNumTracked());
+    EXPECT_EQ(0, adm.getHighPreparedSeqno());
+
+    // The node write seqno is transferred in the topology change
+    EXPECT_EQ(2, adm.getNodeWriteSeqno(replica2));
+
+    // Notify persistence and commit our prepares
+    vbucket->setPersistenceSeqno(2);
+    adm.notifyLocalPersistence();
+    EXPECT_EQ(0, adm.getNumTracked());
+
     // Client should be notified.
     EXPECT_EQ(SWCompleteTrace(2 /*count*/, cookie, ENGINE_SUCCESS),
               swCompleteTrace);

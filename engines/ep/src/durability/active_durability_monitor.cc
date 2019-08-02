@@ -77,6 +77,12 @@ struct ActiveDurabilityMonitor::State {
     void setReplicationTopology(const nlohmann::json& topology,
                                 CompletedQueue& toComplete);
 
+    /**
+     * Copy the Positions from the old chain to the new
+     */
+    void copyChainPositions(ReplicationChain& oldChain,
+                            ReplicationChain& newChain);
+
     void addSyncWrite(const void* cookie, queued_item item);
 
     /**
@@ -1323,20 +1329,20 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
         // Copy over the trackedWrites position for all nodes which still exist
         // in the new chain. This ensures that if we manually set the HPS on the
         // firstChain then the secondChain will also be correctly set.
-        for (const auto& node : firstChain->positions) {
-            auto newNode = newFirstChain->positions.find(node.first);
-            if (newNode != newFirstChain->positions.end()) {
-                newNode->second = node.second;
-            }
+        copyChainPositions(*firstChain, *newFirstChain);
+        if (newSecondChain) {
+            // This stage should never matter because we will find the node in
+            // the firstChain and return early from processSeqnoAck. Added for
+            // the sake of completeness.
+            // @TODO make iterators optional and remove this
+            copyChainPositions(*firstChain, *newSecondChain);
         }
     }
 
-    if (secondChain && newSecondChain) {
-        for (const auto& node : secondChain->positions) {
-            auto newNode = newSecondChain->positions.find(node.first);
-            if (newNode != newSecondChain->positions.end()) {
-                newNode->second = node.second;
-            }
+    if (secondChain) {
+        copyChainPositions(*secondChain, *newFirstChain);
+        if (newSecondChain) {
+            copyChainPositions(*secondChain, *newSecondChain);
         }
     }
 
@@ -1381,6 +1387,16 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
 
     // Commit if possible
     cleanUpTrackedWritesPostTopologyChange(toComplete);
+}
+
+void ActiveDurabilityMonitor::State::copyChainPositions(
+        ReplicationChain& oldChain, ReplicationChain& newChain) {
+    for (const auto& node : oldChain.positions) {
+        auto newNode = newChain.positions.find(node.first);
+        if (newNode != newChain.positions.end()) {
+            newNode->second = node.second;
+        }
+    }
 }
 
 void ActiveDurabilityMonitor::State::performQueuedAckForChain(
