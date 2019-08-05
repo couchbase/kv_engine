@@ -159,6 +159,32 @@ std::string PassiveStream::getStreamTypeName() const {
 }
 
 void PassiveStream::acceptStream(cb::mcbp::Status status, uint32_t add_opaque) {
+    VBucketPtr vb = engine->getVBucket(vb_);
+    if (!vb) {
+        log(spdlog::level::level_enum::warn,
+            "({}) PassiveStream::acceptStream(): status:{} - Unable to find "
+            "VBucket - cannot accept Stream.",
+            vb_,
+            status);
+        return;
+    }
+
+    auto consumer = consumerPtr.lock();
+    if (!consumer) {
+        log(spdlog::level::level_enum::warn,
+            "({}) PassiveStream::acceptStream(): status:{} - Unable to lock "
+            "Consumer - cannot accept Stream.",
+            vb_,
+            status);
+        return;
+    }
+
+    // For SyncReplication streams lookup the highPreparedeSqno to check if
+    // we need to re-ACK (after accepting the stream).
+    const int64_t highPreparedSeqno = consumer->isSyncReplicationEnabled()
+                                              ? vb->getHighPreparedSeqno()
+                                              : 0;
+
     std::unique_lock<std::mutex> lh(streamMutex);
     if (isPending()) {
         pushToReadyQ(std::make_unique<AddStreamResponse>(
@@ -169,15 +195,9 @@ void PassiveStream::acceptStream(cb::mcbp::Status status, uint32_t add_opaque) {
             // replica can commit any in-flight SyncWrites if no further
             // SyncWrites are done and no disk snapshots processed by this
             // replica.
-            {
-                auto consumer = consumerPtr.lock();
-                if (consumer && consumer->isSyncReplicationEnabled()) {
-                    auto vb = engine->getVBucket(vb_);
-                    if (vb && vb->getHighPreparedSeqno() != 0) {
-                        pushToReadyQ(std::make_unique<SeqnoAcknowledgement>(
-                                opaque_, vb_, vb->getHighPreparedSeqno()));
-                    }
-                }
+            if (highPreparedSeqno) {
+                pushToReadyQ(std::make_unique<SeqnoAcknowledgement>(
+                        opaque_, vb_, highPreparedSeqno));
             }
             transitionState(StreamState::AwaitingFirstSnapshotMarker);
         } else {
