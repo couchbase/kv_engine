@@ -1244,7 +1244,6 @@ void ActiveStream::endStream(end_stream_status_t reason) {
             pushToReadyQ(std::make_unique<StreamEndResponse>(
                     opaque_, reason, vb_, sid));
         }
-        VBucketPtr vb = engine->getVBucket(vb_);
 
         // If we ended normally then print at info level to prevent views
         // from spamming our logs
