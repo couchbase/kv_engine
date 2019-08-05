@@ -1827,3 +1827,7 @@ end_stream_status_t DcpProducer::mapEndStreamStatus(
     }
     return status;
 }
+
+std::string DcpProducer::getConsumerName() const {
+    return consumerName;
+}

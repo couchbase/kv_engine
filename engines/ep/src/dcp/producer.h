@@ -329,6 +329,8 @@ public:
     std::shared_ptr<StreamContainer<std::shared_ptr<Stream>>> findStreams(
             Vbid vbid);
 
+    std::string getConsumerName() const;
+
 protected:
     /** We may disconnect if noop messages are enabled and the last time we
      *  received any message (including a noop) exceeds the dcpTimeout.

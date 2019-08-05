@@ -1185,11 +1185,33 @@ uint32_t ActiveStream::setDead(end_stream_status_t status) {
         if (!vb) {
             return 0;
         }
+
+        // Get the consumer name from the producer so that we can clear the
+        // correct ack
+        std::string consumerName;
+        {
+            auto p = producerPtr.lock();
+            if (!p) {
+                log(spdlog::level::warn,
+                    "Producer could not be locked when"
+                    "attempting to clear queued seqno acks");
+                return 0;
+            }
+            consumerName = p->getConsumerName();
+        }
+
+        if (consumerName.empty()) {
+            log(spdlog::level::warn,
+                "Consumer name not found for producer when"
+                "attempting to clear queued seqno acks");
+            return 0;
+        }
+
         // Take the vb state lock so that we don't change the state of
         // this vb
         folly::SharedMutex::ReadHolder vbStateLh(vb->getStateLock());
         if (vb->getState() == vbucket_state_active) {
-            vb->removeQueuedAckFromDM(name_);
+            vb->removeQueuedAckFromDM(consumerName);
         }
     }
 

@@ -1427,8 +1427,11 @@ void SingleThreadedActiveStreamTest::setupProducer(
     // We don't set the startTask flag here because we will create the task
     // manually. We do this because the producer actually creates the task on
     // StreamRequest which we do not do because we want a MockActiveStream.
-    producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "test_producer", flags, false /*startTask*/);
+    producer = std::make_shared<MockDcpProducer>(*engine,
+                                                 cookie,
+                                                 "test_producer->test_consumer",
+                                                 flags,
+                                                 false /*startTask*/);
 
     if (startCheckpointProcessorTask &&
         !producer->getCheckpointSnapshotTask()) {

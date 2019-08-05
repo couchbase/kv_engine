@@ -48,7 +48,8 @@ void DurabilityActiveStreamTest::setUp(bool startCheckpointProcessorTask) {
 
     // Enable SyncReplication and flow-control (Producer BufferLog)
     setupProducer({{"enable_synchronous_replication", "true"},
-                   {"connection_buffer_size", "52428800"}},
+                   {"connection_buffer_size", "52428800"},
+                   {"consumer_name", "test_consumer"}},
                   startCheckpointProcessorTask);
     ASSERT_TRUE(stream->public_supportSyncReplication());
 }
@@ -474,7 +475,7 @@ TEST_P(DurabilityActiveStreamTest, RemoveUnknownSeqnoAckAtDestruction) {
     // Our topology gives replica name as "replica" an our producer/stream has
     // name "test_producer". Simulate a seqno ack by calling the vBucket level
     // function.
-    stream->seqnoAck("test_producer", 1);
+    stream->seqnoAck(producer->getConsumerName(), 1);
 
     // An unknown seqno ack should not have committed the item
     EXPECT_EQ(0, vb->getNumItems());
@@ -487,7 +488,7 @@ TEST_P(DurabilityActiveStreamTest, RemoveUnknownSeqnoAckAtDestruction) {
     // connections. We verify that the seqno ack does not exist in the map
     // by performing the topology change that would commit the prepare if it
     // did.
-    EXPECT_EQ(ENGINE_SUCCESS, stream->seqnoAck("test_producer", 1));
+    EXPECT_EQ(ENGINE_SUCCESS, stream->seqnoAck(producer->getConsumerName(), 1));
 
     // If the seqno ack still existed in the queuedSeqnoAcks map then it would
     // result in a commit on topology change
@@ -496,9 +497,58 @@ TEST_P(DurabilityActiveStreamTest, RemoveUnknownSeqnoAckAtDestruction) {
             vbucket_state_active,
             {{"topology",
               nlohmann::json::array(
-                      {{"active", "replica1", "test_producer"}})}});
+                      {{"active", "replica1", producer->getConsumerName()}})}});
 
     EXPECT_EQ(0, vb->getNumItems());
+}
+
+TEST_P(DurabilityActiveStreamTest, RemoveCorrectQueuedAckAtStreamSetDead) {
+    auto vb = engine->getVBucket(vbid);
+
+    const auto key = makeStoredDocKey("key");
+    const auto& value = "value";
+    auto item = makePendingItem(
+            key,
+            value,
+            cb::durability::Requirements(cb::durability::Level::Majority,
+                                         1 /*timeout*/));
+    VBQueueItemCtx ctx;
+    ctx.durability =
+            DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
+
+    EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // We don't include prepares in the numItems stat (should not exist in here)
+    EXPECT_EQ(0, vb->getNumItems());
+
+    // Our topology gives replica name as "replica" an our producer/stream has
+    // name "test_producer". Simulate a seqno ack by calling the vBucket level
+    // function.
+    stream->seqnoAck(producer->getConsumerName(), 1);
+
+    // Disconnect the ActiveStream. Should remove the queued seqno ack
+    stream->setDead(END_STREAM_DISCONNECTED);
+
+    stream = std::make_shared<MockActiveStream>(engine.get(),
+                                                producer,
+                                                0 /*flags*/,
+                                                0 /*opaque*/,
+                                                *vb,
+                                                0 /*st_seqno*/,
+                                                ~0 /*en_seqno*/,
+                                                0x0 /*vb_uuid*/,
+                                                0 /*snap_start_seqno*/,
+                                                ~0 /*snap_end_seqno*/);
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+    stream->setActive();
+
+    // Should not throw a monotonic exception as the ack should have been
+    // removed by setDead.
+    stream->seqnoAck(producer->getConsumerName(), 1);
+
+    producer->cancelCheckpointCreatorTask();
 }
 
 void DurabilityActiveStreamTest::setUpSendSetInsteadOfCommitTest() {
