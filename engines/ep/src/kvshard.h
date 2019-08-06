@@ -77,6 +77,14 @@ public:
         return rwStore.get();
     }
 
+    template <class UnaryFunction>
+    void forEachKVStore(UnaryFunction f) {
+        if (roStore) {
+            f(roStore.get());
+        }
+        f(rwStore.get());
+    }
+
     Flusher *getFlusher();
     BgFetcher *getBgFetcher();
 

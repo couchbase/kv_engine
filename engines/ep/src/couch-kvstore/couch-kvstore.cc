@@ -437,7 +437,7 @@ void CouchKVStore::reset(Vbid vbucketId) {
         // some higher level per VB lock is required to prevent data-races here.
         // KVBucket::vb_mutexes is used in this case.
         unlinkCouchFile(vbucketId, (*dbFileRevMap)[vbucketId.get()]);
-        incrementRevision(vbucketId);
+        prepareToCreateImpl(vbucketId);
 
         setVBucketState(
                 vbucketId, *state, VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT);
@@ -3007,8 +3007,10 @@ void CouchKVStore::freeFileHandle(KVFileHandle* kvFileHandle) const {
     delete static_cast<CouchKVFileHandle*>(kvFileHandle);
 }
 
-void CouchKVStore::incrementRevision(Vbid vbid) {
-    (*dbFileRevMap)[vbid.get()]++;
+void CouchKVStore::prepareToCreateImpl(Vbid vbid) {
+    if (!isReadOnly()) {
+        (*dbFileRevMap)[vbid.get()]++;
+    }
 }
 
 uint64_t CouchKVStore::prepareToDeleteImpl(Vbid vbid) {

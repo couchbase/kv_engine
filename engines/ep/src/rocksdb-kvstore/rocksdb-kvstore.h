@@ -311,7 +311,7 @@ public:
         return {};
     }
 
-    void incrementRevision(Vbid vbid) override {
+    void prepareToCreateImpl(Vbid vbid) override {
         // TODO DJR 2017-05-19 implement this.
     }
 

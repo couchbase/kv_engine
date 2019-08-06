@@ -187,11 +187,11 @@ protected:
 // Initializes a KVStore
 static void initialize_kv_store(KVStore* kvstore, Vbid vbid = Vbid(0)) {
     // simulate the setVbState by incrementing the rev
-    kvstore->incrementRevision(vbid);
+    kvstore->prepareToCreate(vbid);
     vbucket_state state;
     state.state = vbucket_state_active;
     // simulate the setVbState by incrementing the rev
-    kvstore->incrementRevision(vbid);
+    kvstore->prepareToCreate(vbid);
     kvstore->snapshotVBucket(
             vbid, state, VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT);
 }
@@ -1428,11 +1428,11 @@ public:
         std::string failoverLog("");
         // simulate a setVBState - increment the rev and then persist the
         // state
-        kvstore->incrementRevision(vbid);
+        kvstore->prepareToCreateImpl(vbid);
         vbucket_state state;
         state.state = vbucket_state_active;
         // simulate a setVBState - increment the dbFile revision
-        kvstore->incrementRevision(vbid);
+        kvstore->prepareToCreateImpl(vbid);
         kvstore->snapshotVBucket(
                 vbid, state, VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT);
     }

@@ -243,7 +243,7 @@ public:
         return {};
     }
 
-    void incrementRevision(Vbid vbid) override {
+    void prepareToCreateImpl(Vbid vbid) override {
         // magma does not use file revisions
     }
 

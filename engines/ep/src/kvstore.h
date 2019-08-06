@@ -898,12 +898,6 @@ public:
             const KVFileHandle& kvFileHandle, CollectionID collection) = 0;
 
     /**
-     * Increment the revision number of the vbucket.
-     * @param vbid ID of the vbucket to change.
-     */
-    virtual void incrementRevision(Vbid vbid) = 0;
-
-    /**
      * Prepare for delete of the vbucket file
      *
      * @param vbid ID of the vbucket being deleted
@@ -912,11 +906,10 @@ public:
     uint64_t prepareToDelete(Vbid vbid);
 
     /**
-     * Call reset on the cached vbucket_state for the given vbucket (if any is
-     * cached)
-     * @param vbid ID of the vbucket to reset
+     * Prepare for create of the vbucket
+     * @param vbid ID of the vbucket about to be created
      */
-    void resetCachedVBState(Vbid vbid);
+    void prepareToCreate(Vbid vbid);
 
     /**
      * Set a system event into the KVStore.
@@ -967,6 +960,14 @@ protected:
      */
     virtual uint64_t prepareToDeleteImpl(Vbid vbid) = 0;
 
+    /*
+     * Prepare for a creation of the vbucket file - Implementation specific
+     * method that is called by prepareToCreate
+     *
+     * @param vbid ID of the vbucket being created
+     */
+    virtual void prepareToCreateImpl(Vbid vbid) = 0;
+
     /* all stats */
     KVStoreStats st;
     KVStoreConfig& configuration;
@@ -997,6 +998,13 @@ protected:
      * @return true if the cached vbucket state is updated
      */
     bool updateCachedVBState(Vbid vbid, const vbucket_state& vbState);
+
+    /**
+     * Reset the cached state for a vbucket (see vbucket_state::reset)
+     *
+     * @param vbid the vbucket id to call reset on
+     */
+    void resetCachedVBState(Vbid vbid);
 };
 
 std::string to_string(KVStore::MutationStatus status);

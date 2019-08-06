@@ -398,10 +398,11 @@ public:
     void freeFileHandle(KVFileHandle* kvFileHandle) const override;
 
     /**
-     * Increment the revision number of the vbucket.
+     * prepareToCreate will increment the revision number of the vbucket, but is
+     * a no-op if readOnly()
      * @param vbid ID of the vbucket to change.
      */
-    void incrementRevision(Vbid vbid) override;
+    void prepareToCreateImpl(Vbid vbid) override;
 
     /**
      * Prepare for delete of the vbucket file, this just removes the in-memory

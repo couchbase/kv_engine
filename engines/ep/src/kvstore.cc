@@ -497,6 +497,12 @@ uint64_t KVStore::prepareToDelete(Vbid vbid) {
     return prepareToDeleteImpl(vbid);
 }
 
+
+void KVStore::prepareToCreate(Vbid vbid) {
+    resetCachedVBState(vbid);
+    prepareToCreateImpl(vbid);
+}
+
 void KVStore::resetCachedVBState(Vbid vbid) {
     vbucket_state* state = getVBucketState(vbid);
     if (state) {

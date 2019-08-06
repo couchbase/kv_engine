@@ -982,12 +982,9 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
         uint64_t start_chk_id = (to == vbucket_state_active) ? 2 : 0;
         newvb->checkpointManager->setOpenCheckpointId(start_chk_id);
 
-        // Before adding the VB to the map increment the revision
-        getRWUnderlying(vbid)->incrementRevision(vbid);
-
-        // Wipe out any cached vbucket state
-        getRWUnderlying(vbid)->resetCachedVBState(vbid);
-        getROUnderlying(vbid)->resetCachedVBState(vbid);
+        // Before adding the VB to the map, notify KVStore of the create
+        vbMap.getShardByVbId(vbid)->forEachKVStore(
+                [vbid](KVStore* kvs) { kvs->prepareToCreate(vbid); });
 
         // If active, update the VB from the bucket's collection state.
         // Note: Must be done /before/ adding the new VBucket to vbMap so that
