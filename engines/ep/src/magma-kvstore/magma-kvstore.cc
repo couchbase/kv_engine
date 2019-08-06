@@ -377,9 +377,9 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
         logger->TRACE("MagmaCompactionCB {}", itemString.str());
     }
 
-    cbCtx.vbid = getVbid(metaSlice);
-
     if (!cbCtx.initialized) {
+        cbCtx.vbid = getVbid(metaSlice);
+
         // If we have a compaction_ctx, that means we are doing an
         // explicit compaction triggered by the kv_engine.
         {
