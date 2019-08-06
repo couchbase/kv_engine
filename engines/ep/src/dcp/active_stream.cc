@@ -78,8 +78,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       forceValueCompression(p->isForceValueCompressionEnabled()
                                     ? ForceValueCompression::Yes
                                     : ForceValueCompression::No),
-      syncReplication(p->isSyncReplicationEnabled() ? SyncReplication::Yes
-                                                    : SyncReplication::No),
+      syncReplication(p->getSyncReplSupport()),
       filter(std::move(f)),
       sid(filter.getStreamId()) {
     const char* type = "";
@@ -949,7 +948,7 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
             start_seqno_ < static_cast<uint64_t>(item->getPrepareSeqno());
 
     if ((item->getOperation() == queue_op::commit_sync_write) &&
-        (syncReplication == SyncReplication::Yes) &&
+        (supportSyncWrites()) &&
         (!prepareSeqnoGTRequestedStart ||
          sendCommitSyncWriteAs == SendCommitSyncWriteAs::Commit)) {
         return std::make_unique<CommitSyncWrite>(opaque_,
@@ -1101,7 +1100,7 @@ void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
 }
 
 bool ActiveStream::shouldProcessItem(const Item& item) {
-    if (!item.shouldReplicate(syncReplication == SyncReplication::Yes)) {
+    if (!item.shouldReplicate(supportSyncWrites())) {
         return false;
     }
 

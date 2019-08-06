@@ -1210,7 +1210,7 @@ TEST_P(StreamTest, ProducerReceivesSeqnoAckForErasedStream) {
                         IncludeValue::Yes,
                         IncludeXattrs::Yes,
                         {{"send_stream_end_on_client_close_stream", "true"},
-                         {"enable_synchronous_replication", "true"},
+                         {"enable_sync_writes", "true"},
                          {"consumer_name", "replica1"}});
 
     // Need to do a stream request to put the stream in the producers map

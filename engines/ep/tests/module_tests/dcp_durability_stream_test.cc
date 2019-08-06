@@ -50,7 +50,7 @@ void DurabilityActiveStreamTest::setUp(bool startCheckpointProcessorTask) {
             {{"topology", nlohmann::json::array({{active, replica}})}});
 
     // Enable SyncReplication and flow-control (Producer BufferLog)
-    setupProducer({{"enable_synchronous_replication", "true"},
+    setupProducer({{"enable_sync_writes", "true"},
                    {"connection_buffer_size", "52428800"},
                    {"consumer_name", "test_consumer"}},
                   startCheckpointProcessorTask);

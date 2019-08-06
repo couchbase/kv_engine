@@ -278,7 +278,8 @@ void DcpStreamSyncReplTest::testPendingItemWithSyncReplica(
     setup_dcp_stream(0,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
-                     {{"enable_synchronous_replication", "true"}});
+                     {{"enable_sync_writes", "true"},
+                      {"consumer_name", "test_consumer"}});
     ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
 
     // For a sync replication stream we should see a snapshot marker
@@ -329,7 +330,8 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithSyncReplica(
     setup_dcp_stream(0,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
-                     {{"enable_synchronous_replication", "true"}});
+                     {{"enable_sync_writes", "true"},
+                      {"consumer_name", "test_consumer"}});
     ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
 
     // For a sync replication stream we should see one mutation and one prepare.
@@ -397,7 +399,8 @@ void DcpStreamSyncReplTest::testMutationAndPending2SnapshotsWithSyncReplica(
     setup_dcp_stream(0,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
-                     {{"enable_synchronous_replication", "true"}});
+                     {{"enable_sync_writes", "true"},
+                      {"consumer_name", "test_consumer"}});
     ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
 
     // For a sync replication stream we should see one mutation and one prepare
@@ -470,7 +473,8 @@ void DcpStreamSyncReplTest::testBackfillPrepare(DocumentState docState,
     setup_dcp_stream(0,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
-                     {{"enable_synchronous_replication", "true"}});
+                     {{"enable_sync_writes", "true"},
+                      {"consumer_name", "test_consumer"}});
 
     MockDcpMessageProducers producers(engine);
 
@@ -549,7 +553,8 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(
     setup_dcp_stream(0,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
-                     {{"enable_synchronous_replication", "true"}});
+                     {{"enable_sync_writes", "true"},
+                      {"consumer_name", "test_consumer"}});
 
     MockDcpMessageProducers producers(engine);
 
@@ -643,7 +648,8 @@ void DcpStreamSyncReplTest::testBackfillPrepareAbort(
     setup_dcp_stream(0,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
-                     {{"enable_synchronous_replication", "true"}});
+                     {{"enable_sync_writes", "true"},
+                      {"consumer_name", "test_consumer"}});
 
     MockDcpMessageProducers producers(engine);
 
@@ -712,11 +718,11 @@ TEST_P(DcpStreamSyncReplPersistentTest,
 }
 
 TEST_P(DcpStreamSyncReplPersistentTest, ProducerAllowsSeqnoAckLEQToLastSent) {
-    setup_dcp_stream(0 /*flags*/,
-                     IncludeValue::Yes,
-                     IncludeXattrs::Yes,
-                     {{"enable_synchronous_replication", "true"},
-                      {"consumer_name", "replica1"}});
+    setup_dcp_stream(
+            0 /*flags*/,
+            IncludeValue::Yes,
+            IncludeXattrs::Yes,
+            {{"enable_sync_writes", "true"}, {"consumer_name", "replica1"}});
 
     stream = producer->mockActiveStreamRequest(0,
                                                /*opaque*/ 0,

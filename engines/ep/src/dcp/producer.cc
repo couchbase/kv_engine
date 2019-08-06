@@ -979,13 +979,19 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
         }
         multipleStreamRequests = MultipleStreamRequests::Yes;
         return ENGINE_SUCCESS;
-    } else if (key == "enable_synchronous_replication") {
+    } else if (key == "enable_sync_writes") {
         if (valueStr == "true") {
-            supportsSyncReplication = true;
+            supportsSyncReplication = SyncReplication::SyncWrites;
+            if (!consumerName.empty()) {
+                supportsSyncReplication = SyncReplication::SyncReplication;
+            }
             return ENGINE_SUCCESS;
         }
-    } else if (key == "consumer_name") {
+    } else if (key == "consumer_name" && !valueStr.empty()) {
         consumerName = valueStr;
+        if (supportsSyncReplication == SyncReplication::SyncWrites) {
+            supportsSyncReplication = SyncReplication::SyncReplication;
+        }
         return ENGINE_SUCCESS;
     }
 
@@ -1269,6 +1275,7 @@ void DcpProducer::addStats(const AddStatFn& add_stat, const void* c) {
             add_stat,
             c);
     addStat("synchronous_replication", isSyncReplicationEnabled(), add_stat, c);
+    addStat("synchronous_writes", isSyncWritesEnabled(), add_stat, c);
 
     // Possible that the producer has had its streams closed and hence doesn't
     // have a backfill manager anymore.

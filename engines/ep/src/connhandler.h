@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "dcp/dcp-types.h"
 #include "utility.h"
 
 #include <memcached/dcp.h>
@@ -266,7 +267,23 @@ public:
         // Empty
     }
 
+    /**
+     * Does the Connection support SyncReplication (Acking prepares)?
+     */
     bool isSyncReplicationEnabled() const {
+        return supportsSyncReplication.load() ==
+               SyncReplication::SyncReplication;
+    }
+
+    /**
+     * Does the Connection support SyncWrites (sending and receiving Prepares,
+     * Commits, and Aborts)?
+     */
+    bool isSyncWritesEnabled() const {
+        return supportsSyncReplication.load() != SyncReplication::No;
+    }
+
+    SyncReplication getSyncReplSupport() const {
         return supportsSyncReplication.load();
     }
 
@@ -321,8 +338,12 @@ protected:
     //! The bucketLogger for this connection
     std::shared_ptr<BucketLogger> logger;
 
-    /// Does this DCP Connection support Synchronous Replication
-    std::atomic<bool> supportsSyncReplication{false};
+    /**
+     * Does this DCP Connection support Synchronous Replication (i.e. acking
+     * Prepares). A connection should support SyncWrites to support
+     * SyncReplication.
+     */
+    std::atomic<SyncReplication> supportsSyncReplication{SyncReplication::No};
 
 private:
 

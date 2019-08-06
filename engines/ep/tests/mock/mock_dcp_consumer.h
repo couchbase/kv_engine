@@ -113,14 +113,14 @@ public:
      * Used for simulating a successful Consumer-Producer Sync Repl handshake.
      */
     void enableSyncReplication() {
-        supportsSyncReplication = true;
+        supportsSyncReplication = SyncReplication::SyncReplication;
     }
 
     /**
      * Disable SyncRepl for testing
      */
     void disableSyncReplication() {
-        supportsSyncReplication = false;
+        supportsSyncReplication = SyncReplication::No;
     }
 
     /**

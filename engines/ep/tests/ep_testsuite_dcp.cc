@@ -3654,7 +3654,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
     dcpStepAndExpectControlMsg("supports_hifi_MFU"s);
     dcpStepAndExpectControlMsg("send_stream_end_on_client_close_stream"s);
     dcpStepAndExpectControlMsg("enable_expiry_opcode"s);
-    dcpStepAndExpectControlMsg("enable_synchronous_replication"s);
+    dcpStepAndExpectControlMsg("enable_sync_writes"s);
     simulateProdRespAtSyncReplNegotiation(h, cookie, producers);
     dcpStepAndExpectControlMsg("consumer_name"s);
 
@@ -4345,7 +4345,7 @@ static void drainDcpControl(EngineIface* engine,
     do {
         dcp_step(engine, cookie, producers);
         // The Sync Repl negotiation introduces a blocking step
-        if (producers.last_key == "enable_synchronous_replication") {
+        if (producers.last_key == "enable_sync_writes") {
             simulateProdRespAtSyncReplNegotiation(engine, cookie, producers);
         }
     } while (producers.last_op == cb::mcbp::ClientOpcode::DcpControl);

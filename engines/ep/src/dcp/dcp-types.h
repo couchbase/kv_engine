@@ -155,5 +155,8 @@ enum class MultipleStreamRequests : bool {
     No
 };
 
-/// Does the stream support synchronous replication?
-enum class SyncReplication : bool { Yes, No };
+/** Does the stream support synchronous replication (i.e. acking Prepares)?
+ * A Stream may also support just SyncWrites (receiving Prepares and Commits
+ * without acking).
+ */
+enum class SyncReplication : char { No, SyncWrites, SyncReplication };

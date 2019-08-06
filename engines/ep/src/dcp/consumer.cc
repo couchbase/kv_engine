@@ -975,8 +975,9 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
         // the Sync Replication negotiation-key.
         if (resp->response.getOpaque() == syncReplNegotiation.opaque) {
             syncReplNegotiation.state = SyncReplNegotiation::State::Completed;
-            supportsSyncReplication.store(resp->response.getStatus() ==
-                                          cb::mcbp::Status::Success);
+            if (resp->response.getStatus() == cb::mcbp::Status::Success) {
+                supportsSyncReplication.store(SyncReplication::SyncReplication);
+            }
         }
         return true;
     } else if (opcode == cb::mcbp::ClientOpcode::GetErrorMap) {
@@ -1501,14 +1502,14 @@ ENGINE_ERROR_CODE DcpConsumer::enableExpiryOpcode(
 
 ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
         dcp_message_producers* producers) {
-    // enable_synchronous_replication and consumer_name are separated into two
+    // enable_sync_writes and consumer_name are separated into two
     // different variables as in the future non-replication consumers may wish
     // to stream prepares and commits.
     switch (syncReplNegotiation.state) {
     case SyncReplNegotiation::State::PendingRequest: {
         uint32_t opaque = ++opaqueCounter;
-        ENGINE_ERROR_CODE ret = producers->control(
-                opaque, "enable_synchronous_replication", "true");
+        ENGINE_ERROR_CODE ret =
+                producers->control(opaque, "enable_sync_writes", "true");
         syncReplNegotiation.state = SyncReplNegotiation::State::PendingResponse;
         syncReplNegotiation.opaque = opaque;
         return ret;

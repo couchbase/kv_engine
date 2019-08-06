@@ -282,7 +282,11 @@ protected:
     void nextCheckpointItemTask(const LockHolder& streamMutex);
 
     bool supportSyncReplication() const {
-        return syncReplication == SyncReplication::Yes;
+        return syncReplication == SyncReplication::SyncReplication;
+    }
+
+    bool supportSyncWrites() const {
+        return syncReplication != SyncReplication::No;
     }
 
     /* Indicates that a backfill has been scheduled and has not yet completed.
@@ -467,7 +471,13 @@ private:
     /// Should items be forcefully compressed on this stream?
     const ForceValueCompression forceValueCompression;
 
-    /// Does this stream support synchronous replication?
+    /// Does this stream support synchronous replication (i.e. acking Prepares)?
+    /**
+     * What level of SyncReplication does this stream Support:
+     *  - None
+     *  - SyncWrites: Sending Prepares/Commits/Aborts
+     *  - SyncReplication: SyncWrites + Acking Prepares
+     */
     const SyncReplication syncReplication;
 
     /**

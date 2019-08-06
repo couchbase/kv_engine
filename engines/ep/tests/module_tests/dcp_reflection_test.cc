@@ -185,7 +185,8 @@ protected:
             Node producerNode,
             Node consumerNode,
             EnableExpiryOutput enableExpiryOutput = EnableExpiryOutput::Yes,
-            SyncReplication syncReplication = SyncReplication::Yes) {
+            SyncReplication syncReplication =
+                    SyncReplication::SyncReplication) {
         EXPECT_TRUE(engines[producerNode])
                 << "createDcpProducer: No engine for Node" << producerNode;
 
@@ -210,7 +211,7 @@ protected:
             producer->setDCPExpiry(true);
         }
 
-        producer->setSyncReplication(syncReplication == SyncReplication::Yes);
+        producer->setSyncReplication(syncReplication);
 
         return producer;
     }
