@@ -511,11 +511,14 @@ class DurabilityWarmupTest : public DurabilityKVBucketTest {
 protected:
     // Test that a pending SyncWrite/Delete not yet committed is correctly
     // warmed up when the bucket restarts.
-    void testPendingSyncWrite(vbucket_state_t vbState, DocumentState docState);
+    void testPendingSyncWrite(vbucket_state_t vbState,
+                              const std::vector<std::string>& keys,
+                              DocumentState docState);
 
     // Test that a pending SyncWrite/Delete which was committed is correctly
     // warmed up when the bucket restarts (as a Committed item).
     void testCommittedSyncWrite(vbucket_state_t vbState,
+                                const std::vector<std::string>& keys,
                                 DocumentState docState);
 
     // Test that a committed mutation followed by a pending SyncWrite to the
@@ -579,7 +582,6 @@ DurabilityWarmupTest::PrePostStateChecker::~PrePostStateChecker() {
     EXPECT_EQ(preHCS, vb->getHighCompletedSeqno())
             << "PrePostStateChecker: Found that post warmup the HCS does not "
                "match the pre-warmup value";
-    ;
 }
 
 DurabilityWarmupTest::PrePostStateChecker
@@ -604,124 +606,156 @@ GetValue DurabilityWarmupTest::getItemFetchFromDiskIfNeeded(
     return gv;
 }
 
-void DurabilityWarmupTest::testPendingSyncWrite(vbucket_state_t vbState,
-                                                DocumentState docState) {
-    // Store a pending SyncWrite/Delete (without committing) and then restart
-    auto key = makeStoredDocKey("key");
-    auto item = makePendingItem(key, "pending_value");
-    if (docState == DocumentState::Deleted) {
-        item->setDeleted(DeleteSource::Explicit);
-    }
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
-    flush_vbucket_to_disk(vbid);
+void DurabilityWarmupTest::testPendingSyncWrite(
+        vbucket_state_t vbState,
+        const std::vector<std::string>& keys,
+        DocumentState docState) {
+    // Store the given pending SyncWrites/Deletes (without committing) and then
+    // restart
 
-    if (vbState != vbucket_state_active) {
-        setVBucketStateAndRunPersistTask(vbid, vbState);
-    }
-    resetEngineAndWarmup();
-
-    // Check that attempts to read this key via frontend are blocked.
-    auto gv = store->get(key, vbid, cookie, {});
-    EXPECT_EQ(ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS, gv.getStatus());
-
-    // Check that the item is still pending with the correct CAS.
     auto vb = engine->getVBucket(vbid);
-    auto handle = vb->lockCollections(item->getKey());
-    auto prepared = vb->fetchPreparedValue(handle);
-    EXPECT_TRUE(prepared.storedValue);
-    EXPECT_TRUE(prepared.storedValue->isPending());
-    EXPECT_EQ(item->isDeleted(), prepared.storedValue->isDeleted());
-    EXPECT_EQ(item->getCas(), prepared.storedValue->getCas());
+    auto numTracked = vb->getDurabilityMonitor().getNumTracked();
 
-    // DurabilityMonitor be tracking the prepare.
-    EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
+    for (const auto& k : keys) {
+        // Previous runs could have left the VB into a non-active state - must
+        // be active to perform set().
+        if (vb->getState() != vbucket_state_active) {
+            setVBucketToActiveWithValidTopology();
+        }
+
+        const auto key = makeStoredDocKey(k);
+        auto item = makePendingItem(key, "pending_value");
+        if (docState == DocumentState::Deleted) {
+            item->setDeleted(DeleteSource::Explicit);
+        }
+        ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+        flush_vbucket_to_disk(vbid);
+
+        // Set the state that we want to test
+        if (vbState != vbucket_state_active) {
+            setVBucketStateAndRunPersistTask(vbid, vbState);
+        }
+
+        // About to destroy engine; reset vb shared_ptr.
+        vb.reset();
+        resetEngineAndWarmup();
+        vb = engine->getVBucket(vbid);
+
+        // Check that attempts to read this key via frontend are blocked.
+        auto gv = store->get(key, vbid, cookie, {});
+        EXPECT_EQ(ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS, gv.getStatus());
+
+        // Check that the item is still pending with the correct CAS.
+        auto handle = vb->lockCollections(item->getKey());
+        auto prepared = vb->fetchPreparedValue(handle);
+        EXPECT_TRUE(prepared.storedValue);
+        EXPECT_TRUE(prepared.storedValue->isPending());
+        EXPECT_EQ(item->isDeleted(), prepared.storedValue->isDeleted());
+        EXPECT_EQ(item->getCas(), prepared.storedValue->getCas());
+
+        // DurabilityMonitor be tracking the prepare.
+        EXPECT_EQ(++numTracked, vb->getDurabilityMonitor().getNumTracked());
+    }
 }
 
 TEST_P(DurabilityWarmupTest, ActivePendingSyncWrite) {
-    testPendingSyncWrite(vbucket_state_active, DocumentState::Alive);
+    testPendingSyncWrite(vbucket_state_active,
+                         {"key1", "key2", "key3"},
+                         DocumentState::Alive);
 }
 
 TEST_P(DurabilityWarmupTest, ActivePendingSyncDelete) {
-    testPendingSyncWrite(vbucket_state_active, DocumentState::Deleted);
+    testPendingSyncWrite(vbucket_state_active,
+                         {"key1", "key2", "key3"},
+                         DocumentState::Deleted);
 }
 
 TEST_P(DurabilityWarmupTest, ReplicaPendingSyncWrite) {
-    testPendingSyncWrite(vbucket_state_replica, DocumentState::Alive);
+    testPendingSyncWrite(vbucket_state_replica,
+                         {"key1", "key2", "key3"},
+                         DocumentState::Alive);
 }
 
 TEST_P(DurabilityWarmupTest, ReplicaPendingSyncDelete) {
-    testPendingSyncWrite(vbucket_state_replica, DocumentState::Deleted);
+    testPendingSyncWrite(vbucket_state_replica,
+                         {"key1", "key2", "key3"},
+                         DocumentState::Deleted);
 }
-void DurabilityWarmupTest::testCommittedSyncWrite(vbucket_state_t vbState,
-                                                  DocumentState docState) {
-    // prepare & commit a SyncWrite then restart.
-    auto key = makeStoredDocKey("key");
-    auto item = makePendingItem(key, "value");
-    if (docState == DocumentState::Deleted) {
-        item->setDeleted(DeleteSource::Explicit);
-    }
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
-    flush_vbucket_to_disk(vbid);
+void DurabilityWarmupTest::testCommittedSyncWrite(
+        vbucket_state_t vbState,
+        const std::vector<std::string>& keys,
+        DocumentState docState) {
+    // Prepare
+    testPendingSyncWrite(vbState, keys, docState);
 
-    { // scoping vb - is invalid once resetEngineAndWarmup() is called.
-        auto vb = engine->getVBucket(vbid);
-        EXPECT_EQ(ENGINE_SUCCESS,
-                  vb->seqnoAcknowledged(
-                          folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                          "replica",
-                          vb->getHighPreparedSeqno()));
+    auto vb = engine->getVBucket(vbid);
+    auto numTracked = vb->getDurabilityMonitor().getNumTracked();
+    ASSERT_EQ(keys.size(), numTracked);
+
+    auto prepareSeqno = 1;
+    for (const auto& k : keys) {
+        // Commit
+        const auto key = makeStoredDocKey(k);
+        if (vbState == vbucket_state_active) {
+            // Commit on active is driven by the ADM so we need to drive our
+            // commit via seqno ack
+            EXPECT_EQ(ENGINE_SUCCESS,
+                      vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(
+                                                    vb->getStateLock()),
+                                            "replica",
+                                            prepareSeqno++));
+        } else {
+            // Commit on non-active is driven by VBucket::commit
+            vb->commit(key, prepareSeqno++, {}, vb->lockCollections(key));
+        }
 
         flush_vbucket_to_disk(vbid, 1);
+
+        if (vbState != vbucket_state_active) {
+            setVBucketStateAndRunPersistTask(vbid, vbState);
+        }
+
+        const auto expectedItem = getItemFetchFromDiskIfNeeded(key, docState);
+        ASSERT_EQ(ENGINE_SUCCESS, expectedItem.getStatus());
+
+        // About to destroy engine; reset vb shared_ptr.
+        vb.reset();
+        resetEngineAndWarmup();
+        vb = engine->getVBucket(vbid);
+
+        // Check that the item is CommittedviaPrepare.
+        GetValue gv = getItemFetchFromDiskIfNeeded(key, docState);
+        EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+        EXPECT_EQ(CommittedState::CommittedViaPrepare, gv.item->getCommitted());
+        EXPECT_EQ(*expectedItem.item, *gv.item);
+
+        // DurabilityMonitor should be empty as no outstanding prepares.
+        EXPECT_EQ(--numTracked, vb->getDurabilityMonitor().getNumTracked());
     }
-
-    if (vbState != vbucket_state_active) {
-        setVBucketStateAndRunPersistTask(vbid, vbState);
-    }
-
-    const auto expectedItem = getItemFetchFromDiskIfNeeded(key, docState);
-    ASSERT_EQ(ENGINE_SUCCESS, expectedItem.getStatus());
-
-    resetEngineAndWarmup();
-
-    // Check that the item is CommittedviaPrepare.
-    auto vb = engine->getVBucket(vbid);
-    // @TODO: RocksDB currently only has an estimated item count in
-    // full-eviction, so it fails this check. Skip if RocksDB && full_eviction.
-    if ((std::get<0>(GetParam()).find("Rocksdb") == std::string::npos) ||
-        std::get<0>(GetParam()) == "value_only") {
-        const auto expectedNumItems = docState == DocumentState::Alive ? 1 : 0;
-        EXPECT_EQ(expectedNumItems, vb->getNumItems());
-    }
-
-    GetValue gv = getItemFetchFromDiskIfNeeded(item->getKey(), docState);
-    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
-    EXPECT_EQ(CommittedState::CommittedViaPrepare, gv.item->getCommitted());
-    EXPECT_EQ(*expectedItem.item, *gv.item);
-
-    // DurabilityMonitor should be empty as no outstanding prepares.
-    EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
 }
 
 TEST_P(DurabilityWarmupTest, ActiveCommittedSyncWrite) {
-    testCommittedSyncWrite(vbucket_state_active, DocumentState::Alive);
-    // Run the test again to verify that item counts are correct after we
-    // overwrite the original prepare and commit
-    testCommittedSyncWrite(vbucket_state_active, DocumentState::Alive);
+    testCommittedSyncWrite(vbucket_state_active,
+                           {"key1", "key2", "key3"},
+                           DocumentState::Alive);
 }
 
 TEST_P(DurabilityWarmupTest, ActiveCommittedSyncDelete) {
-    testCommittedSyncWrite(vbucket_state_active, DocumentState::Deleted);
-    // Run the test again to verify that item counts are correct after we
-    // overwrite the original prepare and commit
-    testCommittedSyncWrite(vbucket_state_active, DocumentState::Deleted);
+    testCommittedSyncWrite(vbucket_state_active,
+                           {"key1", "key2", "key3"},
+                           DocumentState::Deleted);
 }
 
 TEST_P(DurabilityWarmupTest, ReplicaCommittedSyncWrite) {
-    testCommittedSyncWrite(vbucket_state_replica, DocumentState::Alive);
+    testCommittedSyncWrite(vbucket_state_replica,
+                           {"key1", "key2", "key3"},
+                           DocumentState::Alive);
 }
 
 TEST_P(DurabilityWarmupTest, ReplicaCommittedSyncDelete) {
-    testCommittedSyncWrite(vbucket_state_replica, DocumentState::Deleted);
+    testCommittedSyncWrite(vbucket_state_replica,
+                           {"key1", "key2", "key3"},
+                           DocumentState::Deleted);
 }
 
 void DurabilityWarmupTest::testCommittedAndPendingSyncWrite(
