@@ -711,6 +711,10 @@ ENGINE_ERROR_CODE PassiveStream::processPrepare(
 void PassiveStream::seqnoAck(int64_t seqno) {
     {
         LockHolder lh(streamMutex);
+        if (!isActive()) {
+            return;
+        }
+
         pushToReadyQ(
                 std::make_unique<SeqnoAcknowledgement>(opaque_, vb_, seqno));
     }
