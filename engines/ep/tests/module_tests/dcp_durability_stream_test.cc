@@ -453,23 +453,11 @@ TEST_P(DurabilityActiveStreamTest, BackfillAbort) {
 }
 
 TEST_P(DurabilityActiveStreamTest, RemoveUnknownSeqnoAckAtDestruction) {
-    auto vb = engine->getVBucket(vbid);
-
-    const auto key = makeStoredDocKey("key");
-    const auto& value = "value";
-    auto item = makePendingItem(
-            key,
-            value,
-            cb::durability::Requirements(cb::durability::Level::Majority,
-                                         1 /*timeout*/));
-    VBQueueItemCtx ctx;
-    ctx.durability =
-            DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
-
-    EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
+    testSendDcpPrepare();
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // We don't include prepares in the numItems stat (should not exist in here)
+    auto vb = engine->getVBucket(vbid);
     EXPECT_EQ(0, vb->getNumItems());
 
     // Our topology gives replica name as "replica" an our producer/stream has
@@ -503,23 +491,11 @@ TEST_P(DurabilityActiveStreamTest, RemoveUnknownSeqnoAckAtDestruction) {
 }
 
 TEST_P(DurabilityActiveStreamTest, RemoveCorrectQueuedAckAtStreamSetDead) {
-    auto vb = engine->getVBucket(vbid);
-
-    const auto key = makeStoredDocKey("key");
-    const auto& value = "value";
-    auto item = makePendingItem(
-            key,
-            value,
-            cb::durability::Requirements(cb::durability::Level::Majority,
-                                         1 /*timeout*/));
-    VBQueueItemCtx ctx;
-    ctx.durability =
-            DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
-
-    EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
+    testSendDcpPrepare();
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // We don't include prepares in the numItems stat (should not exist in here)
+    auto vb = engine->getVBucket(vbid);
     EXPECT_EQ(0, vb->getNumItems());
 
     // Our topology gives replica name as "replica" an our producer/stream has
@@ -543,6 +519,17 @@ TEST_P(DurabilityActiveStreamTest, RemoveCorrectQueuedAckAtStreamSetDead) {
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
     stream->setActive();
+
+    // Process items to ensure that lastSentSeqno is GE the seqno that we will
+    // ack
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+
+    auto& bfm = producer->getBFM();
+    bfm.backfill();
+    bfm.backfill();
+    EXPECT_EQ(2, stream->public_readyQSize());
+    stream->consumeBackfillItems(2);
 
     // Should not throw a monotonic exception as the ack should have been
     // removed by setDead.

@@ -770,7 +770,8 @@ TEST_P(DcpStreamSyncReplPersistentTest, ProducerAllowsSeqnoAckLEQToLastSent) {
     try {
         producer->seqno_acknowledged(0, vbid, 4);
     } catch (const std::logic_error& e) {
-        EXPECT_TRUE(std::string(e.what()).find("Replica acked seqno") !=
+        EXPECT_TRUE(std::string(e.what()).find(
+                            "replica \"replica1\" acked seqno") !=
                     std::string::npos);
         thrown = true;
     }

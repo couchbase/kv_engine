@@ -1067,14 +1067,6 @@ ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
     }
 
     ActiveStream* as = static_cast<ActiveStream*>(stream.get());
-
-    if (prepared_seqno > as->getLastSentSeqno()) {
-        throw std::logic_error(
-                "Replica acked seqno:" + std::to_string(prepared_seqno) +
-                " greater than last sent seqno:" +
-                std::to_string(as->getLastSentSeqno()));
-    }
-
     return as->seqnoAck(consumerName, prepared_seqno);
 }
 

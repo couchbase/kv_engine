@@ -1792,6 +1792,14 @@ ENGINE_ERROR_CODE ActiveStream::seqnoAck(const std::string& consumerName,
                 return ENGINE_SUCCESS;
             }
 
+            if (preparedSeqno > getLastSentSeqno()) {
+                throw std::logic_error(
+                        vb_.to_string() + " replica \"" + consumerName +
+                        "\" acked seqno:" + std::to_string(preparedSeqno) +
+                        " which is greater than last sent seqno:" +
+                        std::to_string(getLastSentSeqno()));
+            }
+
             return vb->seqnoAcknowledged(
                     vbStateLh, consumerName, preparedSeqno);
         } // end stream mutex lock scope
