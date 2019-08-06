@@ -743,6 +743,66 @@ TEST_P(DurabilityActiveStreamTest, SendCommitForResumeIfPrepareReceived) {
     EXPECT_EQ(5, prepare.getItem()->getBySeqno());
 }
 
+/**
+ * This test checks that we can deal with a seqno ack from a replica going
+ * "backwards" when it shuts down and warms back up. This can happen when a
+ * replica acks a Majority level prepare that has not yet been persisted before
+ * it shuts down. When it warms up, it will ack the persisted HPS.
+ */
+TEST_P(DurabilityActiveStreamTest,
+       ActiveDealsWithNonMonotonicSeqnoAckOnReconnect) {
+    auto vb = engine->getVBucket(vbid);
+    const auto key = makeStoredDocKey("key");
+    const std::string value = "value";
+    auto item = makePendingItem(
+            key,
+            value,
+            cb::durability::Requirements(cb::durability::Level::Majority,
+                                         1 /*timeout*/));
+    VBQueueItemCtx ctx;
+    ctx.durability =
+            DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
+    {
+        auto cHandle = vb->lockCollections(item->getKey());
+        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+                  vb->set(*item, cookie, *engine, {}, cHandle));
+    }
+    vb->notifyActiveDMOfLocalSyncWrite();
+
+    EXPECT_EQ(ENGINE_SUCCESS, stream->seqnoAck(replica, 1 /*prepareSeqno*/));
+    EXPECT_EQ(1, vb->getHighPreparedSeqno());
+    EXPECT_EQ(1, vb->getHighCompletedSeqno());
+
+    {
+        auto cHandle = vb->lockCollections(item->getKey());
+        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+                  vb->set(*item, cookie, *engine, {}, cHandle));
+    }
+    vb->notifyActiveDMOfLocalSyncWrite();
+
+    EXPECT_EQ(ENGINE_SUCCESS, stream->seqnoAck(replica, 3 /*prepareSeqno*/));
+    EXPECT_EQ(3, vb->getHighPreparedSeqno());
+    EXPECT_EQ(3, vb->getHighCompletedSeqno());
+
+    stream = std::make_shared<MockActiveStream>(engine.get(),
+                                                producer,
+                                                0 /*flags*/,
+                                                0 /*opaque*/,
+                                                *vb,
+                                                0 /*st_seqno*/,
+                                                ~0 /*en_seqno*/,
+                                                0x0 /*vb_uuid*/,
+                                                0 /*snap_start_seqno*/,
+                                                ~0 /*snap_end_seqno*/);
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+    stream->setActive();
+
+    EXPECT_EQ(ENGINE_SUCCESS, stream->seqnoAck(replica, 1 /*prepareSeqno*/));
+
+    producer->cancelCheckpointCreatorTask();
+}
+
 void DurabilityPassiveStreamTest::SetUp() {
     SingleThreadedPassiveStreamTest::SetUp();
     consumer->enableSyncReplication();
@@ -773,6 +833,63 @@ TEST_P(DurabilityPassiveStreamTest, SendSeqnoAckOnStreamAcceptance) {
     resp = stream->public_popFromReadyQ();
     EXPECT_EQ(DcpResponse::Event::SeqnoAcknowledgement, resp->getEvent());
     const auto& ack = static_cast<SeqnoAcknowledgement&>(*resp);
+    EXPECT_EQ(1, ack.getPreparedSeqno());
+}
+
+/**
+ * This test demonstrates what happens to the acked seqno on the replica when
+ * we shutdown and restart having previously acked a seqno that is not flushed.
+ * This can cause the acked seqno to go "backwards".
+ */
+TEST_P(DurabilityPassiveStreamPersistentTest,
+       ReplicaSeqnoAckNonMonotonicIfBounced) {
+    // 1) Receive 2 majority prepares but only flush 1
+    auto key = makeStoredDocKey("key");
+    makeAndReceiveDcpPrepare(key, 0 /*cas*/, 1 /*seqno*/);
+
+    // Flush only the first prepare so when we warmup later we won't have the
+    // second
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    key = makeStoredDocKey("key2");
+    makeAndReceiveDcpPrepare(key, 0 /*cas*/, 2 /*seqno*/);
+
+    // 2) Check that we have acked twice, once for each prepare, as each is in
+    // it's own snapshot
+    ASSERT_EQ(2, stream->public_readyQ().size());
+    auto resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::SeqnoAcknowledgement, resp->getEvent());
+    auto ack = static_cast<SeqnoAcknowledgement&>(*resp);
+    EXPECT_EQ(1, ack.getPreparedSeqno());
+    resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::SeqnoAcknowledgement, resp->getEvent());
+    ack = static_cast<SeqnoAcknowledgement&>(*resp);
+    EXPECT_EQ(2, ack.getPreparedSeqno());
+
+    // 3) Shutdown and warmup again
+    consumer->closeAllStreams();
+    consumer.reset();
+    resetEngineAndWarmup();
+
+    // 4) Test that the stream now sends a seqno ack of 1 when we reconnect
+    uint32_t opaque = 0;
+    // Recreate the consumer
+    consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+    consumer->enableSyncReplication();
+    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    stream->acceptStream(cb::mcbp::Status::Success, opaque);
+
+    ASSERT_EQ(3, stream->public_readyQ().size());
+    resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::StreamReq, resp->getEvent());
+    resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::AddStream, resp->getEvent());
+    resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::SeqnoAcknowledgement, resp->getEvent());
+    ack = static_cast<SeqnoAcknowledgement&>(*resp);
     EXPECT_EQ(1, ack.getPreparedSeqno());
 }
 
