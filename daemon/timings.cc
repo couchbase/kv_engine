@@ -21,10 +21,20 @@ Timings::Timings() {
     reset();
 }
 
-void Timings::reset() {
+Timings::~Timings() {
+    std::lock_guard<std::mutex> lg(histogram_mutex);
     for (auto& t : timings) {
-        if (t) {
-            t->reset();
+        delete t;
+    }
+}
+
+void Timings::reset() {
+    {
+        std::lock_guard<std::mutex> lg(histogram_mutex);
+        for (auto& t : timings) {
+            if (t) {
+                t.load()->reset();
+            }
         }
     }
 
@@ -50,7 +60,7 @@ void Timings::collect(cb::mcbp::ClientOpcode opcode,
 std::string Timings::generate(cb::mcbp::ClientOpcode opcode) {
     auto* histoPtr =
             timings[std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode)]
-                    .get();
+                    .load();
     if (histoPtr) {
         return histoPtr->to_string();
     }
@@ -109,7 +119,7 @@ uint64_t Timings::get_aggregated_mutation_stats() {
     for (auto cmd : timings_mutations) {
         auto* histoPtr =
                 timings[std::underlying_type<cb::mcbp::ClientOpcode>::type(cmd)]
-                        .get();
+                        .load();
         if (histoPtr) {
             ret += histoPtr->getValueCount();
         }
@@ -123,7 +133,7 @@ uint64_t Timings::get_aggregated_retrival_stats() {
     for (auto cmd : timings_retrievals) {
         auto* histoPtr =
                 timings[std::underlying_type<cb::mcbp::ClientOpcode>::type(cmd)]
-                        .get();
+                        .load();
         if (histoPtr) {
             ret += histoPtr->getValueCount();
         }
@@ -143,17 +153,17 @@ cb::sampling::Interval Timings::get_interval_lookup_latency() {
 
 Hdr1sfMicroSecHistogram& Timings::get_or_create_timing_histogram(
         uint8_t opcode) {
-    if (timings[opcode] == nullptr) {
+    if (!timings[opcode]) {
         std::lock_guard<std::mutex> allocLock(histogram_mutex);
-        if (timings[opcode] == nullptr) {
-            timings[opcode] = std::make_unique<Hdr1sfMicroSecHistogram>();
+        if (!timings[opcode]) {
+            timings[opcode] = new Hdr1sfMicroSecHistogram();
         }
     }
-    return *timings[opcode];
+    return *(timings[opcode].load());
 }
 
 Hdr1sfMicroSecHistogram* Timings::get_timing_histogram(uint8_t opcode) const {
-    return timings[opcode].get();
+    return timings[opcode].load();
 }
 
 void Timings::sample(std::chrono::seconds sample_interval) {

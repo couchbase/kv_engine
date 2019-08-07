@@ -34,6 +34,7 @@ class Timings {
 public:
     Timings();
     Timings(const Timings&) = delete;
+    ~Timings();
 
     void reset();
     void collect(cb::mcbp::ClientOpcode opcode, std::chrono::nanoseconds nsec);
@@ -69,8 +70,7 @@ private:
     // create an array of unique_ptrs as we want to create HdrHistograms
     // in a lazy manner as their foot print is larger than our old
     // histogram class
-    std::array<std::unique_ptr<Hdr1sfMicroSecHistogram>, MAX_NUM_OPCODES>
-            timings;
+    std::array<std::atomic<Hdr1sfMicroSecHistogram*>, MAX_NUM_OPCODES> timings;
     std::mutex histogram_mutex;
     std::array<cb::sampling::Interval, MAX_NUM_OPCODES> interval_counters;
 };
