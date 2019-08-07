@@ -149,14 +149,6 @@ public:
     void notifyLocalPersistence() override;
 
     /**
-     * Remove all in-flight prepares after the new high seqno and add any new
-     * prepares for completions that we may be rolling back.
-     *
-     * @param rollbackResult the information required to rollback
-     */
-    void postProcessRollback(const RollbackResult& rollbackResult);
-
-    /**
      * Get the highest seqno for which there is a SyncWrite in trackedWrites.
      * Returns 0 if trackedWrites is empty.
      *

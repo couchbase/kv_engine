@@ -360,62 +360,6 @@ void PassiveDurabilityMonitor::completeSyncWrite(
     folly::assume_unreachable();
 }
 
-void PassiveDurabilityMonitor::postProcessRollback(
-        const RollbackResult& rollbackResult) {
-    // Sanity check that new HCS <= new HPS <= new high seqno
-    Expects(rollbackResult.highCompletedSeqno <=
-            rollbackResult.highPreparedSeqno);
-    Expects(rollbackResult.highPreparedSeqno <= rollbackResult.highSeqno);
-
-    auto s = state.wlock();
-
-    // If we rolled back any commits or aborts then we will have put the
-    // original prepare into the rollbackResult.preparesToAdd container. This
-    // container should be in seqno order. To maintain the seqno ordering of the
-    // trackedWrites container, we need to iterate on
-    // rollbackResult.preparesToAdd in reverse order and push the items to the
-    // front of trackedWrites.
-    std::chrono::milliseconds dummy{};
-    for (const auto& item :
-         boost::adaptors::reverse(rollbackResult.preparesToAdd)) {
-        if (static_cast<uint64_t>(item->getBySeqno()) >
-            rollbackResult.highCompletedSeqno) {
-            // Need to specify defaultTimeout for SyncWrite ctor, but we don't
-            // care about the values on replica and have read from disk so give
-            // it a dummy timeout.
-            s->trackedWrites.emplace_front(nullptr /*cookie*/,
-                                           std::move(item),
-                                           dummy,
-                                           nullptr /*firstChain*/,
-                                           nullptr /*secondChain*/);
-        }
-    }
-
-    // Remove everything with seqno > rollback point from trackedWrites
-    auto itr =
-            std::find_if(s->trackedWrites.begin(),
-                         s->trackedWrites.end(),
-                         [&rollbackResult](const auto& write) {
-                             return static_cast<uint64_t>(write.getBySeqno()) >
-                                    rollbackResult.highSeqno;
-                         });
-    s->trackedWrites.erase(itr, s->trackedWrites.end());
-
-    // Post-rollback we should not have any prepares in the PDM that have not
-    // been completed.
-    s->highCompletedSeqno.it = s->trackedWrites.end();
-    s->highCompletedSeqno.lastWriteSeqno.reset(
-            rollbackResult.highCompletedSeqno);
-
-    // The highPreparedSeqno should always point at the last item in
-    // trackedWrites. Every in-flight prepare should be satisfied locally as it
-    // will be on disk.
-    if (!s->trackedWrites.empty()) {
-        s->highPreparedSeqno.it = --s->trackedWrites.end();
-    }
-    s->highPreparedSeqno.lastWriteSeqno.reset(rollbackResult.highPreparedSeqno);
-}
-
 int64_t PassiveDurabilityMonitor::getHighestTrackedSeqno() const {
     auto s = state.rlock();
     if (!s->trackedWrites.empty()) {

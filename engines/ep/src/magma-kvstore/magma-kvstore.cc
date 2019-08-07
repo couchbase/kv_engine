@@ -2084,7 +2084,5 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
     return RollbackResult(true,
                           vbstate->highSeqno,
                           vbstate->lastSnapStart,
-                          vbstate->lastSnapEnd,
-                          vbstate->highCompletedSeqno,
-                          vbstate->highPreparedSeqno);
+                          vbstate->lastSnapEnd);
 }

@@ -2869,9 +2869,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
     return RollbackResult(true,
                           vb_state->highSeqno,
                           vb_state->lastSnapStart,
-                          vb_state->lastSnapEnd,
-                          vb_state->highCompletedSeqno,
-                          vb_state->highPreparedSeqno);
+                          vb_state->lastSnapEnd);
 }
 
 int populateAllKeys(Db *db, DocInfo *docinfo, void *ctx) {

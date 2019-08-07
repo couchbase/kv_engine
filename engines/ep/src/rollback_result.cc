@@ -19,25 +19,16 @@
 #include <gsl.h>
 
 RollbackResult::RollbackResult(bool success)
-    : success(success),
-      highSeqno(0),
-      snapStartSeqno(0),
-      snapEndSeqno(0),
-      highCompletedSeqno(0),
-      highPreparedSeqno(0) {
+    : success(success), highSeqno(0), snapStartSeqno(0), snapEndSeqno(0) {
     Expects(!success);
 }
 
 RollbackResult::RollbackResult(bool success,
                                uint64_t highSeqno,
                                uint64_t snapStartSeqno,
-                               uint64_t snapEndSeqno,
-                               uint64_t highCompletedSeqno,
-                               uint64_t highPreparedSeqno)
+                               uint64_t snapEndSeqno)
     : success(success),
       highSeqno(highSeqno),
       snapStartSeqno(snapStartSeqno),
-      snapEndSeqno(snapEndSeqno),
-      highCompletedSeqno(highCompletedSeqno),
-      highPreparedSeqno(highPreparedSeqno) {
+      snapEndSeqno(snapEndSeqno) {
 }

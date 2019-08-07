@@ -39,17 +39,10 @@ public:
     RollbackResult(bool success,
                    uint64_t highSeqno,
                    uint64_t snapStartSeqno,
-                   uint64_t snapEndSeqno,
-                   uint64_t highCompletedSeqno,
-                   uint64_t highPreparedSeqno);
+                   uint64_t snapEndSeqno);
 
     bool success;
     uint64_t highSeqno;
     uint64_t snapStartSeqno;
     uint64_t snapEndSeqno;
-    uint64_t highCompletedSeqno;
-    uint64_t highPreparedSeqno;
-
-    // Container of prepares that need to be added back to the Passive DM
-    std::vector<queued_item> preparesToAdd;
 };

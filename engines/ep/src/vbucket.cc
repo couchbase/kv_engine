@@ -2858,7 +2858,6 @@ void VBucket::postProcessRollback(const RollbackResult& rollbackResult,
     incrRollbackItemCount(prevHighSeqno - rollbackResult.highSeqno);
     checkpointManager->setOpenCheckpointId(1);
     setReceivingInitialDiskSnapshot(false);
-    getPassiveDM().postProcessRollback(rollbackResult);
 }
 
 void VBucket::collectionsRolledBack(KVStore& kvstore) {
