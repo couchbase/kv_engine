@@ -236,22 +236,22 @@ TEST(ManifestTest, validation) {
                 "scopes":[
                     {"name":"scope.name", "uid":"8", "collections":[]}]})",
 
-            // max_ttl invalid cases
+            // maxTTL invalid cases
             // wrong type
             R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
-                               {"name":"brewery","uid":"9","max_ttl":"string"}]}]})",
+                               {"name":"brewery","uid":"9","maxTTL":"string"}]}]})",
             // negative (doesn't make sense)
             R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
-                               {"name":"brewery","uid":"9","max_ttl":-700}]}]})",
+                               {"name":"brewery","uid":"9","maxTTL":-700}]}]})",
             // too big for 32-bit
             R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
-                               {"name":"brewery","uid":"9","max_ttl":4294967296}]}]})",
+                               {"name":"brewery","uid":"9","maxTTL":4294967296}]}]})",
             // Test duplicate scope names
             R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",
@@ -348,20 +348,20 @@ TEST(ManifestTest, validation) {
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[]}]})",
 
-            // max_ttl valid cases
+            // maxTTL valid cases
             R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
-                               {"name":"brewery","uid":"9","max_ttl":0}]}]})",
+                               {"name":"brewery","uid":"9","maxTTL":0}]}]})",
             R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
-                               {"name":"brewery","uid":"9","max_ttl":1}]}]})",
+                               {"name":"brewery","uid":"9","maxTTL":1}]}]})",
             // max u32int
             R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
-                               {"name":"brewery","uid":"9","max_ttl":4294967295}]}]})",
+                               {"name":"brewery","uid":"9","maxTTL":4294967295}]}]})",
     };
 
     for (auto& manifest : invalidManifests) {
@@ -539,14 +539,14 @@ TEST(ManifestTest, toJson) {
                 ASSERT_NE(collection2, (*scope2)["collections"].end());
                 // If we are here we know collection1 and collection2 have
                 // matching name and uid fields, check the other fields.
-                // max_ttl is optional
+                // maxTTL is optional
 
                 EXPECT_EQ(collection1.size(), collection2->size());
 
-                auto ttl1 = collection1.find("max_ttl");
+                auto ttl1 = collection1.find("maxTTL");
                 if (ttl1 != collection1.end()) {
                     ASSERT_EQ(3, collection1.size());
-                    auto ttl2 = collection2->find("max_ttl");
+                    auto ttl2 = collection2->find("maxTTL");
                     ASSERT_NE(ttl2, collection2->end());
                     EXPECT_EQ(*ttl1, *ttl2);
                 } else {

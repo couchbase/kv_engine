@@ -48,7 +48,7 @@ static constexpr nlohmann::json::value_t NameType =
 static constexpr char const* UidKey = "uid";
 static constexpr nlohmann::json::value_t UidType =
         nlohmann::json::value_t::string;
-static constexpr char const* MaxTtlKey = "max_ttl";
+static constexpr char const* MaxTtlKey = "maxTTL";
 static constexpr nlohmann::json::value_t MaxTtlType =
         nlohmann::json::value_t::number_unsigned;
 
@@ -211,7 +211,7 @@ Manifest::Manifest(cb::const_char_buffer json,
                 // Don't exceed 32-bit max
                 auto value = cmaxttl.get().get<uint64_t>();
                 if (value > std::numeric_limits<uint32_t>::max()) {
-                    throw std::out_of_range("Manifest::Manifest max_ttl:" +
+                    throw std::out_of_range("Manifest::Manifest maxTTL:" +
                                             std::to_string(value));
                 }
                 maxTtl = std::chrono::seconds(value);
@@ -294,7 +294,7 @@ std::string Manifest::toJson() const {
                 json << R"({"name":")" << collections.at(collection.id)
                      << R"(","uid":")" << std::hex << collection.id << "\"";
                 if (collection.maxTtl) {
-                    json << R"(,"max_ttl":)" << std::dec
+                    json << R"(,"maxTTL":)" << std::dec
                          << collection.maxTtl.get().count();
                 }
                 json << "}";

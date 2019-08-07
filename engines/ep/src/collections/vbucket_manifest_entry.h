@@ -180,7 +180,7 @@ private:
     /// The scope the collection belongs to
     ScopeID scopeID;
 
-    /// The max_ttl of the collection
+    /// The maxTTL of the collection
     cb::ExpiryLimit maxTtl;
 
     /**

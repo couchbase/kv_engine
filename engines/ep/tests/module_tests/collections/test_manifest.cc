@@ -68,7 +68,7 @@ CollectionsManifest& CollectionsManifest::add(
     jsonEntry["uid"] = ss.str();
 
     if (maxTtl) {
-        jsonEntry["max_ttl"] = maxTtl.get().count();
+        jsonEntry["maxTTL"] = maxTtl.get().count();
     }
 
     // Add the new collection to the set of collections belonging to the
@@ -154,7 +154,7 @@ CollectionsManifest::getCreateEventVector() const {
     for (const auto& scope : json["scopes"]) {
         for (const auto& collection : scope["collections"]) {
             cb::ExpiryLimit maxTtl;
-            auto ttl = collection.find("max_ttl");
+            auto ttl = collection.find("maxTTL");
             if (ttl != collection.end()) {
                 maxTtl = std::chrono::seconds(ttl->get<int32_t>());
             }

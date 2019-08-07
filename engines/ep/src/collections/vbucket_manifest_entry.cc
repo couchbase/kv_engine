@@ -97,7 +97,7 @@ bool Collections::VB::ManifestEntry::addStats(const std::string& cid,
         if (getMaxTtl()) {
             checked_snprintf(buffer,
                              bsize,
-                             "vb_%d:collection:%s:entry:max_ttl",
+                             "vb_%d:collection:%s:entry:maxTTL",
                              vbid.get(),
                              cid.c_str());
             add_casted_stat(buffer, getMaxTtl().get(), add_stat, cookie);

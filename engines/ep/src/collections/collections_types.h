@@ -146,7 +146,7 @@ struct CollectionMetaData {
     ScopeID sid{ScopeID::Default}; // The scope that the collection belongs to
     CollectionID cid{CollectionID::Default}; // The collection's ID
     std::string name{_DefaultCollectionIdentifier}; // The collection's name
-    cb::ExpiryLimit maxTtl; // The collection's max_ttl
+    cb::ExpiryLimit maxTtl; // The collection's maxTTL
 
     bool operator==(const CollectionMetaData& other) const {
         return sid == other.sid && cid == other.cid && name == other.name &&
@@ -220,10 +220,10 @@ struct CreateWithMaxTtlEventDcpData {
     ScopeIDNetworkOrder sid;
     /// The collection id stored in network byte order ready for sending
     CollectionIDNetworkOrder cid;
-    /// The collection's max_ttl value (in network byte order)
+    /// The collection's maxTTL value (in network byte order)
     uint32_t maxTtl;
     // The size is sizeof(manifestUid) + sizeof(cid) + sizeof(sid) +
-    //             sizeof(max_ttl) (msvc won't allow that expression)
+    //             sizeof(maxTTL) (msvc won't allow that expression)
     constexpr static size_t size{20};
 };
 

@@ -148,7 +148,7 @@ public:
     CollectionsManifest& add(const ScopeEntry::Entry& entry);
 
     /// Add the collection entry to the given scope - allows duplicates
-    /// caller specifies the collection max_ttl
+    /// caller specifies the collection maxTTL
     /// Adds the collection to the default scope if not are specified
     CollectionsManifest& add(
             const CollectionEntry::Entry& collectionEntry,

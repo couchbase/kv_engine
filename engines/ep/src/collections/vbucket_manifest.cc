@@ -220,7 +220,7 @@ void Manifest::addCollection(const WriteHandle& wHandle,
     EP_LOG_INFO(
             "collections: {} adding collection:[name:{},id:{:x}] to "
             "scope:{:x}, "
-            "max_ttl:{} {}, "
+            "maxTTL:{} {}, "
             "replica:{}, backfill:{}, seqno:{}, manifest:{:x}",
             vb.getId(),
             cb::to_string(collectionName),
@@ -549,7 +549,7 @@ time_t Manifest::processExpiryTime(const container::const_iterator entry,
         enforcedTtl = entry->second.getMaxTtl().get();
     }
 
-    // Note: A ttl value of 0 means no max_ttl
+    // Note: A ttl value of 0 means no maxTTL
     if (enforcedTtl.count()) {
         t = ep_limit_abstime(t, enforcedTtl);
     }

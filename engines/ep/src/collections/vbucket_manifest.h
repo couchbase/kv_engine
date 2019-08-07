@@ -411,12 +411,12 @@ public:
 
         /**
          * Check the Item's exptime against its collection config.
-         * If the collection defines a max_ttl and the Item has no expiry or
-         * an exptime which exceeds the max_ttl, set the expiry of the Item
-         * based on the collection max_ttl.
+         * If the collection defines a maxTTL and the Item has no expiry or
+         * an exptime which exceeds the maxTTL, set the expiry of the Item
+         * based on the collection maxTTL.
          *
          * @param itm The reference to the Item to check and change if needed
-         * @param bucketTtl the value of the bucket's max_ttl, 0 being none
+         * @param bucketTtl the value of the bucket's maxTTL, 0 being none
          */
         void processExpiryTime(Item& itm,
                                std::chrono::seconds bucketTtl) const {
@@ -426,10 +426,10 @@ public:
         /**
          * t represents an absolute expiry time and this method returns t or a
          * limited expiry time, based on the values of the bucketTtl and the
-         * collection's max_ttl.
+         * collection's maxTTL.
          *
          * @param t an expiry time to process
-         * @param bucketTtl the value of the bucket's max_ttl, 0 being none
+         * @param bucketTtl the value of the bucket's maxTTL, 0 being none
          * @returns t or now + appropriate limit
          */
         time_t processExpiryTime(time_t t,
@@ -835,7 +835,7 @@ protected:
      * @param manifestUid the uid of the manifest which made the change
      * @param identifiers ScopeID and CollectionID pair
      * @param collectionName Name of the added collection
-     * @param maxTtl An optional max_ttl for the collection
+     * @param maxTtl An optional maxTTL for the collection
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
      */
@@ -1128,8 +1128,8 @@ protected:
      * Add a collection entry to the manifest specifing the revision that it was
      * seen in and the sequence number span covering it.
      * @param identifiers ScopeID and CollectionID pair
-     * @param maxTtl The max_ttl that if defined will be applied to new items of
-     *        the collection (overriding bucket max_ttl)
+     * @param maxTtl The maxTTL that if defined will be applied to new items of
+     *        the collection (overriding bucket maxTTL)
      * @param startSeqno The seqno where the collection begins. Defaults to 0.
      * @return a non const reference to the new ManifestEntry so the caller can
      *         set the correct seqno.

@@ -158,8 +158,9 @@ A collection entry is define to have the following keys:
  unique within the scope.
 * `uid`: Required - A unique ID for the collection (unique amongst every collection
  regardless of the scope), formatted as a base-16 value.
-* `max_ttl`: Optional - An integer value defining the max_ttl to apply to the
- collection.
+* `maxTTL`: Optional - An integer value defining the maximum time-to-live (in seconds)
+ to apply to the new items added to the collection. The value has the same properties
+ as the bucket TTL.
 
 For example:
 ```
@@ -177,7 +178,7 @@ For example:
         {
           "name": "brewery",
           "uid": "1c",
-          "max_ttl": 1
+          "maxTTL": 1
         }
       ]
     }

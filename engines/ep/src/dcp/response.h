@@ -1054,7 +1054,7 @@ public:
     }
 
     /**
-     * @return max_ttl of collection
+     * @return maxTTL of collection
      */
     cb::ExpiryLimit getMaxTtl() const {
         if (event.getVersion() == mcbp::systemevent::version::version0) {

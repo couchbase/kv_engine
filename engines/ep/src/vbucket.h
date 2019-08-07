@@ -805,7 +805,7 @@ public:
      * @param uid the uid of the manifest which made the change
      * @param identifiers ScopeID and CollectionID pair
      * @param collectionName name of the added collection
-     * @param maxTtl An optional max_ttl for the collection
+     * @param maxTtl An optional maxTTL for the collection
      * @param bySeqno The seqno assigned to the collection create event.
      */
     void replicaAddCollection(Collections::ManifestUid uid,
