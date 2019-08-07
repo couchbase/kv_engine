@@ -76,13 +76,6 @@ void logWarmupStats(EPBucket& epstore) {
             megabytes_per_seconds);
 }
 
-/**
- * Returns the ValueFilter to use for KVStore scans, given the bucket
- * compression mode.
- */
-static ValueFilter getValueFilterForCompressionMode(
-        const BucketCompressionMode& compressionMode);
-
 //////////////////////////////////////////////////////////////////////////////
 //                                                                          //
 //    Helper class used to insert data into the epstore                     //
@@ -1220,119 +1213,17 @@ void Warmup::scheduleLoadPreparedSyncWrites() {
 }
 
 void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
-    // Perform an in-order scan of the seqno index.
-    // a) For each Prepared item found, add to a map of outstanding Prepares.
-    // b) For each Committed (via Mutation or Prepare) item, if there's an
-    //    outstanding Prepare then that prepare has already been Committed,
-    //    hence remove it from the map.
-    //
-    // At the end of the scan, all outstanding Prepared items (which did not
-    // have a Commit persisted to disk) will be registered with the Durability
-    // Monitor.
-
-    /// Disk load callback for scan.
-    struct LoadSyncWrites : public StatusCallback<GetValue> {
-        LoadSyncWrites(EPVBucket& vb) : vb(vb) {
-        }
-
-        void callback(GetValue& val) override {
-            if (val.item->isPending()) {
-                // Pending item which was not aborted (deleted). Add to
-                // outstanding Prepare map.
-                outstandingPrepares.emplace(val.item->getKey(),
-                                            std::move(val.item));
-                return;
-            }
-
-            if (val.item->isCommitted()) {
-                // Committed item. _If_ there's an outstanding prepared
-                // SyncWrite, remove it (as it has already been committed).
-                outstandingPrepares.erase(val.item->getKey());
-                return;
-            }
-        }
-
-        EPVBucket& vb;
-
-        /// Map of Document key -> outstanding (not yet Committed / Aborted)
-        /// prepares.
-        std::unordered_map<StoredDocKey, std::unique_ptr<Item>>
-                outstandingPrepares;
-    };
-
     for (const auto vbid : shardVbIds[shardId]) {
-        const auto start = std::chrono::steady_clock::now();
         auto itr = warmedUpVbuckets.find(vbid.get());
         if (itr == warmedUpVbuckets.end()) {
             continue;
         }
-        auto& epVb = dynamic_cast<EPVBucket&>(*(itr->second));
 
-        auto storageCB = std::make_shared<LoadSyncWrites>(epVb);
-
-        // Don't expect to find anything already in the HashTable, so use
-        // NoLookupCallback.
-        auto cacheCB = std::make_shared<NoLookupCallback>();
-
-        // @todo-durability: We can optimise this by starting the scan at the
-        // high_committed_seqno - all earlier prepares would have been committed
-        // (or were aborted).
-        uint64_t startSeqno = 0;
-
-        auto* kvStore = store.getROUnderlyingByShard(shardId);
-        // Use ALL_ITEMS filter for the scan. NO_DELETES is insufficient
-        // because (committed) SyncDeletes manifest as a prepared_sync_write
-        // (doc on disk not deleted) followed by a commit_sync_write (which
-        // *is* marked as deleted as that's the resulting state).
-        // We need to see that Commit, hence ALL_ITEMS.
-        const auto docFilter = DocumentFilter::ALL_ITEMS;
-        const auto valFilter = getValueFilterForCompressionMode(
-                store.getEPEngine().getCompressionMode());
-        auto* scanCtx = kvStore->initScanContext(
-                storageCB, cacheCB, vbid, startSeqno, docFilter, valFilter);
-
-        // storage problems can lead to a null context, kvstore logs details
-        if (!scanCtx) {
-            EP_LOG_CRITICAL(
-                    "Warmup::loadPreparedSyncWrites: scanCtx is null for {}", vbid);
-            continue;
-        }
-
-        auto scanResult = kvStore->scan(scanCtx);
-        Expects(scanResult == scan_success);
-
-        kvStore->destroyScanContext(scanCtx);
-
-        EP_LOG_DEBUG(
-                "Warmup::loadPreparedSyncWrites: Identified {} outstanding "
-                "prepared SyncWrites for {} in {}",
-                storageCB->outstandingPrepares.size(),
-                vbid,
-                cb::time2text(std::chrono::steady_clock::now() - start));
-
-        // Insert all outstanding Prepares into the VBucket (HashTable &
-        // DurabilityMonitor).
-        std::vector<queued_item> prepares;
-        for (auto& prepare : storageCB->outstandingPrepares) {
-            prepares.emplace_back(std::move(prepare.second));
-        }
-        // Sequence must be sorted by seqno (ascending) for DurabilityMonitor.
-        std::sort(prepares.begin(),
-                  prepares.end(),
-                  [](const auto& a, const auto& b) {
-                      return a->getBySeqno() < b->getBySeqno();
-                  });
-
-        // Need the HPS/HCS so the DurabilityMonitor can be fully resumed
-        auto vbState = shardVbStates[shardId].find(vbid);
-        if (vbState == shardVbStates[shardId].end()) {
-            throw std::logic_error(
-                    "Warmup::loadPreparedSyncWrites: processing " +
-                    vbid.to_string() + ", but found no vbucket_state");
-        }
-        const vbucket_state& vbs = vbState->second;
-
-        epVb.restoreOutstandingPreparesFromWarmup(vbs, std::move(prepares));
+        // Our EPBucket function will do the load for us as we re-use the code
+        // for rollback.
+        auto& vb = *(itr->second);
+        folly::SharedMutex::WriteHolder vbStateLh(vb.getStateLock());
+        store.loadPreparedSyncWrites(vbStateLh, vb);
     }
 
     if (++threadtask_count == store.vbMap.getNumShards()) {
@@ -1572,16 +1463,6 @@ void Warmup::scheduleLoadingKVPairs()
 
 }
 
-ValueFilter getValueFilterForCompressionMode(
-                    const BucketCompressionMode& compressionMode) {
-
-    if (compressionMode != BucketCompressionMode::Off) {
-        return ValueFilter::VALUES_COMPRESSED;
-    }
-
-    return ValueFilter::VALUES_DECOMPRESSED;
-}
-
 void Warmup::loadKVPairsforShard(uint16_t shardId)
 {
     bool maybe_enable_traffic = false;
@@ -1597,8 +1478,7 @@ void Warmup::loadKVPairsforShard(uint16_t shardId)
     auto cl =
             std::make_shared<LoadValueCallback>(store.vbMap, state.getState());
 
-    ValueFilter valFilter = getValueFilterForCompressionMode(
-                                    store.getEPEngine().getCompressionMode());
+    ValueFilter valFilter = store.getValueFilterForCompressionMode();
 
     for (const auto vbid : shardVbIds[shardId]) {
         ScanContext* ctx = kvstore->initScanContext(cb, cl, vbid, 0,
@@ -1640,8 +1520,7 @@ void Warmup::loadDataforShard(uint16_t shardId)
     auto cl =
             std::make_shared<LoadValueCallback>(store.vbMap, state.getState());
 
-    ValueFilter valFilter = getValueFilterForCompressionMode(
-                                          store.getEPEngine().getCompressionMode());
+    ValueFilter valFilter = store.getValueFilterForCompressionMode();
 
     for (const auto vbid : shardVbIds[shardId]) {
         ScanContext* ctx = kvstore->initScanContext(cb, cl, vbid, 0,

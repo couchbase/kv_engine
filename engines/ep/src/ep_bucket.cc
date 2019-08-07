@@ -40,6 +40,8 @@
 
 #include "dcp/dcpconnmap.h"
 
+#include <platform/timeutils.h>
+
 #include <gsl.h>
 
 /**
@@ -1317,6 +1319,130 @@ void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
             }
         }
     }
+}
+
+// Perform an in-order scan of the seqno index.
+// a) For each Prepared item found, add to a map of outstanding Prepares.
+// b) For each Committed (via Mutation or Prepare) item, if there's an
+//    outstanding Prepare then that prepare has already been Committed,
+//    hence remove it from the map.
+//
+// At the end of the scan, all outstanding Prepared items (which did not
+// have a Commit persisted to disk) will be registered with the Durability
+// Monitor.
+void EPBucket::loadPreparedSyncWrites(
+        folly::SharedMutex::WriteHolder& vbStateLh, VBucket& vb) {
+    /// Disk load callback for scan.
+    struct LoadSyncWrites : public StatusCallback<GetValue> {
+        LoadSyncWrites(EPVBucket& vb) : vb(vb) {
+        }
+
+        void callback(GetValue& val) override {
+            if (val.item->isPending()) {
+                // Pending item which was not aborted (deleted). Add to
+                // outstanding Prepare map.
+                outstandingPrepares.emplace(val.item->getKey(),
+                                            std::move(val.item));
+                return;
+            }
+
+            if (val.item->isCommitted()) {
+                // Committed item. _If_ there's an outstanding prepared
+                // SyncWrite, remove it (as it has already been committed).
+                outstandingPrepares.erase(val.item->getKey());
+                return;
+            }
+        }
+
+        EPVBucket& vb;
+
+        /// Map of Document key -> outstanding (not yet Committed / Aborted)
+        /// prepares.
+        std::unordered_map<StoredDocKey, std::unique_ptr<Item>>
+                outstandingPrepares;
+    };
+
+    auto& epVb = dynamic_cast<EPVBucket&>(vb);
+    const auto start = std::chrono::steady_clock::now();
+
+    // @TODO MB-34017: We can optimise this by starting the scan at the
+    // high_committed_seqno - all earlier prepares would have been committed
+    // (or were aborted) and only scanning up to the high prepared seqno.
+    uint64_t startSeqno = 0;
+
+    // Get the kvStore. Using the RW store as the rollback code that will call
+    // this function will modify vbucket_state that will only be reflected in
+    // RW store. For warmup case, we don't allow writes at this point in time
+    // anyway.
+    auto* kvStore = getRWUnderlyingByShard(epVb.getShard()->getId());
+
+    auto storageCB = std::make_shared<LoadSyncWrites>(epVb);
+
+    // Don't expect to find anything already in the HashTable, so use
+    // NoLookupCallback.
+    auto cacheCB = std::make_shared<NoLookupCallback>();
+
+    // Use ALL_ITEMS filter for the scan. NO_DELETES is insufficient
+    // because (committed) SyncDeletes manifest as a prepared_sync_write
+    // (doc on disk not deleted) followed by a commit_sync_write (which
+    // *is* marked as deleted as that's the resulting state).
+    // We need to see that Commit, hence ALL_ITEMS.
+    const auto docFilter = DocumentFilter::ALL_ITEMS;
+    const auto valFilter = getValueFilterForCompressionMode();
+
+    auto* scanCtx = kvStore->initScanContext(
+            storageCB, cacheCB, epVb.getId(), startSeqno, docFilter, valFilter);
+
+    // Storage problems can lead to a null context, kvstore logs details
+    if (!scanCtx) {
+        EP_LOG_CRITICAL(
+                "EPBucket::loadPreparedSyncWrites: scanCtx is null for {}",
+                epVb.getId());
+        return;
+    }
+
+    auto scanResult = kvStore->scan(scanCtx);
+    Expects(scanResult == scan_success);
+
+    kvStore->destroyScanContext(scanCtx);
+
+    EP_LOG_DEBUG(
+            "EPBucket::loadPreparedSyncWrites: Identified {} outstanding "
+            "prepared SyncWrites for {} in {}",
+            storageCB->outstandingPrepares.size(),
+            epVb.getId(),
+            cb::time2text(std::chrono::steady_clock::now() - start));
+
+    // Insert all outstanding Prepares into the VBucket (HashTable &
+    // DurabilityMonitor).
+    std::vector<queued_item> prepares;
+    for (auto& prepare : storageCB->outstandingPrepares) {
+        prepares.emplace_back(std::move(prepare.second));
+    }
+    // Sequence must be sorted by seqno (ascending) for DurabilityMonitor.
+    std::sort(
+            prepares.begin(), prepares.end(), [](const auto& a, const auto& b) {
+                return a->getBySeqno() < b->getBySeqno();
+            });
+
+    // Need the HPS/HCS so the DurabilityMonitor can be fully resumed
+    auto vbState = kvStore->getVBucketState(epVb.getId());
+    if (!vbState) {
+        throw std::logic_error("EPBucket::loadPreparedSyncWrites: processing " +
+                               epVb.getId().to_string() +
+                               ", but found no vbucket_state");
+    }
+
+    epVb.loadOutstandingPrepares(vbStateLh, *vbState, std::move(prepares));
+}
+
+ValueFilter EPBucket::getValueFilterForCompressionMode() {
+    auto compressionMode = engine.getCompressionMode();
+    if (compressionMode != BucketCompressionMode::Off) {
+        return ValueFilter::VALUES_COMPRESSED;
+    }
+
+    return ValueFilter::VALUES_DECOMPRESSED;
 }
 
 void EPBucket::notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) {

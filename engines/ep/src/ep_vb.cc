@@ -743,13 +743,10 @@ MutationStatus EPVBucket::insertFromWarmup(Item& itm,
     return ht.insertFromWarmup(itm, eject, keyMetaDataOnly, eviction);
 }
 
-void EPVBucket::restoreOutstandingPreparesFromWarmup(
+void EPVBucket::loadOutstandingPrepares(
+        const folly::SharedMutex::WriteHolder& vbStateLock,
         const vbucket_state& vbs,
         std::vector<queued_item>&& outstandingPrepares) {
-    // About to change the durabilityMonitor object, which is guarded by
-    // stateLock.
-    folly::SharedMutex::WriteHolder wlh(getStateLock());
-
     // First insert all prepares into the HashTable, updating their type
     // to PreparedMaybeVisible to ensure that the document cannot be read until
     // the Prepare is re-committed.

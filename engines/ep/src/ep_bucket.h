@@ -137,6 +137,15 @@ public:
 
     void rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) override;
 
+    void loadPreparedSyncWrites(folly::SharedMutex::WriteHolder& vbStateLh,
+                                VBucket& vb) override;
+
+    /**
+     * Returns the ValueFilter to use for KVStore scans, given the bucket
+     * compression mode.
+     */
+    ValueFilter getValueFilterForCompressionMode();
+
     void notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) override;
 
     virtual bool isGetAllKeysSupported() const override {
