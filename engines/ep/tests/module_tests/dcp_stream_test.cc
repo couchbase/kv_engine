@@ -18,6 +18,7 @@
 #include "dcp_stream_test.h"
 
 #include "checkpoint_manager.h"
+#include "dcp/backfill-manager.h"
 #include "dcp/backfill_disk.h"
 #include "dcp/backfill_memory.h"
 #include "dcp/dcpconnmap.h"
@@ -1511,8 +1512,6 @@ TEST_P(SingleThreadedActiveStreamTest, DiskSnapshotSendsChkMarker) {
     // Get rid of set_vb_state and any other queue_op we are not interested in
     ckptMgr.clear(*vb, 0 /*seqno*/);
 
-    stream->markDiskSnapshot(1, 1);
-
     const auto key = makeStoredDocKey("key");
     const std::string value = "value";
     auto item = make_item(vbid, key, value);
@@ -1520,27 +1519,34 @@ TEST_P(SingleThreadedActiveStreamTest, DiskSnapshotSendsChkMarker) {
     EXPECT_EQ(MutationStatus::WasClean,
               public_processSet(*vb, item, VBQueueItemCtx()));
 
-    // We must have ckpt-start
-    auto outItemsResult = stream->public_getOutstandingItems(*vb);
-    ASSERT_EQ(2, outItemsResult.items.size());
-    ASSERT_EQ(queue_op::checkpoint_start,
-              outItemsResult.items.at(0)->getOperation());
-    // Stream::readyQ still empty
-    ASSERT_EQ(0, stream->public_readyQSize());
-    // Push items into the Stream::readyQ
-    stream->public_processItems(outItemsResult);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+
+    // Run the backfill we scheduled when we transitioned to the backfilling
+    // state. Only run the backfill task once because we only care about the
+    // snapshot marker.
+    auto& bfm = producer->getBFM();
+    bfm.backfill();
 
     // No message processed, BufferLog empty
     ASSERT_EQ(0, producer->getBytesOutstanding());
 
     // readyQ must contain a SnapshotMarker
-    ASSERT_EQ(2, stream->public_readyQSize());
+    ASSERT_EQ(1, stream->public_readyQSize());
     auto resp = stream->public_nextQueuedItem();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
 
     auto& marker = dynamic_cast<SnapshotMarker&>(*resp);
-    ASSERT_TRUE(marker.getFlags() & MARKER_FLAG_CHK);
+    EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_CHK);
+    EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
+
+    producer->cancelCheckpointCreatorTask();
 }
 
 /*
