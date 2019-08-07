@@ -897,14 +897,14 @@ void HashTable::dump() const {
 
 nlohmann::json HashTable::dumpStoredValuesAsJson() const {
     MultiLockHolder mlh(mutexes);
-    auto obj = nlohmann::json::object();
+    auto obj = nlohmann::json::array();
     for (const auto& chain : values) {
         if (chain) {
             for (StoredValue* sv = chain.get().get(); sv != nullptr;
                  sv = sv->getNext().get().get()) {
                 std::stringstream ss;
                 ss << sv->getKey();
-                obj[ss.str()] = *sv;
+                obj.push_back(*sv);
             }
         }
     }

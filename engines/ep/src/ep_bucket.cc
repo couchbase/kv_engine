@@ -1206,7 +1206,19 @@ public:
         // This is the item in its current state, after the rollback seqno
         // (i.e. the state that we are reverting)
         UniqueItemPtr postRbSeqnoItem(std::move(val.item));
+
         VBucketPtr vb = engine.getVBucket(postRbSeqnoItem->getVBucketId());
+
+        // Nuke anything in the prepare namespace, we'll do a "warmup" later
+        // which will restore everything to the way it should be and this is
+        // far easier than dealing with individual states.
+        if (postRbSeqnoItem->isPending() || postRbSeqnoItem->isAbort()) {
+            removeDeletedDoc(*vb, *postRbSeqnoItem);
+            return;
+        }
+
+        EP_LOG_DEBUG("EPDiskRollbackCB: Handling post rollback item: {}",
+                     *postRbSeqnoItem);
 
         // The get value of the item before the rollback seqno
         GetValue preRbSeqnoGetValue =
@@ -1216,10 +1228,18 @@ public:
                                         DiskDocKey{*postRbSeqnoItem},
                                         postRbSeqnoItem->getVBucketId(),
                                         GetMetaOnly::No);
+
+        // This is the item in the state it was before the rollback seqno
+        // (i.e. the desired state). null if there was no previous
+        // Item.
+        UniqueItemPtr preRbSeqnoItem(std::move(preRbSeqnoGetValue.item));
+
         if (preRbSeqnoGetValue.getStatus() == ENGINE_SUCCESS) {
-            // This is the item in the state it was before the rollback seqno
-            // (i.e. the desired state)
-            UniqueItemPtr preRbSeqnoItem(std::move(preRbSeqnoGetValue.item));
+            EP_LOG_DEBUG(
+                    "EPDiskRollbackCB: Item existed pre-rollback; restoring to "
+                    "pre-rollback state: {}",
+                    *preRbSeqnoItem);
+
             if (preRbSeqnoItem->isDeleted()) {
                 // If the item existed before, but had been deleted, we
                 // should delete it now
@@ -1228,9 +1248,33 @@ public:
                 // The item existed before and was not deleted, we need to
                 // revert the items state to the preRollbackSeqno state
                 MutationStatus mtype = vb->setFromInternal(*preRbSeqnoItem);
-
-                if (mtype == MutationStatus::NoMem) {
+                switch (mtype) {
+                case MutationStatus::NotFound:
+                    // NotFound is valid - if the item has been deleted
+                    // in-memory, but that was not flushed to disk as of
+                    // post-rollback seqno.
+                    break;
+                case MutationStatus::WasClean:
+                    // Item hasn't been modified since it was persisted to disk
+                    // as of post-rollback seqno.
+                    break;
+                case MutationStatus::WasDirty:
+                    // Item was modifed since it was persisted to disk - this
+                    // is ok because it's just a mutation which has not yet
+                    // been persisted to disk as of post-rollback seqno.
+                    break;
+                case MutationStatus::NoMem:
                     setStatus(ENGINE_ENOMEM);
+                    break;
+                case MutationStatus::InvalidCas:
+                case MutationStatus::IsLocked:
+                case MutationStatus::NeedBgFetch:
+                case MutationStatus::IsPendingSyncWrite:
+                    std::stringstream ss;
+                    ss << "EPDiskRollbackCB: Unexpected status:"
+                       << to_string(mtype)
+                       << " after setFromInternal for item:" << *preRbSeqnoItem;
+                    throw std::logic_error(ss.str());
                 }
 
                 // If we are rolling back a deletion then we should increment
@@ -1244,47 +1288,14 @@ public:
                             .lock(preRbSeqnoItem->getKey())
                             .incrementDiskCount();
                 }
-
-                if (postRbSeqnoItem->isCommitSyncWrite() ||
-                    postRbSeqnoItem->isAbort()) {
-                    rollbackSyncWrite(*vb, *postRbSeqnoItem);
-                }
             }
         } else if (preRbSeqnoGetValue.getStatus() == ENGINE_KEY_ENOENT) {
             // If the item did not exist before we should delete it now
             removeDeletedDoc(*vb, *postRbSeqnoItem);
-
-            // If we are rolling back a commit that did not exist on disk
-            // before then we need to requeue a prepare
-            if (postRbSeqnoItem->isCommitSyncWrite()) {
-                rollbackSyncWrite(*vb, *postRbSeqnoItem);
-            }
         } else {
             EP_LOG_WARN(
                     "EPDiskRollbackCB::callback:Unexpected Error Status: {}",
                     preRbSeqnoGetValue.getStatus());
-        }
-    }
-
-    void rollbackSyncWrite(VBucket& vb, const Item& postRbSeqnoItem) {
-        // Search for prepare in the pre-rollback header
-        GetValue preRbSeqnoPrepare =
-                engine.getKVBucket()
-                        ->getROUnderlying(postRbSeqnoItem.getVBucketId())
-                        ->getWithHeader(dbHandle,
-                                        DiskDocKey(postRbSeqnoItem.getKey(),
-                                                   true /*prepare*/),
-                                        postRbSeqnoItem.getVBucketId(),
-                                        GetMetaOnly::No);
-        if (preRbSeqnoPrepare.getStatus() == ENGINE_SUCCESS &&
-            !preRbSeqnoPrepare.item->isDeleted()) {
-            // Exists before so we are rolling back to prepare
-            vb.addSyncWriteForRollback(*preRbSeqnoPrepare.item);
-
-            // Store the prepare we need to add back in to the Passive DM for
-            // post-rollback processing.
-            queued_item qi(std::make_unique<Item>(*preRbSeqnoPrepare.item));
-            preparesToAdd.push_back(qi);
         }
     }
 
@@ -1318,7 +1329,6 @@ RollbackResult EPBucket::doRollback(Vbid vbid, uint64_t rollbackSeqno) {
     auto cb = std::make_shared<EPDiskRollbackCB>(engine);
     KVStore* rwUnderlying = vbMap.getShardByVbId(vbid)->getRWUnderlying();
     auto result = rwUnderlying->rollback(vbid, rollbackSeqno, cb);
-    result.preparesToAdd = cb->preparesToAdd;
     return result;
 }
 

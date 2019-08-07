@@ -86,12 +86,15 @@ protected:
 
     /**
      * Returns the json returned from HashTable::dumpStoredValuesAsJson without
-     * the dirty field as this may not be the same post-rollback.
+     * the dirty field as this may not be the same post-rollback. Also removes
+     * the exp time field as it will be different post rollback for any tests
+     * that test deleted items.
      */
     nlohmann::json getHtState() {
         auto json = store->getVBucket(vbid)->ht.dumpStoredValuesAsJson();
         for (auto& sv : json) {
             sv.erase("dirty");
+            sv.erase("exp time");
         }
         return json;
     }
@@ -932,26 +935,76 @@ public:
     }
 
     /**
-     * Writes six (the minimum for all tests that currently call this function)
-     * items on which we will rollback (we can only roll back half of our items
-     * or we rollback to zero)
+     * Writes 1 (the minimum for all tests that currently call this function)
+     * items on which we will rollback. We need 1 item to set up our stream.
      */
     void writeBaseItems();
 
     /**
      * Receive and flush a DCP prepare
+     *
+     * @param key Key to use for the Prepare.
+     * @param value Value to use for the Prepare.
+     * @param syncDelete is this a SyncWrite or SyncDelete
      */
-    void doPrepare();
+    void doPrepare(StoredDocKey key,
+                   std::string value,
+                   bool syncDelete = false);
+
+    /**
+     * Receive and fulsh a DCP commit
+     *
+     * @param key Key to use for the Commit.
+     */
+    void doCommit(StoredDocKey key);
 
     /**
      * Receive and flush a DCP prepare followed by a DCP commit
+     *
+     * @param key Key to use for the Prepare and Commit.
+     * @param value Value to use for the Prepare.
+     * @param syncDelete is this a SyncWrite or SyncDelete
      */
-    void doPrepareAndCommit();
+    void doPrepareAndCommit(StoredDocKey key,
+                            std::string value,
+                            bool syncDelete = false);
+    /**
+     * Receive and flush a DCP abort
+     *
+     * @param key Key to use for the Abort.
+     */
+    void doAbort(StoredDocKey key);
 
     /**
      * Receive and flush a DCP prepare followed by a DCP abort
+     *
+     * @param key Key to use for the Prepare and Abort.
+     * @param value Value to use for the Prepare.
+     * @param syncDelete is this a SyncWrite or SyncDelete
      */
-    void doPrepareAndAbort();
+    void doPrepareAndAbort(StoredDocKey key,
+                           std::string value,
+                           bool syncDeleted = false);
+
+    void rollbackPrepare(bool deleted);
+    void rollbackPrepareOnTopOfSyncWrite(bool syncDelete, bool deletedPrepare);
+    void rollbackSyncWrite(bool deleted);
+    void rollbackAbortedSyncWrite(bool deleted);
+    void rollbackSyncWriteOnTopOfSyncWrite(bool syncDeleteFirst,
+                                           bool syncDeleteSecond);
+    void rollbackSyncWriteOnTopOfAbortedSyncWrite(bool syncDeleteFirst,
+                                                  bool syncDeleteSecond);
+    void rollbackToZeroWithSyncWrite(bool deleted);
+    void rollbackCommit(bool deleted);
+    void rollbackCommitOnTopOfSyncWrite(bool syncDeleteFirst,
+                                        bool syncDeleteSecond);
+    void rollbackCommitOnTopOfAbortedSyncWrite(bool syncDeleteFirst,
+                                               bool syncDeleteSecond);
+    void rollbackAbort(bool deleted);
+    void rollbackAbortOnTopOfSyncWrite(bool syncDeleteFirst,
+                                       bool syncDeleteSecond);
+    void rollbackAbortOnTopOfAbortedSyncWrite(bool syncDeleteFirst,
+                                              bool syncDeleteSecond);
 
     std::shared_ptr<MockDcpConsumer> consumer;
     DcpProducers producers;
@@ -1088,7 +1141,7 @@ TEST_P(RollbackDcpTest, test_rollback_nonzero) {
 }
 
 void RollbackDcpTest::writeBaseItems() {
-    const int items = 6;
+    const int items = 1;
     const int flushes = 1;
     createItems(items, flushes);
 
@@ -1098,7 +1151,9 @@ void RollbackDcpTest::writeBaseItems() {
     ASSERT_TRUE(stream);
 }
 
-void RollbackDcpTest::doPrepare() {
+void RollbackDcpTest::doPrepare(StoredDocKey key,
+                                std::string value,
+                                bool syncDelete) {
     auto stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
     auto startSeqno = vb->getHighSeqno();
@@ -1113,8 +1168,7 @@ void RollbackDcpTest::doPrepare() {
             {} /*streamId*/);
     stream->processMarker(&marker);
 
-    auto key = makeStoredDocKey("key");
-    auto prepare = makePendingItem(key, "value");
+    auto prepare = makePendingItem(key, value);
 
     // The producer would normally do this for us
     prepare->setCas(999);
@@ -1123,18 +1177,22 @@ void RollbackDcpTest::doPrepare() {
     prepare->setPendingSyncWrite(
             Requirements{Level::Majority, Timeout::Infinity()});
 
+    // The consumer would normally do this for us
+    prepare->setPreparedMaybeVisible();
+    if (syncDelete) {
+        prepare->setDeleted();
+    }
+
     ASSERT_EQ(ENGINE_SUCCESS, store->prepare(*prepare, cookie));
     flush_vbucket_to_disk(vbid, 1);
 }
 
-void RollbackDcpTest::doPrepareAndCommit() {
-    doPrepare();
+void RollbackDcpTest::doCommit(StoredDocKey key) {
     auto stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
 
     auto prepareSeqno = vb->getHighSeqno();
     auto commitSeqno = prepareSeqno + 1;
-    auto key = makeStoredDocKey("key");
     SnapshotMarker marker(
             0 /*opaque*/,
             vbid,
@@ -1165,14 +1223,19 @@ void RollbackDcpTest::doPrepareAndCommit() {
     ASSERT_EQ(prepareSeqno, passiveDm.getHighCompletedSeqno());
 }
 
-void RollbackDcpTest::doPrepareAndAbort() {
-    doPrepare();
+void RollbackDcpTest::doPrepareAndCommit(StoredDocKey key,
+                                         std::string value,
+                                         bool syncDelete) {
+    doPrepare(key, value, syncDelete);
+    doCommit(key);
+}
+
+void RollbackDcpTest::doAbort(StoredDocKey key) {
     auto stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
 
     auto prepareSeqno = vb->getHighSeqno();
     auto abortSeqno = prepareSeqno + 1;
-    auto key = makeStoredDocKey("key");
     SnapshotMarker marker(
             0 /*opaque*/,
             vbid,
@@ -1201,13 +1264,33 @@ void RollbackDcpTest::doPrepareAndAbort() {
     ASSERT_EQ(prepareSeqno, passiveDm.getHighCompletedSeqno());
 }
 
-// MB-35060: Rollback when SyncWrites are present currently always rolls back
-// to zero. As such these tests are currently disabled.
-TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackPrepare) {
+void RollbackDcpTest::doPrepareAndAbort(StoredDocKey key,
+                                        std::string value,
+                                        bool syncDelete) {
+    doPrepare(key, value, syncDelete);
+    doAbort(key);
+}
+
+/**
+ * Checks the state of the HashTable and PassiveDM post-rollback
+ *
+ * Pre-rollback our sequence of events should be:
+ *  - 1 base item
+ *  - 1 prepare
+ *
+ * Post-rollback our sequence of events should be:
+ *  - 1 base item
+ */
+void RollbackDcpTest::rollbackPrepare(bool deleted) {
     writeBaseItems();
     auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno();
-    doPrepare();
+    auto key = makeStoredDocKey("anykey_0_0");
+
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+
+    doPrepare(key, "value2", deleted);
 
     store->setVBucketState(vbid, vbStateAtRollback);
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
@@ -1219,15 +1302,44 @@ TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackPrepare) {
     EXPECT_EQ(0, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
 
-TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackPrepareOnTopOfSyncWrite) {
+TEST_P(RollbackDcpTest, RollbackPrepare) {
+    rollbackPrepare(false);
+}
+
+TEST_P(RollbackDcpTest, RollbackDeletedPrepare) {
+    rollbackPrepare(true);
+}
+
+/**
+ * Checks the state of the HashTable and PassiveDM post-rollback
+ *
+ * Pre-rollback our sequence of events should be:
+ *  - 1 base item
+ *  - 1 prepare("anykey_0_0")
+ *  - 1 commit("anykey_0_0")
+ *  - 1 prepare("anykey_0_0")
+ *
+ * Post-rollback our sequence of events should be:
+ *  - 1 base item
+ *  - 1 prepare("anykey_0_0")
+ *  - 1 commit("anykey_0_0")
+ */
+void RollbackDcpTest::rollbackPrepareOnTopOfSyncWrite(bool syncDelete,
+                                                      bool deletedPrepare) {
     writeBaseItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
-    doPrepareAndCommit();
+    auto key = makeStoredDocKey("anykey_0_0");
+    doPrepareAndCommit(key, "value2", syncDelete);
     auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno();
-    doPrepare();
+
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+
+    doPrepare(key, "value3", deletedPrepare);
 
     store->setVBucketState(vbid, vbStateAtRollback);
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
@@ -1239,13 +1351,45 @@ TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackPrepareOnTopOfSyncWrite) {
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
 
-TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackSyncWrite) {
+TEST_P(RollbackDcpTest, RollbackPrepareOnTopOfSyncWrite) {
+    rollbackPrepareOnTopOfSyncWrite(false, false);
+}
+
+TEST_P(RollbackDcpTest, RollbackDeletedPrepareOnTopOfSyncWrite) {
+    rollbackPrepareOnTopOfSyncWrite(false, true);
+}
+
+TEST_P(RollbackDcpTest, RollbackPrepareOnTopOfSyncDelete) {
+    rollbackPrepareOnTopOfSyncWrite(true, false);
+}
+
+TEST_P(RollbackDcpTest, RollbackDeletedPrepareOnTopOfSyncDelete) {
+    rollbackPrepareOnTopOfSyncWrite(true, true);
+}
+
+/**
+ * Checks the state of the HashTable and PassiveDM post-rollback
+ *
+ * Pre-rollback our sequence of events should be:
+ *  - 1 base item
+ *  - 1 prepare
+ *  - 1 commit
+ *
+ * Post-rollback our sequence of events should be:
+ *  - 1 base item
+ */
+void RollbackDcpTest::rollbackSyncWrite(bool deleted) {
     writeBaseItems();
     auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno();
-    doPrepareAndCommit();
+
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+
+    doPrepareAndCommit(makeStoredDocKey("anykey_0_0"), "value2", deleted);
 
     store->setVBucketState(vbid, vbStateAtRollback);
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
@@ -1257,13 +1401,38 @@ TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackSyncWrite) {
     EXPECT_EQ(0, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
 
-TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackAbortedSyncWrite) {
+TEST_P(RollbackDcpTest, RollbackSyncWrite) {
+    rollbackSyncWrite(false);
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncDelete) {
+    rollbackSyncWrite(true);
+}
+
+/**
+ * Checks the state of the HashTable and PassiveDM post-rollback
+ *
+ * Pre-rollback our sequence of events should be:
+ *  - 1 base item
+ *  - 1 prepare("anykey_0_0")
+ *  - 1 abort("anykey_0_0")
+ *
+ * Post-rollback our sequence of events should be:
+ *  - 1 base item
+ */
+void RollbackDcpTest::rollbackAbortedSyncWrite(bool deleted) {
     writeBaseItems();
     auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno();
-    doPrepareAndAbort();
+
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+
+    auto key = makeStoredDocKey("anykey_0_0");
+    doPrepareAndAbort(key, "value2", deleted);
 
     store->setVBucketState(vbid, vbStateAtRollback);
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
@@ -1275,15 +1444,45 @@ TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackAbortedSyncWrite) {
     EXPECT_EQ(0, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
 
-TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackSyncWriteOnTopOfSyncWrite) {
+TEST_P(RollbackDcpTest, RollbackAbortedSyncWrite) {
+    rollbackAbortedSyncWrite(false);
+}
+
+TEST_P(RollbackDcpTest, RollbackAbortedSyncDelete) {
+    rollbackAbortedSyncWrite(true);
+}
+
+/**
+ * Checks the state of the HashTable and PassiveDM post-rollback
+ *
+ * Pre-rollback our sequence of events should be:
+ *  - 1 base item
+ *  - 1 prepare
+ *  - 1 commit
+ *  - 1 prepare
+ *  - 1 commit
+ *
+ * Post-rollback our sequence of events should be:
+ *  - 1 base item
+ *  - 1 prepare
+ *  - 1 commit
+ */
+void RollbackDcpTest::rollbackSyncWriteOnTopOfSyncWrite(bool syncDeleteFirst,
+                                                        bool syncDeleteSecond) {
     writeBaseItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
-    doPrepareAndCommit();
+    auto key = makeStoredDocKey("anykey_0_0");
+    doPrepareAndCommit(key, "value2", syncDeleteFirst);
     auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno();
-    doPrepareAndCommit();
+
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+
+    doPrepareAndCommit(key, "value3", syncDeleteSecond);
 
     store->setVBucketState(vbid, vbStateAtRollback);
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
@@ -1295,16 +1494,53 @@ TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackSyncWriteOnTopOfSyncWrite) {
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
 
-TEST_P(RollbackDcpTest,
-       DISABLED_MB_35060_RollbackSyncWriteOnTopOfAbortedSyncWrite) {
+TEST_P(RollbackDcpTest, RollbackSyncWriteOnTopOfSyncWrite) {
+    rollbackSyncWriteOnTopOfSyncWrite(false, false);
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncDeleteOnTopOfSyncWrite) {
+    rollbackSyncWriteOnTopOfSyncWrite(false, true);
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncWriteOnTopOfSyncDelete) {
+    rollbackSyncWriteOnTopOfSyncWrite(true, false);
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncDeleteOnTopOfSyncDelete) {
+    rollbackSyncWriteOnTopOfSyncWrite(true, true);
+}
+
+/**
+ * Checks the state of the HashTable and PassiveDM post-rollback
+ *
+ * Pre-rollback our sequence of events should be:
+ *  - 1 base item
+ *  - 1 prepare("anykey_0_0")
+ *  - 1 abort("anykey_0_0")
+ *  - 1 prepare("anykey_0_0")
+ *  - 1 commit("anykey_0_0")
+ *
+ * Post-rollback our sequence of events should be:
+ *  - 1 base item
+ *  - 1 prepare("anykey_0_0")
+ *  - 1 abort("anykey_0_0")
+ */
+void RollbackDcpTest::rollbackSyncWriteOnTopOfAbortedSyncWrite(
+        bool syncDeleteFirst, bool syncDeleteSecond) {
     writeBaseItems();
     auto baseItems = vb->getNumTotalItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
-    doPrepareAndAbort();
+    auto key = makeStoredDocKey("anykey_0_0");
+    doPrepareAndAbort(key, "value2", syncDeleteFirst);
     auto rollbackSeqno = vb->getHighSeqno();
-    doPrepareAndCommit();
+
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+
+    doPrepareAndCommit(key, "value3", syncDeleteSecond);
 
     store->setVBucketState(vbid, vbStateAtRollback);
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
@@ -1316,12 +1552,39 @@ TEST_P(RollbackDcpTest,
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
 
-TEST_P(RollbackDcpTest, RollbackToZeroWithSyncWrite) {
-    writeBaseItems();
+TEST_P(RollbackDcpTest, RollbackSyncWriteOnTopOfAbortedSyncWrite) {
+    rollbackSyncWriteOnTopOfAbortedSyncWrite(false, false);
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncDeleteOnTopOfAbortedSyncWrite) {
+    rollbackSyncWriteOnTopOfAbortedSyncWrite(false, true);
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncWriteOnTopOfAbortedSyncDelete) {
+    rollbackSyncWriteOnTopOfAbortedSyncWrite(true, false);
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncDeleteOnTopOfAbortedSyncDelete) {
+    rollbackSyncWriteOnTopOfAbortedSyncWrite(true, true);
+}
+
+void RollbackDcpTest::rollbackToZeroWithSyncWrite(bool deleted) {
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+
+    // Need to write more than 10 items to ensure a rollback
+    createItems(11 /*numItems*/, 1 /*numFlushes*/);
+    addStream(11 /*numItems*/);
+    auto stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    ASSERT_TRUE(stream);
+
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
-    doPrepareAndCommit();
+    auto key = makeStoredDocKey("anykey_0_0");
+    doPrepareAndCommit(key, "value2", deleted);
 
     // Rollback everything (because the rollback seqno is > seqno / 2)
     store->setVBucketState(vbid, vbStateAtRollback);
@@ -1342,26 +1605,41 @@ TEST_P(RollbackDcpTest, RollbackToZeroWithSyncWrite) {
     EXPECT_EQ(0, newPassiveDm.getNumTracked());
     EXPECT_EQ(0, newPassiveDm.getHighPreparedSeqno());
     EXPECT_EQ(0, newPassiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
+}
+
+TEST_P(RollbackDcpTest, RollbackToZeroWithSyncWrite) {
+    rollbackToZeroWithSyncWrite(false);
+}
+
+TEST_P(RollbackDcpTest, RollbackToZeroWithSyncDelete) {
+    rollbackToZeroWithSyncWrite(true);
 }
 
 /**
  * Checks the state of the HashTable and PassiveDM post-rollback
  *
  * Pre-rollback our sequence of events should be:
- *  - 6 base items
+ *  - 1 base item
  *  - 1 prepare
  *  - 1 commit
  *
  * Post-rollback our sequence of events should be:
- *  - 6 base items
+ *  - 1 base item
  *  - 1 prepare
  */
-TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackCommit) {
+void RollbackDcpTest::rollbackCommit(bool deleted) {
     writeBaseItems();
     // Rollback only the commit
     auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno() + 1;
-    doPrepareAndCommit();
+
+    auto key = makeStoredDocKey("anykey_0_0");
+    doPrepare(key, "value2", deleted);
+
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+    doCommit(key);
 
     store->setVBucketState(vbid, vbStateAtRollback);
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
@@ -1372,40 +1650,49 @@ TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackCommit) {
     EXPECT_EQ(1, passiveDm.getNumTracked());
     EXPECT_EQ(rollbackSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
-
-    auto key = makeStoredDocKey("key");
-    auto htRes = vb->ht.findForCommit(key);
-    EXPECT_FALSE(htRes.committed);
-    ASSERT_TRUE(htRes.pending);
-    EXPECT_EQ(rollbackSeqno, htRes.pending->getBySeqno());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
+}
+
+TEST_P(RollbackDcpTest, RollbackCommit) {
+    rollbackCommit(false);
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncDeleteCommit) {
+    rollbackCommit(true);
 }
 
 /**
  * Checks the state of the HashTable and PassiveDM post-rollback
  *
  * Pre-rollback our sequence of events should be:
- *  - 6 base items
+ *  - 1 base item
  *  - 1 prepare
  *  - 1 commit
  *  - 1 prepare
  *  - 1 commit
  *
  * Post-rollback our sequence of events should be:
- *  - 6 base items
+ *  - 1 base item
  *  - 1 prepare
  *  - 1 commit
  *  - 1 prepare
  */
-TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackCommitOnTopOfCommit) {
+void RollbackDcpTest::rollbackCommitOnTopOfSyncWrite(bool syncDeleteFirst,
+                                                     bool syncDeleteSecond) {
     writeBaseItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
-    doPrepareAndCommit();
-    auto postRollbackCommitSeqno = vb->getHighSeqno();
-    // Rollback only the commit
-    auto baseItems = vb->getNumTotalItems();
+    auto key = makeStoredDocKey("anykey_0_0");
+
+    doPrepareAndCommit(key, "value2", syncDeleteFirst);
+    // Rollback only the second commit.
     auto rollbackSeqno = vb->getHighSeqno() + 1;
-    doPrepareAndCommit();
+
+    doPrepare(key, "value3", syncDeleteSecond);
+
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+    doCommit(key);
 
     store->setVBucketState(vbid, vbStateAtRollback);
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
@@ -1416,40 +1703,55 @@ TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackCommitOnTopOfCommit) {
     EXPECT_EQ(1, passiveDm.getNumTracked());
     EXPECT_EQ(rollbackSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
+}
 
-    auto key = makeStoredDocKey("key");
-    auto htRes = vb->ht.findForCommit(key);
-    ASSERT_TRUE(htRes.committed);
-    EXPECT_EQ(postRollbackCommitSeqno, htRes.committed->getBySeqno());
-    ASSERT_TRUE(htRes.pending);
-    EXPECT_EQ(rollbackSeqno, htRes.pending->getBySeqno());
-    EXPECT_EQ(baseItems, vb->getNumTotalItems());
+TEST_P(RollbackDcpTest, RollbackCommitOnTopOfSyncWrite) {
+    rollbackCommitOnTopOfSyncWrite(false, false);
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncDeleteCommitOnTopOfSyncWrite) {
+    rollbackCommitOnTopOfSyncWrite(false, true);
+}
+
+TEST_P(RollbackDcpTest, RollbackCommitOnTopOfSyncDelete) {
+    rollbackCommitOnTopOfSyncWrite(true, false);
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncDeleteCommitOnTopOfSyncDelete) {
+    rollbackCommitOnTopOfSyncWrite(true, true);
 }
 
 /**
  * Checks the state of the HashTable and PassiveDM post-rollback
  *
  * Pre-rollback our sequence of events should be:
- *  - 6 base items
+ *  - 1 base item
  *  - 1 prepare
  *  - 1 abort
  *  - 1 prepare
  *  - 1 commit
  *
  * Post-rollback our sequence of events should be:
- *  - 6 base items
+ *  - 1 base item
  *  - 1 prepare
  *  - 1 abort
  *  - 1 prepare
  */
-TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackCommitOnTopOfAbort) {
+void RollbackDcpTest::rollbackCommitOnTopOfAbortedSyncWrite(
+        bool syncDeleteFirst, bool syncDeleteSecond) {
     writeBaseItems();
-    auto baseItems = vb->getNumTotalItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
-    doPrepareAndAbort();
+    auto key = makeStoredDocKey("anykey_0_0");
+    doPrepareAndAbort(key, "value2", syncDeleteFirst);
     // Rollback only the commit
     auto rollbackSeqno = vb->getHighSeqno() + 1;
-    doPrepareAndCommit();
+
+    doPrepare(key, "value3", syncDeleteSecond);
+
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+    doCommit(key);
 
     store->setVBucketState(vbid, vbStateAtRollback);
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
@@ -1460,33 +1762,48 @@ TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackCommitOnTopOfAbort) {
     EXPECT_EQ(1, passiveDm.getNumTracked());
     EXPECT_EQ(rollbackSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
+}
 
-    auto key = makeStoredDocKey("key");
-    auto htRes = vb->ht.findForCommit(key);
-    EXPECT_FALSE(htRes.committed);
-    ASSERT_TRUE(htRes.pending);
-    EXPECT_EQ(rollbackSeqno, htRes.pending->getBySeqno());
-    EXPECT_EQ(baseItems, vb->getNumTotalItems());
+TEST_P(RollbackDcpTest, RollbackCommitOnTopOfAbortedSyncWrite) {
+    rollbackCommitOnTopOfAbortedSyncWrite(false, false);
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncDeleteCommitOnTopOfAbortedSyncWrite) {
+    rollbackCommitOnTopOfAbortedSyncWrite(false, true);
+}
+
+TEST_P(RollbackDcpTest, RollbackCommitOnTopOfAbortedSyncDelete) {
+    rollbackCommitOnTopOfAbortedSyncWrite(true, false);
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncDeleteCommitOnTopOfAbortedSyncDelete) {
+    rollbackCommitOnTopOfAbortedSyncWrite(true, true);
 }
 
 /**
  * Checks the state of the HashTable and PassiveDM post-rollback
  *
  * Pre-rollback our sequence of events should be:
- *  - 6 base items
+ *  - 1 base item
  *  - 1 prepare
  *  - 1 abort
  *
  * Post-rollback our sequence of events should be:
- *  - 6 base items
+ *  - 1 base item
  *  - 1 prepare
  */
-TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackAbort) {
+void RollbackDcpTest::rollbackAbort(bool deleted) {
     writeBaseItems();
     // Rollback only the abort
-    auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno() + 1;
-    doPrepareAndAbort();
+
+    auto key = makeStoredDocKey("anykey_0_0");
+    doPrepare(key, "value2", deleted);
+
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+    doAbort(key);
 
     store->setVBucketState(vbid, vbStateAtRollback);
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
@@ -1496,40 +1813,49 @@ TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackAbort) {
     EXPECT_EQ(1, passiveDm.getNumTracked());
     EXPECT_EQ(rollbackSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
+}
 
-    auto key = makeStoredDocKey("key");
-    auto htRes = vb->ht.findForCommit(key);
-    EXPECT_FALSE(htRes.committed);
-    ASSERT_TRUE(htRes.pending);
-    EXPECT_EQ(rollbackSeqno, htRes.pending->getBySeqno());
-    EXPECT_EQ(baseItems, vb->getNumTotalItems());
+TEST_P(RollbackDcpTest, RollbackAbort) {
+    rollbackAbort(false);
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncDeleteAbort) {
+    rollbackAbort(true);
 }
 
 /**
  * Checks the state of the HashTable and PassiveDM post-rollback
  *
  * Pre-rollback our sequence of events should be:
- *  - 6 base items
+ *  - 1 base item
  *  - 1 prepare
  *  - 1 commit
  *  - 1 prepare
  *  - 1 abort
  *
  * Post-rollback our sequence of events should be:
- *  - 6 base items
+ *  - 1 base item
  *  - 1 prepare
  *  - 1 commit
  *  - 1 prepare
  */
-TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackAbortOnTopOfCommit) {
+void RollbackDcpTest::rollbackAbortOnTopOfSyncWrite(bool syncDeleteFirst,
+                                                    bool syncDeleteSecond) {
     writeBaseItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
-    doPrepareAndCommit();
-    auto postRollbackCommitSeqno = vb->getHighSeqno();
+    auto key = makeStoredDocKey("anykey_0_0");
+
+    doPrepareAndCommit(key, "value2", syncDeleteFirst);
+
     // Rollback only the abort
-    auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno() + 1;
-    doPrepareAndAbort();
+
+    doPrepare(key, "value3", syncDeleteSecond);
+
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+    doAbort(key);
 
     store->setVBucketState(vbid, vbStateAtRollback);
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
@@ -1541,39 +1867,55 @@ TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackAbortOnTopOfCommit) {
     EXPECT_EQ(rollbackSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
 
-    auto key = makeStoredDocKey("key");
-    auto htRes = vb->ht.findForCommit(key);
-    ASSERT_TRUE(htRes.committed);
-    EXPECT_EQ(postRollbackCommitSeqno, htRes.committed->getBySeqno());
-    ASSERT_TRUE(htRes.pending);
-    EXPECT_EQ(rollbackSeqno, htRes.pending->getBySeqno());
-    EXPECT_EQ(baseItems, vb->getNumTotalItems());
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
+}
+
+TEST_P(RollbackDcpTest, RollbackAbortOnTopOfSyncWrite) {
+    rollbackAbortOnTopOfSyncWrite(false, false);
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncDeleteAbortOnTopOfSyncWrite) {
+    rollbackAbortOnTopOfSyncWrite(false, true);
+}
+
+TEST_P(RollbackDcpTest, RollbackAbortOnTopOfSyncDelete) {
+    rollbackAbortOnTopOfSyncWrite(true, false);
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncDeleteAbortOnTopOfSyncDelete) {
+    rollbackAbortOnTopOfSyncWrite(true, true);
 }
 
 /**
  * Checks the state of the HashTable and PassiveDM post-rollback
  *
  * Pre-rollback our sequence of events should be:
- *  - 6 base items
+ *  - 1 base item
  *  - 1 prepare
  *  - 1 abort
  *  - 1 prepare
  *  - 1 abort
  *
  * Post-rollback our sequence of events should be:
- *  - 6 base items
+ *  - 1 base item
  *  - 1 prepare
  *  - 1 abort
  *  - 1 prepare
  */
-TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackAbortOnTopOfAbort) {
+void RollbackDcpTest::rollbackAbortOnTopOfAbortedSyncWrite(
+        bool syncDeleteFirst, bool syncDeleteSecond) {
     writeBaseItems();
-    auto baseItems = vb->getNumTotalItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
-    doPrepareAndAbort();
+    auto key = makeStoredDocKey("anykey_0_0");
+    doPrepareAndAbort(key, "value2", syncDeleteFirst);
     // Rollback only the abort
     auto rollbackSeqno = vb->getHighSeqno() + 1;
-    doPrepareAndAbort();
+
+    doPrepare(key, "value3", syncDeleteSecond);
+
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+    doAbort(key);
 
     store->setVBucketState(vbid, vbStateAtRollback);
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
@@ -1585,12 +1927,23 @@ TEST_P(RollbackDcpTest, DISABLED_MB_35060_RollbackAbortOnTopOfAbort) {
     EXPECT_EQ(rollbackSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
 
-    auto key = makeStoredDocKey("key");
-    auto htRes = vb->ht.findForCommit(key);
-    EXPECT_FALSE(htRes.committed);
-    ASSERT_TRUE(htRes.pending);
-    EXPECT_EQ(rollbackSeqno, htRes.pending->getBySeqno());
-    EXPECT_EQ(baseItems, vb->getNumTotalItems());
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
+}
+
+TEST_P(RollbackDcpTest, RollbackAbortOnTopOfAbortedSyncWrite) {
+    rollbackAbortOnTopOfAbortedSyncWrite(false, false);
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncDeleteAbortOnTopOfAbortedSyncWrite) {
+    rollbackAbortOnTopOfAbortedSyncWrite(false, true);
+}
+
+TEST_P(RollbackDcpTest, RollbackAbortOnTopOfAbortedSyncDelete) {
+    rollbackAbortOnTopOfAbortedSyncWrite(true, false);
+}
+
+TEST_P(RollbackDcpTest, RollbackSyncDeleteAbortOnTopOfAbortedSyncDelete) {
+    rollbackAbortOnTopOfAbortedSyncWrite(true, true);
 }
 
 class ReplicaRollbackDcpTest : public SingleThreadedEPBucketTest {

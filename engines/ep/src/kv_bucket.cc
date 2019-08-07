@@ -2420,20 +2420,14 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
         return TaskStatus::Abort;
     }
 
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    // Acquire the vb stateLock in exclusive mode as we will recreate the
+    // DurabilityMonitor in the vBucket as part of rollback and this could race
+    // with stats calls.
+    folly::SharedMutex::WriteHolder wlh(vb->getStateLock());
     if ((vb->getState() == vbucket_state_replica) ||
         (vb->getState() == vbucket_state_pending)) {
         uint64_t prevHighSeqno =
                 static_cast<uint64_t>(vb->checkpointManager->getHighSeqno());
-
-        // MB-35060: Cannot reliably rollback if there have been any prepared
-        // SyncWrites in all cases.
-        // Temporarily rollback to zero in this case.
-        // @todo Fix this - see MB-35133
-        if (vb->getSyncWriteAcceptedCount() > 0) {
-            rollbackSeqno = 0;
-        }
-
         if (rollbackSeqno != 0) {
             RollbackResult result = doRollback(vbid, rollbackSeqno);
 
@@ -2444,6 +2438,7 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
                                           instead of deleting everything in it
                                         */) {
                 rollbackUnpersistedItems(*vb, result.highSeqno);
+                loadPreparedSyncWrites(wlh, *vb);
                 vb->postProcessRollback(result, prevHighSeqno);
 
                 // And update collections post rollback
