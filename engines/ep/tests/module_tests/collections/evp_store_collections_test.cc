@@ -1282,6 +1282,28 @@ TEST_P(CollectionsParameterizedTest,
     }
 }
 
+// Test to ensure the callback passed to engine->get_connection_manifest(...)
+// will track any allocations against "non-bucket"
+TEST_P(CollectionsParameterizedTest,
+       GetCollectionManifestResponseCBAllocsUnderNonBucket) {
+    auto addResponseFn = [](const void* key,
+                            uint16_t keylen,
+                            const void* ext,
+                            uint8_t extlen,
+                            const void* body,
+                            uint32_t bodylen,
+                            uint8_t datatype,
+                            cb::mcbp::Status status,
+                            uint64_t cas,
+                            const void* cookie) -> bool {
+        // This callback should run in the memcached-context - there should be
+        // no associated engine.
+        EXPECT_FALSE(ObjectRegistry::getCurrentEngine());
+        return true;
+    };
+    engine->get_collection_manifest(cookie, addResponseFn);
+}
+
 class CollectionsExpiryLimitTest : public CollectionsTest,
                                    public ::testing::WithParamInterface<bool> {
 public:

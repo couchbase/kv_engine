@@ -1722,7 +1722,7 @@ cb::engine_errc EventuallyPersistentEngine::get_collection_manifest(
         gsl::not_null<const void*> cookie, const AddResponseFn& response) {
     auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->getCollections();
-    return cb::engine_errc(sendResponse(response,
+    return cb::engine_errc(sendResponse(makeExitBorderGuard(std::cref(response)),
                                         nullptr,
                                         0,
                                         nullptr,
