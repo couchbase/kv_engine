@@ -769,6 +769,11 @@ TEST_P(DurabilityActiveStreamTest,
     }
     vb->notifyActiveDMOfLocalSyncWrite();
 
+    auto items = stream->getOutstandingItems(*vb);
+    stream->public_processItems(items);
+    stream->consumeBackfillItems(1);
+    stream->public_nextQueuedItem();
+
     EXPECT_EQ(ENGINE_SUCCESS, stream->seqnoAck(replica, 1 /*prepareSeqno*/));
     EXPECT_EQ(1, vb->getHighPreparedSeqno());
     EXPECT_EQ(1, vb->getHighCompletedSeqno());
@@ -779,6 +784,11 @@ TEST_P(DurabilityActiveStreamTest,
                   vb->set(*item, cookie, *engine, {}, cHandle));
     }
     vb->notifyActiveDMOfLocalSyncWrite();
+
+    items = stream->getOutstandingItems(*vb);
+    stream->public_processItems(items);
+    stream->consumeBackfillItems(3);
+    stream->public_nextQueuedItem();
 
     EXPECT_EQ(ENGINE_SUCCESS, stream->seqnoAck(replica, 3 /*prepareSeqno*/));
     EXPECT_EQ(3, vb->getHighPreparedSeqno());
@@ -797,6 +807,18 @@ TEST_P(DurabilityActiveStreamTest,
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
     stream->setActive();
+
+    // Process items to ensure that lastSentSeqno is GE the seqno that we will
+    // ack
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+
+    auto& bfm = producer->getBFM();
+    bfm.backfill();
+    bfm.backfill();
+    EXPECT_EQ(3, stream->public_readyQSize());
+    stream->consumeBackfillItems(3);
 
     EXPECT_EQ(ENGINE_SUCCESS, stream->seqnoAck(replica, 1 /*prepareSeqno*/));
 
