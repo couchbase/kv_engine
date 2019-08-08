@@ -619,3 +619,169 @@ TEST_P(SubdocTestappTest, MB_30278_SubdocBacktickMultiMutation) {
 
     delete_object("dict");
 }
+
+// Test that when a wholedoc set is performed as part of a multi mutation
+// the datatype is set JSON/RAW based on whether the document is actually valid
+// json
+TEST_P(SubdocTestappTest, WholedocMutationUpdatesDatatype) {
+    // store an initial json document
+    store_document("item", "{}");
+
+    bool jsonSupported = hasJSONSupport() == ClientJSONSupport::Yes;
+
+    // check datatype is json (if supported)
+    validate_datatype_is_json("item", jsonSupported);
+
+    // do a wholedoc mutation setting a non-json value
+    {
+        SubdocMultiMutationCmd mutation;
+        mutation.key = "item";
+        mutation.specs.push_back({uint8_t(cb::mcbp::ClientOpcode::Set),
+                                  SUBDOC_FLAG_NONE,
+                                  "",
+                                  "RAW ;: NO JSON HERE"});
+
+        expect_subdoc_cmd(mutation, uint16_t(cb::mcbp::Status::Success), {});
+    }
+
+    // check the datatype has been updated
+    validate_datatype_is_json("item", false);
+
+    // wholedoc mutation to set a json doc again
+    {
+        SubdocMultiMutationCmd mutation;
+        mutation.key = "item";
+        mutation.specs.push_back({uint8_t(cb::mcbp::ClientOpcode::Set),
+                                  SUBDOC_FLAG_NONE,
+                                  "",
+                                  R"({"json":"goodness"})"});
+
+        expect_subdoc_cmd(mutation, uint16_t(cb::mcbp::Status::Success), {});
+    }
+
+    // check datatype is back to json
+    validate_datatype_is_json("item", jsonSupported);
+    validate_object("item", R"({"json":"goodness"})");
+
+    delete_object("item");
+}
+
+TEST_P(SubdocTestappTest, TestSubdocOpAfterWholedocSetNonJson) {
+    // store an initial json document
+    store_document("item", "{}");
+
+    bool jsonSupported = hasJSONSupport() == ClientJSONSupport::Yes;
+
+    // check datatype is json (if supported)
+    validate_datatype_is_json("item", jsonSupported);
+
+    std::vector<cb::mcbp::ClientOpcode> mutationOpcodes = {
+            cb::mcbp::ClientOpcode::SubdocDictAdd,
+            cb::mcbp::ClientOpcode::SubdocDictUpsert,
+            cb::mcbp::ClientOpcode::SubdocReplace,
+            cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+            cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+            cb::mcbp::ClientOpcode::SubdocArrayAddUnique};
+
+    // expect that any Subdoc mutation following a non-json wholedoc will fail
+    for (size_t i = 0; i < mutationOpcodes.size(); i++) {
+        SubdocMultiMutationCmd mutation;
+        mutation.key = "item";
+
+        std::vector<SubdocMultiMutationResult> expected;
+
+        // whole doc non-json
+        mutation.specs.push_back({uint8_t(cb::mcbp::ClientOpcode::Set),
+                                  SUBDOC_FLAG_NONE,
+                                  "",
+                                  "RAW ;: NO JSON HERE"});
+
+        // subdoc op on any path should fail - doc is not json
+        mutation.specs.push_back({uint8_t(mutationOpcodes.at(i)),
+                                  SUBDOC_FLAG_NONE,
+                                  "path-" + std::to_string(i),
+                                  "anyvalue"});
+
+        expect_subdoc_cmd(
+                mutation,
+                uint16_t(cb::mcbp::Status::SubdocMultiPathFailure),
+                {{1, uint16_t(cb::mcbp::Status::SubdocDocNotJson), ""}});
+    }
+
+    // doc should be unchanged
+    validate_object("item", "{}");
+
+    delete_object("item");
+}
+
+TEST_P(SubdocTestappTest,
+       TestSubdocOpInSeperateMultiMutationAfterWholedocSetNonJson) {
+    // store an initial json document
+    store_document("item", "{}");
+
+    bool jsonSupported = hasJSONSupport() == ClientJSONSupport::Yes;
+
+    // check datatype is json (if supported)
+    validate_datatype_is_json("item", jsonSupported);
+
+    // do a wholedoc mutation setting a non-json value
+    {
+        SubdocMultiMutationCmd mutation;
+        mutation.key = "item";
+        mutation.specs.push_back({uint8_t(cb::mcbp::ClientOpcode::Set),
+                                  SUBDOC_FLAG_NONE,
+                                  "",
+                                  "RAW ;: NO JSON HERE"});
+
+        expect_subdoc_cmd(mutation, uint16_t(cb::mcbp::Status::Success), {});
+    }
+
+    // check the datatype has been updated
+    validate_datatype_is_json("item", false);
+
+    // expect that any Subdoc lookup op will fail
+    {
+        SubdocMultiLookupCmd lookup;
+        lookup.key = "item";
+        for (auto opcode : {cb::mcbp::ClientOpcode::SubdocGet,
+                            cb::mcbp::ClientOpcode::SubdocExists}) {
+            lookup.specs.push_back(
+                    {uint8_t(opcode), SUBDOC_FLAG_NONE, "anypath"});
+        }
+
+        expect_subdoc_cmd(lookup,
+                          uint16_t(cb::mcbp::Status::SubdocMultiPathFailure),
+                          {{uint16_t(cb::mcbp::Status::SubdocDocNotJson), ""},
+                           {uint16_t(cb::mcbp::Status::SubdocDocNotJson), ""}});
+    }
+
+    std::vector<cb::mcbp::ClientOpcode> opcodes = {
+            cb::mcbp::ClientOpcode::SubdocDictAdd,
+            cb::mcbp::ClientOpcode::SubdocDictUpsert,
+            cb::mcbp::ClientOpcode::SubdocReplace,
+            cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+            cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+            cb::mcbp::ClientOpcode::SubdocArrayAddUnique};
+
+    // expect that any Subdoc mutation will fail
+    for (size_t i = 0; i < opcodes.size(); i++) {
+        SubdocMultiMutationCmd mutation;
+        mutation.key = "item";
+
+        std::vector<SubdocMultiMutationResult> expected;
+
+        mutation.specs.push_back({uint8_t(opcodes.at(i)),
+                                  SUBDOC_FLAG_NONE,
+                                  "path-" + std::to_string(i),
+                                  "anyvalue"});
+
+        expect_subdoc_cmd(
+                mutation,
+                uint16_t(cb::mcbp::Status::SubdocMultiPathFailure),
+                {{0, uint16_t(cb::mcbp::Status::SubdocDocNotJson), ""}});
+    }
+
+    validate_object("item", "RAW ;: NO JSON HERE");
+
+    delete_object("item");
+}

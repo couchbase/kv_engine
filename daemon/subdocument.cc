@@ -711,7 +711,8 @@ static protocol_binary_response_status subdoc_operate_wholedoc(
  *
  * @param context The context object for this operation
  * @param doc the document to operate on
- * @param doc_datatype The datatype of the document.
+ * @param doc_datatype The datatype of the document. Updated if a
+ *                     wholedoc op changes the datatype.
  * @param temp_buffer where to store the data for our temporary buffer
  *                    allocations if we need to change the doc.
  * @param modified set to true upon return if any modifications happened
@@ -723,10 +724,10 @@ static protocol_binary_response_status subdoc_operate_wholedoc(
  * @throws std::bad_alloc if allocation fails
  */
 static bool operate_single_doc(SubdocCmdContext& context,
-                                cb::const_char_buffer& doc,
-                                protocol_binary_datatype_t doc_datatype,
-                                std::unique_ptr<char[]>& temp_buffer,
-                                bool& modified) {
+                               cb::const_char_buffer& doc,
+                               protocol_binary_datatype_t& doc_datatype,
+                               std::unique_ptr<char[]>& temp_buffer,
+                               bool& modified) {
     modified = false;
     auto& operations = context.getOperations();
 
@@ -784,6 +785,23 @@ static bool operate_single_doc(SubdocCmdContext& context,
                 temp_buffer.swap(temp);
                 doc.buf = temp_buffer.get();
                 doc.len = new_doc_len;
+
+                if (op->traits.scope == CommandScope::WholeDoc) {
+                    // the entire document has been replaced as part of a
+                    // wholedoc op update the datatype to match
+                    JSON_checker::Validator validator;
+                    bool isValidJson = validator.validate(
+                            reinterpret_cast<const uint8_t*>(doc.data()),
+                            doc.size());
+
+                    // don't alter context.in_datatype directly here in case we
+                    // are in xattrs phase
+                    if (isValidJson) {
+                        doc_datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
+                    } else {
+                        doc_datatype &= ~PROTOCOL_BINARY_DATATYPE_JSON;
+                    }
+                }
             } else { // lookup
                 // nothing to do.
             }
@@ -1067,14 +1085,13 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     context.generate_macro_padding(document, cb::xattr::macros::VALUE_CRC32C);
 
     bool modified;
-    if (!operate_single_doc(context,
-                            document,
-                            PROTOCOL_BINARY_DATATYPE_JSON,
-                            temp_doc,
-                            modified)) {
+    auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    if (!operate_single_doc(context, document, datatype, temp_doc, modified)) {
         // Something failed..
         return false;
     }
+    // Xattr doc should always be json
+    Expects(datatype == PROTOCOL_BINARY_DATATYPE_JSON);
 
     if (context.overall_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return true;

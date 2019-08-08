@@ -371,6 +371,10 @@ void set_datatype_feature(bool enable);
 std::pair<protocol_binary_response_status, std::string>
 fetch_value(const std::string& key);
 
+// Attempts to fetch the document with the given key.
+// Expects the fetch is successful, and checks if the datatype is json/raw
+void validate_datatype_is_json(const std::string& key, bool isJson);
+
 /* Attempts to get the given key and checks if it's value matches
  * {expected_value}.
  */
