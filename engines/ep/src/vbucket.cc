@@ -39,6 +39,7 @@
 #include "statwriter.h"
 #include "stored_value_factories.h"
 #include "vb_filter.h"
+#include "vbucket_queue_item_ctx.h"
 #include "vbucket_state.h"
 #include "vbucketdeletiontask.h"
 

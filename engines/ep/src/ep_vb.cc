@@ -31,6 +31,7 @@
 #include "stored_value_factories.h"
 #include "tasks.h"
 #include "vbucket_bgfetch_item.h"
+#include "vbucket_queue_item_ctx.h"
 #include "vbucket_state.h"
 #include "vbucketdeletiontask.h"
 #include <folly/lang/Assume.h>

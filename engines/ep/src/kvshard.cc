@@ -128,9 +128,3 @@ std::vector<Vbid> KVShard::getVBuckets() {
     }
     return rv;
 }
-
-void NotifyFlusherCB::callback(Vbid& vb) {
-    if (shard->getBucket(vb)) {
-        shard->getFlusher()->notifyFlushEvent();
-    }
-}

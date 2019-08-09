@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "checkpoint_config.h"
 #include "checkpoint_manager.h"
 #include "configuration.h"
 #include "ep_vb.h"

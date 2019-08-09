@@ -18,17 +18,12 @@
 #pragma once
 
 #include "bloomfilter.h"
-#include "checkpoint_config.h"
 #include "collections/vbucket_manifest.h"
 #include "dcp/dcp-types.h"
 #include "hash_table.h"
 #include "hlc.h"
-#include "item_pager.h"
 #include "monotonic.h"
-#include "vbucket_bgfetch_item.h"
 #include "vbucket_fwd.h"
-
-#include "boost/variant.hpp"
 
 #include <folly/Synchronized.h>
 #include <memcached/engine.h>
@@ -41,18 +36,25 @@
 
 class ActiveDurabilityMonitor;
 class CheckpointManager;
+class CheckpointConfig;
 class ConflictResolution;
 class Configuration;
 class DCPBackfill;
+class DiskDocKey;
 class DurabilityMonitor;
 class EPStats;
 class EventuallyPersistentEngine;
+class GetValue;
 class ItemMetaData;
 class PassiveDurabilityMonitor;
 class PreLinkDocumentContext;
 class RollbackResult;
 class VBucketBGFetchItem;
+struct VBQueueItemCtx;
 struct vbucket_state;
+struct vb_bgfetch_item_ctx_t;
+using vb_bgfetch_queue_t =
+        std::unordered_map<DiskDocKey, vb_bgfetch_item_ctx_t>;
 
 template <typename... RV>
 class Callback;
@@ -73,71 +75,6 @@ struct VBNotifyCtx {
     // The number that should be added to the item count due to the performed
     // operation (+1 for new, -1 for delete, 0 for update of existing doc)
     int itemCountDifference = 0;
-};
-
-/**
- * Structure which holds the information needed when enqueueing an item which
- * has Durability requirements.
- */
-struct DurabilityItemCtx {
-    /**
-     * Stores:
-     * - the Durability Requirements, if we queue a Prepare
-     * - the prepared-seqno, if we queue a Commit
-     */
-    boost::variant<cb::durability::Requirements, int64_t>
-            requirementsOrPreparedSeqno;
-    /**
-     * The client cookie associated with the Durability operation. If non-null
-     * then notifyIOComplete will be called on it when operation is committed.
-     */
-    const void* cookie;
-};
-
-/**
- * Structure that holds info needed to queue an item in chkpt
- *
- * GenerateDeleteTime - Only the queueing of items where isDeleted() == true
- * does this parameter have any affect. E.g. an add of an Item with this set to
- * Yes will have no effect, whilst an explicit delete this parameter will have
- * have an effect of generating a tombstone time.
- *
- * Note that when queueing a delete with and expiry time of 0, the delete time
- * is always generated. It is invalid to queue an Item with a 0 delete time,
- * in this case the GenerateDeleteTime setting is ignored.
- *
- */
-struct VBQueueItemCtx {
-    VBQueueItemCtx() = default;
-
-    VBQueueItemCtx(GenerateBySeqno genBySeqno,
-                   GenerateCas genCas,
-                   GenerateDeleteTime generateDeleteTime,
-                   TrackCasDrift trackCasDrift,
-                   boost::optional<DurabilityItemCtx> durability,
-                   PreLinkDocumentContext* preLinkDocumentContext_,
-                   boost::optional<int64_t> overwritingPrepareSeqno)
-        : genBySeqno(genBySeqno),
-          genCas(genCas),
-          generateDeleteTime(generateDeleteTime),
-          trackCasDrift(trackCasDrift),
-          durability(durability),
-          preLinkDocumentContext(preLinkDocumentContext_),
-          overwritingPrepareSeqno(overwritingPrepareSeqno) {
-    }
-
-    GenerateBySeqno genBySeqno = GenerateBySeqno::Yes;
-    GenerateCas genCas = GenerateCas::Yes;
-    GenerateDeleteTime generateDeleteTime = GenerateDeleteTime::Yes;
-    TrackCasDrift trackCasDrift = TrackCasDrift::No;
-    /// Durability requirements. Only present for SyncWrites.
-    boost::optional<DurabilityItemCtx> durability = {};
-    /// Context object that allows running the pre-link callback after the CAS
-    /// is assigned but the document is not yet available for reading
-    PreLinkDocumentContext* preLinkDocumentContext = nullptr;
-    /// Passed into the durability monitor to instruct it to remove an old
-    /// prepare with the given seqno
-    boost::optional<int64_t> overwritingPrepareSeqno = {};
 };
 
 /**

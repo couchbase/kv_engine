@@ -22,6 +22,7 @@
 #include "passive_durability_monitor.h"
 #include "stats.h"
 #include "statwriter.h"
+#include "tracing/trace_helpers.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
 

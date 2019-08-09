@@ -207,17 +207,3 @@ public:
 
     DISALLOW_COPY_AND_ASSIGN(KVShard);
 };
-
-/**
- * Callback for notifying flusher about pending mutations.
- */
-class NotifyFlusherCB : public Callback<Vbid> {
-public:
-    NotifyFlusherCB(KVShard *sh)
-        : shard(sh) {}
-
-    void callback(Vbid& vb);
-
-private:
-    KVShard *shard;
-};

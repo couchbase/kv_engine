@@ -192,6 +192,24 @@ private:
     KVBucket& epstore;
 };
 
+/**
+ * Callback for notifying flusher about pending mutations.
+ */
+class NotifyFlusherCB : public Callback<Vbid> {
+public:
+    NotifyFlusherCB(KVShard* sh) : shard(sh) {
+    }
+
+    void callback(Vbid& vb) override {
+        if (shard->getBucket(vb)) {
+            shard->getFlusher()->notifyFlushEvent();
+        }
+    }
+
+private:
+    KVShard* shard;
+};
+
 class EPBucket::ValueChangedListener : public ::ValueChangedListener {
 public:
     ValueChangedListener(EPBucket& bucket) : bucket(bucket) {

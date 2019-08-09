@@ -18,7 +18,9 @@
 #include "checkpoint_manager.h"
 
 #include "bucket_logger.h"
+#include "callbacks.h"
 #include "checkpoint.h"
+#include "checkpoint_config.h"
 #include "ep_time.h"
 #include "pre_link_document_context.h"
 #include "stats.h"

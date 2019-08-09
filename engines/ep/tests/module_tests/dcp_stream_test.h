@@ -18,6 +18,7 @@
 #pragma once
 
 #include "dcp_test.h"
+#include "vbucket_queue_item_ctx.h"
 
 class MockDcpConsumer;
 class MockPassiveStream;

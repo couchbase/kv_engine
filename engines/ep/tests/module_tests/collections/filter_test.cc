@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "checkpoint_config.h"
 #include "collections/vbucket_filter.h"
 #include "collections/vbucket_manifest.h"
 #include "configuration.h"

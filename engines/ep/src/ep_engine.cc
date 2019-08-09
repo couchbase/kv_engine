@@ -20,6 +20,7 @@
 
 #include "bucket_logger.h"
 #include "checkpoint.h"
+#include "checkpoint_config.h"
 #include "checkpoint_manager.h"
 #include "collections/manager.h"
 #include "common.h"

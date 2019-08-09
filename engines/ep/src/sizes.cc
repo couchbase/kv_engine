@@ -20,6 +20,7 @@
 
 #include "atomic_unordered_map.h"
 #include "checkpoint.h"
+#include "checkpoint_config.h"
 #include "checkpoint_manager.h"
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"

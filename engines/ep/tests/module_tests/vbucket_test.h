@@ -20,9 +20,9 @@
 #include "checkpoint_config.h"
 #include "configuration.h"
 #include "hash_table.h"
-#include "item_pager.h"
 #include "stats.h"
 #include "vbucket.h"
+#include "vbucket_queue_item_ctx.h"
 
 #include <folly/portability/GTest.h>
 
