@@ -293,6 +293,12 @@ protected:
      */
     void setSeqnoAckReceivedPostProcessHook(std::function<void()> func);
 
+    /**
+     * Simulate a timeout event happening at the given time point.
+     */
+    void simulateTimeoutCheck(ActiveDurabilityMonitor& adm,
+                              std::chrono::steady_clock::time_point now) const;
+
     const std::string active = "active";
     const std::string replica1 = "replica1";
     const std::string replica2 = "replica2";

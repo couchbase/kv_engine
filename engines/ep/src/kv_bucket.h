@@ -27,6 +27,7 @@
 #include <cstdlib>
 #include <deque>
 
+class DurabilityCompletionTask;
 class ReplicationThrottle;
 class VBucketCountVisitor;
 namespace Collections {
@@ -712,7 +713,14 @@ protected:
                                               const AddStatFn& add_stat);
 
     /**
-     * Returns the callback function to be invoked when a SyncWrite is
+     * Returns the callback function to be invoked when SyncWrite(s) have been
+     * resolved for the given vBucket and are awaiting Completion (Commit /
+     * Abort). Used by makeVBucket().
+     */
+    SyncWriteResolvedCallback makeSyncWriteResolvedCB();
+
+    /**
+     * Returns the callback function to be invoked when a SyncWrite has been
      * completed. Used by makeVBucket().
      */
     SyncWriteCompleteCallback makeSyncWriteCompleteCB();
@@ -744,6 +752,10 @@ protected:
     // Responsible for enforcing the Durability Timeout for the SyncWrites
     // tracked in this KVBucket.
     ExTask durabilityTimeoutTask;
+
+    /// Responsible for completing (commiting or aborting SyncWrites which have
+    /// completed in this KVBucket.
+    std::shared_ptr<DurabilityCompletionTask> durabilityCompletionTask;
 
     /* Vector of mutexes for each vbucket
      * Used by flush operations: flushVB, deleteVB, compactVB, snapshotVB */

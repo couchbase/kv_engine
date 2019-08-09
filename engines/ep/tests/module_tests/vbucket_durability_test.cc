@@ -100,9 +100,16 @@ void VBucketDurabilityTest::storeSyncWrites(
     EXPECT_EQ(preCMCount + seqnos.size(), ckptMgr->getNumItems());
 }
 
+void VBucketDurabilityTest::simulateSetVBState(vbucket_state_t to,
+                                               const nlohmann::json& meta) {
+    vbucket->setState(to, meta);
+    vbucket->processResolvedSyncWrites();
+}
+
 void VBucketDurabilityTest::simulateLocalAck(uint64_t seqno) {
     vbucket->setPersistenceSeqno(seqno);
     vbucket->notifyPersistenceToDurabilityMonitor();
+    vbucket->processResolvedSyncWrites();
 }
 
 void VBucketDurabilityTest::testAddPrepare(
@@ -600,6 +607,8 @@ TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
             folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
             replica3,
             preparedSeqno);
+    vbucket->processResolvedSyncWrites();
+
     checkCommitted();
 }
 
@@ -1420,6 +1429,8 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDM(
     size_t expectedNumTracked = seqnos.size();
     for (const auto s : seqnos) {
         adm.seqnoAckReceived(replica1, s.seqno);
+        vbucket->processResolvedSyncWrites();
+
         EXPECT_EQ(--expectedNumTracked, adm.getNumTracked());
         // Nothing to notify, we don't know anything about the oldADM->client
         // connection.
@@ -1490,7 +1501,7 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopology(
     testConvertPDMToADMWithNullTopologySetup(initialState, writes);
 
     // ns_server then sets the topology
-    vbucket->setState(
+    simulateSetVBState(
             vbucket_state_active,
             {{"topology", nlohmann::json::array({{active}, {active}})}});
 
@@ -1522,8 +1533,8 @@ void VBucketDurabilityTest::
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
 
     // ns_server then sets the topology
-    vbucket->setState(vbucket_state_active,
-                      {{"topology", nlohmann::json::array({{active}})}});
+    simulateSetVBState(vbucket_state_active,
+                       {{"topology", nlohmann::json::array({{active}})}});
 
     // And we commit our prepares
     EXPECT_EQ(2, adm.getHighPreparedSeqno());
@@ -1532,6 +1543,7 @@ void VBucketDurabilityTest::
 
     vbucket->setPersistenceSeqno(3);
     adm.notifyLocalPersistence();
+    adm.processCompletedSyncWriteQueue();
     EXPECT_EQ(3, adm.getHighPreparedSeqno());
     EXPECT_EQ(3, adm.getHighCompletedSeqno());
     EXPECT_EQ(0, adm.getNumTracked());
@@ -1563,8 +1575,8 @@ void VBucketDurabilityTest::
     adm.notifyLocalPersistence();
 
     // ns_server then sets the topology
-    vbucket->setState(vbucket_state_active,
-                      {{"topology", nlohmann::json::array({{active}})}});
+    simulateSetVBState(vbucket_state_active,
+                       {{"topology", nlohmann::json::array({{active}})}});
 
     EXPECT_EQ(3, adm.getHighPreparedSeqno());
     EXPECT_EQ(3, adm.getHighCompletedSeqno());
@@ -1586,7 +1598,7 @@ TEST_P(EPVBucketDurabilityTest,
 void VBucketDurabilityTest::testConvertPDMToADMWithNullTopologyPostDiskSnap(
         vbucket_state_t initialState) {
     ASSERT_TRUE(vbucket);
-    vbucket->setState(initialState);
+    simulateSetVBState(initialState);
 
     // Queue some Prepares into the PDM
     auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
@@ -1615,7 +1627,7 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopologyPostDiskSnap(
     EXPECT_EQ(0, pdm.getHighCompletedSeqno());
 
     // VBState transitions from Replica to Active with a null topology
-    vbucket->setState(vbucket_state_active, {});
+    simulateSetVBState(vbucket_state_active, {});
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
 
     EXPECT_EQ(3, adm.getHighPreparedSeqno());
@@ -1623,8 +1635,8 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopologyPostDiskSnap(
     EXPECT_EQ(2, adm.getNumTracked());
 
     // ns_server then sets the topology
-    vbucket->setState(vbucket_state_active,
-                      {{"topology", nlohmann::json::array({{active}})}});
+    simulateSetVBState(vbucket_state_active,
+                       {{"topology", nlohmann::json::array({{active}})}});
 
     // And we commit our prepares
     EXPECT_EQ(3, adm.getHighPreparedSeqno());
@@ -1643,6 +1655,7 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopologyPostDiskSnap(
     EXPECT_EQ(1, adm.getNumTracked());
 
     adm.checkForCommit();
+    adm.processCompletedSyncWriteQueue();
     EXPECT_EQ(4, adm.getHighPreparedSeqno());
     EXPECT_EQ(4, adm.getHighCompletedSeqno());
     EXPECT_EQ(0, adm.getNumTracked());
@@ -1661,7 +1674,7 @@ TEST_P(VBucketDurabilityTest,
 void VBucketDurabilityTest::testConvertPassiveDMToActiveDMUnpersistedPrepare(
         vbucket_state_t initialState) {
     ASSERT_TRUE(vbucket);
-    vbucket->setState(initialState);
+    simulateSetVBState(initialState);
 
     // Create 1 persist level prepare
     auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
@@ -1680,7 +1693,7 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDMUnpersistedPrepare(
     // VBState transitions from Replica to Active
     const nlohmann::json topology(
             {{"topology", nlohmann::json::array({{active}})}});
-    vbucket->setState(vbucket_state_active, topology);
+    simulateSetVBState(vbucket_state_active, topology);
 
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
 
@@ -1708,7 +1721,7 @@ TEST_P(EPVBucketDurabilityTest,
 void VBucketDurabilityTest::testConvertPDMToADMMidSnapSetup(
         vbucket_state_t initialState) {
     ASSERT_TRUE(vbucket);
-    vbucket->setState(initialState);
+    simulateSetVBState(initialState);
 
     // Create 1 prepare
     const auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
@@ -1748,7 +1761,8 @@ void VBucketDurabilityTest::testConvertPDMToADMMidSnapSetupPersistBeforeChange(
     // able to commit all in-flight SyncWrites
     const nlohmann::json topology(
             {{"topology", nlohmann::json::array({{active}})}});
-    vbucket->setState(vbucket_state_active, topology);
+    simulateSetVBState(vbucket_state_active, topology);
+
     // The old PDM is an instance of ADM now. All Prepares are retained.
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
 
@@ -1775,13 +1789,14 @@ void VBucketDurabilityTest::testConvertPDMToADMMidSnapSetupPersistAfterChange(
     // able to commit all in-flight SyncWrites
     const nlohmann::json topology(
             {{"topology", nlohmann::json::array({{active}})}});
-    vbucket->setState(vbucket_state_active, topology);
+    simulateSetVBState(vbucket_state_active, topology);
     // The old PDM is an instance of ADM now. All Prepares are retained.
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
 
     // Remove completed from trackedWrites at topology change
     EXPECT_EQ(1, adm.getNumTracked());
     adm.checkForCommit();
+    adm.processCompletedSyncWriteQueue();
 
     // HPS is equal to seqno of last prepare
     EXPECT_EQ(2, adm.getHighPreparedSeqno());
@@ -1821,7 +1836,7 @@ void VBucketDurabilityTest::testConvertPDMToADMMidSnapAllPreparesCompleted(
     // able to commit all in-flight SyncWrites
     const nlohmann::json topology(
             {{"topology", nlohmann::json::array({{active}})}});
-    vbucket->setState(vbucket_state_active, topology);
+    simulateSetVBState(vbucket_state_active, topology);
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
     EXPECT_EQ(4, adm.getHighPreparedSeqno());
     EXPECT_EQ(2, adm.getHighCompletedSeqno());
@@ -1840,6 +1855,7 @@ void VBucketDurabilityTest::testConvertPDMToADMMidSnapAllPreparesCompleted(
     EXPECT_EQ(1, adm.getNumTracked());
 
     adm.checkForCommit();
+    adm.processCompletedSyncWriteQueue();
     EXPECT_EQ(5, adm.getHighPreparedSeqno());
     EXPECT_EQ(5, adm.getHighCompletedSeqno());
     EXPECT_EQ(0, adm.getNumTracked());
@@ -1858,7 +1874,7 @@ TEST_P(VBucketDurabilityTest,
 void VBucketDurabilityTest::testConvertPassiveDMToActiveDMNoPrepares(
         vbucket_state_t initialState) {
     ASSERT_TRUE(vbucket);
-    vbucket->setState(initialState);
+    simulateSetVBState(initialState);
 
     // Create 1 prepare
     const auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
@@ -1879,7 +1895,7 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDMNoPrepares(
     // VBState transitions from Replica to Active
     const nlohmann::json topology(
             {{"topology", nlohmann::json::array({{active, replica1}})}});
-    vbucket->setState(vbucket_state_active, topology);
+    simulateSetVBState(vbucket_state_active, topology);
     // The old PDM is an instance of ADM now. All Prepares are retained.
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
     EXPECT_EQ(0, adm.getNumTracked());
@@ -1920,8 +1936,8 @@ TEST_P(VBucketDurabilityTest, ConvertActiveDMToPassiveDMPreparedSyncWrites) {
     adm.checkForCommit();
 
     // Test: Convert to PassiveDM (via dead as ns_server can do).
-    vbucket->setState(vbucket_state_dead);
-    vbucket->setState(vbucket_state_replica);
+    simulateSetVBState(vbucket_state_dead);
+    simulateSetVBState(vbucket_state_replica);
 
     // Check: seqnos on newly-created PassiveDM.
     auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
@@ -1973,13 +1989,14 @@ TEST_P(VBucketDurabilityTest, ConvertActiveDMToPassiveDMCompletedSyncWrites) {
     // Setup: Commit the first Prepare (so we can advance HCS to non-zero and
     // test it below).
     adm.seqnoAckReceived(replica1, 1);
+    vbucket->processResolvedSyncWrites();
     ASSERT_EQ(2, adm.getNumTracked());
     ASSERT_EQ(3, adm.getHighPreparedSeqno());
     ASSERT_EQ(1, adm.getHighCompletedSeqno());
 
     // Test: Convert to PassiveDM (via dead as ns_server can do).
-    vbucket->setState(vbucket_state_dead);
-    vbucket->setState(vbucket_state_replica);
+    simulateSetVBState(vbucket_state_dead);
+    simulateSetVBState(vbucket_state_replica);
 
     // Check: state on newly created PassiveDM.
     auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
@@ -2031,7 +2048,7 @@ TEST_P(VBucketDurabilityTest, ConvertActiveDMToPassiveDMCompletedSyncWrites) {
 TEST_P(EPVBucketDurabilityTest, ReplicaToActiveToReplica) {
     // Setup: PassiveDM with
     // 1:PRE(persistMajority), 2:PRE(majority), 3:COMMIT(1), 4:COMMIT(2)
-    vbucket->setState(vbucket_state_replica);
+    simulateSetVBState(vbucket_state_replica);
     using namespace cb::durability;
     std::vector<SyncWriteSpec> seqnos{{1, false, Level::PersistToMajority}, 2};
     testAddPrepare(seqnos);
@@ -2052,14 +2069,14 @@ TEST_P(EPVBucketDurabilityTest, ReplicaToActiveToReplica) {
     ASSERT_EQ(2, pdm.getHighCompletedSeqno());
 
     // Setup(2): Convert to ActiveDM (null topology).
-    vbucket->setState(vbucket_state_active);
+    simulateSetVBState(vbucket_state_active);
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
     EXPECT_EQ(2, adm.getNumTracked());
     EXPECT_EQ(0, adm.getHighPreparedSeqno());
     EXPECT_EQ(2, adm.getHighCompletedSeqno());
 
     // Test: Convert back to PassiveDM.
-    vbucket->setState(vbucket_state_replica);
+    simulateSetVBState(vbucket_state_replica);
     {
         auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
         EXPECT_EQ(2, pdm.getNumTracked());
@@ -2183,7 +2200,7 @@ TEST_P(VBucketDurabilityTest, ActiveDM_DoubleSetVBState) {
     // Test: (re)set the topology to the same state.
     const nlohmann::json topology(
             {{"topology", nlohmann::json::array({{active, replica1}})}});
-    vbucket->setState(vbucket_state_active, topology);
+    simulateSetVBState(vbucket_state_active, topology);
 
     // Validate: Client never notified yet (still awaiting replica1 ACK).
     ASSERT_EQ(SWCompleteTrace(0 /*count*/, nullptr, ENGINE_EINVAL),
@@ -2196,6 +2213,7 @@ TEST_P(VBucketDurabilityTest, ActiveDM_DoubleSetVBState) {
     size_t expectedNumTracked = seqnos.size();
     for (const auto s : seqnos) {
         adm.seqnoAckReceived(replica1, s.seqno);
+        vbucket->processResolvedSyncWrites();
         EXPECT_EQ(--expectedNumTracked, adm.getNumTracked());
     }
     // Client should be notified.
@@ -2222,7 +2240,7 @@ TEST_P(EPVBucketDurabilityTest,
     nlohmann::json topology({{"topology",
                               nlohmann::json::array({{active, replica1},
                                                      {active, replica2}})}});
-    vbucket->setState(vbucket_state_active, topology);
+    simulateSetVBState(vbucket_state_active, topology);
 
     // Setup: queue two Prepares into the ADM
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
@@ -2249,7 +2267,7 @@ TEST_P(EPVBucketDurabilityTest,
     // the new replica
     topology = nlohmann::json(
             {{"topology", nlohmann::json::array({{active, replica2}})}});
-    vbucket->setState(vbucket_state_active, topology);
+    simulateSetVBState(vbucket_state_active, topology);
 
     // Nothing has yet been committed because the active must persist
     EXPECT_EQ(2, adm.getNumTracked());
@@ -2263,7 +2281,8 @@ TEST_P(EPVBucketDurabilityTest,
     adm.notifyLocalPersistence();
     EXPECT_EQ(0, adm.getNumTracked());
 
-    // Client should be notified.
+    // Client should be notified once processed.
+    adm.processCompletedSyncWriteQueue();
     EXPECT_EQ(SWCompleteTrace(2 /*count*/, cookie, ENGINE_SUCCESS),
               swCompleteTrace);
 
@@ -2289,7 +2308,7 @@ TEST_P(VBucketDurabilityTest, IgnoreAckAtTakeoverDead) {
     ASSERT_EQ(seqnos.size(), adm.getNumTracked());
 
     // VBState transitions from Replica to Active
-    vbucket->setState(vbucket_state_dead, nlohmann::json{});
+    simulateSetVBState(vbucket_state_dead, nlohmann::json{});
 
     EXPECT_EQ(ENGINE_SUCCESS,
               vbucket->seqnoAcknowledged(

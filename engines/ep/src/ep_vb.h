@@ -39,6 +39,7 @@ public:
               std::unique_ptr<FailoverTable> table,
               std::shared_ptr<Callback<Vbid>> flusherCb,
               NewSeqnoCallback newSeqnoCb,
+              SyncWriteResolvedCallback syncWriteResolvedCb,
               SyncWriteCompleteCallback syncWriteCb,
               SeqnoAckCallback seqnoAckCb,
               Configuration& config,

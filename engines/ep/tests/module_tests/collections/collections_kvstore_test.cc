@@ -61,6 +61,7 @@ public:
                   /*table*/ nullptr,
                   std::make_shared<DummyCB>(),
                   /*newSeqnoCb*/ nullptr,
+                  SyncWriteResolvedCallback{},
                   NoopSyncWriteCompleteCb,
                   NoopSeqnoAckCb,
                   config,

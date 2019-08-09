@@ -1169,6 +1169,7 @@ VBucketPtr EPBucket::makeVBucket(
                                     std::move(table),
                                     flusherCb,
                                     std::move(newSeqnoCb),
+                                    makeSyncWriteResolvedCB(),
                                     makeSyncWriteCompleteCB(),
                                     makeSeqnoAckCB(),
                                     engine.getConfiguration(),

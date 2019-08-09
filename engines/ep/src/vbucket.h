@@ -103,8 +103,18 @@ typedef std::unique_ptr<Callback<const Vbid, const VBNotifyCtx&>>
         NewSeqnoCallback;
 
 /**
- * Callback function invoked when an accepted SyncWrite operation completes
- * (is committed / aborted / times out).
+ * Callback function to be invoked by ActiveDurabilityMonitor when SyncWrite(s)
+ * are ready to be resolved (either met requirements and should be Committed, or
+ * cannot meet requirements and should be Aborted).
+ *
+ * Will normally call the DurabilityCompletionTask to wake up and process
+ * those resolved SyncWrites.
+ */
+using SyncWriteResolvedCallback = std::function<void(Vbid vbid)>;
+
+/**
+ * Callback function invoked when an accepted SyncWrite operation has been
+ * completed (has been committed / aborted / times out).
  */
 using SyncWriteCompleteCallback =
         std::function<void(const void* cookie, ENGINE_ERROR_CODE status)>;
@@ -152,6 +162,7 @@ public:
             std::shared_ptr<Callback<Vbid>> flusherCb,
             std::unique_ptr<AbstractStoredValueFactory> valFact,
             NewSeqnoCallback newSeqnoCb,
+            SyncWriteResolvedCallback syncWriteResolvedCb,
             SyncWriteCompleteCallback syncWriteCb,
             SeqnoAckCallback seqnoAckCb,
             Configuration& config,
@@ -422,6 +433,17 @@ public:
      */
     void processDurabilityTimeout(
             const std::chrono::steady_clock::time_point asOf);
+
+    void notifySyncWritesPendingCompletion();
+
+    /**
+     * For all SyncWrites which the DurabilityMonitor has resolved (to be
+     * committed or aborted), perform the appropriate operation - i.e.
+     * actually perform the Commit / Abort operation.
+     *
+     * Typically called by the DurabilityCompletionTask.
+     */
+    void processResolvedSyncWrites();
 
     /**
      * This method performs operations on the stored value prior
@@ -2316,8 +2338,16 @@ private:
     NewSeqnoCallback newSeqnoCb;
 
     /**
-     * Callback invoked when a SyncWrite completes (Committed / Aborted /
-     * Times Out)
+     * Callback invoked when one or more SyncWrites are ready to be resolved for
+     * this VBucket (either met requirements and should be Committed, or cannot
+     * meet requirements and should be Aborted).
+     */
+    SyncWriteResolvedCallback syncWriteResolvedCb;
+
+    /**
+     * Callback invoked after a SyncWrite has been completed (Committed /
+     * Aborted / Times Out), so the requesting client can be informed of the
+     * SyncWrite's fate.
      */
     SyncWriteCompleteCallback syncWriteCompleteCb;
 
