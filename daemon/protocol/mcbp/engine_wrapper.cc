@@ -604,16 +604,23 @@ ENGINE_ERROR_CODE dcpSetVbucketState(Cookie& cookie,
     return ret;
 }
 
-ENGINE_ERROR_CODE dcpSnapshotMarker(Cookie& cookie,
-                                    uint32_t opaque,
-                                    Vbid vbid,
-                                    uint64_t startSeqno,
-                                    uint64_t endSeqno,
-                                    uint32_t flags) {
+ENGINE_ERROR_CODE dcpSnapshotMarker(
+        Cookie& cookie,
+        uint32_t opaque,
+        Vbid vbid,
+        uint64_t startSeqno,
+        uint64_t endSeqno,
+        uint32_t flags,
+        boost::optional<uint64_t> highCompletedSeqno) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->snapshot_marker(
-            &cookie, opaque, vbid, startSeqno, endSeqno, flags);
+    auto ret = dcp->snapshot_marker(&cookie,
+                                    opaque,
+                                    vbid,
+                                    startSeqno,
+                                    endSeqno,
+                                    flags,
+                                    highCompletedSeqno);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.snapshot_marker returned ENGINE_DISCONNECT",
                     connection.getId(),

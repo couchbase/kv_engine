@@ -154,11 +154,13 @@ ENGINE_ERROR_CODE ConnHandler::expiration(uint32_t opaque,
     return ENGINE_DISCONNECT;
 }
 
-ENGINE_ERROR_CODE ConnHandler::snapshotMarker(uint32_t opaque,
-                                              Vbid vbucket,
-                                              uint64_t start_seqno,
-                                              uint64_t end_seqno,
-                                              uint32_t flags) {
+ENGINE_ERROR_CODE ConnHandler::snapshotMarker(
+        uint32_t opaque,
+        Vbid vbucket,
+        uint64_t start_seqno,
+        uint64_t end_seqno,
+        uint32_t flags,
+        boost::optional<uint64_t> high_completed_seqno) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp snapshot marker API");

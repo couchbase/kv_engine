@@ -820,12 +820,14 @@ public:
                                  Vbid vbucket,
                                  uint32_t flags) override;
 
-    ENGINE_ERROR_CODE snapshot_marker(gsl::not_null<const void*> cookie,
-                                      uint32_t opaque,
-                                      Vbid vbucket,
-                                      uint64_t start_seqno,
-                                      uint64_t end_seqno,
-                                      uint32_t flags) override;
+    ENGINE_ERROR_CODE snapshot_marker(
+            gsl::not_null<const void*> cookie,
+            uint32_t opaque,
+            Vbid vbucket,
+            uint64_t start_seqno,
+            uint64_t end_seqno,
+            uint32_t flags,
+            boost::optional<uint64_t> high_completed_seqno) override;
 
     ENGINE_ERROR_CODE mutation(gsl::not_null<const void*> cookie,
                                uint32_t opaque,
@@ -1572,17 +1574,24 @@ ENGINE_ERROR_CODE EWB_Engine::stream_end(gsl::not_null<const void*> cookie,
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::snapshot_marker(gsl::not_null<const void*> cookie,
-                                              uint32_t opaque,
-                                              Vbid vbucket,
-                                              uint64_t start_seqno,
-                                              uint64_t end_seqno,
-                                              uint32_t flags) {
+ENGINE_ERROR_CODE EWB_Engine::snapshot_marker(
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        Vbid vbucket,
+        uint64_t start_seqno,
+        uint64_t end_seqno,
+        uint32_t flags,
+        boost::optional<uint64_t> high_completed_seqno) {
     if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return real_engine_dcp->snapshot_marker(
-                cookie, opaque, vbucket, start_seqno, end_seqno, flags);
+        return real_engine_dcp->snapshot_marker(cookie,
+                                                opaque,
+                                                vbucket,
+                                                start_seqno,
+                                                end_seqno,
+                                                flags,
+                                                high_completed_seqno);
     }
 }
 

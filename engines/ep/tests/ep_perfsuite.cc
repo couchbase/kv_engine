@@ -1258,7 +1258,8 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
                                     vbid,
                                     seqno /*snapStart*/,
                                     seqno /*snapEnd*/,
-                                    dcp_marker_flag_t::MARKER_FLAG_MEMORY),
+                                    dcp_marker_flag_t::MARKER_FLAG_MEMORY,
+                                    {} /*HCS*/),
                 "dcp.snapshot_marker failed");
 
         auto begin = std::chrono::steady_clock::now();

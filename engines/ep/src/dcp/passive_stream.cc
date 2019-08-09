@@ -869,6 +869,8 @@ ENGINE_ERROR_CODE PassiveStream::processDropScope(VBucket& vb,
 }
 
 void PassiveStream::processMarker(SnapshotMarker* marker) {
+    // @TODO sanity check -  remove when we send the HCS
+    Expects(!marker->getHighCompletedSeqno());
     VBucketPtr vb = engine->getVBucket(vb_);
 
     cur_snapshot_start.store(marker->getStartSeqno());

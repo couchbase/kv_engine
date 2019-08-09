@@ -722,11 +722,13 @@ ENGINE_ERROR_CODE DcpConsumer::toMainDeletion(DeleteType origin,
     return err;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
-                                              Vbid vbucket,
-                                              uint64_t start_seqno,
-                                              uint64_t end_seqno,
-                                              uint32_t flags) {
+ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(
+        uint32_t opaque,
+        Vbid vbucket,
+        uint64_t start_seqno,
+        uint64_t end_seqno,
+        uint32_t flags,
+        boost::optional<uint64_t> high_completed_seqno) {
     lastMessageTime = ep_current_time();
     UpdateFlowControl ufc(*this, SnapshotMarker::baseMsgBytes);
 
@@ -745,6 +747,7 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
                                                 start_seqno,
                                                 end_seqno,
                                                 flags,
+                                                high_completed_seqno,
                                                 cb::mcbp::DcpStreamId{});
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }

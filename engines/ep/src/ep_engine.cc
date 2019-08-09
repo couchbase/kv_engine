@@ -1338,12 +1338,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::snapshot_marker(
         Vbid vbucket,
         uint64_t start_seqno,
         uint64_t end_seqno,
-        uint32_t flags) {
+        uint32_t flags,
+        boost::optional<uint64_t> high_completed_seqno) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        return conn->snapshotMarker(
-                opaque, vbucket, start_seqno, end_seqno, flags);
+        return conn->snapshotMarker(opaque,
+                                    vbucket,
+                                    start_seqno,
+                                    end_seqno,
+                                    flags,
+                                    high_completed_seqno);
     }
     return ENGINE_DISCONNECT;
 }

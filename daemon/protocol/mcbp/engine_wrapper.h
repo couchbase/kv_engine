@@ -372,14 +372,18 @@ ENGINE_ERROR_CODE dcpSetVbucketState(Cookie& cookie,
  * @param startSeqno The snapshot start seqno
  * @param endSeqno The snapshot end seqno
  * @param flags
+ * @param highCompletedSeqno The SyncRepl high completed seqno
+ *
  * @return ENGINE_ERROR_CODE
  */
-ENGINE_ERROR_CODE dcpSnapshotMarker(Cookie& cookie,
-                                    uint32_t opaque,
-                                    Vbid vbid,
-                                    uint64_t startSeqno,
-                                    uint64_t endSeqno,
-                                    uint32_t flags);
+ENGINE_ERROR_CODE dcpSnapshotMarker(
+        Cookie& cookie,
+        uint32_t opaque,
+        Vbid vbid,
+        uint64_t startSeqno,
+        uint64_t endSeqno,
+        uint32_t flags,
+        boost::optional<uint64_t> highCompletedSeqno);
 
 /**
  * Calls the underlying engine DCP stream-end

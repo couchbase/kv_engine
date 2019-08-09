@@ -28,17 +28,28 @@ void dcp_snapshot_marker_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
         auto& request = cookie.getRequest(Cookie::PacketContent::Full);
-        using cb::mcbp::request::DcpSnapshotMarkerPayload;
+        using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
+        using cb::mcbp::request::DcpSnapshotMarkerV2Payload;
         auto extra = request.getExtdata();
+
         const auto* payload =
-                reinterpret_cast<const DcpSnapshotMarkerPayload*>(extra.data());
+                reinterpret_cast<const DcpSnapshotMarkerV1Payload*>(
+                        extra.data());
+        boost::optional<uint64_t> hcs;
+        if (extra.size() == sizeof(DcpSnapshotMarkerV2Payload)) {
+            const auto* v2Payload =
+                    reinterpret_cast<const DcpSnapshotMarkerV2Payload*>(
+                            extra.data());
+            hcs = v2Payload->getHighCompletedSeqno();
+        }
 
         ret = dcpSnapshotMarker(cookie,
                                 request.getOpaque(),
                                 request.getVBucket(),
                                 payload->getStartSeqno(),
                                 payload->getEndSeqno(),
-                                payload->getFlags());
+                                payload->getFlags(),
+                                hcs);
     }
 
     ret = connection.remapErrorCode(ret);

@@ -760,6 +760,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                     s->getStartSeqno(),
                                     s->getEndSeqno(),
                                     s->getFlags(),
+                                    s->getHighCompletedSeqno(),
                                     resp->getStreamId());
             break;
         }

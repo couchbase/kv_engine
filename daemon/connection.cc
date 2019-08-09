@@ -1827,37 +1827,52 @@ ENGINE_ERROR_CODE Connection::stream_end(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
-                                     Vbid vbucket,
-                                     uint64_t start_seqno,
-                                     uint64_t end_seqno,
-                                     uint32_t flags,
-                                     cb::mcbp::DcpStreamId sid) {
+ENGINE_ERROR_CODE Connection::marker(
+        uint32_t opaque,
+        Vbid vbucket,
+        uint64_t start_seqno,
+        uint64_t end_seqno,
+        uint32_t flags,
+        boost::optional<uint64_t> high_completed_seqno,
+        cb::mcbp::DcpStreamId sid) {
     using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
     using cb::mcbp::Request;
-    using cb::mcbp::request::DcpSnapshotMarkerPayload;
-    uint8_t buffer[sizeof(Request) + sizeof(DcpSnapshotMarkerPayload) +
-                   sizeof(cb::mcbp::DcpStreamIdFrameInfo)];
+    using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
+    using cb::mcbp::request::DcpSnapshotMarkerV2Payload;
+    auto size = sizeof(Request) + sizeof(cb::mcbp::DcpStreamIdFrameInfo) +
+                (high_completed_seqno ? sizeof(DcpSnapshotMarkerV2Payload)
+                                      : sizeof(DcpSnapshotMarkerV1Payload));
 
-    Framebuilder builder({buffer, sizeof(buffer)});
+    std::vector<uint8_t> buffer(size);
+
+    Framebuilder builder({buffer.data(), buffer.size()});
     builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
                          : cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     builder.setOpaque(opaque);
     builder.setVBucket(vbucket);
 
-    DcpSnapshotMarkerPayload payload;
-    payload.setStartSeqno(start_seqno);
-    payload.setEndSeqno(end_seqno);
-    payload.setFlags(flags);
-
     if (sid) {
         cb::mcbp::DcpStreamIdFrameInfo framedSid(sid);
         builder.setFramingExtras(framedSid.getBuf());
     }
 
-    builder.setExtras(
-            {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
+    if (high_completed_seqno) {
+        DcpSnapshotMarkerV2Payload payload;
+        payload.setStartSeqno(start_seqno);
+        payload.setEndSeqno(end_seqno);
+        payload.setFlags(flags);
+        payload.setHighCompletedSeqno(*high_completed_seqno);
+        builder.setExtras(
+                {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
+    } else {
+        DcpSnapshotMarkerV1Payload payload;
+        payload.setStartSeqno(start_seqno);
+        payload.setEndSeqno(end_seqno);
+        payload.setFlags(flags);
+        builder.setExtras(
+                {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
+    }
 
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }

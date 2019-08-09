@@ -831,25 +831,25 @@ protected:
 };
 static_assert(sizeof(DcpStreamEndPayload) == 4, "Unexpected struct size");
 
-class DcpSnapshotMarkerPayload {
+class DcpSnapshotMarkerV1Payload {
 public:
     uint64_t getStartSeqno() const {
         return ntohll(start_seqno);
     }
     void setStartSeqno(uint64_t start_seqno) {
-        DcpSnapshotMarkerPayload::start_seqno = htonll(start_seqno);
+        DcpSnapshotMarkerV1Payload::start_seqno = htonll(start_seqno);
     }
     uint64_t getEndSeqno() const {
         return ntohll(end_seqno);
     }
     void setEndSeqno(uint64_t end_seqno) {
-        DcpSnapshotMarkerPayload::end_seqno = htonll(end_seqno);
+        DcpSnapshotMarkerV1Payload::end_seqno = htonll(end_seqno);
     }
     uint32_t getFlags() const {
         return ntohl(flags);
     }
     void setFlags(uint32_t flags) {
-        DcpSnapshotMarkerPayload::flags = htonl(flags);
+        DcpSnapshotMarkerV1Payload::flags = htonl(flags);
     }
 
 protected:
@@ -857,7 +857,45 @@ protected:
     uint64_t end_seqno = 0;
     uint32_t flags = 0;
 };
-static_assert(sizeof(DcpSnapshotMarkerPayload) == 20, "Unexpected struct size");
+static_assert(sizeof(DcpSnapshotMarkerV1Payload) == 20,
+              "Unexpected struct size");
+
+class DcpSnapshotMarkerV2Payload {
+public:
+    uint64_t getStartSeqno() const {
+        return ntohll(start_seqno);
+    }
+    void setStartSeqno(uint64_t start_seqno) {
+        DcpSnapshotMarkerV2Payload::start_seqno = htonll(start_seqno);
+    }
+    uint64_t getEndSeqno() const {
+        return ntohll(end_seqno);
+    }
+    void setEndSeqno(uint64_t end_seqno) {
+        DcpSnapshotMarkerV2Payload::end_seqno = htonll(end_seqno);
+    }
+    uint32_t getFlags() const {
+        return ntohl(flags);
+    }
+    void setFlags(uint32_t flags) {
+        DcpSnapshotMarkerV2Payload::flags = htonl(flags);
+    }
+    uint64_t getHighCompletedSeqno() const {
+        return ntohll(highCompletedSeqno);
+    }
+    void setHighCompletedSeqno(uint64_t highCompletedSeqno) {
+        DcpSnapshotMarkerV2Payload::highCompletedSeqno =
+                htonll(highCompletedSeqno);
+    }
+
+protected:
+    uint64_t start_seqno = 0;
+    uint64_t end_seqno = 0;
+    uint32_t flags = 0;
+    uint64_t highCompletedSeqno = 0;
+};
+static_assert(sizeof(DcpSnapshotMarkerV2Payload) == 28,
+              "Unexpected struct size");
 
 class DcpMutationPayload {
 public:

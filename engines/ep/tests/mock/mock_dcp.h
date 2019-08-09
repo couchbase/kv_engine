@@ -66,6 +66,7 @@ public:
                              uint64_t start_seqno,
                              uint64_t end_seqno,
                              uint32_t flags,
+                             boost::optional<uint64_t> high_completed_seqno,
                              cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE mutation(uint32_t opaque,
@@ -189,6 +190,7 @@ public:
     cb::mcbp::DcpStreamId last_stream_id;
     std::string last_collection_filter;
     uint64_t last_prepared_seqno;
+    uint64_t last_high_completed_seqno;
 
 protected:
     /// Helper method for deletion / deletion_v2 / expiration

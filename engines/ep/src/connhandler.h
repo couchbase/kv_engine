@@ -149,11 +149,13 @@ public:
                                          uint64_t rev_seqno,
                                          uint32_t deleteTime);
 
-    virtual ENGINE_ERROR_CODE snapshotMarker(uint32_t opaque,
-                                             Vbid vbucket,
-                                             uint64_t start_seqno,
-                                             uint64_t end_seqno,
-                                             uint32_t flags);
+    virtual ENGINE_ERROR_CODE snapshotMarker(
+            uint32_t opaque,
+            Vbid vbucket,
+            uint64_t start_seqno,
+            uint64_t end_seqno,
+            uint32_t flags,
+            boost::optional<uint64_t> high_completed_seqno);
 
     virtual ENGINE_ERROR_CODE setVBucketState(uint32_t opaque,
                                               Vbid vbucket,

@@ -291,12 +291,14 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
             logPrefix,
             startSeqno,
             endSeqno);
+        // @TODO push through HCS
         pushToReadyQ(std::make_unique<SnapshotMarker>(
                 opaque_,
                 vb_,
                 startSeqno,
                 endSeqno,
                 MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                boost::none /*HCS*/,
                 sid));
         lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 
@@ -1153,8 +1155,14 @@ void ActiveStream::snapshot(CheckpointType checkpointType,
             snapStart = std::min(snap_start_seqno_, snapStart);
             firstMarkerSent = true;
         }
-        pushToReadyQ(std::make_unique<SnapshotMarker>(
-                opaque_, vb_, snapStart, snapEnd, flags, sid));
+        // @TODO push through correct HCS
+        pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
+                                                      vb_,
+                                                      snapStart,
+                                                      snapEnd,
+                                                      flags,
+                                                      boost::none /*HCS*/,
+                                                      sid));
         lastSentSnapEndSeqno.store(snapEnd, std::memory_order_relaxed);
         // We should always send a CHK marker flag on disk -> memory
         // snapshot transition. Otherwise, clear nextSnapshotIsCheckpoint.

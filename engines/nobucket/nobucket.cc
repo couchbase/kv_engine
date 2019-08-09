@@ -255,7 +255,8 @@ public:
                                       Vbid,
                                       uint64_t,
                                       uint64_t,
-                                      uint32_t) override {
+                                      uint32_t,
+                                      boost::optional<uint64_t>) override {
         return ENGINE_NO_BUCKET;
     }
 

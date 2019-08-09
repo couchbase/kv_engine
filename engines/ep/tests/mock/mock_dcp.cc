@@ -125,12 +125,14 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::stream_end(
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE MockDcpMessageProducers::marker(uint32_t opaque,
-                                                  Vbid vbucket,
-                                                  uint64_t snap_start_seqno,
-                                                  uint64_t snap_end_seqno,
-                                                  uint32_t flags,
-                                                  cb::mcbp::DcpStreamId sid) {
+ENGINE_ERROR_CODE MockDcpMessageProducers::marker(
+        uint32_t opaque,
+        Vbid vbucket,
+        uint64_t snap_start_seqno,
+        uint64_t snap_end_seqno,
+        uint32_t flags,
+        boost::optional<uint64_t> highCompletedSeqno,
+        cb::mcbp::DcpStreamId sid) {
     clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpSnapshotMarker;
     last_opaque = opaque;
@@ -140,6 +142,9 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::marker(uint32_t opaque,
     last_snap_end_seqno = snap_end_seqno;
     last_flags = flags;
     last_stream_id = sid;
+    if (highCompletedSeqno) {
+        last_high_completed_seqno = *highCompletedSeqno;
+    }
     return ENGINE_SUCCESS;
 }
 
@@ -458,4 +463,5 @@ void MockDcpMessageProducers::clear_dcp_data() {
     last_system_event_version = mcbp::systemevent::version::version0;
     last_collection_manifest_uid = 0;
     last_stream_id = cb::mcbp::DcpStreamId{};
+    last_high_completed_seqno = 0;
 }

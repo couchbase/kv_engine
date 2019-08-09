@@ -172,11 +172,13 @@ public:
                                  uint64_t rev_seqno,
                                  uint32_t deleteTime) override;
 
-    ENGINE_ERROR_CODE snapshotMarker(uint32_t opaque,
-                                     Vbid vbucket,
-                                     uint64_t start_seqno,
-                                     uint64_t end_seqno,
-                                     uint32_t flags) override;
+    ENGINE_ERROR_CODE snapshotMarker(
+            uint32_t opaque,
+            Vbid vbucket,
+            uint64_t start_seqno,
+            uint64_t end_seqno,
+            uint32_t flags,
+            boost::optional<uint64_t> high_completed_seqno) override;
 
     ENGINE_ERROR_CODE noop(uint32_t opaque) override;
 

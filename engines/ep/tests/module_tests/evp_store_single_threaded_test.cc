@@ -1710,8 +1710,12 @@ TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
     engine->getEpStats().replicationThrottleWriteQueueCap = 0;
 
     // 1. Add the first message, a snapshot marker.
-    consumer->snapshotMarker(/*opaque*/1, vbid, /*startseq*/0,
-                             /*endseq*/messages, /*flags*/0);
+    consumer->snapshotMarker(/*opaque*/ 1,
+                             vbid,
+                             /*startseq*/ 0,
+                             /*endseq*/ messages,
+                             /*flags*/ 0,
+                             /*HCS*/ {});
 
     // 2. Now add the rest as mutations.
     for (int ii = 0; ii <= messages; ii++) {
@@ -1775,7 +1779,8 @@ TEST_F(SingleThreadedEPBucketTest, MB_29861) {
                              vbid,
                              /*startseq*/ 0,
                              /*endseq*/ 2,
-                             /*flags*/ MARKER_FLAG_DISK);
+                             /*flags*/ MARKER_FLAG_DISK,
+                             /*HCS*/ {});
 
     // 2. Now add a deletion.
     consumer->deletion(/*opaque*/ 1,
@@ -1843,7 +1848,8 @@ TEST_P(STParameterizedBucketTest, MB_27457) {
                              vbid,
                              /*startseq*/ 0,
                              /*endseq*/ 2,
-                             /*flags*/ 0);
+                             /*flags*/ 0,
+                             /*HCS*/ {});
     // 2. Now add two deletions, one without deleteTime, one with
     consumer->deletionV2(/*opaque*/ 1,
                          {"key1", DocKeyEncodesCollectionId::No},
@@ -2385,8 +2391,12 @@ TEST_F(SingleThreadedEPBucketTest, mb25273) {
     // Send mutation in a single seqno snapshot
     int64_t bySeqno = 1;
     EXPECT_EQ(ENGINE_SUCCESS,
-              consumer->snapshotMarker(
-                      opaque, vbid, bySeqno, bySeqno, MARKER_FLAG_CHK));
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       bySeqno,
+                                       bySeqno,
+                                       MARKER_FLAG_CHK,
+                                       {} /*HCS*/));
     EXPECT_EQ(ENGINE_SUCCESS,
               consumer->mutation(opaque,
                                  docKey,
@@ -2414,8 +2424,12 @@ TEST_F(SingleThreadedEPBucketTest, mb25273) {
              finalizedXttr.size()};
     EXPECT_NE(0, value.size());
     EXPECT_EQ(ENGINE_SUCCESS,
-              consumer->snapshotMarker(
-                      opaque, vbid, bySeqno, bySeqno, MARKER_FLAG_CHK));
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       bySeqno,
+                                       bySeqno,
+                                       MARKER_FLAG_CHK,
+                                       {} /*HCS*/));
     EXPECT_EQ(ENGINE_SUCCESS,
               consumer->deletion(opaque,
                                  docKey,
@@ -2853,8 +2867,12 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
     // Send deletion in a single seqno snapshot
     int64_t bySeqno = 1;
     EXPECT_EQ(ENGINE_SUCCESS,
-              consumer->snapshotMarker(
-                      opaque, vbid, bySeqno, bySeqno, MARKER_FLAG_CHK));
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       bySeqno,
+                                       bySeqno,
+                                       MARKER_FLAG_CHK,
+                                       {} /*HCS*/));
 
     cb::const_byte_buffer valueBuf{
             reinterpret_cast<const uint8_t*>(value.data()), value.size()};
@@ -2924,8 +2942,12 @@ TEST_F(SingleThreadedEPBucketTest, MB_31141_sanitise_input) {
     // Send deletion in a single seqno snapshot
     int64_t bySeqno = 1;
     EXPECT_EQ(ENGINE_SUCCESS,
-              consumer->snapshotMarker(
-                      opaque, vbid, bySeqno, bySeqno, MARKER_FLAG_CHK));
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       bySeqno,
+                                       bySeqno,
+                                       MARKER_FLAG_CHK,
+                                       {} /*HCS*/));
 
     EXPECT_EQ(ENGINE_SUCCESS,
               consumer->deletion(opaque,
@@ -3838,7 +3860,8 @@ TEST_F(SingleThreadedEPBucketTest,
     int opaque = 1;
     ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, vbid, /*flags*/ 0));
     ASSERT_EQ(ENGINE_SUCCESS,
-              consumer->snapshotMarker(opaque, vbid, 1, 10, MARKER_FLAG_CHK));
+              consumer->snapshotMarker(
+                      opaque, vbid, 1, 10, MARKER_FLAG_CHK, {} /*HCS*/));
     ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
 
     // Test: Have the producer send further messages on the stream (before the
@@ -3914,7 +3937,7 @@ TEST_F(SingleThreadedEPBucketTest,
 
         EXPECT_EQ(expected,
                   consumer->snapshotMarker(
-                          opaque, vbid, 11, 11, MARKER_FLAG_CHK));
+                          opaque, vbid, 11, 11, MARKER_FLAG_CHK, {} /*HCS*/));
     };
     testAllStreamLevelMessages(ENGINE_SUCCESS);
 

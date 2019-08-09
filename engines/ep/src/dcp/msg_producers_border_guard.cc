@@ -82,9 +82,16 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::marker(
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint32_t flags,
+        boost::optional<uint64_t> highCompletedSeqno,
         cb::mcbp::DcpStreamId sid) {
     NonBucketAllocationGuard guard;
-    return guarded.marker(opaque, vbucket, start_seqno, end_seqno, flags, sid);
+    return guarded.marker(opaque,
+                          vbucket,
+                          start_seqno,
+                          end_seqno,
+                          flags,
+                          highCompletedSeqno,
+                          sid);
 }
 ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::mutation(
         uint32_t opaque,

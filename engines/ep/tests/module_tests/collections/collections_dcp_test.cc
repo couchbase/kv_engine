@@ -85,7 +85,8 @@ void CollectionsDcpTest::createDcpConsumer() {
                                        /*vbucket*/ replicaVB,
                                        /*start_seqno*/ 0,
                                        /*end_seqno*/ 100,
-                                       /*flags*/ 0));
+                                       /*flags*/ 0,
+                                       /*highCompletedSeqno*/ {}));
 }
 
 void CollectionsDcpTest::createDcpObjects(

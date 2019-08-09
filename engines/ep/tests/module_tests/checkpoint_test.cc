@@ -1071,8 +1071,13 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
     uint32_t flags = dcp_marker_flag_t::MARKER_FLAG_DISK;
 
     // 1) the consumer receives the snapshot-marker
-    SnapshotMarker snapshotMarker(
-            0 /* opaque */, vbid, snapshotStart, snapshotEnd, flags, {});
+    SnapshotMarker snapshotMarker(0 /* opaque */,
+                                  vbid,
+                                  snapshotStart,
+                                  snapshotEnd,
+                                  flags,
+                                  {} /*HCS*/,
+                                  {});
     passiveStream->processMarker(&snapshotMarker);
 
     // We must have 1 open checkpoint with id=1
@@ -1104,7 +1109,8 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
                                    snapshotEnd + 1,
                                    snapshotEnd + 2,
                                    dcp_marker_flag_t::MARKER_FLAG_CHK,
-                                   {});
+                                   {} /*HCS*/,
+                                   {} /*SID*/);
     passiveStream->processMarker(&snapshotMarker2);
     EXPECT_EQ(ckptList.size(), 2);
     EXPECT_EQ(ckptList.back()->getState(), checkpoint_state::CHECKPOINT_OPEN);
@@ -1193,7 +1199,8 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
                                       snapshotStart,
                                       diskSnapshotEnd,
                                       flags,
-                                      {});
+                                      {} /*HCS*/,
+                                      {} /*SID*/);
         passiveStream->processMarker(&snapshotMarker);
         processMutations(*passiveStream, snapshotStart, diskSnapshotEnd);
         snapshotStart = diskSnapshotEnd + 1;
@@ -1216,7 +1223,7 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
 
     // 1) the consumer receives the snapshot-marker
     SnapshotMarker snapshotMarker(
-            0 /* opaque */, vbid, snapshotStart, snapshotEnd, flags, {});
+            0 /* opaque */, vbid, snapshotStart, snapshotEnd, flags, {} /*HCS*/, {} /*SID*/);
     passiveStream->processMarker(&snapshotMarker);
 
     // 2) the consumer receives the mutations until (snapshotEnd -1)

@@ -1571,6 +1571,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
                                   snapStart,
                                   snapEnd,
                                   dcp_marker_flag_t::MARKER_FLAG_MEMORY,
+                                  {} /*HCS*/,
                                   {});
     stream->processMarker(&snapshotMarker);
 
@@ -1785,7 +1786,8 @@ void SingleThreadedPassiveStreamTest::mb_33773(
                              vbid,
                              snapStart,
                              snapEnd,
-                             dcp_marker_flag_t::MARKER_FLAG_MEMORY);
+                             dcp_marker_flag_t::MARKER_FLAG_MEMORY,
+                             {} /*HCS*/);
 
     // This code is tricking the replication throttle into returning pause so
     // that the mutation's are buffered.

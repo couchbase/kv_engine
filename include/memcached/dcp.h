@@ -104,16 +104,20 @@ struct dcp_message_producers {
      * @param vbucket the vbucket id the message belong to
      * @param start_seqno start of the snapshot range
      * @param end_seqno end of the snapshot range
+     * @param flags snapshot marker flags (DISK/MEMORY/CHK/ACK).
+     * @param highCompletedSeqno the SyncRepl high completed seqno
      * @param sid The stream-ID the marker applies to (can be 0 for none)
      *
      * @return ENGINE_SUCCESS upon success
      */
-    virtual ENGINE_ERROR_CODE marker(uint32_t opaque,
-                                     Vbid vbucket,
-                                     uint64_t start_seqno,
-                                     uint64_t end_seqno,
-                                     uint32_t flags,
-                                     cb::mcbp::DcpStreamId sid) = 0;
+    virtual ENGINE_ERROR_CODE marker(
+            uint32_t opaque,
+            Vbid vbucket,
+            uint64_t start_seqno,
+            uint64_t end_seqno,
+            uint32_t flags,
+            boost::optional<uint64_t> highCompletedSeqno,
+            cb::mcbp::DcpStreamId sid) = 0;
 
     /**
      * Send a Mutation
@@ -475,12 +479,14 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
     /**
      * Callback to the engine that a snapshot marker message was received
      */
-    virtual ENGINE_ERROR_CODE snapshot_marker(gsl::not_null<const void*> cookie,
-                                              uint32_t opaque,
-                                              Vbid vbucket,
-                                              uint64_t start_seqno,
-                                              uint64_t end_seqno,
-                                              uint32_t flags) = 0;
+    virtual ENGINE_ERROR_CODE snapshot_marker(
+            gsl::not_null<const void*> cookie,
+            uint32_t opaque,
+            Vbid vbucket,
+            uint64_t start_seqno,
+            uint64_t end_seqno,
+            uint32_t flags,
+            boost::optional<uint64_t> high_completed_seqno) = 0;
 
     /**
      * Callback to the engine that a mutation message was received

@@ -425,7 +425,8 @@ TEST_F(WarmupTest, MB_32577) {
                                       vbid,
                                       /*start_seqno*/ 0,
                                       /*end_seqno*/ 100,
-                                      zeroFlags));
+                                      zeroFlags,
+                                      /*HCS*/ {}));
 
     // create a DocKey object for the delete request
     const DocKey docKey{reinterpret_cast<const uint8_t*>(keyName.data()),
@@ -474,7 +475,8 @@ TEST_F(WarmupTest, MB_32577) {
                                       vbid,
                                       /*start_seqno*/ 0,
                                       /*end_seqno*/ 100,
-                                      zeroFlags));
+                                      zeroFlags,
+                                      /*HCS*/ {}));
 
     // Try and delete the doc
     EXPECT_EQ(ENGINE_SUCCESS,
