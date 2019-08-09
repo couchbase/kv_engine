@@ -223,3 +223,22 @@ TEST_P(ClusterConfigTest, SetGlobalClusterConfig) {
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataString();
     EXPECT_EQ(R"({"rev":1000})", rsp.getDataString());
 }
+
+/**
+ * The bucket configuration was not reset as part of bucket deletion
+ */
+TEST_P(ClusterConfigTest, MB35395) {
+    setClusterConfig(token, R"({"rev":1000})");
+
+    auto& conn = getAdminConnection();
+    conn.deleteBucket("default");
+
+    // Recreate the bucket, and the cluster config should be gone!
+    CreateTestBucket();
+    conn = getAdminConnection();
+    conn.selectBucket("default");
+    auto rsp = conn.execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::GetClusterConfig});
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+    EXPECT_EQ("", rsp.getDataString());
+}

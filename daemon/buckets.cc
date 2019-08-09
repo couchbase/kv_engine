@@ -23,6 +23,30 @@
 
 Bucket::Bucket() = default;
 
+void Bucket::reset() {
+    std::lock_guard<std::mutex> guard(mutex);
+    state = Bucket::State::None;
+    name[0] = '\0';
+    setEngine(nullptr);
+    topkeys.reset();
+    clusterConfiguration.reset();
+    max_document_size = default_max_item_size;
+    supportedFeatures = {};
+    for (auto& c : responseCounters) {
+        c.reset();
+    }
+    subjson_operation_times.reset();
+    timings.reset();
+    for (auto& s : stats) {
+        s.reset();
+    }
+
+    for (auto& h : engine_event_handlers) {
+        h.clear();
+    }
+    type = Type::Unknown;
+}
+
 bool Bucket::supports(cb::engine::Feature feature) {
     return supportedFeatures.find(feature) != supportedFeatures.end();
 }

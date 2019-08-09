@@ -81,7 +81,7 @@ void get_cluster_config_executor(Cookie& cookie) {
     }
 
     auto pair = bucket.clusterConfiguration.getConfiguration();
-    if (pair.first == -1) {
+    if (pair.first == ClusterConfiguration::NoConfiguration) {
         cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
     } else {
         cookie.sendResponse(cb::mcbp::Status::Success,

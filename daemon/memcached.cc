@@ -1840,14 +1840,7 @@ void CreateBucketThread::create() {
      */
     auto* engine = new_engine_instance(type, name, get_server_api);
     if (engine == nullptr) {
-        {
-            std::lock_guard<std::mutex> guard(bucket.mutex);
-            bucket.state = Bucket::State::None;
-            bucket.name[0] = '\0';
-            bucket.setEngine(nullptr);
-            bucket.topkeys.reset();
-        }
-
+        bucket.reset();
         LOG_WARNING(
                 "{} - Failed to create bucket [{}]: failed to "
                 "create a new engine instance",
@@ -1895,11 +1888,7 @@ void CreateBucketThread::create() {
             bucket.state = Bucket::State::Destroying;
         }
         engine->destroy(false);
-        std::lock_guard<std::mutex> guard(bucket.mutex);
-        bucket.state = Bucket::State::None;
-        bucket.name[0] = '\0';
-        bucket.setEngine(nullptr);
-        bucket.topkeys.reset();
+        bucket.reset();
 
         result = ENGINE_NOT_STORED;
     }
@@ -2088,25 +2077,7 @@ void DestroyBucketThread::destroy() {
     LOG_INFO("{} Delete bucket [{}]. Clean up allocated resources ",
              connection_id,
              name);
-
-    // Clean up the stats...
-    threadlocal_stats_reset(bucket.stats);
-
-    // Clear any registered event handlers
-    for (auto& handler : bucket.engine_event_handlers) {
-        handler.clear();
-    }
-
-    {
-        std::lock_guard<std::mutex> guard(bucket.mutex);
-        bucket.state = Bucket::State::None;
-        bucket.setEngine(nullptr);
-        bucket.name[0] = '\0';
-        bucket.topkeys.reset();
-        bucket.responseCounters.fill(0);
-    }
-    // don't need lock because all timing data uses atomics
-    bucket.timings.reset();
+    bucket.reset();
 
     LOG_INFO("{} Delete bucket [{}] complete", connection_id, name);
     result = ENGINE_SUCCESS;
@@ -2164,7 +2135,7 @@ static void cleanup_buckets() {
 
         if (bucket.state == Bucket::State::Ready) {
             bucket.getEngine()->destroy(false);
-            bucket.topkeys.reset();
+            bucket.reset();
         }
     }
 }

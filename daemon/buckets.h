@@ -178,7 +178,12 @@ public:
      */
     bool supports(cb::engine::Feature feature);
 
-private:
+    /**
+     * Reset the bucket back to NoBucket state
+     */
+    void reset();
+
+protected:
     EngineIface* engine{nullptr};
 
     /**
