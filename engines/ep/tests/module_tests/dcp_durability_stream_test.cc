@@ -199,7 +199,7 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
         // Majority Prepare), simulating a SeqnoAck received from replica
         // satisfies Durability Requirements and triggers Commit. So, the
         // following indirectly calls VBucket::commit
-        stream->seqnoAck(replica, prepareSeqno);
+        simulateStreamSeqnoAck(replica, prepareSeqno);
         // Note: At FE we have an exact item count only at persistence.
         auto evictionType = std::get<1>(GetParam());
         if (evictionType == "value_only" || !persistent()) {
@@ -222,6 +222,7 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
         EXPECT_EQ(0, vb->getNumItems());
         break;
     }
+    vb->processResolvedSyncWrites();
 
     // Verify state of the checkpoint(s).
     const auto& ckptList =
@@ -337,6 +338,15 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
     EXPECT_EQ(0, stream->public_readyQSize());
     resp = stream->public_popFromReadyQ();
     EXPECT_FALSE(resp);
+}
+
+ENGINE_ERROR_CODE DurabilityActiveStreamTest::simulateStreamSeqnoAck(
+        const std::string& consumerName, uint64_t preparedSeqno) {
+    auto result = stream->seqnoAck(consumerName, preparedSeqno);
+    if (result == ENGINE_SUCCESS) {
+        engine->getVBucket(vbid)->processResolvedSyncWrites();
+    }
+    return result;
 }
 
 /*
@@ -463,7 +473,8 @@ TEST_P(DurabilityActiveStreamTest, RemoveUnknownSeqnoAckAtDestruction) {
     // Our topology gives replica name as "replica" an our producer/stream has
     // name "test_producer". Simulate a seqno ack by calling the vBucket level
     // function.
-    stream->seqnoAck(producer->getConsumerName(), 1);
+    ASSERT_NE(producer->getConsumerName(), replica);
+    simulateStreamSeqnoAck(producer->getConsumerName(), 1);
 
     // An unknown seqno ack should not have committed the item
     EXPECT_EQ(0, vb->getNumItems());
@@ -476,7 +487,8 @@ TEST_P(DurabilityActiveStreamTest, RemoveUnknownSeqnoAckAtDestruction) {
     // connections. We verify that the seqno ack does not exist in the map
     // by performing the topology change that would commit the prepare if it
     // did.
-    EXPECT_EQ(ENGINE_SUCCESS, stream->seqnoAck(producer->getConsumerName(), 1));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              simulateStreamSeqnoAck(producer->getConsumerName(), 1));
 
     // If the seqno ack still existed in the queuedSeqnoAcks map then it would
     // result in a commit on topology change
@@ -501,7 +513,7 @@ TEST_P(DurabilityActiveStreamTest, RemoveCorrectQueuedAckAtStreamSetDead) {
     // Our topology gives replica name as "replica" an our producer/stream has
     // name "test_producer". Simulate a seqno ack by calling the vBucket level
     // function.
-    stream->seqnoAck(producer->getConsumerName(), 1);
+    simulateStreamSeqnoAck(producer->getConsumerName(), 1);
 
     // Disconnect the ActiveStream. Should remove the queued seqno ack
     stream->setDead(END_STREAM_DISCONNECTED);
@@ -533,7 +545,7 @@ TEST_P(DurabilityActiveStreamTest, RemoveCorrectQueuedAckAtStreamSetDead) {
 
     // Should not throw a monotonic exception as the ack should have been
     // removed by setDead.
-    stream->seqnoAck(producer->getConsumerName(), 1);
+    simulateStreamSeqnoAck(producer->getConsumerName(), 1);
 
     producer->cancelCheckpointCreatorTask();
 }
@@ -774,7 +786,7 @@ TEST_P(DurabilityActiveStreamTest,
     stream->consumeBackfillItems(1);
     stream->public_nextQueuedItem();
 
-    EXPECT_EQ(ENGINE_SUCCESS, stream->seqnoAck(replica, 1 /*prepareSeqno*/));
+    EXPECT_EQ(ENGINE_SUCCESS, simulateStreamSeqnoAck(replica, 1));
     EXPECT_EQ(1, vb->getHighPreparedSeqno());
     EXPECT_EQ(1, vb->getHighCompletedSeqno());
 
@@ -790,7 +802,7 @@ TEST_P(DurabilityActiveStreamTest,
     stream->consumeBackfillItems(3);
     stream->public_nextQueuedItem();
 
-    EXPECT_EQ(ENGINE_SUCCESS, stream->seqnoAck(replica, 3 /*prepareSeqno*/));
+    EXPECT_EQ(ENGINE_SUCCESS, simulateStreamSeqnoAck(replica, 3));
     EXPECT_EQ(3, vb->getHighPreparedSeqno());
     EXPECT_EQ(3, vb->getHighCompletedSeqno());
 
@@ -820,7 +832,7 @@ TEST_P(DurabilityActiveStreamTest,
     EXPECT_EQ(3, stream->public_readyQSize());
     stream->consumeBackfillItems(3);
 
-    EXPECT_EQ(ENGINE_SUCCESS, stream->seqnoAck(replica, 1 /*prepareSeqno*/));
+    EXPECT_EQ(ENGINE_SUCCESS, simulateStreamSeqnoAck(replica, 1));
 
     producer->cancelCheckpointCreatorTask();
 }
@@ -845,6 +857,7 @@ TEST_P(DurabilityActiveStreamTest, DiskSnapshotSendsHCSWithSyncRepSupport) {
     vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
                           replica,
                           1 /*prepareSeqno*/);
+    vb->processResolvedSyncWrites();
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 

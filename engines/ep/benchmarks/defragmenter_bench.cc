@@ -56,6 +56,7 @@ public:
                               /*table*/ nullptr,
                               std::make_shared<DummyCB>(),
                               /*newSeqnoCb*/ nullptr,
+                              [](Vbid) { return; },
                               NoopSyncWriteCompleteCb,
                               NoopSeqnoAckCb,
                               config,

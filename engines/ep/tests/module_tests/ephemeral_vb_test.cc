@@ -51,6 +51,7 @@ protected:
                                               /*lastSnapEnd*/ 0,
                                               /*table*/ nullptr,
                                               /*newSeqnoCb*/ nullptr,
+                                              SyncWriteResolvedCallback{},
                                               NoopSyncWriteCompleteCb,
                                               NoopSeqnoAckCb,
                                               config,

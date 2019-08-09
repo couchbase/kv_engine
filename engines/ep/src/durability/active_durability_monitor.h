@@ -283,6 +283,12 @@ public:
     void removedQueuedAck(const std::string& node);
 
     /**
+     * For all items in the completedSWQueue, call VBucket::commit /
+     * VBucket::abort as appropriate, then remove the item from the queue.
+     */
+    void processCompletedSyncWriteQueue();
+
+    /**
      * @return all of the currently tracked writes
      */
     std::vector<queued_item> getTrackedWrites() const;
@@ -363,10 +369,10 @@ protected:
                           const ReplicationChain& chain) const;
 
     /**
-     * For all items in the completedSWQueue, call VBucket::commit /
-     * VBucket::abort as appropriate, then remove the item from the queue.
+     * Checks if the resolvedQueue contains any SyncWrites awaiting completion,
+     * and if so notifies the VBucket.
      */
-    void processCompletedSyncWriteQueue();
+    void checkForResolvedSyncWrites();
 
     // The stats object for the owning Bucket
     EPStats& stats;

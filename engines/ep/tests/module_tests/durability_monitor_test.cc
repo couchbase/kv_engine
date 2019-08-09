@@ -78,6 +78,8 @@ void DurabilityMonitorTest::addSyncWrite(int64_t seqno,
     // ADM::checkForCommit
     item.setPendingSyncWrite(req);
     ASSERT_EQ(ENGINE_EWOULDBLOCK, set(item));
+
+    vb->processResolvedSyncWrites();
 }
 
 void PassiveDurabilityMonitorTest::addSyncWrite(
@@ -134,6 +136,7 @@ void DurabilityMonitorTest::addSyncDelete(int64_t seqno,
                              mutation_descr,
                              cHandle));
     vb->notifyActiveDMOfLocalSyncWrite();
+    vb->processResolvedSyncWrites();
 }
 
 size_t ActiveDurabilityMonitorTest::addSyncWrites(
@@ -224,6 +227,7 @@ void ActiveDurabilityMonitorTest::testSeqnoAckReceived(
         int64_t expectedHPS,
         int64_t expectedHCS) const {
     EXPECT_NO_THROW(getActiveDM().seqnoAckReceived(replica, ackSeqno));
+    vb->processResolvedSyncWrites();
     {
         SCOPED_TRACE("");
         assertNodeTracking(
@@ -970,6 +974,7 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceivedConcurrentDataRace) {
         }
     });
     adm.seqnoAckReceived(replica1, 1);
+    vb->processResolvedSyncWrites();
 
     // Check: Should be zero tracked after the two (concurrent)
     // seqnoAckReceived() calls.
@@ -1254,10 +1259,17 @@ TEST_P(ActiveDurabilityMonitorTest, NeverExpireIfTimeoutNotSet) {
 
     // Never expire, neither after 1 year !
     const auto year = std::chrono::hours(24 * 365);
-    adm.processTimeout(std::chrono::steady_clock::now() + year);
+    simulateTimeoutCheck(adm, std::chrono::steady_clock::now() + year);
 
     // Not expired, still tracked
     EXPECT_EQ(1, monitor->getNumTracked());
+}
+
+void ActiveDurabilityMonitorTest::simulateTimeoutCheck(
+        ActiveDurabilityMonitor& adm,
+        std::chrono::steady_clock::time_point now) const {
+    adm.processTimeout(now);
+    adm.processCompletedSyncWriteQueue();
 }
 
 TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
@@ -1280,8 +1292,9 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    adm.processTimeout(std::chrono::steady_clock::now() +
-                       std::chrono::milliseconds(1000));
+    simulateTimeoutCheck(
+            adm,
+            std::chrono::steady_clock::now() + std::chrono::milliseconds(1000));
 
     EXPECT_EQ(0, monitor->getNumTracked());
     {
@@ -1310,8 +1323,9 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    adm.processTimeout(std::chrono::steady_clock::now() +
-                       std::chrono::milliseconds(10000));
+    simulateTimeoutCheck(adm,
+                         std::chrono::steady_clock::now() +
+                                 std::chrono::milliseconds(10000));
 
     EXPECT_EQ(0, monitor->getNumTracked());
     {
@@ -1334,8 +1348,9 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    adm.processTimeout(std::chrono::steady_clock::now() +
-                       std::chrono::milliseconds(10000));
+    simulateTimeoutCheck(adm,
+                         std::chrono::steady_clock::now() +
+                                 std::chrono::milliseconds(10000));
 
     EXPECT_EQ(1, monitor->getNumTracked());
     auto tracked = adm.getTrackedSeqnos();
@@ -1348,8 +1363,9 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    adm.processTimeout(std::chrono::steady_clock::now() +
-                       std::chrono::milliseconds(100000));
+    simulateTimeoutCheck(adm,
+                         std::chrono::steady_clock::now() +
+                                 std::chrono::milliseconds(100000));
 
     EXPECT_EQ(0, monitor->getNumTracked());
     {
@@ -1373,19 +1389,21 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    adm.processTimeout(std::chrono::steady_clock::now() +
-                       std::chrono::milliseconds(5000));
-    EXPECT_EQ(3, monitor->getNumTracked());
+    simulateTimeoutCheck(
+            adm,
+            std::chrono::steady_clock::now() + std::chrono::milliseconds(5000));
 
     // A second processTimeout (now up to 15s later). Still shouldn't time
     // anything out as would break In-Order completion.
-    adm.processTimeout(std::chrono::steady_clock::now() +
-                       std::chrono::milliseconds(15000));
+    simulateTimeoutCheck(adm,
+                         std::chrono::steady_clock::now() +
+                                 std::chrono::milliseconds(15000));
     EXPECT_EQ(3, monitor->getNumTracked());
 
     // Only when the first item reaches it's timeout can we process all of them.
-    adm.processTimeout(std::chrono::steady_clock::now() +
-                       std::chrono::milliseconds(30000));
+    simulateTimeoutCheck(adm,
+                         std::chrono::steady_clock::now() +
+                                 std::chrono::milliseconds(30000));
     EXPECT_EQ(0, monitor->getNumTracked());
 }
 
@@ -2774,6 +2792,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     // Add the secondChain with the new node
     getActiveDM().setReplicationTopology(
             nlohmann::json::array({{active, replica1, replica2}}));
+    vb->processResolvedSyncWrites();
 
     // Should have committed
     {
@@ -3143,6 +3162,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     // Failover
     EXPECT_NO_THROW(getActiveDM().setReplicationTopology(
             nlohmann::json::array({{active, nullptr}})));
+    vb->processResolvedSyncWrites();
 
     {
         SCOPED_TRACE("");
@@ -3187,7 +3207,8 @@ TEST_P(ActiveDurabilityMonitorTest,
 // the active should not be treated as satisfied
 TEST_P(ActiveDurabilityMonitorPersistentTest,
        SyncWriteNotSatisfiedWithoutMaster) {
-    getActiveDM().setReplicationTopology(
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
             nlohmann::json::array({{active, replica1, replica2, replica3}}));
     using namespace cb::durability;
 
@@ -3224,16 +3245,15 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
     // based on sw->isSatisfied(). If SWs could be satisfied WITHOUT the active
     // acking, the active could timeout a given syncWrite, and then proceed to
     // commit it.
-
-    getActiveDM().processTimeout(std::chrono::steady_clock::now() +
-                                 std::chrono::seconds(31));
+    simulateTimeoutCheck(
+            adm, std::chrono::steady_clock::now() + std::chrono::seconds(31));
 
     {
         SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(0, 0, 2);
     }
 
-    EXPECT_EQ(getActiveDM().getNumAborted(), 2);
+    EXPECT_EQ(adm.getNumAborted(), 2);
 
     // Active finally persists, but it is too late
     vb->setPersistenceSeqno(2);

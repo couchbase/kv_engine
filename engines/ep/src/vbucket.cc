@@ -166,6 +166,7 @@ VBucket::VBucket(Vbid i,
                  std::shared_ptr<Callback<Vbid>> flusherCb,
                  std::unique_ptr<AbstractStoredValueFactory> valFact,
                  NewSeqnoCallback newSeqnoCb,
+                 SyncWriteResolvedCallback syncWriteResolvedCb,
                  SyncWriteCompleteCallback syncWriteCb,
                  SeqnoAckCallback seqnoAckCb,
                  Configuration& config,
@@ -223,6 +224,7 @@ VBucket::VBucket(Vbid i,
       deferredDeletion(false),
       deferredDeletionCookie(nullptr),
       newSeqnoCb(std::move(newSeqnoCb)),
+      syncWriteResolvedCb(syncWriteResolvedCb),
       syncWriteCompleteCb(syncWriteCb),
       seqnoAckCb(seqnoAckCb),
       manifest(std::move(manifest)),
@@ -685,6 +687,20 @@ void VBucket::processDurabilityTimeout(
         return;
     }
     getActiveDM().processTimeout(asOf);
+}
+
+void VBucket::notifySyncWritesPendingCompletion() {
+    syncWriteResolvedCb(getId());
+}
+
+void VBucket::processResolvedSyncWrites() {
+    // Acquire shared access on stateLock as need to ensure the vbucket is
+    // active (and we have an ActiveDM).
+    folly::SharedMutex::ReadHolder rlh(getStateLock());
+    if (getState() != vbucket_state_active) {
+        return;
+    }
+    getActiveDM().processCompletedSyncWriteQueue();
 }
 
 void VBucket::doStatsForQueueing(const Item& qi, size_t itemBytes)
