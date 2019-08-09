@@ -38,6 +38,26 @@ class VBucket;
  * at Active and the ACKs sent by Replicas to verify if the Durability
  * Requirements are satisfied for the tracked mutations.
  *
+ * Lifecycle
+ * =========
+ *
+ * All SyncWrites progess through the following lifecycle:
+ *
+ *     Prepared -> Resolved -> Completed
+ *
+ * - Prepared: SyncWrite has been accepted into the DurabilityMonitor,
+ *   and is awaiting sufficient nodes to acknowledge it within the timeout
+ *   period.
+ *
+ * - Resolved: SyncWrite has either:
+ *   a) Met the durability requirements (sufficient nodes have ack'd it)
+ *      and should be Committed, or
+ *   b) It has exceeded the timeout and should be Aborted. SyncWrite is moved
+ *      from trackedWrites into resolvedQueue.
+ *
+ * - Completed: SyncWrite resolution (Commit / Abort) has been applied to the
+ *   VBucket, and hence the SyncWrite has reached the end of it's lifecycle.
+ *
  * Implementation
  * ==============
  *
@@ -359,29 +379,18 @@ protected:
     struct State;
     folly::SynchronizedPtr<std::unique_ptr<State>> state;
 
+    class ResolvedQueue;
+
     /**
-     * The queue of SyncWrites which have been completed (Committed or
-     * Aborted) by the Durability Monitor and hence need to be applied to the
+     * The queue of SyncWrites which have been resolved (ready to be Committed
+     * or Aborted) by the Durability Monitor and hence need to be applied to the
      * VBucket.
-     *
-     * Stored separately from State to avoid a potential lock-order-inversion -
-     * when SyncWrites are added to State (via addSyncWrite()) the HTLock is
-     * acquired before the State lock; however when committing
-     * (via seqnoAckReceived()) the State lock must be acquired _before_ HTLock,
-     * to be able to determine what actually needs committting. (Similar
-     * ordering happens for processTimeout().)
-     * Therefore we place the completed SyncWrites in this queue (while also
-     * holding State lock) during seqAckReceived() / processTimeout(); then
-     * release the State lock and consume the queue in-order. This ensures
-     * that items are removed from this queue (and committed/ aborted) in FIFO
-     * order.
      *
      * Uses unique_ptr for pimpl.
      * @todo-perf: Consider performing the processing of the queue in a
      * background task, moving the work from the "frontend" DCP thread.
      */
-    class CompletedQueue;
-    std::unique_ptr<CompletedQueue> completedQueue;
+    std::unique_ptr<ResolvedQueue> resolvedQueue;
 
     // Maximum number of replicas which can be specified in topology.
     static const size_t maxReplicas = 3;

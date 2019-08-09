@@ -3207,7 +3207,7 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
 
     // Rather than delving into getting the actual SyncWrite and checking if
     // satisfied, recreate scenario from MB-35190. If a SyncWrite is moved to
-    // the completedQueue because its timeout has passed it should be aborted by
+    // the resolvedQueue because its timeout has passed it should be aborted by
     // processCompletedSyncWriteQueue. processCompletedSyncWriteQueue dispatches
     // based on sw->isSatisfied(). If SWs could be satisfied WITHOUT the active
     // acking, the active could timeout a given syncWrite, and then proceed to
