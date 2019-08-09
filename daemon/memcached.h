@@ -125,8 +125,10 @@ uint64_t get_listen_disabled_num();
  * client io threads and dispatched over to a background thread (in order
  * to allow for out of order replies).
  */
+namespace cb {
 class ExecutorPool;
-extern std::unique_ptr<ExecutorPool> executorPool;
+}
+extern std::unique_ptr<cb::ExecutorPool> executorPool;
 
 void iterate_all_connections(std::function<void(Connection&)> callback);
 

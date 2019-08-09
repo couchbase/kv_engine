@@ -27,6 +27,8 @@ struct ProcessClockSource;
 class Executor;
 class Task;
 
+namespace cb {
+
 /**
  * As the name implies the ExecutorPool is pool of executors to execute
  * tasks. A task is pinned to a thread when it is being scheduled
@@ -84,3 +86,5 @@ private:
      */
     std::atomic_int roundRobin;
 };
+
+} // namespace cb

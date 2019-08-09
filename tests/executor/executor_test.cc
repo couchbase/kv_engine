@@ -30,10 +30,10 @@
 class ExecutorTest : public ::testing::Test {
 protected:
     void SetUp() {
-        executorpool = std::make_unique<ExecutorPool>(4);
+        executorpool = std::make_unique<cb::ExecutorPool>(4);
     }
 
-    std::unique_ptr<ExecutorPool> executorpool;
+    std::unique_ptr<cb::ExecutorPool> executorpool;
 };
 
 /**
@@ -160,7 +160,7 @@ TEST_F(ExecutorTest, FutureExecution) {
     MockProcessClockSource mockClock;
     auto now = std::chrono::steady_clock::now();
 
-    executorpool = std::make_unique<ExecutorPool>(4, mockClock);
+    executorpool = std::make_unique<cb::ExecutorPool>(4, mockClock);
 
     auto cmd = std::make_shared<BasicTestTask>(1);
     std::shared_ptr<Task> task = cmd;
@@ -250,7 +250,7 @@ TEST_F(ExecutorTest, PeriodicExecution) {
     MockProcessClockSource mockClock;
     auto now = std::chrono::steady_clock::now();
 
-    executorpool = std::make_unique<ExecutorPool>(4, mockClock);
+    executorpool = std::make_unique<cb::ExecutorPool>(4, mockClock);
 
     auto cmd = std::make_shared<PeriodicBasicTestTask>(5);
     std::shared_ptr<Task> task = cmd;
@@ -326,7 +326,7 @@ TEST_F(StaleTraceDumpRemoverTest, DoesRemove) {
     using namespace testing;
 
     MockProcessClockSource mockClock;
-    executorpool = std::make_unique<ExecutorPool>(4, mockClock);
+    executorpool = std::make_unique<cb::ExecutorPool>(4, mockClock);
 
     // Create a trace dump remover task that runs every second and remove
     // dumps that are older than one second from a function local map.

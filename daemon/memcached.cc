@@ -133,7 +133,7 @@ void bucketsForEach(std::function<bool(Bucket&, void*)> fn, void *arg) {
 std::atomic<bool> memcached_shutdown;
 std::atomic<bool> service_online;
 
-std::unique_ptr<ExecutorPool> executorPool;
+std::unique_ptr<cb::ExecutorPool> executorPool;
 
 /* Mutex for global stats */
 std::mutex stats_mutex;
@@ -2457,7 +2457,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     thread_init(settings.getNumWorkerThreads(), main_base, dispatch_event_handler);
 
     executorPool =
-            std::make_unique<ExecutorPool>(settings.getNumWorkerThreads());
+        std::make_unique<cb::ExecutorPool>(settings.getNumWorkerThreads());
 
     initializeTracing();
     TRACE_GLOBAL0("memcached", "Started");

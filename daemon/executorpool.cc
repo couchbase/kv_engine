@@ -24,11 +24,11 @@
 #include <iostream>
 #include <string>
 
-ExecutorPool::ExecutorPool(size_t sz)
+cb::ExecutorPool::ExecutorPool(size_t sz)
     : ExecutorPool(sz, cb::defaultProcessClockSource()) {
 }
 
-ExecutorPool::ExecutorPool(size_t sz, cb::ProcessClockSource& clock) {
+cb::ExecutorPool::ExecutorPool(size_t sz, cb::ProcessClockSource& clock) {
     roundRobin.store(0);
     executors.reserve(sz);
     for (size_t ii = 0; ii < sz; ++ii) {
@@ -36,7 +36,7 @@ ExecutorPool::ExecutorPool(size_t sz, cb::ProcessClockSource& clock) {
     }
 }
 
-void ExecutorPool::schedule(std::shared_ptr<Task>& task, bool runnable) {
+void cb::ExecutorPool::schedule(std::shared_ptr<Task>& task, bool runnable) {
     if (task->getMutex().try_lock()) {
         task->getMutex().unlock();
         throw std::logic_error(
@@ -46,13 +46,13 @@ void ExecutorPool::schedule(std::shared_ptr<Task>& task, bool runnable) {
     executors[++roundRobin % executors.size()]->schedule(task, runnable);
 }
 
-void ExecutorPool::clockTick() {
+void cb::ExecutorPool::clockTick() {
     for (const auto& executor : executors) {
         executor->clockTick();
     }
 }
 
-size_t ExecutorPool::waitqSize() const {
+size_t cb::ExecutorPool::waitqSize() const {
     size_t count = 0;
     for (const auto& executor : executors) {
         count += executor->waitqSize();
@@ -60,7 +60,7 @@ size_t ExecutorPool::waitqSize() const {
     return count;
 }
 
-size_t ExecutorPool::runqSize() const {
+size_t cb::ExecutorPool::runqSize() const {
     size_t count = 0;
     for (const auto& executor : executors) {
         count += executor->runqSize();
@@ -68,7 +68,7 @@ size_t ExecutorPool::runqSize() const {
     return count;
 }
 
-size_t ExecutorPool::futureqSize() const {
+size_t cb::ExecutorPool::futureqSize() const {
     size_t count = 0;
     for (const auto& executor : executors) {
         count += executor->futureqSize();

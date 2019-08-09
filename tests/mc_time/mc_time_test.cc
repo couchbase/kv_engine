@@ -25,7 +25,7 @@
 class McTimeTest : public ::testing::Test {
 public:
     static void SetUpTestCase() {
-        executorPool = std::make_unique<ExecutorPool>(0);
+        executorPool = std::make_unique<cb::ExecutorPool>(0);
         mc_time_init_epoch();
     }
 
