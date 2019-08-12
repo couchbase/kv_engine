@@ -23,6 +23,7 @@
 #include "monotonic.h"
 #include "queue_op.h"
 
+#include <boost/optional.hpp>
 #include <memcached/engine_common.h>
 #include <memcached/vbucket.h>
 #include <memory>
@@ -58,11 +59,17 @@ public:
     struct ItemsForCursor {
         ItemsForCursor(uint64_t start,
                        uint64_t end,
+                       boost::optional<uint64_t> highCompletedSeqno = {},
                        CheckpointType checkpointType = CheckpointType::Memory)
-            : range(start, end), checkpointType(checkpointType) {
+            : range(start, end),
+              highCompletedSeqno(highCompletedSeqno),
+              checkpointType(checkpointType) {
         }
         snapshot_range_t range;
         bool moreAvailable = {false};
+
+        // HCS that should be flushed
+        boost::optional<uint64_t> highCompletedSeqno = {};
         CheckpointType checkpointType = CheckpointType::Memory;
     };
 
@@ -338,6 +345,7 @@ public:
 
     void createSnapshot(uint64_t snapStartSeqno,
                         uint64_t snapEndSeqno,
+                        boost::optional<uint64_t> highCompletedSeqno,
                         CheckpointType checkpointType);
 
     void resetSnapshotRange();
@@ -421,12 +429,14 @@ protected:
      * @param id for the new checkpoint
      * @param snapStartSeqno for the new checkpoint
      * @param snapEndSeqno for the new checkpoint
+     * @param highCompletedSeqno optional SyncRep HCS to be flushed to disk
      * @param checkpointType is the checkpoint created from a replica receiving
      *                       a disk snapshot?
      */
     void addNewCheckpoint_UNLOCKED(uint64_t id,
                                    uint64_t snapStartSeqno,
                                    uint64_t snapEndSeqno,
+                                   boost::optional<uint64_t> highCompletedSeqno,
                                    CheckpointType checkpointType);
 
     /*
@@ -445,12 +455,14 @@ protected:
      * @param id for the new checkpoint
      * @param snapStartSeqno for the new checkpoint
      * @param snapEndSeqno for the new checkpoint
+     * @param highCompletedSeqno the SyncRepl HCS to be flushed to disk
      * @param checkpointType is the checkpoint created from a replica receiving
      *                       a disk snapshot?
      */
     void addOpenCheckpoint(uint64_t id,
                            uint64_t snapStart,
                            uint64_t snapEnd,
+                           boost::optional<uint64_t> highCompletedSeqno,
                            CheckpointType checkpointType);
 
     bool moveCursorToNextCheckpoint(CheckpointCursor &cursor);

@@ -1164,13 +1164,15 @@ TEST_P(DurabilityWarmupTest, ReplicaVBucket) {
     // Send two snapshots, 1 prepare and 1 commit
 
     // snap 1
-    vb->checkpointManager->createSnapshot(1, 1, CheckpointType::Memory);
+    vb->checkpointManager->createSnapshot(
+            1, 1, {} /*HCS*/, CheckpointType::Memory);
     ASSERT_EQ(ENGINE_SUCCESS, store->prepare(*item, cookie));
     flush_vbucket_to_disk(vbid);
     vb->notifyPassiveDMOfSnapEndReceived(1);
 
     // snap 2
-    vb->checkpointManager->createSnapshot(2, 2, CheckpointType::Memory);
+    vb->checkpointManager->createSnapshot(
+            2, 2, {} /*HCS*/, CheckpointType::Memory);
     EXPECT_EQ(ENGINE_SUCCESS, vb->commit(key, 1, 2, vb->lockCollections(key)));
     flush_vbucket_to_disk(vbid, 1);
     vb->notifyPassiveDMOfSnapEndReceived(2);

@@ -1409,7 +1409,8 @@ void DurabilityBucketTest::testTakeoverDestinationHandlesPreparedSyncWrites(
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_pending);
 
     auto& vb = *store->getVBucket(vbid);
-    vb.checkpointManager->createSnapshot(1, 1, CheckpointType::Memory);
+    vb.checkpointManager->createSnapshot(
+            1, 1, {} /*HCS*/, CheckpointType::Memory);
     using namespace cb::durability;
     auto requirements = Requirements(level, Timeout::Infinity());
     auto pending =
@@ -1935,7 +1936,8 @@ TEST_P(DurabilityBucketTest, ActiveToReplicaAndCommit) {
     auto& vb = *store->getVBucket(vbid);
 
     // Now drive the VB as if a passive stream is receiving data.
-    vb.checkpointManager->createSnapshot(1, 3, CheckpointType::Memory);
+    vb.checkpointManager->createSnapshot(
+            1, 3, {} /*HCS*/, CheckpointType::Memory);
 
     // seqno:3 A new prepare
     auto key1 = makeStoredDocKey("crikey3");
@@ -1948,7 +1950,8 @@ TEST_P(DurabilityBucketTest, ActiveToReplicaAndCommit) {
     vb.notifyPassiveDMOfSnapEndReceived(3);
 
     // seqno:4 the prepare at seqno:1 is committed
-    vb.checkpointManager->createSnapshot(4, 4, CheckpointType::Memory);
+    vb.checkpointManager->createSnapshot(
+            4, 4, {} /*HCS*/, CheckpointType::Memory);
     ASSERT_EQ(ENGINE_SUCCESS, vb.commit(key, 1, 4, vb.lockCollections(key)));
 }
 

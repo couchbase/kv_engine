@@ -23,6 +23,7 @@
 #include "item.h"
 #include "monotonic.h"
 
+#include <boost/optional.hpp>
 #include <folly/Synchronized.h>
 #include <platform/non_negative_counter.h>
 #include <utilities/memory_tracking_allocator.h>
@@ -394,6 +395,7 @@ public:
                uint64_t id,
                uint64_t snapStart,
                uint64_t snapEnd,
+               boost::optional<uint64_t> highCompletedSeqno,
                Vbid vbid,
                CheckpointType checkpointType);
 
@@ -519,6 +521,14 @@ public:
         checkpointType = type;
     }
 
+    void setHighCompletedSeqno(boost::optional<uint64_t> seqno) {
+        highCompletedSeqno = seqno;
+    }
+
+    boost::optional<uint64_t> getHighCompletedSeqno() {
+        return highCompletedSeqno;
+    }
+
     /**
      * Returns an iterator pointing to the beginning of the CheckpointQueue,
      * toWrite.
@@ -638,6 +648,13 @@ private:
 
     // Is this a checkpoint created by a replica from a received disk snapshot?
     CheckpointType checkpointType;
+
+    // The SyncRep HCS for this checkpoint. Used to ensure that we flush a
+    // correct HCS at the end of a snapshot to disk. This is optional as it is
+    // only necessary for Disk snapshot (due to de-dupe) and the way we retrieve
+    // items from the CheckpointManager for memory snapshots makes it
+    // non-trivial to send the HCS in memory snapshot markers.
+    boost::optional<uint64_t> highCompletedSeqno;
 
     friend std::ostream& operator <<(std::ostream& os, const Checkpoint& m);
 };

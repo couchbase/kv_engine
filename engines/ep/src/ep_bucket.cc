@@ -409,8 +409,14 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             Collections::VB::Flush collectionFlush(vb->getManifest());
 
             // HCS is optional because we have to update it on disk only if some
-            // Commit/Abort SyncWrite is found in the flush-batch
-            boost::optional<uint64_t> hcs;
+            // Commit/Abort SyncWrite is found in the flush-batch. If we're
+            // flushing Disk checkpoints then the toFlush value may be
+            // supplied. In this case, this should be the HCS received from the
+            // Active node and should be greater than or equal to the HCS for
+            // any other item in this flush batch. This is required because we
+            // send mutations instead of a commits and would not otherwise
+            // update the HCS on disk.
+            boost::optional<uint64_t> hcs = toFlush.highCompletedSeqno;
             // HPS is optional because we have to update it on disk only if a
             // prepare is found in the flush-batch
             boost::optional<uint64_t> hps;

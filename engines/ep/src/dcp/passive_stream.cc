@@ -896,12 +896,14 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
             vb->setReceivingInitialDiskSnapshot(true);
             ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                    cur_snapshot_end.load(),
+                                   marker->getHighCompletedSeqno(),
                                    checkpointType);
         } else {
             if (marker->getFlags() & MARKER_FLAG_CHK ||
                 vb->checkpointManager->getOpenCheckpointId() == 0) {
                 ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                        cur_snapshot_end.load(),
+                                       marker->getHighCompletedSeqno(),
                                        checkpointType);
             } else {
                 // If we are reconnecting then we need to update the snap end

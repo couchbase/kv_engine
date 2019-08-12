@@ -66,8 +66,10 @@ void VBucketDurabilityTest::storeSyncWrites(
     //     need to set the Checkpoint snapshot boundaries manually in this case
     //     (e.g., [1, 5]), the set fails otherwise.
     // I go with the latter way, that is the reason of the the following call.
-    ckptMgr->createSnapshot(
-            seqnos.front().seqno, seqnos.back().seqno, CheckpointType::Memory);
+    ckptMgr->createSnapshot(seqnos.front().seqno,
+                            seqnos.back().seqno,
+                            {} /*HCS*/,
+                            CheckpointType::Memory);
     EXPECT_EQ(1, ckptMgr->getNumCheckpoints());
 
     const auto preHTCount = ht->getNumItems();
@@ -2363,6 +2365,7 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
     //     do it manually here given that we are testing at VBucket level.
     ckptMgr->createSnapshot(writes.back().seqno + 1,
                             writes.back().seqno + 100,
+                            {} /*HCS*/,
                             CheckpointType::Memory);
     for (auto prepare : writes) {
         auto key = makeStoredDocKey("key" + std::to_string(prepare.seqno));

@@ -968,6 +968,33 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     EXPECT_EQ(1, ack.getPreparedSeqno());
 }
 
+TEST_P(DurabilityPassiveStreamPersistentTest, DiskSnapshotHCSPersisted) {
+    testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
+            DocumentState::Alive);
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    {
+        auto vb = store->getVBucket(vbid);
+        EXPECT_EQ(2, vb->getHighCompletedSeqno());
+    }
+
+    // Reset and warmup to check persistence
+    consumer->closeAllStreams();
+    consumer.reset();
+    resetEngineAndWarmup();
+    // Recreate the consumer so that our normal test TearDown will work
+    consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+    consumer->enableSyncReplication();
+    consumer->addStream(0 /*opaque*/, vbid, 0 /*flags*/);
+    stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+
+    {
+        auto vb = store->getVBucket(vbid);
+        EXPECT_EQ(2, vb->getHighCompletedSeqno());
+    }
+}
+
 TEST_P(DurabilityPassiveStreamTest,
        NoSeqnoAckOnStreamAcceptanceIfNotSupported) {
     consumer->disableSyncReplication();
@@ -1007,7 +1034,7 @@ void DurabilityPassiveStreamTest::
                           2 /*snapStart*/,
                           4 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-                          {} /*HCS*/,
+                          2 /*HCS*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 

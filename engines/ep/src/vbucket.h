@@ -471,6 +471,7 @@ public:
         std::vector<queued_item> items;
         snapshot_range_t range{0, 0};
         bool moreAvailable = false;
+        boost::optional<uint64_t> highCompletedSeqno = {};
     };
 
     /**

@@ -52,7 +52,8 @@ CheckpointManager::CheckpointManager(EPStats& st,
     //     when the checkpointList is empty.
     //     Only in CheckpointManager::clear_UNLOCKED, the checkpointList
     //     is temporarily cleared and a new open checkpoint added immediately.
-    addOpenCheckpoint(1, lastSnapStart, lastSnapEnd, CheckpointType::Memory);
+    addOpenCheckpoint(
+            1, lastSnapStart, lastSnapEnd, {}, CheckpointType::Memory);
 
     if (checkpointConfig.isPersistenceEnabled()) {
         // Register the persistence cursor
@@ -137,13 +138,14 @@ Checkpoint& CheckpointManager::getOpenCheckpoint_UNLOCKED(
 
 void CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
     addNewCheckpoint_UNLOCKED(
-            id, lastBySeqno, lastBySeqno, CheckpointType::Memory);
+            id, lastBySeqno, lastBySeqno, {}, CheckpointType::Memory);
 }
 
 void CheckpointManager::addNewCheckpoint_UNLOCKED(
         uint64_t id,
         uint64_t snapStartSeqno,
         uint64_t snapEndSeqno,
+        boost::optional<uint64_t> highCompletedSeqno,
         CheckpointType checkpointType) {
     // First, we must close the open checkpoint.
     auto& oldOpenCkpt = *checkpointList.back();
@@ -169,7 +171,11 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
             id,
             snapStartSeqno,
             snapEndSeqno);
-    addOpenCheckpoint(id, snapStartSeqno, snapEndSeqno, checkpointType);
+    addOpenCheckpoint(id,
+                      snapStartSeqno,
+                      snapEndSeqno,
+                      highCompletedSeqno,
+                      checkpointType);
 
     /* If cursors reached to the end of its current checkpoint, move it to the
        next checkpoint. DCP and Persistence cursors can skip a "checkpoint end"
@@ -202,16 +208,23 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
     }
 }
 
-void CheckpointManager::addOpenCheckpoint(uint64_t id,
-                                          uint64_t snapStart,
-                                          uint64_t snapEnd,
-                                          CheckpointType checkpointType) {
+void CheckpointManager::addOpenCheckpoint(
+        uint64_t id,
+        uint64_t snapStart,
+        uint64_t snapEnd,
+        boost::optional<uint64_t> highCompletedSeqno,
+        CheckpointType checkpointType) {
     Expects(checkpointList.empty() ||
             checkpointList.back()->getState() ==
                     checkpoint_state::CHECKPOINT_CLOSED);
 
-    auto ckpt = std::make_unique<Checkpoint>(
-            stats, id, snapStart, snapEnd, vbucketId, checkpointType);
+    auto ckpt = std::make_unique<Checkpoint>(stats,
+                                             id,
+                                             snapStart,
+                                             snapEnd,
+                                             highCompletedSeqno,
+                                             vbucketId,
+                                             checkpointType);
     // Add an empty-item into the new checkpoint.
     // We need this because every CheckpointCursor will point to this empty-item
     // at creation. So, the cursor will point at the first actual non-meta item
@@ -842,6 +855,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     // limit.
     ItemsForCursor result((*cursor.currentCheckpoint)->getSnapshotStartSeqno(),
                           (*cursor.currentCheckpoint)->getSnapshotEndSeqno(),
+                          (*cursor.currentCheckpoint)->getHighCompletedSeqno(),
                           (*cursor.currentCheckpoint)->getCheckpointType());
 
     size_t itemCount = 0;
@@ -867,6 +881,11 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
                 // Reached our limit - don't want any more items.
                 result.range.setEnd(
                         (*cursor.currentCheckpoint)->getSnapshotEndSeqno());
+
+                // Only move the HCS at checkpoint end (don't want to flush a
+                // HCS mid-checkpoint).
+                result.highCompletedSeqno =
+                        (*cursor.currentCheckpoint)->getHighCompletedSeqno();
 
                 // However, we *do* want to move the cursor into the next
                 // checkpoint if possible; as that means the checkpoint we just
@@ -952,6 +971,7 @@ void CheckpointManager::clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno) 
     addOpenCheckpoint(vbucket_state_active ? 1 : 0 /* id */,
                       lastBySeqno,
                       lastBySeqno,
+                      {},
                       CheckpointType::Memory);
     resetCursors();
 }
@@ -1077,9 +1097,11 @@ void CheckpointManager::setBackfillPhase(uint64_t start, uint64_t end) {
     openCkpt.setSnapshotEndSeqno(end);
 }
 
-void CheckpointManager::createSnapshot(uint64_t snapStartSeqno,
-                                       uint64_t snapEndSeqno,
-                                       CheckpointType checkpointType) {
+void CheckpointManager::createSnapshot(
+        uint64_t snapStartSeqno,
+        uint64_t snapEndSeqno,
+        boost::optional<uint64_t> highCompletedSeqno,
+        CheckpointType checkpointType) {
     LockHolder lh(queueLock);
 
     auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
@@ -1093,11 +1115,15 @@ void CheckpointManager::createSnapshot(uint64_t snapStartSeqno,
         openCkpt.setSnapshotStartSeqno(snapStartSeqno);
         openCkpt.setSnapshotEndSeqno(snapEndSeqno);
         openCkpt.setCheckpointType(checkpointType);
+        openCkpt.setHighCompletedSeqno(highCompletedSeqno);
         return;
     }
 
-    addNewCheckpoint_UNLOCKED(
-            openCkptId + 1, snapStartSeqno, snapEndSeqno, checkpointType);
+    addNewCheckpoint_UNLOCKED(openCkptId + 1,
+                              snapStartSeqno,
+                              snapEndSeqno,
+                              highCompletedSeqno,
+                              checkpointType);
 }
 
 void CheckpointManager::resetSnapshotRange() {

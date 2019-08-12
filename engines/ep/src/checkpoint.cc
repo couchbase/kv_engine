@@ -94,6 +94,7 @@ Checkpoint::Checkpoint(EPStats& st,
                        uint64_t id,
                        uint64_t snapStart,
                        uint64_t snapEnd,
+                       boost::optional<uint64_t> highCompletedSeqno,
                        Vbid vbid,
                        CheckpointType checkpointType)
     : stats(st),
@@ -110,7 +111,8 @@ Checkpoint::Checkpoint(EPStats& st,
       metaKeyIndex(keyIndexTrackingAllocator),
       keyIndexMemUsage(0),
       queuedItemsMemUsage(0),
-      checkpointType(checkpointType) {
+      checkpointType(checkpointType),
+      highCompletedSeqno(highCompletedSeqno) {
     stats.coreLocal.get()->memOverhead.fetch_add(sizeof(Checkpoint));
 }
 
