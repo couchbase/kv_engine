@@ -927,6 +927,30 @@ TEST_P(GetSetTest, TestIllegalVbucket) {
     conn.reconnect();
 }
 
+// Test if we have a compressed document that has xattrs and the client supports
+// compression, then once the server uncompresses the doc (to strip off the
+// xattrs) we remove the Snappy datatype from the document.
+TEST_P(GetSetTest, TestCorrectWithXattrs) {
+    // If no SetWithMeta support, then must construct document + XATTR
+    // with primitives and hence cannot compress it - so skip the test.
+    if (!mcd_env->getTestBucket().supportsOp(
+                cb::mcbp::ClientOpcode::SetWithMeta)) {
+        return;
+    }
+    MemcachedConnection& conn = getConnection();
+    // Create a compressed document with a body and xattr
+    setBodyAndXattr("{\"TestField\":56788}", {{"_sync", "4543"}});
+    ASSERT_TRUE(mcbp::datatype::is_snappy(
+            protocol_binary_datatype_t(document.info.datatype)));
+    const auto stored = conn.get(name, Vbid(0));
+    // The test requires the client to support compression
+    ASSERT_TRUE(hasSnappySupport() == ClientSnappySupport::Yes);
+    auto expected = hasJSONSupport() == ClientJSONSupport::Yes
+                            ? cb::mcbp::Datatype::JSON
+                            : cb::mcbp::Datatype::Raw;
+    EXPECT_TRUE(hasCorrectDatatype(stored, expected));
+}
+
 // Test sending compressed raw data; check server handles correctly.
 TEST_P(GetSetSnappyOnOffTest, TestCompressedData) {
     doTestCompressedRawData("off");

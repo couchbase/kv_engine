@@ -67,6 +67,7 @@ ENGINE_ERROR_CODE GetCommandContext::inflateItem() {
             return ENGINE_FAILED;
         }
         payload = buffer;
+        info.datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
     } catch (const std::bad_alloc&) {
         return ENGINE_ENOMEM;
     }
@@ -76,14 +77,12 @@ ENGINE_ERROR_CODE GetCommandContext::inflateItem() {
 }
 
 ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
-    protocol_binary_datatype_t datatype = info.datatype;
-
-    if (mcbp::datatype::is_xattr(datatype)) {
+    if (mcbp::datatype::is_xattr(info.datatype)) {
         payload = cb::xattr::get_body(payload);
-        datatype &= ~PROTOCOL_BINARY_DATATYPE_XATTR;
+        info.datatype &= ~PROTOCOL_BINARY_DATATYPE_XATTR;
     }
 
-    datatype = connection.getEnabledDatatypes(datatype);
+    info.datatype = connection.getEnabledDatatypes(info.datatype);
 
     uint16_t keylen = 0;
     uint32_t bodylen = gsl::narrow<uint32_t>(sizeof(info.flags) + payload.len);
@@ -105,7 +104,7 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
                     sizeof(info.flags),
                     keylen,
                     bodylen,
-                    datatype);
+                    info.datatype);
 
     // Add the flags
     connection.addIov(&info.flags, sizeof(info.flags));
