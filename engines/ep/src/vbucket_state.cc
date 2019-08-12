@@ -123,7 +123,7 @@ void from_json(const nlohmann::json& j, vbucket_state& vbs) {
     // Note: We don't have any HCS in pre-6.5
     auto hcs = j.find("high_completed_seqno");
     if (hcs != j.end()) {
-        vbs.highCompletedSeqno = std::stoll((*hcs).get<std::string>());
+        vbs.highCompletedSeqno = std::stoull((*hcs).get<std::string>());
     } else {
         vbs.highCompletedSeqno = 0;
     }
@@ -131,7 +131,7 @@ void from_json(const nlohmann::json& j, vbucket_state& vbs) {
     // Note: We don't have any HPS in pre-6.5
     auto hps = j.find("high_prepared_seqno");
     if (hps != j.end()) {
-        vbs.highPreparedSeqno = std::stoll((*hps).get<std::string>());
+        vbs.highPreparedSeqno = std::stoull((*hps).get<std::string>());
     } else {
         vbs.highPreparedSeqno = 0;
     }

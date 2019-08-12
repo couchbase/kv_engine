@@ -392,10 +392,10 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
 
             // HCS is optional because we have to update it on disk only if some
             // Commit/Abort SyncWrite is found in the flush-batch
-            boost::optional<int64_t> hcs;
+            boost::optional<uint64_t> hcs;
             // HPS is optional because we have to update it on disk only if a
             // prepare is found in the flush-batch
-            boost::optional<int64_t> hps;
+            boost::optional<uint64_t> hps;
 
             // Iterate through items, checking if we (a) can skip persisting,
             // (b) can de-duplicate as the previous key was the same, or (c)
@@ -416,11 +416,13 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 const auto op = item->getOperation();
                 if (op == queue_op::commit_sync_write ||
                     op == queue_op::abort_sync_write) {
-                    hcs = std::max(hcs.value_or(-1), item->getPrepareSeqno());
+                    hcs = std::max(hcs.value_or(0), item->getPrepareSeqno());
                 }
 
                 if (op == queue_op::pending_sync_write) {
-                    hps = std::max(hps.value_or(-1), item->getBySeqno());
+                    Expects(item->getBySeqno() > 0);
+                    hps = std::max(hps.value_or(0),
+                                   static_cast<uint64_t>(item->getBySeqno()));
                 }
 
                 if (op == queue_op::set_vbucket_state) {

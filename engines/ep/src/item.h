@@ -181,7 +181,7 @@ public:
         bySeqno.store(to);
     }
 
-    int64_t getPrepareSeqno() const {
+    uint64_t getPrepareSeqno() const {
         return prepareSeqno;
     }
 

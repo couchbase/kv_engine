@@ -128,13 +128,13 @@ struct vbucket_state {
      * Stores the seqno of the last completed (Committed or Aborted) Prepare.
      * Added for SyncReplication in 6.5.
      */
-    int64_t highCompletedSeqno = 0;
+    uint64_t highCompletedSeqno = 0;
 
     /**
      * Stores the seqno of the last prepare (Pending SyncWrite). Added for
      * SyncReplication in 6.5.
      */
-    int64_t highPreparedSeqno = 0;
+    uint64_t highPreparedSeqno = 0;
 
     /**
      * Number of on disk prepares (Pending SyncWrites). Required to correct the
