@@ -2229,7 +2229,7 @@ The following example tries to select the bucket named engineering
     Key          (24-34): The textual string "engineering"
 
 
-### 0x90 Observe
+### 0x92 Observe
 
 The `observe` command is used to observe the status for keys
 
