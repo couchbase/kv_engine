@@ -33,6 +33,18 @@
 #include "evp_store_single_threaded_test.h"
 #include "test_helpers.h"
 
+// Indexes for the engines we will use in the tests, a single array allows test
+// code to locate the engine for the Node
+using Node = int;
+static Node Node0 = 0;
+static Node Node1 = 1;
+
+static TaskQueue* getLpAuxQ() {
+    auto* task_executor =
+            reinterpret_cast<SingleThreadedExecutorPool*>(ExecutorPool::get());
+    return task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+}
+
 /**
  * Test fixture which creates two ep-engine (bucket) instances, using one
  * as a source for DCP replication and the second as the destination.
@@ -57,6 +69,11 @@ protected:
                           vbucket_state_active,
                           {{"topology",
                             nlohmann::json::array({{"active", "replica"}})}}));
+        // Always stash KVBucketTest::engine in engines as Node0
+        engines[Node0] = engine.get();
+
+        // Always create Node1
+        createNode(Node1, vbucket_state_replica);
     }
 
     ENGINE_ERROR_CODE getInternalHelper(const DocKey& key) {
@@ -68,77 +85,142 @@ protected:
                 .getStatus();
     }
 
-    void setupProducer(
-            EnableExpiryOutput enableExpiryOutput = EnableExpiryOutput::Yes,
-            SyncReplication syncReplication = SyncReplication::Yes) {
-        // Create the Dcp producer.
-        producer = SingleThreadedKVBucketTest::createDcpProducer(
-                cookie,
-                IncludeDeleteTime::No);
-        producer->scheduleCheckpointProcessorTask();
-        if (enableExpiryOutput == EnableExpiryOutput::Yes) {
-            producer->setDCPExpiry(true);
-        }
-        producer->setSyncReplication(syncReplication == SyncReplication::Yes);
+    void createNode(Node node, vbucket_state_t vbState) {
+        ASSERT_NE(Node0, node) << "Cannot re-create Node0";
+        ASSERT_LE(node, Node1) << "Out of bounds for Node" << node;
 
-        auto& sourceVb = *engine->getVBucket(vbid);
-        producer->mockActiveStreamRequest(consumerStream->getFlags(),
-                                          consumerStream->getOpaque(),
-                                          sourceVb,
-                                          consumerStream->getStartSeqno(),
-                                          consumerStream->getEndSeqno(),
-                                          consumerStream->getVBucketUUID(),
-                                          consumerStream->getSnapStartSeqno(),
-                                          consumerStream->getSnapEndSeqno());
-        producerStream = dynamic_cast<MockActiveStream*>(
-                producer->findStream(vbid).get());
-
-        ASSERT_EQ(2,
-                  static_cast<MockCheckpointManager*>(
-                          sourceVb.checkpointManager.get())
-                          ->getNumOfCursors())
-                << "Should have both persistence and DCP producer cursor on "
-                   "source VB";
-
-        // Creating a producer will schedule one
-        // ActiveStreamCheckpointProcessorTask, and potentially a Backfill task.
-        // The ActiveStreamCheckpointProcessorTask task though sleeps forever,
-        // so won't run until woken.
-        ASSERT_GE(getLpAuxQ()->getFutureQueueSize(), 1);
-    }
-
-    void setupConsumer(uint32_t flags = 0) {
-        // In addition to the initial engine which is created; we also need
-        // to create a second bucket instance for the destination (replica)
-        // vBucket.
         std::string config = config_string;
         if (config.size() > 0) {
             config += ";";
         }
-        config += "dbname=" + std::string(test_dbname) + "-replica";
-        replicaEngine = SynchronousEPEngine::build(config);
+        config += "dbname=" + std::string(test_dbname) + "-node_" +
+                  std::to_string(node);
+        extraEngines.push_back(SynchronousEPEngine::build(config));
+        engines[node] = extraEngines.back().get();
 
-        // Setup destination (replica) Bucket.
+        // Setup one vbucket in the requested state
         EXPECT_EQ(ENGINE_SUCCESS,
-                  replicaEngine->getKVBucket()->setVBucketState(
-                          vbid, vbucket_state_replica));
-        flushReplicaIfPersistent();
+                  engines[node]->getKVBucket()->setVBucketState(vbid, vbState));
+        flushNodeIfPersistent(node);
+    }
 
-        // Setup the consumer.
-        consumer = std::make_shared<MockDcpConsumer>(
-                *replicaEngine, cookie, "test_consumer");
-        EXPECT_EQ(ENGINE_SUCCESS,
-                  consumer->addStream(
-                          /*opaque*/ 0, vbid, flags));
-        consumerStream = consumer->getVbucketStream(vbid).get();
-
-        // Need to discard the first message from the consumerStream (the
-        // StreamRequest), as we'll manually set that up in the producer.
-        {
-            std::unique_ptr<DcpResponse> streamRequest(consumerStream->next());
-            EXPECT_NE(nullptr, streamRequest);
-            EXPECT_EQ(DcpResponse::Event::StreamReq, streamRequest->getEvent());
+    /**
+     * DcpRoute connects nodes together and provides methods for joining
+     * the streams and "sending" messages. A route can be destroyed as well
+     * for simulation of connection failures
+     */
+    class DcpRoute {
+    public:
+        DcpRoute(Vbid vbid,
+                 EventuallyPersistentEngine* producerNode,
+                 std::shared_ptr<MockDcpProducer> producer,
+                 std::shared_ptr<MockDcpConsumer> consumer)
+            : vbid(vbid),
+              producerNode(producerNode),
+              producer(producer),
+              consumer(consumer) {
         }
+
+        ~DcpRoute() {
+            destroy();
+        }
+
+        void destroy();
+
+        std::pair<cb::engine_errc, uint64_t> doStreamRequest(int flags = 0);
+        std::unique_ptr<DcpResponse> getNextProducerMsg(ActiveStream* stream);
+
+        void transferMessage();
+        void transferMessage(DcpResponse::Event expectedEvent);
+
+        void transferMutation(const StoredDocKey& expectedKey,
+                              uint64_t expectedSeqno);
+
+        void transferSnapshotMarker(uint64_t expectedStart,
+                                    uint64_t expectedEnd,
+                                    uint32_t expectedFlags);
+
+        void transferResponseMessage();
+
+        std::pair<ActiveStream*, PassiveStream*> getStreams();
+
+        Vbid vbid;
+        EventuallyPersistentEngine* producerNode;
+        std::shared_ptr<MockDcpProducer> producer;
+        std::shared_ptr<MockDcpConsumer> consumer;
+    };
+
+    // Create a route between two nodes, result in the creation of a DCP
+    // producer and consumer object
+    DcpRoute createDcpRoute(
+            Node producerNode,
+            Node consumerNode,
+            EnableExpiryOutput producerExpiryOutput = EnableExpiryOutput::Yes) {
+        EXPECT_TRUE(engines[producerNode])
+                << " createDcpRoute: No engine for producer Node"
+                << producerNode;
+        EXPECT_TRUE(engines[consumerNode])
+                << "createDcpRoute: No engine for consumer Node"
+                << consumerNode;
+        return {vbid,
+                engines[producerNode],
+                createDcpProducer(
+                        producerNode, consumerNode, producerExpiryOutput),
+                createDcpConsumer(producerNode, consumerNode)};
+    }
+
+    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(
+            vbucket_failover_t* entry,
+            size_t nentries,
+            gsl::not_null<const void*> cookie) {
+        return ENGINE_SUCCESS;
+    }
+
+    std::shared_ptr<MockDcpProducer> createDcpProducer(
+            Node producerNode,
+            Node consumerNode,
+            EnableExpiryOutput enableExpiryOutput = EnableExpiryOutput::Yes,
+            SyncReplication syncReplication = SyncReplication::Yes) {
+        EXPECT_TRUE(engines[producerNode])
+                << "createDcpProducer: No engine for Node" << producerNode;
+
+        int flags = cb::mcbp::request::DcpOpenPayload::IncludeXattrs |
+                    cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes;
+        auto producer = std::make_shared<MockDcpProducer>(
+                *engines[producerNode],
+                create_mock_cookie(),
+                "Node" + std::to_string(producerNode) + " to Node" +
+                        std::to_string(consumerNode),
+                flags,
+                false /*startTask*/);
+
+        // Create the task object, but don't schedule
+        producer->createCheckpointProcessorTask();
+
+        // Need to enable NOOP for XATTRS (and collections).
+        producer->setNoopEnabled(true);
+
+        producer->scheduleCheckpointProcessorTask();
+        if (enableExpiryOutput == EnableExpiryOutput::Yes) {
+            producer->setDCPExpiry(true);
+        }
+
+        producer->setSyncReplication(syncReplication == SyncReplication::Yes);
+
+        return producer;
+    }
+
+    std::shared_ptr<MockDcpConsumer> createDcpConsumer(Node producerNode,
+                                                       Node consumerNode) {
+        EXPECT_TRUE(engines[consumerNode])
+                << "createDcpConsumer: No engine for Node" << consumerNode;
+        auto mockConsumer = std::make_shared<MockDcpConsumer>(
+                *engines[consumerNode],
+                create_mock_cookie(),
+                "Node" + std::to_string(consumerNode) + " from Node" +
+                        std::to_string(producerNode));
+
+        return mockConsumer;
     }
 
     ENGINE_ERROR_CODE storePrepare(std::string key) {
@@ -159,69 +241,34 @@ protected:
         return store->set(*makeCommittedItem(docKey, {}), cookie);
     }
 
+    ENGINE_ERROR_CODE storeSet(const DocKey& docKey) {
+        return store->set(*makeCommittedItem(docKey, {}), cookie);
+    }
+
     /**
-     * Flush all outstanding items to disk on the replica (if persistent).
+     * Flush all outstanding items to disk on the desired node (if persistent)
      */
-    void flushReplicaIfPersistent() {
-        if (replicaEngine->getConfiguration().getBucketType() == "persistent") {
-            auto& replicaKVB = *replicaEngine->getKVBucket();
+    void flushNodeIfPersistent(Node node = Node0) {
+        ASSERT_TRUE(engines[node])
+                << "flushNodeIfPersistent: No engine for Node" << node;
+        if (engines[node]->getConfiguration().getBucketType() == "persistent") {
+            auto& replicaKVB = *engines[node]->getKVBucket();
             dynamic_cast<EPBucket&>(replicaKVB).flushVBucket(vbid);
         }
     }
 
     void TearDown() override {
-        producer->cancelCheckpointCreatorTask();
-        producer->closeAllStreams();
-        producer.reset();
+        for (auto& e : extraEngines) {
+            shutdownAndPurgeTasks(e.get());
+        }
 
-        consumer->closeAllStreams();
-        consumer.reset();
-        shutdownAndPurgeTasks(replicaEngine.get());
         destroy_mock_cookie(cookie);
         cookie = nullptr;
-        replicaEngine.reset();
+
+        extraEngines.clear();
+
         SingleThreadedKVBucketTest::TearDown();
     }
-
-    TaskQueue* getLpAuxQ() const {
-        auto* task_executor = reinterpret_cast<SingleThreadedExecutorPool*>(
-                ExecutorPool::get());
-        return task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
-    }
-
-    std::unique_ptr<DcpResponse> getNextProducerMsg(MockActiveStream* stream) {
-        std::unique_ptr<DcpResponse> producerMsg(stream->next());
-        if (!producerMsg) {
-            EXPECT_GE(getLpAuxQ()->getFutureQueueSize(), 1)
-                    << "Expected to have at least "
-                       "ActiveStreamCheckpointProcessorTask "
-                       "in future queue after null producerMsg";
-
-            // Run the next waiting task to populate the streams' items.
-            CheckedExecutor executor(task_executor, *getLpAuxQ());
-            executor.runCurrentTask();
-            executor.completeCurrentTask();
-            if (!stream->getItemsRemaining()) {
-                return {};
-            }
-            return getNextProducerMsg(stream);
-        }
-
-        // Cannot pass mutation/deletion directly to the consumer as the object
-        // is different
-        if (producerMsg->getEvent() == DcpResponse::Event::Mutation ||
-            producerMsg->getEvent() == DcpResponse::Event::Deletion ||
-            producerMsg->getEvent() == DcpResponse::Event::Expiration ||
-            producerMsg->getEvent() == DcpResponse::Event::Prepare) {
-            producerMsg = std::make_unique<MutationConsumerMessage>(
-                    *static_cast<MutationResponse*>(producerMsg.get()));
-        }
-
-        return producerMsg;
-    }
-
-    void readNextConsumerMsgAndSendToProducer(ActiveStream& producerStream,
-                                              PassiveStream& consumerStream);
 
     void takeoverTest(EnableExpiryOutput enableExpiryOutput);
 
@@ -268,34 +315,183 @@ protected:
      */
     void testBackfillAndInMemoryDuplicatePrepares(uint32_t flags);
 
-    SynchronousEPEngineUniquePtr replicaEngine;
-    std::shared_ptr<MockDcpConsumer> consumer;
-    // Non-owning ptr to consumer stream (owned by consumer).
-    PassiveStream* consumerStream;
+    // engines is 'map' from Node to an engine pointer, currently Node0 is the
+    // engine created by the parent class and Node1 are created by this
+    // class. Node1 is always created by SetUp.
+    // @todo: expand the storage so we can have more nodes
+    std::array<SynchronousEPEngine*, 2> engines;
 
-    std::shared_ptr<MockDcpProducer> producer;
-
-    // Non-owning ptr to producer stream (owned by producer).
-    MockActiveStream* producerStream;
+    // Owned pointers to the other engines, created on demand by tests
+    std::vector<SynchronousEPEngineUniquePtr> extraEngines;
 };
 
-void DCPLoopbackStreamTest::readNextConsumerMsgAndSendToProducer(
-        ActiveStream& producerStream, PassiveStream& consumerStream) {
-    std::unique_ptr<DcpResponse> consumerMsg(consumerStream.next());
+void DCPLoopbackStreamTest::DcpRoute::destroy() {
+    if (producer && consumer) {
+        producer->cancelCheckpointCreatorTask();
+        producer->closeAllStreams();
+        consumer->closeAllStreams();
+        destroy_mock_cookie(producer->getCookie());
+        producer.reset();
+        destroy_mock_cookie(consumer->getCookie());
+        consumer.reset();
+    } else {
+        // don't expect consumer or producer, both or nothing
+        ASSERT_FALSE(producer);
+        ASSERT_FALSE(consumer);
+    }
+}
+
+std::unique_ptr<DcpResponse>
+DCPLoopbackStreamTest::DcpRoute::getNextProducerMsg(ActiveStream* stream) {
+    std::unique_ptr<DcpResponse> producerMsg(stream->next());
+    if (!producerMsg) {
+        EXPECT_GE(getLpAuxQ()->getFutureQueueSize(), 1)
+                << "Expected to have at least "
+                   "ActiveStreamCheckpointProcessorTask "
+                   "in future queue after null producerMsg";
+
+        // Run the next waiting task to populate the streams' items.
+        CheckedExecutor executor(ExecutorPool::get(), *getLpAuxQ());
+        executor.runCurrentTask();
+        executor.completeCurrentTask();
+        if (!stream->getItemsRemaining()) {
+            return {};
+        }
+        return getNextProducerMsg(stream);
+    }
+
+    // Cannot pass mutation/deletion directly to the consumer as the object
+    // is different
+    if (producerMsg->getEvent() == DcpResponse::Event::Mutation ||
+        producerMsg->getEvent() == DcpResponse::Event::Deletion ||
+        producerMsg->getEvent() == DcpResponse::Event::Expiration ||
+        producerMsg->getEvent() == DcpResponse::Event::Prepare) {
+        producerMsg = std::make_unique<MutationConsumerMessage>(
+                *static_cast<MutationResponse*>(producerMsg.get()));
+    }
+
+    return producerMsg;
+}
+
+std::pair<ActiveStream*, PassiveStream*>
+DCPLoopbackStreamTest::DcpRoute::getStreams() {
+    auto* pStream =
+            dynamic_cast<ActiveStream*>(producer->findStream(vbid).get());
+    auto* cStream = consumer->getVbucketStream(vbid).get();
+    EXPECT_TRUE(pStream);
+    EXPECT_TRUE(cStream);
+    return {pStream, cStream};
+}
+
+void DCPLoopbackStreamTest::DcpRoute::transferMessage() {
+    auto streams = getStreams();
+    auto msg = getNextProducerMsg(streams.first);
+    ASSERT_TRUE(msg);
+    EXPECT_EQ(ENGINE_SUCCESS, streams.second->messageReceived(std::move(msg)));
+}
+
+void DCPLoopbackStreamTest::DcpRoute::transferMessage(
+        DcpResponse::Event expectedEvent) {
+    auto streams = getStreams();
+    auto msg = getNextProducerMsg(streams.first);
+    ASSERT_TRUE(msg);
+    EXPECT_EQ(expectedEvent, msg->getEvent()) << *msg;
+    EXPECT_EQ(ENGINE_SUCCESS, streams.second->messageReceived(std::move(msg)));
+}
+
+void DCPLoopbackStreamTest::DcpRoute::transferMutation(
+        const StoredDocKey& expectedKey, uint64_t expectedSeqno) {
+    auto streams = getStreams();
+    auto msg = getNextProducerMsg(streams.first);
+    ASSERT_TRUE(msg);
+    ASSERT_EQ(DcpResponse::Event::Mutation, msg->getEvent());
+    ASSERT_TRUE(msg->getBySeqno()) << "optional seqno has no value";
+    EXPECT_EQ(expectedSeqno, msg->getBySeqno().get());
+    auto* mutation = static_cast<MutationResponse*>(msg.get());
+    EXPECT_EQ(expectedKey, mutation->getItem()->getKey());
+    EXPECT_EQ(ENGINE_SUCCESS, streams.second->messageReceived(std::move(msg)));
+}
+
+void DCPLoopbackStreamTest::DcpRoute::transferSnapshotMarker(
+        uint64_t expectedStart, uint64_t expectedEnd, uint32_t expectedFlags) {
+    auto streams = getStreams();
+    auto msg = getNextProducerMsg(streams.first);
+    ASSERT_TRUE(msg);
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, msg->getEvent()) << *msg;
+    auto* marker = static_cast<SnapshotMarker*>(msg.get());
+    EXPECT_EQ(expectedStart, marker->getStartSeqno());
+    EXPECT_EQ(expectedEnd, marker->getEndSeqno());
+    EXPECT_EQ(expectedFlags, marker->getFlags());
+    EXPECT_EQ(ENGINE_SUCCESS, streams.second->messageReceived(std::move(msg)));
+}
+
+void DCPLoopbackStreamTest::DcpRoute::transferResponseMessage() {
+    auto streams = getStreams();
+    std::unique_ptr<DcpResponse> consumerMsg(streams.second->next());
 
     // Pass the consumer's message to the producer.
     if (consumerMsg) {
         switch (consumerMsg->getEvent()) {
         case DcpResponse::Event::SnapshotMarker:
-            producerStream.snapshotMarkerAckReceived();
+            streams.first->snapshotMarkerAckReceived();
             break;
         case DcpResponse::Event::SetVbucket:
-            producerStream.setVBucketStateAckRecieved();
+            streams.first->setVBucketStateAckRecieved();
             break;
         default:
-            FAIL();
+            FAIL() << *consumerMsg;
         }
     }
+}
+
+std::pair<cb::engine_errc, uint64_t>
+DCPLoopbackStreamTest::DcpRoute::doStreamRequest(int flags) {
+    // Do the add_stream
+    EXPECT_EQ(ENGINE_SUCCESS, consumer->addStream(/*opaque*/ 0, vbid, flags));
+    auto streamRequest = consumer->getVbucketStream(vbid)->next();
+    EXPECT_TRUE(streamRequest);
+    EXPECT_EQ(DcpResponse::Event::StreamReq, streamRequest->getEvent());
+    StreamRequest* sr = static_cast<StreamRequest*>(streamRequest.get());
+    // Create an active stream against the producing node
+    uint64_t rollbackSeqno = 0;
+    auto error = producer->streamRequest(sr->getFlags(),
+                                         sr->getOpaque(),
+                                         vbid,
+                                         sr->getStartSeqno(),
+                                         sr->getEndSeqno(),
+                                         sr->getVBucketUUID(),
+                                         sr->getSnapStartSeqno(),
+                                         sr->getSnapEndSeqno(),
+                                         &rollbackSeqno,
+                                         fakeDcpAddFailoverLog,
+                                         {});
+    if (error == ENGINE_SUCCESS) {
+        auto producerVb = producerNode->getVBucket(vbid);
+        EXPECT_GE(static_cast<MockCheckpointManager*>(
+                          producerVb->checkpointManager.get())
+                          ->getNumOfCursors(),
+                  2)
+                << "Should have both persistence and DCP producer cursor on "
+                   "producer VB";
+        EXPECT_GE(getLpAuxQ()->getFutureQueueSize(), 1);
+        // Finally the stream-request response sends the failover table back
+        // to the consumer... simulate that
+        auto failoverLog = producerVb->failovers->getFailoverLog();
+        std::vector<vbucket_failover_t> networkFailoverLog;
+        for (const auto entry : failoverLog) {
+            networkFailoverLog.push_back(
+                    {htonll(entry.uuid), htonll(entry.seqno)});
+        }
+        consumer->public_streamAccepted(
+                sr->getOpaque(),
+                cb::mcbp::Status::Success,
+                reinterpret_cast<const uint8_t*>(networkFailoverLog.data()),
+                networkFailoverLog.size() * sizeof(vbucket_failover_t));
+
+        auto addStreamResp = consumer->getVbucketStream(vbid)->next();
+        EXPECT_EQ(DcpResponse::Event::AddStream, addStreamResp->getEvent());
+    }
+    return {cb::to_engine_errc(error), rollbackSeqno};
 }
 
 /**
@@ -341,24 +537,23 @@ void DCPLoopbackStreamTest::takeoverTest(
     //     StreamRequest message from the Consumer::readyQ.
     //     Then, we simulate the Producer receiving the StreamRequest just
     //     by creating the Producer with the Consumer's flags
-    setupConsumer(DCP_ADD_STREAM_FLAG_TAKEOVER);
-    setupProducer(enableExpiryOutput);
+    auto route0_1 = createDcpRoute(Node0, Node1, enableExpiryOutput);
+    EXPECT_EQ(cb::engine_errc::success,
+              route0_1.doStreamRequest(DCP_ADD_STREAM_FLAG_TAKEOVER).first);
+    auto* producerStream = static_cast<ActiveStream*>(
+            route0_1.producer->findStream(vbid).get());
+    ASSERT_TRUE(producerStream);
 
     // Both streams created. Check state is as expected.
     ASSERT_TRUE(producerStream->isTakeoverSend())
             << "Producer stream state should have transitioned to "
                "TakeoverSend";
 
+    auto* consumerStream = route0_1.consumer->getVbucketStream(vbid).get();
     while (true) {
-        auto producerMsg = getNextProducerMsg(producerStream);
-        ASSERT_TRUE(producerMsg);
-
-        // Pass the message onto the consumer.
-        EXPECT_EQ(ENGINE_SUCCESS,
-                  consumerStream->messageReceived(std::move(producerMsg)));
-
-        // Get the next message from the consumer; and pass to the producer.
-        readNextConsumerMsgAndSendToProducer(*producerStream, *consumerStream);
+        // We expect an producer->consumer message that will trigger a response
+        route0_1.transferMessage();
+        route0_1.transferResponseMessage();
 
         // Check consumer stream state - drop reflecting messages when
         // stream goes dead.
@@ -372,7 +567,7 @@ void DCPLoopbackStreamTest::takeoverTest(
             << "Expected producer vBucket to be dead once stream "
                "transitions to dead.";
 
-    auto* destVb = replicaEngine->getVBucket(vbid).get();
+    auto* destVb = engines[Node1]->getVBucket(vbid).get();
     EXPECT_EQ(vbucket_state_active, destVb->getState())
             << "Expected consumer vBucket to be active once stream "
                "transitions to dead.";
@@ -437,27 +632,26 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
      */
 
     // Setup: Create DCP producer and consumer connections.
-    setupConsumer(flags);
-    setupProducer();
+    auto route0_1 = createDcpRoute(Node0, Node1);
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest(flags).first);
 
     // Test: Transfer 6 messages between Producer and Consumer
     // (SNAP_MARKER, PRE, CMT, SET), (SNAP_MARKER, PRE), with a flush after the
     // first 4.
-    for (int i = 0; i < 4; i++) {
-        EXPECT_EQ(ENGINE_SUCCESS,
-                  consumerStream->messageReceived(
-                          getNextProducerMsg(producerStream)));
-    }
-    flushReplicaIfPersistent();
+    route0_1.transferSnapshotMarker(0, 3, MARKER_FLAG_CHK | MARKER_FLAG_DISK);
+    route0_1.transferMessage(DcpResponse::Event::Prepare);
+    route0_1.transferMutation(makeStoredDocKey("a"), 2);
+    route0_1.transferMutation(makeStoredDocKey("b"), 3);
+
+    flushNodeIfPersistent(Node1);
 
     // Transfer 2 more messages (SNAP_MARKER, PRE)
-    EXPECT_EQ(ENGINE_SUCCESS,
-              consumerStream->messageReceived(
-                      getNextProducerMsg(producerStream)));
-    EXPECT_EQ(ENGINE_SUCCESS,
-              consumerStream->messageReceived(
-                      getNextProducerMsg(producerStream)));
-    flushReplicaIfPersistent();
+    int takeover = flags & DCP_ADD_STREAM_FLAG_TAKEOVER ? MARKER_FLAG_ACK : 0;
+    route0_1.transferSnapshotMarker(
+            4, 5, MARKER_FLAG_CHK | MARKER_FLAG_MEMORY | takeover);
+    route0_1.transferMessage(DcpResponse::Event::Prepare);
+
+    flushNodeIfPersistent(Node1);
 }
 
 TEST_F(DCPLoopbackStreamTest, BackfillAndInMemoryDuplicatePrepares) {
@@ -482,14 +676,10 @@ TEST_F(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
     EXPECT_EQ(ENGINE_EWOULDBLOCK, storePrepare("a"));
 
     // Setup: Create DCP connections; and stream the first 2 items (SNAP, 1:PRE)
-    setupConsumer();
-    setupProducer();
-    auto msg = getNextProducerMsg(producerStream);
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, msg->getEvent());
-    EXPECT_EQ(ENGINE_SUCCESS, consumerStream->messageReceived(std::move(msg)));
-    msg = getNextProducerMsg(producerStream);
-    EXPECT_EQ(DcpResponse::Event::Prepare, msg->getEvent());
-    EXPECT_EQ(ENGINE_SUCCESS, consumerStream->messageReceived(std::move(msg)));
+    auto route0_1 = createDcpRoute(Node0, Node1);
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+    route0_1.transferMessage(DcpResponse::Event::SnapshotMarker);
+    route0_1.transferMessage(DcpResponse::Event::Prepare);
 
     //     2:CMT(a)
     EXPECT_EQ(ENGINE_SUCCESS, storeCommit("a"));
@@ -509,8 +699,10 @@ TEST_F(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
     EXPECT_EQ(ENGINE_SUCCESS, storeSet("c"));
 
     // Trigger cursor dropping; then remove (now unreferenced) first checkpoint.
-    ASSERT_TRUE(producer->handleSlowStream(
-            vbid, producerStream->getCursor().lock().get()));
+    auto* pStream = static_cast<ActiveStream*>(
+            route0_1.producer->findStream(vbid).get());
+    ASSERT_TRUE(route0_1.producer->handleSlowStream(
+            vbid, pStream->getCursor().lock().get()));
     bool newCkpt = false;
     ASSERT_EQ(2,
               vb->checkpointManager->removeClosedUnrefCheckpoints(
@@ -528,40 +720,20 @@ TEST_F(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
      *                ^
      *                DCP Cursor
      */
-
     // Test: Transfer next 2 messages from Producer to Consumer which
     // should be from backfill (after cursor dropping):
     // SNAP_MARKER (disk), 2:CMT
-    msg = getNextProducerMsg(producerStream);
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, msg->getEvent());
-    auto* marker = dynamic_cast<SnapshotMarker*>(msg.get());
-    EXPECT_EQ(2, marker->getStartSeqno());
-    EXPECT_EQ(3, marker->getEndSeqno());
-    EXPECT_EQ(ENGINE_SUCCESS, consumerStream->messageReceived(std::move(msg)));
-
-    msg = getNextProducerMsg(producerStream);
+    route0_1.transferSnapshotMarker(2, 3, MARKER_FLAG_DISK | MARKER_FLAG_CHK);
     // Note: This was originally a Commit but because it has come from disk
     // it's sent as a Mutation (as backfill in general doesn't know if consumer
-    // recieved the prior prepare so must send as Mutation).
-    EXPECT_EQ(DcpResponse::Event::Mutation, msg->getEvent());
-    EXPECT_EQ(ENGINE_SUCCESS, consumerStream->messageReceived(std::move(msg)));
-
-    msg = getNextProducerMsg(producerStream);
-    EXPECT_EQ(DcpResponse::Event::Mutation, msg->getEvent());
-    EXPECT_EQ(ENGINE_SUCCESS, consumerStream->messageReceived(std::move(msg)));
+    // received the prior prepare so must send as Mutation).
+    route0_1.transferMutation(makeStoredDocKey("a"), 2);
+    route0_1.transferMutation(makeStoredDocKey("b"), 3);
 
     // Transfer 2 memory messages - should be:
     // SNAP_MARKER (mem), 4:PRE
-    msg = getNextProducerMsg(producerStream);
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, msg->getEvent());
-    marker = dynamic_cast<SnapshotMarker*>(msg.get());
-    EXPECT_EQ(4, marker->getStartSeqno());
-    EXPECT_EQ(5, marker->getEndSeqno());
-    EXPECT_EQ(ENGINE_SUCCESS, consumerStream->messageReceived(std::move(msg)));
+    route0_1.transferSnapshotMarker(4, 5, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    route0_1.transferMessage(DcpResponse::Event::Prepare);
 
-    msg = getNextProducerMsg(producerStream);
-    EXPECT_EQ(DcpResponse::Event::Prepare, msg->getEvent());
-    EXPECT_EQ(ENGINE_SUCCESS, consumerStream->messageReceived(std::move(msg)));
-
-    flushReplicaIfPersistent();
+    flushNodeIfPersistent(Node1);
 }

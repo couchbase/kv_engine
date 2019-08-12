@@ -80,6 +80,11 @@ public:
     void runCheckpointProcessor(MockDcpProducer& producer,
                                 dcp_message_producers& producers);
 
+    /*
+     * DCP helper - Run the backfill tasks
+     */
+    void runBackfill();
+
     /**
      * Create a DCP stream on the producer for this->vbid
      */

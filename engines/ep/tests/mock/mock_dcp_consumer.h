@@ -157,4 +157,11 @@ public:
         }
         return {};
     }
+
+    void public_streamAccepted(uint32_t opaque,
+                               cb::mcbp::Status status,
+                               const uint8_t* body,
+                               uint32_t bodylen) {
+        streamAccepted(opaque, status, body, bodylen);
+    }
 };
