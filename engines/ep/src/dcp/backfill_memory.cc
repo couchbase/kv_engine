@@ -90,7 +90,7 @@ backfill_status_t DCPBackfillMemory::run() {
     stream->incrBackfillRemaining(items.size());
 
     /* Mark disk snapshot */
-    stream->markDiskSnapshot(startSeqno, adjustedEndSeqno);
+    stream->markDiskSnapshot(startSeqno, adjustedEndSeqno, {});
 
     /* Move every item to the stream */
     for (auto& item : items) {
@@ -249,7 +249,8 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
                     std::min(endSeqno, static_cast<uint64_t>(rangeItr.back()));
 
             /* Mark disk snapshot */
-            stream->markDiskSnapshot(startSeqno, endSeqno);
+            stream->markDiskSnapshot(
+                    startSeqno, endSeqno, evb->getHighCompletedSeqno());
 
             /* Change the backfill state */
             transitionState(BackfillState::Scanning);

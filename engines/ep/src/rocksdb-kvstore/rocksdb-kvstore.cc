@@ -1441,19 +1441,21 @@ ScanContext* RocksDBKVStore::initScanContext(
     // as scan is supposed to be inclusive at both ends,
     // seqnos 2 to 4 covers 3 docs not 4 - 2 = 2
 
-    uint64_t endSeqno = cachedVBStates[vbid.get()]->highSeqno;
-    return new ScanContext(cb,
-                           cl,
-                           vbid,
-                           scanId,
-                           startSeqno,
-                           endSeqno,
-                           0, /*TODO RDB: pass the real purge-seqno*/
-                           options,
-                           valOptions,
-                           /* documentCount */ endSeqno - startSeqno + 1,
-                           configuration,
-                           {/*no collections in rocksdb*/});
+    auto& state = cachedVBStates[vbid.get()];
+    return new ScanContext(
+            cb,
+            cl,
+            vbid,
+            scanId,
+            startSeqno,
+            state->highSeqno,
+            0, /*TODO RDB: pass the real purge-seqno*/
+            options,
+            valOptions,
+            /* documentCount */ state->highSeqno - startSeqno + 1,
+            state->highCompletedSeqno,
+            configuration,
+            {/*no collections in rocksdb*/});
 }
 
 scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {

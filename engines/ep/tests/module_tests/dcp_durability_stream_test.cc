@@ -825,6 +825,59 @@ TEST_P(DurabilityActiveStreamTest,
     producer->cancelCheckpointCreatorTask();
 }
 
+TEST_P(DurabilityActiveStreamTest, DiskSnapshotSendsHCSWithSyncRepSupport) {
+    auto vb = engine->getVBucket(vbid);
+    auto& ckptMgr = *vb->checkpointManager;
+    // Get rid of set_vb_state and any other queue_op we are not interested in
+    ckptMgr.clear(*vb, 0 /*seqno*/);
+
+    const auto key = makeStoredDocKey("key");
+    const std::string value = "value";
+    auto item = makePendingItem(key, value);
+
+    auto ctx = VBQueueItemCtx();
+    ctx.durability = DurabilityItemCtx{item->getDurabilityReqs()};
+
+    EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
+    vb->notifyActiveDMOfLocalSyncWrite();
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                          replica,
+                          1 /*prepareSeqno*/);
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+
+    // Run the backfill we scheduled when we transitioned to the backfilling
+    // state.
+    auto& bfm = producer->getBFM();
+    bfm.backfill();
+    bfm.backfill();
+
+    // No message processed, BufferLog empty
+    ASSERT_EQ(0, producer->getBytesOutstanding());
+
+    // readyQ must contain a SnapshotMarker
+    ASSERT_EQ(3, stream->public_readyQSize());
+    auto resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+
+    auto& marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_CHK);
+    ASSERT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
+    ASSERT_TRUE(marker.getHighCompletedSeqno());
+    EXPECT_EQ(1, *marker.getHighCompletedSeqno());
+
+    producer->cancelCheckpointCreatorTask();
+}
+
 void DurabilityPassiveStreamTest::SetUp() {
     SingleThreadedPassiveStreamTest::SetUp();
     consumer->enableSyncReplication();

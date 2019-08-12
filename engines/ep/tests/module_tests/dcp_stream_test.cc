@@ -1545,6 +1545,7 @@ TEST_P(SingleThreadedActiveStreamTest, DiskSnapshotSendsChkMarker) {
     auto& marker = dynamic_cast<SnapshotMarker&>(*resp);
     EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_CHK);
     EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
+    EXPECT_FALSE(marker.getHighCompletedSeqno());
 
     producer->cancelCheckpointCreatorTask();
 }

@@ -1433,6 +1433,19 @@ ScanContext* CouchKVStore::initScanContext(
         return NULL;
     }
 
+    auto* vbState = getVBucketState(vbid);
+    if (!vbState) {
+        if (readVBState(db, vbid) == CouchKVStore::ReadVBStateStatus::Success) {
+            vbState = getVBucketState(vbid);
+        }
+        if (!vbState) {
+            EP_LOG_WARN(
+                    "CouchKVStore::initScanContext:Failed to obtain vbState for"
+                    "the highCompletedSeqno");
+            return NULL;
+        }
+    }
+
     size_t scanId = scanCounter++;
 
     auto collectionsManifest = getDroppedCollections(*db);
@@ -1452,6 +1465,7 @@ ScanContext* CouchKVStore::initScanContext(
                                         options,
                                         valOptions,
                                         count,
+                                        vbState->highCompletedSeqno,
                                         configuration,
                                         collectionsManifest);
     sctx->logger = &logger;

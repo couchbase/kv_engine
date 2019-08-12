@@ -234,7 +234,10 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
     }
 }
 
-void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
+void ActiveStream::markDiskSnapshot(
+        uint64_t startSeqno,
+        uint64_t endSeqno,
+        boost::optional<uint64_t> highCompletedSeqno) {
     {
         LockHolder lh(streamMutex);
         uint64_t chkCursorSeqno = endSeqno;
@@ -291,14 +294,15 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
             logPrefix,
             startSeqno,
             endSeqno);
-        // @TODO push through HCS
+        // If the stream supports SyncRep then send the HCS in the
+        // SnapshotMarker
         pushToReadyQ(std::make_unique<SnapshotMarker>(
                 opaque_,
                 vb_,
                 startSeqno,
                 endSeqno,
                 MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-                boost::none /*HCS*/,
+                supportSyncReplication() ? highCompletedSeqno : boost::none,
                 sid));
         lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 

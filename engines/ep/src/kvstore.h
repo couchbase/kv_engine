@@ -211,6 +211,7 @@ public:
                 DocumentFilter _docFilter,
                 ValueFilter _valFilter,
                 uint64_t _documentCount,
+                uint64_t highCompletedSeqno,
                 const KVStoreConfig& _config,
                 const std::vector<Collections::KVStore::DroppedCollection>&
                         droppedCollections);
@@ -227,6 +228,7 @@ public:
     const DocumentFilter docFilter;
     const ValueFilter valFilter;
     const uint64_t documentCount;
+    const uint64_t highCompletedSeqno;
 
     BucketLogger* logger;
     const KVStoreConfig& config;

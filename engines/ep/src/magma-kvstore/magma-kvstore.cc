@@ -1349,6 +1349,7 @@ public:
                      DocumentFilter _docFilter,
                      ValueFilter _valFilter,
                      uint64_t _documentCount,
+                     uint64_t highCompletedSeqno,
                      const KVStoreConfig& _config,
                      const std::vector<Collections::KVStore::DroppedCollection>&
                              droppedCollections,
@@ -1363,6 +1364,7 @@ public:
                       _docFilter,
                       _valFilter,
                       _documentCount,
+                      highCompletedSeqno,
                       _config,
                       droppedCollections),
           kvHandle(kvHandle) {
@@ -1386,6 +1388,7 @@ ScanContext* MagmaKVStore::initScanContext(
     uint64_t highSeqno;
     uint64_t purgeSeqno;
     uint64_t docCount;
+    uint64_t highCompletedSeqno;
     {
         std::shared_lock<std::shared_timed_mutex> lock(kvHandle->vbstateMutex);
         auto vbstate = cachedVBStates[vbid.get()].get();
@@ -1397,6 +1400,7 @@ ScanContext* MagmaKVStore::initScanContext(
         highSeqno = vbstate->highSeqno;
         purgeSeqno = vbstate->purgeSeqno;
         docCount = cachedMagmaInfo[vbid.get()]->docCount;
+        highCompletedSeqno = vbstate->highCompletedSeqno;
     }
 
     auto collectionsManifest = getDroppedCollections(vbid);
@@ -1460,6 +1464,7 @@ ScanContext* MagmaKVStore::initScanContext(
                                      options,
                                      valOptions,
                                      docCount,
+                                     highCompletedSeqno,
                                      configuration,
                                      collectionsManifest,
                                      kvHandle);

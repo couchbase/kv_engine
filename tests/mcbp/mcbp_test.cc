@@ -2086,6 +2086,12 @@ protected:
 };
 
 TEST_P(DcpSnapshotMarkerValidatorTest, CorrectMessage) {
+    // Validate V1 Payload
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
+
+    // Validate V2 Payload
+    request.message.header.request.setExtlen(28);
+    request.message.header.request.setBodylen(28);
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
 }
 

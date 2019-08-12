@@ -564,8 +564,12 @@ static Status dcp_stream_end_validator(Cookie& cookie) {
 }
 
 static Status dcp_snapshot_marker_validator(Cookie& cookie) {
+    auto& header = cookie.getHeader();
+
+    // Pass the extras len in because we will check it manually as it is
+    // variable length
     auto status = McbpValidator::verify_header(cookie,
-                                               20,
+                                               header.getExtlen(),
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::Any,
@@ -573,6 +577,15 @@ static Status dcp_snapshot_marker_validator(Cookie& cookie) {
     if (status != Status::Success) {
         return status;
     }
+
+    // Validate our extras length is correct
+    using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
+    using cb::mcbp::request::DcpSnapshotMarkerV2Payload;
+    if (!(header.getExtlen() == sizeof(DcpSnapshotMarkerV1Payload) ||
+          header.getExtlen() == sizeof(DcpSnapshotMarkerV2Payload))) {
+        return Status::Einval;
+    }
+
     return verify_common_dcp_restrictions(cookie);
 }
 

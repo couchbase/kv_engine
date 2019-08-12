@@ -115,7 +115,9 @@ public:
         backfillRemaining.fetch_add(by, std::memory_order_relaxed);
     }
 
-    void markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno);
+    void markDiskSnapshot(uint64_t startSeqno,
+                          uint64_t endSeqno,
+                          boost::optional<uint64_t> highCompletedSeqno);
 
     bool backfillReceived(std::unique_ptr<Item> itm,
                           backfill_source_t backfill_source,

@@ -54,6 +54,7 @@ ScanContext::ScanContext(
         DocumentFilter _docFilter,
         ValueFilter _valFilter,
         uint64_t _documentCount,
+        uint64_t highCompletedSeqno,
         const KVStoreConfig& _config,
         const std::vector<Collections::KVStore::DroppedCollection>&
                 droppedCollections)
@@ -68,6 +69,7 @@ ScanContext::ScanContext(
       docFilter(_docFilter),
       valFilter(_valFilter),
       documentCount(_documentCount),
+      highCompletedSeqno(highCompletedSeqno),
       logger(globalBucketLogger.get()),
       config(_config),
       collectionsContext(droppedCollections) {
