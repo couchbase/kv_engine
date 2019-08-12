@@ -98,7 +98,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::createNewItem() {
                                    0, // no privileged bytes
                                    0, // Empty flags
                                    extras.getExpiration(),
-                                   PROTOCOL_BINARY_RAW_BYTES,
+                                   PROTOCOL_BINARY_DATATYPE_JSON,
                                    vbucket);
     newitem = std::move(pair.first);
 
@@ -178,7 +178,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
     result = oldval;
     const std::string value = std::to_string(result);
 
-    protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
+    auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
     if (xattrsize > 0) {
         datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
     }

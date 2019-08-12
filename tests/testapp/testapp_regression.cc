@@ -284,3 +284,14 @@ TEST_P(RegressionTest, SetCtrlToken) {
     ASSERT_FALSE(rsp.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus());
 }
+
+/**
+ * Increment should set the datatype to JSON
+ */
+TEST_P(RegressionTest, MB35528) {
+    auto& conn = getConnection();
+    conn.setDatatypeJson(true);
+    conn.increment(name, 1, 0, 0, nullptr);
+    const auto info = conn.get(name, Vbid{0});
+    EXPECT_EQ(cb::mcbp::Datatype::JSON, info.info.datatype);
+}
