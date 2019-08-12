@@ -38,6 +38,8 @@
 using Node = int;
 static Node Node0 = 0;
 static Node Node1 = 1;
+static Node Node2 = 2;
+static Node Node3 = 3;
 
 static TaskQueue* getLpAuxQ() {
     auto* task_executor =
@@ -87,7 +89,7 @@ protected:
 
     void createNode(Node node, vbucket_state_t vbState) {
         ASSERT_NE(Node0, node) << "Cannot re-create Node0";
-        ASSERT_LE(node, Node1) << "Out of bounds for Node" << node;
+        ASSERT_LE(node, Node3) << "Out of bounds for Node" << node;
 
         std::string config = config_string;
         if (config.size() > 0) {
@@ -317,9 +319,9 @@ protected:
 
     // engines is 'map' from Node to an engine pointer, currently Node0 is the
     // engine created by the parent class and Node1 are created by this
-    // class. Node1 is always created by SetUp.
-    // @todo: expand the storage so we can have more nodes
-    std::array<SynchronousEPEngine*, 2> engines;
+    // class. Node1 is always created by SetUp and additional nodes created on
+    // demand
+    std::array<SynchronousEPEngine*, 4> engines;
 
     // Owned pointers to the other engines, created on demand by tests
     std::vector<SynchronousEPEngineUniquePtr> extraEngines;
@@ -736,4 +738,123 @@ TEST_F(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
     route0_1.transferMessage(DcpResponse::Event::Prepare);
 
     flushNodeIfPersistent(Node1);
+}
+
+// This test is validating that a replica which recevies a partial disk snapshot
+// is rolled back to before that partial snapshot during failover. Prior to this
+// test it was not clear if DCP would incorrectly resume the replica from beyond
+// the partial snapshot start point, however the test proved that the way that
+// KV calculates a disk snapshot marker is what ensures the consumer's post
+// failover stream request to be rejected.
+TEST_F(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
+    // The keys we will use
+    auto k1 = makeStoredDocKey("k1");
+    auto k2 = makeStoredDocKey("k2");
+    auto k3 = makeStoredDocKey("k3");
+    auto k4 = makeStoredDocKey("k4");
+    auto k5 = makeStoredDocKey("k5");
+
+    // setup Node2 so we have two replicas
+    createNode(Node2, vbucket_state_replica);
+
+    auto route0_1 = createDcpRoute(Node0, Node1);
+    auto route0_2 = createDcpRoute(Node0, Node2);
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+    EXPECT_EQ(cb::engine_errc::success, route0_2.doStreamRequest().first);
+
+    // Setup the active, first move the active away from seqno 0 with a couple
+    // of keys, we don't really care about these in this test
+    EXPECT_EQ(ENGINE_SUCCESS, storeSet(k1));
+    EXPECT_EQ(ENGINE_SUCCESS, storeSet(k2));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    // These go everywhere...
+    route0_1.transferSnapshotMarker(0, 2, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    route0_1.transferMutation(k1, 1);
+    route0_1.transferMutation(k2, 2);
+    route0_2.transferSnapshotMarker(0, 2, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    route0_2.transferMutation(k1, 1);
+    route0_2.transferMutation(k2, 2);
+
+    // Now setup the interesting operations, and build the replicas as we go.
+    EXPECT_EQ(ENGINE_SUCCESS, storeSet(k3));
+    EXPECT_EQ(ENGINE_SUCCESS, storeSet(k4));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // And replicate the snapshot to replica on Node1
+    route0_1.transferSnapshotMarker(3, 4, MARKER_FLAG_MEMORY);
+    route0_1.transferMutation(k3, 3);
+    route0_1.transferMutation(k4, 4);
+    flushNodeIfPersistent(Node1);
+
+    // Simulate disconnect of route0_2 Node0->Node2
+    route0_2.destroy();
+
+    auto vb = engines[Node0]->getVBucket(vbid);
+    // Next snapshot, *important* k3 is set again and in a new checkpoint
+    vb->checkpointManager->createNewCheckpoint();
+    EXPECT_EQ(ENGINE_SUCCESS, storeSet(k5));
+    EXPECT_EQ(ENGINE_SUCCESS, storeSet(k3));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // And replicate a partial snapshot to the replica on Node1
+    route0_1.transferSnapshotMarker(5, 6, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    route0_1.transferMutation(k5, 5);
+    // k3@6 doesn't transfer
+    flushNodeIfPersistent(Node1);
+
+    // brute force... ensure in-memory is now purged so our new stream backfills
+    vb->checkpointManager->clear(vbucket_state_active);
+
+    // Now reconnect Node0/Node2
+    auto route0_2_new = createDcpRoute(Node0, Node2);
+    EXPECT_EQ(cb::engine_errc::success, route0_2_new.doStreamRequest().first);
+    runBackfill();
+
+    // Now transfer the disk snapshot, again partial, leave the last key.
+    // NOTE: This is the important snapshot which ensures our consumer later
+    // stream-requests and rolls back to before this partial snapshot. What
+    // is special about disk snapshots is the start-seqno is the stream-request
+    // start seqno. Only disk snapshots would do that, in-memory snapshots
+    // always set the marker.start to be the first seqno the ActiveStream pushes
+    // to the readyQueue regardless of what the stream-request start-seqno was.
+    route0_2_new.transferSnapshotMarker(
+            2, 6, MARKER_FLAG_DISK | MARKER_FLAG_CHK);
+    route0_2_new.transferMutation(k4, 4); // transfer k4
+    flushNodeIfPersistent(Node2);
+    route0_2_new.transferMutation(k5, 5); // transfer k5
+    flushNodeIfPersistent(Node2);
+    // but not k3@6
+
+    // DISASTER. NODE0 dies...
+    // DCP crashes
+    route0_1.destroy();
+    route0_2_new.destroy();
+    // NODE1 promoted
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engines[Node1]->getKVBucket()->setVBucketState(
+                      vbid, vbucket_state_active));
+
+    flushNodeIfPersistent(Node1);
+
+    // New topology
+    // NODE1 active -> NODE2, NODE3
+    createNode(Node3, vbucket_state_replica); // bring node3 into the test
+    auto route1_2 = createDcpRoute(Node1, Node2);
+    auto route1_3 = createDcpRoute(Node1, Node3);
+    auto rollback = route1_2.doStreamRequest();
+    EXPECT_EQ(cb::engine_errc::rollback, rollback.first);
+
+    // The existing replica which connects to Node1 has to go back to seqno:2
+    // and must rebuild the partial snapshot again
+    EXPECT_EQ(2, rollback.second);
+
+    // The new node joins successfully and builds a replica from 0
+    EXPECT_EQ(cb::engine_errc::success, route1_3.doStreamRequest().first);
+    route1_3.transferSnapshotMarker(0, 4, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    route1_3.transferMutation(k1, 1);
+    route1_3.transferMutation(k2, 2);
+    route1_3.transferMutation(k3, 3);
+    route1_3.transferMutation(k4, 4);
+    route1_3.transferSnapshotMarker(5, 5, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    route1_3.transferMutation(k5, 5);
 }
