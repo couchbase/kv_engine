@@ -77,7 +77,7 @@ ENGINE_ERROR_CODE GetMetaCommandContext::sendResponse() {
                         {},
                         cb::mcbp::Datatype::Raw,
                         info.cas);
-
+    cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
     update_topkeys(cookie);
 
     state = State::Done;

@@ -22,6 +22,14 @@
 
 #include <gsl/gsl>
 
+namespace cb {
+namespace audit {
+namespace document {
+enum class Operation;
+}
+} // namespace audit
+} // namespace cb
+
 struct ServerDocumentIface {
     virtual ~ServerDocumentIface() = default;
 
@@ -65,4 +73,15 @@ struct ServerDocumentIface {
      * @throws std::bad_alloc in case of memory allocation failure
      */
     virtual std::string pre_expiry(const item_info& itm_info) = 0;
+
+    /**
+     * Add an entry to the audit trail for access to the document specified
+     * in the key for this cookie.
+     *
+     * @param cookie The cookie representing the operation
+     * @param operation The type of access for the operation
+     */
+    virtual void audit_document_access(
+            gsl::not_null<const void*> cookie,
+            cb::audit::document::Operation operation) = 0;
 };

@@ -272,6 +272,8 @@ ADD_LIBRARY(ep_objs OBJECT
             src/replicationthrottle.cc
             src/linked_list.cc
             src/rollback_result.cc
+            src/server_document_iface_border_guard.cc
+            src/server_document_iface_border_guard.h
             src/seqlist.cc
             src/stats.cc
             src/string_utils.cc

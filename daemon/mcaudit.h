@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <memcached/audit_interface.h>
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
 #include <platform/sized_buffer.h>
@@ -105,16 +106,12 @@ namespace cb {
 namespace audit {
 namespace document {
 
-enum class Operation {
-    Read,
-    Lock,
-    Modify,
-    Delete
-};
+enum class Operation;
+
 void add(const Cookie& c, Operation operation);
-}
-}
-}
+} // namespace document
+} // namespace audit
+} // namespace cb
 
 /**
  * Initialize the audit subsystem

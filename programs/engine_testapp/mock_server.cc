@@ -221,6 +221,12 @@ struct MockServerDocumentApi : public ServerDocumentIface {
     std::string pre_expiry(const item_info& itm_info) override {
         return document_pre_expiry(itm_info);
     }
+
+    void audit_document_access(
+            gsl::not_null<const void*> cookie,
+            cb::audit::document::Operation operation) override {
+        // empty
+    }
 };
 
 struct MockServerCallbackApi : public ServerCallbackIface {

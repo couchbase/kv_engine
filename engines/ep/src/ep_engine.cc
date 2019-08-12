@@ -39,6 +39,7 @@
 #include "htresizer.h"
 #include "memory_tracker.h"
 #include "replicationthrottle.h"
+#include "server_document_iface_border_guard.h"
 #include "stats-info.h"
 #include "statwriter.h"
 #include "string_utils.h"
@@ -47,6 +48,7 @@
 
 #include <JSON_checker.h>
 #include <logger/logger.h>
+#include <memcached/audit_interface.h>
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/server_cookie_iface.h>
@@ -917,6 +919,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
 
     if (error_code == ENGINE_SUCCESS) {
         uint32_t flags = rv.item->getFlags();
+        ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
+        guardedIface.audit_document_access(
+                cookie, cb::audit::document::Operation::Read);
         return sendResponse(response,
                             static_cast<const void*>(rv.item->getKey().data()),
                             rv.item->getKey().size(),
@@ -4947,6 +4952,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
     }
 
     if (ret == ENGINE_SUCCESS) {
+        ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
+        guardedIface.audit_document_access(
+                cookie, cb::audit::document::Operation::Modify);
         ++stats.numOpsSetMeta;
         auto endTime = std::chrono::steady_clock::now();
         TRACE_END(cookie, TraceCode::SETWITHMETA, endTime);
@@ -5145,6 +5153,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     }
 
     if (ret == ENGINE_SUCCESS) {
+        ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
+        guardedIface.audit_document_access(
+                cookie, cb::audit::document::Operation::Delete);
         stats.numOpsDelMeta++;
     } else if (ret == ENGINE_ENOMEM) {
         return memoryCondition();
@@ -5385,6 +5396,9 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
             ret = kvBucket->add(*itm, cookie);
         }
         if (ret == ENGINE_SUCCESS) {
+            ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
+            guardedIface.audit_document_access(
+                    cookie, cb::audit::document::Operation::Modify);
             ++stats.numOpsSetRetMeta;
         }
         cas = itm->getCas();
@@ -5400,6 +5414,9 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
                                    &itm_meta,
                                    mutation_descr);
         if (ret == ENGINE_SUCCESS) {
+            ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
+            guardedIface.audit_document_access(
+                    cookie, cb::audit::document::Operation::Delete);
             ++stats.numOpsDelRetMeta;
         }
         flags = itm_meta.flags;

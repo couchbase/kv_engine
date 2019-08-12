@@ -21,6 +21,10 @@
 
 namespace cb {
 namespace audit {
+namespace document {
+
+enum class Operation { Read, Lock, Modify, Delete };
+} // namespace document
 
 /**
  * The event state listener is a callback function being called
