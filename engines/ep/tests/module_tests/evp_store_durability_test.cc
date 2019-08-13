@@ -22,6 +22,7 @@
 #include "test_helpers.h"
 
 #include <engines/ep/src/ephemeral_tombstone_purger.h>
+#include <engines/ep/tests/mock/mock_paging_visitor.h>
 #include <programs/engine_testapp/mock_server.h>
 
 class DurabilityEPBucketTest : public STParameterizedBucketTest {
@@ -1838,6 +1839,73 @@ TEST_P(DurabilityEphemeralBucketTest, PurgeCompletedAbort) {
                         vb.lockCollections(key));
     };
     testPurgeCompletedPrepare(op);
+}
+
+// Test to confirm that prepares in state PrepareCommitted are not expired
+TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    const Vbid active_vb = Vbid(0);
+    auto vb = engine->getVBucket(active_vb);
+
+    const std::string value(1024, 'x'); // 1KB value to use for documents.
+
+    auto key = makeStoredDocKey("key");
+    auto item = makePendingItem(key, "value");
+
+    using namespace std::chrono;
+    auto expiry = system_clock::now() + seconds(1);
+
+    item->setExpTime(system_clock::to_time_t(expiry));
+
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb->commit(key,
+                         1 /*prepareSeqno*/,
+                         {} /*commitSeqno*/,
+                         vb->lockCollections(key)));
+
+    TimeTraveller hgwells(10);
+
+    std::shared_ptr<std::atomic<bool>> available;
+
+    Configuration& cfg = engine->getConfiguration();
+    std::unique_ptr<MockPagingVisitor> pv = std::make_unique<MockPagingVisitor>(
+            *engine->getKVBucket(),
+            engine->getEpStats(),
+            -1,
+            available,
+            EXPIRY_PAGER,
+            false,
+            1,
+            VBucketFilter(),
+            nullptr,
+            true,
+            cfg.getItemEvictionAgePercentage(),
+            cfg.getItemEvictionFreqCounterAgeThreshold());
+
+    {
+        auto pending = vb->ht.findForCommit(key).pending;
+        ASSERT_TRUE(pending);
+        ASSERT_TRUE(pending->isCompleted());
+        ASSERT_EQ(pending->getCommitted(), CommittedState::PrepareCommitted);
+    }
+
+    pv->setCurrentBucket(vb);
+    for (int ii = 0; ii <= Item::initialFreqCount; ii++) {
+        pv->setFreqCounterThreshold(0);
+        vb->ht.visit(*pv);
+        pv->update();
+    }
+
+    {
+        auto pending = vb->ht.findForCommit(key).pending;
+        EXPECT_TRUE(pending);
+        EXPECT_TRUE(pending->isCompleted());
+    }
 }
 
 // Highlighted in MB-34997 was a situation where a vb state change meant that
