@@ -25,6 +25,7 @@
 #include <evutil.h>
 #include <valgrind/valgrind.h>
 
+#include <folly/CPortability.h>
 #include <folly/portability/GTest.h>
 #include <algorithm>
 #include <atomic>
@@ -692,8 +693,8 @@ TEST_P(McdTestappTest, SetQE2BIG) {
                        GetTestBucket().getMaximumDocSize() + 1);
 }
 
-#ifndef THREAD_SANITIZER
-// These tests are disabled under valgrind as they take a lot
+#if !defined(FOLLY_SANITIZE)
+// These tests are disabled under Sanitizers as they take a lot
 // of time and don't really expose any new features in the server
 
 /* support set, get, delete */
@@ -866,7 +867,7 @@ TEST_P(McdTestappTest, PipelineSetDel) {
     test_pipeline_impl(
             ClientOpcode::Delete, Status::Success, "key_root", 5000, 256);
 }
-#endif
+#endif // FOLLY_SANITIZE
 
 /* Send one character to the SSL port, then check memcached correctly closes
  * the connection (and doesn't hold it open for ever trying to read) more bytes
