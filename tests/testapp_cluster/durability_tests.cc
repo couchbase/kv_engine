@@ -26,26 +26,238 @@
 #include <cstdlib>
 #include <string>
 
-class DurabilityTest : public cb::test::ClusterTest {};
+/**
+ * Get a frame info vector with a durability entry with Majority
+ */
+static FrameInfoVector GetMajorityDurabilityFrameInfoVector() {
+    FrameInfoVector ret;
+    ret.emplace_back(std::make_unique<DurabilityFrameInfo>(
+            cb::durability::Level::Majority));
+    return ret;
+}
 
-TEST_F(DurabilityTest, StoreWithDurability) {
-    auto bucket = cluster->getBucket("default");
-    auto conn = bucket->getConnection(Vbid(0));
-    conn->authenticate("@admin", "password", "PLAIN");
-    conn->selectBucket(bucket->getName());
+class DurabilityTest : public cb::test::ClusterTest {
+protected:
+    static void mutate(MemcachedConnection& conn,
+                       std::string id,
+                       MutationType type) {
+        MutationInfo old{};
+        if (type != MutationType::Add) {
+            old = conn.store(id, Vbid{0}, "", cb::mcbp::Datatype::Raw);
+        }
 
-    auto info = conn->store(
-            "StoreWithDurability",
-            Vbid(0),
-            "value",
-            cb::mcbp::Datatype::Raw,
-            []() -> FrameInfoVector {
-                FrameInfoVector ret;
-                ret.emplace_back(std::make_unique<DurabilityFrameInfo>(
-                        cb::durability::Level::Majority));
-                return ret;
-            });
+        Document doc{};
+        doc.value = "body";
+        doc.info.id = std::move(id);
+        doc.info.datatype = cb::mcbp::Datatype::Raw;
+        const auto info = conn.mutate(
+                doc, Vbid{0}, type, GetMajorityDurabilityFrameInfoVector);
+        EXPECT_NE(0, info.cas);
+        EXPECT_NE(old.cas, info.cas);
+    }
+
+    static void subdoc(MemcachedConnection& conn,
+                       std::string id,
+                       cb::mcbp::ClientOpcode opcode) {
+        BinprotSubdocCommand cmd(opcode);
+        cmd.setKey(std::move(id));
+        cmd.setPath("foo");
+        if (opcode != cb::mcbp::ClientOpcode::SubdocDelete) {
+            cmd.setValue("1");
+            if (opcode == cb::mcbp::ClientOpcode::SubdocArrayInsert) {
+                cmd.setPath("foo.[0]");
+            } else if (opcode != cb::mcbp::ClientOpcode::SubdocReplace) {
+                cmd.addPathFlags(SUBDOC_FLAG_MKDIR_P);
+                cmd.addDocFlags(mcbp::subdoc::doc_flag::Mkdoc);
+            }
+        }
+        cmd.addFrameInfo(DurabilityFrameInfo{cb::durability::Level::Majority});
+        auto rsp = conn.execute(cmd);
+        EXPECT_TRUE(rsp.isSuccess())
+                << "Status: " << to_string(rsp.getStatus()) << std::endl
+                << "Value: " << rsp.getDataString();
+        EXPECT_NE(0, rsp.getCas());
+    }
+
+    static std::unique_ptr<MemcachedConnection> getConnection() {
+        auto bucket = cluster->getBucket("default");
+        auto conn = bucket->getConnection(Vbid(0));
+        conn->authenticate("@admin", "password", "PLAIN");
+        conn->selectBucket(bucket->getName());
+        return conn;
+    }
+};
+
+TEST_F(DurabilityTest, Set) {
+    mutate(*getConnection(), "Set", MutationType::Set);
+}
+
+TEST_F(DurabilityTest, Add) {
+    mutate(*getConnection(), "Add", MutationType::Add);
+}
+
+TEST_F(DurabilityTest, Replace) {
+    mutate(*getConnection(), "Replace", MutationType::Replace);
+}
+
+TEST_F(DurabilityTest, Append) {
+    mutate(*getConnection(), "Append", MutationType::Append);
+}
+
+TEST_F(DurabilityTest, Prepend) {
+    mutate(*getConnection(), "Prepend", MutationType::Prepend);
+}
+
+// This is blocked by MB-35546
+TEST_F(DurabilityTest, DISABLED_Delete) {
+    auto conn = getConnection();
+    const auto old =
+            conn->store("Delete", Vbid{0}, "", cb::mcbp::Datatype::Raw);
+    auto info = getConnection()->remove(
+            "Delete", Vbid{0}, 0, GetMajorityDurabilityFrameInfoVector);
     EXPECT_NE(0, info.cas);
+    EXPECT_NE(old.cas, info.cas);
+}
+
+TEST_F(DurabilityTest, Increment) {
+    auto conn = getConnection();
+    for (uint64_t ii = 0; ii < 10ULL; ++ii)
+        EXPECT_EQ(ii,
+                  conn->increment("Increment",
+                                  1,
+                                  0,
+                                  0,
+                                  nullptr,
+                                  GetMajorityDurabilityFrameInfoVector));
+}
+
+TEST_F(DurabilityTest, Decrement) {
+    auto conn = getConnection();
+    for (uint64_t ii = 10; ii > 0ULL; --ii)
+        EXPECT_EQ(ii,
+                  conn->decrement("Decrement",
+                                  1,
+                                  10,
+                                  0,
+                                  nullptr,
+                                  GetMajorityDurabilityFrameInfoVector));
+}
+
+// MB-35548 blocks this
+TEST_F(DurabilityTest, DISABLED_Touch) {
+    auto conn = getConnection();
+    const auto info =
+            conn->store("Touch", Vbid{0}, "", cb::mcbp::Datatype::Raw);
+
+    BinprotTouchCommand cmd;
+    cmd.setKey("Touch");
+    cmd.setExpirytime(0x32);
+    cmd.addFrameInfo(DurabilityFrameInfo{cb::durability::Level::Majority});
+
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess())
+            << "Status: " << to_string(rsp.getStatus()) << std::endl
+            << "Value: " << rsp.getDataString();
+    EXPECT_NE(info.cas, rsp.getCas());
+    EXPECT_NE(0, rsp.getCas());
+}
+
+// MB-35548 blocks this
+TEST_F(DurabilityTest, DISABLED_Gat) {
+    auto conn = getConnection();
+    const auto info =
+            conn->store("GetAndTouch", Vbid{0}, "foo", cb::mcbp::Datatype::Raw);
+
+    BinprotGetAndTouchCommand cmd;
+    cmd.setKey("GetAndTouch");
+    cmd.setExpirytime(0x32);
+    cmd.addFrameInfo(DurabilityFrameInfo{cb::durability::Level::Majority});
+
+    auto rsp = conn->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess())
+            << "Status: " << to_string(rsp.getStatus()) << std::endl
+            << "Value: " << rsp.getDataString();
+    EXPECT_NE(info.cas, rsp.getCas());
+    EXPECT_NE(0, rsp.getCas());
+    EXPECT_EQ("foo", rsp.getDataString());
+}
+
+TEST_F(DurabilityTest, SubdocDictAdd) {
+    subdoc(*getConnection(),
+           "SubdocDictAdd",
+           cb::mcbp::ClientOpcode::SubdocDictAdd);
+}
+
+TEST_F(DurabilityTest, SubdocDictUpsert) {
+    subdoc(*getConnection(),
+           "SubdocDictUpsert",
+           cb::mcbp::ClientOpcode::SubdocDictUpsert);
+}
+
+TEST_F(DurabilityTest, SubdocDelete) {
+    auto conn = getConnection();
+    conn->store("SubdocDelete",
+                Vbid{0},
+                R"({"foo":"bar"})",
+                cb::mcbp::Datatype::JSON);
+    subdoc(*conn, "SubdocDelete", cb::mcbp::ClientOpcode::SubdocDelete);
+}
+
+TEST_F(DurabilityTest, SubdocReplace) {
+    auto conn = getConnection();
+    conn->store("SubdocReplace",
+                Vbid{0},
+                R"({"foo":"bar"})",
+                cb::mcbp::Datatype::JSON);
+    subdoc(*conn, "SubdocReplace", cb::mcbp::ClientOpcode::SubdocReplace);
+}
+
+TEST_F(DurabilityTest, SubdocArrayPushLast) {
+    subdoc(*getConnection(),
+           "SubdocArrayPushLast",
+           cb::mcbp::ClientOpcode::SubdocArrayPushLast);
+}
+TEST_F(DurabilityTest, SubdocArrayPushFirst) {
+    subdoc(*getConnection(),
+           "SubdocArrayPushFirst",
+           cb::mcbp::ClientOpcode::SubdocArrayPushFirst);
+}
+TEST_F(DurabilityTest, SubdocArrayInsert) {
+    auto conn = getConnection();
+    conn->store("SubdocArrayInsert",
+                Vbid{0},
+                R"({"foo":[]})",
+                cb::mcbp::Datatype::JSON);
+    subdoc(*conn,
+           "SubdocArrayInsert",
+           cb::mcbp::ClientOpcode::SubdocArrayInsert);
+}
+TEST_F(DurabilityTest, SubdocArrayAddUnique) {
+    subdoc(*getConnection(),
+           "SubdocArrayAddUnique",
+           cb::mcbp::ClientOpcode::SubdocArrayAddUnique);
+}
+
+TEST_F(DurabilityTest, SubdocCounter) {
+    subdoc(*getConnection(),
+           "SubdocCounter",
+           cb::mcbp::ClientOpcode::SubdocCounter);
+}
+
+TEST_F(DurabilityTest, SubdocMultiMutation) {
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey("SubdocMultiMutation");
+    cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictAdd,
+                    SUBDOC_FLAG_MKDIR_P,
+                    "foo",
+                    R"("value")");
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
+    cmd.addFrameInfo(DurabilityFrameInfo{cb::durability::Level::Majority});
+    auto rsp = getConnection()->execute(cmd);
+    EXPECT_TRUE(rsp.isSuccess())
+            << "Status: " << to_string(rsp.getStatus()) << std::endl
+            << "Value: " << rsp.getDataString();
+    EXPECT_NE(0, rsp.getCas());
 }
 
 /**
