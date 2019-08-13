@@ -27,6 +27,8 @@
 EPStats::EPStats()
     : warmedUpKeys(0),
       warmedUpValues(0),
+      warmedUpPrepares(0),
+      warmupItemsVisitedWhilstLoadingPrepares(0),
       warmDups(0),
       warmOOM(0),
       warmupMemUsedCap(0),

@@ -1223,7 +1223,13 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
         // for rollback.
         auto& vb = *(itr->second);
         folly::SharedMutex::WriteHolder vbStateLh(vb.getStateLock());
-        store.loadPreparedSyncWrites(vbStateLh, vb);
+
+        auto result = store.loadPreparedSyncWrites(vbStateLh, vb);
+        store.getEPEngine()
+                .getEpStats()
+                .warmupItemsVisitedWhilstLoadingPrepares += result.itemsVisited;
+        store.getEPEngine().getEpStats().warmedUpPrepares +=
+                result.preparesLoaded;
     }
 
     if (++threadtask_count == store.vbMap.getNumShards()) {

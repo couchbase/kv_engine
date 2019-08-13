@@ -787,6 +787,14 @@ public:
      */
     virtual bool isGetAllKeysSupported() const = 0;
 
+    /**
+     * Result of the loadPreparedSyncWrites function
+     */
+    struct LoadPreparedSyncWritesResult {
+        uint64_t itemsVisited = 0;
+        uint64_t preparesLoaded = 0;
+    };
+
 protected:
 
     /**
@@ -834,8 +842,10 @@ protected:
      *
      * @param vbStateLh vBucket state lock
      * @param vb vBucket for which we will load SyncWrites
+     *
+     * @returns number of prepares loaded
      */
-    virtual void loadPreparedSyncWrites(
+    virtual LoadPreparedSyncWritesResult loadPreparedSyncWrites(
             folly::SharedMutex::WriteHolder& vbStateLh, VBucket& vb) = 0;
 
     // During the warmup phase we might want to enable external traffic

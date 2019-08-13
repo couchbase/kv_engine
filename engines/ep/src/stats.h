@@ -137,6 +137,10 @@ public:
     Counter warmedUpKeys;
     //! Number of key-values warmed up during data loading.
     Counter warmedUpValues;
+    //! Number of prepares warmed up.
+    Counter warmedUpPrepares;
+    //! Number of items visited whilst loading prepares
+    Counter warmupItemsVisitedWhilstLoadingPrepares;
     //! Number of warmup failures due to duplicates
     Counter warmDups;
     //! Number of OOM failures at warmup time.

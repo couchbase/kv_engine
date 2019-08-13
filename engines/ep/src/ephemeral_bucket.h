@@ -104,9 +104,10 @@ public:
         // No op
     }
 
-    void loadPreparedSyncWrites(folly::SharedMutex::WriteHolder& vbStateLh,
-                                VBucket& vb) override {
-        // No op
+    LoadPreparedSyncWritesResult loadPreparedSyncWrites(
+            folly::SharedMutex::WriteHolder& vbStateLh, VBucket& vb) override {
+        // No op, return 0 prepares loaded
+        return {0, 0};
     }
 
     void notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) override;

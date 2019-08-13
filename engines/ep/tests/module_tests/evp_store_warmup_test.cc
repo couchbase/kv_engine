@@ -655,6 +655,13 @@ void DurabilityWarmupTest::testPendingSyncWrite(
 
         // DurabilityMonitor be tracking the prepare.
         EXPECT_EQ(++numTracked, vb->getDurabilityMonitor().getNumTracked());
+
+        EXPECT_EQ(numTracked,
+                  store->getEPEngine().getEpStats().warmedUpPrepares);
+        EXPECT_EQ(numTracked,
+                  store->getEPEngine()
+                          .getEpStats()
+                          .warmupItemsVisitedWhilstLoadingPrepares);
     }
 }
 
@@ -731,6 +738,13 @@ void DurabilityWarmupTest::testCommittedSyncWrite(
 
         // DurabilityMonitor should be empty as no outstanding prepares.
         EXPECT_EQ(--numTracked, vb->getDurabilityMonitor().getNumTracked());
+
+        EXPECT_EQ(numTracked,
+                  store->getEPEngine().getEpStats().warmedUpPrepares);
+        EXPECT_EQ(numTracked,
+                  store->getEPEngine()
+                          .getEpStats()
+                          .warmupItemsVisitedWhilstLoadingPrepares);
     }
 }
 
@@ -776,6 +790,11 @@ void DurabilityWarmupTest::testCommittedAndPendingSyncWrite(
         setVBucketStateAndRunPersistTask(vbid, vbState);
     }
     resetEngineAndWarmup();
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().warmedUpPrepares);
+    EXPECT_EQ(2,
+              store->getEPEngine()
+                      .getEpStats()
+                      .warmupItemsVisitedWhilstLoadingPrepares);
 
     // Should load two items into memory - both committed and the pending value.
     // Check the original committed value is inaccessible due to the pending
@@ -859,6 +878,11 @@ TEST_P(DurabilityWarmupTest, AbortedSyncWritePrepareIsNotLoaded) {
         EXPECT_EQ(1, vb->getNumItems());
     }
     resetEngineAndWarmup();
+    EXPECT_EQ(0, store->getEPEngine().getEpStats().warmedUpPrepares);
+    EXPECT_EQ(0,
+              store->getEPEngine()
+                      .getEpStats()
+                      .warmupItemsVisitedWhilstLoadingPrepares);
 
     // Should load one item into memory - committed value.
     auto vb = engine->getVBucket(vbid);
@@ -898,6 +922,11 @@ TEST_P(DurabilityWarmupTest, ReplicationTopologyMissing) {
             vbid, vbstate, VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT);
 
     resetEngineAndWarmup();
+    EXPECT_EQ(0, store->getEPEngine().getEpStats().warmedUpPrepares);
+    EXPECT_EQ(0,
+              store->getEPEngine()
+                      .getEpStats()
+                      .warmupItemsVisitedWhilstLoadingPrepares);
 
     // Check topology is empty.
     auto vb = engine->getKVBucket()->getVBucket(vbid);
@@ -943,6 +972,11 @@ TEST_P(DurabilityWarmupTest, WarmupCommit) {
     // Because we bypassed KVBucket::set the HPS/HCS will be incorrect and fail
     // the pre/post warmup checker, so disable the checker for this test.
     resetEngineAndWarmup().disable();
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().warmedUpPrepares);
+    EXPECT_EQ(1,
+              store->getEPEngine()
+                      .getEpStats()
+                      .warmupItemsVisitedWhilstLoadingPrepares);
 
     vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb);

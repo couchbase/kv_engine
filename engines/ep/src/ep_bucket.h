@@ -137,8 +137,8 @@ public:
 
     void rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) override;
 
-    void loadPreparedSyncWrites(folly::SharedMutex::WriteHolder& vbStateLh,
-                                VBucket& vb) override;
+    LoadPreparedSyncWritesResult loadPreparedSyncWrites(
+            folly::SharedMutex::WriteHolder& vbStateLh, VBucket& vb) override;
 
     /**
      * Returns the ValueFilter to use for KVStore scans, given the bucket
