@@ -3,10 +3,9 @@
 import optparse
 import socket
 import sys
-import os
-import subprocess
 
 import mc_bin_client
+
 
 def main():
     parser = optparse.OptionParser(
@@ -85,12 +84,12 @@ def main():
     # ------ Global Stats Collected ----------
     item_count = 0
     for vbid in vbstats:
-        active_count = int(vbstats[vbid]["num_items"]["active"])
-        replica_count = int(vbstats[vbid]["num_items"]["replica"])
+        active_count = int(vbstats[vbid]["num_items"].get("active", 0))
+        replica_count = int(vbstats[vbid]["num_items"].get("replica", 0))
         if active_count != replica_count:
            print("VBucket %d: active count %d != %d replica count \n"
                 % (vbid, active_count, replica_count))
-        item_count += int(vbstats[vbid]["num_items"]["active"])
+        item_count += int(vbstats[vbid]["num_items"].get("active", 0))
     print("Active item count = %d\n" % item_count)
 
 if __name__ == '__main__':
