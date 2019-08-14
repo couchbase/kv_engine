@@ -1,37 +1,30 @@
 #!/usr/bin/env python3
 
-import clitool
+from cli_auth_utils import get_authed_clitool, cmd_decorator
 
 
-def connect(mc, bucket, username, password):
-    if username:
-        mc.sasl_auth_plain(username, password)
-    mc.bucket_select(bucket)
-
-
-def listvb(mc, bucket, username=None, password=""):
-    connect(mc, bucket, username, password)
+@cmd_decorator
+def listvb(mc):
     vbs = mc.stats('vbucket')
     for (vb, state) in sorted(list(vbs.items())):
         print("vbucket", vb[3:], state)
 
 
-def setvb(mc, bucket, vbid, vbstate, username=None, password=""):
-    connect(mc, bucket, username, password)
+@cmd_decorator
+def setvb(mc, vbid, vbstate):
     mc.set_vbucket_state(int(vbid), vbstate)
 
 
-def rmvb(mc, bucket, vbid, username=None, password=""):
-    connect(mc, bucket, username, password)
+@cmd_decorator
+def rmvb(mc, vbid):
     mc.delete_vbucket(int(vbid))
 
 
 if __name__ == '__main__':
+    c = get_authed_clitool(allBuckets=False)
 
-    c = clitool.CliTool()
-
-    c.addCommand('list', listvb, 'list <bucket> [username password]')
-    c.addCommand('set', setvb, 'set <bucket> <vbid> active|replica|pending|dead [username password]')
-    c.addCommand('rm', rmvb, 'rm <bucket> <vbid> [username password]')
+    c.addCommand('list', listvb, 'list')
+    c.addCommand('set', setvb, 'set <vbid> active|replica|pending|dead')
+    c.addCommand('rm', rmvb, 'rm <vbid>')
 
     c.execute()
