@@ -12,11 +12,13 @@ def main():
              usage="usage: %prog ip1:memcachedport1,ip2:memcachedport2",
              version="%prog 1.1")
     parser.add_option('-b', "--bucketName", dest="bucketName",
-                        help="name of bucket. default, if unspecified")
+                        help="name of bucket. default, if unspecified",
+                        default="default")
     parser.add_option('-u', "--user", dest="user",
                         help="Username for authentication")
     parser.add_option('-p', "--bucketPassword", dest="bucketPassword",
-                        help="password to authenticate to bucket")
+                        help="password to authenticate to bucket",
+                        default="")
     stat_cmd = "vbucket-details"
     vbstats = {}
     states = {}
@@ -37,15 +39,15 @@ def main():
         except socket.gaierror as e:
             print('Source %s connection error: %s' % (host, e))
             sys.exit(1)
-        if options.bucketName:
-            password = ""
-            if options.bucketPassword:
-                password = options.bucketPassword
-            try:
-                mc.sasl_auth_plain(options.user, password)
-            except mc_bin_client.MemcachedError:
-                print("Authentication error for %s" % options.bucketName)
-                sys.exit(2)
+
+        user = options.user or options.bucketName
+        password = options.bucketPassword
+
+        try:
+            mc.sasl_auth_plain(user, password)
+        except mc_bin_client.MemcachedError:
+            print("Authentication error for %s" % options.bucketName)
+            sys.exit(2)
         # ----- run cbstats to get the stats as a map ----
         mc.bucket_select(options.bucketName)
         try:
