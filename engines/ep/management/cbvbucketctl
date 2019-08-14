@@ -2,10 +2,12 @@
 
 import clitool
 
+
 def connect(mc, bucket, username, password):
     if username:
         mc.sasl_auth_plain(username, password)
     mc.bucket_select(bucket)
+
 
 def listvb(mc, bucket, username=None, password=""):
     connect(mc, bucket, username, password)
@@ -13,13 +15,16 @@ def listvb(mc, bucket, username=None, password=""):
     for (vb, state) in sorted(list(vbs.items())):
         print("vbucket", vb[3:], state)
 
+
 def setvb(mc, bucket, vbid, vbstate, username=None, password=""):
     connect(mc, bucket, username, password)
     mc.set_vbucket_state(int(vbid), vbstate)
 
+
 def rmvb(mc, bucket, vbid, username=None, password=""):
     connect(mc, bucket, username, password)
     mc.delete_vbucket(int(vbid))
+
 
 if __name__ == '__main__':
 

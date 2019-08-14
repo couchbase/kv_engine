@@ -4,6 +4,7 @@ import sys
 
 import mc_bin_client
 
+
 class CliTool(object):
 
     def __init__(self, extraUsage=""):
