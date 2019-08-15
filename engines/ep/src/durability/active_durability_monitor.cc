@@ -445,8 +445,8 @@ public:
 
 private:
     // Unbounded, Single-producer, single-consumer Queue of SyncWrite objects,
-    // non-blocking variant.
-    using Queue = folly::USPSCQueue<DurabilityMonitor::SyncWrite, false>;
+    // non-blocking variant. Initially holds 2^5 (32) SyncWrites
+    using Queue = folly::USPSCQueue<DurabilityMonitor::SyncWrite, false, 5>;
     Queue queue;
     // Track the highest Enqueued Seqno to enforce enqueue ordering.
     Monotonic<int64_t> highEnqueuedSeqno = {0};
