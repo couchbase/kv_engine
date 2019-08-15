@@ -214,8 +214,8 @@ endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
 add_subdirectory(programs)
 
 # Customize some CTest properties
-CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/CTestCustom.cmake.in
-                ${CMAKE_CURRENT_BINARY_DIR}/CTestCustom.cmake)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/CTestCustom.cmake
+               ${CMAKE_CURRENT_BINARY_DIR}/CTestCustom.cmake COPYONLY)
 
 option(CB_ENABLE_HEADER_INCLUDE_CHECK "Enable building of just headers objs,
        for header include  correctness."
