@@ -724,9 +724,6 @@ void MutationLog::writeEntry(MutationLogEntry *mle) {
 
 MutationLog::iterator::iterator(const MutationLog* l, bool e)
     : log(l),
-      entryBuf(LOG_ENTRY_BUF_SIZE),
-      buf(log->header().blockSize()),
-      p(buf.begin()),
       offset(l->header().blockSize() * l->header().blockCount()),
       items(0),
       isEnd(e) {
@@ -781,6 +778,7 @@ void MutationLog::iterator::prepItem() {
     }
     }
 
+    entryBuf.resize(LOG_ENTRY_BUF_SIZE);
     std::copy_n(p, copyLen, entryBuf.begin());
 }
 
@@ -948,6 +946,7 @@ void MutationLog::iterator::nextBlock() {
                 "log is enabled and not open");
     }
 
+    buf.resize(log->header().blockSize());
     ssize_t bytesread = pread(log->fd(), buf.data(), buf.size(), offset);
     if (bytesread < 1) {
         isEnd = true;
