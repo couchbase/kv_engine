@@ -953,6 +953,16 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
                 }
             }
         } else {
+            // We can remove any prepares that have been completed. This works
+            // because we send Mutations intead of Commits when streaming from
+            // Disk so we do not need to send a Prepare message to keep things
+            // consistent on a replica.
+            if (metadata->isPrepare()) {
+                if (info->db_seq <= ctx->highCompletedSeqno) {
+                    return COUCHSTORE_COMPACT_DROP_ITEM;
+                }
+            }
+
             time_t currtime = ep_real_time();
             if (exptime && exptime < currtime && metadata->isCommit()) {
                 int ret;
@@ -1084,6 +1094,20 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
     if (periodicSyncBytes != 0) {
         flags |= couchstore_encode_periodic_sync_flags(periodicSyncBytes);
     }
+
+    // It would seem logical to grab the state from disk her (readVBState(...))
+    // but we cannot do that. If we do, we may race with a concurrent scan as
+    // readVBState will overwrite the cached vbucket_state. As such, just use
+    // the cached vbucket_state.
+    vbucket_state* vbState = getVBucketState(vbid);
+    if (!vbState) {
+        EP_LOG_WARN(
+                "CouchKVStore::compactDBInternal ({}) Failed to obtain vbState "
+                "for the highCompletedSeqno",
+                vbid);
+        return false;
+    }
+    hook_ctx->highCompletedSeqno = vbState->highCompletedSeqno;
 
     // Perform COMPACTION of vbucket.couch.rev into vbucket.couch.rev.compact
     errCode = couchstore_compact_db_ex(compactdb,

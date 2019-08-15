@@ -174,6 +174,11 @@ protected:
 };
 
 /**
+ * Test fixtures for persistent bucket tests that only run under couchstore
+ */
+class DurabilityCouchstoreBucketTest : public DurabilityEPBucketTest {};
+
+/**
  * Test fixture for Durability-related tests applicable to ephemeral and
  * persistent buckets with either eviction modes.
  */
@@ -1801,6 +1806,95 @@ TEST_P(DurabilityEPBucketTest, DoNotExpirePendingItem) {
     EXPECT_TRUE(gv.item->isDeleted());
 }
 
+// @TODO Rocksdb when we have manual compaction/compaction filtering this test
+// should be made to pass.
+TEST_P(DurabilityCouchstoreBucketTest, RemoveCommittedPreparesAtCompaction) {
+    setVBucketToActiveWithValidTopology();
+    using namespace cb::durability;
+
+    auto key = makeStoredDocKey("key");
+    auto req = Requirements(Level::Majority, Timeout(1000));
+    auto pending = makePendingItem(key, "value", req);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+
+    auto vb = store->getVBucket(vbid);
+    vb->commit(key,
+               1 /*prepareSeqno*/,
+               {} /*commitSeqno*/,
+               vb->lockCollections(key));
+
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    CompactionConfig config;
+    compaction_ctx cctx(config, 0);
+    cctx.expiryCallback = std::make_shared<FailOnExpiryCallback>();
+
+    auto* kvstore = store->getOneRWUnderlying();
+
+    // Sanity - prepare exists before compaction
+    DiskDocKey prefixedKey(key, true /*prepare*/);
+    auto gv = kvstore->get(prefixedKey, Vbid(0));
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+
+    EXPECT_TRUE(kvstore->compactDB(&cctx));
+
+    // Check the committed item on disk.
+    gv = kvstore->get(DiskDocKey(key), Vbid(0));
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ("value", gv.item->getValue()->to_s());
+
+    // Check the Prepare on disk
+    gv = kvstore->get(prefixedKey, Vbid(0));
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+}
+
+TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparedAtCompaction) {
+    setVBucketToActiveWithValidTopology();
+    using namespace cb::durability;
+
+    auto key = makeStoredDocKey("key");
+    auto req = Requirements(Level::Majority, Timeout(1000));
+    auto pending = makePendingItem(key, "value", req);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+
+    // Flush prepare
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto vb = store->getVBucket(vbid);
+    vb->abort(key,
+              1 /*prepareSeqno*/,
+              {} /*commitSeqno*/,
+              vb->lockCollections(key));
+
+    // We can't purge the last item so write a dummy
+    auto dummyKey = makeStoredDocKey("dummy");
+    auto dummyItem = makeCommittedItem(dummyKey, "dummyValue");
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(*dummyItem, cookie));
+
+    // Flush Abort and dummy
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    CompactionConfig config;
+    compaction_ctx cctx(config, 0);
+    cctx.expiryCallback = std::make_shared<FailOnExpiryCallback>();
+    auto* kvstore = store->getOneRWUnderlying();
+    EXPECT_TRUE(kvstore->compactDB(&cctx));
+
+    // Check the Abort on disk. We won't remove it until the purge interval has
+    // passed because we need it to ensure we can resume a replica that had an
+    // outstanding prepare within the purge interval.
+    DiskDocKey prefixedKey(key, true /*prepare*/);
+    auto gv = kvstore->get(prefixedKey, Vbid(0));
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+
+    cctx.compactConfig.purge_before_ts = std::numeric_limits<uint64_t>::max();
+    EXPECT_TRUE(kvstore->compactDB(&cctx));
+
+    // Now the Abort should be gone
+    gv = kvstore->get(prefixedKey, Vbid(0));
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+}
+
 template <typename F>
 void DurabilityEphemeralBucketTest::testPurgeCompletedPrepare(F& func) {
     setVBucketStateAndRunPersistTask(
@@ -1960,6 +2054,12 @@ TEST_P(DurabilityBucketTest, ActiveToReplicaAndCommit) {
             4, 4, {} /*HCS*/, CheckpointType::Memory);
     ASSERT_EQ(ENGINE_SUCCESS, vb.commit(key, 1, 4, vb.lockCollections(key)));
 }
+
+// Test cases which run against couchstore
+INSTANTIATE_TEST_CASE_P(AllBackends,
+                        DurabilityCouchstoreBucketTest,
+                        STParameterizedBucketTest::persistentConfigValues(),
+                        STParameterizedBucketTest::PrintToStringParamName);
 
 // Test cases which run against all persistent storage backends.
 INSTANTIATE_TEST_CASE_P(

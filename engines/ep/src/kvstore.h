@@ -129,6 +129,9 @@ struct compaction_ctx {
     /// pointer as context cannot be constructed until deeper inside storage
     std::unique_ptr<Collections::VB::EraserContext> eraserContext;
     Collections::KVStore::DroppedCb droppedKeyCb;
+
+    /// The SyncRepl HCS, can purge any prepares before the HCS.
+    uint64_t highCompletedSeqno = 0;
 };
 
 struct kvstats_ctx {
