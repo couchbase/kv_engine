@@ -29,16 +29,24 @@ void cb::test::ClusterTest::SetUpTestCase() {
         std::exit(EXIT_FAILURE);
     }
 
-    auto bucket = cluster->createBucket("default",
-                                        {{"replicas", 2}, {"max_vbuckets", 8}});
-    if (!bucket) {
-        std::cerr << "Failed to create bucket default" << std::endl;
+    try {
+        createDefaultBucket();
+    } catch (const std::runtime_error& error) {
+        std::cerr << error.what();
         std::exit(EXIT_FAILURE);
     }
 }
 
 void cb::test::ClusterTest::TearDownTestCase() {
     cluster.reset();
+}
+
+void cb::test::ClusterTest::createDefaultBucket() {
+    auto bucket = cluster->createBucket("default",
+                                        {{"replicas", 2}, {"max_vbuckets", 8}});
+    if (!bucket) {
+        throw std::runtime_error("Failed to create default bucket");
+    }
 }
 
 void cb::test::ClusterTest::SetUp() {

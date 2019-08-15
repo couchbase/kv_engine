@@ -38,6 +38,9 @@ public:
     // Called after the last test in this test case.
     static void TearDownTestCase();
 
+    // Create a bucket named default
+    static void createDefaultBucket();
+
 protected:
     // per test setup function.
     void SetUp() override;
