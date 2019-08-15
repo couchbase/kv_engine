@@ -1062,10 +1062,10 @@ ENGINE_ERROR_CODE EPBucket::getPerVBucketDiskStats(const void* cookie,
         void visitBucket(const VBucketPtr& vb) override {
             char buf[32];
             Vbid vbid = vb->getId();
-            DBFileInfo dbInfo =
-                    vb->getShard()->getRWUnderlying()->getDbFileInfo(vbid);
-
             try {
+                auto dbInfo =
+                        vb->getShard()->getRWUnderlying()->getDbFileInfo(vbid);
+
                 checked_snprintf(
                         buf, sizeof(buf), "vb_%d:data_size", vbid.get());
                 add_casted_stat(buf, dbInfo.spaceUsed, add_stat, cookie);

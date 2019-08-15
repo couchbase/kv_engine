@@ -1434,6 +1434,22 @@ TEST_P(KVBucketParamTest, MB_34346) {
             << "Should still have 0 items after time-travelling/expiry";
 }
 
+// Test that calling getPerVBucketDiskStats when a vBucket file hasn't yet been
+// flushed to disk doesn't throw an exception.
+// Regression test for MB-35560.
+TEST_P(KVBucketParamTest, VBucketDiskStatsENOENT) {
+    // Shouldn't see any stats calls if the vBucket doesn't exist.
+    auto mockStatFn = [](const char* key,
+                         const uint16_t klen,
+                         const char* val,
+                         const uint32_t vlen,
+                         gsl::not_null<const void*> cookie) { ADD_FAILURE(); };
+
+    auto expected = (GetParam() == "bucket_type=ephemeral") ? ENGINE_KEY_ENOENT
+                                                            : ENGINE_SUCCESS;
+    EXPECT_EQ(expected, store->getPerVBucketDiskStats({}, mockStatFn));
+}
+
 class StoreIfTest : public KVBucketTest {
 public:
     void SetUp() override {
