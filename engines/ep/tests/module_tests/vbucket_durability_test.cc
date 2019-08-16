@@ -2098,6 +2098,88 @@ TEST_P(EPVBucketDurabilityTest, ReplicaToActiveToReplica) {
     }
 }
 
+/**
+ * Check that converting from Replica to Active back to Replica correctly
+ * preserves completed SyncWrites in trackedWrites which cannot yet be removed
+ * (if persistMajority and not locally persisted).
+ *
+ * Scenario:
+ * Replica (PassiveDM):
+ *     1:prepare(persistToMajority)
+ *     2:prepare(majority)
+ *     3:commit(1) -> cannot locally remove 1 as not persisted yet.
+ *     4:commit(2) -> cannot locally remove 2 as seqno:1 not persisted yet
+ *                    (in-order commit).
+ *     -> trackedWrites=[1,2]
+ *        HPS=0
+ *        HCS=2  (want HCS higher than the first element in the trackedWrites)
+ *
+ * Convert to ADM (null topology):
+ *     -> trackedWrites=[1,2]
+ *        HPS=0
+ *        HCS=2
+ *     (i.e. same as previous PassiveDM)
+ *
+ * Persist seqnos 1:
+ *     Calls notifyLocalPersistence, but no-op as null topology.
+ *
+ * Convert to PDM:
+ *     (seqnos 1 has been persisted previously...)
+ *     State should be updated to reflect completion of seqno:1:
+ *     -> trackedWrites=[2]
+ *        HPS=2
+ *        HCS=2
+ */
+TEST_P(EPVBucketDurabilityTest, ReplicaToActiveToReplica2) {
+    // Setup: PassiveDM with
+    // 1:PRE(persistMajority), 2:PRE(majority), 3:COMMIT(1), 4:COMMIT(2)
+    vbucket->setState(vbucket_state_replica);
+    using namespace cb::durability;
+    std::vector<SyncWriteSpec> seqnos{{1, false, Level::PersistToMajority}, 2};
+    testAddPrepare(seqnos);
+    auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+    pdm.completeSyncWrite(makeStoredDocKey("key1"),
+                          PassiveDurabilityMonitor::Resolution::Commit,
+                          1);
+    pdm.completeSyncWrite(makeStoredDocKey("key2"),
+                          PassiveDurabilityMonitor::Resolution::Commit,
+                          2);
+    pdm.notifySnapshotEndReceived(4);
+
+    // Sanity: Check PassiveDM state as expected - HPS is still zero as haven't
+    // locally prepared the persistMajority, but globally that's been
+    // committed (HCS=1).
+    ASSERT_EQ(2, pdm.getNumTracked());
+    ASSERT_EQ(0, pdm.getHighPreparedSeqno());
+    ASSERT_EQ(2, pdm.getHighCompletedSeqno());
+
+    // Setup(2): Convert to ActiveDM (null topology).
+    vbucket->setState(vbucket_state_active);
+    auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
+    EXPECT_EQ(2, adm.getNumTracked());
+    EXPECT_EQ(0, adm.getHighPreparedSeqno());
+    EXPECT_EQ(2, adm.getHighCompletedSeqno());
+
+    // Setup(3): Persist seqno 1 (so locally prepared now), but no-op
+    // as without topology.
+    simulateLocalAck(1);
+    EXPECT_EQ(0, adm.getNumTracked());
+    EXPECT_EQ(2, adm.getHighPreparedSeqno());
+    EXPECT_EQ(2, adm.getHighCompletedSeqno());
+
+    // Test: Convert back to PassiveDM. Should remove completed
+    // SyncWrites from trackedWrites as have been persisted.
+
+    // Test: Convert back to PassiveDM.
+    vbucket->setState(vbucket_state_replica);
+    {
+        auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+        EXPECT_EQ(0, pdm.getNumTracked());
+        EXPECT_EQ(2, pdm.getHighPreparedSeqno());
+        EXPECT_EQ(2, pdm.getHighCompletedSeqno());
+    }
+}
+
 // Test that a double set_vb_state with identical state & topology is handled
 // correctly.
 // MB-35189: ns_server can send such set_vb_state messages, and in the

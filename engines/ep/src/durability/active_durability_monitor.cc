@@ -1587,9 +1587,36 @@ void ActiveDurabilityMonitor::State::updateHighPreparedSeqno(
         // An ActiveDM _may_ legitimately have no topology information, if
         // for example it has just been created from a PassiveDM during takeover
         // and ns_server has not yet updated the VBucket's topology.
-        // In this case it's not yet possible update HPS; so simply skip.
-        // Note: when topology *is* set via setReplicationTopology() then this
-        // function is called again to update HPS as appropriate.
+        // In this case, it may be possible to update the HPS and we should do
+        // so to ensure that any subsequent state change back to
+        // replica/PassiveDM acks correctly if we never got a topology. We can
+        // update the highPreparedSeqno for anything that the PDM completed
+        // (we should have nothing in trackedWrites not completed as we have no
+        // topology) by using the store value instead of the iterator. Given
+        // we only keep these completed SyncWrites in trackedWrites to correctly
+        // set the HPS when we DO get a topology, we can remove them once we
+        // have advanced past them.
+        auto itr = trackedWrites.begin();
+        while (itr != trackedWrites.end()) {
+            if (!itr->isCompleted()) {
+                return;
+            }
+
+            // Don't advance past anything not persisted.
+            auto level = itr->getDurabilityReqs().getLevel();
+            if ((level == cb::durability::Level::PersistToMajority ||
+                 level == cb::durability::Level::MajorityAndPersistOnMaster) &&
+                static_cast<uint64_t>(itr->getBySeqno()) <
+                        adm.vb.getPersistenceSeqno()) {
+                return;
+            }
+
+            highPreparedSeqno = itr->getBySeqno();
+
+            auto next = std::next(itr);
+            trackedWrites.erase(itr);
+            itr = next;
+        }
         return;
     }
 
