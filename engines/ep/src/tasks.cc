@@ -14,11 +14,12 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include "tasks.h"
 #include "bgfetcher.h"
 #include "ep_bucket.h"
 #include "ep_engine.h"
+#include "executorpool.h"
 #include "flusher.h"
-#include "tasks.h"
 #include "warmup.h"
 
 #include <climits>

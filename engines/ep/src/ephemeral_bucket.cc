@@ -23,6 +23,7 @@
 #include "ephemeral_tombstone_purger.h"
 #include "ephemeral_vb.h"
 #include "ephemeral_vb_count_visitor.h"
+#include "executorpool.h"
 #include "failover-table.h"
 #include "replicationthrottle.h"
 #include "rollback_result.h"

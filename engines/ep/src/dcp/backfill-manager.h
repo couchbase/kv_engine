@@ -44,9 +44,12 @@
 #pragma once
 
 #include "dcp/backfill.h"
-
+#include <memcached/engine_common.h>
+#include <memcached/types.h>
 #include <list>
+#include <mutex>
 
+class DcpProducer;
 class EventuallyPersistentEngine;
 class GlobalTask;
 class VBucket;

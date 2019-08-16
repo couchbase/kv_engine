@@ -26,6 +26,7 @@
 #include "ep_bucket.h"
 #include "ep_engine.h"
 #include "ep_vb.h"
+#include "executorpool.h"
 #include "failover-table.h"
 #include "item.h"
 #include "mutation_log.h"

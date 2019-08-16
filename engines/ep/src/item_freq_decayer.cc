@@ -18,6 +18,7 @@
 #include "item_freq_decayer.h"
 #include "bucket_logger.h"
 #include "ep_engine.h"
+#include "executorpool.h"
 #include "item_freq_decayer_visitor.h"
 #include "kv_bucket.h"
 #include "stored-value.h"

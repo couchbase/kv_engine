@@ -20,6 +20,7 @@
 #include "bucket_logger.h"
 #include "common.h"
 #include "ep_bucket.h"
+#include "executorpool.h"
 #include "tasks.h"
 
 #include <platform/timeutils.h>

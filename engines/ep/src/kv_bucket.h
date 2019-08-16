@@ -15,7 +15,6 @@
 #pragma once
 
 #include "ep_types.h"
-#include "executorpool.h"
 #include "kv_bucket_iface.h"
 #include "mutation_log.h"
 #include "stored-value.h"
@@ -551,11 +550,7 @@ public:
 
     void attemptToFreeMemory() override;
 
-    void wakeUpCheckpointRemover() override {
-        if (chkTask && chkTask->getState() == TASK_SNOOZED) {
-            ExecutorPool::get()->wake(chkTask->getId());
-        }
-    }
+    void wakeUpCheckpointRemover() override;
 
     void runDefragmenterTask() override;
 

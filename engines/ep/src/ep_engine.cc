@@ -33,6 +33,7 @@
 #include "ep_bucket.h"
 #include "ep_vb.h"
 #include "ephemeral_bucket.h"
+#include "executorpool.h"
 #include "ext_meta_parser.h"
 #include "failover-table.h"
 #include "flusher.h"

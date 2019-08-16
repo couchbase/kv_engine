@@ -21,6 +21,7 @@
 #include "../mock/mock_item_freq_decayer.h"
 #include "ep_bucket.h"
 #include "ep_engine.h"
+#include "executorpool.h"
 #include "failover-table.h" // For the std::move(table) in makeVBucket
 
 /*

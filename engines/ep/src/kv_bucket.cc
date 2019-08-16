@@ -43,6 +43,7 @@
 #include "durability_timeout_task.h"
 #include "ep_engine.h"
 #include "ep_time.h"
+#include "executorpool.h"
 #include "ext_meta_parser.h"
 #include "failover-table.h"
 #include "flusher.h"
@@ -2474,6 +2475,12 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
 
 void KVBucket::attemptToFreeMemory() {
     static_cast<ItemPager*>(itemPagerTask.get())->scheduleNow();
+}
+
+void KVBucket::wakeUpCheckpointRemover() {
+    if (chkTask && chkTask->getState() == TASK_SNOOZED) {
+        ExecutorPool::get()->wake(chkTask->getId());
+    }
 }
 
 void KVBucket::runDefragmenterTask() {

@@ -26,6 +26,7 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "ep_vb.h"
+#include "executorpool.h"
 #include "failover-table.h"
 #include "flusher.h"
 #include "item.h"

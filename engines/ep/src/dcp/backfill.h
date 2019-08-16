@@ -17,6 +17,10 @@
 
 #pragma once
 
+#include <memcached/vbucket.h>
+
+#include <memory>
+
 class ActiveStream;
 class ScanContext;
 
