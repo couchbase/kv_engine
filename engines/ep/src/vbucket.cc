@@ -1504,8 +1504,7 @@ ENGINE_ERROR_CODE VBucket::set(
         // that requires the item's info
         if ((v == nullptr || v->isTempInitialItem()) &&
             (eviction == EvictionPolicy::Full) &&
-            ((itm.getCas() != 0) ||
-             storeIfStatus == cb::StoreIfStatus::GetItemInfo)) {
+            (cas_op || storeIfStatus == cb::StoreIfStatus::GetItemInfo)) {
             // Check Bloomfilter's prediction
             if (!maybeKeyExistsInFilter(itm.getKey())) {
                 maybeKeyExists = false;
@@ -3024,53 +3023,38 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
         const VBQueueItemCtx& queueItmCtx,
         cb::StoreIfStatus storeIfStatus,
         bool maybeKeyExists) {
-    if (v) {
-        if (v->isPending()) {
-            // It is not valid for an active vBucket to attempt to overwrite an
-            // in flight SyncWrite. If this vBucket is not active, we are
-            // allowed to overwrite an in flight SyncWrite iff we are receiving
-            // a disk snapshot. This is due to disk based de-dupe that allows
-            // only 1 value per key. In this case, the active node may send a
-            // mutation instead of a commit if it knows that this replica may be
-            // missing a prepare. This code allows this mutation to be accepted
-            // and overwrites the existing prepare.
-            if (getState() == vbucket_state_active ||
-                !isReceivingDiskSnapshot()) {
-                return {MutationStatus::IsPendingSyncWrite, {}};
-            }
-
-            Expects(itm.isCommitted());
-            getPassiveDM().completeSyncWrite(
-                    itm.getKey(),
-                    PassiveDurabilityMonitor::Resolution::Commit,
-                    v->getBySeqno() /* prepareSeqno */);
-
-            // Deal with the already existing prepare
-            processImplicitlyCompletedPrepare(htRes.pending);
-
-            // Add a new or overwrite the existing mutation
-            return processSetInner(htRes.pending.getHBL(),
-                                   htRes.committed,
-                                   itm,
-                                   cas,
-                                   allowExisting,
-                                   hasMetaData,
-                                   queueItmCtx,
-                                   storeIfStatus,
-                                   maybeKeyExists);
+    if (v && v->isPending()) {
+        // It is not valid for an active vBucket to attempt to overwrite an
+        // in flight SyncWrite. If this vBucket is not active, we are
+        // allowed to overwrite an in flight SyncWrite iff we are receiving
+        // a disk snapshot. This is due to disk based de-dupe that allows
+        // only 1 value per key. In this case, the active node may send a
+        // mutation instead of a commit if it knows that this replica may be
+        // missing a prepare. This code allows this mutation to be accepted
+        // and overwrites the existing prepare.
+        if (getState() == vbucket_state_active || !isReceivingDiskSnapshot()) {
+            return {MutationStatus::IsPendingSyncWrite, {}};
         }
 
-        // This is a new SyncWrite, we just want to add a new prepare unless we
-        // still have a completed prepare (Ephemeral) which we should replace
-        // instead.
-        if (!v->isCompleted() && itm.isPending()) {
-            VBNotifyCtx notifyCtx;
-            // We have to modify the StoredValue pointer passed in or we do not
-            // return the correct cas to the client.
-            std::tie(v, notifyCtx) = addNewStoredValue(
-                    htRes.getHBL(), itm, queueItmCtx, GenerateRevSeqno::No);
-            return {MutationStatus::WasClean, notifyCtx};
-        }
+        Expects(itm.isCommitted());
+        getPassiveDM().completeSyncWrite(
+                itm.getKey(),
+                PassiveDurabilityMonitor::Resolution::Commit,
+                v->getBySeqno() /* prepareSeqno */);
+
+        // Deal with the already existing prepare
+        processImplicitlyCompletedPrepare(htRes.pending);
+
+        // Add a new or overwrite the existing mutation
+        return processSetInner(htRes.pending.getHBL(),
+                               htRes.committed,
+                               itm,
+                               cas,
+                               allowExisting,
+                               hasMetaData,
+                               queueItmCtx,
+                               storeIfStatus,
+                               maybeKeyExists);
     }
 
     return processSetInner(htRes.getHBL(),
@@ -3183,9 +3167,21 @@ VBucket::processSetInner(const HashTable::HashBucketLock& hbl,
 
         MutationStatus status;
         VBNotifyCtx notifyCtx;
-        std::tie(v, status, notifyCtx) =
-                updateStoredValue(hbl, *v, itm, queueItmCtx);
+        // This is a new SyncWrite, we just want to add a new prepare unless we
+        // still have a completed prepare (Ephemeral) which we should replace
+        // instead.
+        if (v->isCommitted() && !v->isCompleted() && itm.isPending()) {
+            std::tie(v, notifyCtx) = addNewStoredValue(
+                    hbl, itm, queueItmCtx, GenerateRevSeqno::No);
+            // Add should always be clean
+            status = MutationStatus::WasClean;
+        } else {
+            std::tie(v, status, notifyCtx) =
+                    updateStoredValue(hbl, *v, itm, queueItmCtx);
+        }
+
         return {status, notifyCtx};
+
     } else if (cas != 0) {
         return {MutationStatus::NotFound, {}};
     } else {

@@ -770,15 +770,15 @@ TEST_P(DurabilityActiveStreamTest,
     auto vb = engine->getVBucket(vbid);
     const auto key = makeStoredDocKey("key");
     const std::string value = "value";
-    auto item = makePendingItem(
-            key,
-            value,
-            cb::durability::Requirements(cb::durability::Level::Majority,
-                                         1 /*timeout*/));
-    VBQueueItemCtx ctx;
-    ctx.durability =
-            DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
-    {
+    { // Locking scope for collections handle
+        auto item = makePendingItem(
+                key,
+                value,
+                cb::durability::Requirements(cb::durability::Level::Majority,
+                                             1 /*timeout*/));
+        VBQueueItemCtx ctx;
+        ctx.durability = DurabilityItemCtx{item->getDurabilityReqs(),
+                                           nullptr /*cookie*/};
         auto cHandle = vb->lockCollections(item->getKey());
         EXPECT_EQ(ENGINE_EWOULDBLOCK,
                   vb->set(*item, cookie, *engine, {}, cHandle));
@@ -794,7 +794,15 @@ TEST_P(DurabilityActiveStreamTest,
     EXPECT_EQ(1, vb->getHighPreparedSeqno());
     EXPECT_EQ(1, vb->getHighCompletedSeqno());
 
-    {
+    { // Locking scope for collections handle
+        auto item = makePendingItem(
+                key,
+                value,
+                cb::durability::Requirements(cb::durability::Level::Majority,
+                                             1 /*timeout*/));
+        VBQueueItemCtx ctx;
+        ctx.durability = DurabilityItemCtx{item->getDurabilityReqs(),
+                                           nullptr /*cookie*/};
         auto cHandle = vb->lockCollections(item->getKey());
         EXPECT_EQ(ENGINE_EWOULDBLOCK,
                   vb->set(*item, cookie, *engine, {}, cHandle));

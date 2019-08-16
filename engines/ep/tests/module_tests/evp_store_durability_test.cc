@@ -2055,6 +2055,22 @@ TEST_P(DurabilityBucketTest, ActiveToReplicaAndCommit) {
     ASSERT_EQ(ENGINE_SUCCESS, vb.commit(key, 1, 4, vb.lockCollections(key)));
 }
 
+TEST_P(DurabilityBucketTest, CasCheckMadeForNewPrepare) {
+    setVBucketToActiveWithValidTopology();
+
+    auto key = makeStoredDocKey("key");
+    auto committed = makeCommittedItem(key, "committed");
+
+    ASSERT_EQ(ENGINE_SUCCESS, store->set(*committed, cookie));
+
+    auto pending = makePendingItem(key, "pending");
+    pending->setCas(123);
+    EXPECT_EQ(ENGINE_KEY_EEXISTS, store->set(*pending, cookie));
+
+    pending->setCas(committed->getCas());
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+}
+
 // Test cases which run against couchstore
 INSTANTIATE_TEST_CASE_P(AllBackends,
                         DurabilityCouchstoreBucketTest,
