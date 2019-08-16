@@ -22,6 +22,7 @@
 #pragma once
 
 #include "checkpoint.h"
+#include "ep_bucket.h"
 #include "evp_store_single_threaded_test.h"
 #include "evp_store_test.h"
 

@@ -20,6 +20,8 @@
 #include <boost/variant.hpp>
 #include <memcached/durability_spec.h>
 
+class PreLinkDocumentContext;
+
 /**
  * Structure which holds the information needed when enqueueing an item which
  * has Durability requirements.

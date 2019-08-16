@@ -21,10 +21,11 @@
 #include "checkpoint_remover.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/flow-control-manager.h"
+#include "mock_ep_bucket.h"
+#include "mock_ephemeral_bucket.h"
 #include "replicationthrottle.h"
-#include <programs/engine_testapp/mock_server.h>
-
 #include <platform/cbassert.h>
+#include <programs/engine_testapp/mock_server.h>
 #include <string>
 
 SynchronousEPEngine::SynchronousEPEngine(std::string extra_config)
@@ -112,4 +113,9 @@ std::unique_ptr<KVBucket> SynchronousEPEngine::public_makeMockBucket(
     throw std::invalid_argument(bucketType +
                                 " is not a recognized bucket "
                                 "type");
+}
+
+std::unique_ptr<KVBucket> SynchronousEPEngine::public_makeBucket(
+        Configuration& config) {
+    return makeBucket(config);
 }

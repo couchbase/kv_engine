@@ -21,6 +21,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <typeinfo>
 
 /// Policy class for handling non-monotonic updates by simply ignoring them.
 template <class T>

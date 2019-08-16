@@ -21,6 +21,7 @@
 #include "checkpoint_utils.h"
 #include "durability/durability_monitor.h"
 #include "item.h"
+#include "kv_bucket.h"
 #include "test_helpers.h"
 
 #include <engines/ep/src/ephemeral_tombstone_purger.h>

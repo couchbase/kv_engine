@@ -22,8 +22,10 @@
 #include "benchmark_memory_tracker.h"
 #include "checkpoint_manager.h"
 #include "engine_fixture.h"
+#include "ep_bucket.h"
 #include "fakes/fake_executorpool.h"
 #include "item.h"
+#include "kv_bucket.h"
 #include "stored_value_factories.h"
 
 #include "../tests/module_tests/thread_gate.h"

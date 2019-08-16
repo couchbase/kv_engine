@@ -18,6 +18,7 @@
 #pragma once
 
 #include "dcp_test.h"
+#include "hash_table.h"
 #include "vbucket_queue_item_ctx.h"
 
 class MockDcpConsumer;

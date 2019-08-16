@@ -26,6 +26,7 @@
 #include "ep_types.h"
 #include "ep_vb.h"
 #include "failover-table.h"
+#include "kv_bucket.h"
 #include "tests/module_tests/test_helpers.h"
 #include "thread_gate.h"
 

@@ -17,11 +17,7 @@
 
 #pragma once
 
-#include "mock_ep_bucket.h"
-#include "mock_ephemeral_bucket.h"
-
 #include <dcp/dcpconnmap.h>
-#include <ep_bucket.h>
 #include <ep_engine.h>
 
 class SynchronousEPEngine;
@@ -73,9 +69,7 @@ public:
      */
     void initializeConnmap();
 
-    std::unique_ptr<KVBucket> public_makeBucket(Configuration& config) {
-        return makeBucket(config);
-    }
+    std::unique_ptr<KVBucket> public_makeBucket(Configuration& config);
 
     std::unique_ptr<KVBucket> public_makeMockBucket(Configuration& config);
 

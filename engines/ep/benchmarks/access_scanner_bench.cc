@@ -28,6 +28,7 @@
 
 #include "engine_fixture.h"
 #include "item.h"
+#include "kv_bucket.h"
 
 class AccessLogBenchEngine : public EngineFixture {
 protected:

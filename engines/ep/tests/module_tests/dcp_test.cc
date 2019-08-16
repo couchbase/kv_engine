@@ -42,9 +42,11 @@
 #include "dcp_utils.h"
 #include "ep_time.h"
 #include "evp_engine_test.h"
+#include "kv_bucket.h"
 #include "memory_tracker.h"
 #include "objectregistry.h"
 #include "test_helpers.h"
+#include "vbucket.h"
 
 #include <folly/portability/GTest.h>
 #include <memcached/server_cookie_iface.h>

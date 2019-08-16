@@ -21,10 +21,12 @@
 
 #pragma once
 
-#include "evp_store_test.h"
 #include "fakes/fake_executorpool.h"
+#include "kv_bucket_test.h"
+#include <nlohmann/json.hpp>
 
 struct dcp_message_producers;
+class EPBucket;
 class MockActiveStreamWithOverloadedRegisterCursor;
 class MockDcpMessageProducers;
 class MockDcpProducer;
@@ -180,9 +182,7 @@ public:
     void producerReadyQLimitOnBackfill(BackfillBufferLimit limitType);
 
 protected:
-    EPBucket& getEPBucket() {
-        return dynamic_cast<EPBucket&>(*store);
-    }
+    EPBucket& getEPBucket();
 };
 
 /**

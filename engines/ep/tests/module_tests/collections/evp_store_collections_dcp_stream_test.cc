@@ -16,6 +16,7 @@
  */
 
 #include "dcp/response.h"
+#include "kv_bucket.h"
 #include "tests/mock/mock_dcp.h"
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/mock/mock_dcp_producer.h"

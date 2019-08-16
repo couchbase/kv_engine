@@ -30,6 +30,7 @@
 #include "bgfetcher.h"
 #include "checkpoint_remover.h"
 #include "dcp/dcpconnmap.h"
+#include "ep_bucket.h"
 #include "flusher.h"
 #include "item_eviction.h"
 #include "tests/mock/mock_global_task.h"
@@ -1176,3 +1177,7 @@ INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
                         [] (const ::testing::TestParamInfo<std::string>& info) {
                             return info.param;
                         });
+
+EPBucket& EPBucketTest::getEPBucket() {
+    return dynamic_cast<EPBucket&>(*store);
+}

@@ -25,12 +25,12 @@
 
 #include "kv_bucket_test.h"
 
+class EPBucket;
+
 /**
  * Test fixture for EPBucket unit tests.
  */
 class EPBucketTest : public KVBucketTest {
 protected:
-    EPBucket& getEPBucket() {
-        return dynamic_cast<EPBucket&>(*store);
-    }
+    EPBucket& getEPBucket();
 };

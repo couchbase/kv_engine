@@ -23,6 +23,7 @@
 #include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
 #include "failover-table.h"
+#include "kv_bucket.h"
 #include "kvstore.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/mock/mock_dcp.h"

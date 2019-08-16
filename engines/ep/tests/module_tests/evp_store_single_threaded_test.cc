@@ -33,12 +33,14 @@
 #include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
+#include "ep_bucket.h"
 #include "ep_time.h"
 #include "ephemeral_tombstone_purger.h"
 #include "evp_store_test.h"
 #include "failover-table.h"
 #include "fakes/fake_executorpool.h"
 #include "item_freq_decayer_visitor.h"
+#include "kv_bucket.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "taskqueue.h"
 #include "tests/module_tests/test_helpers.h"
@@ -3682,6 +3684,10 @@ void SingleThreadedEPBucketTest::producerReadyQLimitOnBackfill(
     //     BackfillScanLimit::item
     const size_t upperBound = limit / valueSize + 1;
     ASSERT_LT(lastSeqno, upperBound);
+}
+
+EPBucket& SingleThreadedEPBucketTest::getEPBucket() {
+    return dynamic_cast<EPBucket&>(*store);
 }
 
 /*

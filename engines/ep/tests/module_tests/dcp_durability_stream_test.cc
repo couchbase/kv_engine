@@ -25,6 +25,7 @@
 #include "durability/active_durability_monitor.h"
 #include "durability/durability_monitor.h"
 #include "durability/passive_durability_monitor.h"
+#include "kv_bucket.h"
 #include "test_helpers.h"
 #include "vbucket_utils.h"
 

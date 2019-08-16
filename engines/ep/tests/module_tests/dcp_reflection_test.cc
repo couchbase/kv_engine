@@ -30,8 +30,10 @@
 
 #include "checkpoint_manager.h"
 #include "dcp/response.h"
+#include "ep_bucket.h"
 #include "evp_store_single_threaded_test.h"
 #include "failover-table.h"
+#include "kv_bucket.h"
 #include "test_helpers.h"
 
 // Indexes for the engines we will use in the tests, a single array allows test
