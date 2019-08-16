@@ -26,6 +26,7 @@
 #pragma once
 
 #include "callbacks.h"
+#include "ep_types.h"
 
 #include <folly/portability/GTest.h>
 #include <memcached/protocol_binary.h>

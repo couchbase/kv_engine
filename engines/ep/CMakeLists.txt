@@ -317,6 +317,7 @@ if (NOT EP_BYPASS_TESTS)
 
     add_library(ep_mocks OBJECT
             tests/mock/mock_dcp_conn_map.cc
+            tests/mock/mock_dcp_consumer.cc
             tests/mock/mock_dcp_producer.cc
             tests/mock/mock_ep_bucket.cc
             tests/mock/mock_ephemeral_bucket.cc

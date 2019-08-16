@@ -28,6 +28,7 @@
 #include "../mock/mock_dcp_conn_map.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
+#include "../mock/mock_stream.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint.h"
 #include "checkpoint_manager.h"

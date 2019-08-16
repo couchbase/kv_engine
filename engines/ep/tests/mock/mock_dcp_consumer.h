@@ -18,9 +18,8 @@
 #pragma once
 
 #include "dcp/consumer.h"
-#include "mock_stream.h"
 
-#include <boost/optional.hpp>
+#include <boost/optional/optional_fwd.hpp>
 
 /*
  * Mock of the DcpConsumer class.  Wraps the real DcpConsumer class
@@ -31,9 +30,7 @@ public:
     MockDcpConsumer(EventuallyPersistentEngine& theEngine,
                     const void* cookie,
                     const std::string& name,
-                    const std::string& consumerName = {})
-        : DcpConsumer(theEngine, cookie, name, consumerName) {
-    }
+                    const std::string& consumerName = {});
 
     void setPendingAddStream(bool value) {
         // The unit tests was written before memcached marked the
@@ -94,21 +91,7 @@ public:
             uint64_t snap_start_seqno,
             uint64_t snap_end_seqno,
             uint64_t vb_high_seqno,
-            const Collections::ManifestUid vb_manifest_uid) override {
-        return std::make_shared<MockPassiveStream>(e,
-                                                   consumer,
-                                                   name,
-                                                   flags,
-                                                   opaque,
-                                                   vb,
-                                                   start_seqno,
-                                                   end_seqno,
-                                                   vb_uuid,
-                                                   snap_start_seqno,
-                                                   snap_end_seqno,
-                                                   vb_high_seqno,
-                                                   vb_manifest_uid);
-    }
+            const Collections::ManifestUid vb_manifest_uid) override;
 
     /**
      * @return the opaque sent to the Producer as part of the DCP_CONTROL
@@ -149,14 +132,7 @@ public:
      * the value that will be used for the opaque of a given stream, use this
      * map to get the correct value.
      */
-    boost::optional<uint32_t> getStreamOpaque(uint32_t opaque) {
-        for (const auto& pair : opaqueMap_) {
-            if (pair.second.first == opaque) {
-                return pair.first;
-            }
-        }
-        return {};
-    }
+    boost::optional<uint32_t> getStreamOpaque(uint32_t opaque);
 
     void public_streamAccepted(uint32_t opaque,
                                cb::mcbp::Status status,

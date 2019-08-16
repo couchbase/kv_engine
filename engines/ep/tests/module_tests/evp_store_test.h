@@ -23,7 +23,6 @@
 
 #pragma once
 
-#include "ep_bucket.h"
 #include "kv_bucket_test.h"
 
 /**
