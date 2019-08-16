@@ -33,6 +33,7 @@
 #include "test_helpers.h"
 #include "thread_gate.h"
 
+#include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"

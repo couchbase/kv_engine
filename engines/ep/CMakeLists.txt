@@ -315,6 +315,20 @@ add_sanitizers(ep)
 if (NOT EP_BYPASS_TESTS)
     add_subdirectory(tests)
 
+    add_library(ep_mocks OBJECT
+            tests/mock/mock_dcp_conn_map.cc
+            tests/mock/mock_dcp_producer.cc
+            tests/mock/mock_ep_bucket.cc
+            tests/mock/mock_ephemeral_bucket.cc
+            tests/mock/mock_ephemeral_vb.cc
+            tests/mock/mock_executor_pool.cc
+            tests/mock/mock_stream.cc
+            tests/mock/mock_synchronous_ep_engine.cc
+            ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.h
+            )
+    set_property(TARGET ep_mocks PROPERTY POSITION_INDEPENDENT_CODE 1)
+    add_sanitizers(ep_mocks)
+
     # While ep_perfsuite is arguably a "test" and hence should live under
     # tests/, we *don't* want optimizations disabled for it hence keep in
     # this directory.
@@ -346,8 +360,8 @@ if (NOT EP_BYPASS_TESTS)
                    benchmarks/mem_allocator_stats_bench.cc
                    benchmarks/vbucket_bench.cc
                    benchmarks/probabilistic_counter_bench.cc
-                   tests/mock/mock_synchronous_ep_engine.cc
                    $<TARGET_OBJECTS:ep_objs>
+                   $<TARGET_OBJECTS:ep_mocks>
                    $<TARGET_OBJECTS:memory_tracking>
                    $<TARGET_OBJECTS:couchstore_test_fileops>
                    ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc

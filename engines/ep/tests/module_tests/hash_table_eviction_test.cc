@@ -23,6 +23,7 @@
 
 #include "checkpoint_manager.h"
 #include "evp_store_single_threaded_test.h"
+#include "item.h"
 #include "memory_tracker.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_ep_bucket.h"

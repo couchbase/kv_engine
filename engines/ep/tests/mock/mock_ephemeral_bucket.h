@@ -16,10 +16,8 @@
  */
 
 #pragma once
-#include "../mock/mock_checkpoint_manager.h"
-#include "ep_engine.h"
+
 #include "ephemeral_bucket.h"
-#include "failover-table.h" // For the std::move(table) in makeVBucket
 
 /*
  * Mock of the EphemeralBucket class.
@@ -28,16 +26,6 @@ class MockEphemeralBucket : public EphemeralBucket {
 public:
     MockEphemeralBucket(EventuallyPersistentEngine& theEngine)
         : EphemeralBucket(theEngine) {
-    }
-
-    void createItemFreqDecayerTask() {
-        Configuration& config = engine.getConfiguration();
-        itemFreqDecayerTask = std::make_shared<ItemFreqDecayerTask>(
-                &engine, config.getItemFreqDecayerPercent());
-    }
-
-    void disableItemFreqDecayerTask() {
-        ExecutorPool::get()->cancel(itemFreqDecayerTask->getId());
     }
 
     VBucketPtr makeVBucket(Vbid id,
@@ -54,31 +42,5 @@ public:
                            uint64_t maxCas,
                            int64_t hlcEpochSeqno,
                            bool mightContainXattrs,
-                           const nlohmann::json& replicationTopology) override {
-        auto vptr = EphemeralBucket::makeVBucket(id,
-                                                 state,
-                                                 shard,
-                                                 std::move(table),
-                                                 std::move(newSeqnoCb),
-                                                 std::move(manifest),
-                                                 initState,
-                                                 lastSeqno,
-                                                 lastSnapStart,
-                                                 lastSnapEnd,
-                                                 purgeSeqno,
-                                                 maxCas,
-                                                 hlcEpochSeqno,
-                                                 mightContainXattrs,
-                                                 replicationTopology);
-
-        vptr->checkpointManager = std::make_unique<MockCheckpointManager>(
-                stats,
-                id,
-                engine.getCheckpointConfig(),
-                lastSeqno,
-                lastSnapStart,
-                lastSnapEnd,
-                /*flusher callback*/ nullptr);
-        return vptr;
-    }
+                           const nlohmann::json& replicationTopology) override;
 };

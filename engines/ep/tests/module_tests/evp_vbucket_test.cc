@@ -18,6 +18,7 @@
 #include "evp_vbucket_test.h"
 #include "bgfetcher.h"
 #include "ep_vb.h"
+#include "item.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
 

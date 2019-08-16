@@ -17,12 +17,6 @@ add_sanitizers(ep_testsuite_objs)
 # (We end up compiling most of the src/ files of ep-engine for these unit tests,
 # so simpler / quicker just to link them into a single executable).
 ADD_EXECUTABLE(ep-engine_ep_unit_tests
-        mock/mock_dcp_conn_map.cc
-        mock/mock_dcp_producer.cc
-        mock/mock_ephemeral_vb.cc
-        mock/mock_executor_pool.cc
-        mock/mock_stream.cc
-        mock/mock_synchronous_ep_engine.cc
         module_tests/atomic_unordered_map_test.cc
         module_tests/basic_ll_test.cc
         module_tests/bloomfilter_test.cc
@@ -100,6 +94,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
         module_tests/warmup_test.cc
         $<TARGET_OBJECTS:mock_dcp>
         $<TARGET_OBJECTS:ep_objs>
+        $<TARGET_OBJECTS:ep_mocks>
         $<TARGET_OBJECTS:memory_tracking>
         $<TARGET_OBJECTS:couchstore_test_fileops>
         $<TARGET_OBJECTS:couchfile_upgrade_objects>

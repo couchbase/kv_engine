@@ -30,6 +30,7 @@
 #include "dcp/flow-control-manager.h"
 #include "ep_engine.h"
 #include "ep_time.h"
+#include "failover-table.h"
 #include "fakes/fake_executorpool.h"
 #include "flusher.h"
 #include "globaltask.h"

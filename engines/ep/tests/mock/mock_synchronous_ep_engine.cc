@@ -17,11 +17,12 @@
 
 #include "mock_synchronous_ep_engine.h"
 
-#include <checkpoint_remover.h>
-#include <programs/engine_testapp/mock_server.h>
+#include "checkpoint_config.h"
+#include "checkpoint_remover.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/flow-control-manager.h"
 #include "replicationthrottle.h"
+#include <programs/engine_testapp/mock_server.h>
 
 #include <platform/cbassert.h>
 #include <string>

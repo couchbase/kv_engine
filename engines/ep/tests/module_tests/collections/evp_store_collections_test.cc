@@ -25,6 +25,7 @@
 #include "checkpoint_manager.h"
 #include "collections/collections_types.h"
 #include "ep_time.h"
+#include "item.h"
 #include "kvstore.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/mock/mock_global_task.h"

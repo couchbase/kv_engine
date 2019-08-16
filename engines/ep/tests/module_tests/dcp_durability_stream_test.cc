@@ -18,6 +18,7 @@
 #include "dcp_durability_stream_test.h"
 
 #include "../../src/dcp/backfill-manager.h"
+#include "checkpoint.h"
 #include "checkpoint_utils.h"
 #include "dcp/response.h"
 #include "dcp_utils.h"
@@ -27,6 +28,7 @@
 #include "test_helpers.h"
 #include "vbucket_utils.h"
 
+#include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_stream.h"
 #include "../mock/mock_synchronous_ep_engine.h"

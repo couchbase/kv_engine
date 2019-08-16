@@ -27,6 +27,7 @@
 #include "benchmark_memory_tracker.h"
 
 #include "engine_fixture.h"
+#include "item.h"
 
 class AccessLogBenchEngine : public EngineFixture {
 protected:

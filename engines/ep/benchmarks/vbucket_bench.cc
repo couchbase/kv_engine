@@ -23,6 +23,7 @@
 #include "checkpoint_manager.h"
 #include "engine_fixture.h"
 #include "fakes/fake_executorpool.h"
+#include "item.h"
 #include "stored_value_factories.h"
 
 #include "../tests/module_tests/thread_gate.h"

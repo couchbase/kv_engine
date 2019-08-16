@@ -17,8 +17,10 @@
 
 #include "evp_store_durability_test.h"
 #include "../mock/mock_synchronous_ep_engine.h"
+#include "checkpoint.h"
 #include "checkpoint_utils.h"
 #include "durability/durability_monitor.h"
+#include "item.h"
 #include "test_helpers.h"
 
 #include <engines/ep/src/ephemeral_tombstone_purger.h>
