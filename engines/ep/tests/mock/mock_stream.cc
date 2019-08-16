@@ -18,8 +18,8 @@
 #include "mock_stream.h"
 #include "checkpoint_manager.h"
 #include "dcp/response.h"
+#include "mock_dcp_producer.h"
 #include "vbucket.h"
-
 MockActiveStream::MockActiveStream(EventuallyPersistentEngine* e,
                                    std::shared_ptr<MockDcpProducer> p,
                                    uint32_t flags,

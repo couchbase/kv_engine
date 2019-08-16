@@ -16,11 +16,14 @@
  */
 #pragma once
 
+#include "memcached/types.h"
+
 #include <atomic>
+#include <map>
 #include <mutex>
 
-#include "memcached/types.h"
-#include "dcp/consumer.h"
+class DcpConsumer;
+class EventuallyPersistentEngine;
 
 /**
  * DcpFlowControlManager is a base class for handling/enforcing flow control

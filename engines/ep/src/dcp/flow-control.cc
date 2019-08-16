@@ -15,9 +15,10 @@
  *   limitations under the License.
  */
 
-#include "connhandler_impl.h"
-#include "dcp/flow-control-manager.h"
 #include "dcp/flow-control.h"
+#include "connhandler_impl.h"
+#include "dcp/consumer.h"
+#include "dcp/flow-control-manager.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "objectregistry.h"

@@ -18,13 +18,10 @@
 #pragma once
 
 #include "dcp/active_stream.h"
-#include "dcp/consumer.h"
 #include "dcp/passive_stream.h"
-#include "dcp/producer.h"
-#include "dcp/stream.h"
-#include "tests/mock/mock_dcp_producer.h"
 
 class CheckpointManager;
+class MockDcpProducer;
 
 /*
  * Mock of the ActiveStream class. Wraps the real ActiveStream, but exposes

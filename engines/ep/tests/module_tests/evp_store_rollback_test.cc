@@ -36,6 +36,7 @@
 #include "tests/mock/mock_checkpoint_manager.h"
 #include "tests/mock/mock_dcp.h"
 #include "tests/mock/mock_dcp_consumer.h"
+#include "tests/mock/mock_dcp_producer.h"
 #include "tests/mock/mock_stream.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/test_manifest.h"
