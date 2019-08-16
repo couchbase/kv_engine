@@ -833,9 +833,7 @@ void CheckpointManager::queueSetVBState(VBucket& vb) {
 
 CheckpointManager::ItemsForCursor CheckpointManager::getNextItemsForCursor(
         CheckpointCursor* cursor, std::vector<queued_item>& items) {
-    auto result = getItemsForCursor(
-            cursor, items, std::numeric_limits<size_t>::max());
-    return result;
+    return getItemsForCursor(cursor, items, std::numeric_limits<size_t>::max());
 }
 
 CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
@@ -844,20 +842,20 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
         size_t approxLimit) {
     LockHolder lh(queueLock);
     if (!cursorPtr) {
-        EP_LOG_WARN("getNextItemsForCursor(): Caller had a null cursor {}",
+        EP_LOG_WARN("getItemsForCursor(): Caller had a null cursor {}",
                     vbucketId);
-        return {0, 0};
+        return {};
     }
 
     auto& cursor = *cursorPtr;
 
     // Fetch whole checkpoints; as long as we don't exceed the approx item
     // limit.
-    ItemsForCursor result((*cursor.currentCheckpoint)->getSnapshotStartSeqno(),
-                          (*cursor.currentCheckpoint)->getSnapshotEndSeqno(),
-                          (*cursor.currentCheckpoint)->getCheckpointType());
+    ItemsForCursor result((*cursor.currentCheckpoint)->getCheckpointType(),
+                          (*cursor.currentCheckpoint)->getHighCompletedSeqno());
 
     size_t itemCount = 0;
+    bool enteredNewCp = true;
     while ((result.moreAvailable = incrCursor(cursor))) {
         // We only want to return items from contiguous checkpoints with the
         // same type. We should not return Memory checkpoint items followed by
@@ -868,12 +866,20 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
             result.checkpointType) {
             break;
         }
+        if (enteredNewCp) {
+            result.ranges.push_back(
+                    {(*cursor.currentCheckpoint)->getSnapshotStartSeqno(),
+                     (*cursor.currentCheckpoint)->getSnapshotEndSeqno()});
+            enteredNewCp = false;
+        }
 
         queued_item& qi = *(cursor.currentPos);
         items.push_back(qi);
         itemCount++;
 
         if (qi->getOperation() == queue_op::checkpoint_end) {
+            enteredNewCp = true; // the next incrCuror will move to a new CP
+
             // Only move the HCS at checkpoint end (don't want to flush a
             // HCS mid-checkpoint).
             result.highCompletedSeqno =
@@ -883,8 +889,6 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
             // our limit.
             if (itemCount >= approxLimit) {
                 // Reached our limit - don't want any more items.
-                result.range.setEnd(
-                        (*cursor.currentCheckpoint)->getSnapshotEndSeqno());
 
                 // However, we *do* want to move the cursor into the next
                 // checkpoint if possible; as that means the checkpoint we just
@@ -894,19 +898,23 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
                 break;
             }
         }
-        // May have moved into a new checkpoint - update range.end.
-        result.range.setEnd((*cursor.currentCheckpoint)->getSnapshotEndSeqno());
     }
 
-    EP_LOG_DEBUG(
-            "CheckpointManager::getNextItemsForCursor() "
-            "cursor:{} result:{{#items:{} range:{{{}, {}}} "
-            "moreAvailable:{}}}",
-            cursor.name,
-            uint64_t(itemCount),
-            result.range.getStart(),
-            result.range.getEnd(),
-            result.moreAvailable ? "true" : "false");
+    if (globalBucketLogger->should_log(spdlog::level::debug)) {
+        std::stringstream ranges;
+        for (const auto& range : result.ranges) {
+            ranges << "{" << range.getStart() << "," << range.getEnd() << "}";
+        }
+        EP_LOG_DEBUG(
+                "CheckpointManager::getItemsForCursor() "
+                "cursor:{} result:{{#items:{} ranges:size:{} {} "
+                "moreAvailable:{}}}",
+                cursor.name,
+                uint64_t(itemCount),
+                result.ranges.size(),
+                ranges.str(),
+                result.moreAvailable ? "true" : "false");
+    }
 
     cursor.numVisits++;
 

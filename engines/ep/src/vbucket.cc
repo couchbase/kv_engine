@@ -209,8 +209,7 @@ VBucket::VBucket(Vbid i,
       initialState(initState),
       purge_seqno(purgeSeqno),
       takeover_backed_up(false),
-      persisted_snapshot_start(lastSnapStart),
-      persisted_snapshot_end(lastSnapEnd),
+      persistedRange(lastSnapStart, lastSnapEnd),
       receivingInitialDiskSnapshot(false),
       rollbackItemCount(0),
       hlc(maxCas,
@@ -240,17 +239,14 @@ VBucket::VBucket(Vbid i,
     setupSyncReplication(replTopology);
 
     EP_LOG_INFO(
-            "VBucket: created {} with state:{} "
-            "initialState:{} lastSeqno:{} lastSnapshot:{{{},{}}} "
-            "persisted_snapshot:{{{},{}}} max_cas:{} uuid:{} topology:{}",
+            "VBucket: created {} with state:{} initialState:{} lastSeqno:{} "
+            "persistedRange:{{{},{}}} max_cas:{} uuid:{} topology:{}",
             id,
             VBucket::toString(state),
             VBucket::toString(initialState),
             lastSeqno,
-            lastSnapStart,
-            lastSnapEnd,
-            persisted_snapshot_start,
-            persisted_snapshot_end,
+            persistedRange.getStart(),
+            persistedRange.getEnd(),
             getMaxCas(),
             failovers ? std::to_string(failovers->getLatestUUID()) : "<>",
             replicationTopology.rlock()->dump());
@@ -406,19 +402,13 @@ VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
         auto _begin_ = std::chrono::steady_clock::now();
         auto ckptItems = checkpointManager->getItemsForPersistence(
                 result.items, ckptMgrLimit);
-        result.range = ckptItems.range;
+        result.ranges = std::move(ckptItems.ranges);
         result.highCompletedSeqno = ckptItems.highCompletedSeqno;
         ckptItemsAvailable = ckptItems.moreAvailable;
         stats.persistenceCursorGetItemsHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
                         std::chrono::steady_clock::now() - _begin_));
-    } else {
-        // We haven't got sufficient remaining capacity to read items from
-        // CheckpoitnManager, therefore we must assume that there /could/
-        // more data to follow (leaving ckptItemsAvailable true). We also must
-        // ensure the valid snapshot range is returned
-        result.range = checkpointManager->getSnapshotInfo().range;
-    }
+    } // else result.ranges is empty, all items from rejectQueue
 
     // Check if there's any more items remaining.
     result.moreAvailable = !rejectQueue.empty() || ckptItemsAvailable;
@@ -2840,8 +2830,8 @@ void VBucket::postProcessRollback(const RollbackResult& rollbackResult,
                                   uint64_t prevHighSeqno) {
     failovers->pruneEntries(rollbackResult.highSeqno);
     checkpointManager->clear(*this, rollbackResult.highSeqno);
-    setPersistedSnapshot(rollbackResult.snapStartSeqno,
-                         rollbackResult.snapEndSeqno);
+    setPersistedSnapshot(
+            {rollbackResult.snapStartSeqno, rollbackResult.snapEndSeqno});
     incrRollbackItemCount(prevHighSeqno - rollbackResult.highSeqno);
     checkpointManager->setOpenCheckpointId(1);
     setReceivingInitialDiskSnapshot(false);

@@ -103,6 +103,22 @@ bool CheckpointTest<V>::queueNewItem(const std::string& key) {
                                      /*preLinkDocCtx*/ nullptr);
 }
 
+template <typename V>
+bool CheckpointTest<V>::queueReplicatedItem(const std::string& key,
+                                            int64_t seqno) {
+    queued_item qi{new Item(makeStoredDocKey(key),
+                            this->vbucket->getId(),
+                            queue_op::mutation,
+                            /*revSeq*/ 0,
+                            seqno)};
+    qi->setCas(1);
+    return this->manager->queueDirty(*this->vbucket,
+                                     qi,
+                                     GenerateBySeqno::No,
+                                     GenerateCas::No,
+                                     /*preLinkDocCtx*/ nullptr);
+}
+
 struct thread_args {
     VBucket* vbucket;
     MockCheckpointManager *checkpoint_manager;
@@ -307,8 +323,9 @@ TYPED_TEST(CheckpointTest, CheckFixture) {
     // Check that the items fetched matches the number we were told to expect.
     std::vector<queued_item> items;
     auto result = this->manager->getNextItemsForPersistence(items);
-    EXPECT_EQ(0, result.range.getStart());
-    EXPECT_EQ(0, result.range.getEnd());
+    EXPECT_EQ(1, result.ranges.size());
+    EXPECT_EQ(0, result.ranges.front().getStart());
+    EXPECT_EQ(0, result.ranges.front().getEnd());
     EXPECT_EQ(1, items.size());
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
 }
@@ -373,8 +390,9 @@ TYPED_TEST(CheckpointTest, OneOpenCkpt) {
     // Check that the items fetched matches the number we were told to expect.
     std::vector<queued_item> items;
     auto result = this->manager->getNextItemsForPersistence(items);
-    EXPECT_EQ(0, result.range.getStart());
-    EXPECT_EQ(1003, result.range.getEnd());
+    EXPECT_EQ(1, result.ranges.size());
+    EXPECT_EQ(0, result.ranges.front().getStart());
+    EXPECT_EQ(1003, result.ranges.front().getEnd());
     EXPECT_EQ(3, items.size());
     EXPECT_THAT(items,
                 testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
@@ -406,8 +424,8 @@ TYPED_TEST(CheckpointTest, Delete) {
     std::vector<queued_item> items;
     auto result = this->manager->getNextItemsForPersistence(items);
 
-    EXPECT_EQ(0, result.range.getStart());
-    EXPECT_EQ(1001, result.range.getEnd());
+    EXPECT_EQ(0, result.ranges.front().getStart());
+    EXPECT_EQ(1001, result.ranges.back().getEnd());
     ASSERT_EQ(2, items.size());
     EXPECT_THAT(items,
                 testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
@@ -448,8 +466,12 @@ TYPED_TEST(CheckpointTest, OneOpenOneClosed) {
     // Check that the items fetched matches the number we were told to expect.
     std::vector<queued_item> items;
     auto result = this->manager->getNextItemsForPersistence(items);
-    EXPECT_EQ(0, result.range.getStart());
-    EXPECT_EQ(1004, result.range.getEnd());
+    EXPECT_EQ(2, result.ranges.size()); // 2 checkpoints returned items
+    EXPECT_EQ(0, result.ranges.front().getStart());
+    EXPECT_EQ(1002, result.ranges.front().getEnd());
+    EXPECT_EQ(1002, result.ranges.back().getStart());
+    EXPECT_EQ(1004, result.ranges.back().getEnd());
+
     EXPECT_EQ(7, items.size());
     EXPECT_THAT(items,
                 testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
@@ -459,6 +481,86 @@ TYPED_TEST(CheckpointTest, OneOpenOneClosed) {
                                      HasOperation(queue_op::checkpoint_start),
                                      HasOperation(queue_op::mutation),
                                      HasOperation(queue_op::mutation)));
+}
+
+// Test demonstrates some of the basics behaviour of the MB-35003 changes.
+// The CheckpointManager methods that return a CursorResult can return multiple
+// snapshot ranges if the set of items returns spans multiple snapshots.
+// The test also demonstrates a partial snapshot
+TYPED_TEST(CheckpointTest, getItems_MultipleSnapshots) {
+    // 1st Snapshot covers 1001, 1003, but item 1002 de-duped
+    this->manager->createSnapshot(1001, 1003, {}, CheckpointType::Memory);
+    EXPECT_TRUE(this->queueReplicatedItem("k1", 1001));
+    EXPECT_TRUE(this->queueReplicatedItem("k2", 1003));
+
+    // 2nd Snapshot covers 1004-1006 and all items are received
+    this->manager->createSnapshot(1004, 1006, {}, CheckpointType::Memory);
+
+    for (auto i : {1004, 1005, 1006}) {
+        EXPECT_TRUE(this->queueReplicatedItem("k" + std::to_string(i), i));
+    }
+
+    EXPECT_EQ(2, this->manager->getNumCheckpoints());
+    EXPECT_EQ(3, this->manager->getNumOpenChkItems());
+    std::vector<queued_item> items;
+    auto cursorResult = this->manager->getItemsForPersistence(items, 1000);
+    EXPECT_FALSE(cursorResult.moreAvailable);
+
+    // Expect to see all of the items and two snapshot ranges
+    EXPECT_EQ(2, cursorResult.ranges.size());
+    // Still see the ranges 1001,1002 and 1003,1005
+    EXPECT_EQ(1001, cursorResult.ranges[0].getStart());
+    EXPECT_EQ(1003, cursorResult.ranges[0].getEnd());
+    EXPECT_EQ(1004, cursorResult.ranges[1].getStart());
+    EXPECT_EQ(1006, cursorResult.ranges[1].getEnd());
+    EXPECT_EQ(8, items.size()); // cp start, 2 items, cp end, cp start 3 items
+    EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
+    EXPECT_EQ(queue_op::mutation, items.at(1)->getOperation());
+    EXPECT_EQ(1001, items.at(1)->getBySeqno());
+    EXPECT_EQ(queue_op::mutation, items.at(2)->getOperation());
+    EXPECT_EQ(1003, items.at(2)->getBySeqno());
+    EXPECT_EQ(queue_op::checkpoint_end, items.at(3)->getOperation());
+    EXPECT_EQ(queue_op::checkpoint_start, items.at(4)->getOperation());
+    EXPECT_EQ(queue_op::mutation, items.at(5)->getOperation());
+    EXPECT_EQ(1004, items.at(5)->getBySeqno());
+    EXPECT_EQ(queue_op::mutation, items.at(6)->getOperation());
+    EXPECT_EQ(1005, items.at(6)->getBySeqno());
+    EXPECT_EQ(queue_op::mutation, items.at(7)->getOperation());
+    EXPECT_EQ(1006, items.at(7)->getBySeqno());
+}
+
+// However different types of snapshot don't get combined
+TYPED_TEST(CheckpointTest, getItems_MemoryDiskSnapshots) {
+    // 1st Snapshot covers 1001, 1003, but item 1002 de-duped
+    this->manager->createSnapshot(1001, 1003, {}, CheckpointType::Memory);
+    EXPECT_TRUE(this->queueReplicatedItem("k1", 1001));
+    EXPECT_TRUE(this->queueReplicatedItem("k2", 1003));
+
+    // 2nd Snapshot covers 1004-1006 and all items are received
+    this->manager->createSnapshot(1004, 1006, {}, CheckpointType::Disk);
+
+    for (auto i : {1004, 1005, 1006}) {
+        EXPECT_TRUE(this->queueReplicatedItem("k" + std::to_string(i), i));
+    }
+
+    EXPECT_EQ(2, this->manager->getNumCheckpoints());
+    EXPECT_EQ(3, this->manager->getNumOpenChkItems());
+    std::vector<queued_item> items;
+    auto cursorResult = this->manager->getItemsForPersistence(items, 1000);
+    EXPECT_TRUE(cursorResult.moreAvailable);
+
+    // Expect only the first snapshot
+    EXPECT_EQ(1, cursorResult.ranges.size());
+    // Only range 1001, 1003
+    EXPECT_EQ(1001, cursorResult.ranges[0].getStart());
+    EXPECT_EQ(1003, cursorResult.ranges[0].getEnd());
+    EXPECT_EQ(4, items.size()); // cp start, 2 items, cp end
+    EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
+    EXPECT_EQ(queue_op::mutation, items.at(1)->getOperation());
+    EXPECT_EQ(1001, items.at(1)->getBySeqno());
+    EXPECT_EQ(queue_op::mutation, items.at(2)->getOperation());
+    EXPECT_EQ(1003, items.at(2)->getBySeqno());
+    EXPECT_EQ(queue_op::checkpoint_end, items.at(3)->getOperation());
 }
 
 // Test the automatic creation of checkpoints based on the number of items.
@@ -514,8 +616,11 @@ TYPED_TEST(CheckpointTest, ItemBasedCheckpointCreation) {
     std::vector<queued_item> items;
     auto result = this->manager->getNextItemsForPersistence(items);
 
-    EXPECT_EQ(0, result.range.getStart());
-    EXPECT_EQ(1021, result.range.getEnd());
+    EXPECT_EQ(2, result.ranges.size());
+    EXPECT_EQ(0, result.ranges.at(0).getStart());
+    EXPECT_EQ(1010, result.ranges.at(0).getEnd());
+    EXPECT_EQ(1010, result.ranges.at(1).getStart());
+    EXPECT_EQ(1021, result.ranges.at(1).getEnd());
     EXPECT_EQ(24, items.size());
 
     // Should still have the same number of checkpoints and open items.
@@ -670,16 +775,22 @@ TYPED_TEST(CheckpointTest, ItemsForCheckpointCursor) {
     /* We should have got (2 * MIN_CHECKPOINT_ITEMS + 3) items. 3 additional are
        op_ckpt_start, op_ckpt_end and op_ckpt_start */
     EXPECT_EQ(2 * MIN_CHECKPOINT_ITEMS + 3, items.size());
-    EXPECT_EQ(0, result.range.getStart());
-    EXPECT_EQ(1000 + 2 * MIN_CHECKPOINT_ITEMS, result.range.getEnd());
+    EXPECT_EQ(2, result.ranges.size());
+    EXPECT_EQ(0, result.ranges.at(0).getStart());
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.ranges.at(0).getEnd());
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.ranges.at(1).getStart());
+    EXPECT_EQ(1000 + 2 * MIN_CHECKPOINT_ITEMS, result.ranges.at(1).getEnd());
 
     /* Get items for DCP replication cursor */
     items.clear();
     result = this->manager->getNextItemsForCursor(dcpCursor.cursor.lock().get(),
                                                   items);
     EXPECT_EQ(2 * MIN_CHECKPOINT_ITEMS + 3, items.size());
-    EXPECT_EQ(0, result.range.getStart());
-    EXPECT_EQ(1000 + 2 * MIN_CHECKPOINT_ITEMS, result.range.getEnd());
+    EXPECT_EQ(2, result.ranges.size());
+    EXPECT_EQ(0, result.ranges.at(0).getStart());
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.ranges.at(0).getEnd());
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.ranges.at(1).getStart());
+    EXPECT_EQ(1000 + 2 * MIN_CHECKPOINT_ITEMS, result.ranges.at(1).getEnd());
 }
 
 // Test getNextItemsForCursor() when it is limited to fewer items than exist
@@ -712,8 +823,9 @@ TYPED_TEST(CheckpointTest, ItemsForCheckpointCursorLimited) {
      */
     std::vector<queued_item> items;
     auto result = this->manager->getItemsForPersistence(items, 1);
-    EXPECT_EQ(0, result.range.getStart());
-    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.range.getEnd());
+    EXPECT_EQ(1, result.ranges.size());
+    EXPECT_EQ(0, result.ranges.front().getStart());
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.ranges.front().getEnd());
     EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 2, items.size())
             << "Should have MIN_CHECKPOINT_ITEMS + 2 (ckpt start & end) items";
     EXPECT_EQ(2, this->manager->getPersistenceCursor()->getId())
@@ -758,16 +870,18 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
 
     /* We should have got (MIN_CHECKPOINT_ITEMS + op_ckpt_start) items. */
     EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, items.size());
-    EXPECT_EQ(0, result.range.getStart());
-    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.range.getEnd());
+    EXPECT_EQ(1, result.ranges.size());
+    EXPECT_EQ(0, result.ranges.front().getStart());
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.ranges.front().getEnd());
 
     /* Get items for DCP replication cursor */
     items.clear();
     result = this->manager->getNextItemsForCursor(dcpCursor.cursor.lock().get(),
                                                   items);
     EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, items.size());
-    EXPECT_EQ(0, result.range.getStart());
-    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.range.getEnd());
+    EXPECT_EQ(1, result.ranges.size());
+    EXPECT_EQ(0, result.ranges.front().getStart());
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.ranges.front().getEnd());
 
     uint64_t curr_open_chkpt_id = this->manager->getOpenCheckpointId();
 
@@ -785,8 +899,9 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
 
     /* We should have got op_ckpt_start item */
     EXPECT_EQ(1, items.size());
-    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.range.getStart());
-    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.range.getEnd());
+    EXPECT_EQ(1, result.ranges.size());
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.ranges.front().getStart());
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.ranges.front().getEnd());
 
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
 

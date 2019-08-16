@@ -364,7 +364,8 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         // a single flush.
         auto toFlush = vb->getItemsToPersist(flusherBatchSplitTrigger);
         auto& items = toFlush.items;
-        auto& range = toFlush.range;
+        // The range becomes initialised only when an item is flushed
+        boost::optional<snapshot_range_t> range;
         moreAvailable = toFlush.moreAvailable;
 
         KVStore* rwUnderlying = getRWUnderlying(vb->getId());
@@ -402,8 +403,6 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
 
             uint64_t maxSeqno = 0;
             auto minSeqno = std::numeric_limits<uint64_t>::max();
-
-            range.setStart(std::max(range.getStart(), vbstate.lastSnapStart));
 
             bool mustCheckpointVBState = false;
 
@@ -492,6 +491,35 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                     }
                     ++stats.flusher_todo;
 
+                    if (!range.is_initialized()) {
+                        range = snapshot_range_t{
+                                vbstate.lastSnapStart,
+                                toFlush.ranges.empty()
+                                        ? vbstate.lastSnapEnd
+                                        : toFlush.ranges.back().getEnd()};
+                    }
+
+                    // Is the item the end item of one of the ranges we're
+                    // flushing? Note all the work here only affects replica VBs
+                    auto itr = std::find_if(
+                            toFlush.ranges.begin(),
+                            toFlush.ranges.end(),
+                            [&item](auto& range) {
+                                return uint64_t(item->getBySeqno()) ==
+                                       range.getEnd();
+                            });
+
+                    // If this is the end item, we can adjust the start of our
+                    // flushed range, which would be used for failure purposes.
+                    // Primarily by bringing the start to be a consistent point
+                    // allows for promotion to active to set the fail-over table
+                    // to a consistent point.
+                    if (itr != toFlush.ranges.end()) {
+                        // Use std::max as the flusher is not visiting in seqno
+                        // order.
+                        range->setStart(
+                                std::max(range->getStart(), itr->getEnd()));
+                    }
                 } else {
                     // Item is the same key as the previous[1] one - don't need
                     // to flush to disk.
@@ -521,9 +549,9 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
 
                 // only update the snapshot range if items were flushed, i.e.
                 // don't appear to be in a snapshot when you have no data for it
-                if (items_flushed) {
-                    vbstate.lastSnapStart = range.getStart();
-                    vbstate.lastSnapEnd = range.getEnd();
+                if (range) {
+                    vbstate.lastSnapStart = range->getStart();
+                    vbstate.lastSnapEnd = range->getEnd();
                 }
                 // Track the lowest seqno written in spock and record it as
                 // the HLC epoch, a seqno which we can be sure the value has a
@@ -582,8 +610,8 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             if (vb->rejectQueue.empty()) {
                 // only update the snapshot range if items were flushed, i.e.
                 // don't appear to be in a snapshot when you have no data for it
-                if (items_flushed) {
-                    vb->setPersistedSnapshot(range.getStart(), range.getEnd());
+                if (range) {
+                    vb->setPersistedSnapshot(*range);
                 }
                 uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);
                 if (highSeqno > 0 && highSeqno != vb->getPersistenceSeqno()) {

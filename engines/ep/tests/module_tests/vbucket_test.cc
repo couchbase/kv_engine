@@ -514,8 +514,8 @@ TEST_P(VBucketTest, GetItemsForCursor_Limit) {
     EXPECT_STREQ("1", result.items[1]->getKey().c_str());
     EXPECT_STREQ("2", result.items[2]->getKey().c_str());
     EXPECT_TRUE(result.items[3]->isCheckPointMetaItem());
-    EXPECT_EQ(range.getStart(), result.range.getStart());
-    EXPECT_EQ(range.getEnd() + 2, result.range.getEnd());
+    EXPECT_EQ(range.getStart(), result.ranges.front().getStart());
+    EXPECT_EQ(range.getEnd() + 2, result.ranges.back().getEnd());
 
     // Asking for 5 items should give us all items in second checkpoint and
     // third checkpoint - 7 total
@@ -530,8 +530,8 @@ TEST_P(VBucketTest, GetItemsForCursor_Limit) {
     EXPECT_TRUE(result.items[4]->isCheckPointMetaItem());
     EXPECT_STREQ("5", result.items[5]->getKey().c_str());
     EXPECT_STREQ("6", result.items[6]->getKey().c_str());
-    EXPECT_EQ(range.getEnd() + 2, result.range.getStart());
-    EXPECT_EQ(range.getEnd() + 6, result.range.getEnd());
+    EXPECT_EQ(range.getEnd() + 2, result.ranges.front().getStart());
+    EXPECT_EQ(range.getEnd() + 6, result.ranges.back().getEnd());
 }
 
 // Check that getItemsToPersist() can correctly impose a limit on items fetched.
@@ -554,8 +554,7 @@ TEST_P(VBucketTest, GetItemsToPersist_Limit) {
     EXPECT_TRUE(result.moreAvailable);
     EXPECT_EQ(1, result.items.size());
     EXPECT_STREQ("1", result.items[0]->getKey().c_str());
-    EXPECT_EQ(range.getStart(), result.range.getStart());
-    EXPECT_EQ(range.getEnd() + itemsToGenerate, result.range.getEnd());
+    EXPECT_TRUE(result.ranges.empty());
 
     // Next call should read 1 item from reject queue; and *all* items from
     // checkpoint (even through we only asked for 2 total), as it is not valid
@@ -567,8 +566,9 @@ TEST_P(VBucketTest, GetItemsToPersist_Limit) {
     EXPECT_TRUE(result.items[1]->isCheckPointMetaItem());
     EXPECT_STREQ("3", result.items[2]->getKey().c_str());
     EXPECT_STREQ("4", result.items[3]->getKey().c_str());
-    EXPECT_EQ(range.getStart(), result.range.getStart());
-    EXPECT_EQ(range.getEnd() + itemsToGenerate, result.range.getEnd());
+    EXPECT_EQ(1, result.ranges.size());
+    EXPECT_EQ(range.getStart(), result.ranges.front().getStart());
+    EXPECT_EQ(range.getEnd() + itemsToGenerate, result.ranges.back().getEnd());
 }
 
 // Check that getItemsToPersist() correctly returns `moreAvailable` if we

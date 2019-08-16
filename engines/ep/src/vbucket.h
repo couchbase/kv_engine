@@ -207,15 +207,14 @@ public:
         purge_seqno = to;
     }
 
-    void setPersistedSnapshot(uint64_t start, uint64_t end) {
+    void setPersistedSnapshot(const snapshot_range_t& range) {
         LockHolder lh(snapshotMutex);
-        persisted_snapshot_start = start;
-        persisted_snapshot_end = end;
+        persistedRange = range;
     }
 
     snapshot_range_t getPersistedSnapshot() const {
         LockHolder lh(snapshotMutex);
-        return {persisted_snapshot_start, persisted_snapshot_end};
+        return persistedRange;
     }
 
     uint64_t getMaxCas() const {
@@ -469,7 +468,7 @@ public:
 
     struct ItemsToFlush {
         std::vector<queued_item> items;
-        snapshot_range_t range{0, 0};
+        std::vector<snapshot_range_t> ranges;
         bool moreAvailable = false;
         boost::optional<uint64_t> highCompletedSeqno = {};
     };
@@ -2281,8 +2280,7 @@ private:
     /* snapshotMutex is used to update/read the pair {start, end} atomically,
        but not if reading a single field. */
     mutable std::mutex snapshotMutex;
-    uint64_t persisted_snapshot_start;
-    uint64_t persisted_snapshot_end;
+    snapshot_range_t persistedRange;
 
     /*
      * When a vbucket is in the middle of receiving the initial disk snapshot

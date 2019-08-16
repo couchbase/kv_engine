@@ -113,6 +113,8 @@ private:
     uint64_t end;
 };
 
+std::ostream& operator<<(std::ostream&, const snapshot_range_t&);
+
 struct snapshot_info_t {
     snapshot_info_t(uint64_t start, snapshot_range_t range)
         : start(start), range(range) {
@@ -120,6 +122,8 @@ struct snapshot_info_t {
     uint64_t start;
     snapshot_range_t range;
 };
+
+std::ostream& operator<<(std::ostream&, const snapshot_info_t&);
 
 /**
  * The following options can be specified

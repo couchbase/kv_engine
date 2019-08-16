@@ -127,3 +127,47 @@ If data in this packet is malformed or incomplete then this error is returned.
 **(Disconnect)**
 
 If this message is sent to a connection that is not a consumer.
+
+### Implementation notes
+
+The implementation of DCP has lead to some inconsistencies in the way that the
+snapshot marker assigns the value of "Start Seqno" depending on the context.
+
+Note that [stream-request](stream-request.md) defines "Start Seqno" to be
+maximum sequence number that the client has received. A request with a start
+seqno number of X, means "I have X, please start my stream at the sequence
+number after X".
+
+#### Memory snapshot.start-seqno equals seqno of first transmitted seqno
+
+A stream which is transferring in-memory checkpoint data sets the
+`snapshot-marker.start-seqno` to the seqno of the first mutation that will be
+follow the marker. This matches with the semantics of stream-request where the
+start-seqno is something the client already has.
+
+Thus a client which performs a stream-request with a start-seqno of X, but due
+to de-duplication X+n is the first sequence number available (from memory), the
+client will receive:
+
+* TX `stream-request{start-seqno=X}`
+* RX `stream-request-response{success}`
+* RX `snapshot-marker{start=X+n, end=Y, flags=0x1}`
+* RX `mutation{seqno:X+n}`
+
+#### Disk snapshot-marker.start-seqno equals stream-request.start-seqno
+
+The difference here is when a stream-request has to backfill from disk, the
+`0x02 disk` snapshot marker has the start-seqno set to the clients requested
+start-seqno. The returned mutations are correct from the definition of
+stream-request but the snapshot-marker could be viewed as inconsistent with the
+stream-request definition and the in-memory case.
+
+This is not consistent with the in-memory case, example:
+
+* TX `stream-request{start-seqno=X}`
+* RX `stream-request-response{success}`
+* RX `snapshot-marker{start=X, end=Y, flags=0x2}`
+* RX `mutation{seqno:X+n}`
+
+Note: A stream could at any time switch from memory to disk if the client is
+deemed to be slow.

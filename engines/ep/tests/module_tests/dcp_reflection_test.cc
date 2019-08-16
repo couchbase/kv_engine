@@ -61,7 +61,9 @@ protected:
 
         // Paranoia - remove any previous replica disk files.
         try {
-            cb::io::rmrf(std::string(test_dbname) + "-replica");
+            cb::io::rmrf(std::string(test_dbname) + "-node_1");
+            cb::io::rmrf(std::string(test_dbname) + "-node_2");
+            cb::io::rmrf(std::string(test_dbname) + "-node_3");
         } catch (std::system_error& e) {
             if (e.code() != std::error_code(ENOENT, std::system_category())) {
                 throw e;
@@ -293,7 +295,7 @@ protected:
      *
      *  Memory:
      *                          3:CKPT_START
-     *                          3:SET(b),     4:PRE(a), 5:SET(c)
+     *                          3:SET(b),     4:PRE(a), 5:SET(c), 6:SET(d)
      *
      * (items 1..2 were in a removed checkpoint and no longer in-memory.)
      *
@@ -311,15 +313,19 @@ protected:
      *     3:SET(b)
      *     SNAPSHOT_MARKER(start=4, end=5, flags=MEM)
      *     4:PRE(a),
-     *     [[[missing seqno 5]]
+     *     [[[missing seqno 5]] (iff completeFinalSnapshot=false)
+     *     [[[missing seqno 6]] (iff completeFinalSnapshot=false)
      *
      * If the consumer puts all of these mutations in the same Checkpoint, then
      * it will result in duplicate PRE(a) items (which breaks Checkpoint
      * invariant).
      *
      * @param flags Flags to use when creating the ADD_STREAM request.
+     * @param completeFinalSnapshot true if the test should transfer the
+     *        entirety of the memory snapshot (seq 4 to 6)
      */
-    void testBackfillAndInMemoryDuplicatePrepares(uint32_t flags);
+    void testBackfillAndInMemoryDuplicatePrepares(uint32_t flags,
+                                                  bool completeFinalSnapshot);
 
     // engines is 'map' from Node to an engine pointer, currently Node0 is the
     // engine created by the parent class and Node1 are created by this
@@ -605,7 +611,7 @@ TEST_F(DCPLoopbackStreamTest, TakeoverWithExpiry) {
 }
 
 void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
-        uint32_t flags) {
+        uint32_t flags, bool completeFinalSnapshot) {
     // First checkpoint 1..2: PRE(a), CMT(a)
     EXPECT_EQ(ENGINE_EWOULDBLOCK, storePrepare("a"));
     EXPECT_EQ(ENGINE_SUCCESS, storeCommit("a"));
@@ -618,9 +624,10 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
     // Flush up to seqno:3 to disk.
     flushVBucketToDiskIfPersistent(vbid, 3);
 
-    // Add 4:PRE(a), 5:SET(c)
+    // Add 4:PRE(a), 5:SET(c), 6:SET(d)
     EXPECT_EQ(ENGINE_EWOULDBLOCK, storePrepare("a"));
     EXPECT_EQ(ENGINE_SUCCESS, storeSet("c"));
+    EXPECT_EQ(ENGINE_SUCCESS, storeSet("d"));
 
     // Remove the first checkpoint (to force a DCP backfill).
     bool newCkpt = false;
@@ -634,7 +641,7 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
      *
      *  Memory:
      *                          3:CKPT_START
-     *                          3:SET(b),     4:PRE(a), 5:SET(c)
+     *                          3:SET(b),     4:PRE(a), 5:SET(c), 6:SET(d)
      */
 
     // Setup: Create DCP producer and consumer connections.
@@ -654,19 +661,65 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
     // Transfer 2 more messages (SNAP_MARKER, PRE)
     int takeover = flags & DCP_ADD_STREAM_FLAG_TAKEOVER ? MARKER_FLAG_ACK : 0;
     route0_1.transferSnapshotMarker(
-            4, 5, MARKER_FLAG_CHK | MARKER_FLAG_MEMORY | takeover);
+            4, 6, MARKER_FLAG_CHK | MARKER_FLAG_MEMORY | takeover);
     route0_1.transferMessage(DcpResponse::Event::Prepare);
 
     flushNodeIfPersistent(Node1);
+
+    //  Following code/checks are for MB-35003
+    uint64_t expectedFailoverSeqno = 3;
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+    ASSERT_TRUE(replicaVB);
+
+    if (completeFinalSnapshot) {
+        expectedFailoverSeqno = 6;
+        route0_1.transferMutation(makeStoredDocKey("c"), 5);
+        flushNodeIfPersistent(Node1);
+        auto range = replicaVB->getPersistedSnapshot();
+        EXPECT_EQ(3, range.getStart());
+        EXPECT_EQ(6, range.getEnd());
+
+        route0_1.transferMutation(makeStoredDocKey("d"), 6);
+        flushNodeIfPersistent(Node1);
+        range = replicaVB->getPersistedSnapshot();
+
+        // Note with MB-35003, each time the flusher reaches the end seqno, it
+        // sets the start=end, this ensures subsequent flush runs have the start
+        // on a start of a partial snapshot or the end of complete snapshot
+        EXPECT_EQ(6, range.getStart());
+        EXPECT_EQ(6, range.getEnd());
+    }
+
+    // Tear down streams and promote replica to active.
+    // Failover table should be at last complete checkpoint.
+    route0_1.destroy();
+    engines[Node1]->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
+    EXPECT_EQ(expectedFailoverSeqno,
+              replicaVB->failovers->getLatestEntry().by_seqno);
 }
 
-TEST_F(DCPLoopbackStreamTest, BackfillAndInMemoryDuplicatePrepares) {
-    testBackfillAndInMemoryDuplicatePrepares(0);
+TEST_F(DCPLoopbackStreamTest,
+       BackfillAndInMemoryDuplicatePrepares_partialSnapshot) {
+    testBackfillAndInMemoryDuplicatePrepares(0, false);
 }
 
-TEST_F(DCPLoopbackStreamTest, BackfillAndInMemoryDuplicatePreparesTakeover) {
+TEST_F(DCPLoopbackStreamTest,
+       BackfillAndInMemoryDuplicatePreparesTakeover_partialSnapshot) {
     // Variant with takeover stream, which has a different memory-based state.
-    testBackfillAndInMemoryDuplicatePrepares(DCP_ADD_STREAM_FLAG_TAKEOVER);
+    testBackfillAndInMemoryDuplicatePrepares(DCP_ADD_STREAM_FLAG_TAKEOVER,
+                                             false);
+}
+
+TEST_F(DCPLoopbackStreamTest,
+       BackfillAndInMemoryDuplicatePrepares_completeSnapshot) {
+    testBackfillAndInMemoryDuplicatePrepares(0, true);
+}
+
+TEST_F(DCPLoopbackStreamTest,
+       BackfillAndInMemoryDuplicatePreparesTakeover_completeSnapshot) {
+    // Variant with takeover stream, which has a different memory-based state.
+    testBackfillAndInMemoryDuplicatePrepares(DCP_ADD_STREAM_FLAG_TAKEOVER,
+                                             true);
 }
 
 /*
@@ -684,7 +737,7 @@ TEST_F(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
     // Setup: Create DCP connections; and stream the first 2 items (SNAP, 1:PRE)
     auto route0_1 = createDcpRoute(Node0, Node1);
     EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
-    route0_1.transferMessage(DcpResponse::Event::SnapshotMarker);
+    route0_1.transferSnapshotMarker(0, 1, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
     route0_1.transferMessage(DcpResponse::Event::Prepare);
 
     //     2:CMT(a)
@@ -741,7 +794,20 @@ TEST_F(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
     route0_1.transferSnapshotMarker(4, 5, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
     route0_1.transferMessage(DcpResponse::Event::Prepare);
 
+    // Flush through the snapshots, mem->disk->mem requires 3 flushes
+    auto node1VB = engines[Node1]->getKVBucket()->getVBucket(vbid);
     flushNodeIfPersistent(Node1);
+    EXPECT_EQ(1, node1VB->getPersistenceSeqno());
+    flushNodeIfPersistent(Node1);
+    EXPECT_EQ(3, node1VB->getPersistenceSeqno());
+    flushNodeIfPersistent(Node1);
+    EXPECT_EQ(4, node1VB->getPersistenceSeqno());
+
+    // Switch to active and validate failover table seqno is @ 3
+    engines[Node1]->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
+    auto newActiveVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+    ASSERT_TRUE(newActiveVB);
+    EXPECT_EQ(3, newActiveVB->failovers->getLatestEntry().by_seqno);
 }
 
 // This test is validating that a replica which recevies a partial disk snapshot
@@ -862,3 +928,120 @@ TEST_F(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
     route1_3.transferSnapshotMarker(5, 5, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
     route1_3.transferMutation(k5, 5);
 }
+
+class DCPLoopbackSnapshots : public DCPLoopbackStreamTest,
+                             public ::testing::WithParamInterface<int> {
+public:
+    void testSnapshots(int flushRatio);
+};
+
+// Create batches of items in individual checkpoint and transfer those to a
+// replica vbucket. The test takes a flushRatio parameter which determines when
+// the flusher runs, e.g. after every time the replica receives (rx) a message.
+// The test also uses keys in a way which ensures the optimise writes part of
+// the flusher reorders any batches of items, exercising some std::max logic
+// in the flusher.
+void DCPLoopbackSnapshots::testSnapshots(int flushRatio) {
+    // Setup: Create DCP producer and consumer connections.
+    auto route0_1 = createDcpRoute(Node0, Node1);
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+
+    auto flushReplicaIf = [this, flushRatio](int operationNumber) {
+        if (operationNumber % flushRatio == 0) {
+            flushNodeIfPersistent(Node1);
+        }
+    };
+
+    auto snapshot = [&route0_1, flushReplicaIf](int operationNumber) {
+        route0_1.transferMessage(DcpResponse::Event::SnapshotMarker);
+        flushReplicaIf(operationNumber);
+    };
+
+    auto mutation = [&route0_1, flushReplicaIf](int operationNumber) {
+        route0_1.transferMessage(DcpResponse::Event::Mutation);
+        flushReplicaIf(operationNumber);
+    };
+
+    auto& activeVb = *engine->getVBucket(vbid);
+
+    activeVb.checkpointManager->createNewCheckpoint();
+    store_item(vbid, makeStoredDocKey("z"), "value");
+    store_item(vbid, makeStoredDocKey("c"), "value");
+
+    int op = 1;
+    snapshot(op++); // op1: snap 0,2
+    mutation(op++); // op2: item 1
+    mutation(op++); // op3: item 2
+
+    activeVb.checkpointManager->createNewCheckpoint();
+    store_item(vbid, makeStoredDocKey("y"), "value");
+    store_item(vbid, makeStoredDocKey("b"), "value");
+
+    snapshot(op++); // op4: snap 3,4
+    mutation(op++); // op5: item 3
+    mutation(op++); // op6: item 4
+
+    activeVb.checkpointManager->createNewCheckpoint();
+    store_item(vbid, makeStoredDocKey("x"), "value");
+    store_item(vbid, makeStoredDocKey("a"), "value");
+
+    snapshot(op++); // op7: snap 5,6
+    mutation(op++); // op8: item 5
+    mutation(op++); // op9: item 6
+
+    auto* replicaKVB = engines[Node1]->getKVBucket();
+    replicaKVB->setVBucketState(vbid, vbucket_state_active);
+
+    // For each flusher ratio, there is a different expected outcome, the
+    // comments describe what happened in the test.
+    struct ExpectedResult {
+        uint64_t expectedFailoverSeqno;
+        snapshot_range_t expectedRange;
+    };
+    ExpectedResult expectedSeqnos[9] = {
+            {6, {6, 6}}, // Every rx results in a flush, every snapshot/item is
+                         // received and flushed.
+            {4, {4, 6}}, // Every 2nd rx flushed. snapshot {5,6} is partial.
+                         // {3,4} is now complete.
+            {6, {6, 6}}, // Every 3rd rx flushed. The final snapshot {5,6} is
+                         // all flushed.
+            {4, {4, 6}}, // Every 4th rx flushed. {0,2} and {3,4} flushed as a
+                         // combined range of {0,4} with items 1,2. A second
+                         // flush on rx of snap {5,6} with items 3,4. So
+                         // snapshot 3,4 is complete and 4 is the expected
+                         // fail-over seqno.
+            {2, {2, 4}}, // Every 5th rx flushed. {0,2} and {3,4} flushed as a
+                         // combined range of {0,4} with items 1,2,3. No more
+                         // flushes occur, thus final range is {2,4} and it is
+                         // partially flushed, expected fail-over seqno is 2.
+            {4, {4, 4}}, // Every 6th rx flushed. {0,2} and {3,4} flushed as a
+                         // combined range of 0,4, all items 1,2,3,4. {5,6}
+                         // snapshot marker received but not processed, so {4,4}
+                         // is the persisted range.
+            {4, {4, 6}}, // Every 7th rx flushed. {0,2}, {3,4} and {5,6} flushed
+                         // as a combined range of {0,6}, but we only had items
+                         // 1,2,3 and 4. Expected fail-over seqno is 4.
+            {4, {4, 6}}, // Every 8th rx flushed. {0,2}, {3,4} and {5,6} flushed
+                         // as a combined range of {0,6} but we only had items
+                         // 1:5. Expected fail-over seqno is 2.
+            {6, {6, 6}}}; // Every 9th rx flushed. {0,2}, {3,4} and {5,6}
+                          // flushed as a combined range of {0,6}, all items
+                          // from all snapshots received. Expected fail-over
+                          // seqno is 6.
+
+    EXPECT_EQ(
+            expectedSeqnos[GetParam() - 1].expectedFailoverSeqno,
+            replicaKVB->getVBucket(vbid)->failovers->getLatestEntry().by_seqno);
+    const auto& expectedRange = expectedSeqnos[GetParam() - 1].expectedRange;
+    auto range = replicaKVB->getVBucket(vbid)->getPersistedSnapshot();
+    EXPECT_EQ(expectedRange.getStart(), range.getStart());
+    EXPECT_EQ(expectedRange.getEnd(), range.getEnd());
+}
+
+TEST_P(DCPLoopbackSnapshots, testSnapshots) {
+    testSnapshots(GetParam());
+}
+
+INSTANTIATE_TEST_CASE_P(DCPLoopbackSnapshot,
+                        DCPLoopbackSnapshots,
+                        ::testing::Range(1, 10), );

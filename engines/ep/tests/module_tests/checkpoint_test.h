@@ -57,6 +57,10 @@ protected:
     // manager.
     bool queueNewItem(const std::string& key);
 
+    // Creates a new item with the given key@seqno and queues it into the
+    // checkpoint manager.
+    bool queueReplicatedItem(const std::string& key, int64_t seqno);
+
     EPStats global_stats;
     CheckpointConfig checkpoint_config;
     Configuration config;

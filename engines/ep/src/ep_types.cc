@@ -117,3 +117,11 @@ std::ostream& operator<<(std::ostream& os, TransferVB transfer) {
     throw std::invalid_argument("operator<<(TransferVB) unknown value " +
                                 std::to_string(static_cast<int>(transfer)));
 }
+
+std::ostream& operator<<(std::ostream& os, const snapshot_range_t& range) {
+    return os << "{" << range.getStart() << "," << range.getEnd() << "}";
+}
+
+std::ostream& operator<<(std::ostream& os, const snapshot_info_t& info) {
+    return os << "start:" << info.start << ", range:" << info.range;
+}
