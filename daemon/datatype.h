@@ -19,7 +19,8 @@
 
 #include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/feature.h>
-#include <bitset>
+
+#include <atomic>
 
 class Datatype {
 public:
@@ -86,12 +87,10 @@ public:
     }
 
     protocol_binary_datatype_t getRaw() const {
-        return protocol_binary_datatype_t(enabled.to_ulong());
+        return protocol_binary_datatype_t(enabled.load());
     }
 
 private:
-    using DatatypeSet = std::bitset<8>;
-
     // One bit per enabled datatype
-    DatatypeSet enabled;
+    std::atomic<uint8_t> enabled{0};
 };

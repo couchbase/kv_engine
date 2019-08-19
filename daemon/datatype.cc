@@ -87,16 +87,14 @@ void Datatype::enableAll() {
 }
 
 void Datatype::disableAll() {
-    enabled.reset();
+    enabled = 0;
 }
 
 protocol_binary_datatype_t Datatype::getIntersection(
         protocol_binary_datatype_t datatype) const {
-    return protocol_binary_datatype_t(
-            (enabled & DatatypeSet(datatype)).to_ulong());
+    return getRaw() & datatype;
 }
 
 bool Datatype::isEnabled(protocol_binary_datatype_t datatype) const {
-    DatatypeSet in(datatype);
-    return (enabled & in) == in;
+    return (getRaw() & datatype) == datatype;
 }
