@@ -295,14 +295,16 @@ void ActiveStream::markDiskSnapshot(
             startSeqno,
             endSeqno);
         // If the stream supports SyncRep then send the HCS in the
-        // SnapshotMarker
+        // SnapshotMarker if it is not 0
+        auto sendHCS = supportSyncReplication() && highCompletedSeqno &&
+                       *highCompletedSeqno != 0;
         pushToReadyQ(std::make_unique<SnapshotMarker>(
                 opaque_,
                 vb_,
                 startSeqno,
                 endSeqno,
                 MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-                supportSyncReplication() ? highCompletedSeqno : boost::none,
+                sendHCS ? highCompletedSeqno : boost::none,
                 sid));
         lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 

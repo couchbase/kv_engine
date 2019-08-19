@@ -40,6 +40,14 @@ void dcp_snapshot_marker_executor(Cookie& cookie) {
             const auto* v2Payload =
                     reinterpret_cast<const DcpSnapshotMarkerV2Payload*>(
                             extra.data());
+
+            // HCS should never be sent as 0 or a pre-condition will throw in
+            // the replicas flusher
+            if (v2Payload->getHighCompletedSeqno() == 0) {
+                // Not success so just disconnect
+                connection.setState(StateMachine::State::closing);
+                return;
+            }
             hcs = v2Payload->getHighCompletedSeqno();
         }
 
