@@ -2583,6 +2583,27 @@ TEST_F(WarmupTest, MB_25197) {
     }
 }
 
+// KV-engine should warmup dead vbuckets
+TEST_F(WarmupTest, MB_35599) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    flush_vbucket_to_disk(vbid);
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_dead);
+
+    resetEngineAndWarmup();
+
+    // We should be able to switch the vbucket back to active/replica and read
+    // the value
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    auto gv = store->getReplica(makeStoredDocKey("key"), vbid, cookie, {});
+
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(0, memcmp("value", gv.item->getData(), 5));
+}
+
 // Test that we can push a DCP_DELETION which pretends to be from a delete
 // with xattrs, i.e. the delete has a value containing only system xattrs
 // The MB was created because this code would actually trigger an exception

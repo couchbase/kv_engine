@@ -1429,7 +1429,7 @@ void Warmup::populateShardVbStates()
         std::vector<vbucket_state *> allVbStates =
                      store.getROUnderlyingByShard(i)->listPersistedVbuckets();
         for (uint16_t vb = 0; vb < allVbStates.size(); vb++) {
-            if (!allVbStates[vb] || allVbStates[vb]->state == vbucket_state_dead) {
+            if (!allVbStates[vb]) {
                 continue;
             }
             std::map<uint16_t, vbucket_state> &shardVB =
@@ -1440,15 +1440,15 @@ void Warmup::populateShardVbStates()
     }
 
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
-        std::vector<uint16_t> activeVBs, replicaVBs;
+        std::vector<uint16_t> activeVBs, otherVBs;
         std::map<uint16_t, vbucket_state>::const_iterator it;
         for (it = shardVbStates[i].begin(); it != shardVbStates[i].end(); ++it) {
             uint16_t vbid = it->first;
             vbucket_state vbs = it->second;
             if (vbs.state == vbucket_state_active) {
                 activeVBs.push_back(vbid);
-            } else if (vbs.state == vbucket_state_replica) {
-                replicaVBs.push_back(vbid);
+            } else {
+                otherVBs.push_back(vbid);
             }
         }
 
@@ -1468,12 +1468,12 @@ void Warmup::populateShardVbStates()
 
         std::mt19937 twister(i);
         // Give 'true' (aka active) 60% of the time
-        // Give 'false' (aka replica) 40% of the time.
+        // Give 'false' (aka other) 40% of the time.
         std::bernoulli_distribution distribute(0.6);
-        std::array<std::vector<uint16_t>*, 2> activeReplicaSource = {{&activeVBs,
-                                                                      &replicaVBs}};
+        std::array<std::vector<uint16_t>*, 2> activeReplicaSource = {
+                {&activeVBs, &otherVBs}};
 
-        while (!activeVBs.empty() || !replicaVBs.empty()) {
+        while (!activeVBs.empty() || !otherVBs.empty()) {
             const bool active = distribute(twister);
             int num = active ? 0 : 1;
             if (!activeReplicaSource[num]->empty()) {
