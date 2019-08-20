@@ -59,18 +59,19 @@ public:
     struct ItemsForCursor {
         ItemsForCursor(uint64_t start,
                        uint64_t end,
-                       boost::optional<uint64_t> highCompletedSeqno = {},
-                       CheckpointType checkpointType = CheckpointType::Memory)
+                       CheckpointType checkpointType = CheckpointType::Memory,
+                       boost::optional<uint64_t> highCompletedSeqno = {})
             : range(start, end),
-              highCompletedSeqno(highCompletedSeqno),
-              checkpointType(checkpointType) {
+              checkpointType(checkpointType),
+              highCompletedSeqno(highCompletedSeqno) {
         }
         snapshot_range_t range;
         bool moreAvailable = {false};
-
-        // HCS that should be flushed
-        boost::optional<uint64_t> highCompletedSeqno = {};
         CheckpointType checkpointType = CheckpointType::Memory;
+
+        // HCS that should be flushed. Currently should only be set for Disk
+        // Checkpoint runs.
+        boost::optional<uint64_t> highCompletedSeqno = {};
     };
 
     /// Return type of expelUnreferencedCheckpointItems()

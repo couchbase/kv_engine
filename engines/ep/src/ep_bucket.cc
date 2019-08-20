@@ -417,7 +417,16 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             // any other item in this flush batch. This is required because we
             // send mutations instead of a commits and would not otherwise
             // update the HCS on disk.
-            boost::optional<uint64_t> hcs = toFlush.highCompletedSeqno;
+            boost::optional<uint64_t> hcs =
+                    boost::make_optional(false, uint64_t());
+
+            // HCS may be weakly monotonic when received via a disk snapshot so
+            // we special case this for the disk snapshot instead of relaxing
+            // the general constraint.
+            if (toFlush.highCompletedSeqno &&
+                *toFlush.highCompletedSeqno != vbstate.highCompletedSeqno) {
+                hcs = toFlush.highCompletedSeqno;
+            }
             // HPS is optional because we have to update it on disk only if a
             // prepare is found in the flush-batch
             boost::optional<uint64_t> hps;

@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include <boost/optional/optional_io.hpp>
 #include <gsl.h>
 #include <platform/checked_snprintf.h>
 #include <string>
@@ -385,8 +386,8 @@ std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
        << " snap:{" << c.getSnapshotStartSeqno() << ","
        << c.getSnapshotEndSeqno() << "}"
        << " state:" << to_string(c.getState())
-       << " type:" << to_string(c.getCheckpointType()) << " items:["
-       << std::endl;
+       << " type:" << to_string(c.getCheckpointType())
+       << " hcs:" << c.getHighCompletedSeqno() << " items:[" << std::endl;
     for (const auto& e : c.toWrite) {
         os << "\t{" << e->getBySeqno() << "," << to_string(e->getOperation());
         e->isDeleted() ? os << "[d]," : os << ",";

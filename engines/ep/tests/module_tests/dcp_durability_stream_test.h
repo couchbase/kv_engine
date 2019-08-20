@@ -155,7 +155,14 @@ protected:
  * Single-threaded.
  */
 class DurabilityPassiveStreamPersistentTest
-    : public DurabilityPassiveStreamTest {};
+    : public DurabilityPassiveStreamTest {
+protected:
+    /**
+     * Test that hte HCS sent in a disk snapshot is persisted by sending sending
+     * a disk snapshot containing a mutation instead of a commit.
+     */
+    void testDiskSnapshotHCSPersisted();
+};
 
 /**
  * ActiveStream tests for Durability against ephemeral buckets. Single-threaded.

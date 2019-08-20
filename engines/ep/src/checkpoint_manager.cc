@@ -855,7 +855,6 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     // limit.
     ItemsForCursor result((*cursor.currentCheckpoint)->getSnapshotStartSeqno(),
                           (*cursor.currentCheckpoint)->getSnapshotEndSeqno(),
-                          (*cursor.currentCheckpoint)->getHighCompletedSeqno(),
                           (*cursor.currentCheckpoint)->getCheckpointType());
 
     size_t itemCount = 0;
@@ -875,17 +874,17 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
         itemCount++;
 
         if (qi->getOperation() == queue_op::checkpoint_end) {
+            // Only move the HCS at checkpoint end (don't want to flush a
+            // HCS mid-checkpoint).
+            result.highCompletedSeqno =
+                    (*cursor.currentCheckpoint)->getHighCompletedSeqno();
+
             // Reached the end of a checkpoint; check if we have exceeded
             // our limit.
             if (itemCount >= approxLimit) {
                 // Reached our limit - don't want any more items.
                 result.range.setEnd(
                         (*cursor.currentCheckpoint)->getSnapshotEndSeqno());
-
-                // Only move the HCS at checkpoint end (don't want to flush a
-                // HCS mid-checkpoint).
-                result.highCompletedSeqno =
-                        (*cursor.currentCheckpoint)->getHighCompletedSeqno();
 
                 // However, we *do* want to move the cursor into the next
                 // checkpoint if possible; as that means the checkpoint we just

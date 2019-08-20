@@ -985,9 +985,25 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     EXPECT_EQ(1, ack.getPreparedSeqno());
 }
 
-TEST_P(DurabilityPassiveStreamPersistentTest, DiskSnapshotHCSPersisted) {
+void DurabilityPassiveStreamPersistentTest::testDiskSnapshotHCSPersisted() {
     testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
             DocumentState::Alive);
+
+    // We won't flush a HCS from a snapshot marker until we process the entire
+    // checkpoint, this is because we need to be pessimistic with flushing the
+    // HCS in a disk checkpoint for our warmup optimization. If we flush a HCS
+    // that is too high whilst receiving a disk snapshot we may end up in some
+    // inconsistent state due to out of order commit.
+    SnapshotMarker marker(
+            0 /*opaque*/,
+            vbid,
+            5 /*snapStart*/,
+            6 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*HCS*/,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
     flushVBucketToDiskIfPersistent(vbid, 2);
     {
         auto vb = store->getVBucket(vbid);
@@ -1009,7 +1025,29 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DiskSnapshotHCSPersisted) {
     {
         auto vb = store->getVBucket(vbid);
         EXPECT_EQ(2, vb->getHighCompletedSeqno());
+        EXPECT_EQ(4, vb->getHighSeqno());
     }
+}
+
+TEST_P(DurabilityPassiveStreamPersistentTest, DiskSnapshotHCSPersisted) {
+    testDiskSnapshotHCSPersisted();
+}
+
+TEST_P(DurabilityPassiveStreamPersistentTest,
+       DiskSnapshotHCSIgnoredIfWeaklyMonotonic) {
+    testDiskSnapshotHCSPersisted();
+    SnapshotMarker marker(0 /*opaque*/,
+                          vbid,
+                          6 /*snapStart*/,
+                          7 /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                          2 /*HCS*/,
+                          {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // We don't flush any items but we will run the flusher which will advance
+    // use out of the checkpoint
+    flushVBucketToDiskIfPersistent(vbid, 0);
 }
 
 TEST_P(DurabilityPassiveStreamTest,

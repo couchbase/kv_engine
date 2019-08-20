@@ -525,7 +525,7 @@ public:
         highCompletedSeqno = seqno;
     }
 
-    boost::optional<uint64_t> getHighCompletedSeqno() {
+    boost::optional<uint64_t> getHighCompletedSeqno() const {
         return highCompletedSeqno;
     }
 
