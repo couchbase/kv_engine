@@ -1599,6 +1599,10 @@ ENGINE_ERROR_CODE VBucket::replace(
         auto* v = htRes.selectSVToModify(itm);
         auto& hbl = htRes.getHBL();
 
+        if (v && v->isPending()) {
+            return ENGINE_SYNC_WRITE_IN_PROGRESS;
+        }
+
         if (v && v->isCompleted()) {
             v = nullptr;
         }

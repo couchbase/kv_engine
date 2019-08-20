@@ -171,6 +171,7 @@ protected:
     void verifyCollectionItemCount(VBucket& vb,
                                    CollectionID cID,
                                    uint64_t expectedValue);
+
 };
 
 /**
@@ -204,6 +205,17 @@ protected:
      */
     void testTakeoverDestinationHandlesPreparedSyncWrites(
             cb::durability::Level level);
+
+    // Call a number of operations where we expect a sync_write in progress
+    // error
+    void checkForSyncWriteInProgess(Item& pendingItem) {
+        auto* anotherClient = create_mock_cookie();
+        ASSERT_EQ(ENGINE_SYNC_WRITE_IN_PROGRESS,
+                  store->set(pendingItem, anotherClient, {}));
+        ASSERT_EQ(ENGINE_SYNC_WRITE_IN_PROGRESS,
+                  store->replace(pendingItem, anotherClient, {}));
+        destroy_mock_cookie(anotherClient);
+    }
 };
 
 class DurabilityEphemeralBucketTest : public STParameterizedBucketTest {
@@ -624,6 +636,8 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     ASSERT_EQ(
             ENGINE_EWOULDBLOCK,
             store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
+
+    checkForSyncWriteInProgess(*pending);
 
     EXPECT_EQ(1, vb.getNumItems());
     EXPECT_EQ(1, vb.ht.getNumPreparedSyncWrites());
