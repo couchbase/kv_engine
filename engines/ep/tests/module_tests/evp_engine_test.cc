@@ -47,7 +47,8 @@ void EventuallyPersistentEngineTest::SetUp() {
     }
 
     // Setup an engine with a single active vBucket.
-    EXPECT_EQ(ENGINE_SUCCESS, create_instance(get_mock_server_api, &handle))
+    EXPECT_EQ(ENGINE_SUCCESS,
+              create_ep_engine_instance(get_mock_server_api, &handle))
             << "Failed to create ep engine instance";
     engine_v1 = reinterpret_cast<EngineIface*>(handle);
 
@@ -84,7 +85,7 @@ void EventuallyPersistentEngineTest::TearDown() {
     engine_v1->destroy(true);
     destroy_mock_event_callbacks();
     destroy_mock_cookie(cookie);
-    destroy_engine();
+    ExecutorPool::shutdown();
     // Cleanup any files we created.
     cb::io::rmrf(test_dbname);
 }

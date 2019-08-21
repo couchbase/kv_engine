@@ -60,7 +60,6 @@
 
 #include <cbsasl/logging.h>
 #include <cbsasl/mechanism.h>
-#include <engines/default_engine.h>
 #include <event2/thread.h>
 #include <mcbp/mcbp.h>
 #include <memcached/audit_interface.h>
@@ -1330,7 +1329,7 @@ struct ServerBucketApi : public ServerBucketIface {
             const std::string& module,
             const std::string& name,
             SERVER_HANDLE_V1* (*get_server_api)()) const override {
-        auto type = module_to_bucket_type(module.c_str());
+        auto type = module_to_bucket_type(module);
         if (type == BucketType::Unknown) {
             return {};
         }
@@ -2352,19 +2351,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     recalculate_max_connections();
 
     if (getenv("MEMCACHED_CRASH_TEST")) {
-        // The crash tests wants the system to generate a crash.
-        // I tried to rethrow the exception instead of logging
-        // the error, but for some reason the python test script
-        // didn't like that..
-        initialize_engine_map();
-    } else {
-        try {
-            initialize_engine_map();
-        } catch (const std::exception& error) {
-            FATAL_ERROR(EXIT_FAILURE,
-                        "Unable to initialize engine map: {}",
-                        error.what());
-        }
+        create_crash_instance();
     }
 
     /* Initialize bucket engine */
@@ -2488,8 +2475,8 @@ extern "C" int memcached_main(int argc, char **argv) {
     LOG_INFO("Deinitialising tracing");
     deinitializeTracing();
 
-    LOG_INFO("Shutting down engine map");
-    shutdown_engine_map();
+    LOG_INFO("Shutting down all engines");
+    shutdown_all_engines();
 
     LOG_INFO("Removing breakpad");
     cb::breakpad::destroy();

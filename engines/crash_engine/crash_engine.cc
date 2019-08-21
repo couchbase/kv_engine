@@ -18,23 +18,16 @@
 /* The "crash" bucket is a bucket which simply crashes when it is initialized.
  * It is intended to be used to test crash catching using Google Breakpad.
  */
+#include "crash_engine_public.h"
+
 #include <stdlib.h>
 #include <gsl/gsl>
 #include <stdexcept>
 #include <string>
 
 #include <memcached/engine.h>
-#include <memcached/visibility.h>
 #include <memcached/util.h>
 #include <memcached/config_parser.h>
-
-extern "C" {
-MEMCACHED_PUBLIC_API
-ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, EngineIface** handle);
-
-MEMCACHED_PUBLIC_API
-void destroy_engine(void);
-} // extern "C"
 
 class CrashEngine : public EngineIface {
 public:
@@ -301,7 +294,8 @@ cb::engine::FeatureSet CrashEngine::getFeatures() {
     return cb::engine::FeatureSet();
 }
 
-ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, EngineIface** handle) {
+ENGINE_ERROR_CODE create_crash_engine_instance(GET_SERVER_API gsa,
+                                               EngineIface** handle) {
     CrashEngine* engine;
 
     try {
@@ -314,6 +308,5 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, EngineIface** handle) {
     return ENGINE_SUCCESS;
 }
 
-void destroy_engine(){
-
+void destroy_crash_engine() {
 }

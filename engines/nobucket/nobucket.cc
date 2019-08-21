@@ -14,7 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "nobucket.h"
+#include "nobucket_public.h"
 
 #include <memcached/dcp.h>
 #include <memcached/durability_spec.h>
@@ -454,6 +454,6 @@ ENGINE_ERROR_CODE create_no_bucket_instance(GET_SERVER_API get_server_api,
 }
 
 MEMCACHED_PUBLIC_API
-void destroy_engine(void) {
+void destroy_no_bucket_engine(void) {
     // Empty
 }

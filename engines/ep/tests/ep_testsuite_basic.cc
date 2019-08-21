@@ -188,7 +188,7 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
             "Incorrect even smaller high wat. percent");
 
     testHarness->reload_engine(&h,
-                               testHarness->engine_path,
+
                                testHarness->get_current_testcase()->cfg,
                                true,
                                true);
@@ -210,8 +210,7 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
     std::string newConfig(testHarness->get_current_testcase()->cfg);
     newConfig += "mem_low_wat=550;mem_high_wat=660";
 
-    testHarness->reload_engine(
-            &h, testHarness->engine_path, newConfig.c_str(), true, true);
+    testHarness->reload_engine(&h, newConfig.c_str(), true, true);
 
     wait_for_warmup_complete(h);
 
@@ -251,8 +250,7 @@ static enum test_result test_whitespace_db(EngineIface* h) {
     if (found != config.npos) {
         config.replace(found, oldparam.size(), newparam);
     }
-    testHarness->reload_engine(
-            &h, testHarness->engine_path, config.c_str(), true, false);
+    testHarness->reload_engine(&h, config.c_str(), true, false);
     wait_for_warmup_complete(h);
 
     vals.clear();
@@ -369,7 +367,7 @@ static enum test_result test_conc_set(EngineIface* h) {
         wait_for_flusher_to_settle(h);
 
         testHarness->reload_engine(&h,
-                                   testHarness->engine_path,
+
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    false);
@@ -1208,7 +1206,7 @@ static enum test_result test_mb5215(EngineIface* h) {
 
     //reload engine
     testHarness->reload_engine(&h,
-                               testHarness->engine_path,
+
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
@@ -1232,7 +1230,7 @@ static enum test_result test_mb5215(EngineIface* h) {
             "touch coolkey");
 
     testHarness->reload_engine(&h,
-                               testHarness->engine_path,
+
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
@@ -1626,7 +1624,7 @@ static enum test_result test_delete_set(EngineIface* h) {
     wait_for_persisted_value(h, "key", "value2");
 
     testHarness->reload_engine(&h,
-                               testHarness->engine_path,
+
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
@@ -1640,7 +1638,7 @@ static enum test_result test_delete_set(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     testHarness->reload_engine(&h,
-                               testHarness->engine_path,
+
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
@@ -1713,7 +1711,7 @@ static enum test_result test_bug7023(EngineIface* h) {
     if (isWarmupEnabled(h)) {
         // Restart again, to verify no data loss.
         testHarness->reload_engine(&h,
-                                   testHarness->engine_path,
+
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    false);
@@ -1797,7 +1795,7 @@ static enum test_result test_mb5172(EngineIface* h) {
 
     // restart the server.
     testHarness->reload_engine(&h,
-                               testHarness->engine_path,
+
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
@@ -1876,7 +1874,7 @@ static enum test_result warmup_mb21769(EngineIface* h) {
 
     // Force a shutdown so the warmup will create failover entries
     testHarness->reload_engine(&h,
-                               testHarness->engine_path,
+
                                testHarness->get_current_testcase()->cfg,
                                true,
                                true);

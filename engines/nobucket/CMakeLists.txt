@@ -1,4 +1,4 @@
-ADD_LIBRARY(nobucket MODULE nobucket.cc)
+ADD_LIBRARY(nobucket SHARED nobucket.cc)
 TARGET_LINK_LIBRARIES(nobucket engine_utilities platform)
 SET_TARGET_PROPERTIES(nobucket PROPERTIES PREFIX "")
 

@@ -118,7 +118,7 @@ static enum test_result test_get_meta_with_extras(EngineIface* h) {
     if (isWarmupEnabled(h)) {
         // restart
         testHarness->reload_engine(&h,
-                                   testHarness->engine_path,
+
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    true);

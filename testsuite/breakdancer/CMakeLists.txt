@@ -29,7 +29,7 @@ IF(${COUCHBASE_PYTHON})
 
         ADD_TEST(NAME memcached-breakdancer-engine-tests_${ID}
                  WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-                 COMMAND engine_testapp -E default_engine.so
+                 COMMAND engine_testapp -E mc
 		                     -T memcached_generated_testsuite_${ID}.so)
     ENDFOREACH()
 ENDIF(${COUCHBASE_PYTHON})

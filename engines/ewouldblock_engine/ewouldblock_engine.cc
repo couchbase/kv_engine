@@ -62,6 +62,7 @@
  */
 
 #include "ewouldblock_engine.h"
+#include "ewouldblock_engine_public.h"
 
 #include <atomic>
 #include <chrono>
@@ -94,16 +95,6 @@
 #include <xattr/blob.h>
 
 #include "utilities/engine_loader.h"
-
-/* Public API declaration ****************************************************/
-
-extern "C" {
-    MEMCACHED_PUBLIC_API
-    ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, EngineIface** handle);
-
-    MEMCACHED_PUBLIC_API
-    void destroy_engine(void);
-}
 
 
 class EWB_Engine;
@@ -1869,7 +1860,8 @@ ENGINE_ERROR_CODE EWB_Engine::abort(gsl::not_null<const void*> cookie,
     }
 }
 
-ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, EngineIface** handle) {
+ENGINE_ERROR_CODE create_ewouldblock_instance(GET_SERVER_API gsa,
+                                              EngineIface** handle) {
     try {
         EWB_Engine* engine = new EWB_Engine(gsa);
         *handle = reinterpret_cast<EngineIface*>(engine);
@@ -1882,7 +1874,7 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, EngineIface** handle) {
     }
 }
 
-void destroy_engine(void) {
+void destroy_ewouldblock_engine(void) {
     // nothing todo.
 }
 

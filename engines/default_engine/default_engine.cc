@@ -9,11 +9,11 @@
 #include <inttypes.h>
 
 #include "default_engine_internal.h"
-#include "memcached/util.h"
-#include "memcached/config_parser.h"
-#include <platform/cb_malloc.h>
-#include "engines/default_engine.h"
+#include "default_engine_public.h"
 #include "engine_manager.h"
+#include "memcached/config_parser.h"
+#include "memcached/util.h"
+#include <platform/cb_malloc.h>
 
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
@@ -83,8 +83,8 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->config.min_compression_ratio = default_min_compression_ratio;
 }
 
-extern "C" ENGINE_ERROR_CODE create_instance(GET_SERVER_API get_server_api,
-                                             EngineIface** handle) {
+extern "C" ENGINE_ERROR_CODE create_memcache_instance(
+        GET_SERVER_API get_server_api, EngineIface** handle) {
     SERVER_HANDLE_V1* api = get_server_api();
     struct default_engine* engine;
 
@@ -103,7 +103,7 @@ extern "C" ENGINE_ERROR_CODE create_instance(GET_SERVER_API get_server_api,
     return ENGINE_SUCCESS;
 }
 
-extern "C" void destroy_engine() {
+extern "C" void destroy_memcache_engine() {
     engine_manager_shutdown();
     assoc_destroy();
 }

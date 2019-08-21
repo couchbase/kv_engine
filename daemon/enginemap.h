@@ -33,29 +33,23 @@ EngineIface* new_engine_instance(BucketType type,
                                  GET_SERVER_API get_server_api);
 
 /**
- * Try to convert from a module name to a bucket type
+ * Convert from a module name to a bucket type
  *
- * @param module the name of the shared object to look up (e.g. ep.so)
- * @param return the constant representing the bucket or UNKNOWN for
- *               unknown shared objects
+ * @param module The engine's shared object name, e.g. BucketType::Couchstore is
+ *               ep.so. The input will be processed by basename, e.g.
+ *               /path/to/ep.so would be valid.
+ * @return The BucketType for the given module, or BucketType::Unknown for
+ *         invalid input.
  */
-BucketType module_to_bucket_type(const char* module);
+BucketType module_to_bucket_type(const std::string& module);
 
 /**
- * Initialize the engine map with the different types of supported
- * engine backends.
- *
- * This method is not MT safe
- *
- * @throws std::bad_alloc on memory failures
- *         std::runtime_error if an error occurs while initializing
- *                            an engine
+ *  Create and initialize an instance of the crash engine which is used for
+ *  breakpad testing
  */
-void initialize_engine_map();
+void create_crash_instance();
 
 /**
- * Release all allocated resources used by the engine map.
- *
- * This method is not MT safe
+ * Call the engine shutdown function for all valid BucketTypes
  */
-void shutdown_engine_map();
+void shutdown_all_engines();

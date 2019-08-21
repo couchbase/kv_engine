@@ -15,111 +15,88 @@
  *   limitations under the License.
  */
 #include "enginemap.h"
+#include "engines/crash_engine/crash_engine_public.h"
+#include "engines/default_engine/default_engine_public.h"
+#include "engines/ep/src/ep_engine_public.h"
+#include "engines/ewouldblock_engine/ewouldblock_engine_public.h"
+#include "engines/nobucket/nobucket_public.h"
 #include "logger/logger.h"
-#include "utilities/engine_loader.h"
 
-#include <platform/cbassert.h>
 #include <platform/dirutils.h>
-#include <string.h>
-#include <iostream>
-#include <map>
-#include <sstream>
 #include <string>
-
-class Engine {
-public:
-    Engine(const std::string& mod, engine_reference* ref)
-        : module(mod), engine_ref(ref) {
-        // EMPTY
-    }
-
-    ~Engine() {
-        unload_engine(engine_ref);
-    }
-
-    bool createInstance(GET_SERVER_API get_server_api, EngineIface** handle) {
-        return create_engine_instance(engine_ref, get_server_api, handle);
-    }
-
-    const std::string &getModule() const {
-        return module;
-    }
-
-private:
-    const std::string module;
-    engine_reference* engine_ref;
-};
-
-Engine* createEngine(const std::string& so, const std::string& function) {
-    auto* engine_ref = load_engine(so.c_str(), function.c_str());
-
-    if (engine_ref == nullptr) {
-        throw std::runtime_error("Failed to load engine \"" + so +
-                                 "\" with symbol \"" + function + "\"");
-    }
-
-    return new Engine(so, engine_ref);
-}
-
-std::map<BucketType, Engine*> map;
 
 EngineIface* new_engine_instance(BucketType type,
                                  const std::string& name,
                                  GET_SERVER_API get_server_api) {
     EngineIface* ret = nullptr;
-    auto iter = map.find(type);
-    cb_assert(iter != map.end());
-
-    if (iter->second->createInstance(get_server_api, &ret)) {
-        LOG_INFO(R"(Create bucket "{}" by using "{}")",
-                 name,
-                 iter->second->getModule());
+    ENGINE_ERROR_CODE status = ENGINE_KEY_ENOENT;
+    switch (type) {
+    case BucketType::NoBucket:
+        status = create_no_bucket_instance(get_server_api, &ret);
+        break;
+    case BucketType::Memcached:
+        status = create_memcache_instance(get_server_api, &ret);
+        break;
+    case BucketType::Couchstore:
+        status = create_ep_engine_instance(get_server_api, &ret);
+        break;
+    case BucketType::EWouldBlock:
+        status = create_ewouldblock_instance(get_server_api, &ret);
+        break;
+    case BucketType::Unknown:
+        // fall through with status == ENGINE_KEY_ENOENT
+        break;
     }
 
-    return reinterpret_cast<EngineIface*>(ret);
-}
-
-void initialize_engine_map() {
-    map[BucketType::NoBucket] =
-            createEngine("nobucket.so", "create_no_bucket_instance");
-    map[BucketType::Memcached] =
-            createEngine("default_engine.so", "create_instance");
-    map[BucketType::Couchstore] = createEngine("ep.so", "create_instance");
-    if (getenv("MEMCACHED_UNIT_TESTS") != NULL) {
-        // The crash test just wants to create a coredump within the
-        // crash_engine to ensure that breakpad successfuly creates
-        // the dump files etc
-        if (getenv("MEMCACHED_CRASH_TEST") != NULL) {
-            auto engine = createEngine("crash_engine.so", "create_instance");
-            EngineIface* h;
-            if (!engine->createInstance(nullptr, &h)) {
-                delete engine;
-                throw std::runtime_error(
-                        "initialize_engine_map(): Failed to create instance of "
-                        "crash engine");
-            }
-            h->initialize(nullptr);
-            // Not reached, but to mute code analyzers
-            delete engine;
-        }
-        map[BucketType::EWouldBlock] =
-                createEngine("ewouldblock_engine.so", "create_instance");
+    if (status != ENGINE_SUCCESS) {
+        throw std::runtime_error(
+                "new_engine_instance(): Failed to create name:" + name +
+                " of type:" + to_string(type) +
+                " error:" + cb::to_string(cb::to_engine_errc(status)));
     }
+
+    return ret;
 }
 
-BucketType module_to_bucket_type(const char* module) {
-    std::string nm = cb::io::basename(module);
-    for (auto entry : map) {
-        if (entry.second->getModule() == nm) {
-            return entry.first;
-        }
+void create_crash_instance() {
+    EngineIface* h;
+    if (create_crash_engine_instance(nullptr, &h) != ENGINE_SUCCESS) {
+        throw std::runtime_error(
+                "create_crash_instance(): Failed to create instance of crash "
+                "engine");
+    }
+    h->initialize(nullptr);
+}
+
+BucketType module_to_bucket_type(const std::string& module) {
+    std::string nm = cb::io::basename(module.c_str());
+    if (nm == "nobucket.so") {
+        return BucketType::NoBucket;
+    } else if (nm == "default_engine.so") {
+        return BucketType::Memcached;
+    } else if (nm == "ep.so") {
+        return BucketType::Couchstore;
+    } else if (nm == "ewouldblock_engine.so") {
+        return BucketType::EWouldBlock;
     }
     return BucketType::Unknown;
 }
 
-void shutdown_engine_map(void)
-{
-    for (auto entry : map) {
-        delete entry.second;
+void shutdown_all_engines(void) {
+    // switch statement deliberately falls through all cases as all engine types
+    // need shutting down. The use of a case statement ensures new bucket types
+    // are also considered for shutdown (requires the non-const type input)
+    auto type = BucketType::NoBucket;
+    switch (type) {
+    case BucketType::NoBucket:
+        destroy_no_bucket_engine();
+    case BucketType::Memcached:
+        destroy_memcache_engine();
+    case BucketType::Couchstore:
+        destroy_ep_engine();
+    case BucketType::EWouldBlock:
+        destroy_ewouldblock_engine();
+    case BucketType::Unknown:
+        break;
     }
 }

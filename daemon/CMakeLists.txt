@@ -226,10 +226,15 @@ ADD_DEPENDENCIES(memcached_daemon generate_audit_descriptors)
 
 TARGET_LINK_LIBRARIES(memcached_daemon
                       auditd
+                      crash_engine
+                      default_engine
+                      ep
+                      ewouldblock_engine
                       mcd_util
                       mcd_tracing
                       mcbp
                       memcached_logger
+                      nobucket
                       cbsasl
                       cbcompress
                       engine_utilities

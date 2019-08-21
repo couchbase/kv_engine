@@ -3825,7 +3825,7 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
 
     if (restart) {
         testHarness->reload_engine(&h,
-                                   testHarness->engine_path,
+
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    true);
@@ -4355,7 +4355,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
     verify_curr_items(h, num_items, "Wrong amount of items");
 
     testHarness->reload_engine(&h,
-                               testHarness->engine_path,
+
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
@@ -5516,7 +5516,7 @@ static enum test_result test_dcp_replica_stream_backfill_MB_34173(
     testHarness->destroy_cookie(cookie);
 
     testHarness->reload_engine(&h,
-                               testHarness->engine_path,
+
                                testHarness->get_current_testcase()->cfg,
                                true,
                                true);
@@ -6671,7 +6671,7 @@ static enum test_result test_failover_log_dcp(EngineIface* h) {
     wait_for_stat_to_be(h, "curr_items", num_items);
 
     testHarness->reload_engine(&h,
-                               testHarness->engine_path,
+
                                testHarness->get_current_testcase()->cfg,
                                true,
                                true);

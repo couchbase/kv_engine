@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <daemon/bucket_type.h>
 #include <memcached/engine.h>
 #include <functional>
 
@@ -43,7 +44,7 @@ using PreLinkFunction = std::function<void(item_info&)>;
 struct test_harness {
     virtual ~test_harness() = default;
 
-    const char* engine_path = nullptr;
+    BucketType bucketType = BucketType::Unknown;
     const char* default_engine_cfg = nullptr;
     OutputFormat output_format = OutputFormat::Text;
     const char* output_file_prefix = "output.";
@@ -133,7 +134,6 @@ struct test_harness {
 
     /**
      * Create a new bucket instance
-     *
      * @param initialize set to true if the initialize method should be called
      *                   on the newly created instance
      * @param cfg The configuration to pass to initialize (if enabled)
@@ -153,13 +153,11 @@ struct test_harness {
      * Try to reload the current engine
      *
      * @param handle a pointer to the old handle (and the new one is returned)
-     * @param engine the name of the engine
      * @param cfg the configuration to use
      * @param init it initialize should be called or not
      * @param force should the old one be shut down with force or not
      */
     virtual void reload_engine(EngineIface** h,
-                               const char* engine,
                                const char* cfg,
                                bool init,
                                bool force) = 0;

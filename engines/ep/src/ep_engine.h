@@ -19,6 +19,7 @@
 
 #include "configuration.h"
 #include "connhandler.h"
+#include "ep_engine_public.h"
 #include "permitted_vb_states.h"
 #include "stats.h"
 #include "storeddockey.h"
@@ -49,13 +50,6 @@ class StoredValue;
 class VBucketCountVisitor;
 
 extern "C" {
-    MEMCACHED_PUBLIC_API
-    ENGINE_ERROR_CODE create_instance(GET_SERVER_API get_server_api,
-                                      EngineIface** handle);
-
-    MEMCACHED_PUBLIC_API
-    void destroy_engine(void);
-
     void EvpNotifyPendingConns(void*arg);
 }
 
@@ -818,9 +812,8 @@ protected:
     }
 
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);
-    friend ENGINE_ERROR_CODE create_instance(GET_SERVER_API get_server_api,
-                                             EngineIface** handle);
-
+    friend ENGINE_ERROR_CODE create_ep_engine_instance(
+            GET_SERVER_API get_server_api, EngineIface** handle);
     /**
      * Report the state of a memory condition when out of memory.
      *

@@ -18,6 +18,7 @@
 #include "mock_server.h"
 
 #include <daemon/alloc_hooks.h>
+#include <daemon/enginemap.h>
 #include <logger/logger.h>
 #include <memcached/dcp.h>
 #include <memcached/durability_spec.h>
@@ -962,14 +963,12 @@ ENGINE_ERROR_CODE mock_engine::abort(gsl::not_null<const void*> cookie,
 
 static void usage() {
     printf("\n");
-    printf("engine_testapp -E <path_to_engine_lib> -T <path_to_testlib>\n");
+    printf("engine_testapp -E <ep|mc> -T <path_to_testlib>\n");
     printf("               [-e <engine_config>] [-h] [-X]\n");
     printf("\n");
-    printf("-E <path_to_engine_lib>      Path to the engine library file. The\n");
-    printf("                             engine library file is a library file\n");
-    printf("                             (.so or .dll) that the contains the \n");
-    printf("                             implementation of the engine being\n");
-    printf("                             tested.\n");
+    printf("-E <ep|mc>                   The engine to use.\n");
+    printf("                               ep = ep-engine\n");
+    printf("                               mc = default/memcache\n");
     printf("\n");
     printf("-T <path_to_testlib>         Path to the test library file. The test\n");
     printf("                             library file is a library file (.so or\n");
@@ -1081,21 +1080,6 @@ static int report_test(const char* name,
     return rc;
 }
 
-static engine_reference* engine_ref = nullptr;
-static bool start_your_engine(const char *engine) {
-    if ((engine_ref = load_engine(engine, nullptr)) == nullptr) {
-        fprintf(stderr, "Failed to load engine %s.\n", engine);
-        return false;
-    }
-    return true;
-}
-
-static void stop_your_engine() {
-    PHOSPHOR_INSTANCE.stop();
-    unload_engine(engine_ref);
-    engine_ref = nullptr;
-}
-
 class MockTestHarness : public test_harness {
 public:
     const void* create_cookie() override {
@@ -1166,24 +1150,23 @@ public:
 
     EngineIface* create_bucket(bool initialize, const char* cfg) override {
         auto me = std::make_unique<mock_engine>();
-        EngineIface* handle = nullptr;
+        EngineIface* handle = new_engine_instance(
+                bucketType, "engine_testapp", &get_mock_server_api);
 
-        if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
+        if (handle) {
             me->the_engine = (EngineIface*)handle;
             me->the_engine_dcp = dynamic_cast<DcpIface*>(handle);
-
             if (initialize) {
-                if (!init_engine_instance(handle, cfg)) {
-                    fprintf(stderr,
-                            "Failed to init engine with config %s.\n",
-                            cfg);
-                    return nullptr;
+                const auto error = me->the_engine->initialize(cfg);
+                if (error != ENGINE_SUCCESS) {
+                    me->the_engine->destroy(false /*force*/);
+                    cb::engine_error err{cb::engine_errc(error),
+                                         "Failed to initialize instance"};
+                    throw err;
                 }
             }
-
-            return me.release();
         }
-        return nullptr;
+        return me.release();
     }
 
     void destroy_bucket(EngineIface* handle, bool force) override {
@@ -1192,15 +1175,12 @@ public:
     }
 
     void reload_engine(EngineIface** h,
-                       const char* engine,
                        const char* cfg,
                        bool init,
                        bool force) override {
         disconnect_all_mock_connections();
         destroy_bucket(*h, force);
         destroy_mock_event_callbacks();
-        stop_your_engine();
-        start_your_engine(engine);
         currentEngineHandle = *h = create_bucket(init, cfg);
     }
 
@@ -1302,12 +1282,6 @@ static test_result execute_test(engine_test_t test,
         get_mock_server_api()->log->set_level(spd_log_level);
         get_mock_server_api()->log->get_spdlogger()->set_level(spd_log_level);
 
-        /* Start the engine and go */
-        if (!start_your_engine(engine)) {
-            fprintf(stderr, "Failed to start engine %s\n", engine);
-            return FAIL;
-        }
-
         if (test_api_1) {
             // all test (API1) get 1 bucket and they are welcome to ask for more.
             currentEngineHandle = harness.create_bucket(
@@ -1347,7 +1321,8 @@ static test_result execute_test(engine_test_t test,
         }
 
         destroy_mock_event_callbacks();
-        stop_your_engine();
+        shutdown_all_engines();
+        PHOSPHOR_INSTANCE.stop();
 
         if (test.cleanup) {
             test.cleanup(&test, ret);
@@ -1406,23 +1381,26 @@ int main(int argc, char **argv) {
     install_backtrace_terminate_handler();
 
     /* process arguments */
-    while ((c = getopt(argc, argv,
-                       "a:" /* attempt tests N times before declaring them failed */
-                       "h"  /* usage */
-                       "E:" /* Engine to load */
-                       "e:" /* Engine options */
-                       "T:" /* Library with tests to load */
-                       "L"  /* Loop until failure */
-                       "q"  /* Be more quiet (only report failures) */
-                       "."  /* dot mode. */
-                       "n:"  /* regex for test case(s) to run */
-                       "v" /* verbose output */
-                       "Z"  /* Terminate on first error */
-                       "C:" /* Test case id */
-                       "s" /* spinlock the program */
-                       "X" /* Use stderr logger */
-                       "f:" /* output format. Valid values are: 'text' and 'xml' */
-                       )) != -1) {
+    while ((c = getopt(
+                    argc,
+                    argv,
+                    "a:" /* attempt tests N times before declaring them failed
+                          */
+                    "h" /* usage */
+                    "E:" /* Engine to use */
+                    "e:" /* Engine options */
+                    "T:" /* Library with tests to load */
+                    "L" /* Loop until failure */
+                    "q" /* Be more quiet (only report failures) */
+                    "." /* dot mode. */
+                    "n:" /* regex for test case(s) to run */
+                    "v" /* verbose output */
+                    "Z" /* Terminate on first error */
+                    "C:" /* Test case id */
+                    "s" /* spinlock the program */
+                    "X" /* Use stderr logger */
+                    "f:" /* output format. Valid values are: 'text' and 'xml' */
+                    )) != -1) {
         switch (c) {
         case 'a':
             attempts = std::stoi(optarg);
@@ -1489,8 +1467,14 @@ int main(int argc, char **argv) {
 
     /* validate args */
     if (engine == nullptr) {
-        fprintf(stderr, "You must provide a path to the storage engine library.\n");
+        fprintf(stderr, "-E <ep|mc> is a required parameter.\n");
         return 1;
+    } else {
+        if (strncmp(engine, "ep", 2) == 0) {
+            harness.bucketType = BucketType::Couchstore;
+        } else if (strncmp(engine, "mc", 2) == 0) {
+            harness.bucketType = BucketType::Memcached;
+        }
     }
 
     if (test_suite == nullptr) {
@@ -1519,7 +1503,6 @@ int main(int argc, char **argv) {
 
     /* set up the suite if needed */
     harness.default_engine_cfg = engine_args;
-    harness.engine_path = engine;
 
     /* Check to see whether the config string string sets the bucket type. */
     if (harness.default_engine_cfg != nullptr) {

@@ -31,6 +31,7 @@
 #include "dcp/msg_producers_border_guard.h"
 #include "dcp/producer.h"
 #include "ep_bucket.h"
+#include "ep_engine_public.h"
 #include "ep_vb.h"
 #include "ephemeral_bucket.h"
 #include "executorpool.h"
@@ -1729,8 +1730,8 @@ static void EvpHandleDisconnect(const void* cookie,
  * @param handle Where to return the new instance
  * @return ENGINE_SUCCESS on success
  */
-ENGINE_ERROR_CODE create_instance(GET_SERVER_API get_server_api,
-                                  EngineIface** handle) {
+ENGINE_ERROR_CODE create_ep_engine_instance(GET_SERVER_API get_server_api,
+                                            EngineIface** handle) {
     SERVER_HANDLE_V1* api = get_server_api();
     if (api == NULL) {
         return ENGINE_ENOTSUP;
@@ -1770,12 +1771,13 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API get_server_api,
     This method is called prior to unloading of the shared-object.
     Global clean-up should be performed from this method.
 */
-void destroy_engine() {
+void destroy_ep_engine() {
     ExecutorPool::shutdown();
     // A single MemoryTracker exists for *all* buckets
     // and must be destroyed before unloading the shared object.
     MemoryTracker::destroyInstance();
     ObjectRegistry::reset();
+    globalBucketLogger.reset();
 }
 
 bool EventuallyPersistentEngine::get_item_info(

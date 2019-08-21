@@ -39,13 +39,11 @@ public:
 
     static void SetUpTestCase() {
         cb::logger::createBlackholeLogger();
-        initialize_engine_map();
         initialize_buckets();
     }
 
     static void TearDownTestCase() {
         cleanup_buckets();
-        shutdown_engine_map();
     }
 
 protected:
