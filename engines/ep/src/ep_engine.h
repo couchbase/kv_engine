@@ -409,9 +409,6 @@ public:
      *            back to the client
      * @param vbucket vbucket id to which the deleted key corresponds to
      * @param durability Optional durability requirements for this deletion.
-     * @param item_meta pointer to item meta data that needs to be
-     *                  as a result the delete. A NULL pointer indicates
-     *                  that no meta data needs to be returned.
      * @param mut_info pointer to the mutation info that resulted from
      *                 the delete.
      *
@@ -424,7 +421,6 @@ public:
             uint64_t& cas,
             Vbid vbucket,
             boost::optional<cb::durability::Requirements> durability,
-            ItemMetaData* item_meta,
             mutation_descr_t& mut_info);
 
     void itemRelease(item* itm);

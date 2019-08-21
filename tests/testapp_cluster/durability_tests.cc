@@ -108,8 +108,7 @@ TEST_F(DurabilityTest, Prepend) {
     mutate(*getConnection(), "Prepend", MutationType::Prepend);
 }
 
-// This is blocked by MB-35546
-TEST_F(DurabilityTest, DISABLED_Delete) {
+TEST_F(DurabilityTest, Delete) {
     auto conn = getConnection();
     const auto old =
             conn->store("Delete", Vbid{0}, "", cb::mcbp::Datatype::Raw);
