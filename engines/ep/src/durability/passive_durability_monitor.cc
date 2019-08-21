@@ -342,7 +342,7 @@ void PassiveDurabilityMonitor::completeSyncWrite(
     // duplicates in trackedWrites in case it is not removed because it requires
     // persistence.
     Expects(!next->isCompleted());
-    next->setCompleted();
+    next->setStatus(SyncWriteStatus::Completed);
 
     // HCS has moved, which could make some Prepare eligible for removal.
     s->checkForAndRemovePrepares();

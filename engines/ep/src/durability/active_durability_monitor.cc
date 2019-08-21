@@ -157,9 +157,10 @@ struct ActiveDurabilityMonitor::State {
      * Remove the given SyncWrte from tracking.
      *
      * @param it The iterator to the SyncWrite to be removed
+     * @param status The SyncWriteStatus to set the SyncWrite to as we remove it
      * @return the removed SyncWrite.
      */
-    SyncWrite removeSyncWrite(Container::iterator it);
+    SyncWrite removeSyncWrite(Container::iterator it, SyncWriteStatus status);
 
     /**
      * Logically 'moves' forward the High Prepared Seqno to the last
@@ -732,11 +733,22 @@ void ActiveDurabilityMonitor::processCompletedSyncWriteQueue() {
     std::lock_guard<ResolvedQueue::ConsumerLock> lock(
             resolvedQueue->getConsumerLock());
     while (folly::Optional<SyncWrite> sw = resolvedQueue->try_dequeue(lock)) {
-        if (sw->isSatisfied()) {
+        switch (sw->getStatus()) {
+        case SyncWriteStatus::Pending:
+        case SyncWriteStatus::Completed:
+            throw std::logic_error(
+                    "ActiveDurabilityMonitor::processCompletedSyncWriteQueue "
+                    "found a SyncWrite with unexpected state: " +
+                    to_string(sw->getStatus()));
+            continue;
+        case SyncWriteStatus::ToCommit:
             commit(*sw);
-        } else {
+            continue;
+        case SyncWriteStatus::ToAbort:
             abort(*sw);
+            continue;
         }
+        folly::assume_unreachable();
     };
 }
 
@@ -1001,10 +1013,16 @@ int64_t ActiveDurabilityMonitor::State::getNodeAckSeqno(
 }
 
 DurabilityMonitor::SyncWrite ActiveDurabilityMonitor::State::removeSyncWrite(
-        Container::iterator it) {
+        Container::iterator it, SyncWriteStatus status) {
     if (it == trackedWrites.end()) {
         throwException<std::logic_error>(__func__, "Position points to end");
     }
+
+    it->setStatus(status);
+    // Reset the chains so that we don't attempt to use some possibly re-used
+    // memory if we have any bugs that still touch the chains after we remove
+    // the SyncWrite from trackedWrites.
+    it->initialiseChains(nullptr, nullptr);
 
     Container::iterator prev;
     // Note: iterators in trackedWrites are never singular, Container::end
@@ -1149,7 +1167,8 @@ void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
 
         // Check if Durability Requirements satisfied now, and add for commit
         if (posIt->isSatisfied()) {
-            toCommit.enqueue(*this, removeSyncWrite(posIt));
+            toCommit.enqueue(*this,
+                             removeSyncWrite(posIt, SyncWriteStatus::ToCommit));
         }
     }
 
@@ -1175,7 +1194,8 @@ size_t ActiveDurabilityMonitor::wipeTracked() {
     while (it != s->trackedWrites.end()) {
         // Note: 'it' will be invalidated, so it will need to be reset
         const auto next = std::next(it);
-        s->removeSyncWrite(it);
+        // Status does not matter, just nuking trackedWrites
+        s->removeSyncWrite(it, SyncWriteStatus::Pending);
         removed++;
         it = next;
     }
@@ -1490,7 +1510,9 @@ void ActiveDurabilityMonitor::State::abortNoLongerPossibleSyncWrites(
                 // Grab the next itr before we overwrite ours to point to a
                 // different list.
                 auto next = std::next(itr);
-                toAbort.enqueue(*this, removeSyncWrite(trackedWrites.begin()));
+                toAbort.enqueue(*this,
+                                removeSyncWrite(trackedWrites.begin(),
+                                                SyncWriteStatus::ToAbort));
                 itr = next;
             } else {
                 itr++;
@@ -1524,9 +1546,10 @@ void ActiveDurabilityMonitor::State::cleanUpTrackedWritesPostTopologyChange(
         // snapshot. We have to do this after we set the HPS otherwise we could
         // end up with an ADM with lower HPS than the previous PDM.
         if (it->isCompleted()) {
-            removeSyncWrite(it);
+            removeSyncWrite(it, SyncWriteStatus::Completed);
         } else if (it->isSatisfied()) {
-            toCommit.enqueue(*this, removeSyncWrite(it));
+            toCommit.enqueue(*this,
+                             removeSyncWrite(it, SyncWriteStatus::ToCommit));
         }
         it = next;
     }
@@ -1556,7 +1579,8 @@ void ActiveDurabilityMonitor::State::removeExpired(
             // Note: 'it' will be invalidated, so it will need to be reset
             const auto next = std::next(it);
 
-            expired.enqueue(*this, removeSyncWrite(it));
+            expired.enqueue(*this,
+                            removeSyncWrite(it, SyncWriteStatus::ToAbort));
 
             it = next;
         } else {
@@ -1621,7 +1645,8 @@ void ActiveDurabilityMonitor::State::updateHighPreparedSeqno(
         const auto& pos = firstChain->positions.at(active);
         Expects(pos.it != trackedWrites.end());
         if (pos.it->isSatisfied()) {
-            completed.enqueue(*this, removeSyncWrite(pos.it));
+            completed.enqueue(
+                    *this, removeSyncWrite(pos.it, SyncWriteStatus::ToCommit));
         }
     };
 

@@ -372,3 +372,17 @@ std::string to_string(
     ss << "}";
     return ss.str();
 }
+
+std::string to_string(SyncWriteStatus status) {
+    switch (status) {
+    case SyncWriteStatus::Pending:
+        return "Pending";
+    case SyncWriteStatus::ToCommit:
+        return "ToCommit";
+    case SyncWriteStatus::ToAbort:
+        return "ToAbort";
+    case SyncWriteStatus::Completed:
+        return "Completed";
+    }
+    folly::assume_unreachable();
+}

@@ -40,6 +40,29 @@ class PassiveDurabilityMonitor;
 static const std::string UndefinedNode{};
 
 /**
+ * The status of an in-flight SyncWrite
+ */
+enum class SyncWriteStatus {
+    // Still waiting for enough acks to commit or to timeout.
+    Pending = 0,
+
+    // Should be committed, enough nodes have acked. Should not exist in
+    // trackedWrites in this state.
+    ToCommit,
+
+    // Should be aborted. Should not exist in trackedWrites in this state.
+    ToAbort,
+
+    // A replica receiving a disk snapshot or a snapshot with a persist level
+    // prepare may not remove the SyncWrite object from trackedWrites until
+    // it has been persisted. This SyncWrite has been Completed but may still
+    // exist in trackedWrites.
+    Completed,
+};
+
+std::string to_string(SyncWriteStatus status);
+
+/**
  * Represents a tracked SyncWrite. It is mainly a wrapper around a pending
  * Prepare item.
  */
@@ -151,18 +174,21 @@ public:
         return item;
     }
 
-    void setCompleted() {
-        completed = true;
+    void setStatus(SyncWriteStatus status) {
+        this->status = status;
     }
 
     /**
      * @return true if this SyncWrite has been logically completed
      */
     bool isCompleted() const {
-        return completed;
+        return status == SyncWriteStatus::Completed;
     }
 
-private:
+    SyncWriteStatus getStatus() const {
+        return status;
+    }
+
     /**
      * Performs sanity checks and initialise the replication chains
      * @param firstChain Pointer (may be null) to the first chain
@@ -170,6 +196,8 @@ private:
      */
     void initialiseChains(const ReplicationChain* firstChain,
                           const ReplicationChain* secondChain);
+
+private:
     /**
      * Calculate the ackCount for this SyncWrite using the given chain.
      *
@@ -226,14 +254,7 @@ private:
     /// Used for statistics (track how long SyncWrites take to complete).
     const std::chrono::steady_clock::time_point startTime;
 
-    /**
-     * A replica receiving a disk snapshot or a snapshot with a persist level
-     * prepare may not remove the SyncWrite object from trackedWrites until
-     * it has been persisted. This field exists to distinguish prepares that
-     * have been completed but still exist in trackedWrites from those that have
-     * not yet been completed.
-     */
-    bool completed = false;
+    SyncWriteStatus status = SyncWriteStatus::Pending;
 
     friend std::ostream& operator<<(std::ostream&, const SyncWrite&);
 };

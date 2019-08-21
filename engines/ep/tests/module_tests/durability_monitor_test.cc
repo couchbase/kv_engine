@@ -986,6 +986,21 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceivedConcurrentDataRace) {
     EXPECT_EQ(makeStoredDocKey("key2"), items[1]->getKey());
 }
 
+TEST_P(ActiveDurabilityMonitorTest,
+       CommitTopologyWithSyncWriteInCompletedQueue) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(nlohmann::json({{active, replica1, replica2}}));
+    DurabilityMonitorTest::addSyncWrites({1});
+
+    notifyPersistence(1, 1, 0);
+
+    setSeqnoAckReceivedPostProcessHook([this, &adm]() {
+        adm.setReplicationTopology(nlohmann::json::array({{active, replica1}}));
+    });
+
+    adm.seqnoAckReceived("replica1", 1);
+}
+
 // @todo: Refactor test suite and expand test cases
 TEST_P(ActiveDurabilityMonitorPersistentTest,
        SeqnoAckReceived_PersistToMajority) {
