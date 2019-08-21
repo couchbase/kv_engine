@@ -43,7 +43,7 @@ ValidatorTest::ValidatorTest(bool collectionsEnabled)
 }
 
 void ValidatorTest::SetUp() {
-    settings.setXattrEnabled(true);
+    Settings::instance().setXattrEnabled(true);
     connection.setCollectionsSupported(collectionsEnabled);
     memset(request.bytes, 0, sizeof(request));
     request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);

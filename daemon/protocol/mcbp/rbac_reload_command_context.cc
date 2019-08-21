@@ -40,9 +40,9 @@ public:
         try {
             LOG_INFO("{}: Loading RBAC configuration from [{}] {}",
                      connection.getId(),
-                     settings.getRbacFile(),
+                     Settings::instance().getRbacFile(),
                      connection.getDescription());
-            cb::rbac::loadPrivilegeDatabase(settings.getRbacFile());
+            cb::rbac::loadPrivilegeDatabase(Settings::instance().getRbacFile());
             LOG_INFO("{}: RBAC configuration updated {}",
                      connection.getId(),
                      connection.getDescription());
@@ -51,7 +51,7 @@ public:
                     "{}: RbacConfigReloadTask(): An error occured while "
                     "loading RBAC configuration from [{}] {}: {}",
                     connection.getId(),
-                    settings.getRbacFile(),
+                    Settings::instance().getRbacFile(),
                     connection.getDescription(),
                     error.what());
             status = ENGINE_FAILED;

@@ -180,7 +180,7 @@ Connection* conn_new(SOCKET sfd,
                  bucket.name);
     }
 
-    if (settings.getVerbose() > 1) {
+    if (Settings::instance().getVerbose() > 1) {
         LOG_DEBUG("<{} new client connection", sfd);
     }
 

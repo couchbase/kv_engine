@@ -152,10 +152,10 @@ void ServerSocket::acceptNewClient() {
     if (interface->system) {
         ++stats.system_conns;
         current = stats.getSystemConnections();
-        limit = settings.getSystemConnections();
+        limit = Settings::instance().getSystemConnections();
     } else {
         current = stats.getUserConnections();
-        limit = settings.getMaxUserConnections();
+        limit = Settings::instance().getMaxUserConnections();
     }
 
     LOG_DEBUG("Accepting client {} of {}{}",

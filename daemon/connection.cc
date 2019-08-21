@@ -357,7 +357,7 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
         const std::string privilege_string = cb::rbac::to_string(privilege);
         const std::string context = privilegeContext.to_string();
 
-        if (settings.isPrivilegeDebug()) {
+        if (Settings::instance().isPrivilegeDebug()) {
             audit_privilege_debug(*this,
                                   command,
                                   all_buckets[bucketIndex].name,
@@ -743,7 +743,8 @@ int Connection::sslPreConnection() {
             disconnect = true;
             break;
         case cb::x509::Status::NotPresent:
-            if (settings.getClientCertMode() == cb::x509::Mode::Mandatory) {
+            if (Settings::instance().getClientCertMode() ==
+                cb::x509::Mode::Mandatory) {
                 disconnect = true;
             } else if (is_default_bucket_enabled()) {
                 associate_bucket(*this, "default");
@@ -1122,7 +1123,7 @@ int Connection::sslRead(char* dest, size_t nbytes) {
 int Connection::sslWrite(const char* src, size_t nbytes) {
     int ret = 0;
 
-    int chunksize = settings.getBioDrainBufferSize();
+    int chunksize = Settings::instance().getBioDrainBufferSize();
 
     while (ret < int(nbytes)) {
         int n;
@@ -1249,7 +1250,7 @@ void Connection::ensureIovSpace() {
 
 bool Connection::enableSSL(const std::string& cert, const std::string& pkey) {
     if (ssl.enable(cert, pkey)) {
-        if (settings.getVerbose() > 1) {
+        if (Settings::instance().getVerbose() > 1) {
             ssl.dumpCipherList(getId());
         }
 
@@ -1267,7 +1268,7 @@ Connection::Connection(FrontEndThread& thr)
       peername("unknown"),
       sockname("unknown"),
       stateMachine(*this),
-      max_reqs_per_event(settings.getRequestsPerEventNotification(
+      max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)) {
     updateDescription();
     cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
@@ -1286,7 +1287,7 @@ Connection::Connection(SOCKET sfd,
       peername(cb::net::getpeername(socketDescriptor)),
       sockname(cb::net::getsockname(socketDescriptor)),
       stateMachine(*this),
-      max_reqs_per_event(settings.getRequestsPerEventNotification(
+      max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)) {
     setTcpNoDelay(true);
     updateDescription();
@@ -1330,7 +1331,7 @@ void Connection::setState(StateMachine::State next_state) {
 }
 
 void Connection::runStateMachinery() {
-    if (settings.getVerbose() > 1) {
+    if (Settings::instance().getVerbose() > 1) {
         do {
             LOG_DEBUG("{} - Running task: {}",
                       getId(),
@@ -1557,15 +1558,18 @@ void Connection::setPriority(Connection::Priority priority) {
     switch (priority) {
     case Priority::High:
         max_reqs_per_event =
-                settings.getRequestsPerEventNotification(EventPriority::High);
+                Settings::instance().getRequestsPerEventNotification(
+                        EventPriority::High);
         return;
     case Priority::Medium:
         max_reqs_per_event =
-                settings.getRequestsPerEventNotification(EventPriority::Medium);
+                Settings::instance().getRequestsPerEventNotification(
+                        EventPriority::Medium);
         return;
     case Priority::Low:
         max_reqs_per_event =
-                settings.getRequestsPerEventNotification(EventPriority::Low);
+                Settings::instance().getRequestsPerEventNotification(
+                        EventPriority::Low);
         return;
     }
     throw std::invalid_argument("Unkown priority: " +
@@ -1575,9 +1579,10 @@ void Connection::setPriority(Connection::Priority priority) {
 bool Connection::selectedBucketIsXattrEnabled() const {
     auto* bucketEngine = getBucketEngine();
     if (bucketEngine) {
-        return settings.isXattrEnabled() && bucketEngine->isXattrEnabled();
+        return Settings::instance().isXattrEnabled() &&
+               bucketEngine->isXattrEnabled();
     }
-    return settings.isXattrEnabled();
+    return Settings::instance().isXattrEnabled();
 }
 
 ENGINE_ERROR_CODE Connection::add_packet_to_send_pipe(

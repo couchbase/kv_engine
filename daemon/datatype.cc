@@ -21,11 +21,11 @@
 bool Datatype::isSupported(cb::mcbp::Feature feature) {
     switch (feature) {
     case cb::mcbp::Feature::XATTR:
-        return settings.isXattrEnabled();
+        return Settings::instance().isXattrEnabled();
     case cb::mcbp::Feature::JSON:
-        return settings.isDatatypeJsonEnabled();
+        return Settings::instance().isDatatypeJsonEnabled();
     case cb::mcbp::Feature::SNAPPY:
-        return settings.isDatatypeSnappyEnabled();
+        return Settings::instance().isDatatypeSnappyEnabled();
     case cb::mcbp::Feature::TLS:
     case cb::mcbp::Feature::TCPNODELAY:
     case cb::mcbp::Feature::MUTATION_SEQNO:

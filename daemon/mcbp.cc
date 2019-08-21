@@ -114,7 +114,7 @@ void mcbp_add_header(Cookie& cookie,
                                       header.getOpaque(),
                                       cookie.getCas());
 
-    if (settings.getVerbose() > 1) {
+    if (Settings::instance().getVerbose() > 1) {
         auto* header = reinterpret_cast<const cb::mcbp::Header*>(wbuf.data());
         try {
             LOG_TRACE("<{} Sending: {}",

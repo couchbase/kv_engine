@@ -47,6 +47,8 @@ enum class EventPriority {
 /**
  * Globally accessible settings as derived from the commandline / JSON config
  * file.
+ *
+ * Typically only the singleton instance (accessible via instance() is used.
  */
 class Settings {
 public:
@@ -62,6 +64,8 @@ public:
 
     Settings(const Settings&) = delete;
 
+    /// Returns a reference to the singleton instance of Settings.
+    static Settings& instance();
 
     /**
      * Allow the global settings instance to be changed by loading the
@@ -1036,5 +1040,3 @@ protected:
 
     void notify_changed(const std::string& key);
 };
-
-extern Settings settings;

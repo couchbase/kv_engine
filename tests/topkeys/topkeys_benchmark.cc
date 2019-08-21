@@ -29,7 +29,7 @@ class TopkeysBench : public benchmark::Fixture {
 protected:
     TopkeysBench() {
         topkeys = std::make_unique<TopKeys>(50);
-        settings.setTopkeysEnabled(true);
+        Settings::instance().setTopkeysEnabled(true);
         for (int ii = 0; ii < 10000; ii++) {
             keys.emplace_back("topkey_test_" + std::to_string(ii));
         }
@@ -44,7 +44,7 @@ protected:
  */
 BENCHMARK_DEFINE_F(TopkeysBench, TopkeysDisabled)(benchmark::State& state) {
     if (state.thread_index == 0) {
-        settings.setTopkeysEnabled(false);
+        Settings::instance().setTopkeysEnabled(false);
     }
 
     const auto* k = keys[0].data();
@@ -61,7 +61,7 @@ BENCHMARK_DEFINE_F(TopkeysBench, TopkeysDisabled)(benchmark::State& state) {
  */
 BENCHMARK_DEFINE_F(TopkeysBench, UpdateSameKey)(benchmark::State& state) {
     if (state.thread_index == 0) {
-        settings.setTopkeysEnabled(true);
+        Settings::instance().setTopkeysEnabled(true);
     }
 
     const auto* k = keys[0].data();
@@ -78,7 +78,7 @@ BENCHMARK_DEFINE_F(TopkeysBench, UpdateSameKey)(benchmark::State& state) {
  */
 BENCHMARK_DEFINE_F(TopkeysBench, UpdateRandomKey)(benchmark::State& state) {
     if (state.thread_index == 0) {
-        settings.setTopkeysEnabled(true);
+        Settings::instance().setTopkeysEnabled(true);
     }
 
     std::vector<std::string> mine;

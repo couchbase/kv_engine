@@ -335,8 +335,8 @@ static void event_state_listener(uint32_t id, bool enabled) {
 
 void initialize_audit() {
     /* Start the audit daemon */
-    auditHandle = cb::audit::create_audit_daemon(settings.getAuditFile(),
-                                                 get_server_api()->cookie);
+    auditHandle = cb::audit::create_audit_daemon(
+            Settings::instance().getAuditFile(), get_server_api()->cookie);
     if (!auditHandle) {
         FATAL_ERROR(EXIT_FAILURE, "FATAL: Failed to start audit daemon");
     }
@@ -349,7 +349,7 @@ void shutdown_audit() {
 }
 
 ENGINE_ERROR_CODE reconfigure_audit(Cookie& cookie) {
-    if (auditHandle->configure_auditdaemon(settings.getAuditFile(),
+    if (auditHandle->configure_auditdaemon(Settings::instance().getAuditFile(),
                                            static_cast<void*>(&cookie))) {
         return ENGINE_EWOULDBLOCK;
     }

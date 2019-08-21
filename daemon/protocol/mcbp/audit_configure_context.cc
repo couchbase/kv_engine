@@ -29,7 +29,7 @@ ENGINE_ERROR_CODE AuditConfigureCommandContext::configuring() {
     // configure method.
     state = State::Done;
 
-    if (settings.getAuditFile().empty()) {
+    if (Settings::instance().getAuditFile().empty()) {
         return ENGINE_SUCCESS;
     }
 
@@ -40,7 +40,7 @@ ENGINE_ERROR_CODE AuditConfigureCommandContext::configuring() {
         break;
     default:
         LOG_WARNING("configuration of audit daemon failed with config file: {}",
-                    settings.getAuditFile());
+                    Settings::instance().getAuditFile());
     }
 
     return ret;

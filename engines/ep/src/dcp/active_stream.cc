@@ -733,6 +733,10 @@ void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
     }
 
     size_t total = backfillRemaining.load(std::memory_order_relaxed);
+    if (backfillRemaining == 0) {
+        Expects(!isPending());
+    }
+
     if (isBackfilling()) {
         add_casted_stat("status", "backfilling", add_stat, cookie);
     } else {

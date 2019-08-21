@@ -116,7 +116,7 @@ TopKeys::~TopKeys() {
 void TopKeys::updateKey(const void* key,
                         size_t nkey,
                         rel_time_t operation_time) {
-    if (settings.isTopkeysEnabled()) {
+    if (Settings::instance().isTopkeysEnabled()) {
         doUpdateKey(key, nkey, operation_time);
     }
 }
@@ -124,7 +124,7 @@ void TopKeys::updateKey(const void* key,
 ENGINE_ERROR_CODE TopKeys::stats(const void* cookie,
                                  rel_time_t current_time,
                                  const AddStatFn& add_stat) {
-    if (settings.isTopkeysEnabled()) {
+    if (Settings::instance().isTopkeysEnabled()) {
         return doStats(cookie, current_time, add_stat);
     }
 
@@ -133,7 +133,7 @@ ENGINE_ERROR_CODE TopKeys::stats(const void* cookie,
 
 ENGINE_ERROR_CODE TopKeys::json_stats(nlohmann::json& object,
                                       rel_time_t current_time) {
-    if (settings.isTopkeysEnabled()) {
+    if (Settings::instance().isTopkeysEnabled()) {
         return do_json_stats(object, current_time);
     }
 

@@ -79,19 +79,19 @@ void parse_arguments(int argc, char** argv) {
         std::exit(EXIT_FAILURE);
     }
 
-    load_config_file(config_file.c_str(), settings);
+    load_config_file(config_file.c_str(), Settings::instance());
 
     if (verbosity > 0) {
-        settings.setVerbose(verbosity);
+        Settings::instance().setVerbose(verbosity);
     }
 
     if (threads > 0) {
-        settings.setNumWorkerThreads(threads);
+        Settings::instance().setNumWorkerThreads(threads);
     }
 
     if (requests > 0) {
-        settings.setRequestsPerEventNotification(requests,
-                                                 EventPriority::Default);
+        Settings::instance().setRequestsPerEventNotification(
+                requests, EventPriority::Default);
     }
 }
 

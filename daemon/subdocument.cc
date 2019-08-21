@@ -175,7 +175,7 @@ static void create_single_path_context(SubdocCmdContext& context,
                 traits.subdocCommand, path.buf, path.len);
     }
 
-    if (settings.getVerbose() > 1) {
+    if (Settings::instance().getVerbose() > 1) {
         const auto keybuf = request.getKey();
         const char* key = reinterpret_cast<const char*>(keybuf.data());
         const auto keylen = gsl::narrow<uint16_t>(keybuf.size());
@@ -275,7 +275,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
         offset += headerlen + path.len + spec_value.len;
     }
 
-    if (settings.getVerbose() > 1) {
+    if (Settings::instance().getVerbose() > 1) {
         const auto keybuf = request.getKey();
         const char* key = reinterpret_cast<const char*>(keybuf.data());
         const auto keylen = gsl::narrow<uint16_t>(keybuf.size());

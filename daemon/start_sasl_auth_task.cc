@@ -46,11 +46,13 @@ Task::Status StartSaslAuthTask::internal_auth() {
 
     try {
         if (connection.isSslEnabled()) {
-            response = server.start(
-                    mechanism, settings.getSslSaslMechanisms(), challenge);
+            response = server.start(mechanism,
+                                    Settings::instance().getSslSaslMechanisms(),
+                                    challenge);
         } else {
-            response = server.start(
-                    mechanism, settings.getSaslMechanisms(), challenge);
+            response = server.start(mechanism,
+                                    Settings::instance().getSaslMechanisms(),
+                                    challenge);
         }
     } catch (const cb::sasl::unknown_mechanism&) {
         response.first = cb::sasl::Error::NO_MECH;
@@ -75,7 +77,8 @@ Task::Status StartSaslAuthTask::internal_auth() {
     }
 
     if (response.first == cb::sasl::Error::NO_USER &&
-        settings.isExternalAuthServiceEnabled() && mechanism == "PLAIN") {
+        Settings::instance().isExternalAuthServiceEnabled() &&
+        mechanism == "PLAIN") {
         // We can't hold this lock when we're trying to enqueue the
         // request
         internal = false;

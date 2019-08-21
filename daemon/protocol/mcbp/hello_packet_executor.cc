@@ -289,7 +289,7 @@ void process_hello_packet_executor(Cookie& cookie) {
             break;
         case cb::mcbp::Feature::Collections:
             // Allow KV engine to chicken out
-            if (settings.isCollectionsEnabled()) {
+            if (Settings::instance().isCollectionsEnabled()) {
                 auto& bucket = connection.getBucket();
                 // Abort if the engine cannot support collections
                 if (bucket.supports(cb::engine::Feature::Collections)) {
@@ -320,7 +320,7 @@ void process_hello_packet_executor(Cookie& cookie) {
             break;
 
         case cb::mcbp::Feature::Tracing:
-            if (settings.isTracingEnabled()) {
+            if (Settings::instance().isTracingEnabled()) {
                 connection.setTracingEnabled(true);
                 added = true;
                 break;

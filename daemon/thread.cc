@@ -383,7 +383,7 @@ static size_t last_thread = 0;
  * from the main thread, or because of an incoming connection.
  */
 void dispatch_conn_new(SOCKET sfd, SharedListeningPort& interface) {
-    size_t tid = (last_thread + 1) % settings.getNumWorkerThreads();
+    size_t tid = (last_thread + 1) % Settings::instance().getNumWorkerThreads();
     auto& thread = threads[tid];
     last_thread = tid;
 

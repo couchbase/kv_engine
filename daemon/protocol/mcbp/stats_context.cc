@@ -229,7 +229,10 @@ static ENGINE_ERROR_CODE server_stats(const AddStatFn& add_stat_callback,
         add_stat(cookie, add_stat_callback, "listen_disabled_num",
                  get_listen_disabled_num());
         add_stat(cookie, add_stat_callback, "rejected_conns", stats.rejected_conns);
-        add_stat(cookie, add_stat_callback, "threads", settings.getNumWorkerThreads());
+        add_stat(cookie,
+                 add_stat_callback,
+                 "threads",
+                 Settings::instance().getNumWorkerThreads());
         add_stat(cookie, add_stat_callback, "conn_yields", thread_stats.conn_yields);
         add_stat(cookie, add_stat_callback, "rbufs_allocated",
                  thread_stats.rbufs_allocated);
@@ -400,7 +403,8 @@ static ENGINE_ERROR_CODE stat_reset_executor(const std::string& arg,
 static ENGINE_ERROR_CODE stat_sched_executor(const std::string& arg,
                                              Cookie& cookie) {
     if (arg.empty()) {
-        for (size_t ii = 0; ii < settings.getNumWorkerThreads(); ++ii) {
+        for (size_t ii = 0; ii < Settings::instance().getNumWorkerThreads();
+             ++ii) {
             auto hist = scheduler_info[ii].to_string();
             std::string key = std::to_string(ii);
             append_stats(key.data(),

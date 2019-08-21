@@ -251,7 +251,7 @@ void Cookie::sendDynamicBuffer() {
 void Cookie::sendNotMyVBucket() {
     auto pair = connection.getBucket().clusterConfiguration.getConfiguration();
     if (pair.first == -1 || (pair.first == connection.getClustermapRevno() &&
-                             settings.isDedupeNmvbMaps())) {
+                             Settings::instance().isDedupeNmvbMaps())) {
         // We don't have a vbucket map, or we've already sent it to the
         // client
         mcbp_add_header(*this,
@@ -414,7 +414,7 @@ std::string Cookie::getPrintableRequestKey() const {
 }
 
 void Cookie::logCommand() const {
-    if (settings.getVerbose() == 0) {
+    if (Settings::instance().getVerbose() == 0) {
         // Info is not enabled.. we don't want to try to format
         // output
         return;
@@ -437,7 +437,7 @@ void Cookie::logResponse(const char* reason) const {
 }
 
 void Cookie::logResponse(ENGINE_ERROR_CODE code) const {
-    if (settings.getVerbose() == 0) {
+    if (Settings::instance().getVerbose() == 0) {
         // Info is not enabled.. we don't want to try to format
         // output
         return;

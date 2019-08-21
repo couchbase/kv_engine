@@ -72,7 +72,7 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
 
     set_ssl_ctx_cipher_list(ctx);
     int ssl_flags = 0;
-    switch (settings.getClientCertMode()) {
+    switch (Settings::instance().getClientCertMode()) {
     case cb::x509::Mode::Mandatory:
         ssl_flags |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
     // FALLTHROUGH
@@ -97,16 +97,16 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
     client = NULL;
 
     try {
-        inputPipe.ensureCapacity(settings.getBioDrainBufferSize());
-        outputPipe.ensureCapacity(settings.getBioDrainBufferSize());
+        inputPipe.ensureCapacity(Settings::instance().getBioDrainBufferSize());
+        outputPipe.ensureCapacity(Settings::instance().getBioDrainBufferSize());
     } catch (std::bad_alloc) {
         return false;
     }
 
     BIO_new_bio_pair(&application,
-                     settings.getBioDrainBufferSize(),
+                     Settings::instance().getBioDrainBufferSize(),
                      &network,
-                     settings.getBioDrainBufferSize());
+                     Settings::instance().getBioDrainBufferSize());
 
     client = SSL_new(ctx);
     SSL_set_bio(client, application, application);
@@ -116,7 +116,7 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
 
 std::pair<cb::x509::Status, std::string> SslContext::getCertUserName() {
     cb::openssl::unique_x509_ptr cert(SSL_get_peer_certificate(client));
-    return settings.lookupUser(cert.get());
+    return Settings::instance().lookupUser(cert.get());
 }
 
 void SslContext::disable() {

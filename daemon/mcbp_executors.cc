@@ -216,7 +216,7 @@ static void verbosity_executor(Cookie& cookie) {
     if (level < 0 || level > MAX_VERBOSITY_LEVEL) {
         level = MAX_VERBOSITY_LEVEL;
     }
-    settings.setVerbose(level);
+    Settings::instance().setVerbose(level);
     cookie.sendResponse(cb::mcbp::Status::Success);
 }
 
@@ -254,7 +254,7 @@ static void sasl_list_mech_executor(Cookie& cookie) {
         return;
     }
 
-    if (settings.isExternalAuthServiceEnabled()) {
+    if (Settings::instance().isExternalAuthServiceEnabled()) {
         // If the system is configured to use ns_server for authentication
         // we should only advertise PLAIN as the mechanism (as it can't use
         // SCRAM to connect to LDAP)
@@ -267,16 +267,18 @@ static void sasl_list_mech_executor(Cookie& cookie) {
         return;
     }
 
-    if (connection.isSslEnabled() && settings.has.ssl_sasl_mechanisms) {
-        const auto& mechs = settings.getSslSaslMechanisms();
+    if (connection.isSslEnabled() &&
+        Settings::instance().has.ssl_sasl_mechanisms) {
+        const auto& mechs = Settings::instance().getSslSaslMechanisms();
         cookie.sendResponse(cb::mcbp::Status::Success,
                             {},
                             {},
                             mechs,
                             cb::mcbp::Datatype::Raw,
                             0);
-    } else if (!connection.isSslEnabled() && settings.has.sasl_mechanisms) {
-        const auto& mechs = settings.getSaslMechanisms();
+    } else if (!connection.isSslEnabled() &&
+               Settings::instance().has.sasl_mechanisms) {
+        const auto& mechs = Settings::instance().getSaslMechanisms();
         cookie.sendResponse(cb::mcbp::Status::Success,
                             {},
                             {},
@@ -453,11 +455,11 @@ static void config_reload_executor(Cookie& cookie) {
     // We need to audit that the privilege debug mode changed and
     // in order to do that we need the "connection" object so we can't
     // do this by using the common "changed_listener"-interface.
-    const bool old_priv_debug = settings.isPrivilegeDebug();
+    const bool old_priv_debug = Settings::instance().isPrivilegeDebug();
     reload_config_file();
-    if (settings.isPrivilegeDebug() != old_priv_debug) {
+    if (Settings::instance().isPrivilegeDebug() != old_priv_debug) {
         audit_set_privilege_debug_mode(cookie.getConnection(),
-                                       settings.isPrivilegeDebug());
+                                       Settings::instance().isPrivilegeDebug());
     }
     cookie.sendResponse(cb::mcbp::Status::Success);
 }
@@ -487,7 +489,7 @@ static void get_errmap_executor(Cookie& cookie) {
     auto value = cookie.getRequest(Cookie::PacketContent::Full).getValue();
     auto* req = reinterpret_cast<const cb::mcbp::request::GetErrmapPayload*>(
             value.data());
-    auto const& errormap = settings.getErrorMap(req->getVersion());
+    auto const& errormap = Settings::instance().getErrorMap(req->getVersion());
     if (errormap.empty()) {
         cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
     } else {
@@ -543,7 +545,7 @@ static void rbac_refresh_executor(Cookie& cookie) {
 }
 
 static void auth_provider_executor(Cookie& cookie) {
-    if (!settings.isExternalAuthServiceEnabled()) {
+    if (!Settings::instance().isExternalAuthServiceEnabled()) {
         cookie.setErrorContext(
                 "Support for external authentication service is disabled");
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
@@ -982,7 +984,7 @@ void try_read_mcbp_command(Cookie& cookie) {
         return;
     }
 
-    if (settings.getVerbose() > 1) {
+    if (Settings::instance().getVerbose() > 1) {
         try {
             LOG_TRACE(">{} Read command {}",
                       c.getId(),
@@ -997,13 +999,13 @@ void try_read_mcbp_command(Cookie& cookie) {
 
     // Protect ourself from someone trying to kill us by sending insanely
     // large packets.
-    if (header.getBodylen() > settings.getMaxPacketSize()) {
+    if (header.getBodylen() > Settings::instance().getMaxPacketSize()) {
         LOG_WARNING(
                 "{}: The package size ({}) exceeds the limit ({}) for what "
                 "the system accepts.. Disconnecting client",
                 c.getId(),
                 header.getBodylen(),
-                settings.getMaxPacketSize());
+                Settings::instance().getMaxPacketSize());
         c.setState(StateMachine::State::closing);
         return;
     }

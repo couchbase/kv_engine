@@ -36,10 +36,6 @@
 #include <utilities/json_utilities.h>
 #include <utilities/logtags.h>
 
-// the global entry of the settings object
-Settings settings;
-
-
 /**
  * Initialize all members to "null" to preserve backwards
  * compatibility with the previous versions.
@@ -67,6 +63,11 @@ Settings::Settings()
 
 Settings::Settings(const nlohmann::json& json) : Settings() {
     reconfigure(json);
+}
+
+Settings& Settings::instance() {
+    static Settings settings;
+    return settings;
 }
 
 /**

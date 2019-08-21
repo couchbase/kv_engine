@@ -265,11 +265,11 @@ void associate_initial_bucket(Connection& connection) {
 }
 
 static void populate_log_level() {
-    const auto val = settings.getLogLevel();
+    const auto val = Settings::instance().getLogLevel();
 
     // Log the verbosity value set by the user and not the log level as they
     // are inverted
-    LOG_INFO("Changing logging level to {}", settings.getVerbose());
+    LOG_INFO("Changing logging level to {}", Settings::instance().getVerbose());
     cb::logger::setLogLevels(val);
 }
 
@@ -368,7 +368,8 @@ static void stats_init() {
 }
 
 struct thread_stats* get_thread_stats(Connection* c) {
-    cb_assert(c->getThread().index < (settings.getNumWorkerThreads() + 1));
+    cb_assert(c->getThread().index <
+              (Settings::instance().getNumWorkerThreads() + 1));
     auto& independent_stats = all_buckets[c->getBucketIndex()].stats;
     return &independent_stats.at(c->getThread().index);
 }
@@ -417,26 +418,27 @@ static size_t get_number_of_worker_threads() {
 /// We might not support as many connections as requested if
 /// we don't have enough file descriptors available
 static void recalculate_max_connections() {
-    const auto maxconn = settings.getMaxConnections();
-    const auto system = (3 * (settings.getNumWorkerThreads() + 2)) + 1024;
+    const auto maxconn = Settings::instance().getMaxConnections();
+    const auto system =
+            (3 * (Settings::instance().getNumWorkerThreads() + 2)) + 1024;
     const uint64_t maxfiles = maxconn + system;
 
     if (max_file_handles < maxfiles) {
         const auto newmax = max_file_handles - system;
-        settings.setMaxConnections(newmax, false);
+        Settings::instance().setMaxConnections(newmax, false);
         LOG_WARNING(
                 "max_connections is set higher than the available number of "
                 "file descriptors available. Reduce max_connections to: {}",
                 newmax);
 
-        if (newmax > settings.getSystemConnections()) {
+        if (newmax > Settings::instance().getSystemConnections()) {
             LOG_WARNING(
                     "system_connections:{} > max_connections:{}. Reduce "
                     "system_connections to {}",
-                    settings.getSystemConnections(),
+                    Settings::instance().getSystemConnections(),
                     newmax,
                     newmax / 2);
-            settings.setSystemConnections(newmax / 2);
+            Settings::instance().setSystemConnections(newmax / 2);
         }
     }
 }
@@ -456,7 +458,7 @@ static void ssl_cipher_list_changed_listener(const std::string&, Settings &s) {
 static void verbosity_changed_listener(const std::string&, Settings &s) {
     auto logger = cb::logger::get();
     if (logger) {
-        logger->set_level(settings.getLogLevel());
+        logger->set_level(Settings::instance().getLogLevel());
     }
 
     // MB-33637: Make the verbosity change in the calling thread.
@@ -476,10 +478,10 @@ static void opcode_attributes_override_changed_listener(const std::string&,
                                                         Settings& s) {
     try {
         cb::mcbp::sla::reconfigure(
-                settings.getRoot(),
+                Settings::instance().getRoot(),
                 nlohmann::json::parse(s.getOpcodeAttributesOverride()));
     } catch (const std::exception&) {
-        cb::mcbp::sla::reconfigure(settings.getRoot());
+        cb::mcbp::sla::reconfigure(Settings::instance().getRoot());
     }
     LOG_INFO("SLA configuration changed to: {}",
              cb::mcbp::sla::to_json().dump());
@@ -523,21 +525,23 @@ static std::string configure_numa_policy() {
 
 static void settings_init() {
     // Set up the listener functions
-    settings.addChangeListener("breakpad",
-                               breakpad_changed_listener);
-    settings.addChangeListener("max_connections",
-                               [](const std::string&, Settings& s) -> void {
-                                   recalculate_max_connections();
-                               });
-    settings.addChangeListener("ssl_minimum_protocol",
-                               ssl_minimum_protocol_changed_listener);
-    settings.addChangeListener("ssl_cipher_list",
-                               ssl_cipher_list_changed_listener);
-    settings.addChangeListener("verbosity", verbosity_changed_listener);
-    settings.addChangeListener("interfaces", interfaces_changed_listener);
-    settings.addChangeListener("scramsha_fallback_salt",
-                               scramsha_fallback_salt_changed_listener);
-    settings.addChangeListener(
+    Settings::instance().addChangeListener("breakpad",
+                                           breakpad_changed_listener);
+    Settings::instance().addChangeListener(
+            "max_connections", [](const std::string&, Settings& s) -> void {
+                recalculate_max_connections();
+            });
+    Settings::instance().addChangeListener(
+            "ssl_minimum_protocol", ssl_minimum_protocol_changed_listener);
+    Settings::instance().addChangeListener("ssl_cipher_list",
+                                           ssl_cipher_list_changed_listener);
+    Settings::instance().addChangeListener("verbosity",
+                                           verbosity_changed_listener);
+    Settings::instance().addChangeListener("interfaces",
+                                           interfaces_changed_listener);
+    Settings::instance().addChangeListener(
+            "scramsha_fallback_salt", scramsha_fallback_salt_changed_listener);
+    Settings::instance().addChangeListener(
             "active_external_users_push_interval",
             [](const std::string&, Settings& s) -> void {
                 if (externalAuthManager) {
@@ -546,7 +550,7 @@ static void settings_init() {
                 }
             });
 
-    settings.addChangeListener(
+    Settings::instance().addChangeListener(
             "opentracing_config", [](const std::string&, Settings& s) -> void {
                 auto config = s.getOpenTracingConfig();
                 if (config) {
@@ -555,35 +559,39 @@ static void settings_init() {
             });
 
     NetworkInterface default_interface;
-    settings.addInterface(default_interface);
+    Settings::instance().addInterface(default_interface);
 
-    settings.setBioDrainBufferSize(8192);
+    Settings::instance().setBioDrainBufferSize(8192);
 
-    settings.setVerbose(0);
-    settings.setConnectionIdleTime(0); // Connection idle time disabled
-    settings.setNumWorkerThreads(get_number_of_worker_threads());
-    settings.setDatatypeJsonEnabled(true);
-    settings.setDatatypeSnappyEnabled(true);
-    settings.setRequestsPerEventNotification(50, EventPriority::High);
-    settings.setRequestsPerEventNotification(5, EventPriority::Medium);
-    settings.setRequestsPerEventNotification(1, EventPriority::Low);
-    settings.setRequestsPerEventNotification(20, EventPriority::Default);
+    Settings::instance().setVerbose(0);
+    Settings::instance().setConnectionIdleTime(
+            0); // Connection idle time disabled
+    Settings::instance().setNumWorkerThreads(get_number_of_worker_threads());
+    Settings::instance().setDatatypeJsonEnabled(true);
+    Settings::instance().setDatatypeSnappyEnabled(true);
+    Settings::instance().setRequestsPerEventNotification(50,
+                                                         EventPriority::High);
+    Settings::instance().setRequestsPerEventNotification(5,
+                                                         EventPriority::Medium);
+    Settings::instance().setRequestsPerEventNotification(1, EventPriority::Low);
+    Settings::instance().setRequestsPerEventNotification(
+            20, EventPriority::Default);
 
     /*
      * The max object size is 20MB. Let's allow packets up to 30MB to
      * be handled "properly" by returing E2BIG, but packets bigger
      * than that will cause the server to disconnect the client
      */
-    settings.setMaxPacketSize(30 * 1024 * 1024);
+    Settings::instance().setMaxPacketSize(30 * 1024 * 1024);
 
-    settings.setDedupeNmvbMaps(false);
+    Settings::instance().setDedupeNmvbMaps(false);
 
     char *tmp = getenv("MEMCACHED_TOP_KEYS");
-    settings.setTopkeysSize(20);
+    Settings::instance().setTopkeysSize(20);
     if (tmp) {
         int count;
         if (safe_strtol(tmp, count)) {
-            settings.setTopkeysSize(count);
+            Settings::instance().setTopkeysSize(count);
         }
     }
 
@@ -599,18 +607,18 @@ static void settings_init() {
         //    in memcached.json and override these settings.
         const char *env = getenv("COUCHBASE_SSL_CIPHER_LIST");
         if (env == nullptr) {
-            settings.setSslCipherList("HIGH");
+            Settings::instance().setSslCipherList("HIGH");
         } else {
-            settings.setSslCipherList(env);
+            Settings::instance().setSslCipherList(env);
         }
     }
 
-    settings.setSslMinimumProtocol("tlsv1");
+    Settings::instance().setSslMinimumProtocol("tlsv1");
     if (getenv("COUCHBASE_ENABLE_PRIVILEGE_DEBUG") != nullptr) {
-        settings.setPrivilegeDebug(true);
+        Settings::instance().setPrivilegeDebug(true);
     }
 
-    settings.setTopkeysEnabled(true);
+    Settings::instance().setTopkeysEnabled(true);
 }
 
 /**
@@ -625,8 +633,8 @@ static void update_settings_from_config()
 {
     std::string root(DESTINATION_ROOT);
 
-    if (!settings.getRoot().empty()) {
-        root = settings.getRoot();
+    if (!Settings::instance().getRoot().empty()) {
+        root = Settings::instance().getRoot();
 #ifdef WIN32
         std::string libdir = root + "/lib";
         cb::io::sanitizePath(libdir);
@@ -634,12 +642,12 @@ static void update_settings_from_config()
 #endif
     }
 
-    if (settings.getErrorMapsDir().empty()) {
+    if (Settings::instance().getErrorMapsDir().empty()) {
         // Set the error map dir.
         std::string error_maps_dir(root + "/etc/couchbase/kv/error_maps");
         cb::io::sanitizePath(error_maps_dir);
         if (cb::io::isDirectory(error_maps_dir)) {
-            settings.setErrorMapsDir(error_maps_dir);
+            Settings::instance().setErrorMapsDir(error_maps_dir);
         }
     }
 
@@ -649,8 +657,9 @@ static void update_settings_from_config()
         FATAL_ERROR(EXIT_FAILURE, e.what());
     }
 
-    settings.addChangeListener("opcode_attributes_override",
-                               opcode_attributes_override_changed_listener);
+    Settings::instance().addChangeListener(
+            "opcode_attributes_override",
+            opcode_attributes_override_changed_listener);
 }
 
 struct {
@@ -755,7 +764,7 @@ bool is_bucket_dying(Connection& c) {
 }
 
 static void create_portnumber_file(bool terminate) {
-    auto filename = settings.getPortnumberFile();
+    auto filename = Settings::instance().getPortnumberFile();
     if (!filename.empty()) {
         nlohmann::json json;
         json["ports"] = nlohmann::json::array();
@@ -894,7 +903,7 @@ static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
         check_listen_conn = false;
 
         bool changes = false;
-        auto interfaces = settings.getInterfaces();
+        auto interfaces = Settings::instance().getInterfaces();
 
         // Step one, enable all new ports
         bool success = true;
@@ -1304,7 +1313,7 @@ static bool server_sockets() {
     bool success = true;
 
     LOG_INFO("Enable port(s)");
-    for (auto& interface : settings.getInterfaces()) {
+    for (auto& interface : Settings::instance().getInterfaces()) {
         if (!server_socket(interface)) {
             success = false;
         }
@@ -1470,13 +1479,13 @@ struct ServerLogApi : public ServerLogIface {
     void set_level(spdlog::level::level_enum severity) override {
         switch (severity) {
         case spdlog::level::level_enum::trace:
-            settings.setVerbose(2);
+            Settings::instance().setVerbose(2);
             break;
         case spdlog::level::level_enum::debug:
-            settings.setVerbose(1);
+            Settings::instance().setVerbose(1);
             break;
         default:
-            settings.setVerbose(0);
+            Settings::instance().setVerbose(0);
             break;
         }
     }
@@ -1825,8 +1834,8 @@ void CreateBucketThread::create() {
         all_buckets[ii].type = type;
         strcpy(all_buckets[ii].name, name.c_str());
         try {
-            all_buckets[ii].topkeys =
-                    std::make_unique<TopKeys>(settings.getTopkeysSize());
+            all_buckets[ii].topkeys = std::make_unique<TopKeys>(
+                    Settings::instance().getTopkeysSize());
         } catch (const std::bad_alloc &) {
             result = ENGINE_ENOMEM;
             LOG_WARNING("{} Create bucket [{}] failed - out of memory",
@@ -2098,7 +2107,7 @@ void DestroyBucketThread::run() {
 }
 
 static void initialize_buckets() {
-    size_t numthread = settings.getNumWorkerThreads() + 1;
+    size_t numthread = Settings::instance().getNumWorkerThreads() + 1;
     for (auto &b : all_buckets) {
         b.stats.resize(numthread);
     }
@@ -2314,15 +2323,16 @@ extern "C" int memcached_main(int argc, char **argv) {
     cb::rbac::initialize();
 
     if (getenv("COUCHBASE_FORCE_ENABLE_XATTR") != nullptr) {
-        settings.setXattrEnabled(true);
+        Settings::instance().setXattrEnabled(true);
     }
 
     /* Initialize breakpad crash catcher with our just-parsed settings. */
-    cb::breakpad::initialize(settings.getBreakpadSettings());
+    cb::breakpad::initialize(Settings::instance().getBreakpadSettings());
 
     /* Configure file logger, if specified as a settings object */
-    if (settings.has.logger) {
-        auto ret = cb::logger::initialize(settings.getLoggerConfig());
+    if (Settings::instance().has.logger) {
+        auto ret =
+                cb::logger::initialize(Settings::instance().getLoggerConfig());
         if (ret) {
             FATAL_ERROR(
                     EXIT_FAILURE, "Failed to initialize logger: {}", ret.get());
@@ -2336,27 +2346,27 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     LOG_INFO("Using SLA configuration: {}", cb::mcbp::sla::to_json().dump());
 
-    auto opentracingconfig = settings.getOpenTracingConfig();
+    auto opentracingconfig = Settings::instance().getOpenTracingConfig();
     if (opentracingconfig) {
         OpenTracing::updateConfig(*opentracingconfig);
     }
 
-    if (settings.isStdinListenerEnabled()) {
+    if (Settings::instance().isStdinListenerEnabled()) {
         LOG_INFO("Enable standard input listener");
         start_stdin_listener(shutdown_server);
     }
 
-    if (settings.getPortnumberFile().empty()) {
+    if (Settings::instance().getPortnumberFile().empty()) {
         const auto* env = getenv("MEMCACHED_PORT_FILENAME");
         if (env != nullptr) {
-            settings.setPortnumberFile(env);
+            Settings::instance().setPortnumberFile(env);
         }
     }
 
-    if (settings.getParentIdentifier() == -1) {
+    if (Settings::instance().getParentIdentifier() == -1) {
         const auto* env = getenv("MEMCACHED_PARENT_MONITOR");
         if (env != nullptr) {
-            settings.setParentIdentifier(std::stoi(env));
+            Settings::instance().setParentIdentifier(std::stoi(env));
         }
     }
 
@@ -2365,27 +2375,30 @@ extern "C" int memcached_main(int argc, char **argv) {
     LOG_INFO("NUMA: {}", numa_status);
 #endif
 
-    if (!settings.has.rbac_file) {
+    if (!Settings::instance().has.rbac_file) {
         FATAL_ERROR(EXIT_FAILURE, "RBAC file not specified");
     }
 
-    if (!cb::io::isFile(settings.getRbacFile())) {
+    if (!cb::io::isFile(Settings::instance().getRbacFile())) {
         FATAL_ERROR(EXIT_FAILURE,
                     "RBAC [{}] does not exist",
-                    settings.getRbacFile());
+                    Settings::instance().getRbacFile());
     }
 
-    LOG_INFO("Loading RBAC configuration from [{}]", settings.getRbacFile());
+    LOG_INFO("Loading RBAC configuration from [{}]",
+             Settings::instance().getRbacFile());
     try {
-        cb::rbac::loadPrivilegeDatabase(settings.getRbacFile());
+        cb::rbac::loadPrivilegeDatabase(Settings::instance().getRbacFile());
     } catch (const std::exception& exception) {
         // We can't run without a privilege database
         FATAL_ERROR(EXIT_FAILURE, exception.what());
     }
 
-    LOG_INFO("Loading error maps from [{}]", settings.getErrorMapsDir());
+    LOG_INFO("Loading error maps from [{}]",
+             Settings::instance().getErrorMapsDir());
     try {
-        settings.loadErrorMaps(settings.getErrorMapsDir());
+        Settings::instance().loadErrorMaps(
+                Settings::instance().getErrorMapsDir());
     } catch (const std::exception& e) {
         FATAL_ERROR(EXIT_FAILURE, "Failed to load error maps: {}", e.what());
     }
@@ -2393,7 +2406,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     LOG_INFO("Starting external authentication manager");
     externalAuthManager = std::make_unique<ExternalAuthManagerThread>();
     externalAuthManager->setPushActiveUsersInterval(
-            settings.getActiveExternalUsersPushInterval());
+            Settings::instance().getActiveExternalUsersPushInterval());
     externalAuthManager->start();
 
     initialize_audit();
@@ -2454,10 +2467,12 @@ extern "C" int memcached_main(int argc, char **argv) {
     create_listen_sockets();
 
     /* start up worker threads if MT mode */
-    thread_init(settings.getNumWorkerThreads(), main_base, dispatch_event_handler);
+    thread_init(Settings::instance().getNumWorkerThreads(),
+                main_base,
+                dispatch_event_handler);
 
-    executorPool =
-        std::make_unique<cb::ExecutorPool>(settings.getNumWorkerThreads());
+    executorPool = std::make_unique<cb::ExecutorPool>(
+            Settings::instance().getNumWorkerThreads());
 
     initializeTracing();
     TRACE_GLOBAL0("memcached", "Started");
@@ -2474,7 +2489,7 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     // Optional parent monitor
     {
-        const int parent = settings.getParentIdentifier();
+        const int parent = Settings::instance().getParentIdentifier();
         if (parent != -1) {
             LOG_INFO("Starting parent monitor");
             parent_monitor = std::make_unique<ParentMonitor>(parent);
