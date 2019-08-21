@@ -1870,11 +1870,23 @@ static enum test_result warmup_mb21769(EngineIface* h) {
                 get_ull_stat(h, snap_end.c_str(), vb_group_key.c_str()),
                 std::string("snap_end incorrect vb:" + std::to_string(vb))
                         .c_str());
-        checkeq(failover_entry0[vb],
-                get_ull_stat(h, fail0.c_str(), failovers_key.c_str()),
-                std::string("failover table entry 0 is incorrect vb:" +
-                            std::to_string(vb))
-                        .c_str());
+        auto failoverTable = get_all_stats(h, failovers_key.c_str());
+        if (failoverTable[fail0] != std::to_string(failover_entry0[vb])) {
+            std::cerr << "failover table entry 0 is incorrect for vb:" << vb
+                      << " expected:" << failover_entry0[vb]
+                      << " got:" << failoverTable[fail0]
+                      << " dumping failover table\n";
+            for (const auto& stat : failoverTable) {
+                std::cerr << stat.first << ":" << stat.second << std::endl;
+            }
+            std::string detail = "vbucket-details " + std::to_string(vb);
+            auto details = get_all_stats(h, detail.c_str());
+            std::cerr << detail << std::endl;
+            for (const auto& stat : details) {
+                std::cerr << stat.first << ":" << stat.second << std::endl;
+            }
+            return FAIL;
+        }
     }
 
     return SUCCESS;

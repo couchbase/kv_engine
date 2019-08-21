@@ -466,7 +466,10 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                     // no 'real' items in the checkpoint.
                     mustCheckpointVBState = true;
 
-                    // Update queuing stats how this item has logically been
+                    // There is at least a commit to be done, so increase todo
+                    ++stats.flusher_todo;
+
+                    // Update queuing stats now this item has logically been
                     // processed.
                     --stats.diskQueueSize;
                     vb->doStatsForFlushing(*item, item->size());
