@@ -249,8 +249,6 @@ static void dispatch_new_connections(FrontEndThread& me) {
 
     for (const auto& entry : connections) {
         if (conn_new(entry.first, *entry.second, me.base, me) == nullptr) {
-            LOG_WARNING("Failed to dispatch event for socket {}",
-                        long(entry.first));
             if (entry.second->system) {
                 --stats.system_conns;
             }
