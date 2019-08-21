@@ -39,7 +39,6 @@
 #include "connmap.h"
 #include "dcp/dcpconnmap.h"
 #include "defragmenter.h"
-#include "durability/durability_completion_task.h"
 #include "durability_timeout_task.h"
 #include "ep_engine.h"
 #include "ep_time.h"
@@ -450,10 +449,6 @@ bool KVBucket::initialize() {
             std::chrono::milliseconds(
                     config.getDurabilityTimeoutTaskInterval()));
     ExecutorPool::get()->schedule(durabilityTimeoutTask);
-
-    durabilityCompletionTask =
-            std::make_shared<DurabilityCompletionTask>(engine);
-    ExecutorPool::get()->schedule(durabilityCompletionTask);
 
     ExTask workloadMonitorTask =
             std::make_shared<WorkLoadMonitor>(&engine, false);
@@ -2628,14 +2623,6 @@ void KVBucket::setMaxTtl(size_t max) {
 
 uint16_t KVBucket::getNumOfVBucketsInState(vbucket_state_t state) const {
     return vbMap.getVBStateCount(state);
-}
-
-SyncWriteResolvedCallback KVBucket::makeSyncWriteResolvedCB() {
-    return [this](Vbid vbid) {
-        if (this->durabilityCompletionTask) {
-            this->durabilityCompletionTask->notifySyncWritesToComplete(vbid);
-        }
-    };
 }
 
 SyncWriteCompleteCallback KVBucket::makeSyncWriteCompleteCB() {

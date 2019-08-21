@@ -1293,7 +1293,6 @@ TEST_P(DurabilityEPBucketTest, ActiveLocalNotifyPersistedSeqno) {
     // - persists all pendings
     // - and notifies local DurabilityMonitor of persistence
     flushVBucketToDiskIfPersistent(vbid, 3);
-    vb->processResolvedSyncWrites();
 
     // When seqno:1 is persisted:
     //
@@ -1462,8 +1461,6 @@ void DurabilityBucketTest::testTakeoverDestinationHandlesPreparedSyncWrites(
                       vbid,
                       vbucket_state_active,
                       {{"topology", nlohmann::json::array({{"active"}})}}));
-    vb.processResolvedSyncWrites();
-
     // Given the prepare was already persisted to disk above when we first
     // changed to active, once a valid topology is set then SyncWrite should
     // be committed immediately irrespective of level.

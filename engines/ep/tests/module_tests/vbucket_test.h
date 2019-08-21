@@ -131,16 +131,6 @@ protected:
                 swCompleteTrace.status = status;
             };
 
-    /**
-     * A SyncWriteResolvedCallback which does nothing (as we don't have a
-     * background task to wake up which is the non-unit-test configuration.
-     * Test(s) must manually invoke VBucket::processResolvedSyncWrites()
-     * after the relevant operation.
-     */
-    const SyncWriteResolvedCallback noOpSyncWriteResolvedCb = [](Vbid) {
-        return;
-    };
-
     std::unique_ptr<VBucket> vbucket;
     EPStats global_stats;
     CheckpointConfig checkpoint_config;

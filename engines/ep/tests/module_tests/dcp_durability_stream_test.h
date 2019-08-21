@@ -51,16 +51,6 @@ protected:
      */
     void testSendCompleteSyncWrite(Resolution res);
 
-    /**
-     * Simulates a seqnoACK arriving at the ActiveStream.
-     * - Calls ActiveStream::seqnoAck() with the given consumerName and
-     *   prepared seqno.
-     * - processes any SyncWrites which are now resolved (which would normally
-     *   be done by the DurabilityCompletion background task.
-     */
-    ENGINE_ERROR_CODE simulateStreamSeqnoAck(const std::string& consumerName,
-                                             uint64_t preparedSeqno);
-
     const std::string active = "active";
     const std::string replica = "replica";
 };

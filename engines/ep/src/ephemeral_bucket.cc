@@ -208,7 +208,6 @@ VBucketPtr EphemeralBucket::makeVBucket(
                                            lastSnapEnd,
                                            std::move(table),
                                            std::move(newSeqnoCb),
-                                           makeSyncWriteResolvedCB(),
                                            makeSyncWriteCompleteCB(),
                                            makeSeqnoAckCB(),
                                            engine.getConfiguration(),

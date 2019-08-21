@@ -713,7 +713,6 @@ void DurabilityWarmupTest::testCommittedSyncWrite(
                                                     vb->getStateLock()),
                                             "replica",
                                             prepareSeqno++));
-            vb->processResolvedSyncWrites();
         } else {
             // Commit on non-active is driven by VBucket::commit
             vb->commit(key, prepareSeqno++, {}, vb->lockCollections(key));
@@ -876,7 +875,6 @@ TEST_P(DurabilityWarmupTest, AbortedSyncWritePrepareIsNotLoaded) {
         // Force an abort
         vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
                                      std::chrono::seconds(1000));
-        vb->processResolvedSyncWrites();
 
         flush_vbucket_to_disk(vbid, 1);
         EXPECT_EQ(1, vb->getNumItems());
@@ -984,8 +982,6 @@ TEST_P(DurabilityWarmupTest, WarmupCommit) {
 
     vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb);
-    vb->processResolvedSyncWrites();
-
     auto sv = vb->ht.findForRead(key).storedValue;
     ASSERT_TRUE(sv);
     ASSERT_TRUE(sv->isCommitted());
@@ -1033,8 +1029,6 @@ void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState() {
                       folly::SharedMutex::ReadHolder(vb->getStateLock()),
                       "replica",
                       preparedSeqno));
-    vb->processResolvedSyncWrites();
-
     sv = vb->ht.findForRead(key).storedValue;
     ASSERT_TRUE(sv);
     ASSERT_TRUE(sv->isCommitted());
@@ -1144,8 +1138,6 @@ TEST_P(DurabilityWarmupTest, CommittedWithAckAfterWarmup) {
                 folly::SharedMutex::ReadHolder(vb->getStateLock()),
                 "replica",
                 1);
-        vb->processResolvedSyncWrites();
-
         flush_vbucket_to_disk(vbid, 1);
     }
     resetEngineAndWarmup();
@@ -1179,8 +1171,6 @@ TEST_P(DurabilityWarmupTest, WarmUpHPSAndHCSWithNonSeqnoSortedItems) {
                 folly::SharedMutex::ReadHolder(vb->getStateLock()),
                 "replica",
                 2);
-        vb->processResolvedSyncWrites();
-
         flush_vbucket_to_disk(vbid, 2);
     }
     SCOPED_TRACE("B");

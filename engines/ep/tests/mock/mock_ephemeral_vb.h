@@ -39,7 +39,6 @@ public:
                          uint64_t lastSnapEnd,
                          std::unique_ptr<FailoverTable> table,
                          NewSeqnoCallback newSeqnoCb,
-                         SyncWriteResolvedCallback syncWriteResolvedCb,
                          SyncWriteCompleteCallback syncWriteCb,
                          SeqnoAckCallback seqnoAckCb,
                          Configuration& config,

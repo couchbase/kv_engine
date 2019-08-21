@@ -544,7 +544,7 @@ void ActiveDurabilityMonitor::setReplicationTopology(
         s->setReplicationTopology(topology, *resolvedQueue);
     }
 
-    checkForResolvedSyncWrites();
+    processCompletedSyncWriteQueue();
 }
 
 int64_t ActiveDurabilityMonitor::getHighPreparedSeqno() const {
@@ -619,9 +619,8 @@ ENGINE_ERROR_CODE ActiveDurabilityMonitor::seqnoAckReceived(
         seqnoAckReceivedPostProcessHook();
     }
 
-    // Check if any there's now any resolved SyncWrites which should be
-    // completed.
-    checkForResolvedSyncWrites();
+    // Process the Completed Queue, committing all items and removing them.
+    processCompletedSyncWriteQueue();
 
     return ENGINE_SUCCESS;
 }
@@ -640,7 +639,7 @@ void ActiveDurabilityMonitor::processTimeout(
     // the correct locks).
     state.wlock()->removeExpired(asOf, *resolvedQueue);
 
-    checkForResolvedSyncWrites();
+    processCompletedSyncWriteQueue();
 }
 
 void ActiveDurabilityMonitor::notifyLocalPersistence() {
@@ -727,13 +726,6 @@ void ActiveDurabilityMonitor::addStatsForChain(
                          node);
         add_casted_stat(buf, pos.lastAckSeqno, addStat, cookie);
     }
-}
-
-void ActiveDurabilityMonitor::checkForResolvedSyncWrites() {
-    if (resolvedQueue->empty()) {
-        return;
-    }
-    vb.notifySyncWritesPendingCompletion();
 }
 
 void ActiveDurabilityMonitor::processCompletedSyncWriteQueue() {
@@ -1680,7 +1672,11 @@ void ActiveDurabilityMonitor::checkForCommit() {
     // the resolvedQueue (under the correct locks).
     state.wlock()->updateHighPreparedSeqno(*resolvedQueue);
 
-    checkForResolvedSyncWrites();
+    // @todo: Consider to commit in a dedicated function for minimizing
+    //     contention on front-end threads, as this function is supposed to
+    //     execute under VBucket-level lock.
+
+    processCompletedSyncWriteQueue();
 }
 
 template <class exception>

@@ -54,13 +54,6 @@ protected:
     void storeSyncWrites(const std::vector<SyncWriteSpec>& writes);
 
     /**
-     * Simulate a SetVBucketState call, including processing any resolved
-     * SyncWrites which can now be Committed/Aborted.
-     */
-    void simulateSetVBState(vbucket_state_t to,
-                            const nlohmann::json& meta = {});
-
-    /**
      * Simulate the local (active) seqno acknowledgement.
      *
      * @param seqno The ack'ed seqno
