@@ -27,17 +27,28 @@
 ENGINE_ERROR_CODE select_bucket(Cookie& cookie, const std::string& bucketname) {
     auto& connection = cookie.getConnection();
     if (!connection.isAuthenticated()) {
+        cookie.setErrorContext("Not authenticated");
+        LOG_INFO(
+                "{}: select_bucket failed - Not authenticated. "
+                R"({{"cid":"{}/{:x}","connection":"{}","bucket":"{}"}})",
+                connection.getId(),
+                connection.getConnectionId().data(),
+                ntohl(cookie.getRequest().getOpaque()),
+                connection.getDescription(),
+                bucketname);
         return ENGINE_EACCESS;
     }
 
     // We can't switch bucket if we've got multiple commands in flight
     if (connection.getNumberOfCookies() > 1) {
         LOG_INFO(
-                "{}: {} select_bucket [{}] is not possible with multiple "
-                "commands in flight",
+                "{}: select_bucket failed - multiple commands in flight. "
+                R"({{"cid":"{}/{:x}","connection":"{}","bucket":"{}"}})",
                 connection.getId(),
-                bucketname,
-                connection.getDescription());
+                connection.getConnectionId().data(),
+                ntohl(cookie.getRequest().getOpaque()),
+                connection.getDescription(),
+                bucketname);
         return ENGINE_ENOTSUP;
     }
 
@@ -72,6 +83,14 @@ ENGINE_ERROR_CODE select_bucket(Cookie& cookie, const std::string& bucketname) {
             return ENGINE_KEY_ENOENT;
         }
     } catch (const cb::rbac::Exception&) {
+        LOG_INFO(
+                "{}: select_bucket failed - No access. "
+                R"({{"cid":"{}/{:x}","connection":"{}","bucket":"{}"}})",
+                connection.getId(),
+                connection.getConnectionId().data(),
+                ntohl(cookie.getRequest().getOpaque()),
+                connection.getDescription(),
+                bucketname);
         return ENGINE_EACCESS;
     }
 }
