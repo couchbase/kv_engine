@@ -2286,6 +2286,15 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
 // Expect ThreadSanitizer to pick this.
 // Rocks has race condition issues
 TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
+    // MB-35655:
+    // This test is currently failing (appears to be timing out) often on
+    // Windows when run against magma. Disabling whilst a solution is found to
+    // not impact development.
+#ifdef WIN32
+    if (kvstoreConfig->getBackend() == "magma") {
+        return;
+    }
+#endif
     WriteCallback wc;
     std::atomic<bool> stop{false};
     std::atomic<uint32_t> deletes{0};
