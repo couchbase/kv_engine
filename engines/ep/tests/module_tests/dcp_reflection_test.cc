@@ -645,7 +645,7 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
     // (SNAP_MARKER, PRE, CMT, SET), (SNAP_MARKER, PRE), with a flush after the
     // first 4.
     route0_1.transferSnapshotMarker(0, 3, MARKER_FLAG_CHK | MARKER_FLAG_DISK);
-    route0_1.transferMessage(DcpResponse::Event::Prepare);
+    // We won't backfill and send a completed prepare so first item is CMT.
     route0_1.transferMutation(makeStoredDocKey("a"), 2);
     route0_1.transferMutation(makeStoredDocKey("b"), 3);
 

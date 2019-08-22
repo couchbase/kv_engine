@@ -61,8 +61,13 @@ public:
 
     void callback(GetValue& val);
 
+    void setHighCompletedSeqno(uint64_t seqno) {
+        highCompletedSeqno = seqno;
+    };
+
 private:
     std::weak_ptr<ActiveStream> streamPtr;
+    uint64_t highCompletedSeqno;
 };
 
 /**
