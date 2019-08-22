@@ -494,60 +494,27 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
             return {};
         }
 
-        const auto findLowestCursor =
-                [oldestCheckpoint](Cursor& current,
-                                   const cursor_index::value_type& cursor) {
-                    // Get the cursor's current checkpoint.
-                    const auto checkpoint =
-                            (*(cursor.second->currentCheckpoint)).get();
-                    // Is the cursor in the checkpoint we are interested in?
-                    if (oldestCheckpoint != checkpoint) {
-                        return current;
-                    }
-                    // We are in the same checkpoint, have we found any
-                    // previous cursors?
-                    auto currentCursor = current.lock();
-                    if (currentCursor == nullptr) {
-                        // No, so this has got to be the lowest we currently
-                        // know about.
-                        current.setCursor(cursor.second);
-                        return current;
-                    }
-                    // We already have a cursor so need to see if this one
-                    // is lower. Get the new cursor's seqno.
-                    const auto seqno =
-                            (*cursor.second->currentPos)->getBySeqno();
-                    // Does it have a seqno lower than our current lowest?
-                    const auto currentLowestSeqno =
-                            (*currentCursor->currentPos)->getBySeqno();
-                    if (seqno < currentLowestSeqno) {
-                        // Yes, so make it the new lowest.
-                        current.setCursor(cursor.second);
-                    }
-                    return current;
-                };
+        const auto compareBySeqno = [](const auto& a, const auto& b) {
+            return (*a.second->currentPos)->getBySeqno() <
+                   (*b.second->currentPos)->getBySeqno();
+        };
 
-        Cursor lowestCursor;
-        // Find the cursor with the lowest seqno that resides in the
-        // oldestCheckpoint.
-        lowestCursor = std::accumulate(connCursors.begin(),
-                                       connCursors.end(),
-                                       lowestCursor,
-                                       findLowestCursor);
+        // find the cursor with the lowest seqno
+        auto earliestCursor = std::min_element(
+                connCursors.begin(), connCursors.end(), compareBySeqno);
 
-        // Create a cursor that marks where we will expel upto and
-        // including.
-        auto lowestCheckpointCursor = lowestCursor.lock();
-        if (lowestCheckpointCursor == nullptr) {
-            // Failed to get a shared_ptr to the lowest checkpoint cursor
-            // so just return.
-            return {};
-        }
+        std::shared_ptr<CheckpointCursor> lowestCheckpointCursor =
+                earliestCursor->second;
 
-        auto expelUpToAndIncluding = CheckpointCursor(
-                "expelUpToAndIncluding",
-                lowestCheckpointCursor.get()->currentCheckpoint,
-                lowestCheckpointCursor.get()->currentPos);
+        // Sanity check - if the oldest checkpoint is referenced, the cursor
+        // with the lowest seqno should be in that checkpoint.
+        Expects(lowestCheckpointCursor->currentCheckpoint->get() ==
+                oldestCheckpoint);
+
+        auto expelUpToAndIncluding =
+                CheckpointCursor("expelUpToAndIncluding",
+                                 lowestCheckpointCursor->currentCheckpoint,
+                                 lowestCheckpointCursor->currentPos);
 
         auto& iterator = (expelUpToAndIncluding.currentPos);
 
