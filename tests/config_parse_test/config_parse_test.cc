@@ -731,7 +731,7 @@ TEST_F(SettingsTest, SslCipherList) {
         FAIL() << exception.what();
     }
 
-    // An empty string is also allowed
+    // An empty string is also allowed (giving default ciphers)
     obj["ssl_cipher_list"] = "";
     try {
         Settings settings(obj);
@@ -739,6 +739,14 @@ TEST_F(SettingsTest, SslCipherList) {
         EXPECT_TRUE(settings.has.ssl_cipher_list);
     } catch (std::exception& exception) {
         FAIL() << exception.what();
+    }
+
+    // Detect that we need at least 1 cipher defined
+    obj["ssl_cipher_list"] = "foobar";
+    try {
+        Settings settings(obj);
+        FAIL() << "We should not be allowed to disable all ciphers";
+    } catch (std::exception&) {
     }
 }
 

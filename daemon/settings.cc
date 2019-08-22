@@ -33,6 +33,7 @@
 #include "ssl_utils.h"
 
 #include <mcbp/mcbp.h>
+#include <memcached/openssl.h>
 #include <utilities/json_utilities.h>
 #include <utilities/logtags.h>
 
@@ -389,6 +390,21 @@ static void handle_root(Settings& s, const nlohmann::json& obj) {
  * @param obj the object in the configuration
  */
 static void handle_ssl_cipher_list(Settings& s, const nlohmann::json& obj) {
+    const auto value = obj.get<std::string>();
+    cb::openssl::unique_ssl_ctx_ptr ctx;
+    ctx.reset(SSL_CTX_new(SSLv23_server_method()));
+    if (!ctx) {
+        throw std::bad_alloc{};
+    }
+
+    if (!value.empty() &&
+        SSL_CTX_set_cipher_list(ctx.get(), value.c_str()) == 0) {
+        std::string msg = "Failed to select any of the requested ciphers (";
+        msg.append(value);
+        msg.append(")");
+        throw std::runtime_error(msg);
+    }
+
     s.setSslCipherList(obj.get<std::string>());
 }
 

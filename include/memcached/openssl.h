@@ -37,5 +37,13 @@ struct X509deletor {
 };
 
 using unique_x509_ptr = std::unique_ptr<X509, X509deletor>;
+
+struct SSL_CTX_Deletor {
+    void operator()(SSL_CTX* ctx) {
+        SSL_CTX_free(ctx);
+    }
+};
+
+using unique_ssl_ctx_ptr = std::unique_ptr<SSL_CTX, SSL_CTX_Deletor>;
 }
 }
