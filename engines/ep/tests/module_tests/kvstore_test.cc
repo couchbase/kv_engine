@@ -1137,8 +1137,13 @@ TEST_F(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
                 .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
+        // Called twice, once when we read the vbstate from disk in
+        // initScanContext, and again when we read the vbstate as part of
+        // rollback.
         EXPECT_CALL(ops, pread(_, _, _, _, _))
-            .WillOnce(Return(COUCHSTORE_ERROR_READ)).RetiresOnSaturation();
+                .Times(2)
+                .WillRepeatedly(Return(COUCHSTORE_ERROR_READ))
+                .RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(20).RetiresOnSaturation();
 
         kvstore->rollback(Vbid(0), 5, rcb);

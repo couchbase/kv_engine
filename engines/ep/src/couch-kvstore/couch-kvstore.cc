@@ -382,7 +382,7 @@ void CouchKVStore::initialize() {
         DbHolder db(*this);
         errorCode = openDB(id, db, COUCHSTORE_OPEN_FLAG_RDONLY);
         if (errorCode == COUCHSTORE_SUCCESS) {
-            auto readStatus = readVBState(db, id);
+            auto readStatus = readVBStateAndUpdateCache(db, id).status;
             if (readStatus == ReadVBStateStatus::Success) {
                 /* update stat */
                 ++st.numLoadedVb;
@@ -1457,17 +1457,12 @@ ScanContext* CouchKVStore::initScanContext(
         return NULL;
     }
 
-    auto* vbState = getVBucketState(vbid);
-    if (!vbState) {
-        if (readVBState(db, vbid) == CouchKVStore::ReadVBStateStatus::Success) {
-            vbState = getVBucketState(vbid);
-        }
-        if (!vbState) {
-            EP_LOG_WARN(
-                    "CouchKVStore::initScanContext:Failed to obtain vbState for"
-                    "the highCompletedSeqno");
-            return NULL;
-        }
+    auto readVbStateResult = readVBState(db, vbid);
+    if (readVbStateResult.status != ReadVBStateStatus::Success) {
+        EP_LOG_WARN(
+                "CouchKVStore::initScanContext:Failed to obtain vbState for"
+                "the highCompletedSeqno");
+        return NULL;
     }
 
     size_t scanId = scanCounter++;
@@ -1479,19 +1474,20 @@ ScanContext* CouchKVStore::initScanContext(
         scans[scanId] = db.releaseDb();
     }
 
-    ScanContext* sctx = new ScanContext(cb,
-                                        cl,
-                                        vbid,
-                                        scanId,
-                                        startSeqno,
-                                        info.last_sequence,
-                                        info.purge_seq,
-                                        options,
-                                        valOptions,
-                                        count,
-                                        vbState->highCompletedSeqno,
-                                        configuration,
-                                        collectionsManifest);
+    ScanContext* sctx =
+            new ScanContext(cb,
+                            cl,
+                            vbid,
+                            scanId,
+                            startSeqno,
+                            info.last_sequence,
+                            info.purge_seq,
+                            options,
+                            valOptions,
+                            count,
+                            readVbStateResult.state.highCompletedSeqno,
+                            configuration,
+                            collectionsManifest);
     sctx->logger = &logger;
     return sctx;
 }
@@ -2358,7 +2354,7 @@ CouchKVStore::processVbstateSnapshot(Vbid vb,
     return {status, snapStart, snapEnd};
 }
 
-CouchKVStore::ReadVBStateStatus CouchKVStore::readVBState(Db* db, Vbid vbId) {
+CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db, Vbid vbId) {
     sized_buf id;
     LocalDoc *ldoc = NULL;
     ReadVBStateStatus status = ReadVBStateStatus::Success;
@@ -2378,7 +2374,7 @@ CouchKVStore::ReadVBStateStatus CouchKVStore::readVBState(Db* db, Vbid vbId) {
                 ", {}",
                 couchstore_strerror(couchStoreStatus),
                 vbId);
-        return ReadVBStateStatus::CouchstoreError;
+        return {ReadVBStateStatus::CouchstoreError, {}};
     }
 
     vbucket_state vbState;
@@ -2399,7 +2395,7 @@ CouchKVStore::ReadVBStateStatus CouchKVStore::readVBState(Db* db, Vbid vbId) {
                 " error:{}, {}",
                 couchstore_strerror(couchStoreStatus),
                 vbId);
-        return ReadVBStateStatus::CouchstoreError;
+        return {ReadVBStateStatus::CouchstoreError, {}};
     }
 
     // Proceed to read/parse the vbstate if success
@@ -2418,7 +2414,7 @@ CouchKVStore::ReadVBStateStatus CouchKVStore::readVBState(Db* db, Vbid vbId) {
                     vbId,
                     statjson,
                     e.what());
-            return ReadVBStateStatus::JsonInvalid;
+            return {ReadVBStateStatus::JsonInvalid, {}};
         }
 
         // Merge in the high_seqno & purge_seqno read previously from db info.
@@ -2437,7 +2433,7 @@ CouchKVStore::ReadVBStateStatus CouchKVStore::readVBState(Db* db, Vbid vbId) {
                     vbId,
                     json.dump(),
                     e.what());
-            return ReadVBStateStatus::JsonInvalid;
+            return {ReadVBStateStatus::JsonInvalid, {}};
         }
 
         // MB-17517: If the maxCas on disk was invalid then don't use it -
@@ -2465,12 +2461,18 @@ CouchKVStore::ReadVBStateStatus CouchKVStore::readVBState(Db* db, Vbid vbId) {
         couchstore_free_local_document(ldoc);
     }
 
-    if (status == ReadVBStateStatus::Success) {
+    return {status, vbState};
+}
+
+CouchKVStore::ReadVBStateResult CouchKVStore::readVBStateAndUpdateCache(
+        Db* db, Vbid vbid) {
+    auto res = readVBState(db, vbid);
+    if (res.status == ReadVBStateStatus::Success) {
         // Cannot use make_unique here as it doesn't support
         // brace-initialization until C++20.
-        cachedVBStates[vbId.get()].reset(new vbucket_state(vbState));
+        cachedVBStates[vbid.get()].reset(new vbucket_state(res.state));
     }
-    return status;
+    return res;
 }
 
 couchstore_error_t CouchKVStore::saveVBState(Db *db,
@@ -2876,7 +2878,8 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
         return RollbackResult(false);
     }
 
-    if (readVBState(newdb, vbid) != ReadVBStateStatus::Success) {
+    if (readVBStateAndUpdateCache(newdb, vbid).status !=
+        ReadVBStateStatus::Success) {
         return RollbackResult(false);
     }
     cachedDeleteCount[vbid.get()] = info.deleted_count;

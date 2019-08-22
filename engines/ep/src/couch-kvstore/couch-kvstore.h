@@ -29,11 +29,11 @@
 #include <platform/strerror.h>
 #include <relaxed_atomic.h>
 
+#include <engines/ep/src/vbucket_state.h>
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
-
 
 #define COUCHSTORE_NO_OPTIONS 0
 
@@ -340,27 +340,6 @@ public:
     static int recordDbDump(Db *db, DocInfo *docinfo, void *ctx);
     static int recordDbStat(Db *db, DocInfo *docinfo, void *ctx);
     static int getMultiCb(Db *db, DocInfo *docinfo, void *ctx);
-
-    enum class ReadVBStateStatus {
-        Success,
-        JsonInvalid,
-        CorruptSnapshot,
-        CouchstoreError
-    };
-
-    ReadVBStateStatus readVBState(Db* db, Vbid vbId);
-
-    /**
-     * Process the vbstate snapshot strings which are stored in the vbstate
-     * document. Check for validity and return a status + decoded snapshot.
-     */
-    std::tuple<ReadVBStateStatus, uint64_t, uint64_t> processVbstateSnapshot(
-            Vbid vb,
-            vbucket_state_t state,
-            int64_t version,
-            uint64_t snapStart,
-            uint64_t snapEnd,
-            uint64_t highSeqno);
 
     couchstore_error_t fetchDoc(Db* db,
                                 DocInfo* docinfo,
@@ -756,6 +735,45 @@ protected:
 
     /// Copy relevant DbInfo stats to the common FileStats struct
     static FileInfo toFileInfo(const DbInfo& info);
+
+    enum class ReadVBStateStatus {
+        Success,
+        JsonInvalid,
+        CorruptSnapshot,
+        CouchstoreError
+    };
+
+    /**
+     * Result of the readVBState function
+     */
+    struct ReadVBStateResult {
+        ReadVBStateStatus status;
+
+        // Only valid if status == ReadVBStateStatus::Success
+        vbucket_state state;
+    };
+
+    /**
+     * Process the vbstate snapshot strings which are stored in the vbstate
+     * document. Check for validity and return a status + decoded snapshot.
+     */
+    std::tuple<ReadVBStateStatus, uint64_t, uint64_t> processVbstateSnapshot(
+            Vbid vb,
+            vbucket_state_t state,
+            int64_t version,
+            uint64_t snapStart,
+            uint64_t snapEnd,
+            uint64_t highSeqno);
+
+    /**
+     * Read the vbucket_state from disk.
+     */
+    ReadVBStateResult readVBState(Db* db, Vbid vbid);
+
+    /**
+     * Read the vbucket_state from disk and update the cache if successful
+     */
+    ReadVBStateResult readVBStateAndUpdateCache(Db* db, Vbid vbid);
 
     const std::string dbname;
 
