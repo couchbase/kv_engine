@@ -485,3 +485,110 @@ TEST_F(CheckpointRemoverEPTest, notExpelButCursorDrop) {
     EXPECT_EQ(0, engine->getEpStats().itemsExpelledFromCheckpoints);
     EXPECT_EQ(1, engine->getEpStats().cursorsDropped);
 }
+
+std::vector<queued_item> CheckpointRemoverEPTest::getItemsWithCursor(
+        const std::string& name, uint64_t startBySeqno, bool expectBackfill) {
+    auto vb = engine->getVBucket(vbid);
+    auto* cm = static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
+    auto regRes = cm->registerCursorBySeqno("SomeName", startBySeqno);
+    EXPECT_EQ(expectBackfill, regRes.tryBackfill);
+    auto cursor = regRes.cursor.lock();
+
+    std::vector<queued_item> items;
+    cm->getNextItemsForCursor(cursor.get(), items);
+
+    cm->removeCursor(cursor.get());
+
+    return items;
+}
+
+TEST_F(CheckpointRemoverEPTest, expelsOnlyIfOldestCheckpointIsReferenced) {
+    // Check to confirm checkpoint expelling will only run if there are cursors
+    // in the oldest checkpoint. If there are not, the entire checkpoint should
+    // be closed
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto vb = engine->getVBucket(vbid);
+    auto* cm = static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
+
+    /* adding three items because expelUnreferencedCheckpointItems will find the
+     * earliest cursor, then step backwards while the item it points to
+     * satisfies any of: A: its seqno is equal to the highSeqno of the
+     * checkpoint B: it is a meta item C: it is preceded by another item with
+     * the same seqno (meta items can share the same seqno as a subsequent item)
+     *
+     * If the dummy item which starts the checkpoint is reached, expelling bails
+     * out early as nothing can be expelled.
+     *
+     * If it stops on an item which is not the dummy, this is then used as the
+     * *last* item to expel.
+     *
+     * To actually expel anything we need three items. If we had one or two
+     * items, all items in the checkpoint would then satisfy one of the above
+     * cases, the dummy item would be reached and nothing would be expelled.
+     */
+
+    for (int i = 0; i < 3; i++) {
+        store_item(vbid, makeStoredDocKey("key_" + std::to_string(i)), "value");
+    }
+
+    cm->forceNewCheckpoint();
+
+    for (int i = 3; i < 6; i++) {
+        store_item(vbid, makeStoredDocKey("key_" + std::to_string(i)), "value");
+    }
+
+    flush_vbucket_to_disk(vbid, 6);
+
+    // Persistence cursor advanced to the end, the first checkpoint is now
+    // unreferenced; trying to expel should do nothing. Expelling from the first
+    // checkpoint would be inefficient as it can be dropped as a whole
+    // checkpoint, and no other checkpoint can be expelled without leaving
+    // "holes" in the data a cursor would read.
+
+    size_t beforeCount =
+            getItemsWithCursor("Cursor1", 0, /* expect tryBackfill*/ true)
+                    .size();
+    cm->expelUnreferencedCheckpointItems();
+    size_t afterCount = getItemsWithCursor("Cursor2", 0, true).size();
+
+    EXPECT_EQ(beforeCount, afterCount);
+
+    // Now, put a cursor in the first checkpoint. Now, expelling should remove
+    // items from it as it is the oldest checkpoint.
+
+    auto regRes = cm->registerCursorBySeqno("Cursor3", 0);
+    auto cursor = regRes.cursor.lock();
+
+    /* items in first checkpoint
+     *
+     *   dummy     << cursor starts here
+     *   chk start    |
+     *   vb state     |
+     *   key_1        V
+     *   key_2     << advance to here
+     *   key_3
+     */
+
+    size_t expellItemCount = 4;
+
+    for (size_t i = 0; i < expellItemCount; i++) {
+        cm->incrCursor(*cursor);
+    }
+
+    // can now expel the 4 items before the above cursor
+    auto result = cm->expelUnreferencedCheckpointItems();
+
+    EXPECT_EQ(expellItemCount, result.expelCount);
+
+    /* items in first checkpoint
+     *
+     *   dummy
+     *   key_3
+     */
+
+    afterCount = getItemsWithCursor("Cursor4", 0, true).size();
+
+    EXPECT_EQ(beforeCount - expellItemCount, afterCount);
+}

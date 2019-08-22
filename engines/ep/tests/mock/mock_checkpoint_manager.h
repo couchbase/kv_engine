@@ -94,4 +94,9 @@ public:
     void resetConfig(CheckpointConfig& c) {
         checkpointConfig = c;
     }
+
+    void forceNewCheckpoint() {
+        LockHolder lh(queueLock);
+        checkOpenCheckpoint_UNLOCKED(lh, true, 0);
+    }
 };

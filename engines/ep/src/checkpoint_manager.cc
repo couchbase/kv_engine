@@ -478,36 +478,30 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
     {
         LockHolder lh(queueLock);
 
-        const auto containsCursors = [](std::unique_ptr<Checkpoint>& c) {
-            if (c->getNumCursorsInCheckpoint() > 0) {
-                return true;
-            }
-            return false;
-        };
-        // Find the oldest checkpoint with cursors in it.
-        const auto it = std::find_if(
-                checkpointList.begin(), checkpointList.end(), containsCursors);
-        Checkpoint* currentCheckpoint =
-                (it == checkpointList.end()) ? nullptr : (*it).get();
+        Checkpoint* oldestCheckpoint = checkpointList.front().get();
 
-        if (currentCheckpoint == nullptr) {
-            // There are no eligible checkpoints to expel items from.
+        if (oldestCheckpoint->getNumCursorsInCheckpoint() == 0) {
+            // The oldest checkpoint is unreferenced, and may be deleted
+            // as a whole by the ClosedUnrefCheckpointRemoverTask,
+            // expelling everything from it one by one would be a waste of time.
+            // Cannot expel from checkpoints which are not the oldest without
+            // leaving gaps in the items a cursor would read.
             return {};
         }
 
-        if (currentCheckpoint->getNumItems() == 0) {
+        if (oldestCheckpoint->getNumItems() == 0) {
             // There are no mutation items in the checkpoint to expel.
             return {};
         }
 
         const auto findLowestCursor =
-                [currentCheckpoint](Cursor& current,
-                                    const cursor_index::value_type& cursor) {
+                [oldestCheckpoint](Cursor& current,
+                                   const cursor_index::value_type& cursor) {
                     // Get the cursor's current checkpoint.
                     const auto checkpoint =
                             (*(cursor.second->currentCheckpoint)).get();
                     // Is the cursor in the checkpoint we are interested in?
-                    if (currentCheckpoint != checkpoint) {
+                    if (oldestCheckpoint != checkpoint) {
                         return current;
                     }
                     // We are in the same checkpoint, have we found any
@@ -535,7 +529,7 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
 
         Cursor lowestCursor;
         // Find the cursor with the lowest seqno that resides in the
-        // currentCheckpoint.
+        // oldestCheckpoint.
         lowestCursor = std::accumulate(connCursors.begin(),
                                        connCursors.end(),
                                        lowestCursor,
@@ -564,9 +558,9 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
          * 2. has a previous entry with the same seqno, or
          * 3. is pointing to a metadata item.
          */
-        while ((iterator != currentCheckpoint->begin()) &&
+        while ((iterator != oldestCheckpoint->begin()) &&
                (((*iterator)->getBySeqno() ==
-                 int64_t(currentCheckpoint->getHighSeqno())) ||
+                 int64_t(oldestCheckpoint->getHighSeqno())) ||
                 ((*std::prev(iterator))->getBySeqno() ==
                  (*iterator)->getBySeqno()) ||
                 ((*iterator)->isCheckPointMetaItem()))) {
@@ -575,7 +569,7 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
 
         // If pointing to the dummy item then cannot expel anything and so just
         // return.
-        if (iterator == currentCheckpoint->begin()) {
+        if (iterator == oldestCheckpoint->begin()) {
             return {};
         }
 
@@ -586,7 +580,7 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
          * queue thereby ensuring they still have a reference whilst
          * the queuelock is being held.
          */
-        expelledItems = currentCheckpoint->expelItems(expelUpToAndIncluding);
+        expelledItems = oldestCheckpoint->expelItems(expelUpToAndIncluding);
     }
 
     // If called currentCheckpoint->expelItems but did not manage to expel

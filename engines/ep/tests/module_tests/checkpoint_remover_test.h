@@ -66,4 +66,14 @@ protected:
      * test should be moved forward.
      */
     void testExpelingOccursBeforeCursorDropping(bool moveCursor);
+
+    /**
+     * Construct a cursor, and call getNextItemsForCursor.
+     *
+     * @param name
+     * @param startBySeqno
+     */
+    std::vector<queued_item> getItemsWithCursor(const std::string& name,
+                                                uint64_t startBySeqno,
+                                                bool expectBackfill = false);
 };
