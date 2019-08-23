@@ -2291,23 +2291,13 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
 // Expect ThreadSanitizer to pick this.
 // Rocks has race condition issues
 TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
-    // MB-35655:
-    // This test is currently failing (appears to be timing out) often on
-    // Windows when run against magma. Disabling whilst a solution is found to
-    // not impact development.
-#ifdef WIN32
-    if (kvstoreConfig->getBackend() == "magma") {
-        return;
-    }
-#endif
     WriteCallback wc;
     std::atomic<bool> stop{false};
-    std::atomic<uint32_t> deletes{0};
+    bool okToDelete{false};
+    uint32_t deletes{0};
     uint32_t minNumDeletes = 25;
     std::mutex delMutex;
     std::condition_variable delWait;
-    std::mutex testMutex;
-    std::condition_variable testWait;
 
     ThreadGate tg(3);
 
@@ -2324,6 +2314,7 @@ TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
             // means we have a vbucket we can drop.
             if (ok) {
                 std::lock_guard<std::mutex> lock(delMutex);
+                okToDelete = true;
                 delWait.notify_one();
             }
         }
@@ -2334,11 +2325,12 @@ TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
         while (!stop.load()) {
             {
                 std::unique_lock<std::mutex> lock(delMutex);
-                delWait.wait(lock);
+                delWait.wait(lock, [&okToDelete] { return okToDelete; });
+                okToDelete = false;
             }
             kvstore->delVBucket(Vbid(0), 0);
             if (deletes++ > minNumDeletes) {
-                testWait.notify_one();
+                stop = true;
             }
         }
     };
@@ -2369,25 +2361,20 @@ TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
         }
     };
 
-    std::thread t1(set);
-    std::thread t2(delVBucket);
-    std::thread t3(get);
-    std::thread t4(initScan);
+    std::vector<std::thread> workers;
 
-    {
-        // This is not a 30s test. The 30s is just a timeout in
-        // case something goes horribly wrong. The test ends when
-        // there have been minNumDeletes(25) successful vbucket
-        // drops.
-        std::unique_lock<std::mutex> lock(testMutex);
-        testWait.wait_for(lock, std::chrono::seconds(30));
+    auto tid = std::thread(set);
+    workers.push_back(std::move(tid));
+    tid = std::thread(delVBucket);
+    workers.push_back(std::move(tid));
+    tid = std::thread(get);
+    workers.push_back(std::move(tid));
+    tid = std::thread(initScan);
+    workers.push_back(std::move(tid));
+
+    for (auto& tid : workers) {
+        tid.join();
     }
-
-    stop = true;
-    t1.join();
-    t2.join();
-    t3.join();
-    t4.join();
     EXPECT_LT(minNumDeletes, deletes);
 }
 
