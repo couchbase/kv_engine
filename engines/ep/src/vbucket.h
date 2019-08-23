@@ -666,12 +666,6 @@ public:
         return rollbackItemCount.load(std::memory_order_relaxed);
     }
 
-    // Return the persistence checkpoint ID
-    uint64_t getPersistenceCheckpointId() const;
-
-    // Set the persistence checkpoint ID to the given value.
-    void setPersistenceCheckpointId(uint64_t checkpointId);
-
     // Mark the value associated with the given key as dirty
     void markDirty(const DocKey& key);
 
@@ -2320,8 +2314,6 @@ private:
 
     HLC hlc;
     std::string statPrefix;
-    // The persistence checkpoint ID for this vbucket.
-    std::atomic<uint64_t> persistenceCheckpointId;
     // Flag to indicate the vbucket is being created
     std::atomic<bool> bucketCreation;
     // Flag to indicate the vbucket deletion is deferred

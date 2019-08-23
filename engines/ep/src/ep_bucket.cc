@@ -684,9 +684,6 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                     engine, seqno, HighPriorityVBNotify::Seqno);
             vb->notifyHighPriorityRequests(
                     engine, chkid, HighPriorityVBNotify::ChkPersistence);
-            if (chkid > 0 && chkid != vb->getPersistenceCheckpointId()) {
-                vb->setPersistenceCheckpointId(chkid);
-            }
         } else {
             return {true, items_flushed};
         }
@@ -1074,7 +1071,8 @@ void EPBucket::updateCompactionTasks(Vbid db_file_id) {
 std::pair<uint64_t, bool> EPBucket::getLastPersistedCheckpointId(Vbid vb) {
     auto vbucket = vbMap.getBucket(vb);
     if (vbucket) {
-        return {vbucket->getPersistenceCheckpointId(), true};
+        return {vbucket->checkpointManager->getPersistenceCursorPreChkId(),
+                true};
     } else {
         return {0, true};
     }

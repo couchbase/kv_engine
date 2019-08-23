@@ -149,8 +149,6 @@ bool KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
             state_change_detected = false;
         }
 
-        vbState->checkpointId = newState.checkpointId;
-
         if (newState.maxDeletedSeqno > 0 &&
                 vbState->maxDeletedSeqno < newState.maxDeletedSeqno) {
             vbState->maxDeletedSeqno = newState.maxDeletedSeqno;

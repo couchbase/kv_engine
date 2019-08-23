@@ -54,8 +54,9 @@ struct vbucket_state {
      * v2: 5.5.4-MP, 6.0.2 and Mad-Hatter (pre GA), added with MB-34173.
      *     Indicates snapshot start/end are sanitized with respect to
      *     high_seqno.
-     * v3: Mad-Hatter (pre GA). high_completed_seqno and high_prepared_seqno
-     *     added along with counter for number of prepares on disk.
+     * v3: Mad-Hatter. high_completed_seqno and high_prepared_seqno added along
+     *     with counter for number of prepares on disk. Checkpoint-ID no longer
+     *     stored (and ignored during upgrade)
      */
     static constexpr int CurrentVersion = 3;
 
@@ -64,7 +65,6 @@ struct vbucket_state {
     void reset();
 
     vbucket_state_t state = vbucket_state_dead;
-    uint64_t checkpointId = 0;
     cb::uint48_t maxDeletedSeqno = 0;
     int64_t highSeqno = 0;
     uint64_t purgeSeqno = 0;

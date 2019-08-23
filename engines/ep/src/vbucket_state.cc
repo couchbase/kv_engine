@@ -35,7 +35,6 @@ bool vbucket_state::needsToBePersisted(const vbucket_state& vbstate) {
 }
 
 void vbucket_state::reset() {
-    checkpointId = 0;
     maxDeletedSeqno = 0;
     highSeqno = 0;
     purgeSeqno = 0;
@@ -62,7 +61,6 @@ void to_json(nlohmann::json& json, const vbucket_state& vbs) {
     // all future uses.
     json = nlohmann::json{
             {"state", VBucket::toString(vbs.state)},
-            {"checkpoint_id", std::to_string(vbs.checkpointId)},
             {"max_deleted_seqno", std::to_string(vbs.maxDeletedSeqno)},
             {"high_seqno", std::to_string(vbs.highSeqno)},
             {"purge_seqno", std::to_string(vbs.purgeSeqno)},
@@ -90,7 +88,6 @@ void from_json(const nlohmann::json& j, vbucket_state& vbs) {
     // Parse required fields. Note that integers are stored as strings to avoid
     // any undesired rounding - see comment in to_json().
     vbs.state = VBucket::fromString(j.at("state").get<std::string>().c_str());
-    vbs.checkpointId = std::stoull(j.at("checkpoint_id").get<std::string>());
     vbs.maxDeletedSeqno =
             std::stoull(j.at("max_deleted_seqno").get<std::string>());
     vbs.highSeqno = std::stoll(j.at("high_seqno").get<std::string>());

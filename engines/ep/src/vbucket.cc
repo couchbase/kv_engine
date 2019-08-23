@@ -218,7 +218,6 @@ VBucket::VBucket(Vbid i,
           std::chrono::microseconds(config.getHlcDriftAheadThresholdUs()),
           std::chrono::microseconds(config.getHlcDriftBehindThresholdUs())),
       statPrefix("vb_" + std::to_string(i.get())),
-      persistenceCheckpointId(0),
       bucketCreation(false),
       deferredDeletion(false),
       deferredDeletionCookie(nullptr),
@@ -559,7 +558,6 @@ vbucket_state VBucket::getVBucketState() const {
      }
 
      return vbucket_state{getState(),
-                          getPersistenceCheckpointId(),
                           0,
                           getHighSeqno(),
                           getPurgeSeqno(),
@@ -988,14 +986,6 @@ bool VBucket::addPendingOp(const void* cookie) {
     ++stats.pendingOps;
     ++stats.pendingOpsTotal;
     return true;
-}
-
-uint64_t VBucket::getPersistenceCheckpointId() const {
-    return persistenceCheckpointId.load();
-}
-
-void VBucket::setPersistenceCheckpointId(uint64_t checkpointId) {
-    persistenceCheckpointId.store(checkpointId);
 }
 
 void VBucket::markDirty(const DocKey& key) {
