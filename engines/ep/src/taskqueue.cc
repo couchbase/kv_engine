@@ -79,7 +79,14 @@ void TaskQueue::_doWake_UNLOCKED(size_t &numToWake) {
 bool TaskQueue::_doSleep(ExecutorThread &t,
                          std::unique_lock<std::mutex>& lock) {
     t.updateCurrentTime();
-    if (t.getCurTime() < t.getWaketime() && manager->trySleep(queueType)) {
+
+    // Determine the time point to wake this thread - either "forever" if the
+    // futureQueue is empty, or the earliest wake time in the futureQueue.
+    const auto wakeTime = futureQueue.empty()
+                                  ? std::chrono::steady_clock::time_point::max()
+                                  : futureQueue.top()->getWaketime();
+
+    if (t.getCurTime() < wakeTime && manager->trySleep(queueType)) {
         // Atomically switch from running to sleeping; iff we were previously
         // running.
         executor_state_t expected_state = EXECUTOR_RUNNING;
@@ -89,7 +96,7 @@ bool TaskQueue::_doSleep(ExecutorThread &t,
         }
         sleepers++;
         // zzz....
-        const auto snooze = t.getWaketime() - t.getCurTime();
+        const auto snooze = wakeTime - t.getCurTime();
 
         if (snooze > std::chrono::seconds((int)round(MIN_SLEEP_TIME))) {
             mutex.wait_for(lock, MIN_SLEEP_TIME);
