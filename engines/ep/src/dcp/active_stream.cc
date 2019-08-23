@@ -24,6 +24,8 @@
 #include "ep_time.h"
 #include "kv_bucket.h"
 #include "statwriter.h"
+
+#include <boost/optional/optional_io.hpp>
 #include <memcached/protocol_binary.h>
 
 ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
@@ -287,23 +289,25 @@ void ActiveStream::markDiskSnapshot(
             }
         }
 
-        log(spdlog::level::level_enum::info,
-            "{} Sending disk snapshot with start seqno {} and end "
-            "seqno {}",
-            logPrefix,
-            startSeqno,
-            endSeqno);
         // If the stream supports SyncRep then send the HCS in the
         // SnapshotMarker if it is not 0
         auto sendHCS = supportSyncReplication() && highCompletedSeqno &&
                        *highCompletedSeqno != 0;
+        auto hcsToSend = sendHCS ? highCompletedSeqno : boost::none;
+        log(spdlog::level::level_enum::info,
+            "{} Sending disk snapshot with start seqno {}, end seqno {}, and"
+            " high completed seqno {}",
+            logPrefix,
+            startSeqno,
+            endSeqno,
+            hcsToSend);
         pushToReadyQ(std::make_unique<SnapshotMarker>(
                 opaque_,
                 vb_,
                 startSeqno,
                 endSeqno,
                 MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-                sendHCS ? highCompletedSeqno : boost::none,
+                hcsToSend,
                 sid));
         lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 
