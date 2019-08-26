@@ -249,10 +249,14 @@ public:
     }
 };
 
-TEST_F(CouchKVStoreTest, CompressedTest) {
-    KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
-    auto kvstore = setup_kv_store(config);
+class KVStoreParamTestSkipRocks : public KVStoreParamTest {
+public:
+    KVStoreParamTestSkipRocks() : KVStoreParamTest() {
+    }
+};
 
+// Rocks doesn't support returning compressed values.
+TEST_P(KVStoreParamTestSkipRocks, CompressedTest) {
     kvstore->begin(std::make_unique<TransactionContext>());
 
     WriteCallback wc;
@@ -2169,12 +2173,6 @@ void KVStoreParamTest::TearDown() {
 class KVStoreParamTestSkipMagma : public KVStoreParamTest {
 public:
     KVStoreParamTestSkipMagma() : KVStoreParamTest() {
-    }
-};
-
-class KVStoreParamTestSkipRocks : public KVStoreParamTest {
-public:
-    KVStoreParamTestSkipRocks() : KVStoreParamTest() {
     }
 };
 
