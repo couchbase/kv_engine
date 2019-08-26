@@ -52,6 +52,9 @@ class MagmaInfo {
 public:
     MagmaInfo() = default;
 
+    // Note: we don't want to reset the kvstoreRev because it tracks
+    // the kvstore revision which is a monotonically increasing
+    // value each time the kvstore is created.
     void reset() {
         docCount = 0;
         persistedDeletes = 0;
@@ -60,6 +63,7 @@ public:
     cb::NonNegativeCounter<uint64_t> docCount{0};
     cb::NonNegativeCounter<uint64_t> persistedDeletes{0};
     cb::NonNegativeCounter<uint64_t> purgeSeqno{0};
+    Monotonic<uint64_t> kvstoreRev{1};
 };
 
 /**
@@ -243,14 +247,15 @@ public:
         return {};
     }
 
-    void prepareToCreateImpl(Vbid vbid) override {
-        // magma does not use file revisions
-    }
+    /**
+     * Increment the kvstore revision.
+     */
+    void prepareToCreateImpl(Vbid vbid) override;
 
-    uint64_t prepareToDeleteImpl(Vbid vbid) override {
-        // magma does not use prepareToDelete
-        return 0;
-    }
+    /**
+     * Soft delete the kvstore.
+     */
+    uint64_t prepareToDeleteImpl(Vbid vbid) override;
 
     Collections::KVStore::Manifest getCollectionsManifest(Vbid vbid) override {
         // TODO

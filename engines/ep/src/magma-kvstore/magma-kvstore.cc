@@ -979,7 +979,20 @@ void MagmaKVStore::reset(Vbid vbid) {
     {
         // Get exclusive access to the handle
         auto lock = getExclusiveKVHandle(vbid);
-        auto status = magma->DeleteKVStore(vbid.get());
+        Status status;
+        Magma::KVStoreRevision kvsRev;
+        std::tie(status, kvsRev) = magma->SoftDeleteKVStore(vbid.get());
+        if (!status) {
+            logger->critical(
+                    "MagmaKVStore::reset SoftDeleteKVStore failed. {} "
+                    "status:{}",
+                    vbid.to_string(),
+                    status.String());
+        }
+        // Even though SoftDeleteKVStore might have failed, go ahead and
+        // call DeleteKVStore because it will remove the KVStore path
+        // regardless if we think the kvstore is valid or not.
+        status = magma->DeleteKVStore(vbid.get(), kvsRev);
         if (!status) {
             logger->critical(
                     "MagmaKVStore::reset DeleteKVStore {} failed. status:{}",
@@ -1015,13 +1028,57 @@ void MagmaKVStore::del(const Item& item, KVStore::DeleteCallback cb) {
 void MagmaKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
     // Get exclusive access to the handle
     auto lock = getExclusiveKVHandle(vbid);
-    auto status = magma->DeleteKVStore(vbid.get());
+    auto status = magma->DeleteKVStore(
+            vbid.get(), static_cast<Magma::KVStoreRevision>(vb_version));
     if (!status) {
         logger->warn(
-                "MagmaKVStore::delVBucket DeleteKVStore {} failed. status:{}",
+                "MagmaKVStore::delVBucket DeleteKVStore {} revision:{} failed. "
+                "status:{}",
                 vbid,
+                vb_version,
                 status.String());
     }
+}
+
+void MagmaKVStore::prepareToCreateImpl(Vbid vbid) {
+    auto kvHandle = getMagmaKVHandle(vbid);
+    if (magma->KVStoreExists(vbid.get())) {
+        throw std::logic_error("MagmaKVStore::prepareToCreateImpl " +
+                               vbid.to_string() +
+                               " Can't call prepareToCreate before calling" +
+                               " prepareToDelete on an existing kvstore.");
+    }
+    if (cachedVBStates[vbid.get()]) {
+        std::lock_guard<std::shared_timed_mutex> lock(kvHandle->vbstateMutex);
+        cachedVBStates[vbid.get()]->reset();
+        cachedMagmaInfo[vbid.get()]->reset();
+        cachedMagmaInfo[vbid.get()]->kvstoreRev++;
+        logger->info("MagmaKVStore::prepareToCreateImpl {} kvstoreRev:{}",
+                     vbid,
+                     cachedMagmaInfo[vbid.get()]->kvstoreRev);
+    }
+}
+
+uint64_t MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
+    auto kvHandle = getMagmaKVHandle(vbid);
+    if (magma->KVStoreExists(vbid.get())) {
+        auto kvHandle = getMagmaKVHandle(vbid);
+        Status status;
+        Magma::KVStoreRevision kvsRev;
+        std::tie(status, kvsRev) = magma->SoftDeleteKVStore(vbid.get());
+        if (!status) {
+            logger->critical(
+                    "MagmaKVStore::prepareToCreateImpl SoftDeleteKVStore "
+                    "failed. {} status:{}",
+                    vbid,
+                    status.String());
+        }
+        logger->info("MagmaKVStore::prepareToDeleteImpl {} kvstoreRev:{}",
+                     vbid,
+                     cachedMagmaInfo[vbid.get()]->kvstoreRev);
+        return static_cast<uint64_t>(cachedMagmaInfo[vbid.get()]->kvstoreRev);
+    }
+    return 0;
 }
 
 // Note: It is assumed this can only be called from bg flusher thread or
@@ -1098,7 +1155,11 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbid,
         vbstateLock.unlock();
 
         std::unique_ptr<Magma::CommitBatch> batch;
-        auto status = magma->NewCommitBatch(vbid.get(), batch);
+        auto status = magma->NewCommitBatch(
+                vbid.get(),
+                batch,
+                static_cast<Magma::KVStoreRevision>(
+                        cachedMagmaInfo[vbid.get()]->kvstoreRev));
         if (!status) {
             logger->critical(
                     "MagmaKVStore::snapshotVBucket failed creating "
@@ -1213,7 +1274,11 @@ int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
     // Start a magma CommitBatch.
     // This is an atomic batch of items... all or nothing.
     std::unique_ptr<Magma::CommitBatch> batch;
-    Status status = magma->NewCommitBatch(vbid.get(), batch);
+    Status status = magma->NewCommitBatch(
+            vbid.get(),
+            batch,
+            static_cast<Magma::KVStoreRevision>(
+                    cachedMagmaInfo[vbid.get()]->kvstoreRev));
     if (!status) {
         logger->warn(
                 "MagmaKVStore::saveDocs NewCommitBatch failed {} status:{}",
@@ -1668,6 +1733,9 @@ magma::Status MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
     minfo->persistedDeletes =
             std::stoull(j.at("persisted_deletes").get<std::string>());
     minfo->purgeSeqno = std::stoull(j.at("purge_seqno").get<std::string>());
+    minfo->kvstoreRev.reset(
+            std::stoull(j.at("kvstore_revision").get<std::string>()));
+
     cachedMagmaInfo[vbid.get()] = std::move(minfo);
     return status;
 }
@@ -1780,6 +1848,8 @@ nlohmann::json MagmaKVStore::encodeVBState(const vbucket_state& vbstate,
             std::to_string(static_cast<uint64_t>(magmaInfo.persistedDeletes));
     j["purge_seqno"] =
             std::to_string(static_cast<uint64_t>(magmaInfo.purgeSeqno));
+    j["kvstore_revision"] =
+            std::to_string(static_cast<uint64_t>(magmaInfo.kvstoreRev));
     return j;
 }
 
@@ -1921,7 +1991,12 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
     // Need to save off new vbstate and possibly collections manifest.
     // Start a new CommitBatch
     std::unique_ptr<Magma::CommitBatch> batch;
-    status = magma->NewCommitBatch(vbid.get(), batch);
+
+    status = magma->NewCommitBatch(
+            vbid.get(),
+            batch,
+            static_cast<Magma::KVStoreRevision>(
+                    cachedMagmaInfo[vbid.get()]->kvstoreRev));
     if (!status) {
         logger->warn(
                 "MagmaKVStore::compactDB failed creating batch for {} "

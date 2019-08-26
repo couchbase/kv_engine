@@ -2247,12 +2247,17 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
     uint64_t seqno = 1000;
 
     // For this test we need to initialize both VBucket 0 and VBucket 1.
-    // In the case of RocksDB and magma we need to release the DB
+    // In the case of RocksDB we need to release the DB
     // already opened in 'kvstore'
-    if (kvstoreConfig->getBackend() == "rocksdb" ||
-        kvstoreConfig->getBackend() == "magma") {
+    if (kvstoreConfig->getBackend() == "rocksdb") {
         kvstore.reset();
+        // For magma, we need to delete the vbucket since
+        // we are going to reuse it.
+    } else if (kvstoreConfig->getBackend() == "magma") {
+        auto kvsRev = kvstore->prepareToDelete(Vbid(0));
+        kvstore->delVBucket(Vbid(0), kvsRev);
     }
+
     kvstore = setup_kv_store(*kvstoreConfig, vbids);
 
     // Store an item into each VBucket
@@ -2868,4 +2873,12 @@ TEST_F(MagmaKVStoreTest, RollbackNoValidCommitPoint) {
     auto rollbackResult = kvstore->rollback(Vbid(0), 5, rcb);
     ASSERT_FALSE(rollbackResult.success);
 }
+
+TEST_F(MagmaKVStoreTest, prepareToCreate) {
+    EXPECT_THROW(kvstore->prepareToCreate(Vbid(0)), std::logic_error);
+    auto kvsRev = kvstore->prepareToDelete(Vbid(0));
+    ASSERT_EQ(1, int(kvsRev));
+    EXPECT_NO_THROW(kvstore->prepareToCreate(Vbid(0)));
+}
+
 #endif
