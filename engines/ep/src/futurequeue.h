@@ -18,7 +18,7 @@
 /*
  * The FutureQueue provides a std::priority_queue style interface
  * onto a queue of ExTask objects that are sorted by the tasks wakeTime.
- * The lowest wakeTime will be the top() task.
+ * The lowest wakeTime (soonest) will be the top() task.
  *
  * FutureQueue provides methods that allow a task's wakeTime to be mutated
  * whilst maintaining the priority ordering.

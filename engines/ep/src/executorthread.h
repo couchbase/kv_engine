@@ -90,7 +90,6 @@ public:
           name(nm),
           state(EXECUTOR_RUNNING),
           now(ProcessClock::now()),
-          waketime(ProcessClock::time_point::max()),
           taskStart(),
           currentTask(NULL) {
     }
@@ -137,14 +136,6 @@ public:
 
     const std::string getStateName();
 
-    ProcessClock::time_point getWaketime() const {
-        return waketime.getTimePoint();
-    }
-
-    void setWaketime(const ProcessClock::time_point tp) {
-        waketime.setTimePoint(tp);
-    }
-
     ProcessClock::time_point getCurTime() const {
         return now.getTimePoint();
     }
@@ -163,8 +154,6 @@ protected:
 
     // record of current time
     AtomicProcessTime now;
-    // record of the earliest time the task can be woken-up
-    AtomicProcessTime waketime;
     AtomicProcessTime taskStart;
 
     std::mutex currentTaskMutex; // Protects currentTask

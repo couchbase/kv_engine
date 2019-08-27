@@ -116,7 +116,7 @@ bool TaskQueue::_doSleep(ExecutorThread &t,
         }
         t.updateCurrentTime();
     }
-    t.setWaketime(ProcessClock::time_point(ProcessClock::time_point::max()));
+
     return true;
 }
 
@@ -129,12 +129,6 @@ bool TaskQueue::_fetchNextTask(ExecutorThread &t, bool toSleep) {
     }
 
     size_t numToWake = _moveReadyTasks(t.getCurTime());
-
-    if (!futureQueue.empty() && t.taskType == queueType &&
-        futureQueue.top()->getWaketime() < t.getWaketime()) {
-        // record earliest waketime
-        t.setWaketime(futureQueue.top()->getWaketime());
-    }
 
     if (!readyQueue.empty() && readyQueue.top()->isdead()) {
         t.setCurrentTask(_popReadyTask()); // clean out dead tasks first

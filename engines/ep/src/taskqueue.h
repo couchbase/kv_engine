@@ -86,7 +86,7 @@ private:
     std::priority_queue<ExTask, std::deque<ExTask>,
                         CompareByPriority> readyQueue;
 
-    // sorted by waketime.
+    // sorted by waketime. Guarded by `mutex`.
     FutureQueue<> futureQueue;
 
     std::list<ExTask> pendingQueue;

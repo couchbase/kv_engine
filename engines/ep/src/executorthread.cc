@@ -179,25 +179,19 @@ void ExecutorThread::run() {
                 // before rescheduling for more accurate timing histograms
                 currentTask->updateWaketimeIfLessThan(getCurTime());
 
-                // reschedule this task back into the queue it was fetched from
-                const ProcessClock::time_point new_waketime =
-                        q->reschedule(currentTask);
-                // record min waketime ...
-                if (new_waketime < getWaketime()) {
-                    setWaketime(new_waketime);
-                }
+                // reschedule this task back into the future queue, based
+                // on it's waketime.
+                q->reschedule(currentTask);
+
                 LOG(EXTENSION_LOG_DEBUG,
                     "%s: Reschedule a task"
-                    " \"%.*s\" id %" PRIu64 "[%" PRIu64 " %" PRIu64 " |%" PRIu64
-                    "]",
+                    " \"%.*s\" id:%" PRIu64 " waketime:%" PRIu64,
                     name.c_str(),
                     int(curTaskDescr.size()),
                     curTaskDescr.data(),
                     uint64_t(currentTask->getId()),
-                    uint64_t(to_ns_since_epoch(new_waketime).count()),
                     uint64_t(to_ns_since_epoch(currentTask->getWaketime())
-                                     .count()),
-                    uint64_t(to_ns_since_epoch(getWaketime()).count()));
+                                     .count()));
             }
             manager->doneWork(taskType);
         }
