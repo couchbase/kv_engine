@@ -178,22 +178,17 @@ void ExecutorThread::run() {
                 // before rescheduling for more accurate timing histograms
                 currentTask->updateWaketimeIfLessThan(getCurTime());
 
-                // reschedule this task back into the queue it was fetched from
-                const std::chrono::steady_clock::time_point new_waketime =
-                        q->reschedule(currentTask);
-                // record min waketime ...
-                if (new_waketime < getWaketime()) {
-                    setWaketime(new_waketime);
-                }
+                // reschedule this task back into the future queue, based
+                // on it's waketime.
+                q->reschedule(currentTask);
+
                 EP_LOG_TRACE(
                         "{}: Reschedule a task"
-                        " \"{}\" id {}[{} {} |{}]",
+                        " \"{}\" id:{} waketime:{}",
                         name,
                         curTaskDescr,
                         currentTask->getId(),
-                        to_ns_since_epoch(new_waketime).count(),
-                        to_ns_since_epoch(currentTask->getWaketime()).count(),
-                        to_ns_since_epoch(getWaketime()).count());
+                        to_ns_since_epoch(currentTask->getWaketime()).count());
             }
             manager->doneWork(taskType);
         }

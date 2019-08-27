@@ -794,9 +794,6 @@ static void addWorkerStats(const char* prefix,
                             std::chrono::microseconds>(duration).count(),
                             add_stat, cookie);
         }
-        checked_snprintf(statname, sizeof(statname), "%s:waketime", prefix);
-        add_casted_stat(statname, to_ns_since_epoch(t->getWaketime()).count(),
-                        add_stat, cookie);
         checked_snprintf(statname, sizeof(statname), "%s:cur_time", prefix);
         add_casted_stat(statname, to_ns_since_epoch(t->getCurTime()).count(),
                         add_stat, cookie);

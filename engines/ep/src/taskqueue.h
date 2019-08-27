@@ -34,6 +34,14 @@ public:
 
     void schedule(ExTask &task);
 
+    /**
+     * Reschedules the given task, adding it onto the futureQueue (sorted by
+     * each task's waketime.
+     *
+     * @param task Task to reschedule.
+     * @return The waketime of the earliest (next) task in the futureQueue -
+     *         note this isn't necessarily the same as `task`.
+     */
     std::chrono::steady_clock::time_point reschedule(ExTask& task);
 
     void checkPendingQueue(void);
@@ -96,7 +104,7 @@ private:
     std::priority_queue<ExTask, std::deque<ExTask>,
                         CompareByPriority> readyQueue;
 
-    // sorted by waketime.
+    // sorted by waketime. Guarded by `mutex`.
     FutureQueue<> futureQueue;
 
     std::list<ExTask> pendingQueue;
