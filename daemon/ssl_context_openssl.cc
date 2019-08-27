@@ -286,3 +286,7 @@ nlohmann::json SslContext::toJSON() const {
 
     return obj;
 }
+
+const char* SslContext::getCurrentCipherName() const {
+    return SSL_get_cipher_name(client);
+}

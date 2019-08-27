@@ -149,6 +149,9 @@ public:
      */
     nlohmann::json toJSON() const;
 
+    /// Get the name of the cipher in use
+    const char* getCurrentCipherName() const;
+
 protected:
     bool drainInputSocketBuf();
 

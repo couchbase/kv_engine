@@ -779,6 +779,10 @@ int Connection::sslPreConnection() {
             }
             return -1;
         }
+
+         LOG_INFO("{}: Using SSL cipher:{}",
+                 getId(),
+                 ssl.getCurrentCipherName());
     } else {
         if (ssl.getError(r) == SSL_ERROR_WANT_READ) {
             ssl.drainBioSendPipe(socketDescriptor);
