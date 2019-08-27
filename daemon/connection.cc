@@ -886,14 +886,30 @@ ssize_t Connection::sendmsg(struct msghdr* m) {
                              m->msg_iov[ii].iov_len);
             if (n > 0) {
                 res += n;
+                if (n != int(m->msg_iov[ii].iov_len)) {
+                    // We didnt' send the entire chunk. return the number
+                    // of bytes sent so far to the caller and let them
+                    // deal with adjusting the pointers and retry
+                    return res;
+                }
             } else {
-                return res > 0 ? res : -1;
+                // We failed to send the data over ssl. it might be
+                // because the underlying socket buffer is full, or
+                // if there is a real error with the socket or inside
+                // OpenSSL. If the error is because we the network
+                // is full we'll return the number of bytes we've sent
+                // so far (so that it may adjust the iov_base and iov_len
+                // fields before it'll try to call us again and the
+                // send will most likely fail again, but this we'll
+                // return -1 and when the caller checks it'll see it is
+                // because the network buffer is full).
+                auto error = cb::net::get_socket_error();
+                if (cb::net::is_blocking(error) && res > 0) {
+                    return res;
+                }
+                return -1;
             }
         }
-
-        /* @todo figure out how to drain the rest of the data if we
-         * failed to send all of it...
-         */
         ssl.drainBioSendPipe(socketDescriptor);
         return res;
     } else {
@@ -1171,15 +1187,14 @@ int Connection::sslWrite(const char* src, size_t nbytes) {
         if (n > 0) {
             ret += n;
         } else {
-            if (ret > 0) {
-                /* We've sent some data.. let the caller have them */
-                return ret;
-            }
-
             if (n < 0) {
                 const int error = ssl.getError(n);
                 switch (error) {
                 case SSL_ERROR_WANT_WRITE:
+                    if (ret > 0) {
+                        // We've sent some data let the caller have them
+                        return ret;
+                    }
                     cb::net::set_ewouldblock();
                     return -1;
 
@@ -1189,6 +1204,11 @@ int Connection::sslWrite(const char* src, size_t nbytes) {
                     return -1;
                 }
             }
+
+            if (ret > 0) {
+                return ret;
+            }
+            return -1;
         }
     }
 
