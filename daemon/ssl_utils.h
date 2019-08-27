@@ -16,6 +16,22 @@
  */
 #pragma once
 
+#include <memory>
 #include <string>
 
+struct ssl_ctx_st;
+typedef struct ssl_ctx_st SSL_CTX;
+
 long decode_ssl_protocol(const std::string& protocol);
+
+/**
+ * Update the SSL_CTX with the provided SSL ciphers
+ *
+ * @param ctx the context to update
+ * @param list the list of ciphers to use for TLS < 1.3
+ * @param suites the ciphersuites to use for TLS >= 1.3
+ * @throws std::runtime_error if we fail to set the provided ciphers
+ */
+void set_ssl_ctx_ciphers(SSL_CTX* ctx,
+                         const std::string& list,
+                         const std::string& suites);

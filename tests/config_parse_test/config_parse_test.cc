@@ -15,12 +15,14 @@
  *   limitations under the License.
  */
 
+#include <daemon/ssl_utils.h>
 #include <daemon/settings.h>
 #include <folly/portability/GTest.h>
 #include <getopt.h>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
+#include <openssl/ssl.h>
 
 class SettingsTest : public ::testing::Test {
 public:
@@ -717,9 +719,6 @@ TEST_F(SettingsTest, Root) {
 }
 
 TEST_F(SettingsTest, SslCipherList) {
-    // Ensure that we detect non-string values for ssl_cipher_list
-    nonStringValuesShouldFail("ssl_cipher_list");
-
     // Ensure that we accept a string
     nlohmann::json obj;
     obj["ssl_cipher_list"] = "HIGH";
@@ -731,7 +730,7 @@ TEST_F(SettingsTest, SslCipherList) {
         FAIL() << exception.what();
     }
 
-    // An empty string is also allowed (giving default ciphers)
+    // An empty string is also allowed (remove all cipher)
     obj["ssl_cipher_list"] = "";
     try {
         Settings settings(obj);
@@ -745,7 +744,7 @@ TEST_F(SettingsTest, SslCipherList) {
     obj["ssl_cipher_list"] = "foobar";
     try {
         Settings settings(obj);
-        FAIL() << "We should not be allowed to disable all ciphers";
+        FAIL() << "Cipher list should contain at least one usable cipher";
     } catch (std::exception&) {
     }
 }
@@ -1344,6 +1343,23 @@ TEST(SettingsUpdateTest, SslCipherListIsDynamic) {
     EXPECT_EQ("low", settings.getSslCipherList());
 }
 
+TEST(SettingsUpdateTest, SslCipherSuiteIsDynamic) {
+    Settings updated;
+    Settings settings;
+    // setting it to the same value should work
+    settings.setSslCipherSuites("TLS_AES_128_GCM_SHA256");
+    auto old = settings.getSslCipherSuites();
+    updated.setSslCipherList(old);
+    EXPECT_NO_THROW(settings.updateSettings(updated, false));
+
+    // changing it should work
+    updated.setSslCipherSuites("TLS_AES_128_CCM_8_SHA256");
+    EXPECT_NO_THROW(settings.updateSettings(updated, false));
+    EXPECT_EQ(old, settings.getSslCipherSuites());
+    EXPECT_NO_THROW(settings.updateSettings(updated));
+    EXPECT_EQ("TLS_AES_128_CCM_8_SHA256", settings.getSslCipherSuites());
+}
+
 TEST(SettingsUpdateTest, SslCipherOrderIsDynamic) {
     Settings updated;
     Settings settings;
@@ -1352,6 +1368,7 @@ TEST(SettingsUpdateTest, SslCipherOrderIsDynamic) {
     auto old = settings.isSslCipherOrder();
     updated.setSslCipherOrder(old);
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
+    EXPECT_EQ(SSL_OP_CIPHER_SERVER_PREFERENCE, settings.getSslProtocolMask());
 
     // changing it should work
     updated.setSslCipherOrder(false);
@@ -1359,6 +1376,7 @@ TEST(SettingsUpdateTest, SslCipherOrderIsDynamic) {
     EXPECT_EQ(old, settings.isSslCipherOrder());
     EXPECT_NO_THROW(settings.updateSettings(updated));
     EXPECT_EQ(false, settings.isSslCipherOrder());
+    EXPECT_EQ(0, settings.getSslProtocolMask());
 }
 
 TEST(SettingsUpdateTest, SslMinimumProtocolIsDynamic) {
@@ -1369,6 +1387,10 @@ TEST(SettingsUpdateTest, SslMinimumProtocolIsDynamic) {
     auto old = settings.getSslMinimumProtocol();
     updated.setSslMinimumProtocol(old);
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
+    EXPECT_EQ(decode_ssl_protocol("tlsv1.2"), settings.getSslProtocolMask());
+    settings.setSslCipherOrder(true);
+    EXPECT_EQ(SSL_OP_CIPHER_SERVER_PREFERENCE | decode_ssl_protocol("tlsv1.2"),
+              settings.getSslProtocolMask());
 
     // changing it should work
     updated.setSslMinimumProtocol("tlsv1");
@@ -1376,6 +1398,10 @@ TEST(SettingsUpdateTest, SslMinimumProtocolIsDynamic) {
     EXPECT_EQ(old, settings.getSslMinimumProtocol());
     EXPECT_NO_THROW(settings.updateSettings(updated));
     EXPECT_EQ("tlsv1", settings.getSslMinimumProtocol());
+    EXPECT_EQ(SSL_OP_CIPHER_SERVER_PREFERENCE | decode_ssl_protocol("tlsv1"),
+              settings.getSslProtocolMask());
+    settings.setSslCipherOrder(false);
+    EXPECT_EQ(decode_ssl_protocol("tlsv1"), settings.getSslProtocolMask());
 }
 
 TEST(SettingsUpdateTest, MaxPacketSizeIsDynamic) {

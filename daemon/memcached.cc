@@ -447,14 +447,6 @@ static void breakpad_changed_listener(const std::string&, Settings &s) {
     cb::breakpad::initialize(s.getBreakpadSettings());
 }
 
-static void ssl_minimum_protocol_changed_listener(const std::string&, Settings &s) {
-    set_ssl_protocol_mask(s.getSslMinimumProtocol());
-}
-
-static void ssl_cipher_list_changed_listener(const std::string&, Settings &s) {
-    set_ssl_cipher_list(s.getSslCipherList());
-}
-
 static void verbosity_changed_listener(const std::string&, Settings &s) {
     auto logger = cb::logger::get();
     if (logger) {
@@ -531,10 +523,6 @@ static void settings_init() {
             "max_connections", [](const std::string&, Settings& s) -> void {
                 recalculate_max_connections();
             });
-    Settings::instance().addChangeListener(
-            "ssl_minimum_protocol", ssl_minimum_protocol_changed_listener);
-    Settings::instance().addChangeListener("ssl_cipher_list",
-                                           ssl_cipher_list_changed_listener);
     Settings::instance().addChangeListener("verbosity",
                                            verbosity_changed_listener);
     Settings::instance().addChangeListener("interfaces",

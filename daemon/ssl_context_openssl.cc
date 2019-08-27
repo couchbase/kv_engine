@@ -19,6 +19,7 @@
 #include "memcached.h"
 #include "runtime.h"
 #include "settings.h"
+#include "ssl_utils.h"
 
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
@@ -58,8 +59,9 @@ bool SslContext::havePendingInputData() {
 }
 
 bool SslContext::enable(const std::string& cert, const std::string& pkey) {
+    const auto& settings = Settings::instance();
     ctx = SSL_CTX_new(SSLv23_server_method());
-    set_ssl_ctx_protocol_mask(ctx);
+    SSL_CTX_set_options(ctx, settings.getSslProtocolMask());
 
     /* @todo don't read files, but use in-memory-copies */
     if (!SSL_CTX_use_certificate_chain_file(ctx, cert.c_str()) ||
@@ -70,9 +72,17 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
         return false;
     }
 
-    set_ssl_ctx_cipher_list(ctx);
+    try {
+        set_ssl_ctx_ciphers(ctx,
+                            settings.getSslCipherList(),
+                            settings.getSslCipherSuites());
+    } catch (const std::runtime_error& error) {
+        LOG_WARNING("{}", error.what());
+        return false;
+    }
+
     int ssl_flags = 0;
-    switch (Settings::instance().getClientCertMode()) {
+    switch (settings.getClientCertMode()) {
     case cb::x509::Mode::Mandatory:
         ssl_flags |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
     // FALLTHROUGH
@@ -94,12 +104,12 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
 
     enabled = true;
     error = false;
-    client = NULL;
+    client = nullptr;
 
     try {
-        inputPipe.ensureCapacity(Settings::instance().getBioDrainBufferSize());
-        outputPipe.ensureCapacity(Settings::instance().getBioDrainBufferSize());
-    } catch (std::bad_alloc) {
+        inputPipe.ensureCapacity(settings.getBioDrainBufferSize());
+        outputPipe.ensureCapacity(settings.getBioDrainBufferSize());
+    } catch (const std::bad_alloc&) {
         return false;
     }
 

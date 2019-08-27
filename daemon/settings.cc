@@ -390,22 +390,43 @@ static void handle_root(Settings& s, const nlohmann::json& obj) {
  * @param obj the object in the configuration
  */
 static void handle_ssl_cipher_list(Settings& s, const nlohmann::json& obj) {
-    const auto value = obj.get<std::string>();
-    cb::openssl::unique_ssl_ctx_ptr ctx;
-    ctx.reset(SSL_CTX_new(SSLv23_server_method()));
-    if (!ctx) {
-        throw std::bad_alloc{};
-    }
+    if (obj.is_string()) {
+        // Backwards compatibility until ns_server adds support for new
+        // model
+        const auto value = obj.get<std::string>();
+        if (!value.empty()) {
+            cb::openssl::unique_ssl_ctx_ptr ctx;
+            ctx.reset(SSL_CTX_new(SSLv23_server_method()));
+            if (!ctx) {
+                throw std::bad_alloc{};
+            }
+            if (SSL_CTX_set_cipher_list(ctx.get(), value.c_str()) == 0) {
+                std::string msg =
+                        "Failed to select any of the requested ciphers (";
+                msg.append(value);
+                msg.append(")");
+                throw std::runtime_error(msg);
+            }
+        }
 
-    if (!value.empty() &&
-        SSL_CTX_set_cipher_list(ctx.get(), value.c_str()) == 0) {
-        std::string msg = "Failed to select any of the requested ciphers (";
-        msg.append(value);
-        msg.append(")");
-        throw std::runtime_error(msg);
-    }
+        s.setSslCipherList(obj.get<std::string>());
+    } else if (obj.is_object()) {
+        auto iter = obj.find("tls 1.2");
+        if (iter == obj.cend()) {
+            s.setSslCipherList("");
+        } else {
+            s.setSslCipherList(iter->get<std::string>());
+        }
 
-    s.setSslCipherList(obj.get<std::string>());
+        iter = obj.find("tls 1.3");
+        if (iter == obj.cend()) {
+            s.setSslCipherSuites("");
+        } else {
+            s.setSslCipherSuites(iter->get<std::string>());
+        }
+    } else {
+        throw std::runtime_error("ssl_cipher_list should be an object");
+    }
 }
 
 static void handle_ssl_cipher_order(Settings& s, const nlohmann::json& obj) {
@@ -854,15 +875,28 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             setMaxPacketSize(other.max_packet_size);
         }
     }
+
     if (other.has.ssl_cipher_list) {
-        if (other.ssl_cipher_list != ssl_cipher_list) {
-            // this isn't safe!! an other thread could call stats settings
-            // which would cause this to crash...
+        std::string his = *other.ssl_cipher_list.rlock();
+        std::string mine = *ssl_cipher_list.rlock();
+        if (his != mine) {
             LOG_INFO(
-                    R"(Change SSL Cipher list from "{}" to "{}")",
-                    ssl_cipher_list,
-                    other.ssl_cipher_list);
-            setSslCipherList(other.ssl_cipher_list);
+                    R"(Change SSL Cipher list (TLS < 1.3) from "{}" to "{}")",
+                    mine,
+                    his);
+            setSslCipherList(his);
+        }
+    }
+
+    if (other.has.ssl_cipher_suites) {
+        std::string his = *other.ssl_cipher_suites.rlock();
+        std::string mine = *ssl_cipher_suites.rlock();
+        if (his != mine) {
+            LOG_INFO(
+                    R"(Change SSL Cipher list (TLS > 1.2) from "{}" to "{}")",
+                    mine,
+                    his);
+            setSslCipherSuites(his);
         }
     }
 
@@ -890,8 +924,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     }
     if (other.has.ssl_minimum_protocol) {
         if (other.ssl_minimum_protocol != ssl_minimum_protocol) {
-            // this isn't safe!! an other thread could call stats settings
-            // which would cause this to crash...
             LOG_INFO(
                     R"(Change SSL minimum protocol from "{}" to "{}")",
                     ssl_minimum_protocol,
@@ -1270,4 +1302,43 @@ void Settings::setSslSaslMechanisms(const std::string& mechanisms) {
     ssl_sasl_mechanisms.wlock()->assign(mechanisms);
     has.ssl_sasl_mechanisms = true;
     notify_changed("ssl_sasl_mechanisms");
+}
+
+void Settings::setSslCipherOrder(bool ordered) {
+    ssl_cipher_order.store(ordered,std::memory_order_release);
+    has.ssl_cipher_order = true;
+
+    long mask = 0;
+    if (has.ssl_minimum_protocol) {
+        mask = decode_ssl_protocol(ssl_minimum_protocol);
+    }
+    if (ordered) {
+        mask |= SSL_OP_CIPHER_SERVER_PREFERENCE;
+    }
+
+    ssl_protocol_mask.store(mask);
+    notify_changed("ssl_cipher_order");
+}
+
+void Settings::setSslMinimumProtocol(std::string protocol) {
+    ssl_minimum_protocol = std::move(protocol);
+    has.ssl_minimum_protocol = true;
+    auto mask = decode_ssl_protocol(ssl_minimum_protocol);
+    if (has.ssl_cipher_order && ssl_cipher_order) {
+        mask |= SSL_OP_CIPHER_SERVER_PREFERENCE;
+    }
+    ssl_protocol_mask.store(mask);
+    notify_changed("ssl_minimum_protocol");
+}
+
+void Settings::setSslCipherList(std::string list) {
+    *ssl_cipher_list.wlock() = std::move(list);
+    has.ssl_cipher_list = true;
+    notify_changed("ssl_cipher_list");
+}
+
+void Settings::setSslCipherSuites(std::string suites) {
+    *ssl_cipher_suites.wlock() = std::move(suites);
+    has.ssl_cipher_suites = true;
+    notify_changed("ssl_cipher_suites");
 }

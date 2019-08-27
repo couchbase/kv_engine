@@ -26,16 +26,9 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 
 class Hdr1sfMicroSecHistogram;
-
-void set_ssl_cipher_list(const std::string& new_list);
-
-void set_ssl_ctx_cipher_list(SSL_CTX* ctx);
-
-void set_ssl_protocol_mask(const std::string& mask);
-
-void set_ssl_ctx_protocol_mask(SSL_CTX* ctx);
 
 bool is_default_bucket_enabled();
 void set_default_bucket_enabled(bool enabled);

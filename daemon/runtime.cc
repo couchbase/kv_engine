@@ -24,56 +24,6 @@
 #include <mutex>
 #include <string>
 
-static std::string ssl_cipher_list;
-static std::mutex ssl_cipher_list_mutex;
-
-void set_ssl_cipher_list(const std::string& list) {
-    std::lock_guard<std::mutex> lock(ssl_cipher_list_mutex);
-    if (list.empty()) {
-        ssl_cipher_list.resize(0);
-    } else {
-        ssl_cipher_list.assign(list);
-    }
-}
-
-void set_ssl_ctx_cipher_list(SSL_CTX *ctx) {
-    std::lock_guard<std::mutex> lock(ssl_cipher_list_mutex);
-    if (ssl_cipher_list.length()) {
-        if (SSL_CTX_set_cipher_list(ctx, ssl_cipher_list.c_str()) == 0) {
-            LOG_WARNING(
-                    "Failed to select any of the "
-                    "requested ciphers ({})",
-                    ssl_cipher_list);
-        }
-    }
-}
-
-static std::atomic_long ssl_protocol_mask;
-
-void set_ssl_protocol_mask(const std::string& mask) {
-    try {
-        auto old = ssl_protocol_mask.load();
-        ssl_protocol_mask.store(decode_ssl_protocol(mask),
-                                std::memory_order_release);
-        if (old != ssl_protocol_mask.load() && !mask.empty()) {
-            LOG_INFO("Setting SSL minimum protocol to: {}", mask);
-        }
-    } catch (const std::invalid_argument&) {
-        LOG_WARNING("Invalid SSL protocol specified: {}", mask);
-
-    } catch (...) {
-        LOG_ERROR("An error occured while decoding the SSL protocol: {}", mask);
-    }
-}
-
-void set_ssl_ctx_protocol_mask(SSL_CTX* ctx) {
-    auto mask = ssl_protocol_mask.load(std::memory_order_acquire);
-    if (Settings::instance().isSslCipherOrder()) {
-        mask |= SSL_OP_CIPHER_SERVER_PREFERENCE;
-    }
-    SSL_CTX_set_options(ctx, mask);
-}
-
 static const bool unit_tests{getenv("MEMCACHED_UNIT_TESTS") != NULL};
 
 static std::atomic_bool default_bucket_enabled;

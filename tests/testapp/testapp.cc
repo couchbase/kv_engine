@@ -459,12 +459,16 @@ nlohmann::json TestappTest::generate_config(uint16_t ssl_port) {
             {"error_maps_dir", get_errmaps_dir()},
             {"audit_file", mcd_env->getAuditFilename()},
             {"rbac_file", mcd_env->getRbacFilename()},
-            {"ssl_cipher_list", "HIGH"},
+            {"ssl_cipher_list",
+             {{"tls 1.2", "HIGH"},
+              {"tls 1.3",
+               "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_"
+               "128_GCM_SHA256:TLS_AES_128_CCM_8_SHA256:TLS_AES_128_CCM_"
+               "SHA256"}}},
             {"ssl_minimum_protocol", "tlsv1"},
             {"opcode_attributes_override",
              {{"version", 1}, {"EWB_CTL", {{"slow", 50}}}}},
             {"logger", {{"unit_test", true}}},
-
     };
 
     if (memcached_verbose == 0) {

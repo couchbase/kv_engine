@@ -41,3 +41,23 @@ long decode_ssl_protocol(const std::string& protocol) {
 
     return disallow;
 }
+
+void set_ssl_ctx_ciphers(SSL_CTX* ctx,
+                         const std::string& list,
+                         const std::string& suites) {
+    if (list.empty()) {
+        SSL_CTX_set_cipher_list(ctx, "");
+    } else if (SSL_CTX_set_cipher_list(ctx, list.c_str()) == 0) {
+        throw std::runtime_error(
+                "Failed to select any of the requested TLS < 1.3 ciphers (" +
+                list + ")");
+    }
+
+    if (suites.empty()) {
+        SSL_CTX_set_ciphersuites(ctx, "");
+    } else if (SSL_CTX_set_ciphersuites(ctx, suites.c_str()) == 0) {
+        throw std::runtime_error(
+                "Failed to select any of the requested TLS > 1.2 ciphers (" +
+                suites + ")");
+    }
+}

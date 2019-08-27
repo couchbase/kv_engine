@@ -474,34 +474,46 @@ public:
     }
 
     /**
-     * Get the list of SSL ciphers to use
+     * Get the list of SSL ciphers to use for TLS < 1.3
      *
      * @return the list of available SSL ciphers to use
      */
-    const std::string& getSslCipherList() const {
-        return ssl_cipher_list;
+    std::string getSslCipherList() const {
+        return *ssl_cipher_list.rlock();
     }
 
     /**
-     * Set the list of SSL ciphers the node may use
+     * Set the list of SSL ciphers the node may use for TLS < 1.3
      *
      * @param ssl_cipher_list the new list of SSL ciphers
      */
-    void setSslCipherList(const std::string& ssl_cipher_list) {
-        Settings::ssl_cipher_list = ssl_cipher_list;
-        has.ssl_cipher_list = true;
-        notify_changed("ssl_cipher_list");
+    void setSslCipherList(std::string list);
+
+    /**
+     * Get the list of SSL ciphers suites to use for TLS > 1.2
+     *
+     * @return the list of available SSL ciphers to use
+     */
+    std::string getSslCipherSuites() const {
+        return *ssl_cipher_suites.rlock();
     }
+
+    /**
+     * Set the list of SSL ciphers the node may use for TLS > 1.2
+     *
+     * @param ssl_cipher_list the new list of SSL ciphers
+     */
+    void setSslCipherSuites(std::string suites);
 
     bool isSslCipherOrder() const {
         return ssl_cipher_order.load(std::memory_order_acquire);
     }
 
-    void setSslCipherOrder(bool ssl_cipher_order) {
-        Settings::ssl_cipher_order.store(ssl_cipher_order,
-                                         std::memory_order_release);
-        has.ssl_cipher_order = true;
-        notify_changed("ssl_cipher_order");
+    void setSslCipherOrder(bool ordered);
+
+    /// get the configured SSL protocol mask
+    long getSslProtocolMask()const {
+        return ssl_protocol_mask.load();
     }
 
     /**
@@ -518,11 +530,7 @@ public:
      *
      * @param ssl_minimum_protocol the new minimum SSL protocol
      */
-    void setSslMinimumProtocol(const std::string& ssl_minimum_protocol) {
-        Settings::ssl_minimum_protocol = ssl_minimum_protocol;
-        has.ssl_minimum_protocol = true;
-        notify_changed("ssl_minimum_protocol");
-    }
+    void setSslMinimumProtocol(std::string protocol);
 
     void reconfigureClientCertAuth(
             std::unique_ptr<cb::x509::ClientCertConfig>& config) {
@@ -536,7 +544,7 @@ public:
      *
      * @return the value of the ssl client auth
      */
-    const cb::x509::Mode getClientCertMode() {
+    cb::x509::Mode getClientCertMode() const {
         return client_cert_mapper.getMode();
     }
 
@@ -884,10 +892,11 @@ protected:
      */
     uint32_t max_packet_size;
 
-    /**
-     * The SSL cipher list to use
-     */
-    std::string ssl_cipher_list;
+    /// The SSL cipher list to use for TLS < 1.3
+    folly::Synchronized<std::string> ssl_cipher_list;
+
+    /// The SSL cipher suites to use for TLS > 1.3
+    folly::Synchronized<std::string> ssl_cipher_suites;
 
     /// if we should use the ssl cipher ordering
     std::atomic_bool ssl_cipher_order{true};
@@ -896,6 +905,7 @@ protected:
      * The minimum ssl protocol to use (by default this is TLS1)
      */
     std::string ssl_minimum_protocol;
+    std::atomic_long ssl_protocol_mask;
 
     /**
      * ssl client authentication
@@ -1002,6 +1012,7 @@ public:
         bool max_packet_size;
         bool ssl_cipher_list;
         bool ssl_cipher_order;
+        bool ssl_cipher_suites;
         bool ssl_minimum_protocol;
         bool client_cert_auth;
         bool topkeys_size;
