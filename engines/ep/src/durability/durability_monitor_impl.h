@@ -164,12 +164,6 @@ public:
             const ReplicationChain& firstChain,
             const ReplicationChain* secondChain);
 
-    /**
-     * Return the names of all nodes which have ack'ed this SyncWrite
-     *
-     */
-    std::unordered_set<std::string> getAckedNodes() const;
-
     const queued_item& getItem() const {
         return item;
     }

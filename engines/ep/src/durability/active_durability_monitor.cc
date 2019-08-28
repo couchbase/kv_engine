@@ -1114,15 +1114,6 @@ void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
         //     include the Active for being globally satisfied
         Ensures(s->lastCommittedSeqno <= s->highPreparedSeqno);
     }
-
-    if (globalBucketLogger->should_log(spdlog::level::debug)) {
-        std::stringstream ss;
-        ss << "(" << vb.getId() << ")SyncWrite commit \""
-           << cb::tagUserData(key.to_string()) << "\": ack'ed by {"
-           << boost::join(sw.getAckedNodes(), ", ") << "}";
-
-        EP_LOG_DEBUG(ss.str());
-    }
 }
 
 void ActiveDurabilityMonitor::abort(const SyncWrite& sw) {

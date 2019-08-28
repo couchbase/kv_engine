@@ -222,22 +222,6 @@ void DurabilityMonitor::SyncWrite::checkDurabilityPossibleAndResetTopology(
     resetTopology(firstChain, secondChain);
 }
 
-std::unordered_set<std::string> DurabilityMonitor::SyncWrite::getAckedNodes()
-        const {
-    std::unordered_set<std::string> ackedNodes{};
-    for (const auto& chain : {firstChain, secondChain}) {
-        if (chain) {
-            for (const auto& pos : chain.chainPtr->positions) {
-                const std::string& nodeName = pos.first;
-                if (chain.chainPtr->hasAcked(nodeName, getBySeqno())) {
-                    ackedNodes.insert(nodeName);
-                }
-            }
-        }
-    }
-    return ackedNodes;
-}
-
 std::ostream& operator<<(std::ostream& os,
                          const DurabilityMonitor::SyncWrite& sw) {
     os << "SW @" << &sw << " "
