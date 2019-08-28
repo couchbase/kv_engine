@@ -261,6 +261,10 @@ public:
         transitionState(StreamState::Dead);
     }
 
+    void transitionStateToAwaitingFirstSnapshotMarker() {
+        transitionState(StreamState::AwaitingFirstSnapshotMarker);
+    }
+
     ENGINE_ERROR_CODE messageReceived(
             std::unique_ptr<DcpResponse> dcpResponse) override;
 

@@ -461,7 +461,7 @@ void DcpConnMap::seqnoAckVBPassiveStream(Vbid vbid, int64_t seqno) {
         //     This is to prevent that 6.5 Consumers send DCP_SEQNO_ACK to
         //     pre-6.5 Producers (e.g., topology change in a 6.5 cluster
         //     where a new pre-6.5 Active is elected).
-        if (conn->isSyncReplicationEnabled() && conn->isStreamPresent(vbid)) {
+        if (conn->isSyncReplicationEnabled()) {
             // Ideally, we would verify here that we only ack a single consumer,
             // however, that is not possible without adding additional locking
             // to ensure that no consumer can add new streams whilst this loop

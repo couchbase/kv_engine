@@ -704,6 +704,20 @@ ENGINE_ERROR_CODE PassiveStream::processPrepare(
 }
 
 void PassiveStream::seqnoAck(int64_t seqno) {
+    // Only send a seqnoAck if we have an active stream that the producer has
+    // responded with Success to the stream request
+    if (!isActive() || isPending()) {
+        log(spdlog::level::level_enum::warn,
+            "{} Could not ack seqno {} because stream was in StreamState:{} "
+            "Expected it to be in state {} or {}",
+            vb_,
+            seqno,
+            to_string(state_.load()),
+            to_string(StreamState::AwaitingFirstSnapshotMarker),
+            to_string(StreamState::Reading));
+        return;
+    }
+
     {
         LockHolder lh(streamMutex);
         if (!isActive()) {
@@ -1112,7 +1126,7 @@ bool PassiveStream::transitionState(StreamState newState) {
         break;
 
     case StreamState::Reading:
-        if (newState == StreamState::Pending || newState == StreamState::Dead) {
+        if (newState == StreamState::Dead) {
             validTransition = true;
         }
         break;
