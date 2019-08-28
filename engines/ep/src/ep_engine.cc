@@ -133,6 +133,36 @@ static ENGINE_ERROR_CODE sendResponse(const AddResponseFn& response,
     return rv;
 }
 
+/**
+ * Call the response callback and return the appropriate value so that
+ * the core knows what to do..
+ */
+static ENGINE_ERROR_CODE sendResponse(const AddResponseFn& response,
+                                      const DocKey& key,
+                                      const void* ext,
+                                      uint8_t extlen,
+                                      const void* body,
+                                      uint32_t bodylen,
+                                      uint8_t datatype,
+                                      cb::mcbp::Status status,
+                                      uint64_t cas,
+                                      const void* cookie) {
+    ENGINE_ERROR_CODE rv = ENGINE_FAILED;
+    if (response(key.data(),
+                 key.size(),
+                 ext,
+                 extlen,
+                 body,
+                 bodylen,
+                 datatype,
+                 status,
+                 cas,
+                 cookie)) {
+        rv = ENGINE_SUCCESS;
+    }
+    return rv;
+}
+
 template <typename T>
 static void validate(T v, T l, T h) {
     if (v < l || v > h) {
@@ -5681,17 +5711,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(
     if (ret == ENGINE_SUCCESS) {
         Item* it = gv.item.get();
         uint32_t flags = it->getFlags();
-        ret = sendResponse(response,
-                           static_cast<const void*>(it->getKey().data()),
-                           it->getKey().size(),
-                           (const void*)&flags,
-                           sizeof(uint32_t),
-                           static_cast<const void*>(it->getData()),
-                           it->getNBytes(),
-                           it->getDataType(),
-                           cb::mcbp::Status::Success,
-                           it->getCas(),
-                           cookie);
+        ret = sendResponse(
+                response,
+                isCollectionsSupported(cookie)
+                        ? DocKey{it->getKey()}
+                        : it->getKey().makeDocKeyWithoutCollectionID(),
+                (const void*)&flags,
+                sizeof(uint32_t),
+                static_cast<const void*>(it->getData()),
+                it->getNBytes(),
+                it->getDataType(),
+                cb::mcbp::Status::Success,
+                it->getCas(),
+                cookie);
     }
 
     return ret;

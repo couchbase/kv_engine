@@ -841,6 +841,8 @@ public:
         return auto_retry_tmpfail;
     }
 
+    Document getRandomKey(Vbid vbid);
+
 protected:
     void read(Frame& frame, size_t bytes);
 

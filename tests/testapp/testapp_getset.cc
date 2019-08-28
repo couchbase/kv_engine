@@ -18,6 +18,7 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
+#include <mcbp/protocol/unsigned_leb128.h>
 #include <platform/compress.h>
 #include <algorithm>
 #include <gsl/gsl>
@@ -40,6 +41,8 @@ protected:
     void verifyData(MemcachedConnection& conn, int successCount,
                     int numOps, cb::mcbp::Datatype expectedDatatype,
                     std::string expectedValue);
+
+    void doTestGetRandomKey(bool collections);
 };
 
 void GetSetTest::doTestAppend(bool compressedSource, bool compressedData) {
@@ -1178,4 +1181,47 @@ TEST_P(GetSetTest, ServerRejectsLargeSizeWithXattr) {
 // greater than maximum item size
 TEST_P(GetSetTest, ServerRejectsLargeSizeWithXattrCompressed) {
     doTestServerRejectsLargeSizeWithXattr(/*compressedSource*/true);
+}
+
+// Test get random key. The test always sets a key so it can run standalone,
+// but if ran after other tests, the returned key could be any key stored in
+// the bucket, this limits the expect statements we can use
+void GetSetTest::doTestGetRandomKey(bool collections) {
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::GetRandomKey);
+    MemcachedConnection& conn = getConnection();
+    conn.mutate(document, Vbid(0), MutationType::Set);
+
+    if (collections) {
+        BinprotHelloCommand cmd("Collections");
+        cmd.enableFeature(cb::mcbp::Feature::Collections);
+        cmd.enableFeature(cb::mcbp::Feature::SNAPPY);
+        cmd.enableFeature(cb::mcbp::Feature::JSON);
+
+        const auto rsp = BinprotHelloResponse(conn.execute(cmd));
+        ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    }
+
+    const auto stored = conn.getRandomKey(Vbid(0));
+
+    try {
+        CollectionID prefix(cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+                                    {reinterpret_cast<const uint8_t*>(
+                                             stored.info.id.data()),
+                                     stored.info.id.size()})
+                                    .first);
+        if (collections) {
+            EXPECT_TRUE(prefix.isDefaultCollection());
+        }
+    } catch (const std::exception&) {
+        EXPECT_FALSE(collections) << "Collections enabled, yet could not "
+                                     "decode leb128 collection-ID from key";
+    }
+}
+
+TEST_P(GetSetTest, TestGetRandomKey) {
+    doTestGetRandomKey(false);
+}
+
+TEST_P(GetSetTest, TestGetRandomKeyCollections) {
+    doTestGetRandomKey(true);
 }

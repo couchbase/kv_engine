@@ -141,6 +141,7 @@ public:
         case cb::mcbp::ClientOpcode::EnableTraffic:
         case cb::mcbp::ClientOpcode::DisableTraffic:
         case cb::mcbp::ClientOpcode::GetFailoverLog:
+        case cb::mcbp::ClientOpcode::GetRandomKey:
             return false;
         default:
             return true;

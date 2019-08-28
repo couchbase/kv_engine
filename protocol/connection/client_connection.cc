@@ -1399,6 +1399,23 @@ std::pair<cb::mcbp::Status, GetMetaResponse> MemcachedConnection::getMeta(
     return std::make_pair(resp.getStatus(), meta);
 }
 
+Document MemcachedConnection::getRandomKey(Vbid vbucket) {
+    BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetRandomKey};
+    cmd.setVBucket(vbucket);
+    const auto response = BinprotGetResponse(execute(cmd));
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed getRandomKey", response.getStatus());
+    }
+
+    Document ret;
+    ret.info.flags = response.getDocumentFlags();
+    ret.info.cas = response.getCas();
+    ret.info.id = response.getKeyString();
+    ret.info.datatype = response.getResponse().getDatatype();
+    ret.value = response.getDataString();
+    return ret;
+}
+
 void MemcachedConnection::setUnorderedExecutionMode(ExecutionMode mode) {
     switch (mode) {
     case ExecutionMode::Ordered:
