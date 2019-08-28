@@ -62,7 +62,7 @@ CheckpointTest<V>::CheckpointTest()
                     /*lastSeqno*/ 1000,
                     /*lastSnapStart*/ 0,
                     /*lastSnapEnd*/ 0,
-                    /*table*/ NULL,
+                    std::make_unique<FailoverTable>(1),
                     callback,
                     /*newSeqnoCb*/ nullptr,
                     SyncWriteResolvedCallback{},

@@ -369,7 +369,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         moreAvailable = toFlush.moreAvailable;
 
         KVStore* rwUnderlying = getRWUnderlying(vb->getId());
-
+        vbucket_state vbstate;
         if (!items.empty()) {
             while (!rwUnderlying->begin(
                     std::make_unique<EPTransactionContext>(stats, *vb))) {
@@ -387,7 +387,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             // in-memory vbucket_state may be ahead of what we are flushing.
             const auto* persistedVbState =
                     rwUnderlying->getVBucketState(vb->getId());
-            vbucket_state vbstate;
+
             // The first flush we do populates the cachedVBStates of the KVStore
             // so we may not (if this is the first flush) have a state returned
             // from the KVStore.
@@ -396,12 +396,9 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 vbstate = *persistedVbState;
             }
             // We need to set a few values from the in-memory state.
-            auto inMemoryVbState = vb->getVBucketState();
-            vbstate.replicationTopology = inMemoryVbState.replicationTopology;
-            vbstate.failovers = inMemoryVbState.failovers;
-            vbstate.state = inMemoryVbState.state;
-
             uint64_t maxSeqno = 0;
+            uint64_t maxVbStateOperation = 0;
+
             auto minSeqno = std::numeric_limits<uint64_t>::max();
 
             bool mustCheckpointVBState = false;
@@ -459,15 +456,24 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 }
 
                 if (op == queue_op::set_vbucket_state) {
-                    // No actual item explicitly persisted to (this op exists
-                    // to ensure a commit occurs with the current vbstate);
-                    // flag that we must trigger a snapshot even if there are
-                    // no 'real' items in the checkpoint.
-                    mustCheckpointVBState = true;
+                    // Only process vbstate if it's sequenced higher
+                    if (static_cast<uint64_t>(item->getBySeqno()) >
+                        maxVbStateOperation) {
+                        maxVbStateOperation = item->getBySeqno();
 
-                    // There is at least a commit to be done, so increase todo
-                    ++stats.flusher_todo;
+                        // It could be the case that the set_vbucket_state is
+                        // alone, i.e. no mutations are being flushed, we must
+                        // trigger an update of the vbstatem which will always
+                        // happen when we set this.
+                        mustCheckpointVBState = true;
 
+                        // There is at least a commit to be done, so increase
+                        // todo
+                        ++stats.flusher_todo;
+
+                        // Process the Item's value into the transition struct
+                        vbstate.transition.fromItem(*item);
+                    }
                     // Update queuing stats now this item has logically been
                     // processed.
                     --stats.diskQueueSize;
@@ -477,6 +483,11 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                     // This is an item we must persist.
                     prev = item.get();
                     ++items_flushed;
+
+                    if (mcbp::datatype::is_xattr(item->getDataType())) {
+                        vbstate.mightContainXattrs = true;
+                    }
+
                     flushOneDelOrSet(item, vb.getVB());
 
                     maxSeqno = std::max(maxSeqno, (uint64_t)item->getBySeqno());
@@ -534,7 +545,6 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 }
             }
 
-
             {
                 folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
                 if (vb->getState() == vbucket_state_active) {
@@ -562,9 +572,6 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                     vbstate.hlcCasEpochSeqno = minSeqno;
                     vb->setHLCEpochSeqno(vbstate.hlcCasEpochSeqno);
                 }
-
-                // Track if the VB has xattrs present
-                vbstate.mightContainXattrs = vb->mightContainXattrs();
 
                 // Do we need to trigger a persist of the state?
                 // If there are no "real" items to flush, and we encountered

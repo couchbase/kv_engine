@@ -51,7 +51,7 @@ class PreLinkDocumentContext;
 class RollbackResult;
 class VBucketBGFetchItem;
 struct VBQueueItemCtx;
-struct vbucket_state;
+struct vbucket_transition_state;
 struct vb_bgfetch_item_ctx_t;
 using vb_bgfetch_queue_t =
         std::unordered_map<DiskDocKey, vb_bgfetch_item_ctx_t>;
@@ -419,7 +419,7 @@ public:
 
     vbucket_state_t getInitialState(void) { return initialState; }
 
-    vbucket_state getVBucketState() const;
+    vbucket_transition_state getTransitionState() const;
 
     /**
      * @return the replication topology set for this VBucket

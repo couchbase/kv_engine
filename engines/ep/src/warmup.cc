@@ -1020,11 +1020,11 @@ void Warmup::createVBuckets(uint16_t shardId) {
         VBucketPtr vb = store.getVBucket(vbid);
         if (!vb) {
             std::unique_ptr<FailoverTable> table;
-            if (vbs.failovers.empty()) {
+            if (vbs.transition.failovers.empty()) {
                 table = std::make_unique<FailoverTable>(maxEntries);
             } else {
                 table = std::make_unique<FailoverTable>(
-                        vbs.failovers, maxEntries, vbs.highSeqno);
+                        vbs.transition.failovers, maxEntries, vbs.highSeqno);
             }
             KVShard* shard = store.getVBuckets().getShardByVbId(vbid);
 
@@ -1038,12 +1038,12 @@ void Warmup::createVBuckets(uint16_t shardId) {
             }
 
             vb = store.makeVBucket(vbid,
-                                   vbs.state,
+                                   vbs.transition.state,
                                    shard,
                                    std::move(table),
                                    std::make_unique<NotifyNewSeqnoCB>(store),
                                    std::move(manifest),
-                                   vbs.state,
+                                   vbs.transition.state,
                                    vbs.highSeqno,
                                    vbs.lastSnapStart,
                                    vbs.lastSnapEnd,
@@ -1051,9 +1051,10 @@ void Warmup::createVBuckets(uint16_t shardId) {
                                    vbs.maxCas,
                                    vbs.hlcCasEpochSeqno,
                                    vbs.mightContainXattrs,
-                                   vbs.replicationTopology);
+                                   vbs.transition.replicationTopology);
 
-            if(vbs.state == vbucket_state_active && !cleanShutdown) {
+            if (vbs.transition.state == vbucket_state_active &&
+                !cleanShutdown) {
                 if (static_cast<uint64_t>(vbs.highSeqno) == vbs.lastSnapEnd) {
                     vb->failovers->createEntry(vbs.lastSnapEnd);
                 } else {
@@ -1735,7 +1736,7 @@ void Warmup::populateShardVbStates()
         for (auto it : shardVbStates[i]) {
             Vbid vbid = it.first;
             vbucket_state vbs = it.second;
-            if (vbs.state == vbucket_state_active) {
+            if (vbs.transition.state == vbucket_state_active) {
                 activeVBs.push_back(vbid);
             } else {
                 otherVBs.push_back(vbid);

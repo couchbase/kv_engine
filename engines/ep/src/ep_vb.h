@@ -20,6 +20,7 @@
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 
+struct vbucket_state;
 class BgFetcher;
 
 /**

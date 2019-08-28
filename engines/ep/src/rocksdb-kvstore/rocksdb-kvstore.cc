@@ -833,7 +833,7 @@ bool RocksDBKVStore::snapshotVBucket(Vbid vbucketId,
             logger.warn(
                     "RocksDBKVStore::snapshotVBucket: saveVBStateToBatch() "
                     "failed state:{} {} :{}",
-                    VBucket::toString(vbstate.state),
+                    VBucket::toString(vbstate.transition.state),
                     vbucketId,
                     status.getState());
             return false;
@@ -843,7 +843,7 @@ bool RocksDBKVStore::snapshotVBucket(Vbid vbucketId,
             logger.warn(
                     "RocksDBKVStore::snapshotVBucket: Write() "
                     "failed state:{} {} :{}",
-                    VBucket::toString(vbstate.state),
+                    VBucket::toString(vbstate.transition.state),
                     vbucketId,
                     status.getState());
             return false;

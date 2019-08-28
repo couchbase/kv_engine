@@ -564,26 +564,13 @@ void VBucket::setState_UNLOCKED(
                                         : meta.at("topology"));
 }
 
-vbucket_state VBucket::getVBucketState() const {
-     auto persisted_range = getPersistedSnapshot();
+vbucket_transition_state VBucket::getTransitionState() const {
+    nlohmann::json topology;
+    if (getState() == vbucket_state_active) {
+        topology = getReplicationTopology();
+    }
 
-     nlohmann::json topology;
-     if (getState() == vbucket_state_active) {
-         topology = getReplicationTopology();
-     }
-
-     return vbucket_state{getState(),
-                          0,
-                          getHighSeqno(),
-                          getPurgeSeqno(),
-                          persisted_range.getStart(),
-                          persisted_range.getEnd(),
-                          getMaxCas(),
-                          hlc.getEpochSeqno(),
-                          mightContainXattrs(),
-                          failovers->toJSON(),
-                          true /*supportsNamespaces*/,
-                          topology};
+    return vbucket_transition_state{failovers->toJSON(), topology, getState()};
 }
 
 nlohmann::json VBucket::getReplicationTopology() const {

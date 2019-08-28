@@ -1315,7 +1315,7 @@ bool CouchKVStore::snapshotVBucket(Vbid vbucketId,
             logger.warn(
                     "CouchKVStore::snapshotVBucket: setVBucketState failed "
                     "state:{}, {}",
-                    VBucket::toString(vbstate.state),
+                    VBucket::toString(vbstate.transition.state),
                     vbucketId);
             return false;
         }
@@ -2457,7 +2457,7 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db, Vbid vbId) {
 
         std::tie(status, vbState.lastSnapStart, vbState.lastSnapEnd) =
                 processVbstateSnapshot(vbId,
-                                       vbState.state,
+                                       vbState.transition.state,
                                        vbState.version,
                                        vbState.lastSnapStart,
                                        vbState.lastSnapEnd,

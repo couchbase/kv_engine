@@ -189,7 +189,7 @@ static void initialize_kv_store(KVStore* kvstore, Vbid vbid = Vbid(0)) {
     // simulate the setVbState by incrementing the rev
     kvstore->prepareToCreate(vbid);
     vbucket_state state;
-    state.state = vbucket_state_active;
+    state.transition.state = vbucket_state_active;
     // simulate the setVbState by incrementing the rev
     kvstore->prepareToCreate(vbid);
     kvstore->snapshotVBucket(
@@ -372,7 +372,7 @@ TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
 
     // Activate vBucket.
     vbucket_state state;
-    state.state = vbucket_state_active;
+    state.transition.state = vbucket_state_active;
     state.maxCas = -1;
     EXPECT_TRUE(kvstore.rw->snapshotVBucket(
             Vbid(0), state, VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT));
@@ -1439,7 +1439,7 @@ public:
         // state
         kvstore->prepareToCreateImpl(vbid);
         vbucket_state state;
-        state.state = vbucket_state_active;
+        state.transition.state = vbucket_state_active;
         // simulate a setVBState - increment the dbFile revision
         kvstore->prepareToCreateImpl(vbid);
         kvstore->snapshotVBucket(

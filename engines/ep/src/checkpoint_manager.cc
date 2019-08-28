@@ -26,6 +26,7 @@
 #include "stats.h"
 #include "statwriter.h"
 #include "vbucket.h"
+#include "vbucket_state.h"
 
 #include <gsl.h>
 
@@ -770,12 +771,18 @@ bool CheckpointManager::queueDirty(
 }
 
 void CheckpointManager::queueSetVBState(VBucket& vb) {
+    // Grab the vbstate before the queueLock (avoid a lock inversion)
+    auto vbstate = vb.getTransitionState();
+
     // Take lock to serialize use of {lastBySeqno} and to queue op.
     LockHolder lh(queueLock);
 
     // Create the setVBState operation, and enqueue it.
     queued_item item = createCheckpointItem(/*id*/0, vbucketId,
                                             queue_op::set_vbucket_state);
+
+    // Store a JSON version of the vbucket transition data in the value
+    vbstate.toItem(*item);
 
     auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
     const auto result = openCkpt.queueDirty(item, this);

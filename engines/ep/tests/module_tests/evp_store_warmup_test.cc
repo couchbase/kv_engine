@@ -529,6 +529,23 @@ TEST_F(WarmupTest, MB_35599) {
     EXPECT_EQ(0, memcmp("value", gv.item->getData(), 5));
 }
 
+// Check that two state changes don't de-duplicate, that replica is the state
+// which lands in persistence. Note the addition of the key helped find an issue
+// where the flusher re-ordered the flush batch, allowing the older set-vbstate
+// to be flushed after the newer state (losing the replica state)
+TEST_F(WarmupTest, SetVBState) {
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(vbid, vbucket_state_active));
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(vbid, vbucket_state_replica));
+    flush_vbucket_to_disk(vbid, 1);
+
+    resetEngineAndWarmup();
+
+    EXPECT_EQ(vbucket_state_replica, store->getVBucket(vbid)->getState());
+}
+
 // Test fixture for Durability-related Warmup tests.
 class DurabilityWarmupTest : public DurabilityKVBucketTest {
 protected:
@@ -940,7 +957,7 @@ TEST_P(DurabilityWarmupTest, ReplicationTopologyMissing) {
     // Remove the replicationTopology and re-persist.
     auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
     auto vbstate = *kvstore->getVBucketState(vbid);
-    vbstate.replicationTopology.clear();
+    vbstate.transition.replicationTopology.clear();
     kvstore->snapshotVBucket(
             vbid, vbstate, VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT);
 

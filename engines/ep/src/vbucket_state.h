@@ -24,6 +24,35 @@
 #include <cstdint>
 #include <string>
 
+class Item;
+
+// Sub structure that stores the data which only changes as part of a state
+// transition.
+struct vbucket_transition_state {
+    bool needsToBePersisted(const vbucket_transition_state& transition);
+
+    /// update the given item with a JSON version of this structure
+    void toItem(Item& item) const;
+
+    /// update this from the Item, assumes the Item's value was set by ::toItem
+    void fromItem(const Item& item);
+
+    std::string failovers = "";
+
+    /**
+     * The replication topology for the vBucket. Can be empty if not yet set,
+     * otherwise encoded as a JSON array of chains, each chain is a array of
+     * node names - e.g.
+     *
+     *     [ ["active", "replica_1"], ["active", "replica_1", "replica_2"]]
+     *
+     * First GA'd in 6.5
+     */
+    nlohmann::json replicationTopology;
+
+    vbucket_state_t state = vbucket_state_dead;
+};
+
 /**
  * Describes the detailed state of a VBucket, including it's high-level 'state'
  * (active, replica, etc), and the various seqnos and other properties it has.
@@ -99,24 +128,11 @@ struct vbucket_state {
      */
     bool mightContainXattrs = false;
 
-    std::string failovers = "";
-
     /**
      * Does this vBucket file support namespaces (leb128 prefix on keys).
      * First GA'd in v6.5
      */
     bool supportsNamespaces = true;
-
-    /**
-     * The replication topology for the vBucket. Can be empty if not yet set,
-     * otherwise encoded as a JSON array of chains, each chain is a array of
-     * node names - e.g.
-     *
-     *     [ ["active", "replica_1"], ["active", "replica_1", "replica_2"]]
-     *
-     * First GA'd in 6.5
-     */
-    nlohmann::json replicationTopology;
 
     /**
      * Version of vbucket_state. See comments against CurrentVersion for
@@ -142,6 +158,12 @@ struct vbucket_state {
      * SyncReplication in 6.5.
      */
     uint64_t onDiskPrepares = 0;
+
+    /**
+     * Data that is changed as part of a vbucket state transition is stored
+     * in this member.
+     */
+    vbucket_transition_state transition;
 };
 
 /// Method to allow nlohmann::json to convert vbucket_state to JSON.
@@ -150,4 +172,13 @@ void to_json(nlohmann::json& json, const vbucket_state& vbs);
 /// Method to allow nlohmann::json to convert from JSON to vbucket_state.
 void from_json(const nlohmann::json& j, vbucket_state& vbs);
 
+/// Method to allow nlohmann::json to convert vbucket_transition_state to JSON.
+void to_json(nlohmann::json& json, const vbucket_transition_state& vbs);
+
+/// Method to allow nlohmann::json to convert from JSON to
+/// vbucket_transition_state.
+void from_json(const nlohmann::json& j, vbucket_transition_state& vbs);
+
 std::ostream& operator<<(std::ostream& os, const vbucket_state& vbs);
+
+std::ostream& operator<<(std::ostream& os, const vbucket_transition_state& vbs);
