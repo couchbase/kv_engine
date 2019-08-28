@@ -216,9 +216,10 @@ void Filter::addScope(const nlohmann::json& object,
     }
 }
 
-bool Filter::checkAndUpdateSlow(CollectionID cid, const Item& item) {
+bool Filter::checkAndUpdateSlow(CollectionID cid, Item& item) {
     bool allowed = false;
     if (cid == CollectionID::System) {
+        item.decompressValue();
         allowed = checkAndUpdateSystemEvent(item);
     } else {
         allowed = filter.count(cid);

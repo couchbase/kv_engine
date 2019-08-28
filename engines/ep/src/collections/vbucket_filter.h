@@ -106,7 +106,7 @@ public:
      * @param item an Item to be processed.
      * @return if the Item is allowed to be sent on the DcpStream
      */
-    bool checkAndUpdate(const Item& item) {
+    bool checkAndUpdate(Item& item) {
         // passthrough, everything is allowed.
         if (passthrough) {
             return true;
@@ -204,7 +204,7 @@ protected:
     bool checkAndUpdateSystemEvent(const Item& item);
 
     /// Non-inline, slow path of checkAndUpdate().
-    bool checkAndUpdateSlow(CollectionID cid, const Item& item);
+    bool checkAndUpdateSlow(CollectionID cid, Item& item);
 
     /**
      * Remove the collection of the item from the filter
