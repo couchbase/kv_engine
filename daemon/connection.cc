@@ -743,6 +743,38 @@ bool Connection::tryAuthFromSslCert(const std::string& userName) {
     return true;
 }
 
+void Connection::logSslErrorInfo(const std::string& method, int rval) {
+    const int error = ssl.getError(rval);
+    unsigned long code = ERR_peek_error();
+    if (code == 0) {
+        LOG_WARNING("{}: ERROR: {} returned {} with error {}",
+                    getId(),
+                    method,
+                    rval,
+                    error);
+        return;
+    }
+
+    try {
+        std::string errmsg(method + "() returned " +
+                           std::to_string(rval) + " with error " +
+                           std::to_string(error));
+        while ((code = ERR_get_error()) != 0) {
+            std::vector<char> ssl_err(1024);
+            ERR_error_string_n(
+                               code, ssl_err.data(), ssl_err.size());
+            LOG_WARNING("{}: {}: {}", getId(), errmsg, ssl_err.data());
+        }
+    } catch (const std::bad_alloc&) {
+        // unable to print error message; continue.
+        LOG_WARNING("{}: {}() returned {} with error {}",
+                    getId(),
+                    method,
+                    rval,
+                    error);
+    }
+}
+
 int Connection::sslPreConnection() {
     int r = ssl.accept();
     if (r == 1) {
@@ -802,20 +834,7 @@ int Connection::sslPreConnection() {
             cb::net::set_ewouldblock();
             return -1;
         } else {
-            try {
-                std::string errmsg("SSL_accept() returned " +
-                                   std::to_string(r) + " with error " +
-                                   std::to_string(ssl.getError(r)));
-
-                std::vector<char> ssl_err(1024);
-                ERR_error_string_n(
-                        ERR_get_error(), ssl_err.data(), ssl_err.size());
-
-                LOG_WARNING("{}: {}: {}", getId(), errmsg, ssl_err.data());
-            } catch (const std::bad_alloc&) {
-                // unable to print error message; continue.
-            }
-
+            logSslErrorInfo("SSL_accept", r);
             cb::net::set_econnreset();
             return -1;
         }
@@ -867,14 +886,30 @@ ssize_t Connection::sendmsg(struct msghdr* m) {
                              m->msg_iov[ii].iov_len);
             if (n > 0) {
                 res += n;
+                if (n != int(m->msg_iov[ii].iov_len)) {
+                    // We didnt' send the entire chunk. return the number
+                    // of bytes sent so far to the caller and let them
+                    // deal with adjusting the pointers and retry
+                    return res;
+                }
             } else {
-                return res > 0 ? res : -1;
+                // We failed to send the data over ssl. it might be
+                // because the underlying socket buffer is full, or
+                // if there is a real error with the socket or inside
+                // OpenSSL. If the error is because we the network
+                // is full we'll return the number of bytes we've sent
+                // so far (so that it may adjust the iov_base and iov_len
+                // fields before it'll try to call us again and the
+                // send will most likely fail again, but this we'll
+                // return -1 and when the caller checks it'll see it is
+                // because the network buffer is full).
+                auto error = cb::net::get_socket_error();
+                if (cb::net::is_blocking(error) && res > 0) {
+                    return res;
+                }
+                return -1;
             }
         }
-
-        /* @todo figure out how to drain the rest of the data if we
-         * failed to send all of it...
-         */
         ssl.drainBioSendPipe(socketDescriptor);
         return res;
     } else {
@@ -1093,7 +1128,7 @@ int Connection::sslRead(char* dest, size_t nbytes) {
             ret += n;
         } else {
             /* n < 0 and n == 0 require a check of SSL error*/
-            int error = ssl.getError(n);
+            const int error = ssl.getError(n);
 
             switch (error) {
             case SSL_ERROR_WANT_READ:
@@ -1118,13 +1153,7 @@ int Connection::sslRead(char* dest, size_t nbytes) {
                 return 0;
 
             default:
-                /*
-                 * @todo I don't know how to gracefully recover from this
-                 * let's just shut down the connection
-                 */
-                LOG_WARNING("{}: ERROR: SSL_read returned -1 with error {}",
-                            getId(),
-                            error);
+                logSslErrorInfo("SSL_read", n);
                 cb::net::set_econnreset();
                 return -1;
             }
@@ -1158,31 +1187,28 @@ int Connection::sslWrite(const char* src, size_t nbytes) {
         if (n > 0) {
             ret += n;
         } else {
-            if (ret > 0) {
-                /* We've sent some data.. let the caller have them */
-                return ret;
-            }
-
             if (n < 0) {
-                int error = ssl.getError(n);
+                const int error = ssl.getError(n);
                 switch (error) {
                 case SSL_ERROR_WANT_WRITE:
+                    if (ret > 0) {
+                        // We've sent some data let the caller have them
+                        return ret;
+                    }
                     cb::net::set_ewouldblock();
                     return -1;
 
                 default:
-                    /*
-                     * @todo I don't know how to gracefully recover from this
-                     * let's just shut down the connection
-                     */
-                    LOG_WARNING(
-                            "{}: ERROR: SSL_write returned -1 with error {}",
-                            getId(),
-                            error);
+                    logSslErrorInfo("SSL_write", n);
                     cb::net::set_econnreset();
                     return -1;
                 }
             }
+
+            if (ret > 0) {
+                return ret;
+            }
+            return -1;
         }
     }
 
