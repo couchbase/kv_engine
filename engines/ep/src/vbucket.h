@@ -1829,6 +1829,35 @@ protected:
                            int64_t prepareSeqno,
                            const VBQueueItemCtx& ctx);
 
+    /**
+     * Enqueue an new Abort item for persistence and replication. Needed when
+     * the prepare it aborts has _not_ already been received, so there is no
+     * prepared stored value.
+     * An Abort item is a logical delete of a Pending SyncWrite that could not
+     * be completed within the required Timeout requirement.
+     *
+     * @param item the aborted item to queue
+     * @param ctx The VBQueueItemCtx. Holds info needed to enqueue the item,
+     *     look at the structure for details.
+     * @return the notification context used for notifying the Flusher and
+     *     Replica Connections.
+     */
+    VBNotifyCtx queueAbortForUnseenPrepare(queued_item item,
+                                           const VBQueueItemCtx& ctx);
+
+    /**
+     * Construct a new aborted item. Needed if the prepare which is
+     * being aborted was not received due to deduplication (replica).
+     *
+     * @param key the key for which the abort should be created
+     * @param prepareSeqno The seqno of the Prepare being aborted
+     * @param abortSeqno The desired seqno of the abort
+     * @return the abort item
+     */
+    queued_item createNewAbortedItem(const DocKey& key,
+                                     int64_t prepareSeqno,
+                                     int64_t abortSeqno);
+
     struct AddTempSVResult {
         TempAddStatus status;
         StoredValue* storedValue;
@@ -2120,6 +2149,24 @@ private:
             StoredValue& v,
             int64_t prepareSeqno,
             boost::optional<int64_t> abortSeqno) = 0;
+
+    /**
+     * Add a new abort item. To be used when an abort has been received, but the
+     * matching prepare was not.
+     *
+     * @param hbl Reference to the hash table bucket lock
+     * @param k key for the new aborted item
+     * @param prepareSeqno The seqno of the Prepare the abort *would* have
+     * aborted if the Prepare had been received.
+     * @param abortSeqno seqno to use for the aborted item. This is mandatory,
+     *                   as an abort for an absent prepare should only occur
+     *                   in a replica, where the abortSeqno is always available.
+     * @return Information on who should be notified of the commit.
+     */
+    virtual VBNotifyCtx addNewAbort(const HashTable::HashBucketLock& hbl,
+                                    const DocKey& key,
+                                    int64_t prepareSeqno,
+                                    int64_t abortSeqno) = 0;
 
     /**
      * This function handles expiry related stuff before logically (soft)

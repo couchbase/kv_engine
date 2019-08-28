@@ -740,16 +740,11 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
         // 2) We need to modify the SV to mark it as an abort (not a delete)
         ht.unlocked_abortPrepare(hbl, *newSv);
 
-        seqList->updateNumDeletedItems(oldSv ? oldSv->isDeleted() : false,
-                                       newSv->isDeleted());
-
         /* Update the high seqno in the sequential storage */
         auto& osv = *(newSv->toOrderedStoredValue());
-        seqList->updateHighSeqno(listWriteLg, osv);
 
-        // Manually set the prepareSeqno on the OSV so that it is stored in the
-        // seqList
-        osv.setPrepareSeqno(prepareSeqno);
+        updateSeqListPostAbort(
+                listWriteLg, oldSv ? oldSv->toOrderedStoredValue() : nullptr, osv, prepareSeqno);
 
         // If we did an append we still need to mark the un-updated StoredValue
         // as stale.
@@ -759,6 +754,54 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
     }
 
     return notifyCtx;
+}
+
+VBNotifyCtx EphemeralVBucket::addNewAbort(const HashTable::HashBucketLock& hbl,
+                                          const DocKey& key,
+                                          int64_t prepareSeqno,
+                                          int64_t abortSeqno) {
+    // Reached this method because an abort was received without previously
+    // receiving a prepare.
+
+    VBQueueItemCtx queueItmCtx;
+    queueItmCtx.genBySeqno = GenerateBySeqno::No;
+
+    // Need the sequenceLock as we may be generating a new seqno
+    std::lock_guard<std::mutex> lh(sequenceLock);
+
+    queued_item item = createNewAbortedItem(key, prepareSeqno, abortSeqno);
+    StoredValue* newSv = ht.unlocked_addNewStoredValue(hbl, *item);
+
+    auto& osv = *newSv->toOrderedStoredValue();
+
+    VBNotifyCtx notifyCtx;
+    {
+        std::lock_guard<std::mutex> listWriteLg(seqList->getListWriteLock());
+
+        seqList->appendToList(lh, listWriteLg, osv);
+
+        notifyCtx = queueAbortForUnseenPrepare(item, queueItmCtx);
+
+        updateSeqListPostAbort(listWriteLg, nullptr, osv, prepareSeqno);
+    }
+
+    return notifyCtx;
+}
+
+void EphemeralVBucket::updateSeqListPostAbort(
+        std::lock_guard<std::mutex>& listWriteLg,
+        const OrderedStoredValue* oldOsv,
+        OrderedStoredValue& newOsv,
+        int64_t prepareSeqno) {
+    seqList->updateNumDeletedItems(oldOsv ? oldOsv->isDeleted() : false,
+                                   newOsv.isDeleted());
+
+    /* Update the high seqno in the sequential storage */
+    seqList->updateHighSeqno(listWriteLg, newOsv);
+
+    // Manually set the prepareSeqno on the OSV so that it is stored in the
+    // seqList
+    newOsv.setPrepareSeqno(prepareSeqno);
 }
 
 void EphemeralVBucket::bgFetch(const DocKey& key,

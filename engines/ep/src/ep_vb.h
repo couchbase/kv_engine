@@ -264,6 +264,11 @@ private:
                                  int64_t prepareSeqno,
                                  boost::optional<int64_t> abortSeqno) override;
 
+    VBNotifyCtx addNewAbort(const HashTable::HashBucketLock& hbl,
+                            const DocKey& key,
+                            int64_t prepareSeqno,
+                            int64_t abortSeqno) override;
+
     void bgFetch(const DocKey& key,
                  const void* cookie,
                  EventuallyPersistentEngine& engine,

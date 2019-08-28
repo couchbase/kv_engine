@@ -1975,18 +1975,22 @@ void PassiveDurabilityMonitorTest::testResolvePrepareOutOfOrder(
     // PassiveDM doesn't track anything yet, no commit expected
     auto& pdm = getPassiveDM();
 
-    auto thrown{false};
-    try {
-        pdm.completeSyncWrite(makeStoredDocKey("akey"), res, 1);
-    } catch (const std::logic_error& e) {
-        EXPECT_TRUE(std::string(e.what()).find(
-                            "No tracked, but received " +
-                            PassiveDurabilityMonitor::to_string(res) +
-                            " for key") != std::string::npos);
-        thrown = true;
-    }
-    if (!thrown) {
-        FAIL();
+    if (res == PassiveDurabilityMonitor::Resolution::Commit) {
+        // aborts may legitimately be seen without a preceding prepare
+        // due to dedupe.
+        auto thrown{false};
+        try {
+            pdm.completeSyncWrite(makeStoredDocKey("akey"), res, 1);
+        } catch (const std::logic_error& e) {
+            EXPECT_TRUE(std::string(e.what()).find(
+                                "No tracked, but received " +
+                                PassiveDurabilityMonitor::to_string(res) +
+                                " for key") != std::string::npos);
+            thrown = true;
+        }
+        if (!thrown) {
+            FAIL();
+        }
     }
 
     auto key1 = makeStoredDocKey("key1");
@@ -2066,6 +2070,53 @@ TEST_P(PassiveDurabilityMonitorPersistentTest, CommitOutOfOrder) {
 
 TEST_P(PassiveDurabilityMonitorPersistentTest, AbortOutOfOrder) {
     testResolvePrepareOutOfOrder(PassiveDurabilityMonitor::Resolution::Abort);
+}
+
+TEST_P(PassiveDurabilityMonitorPersistentTest,
+       AbortWithoutPrepareRefusedFromMemorySnap) {
+    assertNumTrackedAndHPSAndHCS(0, 0, 0 /*expectedHCS*/);
+
+    // @TODO send correct HCS
+    vb->checkpointManager->createSnapshot(
+            1, 1, {} /*HCS*/, CheckpointType::Memory);
+
+    // PassiveDM doesn't track anything yet, no commit expected
+    auto& pdm = getPassiveDM();
+
+    auto thrown{false};
+    try {
+        pdm.completeSyncWrite(makeStoredDocKey("akey"),
+                              PassiveDurabilityMonitor::Resolution::Abort,
+                              1);
+    } catch (const std::logic_error& e) {
+        EXPECT_TRUE(
+                std::string(e.what()).find(
+                        "No tracked, but received " +
+                        PassiveDurabilityMonitor::to_string(
+                                PassiveDurabilityMonitor::Resolution::Abort) +
+                        " for key") != std::string::npos);
+        thrown = true;
+    }
+    if (!thrown) {
+        FAIL();
+    }
+}
+
+TEST_P(PassiveDurabilityMonitorPersistentTest,
+       AbortWithoutPrepareAcceptedFromDiskSnap) {
+    assertNumTrackedAndHPSAndHCS(0, 0, 0 /*expectedHCS*/);
+
+    // @TODO send correct HCS
+    vb->checkpointManager->createSnapshot(
+            1, 1, {} /*HCS*/, CheckpointType::Disk);
+
+    // PassiveDM doesn't track anything yet, no commit expected
+    auto& pdm = getPassiveDM();
+
+    EXPECT_NO_THROW(
+            pdm.completeSyncWrite(makeStoredDocKey("akey"),
+                                  PassiveDurabilityMonitor::Resolution::Abort,
+                                  1));
 }
 
 void PassiveDurabilityMonitorTest::testRemoveCompletedOnlyIfLocallySatisfied(

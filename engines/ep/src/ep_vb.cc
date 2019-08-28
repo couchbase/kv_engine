@@ -622,6 +622,16 @@ VBNotifyCtx EPVBucket::abortStoredValue(const HashTable::HashBucketLock& hbl,
     return notify;
 }
 
+VBNotifyCtx EPVBucket::addNewAbort(const HashTable::HashBucketLock& hbl,
+                                   const DocKey& key,
+                                   int64_t prepareSeqno,
+                                   int64_t abortSeqno) {
+    VBQueueItemCtx queueItmCtx;
+    queueItmCtx.genBySeqno = GenerateBySeqno::No;
+    queued_item item = createNewAbortedItem(key, prepareSeqno, abortSeqno);
+    return queueAbortForUnseenPrepare(item, queueItmCtx);
+}
+
 void EPVBucket::bgFetch(const DocKey& key,
                         const void* cookie,
                         EventuallyPersistentEngine& engine,

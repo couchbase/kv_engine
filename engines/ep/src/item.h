@@ -417,6 +417,8 @@ public:
                                 : CommittedState::Pending;
         case queue_op::commit_sync_write:
             return CommittedState::CommittedViaPrepare;
+        case queue_op::abort_sync_write:
+            return CommittedState::PrepareAborted;
         case queue_op::mutation:
         case queue_op::system_event:
             return CommittedState::CommittedViaMutation;

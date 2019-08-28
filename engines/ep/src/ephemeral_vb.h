@@ -294,6 +294,26 @@ private:
                                  int64_t prepareSeqno,
                                  boost::optional<int64_t> abortSeqno) override;
 
+    VBNotifyCtx addNewAbort(const HashTable::HashBucketLock& hbl,
+                            const DocKey& key,
+                            int64_t prepareSeqno,
+                            int64_t abortSeqno) override;
+    /**
+     * Update the tracked numDeletedItems and highSeqno after an prepare has
+     * been aborted, and sets the prepareSeqno in the aborted stored value.
+     *
+     * @param listWriteLg Write lock of the sequenceList from getListWriteLock()
+     * @param oldOsv the prepared stored value which has been aborted (or
+     * nullptr)
+     * @param newOsv the new aborted stored value which has been added to the
+     * hashtable
+     * @param prepareSeqno the seqno of the prepare which has been aborted
+     */
+    void updateSeqListPostAbort(std::lock_guard<std::mutex>& listWriteLg,
+                                const OrderedStoredValue* oldOsv,
+                                OrderedStoredValue& newOsv,
+                                int64_t prepareSeqno);
+
     void bgFetch(const DocKey& key,
                  const void* cookie,
                  EventuallyPersistentEngine& engine,

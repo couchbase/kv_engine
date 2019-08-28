@@ -753,6 +753,124 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbort) {
                              vbucket->lockCollections(nonPendingKey)));
 }
 
+TEST_P(VBucketDurabilityTest, NonExistingKeyAtAbortReplica) {
+    vbucket->setState(vbucket_state_replica);
+    // create memory snapshot initially
+    ckptMgr->createSnapshot(
+            lastSeqno + 1, lastSeqno + 2, {} /*HCS*/, CheckpointType::Memory);
+
+    auto key = makeStoredDocKey("key1");
+
+    // nothing in the hashtable
+    ASSERT_FALSE(ht->findOnlyCommitted(key).storedValue);
+    ASSERT_FALSE(ht->findOnlyPrepared(key).storedValue);
+
+    const int64_t prepareSeqno = lastSeqno + 1;
+    const int64_t abortSeqno = lastSeqno + 2;
+
+    ASSERT_GT(abortSeqno, ckptMgr->getHighSeqno());
+
+    // try abort without preceding prepare, should fail
+    EXPECT_EQ(ENGINE_EINVAL,
+              vbucket->abort(key,
+                             prepareSeqno /*prepareSeqno*/,
+                             abortSeqno /*abortSeqno*/,
+                             vbucket->lockCollections(key)));
+
+    // flip to a disk snapshot instead
+    ckptMgr->createSnapshot(
+            lastSeqno + 1, lastSeqno + 2, {} /*HCS*/, CheckpointType::Disk);
+
+    // now abort should be accepted because the prepare can have validly been
+    // deduped.
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vbucket->abort(key,
+                             prepareSeqno /*prepareSeqno*/,
+                             abortSeqno /*abortSeqno*/,
+                             vbucket->lockCollections(key)));
+
+    // no committed item still
+    EXPECT_FALSE(ht->findOnlyCommitted(key).storedValue);
+    const auto* abortedSv = ht->findOnlyPrepared(key).storedValue;
+
+    if (std::get<0>(GetParam()) == VBucketTestBase::VBType::Ephemeral) {
+        // completed sv is correctly stored in the hashtable
+        EXPECT_TRUE(abortedSv);
+        EXPECT_TRUE(abortedSv->isCompleted());
+        EXPECT_EQ(abortSeqno, abortedSv->getBySeqno());
+    }
+
+    // abort was queued
+    EXPECT_EQ(abortSeqno, ckptMgr->getHighSeqno());
+}
+
+TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbortReplica) {
+    vbucket->setState(vbucket_state_replica);
+    // create memory snapshot initially
+    ckptMgr->createSnapshot(
+            lastSeqno + 1, lastSeqno + 3, {} /*HCS*/, CheckpointType::Memory);
+
+    auto key = makeStoredDocKey("key1");
+
+    // nothing in the hashtable
+    ASSERT_FALSE(ht->findOnlyCommitted(key).storedValue);
+    ASSERT_FALSE(ht->findOnlyPrepared(key).storedValue);
+
+    auto nonPendingItem = make_item(vbucket->getId(), key, "value");
+
+    // store a normal item
+    EXPECT_EQ(MutationStatus::WasClean,
+              public_processSet(nonPendingItem, 0 /*cas*/, VBQueueItemCtx()));
+
+    EXPECT_EQ(1, ht->getNumItems());
+    // item is found in hashtable
+    const auto* sv = ht->findForRead(key).storedValue;
+    ASSERT_TRUE(sv);
+    ASSERT_TRUE(sv->isCommitted());
+    ASSERT_FALSE(ht->findOnlyPrepared(key).storedValue);
+
+    const int64_t committedSeqno = sv->getBySeqno();
+    EXPECT_EQ(lastSeqno + 1, committedSeqno);
+    const int64_t prepareSeqno = committedSeqno + 1;
+    const int64_t abortSeqno = committedSeqno + 2;
+
+    ASSERT_GT(abortSeqno, ckptMgr->getHighSeqno());
+
+    // try abort without preceding prepare, should fail
+    EXPECT_EQ(ENGINE_EINVAL,
+              vbucket->abort(key,
+                             prepareSeqno /*prepareSeqno*/,
+                             abortSeqno /*abortSeqno*/,
+                             vbucket->lockCollections(key)));
+
+    // flip to a disk snapshot instead
+    ckptMgr->createSnapshot(
+            lastSeqno + 1, lastSeqno + 3, {} /*HCS*/, CheckpointType::Disk);
+
+    // now abort should be accepted because the prepare can have validly been
+    // deduped.
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vbucket->abort(key,
+                             prepareSeqno /*prepareSeqno*/,
+                             abortSeqno /*abortSeqno*/,
+                             vbucket->lockCollections(key)));
+
+    const auto* committedSv = ht->findOnlyCommitted(key).storedValue;
+    const auto* abortedSv = ht->findOnlyPrepared(key).storedValue;
+
+    // original committed item untouched
+    EXPECT_EQ(sv, committedSv);
+    if (std::get<0>(GetParam()) == VBucketTestBase::VBType::Ephemeral) {
+        // completed sv is correctly stored in the hashtable
+        EXPECT_TRUE(abortedSv);
+        EXPECT_TRUE(abortedSv->isCompleted());
+        EXPECT_EQ(abortSeqno, abortedSv->getBySeqno());
+    }
+
+    // abort was queued
+    EXPECT_EQ(abortSeqno, ckptMgr->getHighSeqno());
+}
+
 /*
  * This test checks that at abort:
  * 1) the Pending is removed from the HashTable

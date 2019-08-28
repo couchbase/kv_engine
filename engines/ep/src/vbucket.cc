@@ -871,19 +871,39 @@ ENGINE_ERROR_CODE VBucket::abort(
         boost::optional<int64_t> abortSeqno,
         const Collections::VB::Manifest::CachingReadHandle& cHandle,
         const void* cookie) {
-    auto htRes = ht.findForWrite(key);
-    if (!htRes.storedValue) {
-        // Active - If we are aborting we /should/ always find the pending item.
-        if (!abortSeqno) {
-            EP_LOG_ERR(
-                    "VBucket::abort ({}) - active - failed as no HashTable"
-                    "item found with key:{}",
-                    id,
-                    cb::UserDataView(cb::const_char_buffer(key)));
-            return ENGINE_KEY_ENOENT;
-        }
+    auto htRes = ht.findForCommit(key);
 
-        Expects(getState() != vbucket_state_active);
+    if (!htRes.pending) {
+        // Did not find a prepare
+        // if persistent bucket -> any prepares for this key have been completed
+        //                         and are not in HT, or prepare was never seen
+        // if ephemeral bucket -> we have never seen a prepare for this key
+
+        // If we are aborting without previously seeing the associated prepare,
+        // either this is an error, or we are a replica receiving an abort from
+        // a disk snapshot and the prepare was deduped.
+
+        if (getState() == vbucket_state_active) {
+            // Active  - /should/ always find the pending item.
+            if (htRes.committed) {
+                std::stringstream ss;
+                ss << *htRes.committed;
+                EP_LOG_ERR(
+                        "VBucket::abort ({}) - active failed as HashTable "
+                        "value is not "
+                        "CommittedState::Pending - {}",
+                        id,
+                        cb::UserData(ss.str()));
+                return ENGINE_EINVAL;
+            } else {
+                EP_LOG_ERR(
+                        "VBucket::abort ({}) - active failed as no HashTable"
+                        "item found with key:{}",
+                        id,
+                        cb::UserDataView(cb::const_char_buffer(key)));
+                return ENGINE_KEY_ENOENT;
+            }
+        }
 
         // If we did not find the corresponding prepare for this abort then we
         // must be receiving a disk snapshot.
@@ -913,24 +933,27 @@ ENGINE_ERROR_CODE VBucket::abort(
         }
 
         // We have an abort for a prepare we do not know about that is in a
-        // valid range for which this can occur (replica) - do nothing
+        // valid range for which this can occur (replica)
+        // As we do not have the corresponding prepare, we cannot use
+        // abortStoredValue so create the abort with addNewAbort
+
+        auto notify = addNewAbort(
+                htRes.pending.getHBL(), key, prepareSeqno, *abortSeqno);
+
+        notifyNewSeqno(notify);
+        doCollectionsStats(cHandle, notify);
+
         return ENGINE_SUCCESS;
     }
 
-    if (!htRes.storedValue->isPending()) {
-        // We may find a non-pending StoredValue if the Abort is received from
-        // backfill as a previous prepare may have been deduped. If this is the
-        // case then just ignore this abort but we can verify that we have
-        // de-duped the prepare as it must be within the disk snapshot.
-        if (isReceivingDiskSnapshot()) {
-            Expects(prepareSeqno >
-                    checkpointManager->getOpenSnapshotStartSeqno());
-            return ENGINE_SUCCESS;
-        }
-        // We should always find a pending item when aborting; if not
-        // this is a logic error...
+    // We found a (potentially completed if ephemeral) prepare
+    if (!htRes.pending->isPending() && !isReceivingDiskSnapshot()) {
+        // We may find a completed StoredValue if the Abort is received from
+        // backfill as a previous prepare may have been deduped. If we are not
+        // receiving a disk snapshot, this is an error - we received an abort
+        // for something we haven't prepared.
         std::stringstream ss;
-        ss << *htRes.storedValue;
+        ss << (htRes.committed ? *htRes.committed : *htRes.pending);
         EP_LOG_ERR(
                 "VBucket::abort ({}) failed as HashTable value is not "
                 "CommittedState::Pending - {}",
@@ -941,15 +964,19 @@ ENGINE_ERROR_CODE VBucket::abort(
 
     // If prepare seqno is not the same as our stored seqno then we should be
     // a replica and have missed a completion and a prepare due to de-dupe.
-    if (prepareSeqno !=
-        static_cast<uint64_t>(htRes.storedValue->getBySeqno())) {
+    if (prepareSeqno != static_cast<uint64_t>(htRes.pending->getBySeqno())) {
         Expects(getState() != vbucket_state_active);
         Expects(isReceivingDiskSnapshot());
         Expects(prepareSeqno >= checkpointManager->getOpenSnapshotStartSeqno());
     }
 
-    auto notify = abortStoredValue(
-            htRes.lock, *htRes.storedValue, prepareSeqno, abortSeqno);
+    // abortStoredValue deallocates the pending SV, releasing here so
+    // ~StoredValueProxy will not attempt to update stats and lead to
+    // use-after-free
+    auto notify = abortStoredValue(htRes.pending.getHBL(),
+                                   *htRes.pending.release(),
+                                   prepareSeqno,
+                                   abortSeqno);
 
     notifyNewSeqno(notify);
     doCollectionsStats(cHandle, notify);
@@ -1299,6 +1326,37 @@ VBNotifyCtx VBucket::queueAbort(const HashTable::HashBucketLock& hbl,
     Expects(item->isDeleted());
 
     return queueItem(item, ctx);
+}
+
+VBNotifyCtx VBucket::queueAbortForUnseenPrepare(queued_item item,
+                                                const VBQueueItemCtx& ctx) {
+    item->setExpTime(ep_real_time());
+
+    Expects(item->isAbort());
+    Expects(item->isDeleted());
+    Expects(item->getPrepareSeqno());
+
+    return queueItem(item, ctx);
+}
+
+queued_item VBucket::createNewAbortedItem(const DocKey& key,
+                                          int64_t prepareSeqno,
+                                          int64_t abortSeqno) {
+    queued_item item = std::make_unique<Item>(key,
+                                              0 /*flags*/,
+                                              ep_real_time() /*exp*/,
+                                              value_t{},
+                                              PROTOCOL_BINARY_RAW_BYTES,
+                                              0,
+                                              abortSeqno,
+                                              getId());
+
+    item->setAbortSyncWrite();
+    item->setDeleted();
+
+    item->setPrepareSeqno(prepareSeqno);
+
+    return item;
 }
 
 HashTable::FindResult VBucket::fetchValidValue(

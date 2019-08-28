@@ -275,17 +275,24 @@ void PassiveDurabilityMonitor::completeSyncWrite(
         boost::optional<uint64_t> prepareSeqno) {
     auto s = state.wlock();
 
+    // If we are receiving a disk snapshot, we need to relax a few checks
+    // to account for deduplication. E.g., commits may appear to be out
+    // of order
+    bool enforceOrderedCompletion = !vb.isReceivingDiskSnapshot();
+
     if (s->trackedWrites.empty()) {
+        if (!enforceOrderedCompletion && res == Resolution::Abort) {
+            // An abort might dedupe the associated prepare if received as part
+            // of a disk snapshot. VBucket::abort applies numerous checks
+            // to ensure the abort is acceptable prior to it reaching this point
+            // so simply ignore it here.
+            return;
+        }
         throwException<std::logic_error>(
                 __func__,
                 "No tracked, but received " + to_string(res) + " for key " +
                         cb::tagUserData(key.to_string()));
     }
-
-    // If we are receiving a disk snapshot, we need to relax a few checks
-    // to account for deduplication. E.g., commits may appear to be out
-    // of order
-    bool enforceOrderedCompletion = !vb.isReceivingDiskSnapshot();
 
     // If we can complete out of order, we have to check from the start of
     // tracked writes as the HCS may have advanced past a prepare we have not
@@ -302,6 +309,12 @@ void PassiveDurabilityMonitor::completeSyncWrite(
     }
 
     if (next == s->trackedWrites.end()) {
+        if (!enforceOrderedCompletion && res == Resolution::Abort) {
+            // Ignore abort without matching prepare from disk snapshot as
+            // above. See VBucket::abort for restrictions on when this is
+            // allowed to happen.
+            return;
+        }
         throwException<std::logic_error>(
                 __func__,
                 "No Prepare waiting for completion, but received " +
