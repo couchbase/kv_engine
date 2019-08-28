@@ -213,3 +213,23 @@ TEST_P(ClusterConfigTest, CccpPushNotification) {
                              value.size()};
     EXPECT_EQ(R"({"rev":666})", config);
 }
+
+/**
+ * The bucket configuration was not reset as part of bucket deletion
+ */
+TEST_P(ClusterConfigTest, MB35395) {
+    setClusterConfig(token, R"({"rev":1000})");
+
+    auto& conn = getAdminConnection();
+    conn.deleteBucket("default");
+
+    // Recreate the bucket, and the cluster config should be gone!
+    CreateTestBucket();
+    conn = getAdminConnection();
+    conn.selectBucket("default");
+    BinprotGenericCommand cmd{PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG, "",""};
+    BinprotResponse rsp;
+    conn.executeCommand(cmd, rsp);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, rsp.getStatus());
+    EXPECT_EQ("", rsp.getDataString());
+}

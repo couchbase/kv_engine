@@ -1892,6 +1892,7 @@ void CreateBucketThread::create() {
             bucket.engine = nullptr;
             delete bucket.topkeys;
             bucket.topkeys = nullptr;
+            bucket.clusterConfiguration.reset();
 
             result = ENGINE_NOT_STORED;
         }
@@ -1903,6 +1904,7 @@ void CreateBucketThread::create() {
             bucket.engine = nullptr;
             delete bucket.topkeys;
             bucket.topkeys = nullptr;
+            bucket.clusterConfiguration.reset();
         }
 
         LOG_WARNING(
@@ -2075,6 +2077,7 @@ void DestroyBucketThread::destroy() {
         delete bucket.topkeys;
         bucket.responseCounters.fill(0);
         bucket.topkeys = nullptr;
+        bucket.clusterConfiguration.reset();
     }
     // don't need lock because all timing data uses atomics
     bucket.timings.reset();

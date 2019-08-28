@@ -32,8 +32,9 @@
  */
 class ClusterConfiguration {
 public:
+    static const int NoConfiguration = -1;
     ClusterConfiguration()
-        : config(std::make_shared<std::string>()), revision(-1) {
+        : config(std::make_shared<std::string>()), revision(NoConfiguration) {
     }
 
     void setConfiguration(cb::const_char_buffer buffer);
@@ -57,7 +58,13 @@ public:
      */
     static int getRevisionNumber(cb::const_char_buffer buffer);
 
-private:
+    /**
+     * Reset the ClusterConfig object to represent that no configuration
+     * has been set.
+     */
+    void reset();
+
+protected:
     /**
      * We use a mutex so that we can get a consistent copy of the revision
      * number and the configuration. (we cache the revision number to avoid

@@ -23,7 +23,7 @@
 
 void ClusterConfiguration::setConfiguration(cb::const_char_buffer buffer) {
     int rev = getRevisionNumber(buffer);
-    if (rev == -1) {
+    if (rev == NoConfiguration) {
         throw std::invalid_argument(
                 "ClusterConfiguration::setConfiguration: Failed determine map "
                 "revision");
@@ -42,7 +42,7 @@ int ClusterConfiguration::getRevisionNumber(cb::const_char_buffer buffer) {
     operation.set_result_buf(&result);
 
     if (operation.op_exec("rev") != Subdoc::Error::SUCCESS) {
-        return -1;
+        return NoConfiguration;
     }
 
     auto loc = result.matchloc();
@@ -57,5 +57,11 @@ int ClusterConfiguration::getRevisionNumber(cb::const_char_buffer buffer) {
     } catch (const std::exception&) {
     }
 
-    return -1;
+    return NoConfiguration;
+}
+
+void ClusterConfiguration::reset() {
+    std::lock_guard<std::mutex> guard(mutex);
+    revision = NoConfiguration;
+    config = std::make_shared<std::string>();
 }
