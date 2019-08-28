@@ -101,6 +101,7 @@ struct CompactionStats {
     size_t collectionsItemsPurged = 0;
     size_t collectionsDeletedItemsPurged = 0;
     uint64_t tombstonesPurged = 0;
+    uint64_t preparesPurged = 0;
     FileInfo pre;
     FileInfo post;
 };

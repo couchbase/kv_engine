@@ -911,6 +911,9 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
                 } else {
                     ctx->stats.collectionsDeletedItemsPurged++;
                 }
+                if (metadata->isPrepare()) {
+                    ctx->stats.preparesPurged++;
+                }
                 return COUCHSTORE_COMPACT_DROP_ITEM;
             } else if (info->deleted) {
                 ctx->eraserContext->processEndOfCollection(
@@ -954,11 +957,12 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
             }
         } else {
             // We can remove any prepares that have been completed. This works
-            // because we send Mutations intead of Commits when streaming from
+            // because we send Mutations instead of Commits when streaming from
             // Disk so we do not need to send a Prepare message to keep things
             // consistent on a replica.
             if (metadata->isPrepare()) {
                 if (info->db_seq <= ctx->highCompletedSeqno) {
+                    ctx->stats.preparesPurged++;
                     return COUCHSTORE_COMPACT_DROP_ITEM;
                 }
             }
@@ -1204,6 +1208,7 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
         state->purgeSeqno = info.purge_seq;
         cachedDeleteCount[vbid.get()] = info.deleted_count;
         cachedDocCount[vbid.get()] = info.doc_count;
+        state->onDiskPrepares -= hook_ctx->stats.preparesPurged;
     }
 
     // Removing the stale couch file

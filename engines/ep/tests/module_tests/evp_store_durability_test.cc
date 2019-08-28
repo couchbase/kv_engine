@@ -23,6 +23,7 @@
 #include "item.h"
 #include "kv_bucket.h"
 #include "test_helpers.h"
+#include "vbucket_state.h"
 
 #include <engines/ep/src/ephemeral_tombstone_purger.h>
 #include <engines/ep/tests/mock/mock_paging_visitor.h>
@@ -1974,6 +1975,8 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveCommittedPreparesAtCompaction) {
     DiskDocKey prefixedKey(key, true /*prepare*/);
     auto gv = kvstore->get(prefixedKey, Vbid(0));
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(1, kvstore->getVBucketState(vbid)->onDiskPrepares);
+    EXPECT_EQ(2, kvstore->getItemCount(vbid));
 
     EXPECT_TRUE(kvstore->compactDB(&cctx));
 
@@ -1985,9 +1988,13 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveCommittedPreparesAtCompaction) {
     // Check the Prepare on disk
     gv = kvstore->get(prefixedKey, Vbid(0));
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    // Check onDiskPrepares is updated correctly after compaction.
+    EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
+    EXPECT_EQ(1, kvstore->getItemCount(vbid));
 }
 
-TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparedAtCompaction) {
+TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparesAtCompaction) {
     setVBucketToActiveWithValidTopology();
     using namespace cb::durability;
 
@@ -2013,10 +2020,13 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparedAtCompaction) {
     // Flush Abort and dummy
     flushVBucketToDiskIfPersistent(vbid, 2);
 
+    auto* kvstore = store->getOneRWUnderlying();
+    EXPECT_EQ(1, kvstore->getItemCount(vbid));
+    EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
+
     CompactionConfig config;
     compaction_ctx cctx(config, 0);
     cctx.expiryCallback = std::make_shared<FailOnExpiryCallback>();
-    auto* kvstore = store->getOneRWUnderlying();
     EXPECT_TRUE(kvstore->compactDB(&cctx));
 
     // Check the Abort on disk. We won't remove it until the purge interval has
@@ -2032,6 +2042,8 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparedAtCompaction) {
     // Now the Abort should be gone
     gv = kvstore->get(prefixedKey, Vbid(0));
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(1, kvstore->getItemCount(vbid));
+    EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
 }
 
 template <typename F>
