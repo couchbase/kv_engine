@@ -972,6 +972,14 @@ protected:
     }
 
     /**
+     * Log error information from the SSL_accept/read/write call
+     *
+     * @param method the method which caused the error
+     * @rval the return value for that call
+     */
+    void logSslErrorInfo(const std::string& method, int rval);
+
+    /**
      * Read data over the SSL connection
      *
      * @param dest where to store the data
