@@ -33,7 +33,6 @@
 class ClusterConfiguration {
 public:
     static const int NoConfiguration = -1;
-
     ClusterConfiguration()
         : config(std::make_shared<std::string>()), revision(NoConfiguration) {
     }

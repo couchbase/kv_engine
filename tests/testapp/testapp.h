@@ -378,6 +378,10 @@ void set_datatype_feature(bool enable);
 // the server and value is the documents value (if status == SUCCESS).
 std::pair<cb::mcbp::Status, std::string> fetch_value(const std::string& key);
 
+// Attempts to fetch the document with the given key.
+// Expects the fetch is successful, and checks if the datatype is json/raw
+void validate_datatype_is_json(const std::string& key, bool isJson);
+
 /**
  * Attempts to get the given key and checks if it's value matches
  * {expected_value}. Given that the ordering in the JSON documents may be

@@ -841,6 +841,21 @@ std::pair<cb::mcbp::Status, std::string> fetch_value(const std::string& key) {
     return std::make_pair(rsp.getStatus(), rsp.getDataString());
 }
 
+void validate_datatype_is_json(const std::string& key, bool isJson) {
+    std::vector<uint8_t> blob;
+    BinprotGetCommand cmd;
+    cmd.setKey(key);
+    cmd.encode(blob);
+    safe_send(blob.data(), blob.size(), false);
+
+    blob.resize(0);
+    safe_recv_packet(blob);
+    BinprotGetResponse rsp;
+    rsp.assign(std::move(blob));
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    EXPECT_EQ(isJson, rsp.getDatatype() & PROTOCOL_BINARY_DATATYPE_JSON);
+}
+
 void validate_json_document(const std::string& key,
                             const std::string& expected_value) {
     auto pair = fetch_value(key);
