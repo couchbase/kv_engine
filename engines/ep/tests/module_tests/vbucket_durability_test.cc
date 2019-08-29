@@ -2565,6 +2565,54 @@ TEST_P(VBucketDurabilityTest, Pending_Abort) {
     testCompleteSWInPassiveDM(vbucket_state_pending, Resolution::Abort);
 }
 
+// MB-35744: If a vbucket is changed from active when there are SyncWrites
+// which have been resolved (i.e. we have decided to commit / abort) but *not*
+// yet completed, then we should complete them before changing state.
+// If we don't then this can cause problems when the vBucket later becomes a
+// replica and wants to stream data - it could get a "re" Commit for the same
+// key but doesn't have the Prepare in the DurabilityMonitor anymore.
+TEST_P(VBucketDurabilityTest, ResolvedSyncWritesCompletedBeforeVBStateChange) {
+    // Setup: Make pending item, and simulate sufficient ACKs so it's in the
+    // ResolvedQueue (but not yet Committed).
+    const int64_t preparedSeqno = 1;
+    storeSyncWrites({preparedSeqno});
+    ASSERT_EQ(1,
+              VBucketTestIntrospector::public_getActiveDM(*vbucket)
+                      .getNumTracked());
+    // ACK, locally and remotely, but *don't* process the resolved Queue yet.
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vbucket->seqnoAcknowledged(
+                      folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+                      replica1,
+                      1 /*preparedSeqno*/));
+    vbucket->notifyActiveDMOfLocalSyncWrite();
+
+    // SyncWrite should now be in ResolvedQueue, but not yet Committed.
+    auto key = makeStoredDocKey("key1");
+    {
+        const auto sv = ht->findForSyncWrite(key).storedValue;
+        ASSERT_TRUE(sv);
+        ASSERT_EQ(CommittedState::Pending, sv->getCommitted());
+    }
+    ASSERT_EQ(1, vbucket->getHighSeqno());
+    ASSERT_EQ(0,
+              VBucketTestIntrospector::public_getActiveDM(*vbucket)
+                      .getNumTracked());
+
+    // Test: Change vbstate to non-active (dead which is what a takeover would
+    // do. This should result in the resolved SyncWrite getting completed.
+    vbucket->setState(vbucket_state_dead);
+
+    // Check the item is Committed in HashTable.
+    {
+        const auto sv = ht->findForRead(key).storedValue;
+        ASSERT_TRUE(sv);
+        EXPECT_EQ(CommittedState::CommittedViaPrepare, sv->getCommitted());
+        EXPECT_TRUE(ht->findForWrite(key).storedValue);
+    }
+    EXPECT_EQ(2, vbucket->getHighSeqno());
+}
+
 TEST_P(EphemeralVBucketDurabilityTest, Replica_Abort) {
     testCompleteSWInPassiveDM(vbucket_state_replica, Resolution::Abort);
 

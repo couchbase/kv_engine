@@ -543,6 +543,20 @@ void VBucket::setState_UNLOCKED(
                 VBucket::toString(to),
                 meta.is_null() ? ""s : (" meta:"s + meta.dump()));
 
+    if (state == vbucket_state_active && to != vbucket_state_active) {
+        // About to transition away from active.
+        // If we have any SyncWrites which are resolved (we have decided they
+        // should be committed / aborted), then we should complete these before
+        // changing state.
+        // This ensures that the VBucket's seqnos are consistent with the
+        // DurabilityMonitor / HashTable, so if we subsequently become a
+        // replica (and try to resume the VBucket seqnos from another node),
+        // then we don't get a Commit for a Prepare which was already removed
+        // from trackedWrites (when resolved) - we will already have a Commit
+        // for that SyncWrite.
+        getActiveDM().processCompletedSyncWriteQueue();
+    }
+
     state = to;
 
     setupSyncReplication(meta.is_null() ? nlohmann::json{}
