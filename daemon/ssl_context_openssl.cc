@@ -57,6 +57,9 @@ bool SslContext::havePendingInputData() {
 
 bool SslContext::enable(const std::string& cert, const std::string& pkey) {
     ctx = SSL_CTX_new(SSLv23_server_method());
+    SSL_CTX_set_mode(ctx,
+                     SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
+                             SSL_MODE_ENABLE_PARTIAL_WRITE);
     set_ssl_ctx_protocol_mask(ctx);
 
     /* @todo don't read files, but use in-memory-copies */
