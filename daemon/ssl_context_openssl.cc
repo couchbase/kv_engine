@@ -62,6 +62,9 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
     const auto& settings = Settings::instance();
     ctx = SSL_CTX_new(SSLv23_server_method());
     SSL_CTX_set_options(ctx, settings.getSslProtocolMask());
+    SSL_CTX_set_mode(ctx,
+                     SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
+                             SSL_MODE_ENABLE_PARTIAL_WRITE);
 
     /* @todo don't read files, but use in-memory-copies */
     if (!SSL_CTX_use_certificate_chain_file(ctx, cert.c_str()) ||

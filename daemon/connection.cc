@@ -1154,55 +1154,60 @@ int Connection::sslRead(char* dest, size_t nbytes) {
 }
 
 int Connection::sslWrite(const char* src, size_t nbytes) {
-    int ret = 0;
-
-    int chunksize = Settings::instance().getBioDrainBufferSize();
-
-    while (ret < int(nbytes)) {
-        int n;
-        int chunk;
-
-        ssl.drainBioSendPipe(socketDescriptor);
-        if (ssl.hasError()) {
-            cb::net::set_econnreset();
-            return -1;
-        }
-
-        chunk = (int)(nbytes - ret);
-        if (chunk > chunksize) {
-            chunk = chunksize;
-        }
-
-        n = ssl.write(src + ret, chunk);
-        if (n > 0) {
-            ret += n;
-        } else {
-            if (n < 0) {
-                const int error = ssl.getError(n);
-                switch (error) {
-                case SSL_ERROR_WANT_WRITE:
-                    if (ret > 0) {
-                        // We've sent some data let the caller have them
-                        return ret;
-                    }
-                    cb::net::set_ewouldblock();
-                    return -1;
-
-                default:
-                    logSslErrorInfo("SSL_write", n);
-                    cb::net::set_econnreset();
-                    return -1;
-                }
-            }
-
-            if (ret > 0) {
-                return ret;
-            }
-            return -1;
-        }
+    // Start by trying to send everything we've already got
+    // buffered in our bio
+    ssl.drainBioSendPipe(socketDescriptor);
+    if (ssl.hasError()) {
+        cb::net::set_econnreset();
+        return -1;
     }
 
-    return ret;
+    // If the network socket is full there isn't much point
+    // of trying to add more to SSL
+    if (ssl.morePendingOutput()) {
+        cb::net::set_ewouldblock();
+        return -1;
+    }
+
+    // We've got an empty buffer for SSL to operate on,
+    // so lets get to it.
+    do {
+        const auto n = ssl.write(src, int(nbytes));
+        if (n > 0) {
+            // we've successfully sent some bytes to
+            // SSL. Lets try to flush it to the network
+            // socket buffers.
+            ssl.drainBioSendPipe(socketDescriptor);
+            if (ssl.hasError()) {
+                cb::net::set_econnreset();
+                return -1;
+            }
+            // Return the number of bytes submitted to SSL
+            return n;
+        } else if (n == 0) {
+            // Closed connection.
+            cb::net::set_econnreset();
+            return -1;
+        } else {
+            const int error = ssl.getError(n);
+            if (error == SSL_ERROR_WANT_WRITE) {
+                ssl.drainBioSendPipe(socketDescriptor);
+                if (ssl.morePendingOutput()) {
+                    cb::net::set_ewouldblock();
+                    return -1;
+                }
+                // We've got space in the network buffer.
+                // retry the operation (and openssl will
+                // try to fill the network buffer again)
+            } else {
+                // We enountered an error we don't have code
+                // to handle. Reset the connection
+                logSslErrorInfo("SSL_write", n);
+                cb::net::set_econnreset();
+                return -1;
+            }
+        }
+    } while (true);
 }
 
 void Connection::addMsgHdr(bool reset) {
