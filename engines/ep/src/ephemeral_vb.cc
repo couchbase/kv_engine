@@ -78,13 +78,7 @@ EphemeralVBucket::EphemeralVBucket(
               0, // Every item in ephemeral has a HLC cas
               mightContainXattrs,
               replicationTopology),
-      seqList(std::make_unique<BasicLinkedList>(i, st)),
-      backfillType(BackfillType::None) {
-    /* Get the flow control policy */
-    std::string dcpBackfillType = config.getDcpEphemeralBackfillType();
-    if (!dcpBackfillType.compare("buffered")) {
-        backfillType = BackfillType::Buffered;
-    }
+      seqList(std::make_unique<BasicLinkedList>(i, st)) {
 }
 
 size_t EphemeralVBucket::getNumItems() const {
@@ -301,13 +295,8 @@ std::unique_ptr<DCPBackfill> EphemeralVBucket::createDCPBackfill(
     /* create a memory backfill object */
     EphemeralVBucketPtr evb =
             std::static_pointer_cast<EphemeralVBucket>(shared_from_this());
-    if (backfillType == BackfillType::Buffered) {
-        return std::make_unique<DCPBackfillMemoryBuffered>(
-                evb, stream, startSeqno, endSeqno);
-    } else {
-        return std::make_unique<DCPBackfillMemory>(
-                evb, stream, startSeqno, endSeqno);
-    }
+    return std::make_unique<DCPBackfillMemoryBuffered>(
+            evb, stream, startSeqno, endSeqno);
 }
 
 std::tuple<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>, seqno_t>

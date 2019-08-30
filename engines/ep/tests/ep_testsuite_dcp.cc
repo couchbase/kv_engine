@@ -2592,21 +2592,12 @@ static enum test_result test_dcp_producer_disk_backfill_limits(EngineIface* h) {
            backfill_state_scanning state. */
         exp_backfill_task_runs = 4 + num_items;
     } else {
-        if (get_str_stat(h, "ep_dcp_ephemeral_backfill_type") ==
-            std::string("buffered")) {
-            /* Backfill task runs are expected as below:
-               once for backfill_state_init + once post all backfills are
-               finished. Here since we have dcp_scan_byte_limit = 100, we expect
-               the backfill task to run additional 'num_items' during
-               BackfillState::scanning state. */
-            exp_backfill_task_runs = 2 + num_items;
-        } else {
-            /* In case of ephemeral bucket there are no backfill states and no
-               limitations on memory used by a single backfill. Hence we expect
-               one backfill run for reading all items + one post all backfilling
-               is complete */
-            exp_backfill_task_runs = 2;
-        }
+        /* Backfill task runs are expected as below:
+           once for backfill_state_init + once post all backfills are
+           finished. Here since we have dcp_scan_byte_limit = 100, we expect
+           the backfill task to run additional 'num_items' during
+           BackfillState::scanning state. */
+        exp_backfill_task_runs = 2 + num_items;
     }
     checkeq(exp_backfill_task_runs,
             get_histo_stat(h,

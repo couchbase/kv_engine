@@ -25,35 +25,8 @@
  * Concrete class that does backfill from in-memory ordered data strucuture and
  * informs the DCP stream of the backfill progress.
  *
- * This class calls one synchronous vBucket API to read items in the sequential
- * order from the in-memory ordered data structure and calls the DCP stream
- * for disk snapshot, backfill items and backfill completion.
- */
-class DCPBackfillMemory : public DCPBackfill {
-public:
-    DCPBackfillMemory(EphemeralVBucketPtr evb,
-                      std::shared_ptr<ActiveStream> s,
-                      uint64_t startSeqno,
-                      uint64_t endSeqno);
-
-    backfill_status_t run() override;
-
-    void cancel() override {
-    }
-
-private:
-    /**
-     * weak pointer to EphemeralVBucket
-     */
-    std::weak_ptr<EphemeralVBucket> weakVb;
-};
-
-/**
- * Concrete class that does backfill from in-memory ordered data strucuture and
- * informs the DCP stream of the backfill progress.
- *
- * This class calls one synchronous vBucket API to read items in the sequential
- * order from the in-memory ordered data structure and calls the DCP stream
+ * This class creates a range iterator on the in-memory seqList, then
+ * during scan() reads items one by one, passing to the given ActiveStream
  * for disk snapshot, backfill items and backfill completion.
  */
 class DCPBackfillMemoryBuffered : public DCPBackfill {

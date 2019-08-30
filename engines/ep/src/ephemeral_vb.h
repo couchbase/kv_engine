@@ -387,12 +387,6 @@ private:
      *  (removed from seqList and deleted).
      */
     EPStats::Counter seqListPurgeCount;
-
-    /**
-     * Enum indicating if the backfill is memory managed or not
-     */
-    enum class BackfillType : uint8_t { None, Buffered };
-    BackfillType backfillType;
 };
 
 using EphemeralVBucketPtr = std::shared_ptr<EphemeralVBucket>;
