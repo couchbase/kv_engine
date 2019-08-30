@@ -37,6 +37,11 @@ protected:
     void TearDown() override;
 };
 
+/**
+ * Fixture for DCP stream tests which are specific to Ephemeral.
+ */
+class EphemeralStreamTest : public StreamTest {};
+
 /*
  * Test fixture for single-threaded ActiveStream tests.
  *

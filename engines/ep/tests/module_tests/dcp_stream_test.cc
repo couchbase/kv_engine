@@ -550,35 +550,31 @@ TEST_P(StreamTest, test_keyAndValueWithoutXattrExcludingValueWithDatatype) {
  * segfault.
  */
 
-TEST_P(StreamTest, backfillGetsNoItems) {
-    if (engine->getConfiguration().getBucketType() == "ephemeral") {
-        setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
-        store_item(vbid, "key", "value1");
-        store_item(vbid, "key", "value2");
+TEST_P(EphemeralStreamTest, backfillGetsNoItems) {
+    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
+    store_item(vbid, "key", "value1");
+    store_item(vbid, "key", "value2");
 
-        auto evb = std::shared_ptr<EphemeralVBucket>(
-                std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
-        auto dcpbfm = DCPBackfillMemory(evb, stream, 1, 1);
-        dcpbfm.run();
-        destroy_dcp_stream();
-    }
+    auto evb = std::shared_ptr<EphemeralVBucket>(
+            std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
+    auto dcpbfm = DCPBackfillMemory(evb, stream, 1, 1);
+    dcpbfm.run();
+    destroy_dcp_stream();
 }
 
-TEST_P(StreamTest, bufferedMemoryBackfillPurgeGreaterThanStart) {
-    if (engine->getConfiguration().getBucketType() == "ephemeral") {
-        setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
-        auto evb = std::shared_ptr<EphemeralVBucket>(
-                std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
+TEST_P(EphemeralStreamTest, bufferedMemoryBackfillPurgeGreaterThanStart) {
+    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
+    auto evb = std::shared_ptr<EphemeralVBucket>(
+            std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
 
-        // Force the purgeSeqno because it's easier than creating and
-        // deleting items
-        evb->setPurgeSeqno(3);
+    // Force the purgeSeqno because it's easier than creating and
+    // deleting items
+    evb->setPurgeSeqno(3);
 
-        // Backfill with start != 1 and start != end and start < purge
-        DCPBackfillMemoryBuffered dcpbfm(evb, stream, 2, 4);
-        dcpbfm.run();
-        EXPECT_TRUE(stream->isDead());
-    }
+    // Backfill with start != 1 and start != end and start < purge
+    DCPBackfillMemoryBuffered dcpbfm(evb, stream, 2, 4);
+    dcpbfm.run();
+    EXPECT_TRUE(stream->isDead());
 }
 
 /* Regression test for MB-17766 - ensure that when an ActiveStream is preparing
@@ -836,10 +832,7 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
 
 /* Checks that DCP backfill in Ephemeral buckets does not have duplicates in
  a snaphsot */
-TEST_P(StreamTest, EphemeralBackfillSnapshotHasNoDuplicates) {
-    if (bucketType != "ephemeral") {
-        return;
-    }
+TEST_P(EphemeralStreamTest, EphemeralBackfillSnapshotHasNoDuplicates) {
     EphemeralVBucket* evb = dynamic_cast<EphemeralVBucket*>(vb0.get());
 
     /* Add 4 items */
@@ -1397,6 +1390,14 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
 INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
                         StreamTest,
                         ::testing::Values("persistent", "ephemeral"),
+                        [](const ::testing::TestParamInfo<std::string>& info) {
+                            return info.param;
+                        });
+
+// Ephemeral only
+INSTANTIATE_TEST_CASE_P(Ephemeral,
+                        EphemeralStreamTest,
+                        ::testing::Values("ephemeral"),
                         [](const ::testing::TestParamInfo<std::string>& info) {
                             return info.param;
                         });
