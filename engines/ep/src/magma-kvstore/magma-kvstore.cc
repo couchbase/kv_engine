@@ -1182,7 +1182,7 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbid,
                     status.String());
             return false;
         }
-        status = magma->SyncCommitBatches(true);
+        status = magma->SyncCommitBatches(commitPointEveryBatch);
         if (!status) {
             logger->critical(
                     "MagmaKVStore::snapshotVBucket: "
@@ -2025,7 +2025,7 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
                 vbid,
                 status.String());
     } else {
-        status = magma->SyncCommitBatches(true);
+        status = magma->SyncCommitBatches(commitPointEveryBatch);
         if (!status) {
             logger->warn(
                     "MagmaKVStore::saveDocs: magma::SyncCommitBatches {} "
