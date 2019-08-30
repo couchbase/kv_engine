@@ -3061,12 +3061,12 @@ INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_CASE_P(
-        AllBucketTypes,
+        Persistent,
         DurabilityPassiveStreamPersistentTest,
         STParameterizedBucketTest::persistentAllBackendsConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(AllBucketTypes,
+INSTANTIATE_TEST_CASE_P(Ephemeral,
                         DurabilityActiveStreamEphemeralTest,
                         STParameterizedBucketTest::ephConfigValues(),
                         STParameterizedBucketTest::PrintToStringParamName);
