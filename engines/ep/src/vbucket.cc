@@ -2112,7 +2112,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
         DeleteSource deleteSource) {
     const auto& key = cHandle.getKey();
     auto htRes = ht.findForCommit(key);
-    auto* v = htRes.pending ? htRes.pending.getSV() : htRes.committed;
+    auto* v = htRes.selectSVToModify(false);
     auto& hbl = htRes.pending.getHBL();
 
     if (v && cHandle.isLogicallyDeleted(v->getBySeqno())) {

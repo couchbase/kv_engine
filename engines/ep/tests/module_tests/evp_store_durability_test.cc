@@ -2222,6 +2222,83 @@ TEST_P(DurabilityBucketTest, CasCheckMadeForNewPrepare) {
     EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
 }
 
+TEST_P(DurabilityBucketTest, CompletedPreparesDoNotPreventDelWithMetaReplica) {
+    // Test that a completed prepare does not prevent a deleteWithMeta
+    // from correctly deleting the committed value.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica, {});
+    const Vbid vbid = Vbid(0);
+    auto vbucket = engine->getVBucket(vbid);
+
+    uint64_t seqno = 1;
+    // PREPARE
+    vbucket->checkpointManager->createSnapshot(
+            seqno, seqno, {}, CheckpointType::Memory);
+
+    const std::string value(1024, 'x'); // 1KB value to use for documents.
+
+    auto key = makeStoredDocKey("key");
+    auto item = makePendingItem(
+            key,
+            "value",
+            {cb::durability::Level::Majority, cb::durability::Timeout(1)});
+
+    item->setCas();
+    item->setBySeqno(seqno);
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vbucket->setWithMeta(*item,
+                                   0,
+                                   &seqno,
+                                   cookie,
+                                   *engine,
+                                   CheckConflicts::No,
+                                   true,
+                                   GenerateBySeqno::No,
+                                   GenerateCas::No,
+                                   vbucket->lockCollections(key)));
+
+    ++seqno;
+    // COMMIT
+    vbucket->checkpointManager->createSnapshot(
+            seqno, seqno, {}, CheckpointType::Memory);
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vbucket->commit(key,
+                              seqno - 1 /*prepareSeqno*/,
+                              seqno /*commitSeqno*/,
+                              vbucket->lockCollections(key)));
+
+    // Check completed prepare is present
+    if (!persistent()) {
+        auto pending = vbucket->ht.findForCommit(key).pending;
+        ASSERT_TRUE(pending);
+        ASSERT_TRUE(pending->isCompleted());
+        ASSERT_EQ(pending->getCommitted(), CommittedState::PrepareCommitted);
+    }
+
+    ++seqno;
+    // Try to deleteWithMeta
+    vbucket->checkpointManager->createSnapshot(
+            seqno, seqno, {}, CheckpointType::Memory);
+
+    uint64_t cas = 0;
+    ItemMetaData metadata;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vbucket->deleteWithMeta(cas,
+                                      nullptr,
+                                      cookie,
+                                      *engine,
+                                      CheckConflicts::No,
+                                      metadata,
+                                      GenerateBySeqno::No,
+                                      GenerateCas::No,
+                                      seqno /*seqno*/,
+                                      vbucket->lockCollections(key),
+                                      DeleteSource::TTL));
+
+    EXPECT_FALSE(vbucket->ht.findForRead(key).storedValue);
+}
+
 // Test cases which run against couchstore
 INSTANTIATE_TEST_CASE_P(AllBackends,
                         DurabilityCouchstoreBucketTest,
