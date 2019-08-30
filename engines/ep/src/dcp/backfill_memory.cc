@@ -299,15 +299,6 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
             // mutated with the HashBucketLock, so get the correct bucket lock
             // before calling StoredValue::toItem
             auto hbl = evb->ht.getLockedBucket((*rangeItr).getKey());
-
-            // Don't need to send any completed prepares, the purging task will
-            // just remove them on the replica anyway
-            if ((*rangeItr).getCommitted() ==
-                CommittedState::PrepareCommitted) {
-                ++rangeItr;
-                continue;
-            }
-
             // Ephemeral only supports a durable write level of Majority so
             // instead of storing a durability level in our OrderedStoredValues
             // we can just assume that all durable writes have the Majority

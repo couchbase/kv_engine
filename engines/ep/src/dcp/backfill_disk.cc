@@ -124,13 +124,6 @@ void DiskCallback::callback(GetValue& val) {
         throw std::invalid_argument("DiskCallback::callback: val is NULL");
     }
 
-    // Don't need to send any completed prepares to the replica. The compactor
-    // would just remove them on it's next run anyway.
-    if (val.item->isPending() &&
-        static_cast<uint64_t>(val.item->getBySeqno()) <= highCompletedSeqno) {
-        return;
-    }
-
     // MB-26705: Make the backfilled item cold so ideally the consumer would
     // evict this before any cached item if they get into memory pressure.
     val.item->setNRUValue(MAX_NRU_VALUE);
@@ -254,7 +247,6 @@ backfill_status_t DCPBackfillDisk::create() {
         stream->setDead(status);
         transitionState(backfill_state_done);
     } else {
-        cb->setHighCompletedSeqno(scanCtx->highCompletedSeqno);
         stream->incrBackfillRemaining(scanCtx->documentCount);
         stream->markDiskSnapshot(
                 startSeqno, scanCtx->maxSeqno, scanCtx->highCompletedSeqno);

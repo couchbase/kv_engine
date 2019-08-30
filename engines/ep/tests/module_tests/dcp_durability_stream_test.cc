@@ -841,9 +841,8 @@ TEST_P(DurabilityActiveStreamTest,
     auto& bfm = producer->getBFM();
     bfm.backfill();
     bfm.backfill();
-    // We won't backfill any completed prepares
-    EXPECT_EQ(2, stream->public_readyQSize());
-    stream->consumeBackfillItems(2);
+    EXPECT_EQ(3, stream->public_readyQSize());
+    stream->consumeBackfillItems(3);
 
     EXPECT_EQ(ENGINE_SUCCESS, simulateStreamSeqnoAck(replica, 1));
 
@@ -890,7 +889,7 @@ TEST_P(DurabilityActiveStreamTest, DiskSnapshotSendsHCSWithSyncRepSupport) {
     ASSERT_EQ(0, producer->getBytesOutstanding());
 
     // readyQ must contain a SnapshotMarker
-    ASSERT_EQ(2, stream->public_readyQSize());
+    ASSERT_EQ(3, stream->public_readyQSize());
     auto resp = stream->public_nextQueuedItem();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
