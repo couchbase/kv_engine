@@ -17,8 +17,6 @@
 #include "storeddockey.h"
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <iomanip>
-#include <iostream>
-#include <sstream>
 
 StoredDocKey::StoredDocKey(const DocKey& key) {
     if (key.getEncoding() == DocKeyEncodesCollectionId::Yes) {
@@ -54,13 +52,7 @@ DocKey StoredDocKey::makeDocKeyWithoutCollectionID() const {
 }
 
 std::string StoredDocKey::to_string() const {
-    std::stringstream ss;
-    auto leb128 = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
-            {reinterpret_cast<const uint8_t*>(keydata.data()), keydata.size()});
-    ss << "cid:0x" << std::hex << leb128.first << std::dec << ":"
-       << std::string(reinterpret_cast<const char*>(leb128.second.data()),
-                      leb128.second.size());
-    return ss.str();
+    return DocKey(*this).to_string();
 }
 
 const char* StoredDocKey::c_str() const {

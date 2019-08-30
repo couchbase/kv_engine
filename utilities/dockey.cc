@@ -35,6 +35,16 @@ std::string ScopeID::to_string() const {
     return sstream.str();
 }
 
+std::string DocKey::to_string() const {
+    std::stringstream ss;
+    auto leb128 = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+            {data(), size()});
+    ss << "cid:0x" << std::hex << leb128.first << std::dec << ":"
+       << std::string(reinterpret_cast<const char*>(leb128.second.data()),
+                      leb128.second.size());
+    return ss.str();
+}
+
 CollectionID DocKey::getCollectionID() const {
     // Durability introduces the new "Prepare" namespace in DocKey.
     // So, the new generic format for a DocKey is:

@@ -349,6 +349,12 @@ struct DocKey : DocKeyInterface<DocKey> {
      */
     DocKey makeDocKeyWithoutCollectionID() const;
 
+    /**
+     * Intended for debug use only
+     * @returns cid:key
+     */
+    std::string to_string() const;
+
 private:
     cb::const_byte_buffer buffer;
     DocKeyEncodesCollectionId encoding{DocKeyEncodesCollectionId::No};
