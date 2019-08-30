@@ -831,7 +831,7 @@ ENGINE_ERROR_CODE VBucket::commit(
                 "VBucket::commit ({}) failed as no HashTable item found with "
                 "key:{}",
                 id,
-                cb::UserDataView(cb::const_char_buffer(key)));
+                cb::UserDataView(key.to_string()));
         return ENGINE_KEY_ENOENT;
     }
 
@@ -900,7 +900,7 @@ ENGINE_ERROR_CODE VBucket::abort(
                         "VBucket::abort ({}) - active failed as no HashTable"
                         "item found with key:{}",
                         id,
-                        cb::UserDataView(cb::const_char_buffer(key)));
+                        cb::UserDataView(key.to_string()));
                 return ENGINE_KEY_ENOENT;
             }
         }

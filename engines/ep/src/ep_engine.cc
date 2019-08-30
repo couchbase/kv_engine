@@ -790,12 +790,10 @@ cb::mcbp::Status EventuallyPersistentEngine::evictKey(
         const void* cookie,
         const cb::mcbp::Request& request,
         const char** msg) {
-    const auto key = request.getKey();
+    const auto key = makeDocKey(cookie, request.getKey());
     EP_LOG_DEBUG("Manually evicting object with key {}",
-                 cb::UserDataView(key.data(), key.size()));
-    auto rv = kvBucket->evictKey(makeDocKey(cookie, {key.data(), key.size()}),
-                                 request.getVBucket(),
-                                 msg);
+                 cb::UserDataView(key.to_string()));
+    auto rv = kvBucket->evictKey(key, request.getVBucket(), msg);
     if (rv == cb::mcbp::Status::NotMyVbucket ||
         rv == cb::mcbp::Status::KeyEnoent) {
         if (isDegradedMode()) {
@@ -3769,7 +3767,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(
                 valid.assign("ram_but_not_disk");
             }
             EP_LOG_DEBUG("doKeyStats key {} is {}",
-                         cb::UserDataView(key.data(), key.size()),
+                         cb::UserDataView(key.to_string()),
                          valid);
         }
         add_casted_stat("key_is_dirty", kstats.dirty, add_stat, cookie);
@@ -4417,7 +4415,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         DocKey key = makeDocKey(cookie, {data + offset, keylen});
         offset += keylen;
         EP_LOG_DEBUG("Observing key {} in {}",
-                     cb::UserDataView(key.data(), key.size()),
+                     cb::UserDataView(key.to_string()),
                      vb_id);
 
         // Get key stats
