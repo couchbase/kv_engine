@@ -61,27 +61,21 @@ void erase_if(ContainerT& items, const PredicateT& predicate) {
 }
 
 Task::Status StaleTraceDumpRemover::periodicExecute() {
-    {
-        const auto now = std::chrono::steady_clock::now();
-        std::lock_guard<std::mutex> lh(traceDumps.mutex);
+    const auto now = std::chrono::steady_clock::now();
+    std::lock_guard<std::mutex> lh(traceDumps.mutex);
 
-        using value_type = decltype(TraceDumps::dumps)::value_type;
-        erase_if(traceDumps.dumps, [now, this](const value_type& dump) {
-            // If the mutex is locked then a
-            // chunk is being generated from this dump
-            auto isLocked = dump.second->mutex.try_lock();
-            if (!isLocked) {
-                return false;
-            }
-            dump.second->mutex.unlock();
-
-            if (dump.second->last_touch + std::chrono::seconds(max_age) <=
-                now) {
-                return true;
-            }
+    using value_type = decltype(TraceDumps::dumps)::value_type;
+    erase_if(traceDumps.dumps, [now, this](const value_type& dump) {
+        // If the mutex is locked then a
+        // chunk is being generated from this dump
+        auto isLocked = dump.second->mutex.try_lock();
+        if (!isLocked) {
             return false;
-        });
-    }
+        }
+
+        std::lock_guard<std::mutex> guard(dump.second->mutex, std::adopt_lock);
+        return (dump.second->last_touch + std::chrono::seconds(max_age)) <= now;
+    });
     return Status::Continue; // always repeat
 }
 
