@@ -109,7 +109,7 @@ void initializeTracing() {
 void deinitializeTracing() {
     dump_remover.reset();
     phosphor::TraceLog::getInstance().stop();
-    std::lock_guard<std::mutex>(traceDumps.mutex);
+    std::lock_guard<std::mutex> guard(traceDumps.mutex);
     traceDumps.dumps.clear();
 }
 
