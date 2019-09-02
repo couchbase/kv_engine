@@ -1354,14 +1354,16 @@ HashTable::FindResult VBucket::fetchValidValue(
         WantsDeleted wantsDeleted,
         TrackReference trackReference,
         QueueExpired queueExpired,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+        const Collections::VB::Manifest::CachingReadHandle& cHandle,
+        const ForGetReplicaOp fetchRequestedForReplicaItem) {
     if (queueExpired == QueueExpired::Yes && !cHandle.valid()) {
         throw std::invalid_argument(
                 "VBucket::fetchValidValue cannot queue "
                 "expired items for invalid collection");
     }
     const auto& key = cHandle.getKey();
-    auto res = ht.findForRead(key, trackReference, wantsDeleted);
+    auto res = ht.findForRead(
+            key, trackReference, wantsDeleted, fetchRequestedForReplicaItem);
     // Temp: The following const_cast<> is needed because unfortunately this
     // function does need a non-const SV to be able to perform expiry, and also
     // because various existing callers of this method expect a non-const SV.
@@ -2581,15 +2583,21 @@ GetValue VBucket::getInternal(
         get_options_t options,
         bool diskFlushAll,
         GetKeyOnly getKeyOnly,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+        const Collections::VB::Manifest::CachingReadHandle& cHandle,
+        const ForGetReplicaOp getReplicaItem) {
     const TrackReference trackReference = (options & TRACK_REFERENCE)
                                                   ? TrackReference::Yes
                                                   : TrackReference::No;
     const bool metadataOnly = (options & ALLOW_META_ONLY);
     const bool getDeletedValue = (options & GET_DELETED_VALUE);
     const bool bgFetchRequired = (options & QUEUE_BG_FETCH);
-    auto res = fetchValidValue(
-            WantsDeleted::Yes, trackReference, QueueExpired::Yes, cHandle);
+
+    auto res = fetchValidValue(WantsDeleted::Yes,
+                               trackReference,
+                               QueueExpired::Yes,
+                               cHandle,
+                               getReplicaItem);
+
     auto* v = res.storedValue;
     if (v) {
         // If the fetched value is a Prepared SyncWrite which may already have

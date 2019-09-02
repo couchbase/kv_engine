@@ -620,6 +620,8 @@ public:
      * @param trackReference Should this lookup update referenced status (i.e.
      *                       increase the hotness of this key?)
      * @param wantsDeleted whether a deleted value needs to be returned
+     * @param fetchRequestedForReplicaItem used to inform the method if we are
+     * finding an item for a GET_REPLICA op
      *                     or not
      * @return A FindROResult consisting of:
      *         - a pointer to a StoredValue -- NULL if not found
@@ -628,7 +630,8 @@ public:
     FindROResult findForRead(
             const DocKey& key,
             TrackReference trackReference = TrackReference::Yes,
-            WantsDeleted wantsDeleted = WantsDeleted::No);
+            WantsDeleted wantsDeleted = WantsDeleted::No,
+            ForGetReplicaOp fetchRequestedForReplicaItem = ForGetReplicaOp::No);
 
     /**
      * Result of the findFor...() methods which return a non-const result.

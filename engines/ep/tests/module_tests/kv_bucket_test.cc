@@ -215,9 +215,9 @@ void KVBucketTest::evict_key(Vbid vbid, const DocKey& key) {
 GetValue KVBucketTest::getInternal(const DocKey& key,
                                    Vbid vbucket,
                                    const void* cookie,
-                                   vbucket_state_t allowedState,
+                                   const ForGetReplicaOp getReplicaItem,
                                    get_options_t options) {
-    return store->getInternal(key, vbucket, cookie, allowedState, options);
+    return store->getInternal(key, vbucket, cookie, getReplicaItem, options);
 }
 
 void KVBucketTest::scheduleItemPager() {

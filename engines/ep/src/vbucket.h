@@ -826,6 +826,9 @@ public:
      * @param trackReference
      * @param queueExpired Delete an expired item
      * @param cHandle Collections readhandle (caching mode) for this key
+     * @param fetchRequestedForReplicaItem bi-state enum to inform the method
+     * if the fetch is for a GET_REPLICA, if so we should only fetch committed
+     * values
      * @return a FindResult consisting of a pointer to the StoredValue (if
      * found) and the associated HashBucketLock which guards it.
      */
@@ -833,7 +836,8 @@ public:
             WantsDeleted wantsDeleted,
             TrackReference trackReference,
             QueueExpired queueExpired,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+            const Collections::VB::Manifest::CachingReadHandle& cHandle,
+            ForGetReplicaOp fetchRequestedForReplicaItem = ForGetReplicaOp::No);
 
     /**
      * Result of the fetchValueForWrite() method.
@@ -1225,6 +1229,8 @@ public:
      * @param diskFlushAll
      * @param getKeyOnly if GetKeyOnly::Yes we want only the key
      * @param cHandle Collections readhandle (caching mode) for this key
+     * @param getReplicaItem bi-state enum to state of this get internal
+     * is being executed to find a replica item.
      *
      * @return the result of the operation
      */
@@ -1234,7 +1240,8 @@ public:
             get_options_t options,
             bool diskFlushAll,
             GetKeyOnly getKeyOnly,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+            const Collections::VB::Manifest::CachingReadHandle& cHandle,
+            ForGetReplicaOp getReplicaItem = ForGetReplicaOp::No);
 
     /**
      * Retrieve the meta data for given key

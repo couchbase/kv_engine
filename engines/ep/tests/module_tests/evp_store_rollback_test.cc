@@ -171,8 +171,12 @@ public:
         store->setVBucketState(vbid, vbStateAtRollback);
         ASSERT_EQ(TaskStatus::Complete,
                   store->rollback(vbid, item_v1.getBySeqno()));
+        ForGetReplicaOp getReplicaItem =
+                vbStateAtRollback == vbucket_state_replica
+                        ? ForGetReplicaOp::Yes
+                        : ForGetReplicaOp::No;
         auto result =
-                getInternal(a, vbid, /*cookie*/ nullptr, vbStateAtRollback, {});
+                getInternal(a, vbid, /*cookie*/ nullptr, getReplicaItem, {});
         ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
 
         EXPECT_EQ(htState.dump(0), getHtState().dump(0));

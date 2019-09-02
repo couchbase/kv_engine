@@ -196,6 +196,15 @@ protected:
                 vbid, vbucket_state_active, {{"topology", topology}});
     }
 
+    /**
+     * Method to set the current vbucket to the replica state and runes the
+     * persistence task
+     */
+    void setVBucketToReplicaAndPersistToDisk() {
+        setVBucketStateAndRunPersistTask(
+                vbid, vbucket_state_replica, {}, TransferVB::No);
+    }
+
     template <typename F>
     void testDurabilityInvalidLevel(F& func);
 
@@ -255,6 +264,50 @@ protected:
                            vb.lockCollections(key),
                            cookie));
     }
+
+    /**
+     * Method to get and check a replica's value
+     */
+    void checkReplicaValue(DocKey key,
+                           std::string value,
+                           get_options_t options) {
+        auto getReplicaValue = store->getReplica(key, vbid, cookie, options);
+        ASSERT_EQ(ENGINE_SUCCESS, getReplicaValue.getStatus());
+        auto itemFromValue = *getReplicaValue.item;
+        EXPECT_FALSE(itemFromValue.isPending());
+        EXPECT_EQ(value,
+                  std::string(itemFromValue.getData(),
+                              itemFromValue.getNBytes()));
+    }
+
+    /**
+     * Method to create a PendingMaybeVisible item to be stored in a replica
+     * vbucket
+     * @param key of the pending item
+     * @param value of the pending item
+     */
+    void storePreparedMaybeVisibleItem(DocKey key, std::string& value) {
+        using namespace cb::durability;
+        auto& vb = *store->getVBucket(vbid);
+
+        auto seqno = vb.getHighSeqno() + 1;
+
+        vb.checkpointManager->createSnapshot(
+                seqno, seqno, {} /*HCS*/, CheckpointType::Memory);
+
+        auto item = *makePendingItem(
+                key, value, Requirements(Level::Majority, Timeout::Infinity()));
+        item.setCas();
+        item.setBySeqno(seqno);
+        item.setPreparedMaybeVisible();
+
+        EXPECT_EQ(ENGINE_SUCCESS, store->prepare(item, cookie));
+    }
+
+    /// Member to store the default options for GET and GET_REPLICA ops
+    static const get_options_t options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
 };
 
 class DurabilityEphemeralBucketTest : public STParameterizedBucketTest {
@@ -2637,6 +2690,227 @@ TEST_P(DurabilityBucketTest, CompletedPreparesDoNotPreventDelWithMetaReplica) {
                                       DeleteSource::TTL));
 
     EXPECT_FALSE(vbucket->ht.findForRead(key).storedValue);
+}
+
+/**
+ * Test that we return a committed value when GetReplica requests a key
+ * in the hashtable.
+ * 1. Perform a set using normal mutation
+ * 2. Switch vbucket to replica status
+ * 3. Create a pending item for the key in the hashtable
+ * 4. Check Get returns not my vbucket
+ * 5. Perform a GetReplica again on the key and we should see the original
+ * value and not the pending one.
+ * 6. Switch vbucket to active
+ * 7. Commit the pending item
+ * 8. Check the commit worked by getting the committed item that was pending
+ * 9. Switch vbucket to replica
+ * 10. Check that GetReplica returns the once pending value.
+ */
+TEST_P(DurabilityBucketTest, GetReplicaWithPendingSyncWriteOnKey) {
+    setVBucketToActiveWithValidTopology();
+
+    // 1. Perform a set using normal mutation
+    auto key = makeStoredDocKey("key");
+    std::string initItemValue("value");
+    store_item(vbid, key, initItemValue);
+
+    if (persistent()) {
+        flush_vbucket_to_disk(vbid);
+    }
+
+    // 2. Switch vbucket to replica status
+    setVBucketToReplicaAndPersistToDisk();
+
+    // 3. Create a pending item for the key in the hashtable
+    std::string pendingValue("pendingValue");
+    storePreparedMaybeVisibleItem(key, pendingValue);
+
+    // 4. Check Get returns not my vbucket
+    auto getValue = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, getValue.getStatus());
+    // 5. Perform a GetReplica again on the key and we should see the original
+    // value and not the pending one.
+    checkReplicaValue(key, initItemValue, options);
+
+    if (persistent()) {
+        flush_vbucket_to_disk(vbid);
+    }
+
+    // 6. Switch vbucket to active
+    setVBucketToActiveWithValidTopology();
+
+    auto& vb = *store->getVBucket(vbid);
+    // 7. Commit the pending item
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb.commit(key,
+                        vb.getHighPreparedSeqno(),
+                        {},
+                        vb.lockCollections(key)));
+    // 8. Check the commit worked by getting the committed item that was pending
+    auto getValueOfCommit = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_SUCCESS, getValueOfCommit.getStatus());
+    auto itemFromValue = *getValueOfCommit.item;
+    EXPECT_FALSE(itemFromValue.isPending());
+    EXPECT_TRUE(itemFromValue.isCommitted());
+    EXPECT_EQ(pendingValue,
+              std::string(itemFromValue.getData(), itemFromValue.getNBytes()));
+
+    if (persistent()) {
+        flush_vbucket_to_disk(vbid);
+    }
+
+    // 9. Switch vbucket to replica
+    setVBucketToReplicaAndPersistToDisk();
+    // 10. Check that GetReplica returns the once pending value.
+    checkReplicaValue(key, pendingValue, options);
+}
+
+/**
+ * Test that we return a committed value from disk when GetReplica requests a
+ * key that is committed value is evicted to disk but that has a prepared value
+ * in the hashtable.
+ * 1. Perform a set using normal mutation
+ * 2. Evict the value and key to disk
+ * 3. Switch vbucket to replica status
+ * 4. Create a pending item for the key in the hashtable
+ * 5. Check Get returns not my vbucket
+ * 6. Check that without running bgfetch task that we get ewouldblock when
+ * performing a GetReplica
+ * 7. Run the bgfetch task
+ * 8. Perform a GetReplica again on the key and we should see the original
+ * value and not the pending one.
+ */
+TEST_P(DurabilityBucketTest, GetReplicaWithAnEvictedPendingSyncWriteOnKey) {
+    if (!persistent()) {
+        return;
+    }
+    setVBucketToActiveWithValidTopology();
+
+    std::string initItemValue("value");
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, initItemValue);
+
+    flush_vbucket_to_disk(vbid);
+    evict_key(vbid, key);
+
+    setVBucketToReplicaAndPersistToDisk();
+
+    std::string pendingValue("pendingValue");
+    storePreparedMaybeVisibleItem(key, pendingValue);
+
+    auto getValue = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, getValue.getStatus());
+
+    auto getReplicaValue = store->getReplica(key, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, getReplicaValue.getStatus());
+
+    runBGFetcherTask();
+
+    checkReplicaValue(key, initItemValue, options);
+}
+
+/**
+ * Test to check that we return a committed item after a SyncWrite when
+ * performing Get and GetReplica ops
+ * 1. Create key and item and store as normal mutation
+ * 2. Check we can access it
+ * 3. Switch vbucket to a replica
+ * 4. Perform Get to vbucket this should return not my vbucket
+ * 5. Perform GetReplica to vbucket this should succeed with the committed value
+ * being returned.
+ */
+TEST_P(DurabilityBucketTest, GetReplicaWithCommitedSyncWriteOnKey) {
+    setVBucketToActiveWithValidTopology();
+
+    std::string initItemValue("value");
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, initItemValue);
+
+    if (persistent()) {
+        flush_vbucket_to_disk(vbid);
+    }
+
+    auto getValue = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_SUCCESS, getValue.getStatus());
+    EXPECT_FALSE(getValue.item->isPending());
+    EXPECT_EQ(
+            initItemValue,
+            std::string(getValue.item->getData(), getValue.item->getNBytes()));
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->set(*makeCommittedItem(key, "CommittedItem"), cookie));
+
+    if (persistent()) {
+        flush_vbucket_to_disk(vbid);
+    }
+
+    setVBucketToReplicaAndPersistToDisk();
+
+    auto getSyncWriteValue = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, getSyncWriteValue.getStatus());
+
+    checkReplicaValue(key, "CommittedItem", options);
+}
+
+/**
+ * Test to check that we return the correct status codes when performing Get and
+ * GetReplica ops
+ * 1. Create key and item and store as normal mutation
+ * 2. Switch vbucket to a replica
+ * 3. Perform Get to vbucket this should return not my vbucket
+ * 4. Perform GetReplica to vbucket this should succeed
+ */
+TEST_P(DurabilityBucketTest, GetAndGetReplica) {
+    setVBucketToActiveWithValidTopology();
+
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value");
+
+    if (persistent()) {
+        flush_vbucket_to_disk(vbid);
+    }
+
+    setVBucketToReplicaAndPersistToDisk();
+
+    auto getValue = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, getValue.getStatus());
+
+    checkReplicaValue(key, "value", options);
+}
+
+/**
+ * Test to check that we return the correct status codes if we don't honor
+ * states when performing Get and GetReplica ops
+ * 1. Create key and item and store as normal mutation
+ * 2. Switch vbucket to a replica
+ * 3. Perform Get to vbucket this should succeed as we're not honoring stats
+ * 4. Perform GetReplica to vbucket this should succeed
+ */
+TEST_P(DurabilityBucketTest, GetAndGetReplicaDontHonorStates) {
+    setVBucketToActiveWithValidTopology();
+
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value");
+
+    if (persistent()) {
+        flush_vbucket_to_disk(vbid);
+    }
+
+    setVBucketToReplicaAndPersistToDisk();
+
+    auto getValue =
+            store->get(key,
+                       vbid,
+                       cookie,
+                       static_cast<get_options_t>(options ^ HONOR_STATES));
+    EXPECT_EQ(ENGINE_SUCCESS, getValue.getStatus());
+    EXPECT_FALSE(getValue.item->isPending());
+    EXPECT_EQ(
+            std::string("value"),
+            std::string(getValue.item->getData(), getValue.item->getNBytes()));
+
+    checkReplicaValue(key, "value", options);
 }
 
 // Test cases which run against couchstore

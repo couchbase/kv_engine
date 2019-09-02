@@ -623,15 +623,20 @@ StoredValue::UniquePtr HashTable::unlocked_createSyncDeletePrepare(
     return pendingDel;
 }
 
-HashTable::FindROResult HashTable::findForRead(const DocKey& key,
-                                               TrackReference trackReference,
-                                               WantsDeleted wantsDeleted) {
+HashTable::FindROResult HashTable::findForRead(
+        const DocKey& key,
+        TrackReference trackReference,
+        WantsDeleted wantsDeleted,
+        const ForGetReplicaOp fetchRequestedForReplicaItem) {
     auto result = findInner(key);
 
     /// Reading normally uses the Committed StoredValue - however if a
     /// pendingSV is found we must check if it's marked as MaybeVisible -
     /// which will block reading.
-    if (result.pendingSV && result.pendingSV->isPreparedMaybeVisible()) {
+    /// However if this request is for a GET_REPLICA then we should only
+    /// return committed items
+    if (fetchRequestedForReplicaItem == ForGetReplicaOp::No &&
+        result.pendingSV && result.pendingSV->isPreparedMaybeVisible()) {
         // Return the pending one as an indication the caller cannot read it.
         return {result.pendingSV, std::move(result.lock)};
     }

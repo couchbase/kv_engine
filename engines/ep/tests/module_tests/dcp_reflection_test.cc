@@ -87,7 +87,7 @@ protected:
         return getInternal(key,
                            vbid,
                            cookie,
-                           vbucket_state_t::vbucket_state_active,
+                           ForGetReplicaOp::No,
                            get_options_t::NONE)
                 .getStatus();
     }

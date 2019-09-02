@@ -146,6 +146,12 @@ enum get_options_t {
 /// Used to identify if QUEUE_BG_FETCH option is set
 enum class QueueBgFetch {Yes, No};
 
+/**
+ * Used to inform a function whether a get request is for the replica or active
+ * item
+ */
+enum class ForGetReplicaOp { No, Yes };
+
 /// Allow for methods to optionally accept a seqno
 using OptionalSeqno = boost::optional<int64_t>;
 

@@ -106,7 +106,9 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
                 WantsDeleted::Yes,
                 TrackReference::Yes,
                 cHandle.valid() ? QueueExpired::Yes : QueueExpired::No,
-                cHandle);
+                cHandle,
+                getState() == vbucket_state_replica ? ForGetReplicaOp::Yes
+                                                    : ForGetReplicaOp::No);
         auto* v = res.storedValue;
         if (fetched_item.metaDataOnly) {
             if (status == ENGINE_SUCCESS) {

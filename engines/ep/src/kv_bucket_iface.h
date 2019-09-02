@@ -796,14 +796,14 @@ public:
     };
 
 protected:
-
     /**
      * Get metadata and value for a given key
      *
      * @param key Key for which metadata and value should be retrieved
      * @param vbucket the vbucket from which to retrieve the key
      * @param cookie The connection cookie
-     * @param allowedState Whether getting for active or replica vbucket
+     * @param getReplicaItem bi-state enum to inform the method if it is dealing
+     * with a get replica op
      * @param options Flags indicating some retrieval related info
      *
      * @return the result of the operation
@@ -811,7 +811,7 @@ protected:
     virtual GetValue getInternal(const DocKey& key,
                                  Vbid vbucket,
                                  const void* cookie,
-                                 vbucket_state_t allowedState,
+                                 ForGetReplicaOp getReplicaItem,
                                  get_options_t options = TRACK_REFERENCE) = 0;
 
     /**

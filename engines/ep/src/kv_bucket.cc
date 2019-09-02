@@ -1456,44 +1456,45 @@ void KVBucket::completeBGFetchMulti(
 GetValue KVBucket::getInternal(const DocKey& key,
                                Vbid vbucket,
                                const void* cookie,
-                               vbucket_state_t allowedState,
+                               const ForGetReplicaOp getReplicaItem,
                                get_options_t options) {
-    vbucket_state_t disallowedState = (allowedState == vbucket_state_active) ?
-        vbucket_state_replica : vbucket_state_active;
     VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
         ++stats.numNotMyVBuckets;
-        return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
+        return GetValue(nullptr, ENGINE_NOT_MY_VBUCKET);
     }
 
     const bool honorStates = (options & HONOR_STATES);
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (honorStates) {
+        vbucket_state_t disallowedState =
+                (getReplicaItem == ForGetReplicaOp::Yes)
+                        ? vbucket_state_active
+                        : vbucket_state_replica;
         vbucket_state_t vbState = vb->getState();
         if (vbState == vbucket_state_dead) {
             ++stats.numNotMyVBuckets;
-            return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
+            return GetValue(nullptr, ENGINE_NOT_MY_VBUCKET);
         } else if (vbState == disallowedState) {
             ++stats.numNotMyVBuckets;
-            return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
+            return GetValue(nullptr, ENGINE_NOT_MY_VBUCKET);
         } else if (vbState == vbucket_state_pending) {
             /*
              * If the vbucket is in a pending state and
-             * we are performing a getReplica then instead
-             * of adding the operation to the pendingOps
-             * list return ENGINE_NOT_MY_VBUCKET.
+             * we are performing a getReplica then instead of adding the
+             * operation to the pendingOps list return ENGINE_NOT_MY_VBUCKET.
              */
-            if (allowedState == vbucket_state_replica) {
+            if (getReplicaItem == ForGetReplicaOp::Yes) {
                 ++stats.numNotMyVBuckets;
-                return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
+                return GetValue(nullptr, ENGINE_NOT_MY_VBUCKET);
             }
             if (vb->addPendingOp(cookie)) {
                 if (options & TRACK_STATISTICS) {
                     vb->opsGet++;
                 }
-                return GetValue(NULL, ENGINE_EWOULDBLOCK);
+                return GetValue(nullptr, ENGINE_EWOULDBLOCK);
             }
         }
     }
@@ -1505,7 +1506,7 @@ GetValue KVBucket::getInternal(const DocKey& key,
                     cookie,
                     Collections::getUnknownCollectionErrorContext(
                             cHandle.getManifestUid()));
-            return GetValue(NULL, ENGINE_UNKNOWN_COLLECTION);
+            return GetValue(nullptr, ENGINE_UNKNOWN_COLLECTION);
         }
 
         return vb->getInternal(cookie,
@@ -1513,7 +1514,8 @@ GetValue KVBucket::getInternal(const DocKey& key,
                                options,
                                diskDeleteAll,
                                VBucket::GetKeyOnly::No,
-                               cHandle);
+                               cHandle,
+                               getReplicaItem);
     }
 }
 

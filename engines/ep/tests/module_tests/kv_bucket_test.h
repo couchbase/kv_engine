@@ -114,7 +114,7 @@ public:
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,
                          const void* cookie,
-                         vbucket_state_t allowedState,
+                         ForGetReplicaOp getReplicaItem,
                          get_options_t options);
 
     /**

@@ -124,8 +124,7 @@ public:
                  Vbid vbucket,
                  const void* cookie,
                  get_options_t options) override {
-        return getInternal(key, vbucket, cookie, vbucket_state_active,
-                           options);
+        return getInternal(key, vbucket, cookie, ForGetReplicaOp::No, options);
     }
 
     GetValue getRandomKey() override;
@@ -134,8 +133,7 @@ public:
                         Vbid vbucket,
                         const void* cookie,
                         get_options_t options) override {
-        return getInternal(key, vbucket, cookie, vbucket_state_replica,
-                           options);
+        return getInternal(key, vbucket, cookie, ForGetReplicaOp::Yes, options);
     }
 
     ENGINE_ERROR_CODE getMetaData(const DocKey& key,
@@ -670,11 +668,10 @@ public:
     void setMaxTtl(size_t max);
 
 protected:
-
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,
                          const void* cookie,
-                         vbucket_state_t allowedState,
+                         ForGetReplicaOp getReplicaItem,
                          get_options_t options) override;
 
     bool resetVBucket_UNLOCKED(LockedVBucketPtr& vb,

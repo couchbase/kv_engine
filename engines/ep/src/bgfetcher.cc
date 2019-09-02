@@ -102,7 +102,7 @@ size_t BgFetcher::doFetch(Vbid vbId, vb_bgfetch_queue_t& itemsToFetch) {
         }
     }
 
-    if (fetchedItems.size() > 0) {
+    if (!fetchedItems.empty()) {
         store.completeBGFetchMulti(vbId, fetchedItems, startTime);
         stats.getMultiHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
