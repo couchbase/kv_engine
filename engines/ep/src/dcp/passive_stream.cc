@@ -976,18 +976,8 @@ void PassiveStream::processSetVBucketState(SetVBucketState* state) {
 
 void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
     if (byseqno == cur_snapshot_end.load()) {
-        auto& ckptMgr = *vb->checkpointManager;
-
         if (cur_snapshot_type.load() == Snapshot::Disk) {
             vb->setReceivingInitialDiskSnapshot(false);
-        }
-
-        size_t mem_threshold = engine->getEpStats().mem_high_wat.load();
-        size_t mem_used = engine->getEpStats().getEstimatedTotalMemoryUsed();
-        /* We want to add a new replica checkpoint if the mem usage is above
-           high watermark (85%) */
-        if (mem_threshold < mem_used) {
-            ckptMgr.checkAndAddNewCheckpoint();
         }
 
         if (cur_snapshot_ack) {

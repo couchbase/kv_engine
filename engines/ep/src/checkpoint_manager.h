@@ -337,13 +337,6 @@ public:
      */
     bool hasClosedCheckpointWhichCanBeRemoved() const;
 
-    /*
-     * Closes the current open checkpoint and creates a new open one if the id
-     * of the open checkpoint is > 0 (i.e., if the vbucket isn't in backfill
-     * state). Just updates the open checkpoint id otherwise.
-     */
-    void checkAndAddNewCheckpoint();
-
     void setBackfillPhase(uint64_t start, uint64_t end);
 
     void createSnapshot(uint64_t snapStartSeqno,

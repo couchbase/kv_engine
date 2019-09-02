@@ -1248,6 +1248,12 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
  *
  * Note that the test executes 4 combinations in total:
  *     {mem-snap, disk-snap} x {lowMemUsed, highMemUsed}
+ *
+ * **NOTE** as of MB-35764, the low and high mem used cases are expected to be
+ * the same; the replica should not close the checkpoint until instructed
+ * by the active (receiving a snapshot marker with the CHK flag set).
+ * This set of tests could validly be removed now, but are being kept (for now)
+ * to confirm the behaviour matches regardless of the mem_used
  */
 void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
         bool highMemUsed, uint32_t flags) {
@@ -1307,7 +1313,6 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
     //         checkpoints here
     //     2) we carry on with processing a second disk-snapshot, which
     //         involves checkpoints
-    int firstCheckpointSize = snapshotEnd - snapshotStart + 1;
     int openCheckpointSize = snapshotEnd - snapshotStart;
     if (flags & dcp_marker_flag_t::MARKER_FLAG_DISK) {
         // Just process the first half of mutations as vbSeqno-0
@@ -1324,21 +1329,11 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
         processMutations(*passiveStream, snapshotStart, diskSnapshotEnd);
         snapshotStart = diskSnapshotEnd + 1;
 
-        // snapshot end was hit, expect a new CP if high_mem
-        if (highMemUsed) {
-            openedCheckPoints++;
-            firstCheckpointSize = diskSnapshotEnd;
-            openCheckpointSize = 0;
-        } else {
-            // checkpoint extended
-            openCheckpointSize = diskSnapshotEnd;
-        }
+        // checkpoint extended
+        openCheckpointSize = diskSnapshotEnd;
+
         EXPECT_EQ(openCheckpointSize, ckptMgr->getNumOpenChkItems());
     }
-
-    // adjust expected size because disk case has adjusted the next snapshot
-    // if (!highMemUsed) {}
-    // openCheckpointSize = snapshotEnd - snapshotStart;
 
     // 1) the consumer receives the snapshot-marker
     SnapshotMarker snapshotMarker(
@@ -1349,12 +1344,8 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
     processMutations(*passiveStream, snapshotStart, snapshotEnd - 1);
 
     if (flags & dcp_marker_flag_t::MARKER_FLAG_DISK) {
-        if (highMemUsed) {
-            openCheckpointSize = snapshotEnd - snapshotStart;
-        } else {
-            // checkpoint contains intial backfill and second snapshot
-            openCheckpointSize = snapshotEnd - 1;
-        }
+        // checkpoint contains intial backfill and second snapshot
+        openCheckpointSize = snapshotEnd - 1;
     }
 
     // We must have exactly (snapshotEnd - snapshotStart) items in the
@@ -1366,11 +1357,6 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
     // 3) the consumer receives the snapshotEnd mutation
     processMutations(*passiveStream, snapshotEnd, snapshotEnd);
 
-    // If high-mem, the snapshot end opens a CP
-    if (highMemUsed) {
-        openedCheckPoints++;
-    }
-
     const auto& ckptList =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     *ckptMgr);
@@ -1381,34 +1367,19 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
         ASSERT_GT(stats.getEstimatedTotalMemoryUsed(),
                   stats.mem_high_wat.load());
 
-        // The consumer has received the snapshotEnd mutation, now we
-        // expect that a new (empty) open checkpoint has been created.
-        // So we must have 3 checkpoints in total (the closed and the
-        // new open one).
-        EXPECT_EQ(openedCheckPoints, ckptMgr->getNumCheckpoints());
-        // Also, the new open checkpoint must be empty (all mutations
-        // are in the closed one)
-        EXPECT_EQ(openedCheckPoints, ckptList.back()->getId());
-        EXPECT_EQ(checkpoint_state::CHECKPOINT_CLOSED,
-                  ckptList.front()->getState());
-        EXPECT_EQ(firstCheckpointSize, ckptList.front()->getNumItems());
-        EXPECT_EQ(checkpoint_state::CHECKPOINT_OPEN,
-                  ckptList.back()->getState());
-        EXPECT_EQ(0, ckptList.back()->getNumItems());
     } else {
         // Check that (mem_used < high_wat) when we processed the
         // snapshotEnd mutation
         ASSERT_LT(stats.getEstimatedTotalMemoryUsed(),
                   stats.mem_high_wat.load());
-
-        // The consumer has received the snapshotEnd mutation, but
-        // mem_used<high_wat, so we must still have 1 open checkpoint
-        // that store all mutations
-        EXPECT_EQ(openedCheckPoints, ckptMgr->getNumCheckpoints());
-        EXPECT_EQ(checkpoint_state::CHECKPOINT_OPEN,
-                  ckptList.back()->getState());
-        EXPECT_EQ(ckptList.back()->getNumItems(), snapshotEnd);
     }
+
+    // The consumer has received the snapshotEnd mutation, but
+    // mem_used<high_wat, so we must still have 1 open checkpoint
+    // that store all mutations
+    EXPECT_EQ(openedCheckPoints, ckptMgr->getNumCheckpoints());
+    EXPECT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckptList.back()->getState());
+    EXPECT_EQ(ckptList.back()->getNumItems(), snapshotEnd);
 
     store->deleteVBucket(vb->getId(), cookie);
 }

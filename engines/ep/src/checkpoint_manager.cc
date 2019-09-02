@@ -1162,36 +1162,6 @@ uint64_t CheckpointManager::getOpenSnapshotStartSeqno() const {
     return openCkpt.getSnapshotStartSeqno();
 }
 
-void CheckpointManager::checkAndAddNewCheckpoint() {
-    LockHolder lh(queueLock);
-    const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
-    const auto openCkptId = openCkpt.getId();
-
-    // This function is executed only on a DCP Consumer at snapshot-end
-    // mutation. So, by logic a non-backfill open checkpoint cannot be empty.
-    Expects(openCkpt.getNumItems() > 0 || openCkptId == 0);
-
-    // If the open checkpoint is the backfill-snapshot (checkpoint-id=0),
-    // then we just update the id of the existing checkpoint and we update
-    // cursors.
-    // Notes:
-    //     - we need this because the (checkpoint-id = 0) is reserved for the
-    //         backfill phase, and any attempt of stream-request to a
-    //         replica-vbucket (e.g., View-Engine) fails if
-    //         (current-checkpoint-id = 0). There are also some PassiveStream
-    //         tests relying on that.
-    //     - an alternative to this is closing the checkpoint and adding a
-    //         new one.
-    //     - the backfill checkpoint is empty by definition
-    if (openCkptId == 0) {
-        setOpenCheckpointId_UNLOCKED(lh, openCkptId + 1);
-        resetCursors(false);
-        return;
-    }
-
-    addNewCheckpoint_UNLOCKED(openCkptId + 1);
-}
-
 queued_item CheckpointManager::createCheckpointItem(uint64_t id,
                                                     Vbid vbid,
                                                     queue_op checkpoint_op) {
