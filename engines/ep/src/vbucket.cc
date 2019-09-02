@@ -43,6 +43,7 @@
 #include "vbucket_state.h"
 #include "vbucketdeletiontask.h"
 
+#include <boost/optional/optional_io.hpp>
 #include <folly/lang/Assume.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/server_document_iface.h>
@@ -829,9 +830,11 @@ ENGINE_ERROR_CODE VBucket::commit(
         // If we are committing we /should/ always find the pending item.
         EP_LOG_ERR(
                 "VBucket::commit ({}) failed as no HashTable item found with "
-                "key:{}",
+                "key:{} prepare_seqno:{}, commit_seqno:{}",
                 id,
-                cb::UserDataView(key.to_string()));
+                cb::UserDataView(key.to_string()),
+                prepareSeqno,
+                commitSeqno);
         return ENGINE_KEY_ENOENT;
     }
 
