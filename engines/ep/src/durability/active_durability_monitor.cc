@@ -475,14 +475,15 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(
     auto s = state.wlock();
     for (auto& prepare : outstandingPrepares) {
         auto seqno = prepare->getBySeqno();
-        // Any outstanding prepares "grandfathered" into the DM should have
-        // already specified a non-default timeout.
-        Expects(!prepare->getDurabilityReqs().getTimeout().isDefault());
+        // Any outstanding prepares "grandfathered" into the DM from warmup
+        // should have an infinite timeout (we cannot abort them as they
+        // may already have been Committed before we restarted).
+        Expects(prepare->getDurabilityReqs().getTimeout().isInfinite());
         s->trackedWrites.emplace_back(nullptr,
                                       std::move(prepare),
-                                      std::chrono::milliseconds{},
                                       s->firstChain.get(),
-                                      s->secondChain.get());
+                                      s->secondChain.get(),
+                                      SyncWrite::InfiniteTimeout{});
         s->lastTrackedSeqno = seqno;
     }
 

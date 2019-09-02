@@ -57,7 +57,22 @@ DurabilityMonitor::SyncWrite::SyncWrite(const void* cookie,
                                         SyncWrite::InfiniteTimeout)
     : cookie(cookie), item(item), startTime(std::chrono::steady_clock::now()) {
     Expects(getDurabilityReqs().getLevel() != cb::durability::Level::None);
-    initialiseChains(firstChain, secondChain);
+    // If creating a SyncWrite with Infinite timeout then we could be
+    // re-creating SyncWrites from warmup - in which case durability may not
+    // be possible with the current topology - for example:
+    // 1) Prior to warmup, nodes=2, replicas=1 - topology = [active, replica].
+    // 2) SyncWrite was initially added normally (with valid topology) to
+    //    ActiveDM.
+    // 3) Replica node is removed, toplogy is updated to [active, <null>].
+    //    SyncWrite still pending.
+    // 4) Restart active and warmup. At this point the persisted toplogy from
+    //    (3) doesn't have durability possible.
+    //
+    // As such, call resetTopology() directly here and not initialiseChains
+    // which performs durability possible checks.
+    if (firstChain) {
+        resetTopology(*firstChain, secondChain);
+    }
 }
 
 void DurabilityMonitor::SyncWrite::initialiseChains(

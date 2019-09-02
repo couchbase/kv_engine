@@ -574,12 +574,11 @@ protected:
         // Checker can be disabled if the test is doing something special, e.g.
         // driving the ADM directly
         void disable() {
-            disabled = true;
+            vb.reset();
         }
 
     private:
         VBucketPtr vb;
-        bool disabled = false;
         int64_t preHPS = 0;
         int64_t preHCS = 0;
     };
@@ -594,11 +593,10 @@ DurabilityWarmupTest::PrePostStateChecker::PrePostStateChecker(VBucketPtr vb) {
 }
 
 DurabilityWarmupTest::PrePostStateChecker::~PrePostStateChecker() {
-    if (disabled) {
+    if (!vb) {
         return;
     }
 
-    EXPECT_TRUE(vb);
     EXPECT_EQ(preHPS, vb->getHighPreparedSeqno())
             << "PrePostStateChecker: Found that post warmup the HPS does not "
                "match the pre-warmup value";
@@ -1248,6 +1246,33 @@ TEST_P(DurabilityWarmupTest, ReplicaVBucket) {
 
     // Warmup and allow the pre/post checker to test the state
     resetEngineAndWarmup();
+}
+
+// MB-35768: Test that having a replication topology stored on disk under
+// which durability is impossible (e.g. [active, <null>], and a Pending
+// // SyncWrite doesn't crash during warmup (when re-populating ActiveDM).
+TEST_P(DurabilityWarmupTest, ImpossibleTopology) {
+    // Store a prepared SyncWrite.
+    auto key = makeStoredDocKey("key");
+    auto item = makePendingItem(key, "value");
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+    flush_vbucket_to_disk(vbid);
+
+    // Change topology to one with a missing replica (e.g. simulating a node
+    // failed over).
+    // Remove one node from the topology replicationTopology and re-persist.
+    auto topology = nlohmann::json::array({{"active", nullptr}});
+    setVBucketStateAndRunPersistTask(
+            vbid, vbucket_state_active, {{"topology", topology}});
+
+    // Test: This previously triggered a gsl::fail_fast exception due to an
+    // Expects() failure.
+    ASSERT_NO_THROW(resetEngineAndWarmup());
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().warmedUpPrepares);
+
+    // Sanity check - "impossible" topology was loaded.
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(topology.dump(), vb->getReplicationTopology().dump());
 }
 
 INSTANTIATE_TEST_CASE_P(

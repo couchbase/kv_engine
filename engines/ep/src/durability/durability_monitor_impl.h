@@ -88,7 +88,7 @@ public:
               const ReplicationChain* secondChain);
 
     /**
-     * Constructs a SyncWrite with an infinite timeout
+     * Constructs a SyncWrite with an infinite timeout.
      *
      * @param (optional) cookie The cookie representing the client connection.
      *     Necessary at Active for notifying the client at SyncWrite completion.
