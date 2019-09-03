@@ -517,14 +517,10 @@ static std::string configure_numa_policy() {
 
 static void settings_init() {
     // Set up the listener functions
-    Settings::instance().addChangeListener("breakpad",
-                                           breakpad_changed_listener);
     Settings::instance().addChangeListener(
             "max_connections", [](const std::string&, Settings& s) -> void {
                 recalculate_max_connections();
             });
-    Settings::instance().addChangeListener("verbosity",
-                                           verbosity_changed_listener);
     Settings::instance().addChangeListener("interfaces",
                                            interfaces_changed_listener);
     Settings::instance().addChangeListener(
@@ -2314,9 +2310,6 @@ extern "C" int memcached_main(int argc, char **argv) {
         Settings::instance().setXattrEnabled(true);
     }
 
-    /* Initialize breakpad crash catcher with our just-parsed settings. */
-    cb::breakpad::initialize(Settings::instance().getBreakpadSettings());
-
     /* Configure file logger, if specified as a settings object */
     if (Settings::instance().has.logger) {
         auto ret =
@@ -2328,9 +2321,16 @@ extern "C" int memcached_main(int argc, char **argv) {
     }
 
     /* File-based logging available from this point onwards... */
+    Settings::instance().addChangeListener("verbosity",
+                                           verbosity_changed_listener);
 
     /* Logging available now extensions have been loaded. */
     LOG_INFO("Couchbase version {} starting.", get_server_version());
+
+    /// Initialize breakpad crash catcher with our just-parsed settings
+    Settings::instance().addChangeListener("breakpad",
+                                           breakpad_changed_listener);
+    cb::breakpad::initialize(Settings::instance().getBreakpadSettings());
 
     LOG_INFO("Using SLA configuration: {}", cb::mcbp::sla::to_json().dump());
 

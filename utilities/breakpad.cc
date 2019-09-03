@@ -195,6 +195,7 @@ void cb::breakpad::initialize(const std::string& directory) {
 
     if (directory.empty()) {
         // No directory provided
+        LOG_INFO("Breakpad disabled");
         return;
     }
 
@@ -211,7 +212,6 @@ void cb::breakpad::initialize(const std::string& directory) {
 
 void cb::breakpad::destroy() {
     if (handler) {
-        LOG_INFO("Disabling Breakpad");
         set_terminate_handler_print_backtrace(true);
     }
     handler.reset();
