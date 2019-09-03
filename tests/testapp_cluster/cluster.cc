@@ -132,10 +132,10 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
                                       cb::mcbp::Feature::JSON,
                                       cb::mcbp::Feature::SNAPPY}});
             std::string fname = nodes[node_idx]->directory + "/" + name;
-            cb::io::sanitizePath(fname);
+            std::replace(fname.begin(), fname.end(), '\\', '/');
             json["dbname"] = fname;
             fname = json["dbname"].get<std::string>() + "/access.log";
-            cb::io::sanitizePath(fname);
+            std::replace(fname.begin(), fname.end(), '\\', '/');
             json["alog_path"] = fname;
             std::string config;
             for (auto it = json.begin(); it != json.end(); ++it) {
