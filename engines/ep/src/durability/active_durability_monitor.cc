@@ -196,6 +196,9 @@ struct ActiveDurabilityMonitor::State {
 
     void updateHighCompletedSeqno();
 
+    /// Debug - print a textual description of this object to stderr.
+    void dump() const;
+
 protected:
     /**
      * Set up the newFirstChain correctly if we previously had no topology.
@@ -363,6 +366,34 @@ public:
     // required to manually ack for a new node if we receive an ack before
     // ns_server sends us a new replication topology.
     std::unordered_map<std::string, Monotonic<int64_t>> queuedSeqnoAcks;
+
+    friend std::ostream& operator<<(std::ostream& os, const State& s) {
+        os << "#trackedWrites:" << s.trackedWrites.size()
+           << " highPreparedSeqno:" << s.highPreparedSeqno
+           << " highCompletedSeqno:" << s.highCompletedSeqno
+           << " lastTrackedSeqno:" << s.lastTrackedSeqno
+           << " lastCommittedSeqno:" << s.lastCommittedSeqno
+           << " lastAbortedSeqno:" << s.lastAbortedSeqno << " trackedWrites:["
+           << "\n";
+        for (const auto& w : s.trackedWrites) {
+            os << "    " << w << "\n";
+        }
+        os << "]\n";
+        os << "firstChain: ";
+        if (s.firstChain) {
+            chainToOstream(os, *s.firstChain, s.trackedWrites.end());
+        } else {
+            os << "<null>";
+        }
+        os << "\nsecondChain: ";
+        if (s.secondChain) {
+            chainToOstream(os, *s.secondChain, s.trackedWrites.end());
+        } else {
+            os << "<null>";
+        }
+        os << "\n";
+        return os;
+    }
 };
 
 constexpr std::chrono::milliseconds
@@ -454,6 +485,12 @@ private:
 
     /// The lock guarding consumption of items.
     ConsumerLock consumerLock;
+
+    friend std::ostream& operator<<(
+            std::ostream& os, ActiveDurabilityMonitor::ResolvedQueue& rq) {
+        os << "ResolvedQueue[" << &rq << "] size:" << rq.queue.size();
+        return os;
+    }
 };
 
 ActiveDurabilityMonitor::ActiveDurabilityMonitor(EPStats& stats, VBucket& vb)
@@ -1211,39 +1248,19 @@ std::vector<queued_item> ActiveDurabilityMonitor::getTrackedWrites() const {
     return items;
 }
 
+void ActiveDurabilityMonitor::dump() const {
+    toOStream(std::cerr);
+}
+
 void ActiveDurabilityMonitor::toOStream(std::ostream& os) const {
-    const auto s = state.rlock();
-    os << "ActiveDurabilityMonitor[" << this
-       << "] #trackedWrites:" << s->trackedWrites.size()
-       << " highPreparedSeqno:" << s->highPreparedSeqno
-       << " highCompletedSeqno:" << s->highCompletedSeqno
-       << " lastTrackedSeqno:" << s->lastTrackedSeqno
-       << " lastCommittedSeqno:" << s->lastCommittedSeqno
-       << " lastAbortedSeqno:" << s->lastAbortedSeqno << " trackedWrites:["
-       << "\n";
-    for (const auto& w : s->trackedWrites) {
-        os << "    " << w << "\n";
-    }
-    os << "]\n";
-    os << "firstChain: ";
-    if (s->firstChain) {
-        chainToOstream(os, *s->firstChain, s->trackedWrites.end());
-    } else {
-        os << "<null>";
-    }
-    os << "\nsecondChain: ";
-    if (s->secondChain) {
-        chainToOstream(os, *s->secondChain, s->trackedWrites.end());
-    } else {
-        os << "<null>";
-    }
-    os << "\n";
+    os << "ActiveDurabilityMonitor[" << this << "] " << *state.rlock();
+    os << "resolvedQueue: " << *resolvedQueue << "\n";
 }
 
 void ActiveDurabilityMonitor::chainToOstream(
         std::ostream& os,
         const ReplicationChain& rc,
-        Container::const_iterator trackedWritesEnd) const {
+        Container::const_iterator trackedWritesEnd) {
     os << "Chain[" << &rc << "] name:" << to_string(rc.name)
        << " majority:" << int(rc.majority) << " active:" << rc.active
        << " maxAllowedReplicas:" << rc.maxAllowedReplicas << " positions:[\n";
@@ -1690,6 +1707,10 @@ void ActiveDurabilityMonitor::State::updateHighPreparedSeqno(
 
 void ActiveDurabilityMonitor::State::updateHighCompletedSeqno() {
     highCompletedSeqno = std::max(lastCommittedSeqno, lastAbortedSeqno);
+}
+
+void ActiveDurabilityMonitor::State::dump() const {
+    std::cerr << *this;
 }
 
 void ActiveDurabilityMonitor::checkForCommit() {

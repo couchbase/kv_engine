@@ -293,14 +293,16 @@ public:
      */
     std::vector<queued_item> getTrackedWrites() const;
 
+    /// Debug - print a textual description of this object to stderr.
+    void dump() const;
+
+    /// Prints the given ReplicationChain to the stream.
+    static void chainToOstream(std::ostream& os,
+                               const ReplicationChain& rc,
+                               Container::const_iterator trackedWritesEnd);
+
 protected:
     void toOStream(std::ostream& os) const override;
-
-    /// Helper method for toOstream - prints the given ReplicationChain to
-    // the stream.
-    void chainToOstream(std::ostream& os,
-                        const ReplicationChain& rc,
-                        Container::const_iterator trackedWritesEnd) const;
 
     /**
      * throw exception with the following error string:
