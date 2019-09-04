@@ -60,10 +60,8 @@ public:
         ItemsForCursor() {
         }
         ItemsForCursor(CheckpointType checkpointType,
-                       boost::optional<uint64_t> highCompletedSeqno,
                        boost::optional<uint64_t> maxDeletedRevSeqno)
             : checkpointType(checkpointType),
-              highCompletedSeqno(highCompletedSeqno),
               maxDeletedRevSeqno(maxDeletedRevSeqno) {
         }
         std::vector<snapshot_range_t> ranges;

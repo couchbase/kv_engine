@@ -162,6 +162,11 @@ protected:
      * a disk snapshot containing a mutation instead of a commit.
      */
     void testDiskSnapshotHCSPersisted();
+
+    /**
+     * Read the highCompletedSeqno from disk.
+     */
+    uint64_t getPersistedHCS();
 };
 
 /**

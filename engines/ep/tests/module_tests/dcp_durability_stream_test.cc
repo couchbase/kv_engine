@@ -27,6 +27,7 @@
 #include "durability/passive_durability_monitor.h"
 #include "kv_bucket.h"
 #include "test_helpers.h"
+#include "vbucket_state.h"
 #include "vbucket_utils.h"
 
 #include "../mock/mock_checkpoint_manager.h"
@@ -1039,6 +1040,135 @@ void DurabilityPassiveStreamPersistentTest::testDiskSnapshotHCSPersisted() {
 
 TEST_P(DurabilityPassiveStreamPersistentTest, DiskSnapshotHCSPersisted) {
     testDiskSnapshotHCSPersisted();
+}
+
+uint64_t DurabilityPassiveStreamPersistentTest::getPersistedHCS() {
+    KVStore* rwUnderlying = store->getRWUnderlying(vbid);
+    const auto* persistedVbState = rwUnderlying->getVBucketState(vbid);
+    return persistedVbState->highCompletedSeqno;
+}
+
+TEST_P(DurabilityPassiveStreamPersistentTest,
+       DiskSnapshotHCSNotPersistedBeforeCkptEnd) {
+    // Test to ensure the highCompletedSeqno sent as part of a disk snapshot
+    // is not persisted by the replica until the entire checkpoint is flushed
+    // to disk.
+
+    // Send a disk snapshot marker with a HCS of 3
+    SnapshotMarker marker(0 /*opaque*/,
+                          vbid,
+                          1 /*snapStart*/,
+                          5 /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                          4 /*HCS*/,
+                          {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // nothing has been completed yet
+    ASSERT_EQ(0, getPersistedHCS());
+
+    const auto key = makeStoredDocKey("key");
+    const std::string value = "value";
+
+    using namespace cb::durability;
+    auto prepare = makePendingItem(
+            key, value, Requirements(Level::Majority, Timeout::Infinity()));
+    prepare->setBySeqno(1);
+    prepare->setCas(999);
+
+    // Receive prepare at seqno 1
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      prepare,
+                      stream->getOpaque(),
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // the HCS should not have advanced yet as we have not completed the disk
+    // snapshot. NB: The HCS was received with the snapshot marker, but the
+    // replica should not persist that value to disk yet.
+    EXPECT_EQ(0, getPersistedHCS());
+
+    // Receive mutation at seqno 2 which completes the prepare
+    auto mutation = makeCommittedItem(key, value);
+    mutation->setBySeqno(2);
+    mutation->setCas(999);
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      mutation,
+                      stream->getOpaque(),
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // mutation does not advance the HCS
+    EXPECT_EQ(0, getPersistedHCS());
+
+    // receive an abort (seqno 4) for a deduped prepare (seqno 3) which *does*
+    // advance the HCS
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<AbortSyncWrite>(
+                      stream->getOpaque(),
+                      vbid,
+                      makeStoredDocKey("abortKey"),
+                      3 /*prepare*/,
+                      4 /*abort*/)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(3, getPersistedHCS());
+
+    auto unrelated = makeCommittedItem(makeStoredDocKey("unrelatedKey"), value);
+    unrelated->setBySeqno(5);
+    unrelated->setCas(999);
+
+    // Receive unrelated committed item at seqno 5
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      unrelated,
+                      stream->getOpaque(),
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // We have received all the items for this checkpoint *but*
+    // until the checkpoint is closed, the flusher will not
+    // receive a checkpoint end item, and should not persist the
+    // hcs
+    EXPECT_EQ(3, getPersistedHCS());
+
+    // Receive a new snapshot marker, closing the checkpoint.
+    // Now, flushing should write the sent hcs to disk.
+    SnapshotMarker marker2(
+            0 /*opaque*/,
+            vbid,
+            4 /*snapStart*/,
+            4 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*HCS*/,
+            {} /*streamId*/);
+    EXPECT_NO_THROW(stream->processMarker(&marker2));
+
+    flushVBucketToDiskIfPersistent(vbid, 0);
+
+    // Now that the checkpoint end has been flushed, the HCS
+    // should have advanced to the value sent as part of the snapshot
+    EXPECT_EQ(4, getPersistedHCS());
 }
 
 TEST_P(DurabilityPassiveStreamPersistentTest,

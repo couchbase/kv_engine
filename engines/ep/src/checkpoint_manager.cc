@@ -820,7 +820,6 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     // Fetch whole checkpoints; as long as we don't exceed the approx item
     // limit.
     ItemsForCursor result((*cursor.currentCheckpoint)->getCheckpointType(),
-                          (*cursor.currentCheckpoint)->getHighCompletedSeqno(),
                           (*cursor.currentCheckpoint)->getMaxDeletedRevSeqno());
 
     size_t itemCount = 0;
