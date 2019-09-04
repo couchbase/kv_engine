@@ -1405,17 +1405,17 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
         transitionFromNullTopology(*newFirstChain);
     }
 
-    // Copy the iterators from the old chains to the new chains.
-    copyChainPositions(firstChain.get(),
-                       *newFirstChain,
-                       secondChain.get(),
-                       newSecondChain.get());
-
     // We have already reset the topology of the in flight SyncWrites so that
     // they do not contain any invalid pointers to ReplicationChains post
     // topology change.
     abortNoLongerPossibleSyncWrites(
             *newFirstChain, newSecondChain.get(), toComplete);
+
+    // Copy the iterators from the old chains to the new chains.
+    copyChainPositions(firstChain.get(),
+                       *newFirstChain,
+                       secondChain.get(),
+                       newSecondChain.get());
 
     // We have now reset all the topology for SyncWrites so we can dispose of
     // the old chain (by overwriting it with the new one).

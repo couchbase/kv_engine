@@ -30,7 +30,12 @@
 void ActiveDurabilityMonitorTest::SetUp() {
     // MB-34453: Change sync_writes_max_allowed_replicas back to total
     // possible replicas given we want to still test with all replicas.
-    config_string += "sync_writes_max_allowed_replicas=3";
+    setup(3);
+}
+
+void ActiveDurabilityMonitorTest::setup(int maxAllowedReplicas) {
+    config_string += "sync_writes_max_allowed_replicas=" +
+                     std::to_string(maxAllowedReplicas);
 
     STParameterizedBucketTest::SetUp();
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
@@ -48,6 +53,15 @@ void ActiveDurabilityMonitorTest::SetUp() {
     adm.setReplicationTopology(nlohmann::json::array({{active, replica1}}));
     ASSERT_EQ(2, adm.getFirstChainSize());
     ASSERT_EQ(2, adm.getFirstChainMajority());
+}
+
+void ActiveDurabilityMonitorTest::TearDown() {
+    // Calling the ostream operator will iterate over the entire ADM and may
+    // catch any 'corruption' issues. The underlying issue for MB-35661 was
+    // already triggered by some existing tests but never detected.
+    std::stringstream ss;
+    ss << getActiveDM();
+    STParameterizedBucketTest::TearDown();
 }
 
 ActiveDurabilityMonitor& ActiveDurabilityMonitorTest::getActiveDM() const {
@@ -3370,10 +3384,52 @@ TEST_P(PassiveDurabilityMonitorTest, SendSeqnoAckRace) {
     EXPECT_EQ(2, ackedSeqno);
 }
 
+class ActiveDurabilityMonitorAbortTest
+    : public ActiveDurabilityMonitorPersistentTest {
+public:
+    void SetUp() override {
+        // Run with max of 2 replicas so that we will abort on topology change
+        ActiveDurabilityMonitorTest::setup(2);
+    }
+};
+
+// Perform topology change similar to that seen in MB-35661.
+// Go from 1 chain (1 replica) to a second chain (where the active/replica swap)
+// The second chain is also crucially larger than the max-replicas so that
+// sync-writes get aborted.
+TEST_P(ActiveDurabilityMonitorAbortTest, MB_35661) {
+    DurabilityMonitorTest::addSyncWrites(
+            {1, 2}, {cb::durability::Level::MajorityAndPersistOnMaster, {}});
+    testSeqnoAckReceived(replica1,
+                         1 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         1 /*expectedLastAckSeqno*/,
+                         2 /*expectedNumTracked*/,
+                         0 /*expectedHPS*/,
+                         0 /*expectedHCS*/);
+
+    getActiveDM().setReplicationTopology(nlohmann::json::array(
+            {{active, replica1}, {replica1, active, replica2, replica3}}));
+
+    testSeqnoAckReceived(replica1,
+                         2 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         2 /*expectedLastAckSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         0 /*expectedHPS*/,
+                         2 /*expectedHCS*/);
+}
+
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         ActiveDurabilityMonitorTest,
                         STParameterizedBucketTest::allConfigValues(),
                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_CASE_P(
+        AllBucketTypes,
+        ActiveDurabilityMonitorAbortTest,
+        STParameterizedBucketTest::persistentAllBackendsConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_CASE_P(
         AllBucketTypes,

@@ -127,6 +127,8 @@ protected:
 class ActiveDurabilityMonitorTest : public DurabilityMonitorTest {
 public:
     void SetUp() override;
+    void setup(int maxAllowedReplicas);
+    void TearDown() override;
 
 protected:
     ActiveDurabilityMonitor& getActiveDM() const;
