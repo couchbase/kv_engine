@@ -1264,10 +1264,13 @@ TEST_F(SingleThreadedEPBucketTest, MB25056_do_not_set_pendingBackfill_to_true) {
                        {vbucket_state_replica},
                        CheckConflicts::No,
                        /*allowExisting*/ true);
-    getEPBucket().flushVBucket(vbid);
 
     // Close the first checkpoint and create a second one
     ckpt_mgr.createNewCheckpoint();
+
+    // flush the vbucket, persisting the state change and advancing the
+    // persistence cursor into the new checkpoint
+    getEPBucket().flushVBucket(vbid);
 
     // Remove the first checkpoint
     bool new_ckpt_created;
@@ -1802,7 +1805,21 @@ TEST_F(SingleThreadedEPBucketTest, MB_29861) {
     // Drop the stream
     consumer->closeStream(/*opaque*/ 0, vbid);
 
-    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    // Change state - this should add 1 set_vbucket_state op to the
+    // VBuckets' persistence queue.
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(vbid, vbucket_state_active));
+
+    // Trigger the flusher to flush state to disk.
+    auto& ep = dynamic_cast<EPBucket&>(*store);
+    // Changing the vb state to active will close the current disk checkpoint
+    // flushVBucket will stop at the start of the new checkpoint as it is of
+    // a different type (memory). This will report moreAvailable == true.
+    EXPECT_EQ(std::make_pair(true, size_t(0)), ep.flushVBucket(vbid));
+    // flush again to confirm there are no unexpected items and that we now find
+    // moreAvailable == false.
+    EXPECT_EQ(std::make_pair(false, size_t(0)), ep.flushVBucket(vbid));
+
     // Now read back and verify key1 has a non-zero delete time
     ItemMetaData metadata;
     uint32_t deleted = 0;

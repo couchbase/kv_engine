@@ -891,6 +891,7 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
     bool newCheckpointCreated;
     this->manager->removeClosedUnrefCheckpoints(*this->vbucket,
                                                 newCheckpointCreated);
+    EXPECT_TRUE(newCheckpointCreated);
     EXPECT_EQ(curr_open_chkpt_id + 1, this->manager->getOpenCheckpointId());
 
     /* Get items for persistence cursor */
@@ -899,20 +900,24 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
     items.clear();
     result = this->manager->getNextItemsForPersistence(items);
 
-    /* We should have got op_ckpt_start item */
-    EXPECT_EQ(1, items.size());
-    EXPECT_EQ(1, result.ranges.size());
-    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.ranges.front().getStart());
+    /* We should have got op_ckpt_end and op_ckpt_start items */
+    EXPECT_EQ(2, items.size());
+    EXPECT_EQ(2, result.ranges.size());
+    EXPECT_EQ(0, result.ranges.front().getStart());
     EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.ranges.front().getEnd());
 
-    EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.ranges.back().getStart());
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.ranges.back().getEnd());
+
+    EXPECT_EQ(queue_op::checkpoint_end, items.at(0)->getOperation());
+    EXPECT_EQ(queue_op::checkpoint_start, items.at(1)->getOperation());
 
     /* Get items for DCP replication cursor */
     EXPECT_EQ(0, this->manager->getNumItemsForPersistence())
             << "Expected to have no normal (only meta) items";
     items.clear();
     this->manager->getNextItemsForCursor(dcpCursor.cursor.lock().get(), items);
-    /* Expecting only 1 op_ckpt_start item */
+    /* Expecting only op_ckpt_start item */
     EXPECT_EQ(1, items.size());
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
 }
@@ -1692,9 +1697,12 @@ TYPED_TEST(CheckpointTest, checkpointMemoryTest) {
                                    isLastMutationItem);
     EXPECT_TRUE(isLastMutationItem);
 
-    // Create a new checkpoint, which will close the old checkpoint
-    // and move the persistence cursor to the new checkpoint.
+    // Create a new checkpoint, which will close the old checkpoint.
     this->manager->createNewCheckpoint();
+
+    // move the persistence cursor to the new checkpoint.
+    std::vector<queued_item> items;
+    this->manager->getItemsForPersistence(items, 1);
 
     // Tell Checkpoint manager the items have been persisted, so it
     // advances pCursorPreCheckpointId, which will allow us to remove
@@ -1781,8 +1789,10 @@ TYPED_TEST(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
     EXPECT_TRUE(isLastMutationItem);
 
     // Create a new checkpoint, which will close the old checkpoint
-    // and move the persistence cursor to the new checkpoint.
     this->manager->createNewCheckpoint();
+    // move the persistence cursor to the new checkpoint.
+    std::vector<queued_item> items;
+    this->manager->getItemsForPersistence(items, 1);
 
     // Tell Checkpoint manager the items have been persisted, so it
     // advances pCursorPreCheckpointId, which will allow us to remove
