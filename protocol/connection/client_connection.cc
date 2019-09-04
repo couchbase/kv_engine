@@ -321,6 +321,12 @@ void MemcachedConnection::connect() {
         SSL_CTX_free(context);
     }
 
+    if (sock != INVALID_SOCKET) {
+        cb::net::shutdown(sock, SHUT_RDWR);
+        cb::net::closesocket(sock);
+        sock = INVALID_SOCKET;
+    }
+
     if (ssl) {
         std::tie(sock, context, bio) = cb::net::new_ssl_socket(
                 host, port, family, ssl_cert_file, ssl_key_file);
