@@ -105,7 +105,7 @@ TEST(Request_ParseFrameExtras, ExtendedIdAndSize_Edge) {
     EXPECT_TRUE(found);
 }
 
-TEST(Request_ParseFrameExtras, Reorder_LegalPacket) {
+TEST(Request_ParseFrameExtras, Barrier_LegalPacket) {
     std::vector<uint8_t> fe;
     fe.push_back(0x00); // ID 0, length 0
     std::vector<uint8_t> packet(27);
@@ -117,11 +117,11 @@ TEST(Request_ParseFrameExtras, Reorder_LegalPacket) {
     bool found = false;
     req->parseFrameExtras([&found](request::FrameInfoId id,
                                    cb::const_byte_buffer data) -> bool {
-        if (id != request::FrameInfoId::Reorder) {
-            ADD_FAILURE() << "Expected ID to be Reorder";
+        if (id != request::FrameInfoId::Barrier) {
+            ADD_FAILURE() << "Expected ID to be Barrier";
         }
         if (!data.empty()) {
-            ADD_FAILURE() << "Reorder should not have any payload";
+            ADD_FAILURE() << "Barrier should not have any payload";
         }
         found = true;
         return true;
@@ -129,7 +129,7 @@ TEST(Request_ParseFrameExtras, Reorder_LegalPacket) {
     EXPECT_TRUE(found);
 }
 
-TEST(Request_ParseFrameExtras, Reorder_BufferOverflow) {
+TEST(Request_ParseFrameExtras, Barrier_BufferOverflow) {
     std::vector<uint8_t> fe;
     fe.push_back(0x02); // ID 0, length 2
     fe.push_back(0x00); // Add the 0 byte (1 byte too little)
@@ -166,7 +166,7 @@ TEST(Request_ParseFrameExtras, DurabilityRequirement_LegalPacket) {
     req->parseFrameExtras([&found](request::FrameInfoId id,
                                    cb::const_byte_buffer data) -> bool {
         if (id != request::FrameInfoId::DurabilityRequirement) {
-            ADD_FAILURE() << "Expected ID to be Reorder";
+            ADD_FAILURE() << "Expected ID to be DurabilityRequirement";
         }
         if (data.size() != 1) {
             ADD_FAILURE() << "DurabilityRequirement needs 1 byte of level";
@@ -185,7 +185,7 @@ TEST(Request_ParseFrameExtras, DurabilityRequirement_LegalPacket) {
     req->parseFrameExtras([&found](request::FrameInfoId id,
                                    cb::const_byte_buffer data) -> bool {
         if (id != request::FrameInfoId::DurabilityRequirement) {
-            ADD_FAILURE() << "Expected ID to be Reorder";
+            ADD_FAILURE() << "Expected ID to be DurabilityRequirement";
         }
         if (data.size() != 3) {
             ADD_FAILURE() << "DurabilityRequirement needs 3 byte of level";
@@ -202,7 +202,7 @@ TEST(Request_ParseFrameExtras, MultipleEncoding) {
     fe[1] = 0xaa;
     fe[2] = 0xbb;
     fe[3] = 0xcc;
-    fe[4] = 0x00; // Reorder
+    fe[4] = 0x00; // Barrier
     std::vector<uint8_t> packet(30);
     RequestBuilder builder({packet.data(), packet.size()});
     builder.setMagic(Magic::AltClientRequest);
@@ -210,12 +210,12 @@ TEST(Request_ParseFrameExtras, MultipleEncoding) {
 
     auto* req = reinterpret_cast<Request*>(packet.data());
     bool durability_found = false;
-    bool reorder_found = false;
-    req->parseFrameExtras([&durability_found, &reorder_found](
+    bool barrier_found = false;
+    req->parseFrameExtras([&durability_found, &barrier_found](
                                   request::FrameInfoId id,
                                   cb::const_byte_buffer data) -> bool {
-        if (id == request::FrameInfoId::Reorder) {
-            reorder_found = true;
+        if (id == request::FrameInfoId::Barrier) {
+            barrier_found = true;
         }
 
         if (id == request::FrameInfoId::DurabilityRequirement) {
@@ -233,7 +233,7 @@ TEST(Request_ParseFrameExtras, MultipleEncoding) {
     });
 
     EXPECT_TRUE(durability_found);
-    EXPECT_TRUE(reorder_found);
+    EXPECT_TRUE(barrier_found);
 }
 
 TEST(Request_GetDurationSpec, NoSpecPresent) {

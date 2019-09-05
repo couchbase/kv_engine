@@ -32,9 +32,9 @@ public:
     virtual std::vector<uint8_t> encode() const = 0;
 };
 
-class ReorderFrameInfo : public FrameInfo {
+class BarrierFrameInfo : public FrameInfo {
 public:
-    ~ReorderFrameInfo() override;
+    ~BarrierFrameInfo() override;
     std::vector<uint8_t> encode() const override;
 };
 

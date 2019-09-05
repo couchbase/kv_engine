@@ -337,8 +337,8 @@ nlohmann::json Request::toJSON(bool validated) const {
             parseFrameExtras([&frameid](cb::mcbp::request::FrameInfoId id,
                                         cb::const_byte_buffer buffer) -> bool {
                 switch (id) {
-                case request::FrameInfoId::Reorder:
-                    frameid["reorder"] = true;
+                case request::FrameInfoId::Barrier:
+                    frameid["barrier"] = true;
                     break;
                 case request::FrameInfoId::DurabilityRequirement:
                     frameid["durability"] =
@@ -394,8 +394,8 @@ std::string to_string(cb::mcbp::request::FrameInfoId id) {
     using cb::mcbp::request::FrameInfoId;
 
     switch (id) {
-    case FrameInfoId::Reorder:
-        return "Reorder";
+    case FrameInfoId::Barrier:
+        return "Barrier";
     case FrameInfoId::DurabilityRequirement:
         return "DurabilityRequirement";
     case FrameInfoId::DcpStreamId:

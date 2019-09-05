@@ -224,23 +224,14 @@ Status McbpValidator::verify_header(Cookie& cookie,
                                          cb::mcbp::request::FrameInfoId id,
                                          cb::const_byte_buffer data) -> bool {
             switch (id) {
-            case cb::mcbp::request::FrameInfoId::Reorder:
-                if (data.empty()) {
-                    if (cookie.getConnection().allowUnorderedExecution()) {
-                        // We should allow all commands to set the Reorder
-                        // flag, but just ignore it for the commands we don't
-                        // support yet
-                        return true;
-                    } else {
-                        status = Status::Einval;
-                        cookie.setErrorContext(
-                                "OoO is not enabled on the connection");
-                    }
-                } else {
+            case cb::mcbp::request::FrameInfoId::Barrier:
+                if (!data.empty()) {
+                    cookie.setErrorContext("Barrier should not contain value");
                     status = Status::Einval;
-                    cookie.setErrorContext("Reorder should not contain value");
+                    // terminate parsing
+                    return false;
                 }
-                return false;
+                return true;
             case cb::mcbp::request::FrameInfoId::DurabilityRequirement:
                 try {
                     cb::durability::Requirements req(data);

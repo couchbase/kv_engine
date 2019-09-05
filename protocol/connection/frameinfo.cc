@@ -20,16 +20,16 @@
 #include <mcbp/protocol/request.h>
 
 FrameInfo::~FrameInfo() = default;
-ReorderFrameInfo::~ReorderFrameInfo() = default;
+BarrierFrameInfo::~BarrierFrameInfo() = default;
 DurabilityFrameInfo::~DurabilityFrameInfo() = default;
 DcpStreamIdFrameInfo::~DcpStreamIdFrameInfo() = default;
 OpenTracingContextFrameInfo::~OpenTracingContextFrameInfo() = default;
 
 using cb::mcbp::request::FrameInfoId;
 
-std::vector<uint8_t> ReorderFrameInfo::encode() const {
+std::vector<uint8_t> BarrierFrameInfo::encode() const {
     std::vector<uint8_t> ret;
-    ret.push_back(uint8_t(FrameInfoId::Reorder) << 0x04U);
+    ret.push_back(uint8_t(FrameInfoId::Barrier) << 0x04U);
     return ret;
 }
 

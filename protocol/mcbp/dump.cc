@@ -222,7 +222,7 @@ protected:
                 std::stringstream ss;
                 ss << to_string(id);
                 switch (id) {
-                case cb::mcbp::request::FrameInfoId::Reorder:
+                case cb::mcbp::request::FrameInfoId::Barrier:
                     break;
                 case cb::mcbp::request::FrameInfoId::DurabilityRequirement:
                     ss << " Level=";

@@ -65,16 +65,16 @@ protected:
     cb::mcbp::RequestBuilder builder;
 };
 
-TEST_F(FrameExtrasValidatorTests, Reorder) {
-    auto fe = encodeFrameInfo(FrameInfoId::Reorder, {});
+TEST_F(FrameExtrasValidatorTests, Barrier) {
+    auto fe = encodeFrameInfo(FrameInfoId::Barrier, {});
     builder.setFramingExtras({fe.data(), fe.size()});
     EXPECT_EQ(Status::Success, validate(ClientOpcode::Set, blob));
 }
 
-TEST_F(FrameExtrasValidatorTests, ReorderInvalidSize) {
-    auto fe = encodeFrameInfo(FrameInfoId::Reorder, {blob, 1});
+TEST_F(FrameExtrasValidatorTests, BarrierInvalidSize) {
+    auto fe = encodeFrameInfo(FrameInfoId::Barrier, {blob, 1});
     builder.setFramingExtras({fe.data(), fe.size()});
-    EXPECT_EQ("Reorder should not contain value",
+    EXPECT_EQ("Barrier should not contain value",
               validate_error_context(ClientOpcode::Set, blob, Status::Einval));
 }
 

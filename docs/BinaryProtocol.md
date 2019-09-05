@@ -103,9 +103,12 @@ Each `FrameInfo` consists of:
    escape bytes).
 * N Bytes: *Object data*.
 
-##### ID:0 - reorder
+##### ID:0 - barrier
 
-Allow this command to be reordered. FrameInfo encoded as:
+No commands may be executed in parallel (received on the same connection) as
+this command (the command before MUST be completed before execution of
+this command is started, and this command MUST be completed before
+execution of the next command is started). FrameInfo encoded as:
 
     Byte/     0       |
        /              |
