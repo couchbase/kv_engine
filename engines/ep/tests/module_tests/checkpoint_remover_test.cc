@@ -592,3 +592,70 @@ TEST_F(CheckpointRemoverEPTest, expelsOnlyIfOldestCheckpointIsReferenced) {
 
     EXPECT_EQ(beforeCount - expellItemCount, afterCount);
 }
+
+TEST_F(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
+    // MB-35812 - Confirm that checkpoint expelling correctly selects the
+    // earliest cursor, and that the cursor is in the oldest reffed checkpoint.
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto vb = engine->getVBucket(vbid);
+    auto* cm = static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
+
+    {
+        // clear out the first checkpoint containing a set vbstate
+        cm->forceNewCheckpoint();
+        flush_vbucket_to_disk(vbid, 0);
+        bool newOpenCreated;
+        cm->removeClosedUnrefCheckpoints(*vb, newOpenCreated, 999);
+    }
+
+    // queue a single item into checkpoint
+    store_item(vbid, makeStoredDocKey("key_1"), "value");
+    // queue a set vbstate meta item into checkpoint
+    cm->queueSetVBState(*vb);
+
+    cm->forceNewCheckpoint();
+
+    // persist, moves the persistence cursor to the new checkpoint start
+    // to move it "out of the way" for this test
+    flush_vbucket_to_disk(vbid, 1);
+
+    /*
+     * Checkpoint manager structure
+     *                 seqno
+     *  - dummy          1   << cursors start here
+     *  - chptStart      1
+     *  - item key_1     1
+     *  - set_vb_state   2   << CursorB
+     *  - chkptEnd       1
+     *  -------
+     *  - dummy          2   ** cursors skip this dummy
+     *  - ckptStart      2   << CursorA
+     */
+
+    // Put a cursor in the second checkpoint
+    auto regResA = cm->registerCursorBySeqno("CursorA", 0);
+    auto cursorA = regResA.cursor.lock();
+    for (int i = 0; i < 5; i++) {
+        cm->incrCursor(*cursorA);
+    }
+
+    // Put a cursor on the *last* item of the first checkpoint
+    auto regResB = cm->registerCursorBySeqno("CursorB", 0);
+    auto cursorB = regResB.cursor.lock();
+    for (int i = 0; i < 3; i++) {
+        cm->incrCursor(*cursorB);
+    }
+
+    // Now, the items pointed to by each cursor both have the *same*
+    // by seqno, but the cursors are in different checkpoints
+
+    // Checkpoint expelling `Expects` that the earliest cursor
+    // will be in the earliest reffed checkpoint.
+    // This test is seen to fail prior to the fix for MB-35812
+    // as the cursors were sorted only by seqno and CursorA would
+    // be selected, despite not being in the oldest checkpoint.
+
+    EXPECT_NO_THROW(cm->expelUnreferencedCheckpointItems());
+}

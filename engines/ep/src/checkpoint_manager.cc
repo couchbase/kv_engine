@@ -495,14 +495,14 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
             return {};
         }
 
-        const auto compareBySeqno = [](const auto& a, const auto& b) {
-            return (*a.second->currentPos)->getBySeqno() <
-                   (*b.second->currentPos)->getBySeqno();
+        const auto compareBySeqnoAndCkpt = [](const auto& a, const auto& b) {
+            return a.second->getSeqnoAndCkptId() <
+                   b.second->getSeqnoAndCkptId();
         };
 
         // find the cursor with the lowest seqno
         auto earliestCursor = std::min_element(
-                connCursors.begin(), connCursors.end(), compareBySeqno);
+                connCursors.begin(), connCursors.end(), compareBySeqnoAndCkpt);
 
         std::shared_ptr<CheckpointCursor> lowestCheckpointCursor =
                 earliestCursor->second;
