@@ -739,7 +739,7 @@ TEST_P(StreamTest, BackfillOnly) {
 
     // Check that backfill stats have been updated correctly
     EXPECT_EQ(numItems, stream->getNumBackfillItems());
-    EXPECT_EQ(numItems, stream->getNumBackfillItemsRemaining());
+    EXPECT_EQ(numItems, *stream->getNumBackfillItemsRemaining());
 
     destroy_dcp_stream();
 }
@@ -1552,6 +1552,85 @@ TEST_P(SingleThreadedActiveStreamTest, DiskSnapshotSendsChkMarker) {
     EXPECT_FALSE(marker.getHighCompletedSeqno());
 
     producer->cancelCheckpointCreatorTask();
+}
+
+/// Test that disk backfill remaining isn't prematurely zero (before counts
+/// read from disk by backfill task).
+TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
+    auto vb = engine->getVBucket(vbid);
+    auto& ckptMgr = *vb->checkpointManager;
+
+    // Delete initial stream (so we can re-create after items are only available
+    // from disk.
+    stream.reset();
+
+    // Store 3 items (to check backfill remaining counts).
+    // Add items, flush it to disk, then clear checkpoint to force backfill.
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    store_item(vbid, makeStoredDocKey("key2"), "value");
+    store_item(vbid, makeStoredDocKey("key3"), "value");
+    ckptMgr.createNewCheckpoint();
+
+    flushVBucketToDiskIfPersistent(vbid, 3);
+
+    bool newCKptCreated;
+    ASSERT_EQ(3, ckptMgr.removeClosedUnrefCheckpoints(*vb, newCKptCreated));
+
+    // Re-create producer now we have items only on disk.
+    setupProducer();
+    ASSERT_TRUE(stream->isBackfilling());
+
+    // Should report empty itemsRemaining as that would mislead
+    // ns_server if they asked for stats before the backfill task runs (they
+    // would think backfill is complete).
+    EXPECT_FALSE(stream->getNumBackfillItemsRemaining());
+
+    bool statusFound = false;
+    auto checkStatusFn = [&statusFound](const char* key,
+                                        const uint16_t klen,
+                                        const char* val,
+                                        const uint32_t vlen,
+                                        gsl::not_null<const void*> cookie) {
+        if (std::string(key, klen) == "status") {
+            EXPECT_EQ(std::string(reinterpret_cast<const char*>(cookie.get())),
+                      std::string(val, vlen));
+            statusFound = true;
+        }
+    };
+
+    // Should report status == "calculating_item_count" before backfill
+    // scan has occurred.
+    stream->addTakeoverStats(checkStatusFn, "calculating-item-count", *vb);
+    EXPECT_TRUE(statusFound);
+
+    // Run the backfill we scheduled when we transitioned to the backfilling
+    // state. Run the backfill task once to get initial item counts.
+    auto& bfm = producer->getBFM();
+    bfm.backfill();
+    EXPECT_EQ(3, *stream->getNumBackfillItemsRemaining());
+    // Should report status == "backfilling"
+    statusFound = false;
+    stream->addTakeoverStats(checkStatusFn, "backfilling", *vb);
+    EXPECT_TRUE(statusFound);
+
+    // Run again to actually scan (items remaining unchanged).
+    bfm.backfill();
+    EXPECT_EQ(3, *stream->getNumBackfillItemsRemaining());
+    statusFound = false;
+    stream->addTakeoverStats(checkStatusFn, "backfilling", *vb);
+    EXPECT_TRUE(statusFound);
+
+    // Finally run again to complete backfill (so it is shutdown in a clean
+    // fashion).
+    bfm.backfill();
+
+    // Consume the items from backfill; should update items remaining.
+    // Actually need to consume 4 items (snapshot_marker + 3x mutation).
+    stream->consumeBackfillItems(4);
+    EXPECT_EQ(0, *stream->getNumBackfillItemsRemaining());
+    statusFound = false;
+    stream->addTakeoverStats(checkStatusFn, "in-memory", *vb);
+    EXPECT_TRUE(statusFound);
 }
 
 /*

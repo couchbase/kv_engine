@@ -150,11 +150,11 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
        remaining count */
     while (rangeItr.curr() != rangeItr.end()) {
         if (static_cast<uint64_t>((*rangeItr).getBySeqno()) >= startSeqno) {
-            /* Incr backfill remaining
+            /* Set backfill remaining
                [EPHE TODO]: This will be inaccurate if do not backfill till end
                             of the iterator
              */
-            stream->incrBackfillRemaining(rangeItr.count());
+            stream->setBackfillRemaining(rangeItr.count());
 
             /* Determine the endSeqno of the current snapshot.
                We want to send till requested endSeqno, but if that cannot
