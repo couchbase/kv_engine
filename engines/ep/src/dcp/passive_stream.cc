@@ -698,8 +698,10 @@ ENGINE_ERROR_CODE PassiveStream::processExpiration(
 ENGINE_ERROR_CODE PassiveStream::processPrepare(
         MutationConsumerMessage* prepare) {
     auto result = processMessage(prepare, MessageType::Prepare);
-    Expects(prepare->getItem()->getBySeqno() ==
-            engine->getVBucket(vb_)->getHighSeqno());
+    if (result == ENGINE_SUCCESS) {
+        Expects(prepare->getItem()->getBySeqno() ==
+                engine->getVBucket(vb_)->getHighSeqno());
+    }
     return result;
 }
 
