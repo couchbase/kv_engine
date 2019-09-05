@@ -22,6 +22,7 @@
 #include "dcp/response.h"
 #include "ep_engine.h"
 #include "locks.h"
+#include "statwriter.h"
 #include "vbucket.h"
 
 const std::string notifierStreamLoggingPrefix =
@@ -78,6 +79,10 @@ uint32_t NotifierStream::setDead(end_stream_status_t status) {
     return 0;
 }
 
+bool NotifierStream::isActive() const {
+    return state_ != StreamState::Dead;
+}
+
 void NotifierStream::notifySeqnoAvailable(uint64_t seqno) {
     std::unique_lock<std::mutex> lh(streamMutex);
     if (isActive() && start_seqno_ < seqno) {
@@ -123,12 +128,6 @@ void NotifierStream::transitionState(StreamState newState) {
             validTransition = true;
         }
         break;
-    case StreamState::Backfilling:
-    case StreamState::InMemory:
-    case StreamState::TakeoverSend:
-    case StreamState::TakeoverWait:
-    case StreamState::Reading:
-    case StreamState::AwaitingFirstSnapshotMarker:
     case StreamState::Dead:
         // No other state transitions are valid for a notifier stream.
         break;
@@ -146,6 +145,10 @@ void NotifierStream::transitionState(StreamState newState) {
 
 std::string NotifierStream::getStreamTypeName() const {
     return "Notifier";
+}
+
+std::string NotifierStream::getStateName() const {
+    return to_string(state_);
 }
 
 void NotifierStream::addStats(const AddStatFn& add_stat, const void* c) {
@@ -179,4 +182,15 @@ void NotifierStream::log(spdlog::level::level_enum severity,
                     args...);
         }
     }
+}
+
+std::string NotifierStream::to_string(StreamState st) {
+    switch (st) {
+    case StreamState::Pending:
+        return "pending";
+    case StreamState::Dead:
+        return "dead";
+    }
+    throw std::invalid_argument("NotifierStream::to_string(StreamState): " +
+                                std::to_string(int(st)));
 }

@@ -24,6 +24,9 @@ class BucketLogger;
 
 class NotifierStream : public Stream {
 public:
+    /// The states this NotifierStream object can be in.
+    enum class StreamState { Pending, Dead };
+
     NotifierStream(EventuallyPersistentEngine* e,
                    std::shared_ptr<DcpProducer> producer,
                    const std::string& name,
@@ -40,11 +43,18 @@ public:
 
     uint32_t setDead(end_stream_status_t status) override;
 
+    /// @returns true if state_ is not Dead
+    bool isActive() const override;
+
     void notifySeqnoAvailable(uint64_t seqno) override;
 
     std::string getStreamTypeName() const override;
 
+    std::string getStateName() const override;
+
     void addStats(const AddStatFn& add_stat, const void* c) override;
+
+    static std::string to_string(StreamState type);
 
 private:
     void transitionState(StreamState newState);
@@ -59,6 +69,8 @@ private:
      * pick up.
      */
     void notifyStreamReady();
+
+    std::atomic<StreamState> state_{StreamState::Pending};
 
     const std::weak_ptr<DcpProducer> producerPtr;
 };

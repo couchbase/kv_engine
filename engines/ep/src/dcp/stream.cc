@@ -57,7 +57,6 @@ Stream::Stream(const std::string& name,
       vb_uuid_(vb_uuid),
       snap_start_seqno_(snap_start_seqno),
       snap_end_seqno_(snap_end_seqno),
-      state_(StreamState::Pending),
       itemsReady(false),
       readyQ_non_meta_items(0),
       readyQueueMemory(0) {
@@ -67,53 +66,6 @@ Stream::~Stream() {
     // NB: reusing the "unlocked" method without a lock because we're
     // destructing and should not take any locks.
     clear_UNLOCKED();
-}
-
-const std::string Stream::to_string(Stream::StreamState st) {
-    switch(st) {
-    case StreamState::Pending:
-        return "pending";
-    case StreamState::Backfilling:
-        return "backfilling";
-    case StreamState::InMemory:
-        return "in-memory";
-    case StreamState::TakeoverSend:
-        return "takeover-send";
-    case StreamState::TakeoverWait:
-        return "takeover-wait";
-    case StreamState::Reading:
-        return "reading";
-    case StreamState::AwaitingFirstSnapshotMarker:
-        return "awaiting-first-snapshot-marker";
-    case StreamState::Dead:
-        return "dead";
-    }
-    throw std::invalid_argument(
-        "Stream::to_string(StreamState): " + std::to_string(int(st)));
-}
-
-bool Stream::isActive() const {
-    return state_.load() != StreamState::Dead;
-}
-
-bool Stream::isBackfilling() const {
-    return state_.load() == StreamState::Backfilling;
-}
-
-bool Stream::isInMemory() const {
-    return state_.load() == StreamState::InMemory;
-}
-
-bool Stream::isPending() const {
-    return state_.load() == StreamState::Pending;
-}
-
-bool Stream::isTakeoverSend() const {
-    return state_.load() == StreamState::TakeoverSend;
-}
-
-bool Stream::isTakeoverWait() const {
-    return state_.load() == StreamState::TakeoverWait;
 }
 
 void Stream::clear_UNLOCKED() {
@@ -209,9 +161,10 @@ void Stream::addStats(const AddStatFn& add_stat, const void* c) {
                          name_.c_str(),
                          vb_.get());
         add_casted_stat(buffer, snap_end_seqno_, add_stat, c);
+
         checked_snprintf(
                 buffer, bsize, "%s:stream_%d_state", name_.c_str(), vb_.get());
-        add_casted_stat(buffer, to_string(state_.load()), add_stat, c);
+        add_casted_stat(buffer, getStateName(), add_stat, c);
 
         checked_snprintf(buffer,
                          bsize,

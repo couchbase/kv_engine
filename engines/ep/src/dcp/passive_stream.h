@@ -39,6 +39,14 @@ class SystemEventMessage;
 
 class PassiveStream : public Stream {
 public:
+    /// The states this PassiveStream object can be in.
+    enum class StreamState {
+        Pending,
+        AwaitingFirstSnapshotMarker,
+        Reading,
+        Dead
+    };
+
     PassiveStream(EventuallyPersistentEngine* e,
                   std::shared_ptr<DcpConsumer> consumer,
                   const std::string& name,
@@ -63,6 +71,14 @@ public:
     uint32_t setDead(end_stream_status_t status) override;
 
     std::string getStreamTypeName() const override;
+
+    std::string getStateName() const override;
+
+    /// @returns true if state_ is not Dead
+    bool isActive() const override;
+
+    /// @Returns true if state_ is Pending
+    bool isPending() const;
 
     /**
      * Place a StreamRequest message into the readyQueue, requesting a DCP
@@ -95,6 +111,8 @@ public:
      * @param seqno The payload
      */
     void seqnoAck(int64_t seqno);
+
+    static std::string to_string(StreamState st);
 
     static const size_t batchSize;
 
@@ -223,6 +241,10 @@ protected:
     void notifyStreamReady();
 
     const std::string createStreamReqValue() const;
+
+    // The current state the stream is in.
+    // Atomic to allow reads without having to acquire the streamMutex.
+    std::atomic<StreamState> state_{StreamState::Pending};
 
     EventuallyPersistentEngine* const engine;
     const std::weak_ptr<DcpConsumer> consumerPtr;

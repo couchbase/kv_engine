@@ -76,6 +76,17 @@ class VBucket;
 class ActiveStream : public Stream,
                      public std::enable_shared_from_this<ActiveStream> {
 public:
+    /// The states this ActiveStream object can be in - see diagram in
+    /// ActiveStream description.
+    enum class StreamState {
+        Pending,
+        Backfilling,
+        InMemory,
+        TakeoverSend,
+        TakeoverWait,
+        Dead
+    };
+
     ActiveStream(EventuallyPersistentEngine* e,
                  std::shared_ptr<DcpProducer> p,
                  const std::string& name,
@@ -103,7 +114,29 @@ public:
         }
     }
 
+    /// @returns true if state_ is not Dead
+    bool isActive() const override;
+
+    /// @Returns true if state_ is Backfilling
+    bool isBackfilling() const;
+
+    /// @Returns true if state_ is InMemory
+    bool isInMemory() const;
+
+    /// @Returns true if state_ is Pending
+    bool isPending() const;
+
+    /// @Returns true if state_ is TakeoverSend
+    bool isTakeoverSend() const;
+
+    /// @Returns true if state_ is TakeoverWait
+    bool isTakeoverWait() const;
+
     uint32_t setDead(end_stream_status_t status) override;
+
+    StreamState getState() const {
+        return state_;
+    }
 
     void notifySeqnoAvailable(uint64_t seqno) override;
 
@@ -186,6 +219,8 @@ public:
 
     std::string getStreamTypeName() const override;
 
+    std::string getStateName() const override;
+
     bool compareStreamId(cb::mcbp::DcpStreamId id) const override {
         return id == sid;
     }
@@ -210,6 +245,8 @@ public:
      */
     ENGINE_ERROR_CODE seqnoAck(const std::string& consumerName,
                                uint64_t preparedSeqno);
+
+    static std::string to_string(StreamState type);
 
 protected:
     /**
@@ -288,6 +325,10 @@ protected:
     bool supportSyncWrites() const {
         return syncReplication != SyncReplication::No;
     }
+
+    // The current state the stream is in.
+    // Atomic to allow reads without having to acquire the streamMutex.
+    std::atomic<StreamState> state_{StreamState::Pending};
 
     /* Indicates that a backfill has been scheduled and has not yet completed.
      * Is protected (as opposed to private) for testing purposes.

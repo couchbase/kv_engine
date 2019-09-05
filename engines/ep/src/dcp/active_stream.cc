@@ -167,19 +167,6 @@ std::unique_ptr<DcpResponse> ActiveStream::next(
     case StreamState::TakeoverWait:
         response = takeoverWaitPhase();
         break;
-    case StreamState::AwaitingFirstSnapshotMarker:
-    case StreamState::Reading:
-        // Not valid for an active stream.
-        {
-            auto producer = producerPtr.lock();
-            std::string connHeader =
-                    producer ? producer->logHeader()
-                             : "DCP (Producer): **Deleted conn**";
-            throw std::logic_error("ActiveStream::next: Invalid state " +
-                                   to_string(state_.load()) + " for stream " +
-                                   connHeader + " " + logPrefix);
-        }
-        break;
     case StreamState::Dead:
         response = deadPhase();
         break;
@@ -187,6 +174,30 @@ std::unique_ptr<DcpResponse> ActiveStream::next(
 
     itemsReady.store(response ? true : false);
     return response;
+}
+
+bool ActiveStream::isActive() const {
+    return state_.load() != StreamState::Dead;
+}
+
+bool ActiveStream::isBackfilling() const {
+    return state_.load() == StreamState::Backfilling;
+}
+
+bool ActiveStream::isInMemory() const {
+    return state_.load() == StreamState::InMemory;
+}
+
+bool ActiveStream::isPending() const {
+    return state_.load() == StreamState::Pending;
+}
+
+bool ActiveStream::isTakeoverSend() const {
+    return state_.load() == StreamState::TakeoverSend;
+}
+
+bool ActiveStream::isTakeoverWait() const {
+    return state_.load() == StreamState::TakeoverWait;
 }
 
 void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
@@ -1535,9 +1546,7 @@ bool ActiveStream::handleSlowStream() {
     case StreamState::Dead:
         /* To be handled later if needed */
         return false;
-    case StreamState::Pending:
-    case StreamState::AwaitingFirstSnapshotMarker:
-    case StreamState::Reading: {
+    case StreamState::Pending: {
         auto producer = producerPtr.lock();
         std::string connHeader = producer ? producer->logHeader()
                                           : "DCP (Producer): **Deleted conn**";
@@ -1555,6 +1564,10 @@ bool ActiveStream::handleSlowStream() {
 
 std::string ActiveStream::getStreamTypeName() const {
     return "Active";
+}
+
+std::string ActiveStream::getStateName() const {
+    return to_string(state_);
 }
 
 std::string ActiveStream::getEndStreamStatusStr(end_stream_status_t status) {
@@ -1627,11 +1640,6 @@ void ActiveStream::transitionState(StreamState newState) {
             validTransition = true;
         }
         break;
-    case StreamState::AwaitingFirstSnapshotMarker:
-    case StreamState::Reading:
-        // Active stream should never be in this state.
-        validTransition = false;
-        break;
     case StreamState::Dead:
         // Once DEAD, no other transitions should occur.
         validTransition = false;
@@ -1694,12 +1702,6 @@ void ActiveStream::transitionState(StreamState newState) {
     case StreamState::TakeoverWait:
     case StreamState::Pending:
         break;
-    case StreamState::AwaitingFirstSnapshotMarker:
-    case StreamState::Reading:
-        throw std::logic_error(
-                "ActiveStream::transitionState:"
-                " newState can't be " +
-                to_string(newState) + "! " + logPrefix);
     }
 }
 
@@ -1824,4 +1826,23 @@ ENGINE_ERROR_CODE ActiveStream::seqnoAck(const std::string& consumerName,
                     vbStateLh, consumerName, preparedSeqno);
         } // end stream mutex lock scope
     } // end vb state lock scope
+}
+
+std::string ActiveStream::to_string(StreamState st) {
+    switch (st) {
+    case StreamState::Pending:
+        return "pending";
+    case StreamState::Backfilling:
+        return "backfilling";
+    case StreamState::InMemory:
+        return "in-memory";
+    case StreamState::TakeoverSend:
+        return "takeover-send";
+    case StreamState::TakeoverWait:
+        return "takeover-wait";
+    case StreamState::Dead:
+        return "dead";
+    }
+    throw std::invalid_argument("ActiveStream::to_string(StreamState): " +
+                                std::to_string(int(st)));
 }

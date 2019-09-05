@@ -2728,7 +2728,7 @@ TEST_F(MB_29287, DISABLED_dataloss_end) {
     auto stream = producer->findStream(vbid);
     auto* as = static_cast<ActiveStream*>(stream.get());
 
-    EXPECT_TRUE(stream->isTakeoverSend());
+    EXPECT_TRUE(as->isTakeoverSend());
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
     producers->last_op = cb::mcbp::ClientOpcode::Invalid;
@@ -2776,7 +2776,7 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
 
     store_item(vbid, makeStoredDocKey("6"), "value6");
 
-    EXPECT_TRUE(stream->isTakeoverSend());
+    EXPECT_TRUE(as->isTakeoverSend());
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
     producers->last_op = cb::mcbp::ClientOpcode::Invalid;
@@ -2806,7 +2806,7 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
     as->snapshotMarkerAckReceived();
 
     // Now send
-    EXPECT_TRUE(stream->isTakeoverSend());
+    EXPECT_TRUE(as->isTakeoverSend());
 
     // set-vb-state now underway
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
@@ -3066,7 +3066,8 @@ TEST_F(SingleThreadedEPBucketTest, MB_29480) {
     auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
 
-    EXPECT_TRUE(vb0Stream->isBackfilling());
+    auto* as0 = static_cast<ActiveStream*>(vb0Stream.get());
+    EXPECT_TRUE(as0->isBackfilling());
 
     // 7) Backfill now starts up, but should quickly cancel
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
@@ -3150,7 +3151,8 @@ TEST_F(SingleThreadedEPBucketTest, MB_29512) {
     auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
 
-    EXPECT_TRUE(vb0Stream->isBackfilling());
+    auto* as0 = static_cast<ActiveStream*>(vb0Stream.get());
+    EXPECT_TRUE(as0->isBackfilling());
 
     // 6) Backfill now starts up, but should quickly cancel
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
@@ -3245,7 +3247,8 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers.last_op);
 
-    EXPECT_TRUE(vb0Stream->isTakeoverWait());
+    auto* as0 = static_cast<ActiveStream*>(vb0Stream.get());
+    EXPECT_TRUE(as0->isTakeoverWait());
 
     // For completeness step to end
     // we must ack the VB state

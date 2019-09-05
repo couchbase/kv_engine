@@ -1097,7 +1097,8 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
 
     /* Check that the new stream is opened properly */
     auto stream = producer->findStream(vbid);
-    EXPECT_TRUE(stream->isInMemory());
+    auto* as = static_cast<ActiveStream*>(stream.get());
+    EXPECT_TRUE(as->isInMemory());
 
     // MB-27769: Prior to the fix, this would fail here because we would skip
     // adding the connhandler into the connmap vbConns vector, causing the

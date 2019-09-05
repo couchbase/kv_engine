@@ -158,6 +158,18 @@ std::string PassiveStream::getStreamTypeName() const {
     return "Passive";
 }
 
+std::string PassiveStream::getStateName() const {
+    return to_string(state_);
+}
+
+bool PassiveStream::isActive() const {
+    return state_ != StreamState::Dead;
+}
+
+bool PassiveStream::isPending() const {
+    return state_ == StreamState::Pending;
+}
+
 void PassiveStream::acceptStream(cb::mcbp::Status status, uint32_t add_opaque) {
     VBucketPtr vb = engine->getVBucket(vb_);
     if (!vb) {
@@ -732,6 +744,21 @@ void PassiveStream::seqnoAck(int64_t seqno) {
     notifyStreamReady();
 }
 
+std::string PassiveStream::to_string(StreamState st) {
+    switch (st) {
+    case StreamState::Pending:
+        return "pending";
+    case StreamState::Reading:
+        return "reading";
+    case StreamState::AwaitingFirstSnapshotMarker:
+        return "awaiting-first-snapshot-marker";
+    case StreamState::Dead:
+        return "dead";
+    }
+    throw std::invalid_argument("PassiveStream::to_string(StreamState): " +
+                                std::to_string(int(st)));
+}
+
 ENGINE_ERROR_CODE PassiveStream::processCommit(const CommitSyncWrite& commit) {
     VBucketPtr vb = engine->getVBucket(vb_);
 
@@ -893,7 +920,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                     ? Snapshot::Disk
                                     : Snapshot::Memory);
 
-    if (getState() == StreamState::AwaitingFirstSnapshotMarker) {
+    if (state_ == StreamState::AwaitingFirstSnapshotMarker) {
         // A replica could receive multiple DCP Abort/Commit/Prepare due to
         // de-duplication for a small window at stream reconnection. Set the
         // window in the vBucket object so that we can selectively allow these
@@ -1119,12 +1146,6 @@ bool PassiveStream::transitionState(StreamState newState) {
         if (newState == StreamState::Reading || newState == StreamState::Dead) {
             validTransition = true;
         }
-        break;
-    case StreamState::Backfilling:
-    case StreamState::InMemory:
-    case StreamState::TakeoverSend:
-    case StreamState::TakeoverWait:
-        // Not valid for passive streams
         break;
 
     case StreamState::Reading:

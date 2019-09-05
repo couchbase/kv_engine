@@ -102,26 +102,14 @@ public:
     /// @returns the name of this stream type - "Active", "Passive", "Notifier"
     virtual std::string getStreamTypeName() const = 0;
 
-    /// @returns true if the stream type is Active
-    bool isTypeActive() const;
+    /**
+     * @returns the name of the state the stream is in - "active",
+     * "backfilling" etc.
+     */
+    virtual std::string getStateName() const = 0;
 
-    /// @returns true if state_ is not Dead
-    bool isActive() const;
-
-    /// @Returns true if state_ is Backfilling
-    bool isBackfilling() const;
-
-    /// @Returns true if state_ is InMemory
-    bool isInMemory() const;
-
-    /// @Returns true if state_ is Pending
-    bool isPending() const;
-
-    /// @Returns true if state_ is TakeoverSend
-    bool isTakeoverSend() const;
-
-    /// @Returns true if state_ is TakeoverWait
-    bool isTakeoverWait() const;
+    /// @returns true if state_ is not in the Dead state.
+    virtual bool isActive() const = 0;
 
     void clear();
 
@@ -130,22 +118,6 @@ public:
     }
 
 protected:
-    // The StreamState is protected as it needs to be accessed by sub-classes
-    enum class StreamState {
-        Pending,
-        AwaitingFirstSnapshotMarker,
-        Backfilling,
-        InMemory,
-        TakeoverSend,
-        TakeoverWait,
-        Reading,
-        Dead
-    };
-
-    static const std::string to_string(Stream::StreamState type);
-
-    StreamState getState() const { return state_; }
-
     void clear_UNLOCKED();
 
     /* To be called after getting streamMutex lock */
@@ -165,7 +137,6 @@ protected:
     uint64_t vb_uuid_;
     uint64_t snap_start_seqno_;
     uint64_t snap_end_seqno_;
-    std::atomic<StreamState> state_;
 
     std::atomic<bool> itemsReady;
     std::mutex streamMutex;
