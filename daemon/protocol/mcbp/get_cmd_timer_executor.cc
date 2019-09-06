@@ -93,7 +93,7 @@ static std::pair<ENGINE_ERROR_CODE, Hdr1sfMicroSecHistogram> maybe_get_timings(
         uint8_t opcode,
         const std::string& bucketname) {
     std::lock_guard<std::mutex> guard(bucket.mutex);
-    if (bucket.type != Bucket::Type::NoBucket &&
+    if (bucket.type != BucketType::NoBucket &&
         bucket.state == Bucket::State::Ready && bucketname == bucket.name) {
         return get_timings(cookie, bucket, opcode);
     } else {

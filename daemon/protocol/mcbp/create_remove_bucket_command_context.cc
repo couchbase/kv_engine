@@ -29,7 +29,7 @@ class McbpCreateBucketTask : public Task {
 public:
     McbpCreateBucketTask(const std::string& name_,
                          const std::string& config_,
-                         const Bucket::Type& type_,
+                         const BucketType& type_,
                          Cookie& cookie_)
         : thread(name_, config_, type_, cookie_.getConnection(), this),
           cookie(cookie_) {

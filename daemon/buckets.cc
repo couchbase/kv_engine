@@ -44,7 +44,7 @@ void Bucket::reset() {
     for (auto& h : engine_event_handlers) {
         h.clear();
     }
-    type = Type::Unknown;
+    type = BucketType::Unknown;
 }
 
 bool Bucket::supports(cb::engine::Feature feature) {
@@ -100,8 +100,8 @@ namespace BucketValidator {
         return true;
     }
 
-    bool validateBucketType(const Bucket::Type& type, std::string& errors) {
-        if (type == Bucket::Type::Unknown) {
+    bool validateBucketType(const BucketType& type, std::string& errors) {
+        if (type == BucketType::Unknown) {
             errors.assign("BucketValidator::validateBucketType: "
                               "Unsupported bucket type");
             return false;
@@ -111,21 +111,6 @@ namespace BucketValidator {
     }
 }
 
-std::string to_string(Bucket::Type type) {
-    switch (type) {
-    case Bucket::Type::Memcached:
-        return "Memcached";
-    case Bucket::Type::Couchstore:
-        return "Couchstore";
-    case Bucket::Type::EWouldBlock:
-        return "EWouldBlock";
-    case Bucket::Type::NoBucket:
-        return "No Bucket";
-    case Bucket::Type::Unknown:
-        return "Uknown";
-    }
-    throw std::logic_error("Invalid bucket type: " + std::to_string(int(type)));
-}
 
 std::string to_string(Bucket::State state) {
     switch (state) {

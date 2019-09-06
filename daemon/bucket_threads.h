@@ -44,7 +44,7 @@ public:
      */
     CreateBucketThread(const std::string& name_,
                        const std::string& config_,
-                       const Bucket::Type type_,
+                       const BucketType type_,
                        Connection& connection_,
                        Task* task_)
         : Couchbase::Thread("mc:bucket_add"),
@@ -84,7 +84,7 @@ private:
 
     std::string name;
     std::string config;
-    Bucket::Type type;
+    BucketType type;
     Connection& connection;
     Task* task;
     ENGINE_ERROR_CODE result;

@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include "bucket_type.h"
 #include "cluster_config.h"
 #include "mcbp_validators.h"
 #include "timings.h"
@@ -64,14 +65,6 @@ public:
         Destroying
     };
 
-    enum class Type : uint8_t {
-        Unknown,
-        NoBucket,
-        Memcached,
-        Couchstore,
-        EWouldBlock
-    };
-
     Bucket();
 
     /// The bucket contains pointers to other objects and we don't want to
@@ -113,7 +106,7 @@ public:
     /**
      * The type of bucket
      */
-    Bucket::Type type{Bucket::Type::Unknown};
+    BucketType type{BucketType::Unknown};
 
     /**
      * The name of the bucket (and space for the '\0')
@@ -195,8 +188,6 @@ protected:
 
 std::string to_string(Bucket::State state);
 
-std::string to_string(Bucket::Type type);
-
 /**
  * All of the buckets are stored in the following array. Index 0 is reserved
  * for the "no bucket" where all connections start off (unless there is a
@@ -263,6 +254,6 @@ namespace BucketValidator {
      * @param errors where to store a textual description of the problems
      * @return true if the bucket type is valid and supported, false otherwise
      */
-    bool validateBucketType(const Bucket::Type& type, std::string& errors);
+    bool validateBucketType(const BucketType& type, std::string& errors);
 }
 

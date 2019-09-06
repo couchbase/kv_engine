@@ -1331,7 +1331,7 @@ struct ServerBucketApi : public ServerBucketIface {
             const std::string& name,
             SERVER_HANDLE_V1* (*get_server_api)()) const override {
         auto type = module_to_bucket_type(module.c_str());
-        if (type == Bucket::Type::Unknown) {
+        if (type == BucketType::Unknown) {
             return {};
         }
 
@@ -2041,11 +2041,11 @@ void initialize_buckets() {
     // in the array is "no bucket"
     auto &nobucket = all_buckets.at(0);
     nobucket.setEngine(new_engine_instance(
-            Bucket::Type::NoBucket, "<internal>", get_server_api));
+            BucketType::NoBucket, "<internal>", get_server_api));
     cb_assert(nobucket.getEngine());
     nobucket.max_document_size = nobucket.getEngine()->getMaxItemSize();
     nobucket.supportedFeatures = nobucket.getEngine()->getFeatures();
-    nobucket.type = Bucket::Type::NoBucket;
+    nobucket.type = BucketType::NoBucket;
     nobucket.state = Bucket::State::Ready;
 }
 
