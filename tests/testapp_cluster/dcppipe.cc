@@ -46,7 +46,7 @@ DcpPipe::DcpPipe(event_base* base,
     evutil_make_socket_nonblocking(psd);
     evutil_make_socket_nonblocking(csd);
 
-    producer.reset(bufferevent_socket_new(base, psd, 0));
+    producer.reset(bufferevent_socket_new(base, psd, BEV_OPT_CLOSE_ON_FREE));
 
     bufferevent_setcb(producer.get(),
                       DcpPipe::read_callback,
@@ -54,14 +54,15 @@ DcpPipe::DcpPipe(event_base* base,
                       DcpPipe::event_callback,
                       static_cast<void*>(this));
 
-    consumer.reset(bufferevent_socket_new(base, csd, 0));
+    consumer.reset(bufferevent_socket_new(base, csd, BEV_OPT_CLOSE_ON_FREE));
     bufferevent_setcb(consumer.get(),
                       DcpPipe::read_callback,
                       nullptr,
                       DcpPipe::event_callback,
                       static_cast<void*>(this));
 
-    notification.reset(bufferevent_socket_new(base, notification_pipe[1], 0));
+    notification.reset(bufferevent_socket_new(
+            base, notification_pipe[1], BEV_OPT_CLOSE_ON_FREE));
     bufferevent_setcb(consumer.get(),
                       DcpPipe::read_callback,
                       nullptr,
@@ -194,11 +195,8 @@ void DcpPipe::close() {
 }
 
 DcpPipe::~DcpPipe() {
-    cb::net::closesocket(psd);
-    cb::net::closesocket(csd);
-    for (auto& sock : notification_pipe) {
-        cb::net::closesocket(sock);
-    }
+    // The bufferevent_free close the socket bound to the bufferevent
+    cb::net::closesocket(notification_pipe[0]);
 }
 
 void DcpPipe::EventDeleter::operator()(bufferevent* ev) {
