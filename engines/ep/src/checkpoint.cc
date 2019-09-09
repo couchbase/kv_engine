@@ -151,6 +151,14 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                 {qi->getKey(),
                  qi->isCommitted() ? CheckpointIndexKeyNamespace::Committed
                                    : CheckpointIndexKeyNamespace::Prepared});
+
+        // Before de-duplication could discard a delete, store the largest
+        // "rev-seqno" encountered
+        if (qi->isDeleted() &&
+            qi->getRevSeqno() > maxDeletedRevSeqno.value_or(0)) {
+            maxDeletedRevSeqno = qi->getRevSeqno();
+        }
+
         // Check if this checkpoint already has an item for the same key
         // and the item has not been expelled.
         if (it != keyIndex.end() &&

@@ -820,7 +820,8 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     // Fetch whole checkpoints; as long as we don't exceed the approx item
     // limit.
     ItemsForCursor result((*cursor.currentCheckpoint)->getCheckpointType(),
-                          (*cursor.currentCheckpoint)->getHighCompletedSeqno());
+                          (*cursor.currentCheckpoint)->getHighCompletedSeqno(),
+                          (*cursor.currentCheckpoint)->getMaxDeletedRevSeqno());
 
     size_t itemCount = 0;
     bool enteredNewCp = true;
@@ -839,6 +840,16 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
                     {(*cursor.currentCheckpoint)->getSnapshotStartSeqno(),
                      (*cursor.currentCheckpoint)->getSnapshotEndSeqno()});
             enteredNewCp = false;
+
+            // As we cross into new checkpoints, update the maxDeletedRevSeqno
+            // iff the new checkpoint has one recorded, and it's larger than the
+            // previous value.
+            if ((*cursor.currentCheckpoint)
+                        ->getMaxDeletedRevSeqno()
+                        .value_or(0) > result.maxDeletedRevSeqno.value_or(0)) {
+                result.maxDeletedRevSeqno =
+                        (*cursor.currentCheckpoint)->getMaxDeletedRevSeqno();
+            }
         }
 
         queued_item& qi = *(cursor.currentPos);

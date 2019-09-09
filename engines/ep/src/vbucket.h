@@ -493,6 +493,7 @@ public:
         std::vector<snapshot_range_t> ranges;
         bool moreAvailable = false;
         boost::optional<uint64_t> highCompletedSeqno = {};
+        boost::optional<uint64_t> maxDeletedRevSeqno = {};
     };
 
     /**

@@ -601,6 +601,11 @@ public:
         return checkpointType;
     }
 
+    /// @return the maximum 'deleted' rev-seq for this checkpoint (can be none)
+    boost::optional<uint64_t> getMaxDeletedRevSeqno() const {
+        return maxDeletedRevSeqno;
+    }
+
 private:
     /**
      * When checking if the existing item has already been processed by the
@@ -655,6 +660,12 @@ private:
     // items from the CheckpointManager for memory snapshots makes it
     // non-trivial to send the HCS in memory snapshot markers.
     boost::optional<uint64_t> highCompletedSeqno;
+
+    // queueDirty inspects each queued_item looking for isDeleted():true
+    // this value tracks the largest rev seqno of those deleted items,
+    // and allows the flusher to get the max value irrespective of
+    // de-duplication.
+    boost::optional<uint64_t> maxDeletedRevSeqno;
 
     friend std::ostream& operator <<(std::ostream& os, const Checkpoint& m);
 };

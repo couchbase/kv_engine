@@ -427,6 +427,10 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             // prepare is found in the flush-batch
             boost::optional<uint64_t> hps;
 
+            if (toFlush.maxDeletedRevSeqno) {
+                vbstate.maxDeletedSeqno = toFlush.maxDeletedRevSeqno.get();
+            }
+
             // Iterate through items, checking if we (a) can skip persisting,
             // (b) can de-duplicate as the previous key was the same, or (c)
             // actually need to persist.
@@ -495,11 +499,6 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                     // Track the lowest seqno, so we can set the HLC epoch
                     minSeqno = std::min(minSeqno, (uint64_t)item->getBySeqno());
                     vbstate.maxCas = std::max(vbstate.maxCas, item->getCas());
-                    if (item->isDeleted()) {
-                        vbstate.maxDeletedSeqno =
-                                std::max(uint64_t(vbstate.maxDeletedSeqno),
-                                         item->getRevSeqno());
-                    }
                     ++stats.flusher_todo;
 
                     if (!range.is_initialized()) {

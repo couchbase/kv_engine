@@ -60,9 +60,11 @@ public:
         ItemsForCursor() {
         }
         ItemsForCursor(CheckpointType checkpointType,
-                       boost::optional<uint64_t> highCompletedSeqno)
+                       boost::optional<uint64_t> highCompletedSeqno,
+                       boost::optional<uint64_t> maxDeletedRevSeqno)
             : checkpointType(checkpointType),
-              highCompletedSeqno(highCompletedSeqno) {
+              highCompletedSeqno(highCompletedSeqno),
+              maxDeletedRevSeqno(maxDeletedRevSeqno) {
         }
         std::vector<snapshot_range_t> ranges;
         bool moreAvailable = {false};
@@ -71,6 +73,7 @@ public:
         // HCS that should be flushed. Currently should only be set for Disk
         // Checkpoint runs.
         boost::optional<uint64_t> highCompletedSeqno = {};
+        boost::optional<uint64_t> maxDeletedRevSeqno = {};
     };
 
     /// Return type of expelUnreferencedCheckpointItems()

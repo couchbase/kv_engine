@@ -32,7 +32,10 @@
 #include "vbucket_state.h"
 #include "warmup.h"
 
-class WarmupTest : public SingleThreadedKVBucketTest {};
+class WarmupTest : public SingleThreadedKVBucketTest {
+public:
+    void MB_31450(bool newCheckpoint);
+};
 
 // Test that the FreqSaturatedCallback of a vbucket is initialized and after
 // warmup is set to the "wakeup" function of ItemFreqDecayerTask.
@@ -544,6 +547,68 @@ TEST_F(WarmupTest, SetVBState) {
     resetEngineAndWarmup();
 
     EXPECT_EQ(vbucket_state_replica, store->getVBucket(vbid)->getState());
+}
+
+// Test uses a sequence of operations that will mean delete is de-duplicated
+// resulting in the flusher missing the update to the on-disk max-deleted
+// revision.
+void WarmupTest::MB_31450(bool newCheckpoint) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    store_item(vbid, makeStoredDocKey("key1"), "value"); // rev:=1
+    store_item(vbid, makeStoredDocKey("key1"), "value"); // rev:=2
+    delete_item(vbid, makeStoredDocKey("key1")); // delrev:= rev + 1
+    if (newCheckpoint) {
+        engine->getVBucket(vbid)->checkpointManager->createNewCheckpoint();
+    }
+    store_item(vbid, makeStoredDocKey("key1"), "value"); // de-dup the delete
+
+    // Now flush, without the fix delrev on disk is 0.
+    flush_vbucket_to_disk(vbid);
+
+    // Now ADD an item, it is given an initial rev of delrev + 1 (4)
+    // Then do a setWithMeta with a lower rev and expect conflict resolution to
+    // fail the operation
+    store_item(vbid, makeStoredDocKey("key2"), "value");
+    auto item1 = make_item(vbid, makeStoredDocKey("key2"), "fail-me");
+    item1.setCas(1);
+    item1.setRevSeqno(3);
+    uint64_t seqno;
+    EXPECT_EQ(ENGINE_KEY_EEXISTS,
+              store->setWithMeta(std::ref(item1),
+                                 0,
+                                 &seqno,
+                                 cookie,
+                                 {vbucket_state_active},
+                                 CheckConflicts::Yes,
+                                 /*allowExisting*/ true));
+
+    // Now warmup, the ADD of key2 is lost, we will redo it post warmup
+    resetEngineAndWarmup();
+
+    store_item(vbid, makeStoredDocKey("key2"), "value");
+    auto item2 = make_item(vbid, makeStoredDocKey("key2"), "fail-me");
+    item2.setCas(1);
+    item2.setRevSeqno(3);
+
+    // This expects would fail without the fix, the ADD of key2 previously
+    // resulted in a rev of 1 (delrev + 1) and the setWithMeta would succeed.
+    EXPECT_EQ(ENGINE_KEY_EEXISTS,
+              store->setWithMeta(std::ref(item2),
+                                 0,
+                                 &seqno,
+                                 cookie,
+                                 {vbucket_state_active},
+                                 CheckConflicts::Yes,
+                                 /*allowExisting*/ true));
+}
+
+TEST_F(WarmupTest, MB_31450_newCp) {
+    MB_31450(true);
+}
+
+TEST_F(WarmupTest, MB_31450) {
+    MB_31450(false);
 }
 
 // Test fixture for Durability-related Warmup tests.
