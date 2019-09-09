@@ -1544,6 +1544,27 @@ couchstore_error_t CouchKVStore::openSpecificDB(uint16_t vbucketId,
         options |= COUCHSTORE_OPEN_FLAG_UNBUFFERED;
     }
 
+    /* get the flags that determine the tracing and validation of
+     *  couchstore file operations
+     */
+    if (configuration.getCouchstoreTracingEnabled()) {
+        options |= COUCHSTORE_OPEN_WITH_TRACING;
+        if (!(options & COUCHSTORE_OPEN_FLAG_RDONLY)) {
+            TRACE_INSTANT2("couchstore_write",
+                       "openSpecificDB",
+                       "vbucketId",
+                       vbucketId,
+                       "fileRev",
+                       fileRev);
+        }
+    }
+    if (configuration.getCouchstoreWriteValidationEnabled()) {
+        options |= COUCHSTORE_OPEN_WITH_WRITE_VALIDATION;
+    }
+    if (configuration.getCouchstoreMprotectEnabled()) {
+        options |= COUCHSTORE_OPEN_WITH_MPROTECT;
+    }
+
     errorCode = couchstore_open_db_ex(
             dbFileName.c_str(), options, ops, db.getDbAddress());
 
