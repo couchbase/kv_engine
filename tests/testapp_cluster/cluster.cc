@@ -223,6 +223,10 @@ void ClusterImpl::deleteBucket(const std::string& name) {
         connection->connect();
         connection->authenticate("@admin", "password", "plain");
         connection->deleteBucket(name);
+        // And nuke the files for the database on that node..
+        std::string bucketdir = n->directory + "/" + name;
+        cb::io::sanitizePath(bucketdir);
+        cb::io::rmrf(bucketdir);
     }
 }
 
