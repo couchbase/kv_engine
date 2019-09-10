@@ -128,3 +128,17 @@ TEST_P(DcpTest, UnorderedExecutionNotSupported) {
     EXPECT_FALSE(rsp.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
 }
+
+/// DCP connections should not be able to select bucket
+TEST_P(DcpTest, MB35904_DcpCantSelectBucket) {
+    auto& conn = getAdminConnection();
+    conn.selectBucket("default");
+    auto rsp = conn.execute(BinprotDcpOpenCommand{
+            "ewb_internal:1", 0, cb::mcbp::request::DcpOpenPayload::Producer});
+    ASSERT_TRUE(rsp.isSuccess());
+
+    rsp = conn.execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::SelectBucket, name});
+    ASSERT_FALSE(rsp.isSuccess());
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
+}

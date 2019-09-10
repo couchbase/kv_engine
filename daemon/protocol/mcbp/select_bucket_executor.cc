@@ -39,6 +39,19 @@ ENGINE_ERROR_CODE select_bucket(Cookie& cookie, const std::string& bucketname) {
         return ENGINE_EACCESS;
     }
 
+    if (connection.isDCP()) {
+        cookie.setErrorContext("DCP connections cannot change bucket");
+        LOG_INFO(
+                "{}: select_bucket failed - DCP connection. "
+                R"({{"cid":"{}/{:x}","connection":"{}","bucket":"{}"}})",
+                connection.getId(),
+                connection.getConnectionId().data(),
+                ntohl(cookie.getRequest().getOpaque()),
+                connection.getDescription(),
+                bucketname);
+        return ENGINE_ENOTSUP;
+    }
+
     // We can't switch bucket if we've got multiple commands in flight
     if (connection.getNumberOfCookies() > 1) {
         LOG_INFO(
