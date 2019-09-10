@@ -43,7 +43,12 @@ Flags are specified as a bitmask in network byte order with the following bits d
 
 When setting the Producer or Consumer flag the sender is telling the server what type of connection will be created. For example, if the Producer type is set then the sender of the Open Connection message will be a Consumer.
 
-The connection name is specified using the key field. When selecting a name the only requirement is that the name take up no more space than 256 bytes. It is recommended that the name uses that ASCII character set and uses alpha-numeric characters. It is highly advantageous for improved supportability Couchbase Server that the connection names embed as much contextual information as possible from the client.
+The connection name is specified using the key field. When selecting a name the
+only requirement is that the name take up no more space than 200 bytes. It is
+recommended that the name uses that ASCII character set and uses alpha-numeric
+characters. It is highly advantageous for improved supportability Couchbase
+Server that the connection names embed as much contextual information as
+possible from the client.
 
 As of version 6.5, the _value_ can be used to specify additional information
 about the connection to be opened. If non-empty, the value must be a JSON
