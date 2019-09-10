@@ -1784,7 +1784,6 @@ magma::Status MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
     minfo->docCount = std::stoull(j.at("doc_count").get<std::string>());
     minfo->persistedDeletes =
             std::stoull(j.at("persisted_deletes").get<std::string>());
-    minfo->purgeSeqno = std::stoull(j.at("purge_seqno").get<std::string>());
     minfo->kvstoreRev.reset(
             std::stoull(j.at("kvstore_revision").get<std::string>()));
 
@@ -1901,8 +1900,6 @@ nlohmann::json MagmaKVStore::encodeVBState(const vbucket_state& vbstate,
     j["doc_count"] = std::to_string(static_cast<uint64_t>(magmaInfo.docCount));
     j["persisted_deletes"] =
             std::to_string(static_cast<uint64_t>(magmaInfo.persistedDeletes));
-    j["purge_seqno"] =
-            std::to_string(static_cast<uint64_t>(magmaInfo.purgeSeqno));
     j["kvstore_revision"] =
             std::to_string(static_cast<uint64_t>(magmaInfo.kvstoreRev));
     return j;
@@ -2123,7 +2120,7 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
     MagmaInfo minfo;
     {
         std::lock_guard<std::shared_timed_mutex> lock(kvHandle->vbstateMutex);
-        cachedMagmaInfo[vbid.get()]->purgeSeqno = ctx->max_purged_seq;
+        cachedVBStates[vbid.get()]->purgeSeqno = ctx->max_purged_seq;
         vbs = *cachedVBStates[vbid.get()].get();
         minfo = *cachedMagmaInfo[vbid.get()].get();
     }

@@ -58,11 +58,9 @@ public:
     void reset() {
         docCount = 0;
         persistedDeletes = 0;
-        purgeSeqno = 0;
     }
     cb::NonNegativeCounter<uint64_t> docCount{0};
     cb::NonNegativeCounter<uint64_t> persistedDeletes{0};
-    cb::NonNegativeCounter<uint64_t> purgeSeqno{0};
     Monotonic<uint64_t> kvstoreRev{1};
 };
 
