@@ -28,5 +28,8 @@ constexpr std::size_t TotalBuckets = 100;
 /// users in a document
 constexpr std::size_t PrivilegedBytes = 1024 * 1024;
 
+/// The maximum length of a DCP connection
+constexpr std::size_t MaxDcpName = 200;
+
 } // namespace limits
 } // namespace cb
