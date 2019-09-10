@@ -355,6 +355,13 @@ static const magmakv::MetaData& getDocMeta(const Slice& metaSlice) {
     return *docMeta;
 }
 
+static const bool isPrepared(const Slice& metaSlice) {
+    magmakv::MetaData* docMeta = reinterpret_cast<magmakv::MetaData*>(
+            const_cast<char*>(metaSlice.Data()));
+    return static_cast<magmakv::MetaData::Operation>(docMeta->operation) ==
+           magmakv::MetaData::Operation::PreparedSyncWrite;
+}
+
 static DiskDocKey makeDiskDocKey(const Slice& key) {
     return DiskDocKey{key.Data(), key.Len()};
 }
@@ -422,6 +429,9 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                 if (!isDeleted(metaSlice)) {
                     cbCtx.ctx->stats.collectionsItemsPurged++;
                 } else {
+                    if (isPrepared(metaSlice)) {
+                        cbCtx.ctx->stats.preparesPurged++;
+                    }
                     cbCtx.ctx->stats.collectionsDeletedItemsPurged++;
                 }
                 return true;
@@ -441,7 +451,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                     logger->TRACE("MagmaCompactionCB DROP drop_deletes {}",
                                   itemString.str());
                     cbCtx.ctx->stats.tombstonesPurged++;
-                    if (seqno > cbCtx.ctx->max_purged_seq) {
+                    if (cbCtx.ctx->max_purged_seq < seqno) {
                         cbCtx.ctx->max_purged_seq = seqno;
                     }
                     return true;
@@ -455,13 +465,23 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                     logger->TRACE("MagmaCompactionCB DROP expired tombstone {}",
                                   itemString.str());
                     cbCtx.ctx->stats.tombstonesPurged++;
-                    if (seqno > cbCtx.ctx->max_purged_seq) {
+                    if (cbCtx.ctx->max_purged_seq < seqno) {
                         cbCtx.ctx->max_purged_seq = seqno;
                     }
                     return true;
                 }
             }
         } else {
+            // We can remove any prepares that have been completed. This works
+            // because we send Mutations instead of Commits when streaming from
+            // Disk so we do not need to send a Prepare message to keep things
+            // consistent on a replica.
+            if (isPrepared(metaSlice)) {
+                if (cbCtx.ctx->max_purged_seq < seqno) {
+                    cbCtx.ctx->stats.preparesPurged++;
+                    return true;
+                }
+            }
             time_t currTime = ep_real_time();
             if (exptime && exptime < currTime) {
                 auto docMeta = getDocMeta(metaSlice);
@@ -1362,18 +1382,30 @@ int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
                 // Old item is a delete and new is an insert.
                 if (!req.isDelete()) {
                     ninserts++;
-                    collectionsFlush.incrementDiskCount(docKey);
+                    if (diskDocKey.isCommitted()) {
+                        collectionsFlush.incrementDiskCount(docKey);
+                    } else {
+                        kvctx.onDiskPrepareDelta++;
+                    }
                 }
             } else if (req.isDelete()) {
                 // Old item is insert and new is delete.
                 ndeletes++;
-                collectionsFlush.decrementDiskCount(docKey);
+                if (diskDocKey.isCommitted()) {
+                    collectionsFlush.decrementDiskCount(docKey);
+                } else {
+                    kvctx.onDiskPrepareDelta--;
+                }
             }
         } else {
             // Old item doesn't exist and new is an insert.
             if (!req.isDelete()) {
                 ninserts++;
-                collectionsFlush.incrementDiskCount(docKey);
+                if (diskDocKey.isCommitted()) {
+                    collectionsFlush.incrementDiskCount(docKey);
+                } else {
+                    kvctx.onDiskPrepareDelta++;
+                }
             }
         }
 
@@ -1405,6 +1437,7 @@ int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
         auto vbstate = cachedVBStates[vbid.get()].get();
         if (vbstate) {
             vbstate->highSeqno = lastSeqno;
+            vbstate->onDiskPrepares += kvctx.onDiskPrepareDelta;
 
             auto magmaInfo = cachedMagmaInfo[vbid.get()].get();
             magmaInfo->docCount += ninserts - ndeletes;
@@ -2037,6 +2070,12 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
     ctx->eraserContext =
             std::make_unique<Collections::VB::EraserContext>(dropped);
 
+    {
+        std::lock_guard<std::shared_timed_mutex> lock(kvHandle->vbstateMutex);
+        ctx->highCompletedSeqno =
+                cachedVBStates[vbid.get()]->highCompletedSeqno;
+    }
+
     // If there aren't any collections to drop, this compaction is likely
     // being called from a test because kv_engine shouldn't call compactDB
     // to compact levels, magma takes care of that already.
@@ -2056,7 +2095,7 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
 
             if (logger->should_log(spdlog::level::TRACE)) {
                 auto docKey = makeDiskDocKey(keySlice);
-                logger->TRACE("PurgeKVStore {} key:{} {}",
+                logger->TRACE("PurgeKVStore {} key:{}",
                               vbid,
                               cb::UserData{docKey.to_string()});
             }
@@ -2120,7 +2159,10 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
     MagmaInfo minfo;
     {
         std::lock_guard<std::shared_timed_mutex> lock(kvHandle->vbstateMutex);
+        cachedVBStates[vbid.get()]->onDiskPrepares -= ctx->stats.preparesPurged;
         cachedVBStates[vbid.get()]->purgeSeqno = ctx->max_purged_seq;
+        cachedMagmaInfo[vbid.get()]->docCount -=
+                ctx->stats.collectionsItemsPurged + ctx->stats.preparesPurged;
         vbs = *cachedVBStates[vbid.get()].get();
         minfo = *cachedMagmaInfo[vbid.get()].get();
     }
@@ -2164,11 +2206,13 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
             "MagmaKVStore::compactDB max_purged_seq:{}"
             " collectionsItemsPurged:{}"
             " collectionsDeletedItemsPurged:{}"
-            " tombstonesPurged:{}",
+            " tombstonesPurged:{}"
+            " preparesPurged:{}",
             ctx->max_purged_seq,
             ctx->stats.collectionsItemsPurged,
             ctx->stats.collectionsDeletedItemsPurged,
-            ctx->stats.tombstonesPurged);
+            ctx->stats.tombstonesPurged,
+            ctx->stats.preparesPurged);
 
     {
         std::lock_guard<std::mutex> lock(compactionCtxMutex);
