@@ -32,6 +32,8 @@
 #include <memcached/server_cookie_iface.h>
 #include <phosphor/phosphor.h>
 
+#include <utility>
+
 const std::string DcpConsumer::noopCtrlMsg = "enable_noop";
 const std::string DcpConsumer::noopIntervalCtrlMsg = "set_noop_interval";
 const std::string DcpConsumer::connBufferCtrlMsg = "connection_buffer_size";

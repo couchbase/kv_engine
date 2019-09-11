@@ -870,7 +870,9 @@ protected:
     ENGINE_ERROR_CODE doDurabilityMonitorDump(const void* cookie,
                                               const AddStatFn& addStat,
                                               cb::const_char_buffer keyArgs);
-    ENGINE_ERROR_CODE doDcpStats(const void* cookie, const AddStatFn& add_stat);
+    ENGINE_ERROR_CODE doDcpStats(const void* cookie,
+                                 const AddStatFn& add_stat,
+                                 cb::const_char_buffer value);
     ENGINE_ERROR_CODE doEvictionStats(const void* cookie,
                                       const AddStatFn& add_stat);
     ENGINE_ERROR_CODE doConnAggStats(const void* cookie,

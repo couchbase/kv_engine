@@ -221,6 +221,11 @@ struct ServerCookieIface {
     virtual std::pair<uint32_t, std::string> get_log_info(
             gsl::not_null<const void*> cookie) = 0;
 
+    virtual std::string get_authenticated_user(
+            gsl::not_null<const void*> cookie) = 0;
+
+    virtual in_port_t get_connected_port(gsl::not_null<const void*> cookie) = 0;
+
     /**
      * Set the error context string to be sent in response. This should not
      * contain security sensitive information. If sensitive information needs to

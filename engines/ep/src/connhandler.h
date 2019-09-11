@@ -85,10 +85,11 @@ public:
         Unknown
     };
 
-    ConnHandler(EventuallyPersistentEngine& engine, const void* c,
-                const std::string& name);
+    ConnHandler(EventuallyPersistentEngine& engine,
+                const void* c,
+                std::string name);
 
-    virtual ~ConnHandler() {}
+    virtual ~ConnHandler();
 
     virtual ENGINE_ERROR_CODE addStream(uint32_t opaque,
                                         Vbid vbucket,
@@ -331,6 +332,14 @@ public:
         paused.store(false);
     }
 
+    const std::string& getAuthenticatedUser() const {
+        return authenticatedUser;
+    }
+
+    in_port_t getConnectedPort() const {
+        return connected_port;
+    }
+
 protected:
     EventuallyPersistentEngine &engine_;
     EPStats &stats;
@@ -370,6 +379,12 @@ private:
 
     //! Description of why the connection is paused.
     std::atomic<PausedReason> reason;
+
+    /// The authenticated user the connection
+    const std::string authenticatedUser;
+
+    /// The port the connection is connected to
+    const in_port_t connected_port;
 };
 
 std::string to_string(ConnHandler::PausedReason r);

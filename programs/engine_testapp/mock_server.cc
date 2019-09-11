@@ -361,6 +361,17 @@ struct MockServerCookieApi : public ServerCookieIface {
         return std::make_pair(uint32_t(0xdead), std::string{"[you - me]"});
     }
 
+    std::string get_authenticated_user(
+            gsl::not_null<const void*> cookie) override {
+        auto* c = cookie_to_mock_object(cookie.get());
+        return c->authenticatedUser;
+    }
+
+    in_port_t get_connected_port(gsl::not_null<const void*> cookie) override {
+        auto* c = cookie_to_mock_object(cookie.get());
+        return c->parent_port;
+    }
+
     void set_error_context(gsl::not_null<void*> cookie,
                            cb::const_char_buffer message) override {
     }

@@ -113,6 +113,13 @@ public:
             gsl::not_null<const void*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
+    std::string get_authenticated_user(
+            gsl::not_null<const void*> cookie) override {
+        throw std::runtime_error("Not implemented");
+    }
+    in_port_t get_connected_port(gsl::not_null<const void*> cookie) override {
+        throw std::runtime_error("Not implemented");
+    }
     void set_error_context(gsl::not_null<void*> cookie,
                            cb::const_char_buffer message) override {
         throw std::runtime_error("Not implemented");

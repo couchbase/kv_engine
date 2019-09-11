@@ -28,6 +28,8 @@ struct MockCookie : cb::tracing::Traceable {
     int references{1};
     uint64_t num_io_notifications{};
     uint64_t num_processed_notifications{};
+    std::string authenticatedUser{"nobody"};
+    in_port_t parent_port{666};
 
     void validate() const;
 

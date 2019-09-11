@@ -140,6 +140,13 @@ public:
             gsl::not_null<const void*> cookie) override {
         return wrapped->get_log_info(cookie);
     }
+    std::string get_authenticated_user(
+            gsl::not_null<const void*> cookie) override {
+        return wrapped->get_authenticated_user(cookie);
+    }
+    in_port_t get_connected_port(gsl::not_null<const void*> cookie) override {
+        return wrapped->get_connected_port(cookie);
+    }
     void set_error_context(gsl::not_null<void*> cookie,
                            cb::const_char_buffer message) override {
         wrapped->set_error_context(cookie, message);

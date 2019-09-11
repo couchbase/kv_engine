@@ -1702,6 +1702,18 @@ struct ServerCookieApi : public ServerCookieIface {
                               cookie->getConnection().getDescription());
     }
 
+    std::string get_authenticated_user(
+            gsl::not_null<const void*> void_cookie) override {
+        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+        return cookie->getConnection().getUsername();
+    }
+
+    in_port_t get_connected_port(
+            gsl::not_null<const void*> void_cookie) override {
+        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+        return cookie->getConnection().getParentPort();
+    }
+
     void set_error_context(gsl::not_null<void*> void_cookie,
                            cb::const_char_buffer message) override {
         auto* cookie = reinterpret_cast<Cookie*>(void_cookie.get());

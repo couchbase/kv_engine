@@ -43,21 +43,25 @@ std::string to_string(ConnHandler::PausedReason r) {
 
 ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
                          const void* c,
-                         const std::string& n)
+                         std::string n)
     : engine_(e),
       stats(engine_.getEpStats()),
-      name(n),
+      name(std::move(n)),
       cookie(const_cast<void*>(c)),
       reserved(false),
       created(ep_current_time()),
       disconnect(false),
-      paused(false) {
+      paused(false),
+      authenticatedUser(e.getServerApi()->cookie->get_authenticated_user(c)),
+      connected_port(e.getServerApi()->cookie->get_connected_port(c)) {
     logger = BucketLogger::createBucketLogger(
             std::to_string(reinterpret_cast<uintptr_t>(this)));
 
     auto connId = e.getServerApi()->cookie->get_log_info(c).first;
     logger->setConnectionId(connId);
 }
+
+ConnHandler::~ConnHandler() = default;
 
 ENGINE_ERROR_CODE ConnHandler::addStream(uint32_t opaque,
                                          Vbid,

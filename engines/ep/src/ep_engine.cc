@@ -3510,27 +3510,76 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDurabilityMonitorStats(
     return ENGINE_SUCCESS;
 }
 
+class DcpStatsFilter {
+public:
+    explicit DcpStatsFilter(cb::const_char_buffer value) {
+        if (!value.empty()) {
+            try {
+                auto attributes = nlohmann::json::parse(value);
+                auto filter = attributes.find("filter");
+                if (filter != attributes.end()) {
+                    auto iter = filter->find("user");
+                    if (iter != filter->end()) {
+                        user.reset(cb::tagUserData(iter->get<std::string>()));
+                    }
+                    iter = filter->find("port");
+                    if (iter != filter->end()) {
+                        port.reset(iter->get<in_port_t>());
+                    }
+                }
+            } catch (const std::exception& e) {
+                EP_LOG_ERR(
+                        "Failed to decode provided DCP filter: {}. Filter:{}",
+                        e.what(),
+                        value);
+            }
+        }
+    }
+
+    bool include(const std::shared_ptr<ConnHandler>& tc) {
+        if ((user && *user != tc->getAuthenticatedUser()) ||
+            (port && *port != tc->getConnectedPort())) {
+            // Connection should not be part of this output
+            return false;
+        }
+
+        return true;
+    }
+
+protected:
+    boost::optional<std::string> user;
+    boost::optional<in_port_t> port;
+};
+
 /**
  * Function object to send stats for a single dcp connection.
  */
 struct ConnStatBuilder {
-    ConnStatBuilder(const void* c, const AddStatFn& as, ConnCounter& tc)
-        : cookie(c), add_stat(as), aggregator(tc) {
+    ConnStatBuilder(const void* c,
+                    AddStatFn as,
+                    DcpStatsFilter filter,
+                    ConnCounter& tc)
+        : cookie(c),
+          add_stat(std::move(as)),
+          filter(std::move(filter)),
+          aggregator(tc) {
     }
 
     void operator()(std::shared_ptr<ConnHandler> tc) {
         ++aggregator.totalConns;
-        tc->addStats(add_stat, cookie);
-
-        auto tp = std::dynamic_pointer_cast<DcpProducer>(tc);
-        if (tp) {
-            ++aggregator.totalProducers;
-            tp->aggregateQueueStats(aggregator);
+        if (filter.include(tc)) {
+            tc->addStats(add_stat, cookie);
+            auto tp = std::dynamic_pointer_cast<DcpProducer>(tc);
+            if (tp) {
+                ++aggregator.totalProducers;
+                tp->aggregateQueueStats(aggregator);
+            }
         }
     }
 
     const void *cookie;
     AddStatFn add_stat;
+    DcpStatsFilter filter;
     ConnCounter& aggregator;
 };
 
@@ -3670,9 +3719,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doDcpStats(
-        const void* cookie, const AddStatFn& add_stat) {
+        const void* cookie,
+        const AddStatFn& add_stat,
+        cb::const_char_buffer value) {
     ConnCounter aggregator;
-    ConnStatBuilder dcpVisitor(cookie, add_stat, aggregator);
+    ConnStatBuilder dcpVisitor(
+            cookie, add_stat, DcpStatsFilter{value}, aggregator);
     dcpConnMap_->each(dcpVisitor);
 
     add_casted_stat("ep_dcp_count", aggregator.totalConns, add_stat, cookie);
@@ -4343,7 +4395,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         return doConnAggStats(cookie, add_stat, key.data() + 7, key.size() - 7);
     }
     if (key == "dcp"_ccb) {
-        return doDcpStats(cookie, add_stat);
+        return doDcpStats(cookie, add_stat, value);
     }
     if (key == "eviction"_ccb) {
         return doEvictionStats(cookie, add_stat);
