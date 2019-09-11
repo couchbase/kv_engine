@@ -19,6 +19,7 @@
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint.h"
 #include "checkpoint_utils.h"
+#include "durability/durability_completion_task.h"
 #include "durability/durability_monitor.h"
 #include "item.h"
 #include "kv_bucket.h"
@@ -26,6 +27,8 @@
 #include "vbucket_state.h"
 
 #include <engines/ep/src/ephemeral_tombstone_purger.h>
+#include <engines/ep/tests/mock/mock_ep_bucket.h>
+#include <engines/ep/tests/mock/mock_ephemeral_bucket.h>
 #include <engines/ep/tests/mock/mock_paging_visitor.h>
 #include <programs/engine_testapp/mock_server.h>
 
@@ -1722,6 +1725,62 @@ TEST_P(DurabilityBucketTest, SyncDeleteAfterAbortedSyncDelete) {
     // Item should no longer exist.
     auto gv = store->get(key, vbid, cookie, get_options_t());
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+}
+
+/**
+ * Test that the DurabilityCompletionTask correctly deals with a vBucket going
+ * away.
+ */
+TEST_P(DurabilityBucketTest, RunCompletionTaskNoVBucket) {
+    setVBucketToActiveWithValidTopology();
+
+    auto task = std::make_shared<DurabilityCompletionTask>(*engine);
+    if (persistent()) {
+        auto* mockStore = static_cast<MockEPBucket*>(store);
+        mockStore->setDurabilityCompletionTask(task);
+    } else {
+        auto* mockStore = static_cast<MockEphemeralBucket*>(store);
+        mockStore->setDurabilityCompletionTask(task);
+    }
+
+    // Schedule the task so that we can run it later
+    task_executor->schedule(task);
+
+    // Make pending
+    auto key = makeStoredDocKey("key");
+    using namespace cb::durability;
+    auto pending = makePendingItem(key, "value");
+
+    Vbid vbid = Vbid(0);
+    pending->setVBucketId(vbid);
+
+    // Store it
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
+
+    { // Scope for vbptr
+        auto vb = store->getVBucket(vbid);
+        auto& dm = vb->getDurabilityMonitor();
+
+        EXPECT_EQ(0, dm.getHighCompletedSeqno());
+        EXPECT_EQ(1, dm.getNumTracked());
+
+        {
+            auto rlh = folly::SharedMutex::ReadHolder(vb->getStateLock());
+            vb->seqnoAcknowledged(rlh, "replica", 1);
+        }
+
+        // Not completed yet as we have not run the task
+        EXPECT_EQ(0, vb->getHighCompletedSeqno());
+        EXPECT_EQ(0, dm.getNumTracked());
+    }
+
+    // Delete the vBucket
+    store->deleteVBucket(vbid, nullptr);
+
+    // When the task runs, it should not segfault due to the vBucket having
+    // been deleted.
+    auto& taskQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(taskQ, task->getDescription());
 }
 
 TEST_P(DurabilityBucketTest, TakeoverSendsDurabilityAmbiguous) {

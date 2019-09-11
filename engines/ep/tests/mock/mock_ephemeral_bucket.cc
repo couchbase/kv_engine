@@ -63,3 +63,8 @@ VBucketPtr MockEphemeralBucket::makeVBucket(
             /*flusher callback*/ nullptr);
     return vptr;
 }
+
+void MockEphemeralBucket::setDurabilityCompletionTask(
+        std::shared_ptr<DurabilityCompletionTask> task) {
+    durabilityCompletionTask = task;
+}

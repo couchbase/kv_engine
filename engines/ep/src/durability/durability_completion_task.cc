@@ -57,7 +57,10 @@ bool DurabilityCompletionTask::run() {
     for (size_t count = 0; count < pendingVBs.size();
          count++, vbid = (vbid + 1) % pendingVBs.size()) {
         if (pendingVBs[vbid].exchange(false)) {
-            engine->getVBucket(Vbid(vbid))->processResolvedSyncWrites();
+            auto vb = engine->getVBucket(Vbid(vbid));
+            if (vb) {
+                vb->processResolvedSyncWrites();
+            }
         }
         // Yield back to scheduler if we have exceeded the maximum runtime
         // for a single execution.
@@ -73,7 +76,7 @@ bool DurabilityCompletionTask::run() {
 
 void DurabilityCompletionTask::notifySyncWritesToComplete(Vbid vbid) {
     bool expected = false;
-    if (!pendingVBs[vbid.get()].compare_exchange_strong(expected, true)) {
+    if (pendingVBs[vbid.get()].compare_exchange_strong(expected, true)) {
         // This VBucket transitioned from false -> true - wake ourselves up so
         // we can start to process the SyncWrites.
         expected = false;
