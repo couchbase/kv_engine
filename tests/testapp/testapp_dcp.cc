@@ -142,3 +142,26 @@ TEST_P(DcpTest, MB35904_DcpCantSelectBucket) {
     ASSERT_FALSE(rsp.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
 }
+
+/// DCP connections should not be able to perform SASL AUTH
+TEST_P(DcpTest, MB35928_DcpCantReauthenticate) {
+    auto& conn = getAdminConnection();
+    conn.selectBucket("default");
+    auto rsp = conn.execute(BinprotDcpOpenCommand{
+            "ewb_internal:1", 0, cb::mcbp::request::DcpOpenPayload::Producer});
+    ASSERT_TRUE(rsp.isSuccess());
+
+    rsp = conn.execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::SaslListMechs});
+    ASSERT_FALSE(rsp.isSuccess());
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus())
+            << "SASL LIST MECH should fail";
+
+    try {
+        conn.authenticate("@admin", "password", "plain");
+        FAIL() << "DCP connections should not be able to reauthenticate";
+    } catch (const ConnectionError& error) {
+        EXPECT_EQ(cb::mcbp::Status::NotSupported, error.getReason())
+                << "SASL AUTH should fail";
+    }
+}

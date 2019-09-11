@@ -782,6 +782,13 @@ public:
         return saslAuthEnabled;
     }
 
+    /**
+     * Disable the ability for the connected client to perform SASL AUTH
+     */
+    void disableSaslAuth() {
+        saslAuthEnabled = false;
+    }
+
     bool selectedBucketIsXattrEnabled() const;
 
     /**
